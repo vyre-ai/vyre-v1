@@ -23,7 +23,12 @@ export function consolePageOf(t: OpenTarget): string | null {
 }
 
 /** The read each kind of item makes when it opens: the destination's own get. A kind not listed has no read, and the door lets it through. */
-const READS: Readonly<Record<string, (id: string, args: Readonly<Record<string, unknown>>) => { cap: string; input: Record<string, unknown> } | null>> = {
+const READS: Readonly<
+  Record<
+    string,
+    (id: string, args: Readonly<Record<string, unknown>>) => { cap: string; input: Record<string, unknown> } | null
+  >
+> = {
   thread: (id) => ({ cap: "threads.get", input: { threadId: id } }),
   channel: (id) => ({ cap: "threads.get", input: { threadId: id } }),
   folder: (id) => ({ cap: "files.folder.get", input: { folderId: id } }),
@@ -40,18 +45,29 @@ const READS: Readonly<Record<string, (id: string, args: Readonly<Record<string, 
   doc: (id) => ({ cap: "files.get", input: { fileId: id } }),
   document: (id) => ({ cap: "files.get", input: { fileId: id } }),
   // a record is read by its type and id; a record opened without its type is left to the destination
-  record: (id, args) => (typeof args["type"] === "string" && args["type"] !== "" ? { cap: "records.get", input: { type: args["type"], recordId: id } } : null),
-  contact: (id, args) => (typeof args["type"] === "string" && args["type"] !== "" ? { cap: "records.get", input: { type: args["type"], recordId: id } } : null),
+  record: (id, args) =>
+    typeof args["type"] === "string" && args["type"] !== ""
+      ? { cap: "records.get", input: { type: args["type"], recordId: id } }
+      : null,
+  contact: (id, args) =>
+    typeof args["type"] === "string" && args["type"] !== ""
+      ? { cap: "records.get", input: { type: args["type"], recordId: id } }
+      : null,
 };
 
 /** The read that tells whether the viewer may open this item. Null when the target is not an item (a screen of a place, the shell's own). */
 export function readOf(t: OpenTarget): { cap: string; input: Record<string, unknown> } | null {
   if (t.subject) return READS[t.subject.type]?.(t.subject.id, t.args ?? {}) ?? null;
   const agent = typeof t.args?.["agentId"] === "string" && t.args["agentId"] !== "" ? t.args["agentId"] : null;
-  if ((t.screen === "chats.agent-page" || t.screen === "chats.agent-form") && agent !== null) return READS["agent"]!(agent, {});
-  const computer = t.screen === "chats.agent-computer" && typeof t.args?.["computerId"] === "string" ? t.args["computerId"] : null;
+  if ((t.screen === "chats.agent-page" || t.screen === "chats.agent-form") && agent !== null)
+    return READS["agent"]!(agent, {});
+  const computer =
+    t.screen === "chats.agent-computer" && typeof t.args?.["computerId"] === "string" ? t.args["computerId"] : null;
   if (computer !== null) return { cap: "computers.get", input: { computerId: computer } };
-  const thread = (t.screen === "chats.conversation") && typeof t.args?.["threadId"] === "string" && t.args["threadId"] !== "" ? t.args["threadId"] : null;
+  const thread =
+    t.screen === "chats.conversation" && typeof t.args?.["threadId"] === "string" && t.args["threadId"] !== ""
+      ? t.args["threadId"]
+      : null;
   if (thread !== null) return READS["thread"]!(thread, {});
   return null;
 }
@@ -59,7 +75,13 @@ export function readOf(t: OpenTarget): { cap: string; input: Record<string, unkn
 /** Does the Space's answer say the viewer has no access (permission or not found), as opposed to the Space not answering? */
 export function isDenial(e: unknown): boolean {
   const code = String((e as { code?: unknown } | null)?.code ?? "");
-  return code.startsWith("permission.") || code === "auth.forbidden" || code === "not_found" || code.endsWith(".not_found") || code.endsWith(".forbidden");
+  return (
+    code.startsWith("permission.") ||
+    code === "auth.forbidden" ||
+    code === "not_found" ||
+    code.endsWith(".not_found") ||
+    code.endsWith(".forbidden")
+  );
 }
 
 export interface Judge {
@@ -90,13 +112,22 @@ export async function judge(t: OpenTarget, j: Judge): Promise<Reach> {
   const sub0 = t.subject;
   if (sub0 && j.links) {
     const lv = j.links.levelOf(sub0);
-    if (lv !== undefined) return reach({ kind: "item", type: sub0.type, id: sub0.id, title: "", level: lv }, j.viewer());
+    if (lv !== undefined)
+      return reach({ kind: "item", type: sub0.type, id: sub0.id, title: "", level: lv }, j.viewer());
   }
   const key = `${read.cap}:${JSON.stringify(read.input)}`;
   const known = j.memo?.get(key);
   let level: Level = known ?? "view";
   if (known === undefined) {
-    try { await j.call(read.cap, read.input); j.memo?.set(key, "view"); } catch (e) { if (isDenial(e)) { level = "none"; j.memo?.set(key, "none"); } }
+    try {
+      await j.call(read.cap, read.input);
+      j.memo?.set(key, "view");
+    } catch (e) {
+      if (isDenial(e)) {
+        level = "none";
+        j.memo?.set(key, "none");
+      }
+    }
   }
   const sub = t.subject ?? { type: "screen", id: t.screen ?? "" };
   return reach({ kind: "item", type: sub.type, id: sub.id, title: "", level }, j.viewer());

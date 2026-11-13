@@ -27,12 +27,18 @@ export function verdict(report, env = {}) {
 
 /** The role the doctor should check: space when VYRE_ROLE names it (or says nothing), else device. */
 export function doctorRole(env) {
-  const roles = String(env.VYRE_ROLE ?? "space").split(",").map((s) => s.trim());
+  const roles = String(env.VYRE_ROLE ?? "space")
+    .split(",")
+    .map((s) => s.trim());
   return roles.includes("space") ? "space" : "device";
 }
 
 function localUrl(dataDir) {
-  try { return JSON.parse(fs.readFileSync(path.join(dataDir, "vyred.json"), "utf8")).url; } catch { return null; }
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dataDir, "vyred.json"), "utf8")).url;
+  } catch {
+    return null;
+  }
 }
 
 export async function check(env = process.env) {
@@ -43,10 +49,23 @@ export async function check(env = process.env) {
     const r = await fetch(`${url}/healthz`, { signal: AbortSignal.timeout(5000) });
     const body = await r.json();
     if (!r.ok || body?.ok === false) return { ok: false, why: `/healthz answered ${r.status}` };
-  } catch (e) { return { ok: false, why: `/healthz did not answer: ${e instanceof Error ? e.message : String(e)}` }; }
-  const run = spawnSync(process.execPath, [CLI, "doctor", "--offline", "--quick", "--json", "--role", doctorRole(env), "--data-dir", dataDir], { encoding: "utf8", env: { ...env, VYRE_PROGRAM: "vyre-server" }, timeout: 8000 });
+  } catch (e) {
+    return { ok: false, why: `/healthz did not answer: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const run = spawnSync(
+    process.execPath,
+    [CLI, "doctor", "--offline", "--quick", "--json", "--role", doctorRole(env), "--data-dir", dataDir],
+    { encoding: "utf8", env: { ...env, VYRE_PROGRAM: "vyre-server" }, timeout: 8000 },
+  );
   let report;
-  try { report = JSON.parse(run.stdout); } catch { return { ok: false, why: `the doctor printed no report${run.stderr ? `: ${run.stderr.trim().slice(0, 200)}` : ""}` }; }
+  try {
+    report = JSON.parse(run.stdout);
+  } catch {
+    return {
+      ok: false,
+      why: `the doctor printed no report${run.stderr ? `: ${run.stderr.trim().slice(0, 200)}` : ""}`,
+    };
+  }
   return verdict(report, env);
 }
 

@@ -16,21 +16,59 @@ export interface OwnPair {
 }
 
 export const OWN_PAIRS: readonly OwnPair[] = [
-  { area: "automations", own: "automations.personal", space: "automations.space", title: "Automations: their own, or the Space's", says: "can build their own automations, not the Space's" },
-  { area: "agents", own: "agents.create", space: "agents.manage", title: "Agents: their own, or any agent", says: "can make their own agents, not change anyone else's" },
-  { area: "sites", own: "sites.deploy", space: "sites.promote", title: "Sites: their own to staging, or production for the Space", says: "can deploy their own sites to staging, not promote one to production" },
-  { area: "vault", own: null, space: "vault.shared_create", title: "Vault: their own items, or shared folders", says: "can keep their own Vault items, not make shared folders" },
-  { area: "space", own: null, space: "connectors.manage", title: "Connections: their own apps, or apps for the Space", says: "can connect their own apps, not apps for the whole Space" },
+  {
+    area: "automations",
+    own: "automations.personal",
+    space: "automations.space",
+    title: "Automations: their own, or the Space's",
+    says: "can build their own automations, not the Space's",
+  },
+  {
+    area: "agents",
+    own: "agents.create",
+    space: "agents.manage",
+    title: "Agents: their own, or any agent",
+    says: "can make their own agents, not change anyone else's",
+  },
+  {
+    area: "sites",
+    own: "sites.deploy",
+    space: "sites.promote",
+    title: "Sites: their own to staging, or production for the Space",
+    says: "can deploy their own sites to staging, not promote one to production",
+  },
+  {
+    area: "vault",
+    own: null,
+    space: "vault.shared_create",
+    title: "Vault: their own items, or shared folders",
+    says: "can keep their own Vault items, not make shared folders",
+  },
+  {
+    area: "space",
+    own: null,
+    space: "connectors.manage",
+    title: "Connections: their own apps, or apps for the Space",
+    says: "can connect their own apps, not apps for the whole Space",
+  },
 ];
 
 /** The pairs an area or a set of permissions touches (either part of a pair counts). */
 export function pairsFor(sel: { area?: string | undefined; perms?: readonly string[] | undefined }): OwnPair[] {
   const keys = new Set(sel.perms ?? []);
   // a whole area takes its pairs, except the Console area, whose one pair (connections) is offered only on that action
-  return OWN_PAIRS.filter((p) => (sel.area !== undefined && p.area === sel.area && p.area !== "space") || keys.has(p.space) || (p.own !== null && keys.has(p.own)));
+  return OWN_PAIRS.filter(
+    (p) =>
+      (sel.area !== undefined && p.area === sel.area && p.area !== "space") ||
+      keys.has(p.space) ||
+      (p.own !== null && keys.has(p.own)),
+  );
 }
 
 /** Own only as permissions: the own keys to allow and the Space keys to refuse. */
 export function ownOnly(pairs: readonly OwnPair[]): { allow: string[]; deny: string[] } {
-  return { allow: [...new Set(pairs.flatMap((p) => (p.own ? [p.own] : [])))].sort(), deny: [...new Set(pairs.map((p) => p.space))].sort() };
+  return {
+    allow: [...new Set(pairs.flatMap((p) => (p.own ? [p.own] : [])))].sort(),
+    deny: [...new Set(pairs.map((p) => p.space))].sort(),
+  };
 }

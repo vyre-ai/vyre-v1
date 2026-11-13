@@ -76,7 +76,9 @@ export function createMemoryStore(call: (cap: string, input: unknown) => Promise
   let focus: KnowsFocus = { messageId: null, asOf: null, seq: 0 };
   let requested = false;
   const keptMaps = new Map<string, Map<string, unknown>>();
-  const emit = (): void => { for (const l of [...listeners]) l(); };
+  const emit = (): void => {
+    for (const l of [...listeners]) l();
+  };
   const store: MemoryStore = {
     call,
     async write(cap, input) {
@@ -90,27 +92,61 @@ export function createMemoryStore(call: (cap: string, input: unknown) => Promise
       if (flying) return flying as Promise<T>;
       const at = version;
       const p = call(cap, input).then(
-        (out) => { if (at === version) { results.set(k, { status: "ready", data: out }); emit(); } return out as T; },
-        (e: unknown) => { if (at === version) { results.set(k, { status: "absent" }); emit(); } throw e; },
+        (out) => {
+          if (at === version) {
+            results.set(k, { status: "ready", data: out });
+            emit();
+          }
+          return out as T;
+        },
+        (e: unknown) => {
+          if (at === version) {
+            results.set(k, { status: "absent" });
+            emit();
+          }
+          throw e;
+        },
       );
       inflight.set(`${k}@${at}`, p);
-      void p.then(() => inflight.delete(`${k}@${at}`), () => inflight.delete(`${k}@${at}`));
+      void p.then(
+        () => inflight.delete(`${k}@${at}`),
+        () => inflight.delete(`${k}@${at}`),
+      );
       return p;
     },
     peek<T>(cap: string, input: unknown): Read<T> {
       return (results.get(keyOf(cap, input)) as Read<T> | undefined) ?? { status: "loading" };
     },
     version: () => version,
-    bump() { version += 1; emit(); },
-    subscribe(l) { listeners.add(l); return () => { listeners.delete(l); }; },
+    bump() {
+      version += 1;
+      emit();
+    },
+    subscribe(l) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
     knows: () => focus,
-    pinKnows(messageId, asOf) { focus = { messageId, asOf, seq: focus.seq + 1 }; requested = messageId !== null; emit(); },
+    pinKnows(messageId, asOf) {
+      focus = { messageId, asOf, seq: focus.seq + 1 };
+      requested = messageId !== null;
+      emit();
+    },
     kept<T>(key: string): Map<string, T> {
       let m = keptMaps.get(key);
-      if (!m) { m = new Map(); keptMaps.set(key, m); }
+      if (!m) {
+        m = new Map();
+        keptMaps.set(key, m);
+      }
       return m as Map<string, T>;
     },
-    takeKnowsRequest() { const r = requested; requested = false; return r; },
+    takeKnowsRequest() {
+      const r = requested;
+      requested = false;
+      return r;
+    },
   };
   return store;
 }
@@ -119,7 +155,13 @@ export function createMemoryStore(call: (cap: string, input: unknown) => Promise
 
 const Ctx = createContext<ChatMemoryData | null>(null);
 
-export function ChatMemoryContext({ value, children }: { value: ChatMemoryData | undefined; children: ReactNode }): ReactElement {
+export function ChatMemoryContext({
+  value,
+  children,
+}: {
+  value: ChatMemoryData | undefined;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value ?? null}>{children}</Ctx.Provider>;
 }
 
@@ -131,7 +173,11 @@ export function useChatMemory(): ChatMemoryData | null {
 /** The store's version: a component that reads through `useRead` re-renders when it changes. */
 export function useStoreVersion(store: MemoryStore | null): number {
   const sub = useMemo(() => (l: () => void) => (store ? store.subscribe(l) : () => undefined), [store]);
-  return useSyncExternalStore(sub, () => (store ? store.version() : 0), () => (store ? store.version() : 0));
+  return useSyncExternalStore(
+    sub,
+    () => (store ? store.version() : 0),
+    () => (store ? store.version() : 0),
+  );
 }
 
 /**
@@ -145,8 +191,17 @@ export function useRead<T>(store: MemoryStore | null, cap: string, input: unknow
   useEffect(() => {
     if (!store || input === null) return undefined;
     let live = true;
-    store.read(cap, input).then(() => { if (live) tick((n) => n + 1); }, () => { if (live) tick((n) => n + 1); });
-    return () => { live = false; };
+    store.read(cap, input).then(
+      () => {
+        if (live) tick((n) => n + 1);
+      },
+      () => {
+        if (live) tick((n) => n + 1);
+      },
+    );
+    return () => {
+      live = false;
+    };
     // the key stands for the input; the version moves after a write
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store, cap, key, version]);
@@ -158,7 +213,11 @@ export function useRead<T>(store: MemoryStore | null, cap: string, input: unknow
 export function useKnowsFocus(store: MemoryStore | null): KnowsFocus {
   const sub = useMemo(() => (l: () => void) => (store ? store.subscribe(l) : () => undefined), [store]);
   const none: KnowsFocus = useMemo(() => ({ messageId: null, asOf: null, seq: 0 }), []);
-  useSyncExternalStore(sub, () => (store ? store.knows().seq : 0), () => 0);
+  useSyncExternalStore(
+    sub,
+    () => (store ? store.knows().seq : 0),
+    () => 0,
+  );
   return store ? store.knows() : none;
 }
 

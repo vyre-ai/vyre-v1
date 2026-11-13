@@ -1,7 +1,14 @@
 // Provider failures as codes the engine and the accounts module understand (accounts/fallback.ts): auth and rate limits move a turn to the backup key, the rest is surfaced.
-export interface ApiError { code: string; message: string; status: number; retryable: boolean; retryAfterMs?: number }
+export interface ApiError {
+  code: string;
+  message: string;
+  status: number;
+  retryable: boolean;
+  retryAfterMs?: number;
+}
 
-const CONTEXT = /context.{0,20}(length|window)|too many tokens|prompt is too long|maximum context|input.{0,20}too long/i;
+const CONTEXT =
+  /context.{0,20}(length|window)|too many tokens|prompt is too long|maximum context|input.{0,20}too long/i;
 
 /** Class of a failed call. `text` is the body the provider sent, already cut short by the caller. */
 export function classify(status: number, text: string, code?: string): { code: string; retryable: boolean } {
@@ -11,9 +18,11 @@ export function classify(status: number, text: string, code?: string): { code: s
   // "Overloaded" (Anthropic 529, overloaded_error) is the vendor being busy, not a limit (owner ruling, 3 Nov 2026). The session does not retry it: the engine tries the same account once
   // more, then the backup, and the chat says so.
   if (status === 529 || code === "overloaded_error") return { code: "provider.overloaded", retryable: false };
-  if (status === 408 || status === 409 || status >= 500 || status === 0) return { code: "provider.unavailable", retryable: true };
+  if (status === 408 || status === 409 || status >= 500 || status === 0)
+    return { code: "provider.unavailable", retryable: true };
   if (code === "rate_limit_error") return { code: "provider.rate_limited", retryable: true };
-  if (code === "authentication_error" || code === "permission_error") return { code: "provider.auth_failed", retryable: false };
+  if (code === "authentication_error" || code === "permission_error")
+    return { code: "provider.auth_failed", retryable: false };
   return { code: "provider.bad_request", retryable: false };
 }
 
@@ -24,7 +33,8 @@ const OPENCODE_SESSION_MISSING = /MissingSessionID|missing x-opencode-session/i;
  * A provider refusal in plain words, when Vyre knows what it means; null for the rest, which keep "The provider answered <status>: <text>".
  */
 export function plainRefusal(status: number, text: string): string | null {
-  if (status === 400 && OPENCODE_SESSION_MISSING.test(text)) return "OpenCode Go turned the chat away because it carried no session id, which this version of Vyre should send. Update Vyre, or use another AI account until then.";
+  if (status === 400 && OPENCODE_SESSION_MISSING.test(text))
+    return "OpenCode Go turned the chat away because it carried no session id, which this version of Vyre should send. Update Vyre, or use another AI account until then.";
   return null;
 }
 

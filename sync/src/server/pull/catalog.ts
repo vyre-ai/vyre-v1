@@ -9,7 +9,11 @@ import type { DeviceClass } from "../../protocol.ts";
 export type ProfileMode = "all" | "window" | "none";
 export const LABEL_RANKS = { public: 0, internal: 1, confidential: 2, restricted: 3 } as const;
 /** Restricted is never mirrored to any device class (5.11); a phone setting can lower the ceiling, never raise it. */
-export const DEVICE_CEILING: Readonly<Record<DeviceClass, number>> = Object.freeze({ desktop: LABEL_RANKS.confidential, web: LABEL_RANKS.confidential, phone: LABEL_RANKS.confidential });
+export const DEVICE_CEILING: Readonly<Record<DeviceClass, number>> = Object.freeze({
+  desktop: LABEL_RANKS.confidential,
+  web: LABEL_RANKS.confidential,
+  phone: LABEL_RANKS.confidential,
+});
 
 export interface ServerEntity {
   key: string;
@@ -27,36 +31,67 @@ export interface ServerEntity {
 }
 
 interface Raw {
-  kind?: string; key?: string; table?: string;
+  kind?: string;
+  key?: string;
+  table?: string;
   acl?: { resource?: string; ownerField?: string | null };
-  sync?: { profile?: Partial<Record<DeviceClass, string>>; window?: { days?: number; recentCount?: number; starred?: boolean }; maxLabel?: string; protectedFields?: string[] };
+  sync?: {
+    profile?: Partial<Record<DeviceClass, string>>;
+    window?: { days?: number; recentCount?: number; starred?: boolean };
+    maxLabel?: string;
+    protectedFields?: string[];
+  };
   fields?: Record<string, { label?: string | null }>;
 }
 
 const MODES = new Set(["all", "window", "none"]);
-const rank = (v: string | null | undefined): number | null => (v === "public" || v === "internal" || v === "confidential" || v === "restricted" ? LABEL_RANKS[v] : null);
+const rank = (v: string | null | undefined): number | null =>
+  v === "public" || v === "internal" || v === "confidential" || v === "restricted" ? LABEL_RANKS[v] : null;
 
 export const DEFAULT_ENTITY = (key: string): ServerEntity => ({
-  key, table: `rt_${key}`, kind: "record_type", resource: "record", ownerField: null,
-  profile: { desktop: "all", web: "all", phone: "window" }, window: {}, maxLabel: null, fieldLabels: {}, protectedFields: [],
+  key,
+  table: `rt_${key}`,
+  kind: "record_type",
+  resource: "record",
+  ownerField: null,
+  profile: { desktop: "all", web: "all", phone: "window" },
+  window: {},
+  maxLabel: null,
+  fieldLabels: {},
+  protectedFields: [],
 });
 
 function entityOf(r: Raw): ServerEntity {
-  if (!r.key || !r.table || (r.kind !== "entity" && r.kind !== "record_type")) throw new Error("sync catalog: an entity needs kind, key and table");
+  if (!r.key || !r.table || (r.kind !== "entity" && r.kind !== "record_type"))
+    throw new Error("sync catalog: an entity needs kind, key and table");
   const p = r.sync?.profile ?? {};
   const mode = (c: DeviceClass): ProfileMode => {
     const v = p[c];
-    if (v === undefined || !MODES.has(v)) throw new Error(`sync catalog: ${r.key} profile ${c} is not all, window or none`);
+    if (v === undefined || !MODES.has(v))
+      throw new Error(`sync catalog: ${r.key} profile ${c} is not all, window or none`);
     return v as ProfileMode;
   };
   const fieldLabels: Record<string, number> = {};
-  for (const [f, def] of Object.entries(r.fields ?? {})) { const n = rank(def?.label ?? null); if (n !== null) fieldLabels[f] = n; }
+  for (const [f, def] of Object.entries(r.fields ?? {})) {
+    const n = rank(def?.label ?? null);
+    if (n !== null) fieldLabels[f] = n;
+  }
   const w = r.sync?.window ?? {};
   return {
-    key: r.key, table: r.table, kind: r.kind, resource: r.acl?.resource ?? "record", ownerField: r.acl?.ownerField ?? null,
+    key: r.key,
+    table: r.table,
+    kind: r.kind,
+    resource: r.acl?.resource ?? "record",
+    ownerField: r.acl?.ownerField ?? null,
     profile: { desktop: mode("desktop"), phone: mode("phone"), web: mode("web") },
-    window: { ...(typeof w.days === "number" ? { days: w.days } : {}), ...(typeof w.recentCount === "number" ? { recentCount: w.recentCount } : {}), ...(w.starred === true ? { starred: true } : {}) },
-    maxLabel: rank(r.sync?.maxLabel ?? null), fieldLabels, protectedFields: r.sync?.protectedFields ?? [],
+    window: {
+      ...(typeof w.days === "number" ? { days: w.days } : {}),
+      ...(typeof w.recentCount === "number" ? { recentCount: w.recentCount } : {}),
+      ...(w.starred === true ? { starred: true } : {}),
+    },
+    maxLabel: rank(r.sync?.maxLabel ?? null),
+    fieldLabels,
+    protectedFields: r.sync?.protectedFields ?? [],
   };
 }
 
@@ -71,7 +106,10 @@ export function parseCatalog(text: string): Map<string, ServerEntity> {
   const parsed = JSON.parse(text.slice(eq + 2, end + 1)) as unknown;
   if (!Array.isArray(parsed) || !parsed.length) throw new Error("sync catalog is empty");
   const out = new Map<string, ServerEntity>();
-  for (const row of parsed) { const e = entityOf(row as Raw); out.set(e.key, e); }
+  for (const row of parsed) {
+    const e = entityOf(row as Raw);
+    out.set(e.key, e);
+  }
   return out;
 }
 
@@ -105,7 +143,10 @@ export function loadCatalog(file?: string): Catalog {
 }
 
 /** The rank a typed field's sensitivity stands for. A value that is not one of the four labels is a bad classification and counts as Restricted: an unreadable label never lowers the ceiling. */
-const sensitivityRank = (value: unknown): number => (typeof value === "string" && Object.hasOwn(LABEL_RANKS, value) ? LABEL_RANKS[value as keyof typeof LABEL_RANKS] : LABEL_RANKS.restricted);
+const sensitivityRank = (value: unknown): number =>
+  typeof value === "string" && Object.hasOwn(LABEL_RANKS, value)
+    ? LABEL_RANKS[value as keyof typeof LABEL_RANKS]
+    : LABEL_RANKS.restricted;
 
 /**
  * The catalog with the Space's own schema laid over it. The generated catalog says nothing about a record type the Space defined, so its field labels were empty and every field of such a type
@@ -128,6 +169,11 @@ export function classifiedCatalog(base: Catalog, types: () => readonly TypeDef[]
       return { ...original, fieldLabels };
     },
     classified: () => [...current().keys()],
-    classificationStamp: () => JSON.stringify([...current().values()].map((def) => [def.name, def.fields.map((field) => [field.name, field["sensitivity"] ?? null])]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))),
+    classificationStamp: () =>
+      JSON.stringify(
+        [...current().values()]
+          .map((def) => [def.name, def.fields.map((field) => [field.name, field["sensitivity"] ?? null])])
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      ),
   };
 }

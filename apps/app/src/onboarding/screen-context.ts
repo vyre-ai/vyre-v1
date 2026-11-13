@@ -18,10 +18,25 @@ export function onboardingScreen(flow: FlowKind, step: string | null, progress: 
   const c = counts(flow, progress);
   return {
     place: "onboarding",
-    title: flow === "personal" ? "Set up your Personal Space" : flow === "team" ? "Set up your Team Space" : "Welcome to the Space",
+    title:
+      flow === "personal"
+        ? "Set up your Personal Space"
+        : flow === "team"
+          ? "Set up your Team Space"
+          : "Welcome to the Space",
     open: at ? [{ type: "onboarding_step", id: at.key, title: at.title }] : [],
-    rows: { shown: steps.length, total: steps.length, sample: steps.map((s) => `${s.key}: ${stateOf(progress, s.key)}`) },
-    actions: ["spaces.onboarding.mark", "spaces.onboarding.flow", "memory.propose_fact", ...(c.done === c.total ? [] : ["spaces.onboarding.seen"])],
-    focus: flow === "personal" ? "focus-onboarding" : flow === "team" ? "focus-onboarding-team" : "focus-onboarding-member",
+    rows: {
+      shown: steps.length,
+      total: steps.length,
+      sample: steps.map((s) => `${s.key}: ${stateOf(progress, s.key)}`),
+    },
+    actions: [
+      "spaces.onboarding.mark",
+      "spaces.onboarding.flow",
+      "memory.propose_fact",
+      ...(c.done === c.total ? [] : ["spaces.onboarding.seen"]),
+    ],
+    focus:
+      flow === "personal" ? "focus-onboarding" : flow === "team" ? "focus-onboarding-team" : "focus-onboarding-member",
   };
 }

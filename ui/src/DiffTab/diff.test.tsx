@@ -38,7 +38,13 @@ import type { DiffFile, DiffHunk } from "./index.tsx";
 const H = (id: string, removed: string, added: string, context = "Role"): DiffHunk => ({ id, context, removed, added });
 
 const FILES: readonly DiffFile[] = [
-  { path: "AGENT.md", added: 3, removed: 2, body: "paragraph", hunks: [H("h1", "Intake answers.", "Intake answers first."), H("h2", "Old tone line\nsecond", "New tone line")] },
+  {
+    path: "AGENT.md",
+    added: 3,
+    removed: 2,
+    body: "paragraph",
+    hunks: [H("h1", "Intake answers.", "Intake answers first."), H("h2", "Old tone line\nsecond", "New tone line")],
+  },
   { path: "agent.toml", added: 1, removed: 1, body: "text", hunks: [H("h3", 'model = "a"', 'model = "b"', "Model")] },
   { path: "notes/empty.md", added: 0, removed: 0, body: "text", hunks: [] },
 ];
@@ -53,16 +59,29 @@ test("tokens keep every character: joining them gives the text back", () => {
 
 test("word marks: only the changed words are marked, on both sides", () => {
   const marks = wordMarks("one two three", "one three four");
-  assert.deepEqual(marks.removed, [{ text: "one ", kind: "same" }, { text: "two ", kind: "del" }, { text: "three", kind: "same" }]);
-  assert.deepEqual(marks.added, [{ text: "one three", kind: "same" }, { text: " four", kind: "add" }]);
+  assert.deepEqual(marks.removed, [
+    { text: "one ", kind: "same" },
+    { text: "two ", kind: "del" },
+    { text: "three", kind: "same" },
+  ]);
+  assert.deepEqual(marks.added, [
+    { text: "one three", kind: "same" },
+    { text: " four", kind: "add" },
+  ]);
   assert.equal(marks.removed.map((s) => s.text).join(""), "one two three", "the removed side reads as the old text");
   assert.equal(marks.added.map((s) => s.text).join(""), "one three four", "the added side reads as the new text");
 });
 
 test("word marks on the frozen hunk: the shared start stays unmarked", () => {
   const marks = wordMarks("Intake answers.", "Intake answers first.");
-  assert.deepEqual(marks.removed, [{ text: "Intake ", kind: "same" }, { text: "answers.", kind: "del" }]);
-  assert.deepEqual(marks.added, [{ text: "Intake ", kind: "same" }, { text: "answers first.", kind: "add" }]);
+  assert.deepEqual(marks.removed, [
+    { text: "Intake ", kind: "same" },
+    { text: "answers.", kind: "del" },
+  ]);
+  assert.deepEqual(marks.added, [
+    { text: "Intake ", kind: "same" },
+    { text: "answers first.", kind: "add" },
+  ]);
 });
 
 test("identical text has no marks, and a whitespace-only change is not a change of words", () => {
@@ -72,7 +91,11 @@ test("identical text has no marks, and a whitespace-only change is not a change 
   assert.equal(sameWords("a  b", "a b"), true);
   assert.equal(sameWords("a b", "a c"), false);
   const lines = unifiedLines(H("x", "a  b", "a b"), true);
-  assert.equal(lines.every((l) => l.segments === undefined), true, "no marks for whitespace only");
+  assert.equal(
+    lines.every((l) => l.segments === undefined),
+    true,
+    "no marks for whitespace only",
+  );
 });
 
 test("a very long pair is marked whole instead of building a huge table", () => {
@@ -84,12 +107,26 @@ test("a very long pair is marked whole instead of building a huge table", () => 
 
 test("unified lines list removed lines then added lines; paired lines carry word marks", () => {
   const lines = unifiedLines(H("m", "keep this\nonly old", "keep that"), true);
-  assert.deepEqual(lines.map((l) => l.sign), ["-", "-", "+"]);
-  assert.equal(lines[0]?.segments?.some((s) => s.kind === "del"), true, "the first removed line pairs with the added line");
+  assert.deepEqual(
+    lines.map((l) => l.sign),
+    ["-", "-", "+"],
+  );
+  assert.equal(
+    lines[0]?.segments?.some((s) => s.kind === "del"),
+    true,
+    "the first removed line pairs with the added line",
+  );
   assert.equal(lines[1]?.segments, undefined, "an unpaired removed line has no marks");
-  assert.equal(lines[2]?.segments?.some((s) => s.kind === "add"), true);
+  assert.equal(
+    lines[2]?.segments?.some((s) => s.kind === "add"),
+    true,
+  );
   const off = unifiedLines(H("m", "keep this", "keep that"), false);
-  assert.equal(off.every((l) => l.segments === undefined), true, "marks off: plain lines");
+  assert.equal(
+    off.every((l) => l.segments === undefined),
+    true,
+    "marks off: plain lines",
+  );
   assert.deepEqual(unifiedLines(H("e", "", ""), true), []);
   assert.deepEqual(linesOf(""), []);
 });
@@ -105,29 +142,59 @@ test("split rows put the removed line on the left and the added line on the righ
 });
 
 test("paragraph diff for docx and md: paragraphs, not lines, with word marks inside a changed paragraph", () => {
-  assert.deepEqual(paragraphsOf("First para.\nstill first.\n\n\nSecond para.\n"), ["First para.\nstill first.", "Second para."]);
-  const rows = paragraphRows(H("p", "First para.\n\nSecond para here.", "First para.\n\nSecond para there.\n\nThird."), true);
-  assert.deepEqual(rows.map((r) => r.kind), ["removed", "removed", "added", "added", "added"]);
+  assert.deepEqual(paragraphsOf("First para.\nstill first.\n\n\nSecond para.\n"), [
+    "First para.\nstill first.",
+    "Second para.",
+  ]);
+  const rows = paragraphRows(
+    H("p", "First para.\n\nSecond para here.", "First para.\n\nSecond para there.\n\nThird."),
+    true,
+  );
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["removed", "removed", "added", "added", "added"],
+  );
   const secondRemoved = rows[1];
   assert.ok(secondRemoved !== undefined);
-  assert.deepEqual(secondRemoved.segments.map((s) => `${s.kind}:${s.text}`), ["same:Second para ", "del:here."]);
+  assert.deepEqual(
+    secondRemoved.segments.map((s) => `${s.kind}:${s.text}`),
+    ["same:Second para ", "del:here."],
+  );
   const firstRemoved = rows[0];
-  assert.deepEqual(firstRemoved?.segments, [{ text: "First para.", kind: "same" }], "an unchanged paragraph pair is not marked");
+  assert.deepEqual(
+    firstRemoved?.segments,
+    [{ text: "First para.", kind: "same" }],
+    "an unchanged paragraph pair is not marked",
+  );
   const third = rows[4];
-  assert.deepEqual(third?.segments, [{ text: "Third.", kind: "same" }], "a new paragraph with no partner is shown whole");
+  assert.deepEqual(
+    third?.segments,
+    [{ text: "Third.", kind: "same" }],
+    "a new paragraph with no partner is shown whole",
+  );
   const plain = paragraphRows(H("p", "a b", "a c"), false);
-  assert.deepEqual(plain.map((r) => r.segments.length), [1, 1], "marks off");
+  assert.deepEqual(
+    plain.map((r) => r.segments.length),
+    [1, 1],
+    "marks off",
+  );
 });
 
 test("revert one change: the hunk goes, the counts follow, other files and hunks stay", () => {
   const after = withoutChange(FILES, "AGENT.md", "h2");
   const agent = after.find((f) => f.path === "AGENT.md");
-  assert.deepEqual(agent?.hunks.map((h) => h.id), ["h1"]);
+  assert.deepEqual(
+    agent?.hunks.map((h) => h.id),
+    ["h1"],
+  );
   assert.equal(agent?.added, 2, "h2 added one line");
   assert.equal(agent?.removed, 0, "h2 removed two lines");
   assert.equal(after.find((f) => f.path === "agent.toml")?.hunks.length, 1);
   assert.equal(withoutChange(FILES, "AGENT.md", "missing")[0], FILES[0], "an unknown hunk changes nothing");
-  assert.deepEqual(withoutChange(FILES, "AGENT.md", "missing").map((f) => f.hunks.length), [2, 1, 0]);
+  assert.deepEqual(
+    withoutChange(FILES, "AGENT.md", "missing").map((f) => f.hunks.length),
+    [2, 1, 0],
+  );
   const last = withoutChange(withoutChange(FILES, "agent.toml", "h3"), "agent.toml", "h3");
   assert.equal(last.find((f) => f.path === "agent.toml")?.hunks.length, 0, "reverting twice is harmless");
   assert.deepEqual(revertInput("cs_1", "AGENT.md", "h2"), { changesetId: "cs_1", path: "AGENT.md", hunkId: "h2" });
@@ -154,7 +221,10 @@ test("keys: j and k move files, n and p move changes across files, Cmd-Enter rev
   assert.equal(moveFile(FILES, null, "j"), "AGENT.md");
   assert.equal(moveFile([], null, "j"), null);
   const changes = changeList(FILES);
-  assert.deepEqual(changes.map((c) => `${c.path}:${c.hunkId}`), ["AGENT.md:h1", "AGENT.md:h2", "agent.toml:h3"]);
+  assert.deepEqual(
+    changes.map((c) => `${c.path}:${c.hunkId}`),
+    ["AGENT.md:h1", "AGENT.md:h2", "agent.toml:h3"],
+  );
   assert.deepEqual(moveChange(changes, null, "n"), changes[0]);
   assert.deepEqual(moveChange(changes, null, "p"), changes[2]);
   assert.deepEqual(moveChange(changes, changes[1] ?? null, "n"), changes[2], "n crosses into the next file");
@@ -166,9 +236,13 @@ test("keys: j and k move files, n and p move changes across files, Cmd-Enter rev
 test("@ people and agents in a comment are found once each and split out for colouring", () => {
   assert.deepEqual(mentionsOf("@Omar please check, @Intake too. @Omar again"), ["Omar", "Intake"]);
   assert.deepEqual(mentionsOf("thanks @Maya."), ["Maya"], "a full stop after a name is not part of it");
-  assert.deepEqual(mentionsOf("(@Docs) and \"@Scout\""), ["Docs", "Scout"]);
+  assert.deepEqual(mentionsOf('(@Docs) and "@Scout"'), ["Docs", "Scout"]);
   assert.deepEqual(mentionsOf("no one here, mail a@b.com"), []);
-  assert.deepEqual(bodyParts("Ask @Intake to fix it"), [{ text: "Ask ", mention: false }, { text: "@Intake", mention: true }, { text: " to fix it", mention: false }]);
+  assert.deepEqual(bodyParts("Ask @Intake to fix it"), [
+    { text: "Ask ", mention: false },
+    { text: "@Intake", mention: true },
+    { text: " to fix it", mention: false },
+  ]);
   assert.deepEqual(bodyParts("plain"), [{ text: "plain", mention: false }]);
   assert.deepEqual(bodyParts(""), []);
 });
@@ -186,7 +260,10 @@ test("a comment is added through changesets.comments.add with its anchor and men
   assert.equal(input["text"], "@Intake keep this");
   assert.equal("mentions" in commentInput("cs_1", "AGENT.md", hunk, "no mention"), false);
   assert.equal(COMMENT_CAPABILITY, "changesets.comments.add");
-  assert.deepEqual(commentsFor(frozenDiffTabProps.comments, "hunk_1").map((c) => c.id), ["cmt_1"]);
+  assert.deepEqual(
+    commentsFor(frozenDiffTabProps.comments, "hunk_1").map((c) => c.id),
+    ["cmt_1"],
+  );
   assert.deepEqual(commentsFor(frozenDiffTabProps.comments, "other"), []);
 });
 
@@ -220,12 +297,16 @@ test("the tab renders the frozen props: a paragraph diff with its comment, in a 
 
 test("a text file is unified by default and split on request; both layouts keep the same signs", () => {
   const files: readonly DiffFile[] = [FILES[1] as DiffFile];
-  const unified = renderToStaticMarkup(<DiffTab {...frozenDiffTabProps} files={files} comments={[]} selectedPath="agent.toml" layout="unified" />);
+  const unified = renderToStaticMarkup(
+    <DiffTab {...frozenDiffTabProps} files={files} comments={[]} selectedPath="agent.toml" layout="unified" />,
+  );
   assert.match(unified, /data-testid="diff-unified"/);
   assert.match(unified, /data-testid="diff-line-del"/);
   assert.match(unified, /data-testid="diff-line-add"/);
   assert.doesNotMatch(unified, /data-testid="diff-split"/);
-  const split = renderToStaticMarkup(<DiffTab {...frozenDiffTabProps} files={files} comments={[]} selectedPath="agent.toml" layout="split" />);
+  const split = renderToStaticMarkup(
+    <DiffTab {...frozenDiffTabProps} files={files} comments={[]} selectedPath="agent.toml" layout="split" />,
+  );
   assert.match(split, /data-testid="diff-split-left"/);
   assert.match(split, /data-testid="diff-split-right"/);
   assert.doesNotMatch(split, /data-testid="diff-unified"/);
@@ -233,9 +314,12 @@ test("a text file is unified by default and split on request; both layouts keep 
 });
 
 test("more than one file shows the file list with counts as shared Rows; the selected file is the quiet wash", () => {
-  const html = renderToStaticMarkup(<DiffTab {...frozenDiffTabProps} files={FILES} comments={[]} selectedPath="agent.toml" />);
+  const html = renderToStaticMarkup(
+    <DiffTab {...frozenDiffTabProps} files={FILES} comments={[]} selectedPath="agent.toml" />,
+  );
   assert.match(html, /data-testid="diff-files"/);
-  for (const f of FILES) assert.match(html, new RegExp(`data-testid="row-diff-file-${f.path.replace(/[.\\/]/g, "\\$&")}"`));
+  for (const f of FILES)
+    assert.match(html, new RegExp(`data-testid="row-diff-file-${f.path.replace(/[.\\/]/g, "\\$&")}"`));
   assert.match(html, /data-testid="row-diff-file-agent\.toml-trailing"/, "counts sit in the Row's trailing slot");
   assert.match(html, /background-color:var\(--sel\)/);
   assert.doesNotMatch(html, /background-color:var\(--accent\)/);
@@ -243,18 +327,25 @@ test("more than one file shows the file list with counts as shared Rows; the sel
 });
 
 test("a file with no changes says so; the layout and word marks controls are always there", () => {
-  const html = renderToStaticMarkup(<DiffTab {...frozenDiffTabProps} files={FILES} comments={[]} selectedPath="notes/empty.md" />);
+  const html = renderToStaticMarkup(
+    <DiffTab {...frozenDiffTabProps} files={FILES} comments={[]} selectedPath="notes/empty.md" />,
+  );
   assert.match(html, /data-testid="diff-empty"/);
   assert.ok(text(html).includes("No differences"));
-  for (const id of ["diff-layout-unified", "diff-layout-split", "diff-wordmarks"]) assert.match(html, new RegExp(`data-testid="${id}"`));
+  for (const id of ["diff-layout-unified", "diff-layout-split", "diff-wordmarks"])
+    assert.match(html, new RegExp(`data-testid="${id}"`));
 });
 
 test("an image change is a slider by default and two images side by side on request", () => {
-  const slider = renderToStaticMarkup(<ImageDiff before="https://x.test/a.png" after="https://x.test/b.png" mode="slider" onMode={() => undefined} />);
+  const slider = renderToStaticMarkup(
+    <ImageDiff before="https://x.test/a.png" after="https://x.test/b.png" mode="slider" onMode={() => undefined} />,
+  );
   assert.match(slider, /role="slider"/);
   assert.match(slider, /aria-valuenow="50"/);
   assert.match(slider, /data-testid="diff-image-compare"/);
-  const side = renderToStaticMarkup(<ImageDiff before="https://x.test/a.png" after="https://x.test/b.png" mode="side" onMode={() => undefined} />);
+  const side = renderToStaticMarkup(
+    <ImageDiff before="https://x.test/a.png" after="https://x.test/b.png" mode="side" onMode={() => undefined} />,
+  );
   assert.doesNotMatch(side, /role="slider"/);
   assert.ok(text(side).includes("Before") && text(side).includes("After"));
 });

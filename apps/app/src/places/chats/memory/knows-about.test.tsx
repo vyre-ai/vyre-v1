@@ -7,14 +7,30 @@ import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
 import { ABOUT_PRIVATE, ABOUT_SHARED } from "./KnowsTab.tsx";
 import { ASSISTANT, MESSAGE_IDS, createChatMemorySample } from "./sample.ts";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 async function knows(audience: "private" | "shared"): Promise<string> {
   const s = createChatMemorySample({ audience });
   await s.warm([
-    ["memory.profile.get", { threadId: "c1" }], ["memory.knows", { threadId: "c1", agentId: ASSISTANT }], ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
-    ["memory.map.get", { agentId: ASSISTANT }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
+    ["memory.profile.get", { threadId: "c1" }],
+    ["memory.knows", { threadId: "c1", agentId: ASSISTANT }],
+    ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
+    ["memory.map.get", { agentId: ASSISTANT }],
+    ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }],
+    ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
   ]);
-  return clean(renderToStaticMarkup(<ChatRightPane data={s.pane} open onToggle={() => undefined} tab="memory" paneWidth={340} window={{ start: 0, end: 500 }} />));
+  return clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={s.pane}
+        open
+        onToggle={() => undefined}
+        tab="memory"
+        paneWidth={340}
+        window={{ start: 0, end: 500 }}
+      />,
+    ),
+  );
 }
 
 test("a chat only you and your agents read: About you comes first, public and private", async () => {

@@ -15,7 +15,16 @@ import { widen, withDom } from "./addsheet.support.tsx";
 async function rightClick(root: Node, id: string): Promise<void> {
   const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
   assert.equal(typeof open, "function", id);
-  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+  await act(async () => {
+    open?.({
+      preventDefault() {},
+      nativeEvent: { pageX: 20, pageY: 20 },
+      pageX: 20,
+      pageY: 20,
+      clientX: 20,
+      clientY: 20,
+    });
+  });
   await flush();
 }
 
@@ -27,19 +36,30 @@ test("@mentioning someone who is not in the chat shows one strip on the composer
     await flush();
     const strip = find(root, "channel-offer");
     assert.ok(strip, "the strip shows");
-    assert.match(textOf(find(root, "channel-offer-text")), /^Maya is not in this chat\.$/, "the owner's words (12 Nov), the same as the line under a sent message");
+    assert.match(
+      textOf(find(root, "channel-offer-text")),
+      /^Maya is not in this chat\.$/,
+      "the owner's words (12 Nov), the same as the line under a sent message",
+    );
     assert.equal(textOf(find(root, "channel-add")).trim(), "Add");
     // the loose lines and the switch are gone
     const text = textOf(strip);
-    assert.ok(!/They will read|Earlier messages stay hidden|Include earlier messages|never gains people/i.test(text), text);
+    assert.ok(
+      !/They will read|Earlier messages stay hidden|Include earlier messages|never gains people/i.test(text),
+      text,
+    );
     assert.equal(find(root, "channel-earlier"), null);
     assert.equal(find(root, "channel-start"), null, "the channel is in the caret menu now");
     // the caret holds the three ways, the default first
     await press(find(root, "channel-add-menu"));
-    for (const label of ["Add, from now on", "Add, with earlier messages", "Start a channel instead"]) assert.ok(find(root, `menu-item-${label}`), label);
+    for (const label of ["Add, from now on", "Add, with earlier messages", "Start a channel instead"])
+      assert.ok(find(root, `menu-item-${label}`), label);
     await press(find(root, "menu-item-Add, with earlier messages"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya", fromStart: true }]);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input),
+      [{ threadId: "c1", personId: "usr_maya", fromStart: true }],
+    );
   });
 });
 
@@ -51,7 +71,10 @@ test("the strip's Add is from now on (no flag); Start a channel instead makes a 
     await flush();
     await press(find(root, "channel-add"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }]);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input),
+      [{ threadId: "c1", personId: "usr_maya" }],
+    );
     const again = createSample("idle");
     const root2 = await mount(createRoot, <Conversation data={again.data} />);
     await typeInto(find(root2, "composer-field"), "@Maya Chen can you look at this");
@@ -71,7 +94,8 @@ test("on a phone the main button reads Add 3", async () => {
     await press(find(root, "composer-attach"));
     await press(find(root, "row-plus-people"));
     await flush();
-    for (const id of ["person:usr_maya", "person:usr_omar", "agent:agt_research"]) await press(find(root, `as-row-${id}`));
+    for (const id of ["person:usr_maya", "person:usr_omar", "agent:agt_research"])
+      await press(find(root, `as-row-${id}`));
     assert.equal(textOf(find(root, "as-add")).trim(), "Add 3");
   });
 });
@@ -86,7 +110,10 @@ test("Poke calls threads.poke, the reply says Poked by, and the quiet line says 
     await rightClick(root, "people-row-agt_docs");
     await press(find(root, "menu-item-Poke"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.poke").map((c) => c.input), [{ threadId: "c1", agentId: "agt_docs" }]);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.poke").map((c) => c.input),
+      [{ threadId: "c1", agentId: "agt_docs" }],
+    );
     assert.ok(s.toasts.includes("Poked Docs"));
     await flush();
     assert.match(textOf(find(root, "poked-pokeR_1")), /Poked by You/);
@@ -102,19 +129,45 @@ test("the gear opens How, When and Style; Listening is mode quiet; making anothe
     await rightClick(root, "people-row-agt_docs");
     await press(find(root, "menu-item-How and when it responds"));
     assert.ok(find(root, "as-pop"));
-    for (const id of ["as-how-lead", "as-how-tag", "as-how-listen", "as-when-always", "as-when-topics", "as-when-hours", "as-style-short", "as-style-full"]) assert.ok(find(root, id), id);
+    for (const id of [
+      "as-how-lead",
+      "as-how-tag",
+      "as-how-listen",
+      "as-when-always",
+      "as-when-topics",
+      "as-when-hours",
+      "as-style-short",
+      "as-style-full",
+    ])
+      assert.ok(find(root, id), id);
     await press(find(root, "as-how-listen"));
     await press(find(root, "as-style-full"));
     const sets = s.calls.filter((c) => c.cap === "threads.agent_settings.set").map((c) => c.input);
-    assert.deepEqual(sets[0], { threadId: "c1", agentId: "agt_docs", mode: "quiet", when: "always", topics: null, hoursFrom: null, hoursTo: null, style: "short" });
+    assert.deepEqual(sets[0], {
+      threadId: "c1",
+      agentId: "agt_docs",
+      mode: "quiet",
+      when: "always",
+      topics: null,
+      hoursFrom: null,
+      hoursTo: null,
+      style: "short",
+    });
     assert.equal((sets[1] as { style: string }).style, "full");
     // Intake leads: making Docs lead asks first
     await press(find(root, "as-how-lead"));
     assert.match(textOf(find(root, "menu-item-Swap") ?? root), /Swap/);
-    assert.equal(s.calls.filter((c) => c.cap === "threads.agent_settings.set").length, 2, "nothing is sent before the swap is confirmed");
+    assert.equal(
+      s.calls.filter((c) => c.cap === "threads.agent_settings.set").length,
+      2,
+      "nothing is sent before the swap is confirmed",
+    );
     await press(find(root, "menu-item-Swap"));
     await flush();
-    assert.equal((s.calls.filter((c) => c.cap === "threads.agent_settings.set").at(-1)?.input as { mode: string }).mode, "lead");
+    assert.equal(
+      (s.calls.filter((c) => c.cap === "threads.agent_settings.set").at(-1)?.input as { mode: string }).mode,
+      "lead",
+    );
     assert.ok(s.toasts.some((t) => /Docs now answers everything\. Intake answers only when mentioned\./.test(t)));
   });
 });
@@ -139,21 +192,55 @@ test("settingsOf maps the chat's row to the sheet's words, and Listening is quie
   assert.equal(settingsOf({ mode: "lead" }).how, "lead");
   assert.equal(settingsOf({ mode: "listen" }).how, "tag");
   assert.equal(settingsOf({ mode: "listen", quiet: true }).how, "listen");
-  assert.deepEqual(settingsOf({ mode: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "12:00", style: "full" }), { how: "tag", when: "hours", topics: "", hoursFrom: "08:00", hoursTo: "12:00", style: "full" });
+  assert.deepEqual(settingsOf({ mode: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "12:00", style: "full" }), {
+    how: "tag",
+    when: "hours",
+    topics: "",
+    hoursFrom: "08:00",
+    hoursTo: "12:00",
+    style: "full",
+  });
   assert.equal(hereSub({ mode: "listen", quiet: true, owned: true }, false), "Only listens · made for this chat");
 });
 
 test("directoryOf offers the Space's people and agents, the person's Assistant first, and never someone else's Assistant or a chat's own agent", () => {
-  const row = (agentId: string, name: string, extra: object = {}) => ({ agentId, name, kind: "agent", ownerId: "usr_me", ...extra } as never);
+  const row = (agentId: string, name: string, extra: object = {}) =>
+    ({ agentId, name, kind: "agent", ownerId: "usr_me", ...extra }) as never;
   const dir = directoryOf({
     me: "usr_me",
-    principals: [{ id: "usr_me", kind: "person", name: "Me", status: "active" }, { id: "usr_sara", kind: "person", name: "Sara", status: "active", title: "Associate" }, { id: "usr_gone", kind: "person", name: "Gone", status: "removed" }] as never,
-    agents: [row("agt_docs", "Docs"), row("agt_mine", "Mine", { kind: "assistant" }), row("agt_theirs", "Theirs", { kind: "assistant", ownerId: "usr_sara" }), row("agt_own", "Chat only", { chatOf: "c9" }), row("agt_cc", "Claude Code", { runtime: "outside" }), row("agt_mate", "Mate", { teammateOf: "pj_9" })],
-    connected: [{ agentId: "out_cc", clientName: "Claude Code", connectedAt: 1, calls: 0, redirectHost: "On this Mac" }, { agentId: "out_setup", clientName: "Setup", connectedAt: 1, calls: 0, setup: true }] as never,
+    principals: [
+      { id: "usr_me", kind: "person", name: "Me", status: "active" },
+      { id: "usr_sara", kind: "person", name: "Sara", status: "active", title: "Associate" },
+      { id: "usr_gone", kind: "person", name: "Gone", status: "removed" },
+    ] as never,
+    agents: [
+      row("agt_docs", "Docs"),
+      row("agt_mine", "Mine", { kind: "assistant" }),
+      row("agt_theirs", "Theirs", { kind: "assistant", ownerId: "usr_sara" }),
+      row("agt_own", "Chat only", { chatOf: "c9" }),
+      row("agt_cc", "Claude Code", { runtime: "outside" }),
+      row("agt_mate", "Mate", { teammateOf: "pj_9" }),
+    ],
+    connected: [
+      { agentId: "out_cc", clientName: "Claude Code", connectedAt: 1, calls: 0, redirectHost: "On this Mac" },
+      { agentId: "out_setup", clientName: "Setup", connectedAt: 1, calls: 0, setup: true },
+    ] as never,
   });
-  assert.deepEqual(dir.people?.map((p) => p.id), ["usr_sara"]);
-  assert.deepEqual(dir.agents?.map((a) => [a.id, a.name]), [["agt_mine", "Assistant"], ["agt_docs", "Docs"]]);
-  assert.deepEqual(dir.outside?.map((o) => o.id), ["out_cc"]);
+  assert.deepEqual(
+    dir.people?.map((p) => p.id),
+    ["usr_sara"],
+  );
+  assert.deepEqual(
+    dir.agents?.map((a) => [a.id, a.name]),
+    [
+      ["agt_mine", "Assistant"],
+      ["agt_docs", "Docs"],
+    ],
+  );
+  assert.deepEqual(
+    dir.outside?.map((o) => o.id),
+    ["out_cc"],
+  );
   assert.equal(maxLevelOf({ manage: false, edit: false, use: false }), "view");
   assert.equal(maxLevelOf({ manage: false, edit: true, use: true }), "edit");
 });
@@ -162,8 +249,17 @@ test("the line after adding names who went in and who did not", () => {
   assert.equal(addedLine(["Docs"]), "Docs was added");
   assert.equal(addedLine(["Docs", "Sara"]), "Docs and Sara were added");
   assert.equal(failedLine(["Docs", "Sara", "Mira"]), "Could not add Docs, Sara and Mira. Try again.");
-  const x = projectExtras([{ key: "new:1", kind: "new", id: "1", name: "Checker", role: "", brief: "Checks", model: "Opus 5.5" }, { key: "outside:o", kind: "outside", id: "o", name: "CC", role: "" }, { key: "guest:a@b.c", kind: "guest", id: "a@b.c", name: "a@b.c", role: "gview", email: "a@b.c" }], () => "k1");
+  const x = projectExtras(
+    [
+      { key: "new:1", kind: "new", id: "1", name: "Checker", role: "", brief: "Checks", model: "Opus 5.5" },
+      { key: "outside:o", kind: "outside", id: "o", name: "CC", role: "" },
+      { key: "guest:a@b.c", kind: "guest", id: "a@b.c", name: "a@b.c", role: "gview", email: "a@b.c" },
+    ],
+    () => "k1",
+  );
   assert.deepEqual(x.creates, [{ name: "Checker", role: "Checks", model: "Opus 5.5", key: "k1" }]);
-  assert.deepEqual(x.viaChat.map((p) => p.kind), ["outside", "guest"]);
+  assert.deepEqual(
+    x.viaChat.map((p) => p.kind),
+    ["outside", "guest"],
+  );
 });
-

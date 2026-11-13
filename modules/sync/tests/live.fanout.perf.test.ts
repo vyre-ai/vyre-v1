@@ -15,14 +15,16 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
     await new Promise<void>((r) => setImmediate(r));
   }
 }
-const pct = (xs: number[], p: number): number => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.ceil(p * xs.length) - 1)]!;
+const pct = (xs: number[], p: number): number =>
+  [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.ceil(p * xs.length) - 1)]!;
 
 test("edit.remote_seen: a pushed edit reaches the other device in well under 500 ms (median and p95 over 30 edits)", async () => {
   const rig = liveRig();
   const s0 = rig.row("c1", { stage: "lead" });
   const writer: DeviceClient = rig.client(ADA, "dev_writer");
   const reader: DeviceClient = rig.client(ADA, "dev_reader");
-  writer.conn.start(); reader.conn.start();
+  writer.conn.start();
+  reader.conn.start();
   await settle();
   await until(() => reader.st.applied.length >= 1);
   const lat: number[] = [];
@@ -31,16 +33,20 @@ test("edit.remote_seen: a pushed edit reaches the other device in well under 500
     const seen = reader.st.applied.length;
     const t0 = performance.now();
     // The writer's edit: a push through the real handler, then the commit tick that fans out.
-    const res = await rig.r.push(ADA, "dev_writer", [patchOp({ id: `edit${i}`, fields: { stage: `s${i}` }, base: { stage: base }, hlc: hl(NOW - 60_000 + i * 10) })]);
+    const res = await rig.r.push(ADA, "dev_writer", [
+      patchOp({ id: `edit${i}`, fields: { stage: `s${i}` }, base: { stage: base }, hlc: hl(NOW - 60_000 + i * 10) }),
+    ]);
     rig.hub.commit();
     await until(() => reader.st.applied.length > seen);
     lat.push(performance.now() - t0);
     base = res.applied[0]!.seq;
   }
-  const p50 = pct(lat, 0.5), p95 = pct(lat, 0.95);
+  const p50 = pct(lat, 0.5),
+    p95 = pct(lat, 0.95);
   assert.ok(p50 < 500, `median ${p50.toFixed(1)} ms`);
   assert.ok(p95 < 500, `p95 ${p95.toFixed(1)} ms, samples ${lat.map((x) => x.toFixed(1)).join(",")}`);
   assert.equal(reader.st.ids.filter((x) => x.startsWith("c1@")).length, 31, "the row once, then each edit once");
-  writer.conn.stop(); reader.conn.stop();
+  writer.conn.stop();
+  reader.conn.stop();
   rig.hub.close();
 });

@@ -44,12 +44,22 @@ export const KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
 ];
 
 /** System folders inside Shared knowledge. Branding holds the Space's own pictures: the Space image Console uploads lands here. */
-export const SHARED_KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
-  { key: "branding", title: "Branding" },
-];
+export const SHARED_KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [{ key: "branding", title: "Branding" }];
 
 export const KINDS = new Set([
-  "text", "markdown", "document", "spreadsheet", "presentation", "pdf", "image", "video", "audio", "code", "archive", "google_native", "other",
+  "text",
+  "markdown",
+  "document",
+  "spreadsheet",
+  "presentation",
+  "pdf",
+  "image",
+  "video",
+  "audio",
+  "code",
+  "archive",
+  "google_native",
+  "other",
 ]);
 
 const LABEL_RANK: Record<string, number> = { public: 0, internal: 1, confidential: 2, restricted: 3 };
@@ -105,7 +115,10 @@ export interface FolderOut {
   subject?: Subject;
 }
 
-interface Subject { kind: "agent" | "project" | "space"; id?: string }
+interface Subject {
+  kind: "agent" | "project" | "space";
+  id?: string;
+}
 
 type Content =
   | { kind: "empty" }
@@ -179,7 +192,8 @@ function optBool(ctx: Ctx, o: Record<string, unknown>, key: string): boolean | u
 export function optInt(ctx: Ctx, o: Record<string, unknown>, key: string): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "number" || !Number.isInteger(v)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "number" || !Number.isInteger(v))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -189,7 +203,15 @@ function nid(ctx: Ctx, prefix: string): string {
 
 function cleanName(ctx: Ctx, name: string): string {
   const n = name.trim();
-  if (!n || n.length > 255 || n === "." || n === ".." || n.includes("/") || n.includes("\\") || /[\u0000-\u001f]/.test(n)) {
+  if (
+    !n ||
+    n.length > 255 ||
+    n === "." ||
+    n === ".." ||
+    n.includes("/") ||
+    n.includes("\\") ||
+    /[\u0000-\u001f]/.test(n)
+  ) {
     fail(ctx, "validation.bad_input", "That name cannot be used for a file or folder.");
   }
   return n;
@@ -229,16 +251,42 @@ function extOf(name: string): string {
 function guessMime(name: string, asText: boolean): string {
   const ext = extOf(name);
   const known: Record<string, string> = {
-    md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json",
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
-    pdf: "application/pdf", csv: "text/csv", html: "text/html",
-    js: "text/javascript", ts: "text/plain", py: "text/plain",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    md: "text/markdown",
+    markdown: "text/markdown",
+    txt: "text/plain",
+    json: "application/json",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    pdf: "application/pdf",
+    csv: "text/csv",
+    html: "text/html",
+    js: "text/javascript",
+    ts: "text/plain",
+    py: "text/plain",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     // the older and OpenDocument formats: an empty placeholder of a mounted .doc is not a text file
-    doc: "application/msword", xls: "application/vnd.ms-excel", ppt: "application/vnd.ms-powerpoint", rtf: "application/rtf",
-    odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet", odp: "application/vnd.oasis.opendocument.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
-    heic: "image/heic", bmp: "image/bmp", avif: "image/avif", tiff: "image/tiff",
+    doc: "application/msword",
+    xls: "application/vnd.ms-excel",
+    ppt: "application/vnd.ms-powerpoint",
+    rtf: "application/rtf",
+    odt: "application/vnd.oasis.opendocument.text",
+    ods: "application/vnd.oasis.opendocument.spreadsheet",
+    odp: "application/vnd.oasis.opendocument.presentation",
+    yml: "text/plain",
+    yaml: "text/plain",
+    toml: "text/plain",
+    sql: "text/plain",
+    sh: "text/plain",
+    heic: "image/heic",
+    bmp: "image/bmp",
+    avif: "image/avif",
+    tiff: "image/tiff",
   };
   if (known[ext]) return known[ext];
   return asText ? "text/plain" : "application/octet-stream";
@@ -247,15 +295,54 @@ function guessMime(name: string, asText: boolean): string {
 function guessKind(name: string, mime: string): string {
   const ext = extOf(name);
   if (ext === "md" || ext === "markdown" || mime === "text/markdown") return "markdown";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "avif", "tiff"].includes(ext) || mime.startsWith("image/")) return "image";
+  if (
+    ["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "avif", "tiff"].includes(ext) ||
+    mime.startsWith("image/")
+  )
+    return "image";
   if (ext === "pdf" || mime === "application/pdf") return "pdf";
-  if (["csv", "xlsx", "xls", "ods", "tsv"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "spreadsheet";
-  if (["doc", "docx", "odt", "rtf"].includes(ext) || mime.includes("wordprocessingml") || mime === "application/msword") return "document";
-  if (["ppt", "pptx", "odp", "key"].includes(ext) || mime.includes("presentationml") || mime === "application/vnd.ms-powerpoint") return "presentation";
+  if (["csv", "xlsx", "xls", "ods", "tsv"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet"))
+    return "spreadsheet";
+  if (["doc", "docx", "odt", "rtf"].includes(ext) || mime.includes("wordprocessingml") || mime === "application/msword")
+    return "document";
+  if (
+    ["ppt", "pptx", "odp", "key"].includes(ext) ||
+    mime.includes("presentationml") ||
+    mime === "application/vnd.ms-powerpoint"
+  )
+    return "presentation";
   if (["mp4", "mov", "webm"].includes(ext) || mime.startsWith("video/")) return "video";
   if (["mp3", "wav", "ogg"].includes(ext) || mime.startsWith("audio/")) return "audio";
   if (["zip", "gz", "tgz"].includes(ext)) return "archive";
-  if (["js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "rb", "c", "h", "cpp", "cs", "kt", "swift", "php", "sh", "sql", "css", "html", "yml", "yaml", "toml", "xml"].includes(ext)) return "code";
+  if (
+    [
+      "js",
+      "ts",
+      "tsx",
+      "jsx",
+      "py",
+      "go",
+      "rs",
+      "java",
+      "rb",
+      "c",
+      "h",
+      "cpp",
+      "cs",
+      "kt",
+      "swift",
+      "php",
+      "sh",
+      "sql",
+      "css",
+      "html",
+      "yml",
+      "yaml",
+      "toml",
+      "xml",
+    ].includes(ext)
+  )
+    return "code";
   if (mime.startsWith("text/") || ext === "txt" || ext === "json") return "text";
   return "other";
 }
@@ -264,12 +351,22 @@ function guessKind(name: string, mime: string): string {
 
 const GOOGLE_NATIVE = "application/vnd.google-apps.";
 const GOOGLE_APP: Record<string, string> = {
-  document: "Google Docs", spreadsheet: "Google Sheets", presentation: "Google Slides", drawing: "Google Drawings", form: "Google Forms", site: "Google Sites", jam: "Jamboard", map: "Google My Maps", script: "Apps Script",
+  document: "Google Docs",
+  spreadsheet: "Google Sheets",
+  presentation: "Google Slides",
+  drawing: "Google Drawings",
+  form: "Google Forms",
+  site: "Google Sites",
+  jam: "Jamboard",
+  map: "Google My Maps",
+  script: "Apps Script",
 };
 
 /** The Google app a native file opens in ("Google Docs"), from Google's own type. */
 export function googleApp(mime: string): string {
-  return mime.startsWith(GOOGLE_NATIVE) ? GOOGLE_APP[mime.slice(GOOGLE_NATIVE.length)] ?? "Google Drive" : "Google Drive";
+  return mime.startsWith(GOOGLE_NATIVE)
+    ? (GOOGLE_APP[mime.slice(GOOGLE_NATIVE.length)] ?? "Google Drive")
+    : "Google Drive";
 }
 
 /** What Google type an export came from: a Doc is kept as Markdown (or plain text), a Sheet as CSV, Slides as PDF, a Drawing as PNG; older copies were Word, Excel or PDF. */
@@ -297,11 +394,15 @@ export function contentMime(ctx: Ctx, file: Row, blobId: string = String(file.bl
  * tokens to an agent. The pictures are named where they stood ("[image]") and their data is dropped.
  */
 export function readableExport(text: string): string {
-  return text
-    .replace(/^\[image\d+\]:\s*<?data:[^\n]*$/gm, "")
-    .replace(/!\[([^\]]*)\]\[image\d+\]/g, (_m, alt: string) => (alt.trim() !== "" ? `[image: ${alt.trim()}]` : "[image]"))
-    .replace(/\n{3,}/g, "\n\n")
-    .trimEnd() + "\n";
+  return (
+    text
+      .replace(/^\[image\d+\]:\s*<?data:[^\n]*$/gm, "")
+      .replace(/!\[([^\]]*)\]\[image\d+\]/g, (_m, alt: string) =>
+        alt.trim() !== "" ? `[image: ${alt.trim()}]` : "[image]",
+      )
+      .replace(/\n{3,}/g, "\n\n")
+      .trimEnd() + "\n"
+  );
 }
 
 function textLike(mime: string): boolean {
@@ -310,7 +411,8 @@ function textLike(mime: string): boolean {
 
 function parseContent(ctx: Ctx, value: unknown): Content {
   if (value === undefined || value === null) return { kind: "empty" };
-  if (typeof value !== "object" || Array.isArray(value)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
+  if (typeof value !== "object" || Array.isArray(value))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
   const o = value as Record<string, unknown>;
   const present = (["text", "base64", "blobId"] as const).filter((k) => o[k] !== undefined && o[k] !== null);
   if (present.length > 1) fail(ctx, "validation.bad_input", "Send text, base64, or a blob id, one of them.");
@@ -324,7 +426,8 @@ function parseContent(ctx: Ctx, value: unknown): Content {
     if (typeof o.base64 !== "string") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "base64" });
     return { kind: "base64", base64: o.base64 };
   }
-  if (typeof o.blobId !== "string" || o.blobId.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "blobId" });
+  if (typeof o.blobId !== "string" || o.blobId.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "blobId" });
   return { kind: "blob", blobId: o.blobId };
 }
 
@@ -338,7 +441,8 @@ const str0 = (v: unknown): string => (typeof v === "string" ? v : "");
 
 function liveFolder(ctx: Ctx, id: string): Row {
   const row = mustFolder(ctx, id);
-  if (!isNull(row.deleted_at)) fail(ctx, "validation.precondition_failed", "That folder is in Trash.", { folderId: id });
+  if (!isNull(row.deleted_at))
+    fail(ctx, "validation.precondition_failed", "That folder is in Trash.", { folderId: id });
   return row;
 }
 
@@ -355,10 +459,12 @@ function liveFile(ctx: Ctx, id: string): Row {
 }
 
 function childCounts(ctx: Ctx, folderId: string): { fileCount: number; folderCount: number } {
-  const folders = many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", folderId)
-    .filter((row) => canView(ctx, "folder", row));
-  const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folderId)
-    .filter((row) => canView(ctx, "file", row));
+  const folders = many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", folderId).filter(
+    (row) => canView(ctx, "folder", row),
+  );
+  const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folderId).filter(
+    (row) => canView(ctx, "file", row),
+  );
   return { fileCount: files.length, folderCount: folders.length };
 }
 
@@ -390,17 +496,29 @@ export function fileOut(row: Row): FileOut {
 
 // ---- the caller's stars and the files with a collided staged change ----
 
-interface FileFlags { starred: Set<string>; conflict: Set<string> }
+interface FileFlags {
+  starred: Set<string>;
+  conflict: Set<string>;
+}
 const flagCache = new WeakMap<object, FileFlags>();
 
 /** Stars are mine alone; a file is in conflict while an open (or sent back) changeset holds a staged change to it that no longer merges. Read once per call. */
 function fileFlags(ctx: Ctx): FileFlags {
   const hit = flagCache.get(ctx);
   if (hit) return hit;
-  const starred = new Set(many(ctx, "SELECT * FROM files_star WHERE person = ?", ctx.principal.id).map((r) => String(r.file_id)));
-  const live = new Set([...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "open"), ...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "changes_requested")].map((r) => String(r.id)));
+  const starred = new Set(
+    many(ctx, "SELECT * FROM files_star WHERE person = ?", ctx.principal.id).map((r) => String(r.file_id)),
+  );
+  const live = new Set(
+    [
+      ...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "open"),
+      ...many(ctx, "SELECT * FROM files_changeset WHERE state = ?", "changes_requested"),
+    ].map((r) => String(r.id)),
+  );
   const conflict = new Set<string>();
-  if (live.size > 0) for (const e of many(ctx, "SELECT * FROM files_changeset_file WHERE conflict = ?", 1)) if (live.has(String(e.changeset_id)) && !isNull(e.file_id)) conflict.add(String(e.file_id));
+  if (live.size > 0)
+    for (const e of many(ctx, "SELECT * FROM files_changeset_file WHERE conflict = ?", 1))
+      if (live.has(String(e.changeset_id)) && !isNull(e.file_id)) conflict.add(String(e.file_id));
   const flags = { starred, conflict };
   flagCache.set(ctx, flags);
   return flags;
@@ -427,13 +545,19 @@ const labelCache = new WeakMap<object, Map<string, number>>();
  */
 export function labelOfFolder(ctx: Ctx, folderId: string, opts: { fresh?: boolean } = {}): number {
   let cache = opts.fresh ? undefined : labelCache.get(ctx);
-  if (!cache) { cache = new Map(); if (!opts.fresh) labelCache.set(ctx, cache); }
+  if (!cache) {
+    cache = new Map();
+    if (!opts.fresh) labelCache.set(ctx, cache);
+  }
   const seen: Row[] = [];
   let top = 0;
   let at: string | null = folderId;
   for (let hops = 0; at !== null && hops < 64; hops += 1) {
     const hit = cache.get(at);
-    if (hit !== undefined) { top = hit; break; }
+    if (hit !== undefined) {
+      top = hit;
+      break;
+    }
     const row: Row | undefined = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
     if (!row) break;
     seen.push(row);
@@ -457,17 +581,26 @@ const sourceCache = new WeakMap<object, Map<string, Source | null>>();
  */
 export function sourceOfFolder(ctx: Ctx, folderId: string): Source | undefined {
   let cache = sourceCache.get(ctx);
-  if (!cache) { cache = new Map(); sourceCache.set(ctx, cache); }
+  if (!cache) {
+    cache = new Map();
+    sourceCache.set(ctx, cache);
+  }
   const seen: string[] = [];
   let found: Source | null = null;
   let at: string | null = folderId;
   for (let hops = 0; at !== null && hops < 64; hops += 1) {
     const hit = cache.get(at);
-    if (hit !== undefined) { found = hit; break; }
+    if (hit !== undefined) {
+      found = hit;
+      break;
+    }
     seen.push(at);
     const row: Row | undefined = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
     if (!row) break;
-    if (!isNull(row.source_mount) && !isNull(row.source_provider)) { found = { mountId: String(row.source_mount), provider: String(row.source_provider) }; break; }
+    if (!isNull(row.source_mount) && !isNull(row.source_provider)) {
+      found = { mountId: String(row.source_mount), provider: String(row.source_provider) };
+      break;
+    }
     at = isNull(row.parent_id) ? null : String(row.parent_id);
   }
   for (const id of seen) cache.set(id, found);
@@ -478,12 +611,20 @@ async function filesStar(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
-  if (typeof o.starred !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "starred" });
+  if (typeof o.starred !== "boolean")
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "starred" });
   const me = ctx.principal.id;
   const had = many(ctx, "SELECT * FROM files_star WHERE person = ? AND file_id = ?", me, String(file.id)).length > 0;
-  if (o.starred && !had) ctx.db.run("INSERT INTO files_star (person, file_id, at) VALUES (?, ?, ?)", me, String(file.id), ctx.now());
+  if (o.starred && !had)
+    ctx.db.run("INSERT INTO files_star (person, file_id, at) VALUES (?, ?, ?)", me, String(file.id), ctx.now());
   if (!o.starred && had) ctx.db.run("DELETE FROM files_star WHERE person = ? AND file_id = ?", me, String(file.id));
-  if (o.starred !== had) ctx.emit("file.starred", `file/${String(file.id)}`, { fileId: String(file.id), by: me, starred: o.starred }, { vis: "owner" });
+  if (o.starred !== had)
+    ctx.emit(
+      "file.starred",
+      `file/${String(file.id)}`,
+      { fileId: String(file.id), by: me, starred: o.starred },
+      { vis: "owner" },
+    );
   flagCache.delete(ctx);
   return { file: fileOutC(ctx, file) };
 }
@@ -501,7 +642,9 @@ function subjectOf(ctx: Ctx, row: Row): Subject {
     if (m) return { kind: m[1] as "agent" | "project", id: m[2]! };
     const root = isNull(cur.root_key) ? undefined : ROOT_SUBJECT[String(cur.root_key)];
     if (root) return { kind: root };
-    cur = isNull(cur.parent_id) ? undefined : one(ctx, "SELECT * FROM files_folder WHERE id = ?", String(cur.parent_id));
+    cur = isNull(cur.parent_id)
+      ? undefined
+      : one(ctx, "SELECT * FROM files_folder WHERE id = ?", String(cur.parent_id));
   }
   return { kind: "space" };
 }
@@ -545,8 +688,22 @@ function insertFolder(
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO files_folder (id, parent_id, name, path, scope, owner, label, git, review_changes, source_mount, source_provider, root_key, system_key, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    fields.id, fields.parentId, fields.name, fields.path, fields.scope, fields.owner, fields.label, fields.git, fields.review,
-    null, null, fields.rootKey, fields.systemKey, now, now, null,
+    fields.id,
+    fields.parentId,
+    fields.name,
+    fields.path,
+    fields.scope,
+    fields.owner,
+    fields.label,
+    fields.git,
+    fields.review,
+    null,
+    null,
+    fields.rootKey,
+    fields.systemKey,
+    now,
+    now,
+    null,
   );
 }
 
@@ -558,20 +715,39 @@ function ensureSpaceRoots(ctx: Ctx): void {
     if (!row) {
       const id = nid(ctx, "fld");
       insertFolder(ctx, {
-        id, parentId: null, name: root.title, path: root.title, scope: "space", owner: ctx.space,
-        label: 0, git: 0, review: 0, rootKey: root.key, systemKey: null,
+        id,
+        parentId: null,
+        name: root.title,
+        path: root.title,
+        scope: "space",
+        owner: ctx.space,
+        label: 0,
+        git: 0,
+        review: 0,
+        rootKey: root.key,
+        systemKey: null,
       });
       row = mustFolder(ctx, id);
     }
-    const children = root.key === "knowledge" ? KNOWLEDGE_CHILDREN : root.key === "shared_knowledge" ? SHARED_KNOWLEDGE_CHILDREN : [];
+    const children =
+      root.key === "knowledge" ? KNOWLEDGE_CHILDREN : root.key === "shared_knowledge" ? SHARED_KNOWLEDGE_CHILDREN : [];
     if (children.length === 0 || !row) continue;
     for (const child of children) {
       const have = one(ctx, "SELECT * FROM files_folder WHERE system_key = ?", child.key);
       if (have) continue;
       const id = nid(ctx, "fld");
       insertFolder(ctx, {
-        id, parentId: String(row.id), name: child.title, path: `${String(row.path)}/${child.title}`, scope: "space", owner: ctx.space,
-        label: 0, git: 0, review: 0, rootKey: null, systemKey: child.key,
+        id,
+        parentId: String(row.id),
+        name: child.title,
+        path: `${String(row.path)}/${child.title}`,
+        scope: "space",
+        owner: ctx.space,
+        label: 0,
+        git: 0,
+        review: 0,
+        rootKey: null,
+        systemKey: child.key,
       });
     }
   }
@@ -589,8 +765,17 @@ function ensurePersonal(ctx: Ctx): Row {
   if (existing) return existing;
   const id = nid(ctx, "fld");
   insertFolder(ctx, {
-    id, parentId: null, name: "Personal", path: "Personal", scope: "personal", owner: holder,
-    label: 0, git: 0, review: 0, rootKey: key, systemKey: null,
+    id,
+    parentId: null,
+    name: "Personal",
+    path: "Personal",
+    scope: "personal",
+    owner: holder,
+    label: 0,
+    git: 0,
+    review: 0,
+    rootKey: key,
+    systemKey: null,
   });
   return mustFolder(ctx, id);
 }
@@ -604,19 +789,43 @@ const ready = new WeakMap<object, Set<string>>();
 export function ensureReady(ctx: Ctx): void {
   const key = rawDbOf(ctx.db) ?? (ctx.db as object);
   let done = ready.get(key);
-  if (!done) { done = new Set(); ready.set(key, done); }
-  if (!done.has("")) { ensureSpaceRoots(ctx); done.add(""); }
+  if (!done) {
+    done = new Set();
+    ready.set(key, done);
+  }
+  if (!done.has("")) {
+    ensureSpaceRoots(ctx);
+    done.add("");
+  }
   const holder = personalHolder(ctx);
-  if (!done.has(holder)) { ensurePersonal(ctx); done.add(holder); }
+  if (!done.has(holder)) {
+    ensurePersonal(ctx);
+    done.add(holder);
+  }
 }
 
 function isRoot(row: Row): boolean {
   return !isNull(row.root_key);
 }
 
-function nameTaken(ctx: Ctx, parentId: string, name: string, except?: { kind: "file" | "folder"; id: string }): boolean {
-  const folders = many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL", parentId, name);
-  const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", parentId, name);
+function nameTaken(
+  ctx: Ctx,
+  parentId: string,
+  name: string,
+  except?: { kind: "file" | "folder"; id: string },
+): boolean {
+  const folders = many(
+    ctx,
+    "SELECT * FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL",
+    parentId,
+    name,
+  );
+  const files = many(
+    ctx,
+    "SELECT * FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL",
+    parentId,
+    name,
+  );
   for (const row of folders) {
     if (except?.kind === "folder" && String(row.id) === except.id) continue;
     return true;
@@ -656,7 +865,7 @@ function applyScope(ctx: Ctx, folder: Row, scope: "personal" | "space"): void {
 }
 
 function blobScope(ctx: Ctx, blobId: string): string {
-  return boundedScope("files.blob", ctx.space, blobId);   // the Space and the blob are bound through a digest: a desktop Space id alone is 36 characters
+  return boundedScope("files.blob", ctx.space, blobId); // the Space and the blob are bound through a digest: a desktop Space id alone is 36 characters
 }
 
 async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): Promise<{ id: string; hash: string }> {
@@ -664,13 +873,27 @@ async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): P
   const sealed: Sealed = ctx.seal.seal(plain, blobScope(ctx, id));
   ctx.db.run(
     "INSERT INTO files_blob (id, hash, size, mime, key_id, nonce, bytes, scope, created_at, refs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, hash, plain.byteLength, mime, sealed.keyId, sealed.nonce, sealed.bytes, blobScope(ctx, id), ctx.now(), 0,
+    id,
+    hash,
+    plain.byteLength,
+    mime,
+    sealed.keyId,
+    sealed.nonce,
+    sealed.bytes,
+    blobScope(ctx, id),
+    ctx.now(),
+    0,
   );
   return { id, hash };
 }
 
-async function blobForPlain(ctx: Ctx, plain: Uint8Array, mime: string): Promise<{ id: string; hash: string; size: number }> {
-  if (plain.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+async function blobForPlain(
+  ctx: Ctx,
+  plain: Uint8Array,
+  mime: string,
+): Promise<{ id: string; hash: string; size: number }> {
+  if (plain.byteLength > MAX_INLINE)
+    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
   if (existing) return { id: String(existing.id), hash, size: num(existing.size) };
@@ -710,7 +933,11 @@ function plainOf(ctx: Ctx, content: Content): Uint8Array | undefined {
   return undefined;
 }
 
-async function resolveBlob(ctx: Ctx, content: Content, mime: string): Promise<{ blobId: string; size: number; mime: string }> {
+async function resolveBlob(
+  ctx: Ctx,
+  content: Content,
+  mime: string,
+): Promise<{ blobId: string; size: number; mime: string }> {
   if (content.kind === "blob") {
     const row = one(ctx, "SELECT * FROM files_blob WHERE id = ?", content.blobId);
     if (!row) fail(ctx, "validation.not_found", "That blob is not in the store.", { blobId: content.blobId });
@@ -722,12 +949,29 @@ async function resolveBlob(ctx: Ctx, content: Content, mime: string): Promise<{ 
   return { blobId: stored.id, size: stored.size, mime };
 }
 
-function addVersion(ctx: Ctx, fileId: string, n: number, blobId: string, reason: string | undefined, name: string | undefined): string {
+function addVersion(
+  ctx: Ctx,
+  fileId: string,
+  n: number,
+  blobId: string,
+  reason: string | undefined,
+  name: string | undefined,
+): string {
   const id = nid(ctx, "ver");
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO files_file_version (id, file_id, n, blob, actor, reason, name, at, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, fileId, n, blobId, ctx.principal.id, reason ?? null, name ?? null, now, 1, now, null,
+    id,
+    fileId,
+    n,
+    blobId,
+    ctx.principal.id,
+    reason ?? null,
+    name ?? null,
+    now,
+    1,
+    now,
+    null,
   );
   addRef(ctx, blobId);
   return id;
@@ -737,7 +981,14 @@ function versionsOf(ctx: Ctx, fileId: string): Row[] {
   return many(ctx, "SELECT * FROM files_file_version WHERE file_id = ?", fileId).sort((a, b) => num(b.n) - num(a.n));
 }
 
-function versionOut(row: Row): { versionId: string; n: number; by: string; at: number; reason?: string; name?: string } {
+function versionOut(row: Row): {
+  versionId: string;
+  n: number;
+  by: string;
+  at: number;
+  reason?: string;
+  name?: string;
+} {
   const out: { versionId: string; n: number; by: string; at: number; reason?: string; name?: string } = {
     versionId: String(row.id),
     n: num(row.n),
@@ -802,7 +1053,9 @@ function liveChildren(ctx: Ctx, folderId: string): { folders: Row[]; files: Row[
 
 /** Recent is what a person worked on, newest first. An agent's home is not: its AGENT.md and agent.toml are written when the agent is made, in the name of the person who made it. */
 function recentFiles(ctx: Ctx, limit = Number.POSITIVE_INFINITY): Row[] {
-  const rows = many(ctx, "SELECT * FROM files_recent WHERE actor = ?", ctx.principal.id).sort((a, b) => num(b.at) - num(a.at));
+  const rows = many(ctx, "SELECT * FROM files_recent WHERE actor = ?", ctx.principal.id).sort(
+    (a, b) => num(b.at) - num(a.at),
+  );
   const files: Row[] = [];
   for (const row of rows) {
     if (files.length >= limit) break;
@@ -837,9 +1090,25 @@ function trashTop(ctx: Ctx): { files: Row[]; folders: Row[] } {
   return { files, folders };
 }
 
-async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number; subject?: Subject }[] }> {
+async function filesTree(ctx: Ctx): Promise<{
+  roots: {
+    key: string;
+    title: string;
+    kind: "folder" | "virtual";
+    folderId?: string;
+    count: number;
+    subject?: Subject;
+  }[];
+}> {
   ensureReady(ctx);
-  const roots: { key: string; title: string; kind: "folder" | "virtual"; folderId?: string; count: number; subject?: Subject }[] = [];
+  const roots: {
+    key: string;
+    title: string;
+    kind: "folder" | "virtual";
+    folderId?: string;
+    count: number;
+    subject?: Subject;
+  }[] = [];
   for (const root of TREE_ROOTS) {
     if (root.kind === "virtual") {
       let count = 0;
@@ -847,22 +1116,37 @@ async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: strin
       else if (root.key === "trash") count = trashTop(ctx).files.length + trashTop(ctx).folders.length;
       else if (root.key === "shared") {
         // what access lists for the caller; a badge never takes the whole tree down, so an access failure is a warning and a zero
-        try { count = await sharedCount(ctx); } catch (e) { ctx.log.warn("files: could not count Shared with me", { error: e instanceof Error ? e.message : String(e) }); }
+        try {
+          count = await sharedCount(ctx);
+        } catch (e) {
+          ctx.log.warn("files: could not count Shared with me", { error: e instanceof Error ? e.message : String(e) });
+        }
       }
       roots.push({ key: root.key, title: root.title, kind: "virtual", count });
       continue;
     }
-    const row = root.key === "personal"
-      ? ensurePersonal(ctx)
-      : one(ctx, "SELECT * FROM files_folder WHERE root_key = ?", root.key);
+    const row =
+      root.key === "personal"
+        ? ensurePersonal(ctx)
+        : one(ctx, "SELECT * FROM files_folder WHERE root_key = ?", root.key);
     if (!row) continue;
     const counts = childCounts(ctx, String(row.id));
-    roots.push({ key: root.key, title: root.title, kind: "folder", folderId: String(row.id), count: counts.fileCount + counts.folderCount, subject: subjectOf(ctx, row) });
+    roots.push({
+      key: root.key,
+      title: root.title,
+      kind: "folder",
+      folderId: String(row.id),
+      count: counts.fileCount + counts.folderCount,
+      subject: subjectOf(ctx, row),
+    });
   }
   return { roots };
 }
 
-async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; folders: FolderOut[]; total: number; next?: string }> {
+async function filesList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ files: FileOut[]; folders: FolderOut[]; total: number; next?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const section = optStr(ctx, o, "section");
@@ -870,13 +1154,20 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   const kind = optStr(ctx, o, "kind");
   const sort = optStr(ctx, o, "sort") ?? "name";
   const dir = optStr(ctx, o, "dir") ?? "asc";
-  if (kind !== undefined && !KINDS.has(kind)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
-  if (!["name", "updated", "size", "kind"].includes(sort)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "sort" });
+  if (kind !== undefined && !KINDS.has(kind))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
+  if (!["name", "updated", "size", "kind"].includes(sort))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "sort" });
   if (!["asc", "desc"].includes(dir)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "dir" });
-  if (section !== undefined && !["personal", "shared", "space"].includes(section)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "section" });
+  if (section !== undefined && !["personal", "shared", "space"].includes(section))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "section" });
   const deep = o["deep"] === true;
-  if (o["deep"] !== undefined && typeof o["deep"] !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "deep" });
-  if (deep && (section !== "space" || folderId !== undefined)) fail(ctx, "validation.bad_input", "deep lists the whole Space section: give section space and no folder.", { field: "deep" });
+  if (o["deep"] !== undefined && typeof o["deep"] !== "boolean")
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "deep" });
+  if (deep && (section !== "space" || folderId !== undefined))
+    fail(ctx, "validation.bad_input", "deep lists the whole Space section: give section space and no folder.", {
+      field: "deep",
+    });
   const q = optStr(ctx, o, "q")?.trim().toLowerCase() ?? "";
   const { offset, limit } = pageArgs(ctx, o, PAGE_DEFAULT);
 
@@ -894,7 +1185,11 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
     fileRows = [];
   } else if (section === "space" && deep) {
     // every file in a Space folder (not anyone's Personal), newest first unless asked otherwise; what the caller may not see is filtered below like any list
-    fileRows = many(ctx, `SELECT f.* FROM files_file f JOIN files_folder d ON d.id = f.folder_id WHERE f.deleted_at IS NULL AND d.deleted_at IS NULL AND d.scope = 'space'${kind ? " AND f.kind = ?" : ""} ORDER BY f.updated_at DESC LIMIT ${DEEP_MAX}`, ...(kind ? [kind] : []));
+    fileRows = many(
+      ctx,
+      `SELECT f.* FROM files_file f JOIN files_folder d ON d.id = f.folder_id WHERE f.deleted_at IS NULL AND d.deleted_at IS NULL AND d.scope = 'space'${kind ? " AND f.kind = ?" : ""} ORDER BY f.updated_at DESC LIMIT ${DEEP_MAX}`,
+      ...(kind ? [kind] : []),
+    );
   } else if (section === "space") {
     preserveOrder = sort === "name" && dir === "asc" && optStr(ctx, o, "sort") === undefined;
     for (const root of TREE_ROOTS) {
@@ -924,14 +1219,46 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   folderRows = folderRows.filter((row) => canView(ctx, "folder", row));
   fileRows = fileRows.filter((row) => canView(ctx, "file", row));
 
-  type Item = { kind: "folder" | "file"; id: string; name: string; updatedAt: number; size: number; sortKind: string; row: Row };
+  type Item = {
+    kind: "folder" | "file";
+    id: string;
+    name: string;
+    updatedAt: number;
+    size: number;
+    sortKind: string;
+    row: Row;
+  };
   let items: Item[] = [
-    ...folderRows.map((row) => ({ kind: "folder" as const, id: String(row.id), name: String(row.name), updatedAt: num(row.updated_at), size: 0, sortKind: "folder", row })),
-    ...fileRows.map((row) => ({ kind: "file" as const, id: String(row.id), name: String(row.name), updatedAt: num(row.updated_at), size: num(row.size), sortKind: String(row.kind), row })),
+    ...folderRows.map((row) => ({
+      kind: "folder" as const,
+      id: String(row.id),
+      name: String(row.name),
+      updatedAt: num(row.updated_at),
+      size: 0,
+      sortKind: "folder",
+      row,
+    })),
+    ...fileRows.map((row) => ({
+      kind: "file" as const,
+      id: String(row.id),
+      name: String(row.name),
+      updatedAt: num(row.updated_at),
+      size: num(row.size),
+      sortKind: String(row.kind),
+      row,
+    })),
   ];
   if (!preserveOrder) {
-    const folders = sortRows(items.filter((i) => i.kind === "folder").map((i) => ({ ...i, kind: i.sortKind })), sort, dir);
-    const files = sortRows(items.filter((i) => i.kind === "file").map((i) => ({ ...i, kind: i.sortKind })), sort, dir);
+    const folders = sortRows(
+      items.filter((i) => i.kind === "folder").map((i) => ({ ...i, kind: i.sortKind })),
+      sort,
+      dir,
+    );
+    const files = sortRows(
+      items.filter((i) => i.kind === "file").map((i) => ({ ...i, kind: i.sortKind })),
+      sort,
+      dir,
+    );
     items = [
       ...folders.map((i) => items.find((x) => x.id === i.id)!),
       ...files.map((i) => items.find((x) => x.id === i.id)!),
@@ -955,7 +1282,10 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
   return { files: recentFiles(ctx, limit).map((file) => fileOutC(ctx, file)) };
 }
 
-async function filesResolve(ctx: Ctx, input: unknown): Promise<{ kind: "file" | "folder"; fileId?: string; folderId?: string }> {
+async function filesResolve(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ kind: "file" | "folder"; fileId?: string; folderId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const raw = reqStr(ctx, o, "path").trim().replace(/^\/+/, "");
@@ -964,20 +1294,32 @@ async function filesResolve(ctx: Ctx, input: unknown): Promise<{ kind: "file" | 
   const head = parts[0]!;
   let folder: Row | undefined;
   if (head === "Personal") folder = ensurePersonal(ctx);
-  else folder = one(ctx, "SELECT * FROM files_folder WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL", head);
-  if (!folder || !isNull(folder.deleted_at)) fail(ctx, "validation.not_found", "That path is not in this Space.", { field: "path" });
+  else
+    folder = one(ctx, "SELECT * FROM files_folder WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL", head);
+  if (!folder || !isNull(folder.deleted_at))
+    fail(ctx, "validation.not_found", "That path is not in this Space.", { field: "path" });
   if (parts.length === 1) return { kind: "folder", folderId: String(folder.id) };
   for (let i = 1; i < parts.length; i++) {
     const name = parts[i]!;
     const last = i === parts.length - 1;
-    const child = one(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL", folder.id, name);
+    const child = one(
+      ctx,
+      "SELECT * FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL",
+      folder.id,
+      name,
+    );
     if (child) {
       if (last) return { kind: "folder", folderId: String(child.id) };
       folder = child;
       continue;
     }
     if (last) {
-      const file = one(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folder.id, name);
+      const file = one(
+        ctx,
+        "SELECT * FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL",
+        folder.id,
+        name,
+      );
       if (file) return { kind: "file", fileId: String(file.id), folderId: String(folder.id) };
     }
     fail(ctx, "validation.not_found", "That path is not in this Space.", { field: "path" });
@@ -995,17 +1337,39 @@ const EXTRACT_EXT = new Set(["pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp",
 
 /** Files whose text is not their bytes: a PDF, or a Word, Excel, PowerPoint or OpenDocument file. */
 function extractable(name: string, mime: string): boolean {
-  return EXTRACT_EXT.has(extOf(name)) || mime === "application/pdf" || mime.includes("officedocument") || mime.includes("opendocument") || mime === "application/msword" || mime === "application/vnd.ms-excel" || mime === "application/vnd.ms-powerpoint";
+  return (
+    EXTRACT_EXT.has(extOf(name)) ||
+    mime === "application/pdf" ||
+    mime.includes("officedocument") ||
+    mime.includes("opendocument") ||
+    mime === "application/msword" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "application/vnd.ms-powerpoint"
+  );
 }
 
-async function extractedText(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<{ text: string; truncated: boolean }> {
+async function extractedText(
+  ctx: Ctx,
+  fileId: string,
+  versionId: string | undefined,
+): Promise<{ text: string; truncated: boolean }> {
   try {
-    const out = (await ctx.call("previews.text", { fileId, ...(versionId ? { versionId } : {}) })) as { text?: string; truncated?: boolean; source?: string };
+    const out = (await ctx.call("previews.text", { fileId, ...(versionId ? { versionId } : {}) })) as {
+      text?: string;
+      truncated?: boolean;
+      source?: string;
+    };
     return { text: typeof out.text === "string" ? out.text : "", truncated: out.truncated === true };
   } catch (e) {
     // the text could not be taken out (a converter is down, a damaged file): say so, rather than hand back the bytes of a zip file as if they were words
     const code = (e as { error?: { code?: string } } | null)?.error?.code;
-    fail(ctx, "validation.unsupported", code === "provider.unavailable" || code === "internal.unavailable" ? "The text of this file cannot be read right now." : "The text of this file cannot be read.");
+    fail(
+      ctx,
+      "validation.unsupported",
+      code === "provider.unavailable" || code === "internal.unavailable"
+        ? "The text of this file cannot be read right now."
+        : "The text of this file cannot be read.",
+    );
   }
 }
 
@@ -1013,7 +1377,18 @@ const OOXML_EXT = new Set(["docx", "pptx", "xlsx"]);
 const LEGACY_EXT = new Set(["doc", "ppt", "xls", "rtf"]);
 /** The previews module reads at most this much of a file (previews MAX_BYTES); a larger one has no text. */
 const EXTRACT_MAX_BYTES = 30 * 1024 * 1024;
-const OFFICE_APP: Readonly<Record<string, string>> = { doc: "Word", docx: "Word", rtf: "Word", odt: "Word", ppt: "PowerPoint", pptx: "PowerPoint", odp: "PowerPoint", xls: "Excel", xlsx: "Excel", ods: "Excel" };
+const OFFICE_APP: Readonly<Record<string, string>> = {
+  doc: "Word",
+  docx: "Word",
+  rtf: "Word",
+  odt: "Word",
+  ppt: "PowerPoint",
+  pptx: "PowerPoint",
+  odp: "PowerPoint",
+  xls: "Excel",
+  xlsx: "Excel",
+  ods: "Excel",
+};
 
 /**
  * An Office file with no words is either empty or one Vyre cannot read. A file saved with a password, a damaged one, one too large to read and an old binary one with no converter on the
@@ -1025,34 +1400,55 @@ function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Arra
   const openIt = app === undefined ? "Open it in its own app." : `Open it in ${app}.`;
   // an empty file (or a placeholder its provider could not fill) is read as the empty file it is
   if (size === 0) return;
-  if (size > EXTRACT_MAX_BYTES) fail(ctx, "validation.too_large", `This file is too large for its text to be read here. ${openIt}`);
-  if (LEGACY_EXT.has(ext)) fail(ctx, "validation.unsupported", `The text of this file cannot be read here right now. ${openIt}`);
+  if (size > EXTRACT_MAX_BYTES)
+    fail(ctx, "validation.too_large", `This file is too large for its text to be read here. ${openIt}`);
+  if (LEGACY_EXT.has(ext))
+    fail(ctx, "validation.unsupported", `The text of this file cannot be read here right now. ${openIt}`);
   if (!OOXML_EXT.has(ext)) return;
   const b = bytes();
   if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b) return;
   // a password-protected Office file is a compound file (D0 CF 11 E0 ...) holding an EncryptedPackage stream, not a zip file
   const cfb = b.length >= 8 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
-  if (cfb && Buffer.from(b.buffer, b.byteOffset, b.byteLength).indexOf(Buffer.from("EncryptedPackage", "utf16le")) >= 0) {
+  if (
+    cfb &&
+    Buffer.from(b.buffer, b.byteOffset, b.byteLength).indexOf(Buffer.from("EncryptedPackage", "utf16le")) >= 0
+  ) {
     fail(ctx, "validation.unsupported", `This file is password-protected, so its text cannot be read. ${openIt}`);
   }
   fail(ctx, "validation.unsupported", `This file is damaged, so its text cannot be read. ${openIt}`);
 }
 
-async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
+async function filesRead(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{
+  text?: string;
+  base64?: string;
+  url?: string;
+  mime: string;
+  size: number;
+  version: number;
+  truncated: boolean;
+}> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   let file = mustFile(ctx, reqStr(ctx, o, "fileId"));
   const versionId = optStr(ctx, o, "versionId");
   // A file of a live mount is an empty placeholder until it is opened: reading it opens it first (mounts.open fetches the provider's current copy, or answers that the file is not mounted).
   if (num(file.size) === 0 && !versionId) {
-    try { await ctx.call("mounts.open", { fileId: String(file.id) }); } catch { /* not mounted, or the provider cannot be reached: the file reads as it is */ }
+    try {
+      await ctx.call("mounts.open", { fileId: String(file.id) });
+    } catch {
+      /* not mounted, or the provider cannot be reached: the file reads as it is */
+    }
     file = mustFile(ctx, String(file.id));
   }
   let blobId = String(file.blob);
   let n = num(file.version);
   if (versionId) {
     const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
-    if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+    if (!version || String(version.file_id) !== String(file.id))
+      fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
     blobId = String(version.blob);
     n = num(version.n);
   }
@@ -1063,40 +1459,66 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   // a Google-native file reads as its export; with none in Vyre (Google could not be reached, or a Form or a Site has none) there is nothing to read here, and the answer says where it opens
   if (native && mime === "" && as !== "url") {
     const app = googleApp(String(file.mime));
-    fail(ctx, "validation.unsupported", `This is a ${app} file and Vyre holds no copy of its content right now. Open it in ${app}.`, { fileId: String(file.id), openIn: app });
+    fail(
+      ctx,
+      "validation.unsupported",
+      `This is a ${app} file and Vyre holds no copy of its content right now. Open it in ${app}.`,
+      { fileId: String(file.id), openIn: app },
+    );
   }
-  if (!["text", "base64", "url"].includes(as)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "as" });
+  if (!["text", "base64", "url"].includes(as))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "as" });
   noteOpen(ctx, String(file.id));
   ctx.log.info("files.read", { fileId: String(file.id), version: n });
   if (as === "url") {
-    return { url: `/spaces/${ctx.space}/files/${String(file.id)}?version=${n}`, mime, size, version: n, truncated: false };
+    return {
+      url: `/spaces/${ctx.space}/files/${String(file.id)}?version=${n}`,
+      mime,
+      size,
+      version: n,
+      truncated: false,
+    };
   }
   const offset = optInt(ctx, o, "offset") ?? 0;
   const length = optInt(ctx, o, "length");
   if (offset < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "offset" });
-  if (length !== undefined && length < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
+  if (length !== undefined && length < 1)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
   // As text, a PDF or an Office file is read through its extracted text (previews.text), the way an agent or a person reads it, not as the bytes of a zip file. Offset and length then count characters.
   // An Office or PDF file is extracted even when an older placeholder recorded it as text/plain; a Google export is read as the export it is.
-  if (as === "text" && extractable(String(file.name), mime) && (!textLike(mime) || (!native && EXTRACT_EXT.has(extOf(String(file.name)))))) {
+  if (
+    as === "text" &&
+    extractable(String(file.name), mime) &&
+    (!textLike(mime) || (!native && EXTRACT_EXT.has(extOf(String(file.name)))))
+  ) {
     const out = await extractedText(ctx, String(file.id), versionId);
     if (out.text.trim() === "") unreadable(ctx, String(file.name), size, () => openBlob(ctx, blobId));
     const text = out.text.slice(Math.min(offset, out.text.length), length === undefined ? undefined : offset + length);
-    return { text, mime, size, version: n, truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length) };
+    return {
+      text,
+      mime,
+      size,
+      version: n,
+      truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length),
+    };
   }
   const plain = openBlob(ctx, blobId);
   const end = length === undefined ? plain.byteLength : Math.min(plain.byteLength, offset + length);
   const slice = plain.subarray(Math.min(offset, plain.byteLength), end);
   const truncated = offset > 0 || end < plain.byteLength;
   if (as === "text") {
-    if (slice.byteLength > MAX_INLINE && !(native && offset === 0 && length === undefined)) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
+    if (slice.byteLength > MAX_INLINE && !(native && offset === 0 && length === undefined))
+      fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
     const words = new TextDecoder().decode(slice);
     // a Doc's export reads without the pictures' data, which can be most of its bytes
     if (native && mime === "text/markdown") {
       const readable = readableExport(words);
-      if (new TextEncoder().encode(readable).byteLength > MAX_INLINE) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
+      if (new TextEncoder().encode(readable).byteLength > MAX_INLINE)
+        fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
       return { text: readable, mime, size: plain.byteLength, version: n, truncated };
     }
-    if (slice.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
+    if (slice.byteLength > MAX_INLINE)
+      fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
     return { text: words, mime, size: plain.byteLength, version: n, truncated };
   }
   return { base64: bytesToB64(slice), mime, size: plain.byteLength, version: n, truncated };
@@ -1114,7 +1536,8 @@ async function folderSearch(ctx: Ctx, input: unknown): Promise<{ folders: Folder
   const q = reqStr(ctx, o, "q").trim().toLowerCase();
   const scope = optStr(ctx, o, "scope") ?? "all";
   const limit = optInt(ctx, o, "limit") ?? 20;
-  if (!["folders", "channels", "all"].includes(scope)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "scope" });
+  if (!["folders", "channels", "all"].includes(scope))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "scope" });
   if (limit < 1 || limit > 50) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   if (!q) return { folders: [] };
   const rows = many(ctx, "SELECT * FROM files_folder WHERE deleted_at IS NULL").filter((row) => {
@@ -1128,7 +1551,10 @@ async function folderSearch(ctx: Ctx, input: unknown): Promise<{ folders: Folder
   return { folders: rows.slice(0, limit).map((row) => folderOut(ctx, row)) };
 }
 
-async function trashList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; folders: FolderOut[]; total: number; next?: string }> {
+async function trashList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ files: FileOut[]; folders: FolderOut[]; total: number; next?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const { offset, limit } = pageArgs(ctx, o, PAGE_DEFAULT);
@@ -1151,7 +1577,14 @@ async function trashList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
 function subjectIn(ctx: Ctx, o: Row): { kind: "agent" | "project"; id: string } | undefined {
   if (o.subject === undefined) return undefined;
   const s = o.subject as Row | null;
-  if (!s || typeof s !== "object" || (s.kind !== "agent" && s.kind !== "project") || typeof s.id !== "string" || s.id.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "subject" });
+  if (
+    !s ||
+    typeof s !== "object" ||
+    (s.kind !== "agent" && s.kind !== "project") ||
+    typeof s.id !== "string" ||
+    s.id.length === 0
+  )
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "subject" });
   return { kind: s!.kind as "agent" | "project", id: String(s!.id) };
 }
 
@@ -1160,7 +1593,8 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
   const o = rec(ctx, input);
   const parent = liveFolder(ctx, reqStr(ctx, o, "parentId"));
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
-  if (nameTaken(ctx, String(parent.id), name)) fail(ctx, "validation.duplicate", "That name is already in this folder.");
+  if (nameTaken(ctx, String(parent.id), name))
+    fail(ctx, "validation.duplicate", "That name is already in this folder.");
   const review = optBool(ctx, o, "reviewChanges");
   const subject = subjectIn(ctx, o);
   const id = nid(ctx, "fld");
@@ -1173,7 +1607,7 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
     owner: ctx.principal.id,
     label: num(parent.label),
     git: flag(parent.git) ? 1 : 0,
-    review: review === undefined ? (flag(parent.review_changes) ? 1 : 0) : (review ? 1 : 0),
+    review: review === undefined ? (flag(parent.review_changes) ? 1 : 0) : review ? 1 : 0,
     rootKey: null,
     systemKey: subject ? `${subject.kind}:${subject.id}` : null,
   });
@@ -1234,11 +1668,20 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
   const oldPath = String(row.path);
   const newPath = `${String(dest.path)}/${String(row.name)}`;
   const now = ctx.now();
-  ctx.db.run("UPDATE files_folder SET parent_id = ?, path = ?, updated_at = ? WHERE id = ?", dest.id, newPath, now, row.id);
+  ctx.db.run(
+    "UPDATE files_folder SET parent_id = ?, path = ?, updated_at = ? WHERE id = ?",
+    dest.id,
+    newPath,
+    now,
+    row.id,
+  );
   labelCache.delete(ctx);
   rewritePaths(ctx, oldPath, newPath);
   applyScope(ctx, mustFolder(ctx, String(row.id)), scopeOf(dest));
-  const payload: { folderId: string; fromParentId?: string; toParentId: string } = { folderId: String(row.id), toParentId: String(dest.id) };
+  const payload: { folderId: string; fromParentId?: string; toParentId: string } = {
+    folderId: String(row.id),
+    toParentId: String(dest.id),
+  };
   if (fromParent !== undefined) payload.fromParentId = fromParent;
   ctx.emit("folder.moved", `folder/${String(row.id)}`, payload);
   return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
@@ -1257,10 +1700,14 @@ async function folderDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolea
   if (!isNull(row.deleted_at)) return { deleted: true };
   const now = ctx.now();
   const path = String(row.path);
-  const folders = many(ctx, "SELECT * FROM files_folder WHERE deleted_at IS NULL").filter((f) => underPath(f, row) || String(f.path) === path);
+  const folders = many(ctx, "SELECT * FROM files_folder WHERE deleted_at IS NULL").filter(
+    (f) => underPath(f, row) || String(f.path) === path,
+  );
   const folderIds = new Set(folders.map((f) => String(f.id)));
   folderIds.add(String(row.id));
-  const files = many(ctx, "SELECT * FROM files_file WHERE deleted_at IS NULL").filter((f) => folderIds.has(String(f.folder_id)));
+  const files = many(ctx, "SELECT * FROM files_file WHERE deleted_at IS NULL").filter((f) =>
+    folderIds.has(String(f.folder_id)),
+  );
   for (const folder of folders) {
     ctx.db.run("UPDATE files_folder SET deleted_at = ?, updated_at = ? WHERE id = ?", now, now, folder.id);
     markTrash(ctx, "folder", String(folder.id), String(row.id), now);
@@ -1309,23 +1756,47 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   const review = optBool(ctx, o, "reviewChanges");
   const labelName = optStr(ctx, o, "label");
   const sourceIn = o.source;
-  if (sourceIn !== undefined && sourceIn !== null && (typeof sourceIn !== "object" || Array.isArray(sourceIn) || typeof (sourceIn as Row).mountId !== "string" || typeof (sourceIn as Row).provider !== "string" || String((sourceIn as Row).provider) === "")) {
+  if (
+    sourceIn !== undefined &&
+    sourceIn !== null &&
+    (typeof sourceIn !== "object" ||
+      Array.isArray(sourceIn) ||
+      typeof (sourceIn as Row).mountId !== "string" ||
+      typeof (sourceIn as Row).provider !== "string" ||
+      String((sourceIn as Row).provider) === "")
+  ) {
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "source" });
   }
-  if (review === undefined && labelName === undefined && sourceIn === undefined) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (review === undefined && labelName === undefined && sourceIn === undefined)
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   // every refusal comes before the first write: an unknown label never leaves a changed source behind
   const rank = labelName === undefined ? undefined : LABEL_RANK[labelName];
-  if (labelName !== undefined && rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
+  if (labelName !== undefined && rank === undefined)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
   const fields: string[] = [];
   // the mounts module marks the top of a mount with where it comes from; nothing changes (and nothing is said) when the mark is already there
-  const source = sourceIn === undefined ? undefined : sourceIn === null ? null : { mountId: String((sourceIn as Row).mountId), provider: String((sourceIn as Row).provider) };
-  if (source !== undefined && (str0(row.source_mount) !== (source?.mountId ?? "") || str0(row.source_provider) !== (source?.provider ?? ""))) {
-    ctx.db.run("UPDATE files_folder SET source_mount = ?, source_provider = ? WHERE id = ?", source?.mountId ?? null, source?.provider ?? null, row.id);
+  const source =
+    sourceIn === undefined
+      ? undefined
+      : sourceIn === null
+        ? null
+        : { mountId: String((sourceIn as Row).mountId), provider: String((sourceIn as Row).provider) };
+  if (
+    source !== undefined &&
+    (str0(row.source_mount) !== (source?.mountId ?? "") || str0(row.source_provider) !== (source?.provider ?? ""))
+  ) {
+    ctx.db.run(
+      "UPDATE files_folder SET source_mount = ?, source_provider = ? WHERE id = ?",
+      source?.mountId ?? null,
+      source?.provider ?? null,
+      row.id,
+    );
     sourceCache.delete(ctx);
     fields.push("source");
   }
   if (review === undefined && labelName === undefined) {
-    if (fields.length > 0) ctx.emit("folder.settings_changed", `folder/${String(row.id)}`, { folderId: String(row.id), fields });
+    if (fields.length > 0)
+      ctx.emit("folder.settings_changed", `folder/${String(row.id)}`, { folderId: String(row.id), fields });
     return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
   }
   let label = num(row.label);
@@ -1341,7 +1812,13 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
     fields.push("label");
   }
   const now = ctx.now();
-  ctx.db.run("UPDATE files_folder SET review_changes = ?, label = ?, updated_at = ? WHERE id = ?", reviewBit, label, now, row.id);
+  ctx.db.run(
+    "UPDATE files_folder SET review_changes = ?, label = ?, updated_at = ? WHERE id = ?",
+    reviewBit,
+    label,
+    now,
+    row.id,
+  );
   ctx.emit("folder.settings_changed", `folder/${String(row.id)}`, { folderId: String(row.id), fields });
   return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
 }
@@ -1357,7 +1834,8 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   const o = rec(ctx, input);
   const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
-  if (nameTaken(ctx, String(folder.id), name)) fail(ctx, "validation.duplicate", "That name is already in this folder.");
+  if (nameTaken(ctx, String(folder.id), name))
+    fail(ctx, "validation.duplicate", "That name is already in this folder.");
   const content = parseContent(ctx, o.content);
   const mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
   const kind = chosenKind(ctx, optStr(ctx, o, "kind"), name, mimeHint);
@@ -1366,7 +1844,20 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO files_file (id, folder_id, name, kind, mime, size, blob, owner, source_mount, created_at, updated_by, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, folder.id, name, kind, blob.mime, blob.size, blob.blobId, ctx.principal.id, null, now, ctx.principal.id, 1, now, null,
+    id,
+    folder.id,
+    name,
+    kind,
+    blob.mime,
+    blob.size,
+    blob.blobId,
+    ctx.principal.id,
+    null,
+    now,
+    ctx.principal.id,
+    1,
+    now,
+    null,
   );
   const versionId = addVersion(ctx, id, 1, blob.blobId, undefined, undefined);
   noteOpen(ctx, id);
@@ -1376,7 +1867,10 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   return { file: fileOutC(ctx, mustFile(ctx, id)) };
 }
 
-async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
+async function filesWrite(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
@@ -1386,7 +1880,8 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   }
   const reason = optStr(ctx, o, "reason");
   const content = parseContent(ctx, o.content);
-  if (content.kind === "empty" && o.content === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
+  if (content.kind === "empty" && o.content === undefined)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
   await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
@@ -1394,7 +1889,12 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   const now = ctx.now();
   ctx.db.run(
     "UPDATE files_file SET blob = ?, size = ?, version = ?, updated_at = ?, updated_by = ? WHERE id = ?",
-    blob.blobId, blob.size, n, now, ctx.principal.id, file.id,
+    blob.blobId,
+    blob.size,
+    n,
+    now,
+    ctx.principal.id,
+    file.id,
   );
   // a Google-native file made before it kept Google's type (it read as text/plain) takes it from its first export
   if (String(file.kind) === "google_native" && !mime.startsWith(GOOGLE_NATIVE)) {
@@ -1404,7 +1904,10 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   const versionId = addVersion(ctx, String(file.id), n, blob.blobId, reason, undefined);
   noteOpen(ctx, String(file.id));
   const payload: { fileId: string; versionId: string; n: number; by: string; reason?: string } = {
-    fileId: String(file.id), versionId, n, by: ctx.principal.id,
+    fileId: String(file.id),
+    versionId,
+    n,
+    by: ctx.principal.id,
   };
   if (reason !== undefined) payload.reason = reason;
   ctx.emit("file.version_added", `file/${String(file.id)}`, payload);
@@ -1427,12 +1930,27 @@ export async function guardAgentSettings(ctx: Ctx, file: Row): Promise<void> {
   } catch (e) {
     const code = (e as { error?: { code?: unknown } } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code;
     if (code === "internal.not_implemented" || code === "validation.unknown_capability") return;
-    fail(ctx, "permission.no_grant", "agent.toml is this agent's settings, and Vyre could not check that you may change them. Nothing was saved. Try again.", { fileId, reason: "agent_settings" });
+    fail(
+      ctx,
+      "permission.no_grant",
+      "agent.toml is this agent's settings, and Vyre could not check that you may change them. Nothing was saved. Try again.",
+      { fileId, reason: "agent_settings" },
+    );
   }
   if (answer?.allowed !== false) return;
-  fail(ctx, "permission.no_grant", typeof answer.message === "string" && answer.message !== "" ? answer.message : "agent.toml is this agent's settings, and you may not change them. Nothing was saved.", {
-    fileId, reason: "agent_settings", ...(typeof answer.agentId === "string" ? { agentId: answer.agentId } : {}), ...(typeof answer.reason === "string" ? { why: answer.reason } : {}),
-  });
+  fail(
+    ctx,
+    "permission.no_grant",
+    typeof answer.message === "string" && answer.message !== ""
+      ? answer.message
+      : "agent.toml is this agent's settings, and you may not change them. Nothing was saved.",
+    {
+      fileId,
+      reason: "agent_settings",
+      ...(typeof answer.agentId === "string" ? { agentId: answer.agentId } : {}),
+      ...(typeof answer.reason === "string" ? { why: answer.reason } : {}),
+    },
+  );
 }
 
 /** The two files an agent is made of. They stay in the agent's own folder under their own names: renaming, moving or deleting either would leave an agent with no configuration or no instructions. */
@@ -1450,12 +1968,21 @@ export function guardAgentFile(ctx: Ctx, file: Row, doing: "delete" | "move" | "
   if (!isHome && home.system_key == null && typeof home.parent_id === "string") {
     const parent = many(ctx, "SELECT root_key FROM files_folder WHERE id = ?", home.parent_id)[0];
     if (parent?.root_key === "agents") {
-      const names = many(ctx, "SELECT name FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", String(home.id)).map((r) => String(r.name));
+      const names = many(
+        ctx,
+        "SELECT name FROM files_file WHERE folder_id = ? AND deleted_at IS NULL",
+        String(home.id),
+      ).map((r) => String(r.name));
       isHome = AGENT_OWN_FILES.size === [...AGENT_OWN_FILES].filter((n) => names.includes(n)).length;
     }
   }
   if (!isHome) return;
-  fail(ctx, "validation.precondition_failed", `${name} is part of the agent, so it cannot be ${doing === "delete" ? "deleted" : doing === "move" ? "moved" : "renamed"}. Edit it, or delete the agent to remove its folder.`, { fileId: String(file.id), name, reason: "agent_file" });
+  fail(
+    ctx,
+    "validation.precondition_failed",
+    `${name} is part of the agent, so it cannot be ${doing === "delete" ? "deleted" : doing === "move" ? "moved" : "renamed"}. Edit it, or delete the agent to remove its folder.`,
+    { fileId: String(file.id), name, reason: "agent_file" },
+  );
 }
 
 async function filesRename(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
@@ -1470,7 +1997,13 @@ async function filesRename(ctx: Ctx, input: unknown): Promise<{ file: FileOut }>
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   }
   const now = ctx.now();
-  ctx.db.run("UPDATE files_file SET name = ?, updated_at = ?, updated_by = ? WHERE id = ?", name, now, ctx.principal.id, file.id);
+  ctx.db.run(
+    "UPDATE files_file SET name = ?, updated_at = ?, updated_by = ? WHERE id = ?",
+    name,
+    now,
+    ctx.principal.id,
+    file.id,
+  );
   noteOpen(ctx, String(file.id));
   ctx.emit("file.renamed", `file/${String(file.id)}`, { fileId: String(file.id), from, to: name });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
@@ -1492,11 +2025,20 @@ async function filesMove(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   const now = ctx.now();
   ctx.db.run(
     "UPDATE files_file SET folder_id = ?, name = ?, updated_at = ?, updated_by = ? WHERE id = ?",
-    dest.id, name, now, ctx.principal.id, file.id,
+    dest.id,
+    name,
+    now,
+    ctx.principal.id,
+    file.id,
   );
   noteOpen(ctx, String(file.id));
-  ctx.emit("file.moved", `file/${String(file.id)}`, { fileId: String(file.id), fromFolderId: fromFolder, toFolderId: String(dest.id) });
-  if (name !== String(file.name)) ctx.emit("file.renamed", `file/${String(file.id)}`, { fileId: String(file.id), from: String(file.name), to: name });
+  ctx.emit("file.moved", `file/${String(file.id)}`, {
+    fileId: String(file.id),
+    fromFolderId: fromFolder,
+    toFolderId: String(dest.id),
+  });
+  if (name !== String(file.name))
+    ctx.emit("file.renamed", `file/${String(file.id)}`, { fileId: String(file.id), from: String(file.name), to: name });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
@@ -1505,7 +2047,10 @@ async function filesCopy(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   const o = rec(ctx, input);
   const sourceId = reqStr(ctx, o, "fileId");
   // The pipeline authorized the destination folder; the file being copied is another item, and the copy carries its contents into a place the caller can write. Only an explicit allow on the source copies it (P-SEC_07).
-  if (typeof ctx.authorize !== "function" || ctx.authorize({ perm: null, level: "view" }, { type: "file", id: sourceId }).effect !== "allow") {
+  if (
+    typeof ctx.authorize !== "function" ||
+    ctx.authorize({ perm: null, level: "view" }, { type: "file", id: sourceId }).effect !== "allow"
+  ) {
     fail(ctx, "permission.no_grant", "You cannot copy a file you cannot open.", { fileId: sourceId });
   }
   const file = liveFile(ctx, sourceId);
@@ -1516,11 +2061,30 @@ async function filesCopy(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO files_file (id, folder_id, name, kind, mime, size, blob, owner, source_mount, created_at, updated_by, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, dest.id, name, file.kind, file.mime, file.size, file.blob, ctx.principal.id, null, now, ctx.principal.id, 1, now, null,
+    id,
+    dest.id,
+    name,
+    file.kind,
+    file.mime,
+    file.size,
+    file.blob,
+    ctx.principal.id,
+    null,
+    now,
+    ctx.principal.id,
+    1,
+    now,
+    null,
   );
   const versionId = addVersion(ctx, id, 1, String(file.blob), undefined, undefined);
   noteOpen(ctx, id);
-  ctx.emit("file.created", `file/${id}`, { fileId: id, folderId: String(dest.id), name, kind: String(file.kind), by: ctx.principal.id });
+  ctx.emit("file.created", `file/${id}`, {
+    fileId: id,
+    folderId: String(dest.id),
+    name,
+    kind: String(file.kind),
+    by: ctx.principal.id,
+  });
   ctx.emit("file.version_added", `file/${id}`, { fileId: id, versionId, n: 1, by: ctx.principal.id });
   return { file: fileOutC(ctx, mustFile(ctx, id)) };
 }
@@ -1558,7 +2122,11 @@ async function filesRestore(ctx: Ctx, input: unknown): Promise<{ file: FileOut }
   const now = ctx.now();
   ctx.db.run(
     "UPDATE files_file SET deleted_at = ?, folder_id = ?, updated_at = ?, updated_by = ? WHERE id = ?",
-    null, folderId, now, ctx.principal.id, file.id,
+    null,
+    folderId,
+    now,
+    ctx.principal.id,
+    file.id,
   );
   ctx.db.run("DELETE FROM files_trash WHERE id = ?", file.id);
   noteOpen(ctx, String(file.id));
@@ -1581,7 +2149,8 @@ async function filesPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }
   ensureReady(ctx);
   const o = rec(ctx, input);
   const file = mustFile(ctx, reqStr(ctx, o, "fileId"));
-  if (isNull(file.deleted_at)) fail(ctx, "validation.precondition_failed", "Move the file to Trash before deleting it for good.");
+  if (isNull(file.deleted_at))
+    fail(ctx, "validation.precondition_failed", "Move the file to Trash before deleting it for good.");
   purgeFile(ctx, file);
   return { purged: true };
 }
@@ -1599,7 +2168,8 @@ async function trashEmpty(ctx: Ctx, input: unknown): Promise<{ purged: number }>
   ensureReady(ctx);
   const o = rec(ctx, input);
   const older = optInt(ctx, o, "olderThanDays");
-  if (older !== undefined && older < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "olderThanDays" });
+  if (older !== undefined && older < 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "olderThanDays" });
   const cutoff = older === undefined ? Number.POSITIVE_INFINITY : older * 24 * 60 * 60 * 1000;
   const rows = many(ctx, "SELECT * FROM files_trash").filter((row) => String(row.id) === String(row.root_id));
   let purged = 0;
@@ -1629,7 +2199,10 @@ async function trashEmpty(ctx: Ctx, input: unknown): Promise<{ purged: number }>
   return { purged };
 }
 
-async function filesVersions(ctx: Ctx, input: unknown): Promise<{ versions: { versionId: string; n: number; by: string; at: number; reason?: string; name?: string }[] }> {
+async function filesVersions(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ versions: { versionId: string; n: number; by: string; at: number; reason?: string; name?: string }[] }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const file = mustFile(ctx, reqStr(ctx, o, "fileId"));
@@ -1642,7 +2215,8 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
   const versionId = reqStr(ctx, o, "versionId");
   const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
-  if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  if (!version || String(version.file_id) !== String(file.id))
+    fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
   await guardAgentSettings(ctx, file);
   const n = num(file.version) + 1;
   const blobId = String(version.blob);
@@ -1651,11 +2225,22 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const size = blob ? num(blob.size) : num(file.size);
   ctx.db.run(
     "UPDATE files_file SET blob = ?, size = ?, version = ?, updated_at = ?, updated_by = ? WHERE id = ?",
-    blobId, size, n, now, ctx.principal.id, file.id,
+    blobId,
+    size,
+    n,
+    now,
+    ctx.principal.id,
+    file.id,
   );
   const nextId = addVersion(ctx, String(file.id), n, blobId, "restore", undefined);
   noteOpen(ctx, String(file.id));
-  ctx.emit("file.version_added", `file/${String(file.id)}`, { fileId: String(file.id), versionId: nextId, n, by: ctx.principal.id, reason: "restore" });
+  ctx.emit("file.version_added", `file/${String(file.id)}`, {
+    fileId: String(file.id),
+    versionId: nextId,
+    n,
+    by: ctx.principal.id,
+    reason: "restore",
+  });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId: nextId };
 }
 
@@ -1665,13 +2250,20 @@ async function filesNameVersion(ctx: Ctx, input: unknown): Promise<{ ok: boolean
   const file = mustFile(ctx, reqStr(ctx, o, "fileId"));
   const versionId = reqStr(ctx, o, "versionId");
   const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
-  if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  if (!version || String(version.file_id) !== String(file.id))
+    fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
   const name = optStr(ctx, o, "name");
   const reason = optStr(ctx, o, "reason");
   if (name === undefined && reason === undefined) fail(ctx, "validation.bad_input", "The input is not valid.");
   const nextName = name === undefined ? version.name : name;
   const nextReason = reason === undefined ? version.reason : reason;
-  ctx.db.run("UPDATE files_file_version SET name = ?, reason = ?, updated_at = ? WHERE id = ?", nextName ?? null, nextReason ?? null, ctx.now(), version.id);
+  ctx.db.run(
+    "UPDATE files_file_version SET name = ?, reason = ?, updated_at = ? WHERE id = ?",
+    nextName ?? null,
+    nextReason ?? null,
+    ctx.now(),
+    version.id,
+  );
   return { ok: true };
 }
 
@@ -1693,12 +2285,20 @@ async function uploadUrl(ctx: Ctx, input: unknown): Promise<{ blobId: string; ur
   const expiresAt = ctx.now() + UPLOAD_MS;
   ctx.db.run(
     "INSERT INTO files_upload (id, token, size, mime, expires_at, actor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    blobId, secret, size, mime, expiresAt, ctx.principal.id, ctx.now(),
+    blobId,
+    secret,
+    size,
+    mime,
+    expiresAt,
+    ctx.principal.id,
+    ctx.now(),
   );
   return { blobId, url: `/spaces/${ctx.space}/blobs/${blobId}?token=${secret}`, expiresAt };
 }
 
-async function filesHealth(ctx: Ctx): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
+async function filesHealth(
+  ctx: Ctx,
+): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
   const started = ctx.now();
   ensureReady(ctx);
   const blobs = many(ctx, "SELECT * FROM files_blob");
@@ -1710,12 +2310,19 @@ async function filesHealth(ctx: Ctx): Promise<{ state: "healthy" | "degraded" | 
 }
 
 /** Host blob endpoint: the one-time token from files.upload_url, then the plaintext bytes. Seals them into files_blob. */
-export async function putUploadedBytes(ctx: Ctx, blobId: string, uploadToken: string, plain: Uint8Array): Promise<{ hash: string; size: number }> {
+export async function putUploadedBytes(
+  ctx: Ctx,
+  blobId: string,
+  uploadToken: string,
+  plain: Uint8Array,
+): Promise<{ hash: string; size: number }> {
   ensureReady(ctx);
   const up = one(ctx, "SELECT * FROM files_upload WHERE id = ?", blobId);
-  if (!up || String(up.token) !== uploadToken) fail(ctx, "validation.not_found", "That upload is not in this Space.", { blobId });
+  if (!up || String(up.token) !== uploadToken)
+    fail(ctx, "validation.not_found", "That upload is not in this Space.", { blobId });
   if (ctx.now() > num(up.expires_at)) fail(ctx, "validation.precondition_failed", "That upload has expired.");
-  if (plain.byteLength !== num(up.size)) fail(ctx, "validation.bad_input", "The uploaded size does not match the reservation.");
+  if (plain.byteLength !== num(up.size))
+    fail(ctx, "validation.bad_input", "The uploaded size does not match the reservation.");
   if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
   const mime = isNull(up.mime) ? "application/octet-stream" : String(up.mime);
   const stored = await putBlob(ctx, plain, mime, blobId);

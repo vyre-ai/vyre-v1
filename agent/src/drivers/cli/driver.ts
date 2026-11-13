@@ -14,7 +14,11 @@ import { createCliSession } from "./session.ts";
 import type { CliSession, CliSessionDeps } from "./session.ts";
 import type { CliAdapter, CliId, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 
-export const CLI_ADAPTERS: Readonly<Record<CliId, CliAdapter>> = Object.freeze({ claude_code: claudeCode, codex, grok });
+export const CLI_ADAPTERS: Readonly<Record<CliId, CliAdapter>> = Object.freeze({
+  claude_code: claudeCode,
+  codex,
+  grok,
+});
 
 export interface CliDriverDeps {
   launcher: Launcher;
@@ -67,24 +71,43 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
   return {
     kind: "cli",
     id: adapter.id,
-    async models(acct) { return deps.modelsFor ? [...(await deps.modelsFor(acct))] : [...adapter.models]; },
+    async models(acct) {
+      return deps.modelsFor ? [...(await deps.modelsFor(acct))] : [...adapter.models];
+    },
     async probe(acct) {
       void acct;
       try {
         const proc = await deps.launcher.spawn({ argv: [adapter.bin, "--version"], env: {} });
         proc.endInput();
         let out = "";
-        const reading = (async () => { for await (const l of lines(proc.stdout)) out += `${l}\n`; })().catch(() => undefined);
-        const timer = new Promise<"timeout">((resolve) => { const t = setTimeout(() => resolve("timeout"), 15_000); t.unref?.(); });
+        const reading = (async () => {
+          for await (const l of lines(proc.stdout)) out += `${l}\n`;
+        })().catch(() => undefined);
+        const timer = new Promise<"timeout">((resolve) => {
+          const t = setTimeout(() => resolve("timeout"), 15_000);
+          t.unref?.();
+        });
         const exit = await Promise.race([proc.exited, timer]);
-        if (exit === "timeout") { proc.kill("SIGKILL"); return { ok: false, error: { code: "engine.timeout", message: `${adapter.bin} did not answer.` } }; }
+        if (exit === "timeout") {
+          proc.kill("SIGKILL");
+          return { ok: false, error: { code: "engine.timeout", message: `${adapter.bin} did not answer.` } };
+        }
         await Promise.race([reading, new Promise<void>((r) => setTimeout(r, graceMs).unref?.())]);
         if (exit.code === 0) return { ok: true, models: adapter.models.length };
         const text = (proc.stderrTail() || out).trim().slice(0, 200);
-        return { ok: false, error: { code: classifyCli(text), message: text !== "" ? text : `${adapter.bin} exited with ${exit.code ?? exit.signal ?? "an error"}.` } };
+        return {
+          ok: false,
+          error: {
+            code: classifyCli(text),
+            message: text !== "" ? text : `${adapter.bin} exited with ${exit.code ?? exit.signal ?? "an error"}.`,
+          },
+        };
       } catch (e) {
         const code = e instanceof LaunchError ? e.code : "engine.cli_failed";
-        return { ok: false, error: { code, message: e instanceof Error ? e.message : `${adapter.bin} could not start.` } };
+        return {
+          ok: false,
+          error: { code, message: e instanceof Error ? e.message : `${adapter.bin} could not start.` },
+        };
       }
     },
     async open(spec) {
@@ -92,32 +115,40 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
       const lean = spec.lean === true;
       const noTools = spec.tools === "none" || lean;
       const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
-      const session = createCliSession({
-        adapter, launcher: deps.launcher, endpoint,
-        model: cliModel(spec.agent.model),
-        // a lean call starts fresh, says only its own system prompt and saves nothing to resume
-        resume: lean ? null : deps.resume?.(spec) ?? null,
-        system: lean ? spec.agent.role ?? null : deps.system?.(spec) ?? null,
-        ...(lean ? { lean: true } : {}),
-        workFolder: deps.workFolder?.(spec) ?? null,
-        env: deps.env?.(spec) ?? {},
-        ...(!lean && deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
-        ...(noTools ? { noTools: true } : {}),
-        ...(spec.mode !== undefined ? { mode: spec.mode } : {}),
-        ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}),
-        ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
-        ...(deps.prompt ? { prompt: deps.prompt } : {}),
-        ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
-        ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
-        ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
-        account: spec.agent.accountRef ?? "",
-        ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
-        onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
-        ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
-      }, spec);
+      const session = createCliSession(
+        {
+          adapter,
+          launcher: deps.launcher,
+          endpoint,
+          model: cliModel(spec.agent.model),
+          // a lean call starts fresh, says only its own system prompt and saves nothing to resume
+          resume: lean ? null : (deps.resume?.(spec) ?? null),
+          system: lean ? (spec.agent.role ?? null) : (deps.system?.(spec) ?? null),
+          ...(lean ? { lean: true } : {}),
+          workFolder: deps.workFolder?.(spec) ?? null,
+          env: deps.env?.(spec) ?? {},
+          ...(!lean && deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
+          ...(noTools ? { noTools: true } : {}),
+          ...(spec.mode !== undefined ? { mode: spec.mode } : {}),
+          ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}),
+          ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
+          ...(deps.prompt ? { prompt: deps.prompt } : {}),
+          ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
+          ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+          ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
+          account: spec.agent.accountRef ?? "",
+          ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
+          onClose: async () => {
+            if (!noTools) await deps.mcpClose?.(spec, endpoint);
+          },
+          ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
+        },
+        spec,
+      );
       if (deps.prewarm !== false) {
-        try { await session.prewarm(); }
-        catch (e) {
+        try {
+          await session.prewarm();
+        } catch (e) {
           await session.close();
           if (e instanceof LaunchError) throw new DriverError(e.code, e.message);
           throw e;

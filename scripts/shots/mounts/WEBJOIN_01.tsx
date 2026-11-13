@@ -16,16 +16,31 @@ import type { StoredSession } from "../../../apps/app/src/shell/session/stored.t
 export const title = "Joining a server Space from a browser";
 
 const noop = (): void => undefined;
-const stored = { baseUrl: "https://mla.vyre.run", token: "fixture-token", def: { name: "My Legal Academy" } } as StoredSession;
+const stored = {
+  baseUrl: "https://mla.vyre.run",
+  token: "fixture-token",
+  def: { name: "My Legal Academy" },
+} as StoredSession;
 const owner = [{ id: "usr_owner", kind: "person", name: "Irfad Imtiaz", status: "active", roles: ["rol_owner"] }];
 
-function vaultFor(key: { set: boolean; name?: string; models?: string[] } | null, o: { home: "none" | "computer"; empty?: boolean }): VaultData {
-  const v = createSampleVault(o.empty ? { ...northwind, items: [], providers: [], history: [], requests: [] } : { ...northwind, items: northwind.items.filter((i) => i.scope === "shared"), providers: [] });
+function vaultFor(
+  key: { set: boolean; name?: string; models?: string[] } | null,
+  o: { home: "none" | "computer"; empty?: boolean },
+): VaultData {
+  const v = createSampleVault(
+    o.empty
+      ? { ...northwind, items: [], providers: [], history: [], requests: [] }
+      : { ...northwind, items: northwind.items.filter((i) => i.scope === "shared"), providers: [] },
+  );
   const call = v.data.call;
   return {
-    ...v.data, aiHome: o.home,
+    ...v.data,
+    aiHome: o.home,
     call: async (cap, input) => {
-      if (cap === "providers.space_key.get") return key ? { ...key, models: key.models ?? [], mayManage: false, state: "ok" } : { set: false, models: [], mayManage: false };
+      if (cap === "providers.space_key.get")
+        return key
+          ? { ...key, models: key.models ?? [], mayManage: false, state: "ok" }
+          : { set: false, models: [], mayManage: false };
       if (cap === "access.principals.list") return { principals: owner };
       return call(cap, input);
     },
@@ -34,17 +49,62 @@ function vaultFor(key: { set: boolean; name?: string; models?: string[] } | null
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "join-covered"), []);
-  const browser = useMemo(() => vaultFor({ set: true, name: "OpenCode Go", models: ["glm-5.3", "kimi-k3", "qwen3-coder", "deepseek-v4"] }, { home: "none" }), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "join-covered",
+      ),
+    [],
+  );
+  const browser = useMemo(
+    () =>
+      vaultFor(
+        { set: true, name: "OpenCode Go", models: ["glm-5.3", "kimi-k3", "qwen3-coder", "deepseek-v4"] },
+        { home: "none" },
+      ),
+    [],
+  );
   const desktop = useMemo(() => vaultFor(null, { home: "computer" }), []);
   const empty = useMemo(() => vaultFor(null, { home: "none", empty: true }), []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (part === "join-covered") return <JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" spaceAi={{ key: { set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3", "kimi-k3"] }, admin: null }} onOpen={noop} onClearSecret={noop} />;
-  if (part === "join-nokey") return <JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }} onOpen={noop} onClearSecret={noop} />;
+  if (part === "join-covered")
+    return (
+      <JoinProviderSetup
+        stored={stored}
+        ai={{ choice: "sub" }}
+        home="none"
+        spaceAi={{ key: { set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3", "kimi-k3"] }, admin: null }}
+        onOpen={noop}
+        onClearSecret={noop}
+      />
+    );
+  if (part === "join-nokey")
+    return (
+      <JoinProviderSetup
+        stored={stored}
+        ai={{ choice: "sub" }}
+        home="none"
+        spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }}
+        onOpen={noop}
+        onClearSecret={noop}
+      />
+    );
   if (part === "signin-name") {
-    const invite = signInInvite("https://mla.vyre.run", { name: "spc_2a7c98c337e1dfd2e05e1aab", fingerprint: "", password: true, github: false, sso: [], secondFactorRequired: false });
+    const invite = signInInvite("https://mla.vyre.run", {
+      name: "spc_2a7c98c337e1dfd2e05e1aab",
+      fingerprint: "",
+      password: true,
+      github: false,
+      sso: [],
+      secondFactorRequired: false,
+    });
     return <JoinFlow invite={invite} initial={{ stage: "signin" }} />;
   }
   const data = part === "vault-desktop" ? desktop : part === "vault-keys" ? empty : browser;
-  return <View style={{ flex: 1, minHeight: 760 }}><Vault data={data} initial={part === "vault-keys" ? { kind: "keys" } : { kind: "providers" }} /></View>;
+  return (
+    <View style={{ flex: 1, minHeight: 760 }}>
+      <Vault data={data} initial={part === "vault-keys" ? { kind: "keys" } : { kind: "providers" }} />
+    </View>
+  );
 }

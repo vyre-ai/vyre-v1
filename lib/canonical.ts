@@ -14,7 +14,15 @@ export function canonical(v: unknown): string {
     const proto = Object.getPrototypeOf(v);
     if (proto !== Object.prototype && proto !== null) throw new TypeError("canonical: only plain objects and arrays");
     const o = v as Record<string, unknown>;
-    return "{" + Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + canonical(o[k])).join(",") + "}";
+    return (
+      "{" +
+      Object.keys(o)
+        .filter((k) => o[k] !== undefined)
+        .sort()
+        .map((k) => JSON.stringify(k) + ":" + canonical(o[k]))
+        .join(",") +
+      "}"
+    );
   }
   throw new TypeError(`canonical: cannot encode ${typeof v}`);
 }

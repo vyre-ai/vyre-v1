@@ -45,8 +45,8 @@ test("list-sections requires ListSections for a listed sidebar", () => {
 test("no-em-dash-or-section-sign flags the em dash and the section sign", () => {
   const dash = "Hover the row " + "\u2014" + " then click.\n";
   const sign = "Read " + "\u00A7" + " 4 before editing.\n";
-  const escapedDash = "const label = \"see \\u2014 here\";\n";
-  const escapedSign = "const label = \"see \\u00A7 here\";\n";
+  const escapedDash = 'const label = "see \\u2014 here";\n';
+  const escapedSign = 'const label = "see \\u00A7 here";\n';
   const plain = "Hover the row - then click. Read section 4.\n";
   const en = "Range " + "\u2013" + " done.\n";
   for (const source of [dash, escapedDash]) {
@@ -62,4 +62,13 @@ test("no-em-dash-or-section-sign flags the em dash and the section sign", () => 
   }
   assert.equal(checkNoEmDashOrSectionSign("docs/copy.md", plain).length, 0);
   assert.equal(checkNoEmDashOrSectionSign("docs/copy.md", en).length, 0);
+});
+
+test("the files that define or report the forbidden characters hold none themselves, so the lint passes them when a branch changes them", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["tools/gen/src/validate.ts", "scripts/import-0.6.ts"]) {
+    const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+    assert.deepEqual(checkNoEmDashOrSectionSign(file, source), [], file);
+    assert.deepEqual(checkNoContentInLogs(file, source), [], file);
+  }
 });

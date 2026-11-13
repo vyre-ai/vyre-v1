@@ -3,7 +3,12 @@
 export const LEASE_TTL_MS = 20_000;
 export const HEARTBEAT_MS = 5_000;
 
-export interface LeaseRow { threadId: string; holder: string; expiresAt: number; turnId: string | null }
+export interface LeaseRow {
+  threadId: string;
+  holder: string;
+  expiresAt: number;
+  turnId: string | null;
+}
 
 export interface LeaseStore {
   /** Take the lease if it is free, expired, or already ours. Returns the row, or null when someone else holds it. */
@@ -22,7 +27,12 @@ export function createMemoryLeases(ttlMs: number = LEASE_TTL_MS): LeaseStore {
     acquire(threadId, holder, now, turnId = null) {
       const cur = rows.get(threadId);
       if (live(cur, now) && cur.holder !== holder) return null;
-      const next: LeaseRow = { threadId, holder, expiresAt: now + ttlMs, turnId: turnId ?? (live(cur, now) ? cur.turnId : null) };
+      const next: LeaseRow = {
+        threadId,
+        holder,
+        expiresAt: now + ttlMs,
+        turnId: turnId ?? (live(cur, now) ? cur.turnId : null),
+      };
       rows.set(threadId, next);
       return { ...next };
     },

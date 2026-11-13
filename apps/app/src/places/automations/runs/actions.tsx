@@ -40,51 +40,90 @@ export function useRunActions(): RunActions {
     say: setNote,
     async retry(run, fromStep) {
       try {
-        const out = (await data.call("runs.retry", { runId: run.id, ...(fromStep ? { fromStep } : {}) })) as { runId?: string };
+        const out = (await data.call("runs.retry", { runId: run.id, ...(fromStep ? { fromStep } : {}) })) as {
+          runId?: string;
+        };
         setNote(fromStep ? "Retrying from that step" : "Retrying the run");
         return out?.runId ?? null;
-      } catch (e) { fail(e); return null; }
+      } catch (e) {
+        fail(e);
+        return null;
+      }
     },
     async retryStep(run) {
       try {
         const out = (await data.call("runs.steps", { runId: run.id })) as { steps?: readonly RunStep[] };
         const bad = [...(out?.steps ?? [])].reverse().find((x) => x.state === "failed");
-        const res = (await data.call("runs.retry", { runId: run.id, ...(bad ? { fromStep: bad.step } : {}) })) as { runId?: string };
+        const res = (await data.call("runs.retry", { runId: run.id, ...(bad ? { fromStep: bad.step } : {}) })) as {
+          runId?: string;
+        };
         setNote(bad ? "Retrying from the step that failed" : "Retrying the run");
         return res?.runId ?? null;
-      } catch (e) { fail(e); return null; }
+      } catch (e) {
+        fail(e);
+        return null;
+      }
     },
     async skipStep(run) {
       try {
         const out = (await data.call("runs.steps", { runId: run.id })) as { steps?: readonly RunStep[] };
         const next = stepAfterFailed(out?.steps ?? []);
-        if (!next) { setNote("There is no step after this one to continue with."); return null; }
+        if (!next) {
+          setNote("There is no step after this one to continue with.");
+          return null;
+        }
         const res = (await data.call("runs.retry", { runId: run.id, fromStep: next })) as { runId?: string };
         setNote("Skipped that step. The run goes on from the next one.");
         return res?.runId ?? null;
-      } catch (e) { fail(e); return null; }
+      } catch (e) {
+        fail(e);
+        return null;
+      }
     },
     async stop(run) {
-      try { await data.call("runs.stop", { runId: run.id }); setNote("Stopped the run"); } catch (e) { fail(e); }
+      try {
+        await data.call("runs.stop", { runId: run.id });
+        setNote("Stopped the run");
+      } catch (e) {
+        fail(e);
+      }
     },
     async replay(run, version) {
       try {
         const out = (await data.call("runs.replay", { runId: run.id, version })) as { runId?: string };
         setNote(version === "same" ? "Replaying on the same version" : "Replaying on the current version");
         if (out?.runId) data.nav.openRunSide(out.runId);
-      } catch (e) { fail(e); }
+      } catch (e) {
+        fail(e);
+      }
     },
-    copy(text, what) { writeClipboard(text); setNote(`Copied ${what}`); },
+    copy(text, what) {
+      writeClipboard(text);
+      setNote(`Copied ${what}`);
+    },
   };
 }
 
-export type ShowMenu = (items: readonly MenuEntry[], x: number, y: number, source?: "context" | "other", context?: { label?: string }) => void;
+export type ShowMenu = (
+  items: readonly MenuEntry[],
+  x: number,
+  y: number,
+  source?: "context" | "other",
+  context?: { label?: string },
+) => void;
 
 export const isActive = (r: Run): boolean => r.status === "queued" || r.status === "running" || r.status === "waiting";
 export const runLink = (r: Run): string => `vyre://run/${r.id}`;
 
 /** The menu of a run row or a run chat: open, copy, retry, stop. `failedStillOpen` is a failed run nobody retried. */
-export function runMenu(run: Run, a: RunActions, nav: { openRun(id: string): void; openRunSide(id: string): void }, show: ShowMenu, at: { x: number; y: number }, failedStillOpen: boolean): MenuEntry[] {
+export function runMenu(
+  run: Run,
+  a: RunActions,
+  nav: { openRun(id: string): void; openRunSide(id: string): void },
+  show: ShowMenu,
+  at: { x: number; y: number },
+  failedStillOpen: boolean,
+): MenuEntry[] {
   const items: MenuEntry[] = [
     { label: "Open to the Side", onSelect: () => nav.openRunSide(run.id) },
     { label: "Open in Main", onSelect: () => nav.openRun(run.id) },
@@ -92,20 +131,43 @@ export function runMenu(run: Run, a: RunActions, nav: { openRun(id: string): voi
     { label: "Copy error details", onSelect: () => a.copy(run.traceId, "the error details") },
   ];
   if (failedStillOpen) items.push({ separator: true }, { label: "Retry", onSelect: () => void a.retry(run) });
-  if (isActive(run)) items.push({ separator: true }, { label: "Stop", danger: true, onSelect: () => show([{ head: "Stop this run?" }, { label: "Stop", danger: true, onSelect: () => void a.stop(run) }, { label: "Cancel" }], at.x, at.y, "other") });
+  if (isActive(run))
+    items.push(
+      { separator: true },
+      {
+        label: "Stop",
+        danger: true,
+        onSelect: () =>
+          show(
+            [
+              { head: "Stop this run?" },
+              { label: "Stop", danger: true, onSelect: () => void a.stop(run) },
+              { label: "Cancel" },
+            ],
+            at.x,
+            at.y,
+            "other",
+          ),
+      },
+    );
   return items;
 }
 
 /** Where a press happened, for a menu opened from a button. */
 export function pressPoint(e: unknown): { x: number; y: number } {
-  const n = (e as { nativeEvent?: { pageX?: number; pageY?: number; clientX?: number; clientY?: number } } | null)?.nativeEvent ?? (e as { clientX?: number; clientY?: number } | null) ?? {};
+  const n =
+    (e as { nativeEvent?: { pageX?: number; pageY?: number; clientX?: number; clientY?: number } } | null)
+      ?.nativeEvent ??
+    (e as { clientX?: number; clientY?: number } | null) ??
+    {};
   const r = n as { pageX?: number; pageY?: number; clientX?: number; clientY?: number };
   return { x: r.clientX ?? r.pageX ?? 0, y: r.clientY ?? r.pageY ?? 0 };
 }
 
 /* ---------- the calls behind the run chat, as plain functions (the chat wires them to its controls; the tests call them) ---------- */
 
-export const previewUndo = async (data: RunsData, runId: string): Promise<UndoPreview> => (await data.call("runs.preview_undo", { runId })) as UndoPreview;
+export const previewUndo = async (data: RunsData, runId: string): Promise<UndoPreview> =>
+  (await data.call("runs.preview_undo", { runId })) as UndoPreview;
 
 /** Undo this run: replays the inverse of the run's writes; the result says what was reversed and what stayed. */
 export async function undoRun(data: RunsData, runId: string): Promise<{ text: string; result: UndoPreview }> {
@@ -120,7 +182,12 @@ export async function decideTask(data: RunsData, taskId: string, action: "approv
 }
 
 /** A message in the run's own thread: ask about the run, or tell an agent what to do. */
-export async function postToRun(data: RunsData, run: Pick<Run, "id" | "threadId">, body: string, key: string): Promise<boolean> {
+export async function postToRun(
+  data: RunsData,
+  run: Pick<Run, "id" | "threadId">,
+  body: string,
+  key: string,
+): Promise<boolean> {
   const text = body.trim();
   if (!text || !run.threadId) return false;
   await data.call("chat.post", { threadId: run.threadId, body: text, idempotencyKey: `run-${run.id}-${key}` });

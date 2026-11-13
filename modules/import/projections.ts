@@ -17,7 +17,10 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface Principal { kind: "person" | "agent" | "actor" | "service"; id: string }
+export interface Principal {
+  kind: "person" | "agent" | "actor" | "service";
+  id: string;
+}
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface ImportCtx {
@@ -30,23 +33,43 @@ export interface ImportCtx {
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
   /** The host decision for the caller on one thing (the preview uses it to say which rows the importer may not change). */
-  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }): { effect: string };
-  http?(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; text(): Promise<string> }>;
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void; error?(msg: string, attrs?: Record<string, unknown>): void };
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string },
+    resource: { type: string; id: string | null },
+  ): { effect: string };
+  http?(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ): Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+    error?(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 type Row = Record<string, unknown>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type In = Record<string, any>;
 
-export function raise(ctx: Pick<ImportCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<ImportCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 export const newId = (prefix: string, now: number): string => mint(prefix, now).replaceAll("-", "");
 const str = (v: unknown): string => String(v);
 const optStr = (v: unknown): string | undefined => (v === null || v === undefined || v === "" ? undefined : String(v));
 const num = (v: unknown): number => Number(v);
-const parseJson = <T>(raw: unknown, fallback: T): T => { try { return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T); } catch { return fallback; } };
+const parseJson = <T>(raw: unknown, fallback: T): T => {
+  try {
+    return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T);
+  } catch {
+    return fallback;
+  }
+};
 export function clean<T extends Record<string, unknown>>(o: T): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) if (v !== undefined) out[k] = v;
@@ -60,50 +83,105 @@ export const MAX_ROWS = 100_000;
 // ---- schema ----
 
 const SCHEMA = readFileSync(new URL("./migrations/0001_import.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const TOOLS = readFileSync(new URL("./migrations/0002_tools.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const UNFINISHED = readFileSync(new URL("./migrations/0004_unfinished.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const MANAGE = readFileSync(new URL("./migrations/0003_manage.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the import tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM import_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
-  try { db.all("SELECT messageId FROM import_message_tool WHERE messageId = ?", "probe"); } catch { for (const stmt of TOOLS) db.run(stmt); }
-  try { db.all("SELECT deletedAt FROM import_conversation WHERE conversationId = ?", "probe"); } catch { for (const stmt of MANAGE) db.run(stmt); }
-  try { db.all("SELECT runId FROM import_unfinished WHERE runId = ?", "probe"); } catch { for (const stmt of UNFINISHED) db.run(stmt); }
+  try {
+    db.all("SELECT key FROM import_key WHERE key = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) db.run(stmt);
+  }
+  try {
+    db.all("SELECT messageId FROM import_message_tool WHERE messageId = ?", "probe");
+  } catch {
+    for (const stmt of TOOLS) db.run(stmt);
+  }
+  try {
+    db.all("SELECT deletedAt FROM import_conversation WHERE conversationId = ?", "probe");
+  } catch {
+    for (const stmt of MANAGE) db.run(stmt);
+  }
+  try {
+    db.all("SELECT runId FROM import_unfinished WHERE runId = ?", "probe");
+  } catch {
+    for (const stmt of UNFINISHED) db.run(stmt);
+  }
   ready.add(db);
 }
 
 // ---- ports ----
 
-export async function call<T>(ctx: ImportCtx, cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<T> {
+export async function call<T>(
+  ctx: ImportCtx,
+  cap: string,
+  input: unknown,
+  opts?: { idempotencyKey?: string },
+): Promise<T> {
   if (!ctx.call) raise(ctx, "internal.unexpected", "That part of the app is not available right now.", { cap });
-  const body = opts?.idempotencyKey !== undefined && input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input)
-    ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey } : input;
+  const body =
+    opts?.idempotencyKey !== undefined &&
+    input !== null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    !("idempotencyKey" in input)
+      ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey }
+      : input;
   return (await ctx.call(cap, body, opts)) as T;
 }
 export async function tolerant<T>(ctx: ImportCtx, cap: string, input: unknown, fallback: T): Promise<T> {
   if (!ctx.call) return fallback;
-  try { return ((await ctx.call(cap, input)) as T | null | undefined) ?? fallback; } catch (e) {
-    ctx.log.warn("import: a neighbour did not answer", { cap, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+  try {
+    return ((await ctx.call(cap, input)) as T | null | undefined) ?? fallback;
+  } catch (e) {
+    ctx.log.warn("import: a neighbour did not answer", {
+      cap,
+      error: e instanceof Error ? e.message.slice(0, 200) : "error",
+    });
     return fallback;
   }
 }
-export const codeOf = (e: unknown): string => { const x = e as { error?: { code?: string }; code?: string }; return x?.error?.code ?? x?.code ?? "unknown"; };
+export const codeOf = (e: unknown): string => {
+  const x = e as { error?: { code?: string }; code?: string };
+  return x?.error?.code ?? x?.code ?? "unknown";
+};
 
 /** What the host gives this module beyond ctx: the value behind a Vault handle, for one call. Unset in a bare setup, and then the providers answer provider.unavailable. */
-export interface ImportHost { secret(ctx: ImportCtx, handle: string): Promise<string> }
+export interface ImportHost {
+  secret(ctx: ImportCtx, handle: string): Promise<string>;
+}
 let host: ImportHost | undefined;
-export function setHost(h: ImportHost | undefined): void { host = h; }
+export function setHost(h: ImportHost | undefined): void {
+  host = h;
+}
 export function needHost(ctx: Pick<ImportCtx, "trace">): ImportHost {
   if (!host) raise(ctx, "provider.unavailable", "Importing from an app is not set up on this server.");
   return host;
@@ -113,52 +191,149 @@ export function needHost(ctx: Pick<ImportCtx, "trace">): ImportHost {
 
 function fnv(s: string, seed: bigint): bigint {
   let h = seed;
-  for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * 0x100000001b3n) & 0xffffffffffffffffn; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= BigInt(s.charCodeAt(i));
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
   return h;
 }
 export function hashOf(s: string): string {
-  return fnv(s, 0xcbf29ce484222325n).toString(16).padStart(16, "0") + fnv(s, 0x84222325cbf29ce4n).toString(16).padStart(16, "0");
+  return (
+    fnv(s, 0xcbf29ce484222325n).toString(16).padStart(16, "0") +
+    fnv(s, 0x84222325cbf29ce4n).toString(16).padStart(16, "0")
+  );
 }
 /** JSON with sorted keys, so the same plan always gives the same text. */
 export function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
-  if (v && typeof v === "object") return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  if (v && typeof v === "object")
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
   return JSON.stringify(v) ?? "null";
 }
 
 // ---- staged data ----
 
-export interface Column { name: string; inferred: string; sample: string[]; distinct: number; empty: number }
-export interface Table { name: string; columns: Column[]; rows: string[][] }
-export interface Mapping { column: string; field: string; transform?: string | undefined }
-export interface NewField { key: string; type: string; title: string }
-export interface RowError { row: number; column?: string | undefined; message: string }
+export interface Column {
+  name: string;
+  inferred: string;
+  sample: string[];
+  distinct: number;
+  empty: number;
+}
+export interface Table {
+  name: string;
+  columns: Column[];
+  rows: string[][];
+}
+export interface Mapping {
+  column: string;
+  field: string;
+  transform?: string | undefined;
+}
+export interface NewField {
+  key: string;
+  type: string;
+  title: string;
+}
+export interface RowError {
+  row: number;
+  column?: string | undefined;
+  message: string;
+}
 export interface Plan {
-  table: string; type: string; mapping: Mapping[]; match: string[]; onMatch: "update" | "skip" | "create"; createFields: boolean; runAutomations: boolean;
+  table: string;
+  type: string;
+  mapping: Mapping[];
+  match: string[];
+  onMatch: "update" | "skip" | "create";
+  createFields: boolean;
+  runAutomations: boolean;
   newFields: NewField[];
   /** One letter per data row: c create, u update, s skip, e error, r refused (matches a record the importer may not edit). */
   actions: string;
 }
 export type State = "staged" | "running" | "done" | "failed" | "canceled";
 export interface Session {
-  importId: string; source: string; tables: Table[]; dataHash: string; state: State; createdBy: string; createdAt: number; expiresAt: number; type?: string | undefined;
-  previewToken?: string | undefined; plan?: Plan | undefined; runId?: string | undefined; created: number; updated: number; skipped: number; failed: number; ranAutomations: boolean;
-  errors: RowError[]; errorsFileId?: string | undefined;
+  importId: string;
+  source: string;
+  tables: Table[];
+  dataHash: string;
+  state: State;
+  createdBy: string;
+  createdAt: number;
+  expiresAt: number;
+  type?: string | undefined;
+  previewToken?: string | undefined;
+  plan?: Plan | undefined;
+  runId?: string | undefined;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  ranAutomations: boolean;
+  errors: RowError[];
+  errorsFileId?: string | undefined;
 }
 const toSession = (r: Row): Session => ({
-  importId: str(r["importId"]), source: str(r["source"]), tables: parseJson<Table[]>(r["tables"], []), dataHash: str(r["dataHash"]), state: str(r["state"]) as State, createdBy: str(r["createdBy"]),
-  createdAt: num(r["createdAt"]), expiresAt: num(r["expiresAt"]), type: optStr(r["type"]), previewToken: optStr(r["previewToken"]), plan: parseJson<Plan | undefined>(r["plan"], undefined),
-  runId: optStr(r["runId"]), created: num(r["created"]), updated: num(r["updated"]), skipped: num(r["skipped"]), failed: num(r["failed"]), ranAutomations: num(r["ranAutomations"]) === 1,
-  errors: parseJson<RowError[]>(r["errors"], []), errorsFileId: optStr(r["errorsFileId"]),
+  importId: str(r["importId"]),
+  source: str(r["source"]),
+  tables: parseJson<Table[]>(r["tables"], []),
+  dataHash: str(r["dataHash"]),
+  state: str(r["state"]) as State,
+  createdBy: str(r["createdBy"]),
+  createdAt: num(r["createdAt"]),
+  expiresAt: num(r["expiresAt"]),
+  type: optStr(r["type"]),
+  previewToken: optStr(r["previewToken"]),
+  plan: parseJson<Plan | undefined>(r["plan"], undefined),
+  runId: optStr(r["runId"]),
+  created: num(r["created"]),
+  updated: num(r["updated"]),
+  skipped: num(r["skipped"]),
+  failed: num(r["failed"]),
+  ranAutomations: num(r["ranAutomations"]) === 1,
+  errors: parseJson<RowError[]>(r["errors"], []),
+  errorsFileId: optStr(r["errorsFileId"]),
 });
 export function createSession(ctx: ImportCtx, source: string, tables: Table[]): Session {
   const now = ctx.now();
   const total = tables.reduce((n, t) => n + t.rows.length, 0);
-  if (total > MAX_ROWS) raise(ctx, "validation.bad_input", `An import takes up to ${MAX_ROWS.toLocaleString("en-US")} rows at a time; this has ${total.toLocaleString("en-US")}.`, { rows: total });
-  const s: Session = { importId: newId("imp", now), source, tables, dataHash: hashOf(stable(tables)), state: "staged", createdBy: me(ctx), createdAt: now, expiresAt: now + SESSION_TTL, created: 0, updated: 0, skipped: 0, failed: 0, ranAutomations: false, errors: [] };
+  if (total > MAX_ROWS)
+    raise(
+      ctx,
+      "validation.bad_input",
+      `An import takes up to ${MAX_ROWS.toLocaleString("en-US")} rows at a time; this has ${total.toLocaleString("en-US")}.`,
+      { rows: total },
+    );
+  const s: Session = {
+    importId: newId("imp", now),
+    source,
+    tables,
+    dataHash: hashOf(stable(tables)),
+    state: "staged",
+    createdBy: me(ctx),
+    createdAt: now,
+    expiresAt: now + SESSION_TTL,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    ranAutomations: false,
+    errors: [],
+  };
   ctx.db.run(
     "INSERT INTO import_session (importId, source, tables, dataHash, state, createdBy, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    s.importId, s.source, JSON.stringify(s.tables), s.dataHash, s.state, s.createdBy, s.createdAt, s.expiresAt,
+    s.importId,
+    s.source,
+    JSON.stringify(s.tables),
+    s.dataHash,
+    s.state,
+    s.createdBy,
+    s.createdAt,
+    s.expiresAt,
   );
   return s;
 }
@@ -166,8 +341,20 @@ export function saveSession(db: Db, s: Session): void {
   db.run(
     `UPDATE import_session SET tables = ?, state = ?, type = ?, previewToken = ?, plan = ?, runId = ?, created = ?, updated = ?, skipped = ?, failed = ?, ranAutomations = ?, errors = ?, errorsFileId = ?
      WHERE importId = ?`,
-    JSON.stringify(s.tables), s.state, s.type ?? null, s.previewToken ?? null, s.plan ? JSON.stringify(s.plan) : null, s.runId ?? null, s.created, s.updated, s.skipped, s.failed, s.ranAutomations ? 1 : 0,
-    JSON.stringify(s.errors), s.errorsFileId ?? null, s.importId,
+    JSON.stringify(s.tables),
+    s.state,
+    s.type ?? null,
+    s.previewToken ?? null,
+    s.plan ? JSON.stringify(s.plan) : null,
+    s.runId ?? null,
+    s.created,
+    s.updated,
+    s.skipped,
+    s.failed,
+    s.ranAutomations ? 1 : 0,
+    JSON.stringify(s.errors),
+    s.errorsFileId ?? null,
+    s.importId,
   );
 }
 export function findSession(db: Db, importId: string): Session | undefined {
@@ -175,12 +362,16 @@ export function findSession(db: Db, importId: string): Session | undefined {
   return r ? toSession(r) : undefined;
 }
 export function listSessions(db: Db, type?: string): Session[] {
-  const rows = (type === undefined
-    ? db.all("SELECT * FROM import_session ORDER BY createdAt DESC, importId DESC")
-    : db.all("SELECT * FROM import_session WHERE type = ? ORDER BY createdAt DESC, importId DESC", type)) as Row[];
+  const rows = (
+    type === undefined
+      ? db.all("SELECT * FROM import_session ORDER BY createdAt DESC, importId DESC")
+      : db.all("SELECT * FROM import_session WHERE type = ? ORDER BY createdAt DESC, importId DESC", type)
+  ) as Row[];
   return rows.map(toSession);
 }
-export function dropSession(db: Db, importId: string): boolean { return db.run("DELETE FROM import_session WHERE importId = ?", importId).changes > 0; }
+export function dropSession(db: Db, importId: string): boolean {
+  return db.run("DELETE FROM import_session WHERE importId = ?", importId).changes > 0;
+}
 
 /** A staged import that is still good: it exists, has not expired and has not been written. */
 export function staged(ctx: ImportCtx, importId: string, code: ErrorCode): Session {
@@ -196,7 +387,9 @@ export function staged(ctx: ImportCtx, importId: string, code: ErrorCode): Sessi
 export function tableOf(ctx: ImportCtx, s: Session, name: string | undefined): Table {
   if (name === undefined) {
     if (s.tables.length === 1) return s.tables[0] as Table;
-    raise(ctx, "validation.bad_input", `This import has ${s.tables.length} tables. Say which one.`, { tables: s.tables.map((t) => t.name) });
+    raise(ctx, "validation.bad_input", `This import has ${s.tables.length} tables. Say which one.`, {
+      tables: s.tables.map((t) => t.name),
+    });
   }
   const t = s.tables.find((x) => x.name === name);
   if (!t) raise(ctx, "validation.bad_input", `This import has no table called ${name}.`, { table: name });
@@ -215,7 +408,11 @@ export function remember(db: Db, key: string | undefined, cap: string, result: u
   db.run("INSERT OR REPLACE INTO import_key (key, cap, result) VALUES (?, ?, ?)", key, cap, JSON.stringify(result));
 }
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);

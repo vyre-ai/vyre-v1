@@ -2,17 +2,37 @@
 import type { FieldDef, RecordRow, TypeDef } from "./model.ts";
 import { isEmpty, relationIds, relationTarget } from "./model.ts";
 
-export interface AskContact { contactId: string; name: string; email?: string; phone?: string }
+export interface AskContact {
+  contactId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+}
 
 /** What the page hands the shell: the record, the fields it still lacks and the person to ask. */
-export interface AskForInput { type: string; recordId: string; title: string; missing: { field: string; title: string }[]; contact: AskContact }
+export interface AskForInput {
+  type: string;
+  recordId: string;
+  title: string;
+  missing: { field: string; title: string }[];
+  contact: AskContact;
+}
 
 const textOf = (v: unknown): string | undefined => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined);
 
 /** The first email and the first phone a record holds. */
-export function channelsOf(def: Pick<TypeDef, "fields">, row: Pick<RecordRow, "fields">): { email?: string; phone?: string } {
-  const email = def.fields.filter((f) => f.type === "email").map((f) => textOf(row.fields[f.key])).find((v) => v !== undefined);
-  const phone = def.fields.filter((f) => f.type === "phone").map((f) => textOf(row.fields[f.key])).find((v) => v !== undefined);
+export function channelsOf(
+  def: Pick<TypeDef, "fields">,
+  row: Pick<RecordRow, "fields">,
+): { email?: string; phone?: string } {
+  const email = def.fields
+    .filter((f) => f.type === "email")
+    .map((f) => textOf(row.fields[f.key]))
+    .find((v) => v !== undefined);
+  const phone = def.fields
+    .filter((f) => f.type === "phone")
+    .map((f) => textOf(row.fields[f.key]))
+    .find((v) => v !== undefined);
   return { ...(email ? { email } : {}), ...(phone ? { phone } : {}) };
 }
 
@@ -34,12 +54,17 @@ export async function findContact(call: Call, def: TypeDef, row: RecordRow): Pro
     if (!target) continue;
     for (const id of relationIds(f, row)) {
       try {
-        const [got, desc] = await Promise.all([call("records.get", { type: target, recordId: id }), call("schema.describe", { type: target })]);
+        const [got, desc] = await Promise.all([
+          call("records.get", { type: target, recordId: id }),
+          call("schema.describe", { type: target }),
+        ]);
         const linkedRow = (got as { record?: RecordRow }).record;
         const linkedDef = (desc as { types: TypeDef[] }).types.find((t) => t.key === target);
         const hit = linkedRow && linkedDef ? ownContact(linkedDef, linkedRow) : null;
         if (hit) return hit;
-      } catch { /* a linked record this person cannot read is not someone to ask */ }
+      } catch {
+        /* a linked record this person cannot read is not someone to ask */
+      }
     }
   }
   return null;
@@ -47,6 +72,7 @@ export async function findContact(call: Call, def: TypeDef, row: RecordRow): Pro
 
 /** The empty field to open when there is nobody to ask: Email first, then Phone. Null when the type has neither. */
 export function channelFieldToAdd(def: Pick<TypeDef, "fields">, row: Pick<RecordRow, "fields">): FieldDef | null {
-  const empty = (type: string): FieldDef | undefined => def.fields.find((f) => f.type === type && isEmpty(row.fields[f.key]));
+  const empty = (type: string): FieldDef | undefined =>
+    def.fields.find((f) => f.type === type && isEmpty(row.fields[f.key]));
   return empty("email") ?? empty("phone") ?? null;
 }

@@ -50,7 +50,12 @@ export const PREVIEW_UNDO_CAPABILITY = "runs.preview_undo" as const;
 export type HistoryInvoke = (capability: string, input: Record<string, unknown>) => Promise<unknown> | unknown;
 
 /** The input of `<type>.restore_version`. A record needs its record type too. */
-export function restoreInput(type: HistoryResourceType, resourceId: string, versionId: string, recordType?: string): Record<string, unknown> {
+export function restoreInput(
+  type: HistoryResourceType,
+  resourceId: string,
+  versionId: string,
+  recordType?: string,
+): Record<string, unknown> {
   const key = CAPABILITIES[type].idKey;
   return type === "record" && recordType !== undefined
     ? { type: recordType, [key]: resourceId, versionId }
@@ -102,7 +107,7 @@ export function currentVersion(versions: readonly HistoryVersion[]): HistoryVers
 export function previousOf(versions: readonly HistoryVersion[], id: string): HistoryVersion | null {
   const list = newestFirst(versions);
   const at = list.findIndex((v) => v.id === id);
-  return at < 0 ? null : list[at + 1] ?? null;
+  return at < 0 ? null : (list[at + 1] ?? null);
 }
 
 /** Every version one agent run wrote, newest first. */
@@ -138,21 +143,33 @@ export interface HistoryCall {
 
 /** Restores a version: calls `<module>.restore_version`. Returns the line the tab shows afterwards. */
 export async function performRestore(call: HistoryCall, version: HistoryVersion): Promise<string> {
-  if (call.invoke) await call.invoke(capabilitiesFor(call.type).restore, restoreInput(call.type, call.resourceId, version.id, call.recordType));
+  if (call.invoke)
+    await call.invoke(
+      capabilitiesFor(call.type).restore,
+      restoreInput(call.type, call.resourceId, version.id, call.recordType),
+    );
   return `Restored v${version.n} as a new version.`;
 }
 
 /** Undoes the run of a version: calls `runs.undo` once and returns the line the tab shows afterwards. */
-export async function performUndo(call: HistoryCall, versions: readonly HistoryVersion[], version: HistoryVersion): Promise<string> {
+export async function performUndo(
+  call: HistoryCall,
+  versions: readonly HistoryVersion[],
+  version: HistoryVersion,
+): Promise<string> {
   if (version.runId === null) return "";
   const plan = undoPlan(versions, version.runId);
   if (call.invoke) await call.invoke(UNDO_RUN_CAPABILITY, undoRunInput(version.runId));
-  return plan.keep.length > 0 ? `Undid ${plan.undo.length}, ${plan.keep.length} could not be undone.` : `Undid ${plan.undo.length}.`;
+  return plan.keep.length > 0
+    ? `Undid ${plan.undo.length}, ${plan.keep.length} could not be undone.`
+    : `Undid ${plan.undo.length}.`;
 }
 
-export const UNDO_NOTE = "Only writes still at the run's version are undone. Sent messages and deployments cannot be undone.";
+export const UNDO_NOTE =
+  "Only writes still at the run's version are undone. Sent messages and deployments cannot be undone.";
 
-export const RETENTION_NOTE = "Older versions thin out: all of them for 30 days, then the last one each day for 90 days, then one a week. Named and signed versions stay for ever.";
+export const RETENTION_NOTE =
+  "Older versions thin out: all of them for 30 days, then the last one each day for 90 days, then one a week. Named and signed versions stay for ever.";
 
 /** What a restore or an undo asks before it runs. The impact is stated, the answer is yes or no. */
 export function confirmText(kind: "restore" | "undo", version: HistoryVersion, plan?: UndoPlan): string {
@@ -165,7 +182,11 @@ export function confirmText(kind: "restore" | "undo", version: HistoryVersion, p
 export type HistoryKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
 
 /** Next selected version for an arrow key. Does not wrap, so a held key stops at the ends. */
-export function moveSelection(versions: readonly HistoryVersion[], from: string | null, key: HistoryKey): string | null {
+export function moveSelection(
+  versions: readonly HistoryVersion[],
+  from: string | null,
+  key: HistoryKey,
+): string | null {
   const list = newestFirst(versions);
   if (list.length === 0) return null;
   if (key === "Home") return list[0]?.id ?? null;
@@ -204,7 +225,8 @@ function webProps(props: Record<string, unknown>): Record<string, unknown> {
 
 /* ---------- icons ---------- */
 
-const SVG = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
+const SVG =
+  '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
 const ICON_COMPARE = `${SVG}<path d="M5 3v10M11 3v10M2.500 6H5M2.500 10H5M11 6h2.500M11 10h2.500"/></svg>`;
 const ICON_RESTORE = `${SVG}<path d="M3 8a5 5 0 105-5M3 3.500V8h4.500"/></svg>`;
 const ICON_UNDO = `${SVG}<path d="M5.500 3L2.500 6l3 3M2.500 6H10a3.500 3.500 0 010 7H6.500"/></svg>`;
@@ -234,7 +256,19 @@ interface Pending {
 const ROW_ICON = 24;
 
 export function HistoryTab(props: HistoryTabViewProps): ReactElement {
-  const { resourceType, resourceId, versions, density, invoke, onCompare, onRestore, onUndoRun, onSelect, onDownload, recordType } = props;
+  const {
+    resourceType,
+    resourceId,
+    versions,
+    density,
+    invoke,
+    onCompare,
+    onRestore,
+    onUndoRun,
+    onSelect,
+    onDownload,
+    recordType,
+  } = props;
   const list = useMemo(() => newestFirst(versions), [versions]);
   const current = list[0] ?? null;
   const [picked, setPicked] = useState<string | null>(props.selectedVersionId);
@@ -245,37 +279,57 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
   const selectedId = picked ?? props.selectedVersionId;
   const selected = list.find((v) => v.id === selectedId) ?? null;
 
-  const select = useCallback((id: string) => {
-    setPicked(id);
-    setPending(null);
-    setDone("");
-    if (onSelect) onSelect(id);
-  }, [onSelect]);
+  const select = useCallback(
+    (id: string) => {
+      setPicked(id);
+      setPending(null);
+      setDone("");
+      if (onSelect) onSelect(id);
+    },
+    [onSelect],
+  );
 
-  const compare = useCallback((version: HistoryVersion) => {
-    const against = previousOf(versions, version.id);
-    if (against !== null && onCompare) onCompare(version, against);
-  }, [versions, onCompare]);
+  const compare = useCallback(
+    (version: HistoryVersion) => {
+      const against = previousOf(versions, version.id);
+      if (against !== null && onCompare) onCompare(version, against);
+    },
+    [versions, onCompare],
+  );
 
-  const compareCurrent = useCallback((version: HistoryVersion) => {
-    const head = currentVersion(versions);
-    if (head !== null && head.id !== version.id && onCompare) onCompare(version, head);
-  }, [versions, onCompare]);
+  const compareCurrent = useCallback(
+    (version: HistoryVersion) => {
+      const head = currentVersion(versions);
+      if (head !== null && head.id !== version.id && onCompare) onCompare(version, head);
+    },
+    [versions, onCompare],
+  );
 
-  const askRestore = useCallback((version: HistoryVersion) => {
-    if (actionsFor(versions, version).restore) setPending({ kind: "restore", versionId: version.id });
-  }, [versions]);
+  const askRestore = useCallback(
+    (version: HistoryVersion) => {
+      if (actionsFor(versions, version).restore) setPending({ kind: "restore", versionId: version.id });
+    },
+    [versions],
+  );
 
-  const askUndo = useCallback((version: HistoryVersion) => {
-    if (actionsFor(versions, version).undo) setPending({ kind: "undo", versionId: version.id });
-  }, [versions]);
+  const askUndo = useCallback(
+    (version: HistoryVersion) => {
+      if (actionsFor(versions, version).undo) setPending({ kind: "undo", versionId: version.id });
+    },
+    [versions],
+  );
 
   const confirm = useCallback(() => {
     if (pending === null) return;
     const version = list.find((v) => v.id === pending.versionId);
     setPending(null);
     if (version === undefined) return;
-    const call: HistoryCall = { type: resourceType, resourceId, invoke, ...(recordType === undefined ? {} : { recordType }) };
+    const call: HistoryCall = {
+      type: resourceType,
+      resourceId,
+      invoke,
+      ...(recordType === undefined ? {} : { recordType }),
+    };
     if (pending.kind === "restore") {
       if (onRestore) onRestore(version);
       void performRestore(call, version).then(setDone);
@@ -286,18 +340,30 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
     void performUndo(call, versions, version).then(setDone);
   }, [pending, list, invoke, resourceType, resourceId, recordType, onRestore, onUndoRun, versions]);
 
-  const menuFor = useCallback((version: HistoryVersion): MenuEntry[] => {
-    const can = actionsFor(versions, version);
-    const out: MenuEntry[] = [];
-    if (can.compare) out.push({ label: "Compare with previous", icon: ICON_COMPARE, onSelect: () => compare(version) });
-    if (can.restore) out.push({ label: "Compare with current", icon: ICON_COMPARE, onSelect: () => compareCurrent(version) });
-    if (can.restore) out.push({ label: "Restore this version", icon: ICON_RESTORE, onSelect: () => askRestore(version) });
-    if (version.runId !== null) out.push({ label: "Undo this run", icon: ICON_UNDO, onSelect: () => askUndo(version) });
-    if (onDownload) out.push({ label: "Download this version", icon: "open", onSelect: () => onDownload(version) });
-    return out;
-  }, [versions, compare, compareCurrent, askRestore, askUndo, onDownload]);
+  const menuFor = useCallback(
+    (version: HistoryVersion): MenuEntry[] => {
+      const can = actionsFor(versions, version);
+      const out: MenuEntry[] = [];
+      if (can.compare)
+        out.push({ label: "Compare with previous", icon: ICON_COMPARE, onSelect: () => compare(version) });
+      if (can.restore)
+        out.push({ label: "Compare with current", icon: ICON_COMPARE, onSelect: () => compareCurrent(version) });
+      if (can.restore)
+        out.push({ label: "Restore this version", icon: ICON_RESTORE, onSelect: () => askRestore(version) });
+      if (version.runId !== null)
+        out.push({ label: "Undo this run", icon: ICON_UNDO, onSelect: () => askUndo(version) });
+      if (onDownload) out.push({ label: "Download this version", icon: "open", onSelect: () => onDownload(version) });
+      return out;
+    },
+    [versions, compare, compareCurrent, askRestore, askUndo, onDownload],
+  );
 
-  const onKeyDown = (event: { key: string; preventDefault?: () => void; metaKey?: boolean; ctrlKey?: boolean }): void => {
+  const onKeyDown = (event: {
+    key: string;
+    preventDefault?: () => void;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+  }): void => {
     const { key } = event;
     if (key === "Escape") {
       if (pending !== null) {
@@ -332,32 +398,60 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
         key={version.id}
         style={styles.rowBox}
         {...menuTrigger((x, y) => show(menuFor(version), x, y, "context", { label: `v${version.n}` }))}
-        {...webProps({ onMouseEnter: () => setHover(version.id), onMouseLeave: () => setHover((h) => (h === version.id ? null : h)) })}
+        {...webProps({
+          onMouseEnter: () => setHover(version.id),
+          onMouseLeave: () => setHover((h) => (h === version.id ? null : h)),
+        })}
       >
         <Row
           id={`history-${version.id}`}
           title={`v${version.n}`}
           note={noteLine(version)}
           selected={version.id === selectedId}
-          leading={(
+          leading={
             <View style={styles.lead}>
-              <View testID={`history-dot-${version.id}`} style={[styles.dot, isCurrent ? styles.dotCurrent : styles.dotOld]} />
-              <Avatar name={version.who} {...(version.whoId !== undefined ? { seedId: version.whoId } : {})} kind="person" size={18} testID={`history-avatar-${version.id}`} />
+              <View
+                testID={`history-dot-${version.id}`}
+                style={[styles.dot, isCurrent ? styles.dotCurrent : styles.dotOld]}
+              />
+              <Avatar
+                name={version.who}
+                {...(version.whoId !== undefined ? { seedId: version.whoId } : {})}
+                kind="person"
+                size={18}
+                testID={`history-avatar-${version.id}`}
+              />
             </View>
-          )}
-          trailing={over && (can.compare || can.restore)
-            ? (
+          }
+          trailing={
+            over && (can.compare || can.restore) ? (
               <View style={styles.acts}>
-                {can.compare ? <IconButton label="Compare with previous" icon={ICON_COMPARE} testID={`history-compare-${version.id}`} onPress={() => compare(version)} /> : null}
-                {can.restore ? <IconButton label="Restore this version" icon={ICON_RESTORE} testID={`history-restore-${version.id}`} onPress={() => askRestore(version)} /> : null}
+                {can.compare ? (
+                  <IconButton
+                    label="Compare with previous"
+                    icon={ICON_COMPARE}
+                    testID={`history-compare-${version.id}`}
+                    onPress={() => compare(version)}
+                  />
+                ) : null}
+                {can.restore ? (
+                  <IconButton
+                    label="Restore this version"
+                    icon={ICON_RESTORE}
+                    testID={`history-restore-${version.id}`}
+                    onPress={() => askRestore(version)}
+                  />
+                ) : null}
               </View>
-            )
-            : (
+            ) : (
               <View style={styles.meta}>
                 {isCurrent ? <Text style={styles.cur}>Current</Text> : null}
-                <TimePop at={Date.parse(version.at)}><Text style={styles.time}>{shortDate(version.at)}</Text></TimePop>
+                <TimePop at={Date.parse(version.at)}>
+                  <Text style={styles.time}>{shortDate(version.at)}</Text>
+                </TimePop>
               </View>
-            )}
+            )
+          }
           onPress={() => select(version.id)}
         />
       </View>,
@@ -369,12 +463,32 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
   if (selected !== null) {
     const allowed = actionsFor(versions, selected);
     for (const action of HISTORY_ACTIONS) {
-      if (action === "compare") actionButtons.push(<TextButton key={action} label="Compare" testID="history-compare" disabled={!allowed.compare} density={density} onPress={() => compare(selected)} />);
-      else actionButtons.push(<TextButton key={action} label="Restore this version" testID="history-restore" disabled={!allowed.restore} density={density} onPress={() => askRestore(selected)} />);
+      if (action === "compare")
+        actionButtons.push(
+          <TextButton
+            key={action}
+            label="Compare"
+            testID="history-compare"
+            disabled={!allowed.compare}
+            density={density}
+            onPress={() => compare(selected)}
+          />,
+        );
+      else
+        actionButtons.push(
+          <TextButton
+            key={action}
+            label="Restore this version"
+            testID="history-restore"
+            disabled={!allowed.restore}
+            density={density}
+            onPress={() => askRestore(selected)}
+          />,
+        );
     }
   }
   const can = selected === null ? null : actionsFor(versions, selected);
-  const pendingVersion = pending === null ? null : list.find((v) => v.id === pending.versionId) ?? null;
+  const pendingVersion = pending === null ? null : (list.find((v) => v.id === pending.versionId) ?? null);
 
   return (
     <View
@@ -385,7 +499,9 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
       {...webProps({ onKeyDown, dataSet: { resource: resourceType, density } })}
     >
       {list.length === 0 ? (
-        <Text style={styles.empty} testID="history-empty">No earlier versions</Text>
+        <Text style={styles.empty} testID="history-empty">
+          No earlier versions
+        </Text>
       ) : (
         <ScrollView style={styles.list} contentContainerStyle={styles.listBody} role="listbox" aria-label="Versions">
           {rows}
@@ -396,27 +512,52 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
         <View style={styles.bar} testID="history-actions">
           {actionButtons}
           {plan !== null ? (
-            <TextButton label={undoLabel(plan)} testID="history-undo" disabled={!can.undo} density={density} onPress={() => askUndo(selected)} />
+            <TextButton
+              label={undoLabel(plan)}
+              testID="history-undo"
+              disabled={!can.undo}
+              density={density}
+              onPress={() => askUndo(selected)}
+            />
           ) : null}
         </View>
       ) : null}
 
       {plan !== null && selected !== null && !(can?.undo ?? false) ? (
-        <Text style={styles.note} testID="history-undo-note">{UNDO_NOTE}</Text>
+        <Text style={styles.note} testID="history-undo-note">
+          {UNDO_NOTE}
+        </Text>
       ) : null}
 
       {pending !== null && pendingVersion !== null ? (
-        <View style={styles.confirm} testID="history-confirm" role="alertdialog" aria-label={confirmText(pending.kind, pendingVersion, plan ?? undefined)}>
+        <View
+          style={styles.confirm}
+          testID="history-confirm"
+          role="alertdialog"
+          aria-label={confirmText(pending.kind, pendingVersion, plan ?? undefined)}
+        >
           <Text style={styles.confirmText}>{confirmText(pending.kind, pendingVersion, plan ?? undefined)}</Text>
           <View style={styles.confirmBtns}>
             <TextButton label="Cancel" testID="history-cancel" density={density} onPress={() => setPending(null)} />
-            <TextButton label={pending.kind === "restore" ? "Restore" : "Undo"} testID="history-confirm-go" primary density={density} onPress={confirm} />
+            <TextButton
+              label={pending.kind === "restore" ? "Restore" : "Undo"}
+              testID="history-confirm-go"
+              primary
+              density={density}
+              onPress={confirm}
+            />
           </View>
         </View>
       ) : null}
 
-      {done !== "" ? <Text style={styles.done} testID="history-done" role="status">{done}</Text> : null}
-      <Text style={styles.retention} testID="history-retention">{RETENTION_NOTE}</Text>
+      {done !== "" ? (
+        <Text style={styles.done} testID="history-done" role="status">
+          {done}
+        </Text>
+      ) : null}
+      <Text style={styles.retention} testID="history-retention">
+        {RETENTION_NOTE}
+      </Text>
       {menuElement}
     </View>
   );
@@ -438,26 +579,71 @@ export interface VersionBannerProps {
 export function VersionBanner(props: VersionBannerProps): ReactElement {
   const { version, showingChanges, canRestore } = props;
   return (
-    <View style={styles.banner} testID={props.testID ?? "version-banner"} role="status" aria-label={bannerLine(version, showingChanges === true)}>
+    <View
+      style={styles.banner}
+      testID={props.testID ?? "version-banner"}
+      role="status"
+      aria-label={bannerLine(version, showingChanges === true)}
+    >
       <MenuIcon icon={ICON_RESTORE} color="var(--accent)" size={15} />
-      <Text style={styles.bannerText} numberOfLines={2} testID="version-banner-line">{bannerLine(version, showingChanges === true)}</Text>
-      {showingChanges === null ? null : <BannerButton label={showingChanges ? "Hide changes" : "Show changes"} testID="version-changes" onPress={() => props.onToggleChanges?.()} />}
-      {canRestore ? <BannerButton label="Restore this version" testID="version-restore" onPress={() => props.onRestore?.(version)} /> : null}
+      <Text style={styles.bannerText} numberOfLines={2} testID="version-banner-line">
+        {bannerLine(version, showingChanges === true)}
+      </Text>
+      {showingChanges === null ? null : (
+        <BannerButton
+          label={showingChanges ? "Hide changes" : "Show changes"}
+          testID="version-changes"
+          onPress={() => props.onToggleChanges?.()}
+        />
+      )}
+      {canRestore ? (
+        <BannerButton
+          label="Restore this version"
+          testID="version-restore"
+          onPress={() => props.onRestore?.(version)}
+        />
+      ) : null}
       <BannerButton label="Back to current" testID="version-back" onPress={() => props.onBack?.()} />
     </View>
   );
 }
 
-function BannerButton({ label, onPress, testID }: { label: string; onPress: () => void; testID: string }): ReactElement {
+function BannerButton({
+  label,
+  onPress,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
-    <Pressable role="button" aria-label={label} testID={testID} onPress={onPress} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={[styles.bannerBtn, over && styles.bannerBtnOver]}>
+    <Pressable
+      role="button"
+      aria-label={label}
+      testID={testID}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      style={[styles.bannerBtn, over && styles.bannerBtnOver]}
+    >
       <Text style={styles.bannerBtnText}>{label}</Text>
     </Pressable>
   );
 }
 
-function IconButton({ label, icon, onPress, testID }: { label: string; icon: string; onPress: () => void; testID: string }): ReactElement {
+function IconButton({
+  label,
+  icon,
+  onPress,
+  testID,
+}: {
+  label: string;
+  icon: string;
+  onPress: () => void;
+  testID: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -475,7 +661,21 @@ function IconButton({ label, icon, onPress, testID }: { label: string; icon: str
   );
 }
 
-function TextButton({ label, onPress, testID, disabled = false, primary = false, density }: { label: string; onPress: () => void; testID: string; disabled?: boolean; primary?: boolean; density: Density }): ReactElement {
+function TextButton({
+  label,
+  onPress,
+  testID,
+  disabled = false,
+  primary = false,
+  density,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+  disabled?: boolean;
+  primary?: boolean;
+  density: Density;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -487,7 +687,12 @@ function TextButton({ label, onPress, testID, disabled = false, primary = false,
       onPress={onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      style={[styles.btn, density === "compact" && styles.btnTouch, primary ? styles.btnPrimary : over && !disabled ? styles.btnOver : null, disabled && styles.btnOff]}
+      style={[
+        styles.btn,
+        density === "compact" && styles.btnTouch,
+        primary ? styles.btnPrimary : over && !disabled ? styles.btnOver : null,
+        disabled && styles.btnOff,
+      ]}
     >
       <Text style={[styles.btnText, primary && styles.btnTextPrimary]}>{label}</Text>
     </Pressable>
@@ -510,7 +715,15 @@ const styles = StyleSheet.create({
   iconBtn: { width: ROW_ICON, height: ROW_ICON, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   iconBtnOver: { backgroundColor: "var(--press)" as string },
   bar: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingTop: 10 },
-  btn: { height: 28, paddingHorizontal: 11, borderRadius: 7, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "var(--line-2)" as string },
+  btn: {
+    height: 28,
+    paddingHorizontal: 11,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   btnTouch: { height: 36 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string, borderColor: "transparent" },
@@ -518,12 +731,34 @@ const styles = StyleSheet.create({
   btnText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   note: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17, marginHorizontal: 14, marginTop: 8 },
-  confirm: { marginHorizontal: 14, marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string, gap: 8 },
+  confirm: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "var(--sunk)" as string,
+    gap: 8,
+  },
   confirmText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18 },
   confirmBtns: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
   done: { color: "var(--ok)" as string, fontSize: 12, marginHorizontal: 14, marginTop: 8 },
-  retention: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17, marginHorizontal: 14, marginTop: 10, marginBottom: 16 },
-  banner: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: "var(--accent-wash)" as string },
+  retention: {
+    color: "var(--ink-3)" as string,
+    fontSize: 12,
+    lineHeight: 17,
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   bannerText: { flex: 1, minWidth: 180, color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 18, marginLeft: 4 },
   bannerBtn: { height: 26, paddingHorizontal: 9, borderRadius: 6, justifyContent: "center" },
   bannerBtnOver: { backgroundColor: "var(--hover)" as string },

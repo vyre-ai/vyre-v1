@@ -17,7 +17,8 @@ export function appliesTextInputKeys(file: string): boolean {
 export function checkTextInputKeys(file: string, source: string): Finding[] {
   const out: Finding[] = [];
   for (let m = OPEN.exec(source); m; m = OPEN.exec(source)) {
-    let depth = 0, i = m.index + m[0].length;
+    let depth = 0,
+      i = m.index + m[0].length;
     for (; i < source.length; i++) {
       const c = source[i];
       if (c === "{") depth++;
@@ -26,7 +27,10 @@ export function checkTextInputKeys(file: string, source: string): Finding[] {
     }
     const tag = source.slice(m.index, i);
     const at = tag.search(/\bonKeyDown\b/);
-    if (at >= 0) out.push(finding(RULE, file, source, m.index + at, `${m[1]} drops onKeyDown on the web; pass the handler as onKeyPress`));
+    if (at >= 0)
+      out.push(
+        finding(RULE, file, source, m.index + at, `${m[1]} drops onKeyDown on the web; pass the handler as onKeyPress`),
+      );
   }
   OPEN.lastIndex = 0;
   return out;

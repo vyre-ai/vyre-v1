@@ -16,16 +16,46 @@ test("the web request trigger card shows the address and copies it", async () =>
   const sample = createSampleAutomations(northwind);
   const asked: unknown[] = [];
   const base = sample.data.call.bind(sample.data);
-  const data = { ...sample.data, call: async (cap: string, input: unknown) => { if (cap === "automations.webhook_url.get") { asked.push(input); return { url: URL_, method: "POST" }; } return base(cap as never, input as never); } } as typeof sample.data;
+  const data = {
+    ...sample.data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "automations.webhook_url.get") {
+        asked.push(input);
+        return { url: URL_, method: "POST" };
+      }
+      return base(cap as never, input as never);
+    },
+  } as typeof sample.data;
   const copied: string[] = [];
-  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard: { writeText: async (t: string) => { copied.push(t); } } } });
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      clipboard: {
+        writeText: async (t: string) => {
+          copied.push(t);
+        },
+      },
+    },
+  });
   const trigger = { key: "webhook" };
   const def: Definition = { triggers: [trigger], nodes: [] };
-  const root = await mount(createRoot, (
+  const root = await mount(
+    createRoot,
     <AutomationsDataProvider value={data}>
-      <Inspector automationId="aut_lead" def={def} node={null} trigger={trigger} triggerIndex={0} issues={[]} keys={[]} onChange={noop} onClose={noop} onDelete={noop} />
-    </AutomationsDataProvider>
-  ));
+      <Inspector
+        automationId="aut_lead"
+        def={def}
+        node={null}
+        trigger={trigger}
+        triggerIndex={0}
+        issues={[]}
+        keys={[]}
+        onChange={noop}
+        onClose={noop}
+        onDelete={noop}
+      />
+    </AutomationsDataProvider>,
+  );
   await new Promise((r) => setTimeout(r, 30));
   const row = find(root, "trigger-webhook");
   assert.ok(row, "the address row shows on the card");
@@ -39,14 +69,31 @@ test("the web request trigger card shows the address and copies it", async () =>
 test("the web request trigger says it once, in one word, and shows the whole address", async () => {
   const sample = createSampleAutomations(northwind);
   const base = sample.data.call.bind(sample.data);
-  const long = "https://fresh.vyre.run/hooks/automation/aut_01a1cd4f0acd41cd8722d95cd4dafe11/aa1d3dd9685f8e9de09d7b6a2e7fca4474dc1ffdfd4db4cc";
-  const data = { ...sample.data, call: async (cap: string, input: unknown) => (cap === "automations.webhook_url.get" ? { url: long, method: "POST" } : base(cap as never, input as never)) } as typeof sample.data;
+  const long =
+    "https://fresh.vyre.run/hooks/automation/aut_01a1cd4f0acd41cd8722d95cd4dafe11/aa1d3dd9685f8e9de09d7b6a2e7fca4474dc1ffdfd4db4cc";
+  const data = {
+    ...sample.data,
+    call: async (cap: string, input: unknown) =>
+      cap === "automations.webhook_url.get" ? { url: long, method: "POST" } : base(cap as never, input as never),
+  } as typeof sample.data;
   const trigger = { key: "webhook" };
-  const root = await mount(createRoot, (
+  const root = await mount(
+    createRoot,
     <AutomationsDataProvider value={data}>
-      <Inspector automationId="aut_lead" def={{ triggers: [trigger], nodes: [] }} node={null} trigger={trigger} triggerIndex={0} issues={[]} keys={[]} onChange={noop} onClose={noop} onDelete={noop} />
-    </AutomationsDataProvider>
-  ));
+      <Inspector
+        automationId="aut_lead"
+        def={{ triggers: [trigger], nodes: [] }}
+        node={null}
+        trigger={trigger}
+        triggerIndex={0}
+        issues={[]}
+        keys={[]}
+        onChange={noop}
+        onClose={noop}
+        onDelete={noop}
+      />
+    </AutomationsDataProvider>,
+  );
   await new Promise((r) => setTimeout(r, 30));
   const text = textOf(root);
   assert.equal(/webhook/i.test(text), false, `the plain word is "web request": ${text}`);
@@ -62,21 +109,53 @@ test("with no public address the card says so, gives an admin the door and a mem
     const sample = createSampleAutomations(northwind);
     const base = sample.data.call.bind(sample.data);
     const opened: string[] = [];
-    const data = { ...sample.data, nav: { ...sample.data.nav, ...(admin ? { openAddress: () => { opened.push("address"); } } : {}) },
-      call: async (cap: string, input: unknown) => (cap === "automations.webhook_url.get" ? { url: "/hooks/automation/aut_lead/abc", method: "POST" } : base(cap as never, input as never)) } as typeof sample.data;
+    const data = {
+      ...sample.data,
+      nav: {
+        ...sample.data.nav,
+        ...(admin
+          ? {
+              openAddress: () => {
+                opened.push("address");
+              },
+            }
+          : {}),
+      },
+      call: async (cap: string, input: unknown) =>
+        cap === "automations.webhook_url.get"
+          ? { url: "/hooks/automation/aut_lead/abc", method: "POST" }
+          : base(cap as never, input as never),
+    } as typeof sample.data;
     const trigger = { key: "webhook" };
-    const root = await mount(createRoot, (
+    const root = await mount(
+      createRoot,
       <AutomationsDataProvider value={data}>
-        <Inspector automationId="aut_lead" def={{ triggers: [trigger], nodes: [] }} node={null} trigger={trigger} triggerIndex={0} issues={[]} keys={[]} onChange={noop} onClose={noop} onDelete={noop} />
-      </AutomationsDataProvider>
-    ));
+        <Inspector
+          automationId="aut_lead"
+          def={{ triggers: [trigger], nodes: [] }}
+          node={null}
+          trigger={trigger}
+          triggerIndex={0}
+          issues={[]}
+          keys={[]}
+          onChange={noop}
+          onClose={noop}
+          onDelete={noop}
+        />
+      </AutomationsDataProvider>,
+    );
     await new Promise((r) => setTimeout(r, 30));
     const row = find(root, "trigger-webhook");
     assert.ok(row);
     assert.match(textOf(row), /No app outside can reach this yet/);
     assert.equal(textOf(row).includes("/hooks/"), false, "a bare path is never shown as an address");
     assert.equal(find(root, "trigger-webhook-copy"), null);
-    if (admin) { await press(find(root, "trigger-webhook-set-address")); assert.deepEqual(opened, ["address"]); }
-    else { assert.equal(find(root, "trigger-webhook-set-address"), null); assert.match(textOf(row), /Ask an admin to give this Space a public address/); }
+    if (admin) {
+      await press(find(root, "trigger-webhook-set-address"));
+      assert.deepEqual(opened, ["address"]);
+    } else {
+      assert.equal(find(root, "trigger-webhook-set-address"), null);
+      assert.match(textOf(row), /Ask an admin to give this Space a public address/);
+    }
   }
 });

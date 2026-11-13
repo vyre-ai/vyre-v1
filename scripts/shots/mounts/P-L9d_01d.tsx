@@ -4,13 +4,21 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { liveQuery } from "../../../client/src/index.ts";
 import { StarredGroup } from "../../../apps/app/src/places/records/starred/index.ts";
 import type { StarsOut } from "../../../apps/app/src/places/records/starred/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { createViewsSample } from "../../../apps/app/src/places/records/views-a/sample.ts";
-import { PROTO_CLIENT_HIDDEN, protoHarborSpace, protoNorthwindSpace } from "../../../apps/app/src/places/records/table/sample.ts";
+import {
+  PROTO_CLIENT_HIDDEN,
+  protoHarborSpace,
+  protoNorthwindSpace,
+} from "../../../apps/app/src/places/records/table/sample.ts";
 import type { TableViewState } from "../../../apps/app/src/places/records/table/index.ts";
 
 export const title = "Records: last polish";
@@ -22,21 +30,35 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const sample = useMemo(() => createViewsSample(space), [space]);
   // the prototype's Starred group: a client, a project and a meeting (stars.list over the sample replica)
   const stars = useMemo(() => {
-    const out: StarsOut = { stars: [
-      { resource: { type: "record", id: "cl_c1" }, title: "Elena Rivera", at: 3 },
-      { resource: { type: "record", id: "projects_0" }, title: "Rivera engagement", at: 2 },
-      { resource: { type: "record", id: "mt_1" }, title: "Consult \u00b7 Elena Rivera", at: 1 },
-    ] };
+    const out: StarsOut = {
+      stars: [
+        { resource: { type: "record", id: "cl_c1" }, title: "Elena Rivera", at: 3 },
+        { resource: { type: "record", id: "projects_0" }, title: "Rivera engagement", at: 2 },
+        { resource: { type: "record", id: "mt_1" }, title: "Consult \u00b7 Elena Rivera", at: 1 },
+      ],
+    };
     sample.replica.resolve("stars.list", () => out);
     return liveQuery(sample.replica, "stars.list", {});
   }, [sample]);
-  const typeOf = (id: string): string | undefined => (id.startsWith("cl_") ? "clients" : id.startsWith("projects_") ? "projects" : id.startsWith("mt_") ? "meetings" : undefined);
+  const typeOf = (id: string): string | undefined =>
+    id.startsWith("cl_")
+      ? "clients"
+      : id.startsWith("projects_")
+        ? "projects"
+        : id.startsWith("mt_")
+          ? "meetings"
+          : undefined;
   const initial = useMemo(() => ({ type: q.get("type") ?? "clients" }), [q]);
-  const view = useMemo<Partial<TableViewState>>(() => ({
-    ...(q.get("group") ? { group: q.get("group") as string } : {}),
-    // the prototype's Northwind Clients open sorted by Client since, newest first, without their sealed and calculated fields
-    ...(space === protoNorthwindSpace && (q.get("type") ?? "clients") === "clients" ? { sort: [{ field: "since", dir: "desc" as const }], hidden: PROTO_CLIENT_HIDDEN } : {}),
-  }), [q, space]);
+  const view = useMemo<Partial<TableViewState>>(
+    () => ({
+      ...(q.get("group") ? { group: q.get("group") as string } : {}),
+      // the prototype's Northwind Clients open sorted by Client since, newest first, without their sealed and calculated fields
+      ...(space === protoNorthwindSpace && (q.get("type") ?? "clients") === "clients"
+        ? { sort: [{ field: "since", dir: "desc" as const }], hidden: PROTO_CLIENT_HIDDEN }
+        : {}),
+    }),
+    [q, space],
+  );
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
   useEffect(() => {
@@ -50,7 +72,11 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><RecordsSidebar starred={<StarredGroup query={stars} typeOf={typeOf} onOpen={() => undefined} />} /></View>}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <RecordsSidebar starred={<StarredGroup query={stars} typeOf={typeOf} onOpen={() => undefined} />} />
+            </View>
+          )}
           <RecordViews kind={q.get("kind") ?? "table"} view={view} />
         </View>
       </RecordsStateProvider>
@@ -61,6 +87,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 // The page reads its query after it is live (the static export keeps the markup it was rendered with).
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

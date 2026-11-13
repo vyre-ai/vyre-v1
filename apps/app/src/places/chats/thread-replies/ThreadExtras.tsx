@@ -12,15 +12,31 @@ type MessagesOut = CapMap["chat.messages.list"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
 
 /** The thread's own conversation data, with the also-sent set and the reply words. The chat's own position (the message it opened on, text waiting for its composer) does not come along. */
-export function threadData(data: ConversationData, extra: { alsoSent?: ReadonlySet<string> | undefined }): ConversationData {
+export function threadData(
+  data: ConversationData,
+  extra: { alsoSent?: ReadonlySet<string> | undefined },
+): ConversationData {
   const { placeholder: _p, alsoSent: _s, ...rest } = data;
   return { ...rest, placeholder: REPLY_PLACEHOLDER, ...(extra.alsoSent ? { alsoSent: extra.alsoSent } : {}) };
 }
 
-export function useThreadExtras(rt: { screens: ScreenHooks }, data: ConversationData, threadId: string, parentId: string | undefined): { data: ConversationData; title: string } {
-  const chat = useLive<MessagesOut>(rt.screens, "chats.conversation", "messages", parentId ? { threadId: parentId } : null);
+export function useThreadExtras(
+  rt: { screens: ScreenHooks },
+  data: ConversationData,
+  threadId: string,
+  parentId: string | undefined,
+): { data: ConversationData; title: string } {
+  const chat = useLive<MessagesOut>(
+    rt.screens,
+    "chats.conversation",
+    "messages",
+    parentId ? { threadId: parentId } : null,
+  );
   const row = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", parentId ? { threadId: parentId } : null);
-  const alsoSent = useMemo(() => (chat.status === "ready" ? alsoSentIds(chat.data.messages, threadId) : undefined), [chat, threadId]);
+  const alsoSent = useMemo(
+    () => (chat.status === "ready" ? alsoSentIds(chat.data.messages, threadId) : undefined),
+    [chat, threadId],
+  );
   const out = useMemo(() => threadData(data, { alsoSent }), [data, alsoSent]);
-  return { data: out, title: row.status === "ready" ? row.data.thread.title ?? "" : "" };
+  return { data: out, title: row.status === "ready" ? (row.data.thread.title ?? "") : "" };
 }

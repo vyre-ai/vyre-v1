@@ -23,38 +23,87 @@ export interface EventMenuHandlers {
  * The event menu, the same as the event pane offers (lane l-calevents): Open, Edit, Join, Going? (Yes, No, Maybe when you are a guest), Prepare, Ask About This, Copy Link, Open
  * Record, Open Conversation, Move to a calendar, Duplicate, Delete (spec 3.3 flow 4). What an event does not have is left out.
  */
-export function eventMenuEntries(f: MenuFacts, h: EventMenuHandlers, mine?: "accepted" | "declined" | "tentative" | "needs_action"): MenuEntry[] {
-  const out: MenuEntry[] = [{ label: "Open", onSelect: h.open }, { label: "Edit", onSelect: h.edit }];
+export function eventMenuEntries(
+  f: MenuFacts,
+  h: EventMenuHandlers,
+  mine?: "accepted" | "declined" | "tentative" | "needs_action",
+): MenuEntry[] {
+  const out: MenuEntry[] = [
+    { label: "Open", onSelect: h.open },
+    { label: "Edit", onSelect: h.edit },
+  ];
   if (f.joinUrl) out.push({ label: "Join", onSelect: h.join });
   if (h.respond && mine) {
     const r = h.respond;
-    out.push({ separator: true }, { head: "Going?" }, ...([["accepted", "Yes"], ["declined", "No"], ["tentative", "Maybe"]] as const).map(([k, label]) => ({ label, checked: mine === k, onSelect: () => r(k) })), { separator: true });
+    out.push(
+      { separator: true },
+      { head: "Going?" },
+      ...(
+        [
+          ["accepted", "Yes"],
+          ["declined", "No"],
+          ["tentative", "Maybe"],
+        ] as const
+      ).map(([k, label]) => ({ label, checked: mine === k, onSelect: () => r(k) })),
+      { separator: true },
+    );
   }
   if (h.prepare) out.push({ label: "Prepare", onSelect: h.prepare });
   out.push({ label: "Ask About This", onSelect: h.ask }, { label: "Copy Link", onSelect: h.copyLink });
   if (f.record) out.push({ label: "Open Record", onSelect: h.openRecord });
   if (f.conversation) out.push({ label: "Open Conversation", onSelect: h.openConversation });
   out.push({ separator: true }, { head: "Move to a calendar" });
-  for (const c of f.calendars) out.push({ label: c.title, checked: c.current, onSelect: () => { if (!c.current) h.moveTo(c.id); } });
-  out.push({ separator: true }, { label: "Duplicate", onSelect: h.duplicate }, { label: "Delete", danger: true, onSelect: h.remove });
+  for (const c of f.calendars)
+    out.push({
+      label: c.title,
+      checked: c.current,
+      onSelect: () => {
+        if (!c.current) h.moveTo(c.id);
+      },
+    });
+  out.push(
+    { separator: true },
+    { label: "Duplicate", onSelect: h.duplicate },
+    { label: "Delete", danger: true, onSelect: h.remove },
+  );
   return out;
 }
 
 export function lengthMenuEntries(current: number, pick: (minutes: number) => void): MenuEntry[] {
-  return [{ head: "Length" }, ...LENGTHS.map((m) => ({ label: lengthText(m), checked: m === current, onSelect: () => pick(m) }))];
+  return [
+    { head: "Length" },
+    ...LENGTHS.map((m) => ({ label: lengthText(m), checked: m === current, onSelect: () => pick(m) })),
+  ];
 }
 
-export function calendarMenuEntries(calendars: readonly CalendarRow[], current: string, pick: (id: string) => void): MenuEntry[] {
-  return [{ head: "Calendar" }, ...calendars.map((c) => ({ label: c.title, checked: c.id === current, onSelect: () => pick(c.id) }))];
+export function calendarMenuEntries(
+  calendars: readonly CalendarRow[],
+  current: string,
+  pick: (id: string) => void,
+): MenuEntry[] {
+  return [
+    { head: "Calendar" },
+    ...calendars.map((c) => ({ label: c.title, checked: c.id === current, onSelect: () => pick(c.id) })),
+  ];
 }
 
-export function peopleMenuEntries(team: readonly { email: string; name: string }[], chosen: readonly string[], me: string, on: { toggle(email: string): void; clear(): void }): MenuEntry[] {
+export function peopleMenuEntries(
+  team: readonly { email: string; name: string }[],
+  chosen: readonly string[],
+  me: string,
+  on: { toggle(email: string): void; clear(): void },
+): MenuEntry[] {
   const out: MenuEntry[] = [{ head: "Show when people are free" }];
-  for (const p of team) if (p.email !== me) out.push({ label: p.name, checked: chosen.includes(p.email), onSelect: () => on.toggle(p.email) });
+  for (const p of team)
+    if (p.email !== me)
+      out.push({ label: p.name, checked: chosen.includes(p.email), onSelect: () => on.toggle(p.email) });
   if (chosen.length > 0) out.push({ separator: true }, { label: "Clear", onSelect: on.clear });
   return out;
 }
 
 export function dayMenuEntries(on: { newHere(): void; goDay(): void }): MenuEntry[] {
-  return [{ label: "New Event Here", onSelect: on.newHere }, { label: "Open Day", onSelect: on.goDay }];
+  return [
+    { label: "New Event Here", onSelect: on.newHere },
+    { label: "Open Day", onSelect: on.goDay },
+  ];
 }

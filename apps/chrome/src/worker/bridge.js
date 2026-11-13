@@ -80,7 +80,11 @@ export function createBridge(ext, options = {}) {
       port = null;
       const missing = /not found|forbidden/i.test(message);
       setStatus(missing ? "no_host" : "offline");
-      failAll(missing ? new BridgeFailure("no_host", message) : new BridgeFailure("offline", message || "the Vyre app closed the connection"));
+      failAll(
+        missing
+          ? new BridgeFailure("no_host", message)
+          : new BridgeFailure("offline", message || "the Vyre app closed the connection"),
+      );
     });
     port = p;
     return p;
@@ -99,7 +103,14 @@ export function createBridge(ext, options = {}) {
         pending.delete(id);
         reject(new BridgeFailure("timeout", `no answer to ${name}`));
       }, timeoutMs);
-      pending.set(id, { resolve: (v) => { setStatus("online"); resolve(v); }, reject, timer });
+      pending.set(id, {
+        resolve: (v) => {
+          setStatus("online");
+          resolve(v);
+        },
+        reject,
+        timer,
+      });
       try {
         p.postMessage(message);
       } catch {
@@ -111,21 +122,33 @@ export function createBridge(ext, options = {}) {
   }
 
   return {
-    get status() { return status; },
+    get status() {
+      return status;
+    },
     /** One capability call for the active Space. @param {string} capability @param {Record<string, any>} [input] */
     invoke: (capability, input) => send("invoke", capability, input),
     /** One bridge-level operation. @param {string} op @param {Record<string, any>} [input] */
     op: (op, input) => send("bridge", op, input),
     /** @param {(m: any) => void} h @returns {() => void} */
-    onPush(h) { pushHandlers.add(h); return () => pushHandlers.delete(h); },
+    onPush(h) {
+      pushHandlers.add(h);
+      return () => pushHandlers.delete(h);
+    },
     /** @param {(s: Status) => void} h @returns {() => void} */
-    onStatus(h) { statusHandlers.add(h); return () => statusHandlers.delete(h); },
+    onStatus(h) {
+      statusHandlers.add(h);
+      return () => statusHandlers.delete(h);
+    },
     close() {
       const p = port;
       port = null;
       setStatus("offline");
       failAll(new BridgeFailure("offline", "closed"));
-      try { p?.disconnect(); } catch { /* already gone */ }
+      try {
+        p?.disconnect();
+      } catch {
+        /* already gone */
+      }
     },
   };
 }

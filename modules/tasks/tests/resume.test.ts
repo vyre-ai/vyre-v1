@@ -16,12 +16,14 @@ function world(status = "waiting", waitReason = "approval"): Harness {
   h.callee("runs.resume", () => ({ run: {} }));
   return h;
 }
-const made = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> => (await h.call("tasks.create", newTask({ source: { kind: "run", id: "run_1" }, ...over }), me)).task.id as string;
+const made = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> =>
+  (await h.call("tasks.create", newTask({ source: { kind: "run", id: "run_1" }, ...over }), me)).task.id as string;
 const resumes = (h: Harness) => h.calls.filter((c) => c.cap === "runs.resume").map((c) => c.input);
 /** What the host does for a consumer: hand it the event the call emitted, with the ctx of the module. */
 const deliver = async (h: Harness, name = "task.transitioned"): Promise<Array<string | undefined>> => {
   const out: Array<string | undefined> = [];
-  for (const e of h.allEvents.filter((x) => x.name === name)) out.push(await resumeRunOf(h.ctxFor("tasks.transition", svc), e as never));
+  for (const e of h.allEvents.filter((x) => x.name === name))
+    out.push(await resumeRunOf(h.ctxFor("tasks.transition", svc), e as never));
   return out;
 };
 
@@ -45,7 +47,9 @@ test("a canceled task resumes it too, for the reason the Run waits for", async (
 
 test("the last baton call that finishes a task resumes the Run: submit with no reviewer, review and decide", async () => {
   const h = world();
-  h.callee("chat.start", () => { throw new Error("no chat"); });
+  h.callee("chat.start", () => {
+    throw new Error("no chat");
+  });
   const quick = await made(h, { assigned: bot });
   await h.call("tasks.submit", { taskId: quick, summary: "Done" }, { id: bot.id, kind: "agent" });
   assert.deepEqual((await deliver(h)).filter(Boolean), ["run_1"]);

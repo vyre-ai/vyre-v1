@@ -3,7 +3,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { checkKey, providerOfKey } from "./key-prefix.ts";
 
-const TITLES: Record<string, string> = { "opencode-go": "OpenCode Go", anthropic: "Anthropic", openai: "OpenAI", xai: "xAI", openrouter: "OpenRouter" };
+const TITLES: Record<string, string> = {
+  "opencode-go": "OpenCode Go",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  xai: "xAI",
+  openrouter: "OpenRouter",
+};
 const titleOf = (k: string): string | null => TITLES[k] ?? null;
 
 test("the prefix names the provider, most specific first", () => {
@@ -15,11 +21,17 @@ test("the prefix names the provider, most specific first", () => {
 });
 
 test("an OpenCode Go key chosen as Anthropic is caught before saving, and OpenCode Go is suggested", () => {
-  assert.deepEqual(checkKey("anthropic", "ocg_live_1234567890", titleOf), { line: "Anthropic keys start with sk-ant-. Is this an OpenCode Go key?", suggest: "opencode-go" });
+  assert.deepEqual(checkKey("anthropic", "ocg_live_1234567890", titleOf), {
+    line: "Anthropic keys start with sk-ant-. Is this an OpenCode Go key?",
+    suggest: "opencode-go",
+  });
 });
 
 test("a key from another prefixed provider names that provider", () => {
-  assert.deepEqual(checkKey("anthropic", "sk-or-v1-123456", titleOf), { line: "This looks like an OpenRouter key (it starts with sk-or-), not Anthropic.", suggest: "openrouter" });
+  assert.deepEqual(checkKey("anthropic", "sk-or-v1-123456", titleOf), {
+    line: "This looks like an OpenRouter key (it starts with sk-or-), not Anthropic.",
+    suggest: "openrouter",
+  });
   assert.equal(checkKey("openai", "sk-ant-api03-123", titleOf)?.suggest, "anthropic");
   assert.equal(checkKey("opencode-go", "xai-1234567", titleOf)?.suggest, "xai");
 });

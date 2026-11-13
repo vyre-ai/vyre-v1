@@ -4,8 +4,12 @@ import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 
 test("an export waits for the saves in progress and goes on once they finish", async () => {
   let writing = 2;
-  setTimeout(() => { writing = 1; }, 20);
-  setTimeout(() => { writing = 0; }, 50);
+  setTimeout(() => {
+    writing = 1;
+  }, 20);
+  setTimeout(() => {
+    writing = 0;
+  }, 50);
   assert.equal(await waitForQuiet(() => writing, { stepMs: 5, maxSteps: 100 }), true);
 });
 

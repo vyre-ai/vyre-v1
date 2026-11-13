@@ -12,39 +12,90 @@ import { NO_PICK, TableView, isPickedRow, pickCount, toggleHeader, togglePick } 
 
 const render = (child: ReactElement, type = "projects"): string => {
   const s = createViewsSample();
-  return renderToStaticMarkup(<RecordsDataProvider value={s.data}><RecordsStateProvider initial={{ type }}>{child}</RecordsStateProvider></RecordsDataProvider>).replaceAll("<!-- -->", "");
+  return renderToStaticMarkup(
+    <RecordsDataProvider value={s.data}>
+      <RecordsStateProvider initial={{ type }}>{child}</RecordsStateProvider>
+    </RecordsDataProvider>,
+  ).replaceAll("<!-- -->", "");
 };
 const has = (s: string, needle: string): boolean => s.includes(needle);
 
 test("the table header has the kind switch before New, labelled with the open kind", () => {
   const out = render(<RecordViews kind="table" />);
-  assert.ok(has(out, 'data-testid="records-table"') && has(out, 'data-testid="records-kind"') && has(out, 'aria-label="View as, Table"'));
-  assert.ok(out.indexOf('data-testid="records-kind"') < out.indexOf('data-testid="records-new"'), "the switch sits before New, as in the other kinds");
-  assert.ok(out.indexOf('data-testid="records-colour"') < out.indexOf('data-testid="records-kind"'), "after the quiet Filter, Sort, Group, Fields and Colour buttons");
+  assert.ok(
+    has(out, 'data-testid="records-table"') &&
+      has(out, 'data-testid="records-kind"') &&
+      has(out, 'aria-label="View as, Table"'),
+  );
+  assert.ok(
+    out.indexOf('data-testid="records-kind"') < out.indexOf('data-testid="records-new"'),
+    "the switch sits before New, as in the other kinds",
+  );
+  assert.ok(
+    out.indexOf('data-testid="records-colour"') < out.indexOf('data-testid="records-kind"'),
+    "after the quiet Filter, Sort, Group, Fields and Colour buttons",
+  );
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
 test("every kind has the same switch, and the table alone (no host) has none", () => {
-  for (const [kind, label] of [["board", "Board"], ["gallery", "Gallery"], ["list", "List"]] as const) assert.ok(has(render(<RecordViews kind={kind} />), `aria-label="View as, ${label}"`), kind);
-  assert.ok(!has(render(<TableView type="projects" />), 'data-testid="records-kind"'), "a table drawn on its own has no switch to show");
+  for (const [kind, label] of [
+    ["board", "Board"],
+    ["gallery", "Gallery"],
+    ["list", "List"],
+  ] as const)
+    assert.ok(has(render(<RecordViews kind={kind} />), `aria-label="View as, ${label}"`), kind);
+  assert.ok(
+    !has(render(<TableView type="projects" />), 'data-testid="records-kind"'),
+    "a table drawn on its own has no switch to show",
+  );
 });
 
 test("switching from the table to a board and back: the menu lists the kinds, checks the open one, and each choice asks for its kind", () => {
   const asked: string[] = [];
-  const ctx = (kind: string): ViewCtx => ({ type: "projects", def: { key: "projects", title: "Project", plural: "Projects", icon: "project", label: "internal", system: false, titleField: "name", fields: [], version: 1 }, views: [], saved: undefined,
-    base: { clauses: [], sort: [], group: null, hidden: [], colour: null, find: "" }, kind, kinds: KIND_ORDER.map((k) => ({ kind: k, label: KIND_LABEL[k] })), onKind: (k) => void asked.push(k) });
+  const ctx = (kind: string): ViewCtx => ({
+    type: "projects",
+    def: {
+      key: "projects",
+      title: "Project",
+      plural: "Projects",
+      icon: "project",
+      label: "internal",
+      system: false,
+      titleField: "name",
+      fields: [],
+      version: 1,
+    },
+    views: [],
+    saved: undefined,
+    base: { clauses: [], sort: [], group: null, hidden: [], colour: null, find: "" },
+    kind,
+    kinds: KIND_ORDER.map((k) => ({ kind: k, label: KIND_LABEL[k] })),
+    onKind: (k) => void asked.push(k),
+  });
   const fromTable = kindEntries(ctx("table"));
   const labels = fromTable.filter((e) => "label" in e).map((e) => ("label" in e ? e.label : ""));
   assert.deepEqual(labels, ["Table", "Board", "Gallery", "List"]);
-  assert.deepEqual(fromTable.filter((e) => "label" in e).map((e) => ("checked" in e ? e.checked === true : false)), [true, false, false, false]);
+  assert.deepEqual(
+    fromTable.filter((e) => "label" in e).map((e) => ("checked" in e ? e.checked === true : false)),
+    [true, false, false, false],
+  );
   const board = fromTable.find((e) => "label" in e && e.label === "Board");
   if (board && "onSelect" in board) board.onSelect?.();
   const fromBoard = kindEntries(ctx("board"));
-  assert.deepEqual(fromBoard.filter((e) => "label" in e).map((e) => ("checked" in e ? e.checked === true : false)), [false, true, false, false], "the board is the open kind now");
+  assert.deepEqual(
+    fromBoard.filter((e) => "label" in e).map((e) => ("checked" in e ? e.checked === true : false)),
+    [false, true, false, false],
+    "the board is the open kind now",
+  );
   const table = fromBoard.find((e) => "label" in e && e.label === "Table");
   if (table && "onSelect" in table) table.onSelect?.();
   assert.deepEqual(asked, ["board", "table"]);
-  assert.ok(has(render(<RecordViews kind="board" />), 'data-testid="records-board"') && has(render(<RecordViews kind="table" />), 'data-testid="records-table"'), "and each opens as its own screen");
+  assert.ok(
+    has(render(<RecordViews kind="board" />), 'data-testid="records-board"') &&
+      has(render(<RecordViews kind="table" />), 'data-testid="records-table"'),
+    "and each opens as its own screen",
+  );
 });
 
 test("the scrolling cells of a row are plain elements with the same test ids and words (the scroll budget)", () => {

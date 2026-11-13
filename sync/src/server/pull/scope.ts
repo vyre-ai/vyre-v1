@@ -22,15 +22,32 @@ export interface Who {
 
 /** One `sync_rows` row. */
 export interface RowRec {
-  entity: string; id: string; owner_id: string | null; label: number; deleted: number; enc: number; vis: string; seq: number; updated_at: number; fields: string;
+  entity: string;
+  id: string;
+  owner_id: string | null;
+  label: number;
+  deleted: number;
+  enc: number;
+  vis: string;
+  seq: number;
+  updated_at: number;
+  fields: string;
 }
 
 /** What the grants that reach one row (on its type, on its own resource or on an ancestor of it) give a person: whether any lets them read it, and the fields every one of those grants hides. */
-export interface RowGrant { allow: boolean; hidden: ReadonlySet<string> }
+export interface RowGrant {
+  allow: boolean;
+  hidden: ReadonlySet<string>;
+}
 const NO_FIELDS: ReadonlySet<string> = new Set();
 const liveGrant = (g: GrantRec, now: number): boolean => g.exp > now && now >= g.nb && now <= g.na;
 
-export interface EntityScope { cfg: ServerEntity; pred: Pred; hidden: ReadonlySet<string>; cap: number }
+export interface EntityScope {
+  cfg: ServerEntity;
+  pred: Pred;
+  hidden: ReadonlySet<string>;
+  cap: number;
+}
 
 const DAY_MS = 86_400_000;
 const RECOMPILE_MS = 30_000;
@@ -42,7 +59,9 @@ export class ScopeCache {
   private at = 0;
   private map = new Map<string, ScopeResult>();
   private readonly snap: () => AccessSnapshot;
-  constructor(snap: () => AccessSnapshot) { this.snap = snap; }
+  constructor(snap: () => AccessSnapshot) {
+    this.snap = snap;
+  }
   private ids = new WeakMap<object, number>();
   private nextId = 1;
   /**
@@ -53,10 +72,18 @@ export class ScopeCache {
   stamp(person: string, now: number): string {
     const snap = this.snap();
     let id = this.ids.get(snap);
-    if (id === undefined) { id = this.nextId++; this.ids.set(snap, id); }
+    if (id === undefined) {
+      id = this.nextId++;
+      this.ids.set(snap, id);
+    }
     const me = snap.info(person);
     let timed = false;
-    if (me) for (const g of snap.allGrantRecs()) if (me.keys.has(g.key) && (g.exp !== Infinity || g.nb !== -Infinity || g.na !== Infinity)) { timed = true; break; }
+    if (me)
+      for (const g of snap.allGrantRecs())
+        if (me.keys.has(g.key) && (g.exp !== Infinity || g.nb !== -Infinity || g.na !== Infinity)) {
+          timed = true;
+          break;
+        }
     return `${id}:${snap.epoch}:${timed ? Math.floor(now / RECOMPILE_MS) : "-"}`;
   }
   /**
@@ -80,7 +107,8 @@ export class ScopeCache {
     for (const anc of snap.chain(row.id) ?? []) for (const g of snap.grantsOn(anc.id) ?? []) consider(g);
     if (!reach.length) return { allow: false, hidden: NO_FIELDS };
     let hidden: Set<string> | null = null;
-    for (const g of reach) hidden = hidden === null ? new Set(g.hidden) : new Set([...hidden].filter((f) => g.hidden.includes(f)));
+    for (const g of reach)
+      hidden = hidden === null ? new Set(g.hidden) : new Set([...hidden].filter((f) => g.hidden.includes(f)));
     return { allow: true, hidden: hidden ?? NO_FIELDS };
   }
   /** Every field any live grant of this person hides, wherever the grant sits. Over-wide on purpose: it only decides whether a device that cached such a field must start over (classify.ts). */
@@ -89,16 +117,25 @@ export class ScopeCache {
     const me = snap.info(person);
     if (!me) return [];
     const out = new Set<string>();
-    for (const g of snap.allGrantRecs()) if (g.hasHidden && me.keys.has(g.key) && liveGrant(g, now)) for (const f of g.hidden) out.add(f);
+    for (const g of snap.allGrantRecs())
+      if (g.hasHidden && me.keys.has(g.key) && liveGrant(g, now)) for (const f of g.hidden) out.add(f);
     return [...out];
   }
   get(person: string, resource: string, now: number): ScopeResult {
     const snap = this.snap();
     // a snapshot adopted anew can carry the same epoch number as the one before it (an epoch counts one object's changes), so the object is compared too
-    if (snap !== this.of || snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) { this.map.clear(); this.of = snap; this.epoch = snap.epoch; this.at = now; }
+    if (snap !== this.of || snap.epoch !== this.epoch || now - this.at > RECOMPILE_MS || now < this.at) {
+      this.map.clear();
+      this.of = snap;
+      this.epoch = snap.epoch;
+      this.at = now;
+    }
     const key = `${person}\0${resource}`;
     let hit = this.map.get(key);
-    if (!hit) { hit = scopeFor(snap, { principal: person, entityType: resource, level: "view", now }); this.map.set(key, hit); }
+    if (!hit) {
+      hit = scopeFor(snap, { principal: person, entityType: resource, level: "view", now });
+      this.map.set(key, hit);
+    }
     return hit;
   }
 }
@@ -112,16 +149,27 @@ export class MemberFloor {
   private readonly db: Tx;
   private roots = new Map<string, string>();
   private floors = new Map<string, number>();
-  constructor(db: Tx) { this.db = db; }
+  constructor(db: Tx) {
+    this.db = db;
+  }
 
-  private cell(fields: string, name: string): unknown { try { return (JSON.parse(fields) as Record<string, { v?: unknown } | undefined>)[name]?.v; } catch { return undefined; } }
+  private cell(fields: string, name: string): unknown {
+    try {
+      return (JSON.parse(fields) as Record<string, { v?: unknown } | undefined>)[name]?.v;
+    } catch {
+      return undefined;
+    }
+  }
 
   private rootOf(thread: string): string {
     const hit = this.roots.get(thread);
     if (hit !== undefined) return hit;
     let cur = thread;
     for (let i = 0; i < 8; i++) {
-      const row = this.db.get<{ fields: string }>("SELECT fields FROM sync_rows WHERE entity = 'thread' AND id = ? AND deleted = 0", cur);
+      const row = this.db.get<{ fields: string }>(
+        "SELECT fields FROM sync_rows WHERE entity = 'thread' AND id = ? AND deleted = 0",
+        cur,
+      );
       const up = row ? this.cell(row.fields, "parentThreadId") : undefined;
       if (typeof up !== "string" || up === "") break;
       cur = up;
@@ -136,9 +184,12 @@ export class MemberFloor {
    */
   stamp(person: string): string {
     const rows = this.db.all<{ t: string | null; f: unknown }>(
-      "SELECT json_extract(fields, '$.thread.v') AS t, json_extract(fields, '$.fromAt.v') AS f FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.principal.v') = ? ORDER BY 1", person,
+      "SELECT json_extract(fields, '$.thread.v') AS t, json_extract(fields, '$.fromAt.v') AS f FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.principal.v') = ? ORDER BY 1",
+      person,
     );
-    const marks = rows.filter((r) => r.f !== null && r.f !== undefined && r.f !== 0).map((r) => `${r.t}@${String(r.f)}`);
+    const marks = rows
+      .filter((r) => r.f !== null && r.f !== undefined && r.f !== 0)
+      .map((r) => `${r.t}@${String(r.f)}`);
     return marks.length === 0 ? "-" : marks.join(",");
   }
 
@@ -149,24 +200,39 @@ export class MemberFloor {
     const hit = this.floors.get(key);
     if (hit !== undefined) return hit;
     const row = this.db.get<{ fields: string }>(
-      "SELECT fields FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.thread.v') = ? AND json_extract(fields, '$.principal.v') = ? LIMIT 1", root, person,
+      "SELECT fields FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.thread.v') = ? AND json_extract(fields, '$.principal.v') = ? LIMIT 1",
+      root,
+      person,
     );
     const at = row ? this.cell(row.fields, "fromAt") : undefined;
-    const floor = typeof at === "number" && at > 0 ? at : typeof at === "string" && Date.parse(at) > 0 ? Date.parse(at) : 0;
+    const floor =
+      typeof at === "number" && at > 0 ? at : typeof at === "string" && Date.parse(at) > 0 ? Date.parse(at) : 0;
     this.floors.set(key, floor);
     return floor;
   }
 }
 
-export interface ViewerOpts { cache: ScopeCache; who: Who; now: number; phoneCeiling: number; floor?: MemberFloor }
+export interface ViewerOpts {
+  cache: ScopeCache;
+  who: Who;
+  now: number;
+  phoneCeiling: number;
+  floor?: MemberFloor;
+}
 
 /** Everything one request needs to decide visibility. Cheap to make; scopes come from the shared cache. */
 export class Viewer {
   private scopes = new Map<string, EntityScope>();
   private readonly o: ViewerOpts;
-  constructor(o: ViewerOpts) { this.o = o; }
-  get who(): Who { return this.o.who; }
-  get now(): number { return this.o.now; }
+  constructor(o: ViewerOpts) {
+    this.o = o;
+  }
+  get who(): Who {
+    return this.o.who;
+  }
+  get now(): number {
+    return this.o.now;
+  }
 
   deviceCeiling(): number {
     const base = DEVICE_CEILING[this.o.who.deviceClass];
@@ -188,7 +254,10 @@ export class Viewer {
   static context(row: RowRec, cells: Cells): Record<string, unknown> {
     const ctx: Record<string, unknown> = {};
     for (const [k, c] of Object.entries(cells)) ctx[k] = c.v;
-    ctx["id"] = row.id; ctx["owner_id"] = row.owner_id; ctx["label"] = row.label; ctx["holds"] = 0;
+    ctx["id"] = row.id;
+    ctx["owner_id"] = row.owner_id;
+    ctx["label"] = row.label;
+    ctx["holds"] = 0;
     return ctx;
   }
 
@@ -210,7 +279,8 @@ export class Viewer {
 
   private sees(sc: EntityScope, row: RowRec, cells: Cells): boolean {
     if (sc.pred.t === "false") return false;
-    if ((row.enc === 2 || row.vis === "owner" || row.vis === "private") && row.owner_id !== this.o.who.person) return false;
+    if ((row.enc === 2 || row.vis === "owner" || row.vis === "private") && row.owner_id !== this.o.who.person)
+      return false;
     if (row.label > sc.cap) return false;
     if (evalPred(sc.pred, Viewer.context(row, cells))) return true;
     return this.o.cache.rowGrant(this.o.who.person, sc.cfg.resource, row, cells, this.o.now).allow;
@@ -224,7 +294,12 @@ export class Viewer {
   }
 
   /** Fields this person and device may hold. `seq` stays on the cell for snapshot rows and is stripped by the caller for pull. */
-  fields(sc: EntityScope, cells: Cells, only?: Iterable<string>, of?: { row: RowRec; cells: Cells }): Record<string, Cell> {
+  fields(
+    sc: EntityScope,
+    cells: Cells,
+    only?: Iterable<string>,
+    of?: { row: RowRec; cells: Cells },
+  ): Record<string, Cell> {
     const out: Record<string, Cell> = {};
     const hidden = of ? this.hiddenFor(sc, of.row, of.cells) : sc.hidden;
     for (const k of only ?? Object.keys(cells)) {
@@ -244,20 +319,33 @@ export class Window {
   private readonly db: Tx;
   private readonly now: number;
   private readonly keep: (entity: string, id: string) => boolean;
-  constructor(db: Tx, now: number, keep: (entity: string, id: string) => boolean) { this.db = db; this.now = now; this.keep = keep; }
+  constructor(db: Tx, now: number, keep: (entity: string, id: string) => boolean) {
+    this.db = db;
+    this.now = now;
+    this.keep = keep;
+  }
 
   private recentCut(entity: string, n: number): number {
     const k = `${entity}\0${n}`;
     let c = this.cut.get(k);
     if (c === undefined) {
-      c = this.db.get<{ updated_at: number }>("SELECT updated_at FROM sync_rows WHERE entity = ? AND deleted = 0 ORDER BY updated_at DESC LIMIT 1 OFFSET ?", entity, Math.max(0, n - 1))?.updated_at ?? -Infinity;
+      c =
+        this.db.get<{ updated_at: number }>(
+          "SELECT updated_at FROM sync_rows WHERE entity = ? AND deleted = 0 ORDER BY updated_at DESC LIMIT 1 OFFSET ?",
+          entity,
+          Math.max(0, n - 1),
+        )?.updated_at ?? -Infinity;
       this.cut.set(k, c);
     }
     return c;
   }
 
   /** True when the device class mirrors this row. */
-  holds(cfg: ServerEntity, mode: "all" | "window" | "none", row: { entity: string; id: string; updated_at: number }): boolean {
+  holds(
+    cfg: ServerEntity,
+    mode: "all" | "window" | "none",
+    row: { entity: string; id: string; updated_at: number },
+  ): boolean {
     if (mode === "none") return false;
     if (mode === "all") return true;
     const w = cfg.window;

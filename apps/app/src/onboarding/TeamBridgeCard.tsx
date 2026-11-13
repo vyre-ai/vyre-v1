@@ -5,14 +5,27 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CARD } from "./card-style.ts";
 import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
-export const MAC_WARNING = "This Mac must be on and Vyre open for your team to connect. For always-on, install on a server.";
+export const MAC_WARNING =
+  "This Mac must be on and Vyre open for your team to connect. For always-on, install on a server.";
 
-export function TeamBridgeCard({ onCreate, mac }: { onCreate(): void; /** the desktop app is on a Mac, where this Mac can host */ mac: boolean }): ReactElement {
+export function TeamBridgeCard({
+  onCreate,
+  mac,
+}: {
+  onCreate(): void;
+  /** the desktop app is on a Mac, where this Mac can host */ mac: boolean;
+}): ReactElement {
   return (
     <View testID="team-bridge" style={s.col}>
       <Text style={s.line}>A Team Space has its own Vault and memory.</Text>
-      {mac ? <Text testID="mac-warning" style={s.warn}>{MAC_WARNING}</Text> : null}
-      <Pressable testID="team-create" accessibilityRole="button" onPress={onCreate} style={s.primary}><Text style={s.primaryText}>Create a Team Space</Text></Pressable>
+      {mac ? (
+        <Text testID="mac-warning" style={s.warn}>
+          {MAC_WARNING}
+        </Text>
+      ) : null}
+      <Pressable testID="team-create" accessibilityRole="button" onPress={onCreate} style={s.primary}>
+        <Text style={s.primaryText}>Create a Team Space</Text>
+      </Pressable>
     </View>
   );
 }
@@ -20,7 +33,14 @@ export function TeamBridgeCard({ onCreate, mac }: { onCreate(): void; /** the de
 const s = StyleSheet.create({
   col: { gap: 10 },
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
-  warn: { fontSize: 13.5, lineHeight: 19, color: "var(--ink)" as string, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--accent-wash)" as string },
+  warn: {
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: "var(--ink)" as string,
+    padding: 10,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string },
   primary: CARD.primary,
   primaryText: CARD.primaryText,

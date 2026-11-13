@@ -5,18 +5,26 @@ import assert from "node:assert/strict";
 import { wireSeams } from "../src/seams/index.ts";
 import type { SeamDeps, SeamSetters } from "../src/seams/index.ts";
 
-const deps = (): SeamDeps => ({
-  vault: { secret: () => Promise.reject(new Error("no vault")), signRs256: () => Promise.reject(new Error("no vault")) },
-  files: { read: () => Promise.reject(new Error("no files")) },
-  blobs: { put: () => Promise.reject(new Error("no blobs")) },
-  members: { emails: () => Promise.resolve([]) },
-  space: "spc_test",
-  drivers: { setEngineHost: (d: unknown) => ({ from: (d as { tag?: string }).tag }) },
-} as unknown as SeamDeps);
+const deps = (): SeamDeps =>
+  ({
+    vault: {
+      secret: () => Promise.reject(new Error("no vault")),
+      signRs256: () => Promise.reject(new Error("no vault")),
+    },
+    files: { read: () => Promise.reject(new Error("no files")) },
+    blobs: { put: () => Promise.reject(new Error("no blobs")) },
+    members: { emails: () => Promise.resolve([]) },
+    space: "spc_test",
+    drivers: { setEngineHost: (d: unknown) => ({ from: (d as { tag?: string }).tag }) },
+  }) as unknown as SeamDeps;
 
 test("the daemon that stops first leaves the seam the later one wired; the later one clears its own", () => {
   let held: unknown = "unset";
-  const setters = { setEngineHost: (h: unknown) => { held = h; } } as unknown as SeamSetters;
+  const setters = {
+    setEngineHost: (h: unknown) => {
+      held = h;
+    },
+  } as unknown as SeamSetters;
   const a = wireSeams(setters, { ...deps(), tag: "A" } as unknown as SeamDeps);
   const b = wireSeams(setters, { ...deps(), tag: "B" } as unknown as SeamDeps);
   assert.equal(a.owns("setEngineHost"), false, "B wired over A");
@@ -30,7 +38,14 @@ test("the daemon that stops first leaves the seam the later one wired; the later
 
 test("one daemon per process unwires as before", () => {
   let held: unknown = "unset";
-  const one = wireSeams({ setEngineHost: (h: unknown) => { held = h; } } as unknown as SeamSetters, deps());
+  const one = wireSeams(
+    {
+      setEngineHost: (h: unknown) => {
+        held = h;
+      },
+    } as unknown as SeamSetters,
+    deps(),
+  );
   assert.notEqual(held, "unset");
   one.unwire();
   assert.equal(held, null);

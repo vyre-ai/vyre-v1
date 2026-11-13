@@ -62,11 +62,21 @@ export async function providerCheck(ctx: AccessCtx, input: { resources: Resource
   const blocked: { id: string; label?: Label }[] = [];
   for (const r of input.resources) {
     const row = store.resourceRow(r.id);
-    const req: Req = { principal: ctx.principal.id, action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id }, now: ctx.now(), provider: input.provider };
+    const req: Req = {
+      principal: ctx.principal.id,
+      action: { perm: null, level: "view" },
+      resource: { type: r.type, id: r.id },
+      now: ctx.now(),
+      provider: input.provider,
+    };
     if (who !== ctx.principal.id) req.actingFor = who;
     if (row) req.row = row;
     const d = authorize(store.snapshot(), req);
-    if (d.effect === "deny" && /provider/i.test(d.reason)) blocked.push({ id: r.id, ...(store.resources.get(r.id)?.label ? { label: store.resources.get(r.id)!.label } : {}) });
+    if (d.effect === "deny" && /provider/i.test(d.reason))
+      blocked.push({
+        id: r.id,
+        ...(store.resources.get(r.id)?.label ? { label: store.resources.get(r.id)!.label } : {}),
+      });
   }
   return { blocked };
 }
@@ -74,7 +84,8 @@ export async function providerCheck(ctx: AccessCtx, input: { resources: Resource
 export async function viewAs(ctx: AccessCtx, input: { person: string }) {
   const store = storeOf(ctx);
   if (!store.principals.has(input.person)) raise(ctx.trace.traceId, "validation.not_found", "no such person");
-  if (!ctx.preview) raise(ctx.trace.traceId, "validation.precondition_failed", "Shared record preview is not available on this host.");
+  if (!ctx.preview)
+    raise(ctx.trace.traceId, "validation.precondition_failed", "Shared record preview is not available on this host.");
   const { previewToken, expiresAt } = ctx.preview.issue(input.person);
   ctx.emit("view_as.started", input.person, { target: input.person, expiresAt });
   return { previewToken, expiresAt };
@@ -82,7 +93,10 @@ export async function viewAs(ctx: AccessCtx, input: { person: string }) {
 
 export async function policiesList(ctx: AccessCtx, input: { kind?: PolicyKind }) {
   const store = storeOf(ctx);
-  const policies = [...store.policies.values()].filter((p) => !input.kind || p.kind === input.kind).sort((a, b) => (a.key < b.key ? -1 : 1)).map(policyView);
+  const policies = [...store.policies.values()]
+    .filter((p) => !input.kind || p.kind === input.kind)
+    .sort((a, b) => (a.key < b.key ? -1 : 1))
+    .map(policyView);
   return { policies };
 }
 
@@ -93,7 +107,12 @@ export async function policiesSet(ctx: AccessCtx, input: { key: string; scope: s
   store.policies.set(pkey(rec.key, rec.scope), rec);
   store.bump();
   ctx.emit("policy.changed", rec.key, { key: rec.key, scope: rec.scope, kind: rec.kind, by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
   return { policy: policyView(rec) };
 }
 
@@ -111,12 +130,24 @@ export async function policiesReset(ctx: AccessCtx, input: { key: string; scope:
   const cur = store.policies.get(id);
   const spec = DEFAULTS[input.key];
   if (!cur && !spec) raise(ctx.trace.traceId, "validation.not_found", "no such policy");
-  if (spec) store.policies.set(id, { key: input.key, scope: input.scope, kind: spec.kind, value: spec.value, updatedAt: ctx.now() });
+  if (spec)
+    store.policies.set(id, {
+      key: input.key,
+      scope: input.scope,
+      kind: spec.kind,
+      value: spec.value,
+      updatedAt: ctx.now(),
+    });
   else store.policies.delete(id);
   const kind = spec?.kind ?? cur!.kind;
   store.bump();
   ctx.emit("policy.changed", input.key, { key: input.key, scope: input.scope, kind, by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
   return { ok: true };
 }
 
@@ -132,9 +163,15 @@ export async function labelsSet(ctx: AccessCtx, input: { resource: ResourceRef; 
   const store = storeOf(ctx);
   const cur = store.resources.get(input.resource.id);
   if (cur) cur.label = input.label;
-  else store.resources.set(input.resource.id, {
-    id: input.resource.id, type: input.resource.type, parentId: null, label: input.label, ownerId: null, holds: 0,
-  });
+  else
+    store.resources.set(input.resource.id, {
+      id: input.resource.id,
+      type: input.resource.type,
+      parentId: null,
+      label: input.label,
+      ownerId: null,
+      holds: 0,
+    });
   changed(ctx, store, "label");
   return { ok: true };
 }
@@ -152,11 +189,22 @@ function secret(): string {
 function actorView(store: ReturnType<typeof storeOf>, a: ActorRec) {
   const p = store.principals.get(a.id);
   const out: {
-    id: string; name: string; owner: string; provider: string; roles: string[];
-    status: ActorRec["status"]; engineerMcp: boolean; lastSeenAt?: number;
+    id: string;
+    name: string;
+    owner: string;
+    provider: string;
+    roles: string[];
+    status: ActorRec["status"];
+    engineerMcp: boolean;
+    lastSeenAt?: number;
   } = {
-    id: a.id, name: p?.name ?? a.id, owner: p?.owner ?? "", provider: a.provider,
-    roles: store.rolesOf(a.id), status: a.status, engineerMcp: a.engineerMcp,
+    id: a.id,
+    name: p?.name ?? a.id,
+    owner: p?.owner ?? "",
+    provider: a.provider,
+    roles: store.rolesOf(a.id),
+    status: a.status,
+    engineerMcp: a.engineerMcp,
   };
   if (a.lastSeenAt !== undefined) out.lastSeenAt = a.lastSeenAt;
   return out;
@@ -170,23 +218,41 @@ export async function actorsList(ctx: AccessCtx, input: { cursor?: string; limit
 }
 
 function validateActorRoles(store: ReturnType<typeof storeOf>, roleIds: string[], trace: string): void {
-  for (const roleId of roleIds) { const role = store.roles.get(roleId); if (!role) raise(trace, "validation.not_found", "no such role"); if (isOwnerRole(roleId, role.name)) raise(trace, "validation.precondition_failed", "Space ownership belongs to a person and changes only through Transfer ownership"); }
+  for (const roleId of roleIds) {
+    const role = store.roles.get(roleId);
+    if (!role) raise(trace, "validation.not_found", "no such role");
+    if (isOwnerRole(roleId, role.name))
+      raise(
+        trace,
+        "validation.precondition_failed",
+        "Space ownership belongs to a person and changes only through Transfer ownership",
+      );
+  }
 }
-export async function actorsCreate(ctx: AccessCtx, input: { name: string; provider: string; roleIds?: string[]; idempotencyKey: string }) {
+export async function actorsCreate(
+  ctx: AccessCtx,
+  input: { name: string; provider: string; roleIds?: string[]; idempotencyKey: string },
+) {
   const store = storeOf(ctx);
   const key = `actors.create:${input.idempotencyKey}`;
   const hit = store.idem.get(key);
   if (hit) return hit as { actor: ReturnType<typeof actorView>; oneTimeToken: string; expiresAt: number };
   const name = input.name.trim();
-  if (!name || !input.provider.trim()) raise(ctx.trace.traceId, "validation.bad_input", "name and provider are required");
+  if (!name || !input.provider.trim())
+    raise(ctx.trace.traceId, "validation.bad_input", "name and provider are required");
   validateActorRoles(store, input.roleIds ?? [], ctx.trace.traceId);
   const id = nid("act");
   const token = secret();
   const expiresAt = ctx.now() + TOKEN_MS;
   putPrincipal(store, { id, kind: "actor", name, owner: ctx.principal.id, status: "invited", createdAt: ctx.now() });
   const actor: ActorRec = {
-    id, provider: input.provider.trim(), status: "pending", engineerMcp: false,
-    tokenHash: await sha256(token), tokenExpires: expiresAt, tokenUsed: false,
+    id,
+    provider: input.provider.trim(),
+    status: "pending",
+    engineerMcp: false,
+    tokenHash: await sha256(token),
+    tokenExpires: expiresAt,
+    tokenUsed: false,
   };
   store.actors.set(id, actor);
   for (const roleId of input.roleIds ?? []) await rolesAssign(ctx, { subject: { kind: "actor", id }, roleId });
@@ -203,8 +269,15 @@ export async function actorsRedeem(ctx: AccessCtx, input: { token: string }) {
   const actor = [...store.actors.values()].find((a) => a.tokenHash === hash);
   const holder = actor ? store.principals.get(actor.id) : undefined;
   // only a pending actor whose principal is still live can redeem: a suspended or removed one, or one already active, gets the same answer as a wrong token
-  if (!actor || actor.tokenUsed || actor.status !== "pending" || (holder && holder.status !== "active" && holder.status !== "invited")) raise(ctx.trace.traceId, "auth.invalid_code", "the token is wrong or already used");
-  if ((actor.tokenExpires ?? 0) <= ctx.now()) raise(ctx.trace.traceId, "permission.expired", "the one-time token has expired");
+  if (
+    !actor ||
+    actor.tokenUsed ||
+    actor.status !== "pending" ||
+    (holder && holder.status !== "active" && holder.status !== "invited")
+  )
+    raise(ctx.trace.traceId, "auth.invalid_code", "the token is wrong or already used");
+  if ((actor.tokenExpires ?? 0) <= ctx.now())
+    raise(ctx.trace.traceId, "permission.expired", "the one-time token has expired");
   const credential = secret();
   actor.tokenUsed = true;
   actor.status = "active";
@@ -213,8 +286,13 @@ export async function actorsRedeem(ctx: AccessCtx, input: { token: string }) {
   const p = store.principals.get(actor.id);
   if (p) p.status = "active";
   store.bump();
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
-  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: actor.id });   // the snapshot learns the actor is active, only once it is stored
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: actor.id }); // the snapshot learns the actor is active, only once it is stored
   return { actorId: actor.id, credential };
 }
 
@@ -223,7 +301,8 @@ export async function actorsUpdate(ctx: AccessCtx, input: { actorId: string; rol
   const actor = store.actors.get(input.actorId);
   if (!actor) raise(ctx.trace.traceId, "validation.not_found", "no such actor");
   if (input.roleIds) validateActorRoles(store, input.roleIds, ctx.trace.traceId);
-  if (input.provider !== undefined && !input.provider.trim()) raise(ctx.trace.traceId, "validation.bad_input", "provider is required");
+  if (input.provider !== undefined && !input.provider.trim())
+    raise(ctx.trace.traceId, "validation.bad_input", "provider is required");
   if (input.provider !== undefined) actor.provider = input.provider.trim();
   if (input.roleIds) {
     store.setRoles(actor.id, [...input.roleIds]);
@@ -244,7 +323,12 @@ export async function actorsRevoke(ctx: AccessCtx, input: { actorId: string }) {
   store.bump();
   ctx.emit("token.revoked", actor.id, { actorId: actor.id, by: ctx.principal.id });
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "actor", by: ctx.principal.id });
-  try { store.persist(ctx.db); } catch (e) { store.bump(); throw e; }
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
   return { ok: true };
 }
 
@@ -265,4 +349,3 @@ export async function projectionHealth(ctx: AccessCtx, _input: Record<string, un
   if (!snap) return { state: "down" as const, detail: "snapshot missing", latencyMs };
   return { state: "healthy" as const, detail: `epoch ${store.epoch}`, latencyMs };
 }
-

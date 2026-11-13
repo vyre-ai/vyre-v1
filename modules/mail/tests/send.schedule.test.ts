@@ -14,7 +14,11 @@ const rows = (r: Rig, table: string) => r.h.rows(`SELECT * FROM ${table}`);
 const due = (r: Rig, n = 0): SendIn => r.scheduled[n]!.input as unknown as SendIn;
 
 test("with the Space window set to any time, an appointment confirmation booked at 3am on a Saturday leaves now, not on Monday", async () => {
-  const r = rig({ origin: "automation:aut_confirm", principal: { kind: "service", id: "svc_automations" }, settings: { "send.window": "any" } });
+  const r = rig({
+    origin: "automation:aut_confirm",
+    principal: { kind: "service", id: "svc_automations" },
+    settings: { "send.window": "any" },
+  });
   r.goto(SATURDAY_3AM);
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
   assert.equal(r.scheduled.length, 0);
@@ -22,14 +26,25 @@ test("with the Space window set to any time, an appointment confirmation booked 
 });
 
 test("the old mail.send_window, mail.sender_caps and mail.throttle settings on a Space change nothing", async () => {
-  const r = rig({ settings: { "mail.send_window": { days: [6], startHour: 9, endHour: 10, zone: "space" }, "mail.sender_caps": { perHour: 1, perDay: 1 }, "mail.throttle": { perMinute: 1 } } });
+  const r = rig({
+    settings: {
+      "mail.send_window": { days: [6], startHour: 9, endHour: 10, zone: "space" },
+      "mail.sender_caps": { perHour: 1, perDay: 1 },
+      "mail.throttle": { perMinute: 1 },
+    },
+  });
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
 });
 
 test("a newsletter to more people than the old daily cap all goes out when the Space speed allows it", async () => {
-  const r = rig({ origin: "automation:aut_news", principal: { kind: "service", id: "svc_automations" }, settings: { "send.throttle": 600 } });
-  for (let i = 0; i < 200; i++) assert.equal((await send(r.ctx, sendIn({ to: [{ address: `reader${i}@acme.test` }] }))).status, "sent");
+  const r = rig({
+    origin: "automation:aut_news",
+    principal: { kind: "service", id: "svc_automations" },
+    settings: { "send.throttle": 600 },
+  });
+  for (let i = 0; i < 200; i++)
+    assert.equal((await send(r.ctx, sendIn({ to: [{ address: `reader${i}@acme.test` }] }))).status, "sent");
   assert.equal(r.sent().length, 200);
 });
 
@@ -59,6 +74,9 @@ test("a queued message is checked again on delivery: suppressed meanwhile, it is
 test("scheduling must be available to queue a message, and then nothing is stored", async () => {
   const r = rig();
   delete r.ctx.schedule;
-  await assert.rejects(send(r.ctx, sendIn({ sendAt: NOW + HOUR })), (e: unknown) => codeOf(e) === "internal.unavailable");
+  await assert.rejects(
+    send(r.ctx, sendIn({ sendAt: NOW + HOUR })),
+    (e: unknown) => codeOf(e) === "internal.unavailable",
+  );
   assert.equal(rows(r, "mail_message").length, 0);
 });

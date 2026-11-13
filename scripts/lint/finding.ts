@@ -42,7 +42,7 @@ export function matchDelim(source: string, openIndex: number, open: string, clos
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }

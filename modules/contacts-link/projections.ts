@@ -22,9 +22,17 @@ export interface ContactsCtx {
   trace: { traceId: string };
   now(): number;
   db: ContactsDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -86,7 +94,8 @@ export function strOrNull(row: Row | null, key: string): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
-export const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+export const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
@@ -116,7 +125,10 @@ export function normChannel(channel: Channel, value: string): string {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_contacts_link.sql", import.meta.url)), "utf8");
+const migrationSql = readFileSync(
+  fileURLToPath(new URL("./migrations/0001_contacts_link.sql", import.meta.url)),
+  "utf8",
+);
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -180,12 +192,21 @@ export async function findRecord(ctx: ContactsCtx, recordId: string): Promise<Re
   return (await getRecord(ctx, "contact", recordId)) ?? (await getRecord(ctx, "company", recordId));
 }
 
-export type Filter = { and: Filter[] } | { or: Filter[] } | { not: Filter } | { field: string; op: "eq" | "ne" | "in" | "contains" | "is_null"; value?: unknown };
+export type Filter =
+  | { and: Filter[] }
+  | { or: Filter[] }
+  | { not: Filter }
+  | { field: string; op: "eq" | "ne" | "in" | "contains" | "is_null"; value?: unknown };
 
 const PAGE = 500;
 
 /** Up to `max` rows of a record type that pass a filter, paged through records.query. */
-export async function queryRecords(ctx: ContactsCtx, type: RecordType, filter: Filter | undefined, max = 2000): Promise<RecordLite[]> {
+export async function queryRecords(
+  ctx: ContactsCtx,
+  type: RecordType,
+  filter: Filter | undefined,
+  max = 2000,
+): Promise<RecordLite[]> {
   const out: RecordLite[] = [];
   let cursor: string | undefined;
   while (out.length < max) {
@@ -222,24 +243,42 @@ const BATCH = 50;
  * The records that hold each address, from the address index and from the primary email and phone fields of the records themselves.
  * Emails and phones are given in any form and answered in normal form. A match here is exact: it is what makes a message "sure".
  */
-export async function holders(ctx: ContactsCtx, q: { emails?: string[]; phones?: string[]; handles?: string[] }): Promise<Holders> {
+export async function holders(
+  ctx: ContactsCtx,
+  q: { emails?: string[]; phones?: string[]; handles?: string[] },
+): Promise<Holders> {
   const found: Holders = new Map();
   const emails = [...new Set((q.emails ?? []).map(normEmail).filter((e) => EMAIL.test(e)))];
   const phones = [...new Set((q.phones ?? []).map(normPhone).filter(Boolean))];
   const handles = [...new Set((q.handles ?? []).map(normHandle).filter(Boolean))];
-  for (const [kind, values] of [["email", emails], ["phone", phones], ["handle", handles]] as const) {
+  for (const [kind, values] of [
+    ["email", emails],
+    ["phone", phones],
+    ["handle", handles],
+  ] as const) {
     for (const value of values) {
-      for (const r of rowsOf(ctx.db.all(`SELECT "contactId" FROM contacts_link_address WHERE kind = ? AND normalized = ? AND deleted_at IS NULL`, kind, value))) {
+      for (const r of rowsOf(
+        ctx.db.all(
+          `SELECT "contactId" FROM contacts_link_address WHERE kind = ? AND normalized = ? AND deleted_at IS NULL`,
+          kind,
+          value,
+        ),
+      )) {
         add(found, `${kind}:${value}`, str(r, "contactId"));
       }
     }
   }
   for (let i = 0; i < emails.length; i += BATCH) {
     const chunk = emails.slice(i, i + BATCH);
-    const rows = await queryRecords(ctx, "contact", { or: chunk.map((value) => ({ field: "email", op: "contains" as const, value })) }, 1000);
+    const rows = await queryRecords(
+      ctx,
+      "contact",
+      { or: chunk.map((value) => ({ field: "email", op: "contains" as const, value })) },
+      1000,
+    );
     for (const rec of rows) {
       const own = normEmail(text(rec.fields.email));
-      if (chunk.includes(own)) add(found, `email:${own}`, rec.id);   // contains is a substring match; only the exact address counts
+      if (chunk.includes(own)) add(found, `email:${own}`, rec.id); // contains is a substring match; only the exact address counts
     }
   }
   for (let i = 0; i < phones.length; i += BATCH) {
@@ -255,7 +294,11 @@ export async function holders(ctx: ContactsCtx, q: { emails?: string[]; phones?:
 }
 
 /** Same as `holders` for one address; the ids it answers. */
-export async function holdersOf(ctx: ContactsCtx, kind: "email" | "phone" | "handle", value: string): Promise<string[]> {
+export async function holdersOf(
+  ctx: ContactsCtx,
+  kind: "email" | "phone" | "handle",
+  value: string,
+): Promise<string[]> {
   const q = kind === "email" ? { emails: [value] } : kind === "phone" ? { phones: [value] } : { handles: [value] };
   const key = `${kind}:${normalize(kind, value)}`;
   return [...((await holders(ctx, q)).get(key) ?? [])];

@@ -12,12 +12,24 @@ let seq = 0;
 async function setup(t: Harness): Promise<string> {
   t.contacts.set(CALLER, PAT);
   t.prefs.set(PAT, { smsConsent: "granted" });
-  const made = (await h.numberBuy(t.ctx, { e164: NUM_E164, title: "Main line", assigneeKind: "person", assigneeId: MAYA, idempotencyKey: "k-buy" })) as { number: { id: string } };
+  const made = (await h.numberBuy(t.ctx, {
+    e164: NUM_E164,
+    title: "Main line",
+    assigneeKind: "person",
+    assigneeId: MAYA,
+    idempotencyKey: "k-buy",
+  })) as { number: { id: string } };
   return made.number.id;
 }
 
 const send = (t: Harness, numberId: string, o: Record<string, unknown> = {}) =>
-  h.sendSms(t.ctx, { numberId, to: CALLER, body: "See you Friday.", idempotencyKey: `k-sender-${++seq}`, ...o } as Parameters<typeof h.sendSms>[1]);
+  h.sendSms(t.ctx, {
+    numberId,
+    to: CALLER,
+    body: "See you Friday.",
+    idempotencyKey: `k-sender-${++seq}`,
+    ...o,
+  } as Parameters<typeof h.sendSms>[1]);
 
 async function refusal(p: Promise<unknown>): Promise<{ code: string; message: string }> {
   try {
@@ -40,9 +52,15 @@ test("a senderId that is not a number, or names another number than numberId, is
   const t = harness();
   const numberId = await setup(t);
   const mailbox = await refusal(send(t, numberId, { senderId: "mbx_maya" }));
-  assert.deepEqual([mailbox.code, mailbox.message], ["validation.bad_input", "That sender is not a number. Pick one from the list of senders for text."]);
+  assert.deepEqual(
+    [mailbox.code, mailbox.message],
+    ["validation.bad_input", "That sender is not a number. Pick one from the list of senders for text."],
+  );
   const clash = await refusal(send(t, numberId, { senderId: "num_other" }));
-  assert.deepEqual([clash.code, clash.message], ["validation.bad_input", "The sender and the number name different senders. Pass the same id for both."]);
+  assert.deepEqual(
+    [clash.code, clash.message],
+    ["validation.bad_input", "The sender and the number name different senders. Pass the same id for both."],
+  );
   assert.equal(t.calls("twilio.sms.send").length, 0);
 });
 
@@ -52,9 +70,20 @@ test("a chosen number that went inactive, was released, cannot text, or never ex
   t.ctx.db.run(`UPDATE telephony_number SET state = ? WHERE id = ?`, "pending", numberId);
   const waiting = await refusal(send(t, numberId, { senderId: numberId }));
   assert.deepEqual([waiting.code, waiting.message], ["validation.precondition_failed", "That number is not active."]);
-  t.ctx.db.run(`UPDATE telephony_number SET state = ?, capabilities = ? WHERE id = ?`, "active", JSON.stringify(["voice"]), numberId);
+  t.ctx.db.run(
+    `UPDATE telephony_number SET state = ?, capabilities = ? WHERE id = ?`,
+    "active",
+    JSON.stringify(["voice"]),
+    numberId,
+  );
   assert.equal((await refusal(send(t, numberId, { senderId: numberId }))).message, "That number cannot send texts.");
-  t.ctx.db.run(`UPDATE telephony_number SET state = ?, capabilities = ?, deleted_at = ? WHERE id = ?`, "active", JSON.stringify(["sms"]), 1, numberId);
+  t.ctx.db.run(
+    `UPDATE telephony_number SET state = ?, capabilities = ?, deleted_at = ? WHERE id = ?`,
+    "active",
+    JSON.stringify(["sms"]),
+    1,
+    numberId,
+  );
   assert.equal((await refusal(send(t, numberId, { senderId: numberId }))).code, "validation.not_found");
   assert.equal((await refusal(send(t, "num_nobody", { senderId: "num_nobody" }))).code, "validation.not_found");
   assert.equal(t.calls("twilio.sms.send").length, 0);

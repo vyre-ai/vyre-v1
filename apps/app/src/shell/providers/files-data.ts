@@ -14,7 +14,16 @@ type ListOut = CapMap["files.list"]["out"];
 export function folderNodes(out: ListOut): FolderNode[] {
   return out.folders.map((f) => {
     const space = f.scope === "space";
-    return { id: f.folderId, name: f.name, parentId: f.parentId ?? null, count: f.fileCount, scope: space ? "space" : "personal", section: space ? "space" : "personal", via: space ? "space" : "owner", open: false };
+    return {
+      id: f.folderId,
+      name: f.name,
+      parentId: f.parentId ?? null,
+      count: f.fileCount,
+      scope: space ? "space" : "personal",
+      section: space ? "space" : "personal",
+      via: space ? "space" : "owner",
+      open: false,
+    };
   });
 }
 
@@ -35,13 +44,27 @@ export function foldersQuery(rt: ShellRuntime): LiveQuery<readonly FolderNode[]>
 }
 
 /** The Knowledge screens the body can show instead of the list. The place holds which one; the data carries it so the sidebar marks the row. */
-export interface MemoryView { view: KnowRoute | null; open(v: KnowRoute | null): void }
+export interface MemoryView {
+  view: KnowRoute | null;
+  open(v: KnowRoute | null): void;
+}
 
 /** Where Connect a folder goes: the place opens the mount sheet into this folder (null: the top of the Space). */
-export interface MountDoor { connect(into: string | null): void; live?(): void; liveView?: boolean }
+export interface MountDoor {
+  connect(into: string | null): void;
+  live?(): void;
+  liveView?: boolean;
+}
 
 /** What the place does for the doors that need its own screen: ask for a name, then make the change. */
-export interface FilesActs { newFolder(scope: "personal" | "space", parentId: string | null): void; rename(kind: "file" | "folder", id: string, current: string): void; upload(folderId: string | null): void; uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void; share?(folderId: string): void; shareFile?(fileId: string, name: string): void }
+export interface FilesActs {
+  newFolder(scope: "personal" | "space", parentId: string | null): void;
+  rename(kind: "file" | "folder", id: string, current: string): void;
+  upload(folderId: string | null): void;
+  uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void;
+  share?(folderId: string): void;
+  shareFile?(fileId: string, name: string): void;
+}
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor, acts?: FilesActs): FilesData {
   return {
@@ -65,12 +88,19 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       ...(mounts?.live ? { openLive: () => mounts.live?.() } : {}),
       newFolder: (scope, parentId) => acts?.newFolder(scope, parentId),
       ...(acts ? { upload: (folderId: string | null) => acts.upload(folderId) } : {}),
-      ...(acts?.uploadFiles ? { uploadFiles: (folderId: string | null, files: readonly { name: string; type?: string }[]) => acts.uploadFiles?.(folderId, files) } : {}),
+      ...(acts?.uploadFiles
+        ? {
+            uploadFiles: (folderId: string | null, files: readonly { name: string; type?: string }[]) =>
+              acts.uploadFiles?.(folderId, files),
+          }
+        : {}),
       openMemory: () => (memory ? memory.open({ v: "learned" }) : rt.open({ screen: "files.memory-proposed" })),
       openGraph: () => (memory ? memory.open({ v: "graph" }) : rt.open({ screen: "files.memory-graph" })),
-      openKnow: (route) => (memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) })),
+      openKnow: (route) =>
+        memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) }),
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
-      resolveConflict: (fileId) => rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
+      resolveConflict: (fileId) =>
+        rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
       openExternal: (url) => rt.openUrl(url),
     },
   };

@@ -6,44 +6,117 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { asksForFields } from "../recordpage/model.ts";
-import { Peek, RecordPage, RecordPageDataProvider, askText, activityLine, ago, editKind, historyVersions, inputText, mapLayout, parseInput, patchFor, peekFields, relationIds, resolveLink, ringOf, saveField, savePrefs, saveValue, sectionsOf, shownFields, sourceOf, sourceText, splitLinks, toggleFold, undoSave, valueText } from "../recordpage/index.ts";
+import {
+  Peek,
+  RecordPage,
+  RecordPageDataProvider,
+  askText,
+  activityLine,
+  ago,
+  editKind,
+  historyVersions,
+  inputText,
+  mapLayout,
+  parseInput,
+  patchFor,
+  peekFields,
+  relationIds,
+  resolveLink,
+  ringOf,
+  saveField,
+  savePrefs,
+  saveValue,
+  sectionsOf,
+  shownFields,
+  sourceOf,
+  sourceText,
+  splitLinks,
+  toggleFold,
+  undoSave,
+  valueText,
+} from "../recordpage/index.ts";
 import type { RecordPageStart, RelNode } from "../recordpage/index.ts";
 import { CLIENT, PROJECT, SAMPLE_NOW, createSamplePage, harbor, northwind } from "../recordpage/sample.ts";
 import type { SamplePage } from "../recordpage/sample.ts";
 import type { RecordRow } from "../recordpage/model.ts";
 
 const page = (s: SamplePage, start?: RecordPageStart, type = "clients", id = "cl_0"): string =>
-  renderToStaticMarkup(<RecordPageDataProvider value={s.data}><RecordPage type={type} recordId={id} {...(start ? { start } : {})} /></RecordPageDataProvider>).replaceAll("<!-- -->", "");
-const wrap = (s: SamplePage, child: ReactElement): string => renderToStaticMarkup(<RecordPageDataProvider value={s.data}>{child}</RecordPageDataProvider>).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <RecordPageDataProvider value={s.data}>
+      <RecordPage type={type} recordId={id} {...(start ? { start } : {})} />
+    </RecordPageDataProvider>,
+  ).replaceAll("<!-- -->", "");
+const wrap = (s: SamplePage, child: ReactElement): string =>
+  renderToStaticMarkup(<RecordPageDataProvider value={s.data}>{child}</RecordPageDataProvider>).replaceAll(
+    "<!-- -->",
+    "",
+  );
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
-const row = (s: SamplePage, type = "clients", id = "cl_0"): RecordRow => (s.replica.rows(`records:${type}`) as unknown as RecordRow[]).find((r) => r.id === id)!;
+const row = (s: SamplePage, type = "clients", id = "cl_0"): RecordRow =>
+  (s.replica.rows(`records:${type}`) as unknown as RecordRow[]).find((r) => r.id === id)!;
 const field = (k: string) => CLIENT.fields.find((f) => f.key === k)!;
-const names = (id: string): string => ({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz" } as Record<string, string>)[id] ?? id;
+const names = (id: string): string =>
+  (({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz" }) as Record<string, string>)[id] ?? id;
 
 // ---------------------------------------------------------------- the model
 
 test("sections: the type's layout names them, a field it forgot goes into the last one, a person's folds are on top, the title is the heading", () => {
-  const layout = { sections: [{ key: "contact", title: "Contact", fields: ["company", "email"] }, { key: "private", title: "Private", fields: ["tax"], folded: true }] };
+  const layout = {
+    sections: [
+      { key: "contact", title: "Contact", fields: ["company", "email"] },
+      { key: "private", title: "Private", fields: ["tax"], folded: true },
+    ],
+  };
   const s = sectionsOf(CLIENT, layout, { folded: [], keepVisible: [] });
-  assert.deepEqual(s.map((x) => [x.key, x.folded]), [["contact", false], ["private", true]], "the layout's own fold is the default");
+  assert.deepEqual(
+    s.map((x) => [x.key, x.folded]),
+    [
+      ["contact", false],
+      ["private", true],
+    ],
+    "the layout's own fold is the default",
+  );
   assert.ok(!s.some((x) => x.fields.some((f) => f.key === "name")), "the title is the page's heading, not a field row");
-  assert.ok(s[1]!.fields.some((f) => f.key === "phone"), "a field the layout does not name goes into the last section");
-  assert.ok(!s.some((x) => x.fields.some((f) => f.key === "company")), "the summary is the line under the heading, not a field row");
+  assert.ok(
+    s[1]!.fields.some((f) => f.key === "phone"),
+    "a field the layout does not name goes into the last section",
+  );
+  assert.ok(
+    !s.some((x) => x.fields.some((f) => f.key === "company")),
+    "the summary is the line under the heading, not a field row",
+  );
   const mine = sectionsOf(CLIENT, layout, { folded: ["contact"], keepVisible: [] });
-  assert.deepEqual(mine.map((x) => [x.key, x.folded]), [["contact", true], ["private", false]], "once a person folds, their folds replace the layout's");
+  assert.deepEqual(
+    mine.map((x) => [x.key, x.folded]),
+    [
+      ["contact", true],
+      ["private", false],
+    ],
+    "once a person folds, their folds replace the layout's",
+  );
 });
 
 test("with no layout the fields fall into Details, Notes and Related; empty fields wait behind Show N empty fields unless kept", () => {
   const s = sectionsOf(CLIENT, undefined, undefined);
-  assert.deepEqual(s.map((x) => x.key), ["details", "notes", "related"]);
-  assert.ok(s[0]!.fields.every((f) => !["relation", "longtext", "files"].includes(f.type)) && s[2]!.fields[0]!.key === "projects");
+  assert.deepEqual(
+    s.map((x) => x.key),
+    ["details", "notes", "related"],
+  );
+  assert.ok(
+    s[0]!.fields.every((f) => !["relation", "longtext", "files"].includes(f.type)) &&
+      s[2]!.fields[0]!.key === "projects",
+  );
   const sample = createSamplePage();
   const r = row(sample);
   const contact = { key: "contact", title: "Contact", fields: [field("email"), field("phone")], folded: false };
   const sh = shownFields(contact, r, [], false);
   assert.deepEqual([sh.fields.map((f) => f.key), sh.hidden], [["email"], 1]);
-  assert.deepEqual(shownFields(contact, r, ["phone"], false).fields.map((f) => f.key), ["email", "phone"], "kept visible");
+  assert.deepEqual(
+    shownFields(contact, r, ["phone"], false).fields.map((f) => f.key),
+    ["email", "phone"],
+    "kept visible",
+  );
   assert.equal(shownFields(contact, r, [], true).hidden, 0, "Show empty fields shows them all");
   assert.deepEqual(toggleFold(["a"], "b"), ["a", "b"]);
   assert.deepEqual(toggleFold(["a", "b"], "a"), ["b"]);
@@ -56,22 +129,52 @@ test("the completeness ring draws its share and says it in words", () => {
   assert.equal(ringOf({ filled: 11, total: 11 }).complete, true);
   assert.equal(ringOf({ filled: 0, total: 0 }).label, "Nothing to fill");
   assert.equal(ringOf({ filled: 99, total: 11 }).label, "11 of 11", "never more than the whole");
-  assert.equal(askText({ filled: 9, total: 11, missing: [{ field: "phone", title: "Phone" }] }, "Elena Rivera"), "What is phone for Elena Rivera?");
-  assert.equal(askText({ filled: 8, total: 11, missing: [{ field: "a", title: "Phone" }, { field: "b", title: "Due" }, { field: "c", title: "Email" }] }, "Elena"), "What is phone, due and email for Elena?");
+  assert.equal(
+    askText({ filled: 9, total: 11, missing: [{ field: "phone", title: "Phone" }] }, "Elena Rivera"),
+    "What is phone for Elena Rivera?",
+  );
+  assert.equal(
+    askText(
+      {
+        filled: 8,
+        total: 11,
+        missing: [
+          { field: "a", title: "Phone" },
+          { field: "b", title: "Due" },
+          { field: "c", title: "Email" },
+        ],
+      },
+      "Elena",
+    ),
+    "What is phone, due and email for Elena?",
+  );
   assert.equal(askText({ filled: 11, total: 11, missing: [] }, "Elena"), "");
 });
 
 test("editing in place: each kind of field is typed in its own way, and a bad value says what is wrong instead of being written", () => {
-  assert.deepEqual(["name", "value", "due", "status", "active", "rating", "notes", "projects", "tax"].map((k) => editKind(field(k))), ["text", "money", "date", "choice", "checkbox", "rating", "longtext", "none", "none"]);
+  assert.deepEqual(
+    ["name", "value", "due", "status", "active", "rating", "notes", "projects", "tax"].map((k) => editKind(field(k))),
+    ["text", "money", "date", "choice", "checkbox", "rating", "longtext", "none", "none"],
+  );
   assert.deepEqual(parseInput(field("name"), "  Elena R  "), { ok: true, value: "Elena R" });
-  assert.deepEqual(parseInput(field("value"), "$12,500", { amount: 1, currency: "EUR" }), { ok: true, value: { amount: 12500, currency: "EUR" } }, "the currency stays");
+  assert.deepEqual(
+    parseInput(field("value"), "$12,500", { amount: 1, currency: "EUR" }),
+    { ok: true, value: { amount: 12500, currency: "EUR" } },
+    "the currency stays",
+  );
   assert.deepEqual(parseInput(field("due"), "2025-10-30"), { ok: true, value: Date.UTC(2025, 9, 30) });
   assert.deepEqual(parseInput(field("rating"), "4"), { ok: true, value: 4 });
   assert.deepEqual(parseInput(field("phone"), ""), { ok: true, value: null }, "empty clears an optional field");
   assert.deepEqual(parseInput(field("name"), "  "), { ok: false, message: "Name is required." });
   assert.deepEqual(parseInput(field("value"), "lots"), { ok: false, message: "Value takes an amount." });
-  assert.deepEqual(parseInput(field("due"), "next week"), { ok: false, message: "Next step due takes a date like 2025-10-24." });
-  assert.deepEqual(parseInput(field("due"), "2025-02-31"), { ok: false, message: "Next step due is not a day on the calendar." });
+  assert.deepEqual(parseInput(field("due"), "next week"), {
+    ok: false,
+    message: "Next step due takes a date like 2025-10-24.",
+  });
+  assert.deepEqual(parseInput(field("due"), "2025-02-31"), {
+    ok: false,
+    message: "Next step due is not a day on the calendar.",
+  });
   assert.deepEqual(parseInput(field("rating"), "9"), { ok: false, message: "Fit is from 0 to 5." });
   assert.equal(inputText(field("due"), Date.UTC(2025, 9, 30)), "2025-10-30");
   assert.equal(inputText(field("value"), { amount: 24000, currency: "USD" }), "24000");
@@ -83,15 +186,31 @@ test("a change is a patch of that one field with what it was, and no change is n
   const r = row(createSamplePage());
   assert.equal(patchFor(field("company"), r.fields["company"], r), null, "the same value writes nothing");
   assert.equal(patchFor(field("phone"), null, r), null, "empty to empty writes nothing");
-  assert.deepEqual(patchFor(field("phone"), "+1 415 555 0100", r), { patch: { phone: "+1 415 555 0100" }, undo: { field: "phone", was: null } });
-  assert.deepEqual(patchFor(field("company"), "Rivera Ltd", r), { patch: { company: "Rivera Ltd" }, undo: { field: "company", was: "Rivera Holdings" } });
+  assert.deepEqual(patchFor(field("phone"), "+1 415 555 0100", r), {
+    patch: { phone: "+1 415 555 0100" },
+    undo: { field: "phone", was: null },
+  });
+  assert.deepEqual(patchFor(field("company"), "Rivera Ltd", r), {
+    patch: { company: "Rivera Ltd" },
+    undo: { field: "company", was: "Rivera Holdings" },
+  });
 });
 
 test("[[ links: text is cut into pieces, a title resolves to the record it names, near titles do not guess", () => {
-  assert.deepEqual(splitLinks("See [[Rivera engagement]] and [[X]]."), [{ text: "See " }, { link: "Rivera engagement" }, { text: " and " }, { link: "X" }, { text: "." }]);
+  assert.deepEqual(splitLinks("See [[Rivera engagement]] and [[X]]."), [
+    { text: "See " },
+    { link: "Rivera engagement" },
+    { text: " and " },
+    { link: "X" },
+    { text: "." },
+  ]);
   assert.deepEqual(splitLinks("no links [[open"), [{ text: "no links [[open" }]);
   assert.deepEqual(splitLinks(""), []);
-  const nodes: RelNode[] = [{ recordId: "a", type: "projects", title: "Rivera engagement", hop: 1 }, { recordId: "b", type: "projects", title: "Rivera matter", hop: 1 }, { recordId: "c", type: "clients", title: "Pruitt", hop: 2 }];
+  const nodes: RelNode[] = [
+    { recordId: "a", type: "projects", title: "Rivera engagement", hop: 1 },
+    { recordId: "b", type: "projects", title: "Rivera matter", hop: 1 },
+    { recordId: "c", type: "clients", title: "Pruitt", hop: 2 },
+  ];
   assert.equal(resolveLink("rivera ENGAGEMENT", nodes)?.recordId, "a", "case aside");
   assert.equal(resolveLink("Prui", nodes)?.recordId, "c", "the only title that starts with it");
   assert.equal(resolveLink("Rivera", nodes), null, "two titles start with it: no guess");
@@ -103,29 +222,71 @@ test("relations: the ids a field holds, and what a peek shows of the record behi
   assert.deepEqual(relationIds(field("projects"), r), ["pj_0", "pj_1"]);
   assert.deepEqual(relationIds(field("company"), r), []);
   const p = row(createSamplePage(), "projects", "pj_0");
-  assert.deepEqual(peekFields(PROJECT, p).map((f) => f.key), ["budget", "status", "lead", "due"], "the summary field first, then what is filled, never a relation");
+  assert.deepEqual(
+    peekFields(PROJECT, p).map((f) => f.key),
+    ["budget", "status", "lead", "due"],
+    "the summary field first, then what is filled, never a relation",
+  );
   assert.equal(peekFields(PROJECT, p, 2).length, 2);
 });
 
 test("the map: the record in the middle, its neighbours on one ring, theirs on an outer one", () => {
-  const nodes: RelNode[] = [{ recordId: "r", type: "clients", title: "R", hop: 0 }, ...[1, 2, 3].map((i) => ({ recordId: `n${i}`, type: "projects", title: `N${i}`, hop: 1 })), { recordId: "x", type: "clients", title: "X", hop: 2 }];
+  const nodes: RelNode[] = [
+    { recordId: "r", type: "clients", title: "R", hop: 0 },
+    ...[1, 2, 3].map((i) => ({ recordId: `n${i}`, type: "projects", title: `N${i}`, hop: 1 })),
+    { recordId: "x", type: "clients", title: "X", hop: 2 },
+  ];
   const m = mapLayout(nodes);
   assert.deepEqual([m[0]!.x, m[0]!.y], [180, 130]);
   const far = (n: { x: number; y: number }): number => Math.hypot(n.x - 180, n.y - 130);
   assert.equal(m.length, 5);
-  assert.ok(m.every((n) => n.x >= 0 && n.x <= 360 && n.y >= 0 && n.y <= 260), "everything is inside the box");
+  assert.ok(
+    m.every((n) => n.x >= 0 && n.x <= 360 && n.y >= 0 && n.y <= 260),
+    "everything is inside the box",
+  );
   assert.equal(new Set(m.map((n) => `${n.x},${n.y}`)).size, 5, "no two on one spot");
   assert.ok(far(m[4]!) > far(m[1]!) && far(m[1]!) > 0, "the second hop is further out than the first");
 });
 
 test("the right pane: activity lines say who set what, versions go to the shared History tab, a source says where a value came from", () => {
-  assert.equal(activityLine({ field: "phone", value: "+1 415", hlc: "1:1", actor: "usr_maya" }, CLIENT, names), "Maya Chen set phone to +1 415");
-  assert.equal(activityLine({ field: "value", value: { amount: 5000, currency: "USD" }, hlc: "1:2", actor: "usr_omar" }, CLIENT, names), "Omar Haddad set value to $5,000");
-  assert.equal(activityLine({ field: "phone", value: null, hlc: "1:3", actor: "usr_maya" }, CLIENT, names), "Maya Chen set phone to empty");
-  const v = historyVersions([{ versionId: "v1", n: 1, by: "usr_maya", at: 0, reason: "Created" }, { versionId: "v2", n: 2, by: "usr_irfad", at: 86_400_000 }], names);
-  assert.deepEqual(v.map((x) => [x.n, x.who, x.why, x.undoable]), [[1, "Maya Chen", "Created", false], [2, "Irfad Imtiaz", "", true]]);
-  assert.equal(sourceText({ kind: "agent", actor: "Docs", at: 1, state: "needs_review" }), "From an agent: Docs. Waiting for review.");
-  assert.equal(sourceText({ kind: "form", actor: "Intake form", at: 1, state: "counted" }), "From a form: Intake form.");
+  assert.equal(
+    activityLine({ field: "phone", value: "+1 415", hlc: "1:1", actor: "usr_maya" }, CLIENT, names),
+    "Maya Chen set phone to +1 415",
+  );
+  assert.equal(
+    activityLine(
+      { field: "value", value: { amount: 5000, currency: "USD" }, hlc: "1:2", actor: "usr_omar" },
+      CLIENT,
+      names,
+    ),
+    "Omar Haddad set value to $5,000",
+  );
+  assert.equal(
+    activityLine({ field: "phone", value: null, hlc: "1:3", actor: "usr_maya" }, CLIENT, names),
+    "Maya Chen set phone to empty",
+  );
+  const v = historyVersions(
+    [
+      { versionId: "v1", n: 1, by: "usr_maya", at: 0, reason: "Created" },
+      { versionId: "v2", n: 2, by: "usr_irfad", at: 86_400_000 },
+    ],
+    names,
+  );
+  assert.deepEqual(
+    v.map((x) => [x.n, x.who, x.why, x.undoable]),
+    [
+      [1, "Maya Chen", "Created", false],
+      [2, "Irfad Imtiaz", "", true],
+    ],
+  );
+  assert.equal(
+    sourceText({ kind: "agent", actor: "Docs", at: 1, state: "needs_review" }),
+    "From an agent: Docs. Waiting for review.",
+  );
+  assert.equal(
+    sourceText({ kind: "form", actor: "Intake form", at: 1, state: "counted" }),
+    "From a form: Intake form.",
+  );
   assert.equal(ago(SAMPLE_NOW - 3 * 3_600_000, SAMPLE_NOW), "3 h ago");
 });
 
@@ -136,13 +297,21 @@ test("an edit in place writes exactly once: one records.update of that field wit
   const before = row(s);
   const r = await saveField(s.data, "clients", before, field("phone"), "+1 415 555 0100");
   assert.equal(r.kind, "saved");
-  assert.deepEqual(s.calls, [{ cap: "records.update", input: { type: "clients", recordId: "cl_0", patch: { phone: "+1 415 555 0100" }, baseVersion: 3 } }]);
+  assert.deepEqual(s.calls, [
+    {
+      cap: "records.update",
+      input: { type: "clients", recordId: "cl_0", patch: { phone: "+1 415 555 0100" }, baseVersion: 3 },
+    },
+  ]);
   assert.equal(row(s).fields["phone"], "+1 415 555 0100");
   assert.equal(row(s).version, 4);
   const again = await saveField(s.data, "clients", row(s), field("phone"), "+1 415 555 0100");
   assert.equal(again.kind, "same", "the blur after Enter changes nothing, so it writes nothing");
   assert.equal(s.calls.length, 1);
-  assert.ok(has(page(s), "+1 415 555 0100") && !has(page(s), ">Show 1 empty field<"), "the page shows the new value at once");
+  assert.ok(
+    has(page(s), "+1 415 555 0100") && !has(page(s), ">Show 1 empty field<"),
+    "the page shows the new value at once",
+  );
 });
 
 test("a bad value writes nothing and says why; a stale page is refused and nothing changes", async () => {
@@ -166,7 +335,10 @@ test("Undo puts the old value back with one more update, and a choice or checkbo
   assert.equal(row(s).fields["status"], "paused");
   if (done.kind === "saved") await undoSave(s.data, "clients", row(s), done.undo);
   assert.equal(row(s).fields["status"], "active");
-  assert.deepEqual(s.calls.map((c) => (c.input as { patch: unknown }).patch), [{ status: "paused" }, { status: "active" }]);
+  assert.deepEqual(
+    s.calls.map((c) => (c.input as { patch: unknown }).patch),
+    [{ status: "paused" }, { status: "active" }],
+  );
   await saveValue(s.data, "clients", row(s), field("active"), false);
   assert.equal(row(s).fields["active"], false);
   assert.equal(s.calls.length, 3);
@@ -194,16 +366,55 @@ test("where a value came from is one capability away", async () => {
 
 test("screen: the page has the title, the ring, the sections, the relation cards and the note with its links", () => {
   const out = page(createSamplePage());
-  assert.ok(has(out, 'data-testid="record-page"') && has(out, 'aria-label="Elena Rivera, Client"') && has(out, ">Elena Rivera<"));
-  assert.ok(has(out, 'data-testid="summary"') && has(out, ">Rivera Holdings<") && !has(out, 'data-testid="row-company"'), "the company is the line under the title, not a row of the sheet");
-  assert.ok(has(out, 'data-testid="ring-label"') && has(out, ">10 of 11<") && has(out, 'data-testid="ask-missing"') && has(out, "Ask for these") && has(out, 'data-testid="ring"'));
-  for (const k of ["contact", "deal", "links", "notes", "private"]) assert.ok(has(out, `data-testid="section-${k}"`), k);
-  assert.ok(has(out, 'aria-expanded="false"') && count(out, 'aria-expanded="false"') === 1, "only Private is folded by the layout");
-  assert.ok(!has(out, 'data-testid="row-tax"') && !has(out, 'data-testid="row-id_doc"'), "a folded section draws no fields");
-  assert.ok(has(out, "elena@example.test") && has(out, ">Active<") && has(out, ">Maya Chen<") && has(out, "$24,000") && has(out, "Oct 30, 2025"));
-  assert.ok(has(out, 'data-testid="more-contact"') && has(out, "Show 1 empty field"), "the empty phone waits behind a link");
-  assert.ok(has(out, 'data-testid="rel-pj_0"') && has(out, 'data-testid="rel-pj_1"') && has(out, "Rivera engagement") && has(out, "Rivera matter"));
-  assert.ok(has(out, 'data-testid="link-pj_0"') && has(out, 'data-testid="link-pj_1"') && has(out, 'data-testid="link-unresolved"'), "two [[ links resolve, one names nobody");
+  assert.ok(
+    has(out, 'data-testid="record-page"') &&
+      has(out, 'aria-label="Elena Rivera, Client"') &&
+      has(out, ">Elena Rivera<"),
+  );
+  assert.ok(
+    has(out, 'data-testid="summary"') && has(out, ">Rivera Holdings<") && !has(out, 'data-testid="row-company"'),
+    "the company is the line under the title, not a row of the sheet",
+  );
+  assert.ok(
+    has(out, 'data-testid="ring-label"') &&
+      has(out, ">10 of 11<") &&
+      has(out, 'data-testid="ask-missing"') &&
+      has(out, "Ask for these") &&
+      has(out, 'data-testid="ring"'),
+  );
+  for (const k of ["contact", "deal", "links", "notes", "private"])
+    assert.ok(has(out, `data-testid="section-${k}"`), k);
+  assert.ok(
+    has(out, 'aria-expanded="false"') && count(out, 'aria-expanded="false"') === 1,
+    "only Private is folded by the layout",
+  );
+  assert.ok(
+    !has(out, 'data-testid="row-tax"') && !has(out, 'data-testid="row-id_doc"'),
+    "a folded section draws no fields",
+  );
+  assert.ok(
+    has(out, "elena@example.test") &&
+      has(out, ">Active<") &&
+      has(out, ">Maya Chen<") &&
+      has(out, "$24,000") &&
+      has(out, "Oct 30, 2025"),
+  );
+  assert.ok(
+    has(out, 'data-testid="more-contact"') && has(out, "Show 1 empty field"),
+    "the empty phone waits behind a link",
+  );
+  assert.ok(
+    has(out, 'data-testid="rel-pj_0"') &&
+      has(out, 'data-testid="rel-pj_1"') &&
+      has(out, "Rivera engagement") &&
+      has(out, "Rivera matter"),
+  );
+  assert.ok(
+    has(out, 'data-testid="link-pj_0"') &&
+      has(out, 'data-testid="link-pj_1"') &&
+      has(out, 'data-testid="link-unresolved"'),
+    "two [[ links resolve, one names nobody",
+  );
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
@@ -211,10 +422,15 @@ test("screen: on a wide window the sheet is two columns and the right pane start
   const out = page(createSamplePage());
   assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-everything-loading"'));
   const edits = page(createSamplePage(), { tab: "activity" });
-  assert.ok(has(edits, 'data-testid="pane-activity"') && has(edits, "Maya set status to Active") && !has(edits, "Nothing yet"));
+  assert.ok(
+    has(edits, 'data-testid="pane-activity"') && has(edits, "Maya set status to Active") && !has(edits, "Nothing yet"),
+  );
   for (const t of ["Everything", "Activity"]) assert.ok(has(out, `>${t}<`), t);
   assert.ok(has(out, ">More<") || has(out, "More tabs"), "at 340 px the tabs that do not fit fold behind More");
-  assert.ok(has(page(createSamplePage(), { tab: "activity" }, "clients", "cl_1"), 'data-testid="pane-activity-empty"'), "a record nobody has touched says so, in one short line");
+  assert.ok(
+    has(page(createSamplePage(), { tab: "activity" }, "clients", "cl_1"), 'data-testid="pane-activity-empty"'),
+    "a record nobody has touched says so, in one short line",
+  );
   const shut = page(createSamplePage(), { pane: false });
   assert.ok(!has(shut, 'data-testid="record-pane"') && has(shut, 'data-testid="toggle-pane"'));
 });
@@ -224,10 +440,23 @@ test("screen: the pane's tabs: Activity after an edit, Memory with the fact and 
   await saveField(s.data, "clients", row(s), field("phone"), "+1 415 555 0100");
   assert.ok(has(page(s, { tab: "activity" }), "Irfad set phone to +1 415 555 0100"));
   const memory = page(s, { tab: "memory" });
-  assert.ok(has(memory, 'data-testid="pane-memory"') && has(memory, "Elena prefers email over phone calls") && has(memory, "project"));
+  assert.ok(
+    has(memory, 'data-testid="pane-memory"') &&
+      has(memory, "Elena prefers email over phone calls") &&
+      has(memory, "project"),
+  );
   const history = page(s, { tab: "history" });
-  assert.ok(has(history, 'data-testid="pane-history"') && has(history, "Signed the retainer") && has(history, "Moved the next step") && has(history, "Edited on the page"));
-  assert.ok(has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
+  assert.ok(
+    has(history, 'data-testid="pane-history"') &&
+      has(history, "Signed the retainer") &&
+      has(history, "Moved the next step") &&
+      has(history, "Edited on the page"),
+  );
+  assert.ok(
+    has(page(s, { tab: "files" }), 'data-testid="pane-files"') &&
+      has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'),
+    "each tab is its own pane now, not a link to another place",
+  );
 });
 
 test("screen: a field open for editing is an input with its label, no Save button anywhere", () => {
@@ -242,14 +471,31 @@ test("screen: a long-text field open for editing is the shared Markdown editor, 
   const out = page(createSamplePage(), { edit: { key: "notes", text: "# Plan\n- call Maya\n" }, all: true });
   const at = out.indexOf('data-testid="edit-notes"');
   assert.ok(at >= 0, "the field is open");
-  assert.ok(out.slice(at, at + 2500).includes('data-testid="markdown-editor-host"'), "a long text is written in the Markdown editor, not a plain box");
-  assert.ok(has(out, 'data-testid="done-notes"') && has(out, 'data-testid="cancel-notes"'), "Done saves it, Cancel drops the edit");
+  assert.ok(
+    out.slice(at, at + 2500).includes('data-testid="markdown-editor-host"'),
+    "a long text is written in the Markdown editor, not a plain box",
+  );
+  assert.ok(
+    has(out, 'data-testid="done-notes"') && has(out, 'data-testid="cancel-notes"'),
+    "Done saves it, Cancel drops the edit",
+  );
 });
 
 test("screen: relation hover peek shows the linked record's own fields", () => {
   const out = wrap(createSamplePage(), <Peek type="projects" recordId="pj_0" />);
-  assert.ok(has(out, 'data-testid="peek-pj_0"') && has(out, ">Rivera engagement<") && has(out, ">Budget<") && has(out, "$8,000") && has(out, ">Lead<") && has(out, ">Omar Haddad<"));
-  assert.equal(wrap(createSamplePage(), <Peek type="projects" recordId="nope" />), "", "a peek of nothing draws nothing");
+  assert.ok(
+    has(out, 'data-testid="peek-pj_0"') &&
+      has(out, ">Rivera engagement<") &&
+      has(out, ">Budget<") &&
+      has(out, "$8,000") &&
+      has(out, ">Lead<") &&
+      has(out, ">Omar Haddad<"),
+  );
+  assert.equal(
+    wrap(createSamplePage(), <Peek type="projects" recordId="nope" />),
+    "",
+    "a peek of nothing draws nothing",
+  );
 });
 
 test("screen: the relationship map draws the record and the projects around it, and says so when nothing is linked", () => {
@@ -259,14 +505,23 @@ test("screen: the relationship map draws the record and the projects around it, 
   assert.equal(count(out, 'data-testid="map-edge"'), 2);
   assert.ok(has(out, 'data-hop="0"') && count(out, 'data-hop="1"') === 2);
   const none = createSamplePage();
-  none.replica.put("records:clients", [{ ...row(none, "clients", "cl_2"), fields: { ...row(none, "clients", "cl_2").fields, projects: [] } }] as never);
-  none.replica.put("records:projects", [{ ...row(none, "projects", "pj_2"), fields: { ...row(none, "projects", "pj_2").fields, client: [] } }] as never);
+  none.replica.put("records:clients", [
+    { ...row(none, "clients", "cl_2"), fields: { ...row(none, "clients", "cl_2").fields, projects: [] } },
+  ] as never);
+  none.replica.put("records:projects", [
+    { ...row(none, "projects", "pj_2"), fields: { ...row(none, "projects", "pj_2").fields, client: [] } },
+  ] as never);
   assert.ok(has(page(none, { map: true, pane: false }, "clients", "cl_2"), "Nothing is linked to this record yet."));
 });
 
 test("screen: a project's page has its own fields, and Harbor Studio opens in the same page", () => {
   const out = page(createSamplePage(), undefined, "projects", "pj_0");
-  assert.ok(has(out, 'aria-label="Rivera engagement, Project"') && has(out, 'data-testid="section-details"') && has(out, 'data-testid="section-related"') && has(out, 'data-testid="rel-cl_0"'));
+  assert.ok(
+    has(out, 'aria-label="Rivera engagement, Project"') &&
+      has(out, 'data-testid="section-details"') &&
+      has(out, 'data-testid="section-related"') &&
+      has(out, 'data-testid="rel-cl_0"'),
+  );
   const h = page(createSamplePage(harbor));
   assert.ok(has(h, 'data-testid="record-page"') && !has(h, 'data-testid="row-tax"'));
 });
@@ -289,14 +544,17 @@ test("navigate smoke: a warm server render of the whole page stays far under a s
   }
   times.sort((x, y) => x - y);
   const ms = times[3]!;
-  console.log(`INFO server render of records.page: median ${ms.toFixed(1)} ms, worst ${times[6]!.toFixed(1)} ms (informative only)`);
+  console.log(
+    `INFO server render of records.page: median ${ms.toFixed(1)} ms, worst ${times[6]!.toFixed(1)} ms (informative only)`,
+  );
   assert.ok(has(out, 'data-testid="record-page"'));
   assert.ok(ms < 400, `the page took ${ms.toFixed(1)} ms to render on the server`);
 });
 
 test("Ask for these: only a type where a person supplies the facts asks; agent, task, report, envelope and project never do", () => {
   assert.equal(asksForFields({ key: "clients" }), true);
-  for (const key of ["agent", "task", "report", "envelope", "project"]) assert.equal(asksForFields({ key }), false, key);
+  for (const key of ["agent", "task", "report", "envelope", "project"])
+    assert.equal(asksForFields({ key }), false, key);
   assert.equal(asksForFields({ key: "mine", system: true }), false, "a type flagged system");
   assert.equal(asksForFields({ key: "jobs", template: "project" }), false, "a type made from the project template");
   assert.equal(asksForFields({ key: "clients" }, { total: 0 }), false, "no field marked to be asked means no ring");
@@ -308,6 +566,9 @@ test("screen: a project record page has no completeness ring and no Ask for thes
   const space = { ...northwind, types: [CLIENT, asProject] };
   const out = page(createSamplePage(space), undefined, "projects", "pj_0");
   assert.ok(has(out, 'data-testid="record-page"'), "the page opens");
-  assert.ok(!has(out, 'data-testid="completeness"') && !has(out, "Ask for these") && !has(out, 'data-testid="ring"'), "no ring on a project");
+  assert.ok(
+    !has(out, 'data-testid="completeness"') && !has(out, "Ask for these") && !has(out, 'data-testid="ring"'),
+    "no ring on a project",
+  );
   assert.ok(has(page(createSamplePage()), 'data-testid="completeness"'), "a client keeps its ring");
 });

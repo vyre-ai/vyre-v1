@@ -2,7 +2,21 @@
 // Real SQLite behind the host's ctx.db guard and the fake machine. The machine's own report (machines.list) and the container runtime's (capacity) are scripted per test.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindStarter, checkRoom, claimRoom, drainWaiting, fitsOf, heldOn, hostConfigLimits, HEADROOM_MB, isWaiting, LIMITS, releaseRoom, verdictOf, waitingLine } from "../capacity.ts";
+import {
+  bindStarter,
+  checkRoom,
+  claimRoom,
+  drainWaiting,
+  fitsOf,
+  heldOn,
+  hostConfigLimits,
+  HEADROOM_MB,
+  isWaiting,
+  LIMITS,
+  releaseRoom,
+  verdictOf,
+  waitingLine,
+} from "../capacity.ts";
 import { get, provision, remove, sleep, sleepIdle, takeOver, wake } from "../handlers/lifecycle.ts";
 import { prepare } from "../handlers/tools/common.ts";
 import { codeOf, harness, MIN } from "../fixtures/harness.ts";
@@ -12,13 +26,21 @@ const MB = 1024 * 1024;
 const LINE = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 
 /** The Space server as the machines module reports it. */
-function report(h: Harness, o: { memMb?: number; usedMb?: number; diskFreeMb?: number; max?: number; cores?: number } = {}): void {
+function report(
+  h: Harness,
+  o: { memMb?: number; usedMb?: number; diskFreeMb?: number; max?: number; cores?: number } = {},
+): void {
   h.respond["machines.list"] = () => ({
-    machines: [{
-      machineId: "space", name: "Space", cores: o.cores ?? 4, memBytes: (o.memMb ?? 16384) * MB,
-      ...(o.max !== undefined ? { limits: { maxAgentComputers: o.max } } : {}),
-      load: { memUsedBytes: (o.usedMb ?? 1024) * MB, diskFreeBytes: (o.diskFreeMb ?? 50_000) * MB },
-    }],
+    machines: [
+      {
+        machineId: "space",
+        name: "Space",
+        cores: o.cores ?? 4,
+        memBytes: (o.memMb ?? 16384) * MB,
+        ...(o.max !== undefined ? { limits: { maxAgentComputers: o.max } } : {}),
+        load: { memUsedBytes: (o.usedMb ?? 1024) * MB, diskFreeBytes: (o.diskFreeMb ?? 50_000) * MB },
+      },
+    ],
   });
 }
 async function made(h: Harness, agent: string): Promise<string> {
@@ -27,7 +49,14 @@ async function made(h: Harness, agent: string): Promise<string> {
 }
 
 test("verdictOf: memory, count and disk each refuse with their own reason, and a host that reports nothing takes the workload", () => {
-  const f = { name: "the Space server", totalMb: 8192, freeMb: 6000, cpus: 4, diskFreeMb: 50_000, maxAgentComputers: 2 };
+  const f = {
+    name: "the Space server",
+    totalMb: 8192,
+    freeMb: 6000,
+    cpus: 4,
+    diskFreeMb: 50_000,
+    maxAgentComputers: 2,
+  };
   assert.deepEqual(verdictOf(f, { reserveMb: 0, counted: 0 }, "desktop"), { ok: true });
   const mem = verdictOf(f, { reserveMb: 4096, counted: 1 }, "desktop");
   assert.equal(mem.ok, false);
@@ -37,7 +66,11 @@ test("verdictOf: memory, count and disk each refuse with their own reason, and a
   const disk = verdictOf({ ...f, diskFreeMb: 500 }, { reserveMb: 0, counted: 0 }, "workspace");
   assert.equal(!disk.ok && disk.reason, "disk");
   const short = verdictOf({ ...f, freeMb: 100 }, { reserveMb: 0, counted: 0 }, "desktop");
-  assert.equal(!short.ok && short.reason, "memory", "real free memory must cover the new one even when the books say there is room");
+  assert.equal(
+    !short.ok && short.reason,
+    "memory",
+    "real free memory must cover the new one even when the books say there is room",
+  );
   assert.deepEqual(verdictOf({ name: "x" }, { reserveMb: 99999, counted: 99 }, "desktop"), { ok: true });
 });
 
@@ -47,13 +80,28 @@ test("workspaces and browser profiles are not counted: the count limit stops des
   assert.deepEqual(verdictOf(f, { reserveMb: 0, counted: 1 }, "browser"), { ok: true });
   assert.equal(verdictOf(f, { reserveMb: 0, counted: 1 }, "desktop").ok, false);
   const budget = 8192 - HEADROOM_MB;
-  assert.equal(fitsOf(f, { reserveMb: 0, counted: 0 }, "workspace"), Math.floor(budget / LIMITS.workspace.reserveMb), "an 8 GB host holds that many workspaces beside nothing else");
-  assert.equal(fitsOf(f, { reserveMb: 0, counted: 0 }, "desktop"), 1, "the count (1) is tighter than memory (1 by 4 GB)");
+  assert.equal(
+    fitsOf(f, { reserveMb: 0, counted: 0 }, "workspace"),
+    Math.floor(budget / LIMITS.workspace.reserveMb),
+    "an 8 GB host holds that many workspaces beside nothing else",
+  );
+  assert.equal(
+    fitsOf(f, { reserveMb: 0, counted: 0 }, "desktop"),
+    1,
+    "the count (1) is tighter than memory (1 by 4 GB)",
+  );
 });
 
 test("new containers: the workspace is 1 CPU and 1 GB with a soft 64 MB, desktops keep 2 CPUs and 4 GB, none has swap", () => {
   const w = hostConfigLimits("workspace");
-  assert.deepEqual(w, { NanoCpus: 1e9, Memory: 1024 * MB, MemorySwap: 1024 * MB, PidsLimit: 512, MemoryReservation: 64 * MB, CpuShares: 256 });
+  assert.deepEqual(w, {
+    NanoCpus: 1e9,
+    Memory: 1024 * MB,
+    MemorySwap: 1024 * MB,
+    PidsLimit: 512,
+    MemoryReservation: 64 * MB,
+    CpuShares: 256,
+  });
   const d = hostConfigLimits("desktop");
   assert.deepEqual(d, { NanoCpus: 2e9, Memory: 4096 * MB, MemorySwap: 4096 * MB, PidsLimit: 1024 });
 });
@@ -61,12 +109,17 @@ test("new containers: the workspace is 1 CPU and 1 GB with a soft 64 MB, desktop
 test("waking a desktop on a full host queues it with the plain line, and it starts by itself when another goes to sleep", async () => {
   const h = harness();
   report(h, { max: 1 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
   const q = (await wake(h.ctx, { computerId: b })).computer;
   assert.equal(q.state, "waking");
   assert.equal(q.caption, LINE);
-  assert.equal(h.fake.named("start").filter((c) => (c.args as { computerId: string }).computerId === b).length, 0, "the container was never started");
+  assert.equal(
+    h.fake.named("start").filter((c) => (c.args as { computerId: string }).computerId === b).length,
+    0,
+    "the container was never started",
+  );
   assert.equal(isWaiting(h.db, b), true);
   // asking again is the same ask: one waiting row
   await wake(h.ctx, { computerId: b });
@@ -81,17 +134,25 @@ test("waking a desktop on a full host queues it with the plain line, and it star
 test("a tool call on a computer that waits for room says why in the same words, and a takeover does not go on", async () => {
   const h = harness();
   report(h, { max: 1 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   await wake(h.ctx, { computerId: a });
-  await assert.rejects(() => prepare(h.ctx, b, { noWake: false, duringTakeover: false }), (e) => codeOf(e) === "provider.unavailable" && String((e as { message?: string }).message ?? "").includes(LINE));
-  await assert.rejects(() => takeOver(h.ctx, { computerId: b }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => prepare(h.ctx, b, { noWake: false, duringTakeover: false }),
+    (e) => codeOf(e) === "provider.unavailable" && String((e as { message?: string }).message ?? "").includes(LINE),
+  );
+  await assert.rejects(
+    () => takeOver(h.ctx, { computerId: b }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   assert.equal(h.fake.named("takeover").length, 0);
 });
 
 test("memory: two desktops on an 8 GB host do not both start, one does; the reserve is what the host cannot give twice", async () => {
   const h = harness();
   report(h, { memMb: 8192, usedMb: 600 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
   const second = (await wake(h.ctx, { computerId: b })).computer;
   assert.equal(second.state, "waking");
@@ -106,14 +167,17 @@ test("the container runtime's own figures count for the Space server, and a runt
   const r = await checkRoom(h.ctx, { kind: "desktop" });
   assert.equal(r.verdict.ok, false, "200 MB really free refuses a desktop that holds back 4 GB");
   assert.equal(r.line, LINE);
-  h.fake.host.capacity = async () => { throw new Error("no runtime"); };
+  h.fake.host.capacity = async () => {
+    throw new Error("no runtime");
+  };
   assert.equal((await checkRoom(h.ctx, { kind: "desktop" })).verdict.ok, true);
 });
 
 test("maxAgentComputers stops desktops only: every agent still gets a browser profile and a workspace on a small server", async () => {
   const h = harness();
   report(h, { max: 1, memMb: 8192, usedMb: 1000 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   await wake(h.ctx, { computerId: a });
   assert.equal((await wake(h.ctx, { computerId: b })).computer.state, "waking", "a second desktop waits");
   for (let i = 0; i < 8; i++) {
@@ -126,10 +190,16 @@ test("claimRoom is idempotent, releaseRoom frees the place, and drainWaiting sta
   const h = harness();
   report(h, { memMb: 1800, usedMb: 100 });
   const started: string[] = [];
-  bindStarter("browser", async (_c, key) => { started.push(key); });
+  bindStarter("browser", async (_c, key) => {
+    started.push(key);
+  });
   try {
     assert.equal((await claimRoom(h.ctx, { kind: "browser", key: "brw_1" })).state, "running");
-    assert.equal((await claimRoom(h.ctx, { kind: "browser", key: "brw_1" })).state, "running", "the same ask twice holds one place");
+    assert.equal(
+      (await claimRoom(h.ctx, { kind: "browser", key: "brw_1" })).state,
+      "running",
+      "the same ask twice holds one place",
+    );
     h.advance(MIN);
     assert.equal((await claimRoom(h.ctx, { kind: "browser", key: "brw_2" })).state, "waiting");
     h.advance(MIN);
@@ -140,7 +210,9 @@ test("claimRoom is idempotent, releaseRoom frees the place, and drainWaiting sta
     assert.deepEqual(started, ["brw_2"]);
     assert.equal(h.rows("SELECT state FROM computers_claim WHERE claim_key = 'brw_2'")[0]?.["state"], "running");
     assert.equal(h.rows("SELECT state FROM computers_claim WHERE claim_key = 'brw_3'")[0]?.["state"], "waiting");
-  } finally { bindStarter("browser", null); }
+  } finally {
+    bindStarter("browser", null);
+  }
 });
 
 test("a waiting kind with no starter bound is left alone, and a starter that throws gives up its place instead of looping", async () => {
@@ -150,17 +222,23 @@ test("a waiting kind with no starter bound is left alone, and a starter that thr
   await claimRoom(h.ctx, { kind: "browser", key: "brw_2" });
   releaseRoom(h.ctx, "brw_1");
   assert.deepEqual(await drainWaiting(h.ctx), [], "no starter, nothing to run");
-  bindStarter("browser", async () => { throw new Error("did not start"); });
+  bindStarter("browser", async () => {
+    throw new Error("did not start");
+  });
   try {
     assert.deepEqual(await drainWaiting(h.ctx), []);
     assert.equal(h.rows("SELECT * FROM computers_claim").length, 0);
-  } finally { bindStarter("browser", null); }
+  } finally {
+    bindStarter("browser", null);
+  }
 });
 
 test("putting a waiting computer to sleep cancels the wait, and removing one frees its place", async () => {
   const h = harness();
   report(h, { max: 1 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b"), c = await made(h, "agt_c");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b"),
+    c = await made(h, "agt_c");
   await wake(h.ctx, { computerId: a });
   await wake(h.ctx, { computerId: b });
   await wake(h.ctx, { computerId: c });
@@ -175,7 +253,8 @@ test("putting a waiting computer to sleep cancels the wait, and removing one fre
 test("the idle job checks the waiting line, so a raised limit starts the queue without any sleep", async () => {
   const h = harness();
   report(h, { max: 1 });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   await wake(h.ctx, { computerId: a });
   await wake(h.ctx, { computerId: b });
   assert.equal((await get(h.ctx, { computerId: b })).computer.state, "waking");
@@ -188,13 +267,20 @@ test("a full disk refuses to make another computer, in words and with the way ou
   const h = harness();
   report(h, { diskFreeMb: 900 });
   h.respond["agents.get"] = (i) => ({ agent: { agentId: i["agentId"], folderId: "fld_x" } });
-  await assert.rejects(() => provision(h.ctx, { agentId: "agt_a", idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable" && /900 MB of disk/.test(String((e as { message?: string }).message)) && /Console > Computers/.test(String((e as { message?: string }).message)));
+  await assert.rejects(
+    () => provision(h.ctx, { agentId: "agt_a", idempotencyKey: "k" }),
+    (e) =>
+      codeOf(e) === "provider.unavailable" &&
+      /900 MB of disk/.test(String((e as { message?: string }).message)) &&
+      /Console > Computers/.test(String((e as { message?: string }).message)),
+  );
   assert.equal(h.rows("SELECT * FROM computers_computers").length, 0);
 });
 
 test("with nothing reported the old behaviour stands: every wake starts", async () => {
   const h = harness();
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
   assert.equal((await wake(h.ctx, { computerId: b })).computer.state, "working");
   assert.equal(waitingLine("x"), "Waiting for room on x. Add a compute server in Console > Computers to run more.");
@@ -204,12 +290,18 @@ test("a Space server whose limit the caller cannot see gets the machines default
   const h = harness();
   h.respond["machines.list"] = () => ({ machines: [] });
   h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 4, os: "linux" });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b"), c = await made(h, "agt_c");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b"),
+    c = await made(h, "agt_c");
   assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
   assert.equal((await wake(h.ctx, { computerId: b })).computer.state, "working");
   assert.equal((await wake(h.ctx, { computerId: c })).computer.state, "waking", "4 cores: two at once");
   h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 1, os: "linux" });
-  assert.equal((await checkRoom(h.ctx, { kind: "desktop" })).verdict.ok, false, "1 core still allows one, and two are already running");
+  assert.equal(
+    (await checkRoom(h.ctx, { kind: "desktop" })).verdict.ok,
+    false,
+    "1 core still allows one, and two are already running",
+  );
 });
 
 test("the limit an admin set reaches a wake that cannot see the machine list: machines.rooms carries it", async () => {
@@ -217,7 +309,8 @@ test("the limit an admin set reaches a wake that cannot see the machine list: ma
   h.respond["machines.list"] = () => ({ machines: [] });
   h.respond["machines.rooms"] = () => ({ rooms: [{ machineId: "space", maxAgentComputers: 1 }] });
   h.fake.host.capacity = async () => ({ totalMb: 65536, freeMb: 60000, cpus: 16, os: "linux" });
-  const a = await made(h, "agt_a"), b = await made(h, "agt_b");
+  const a = await made(h, "agt_a"),
+    b = await made(h, "agt_b");
   assert.equal((await wake(h.ctx, { computerId: a })).computer.state, "working");
   const q = (await wake(h.ctx, { computerId: b })).computer;
   assert.equal(q.state, "waking", "16 cores would default to 8, the admin's 1 holds");
@@ -252,12 +345,25 @@ test("a host built with its own capacity reports that, not the machine's memory 
 // Lead, 12 Nov (from f-term): the waiting line said "add a compute server" for every kind, which cannot help a workspace on a Space server with Docker, nor the Space browser (it lives on the Space host).
 test("the waiting line says only what is true for the kind: a desktop may get a compute server, a workspace and a browser start by themselves", async () => {
   const { waitingLine } = await import("../capacity.ts");
-  assert.equal(waitingLine("the Space server", "workspace"), "Waiting for room on the Space server. The workspace starts by itself when there is room.", "the same line as the workspace's own (modules/terminal)");
-  assert.equal(waitingLine("the Space server", "browser"), "Waiting for room on the Space server. The agent's browser starts by itself when there is room.");
-  assert.equal(waitingLine("the Space server", "desktop"), "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.");
+  assert.equal(
+    waitingLine("the Space server", "workspace"),
+    "Waiting for room on the Space server. The workspace starts by itself when there is room.",
+    "the same line as the workspace's own (modules/terminal)",
+  );
+  assert.equal(
+    waitingLine("the Space server", "browser"),
+    "Waiting for room on the Space server. The agent's browser starts by itself when there is room.",
+  );
+  assert.equal(
+    waitingLine("the Space server", "desktop"),
+    "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.",
+  );
   const h = harness();
   h.fake.host.capacity = async () => ({ totalMb: 1550, freeMb: 10, cpus: 2, os: "linux" });
-  for (const [kind, want] of [["workspace", /The workspace starts by itself/], ["browser", /The agent's browser starts by itself/]] as const) {
+  for (const [kind, want] of [
+    ["workspace", /The workspace starts by itself/],
+    ["browser", /The agent's browser starts by itself/],
+  ] as const) {
     const got = await claimRoom(h.ctx, { kind, key: `k_${kind}` });
     assert.equal(got.state, "waiting");
     assert.match(String(got.line), want, kind);

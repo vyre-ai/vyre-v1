@@ -1,6 +1,14 @@
 // Fake Documenso behind the EsignProvider interface (ARCH 8.4, 10.1). Health is GET /api/v1/health.
 import { Buffer } from "node:buffer";
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface EsignEnvelope {
   title: string;
@@ -84,13 +92,21 @@ export function fakeDocumenso(opts: { tape?: ReplayTape; fetch?: FetchLike } = {
         const id = docId(u, "/download");
         const doc = id ? docs.get(id) : undefined;
         if (!doc) return { status: 404, body: { error: "not_found" } };
-        return { body: { pdf: Buffer.from(doc.pdf).toString("base64"), certificate: Buffer.from(doc.certificate).toString("base64") } };
+        return {
+          body: {
+            pdf: Buffer.from(doc.pdf).toString("base64"),
+            certificate: Buffer.from(doc.certificate).toString("base64"),
+          },
+        };
       },
     },
   ];
   const fetch = recordingFetch(opts.fetch ?? handledFetch(handlers, opts.tape), calls);
 
-  async function read(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<unknown> {
+  async function read(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ): Promise<unknown> {
     const res = await fetch(url, init);
     if (res.status !== 200) throw new Error(`documenso ${res.status} for ${url}`);
     return JSON.parse(await res.text()) as unknown;
@@ -101,23 +117,28 @@ export function fakeDocumenso(opts: { tape?: ReplayTape; fetch?: FetchLike } = {
     calls,
     fetch,
     async health() {
-      return await read(`${ORIGIN}/api/v1/health`) as { status: string };
+      return (await read(`${ORIGIN}/api/v1/health`)) as { status: string };
     },
     async create(envelope) {
-      return await read(`${ORIGIN}/api/v1/documents`, {
+      return (await read(`${ORIGIN}/api/v1/documents`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(envelope),
-      }) as { id: string };
+      })) as { id: string };
     },
     async status(id) {
-      return await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}`) as { id: string; status: string };
+      return (await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}`)) as { id: string; status: string };
     },
     async cancel(id) {
-      return await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}/cancel`, { method: "POST" }) as { cancelled: boolean };
+      return (await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}/cancel`, { method: "POST" })) as {
+        cancelled: boolean;
+      };
     },
     async fetchSigned(id) {
-      const body = await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}/download`) as { pdf: string; certificate: string };
+      const body = (await read(`${ORIGIN}/api/v1/documents/${encodeURIComponent(id)}/download`)) as {
+        pdf: string;
+        certificate: string;
+      };
       return { pdf: Buffer.from(body.pdf, "base64"), certificate: Buffer.from(body.certificate, "base64") };
     },
   };

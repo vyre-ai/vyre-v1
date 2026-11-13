@@ -15,13 +15,29 @@ export async function rejectFact(data: MemoryData, factId: string): Promise<Fact
 }
 
 /** Keeps where the nodes were moved to, for this person, so the next visit opens the same picture. */
-export async function saveLayout(data: MemoryData, scope: "agent" | "space", agentId: string | undefined, positions: Positions): Promise<void> {
+export async function saveLayout(
+  data: MemoryData,
+  scope: "agent" | "space",
+  agentId: string | undefined,
+  positions: Positions,
+): Promise<void> {
   await data.call("memory.layout.save", { scope, ...(agentId ? { agentId } : {}), positions });
 }
 
 /** Exports the graph as a file; personal layers are never in it. Resolves with the file's id. */
-export async function exportGraph(data: MemoryData, scope: "agent" | "space", agentId: string | undefined, asOf: number | undefined, kinds: readonly string[]): Promise<string> {
-  const out = (await data.call("memory.graph_export", { scope, ...(agentId ? { agentId } : {}), ...(asOf !== undefined ? { asOf } : {}), ...(kinds.length ? { kinds: [...kinds] } : {}) })) as { fileId: string };
+export async function exportGraph(
+  data: MemoryData,
+  scope: "agent" | "space",
+  agentId: string | undefined,
+  asOf: number | undefined,
+  kinds: readonly string[],
+): Promise<string> {
+  const out = (await data.call("memory.graph_export", {
+    scope,
+    ...(agentId ? { agentId } : {}),
+    ...(asOf !== undefined ? { asOf } : {}),
+    ...(kinds.length ? { kinds: [...kinds] } : {}),
+  })) as { fileId: string };
   return out.fileId;
 }
 
@@ -33,7 +49,8 @@ export function errorText(e: unknown, what: string): string {
 // ---------------------------------------------------------------- Knowledge (Learned, pages, Trash): every button of those screens ends in one of these.
 
 type Out<C extends keyof CapMap> = CapMap[C]["out"];
-const call = async <C extends keyof CapMap>(data: MemoryData, cap: C, input: CapMap[C]["in"]): Promise<Out<C>> => (await data.call(cap, input)) as Out<C>;
+const call = async <C extends keyof CapMap>(data: MemoryData, cap: C, input: CapMap[C]["in"]): Promise<Out<C>> =>
+  (await data.call(cap, input)) as Out<C>;
 
 /** Undo something memory learned: the fact goes to Trash, and Restore brings it back. */
 export const undoFact = (data: MemoryData, factId: string) => call(data, "memory.undo", { factId });
@@ -41,10 +58,17 @@ export const undoFact = (data: MemoryData, factId: string) => call(data, "memory
 export const restoreFact = (data: MemoryData, factId: string) => call(data, "memory.restore", { factId });
 export const restorePage = (data: MemoryData, pageId: string) => call(data, "memory.restore", { pageId });
 /** Edit a fact: the old one closes with today as its end and a new one is added (the old version is kept). */
-export const correctFact = (data: MemoryData, factId: string, text: string) => call(data, "memory.fact.correct", { factId, text });
+export const correctFact = (data: MemoryData, factId: string, text: string) =>
+  call(data, "memory.fact.correct", { factId, text });
 /** Answer an upkeep question: keep one of two facts (the other goes to Trash), keep both, or drop. */
-export const resolveQuestion = (data: MemoryData, questionId: string, resolution: "keep_a" | "keep_b" | "keep_both" | "drop") => call(data, "memory.question.resolve", { questionId, resolution });
+export const resolveQuestion = (
+  data: MemoryData,
+  questionId: string,
+  resolution: "keep_a" | "keep_b" | "keep_both" | "drop",
+) => call(data, "memory.question.resolve", { questionId, resolution });
 /** Write the Notes of a page as a new version. `baseVersion` makes a stale write refuse instead of overwriting. */
-export const putNotes = (data: MemoryData, pageId: string, notes: string, baseVersion: number) => call(data, "memory.page.put", { pageId, notes, baseVersion });
+export const putNotes = (data: MemoryData, pageId: string, notes: string, baseVersion: number) =>
+  call(data, "memory.page.put", { pageId, notes, baseVersion });
 export const trashPage = (data: MemoryData, pageId: string) => call(data, "memory.page.delete", { pageId });
-export const restoreNotesVersion = (data: MemoryData, pageId: string, version: number) => call(data, "memory.page.restore_version", { pageId, version });
+export const restoreNotesVersion = (data: MemoryData, pageId: string, version: number) =>
+  call(data, "memory.page.restore_version", { pageId, version });

@@ -25,8 +25,29 @@ import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
-  shownFields, sourceText, splitLinks, toggleFold, valueText,
+  PANE_TABS,
+  RING_R,
+  ago,
+  asksForFields,
+  each,
+  editKind,
+  historyVersions,
+  hueOf,
+  inputText,
+  isEmpty,
+  mapLayout,
+  optionsOf,
+  peekFields,
+  relationIds,
+  relationTarget,
+  resolveLink,
+  ringOf,
+  sectionsOf,
+  shownFields,
+  sourceText,
+  splitLinks,
+  toggleFold,
+  valueText,
 } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane/fit.tsx";
 import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
@@ -52,15 +73,22 @@ export interface RecordPageStart {
   edit?: { key: string; text: string };
 }
 
-export interface RecordPageProps { type: string; recordId: string; start?: RecordPageStart }
+export interface RecordPageProps {
+  type: string;
+  recordId: string;
+  start?: RecordPageStart;
+}
 
-interface Flash { text: string; undo?: Undo; bad?: boolean }
+interface Flash {
+  text: string;
+  undo?: Undo;
+  bad?: boolean;
+}
 
 // ---------------------------------------------------------------- relation cards
 
 /** Fields drawn in the first frame of a record page: none. The header, title and summary paint first; the ring, the sections and the right pane follow in the next frame. The perf traces (runs 40282475958) put 51 ms of a 110 ms navigate in the sections and the floor at 45 ms, so nothing else fits the 50 ms budget. */
 const FIRST_FRAME_FIELDS = 0;
-
 
 export function Peek({ type, recordId }: { type: string; recordId: string }): ReactElement | null {
   const data = usePageData();
@@ -70,8 +98,23 @@ export function Peek({ type, recordId }: { type: string; recordId: string }): Re
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
   if (!row || !def) return null;
   const lines: ReactElement[] = [];
-  for (const f of peekFields(def, row)) lines.push(<View key={f.key} style={p.peekRow}><Text style={p.peekLabel}>{f.title}</Text><Text numberOfLines={1} style={p.peekValue}>{valueText(f, row.fields[f.key], data.nameOf)}</Text></View>);
-  return <View style={p.peek} testID={`peek-${recordId}`} accessibilityRole="summary"><Text numberOfLines={1} style={p.peekTitle}>{String(row.fields[def.titleField] ?? "Untitled")}</Text>{lines}</View>;
+  for (const f of peekFields(def, row))
+    lines.push(
+      <View key={f.key} style={p.peekRow}>
+        <Text style={p.peekLabel}>{f.title}</Text>
+        <Text numberOfLines={1} style={p.peekValue}>
+          {valueText(f, row.fields[f.key], data.nameOf)}
+        </Text>
+      </View>,
+    );
+  return (
+    <View style={p.peek} testID={`peek-${recordId}`} accessibilityRole="summary">
+      <Text numberOfLines={1} style={p.peekTitle}>
+        {String(row.fields[def.titleField] ?? "Untitled")}
+      </Text>
+      {lines}
+    </View>
+  );
 }
 
 function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElement {
@@ -87,12 +130,24 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
   return (
     <View style={p.cardWrap}>
       <Pressable
-        accessibilityRole="link" accessibilityLabel={`${title}, ${def?.title ?? target}`} testID={`rel-${id}`} onPress={() => data.nav.openRecord(target, id)}
-        onHoverIn={() => setPeek(true)} onHoverOut={() => setPeek(false)} onFocus={() => setPeek(true)} onBlur={() => setPeek(false)}
+        accessibilityRole="link"
+        accessibilityLabel={`${title}, ${def?.title ?? target}`}
+        testID={`rel-${id}`}
+        onPress={() => data.nav.openRecord(target, id)}
+        onHoverIn={() => setPeek(true)}
+        onHoverOut={() => setPeek(false)}
+        onFocus={() => setPeek(true)}
+        onBlur={() => setPeek(false)}
         style={({ hovered }: { hovered?: boolean }) => [p.card, hovered === true && p.cardOver]}
       >
-        <View style={[p.tile, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.2)` }]}><Text style={[p.tileText, { color: `hsl(${hue}, 55%, 40%)` }]}>{(def?.title ?? target).slice(0, 1).toUpperCase()}</Text></View>
-        <Text numberOfLines={1} style={p.cardText}>{title}</Text>
+        <View style={[p.tile, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.2)` }]}>
+          <Text style={[p.tileText, { color: `hsl(${hue}, 55%, 40%)` }]}>
+            {(def?.title ?? target).slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+        <Text numberOfLines={1} style={p.cardText}>
+          {title}
+        </Text>
       </Pressable>
       {peek ? <Peek type={target} recordId={id} /> : null}
     </View>
@@ -104,14 +159,34 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
 function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement {
   const opt = optionsOf(field).find((o) => o.key === value);
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
-  return <View style={[p.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}><Text style={[p.tagText, { color: "var(--ink)" }]}>{opt?.title ?? value}</Text></View>;
+  return (
+    <View style={[p.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
+      <Text style={[p.tagText, { color: "var(--ink)" }]}>{opt?.title ?? value}</Text>
+    </View>
+  );
 }
 
 interface FieldProps {
-  field: FieldDef; row: RecordRow; type: string; editing: { key: string; text: string; error?: string } | null; nodes: readonly RelNode[];
+  field: FieldDef;
+  row: RecordRow;
+  type: string;
+  editing: { key: string; text: string; error?: string } | null;
+  nodes: readonly RelNode[];
   /** A record from an app that syncs into Records: where each field stands. Absent for an ordinary record. */
-  sync?: { state: RecordSync; now: number; onRetry(f: FieldDef): void; onHistory(f: FieldDef, x: number, y: number): void };
-  show: (items: readonly MenuEntry[], x: number, y: number) => void; readOnly?: boolean; onEdit: (f: FieldDef) => void; onText: (t: string) => void; onCommit: (f: FieldDef, text: string) => void; onCancel: () => void; onValue: (f: FieldDef, v: unknown) => void; onSource: (f: FieldDef, x: number, y: number) => void;
+  sync?: {
+    state: RecordSync;
+    now: number;
+    onRetry(f: FieldDef): void;
+    onHistory(f: FieldDef, x: number, y: number): void;
+  };
+  show: (items: readonly MenuEntry[], x: number, y: number) => void;
+  readOnly?: boolean;
+  onEdit: (f: FieldDef) => void;
+  onText: (t: string) => void;
+  onCommit: (f: FieldDef, text: string) => void;
+  onCancel: () => void;
+  onValue: (f: FieldDef, v: unknown) => void;
+  onSource: (f: FieldDef, x: number, y: number) => void;
 }
 
 function FieldRow(q: FieldProps): ReactElement {
@@ -123,25 +198,81 @@ function FieldRow(q: FieldProps): ReactElement {
   const open = q.editing?.key === f.key;
   const trig = menuTrigger((x, y) => q.onSource(f, x, y));
   let body: ReactElement;
-  if (open && (kind === "text" || kind === "number" || kind === "money" || kind === "date" || kind === "longtext" || kind === "rating")) {
-    body = kind === "longtext" ? (
-      // a long text is written in the shared Markdown editor; Done saves it, Escape drops the edit
-      <View style={p.editWrap}>
-        <MarkdownEditor testID={`edit-${f.key}`} label={f.title} value={q.editing!.text} onChange={q.onText} placeholder={f.title} toggle={false} density="compact" minHeight={110} autoFocus onEscape={q.onCancel} onSave={() => q.onCommit(f, q.editing!.text)} />
-        {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
-        <View style={p.doneRow}><Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID={`cancel-${f.key}`} onPress={q.onCancel}><Text style={p.doneText}>Cancel</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Done" testID={`done-${f.key}`} onPress={() => q.onCommit(f, q.editing!.text)}><Text style={[p.doneText, p.doneOn]}>Done</Text></Pressable></View>
-      </View>
-    ) : (
-      <View style={p.editWrap}>
-        <TextInput
-          autoFocus value={q.editing!.text} onChangeText={q.onText} accessibilityLabel={f.title} testID={`edit-${f.key}`} multiline={kind === "longtext"} placeholder={f.title} placeholderTextColor="var(--ink-3)"
-          onBlur={() => q.onCommit(f, q.editing!.text)} onSubmitEditing={() => q.onCommit(f, q.editing!.text)}
-          onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") q.onCancel(); }}
-          style={[p.input, kind === "longtext" && p.inputLong, q.editing!.error ? p.inputBad : null]}
-        />
-        {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
-      </View>
-    );
+  if (
+    open &&
+    (kind === "text" ||
+      kind === "number" ||
+      kind === "money" ||
+      kind === "date" ||
+      kind === "longtext" ||
+      kind === "rating")
+  ) {
+    body =
+      kind === "longtext" ? (
+        // a long text is written in the shared Markdown editor; Done saves it, Escape drops the edit
+        <View style={p.editWrap}>
+          <MarkdownEditor
+            testID={`edit-${f.key}`}
+            label={f.title}
+            value={q.editing!.text}
+            onChange={q.onText}
+            placeholder={f.title}
+            toggle={false}
+            density="compact"
+            minHeight={110}
+            autoFocus
+            onEscape={q.onCancel}
+            onSave={() => q.onCommit(f, q.editing!.text)}
+          />
+          {q.editing!.error ? (
+            <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>
+              {q.editing!.error}
+            </Text>
+          ) : null}
+          <View style={p.doneRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              testID={`cancel-${f.key}`}
+              onPress={q.onCancel}
+            >
+              <Text style={p.doneText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Done"
+              testID={`done-${f.key}`}
+              onPress={() => q.onCommit(f, q.editing!.text)}
+            >
+              <Text style={[p.doneText, p.doneOn]}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <View style={p.editWrap}>
+          <TextInput
+            autoFocus
+            value={q.editing!.text}
+            onChangeText={q.onText}
+            accessibilityLabel={f.title}
+            testID={`edit-${f.key}`}
+            multiline={kind === "longtext"}
+            placeholder={f.title}
+            placeholderTextColor="var(--ink-3)"
+            onBlur={() => q.onCommit(f, q.editing!.text)}
+            onSubmitEditing={() => q.onCommit(f, q.editing!.text)}
+            onKeyPress={(e) => {
+              if (e.nativeEvent.key === "Escape") q.onCancel();
+            }}
+            style={[p.input, kind === "longtext" && p.inputLong, q.editing!.error ? p.inputBad : null]}
+          />
+          {q.editing!.error ? (
+            <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>
+              {q.editing!.error}
+            </Text>
+          ) : null}
+        </View>
+      );
   } else if (f.type === "sealed") {
     body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
@@ -151,30 +282,123 @@ function FieldRow(q: FieldProps): ReactElement {
   } else if (f.key === "folder" && typeof v === "string" && v.startsWith("fld_") && open === false) {
     body = <FolderLink folderId={v} type={q.type} recordId={row.id} />;
   } else if (isEmpty(v) && kind !== "checkbox") {
-    body = kind === "none" ? <Text style={p.empty}>Empty</Text> : <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${f.title}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else q.onEdit(f); }}><Text style={p.empty}>Empty</Text></Pressable>;
+    body =
+      kind === "none" ? (
+        <Text style={p.empty}>Empty</Text>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${f.title}`}
+          testID={`field-${f.key}`}
+          onPress={(e) => {
+            if (kind === "choice") {
+              const pt = pointOf(e);
+              chooseFrom(f, q, pt.x, pt.y);
+            } else q.onEdit(f);
+          }}
+        >
+          <Text style={p.empty}>Empty</Text>
+        </Pressable>
+      );
   } else if (kind === "checkbox") {
-    body = <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: v === true }} accessibilityLabel={f.title} testID={`field-${f.key}`} onPress={() => q.onValue(f, v !== true)} style={[p.box, v === true && p.boxOn]}>{v === true ? <Glyph name="check" size={11} color="var(--accent-ink)" width={2} /> : null}</Pressable>;
+    body = (
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: v === true }}
+        accessibilityLabel={f.title}
+        testID={`field-${f.key}`}
+        onPress={() => q.onValue(f, v !== true)}
+        style={[p.box, v === true && p.boxOn]}
+      >
+        {v === true ? <Glyph name="check" size={11} color="var(--accent-ink)" width={2} /> : null}
+      </Pressable>
+    );
   } else if (kind === "rating") {
     const stars: ReactElement[] = [];
-    for (let i = 1; i <= 5; i++) stars.push(<Pressable key={i} accessibilityRole="button" accessibilityLabel={`${i} of 5`} testID={`star-${f.key}-${i}`} onPress={() => q.onValue(f, i === v ? 0 : i)}><Text style={[p.star, typeof v === "number" && i <= v && p.starOn]}>{"★"}</Text></Pressable>);
+    for (let i = 1; i <= 5; i++)
+      stars.push(
+        <Pressable
+          key={i}
+          accessibilityRole="button"
+          accessibilityLabel={`${i} of 5`}
+          testID={`star-${f.key}-${i}`}
+          onPress={() => q.onValue(f, i === v ? 0 : i)}
+        >
+          <Text style={[p.star, typeof v === "number" && i <= v && p.starOn]}>{"★"}</Text>
+        </Pressable>,
+      );
     body = <View style={p.stars}>{stars}</View>;
   } else if (f.type === "longtext" && typeof v === "string") {
     const pieces = splitLinks(v);
     const kids: ReactElement[] = [];
     pieces.forEach((pc, i) => {
-      if ("text" in pc) { kids.push(<Text key={i} style={p.longText}>{pc.text}</Text>); return; }
+      if ("text" in pc) {
+        kids.push(
+          <Text key={i} style={p.longText}>
+            {pc.text}
+          </Text>,
+        );
+        return;
+      }
       const hit = resolveLink(pc.link, q.nodes);
-      kids.push(hit
-        ? <Text key={i} accessibilityRole="link" testID={`link-${hit.recordId}`} onPress={() => data.nav.openRecord(hit.type, hit.recordId)} style={[p.longText, p.link]}>{pc.link}</Text>
-        : <Text key={i} testID="link-unresolved" style={[p.longText, p.linkGone]}>{pc.link}</Text>);
+      kids.push(
+        hit ? (
+          <Text
+            key={i}
+            accessibilityRole="link"
+            testID={`link-${hit.recordId}`}
+            onPress={() => data.nav.openRecord(hit.type, hit.recordId)}
+            style={[p.longText, p.link]}
+          >
+            {pc.link}
+          </Text>
+        ) : (
+          <Text key={i} testID="link-unresolved" style={[p.longText, p.linkGone]}>
+            {pc.link}
+          </Text>
+        ),
+      );
     });
-    body = <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${f.title}`} testID={`field-${f.key}`} onPress={() => q.onEdit(f)}><Text>{kids}</Text></Pressable>;
+    body = (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${f.title}`}
+        testID={`field-${f.key}`}
+        onPress={() => q.onEdit(f)}
+      >
+        <Text>{kids}</Text>
+      </Pressable>
+    );
   } else {
     const text = valueText(f, v, data.nameOf);
-    const shown = (f.type === "choice" || f.type === "status") && typeof v === "string" ? <Tag field={f} value={v} />
-      : f.type === "person" ? <View style={p.person}><Face name={data.nameOf(String(v))} size={18} /><Text numberOfLines={1} style={p.value}>{data.nameOf(String(v))}</Text></View>
-      : <Text style={p.value}>{text}</Text>;
-    body = <Pressable accessibilityRole={kind === "none" ? "text" : "button"} accessibilityLabel={`${f.title}: ${text}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else if (kind !== "none") q.onEdit(f); }}>{shown}</Pressable>;
+    const shown =
+      (f.type === "choice" || f.type === "status") && typeof v === "string" ? (
+        <Tag field={f} value={v} />
+      ) : f.type === "person" ? (
+        <View style={p.person}>
+          <Face name={data.nameOf(String(v))} size={18} />
+          <Text numberOfLines={1} style={p.value}>
+            {data.nameOf(String(v))}
+          </Text>
+        </View>
+      ) : (
+        <Text style={p.value}>{text}</Text>
+      );
+    body = (
+      <Pressable
+        accessibilityRole={kind === "none" ? "text" : "button"}
+        accessibilityLabel={`${f.title}: ${text}`}
+        testID={`field-${f.key}`}
+        onPress={(e) => {
+          if (kind === "choice") {
+            const pt = pointOf(e);
+            chooseFrom(f, q, pt.x, pt.y);
+          } else if (kind !== "none") q.onEdit(f);
+        }}
+      >
+        {shown}
+      </Pressable>
+    );
   }
   // a Files field takes files dropped on it, or pasted while it has focus: they are stored in the record's folder (the Attach path) and named in the field
   const store = data.files?.store;
@@ -182,17 +406,45 @@ function FieldRow(q: FieldProps): ReactElement {
     const had = Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : [];
     const take = (files: readonly DroppedFile[]): void => {
       setDropNote(files.length === 1 ? `Attaching ${files[0]!.name}` : `Attaching ${files.length} files`);
-      void store(files.map((x) => ({ name: x.name, mime: x.type ?? "", file: x as never })), { type: q.type, recordId: row.id, title: row.id }).then((ids) => { setDropNote(""); q.onValue(f, [...had, ...ids]); }, () => setDropNote("Could not attach that. Try again"));
+      void store(
+        files.map((x) => ({ name: x.name, mime: x.type ?? "", file: x as never })),
+        { type: q.type, recordId: row.id, title: row.id },
+      ).then(
+        (ids) => {
+          setDropNote("");
+          q.onValue(f, [...had, ...ids]);
+        },
+        () => setDropNote("Could not attach that. Try again"),
+      );
     };
-    body = <DropZone testID={`drop-${f.key}`} onFiles={take} radius={6}>{body}{dropNote ? <Text style={p.empty} testID={`drop-note-${f.key}`} accessibilityLiveRegion="polite">{dropNote}</Text> : null}</DropZone>;
+    body = (
+      <DropZone testID={`drop-${f.key}`} onFiles={take} radius={6}>
+        {body}
+        {dropNote ? (
+          <Text style={p.empty} testID={`drop-note-${f.key}`} accessibilityLiveRegion="polite">
+            {dropNote}
+          </Text>
+        ) : null}
+      </DropZone>
+    );
   }
   const synced = q.sync?.state.fields.find((x) => x.key === f.key);
   const mark = synced && q.sync?.state.app ? markOf(synced, q.sync.state.app.title, q.sync.now) : undefined;
   return (
     <View style={p.field} testID={`row-${f.key}`} {...(trig as object)}>
-      <Text numberOfLines={1} style={p.label}>{f.title}</Text>
+      <Text numberOfLines={1} style={p.label}>
+        {f.title}
+      </Text>
       <View style={p.valueCol}>{body}</View>
-      {mark && synced ? <FieldMark kind={mark.kind} tip={mark.tip} history={synced.history} onRetry={() => q.sync!.onRetry(f)} onHistory={(x, y) => q.sync!.onHistory(f, x, y)} /> : null}
+      {mark && synced ? (
+        <FieldMark
+          kind={mark.kind}
+          tip={mark.tip}
+          history={synced.history}
+          onRetry={() => q.sync!.onRetry(f)}
+          onHistory={(x, y) => q.sync!.onHistory(f, x, y)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -203,15 +455,25 @@ function FolderLink({ folderId, type, recordId }: { folderId: string; type: stri
   const fq = useLive("files.folder.get", { folderId });
   const label = fq.status === "ready" ? fq.data.folder.path : "Open the folder";
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={`Open ${label} in Files`} testID="field-folder-link" onPress={() => data.nav.openFiles(type, recordId)}>
-      <Text numberOfLines={1} style={[p.value, p.link]}>{label}</Text>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${label} in Files`}
+      testID="field-folder-link"
+      onPress={() => data.nav.openFiles(type, recordId)}
+    >
+      <Text numberOfLines={1} style={[p.value, p.link]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 /** A choice or status field: its options in one menu under the value. */
 function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
-  const items: MenuEntry[] = each(optionsOf(f), (o): MenuEntry => ({ label: o.title, checked: q.row.fields[f.key] === o.key, onSelect: () => q.onValue(f, o.key) }));
+  const items: MenuEntry[] = each(
+    optionsOf(f),
+    (o): MenuEntry => ({ label: o.title, checked: q.row.fields[f.key] === o.key, onSelect: () => q.onValue(f, o.key) }),
+  );
   if (!f.required) items.push({ separator: true }, { label: "Clear", onSelect: () => q.onValue(f, null) });
   q.show(items, x, y);
 }
@@ -220,9 +482,24 @@ function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
 
 const PANE_W = 340;
 const PINNED_TABS = PANE_TABS.map((t) => ({ ...t, pinned: true }));
-const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 14).set("More tabs", 14);
+const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> =>
+  new Map(w).set("More", 14).set("More tabs", 14);
 
-function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void; phone?: boolean }): ReactElement {
+function Pane({
+  type,
+  row,
+  def,
+  tab,
+  onTab,
+  phone = false,
+}: {
+  type: string;
+  row: RecordRow;
+  def: TypeDef;
+  tab: PaneKey;
+  onTab: (k: PaneKey) => void;
+  phone?: boolean;
+}): ReactElement {
   const data = usePageData();
   const menu = useMenu();
   const win = useWindowDimensions();
@@ -231,32 +508,102 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   const paneNow = phone ? win.width : paneW;
   // the tabs that do not fit fold behind one More tab, as in the Chats pane
   const { strip, select } = useFittedTabs(PINNED_TABS, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME + 28, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    extra: PANE_TAB_EXTRA,
+    chrome: PANE_CHROME + 28,
+    ...(titles.widths.size > 0 ? { chevron: true } : {}),
+    menu,
+    left: Math.max(0, win.width - paneNow) + 40,
+    top: 118,
+    measured: withMore(titles.widths),
     pick: (key) => onTab(key as PaneKey),
   });
   const vq = useLive("records.versions", { type, recordId: row.id });
   const mq = useLive("memory.find_by_subject", { subject: row.id });
   const now = data.now();
   const facts: ReactElement[] = [];
-  if (mq.status === "ready") for (const f of mq.data.facts) facts.push(<Row key={f.factId} id={`fact:${f.factId}`} title={f.text} note={`${f.layer} · ${ago(f.learnedAt, now)}`} onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
+  if (mq.status === "ready")
+    for (const f of mq.data.facts)
+      facts.push(
+        <Row
+          key={f.factId}
+          id={`fact:${f.factId}`}
+          title={f.text}
+          note={`${f.layer} · ${ago(f.learnedAt, now)}`}
+          onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)}
+        />,
+      );
   const notes: ReactElement[] = [];
-  if (mq.status === "ready") for (const n of mq.data.notes) notes.push(<Row key={n.noteId} id={`note:${n.noteId}`} title={n.title} note={n.path} onPress={() => data.nav.openSource(n.path)} />);
+  if (mq.status === "ready")
+    for (const n of mq.data.notes)
+      notes.push(
+        <Row
+          key={n.noteId}
+          id={`note:${n.noteId}`}
+          title={n.title}
+          note={n.path}
+          onPress={() => data.nav.openSource(n.path)}
+        />,
+      );
   let body: ReactElement;
   // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
   let fill = false;
-  if (tab === "everything") body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
+  if (tab === "everything")
+    body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
   else if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
-  else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
-  else if (tab === "files") { fill = true; body = <FilesTab type={type} recordId={row.id} title={String(row.fields[def.titleField] ?? row.id)} {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})} />; }
-  else if (tab === "memory") body = facts.length + notes.length > 0 ? <View testID="pane-memory">{facts}{notes}</View> : <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>;
-  else body = vq.status === "ready" ? (
-    <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>
-  ) : <Text style={p.paneEmpty}>Loading</Text>;
+  else if (tab === "comments") {
+    fill = true;
+    body = <CommentsTab type={type} recordId={row.id} />;
+  } else if (tab === "files") {
+    fill = true;
+    body = (
+      <FilesTab
+        type={type}
+        recordId={row.id}
+        title={String(row.fields[def.titleField] ?? row.id)}
+        {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})}
+      />
+    );
+  } else if (tab === "memory")
+    body =
+      facts.length + notes.length > 0 ? (
+        <View testID="pane-memory">
+          {facts}
+          {notes}
+        </View>
+      ) : (
+        <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>
+      );
+  else
+    body =
+      vq.status === "ready" ? (
+        <View testID="pane-history">
+          <HistoryTab
+            resourceType="record"
+            resourceId={row.id}
+            recordType={type}
+            versions={historyVersions(vq.data.versions, data.nameOf)}
+            selectedVersionId={null}
+            density="compact"
+            invoke={(cap, input) => data.call(cap, input).then(() => undefined)}
+          />
+        </View>
+      ) : (
+        <Text style={p.paneEmpty}>Loading</Text>
+      );
   return (
     <ResizableColumn
-      paneKey={phone ? "record-pane-phone" : "record-pane"} defaultWidth={phone ? win.width : PANE_W} grow="left" min={phone ? win.width : 280} {...(phone ? { maxFraction: 1 } : {})}
-      style={(phone ? [p.pane, p.panePhone] : p.pane) as never} testID="record-pane" label="Record details"
-      onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
+      paneKey={phone ? "record-pane-phone" : "record-pane"}
+      defaultWidth={phone ? win.width : PANE_W}
+      grow="left"
+      min={phone ? win.width : 280}
+      {...(phone ? { maxFraction: 1 } : {})}
+      style={(phone ? [p.pane, p.panePhone] : p.pane) as never}
+      testID="record-pane"
+      label="Record details"
+      onLayout={(e) => {
+        const w = Math.round(e.nativeEvent.layout.width);
+        if (w > 0 && w !== paneW) setPaneW(w);
+      }}
     >
       <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
       <TabStrip underline noOptions tabs={strip as never} active={tab} onSelect={select} />
@@ -268,22 +615,89 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
 
 // ---------------------------------------------------------------- the relationship map
 
-function RelationMap({ nodes, edges, onOpen }: { nodes: readonly RelNode[]; edges: { from: string; to: string; field: string }[]; onOpen: (n: RelNode) => void }): ReactElement | null {
+function RelationMap({
+  nodes,
+  edges,
+  onOpen,
+}: {
+  nodes: readonly RelNode[];
+  edges: { from: string; to: string; field: string }[];
+  onOpen: (n: RelNode) => void;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const placed = mapLayout(nodes);
   const at = new Map(each(placed, (n): [string, typeof n] => [n.recordId, n]));
   const kids: ReactElement[] = [];
   for (const e of edges) {
-    const a = at.get(e.from), b = at.get(e.to);
-    if (a && b) kids.push(createElement("line", { key: `${e.from}>${e.to}:${e.field}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y, "data-testid": "map-edge", style: { stroke: "var(--ink-4)", strokeWidth: 1.2 } }));
+    const a = at.get(e.from),
+      b = at.get(e.to);
+    if (a && b)
+      kids.push(
+        createElement("line", {
+          key: `${e.from}>${e.to}:${e.field}`,
+          x1: a.x,
+          y1: a.y,
+          x2: b.x,
+          y2: b.y,
+          "data-testid": "map-edge",
+          style: { stroke: "var(--ink-4)", strokeWidth: 1.2 },
+        }),
+      );
   }
   for (const n of placed) {
     const hue = hueOf(n.type);
-    kids.push(createElement("g", { key: n.recordId, "data-testid": `map-${n.recordId}`, "data-hop": n.hop, tabIndex: 0, role: "link", "aria-label": `${n.title}, ${n.type}`, style: { cursor: "pointer", outline: "none" }, onClick: () => onOpen(n), onKeyDown: (e: { key: string }) => { if (e.key === "Enter") onOpen(n); } },
-      createElement("circle", { cx: n.x, cy: n.y, r: n.hop === 0 ? 11 : 8, style: { fill: `hsl(${hue}, 60%, 52%)`, stroke: n.hop === 0 ? "var(--accent)" : "var(--win)", strokeWidth: n.hop === 0 ? 3 : 2 } }),
-      createElement("text", { x: n.x, y: n.y + (n.hop === 0 ? 24 : 21), textAnchor: "middle", style: { fill: "var(--ink-2)", fontSize: 11 } }, n.title)));
+    kids.push(
+      createElement(
+        "g",
+        {
+          key: n.recordId,
+          "data-testid": `map-${n.recordId}`,
+          "data-hop": n.hop,
+          tabIndex: 0,
+          role: "link",
+          "aria-label": `${n.title}, ${n.type}`,
+          style: { cursor: "pointer", outline: "none" },
+          onClick: () => onOpen(n),
+          onKeyDown: (e: { key: string }) => {
+            if (e.key === "Enter") onOpen(n);
+          },
+        },
+        createElement("circle", {
+          cx: n.x,
+          cy: n.y,
+          r: n.hop === 0 ? 11 : 8,
+          style: {
+            fill: `hsl(${hue}, 60%, 52%)`,
+            stroke: n.hop === 0 ? "var(--accent)" : "var(--win)",
+            strokeWidth: n.hop === 0 ? 3 : 2,
+          },
+        }),
+        createElement(
+          "text",
+          {
+            x: n.x,
+            y: n.y + (n.hop === 0 ? 24 : 21),
+            textAnchor: "middle",
+            style: { fill: "var(--ink-2)", fontSize: 11 },
+          },
+          n.title,
+        ),
+      ),
+    );
   }
-  return createElement("svg", { viewBox: "0 0 360 260", width: "100%", height: 260, role: "img", "aria-label": "Relationships, two hops out", "data-testid": "relation-map", style: { display: "block" } }, ...kids);
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 360 260",
+      width: "100%",
+      height: 260,
+      role: "img",
+      "aria-label": "Relationships, two hops out",
+      "data-testid": "relation-map",
+      style: { display: "block" },
+    },
+    ...kids,
+  );
 }
 
 // ---------------------------------------------------------------- the page
@@ -296,7 +710,13 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const pq = useLive("records.page_prefs.get", { type });
   const cq = useLive("records.completeness", { type, recordId });
   // the relationships two hops out feed the map, the relation fields and the [[links]], none of which the first frame draws: asked with the late pass, or at once for the map
-  const [late, setLate] = useState(typeof window === "undefined" || start.pane !== undefined || start.tab !== undefined || start.edit !== undefined || start.all === true);
+  const [late, setLate] = useState(
+    typeof window === "undefined" ||
+      start.pane !== undefined ||
+      start.tab !== undefined ||
+      start.edit !== undefined ||
+      start.all === true,
+  );
   const [map, setMap] = useState(start.map === true);
   const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
@@ -312,8 +732,13 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   useEffect(() => {
     if (late) return;
     let b = 0;
-    const a = requestAnimationFrame(() => { b = requestAnimationFrame(() => setLate(true)); });
-    return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
+    const a = requestAnimationFrame(() => {
+      b = requestAnimationFrame(() => setLate(true));
+    });
+    return () => {
+      cancelAnimationFrame(a);
+      cancelAnimationFrame(b);
+    };
   }, [late]);
   const menu = useMenu();
   // a person who may only view the record (it was shared with them to view) sees it read only: nothing to click that would be refused
@@ -323,16 +748,48 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
   const [group, setGroup] = useState("overview");
   const journey = useJourneyStages(data.call, type, def !== undefined && isJourneyDef(def));
-  const rs = useRecordSync(data.call, type, recordId, def !== undefined && (def as { syncedFrom?: string }).syncedFrom !== undefined);
+  const rs = useRecordSync(
+    data.call,
+    type,
+    recordId,
+    def !== undefined && (def as { syncedFrom?: string }).syncedFrom !== undefined,
+  );
   if (!def || !row) {
-    return <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading"><View style={p.head}><Text accessibilityRole="header" style={p.h1}>Record</Text></View></View>;
+    return (
+      <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading">
+        <View style={p.head}>
+          <Text accessibilityRole="header" style={p.h1}>
+            Record
+          </Text>
+        </View>
+      </View>
+    );
   }
   const prefs = pq.status === "ready" ? pq.data : { folded: [], keepVisible: [] };
-  const plain = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
+  const plain = sectionsOf(
+    def,
+    lq.status === "ready" ? lq.data : undefined,
+    pq.status === "ready" ? pq.data : undefined,
+  );
   // a Journey record leads with the group of the stage it is in; the groups of later stages stay locked until their stage opens
-  const stageNow = (() => { const sf = stageFieldOf(def); const v = sf ? row.fields[sf.key] : undefined; return typeof v === "string" ? v : ""; })();
-  const ownStages = stagesOn(def) ? stagesOf(typeStageField(def)).map((g, i) => ({ key: g.key, title: g.title, order: i, ...(g.fields ? { fields: g.fields } : {}) })) : [];
-  const sections = journey ? withStages(def, plain, journey.stages, stageNow, prefs.folded) : ownStages.length ? withStages(def, plain, ownStages, stageNow, prefs.folded) : plain;
+  const stageNow = (() => {
+    const sf = stageFieldOf(def);
+    const v = sf ? row.fields[sf.key] : undefined;
+    return typeof v === "string" ? v : "";
+  })();
+  const ownStages = stagesOn(def)
+    ? stagesOf(typeStageField(def)).map((g, i) => ({
+        key: g.key,
+        title: g.title,
+        order: i,
+        ...(g.fields ? { fields: g.fields } : {}),
+      }))
+    : [];
+  const sections = journey
+    ? withStages(def, plain, journey.stages, stageNow, prefs.folded)
+    : ownStages.length
+      ? withStages(def, plain, ownStages, stageNow, prefs.folded)
+      : plain;
   const tabs = tabsOf(sections);
   const shown = visibleSections(sections, tabs, group);
   const ring = cq.status === "ready" && asksForFields(def, cq.data) ? ringOf(cq.data) : null;
@@ -348,51 +805,140 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     setEditing(null);
     saveField(data, type, row, f, text)
       .then((r) => {
-        if (r.kind === "bad") { setEditing({ key: f.key, text, error: r.message }); return; }
-        if (r.kind === "saved") { setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo }); rs.touch(); }
+        if (r.kind === "bad") {
+          setEditing({ key: f.key, text, error: r.message });
+          return;
+        }
+        if (r.kind === "saved") {
+          setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo });
+          rs.touch();
+        }
       })
-      .catch((e: unknown) => { setEditing({ key: f.key, text, error: errorText(e, "Could not save") }); })
-      .finally(() => { busy.current = false; });
+      .catch((e: unknown) => {
+        setEditing({ key: f.key, text, error: errorText(e, "Could not save") });
+      })
+      .finally(() => {
+        busy.current = false;
+      });
   };
   const setValue = (f: FieldDef, v: unknown): void => {
     saveValue(data, type, row, f, v)
-      .then((r) => { if (r.kind === "saved") { setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo }); rs.touch(); } })
+      .then((r) => {
+        if (r.kind === "saved") {
+          setFlash({ text: `Saved ${f.title.toLowerCase()}.`, undo: r.undo });
+          rs.touch();
+        }
+      })
       .catch((e: unknown) => setFlash({ text: errorText(e, "Could not save"), bad: true }));
   };
   const undo = (u: Undo): void => {
     setFlash(null);
-    undoSave(data, type, row, u).then(() => setFlash({ text: "Put back." })).catch((e: unknown) => setFlash({ text: errorText(e, "Could not undo"), bad: true }));
+    undoSave(data, type, row, u)
+      .then(() => setFlash({ text: "Put back." }))
+      .catch((e: unknown) => setFlash({ text: errorText(e, "Could not undo"), bad: true }));
   };
   const showSource = (f: FieldDef, x: number, y: number): void => {
-    sourceOf(data, type, row.id, f.key).then((s) => menu.show([{ head: sourceText(s as Parameters<typeof sourceText>[0]) }], x, y)).catch(() => menu.show([{ head: "No source recorded for this value." }], x, y));
+    sourceOf(data, type, row.id, f.key)
+      .then((s) => menu.show([{ head: sourceText(s as Parameters<typeof sourceText>[0]) }], x, y))
+      .catch(() => menu.show([{ head: "No source recorded for this value." }], x, y));
   };
-  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded && x.stage?.state !== "locked"), (x) => x.key), s.key) }); };
+  const fold = (s: Section): void => {
+    void savePrefs(data, type, {
+      folded: toggleFold(
+        each(
+          sections.filter((x) => x.folded && x.stage?.state !== "locked"),
+          (x) => x.key,
+        ),
+        s.key,
+      ),
+    });
+  };
 
-  const syncProps = rs.sync?.synced && rs.sync.app ? {
-    state: rs.sync, now: data.now(),
-    onRetry: (f: FieldDef): void => { const id = rs.sync?.fields.find((x) => x.key === f.key)?.outboxId; if (id) void data.call("connectors.outbox.retry", { outboxId: id }).then(() => rs.touch(), () => setFlash({ text: "Could not try again. Try later.", bad: true })); },
-    onHistory: (f: FieldDef, x: number, y: number): void => {
-      void data.call("sync_types.field_history", { type, recordId: row.id, field: f.key }).then((out) => {
-        const entries = (out as { entries: HistoryEntry[] }).entries;
-        menu.show(historyMenu({
-          title: f.title, app: rs.sync!.app!.title, now: data.now(), entries, nameOf: data.nameOf, show: (v) => valueText(f, v, data.nameOf),
-          onRestore: (e) => { void data.call("sync_types.restore_field", { type, recordId: row.id, field: f.key, historyId: e.historyId }).then(() => { setFlash({ text: `Put back ${f.title.toLowerCase()}.` }); rs.touch(); }, (err: unknown) => setFlash({ text: errorText(err, "Could not put it back"), bad: true })); },
-        }), x, y);
-      }, () => menu.show([{ head: "No earlier values" }], x, y));
-    },
-  } : undefined;
-  const fieldProps = { ...(syncProps ? { sync: syncProps } : {}), readOnly, row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
+  const syncProps =
+    rs.sync?.synced && rs.sync.app
+      ? {
+          state: rs.sync,
+          now: data.now(),
+          onRetry: (f: FieldDef): void => {
+            const id = rs.sync?.fields.find((x) => x.key === f.key)?.outboxId;
+            if (id)
+              void data.call("connectors.outbox.retry", { outboxId: id }).then(
+                () => rs.touch(),
+                () => setFlash({ text: "Could not try again. Try later.", bad: true }),
+              );
+          },
+          onHistory: (f: FieldDef, x: number, y: number): void => {
+            void data.call("sync_types.field_history", { type, recordId: row.id, field: f.key }).then(
+              (out) => {
+                const entries = (out as { entries: HistoryEntry[] }).entries;
+                menu.show(
+                  historyMenu({
+                    title: f.title,
+                    app: rs.sync!.app!.title,
+                    now: data.now(),
+                    entries,
+                    nameOf: data.nameOf,
+                    show: (v) => valueText(f, v, data.nameOf),
+                    onRestore: (e) => {
+                      void data
+                        .call("sync_types.restore_field", {
+                          type,
+                          recordId: row.id,
+                          field: f.key,
+                          historyId: e.historyId,
+                        })
+                        .then(
+                          () => {
+                            setFlash({ text: `Put back ${f.title.toLowerCase()}.` });
+                            rs.touch();
+                          },
+                          (err: unknown) => setFlash({ text: errorText(err, "Could not put it back"), bad: true }),
+                        );
+                    },
+                  }),
+                  x,
+                  y,
+                );
+              },
+              () => menu.show([{ head: "No earlier values" }], x, y),
+            );
+          },
+        }
+      : undefined;
+  const fieldProps = {
+    ...(syncProps ? { sync: syncProps } : {}),
+    readOnly,
+    row,
+    type,
+    editing,
+    nodes,
+    show: menu.show,
+    onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }),
+    onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)),
+    onCommit: commit,
+    onCancel: () => setEditing(null),
+    onValue: setValue,
+    onSource: showSource,
+  };
 
   // Ask for these: the person's conversation in the Inbox with a drafted message. A record with nobody to reach opens its empty Email (or Phone) field instead
   const askForThese = (missing: readonly { field: string; title: string }[]): void => {
-    findContact(data.call, def, row).then((contact) => {
-      if (contact) { data.nav.askFor({ type, recordId: row.id, title, missing: [...missing], contact }); return; }
-      const f = channelFieldToAdd(def, row);
-      if (!f) { setFlash({ text: "Add an email or phone to this record first.", bad: true }); return; }
-      setAll(true);
-      fieldProps.onEdit(f);
-      setFlash({ text: `Add ${f.title.toLowerCase()} to ask for these.` });
-    }).catch(() => setFlash({ text: "Could not open the conversation. Try again.", bad: true }));
+    findContact(data.call, def, row)
+      .then((contact) => {
+        if (contact) {
+          data.nav.askFor({ type, recordId: row.id, title, missing: [...missing], contact });
+          return;
+        }
+        const f = channelFieldToAdd(def, row);
+        if (!f) {
+          setFlash({ text: "Add an email or phone to this record first.", bad: true });
+          return;
+        }
+        setAll(true);
+        fieldProps.onEdit(f);
+        setFlash({ text: `Add ${f.title.toLowerCase()} to ask for these.` });
+      })
+      .catch(() => setFlash({ text: "Could not open the conversation. Try again.", bad: true }));
   };
 
   const body: ReactElement[] = [];
@@ -403,17 +949,48 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     const sh = shownFields(s, row, prefs.keepVisible, all);
     if (!s.folded) drawn += sh.fields.length;
     const fields: ReactElement[] = [];
-    for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
-    const locked = s.stage?.state === "locked", now = s.stage?.state === "current";
+    for (const f of sh.fields)
+      fields.push(
+        <View key={f.key} style={wide ? p.half : p.full}>
+          <FieldRow field={f} {...fieldProps} />
+        </View>,
+      );
+    const locked = s.stage?.state === "locked",
+      now = s.stage?.state === "current";
     body.push(
       <View key={s.key} testID={`section-${s.key}`} style={now ? p.nowBox : undefined}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded, disabled: locked }} aria-expanded={!s.folded} accessibilityLabel={locked ? `${s.title}, opens at ${s.stage!.opensAt}` : s.title} testID={`fold-${s.key}`} disabled={locked} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && !locked && p.cardOver]}>
-          {locked ? <Icon name="lock" size={12} /> : <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !s.folded, disabled: locked }}
+          aria-expanded={!s.folded}
+          accessibilityLabel={locked ? `${s.title}, opens at ${s.stage!.opensAt}` : s.title}
+          testID={`fold-${s.key}`}
+          disabled={locked}
+          onPress={() => fold(s)}
+          style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && !locked && p.cardOver]}
+        >
+          {locked ? (
+            <Icon name="lock" size={12} />
+          ) : (
+            <View style={s.folded ? p.shut : undefined}>
+              <Glyph name="chevd" size={10} />
+            </View>
+          )}
           <Text style={[p.st, now && p.stNow]}>{s.title}</Text>
-          {locked ? <Text style={p.sn} testID={`opens-${s.key}`}>{`Opens at ${s.stage!.opensAt}`}</Text> : now ? <Text style={p.sn}>This stage</Text> : <Text style={p.sn}>{s.fields.length}</Text>}
+          {locked ? (
+            <Text style={p.sn} testID={`opens-${s.key}`}>{`Opens at ${s.stage!.opensAt}`}</Text>
+          ) : now ? (
+            <Text style={p.sn}>This stage</Text>
+          ) : (
+            <Text style={p.sn}>{s.fields.length}</Text>
+          )}
         </Pressable>
         {s.folded ? null : <View style={p.fields}>{fields}</View>}
-        {!s.folded && sh.hidden > 0 && !all ? <Pressable accessibilityRole="button" testID={`more-${s.key}`} onPress={() => setAll(true)}><Text style={p.more}>{`Show ${sh.hidden} empty ${sh.hidden === 1 ? "field" : "fields"}`}</Text></Pressable> : null}
+        {!s.folded && sh.hidden > 0 && !all ? (
+          <Pressable accessibilityRole="button" testID={`more-${s.key}`} onPress={() => setAll(true)}>
+            <Text style={p.more}>{`Show ${sh.hidden} empty ${sh.hidden === 1 ? "field" : "fields"}`}</Text>
+          </Pressable>
+        ) : null}
       </View>,
     );
   }
@@ -423,50 +1000,223 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     <View style={p.main} testID="record-page" accessibilityLabel={`${title}, ${def.title}`}>
       <View style={p.head}>
         <Glyph name="project" size={16} color="var(--ink-2)" />
-        <Text style={p.crumb} numberOfLines={1}>{def.plural}</Text>
+        <Text style={p.crumb} numberOfLines={1}>
+          {def.plural}
+        </Text>
         {/* a phone repeats the name in the big title below, so the bar keeps the type only */}
-        {wide ? <><Text style={p.slash}>/</Text>
-        <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text></> : null}
+        {wide ? (
+          <>
+            <Text style={p.slash}>/</Text>
+            <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">
+              {title}
+            </Text>
+          </>
+        ) : null}
         <View style={p.grow} />
-        {readOnly ? <View style={p.ro} testID="record-readonly" accessibilityLabel="You can view this record"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={p.hbText}>Read only</Text></View> : null}
-        {rs.sync?.synced && rs.sync.app ? <SyncChip app={rs.sync.app} openUrl={rs.sync.openUrl} onSync={data.nav.openSync ? () => data.nav.openSync!(type) : undefined} /> : null}
-        {data.nav.ask ? <Pressable accessibilityRole="button" accessibilityLabel={`Ask Vyre about ${title}`} testID="record-ask" onPress={() => data.nav.ask!(type, recordId, title)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}><Glyph name="spark" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Ask</Text> : null}</Pressable> : null}
+        {readOnly ? (
+          <View style={p.ro} testID="record-readonly" accessibilityLabel="You can view this record">
+            <Glyph name="lock" size={12} color="var(--ink-3)" />
+            <Text style={p.hbText}>Read only</Text>
+          </View>
+        ) : null}
+        {rs.sync?.synced && rs.sync.app ? (
+          <SyncChip
+            app={rs.sync.app}
+            openUrl={rs.sync.openUrl}
+            onSync={data.nav.openSync ? () => data.nav.openSync!(type) : undefined}
+          />
+        ) : null}
+        {data.nav.ask ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ask Vyre about ${title}`}
+            testID="record-ask"
+            onPress={() => data.nav.ask!(type, recordId, title)}
+            style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}
+          >
+            <Glyph name="spark" size={14} color="var(--ink-2)" />
+            {wide ? <Text style={p.hbText}>Ask</Text> : null}
+          </Pressable>
+        ) : null}
         <ShareButton recordId={recordId} title={title} typeName={def.plural} wide={wide} />
-        {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
+        {late ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Relationships"
+              accessibilityState={{ selected: map }}
+              testID="toggle-map"
+              onPress={() => setMap(!map)}
+              style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}
+            >
+              <Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />
+              {wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Details"
+              accessibilityState={{ selected: paneOpen }}
+              testID="toggle-pane"
+              onPress={() => setPane(!paneOpen)}
+              style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}
+            >
+              <Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />
+              {wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}
+            </Pressable>
+          </>
+        ) : null}
       </View>
       {flash ? (
         <View style={[p.flash, flash.bad === true && p.flashBad]} accessibilityRole="alert" testID="record-flash">
           <Text style={p.flashText}>{flash.text}</Text>
-          {flash.undo ? <Pressable accessibilityRole="button" testID="undo" onPress={() => undo(flash.undo!)}><Text style={p.flashLink}>Undo</Text></Pressable> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" testID="flash-x" onPress={() => setFlash(null)}><Glyph name="chevd" size={10} /></Pressable>
+          {flash.undo ? (
+            <Pressable accessibilityRole="button" testID="undo" onPress={() => undo(flash.undo!)}>
+              <Text style={p.flashLink}>Undo</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+            testID="flash-x"
+            onPress={() => setFlash(null)}
+          >
+            <Glyph name="chevd" size={10} />
+          </Pressable>
         </View>
       ) : null}
       <View style={wide ? p.split : p.stack}>
-        <ScrollView style={[p.sheet, phone && paneOpen && p.hidden]} contentContainerStyle={p.sheetIn} testID="record-sheet">
+        <ScrollView
+          style={[p.sheet, phone && paneOpen && p.hidden]}
+          contentContainerStyle={p.sheetIn}
+          testID="record-sheet"
+        >
           {isJourneyDef(def) || stagesOn(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => { if (!readOnly) fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!); }}>
-            {editing?.key === def.titleField
-              ? <TextInput autoFocus value={editing.text} onChangeText={fieldProps.onText} accessibilityLabel="Title" testID={`edit-${def.titleField}`} onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setEditing(null); }} style={p.titleInput} />
-              : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit title"
+            testID="title"
+            onPress={() => {
+              if (!readOnly) fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!);
+            }}
+          >
+            {editing?.key === def.titleField ? (
+              <TextInput
+                autoFocus
+                value={editing.text}
+                onChangeText={fieldProps.onText}
+                accessibilityLabel="Title"
+                testID={`edit-${def.titleField}`}
+                onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)}
+                onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)}
+                onKeyPress={(e) => {
+                  if (e.nativeEvent.key === "Escape") setEditing(null);
+                }}
+                style={p.titleInput}
+              />
+            ) : (
+              <Text accessibilityRole="header" aria-level={2} style={p.title}>
+                {title}
+              </Text>
+            )}
           </Pressable>
-          {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
-          {data.nav.openGoal ? <GoalsOf scope="record" id={recordId} call={data.call} changes={data.changes} now={data.now()} offsetMin={0} nameOf={data.nameOf} openGoal={data.nav.openGoal} testID="record-goals" /> : null}
+          {summary ? (
+            <Text style={p.summary} testID="summary">
+              {summary}
+            </Text>
+          ) : null}
+          {data.nav.openGoal ? (
+            <GoalsOf
+              scope="record"
+              id={recordId}
+              call={data.call}
+              changes={data.changes}
+              now={data.now()}
+              offsetMin={0}
+              nameOf={data.nameOf}
+              openGoal={data.nav.openGoal}
+              testID="record-goals"
+            />
+          ) : null}
           {ring && late ? (
             <View style={p.ringRow} testID="completeness">
-              {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },
-                createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", style: { stroke: "var(--line-2)", strokeWidth: 3 } }),
-                createElement("circle", { cx: 12, cy: 12, r: RING_R, fill: "none", strokeDasharray: ring.dash, transform: "rotate(-90 12 12)", strokeLinecap: "round", style: { stroke: ring.complete ? "var(--ok)" : "var(--accent)", strokeWidth: 3 } })) : null}
-              <Text style={p.ringText} testID="ring-label">{ring.label}</Text>
-              {cq.status === "ready" && cq.data.missing.length > 0 ? <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => askForThese(cq.data.missing)}><Text style={p.ringLink}>Ask for these</Text></Pressable> : null}
+              {Platform.OS === "web"
+                ? createElement(
+                    "svg",
+                    {
+                      viewBox: "0 0 24 24",
+                      width: 24,
+                      height: 24,
+                      role: "img",
+                      "aria-label": `Completeness ${ring.label}`,
+                      "data-testid": "ring",
+                    },
+                    createElement("circle", {
+                      cx: 12,
+                      cy: 12,
+                      r: RING_R,
+                      fill: "none",
+                      style: { stroke: "var(--line-2)", strokeWidth: 3 },
+                    }),
+                    createElement("circle", {
+                      cx: 12,
+                      cy: 12,
+                      r: RING_R,
+                      fill: "none",
+                      strokeDasharray: ring.dash,
+                      transform: "rotate(-90 12 12)",
+                      strokeLinecap: "round",
+                      style: { stroke: ring.complete ? "var(--ok)" : "var(--accent)", strokeWidth: 3 },
+                    }),
+                  )
+                : null}
+              <Text style={p.ringText} testID="ring-label">
+                {ring.label}
+              </Text>
+              {cq.status === "ready" && cq.data.missing.length > 0 ? (
+                <Pressable accessibilityRole="button" testID="ask-missing" onPress={() => askForThese(cq.data.missing)}>
+                  <Text style={p.ringLink}>Ask for these</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
-          {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
-          {tabs ? <TabStrip noOptions tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))} active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key} onSelect={setGroup} /> : null}
+          {map ? (
+            <View style={p.mapBox} testID="relation-map-box">
+              {nodes.length > 1 ? (
+                <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} />
+              ) : (
+                <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>
+              )}
+            </View>
+          ) : null}
+          {tabs ? (
+            <TabStrip
+              noOptions
+              tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))}
+              active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key}
+              onSelect={setGroup}
+            />
+          ) : null}
           {body}
-          {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
+          {all ? (
+            <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}>
+              <Text style={p.more}>Hide empty fields</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
-        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} phone={phone} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
+        {paneOpen ? (
+          late ? (
+            <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} phone={phone} />
+          ) : (
+            <ResizableColumn
+              paneKey="record-pane"
+              defaultWidth={340}
+              grow="left"
+              min={280}
+              style={p.pane as never}
+              testID="record-pane-reserved"
+            />
+          )
+        ) : null}
       </View>
       {menu.element}
     </View>
@@ -474,26 +1224,62 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
 }
 
 /** Share, in a Team Space, for someone who may share this record. A Personal Space and a viewer draw nothing. */
-function ShareButton({ recordId, title, typeName, wide }: { recordId: string; title: string; typeName: string; wide: boolean }): ReactElement | null {
+function ShareButton({
+  recordId,
+  title,
+  typeName,
+  wide,
+}: {
+  recordId: string;
+  title: string;
+  typeName: string;
+  wide: boolean;
+}): ReactElement | null {
   const data = useOptionalRecordsData();
   const { on, can } = useRecordRights(recordId);
   if (!on || !(can.manage || can.share)) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Share" testID="record-share-btn" onPress={() => data?.share?.open({ type: "record", id: recordId, name: title, typeName })} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}>
-      <Glyph name="share" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Share</Text> : null}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Share"
+      testID="record-share-btn"
+      onPress={() => data?.share?.open({ type: "record", id: recordId, name: title, typeName })}
+      style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}
+    >
+      <Glyph name="share" size={14} color="var(--ink-2)" />
+      {wide ? <Text style={p.hbText}>Share</Text> : null}
     </Pressable>
   );
 }
 
 export function RecordPage(props: RecordPageProps): ReactElement {
   const data = useOptionalPageData();
-  if (!data) return <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading"><View style={p.head}><Text accessibilityRole="header" style={p.h1}>Record</Text></View></View>;
+  if (!data)
+    return (
+      <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading">
+        <View style={p.head}>
+          <Text accessibilityRole="header" style={p.h1}>
+            Record
+          </Text>
+        </View>
+      </View>
+    );
   return <PageBody {...props} />;
 }
 
 const p = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
+  head: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 18,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    zIndex: 10,
+  },
   crumb: { fontSize: 13, color: "var(--ink-3)" as string },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
@@ -514,16 +1300,38 @@ const p = StyleSheet.create({
   ringText: { fontSize: 12.5, color: "var(--ink-2)" as string, fontVariant: ["tabular-nums"] },
   ringLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   mapBox: { marginTop: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, padding: 8 },
-  sh: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, paddingHorizontal: 4, borderRadius: 6 },
+  sh: {
+    height: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+  },
   shut: { transform: [{ rotate: "-90deg" }] },
   st: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   stNow: { color: "var(--accent)" as string },
-  nowBox: { borderRadius: 10, backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 10, paddingBottom: 6, marginTop: 6 },
+  nowBox: {
+    borderRadius: 10,
+    backgroundColor: "var(--accent-wash)" as string,
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+    marginTop: 6,
+  },
   sn: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   fields: { flexDirection: "row", flexWrap: "wrap" },
   half: { width: "50%", paddingRight: 16 },
   full: { width: "100%" },
-  field: { minHeight: 40, flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  field: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   label: { width: 110, fontSize: 12.5, color: "var(--ink-3)" as string, paddingTop: 2 },
   valueCol: { flex: 1, minWidth: 0 },
   value: { fontSize: 13.5, color: "var(--ink)" as string },
@@ -534,7 +1342,15 @@ const p = StyleSheet.create({
   person: { flexDirection: "row", alignItems: "center", gap: 7 },
   tag: { height: 22, paddingHorizontal: 8, borderRadius: 6, justifyContent: "center", alignSelf: "flex-start" },
   tagText: { fontSize: 12.5, fontWeight: "500" },
-  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.4, borderColor: "var(--ink-4)" as string, alignItems: "center", justifyContent: "center" },
+  box: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.4,
+    borderColor: "var(--ink-4)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   stars: { flexDirection: "row", gap: 2 },
   star: { fontSize: 16, color: "var(--line-2)" as string },
@@ -543,24 +1359,60 @@ const p = StyleSheet.create({
   doneRow: { flexDirection: "row", justifyContent: "flex-end", gap: 14, paddingTop: 4 },
   doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   doneOn: { color: "var(--accent)" as string },
-  input: { height: 30, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13.5, color: "var(--ink)" as string },
+  input: {
+    height: 30,
+    paddingHorizontal: 9,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+    fontSize: 13.5,
+    color: "var(--ink)" as string,
+  },
   inputLong: { height: 96, paddingTop: 6 },
   inputBad: { boxShadow: "inset 0 0 0 1.5px var(--danger)" } as object,
   errText: { fontSize: 12, color: "var(--danger)" as string },
   cards: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   cardWrap: { position: "relative" },
-  card: { height: 28, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 4, paddingRight: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  card: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 8,
+    backgroundColor: "var(--sunk)" as string,
+  },
   cardOver: { backgroundColor: "var(--hover)" as string },
   cardText: { fontSize: 13, color: "var(--ink)" as string, maxWidth: 220 },
   tile: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   tileText: { fontSize: 11, fontWeight: "600" },
-  peek: { position: "absolute", left: 0, top: 32, minWidth: 220, padding: 10, gap: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, zIndex: 50, boxShadow: "var(--sh-pop)" } as object,
+  peek: {
+    position: "absolute",
+    left: 0,
+    top: 32,
+    minWidth: 220,
+    padding: 10,
+    gap: 4,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)" as string,
+    zIndex: 50,
+    boxShadow: "var(--sh-pop)",
+  } as object,
   peekTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   peekRow: { flexDirection: "row", justifyContent: "space-between", gap: 14 },
   peekLabel: { fontSize: 12, color: "var(--ink-3)" as string },
   peekValue: { fontSize: 12, color: "var(--ink-2)" as string, flexShrink: 1 },
   more: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 8, paddingHorizontal: 0 },
-  flash: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 7, backgroundColor: "var(--accent-wash)" as string },
+  flash: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 7,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   flashBad: { backgroundColor: "var(--sunk)" as string },
   flashText: { flex: 1, fontSize: 12.5, color: "var(--ink)" as string },
   flashLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },

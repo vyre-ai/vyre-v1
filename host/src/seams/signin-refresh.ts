@@ -15,23 +15,45 @@ import { codexIdentity, grokIdentity, jwtClaims } from "./signin-identity.ts";
 export type ReadBack = Readonly<Record<string, string | null>>;
 
 /** How fresh a sign-in is, in ms: the access token's expiry and when it was last refreshed. Either may be unknown. */
-export interface Freshness { exp?: number; at?: number }
+export interface Freshness {
+  exp?: number;
+  at?: number;
+}
 
 export type SigninRead =
-  | { ok: true; /** The account it names (compared, never shown); null when it names nobody. */ identity: string | null; fresh: Freshness }
+  | {
+      ok: true;
+      /** The account it names (compared, never shown); null when it names nobody. */ identity: string | null;
+      fresh: Freshness;
+    }
   | { ok: false; why: "signed_out" | "unreadable" };
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-const rec = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
-const parse = (text: string): unknown => { try { return JSON.parse(text) as unknown; } catch { return undefined; } };
+const rec = (v: unknown): Record<string, unknown> | null =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+const parse = (text: string): unknown => {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+};
 /** A time as ms: a number in seconds or ms, or an ISO date. */
 function ms(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return v < 1e12 ? v * 1000 : v;
-  if (typeof v === "string" && v.trim() !== "") { const t = Date.parse(v); if (Number.isFinite(t)) return t; if (/^\d+$/.test(v.trim())) return ms(Number(v)); }
+  if (typeof v === "string" && v.trim() !== "") {
+    const t = Date.parse(v);
+    if (Number.isFinite(t)) return t;
+    if (/^\d+$/.test(v.trim())) return ms(Number(v));
+  }
   return undefined;
 }
-const later = (a: number | undefined, b: number | undefined): number | undefined => (a === undefined ? b : b === undefined ? a : Math.max(a, b));
-const expOf = (token: string): number | undefined => { const c = token.split(".").length === 3 ? jwtClaims(token) : null; return c ? ms(c["exp"]) : undefined; };
+const later = (a: number | undefined, b: number | undefined): number | undefined =>
+  a === undefined ? b : b === undefined ? a : Math.max(a, b);
+const expOf = (token: string): number | undefined => {
+  const c = token.split(".").length === 3 ? jwtClaims(token) : null;
+  return c ? ms(c["exp"]) : undefined;
+};
 
 /** Which CLI a file map belongs to when the caller does not know: Codex keeps `.codex/auth.json`; anything else is read the generic way (Grok). */
 export function providerOfFiles(files: Readonly<Record<string, unknown>>): "codex" | "grok" {
@@ -39,16 +61,23 @@ export function providerOfFiles(files: Readonly<Record<string, unknown>>): "code
 }
 
 function readCodex(files: Readonly<Record<string, string>>): SigninRead {
-  const key = Object.keys(files).find((k) => k === ".codex/auth.json") ?? Object.keys(files).find((k) => k.endsWith("auth.json"));
+  const key =
+    Object.keys(files).find((k) => k === ".codex/auth.json") ?? Object.keys(files).find((k) => k.endsWith("auth.json"));
   if (key === undefined) return { ok: false, why: "unreadable" };
   const j = rec(parse(files[key] ?? ""));
   if (!j) return { ok: false, why: "unreadable" };
   const tokens = rec(j["tokens"]);
-  const access = str(tokens?.["access_token"]), refresh = str(tokens?.["refresh_token"]);
+  const access = str(tokens?.["access_token"]),
+    refresh = str(tokens?.["refresh_token"]);
   // `codex logout` removes the file; an API-key file (OPENAI_API_KEY and no tokens) or one with the tokens cleared is not a subscription sign-in
   if (access === "" || refresh === "") return { ok: false, why: "signed_out" };
-  const exp = expOf(access), at = ms(j["last_refresh"]);
-  return { ok: true, identity: codexIdentity(str(tokens?.["id_token"]))?.id ?? null, fresh: { ...(exp !== undefined ? { exp } : {}), ...(at !== undefined ? { at } : {}) } };
+  const exp = expOf(access),
+    at = ms(j["last_refresh"]);
+  return {
+    ok: true,
+    identity: codexIdentity(str(tokens?.["id_token"]))?.id ?? null,
+    fresh: { ...(exp !== undefined ? { exp } : {}), ...(at !== undefined ? { at } : {}) },
+  };
 }
 
 const TOKEN_KEY = /token|secret|session|credential|cookie|key/i;
@@ -56,21 +85,37 @@ const EXP_KEY = /^(exp|expiry|expires|expires_?at|expires_?on|expiration|expirat
 const AT_KEY = /^(last_?refresh|refreshed_?at|last_?refreshed|issued_?at|iat|updated_?at|created_?at)$/i;
 
 function readGeneric(files: Readonly<Record<string, string>>): SigninRead {
-  let tokenish = false, exp: number | undefined, at: number | undefined;
+  let tokenish = false,
+    exp: number | undefined,
+    at: number | undefined;
   const visit = (v: unknown, key: string, depth: number): void => {
     if (depth > 8) return;
     if (typeof v === "string") {
       const s = v.trim();
-      if (s.split(".").length === 3 && jwtClaims(s)) { tokenish = true; exp = later(exp, expOf(s)); return; }
+      if (s.split(".").length === 3 && jwtClaims(s)) {
+        tokenish = true;
+        exp = later(exp, expOf(s));
+        return;
+      }
       const inner = s.startsWith("{") || s.startsWith("[") ? parse(s) : undefined;
-      if (inner !== undefined && inner !== null && typeof inner === "object") { visit(inner, key, depth + 1); return; }
+      if (inner !== undefined && inner !== null && typeof inner === "object") {
+        visit(inner, key, depth + 1);
+        return;
+      }
       if (TOKEN_KEY.test(key) && s.length >= 16 && !/\s/.test(s)) tokenish = true;
       if (EXP_KEY.test(key)) exp = later(exp, ms(s));
       else if (AT_KEY.test(key)) at = later(at, ms(s));
       return;
     }
-    if (typeof v === "number") { if (EXP_KEY.test(key)) exp = later(exp, ms(v)); else if (AT_KEY.test(key)) at = later(at, ms(v)); return; }
-    if (Array.isArray(v)) { for (const x of v) visit(x, key, depth + 1); return; }
+    if (typeof v === "number") {
+      if (EXP_KEY.test(key)) exp = later(exp, ms(v));
+      else if (AT_KEY.test(key)) at = later(at, ms(v));
+      return;
+    }
+    if (Array.isArray(v)) {
+      for (const x of v) visit(x, key, depth + 1);
+      return;
+    }
     const r = rec(v);
     if (r) for (const [k, x] of Object.entries(r)) visit(x, k, depth + 1);
   };
@@ -78,11 +123,18 @@ function readGeneric(files: Readonly<Record<string, string>>): SigninRead {
     if (text.trim() === "") return { ok: false, why: "signed_out" };
     const j = parse(text);
     // a file that is not JSON may be a bare token
-    if (j === undefined) { if (text.trim().length >= 16 && !/\s/.test(text.trim())) tokenish = true; continue; }
+    if (j === undefined) {
+      if (text.trim().length >= 16 && !/\s/.test(text.trim())) tokenish = true;
+      continue;
+    }
     visit(j, rel, 0);
   }
   if (!tokenish) return { ok: false, why: "signed_out" };
-  return { ok: true, identity: grokIdentity(files)?.id ?? null, fresh: { ...(exp !== undefined ? { exp } : {}), ...(at !== undefined ? { at } : {}) } };
+  return {
+    ok: true,
+    identity: grokIdentity(files)?.id ?? null,
+    fresh: { ...(exp !== undefined ? { exp } : {}), ...(at !== undefined ? { at } : {}) },
+  };
 }
 
 /** What a file map is. A map with a file that is gone, or empty, is a sign-out. */
@@ -102,7 +154,8 @@ export function compareFresh(a: Freshness, b: Freshness): number {
 }
 
 const same = (a: ReadBack, b: ReadBack): boolean => {
-  const ka = Object.keys(a), kb = Object.keys(b);
+  const ka = Object.keys(a),
+    kb = Object.keys(b);
   return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && a[k] === b[k]);
 };
 
@@ -117,11 +170,18 @@ export type RefreshDecision =
  *   - another account (not the one the turn started with, nor the one the row records) is never saved;
  *   - newer by the sign-in's own clock wins; when the two cannot be told apart, the files win only if nobody saved since the turn began.
  */
-export function decideRefresh(p: { provider: string; filled: ReadBack; current: ReadBack; back: ReadBack; known?: string | null }): RefreshDecision {
+export function decideRefresh(p: {
+  provider: string;
+  filled: ReadBack;
+  current: ReadBack;
+  back: ReadBack;
+  known?: string | null;
+}): RefreshDecision {
   if (same(p.back, p.current)) return { save: false, why: "unchanged" };
   const back = readSignin(p.provider, p.back);
   if (!back.ok) return { save: false, why: back.why };
-  const filled = readSignin(p.provider, p.filled), current = readSignin(p.provider, p.current);
+  const filled = readSignin(p.provider, p.filled),
+    current = readSignin(p.provider, p.current);
   const started = filled.ok ? filled : current;
   if (started.ok && started.identity !== back.identity) return { save: false, why: "other_account" };
   if (current.ok && current.identity !== back.identity) return { save: false, why: "other_account" };
@@ -133,7 +193,12 @@ export function decideRefresh(p: { provider: string; filled: ReadBack; current: 
 }
 
 /** What the engine hands the host when a CLI ends with sign-in files that differ from what the Vault filled. */
-export interface RefreshedSignin { itemId: string; asker: string; /** The Vault's value the turn started with: the JSON file map. */ filled: string; files: ReadBack }
+export interface RefreshedSignin {
+  itemId: string;
+  asker: string;
+  /** The Vault's value the turn started with: the JSON file map. */ filled: string;
+  files: ReadBack;
+}
 
 export interface SigninRefresh {
   /** Save the read-back files to their item through the Vault module's host call. Never throws; a refusal or a failure is logged with the item id and a reason, never a value. */
@@ -149,7 +214,10 @@ const codeOf = (e: unknown): string => {
   return typeof c === "string" ? c : "failed";
 };
 
-export function createSigninRefresh(d: { call(name: string, input: unknown): Promise<unknown>; log?(msg: string, attrs?: Record<string, unknown>): void }): SigninRefresh {
+export function createSigninRefresh(d: {
+  call(name: string, input: unknown): Promise<unknown>;
+  log?(msg: string, attrs?: Record<string, unknown>): void;
+}): SigninRefresh {
   const held = new Map<string, RefreshedSignin>();
   return {
     async save(r) {
@@ -159,9 +227,15 @@ export function createSigninRefresh(d: { call(name: string, input: unknown): Pro
       try {
         const got = rec(await d.call("vault.signin_refreshed", { ticket, itemId: r.itemId, asker: r.asker }));
         out = { saved: got?.["saved"] === true, reason: str(got?.["reason"]) || "unknown" };
-      } catch (e) { out = { saved: false, reason: codeOf(e) }; }
-      finally { held.delete(ticket); }
-      d.log?.(out.saved ? "a CLI refreshed its sign-in and the Vault kept it" : "a CLI's sign-in files were not saved back", { itemId: r.itemId, reason: out.reason });
+      } catch (e) {
+        out = { saved: false, reason: codeOf(e) };
+      } finally {
+        held.delete(ticket);
+      }
+      d.log?.(
+        out.saved ? "a CLI refreshed its sign-in and the Vault kept it" : "a CLI's sign-in files were not saved back",
+        { itemId: r.itemId, reason: out.reason },
+      );
       return out;
     },
     take(ticket, itemId) {

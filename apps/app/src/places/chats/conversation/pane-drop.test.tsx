@@ -23,8 +23,10 @@ function rig(): { data: ConversationData; calls: Call[] } {
     ...s.data,
     async call(cap, input) {
       calls.push({ cap, input: input as Record<string, unknown> });
-      if (cap === "files.tree") return { roots: [{ key: "personal", title: "Personal", kind: "folder", folderId: "fld_me", count: 0 }] };
-      if (cap === "files.list") return { files: [], folders: [{ folderId: "fld_uploads", name: "Chat uploads" }], hasMore: false };
+      if (cap === "files.tree")
+        return { roots: [{ key: "personal", title: "Personal", kind: "folder", folderId: "fld_me", count: 0 }] };
+      if (cap === "files.list")
+        return { files: [], folders: [{ folderId: "fld_uploads", name: "Chat uploads" }], hasMore: false };
       if (cap === "files.create") return { file: { fileId: `fil_${++made}`, name: (input as { name: string }).name } };
       return s.data.call(cap, input);
     },
@@ -32,11 +34,28 @@ function rig(): { data: ConversationData; calls: Call[] } {
   return { data, calls };
 }
 
-const shot = new File([new Uint8Array([137, 80, 78, 71])], "Screenshot 2026-11-03 at 10.14.02.png", { type: "image/png" });
-const ev = (dt: object) => { const e = { dataTransfer: dt, clipboardData: dt, prevented: 0, preventDefault() { e.prevented++; }, stopPropagation() { /* innermost zone */ } }; return e; };
+const shot = new File([new Uint8Array([137, 80, 78, 71])], "Screenshot 2026-11-03 at 10.14.02.png", {
+  type: "image/png",
+});
+const ev = (dt: object) => {
+  const e = {
+    dataTransfer: dt,
+    clipboardData: dt,
+    prevented: 0,
+    preventDefault() {
+      e.prevented++;
+    },
+    stopPropagation() {
+      /* innermost zone */
+    },
+  };
+  return e;
+};
 async function fire(n: Node | null, name: string, e: object): Promise<void> {
   if (!n) throw new Error("node not found");
-  await act(async () => { (n.props[name] as (x: object) => void)(e); });
+  await act(async () => {
+    (n.props[name] as (x: object) => void)(e);
+  });
   await flush();
 }
 

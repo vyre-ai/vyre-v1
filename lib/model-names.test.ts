@@ -13,7 +13,8 @@ test("a model reads as a person says it, never as the vendor's slug", () => {
   assert.equal(modelName("deepseek-v4.1-flash"), "DeepSeek V4.1 Flash");
   assert.equal(modelName("some-new_model"), "Some New Model");
   assert.equal(modelName(undefined), "");
-  for (const slug of ["claude-opus-5-5", "claude-fable-5-1", "gpt-6", "glm-5.3", "deepseek-v4.1-flash"]) assert.doesNotMatch(modelName(slug), /claude|opus-|fable-|glm-|deepseek-/i, slug);
+  for (const slug of ["claude-opus-5-5", "claude-fable-5-1", "gpt-6", "glm-5.3", "deepseek-v4.1-flash"])
+    assert.doesNotMatch(modelName(slug), /claude|opus-|fable-|glm-|deepseek-/i, slug);
 });
 
 test("an account reads as its name: no engine, no handle underscores", () => {

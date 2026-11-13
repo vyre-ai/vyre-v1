@@ -10,8 +10,20 @@
   if (ns.picking) return;
   ns.picking = true;
 
-  const send = (/** @type {any} */ m) => { try { g.chrome.runtime.sendMessage(m, () => { void g.chrome.runtime.lastError; }); } catch { /* reloaded */ } };
-  const clip = (/** @type {string} */ s, /** @type {number} */ n) => String(s || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const send = (/** @type {any} */ m) => {
+    try {
+      g.chrome.runtime.sendMessage(m, () => {
+        void g.chrome.runtime.lastError;
+      });
+    } catch {
+      /* reloaded */
+    }
+  };
+  const clip = (/** @type {string} */ s, /** @type {number} */ n) =>
+    String(s || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, n);
 
   const host = doc.createElement("div");
   host.setAttribute("data-vyre-pick", "");
@@ -23,10 +35,15 @@
     .t{position:fixed;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:9px 12px 9px 14px;border-radius:12px;font:500 12.5px/1 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
       background:${dark ? "#201E29" : "#17141F"};color:${dark ? "#F2F0F7" : "#fff"};box-shadow:0 10px 24px -8px rgba(23,20,31,.35);pointer-events:auto}
     kbd{font:500 11px/1 ui-monospace,Menlo,monospace;padding:3px 6px;border-radius:4px;background:rgba(255,255,255,.14)}`;
-  const box = doc.createElement("div"); box.className = "o";
-  const bar = doc.createElement("div"); bar.className = "t"; bar.setAttribute("role", "status");
+  const box = doc.createElement("div");
+  box.className = "o";
+  const bar = doc.createElement("div");
+  bar.className = "t";
+  bar.setAttribute("role", "status");
   bar.append(doc.createTextNode("Click the part of the page to watch"));
-  const esc = doc.createElement("kbd"); esc.textContent = "Esc"; bar.append(esc);
+  const esc = doc.createElement("kbd");
+  esc.textContent = "Esc";
+  bar.append(esc);
   root.append(st, box, bar);
   doc.documentElement.append(host);
 
@@ -44,18 +61,30 @@
   /** A selector that finds the element again: its id, a test id, or a short path of tag and position. @param {any} el */
   function selectorFor(el) {
     const esc = (/** @type {string} */ s) => (g.CSS && g.CSS.escape ? g.CSS.escape(s) : s.replace(/[^\w-]/g, "\\$&"));
-    const unique = (/** @type {string} */ sel) => { try { return doc.querySelectorAll(sel).length === 1; } catch { return false; } };
+    const unique = (/** @type {string} */ sel) => {
+      try {
+        return doc.querySelectorAll(sel).length === 1;
+      } catch {
+        return false;
+      }
+    };
     if (el.id && unique(`#${esc(el.id)}`) && !/\d{4,}/.test(el.id)) return `#${esc(el.id)}`;
     for (const a of ["data-testid", "data-test", "data-qa", "aria-label", "name"]) {
       const v = el.getAttribute && el.getAttribute(a);
-      if (v && unique(`${el.tagName.toLowerCase()}[${a}="${v.replace(/"/g, '\\"')}"]`)) return `${el.tagName.toLowerCase()}[${a}="${v.replace(/"/g, '\\"')}"]`;
+      if (v && unique(`${el.tagName.toLowerCase()}[${a}="${v.replace(/"/g, '\\"')}"]`))
+        return `${el.tagName.toLowerCase()}[${a}="${v.replace(/"/g, '\\"')}"]`;
     }
     const parts = [];
     let n = el;
     while (n && n.nodeType === 1 && n !== doc.body && parts.length < 7) {
-      if (n.id && unique(`#${esc(n.id)}`) && !/\d{4,}/.test(n.id)) { parts.unshift(`#${esc(n.id)}`); break; }
+      if (n.id && unique(`#${esc(n.id)}`) && !/\d{4,}/.test(n.id)) {
+        parts.unshift(`#${esc(n.id)}`);
+        break;
+      }
       const tag = n.tagName.toLowerCase();
-      const same = n.parentElement ? [...n.parentElement.children].filter((/** @type {any} */ c) => c.tagName === n.tagName) : [n];
+      const same = n.parentElement
+        ? [...n.parentElement.children].filter((/** @type {any} */ c) => c.tagName === n.tagName)
+        : [n];
       parts.unshift(same.length > 1 ? `${tag}:nth-of-type(${same.indexOf(n) + 1})` : tag);
       n = n.parentElement;
     }
@@ -71,7 +100,10 @@
     for (let i = 0; i < 4 && n; i++, n = n.parentElement) {
       let prev = n.previousElementSibling;
       while (prev) {
-        if (/^H[1-6]$/.test(prev.tagName) || prev.tagName === "LABEL" || prev.tagName === "DT") { const t = clip(prev.textContent, 50); if (t) return t; }
+        if (/^H[1-6]$/.test(prev.tagName) || prev.tagName === "LABEL" || prev.tagName === "DT") {
+          const t = clip(prev.textContent, 50);
+          if (t) return t;
+        }
         prev = prev.previousElementSibling;
       }
     }
@@ -87,17 +119,33 @@
     ns.picking = false;
     send({ type: "vyre.pick", region });
   }
-  function swallow(/** @type {any} */ e) { if (e.isTrusted) { e.preventDefault(); e.stopPropagation(); } }
+  function swallow(/** @type {any} */ e) {
+    if (e.isTrusted) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
   function click(/** @type {any} */ e) {
     if (!e.isTrusted) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     const el = doc.elementFromPoint(e.clientX, e.clientY);
-    if (skip(el)) { finish(null); return; }
+    if (skip(el)) {
+      finish(null);
+      return;
+    }
     const tag = String(el.tagName || "");
-    const text = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ? "" : clip(el.innerText || el.textContent, 300);
+    const text =
+      tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ? "" : clip(el.innerText || el.textContent, 300);
     finish({ selector: selectorFor(el), label: labelFor(el), text });
   }
-  function key(/** @type {any} */ e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(null); } }
+  function key(/** @type {any} */ e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(null);
+    }
+  }
 
   doc.addEventListener("mousemove", move, true);
   doc.addEventListener("mousedown", swallow, true);

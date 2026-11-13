@@ -18,10 +18,18 @@ export interface HistoryPanelProps {
   selectedId?: string | null;
 }
 
-export function HistoryPanel({ fileId, density = "regular", onSelect, selectedId = null }: HistoryPanelProps): ReactElement {
+export function HistoryPanel({
+  fileId,
+  density = "regular",
+  onSelect,
+  selectedId = null,
+}: HistoryPanelProps): ReactElement {
   const data = useReviewData();
   const q = useCap("files.versions", { fileId });
-  const versions = useMemo(() => (q.status === "ready" ? historyVersions(q.data.versions, data.nameOf) : []), [q, data]);
+  const versions = useMemo(
+    () => (q.status === "ready" ? historyVersions(q.data.versions, data.nameOf) : []),
+    [q, data],
+  );
   const [picked, setPicked] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
@@ -41,8 +49,15 @@ export function HistoryPanel({ fileId, density = "regular", onSelect, selectedId
   const saveName = (): void => {
     if (!selected) return;
     void nameVersion(data.call, fileId, selected.id, name).then((r) => {
-      if (r.ok) { setNaming(false); setLine({ kind: "ok", text: name.trim() ? `Named version ${selected.n} "${name.trim()}".` : `Cleared the name of version ${selected.n}.` }); }
-      else setLine({ kind: "error", text: r.error });
+      if (r.ok) {
+        setNaming(false);
+        setLine({
+          kind: "ok",
+          text: name.trim()
+            ? `Named version ${selected.n} "${name.trim()}".`
+            : `Cleared the name of version ${selected.n}.`,
+        });
+      } else setLine({ kind: "error", text: r.error });
     });
   };
 
@@ -54,19 +69,38 @@ export function HistoryPanel({ fileId, density = "regular", onSelect, selectedId
         versions={versions}
         selectedVersionId={selected?.id ?? null}
         density={density}
-        onSelect={(id) => { setPicked(id); onSelect?.(id); }}
+        onSelect={(id) => {
+          setPicked(id);
+          onSelect?.(id);
+        }}
         onCompare={(version, against) => data.nav.compare(fileId, against.id, version.id)}
         invoke={(cap, input) => data.call(cap, input)}
       />
       <View style={st.bar}>
         {naming ? (
           <>
-            <TextField value={name} onChange={setName} label="Version name" placeholder="Name this version" onSubmit={saveName} onEscape={() => setNaming(false)} testID="history-name" autoFocus />
+            <TextField
+              value={name}
+              onChange={setName}
+              label="Version name"
+              placeholder="Name this version"
+              onSubmit={saveName}
+              onEscape={() => setNaming(false)}
+              testID="history-name"
+              autoFocus
+            />
             <Btn label="Cancel" small onPress={() => setNaming(false)} testID="history-name-cancel" />
             <Btn label="Save name" small primary onPress={saveName} testID="history-name-save" />
           </>
         ) : (
-          <Btn label="Name this version" small disabled={!selected} hint="Pick a version first" onPress={startNaming} testID="history-name-open" />
+          <Btn
+            label="Name this version"
+            small
+            disabled={!selected}
+            hint="Pick a version first"
+            onPress={startNaming}
+            testID="history-name-open"
+          />
         )}
       </View>
       {line ? <Note text={line.text} kind={line.kind} /> : null}

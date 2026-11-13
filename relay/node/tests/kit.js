@@ -18,8 +18,30 @@ const openssl = (args, cwd) => execFileSync("openssl", args, { cwd, stdio: "igno
 /** A throwaway certificate authority. @returns {{ cert: string, dir: string }} */
 export function makeCa() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-ca-"));
-  openssl(["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", "ca.key", "-out", "ca.pem", "-subj", "/CN=relay-test-ca", "-days", "2",
-    "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"], dir);
+  openssl(
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "ec",
+      "-pkeyopt",
+      "ec_paramgen_curve:prime256v1",
+      "-nodes",
+      "-keyout",
+      "ca.key",
+      "-out",
+      "ca.pem",
+      "-subj",
+      "/CN=relay-test-ca",
+      "-days",
+      "2",
+      "-addext",
+      "basicConstraints=critical,CA:TRUE",
+      "-addext",
+      "keyUsage=critical,keyCertSign,cRLSign",
+    ],
+    dir,
+  );
   return { cert: fs.readFileSync(path.join(dir, "ca.pem"), "utf8"), dir };
 }
 
@@ -30,14 +52,56 @@ export function makeCa() {
 export function issueOnSpace(ca, names) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "space-cert-"));
   try {
-    const san = names.map(n => `DNS:${n}`).join(",");
+    const san = names.map((n) => `DNS:${n}`).join(",");
     openssl(["ecparam", "-name", "prime256v1", "-genkey", "-noout", "-out", "space.key"], work);
-    openssl(["req", "-new", "-key", "space.key", "-out", "space.csr", "-subj", `/CN=${names[0]}`, "-addext", `subjectAltName=${san}`], work);
-    fs.writeFileSync(path.join(work, "ext.cnf"), `subjectAltName=${san}\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\n`);
-    openssl(["x509", "-req", "-in", "space.csr", "-CA", path.join(ca.dir, "ca.pem"), "-CAkey", path.join(ca.dir, "ca.key"), "-CAcreateserial", "-CAserial", path.join(work, "ca.srl"),
-      "-out", "space.pem", "-days", "2", "-extfile", "ext.cnf"], work);
-    return { cert: fs.readFileSync(path.join(work, "space.pem"), "utf8"), key: fs.readFileSync(path.join(work, "space.key"), "utf8") };
-  } finally { fs.rmSync(work, { recursive: true, force: true }); }
+    openssl(
+      [
+        "req",
+        "-new",
+        "-key",
+        "space.key",
+        "-out",
+        "space.csr",
+        "-subj",
+        `/CN=${names[0]}`,
+        "-addext",
+        `subjectAltName=${san}`,
+      ],
+      work,
+    );
+    fs.writeFileSync(
+      path.join(work, "ext.cnf"),
+      `subjectAltName=${san}\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\n`,
+    );
+    openssl(
+      [
+        "x509",
+        "-req",
+        "-in",
+        "space.csr",
+        "-CA",
+        path.join(ca.dir, "ca.pem"),
+        "-CAkey",
+        path.join(ca.dir, "ca.key"),
+        "-CAcreateserial",
+        "-CAserial",
+        path.join(work, "ca.srl"),
+        "-out",
+        "space.pem",
+        "-days",
+        "2",
+        "-extfile",
+        "ext.cnf",
+      ],
+      work,
+    );
+    return {
+      cert: fs.readFileSync(path.join(work, "space.pem"), "utf8"),
+      key: fs.readFileSync(path.join(work, "space.key"), "utf8"),
+    };
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -47,14 +111,19 @@ export function issueOnSpace(ca, names) {
 export async function startSpace(tls, handler) {
   const server = https.createServer({ cert: tls.cert, key: tls.key }, (req, res) => {
     /** @type {Buffer[]} */ const parts = [];
-    req.on("data", d => parts.push(d));
+    req.on("data", (d) => parts.push(d));
     req.on("end", () => handler(req, Buffer.concat(parts), res));
   });
-  await new Promise(r => server.listen(0, "127.0.0.1", () => r(undefined)));
+  await new Promise((r) => server.listen(0, "127.0.0.1", () => r(undefined)));
   return {
     port: /** @type {import("node:net").AddressInfo} */ (server.address()).port,
-    swap: (/** @type {{ cert: string, key: string }} */ next) => server.setSecureContext({ cert: next.cert, key: next.key }),
-    close: () => new Promise(r => { server.close(() => r(undefined)); server.closeAllConnections(); }),
+    swap: (/** @type {{ cert: string, key: string }} */ next) =>
+      server.setSecureContext({ cert: next.cert, key: next.key }),
+    close: () =>
+      new Promise((r) => {
+        server.close(() => r(undefined));
+        server.closeAllConnections();
+      }),
   };
 }
 
@@ -73,13 +142,21 @@ export async function startBox(o) {
   const control = new WebSocket(`${o.relay}/v1/box?route=${route}`);
   control.binaryType = "arraybuffer";
   /** @type {(v: string) => void} */ let gotTicket = () => {};
-  const ticketP = new Promise(r => { gotTicket = r; });
+  const ticketP = new Promise((r) => {
+    gotTicket = r;
+  });
   /** @type {string} */ let ticket = "";
-  control.onmessage = e => {
+  control.onmessage = (e) => {
     if (typeof e.data !== "string") return;
     const m = JSON.parse(e.data);
     if (m.t === "challenge") {
-      control.send(JSON.stringify({ t: "auth", pub: key.pub.toString("base64url"), sig: signRoute(key.priv, authMessage(route, Buffer.from(m.n, "base64url"))).toString("base64url") }));
+      control.send(
+        JSON.stringify({
+          t: "auth",
+          pub: key.pub.toString("base64url"),
+          sig: signRoute(key.priv, authMessage(route, Buffer.from(m.n, "base64url"))).toString("base64url"),
+        }),
+      );
     } else if (m.t === "ready") {
       ticket = m.ticket;
       gotTicket(m.ticket);
@@ -96,18 +173,61 @@ export async function startBox(o) {
     tcp.setNoDelay(true);
     /** @type {Buffer[]} */ let queued = [];
     let open = false;
-    const entry = { close: () => { try { data.close(); } catch { /* gone */ } tcp.destroy(); } };
+    const entry = {
+      close: () => {
+        try {
+          data.close();
+        } catch {
+          /* gone */
+        }
+        tcp.destroy();
+      },
+    };
     live.add(entry);
-    data.onopen = () => { open = true; for (const b of queued) data.send(b); queued = []; };
-    data.onmessage = e => { if (typeof e.data === "string") return; const b = Buffer.from(e.data); tap.up.push(b); tcp.write(b); };
-    data.onclose = () => { live.delete(entry); tcp.destroy(); };
+    data.onopen = () => {
+      open = true;
+      for (const b of queued) data.send(b);
+      queued = [];
+    };
+    data.onmessage = (e) => {
+      if (typeof e.data === "string") return;
+      const b = Buffer.from(e.data);
+      tap.up.push(b);
+      tcp.write(b);
+    };
+    data.onclose = () => {
+      live.delete(entry);
+      tcp.destroy();
+    };
     data.onerror = () => tcp.destroy();
-    tcp.on("data", d => { tap.down.push(Buffer.from(d)); if (open) data.send(d); else queued.push(Buffer.from(d)); });
-    tcp.on("close", () => { live.delete(entry); try { data.close(); } catch { /* gone */ } });
+    tcp.on("data", (d) => {
+      tap.down.push(Buffer.from(d));
+      if (open) data.send(d);
+      else queued.push(Buffer.from(d));
+    });
+    tcp.on("close", () => {
+      live.delete(entry);
+      try {
+        data.close();
+      } catch {
+        /* gone */
+      }
+    });
     tcp.on("error", () => {});
   }
   await ticketP;
-  return { route, tap, close: () => { for (const x of [...live]) x.close(); try { control.close(); } catch { /* gone */ } } };
+  return {
+    route,
+    tap,
+    close: () => {
+      for (const x of [...live]) x.close();
+      try {
+        control.close();
+      } catch {
+        /* gone */
+      }
+    },
+  };
 }
 
 /**
@@ -117,13 +237,32 @@ export async function startBox(o) {
  */
 export function visit(o) {
   return new Promise((resolve, reject) => {
-    const req = https.request({ host: "127.0.0.1", port: o.port, ca: o.ca, agent: false, servername: o.host, method: o.method || "GET", path: o.path,
-      headers: { host: o.host, connection: "close", ...(o.body !== undefined ? { "content-length": String(Buffer.byteLength(o.body)) } : {}), ...(o.headers || {}) }, timeout: 8000 }, res => {
-      /** @type {Buffer[]} */ const parts = [];
-      const seen = /** @type {import("node:tls").TLSSocket} */ (res.socket).getPeerCertificate().fingerprint256;
-      res.on("data", d => parts.push(d));
-      res.on("end", () => resolve({ status: res.statusCode || 0, body: Buffer.concat(parts).toString(), fingerprint: seen }));
-    });
+    const req = https.request(
+      {
+        host: "127.0.0.1",
+        port: o.port,
+        ca: o.ca,
+        agent: false,
+        servername: o.host,
+        method: o.method || "GET",
+        path: o.path,
+        headers: {
+          host: o.host,
+          connection: "close",
+          ...(o.body !== undefined ? { "content-length": String(Buffer.byteLength(o.body)) } : {}),
+          ...(o.headers || {}),
+        },
+        timeout: 8000,
+      },
+      (res) => {
+        /** @type {Buffer[]} */ const parts = [];
+        const seen = /** @type {import("node:tls").TLSSocket} */ (res.socket).getPeerCertificate().fingerprint256;
+        res.on("data", (d) => parts.push(d));
+        res.on("end", () =>
+          resolve({ status: res.statusCode || 0, body: Buffer.concat(parts).toString(), fingerprint: seen }),
+        );
+      },
+    );
     req.on("error", reject);
     req.on("timeout", () => req.destroy(new Error("timeout")));
     req.end(o.body);
@@ -148,6 +287,6 @@ export async function until(fn, ms = 5000) {
   const t0 = Date.now();
   while (!fn()) {
     if (Date.now() - t0 > ms) throw new Error("timed out waiting");
-    await new Promise(r => setTimeout(r, 15));
+    await new Promise((r) => setTimeout(r, 15));
   }
 }

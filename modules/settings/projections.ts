@@ -7,7 +7,10 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { registry } from "../../generated/registry.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type SettingsCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "authorize" | "call">;
+export type SettingsCtx = Pick<
+  Ctx,
+  "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "authorize" | "call"
+>;
 type Code = Parameters<typeof fail>[0];
 export function raise(ctx: Pick<SettingsCtx, "trace">, code: Code, message?: string): never {
   throw fail(code, ctx.trace.traceId, message ? { message } : {});
@@ -64,18 +67,48 @@ export const byOf = (ctx: SettingsCtx): string => ctx.principal?.id ?? "system";
 
 // ---------------------------------------------------------------- stored values
 
-interface ValueRec { setting: string; scope: string; person: string; value: string; changed_by: string | null; updated_at: number }
+interface ValueRec {
+  setting: string;
+  scope: string;
+  person: string;
+  value: string;
+  changed_by: string | null;
+  updated_at: number;
+}
 const parse = (s: string): unknown => JSON.parse(s) as unknown;
 
-export function stored(ctx: SettingsCtx, key: string, scope: "space" | "person", person: string): { value: unknown } | undefined {
-  const r = ctx.db.all(`SELECT * FROM settings_value WHERE setting = ? AND scope = ? AND person = ?`, key, scope, scope === "space" ? "" : person)[0] as ValueRec | undefined;
+export function stored(
+  ctx: SettingsCtx,
+  key: string,
+  scope: "space" | "person",
+  person: string,
+): { value: unknown } | undefined {
+  const r = ctx.db.all(
+    `SELECT * FROM settings_value WHERE setting = ? AND scope = ? AND person = ?`,
+    key,
+    scope,
+    scope === "space" ? "" : person,
+  )[0] as ValueRec | undefined;
   return r ? { value: parse(r.value) } : undefined;
 }
 export function put(ctx: SettingsCtx, key: string, scope: "space" | "person", person: string, value: unknown): void {
-  ctx.db.run(`INSERT OR REPLACE INTO settings_value (setting, scope, person, value, changed_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, key, scope, scope === "space" ? "" : person, JSON.stringify(value), byOf(ctx), ctx.now());
+  ctx.db.run(
+    `INSERT OR REPLACE INTO settings_value (setting, scope, person, value, changed_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    key,
+    scope,
+    scope === "space" ? "" : person,
+    JSON.stringify(value),
+    byOf(ctx),
+    ctx.now(),
+  );
 }
 export function drop(ctx: SettingsCtx, key: string, scope: "space" | "person", person: string): void {
-  ctx.db.run(`DELETE FROM settings_value WHERE setting = ? AND scope = ? AND person = ?`, key, scope, scope === "space" ? "" : person);
+  ctx.db.run(
+    `DELETE FROM settings_value WHERE setting = ? AND scope = ? AND person = ?`,
+    key,
+    scope,
+    scope === "space" ? "" : person,
+  );
 }
 
 export type Source = "default" | "space" | "person";
@@ -107,7 +140,10 @@ export const LOWER_IS_STRICTER: ReadonlySet<string> = new Set(["engine.agent_hop
 export function comparable(key: string): boolean {
   return key in STRICTNESS || LOWER_IS_STRICTER.has(key);
 }
-const choiceOf = (key: string, v: unknown): unknown => ((key === "security.chrome_mode" || key === "security.terminal_mode") && v && typeof v === "object" ? (v as { base?: unknown }).base : v);
+const choiceOf = (key: string, v: unknown): unknown =>
+  (key === "security.chrome_mode" || key === "security.terminal_mode") && v && typeof v === "object"
+    ? (v as { base?: unknown }).base
+    : v;
 
 /** Is `value` at least as strict as `floor`? Values the order does not know are not refused. */
 export function meetsFloor(key: string, value: unknown, floor: unknown): boolean {
@@ -119,8 +155,15 @@ export function meetsFloor(key: string, value: unknown, floor: unknown): boolean
   if (v < 0 || f < 0) return true;
   if (v > f) return false;
   // per-Space overrides of a mode are held to the floor as well
-  const spaces = (key === "security.chrome_mode" || key === "security.terminal_mode") && value && typeof value === "object" ? (value as { spaces?: Record<string, unknown> }).spaces : undefined;
-  if (spaces) for (const s of Object.values(spaces)) { const i = order.indexOf(s); if (i > f) return false; }
+  const spaces =
+    (key === "security.chrome_mode" || key === "security.terminal_mode") && value && typeof value === "object"
+      ? (value as { spaces?: Record<string, unknown> }).spaces
+      : undefined;
+  if (spaces)
+    for (const s of Object.values(spaces)) {
+      const i = order.indexOf(s);
+      if (i > f) return false;
+    }
   return true;
 }
 
@@ -132,18 +175,41 @@ export function floorOf(ctx: SettingsCtx, key: string): unknown | undefined {
 // ---------------------------------------------------------------- rows
 
 export interface RowOut {
-  key: string; scope: "space" | "person"; page: string; title: string; value: unknown; default: unknown; source: Source; floorable: boolean; floor?: unknown;
+  key: string;
+  scope: "space" | "person";
+  page: string;
+  title: string;
+  value: unknown;
+  default: unknown;
+  source: Source;
+  floorable: boolean;
+  floor?: unknown;
 }
 export function rowOut(ctx: SettingsCtx, def: SettingDef, person: string): RowOut {
   const eff = effective(ctx, def, person);
   const floorable = comparable(def.key) && def.floorable === true;
   const floor = floorable ? floorOf(ctx, def.key) : undefined;
-  return { key: def.key, scope: def.scope, page: pageOf(def) ?? def.page, title: def.title, value: eff.value, default: def.default, source: eff.source, floorable, ...(floor !== undefined ? { floor } : {}) };
+  return {
+    key: def.key,
+    scope: def.scope,
+    page: pageOf(def) ?? def.page,
+    title: def.title,
+    value: eff.value,
+    default: def.default,
+    source: eff.source,
+    floorable,
+    ...(floor !== undefined ? { floor } : {}),
+  };
 }
 
 // ---------------------------------------------------------------- search
 
-export interface Hit { key: string; page: string; title: string; score: number }
+export interface Hit {
+  key: string;
+  page: string;
+  title: string;
+  score: number;
+}
 
 /** Every row with a Settings page whose title, key or page name holds every word; a title that starts with the first word ranks above one that only contains it. */
 export function search(q: string): Hit[] {
@@ -166,7 +232,12 @@ export function search(q: string): Hit[] {
 export type CopyField = "photo" | "name" | "handle" | "timezone" | "hours" | "contact";
 /** The profile setting each copyable field lives in. The title is deliberately not here: it is never copied. */
 export const COPY_KEY: Readonly<Record<CopyField, string>> = {
-  photo: "profile.photo", name: "profile.display_name", handle: "profile.handle", timezone: "profile.timezone", hours: "profile.working_hours", contact: "profile.contact",
+  photo: "profile.photo",
+  name: "profile.display_name",
+  handle: "profile.handle",
+  timezone: "profile.timezone",
+  hours: "profile.working_hours",
+  contact: "profile.contact",
 };
 
 export const DEFAULT_KIT = "kit_default";

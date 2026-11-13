@@ -11,18 +11,47 @@ import { check } from "./model.ts";
 import type { DefNode, DefTrigger, Definition } from "./model.ts";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
 
-interface RegStep { key: string; title: string; input: unknown }
-interface RegTrigger { key: string; title: string; payload?: unknown; source: { filter?: { properties?: Record<string, unknown>; required?: string[] } } }
-const registry = JSON.parse(readFileSync(new URL("../../../../../../generated/registry.json", import.meta.url), "utf8")) as { steps: RegStep[]; triggers: RegTrigger[]; $defs: Record<string, unknown> };
+interface RegStep {
+  key: string;
+  title: string;
+  input: unknown;
+}
+interface RegTrigger {
+  key: string;
+  title: string;
+  payload?: unknown;
+  source: { filter?: { properties?: Record<string, unknown>; required?: string[] } };
+}
+const registry = JSON.parse(
+  readFileSync(new URL("../../../../../../generated/registry.json", import.meta.url), "utf8"),
+) as { steps: RegStep[]; triggers: RegTrigger[]; $defs: Record<string, unknown> };
 const data = createSampleAutomations(northwind).data;
 
 // The step palette puts each $ref in place before it reaches the panel (modules/automations/handlers/defs.ts inlineRefs); this does the same to the registry.
 const schemaOf = (s: RegStep): unknown => resolveSchema(s.input, registry.$defs);
 
-function page(def: Definition, node: DefNode | null, schema: unknown, trigger: DefTrigger | null = null, triggerIndex: number | null = null): string {
+function page(
+  def: Definition,
+  node: DefNode | null,
+  schema: unknown,
+  trigger: DefTrigger | null = null,
+  triggerIndex: number | null = null,
+): string {
   return renderToStaticMarkup(
     <AutomationsDataProvider value={data}>
-      <Inspector def={def} node={node} trigger={trigger} triggerIndex={triggerIndex} issues={check(def, "space")} keys={[]} kind="space" inputSchema={schema} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} />
+      <Inspector
+        def={def}
+        node={node}
+        trigger={trigger}
+        triggerIndex={triggerIndex}
+        issues={check(def, "space")}
+        keys={[]}
+        kind="space"
+        inputSchema={schema}
+        onChange={() => undefined}
+        onClose={() => undefined}
+        onDelete={() => undefined}
+      />
     </AutomationsDataProvider>,
   ).replaceAll("<!-- -->", "");
 }
@@ -31,7 +60,11 @@ const ids = (out: string): Set<string> => new Set([...out.matchAll(/data-testid=
 function control(out: string, id: string): boolean {
   const tag = out.match(new RegExp(`<([a-z]+)[^>]*data-testid="${id}"[^>]*>`));
   // the text message body is a rich editor, which mounts on a div
-  return !!tag && (["input", "textarea", "button"].includes(tag[1]!) || id === "richeditor-host") && !/readonly|disabled/.test(tag[0]);
+  return (
+    !!tag &&
+    (["input", "textarea", "button"].includes(tag[1]!) || id === "richeditor-host") &&
+    !/readonly|disabled/.test(tag[0])
+  );
 }
 
 /** Where a required field is edited when the step has a form of its own (HTTP request, Run code, AI, the message composers, the lanes of Paths and Parallel). Everything else is `field-<name>`. */
@@ -47,8 +80,26 @@ const OWNED: Record<string, Record<string, string[]>> = {
 const ACCOUNT_FIELDS = new Set(["connectionId", "mailboxId", "numberId", "connector"]);
 
 function blank(key: string): DefNode {
-  if (key === "paths") return { id: "n", key, input: {}, branches: [{ label: "Path 1", to: "", when: "" }, { label: "Otherwise", to: "" }] };
-  if (key === "parallel") return { id: "n", key, input: { waitFor: "all" }, branches: [{ label: "Lane 1", to: "" }, { label: "Lane 2", to: "" }] };
+  if (key === "paths")
+    return {
+      id: "n",
+      key,
+      input: {},
+      branches: [
+        { label: "Path 1", to: "", when: "" },
+        { label: "Otherwise", to: "" },
+      ],
+    };
+  if (key === "parallel")
+    return {
+      id: "n",
+      key,
+      input: { waitFor: "all" },
+      branches: [
+        { label: "Lane 1", to: "" },
+        { label: "Lane 2", to: "" },
+      ],
+    };
   return { id: "n", key, input: {} };
 }
 
@@ -92,8 +143,19 @@ test("every property of every step gets a control, so nothing the catalog lists 
 });
 
 test("the steps that had no form: their schema was a bare reference, and now lists its fields", () => {
-  const bare = registry.steps.filter((s) => s.input && typeof s.input === "object" && "$ref" in (s.input as object)).map((s) => s.key).sort();
-  assert.deepEqual(bare, ["files.copy", "files.move", "files.share", "github.pull_request.get", "google.gmail.list_messages", "google.sheets.get_values", "records.relate"]);
+  const bare = registry.steps
+    .filter((s) => s.input && typeof s.input === "object" && "$ref" in (s.input as object))
+    .map((s) => s.key)
+    .sort();
+  assert.deepEqual(bare, [
+    "files.copy",
+    "files.move",
+    "files.share",
+    "github.pull_request.get",
+    "google.gmail.list_messages",
+    "google.sheets.get_values",
+    "records.relate",
+  ]);
   for (const key of bare) {
     const schema = schemaOf(registry.steps.find((s) => s.key === key)!);
     assert.ok(controlsFor(schema).length > 0, `${key} has controls once the reference is followed`);
@@ -109,11 +171,20 @@ test("every trigger in the catalog has a form: its name, its required fields and
     const out = page(def, null, undefined, trigger, 0);
     if (!control(out, "trigger-label")) without.push(`${t.key}.label`);
     if (t.key === "schedule") {
-      for (const id of ["schedule-picker", "schedule-every", "schedule-time", "schedule-zone-change", "schedule-advanced"]) if (!ids(out).has(id)) without.push(`schedule.${id}`);
+      for (const id of [
+        "schedule-picker",
+        "schedule-every",
+        "schedule-time",
+        "schedule-zone-change",
+        "schedule-advanced",
+      ])
+        if (!ids(out).has(id)) without.push(`schedule.${id}`);
       continue;
     }
-    for (const f of TRIGGER_SPECS[t.key]!.fields) if (f.required && !control(out, `trigger-${f.name}`)) without.push(`${t.key}.${f.name}`);
-    for (const f of TRIGGER_SPECS[t.key]!.fields) if (!control(out, `trigger-${f.name}`)) without.push(`${t.key}.${f.name} (optional)`);
+    for (const f of TRIGGER_SPECS[t.key]!.fields)
+      if (f.required && !control(out, `trigger-${f.name}`)) without.push(`${t.key}.${f.name}`);
+    for (const f of TRIGGER_SPECS[t.key]!.fields)
+      if (!control(out, `trigger-${f.name}`)) without.push(`${t.key}.${f.name} (optional)`);
   }
   assert.deepEqual(without, []);
 });
@@ -122,11 +193,22 @@ test("a trigger form asks only for keys the trigger consumer matches, and for ea
   for (const t of registry.triggers) {
     if (t.key === "schedule") continue;
     const filterProps = Object.keys(t.source.filter?.properties ?? {});
-    const payloadProps = Object.keys((resolveSchema(t.payload, registry.$defs) as { properties?: Record<string, unknown> } | undefined)?.properties ?? {});
+    const payloadProps = Object.keys(
+      (resolveSchema(t.payload, registry.$defs) as { properties?: Record<string, unknown> } | undefined)?.properties ??
+        {},
+    );
     const asked = TRIGGER_SPECS[t.key]!.fields.map((f) => f.name);
-    for (const name of asked) assert.ok(filterProps.length > 0 ? filterProps.includes(name) : payloadProps.includes(name), `${t.key}: ${name} is not something this trigger can be narrowed by`);
+    for (const name of asked)
+      assert.ok(
+        filterProps.length > 0 ? filterProps.includes(name) : payloadProps.includes(name),
+        `${t.key}: ${name} is not something this trigger can be narrowed by`,
+      );
     for (const name of filterProps) assert.ok(asked.includes(name), `${t.key}: the filter key ${name} has no field`);
-    for (const name of t.source.filter?.required ?? []) assert.ok(TRIGGER_SPECS[t.key]!.fields.find((f) => f.name === name)?.required, `${t.key}: ${name} is required by the catalog`);
+    for (const name of t.source.filter?.required ?? [])
+      assert.ok(
+        TRIGGER_SPECS[t.key]!.fields.find((f) => f.name === name)?.required,
+        `${t.key}: ${name} is required by the catalog`,
+      );
   }
 });
 

@@ -8,9 +8,38 @@ import type { RowEnv } from "./parts.tsx";
 
 const NOW = Date.UTC(2026, 10, 4, 10);
 const NAMES: Record<string, string> = { usr_me: "Irfad", usr_sara: "Sara", agt_ops: "Assistant" };
-const env = { now: NOW, offsetMin: 0, me: "usr_me", nameOf: (id: string) => NAMES[id] ?? id, project: () => undefined, keyOf: () => undefined, open: () => undefined, openProfile: () => undefined, status: () => undefined, menu: () => undefined, pick: () => undefined } as unknown as RowEnv;
-const row = (over: Record<string, unknown> = {}): TaskRow => ({ id: "tsk_1", key: "VY-1", kind: "work", title: "Send the invoices", state: "doing", blocked: false, assigned: { kind: "person", id: "usr_me" }, labels: [], dependsOn: [], createdBy: "usr_me", createdAt: NOW, updatedAt: NOW, workingNotes: { "baton.on_it": "agt_ops" }, ...over } as unknown as TaskRow);
-const html = (r: TaskRow): string => renderToStaticMarkup(<TaskLine row={r} env={env} selected={false} current={false} />);
+const env = {
+  now: NOW,
+  offsetMin: 0,
+  me: "usr_me",
+  nameOf: (id: string) => NAMES[id] ?? id,
+  project: () => undefined,
+  keyOf: () => undefined,
+  open: () => undefined,
+  openProfile: () => undefined,
+  status: () => undefined,
+  menu: () => undefined,
+  pick: () => undefined,
+} as unknown as RowEnv;
+const row = (over: Record<string, unknown> = {}): TaskRow =>
+  ({
+    id: "tsk_1",
+    key: "VY-1",
+    kind: "work",
+    title: "Send the invoices",
+    state: "doing",
+    blocked: false,
+    assigned: { kind: "person", id: "usr_me" },
+    labels: [],
+    dependsOn: [],
+    createdBy: "usr_me",
+    createdAt: NOW,
+    updatedAt: NOW,
+    workingNotes: { "baton.on_it": "agt_ops" },
+    ...over,
+  }) as unknown as TaskRow;
+const html = (r: TaskRow): string =>
+  renderToStaticMarkup(<TaskLine row={r} env={env} selected={false} current={false} />);
 
 test("the owner's own task, with the Assistant on it, reads 'Assistant is on it for you'", () => {
   assert.match(html(row()), /Assistant is on it for you/);

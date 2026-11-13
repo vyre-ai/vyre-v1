@@ -9,7 +9,16 @@ test("applySkinToWindow sets the skin on the document root: a dark skin makes th
   const props = new Map<string, string>();
   const g = globalThis as { document?: unknown; matchMedia?: unknown };
   const before = { document: g.document, matchMedia: g.matchMedia };
-  g.document = { documentElement: { getAttribute: (k: string) => attrs.get(k) ?? null, setAttribute: (k: string, v: string) => void attrs.set(k, v), style: { setProperty: (k: string, v: string) => void props.set(k, v), removeProperty: (k: string) => void props.delete(k) } } };
+  g.document = {
+    documentElement: {
+      getAttribute: (k: string) => attrs.get(k) ?? null,
+      setAttribute: (k: string, v: string) => void attrs.set(k, v),
+      style: {
+        setProperty: (k: string, v: string) => void props.set(k, v),
+        removeProperty: (k: string) => void props.delete(k),
+      },
+    },
+  };
   g.matchMedia = () => ({ matches: false });
   try {
     const rt = { me: { id: "usr_a" }, space: { id: "spc_a" } } as never;
@@ -20,8 +29,15 @@ test("applySkinToWindow sets the skin on the document root: a dark skin makes th
     assert.equal(attrs.get("data-mode"), "light", "Paper is a light skin");
     applySkinToWindow(rt, "system");
     assert.equal(attrs.get("data-mode"), "light", "System on a light device is light");
-  } finally { g.document = before.document; g.matchMedia = before.matchMedia; }
+  } finally {
+    g.document = before.document;
+    g.matchMedia = before.matchMedia;
+  }
   g.document = undefined;
-  assert.equal(applySkinToWindow({ me: { id: "u" }, space: { id: "s" } } as never, "graphite"), false, "no window, nothing applied");
+  assert.equal(
+    applySkinToWindow({ me: { id: "u" }, space: { id: "s" } } as never, "graphite"),
+    false,
+    "no window, nothing applied",
+  );
   g.document = before.document;
 });

@@ -14,6 +14,16 @@ export function sourceOf(headers: Readonly<Record<string, string | undefined>>):
   return LOOPBACK.has(socket) && forwarded ? forwarded : socket || "unknown";
 }
 
-export function preAuthSession(space: string, caller: "anonymous" | "pending", headers: Readonly<Record<string, string | undefined>>): SessionInfo {
-  return { space, principal: { kind: "actor", id: `act_${caller === "anonymous" ? "anon" : "pending"}_${sha256Hex(sourceOf(headers)).slice(0, 16)}` } };
+export function preAuthSession(
+  space: string,
+  caller: "anonymous" | "pending",
+  headers: Readonly<Record<string, string | undefined>>,
+): SessionInfo {
+  return {
+    space,
+    principal: {
+      kind: "actor",
+      id: `act_${caller === "anonymous" ? "anon" : "pending"}_${sha256Hex(sourceOf(headers)).slice(0, 16)}`,
+    },
+  };
 }

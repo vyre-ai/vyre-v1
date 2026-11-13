@@ -8,7 +8,13 @@ export function NativeList<T>({ data, renderItem, rowHeight, keyOf, onEndReached
       data={data as T[]}
       renderItem={({ item, index }: { item: T; index: number }) => renderItem(item, index) as ReactNode}
       keyExtractor={(item: T, index: number) => (keyOf ? keyOf(item, index) : String(index))}
-      overrideItemLayout={typeof rowHeight === "number" ? (layout: { size?: number }) => { layout.size = rowHeight; } : undefined}
+      overrideItemLayout={
+        typeof rowHeight === "number"
+          ? (layout: { size?: number }) => {
+              layout.size = rowHeight;
+            }
+          : undefined
+      }
       onEndReached={onEndReached}
     />
   );

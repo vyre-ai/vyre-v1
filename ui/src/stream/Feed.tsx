@@ -48,23 +48,43 @@ const GUTTER = Platform.OS === "web" ? ({ scrollbarGutter: "stable" } as object)
 const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 const NO_VERSION = (): number => 0;
 
-export function Feed({ children, followKey, store, follow = true, startAway = false, endKey = 0, testID = "stream-list", contentStyle, onAtEndChange }: FeedProps) {
+export function Feed({
+  children,
+  followKey,
+  store,
+  follow = true,
+  startAway = false,
+  endKey = 0,
+  testID = "stream-list",
+  contentStyle,
+  onAtEndChange,
+}: FeedProps) {
   const ref = useRef<ScrollView | null>(null);
   const atEnd = useRef(!startAway);
   const [away, setAway] = useState(false);
   const lastEnd = useRef(endKey);
-  if (lastEnd.current !== endKey) { lastEnd.current = endKey; atEnd.current = true; }
-  const version = useSyncExternalStore(store ? store.subscribe : NO_SUBSCRIBE, store ? () => store.getSnapshot().version : NO_VERSION, store ? () => store.getSnapshot().version : NO_VERSION);
+  if (lastEnd.current !== endKey) {
+    lastEnd.current = endKey;
+    atEnd.current = true;
+  }
+  const version = useSyncExternalStore(
+    store ? store.subscribe : NO_SUBSCRIBE,
+    store ? () => store.getSnapshot().version : NO_VERSION,
+    store ? () => store.getSnapshot().version : NO_VERSION,
+  );
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-    const now = isAtEnd(contentOffset.y, layoutMeasurement.height, contentSize.height);
-    if (now !== atEnd.current) {
-      atEnd.current = now;
-      setAway(!now);
-      onAtEndChange?.(now);
-    }
-  }, [onAtEndChange]);
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+      const now = isAtEnd(contentOffset.y, layoutMeasurement.height, contentSize.height);
+      if (now !== atEnd.current) {
+        atEnd.current = now;
+        setAway(!now);
+        onAtEndChange?.(now);
+      }
+    },
+    [onAtEndChange],
+  );
 
   const toEnd = useCallback((): void => {
     if (Platform.OS === "web") {
@@ -81,10 +101,21 @@ export function Feed({ children, followKey, store, follow = true, startAway = fa
   }, [followKey, version, follow, endKey, toEnd]);
 
   // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off
-  const onLayout = useCallback(() => { if (holdsEnd(follow, atEnd.current)) toEnd(); }, [follow, toEnd]);
+  const onLayout = useCallback(() => {
+    if (holdsEnd(follow, atEnd.current)) toEnd();
+  }, [follow, toEnd]);
 
   return (
-    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} onLayout={onLayout} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
+    <ScrollView
+      ref={ref}
+      testID={testID}
+      accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"}
+      onScroll={onScroll}
+      onLayout={onLayout}
+      scrollEventThrottle={16}
+      style={[{ flex: 1 }, GUTTER]}
+      contentContainerStyle={contentStyle}
+    >
       {children}
     </ScrollView>
   );

@@ -37,9 +37,11 @@ export interface NewOp {
 export const BACKOFF_BASE_MS = 500;
 export const BACKOFF_CAP_MS = 30_000;
 /** 500 ms, doubling, capped at 30 s. */
-export const defaultBackoff = (tries: number): number => Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** Math.max(0, tries - 1));
+export const defaultBackoff = (tries: number): number =>
+  Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** Math.max(0, tries - 1));
 
-const trace = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+const trace = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 function fieldsOf(op: Op): string[] {
   const input = op.input;
@@ -86,9 +88,16 @@ export function createOutbox(o: OutboxOpts): Outbox {
     enqueue(n) {
       last = tickHlc(o.deviceId, now(), last);
       const op: Op = {
-        opId: newOpId(), traceId: n.traceId ?? newTrace(), hlc: formatHlc(last), cap: n.cap, v: n.v ?? 1,
-        ...(n.entity !== undefined ? { entity: n.entity } : {}), ...(n.id !== undefined ? { id: n.id } : {}),
-        input: n.input, baseSeq: {}, ...(n.enc ? { enc: n.enc } : {}),
+        opId: newOpId(),
+        traceId: n.traceId ?? newTrace(),
+        hlc: formatHlc(last),
+        cap: n.cap,
+        v: n.v ?? 1,
+        ...(n.entity !== undefined ? { entity: n.entity } : {}),
+        ...(n.id !== undefined ? { id: n.id } : {}),
+        input: n.input,
+        baseSeq: {},
+        ...(n.enc ? { enc: n.enc } : {}),
       };
       const fields = fieldsOf(op);
       if (op.entity !== undefined && op.id !== undefined && fields.length) {
@@ -96,7 +105,8 @@ export function createOutbox(o: OutboxOpts): Outbox {
         const after: Record<string, string> = {};
         for (const f of fields) {
           const touching = queued.filter((r) => fieldsOf(r.op).includes(f));
-          const first = touching[0], prev = touching[touching.length - 1];
+          const first = touching[0],
+            prev = touching[touching.length - 1];
           // With a queued op on the field, the base is the first queued op's base: the server's value never moved under this device since then, or it conflicts.
           op.baseSeq[f] = first ? (first.op.baseSeq[f] ?? 0) : (n.seqOf?.[f] ?? 0);
           if (prev) after[f] = prev.op.opId;
@@ -119,9 +129,20 @@ export function createOutbox(o: OutboxOpts): Outbox {
     acknowledge(res) {
       const at = now();
       const ack: Ack = { applied: [], rejected: res.rejected, held: res.held, conflicts: res.conflicts };
-      for (const a of res.applied) { store.remove(a.opId); retryAt.delete(a.opId); ack.applied.push(a.opId); }
-      for (const r of res.rejected) { store.reject({ opId: r.opId, error: r.error, copyOut: r.copyOut, at }); store.remove(r.opId); retryAt.delete(r.opId); }
-      for (const h of res.held) { store.setHeld(h.opId, h.taskId); retryAt.delete(h.opId); }
+      for (const a of res.applied) {
+        store.remove(a.opId);
+        retryAt.delete(a.opId);
+        ack.applied.push(a.opId);
+      }
+      for (const r of res.rejected) {
+        store.reject({ opId: r.opId, error: r.error, copyOut: r.copyOut, at });
+        store.remove(r.opId);
+        retryAt.delete(r.opId);
+      }
+      for (const h of res.held) {
+        store.setHeld(h.opId, h.taskId);
+        retryAt.delete(h.opId);
+      }
       observe(res.serverHlc);
       return ack;
     },
@@ -138,9 +159,14 @@ export function createOutbox(o: OutboxOpts): Outbox {
     observe,
     pending: () => store.count(),
     clock: () => (last ? formatHlc(last) : null),
-    settleHeld(opId) { store.remove(opId); },
+    settleHeld(opId) {
+      store.remove(opId);
+    },
     nextDue() {
-      const ids = store.queued().map((r) => retryAt.get(r.op.opId)).filter((x): x is number => x !== undefined);
+      const ids = store
+        .queued()
+        .map((r) => retryAt.get(r.op.opId))
+        .filter((x): x is number => x !== undefined);
       return ids.length ? Math.min(...ids) : null;
     },
   };

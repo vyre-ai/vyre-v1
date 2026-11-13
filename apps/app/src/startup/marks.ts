@@ -9,10 +9,19 @@ export function mark(name: "app.start" | "app.usable"): void {
 
 /** Resolves when the app is usable, or after `limit` ms: a slow place does not hold the first frame up for ever, it shows its own loading frame. */
 export function whenUsable(limit = 8000): Promise<void> {
-  const w = globalThis as unknown as { performance?: { getEntriesByName?(n: string): unknown[] }; addEventListener?(t: string, f: () => void): void; removeEventListener?(t: string, f: () => void): void };
-  if ((w.performance?.getEntriesByName?.("app.usable").length ?? 0) > 0 || !w.addEventListener) return Promise.resolve();
+  const w = globalThis as unknown as {
+    performance?: { getEntriesByName?(n: string): unknown[] };
+    addEventListener?(t: string, f: () => void): void;
+    removeEventListener?(t: string, f: () => void): void;
+  };
+  if ((w.performance?.getEntriesByName?.("app.usable").length ?? 0) > 0 || !w.addEventListener)
+    return Promise.resolve();
   return new Promise((done) => {
-    const finish = (): void => { clearTimeout(t); w.removeEventListener?.("vyre:usable", finish); done(); };
+    const finish = (): void => {
+      clearTimeout(t);
+      w.removeEventListener?.("vyre:usable", finish);
+      done();
+    };
     const t = setTimeout(finish, limit);
     w.addEventListener?.("vyre:usable", finish);
   });
@@ -34,4 +43,6 @@ export function takeStartupMs(entries: readonly { name: string; startTime: numbe
   startupSent = true;
   return ms;
 }
-export function resetStartupForTests(): void { startupSent = false; }
+export function resetStartupForTests(): void {
+  startupSent = false;
+}

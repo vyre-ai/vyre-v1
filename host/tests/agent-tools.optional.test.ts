@@ -12,7 +12,11 @@ import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 type Schema = { $ref?: string; properties?: Record<string, unknown>; required?: string[] };
 const defs = (registry as unknown as { $defs: Record<string, Schema> }).$defs;
-const resolve = (s: Schema): Schema => { let x = s; while (x.$ref) x = defs[x.$ref.split("/").pop()!]!; return x; };
+const resolve = (s: Schema): Schema => {
+  let x = s;
+  while (x.$ref) x = defs[x.$ref.split("/").pop()!]!;
+  return x;
+};
 const caps = registry.capabilities as unknown as CapabilityDef[];
 const tools = caps.filter((c) => (c.surfaces as { mcp?: unknown }).mcp !== undefined);
 
@@ -30,7 +34,10 @@ test("every agent tool reaches its handler with only its required inputs: no ref
     caps: indexCapabilities(caps),
     validateInput: () => [],
     authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_test" }) as never,
-    handler: (name) => async () => { reached.add(name); return {}; },
+    handler: (name) => async () => {
+      reached.add(name);
+      return {};
+    },
     commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
     now: () => 1_000,
   } as InvokeDeps;
@@ -38,23 +45,42 @@ test("every agent tool reaches its handler with only its required inputs: no ref
   const seeds: Array<[string, CtxSeed]> = [
     ["a Space agent", { space: "spc_1", principal: { kind: "agent", id: "agt_scout" }, origin: "engine" } as CtxSeed],
     // an outside agent through the MCP hub: its calls run as its person (setup grant) or wait for them; a person must name the computer, and is told so in plain words (review S3)
-    ["an outside agent", { space: "spc_1", principal: { kind: "agent", id: "agt_outside" }, actingFor: "usr_maya", askPerson: "always", setupGrant: true, origin: "mcp" } as CtxSeed],
+    [
+      "an outside agent",
+      {
+        space: "spc_1",
+        principal: { kind: "agent", id: "agt_outside" },
+        actingFor: "usr_maya",
+        askPerson: "always",
+        setupGrant: true,
+        origin: "mcp",
+      } as CtxSeed,
+    ],
   ];
   const bad: string[] = [];
-  for (const [who, seed] of seeds) for (const c of tools) {
-    const input = requiredOnly(c);
-    if ((resolve(c.input as Schema).required ?? []).includes("idempotencyKey")) input["idempotencyKey"] = `k-${c.name}`;
-    try { await invoke(c.name, input, seed); }
-    catch (e) {
-      const details = e instanceof HostError ? (e.error.details as { errors?: string[] } | undefined) : undefined;
-      // the plain line that says what to pass is an answer a caller can act on; a bare missing-field refusal is not
-      if (e instanceof HostError && (e.error.message === SELF_BINDING_LINE || e.error.message === OUTSIDE_AGENT_LINE)) continue;
-      for (const line of details?.errors ?? []) {
-        const field = /^\/([A-Za-z0-9_]+)/.exec(line)?.[1];
-        if (field && !(resolve(c.input as Schema).required ?? []).includes(field)) bad.push(`${who}, ${c.name}: ${line}`);
+  for (const [who, seed] of seeds)
+    for (const c of tools) {
+      const input = requiredOnly(c);
+      if ((resolve(c.input as Schema).required ?? []).includes("idempotencyKey"))
+        input["idempotencyKey"] = `k-${c.name}`;
+      try {
+        await invoke(c.name, input, seed);
+      } catch (e) {
+        const details = e instanceof HostError ? (e.error.details as { errors?: string[] } | undefined) : undefined;
+        // the plain line that says what to pass is an answer a caller can act on; a bare missing-field refusal is not
+        if (e instanceof HostError && (e.error.message === SELF_BINDING_LINE || e.error.message === OUTSIDE_AGENT_LINE))
+          continue;
+        for (const line of details?.errors ?? []) {
+          const field = /^\/([A-Za-z0-9_]+)/.exec(line)?.[1];
+          if (field && !(resolve(c.input as Schema).required ?? []).includes(field))
+            bad.push(`${who}, ${c.name}: ${line}`);
+        }
       }
     }
-  }
-  assert.deepEqual(bad, [], "a tool refused for a field its contract says it may leave out can never be called that way");
+  assert.deepEqual(
+    bad,
+    [],
+    "a tool refused for a field its contract says it may leave out can never be called that way",
+  );
   assert.ok(reached.has("computers.chrome.open"), "chrome_open with only a url reaches its handler");
 });

@@ -32,7 +32,10 @@ export const handlers: Record<string, Handler> = {
   "stripe.subscription.cancel": (ctx, i) => h.subscriptionCancel(ctx, i),
   "stripe.refund.create": (ctx, i) => h.refundCreate(ctx, i),
   "stripe.health": (ctx) => h.health(ctx),
-  "stripe.receive_webhook": async (ctx, i) => { hostOnly(ctx, "stripe.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "stripe.receive_webhook": async (ctx, i) => {
+    hostOnly(ctx, "stripe.receive_webhook");
+    return h.receiveWebhook(ctx, i);
+  },
 };
 
 export const projections = { inline: {}, consumers: {} };
@@ -43,8 +46,8 @@ export const hostSeams: SeamSetters = { setStripeHost };
 /** /hooks/stripe (P-L5_17): the host hands the raw request here; a body Stripe did not sign inside its time window is refused, anything else is recorded once. */
 export const hostCalls = {
   "stripe.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
-    hostOnly(ctx, "stripe.accept_webhook");   // a host call: the webhook route is the only way in
+    hostOnly(ctx, "stripe.accept_webhook"); // a host call: the webhook route is the only way in
     const input = await h.verifyWebhook(ctx, { signature: a.headers["stripe-signature"], body: a.body });
-    return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);   // an event with no object to name is acknowledged and ignored
+    return input === null ? { accepted: true } : h.receiveWebhook(ctx, input); // an event with no object to name is acknowledged and ignored
   },
 };

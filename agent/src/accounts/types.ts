@@ -103,8 +103,22 @@ export interface ResolveRequest {
   onServer: boolean;
 }
 
-export type SkipWhy = "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
-export interface Attempt { ref: string; used: boolean; why?: SkipWhy }
+export type SkipWhy =
+  | "unknown"
+  | "expired"
+  | "failed"
+  | "policy_company"
+  | "not_yours"
+  | "space_may_not_use"
+  | "failed_this_turn"
+  | "capped"
+  | "no_model"
+  | "not_used_for";
+export interface Attempt {
+  ref: string;
+  used: boolean;
+  why?: SkipWhy;
+}
 
 export interface NeedsYou {
   /** Whose Needs you gets the card. */

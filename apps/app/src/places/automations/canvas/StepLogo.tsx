@@ -6,12 +6,34 @@ import { brandForStep } from "./brand.ts";
 import { Glyph } from "./icons.tsx";
 import type { IconKey } from "./model.ts";
 
-export function StepLogo({ stepKey, input, icon, name, size = 28 }: { stepKey: string; input?: Readonly<Record<string, unknown>>; icon: IconKey; name: string; size?: number }): ReactElement {
+export function StepLogo({
+  stepKey,
+  input,
+  icon,
+  name,
+  size = 28,
+}: {
+  stepKey: string;
+  input?: Readonly<Record<string, unknown>>;
+  icon: IconKey;
+  name: string;
+  size?: number;
+}): ReactElement {
   const brand = brandForStep(stepKey, input);
   if (brand) return <AppIcon brand={brand} name={name.split(":")[0] ?? name} size={size} />;
-  return <View style={[s.tile, { width: size, height: size }]}><Glyph name={icon} size={Math.round(size * 0.57)} color="var(--ink-2)" /></View>;
+  return (
+    <View style={[s.tile, { width: size, height: size }]}>
+      <Glyph name={icon} size={Math.round(size * 0.57)} color="var(--ink-2)" />
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
-  tile: { borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string, flexShrink: 0 },
+  tile: {
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--hover)" as string,
+    flexShrink: 0,
+  },
 });

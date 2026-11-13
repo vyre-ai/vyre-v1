@@ -9,14 +9,55 @@
 /** @type {Record<string, (v: any) => boolean>} */
 const SHAPES = {
   activeSpace: (v) => v === null || (typeof v === "string" && v.length <= 80),
-  spaces: (v) => Array.isArray(v) && v.length <= 50 && v.every((s) => s && typeof s.id === "string" && typeof s.name === "string" && typeof s.webUrl === "string" && Object.keys(s).length === 3),
-  siteRules: (v) => Array.isArray(v) && v.length <= 2000 && v.every((r) => r && typeof r.host === "string" && typeof r.neverFill === "boolean" && typeof r.neverSave === "boolean" && Object.keys(r).length === 3),
+  spaces: (v) =>
+    Array.isArray(v) &&
+    v.length <= 50 &&
+    v.every(
+      (s) =>
+        s &&
+        typeof s.id === "string" &&
+        typeof s.name === "string" &&
+        typeof s.webUrl === "string" &&
+        Object.keys(s).length === 3,
+    ),
+  siteRules: (v) =>
+    Array.isArray(v) &&
+    v.length <= 2000 &&
+    v.every(
+      (r) =>
+        r &&
+        typeof r.host === "string" &&
+        typeof r.neverFill === "boolean" &&
+        typeof r.neverSave === "boolean" &&
+        Object.keys(r).length === 3,
+    ),
   suggestOnPages: (v) => typeof v === "boolean",
   offerToSave: (v) => typeof v === "boolean",
   // Per-site privacy (privacy.js): what Vyre may read on a host. Hosts and a word, never page content.
-  sitePrivacy: (v) => Array.isArray(v) && v.length <= 2000 && v.every((r) => r && typeof r.host === "string" && r.host.length <= 253 && ["attach", "ask", "never"].includes(r.mode) && typeof r.records === "boolean" && Object.keys(r).length === 3),
+  sitePrivacy: (v) =>
+    Array.isArray(v) &&
+    v.length <= 2000 &&
+    v.every(
+      (r) =>
+        r &&
+        typeof r.host === "string" &&
+        r.host.length <= 253 &&
+        ["attach", "ask", "never"].includes(r.mode) &&
+        typeof r.records === "boolean" &&
+        Object.keys(r).length === 3,
+    ),
   // The side panel's last picks per Space: which agent and model. Ids only.
-  panelPicks: (v) => Array.isArray(v) && v.length <= 50 && v.every((r) => r && typeof r.space === "string" && typeof r.agent === "string" && typeof r.model === "string" && Object.keys(r).length === 3),
+  panelPicks: (v) =>
+    Array.isArray(v) &&
+    v.length <= 50 &&
+    v.every(
+      (r) =>
+        r &&
+        typeof r.space === "string" &&
+        typeof r.agent === "string" &&
+        typeof r.model === "string" &&
+        Object.keys(r).length === 3,
+    ),
 };
 
 export const KEYS = Object.freeze(Object.keys(SHAPES));
@@ -32,7 +73,10 @@ export class StoreRefusal extends Error {
 
 /** Throws when anything in `v` (keys at any depth) is named like a secret. @param {unknown} v @param {string} at */
 function noSecretNames(v, at) {
-  if (Array.isArray(v)) { v.forEach((x, i) => noSecretNames(x, `${at}[${i}]`)); return; }
+  if (Array.isArray(v)) {
+    v.forEach((x, i) => noSecretNames(x, `${at}[${i}]`));
+    return;
+  }
   if (v && typeof v === "object") {
     for (const [k, x] of Object.entries(v)) {
       if (SECRETY.test(k)) throw new StoreRefusal(`${at}.${k}: the extension does not store secrets`);

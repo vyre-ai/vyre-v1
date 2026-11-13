@@ -22,17 +22,26 @@ export interface ReporterOpts {
   docker?(): boolean;
 }
 
-let dockerAt = 0, dockerUp = false, dockerBusy = false;
+let dockerAt = 0,
+  dockerUp = false,
+  dockerBusy = false;
 /** Whether Docker answers, asked at most every five minutes and never waited for: the first report says no, the next says yes. */
 function dockerNow(now: number): boolean {
   if (!dockerBusy && now - dockerAt > 5 * 60_000) {
-    dockerBusy = true; dockerAt = now;
-    execFile("docker", ["info", "--format", "{{.ServerVersion}}"], { timeout: 4000 }, (e) => { dockerUp = !e; dockerBusy = false; });
+    dockerBusy = true;
+    dockerAt = now;
+    execFile("docker", ["info", "--format", "{{.ServerVersion}}"], { timeout: 4000 }, (e) => {
+      dockerUp = !e;
+      dockerBusy = false;
+    });
   }
   return dockerUp;
 }
 
-export interface Reporter { report(over?: Partial<Runs>): Report; name(): string }
+export interface Reporter {
+  report(over?: Partial<Runs>): Report;
+  name(): string;
+}
 
 export function createReporter(o: ReporterOpts): Reporter {
   const can = (): Can[] => {
@@ -45,5 +54,8 @@ export function createReporter(o: ReporterOpts): Reporter {
     return out;
   };
   const sampler = createSampler(o.deps ?? realDeps({ dataDir: o.dataDir, can }));
-  return { report: (over) => buildReport(sampler, { runs: { ...o.runs(), ...(over ?? {}) }, can: can(), version: o.version }), name: () => os.hostname() };
+  return {
+    report: (over) => buildReport(sampler, { runs: { ...o.runs(), ...(over ?? {}) }, can: can(), version: o.version }),
+    name: () => os.hostname(),
+  };
 }

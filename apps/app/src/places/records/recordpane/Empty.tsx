@@ -16,7 +16,25 @@ export function PaneEmpty({ icon, text, testID }: { icon: EmptyIcon; text: strin
   if (Platform.OS === "web") for (const d of PATH[icon]) paths.push(createElement("path", { key: d, d, fill: "none" }));
   return (
     <View style={s.box} testID={testID}>
-      {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 16 16", width: 26, height: 26, "aria-hidden": true, style: { display: "block", stroke: "var(--ink-4)", strokeWidth: 1.2, strokeLinecap: "round", strokeLinejoin: "round" } }, ...paths) : null}
+      {Platform.OS === "web"
+        ? createElement(
+            "svg",
+            {
+              viewBox: "0 0 16 16",
+              width: 26,
+              height: 26,
+              "aria-hidden": true,
+              style: {
+                display: "block",
+                stroke: "var(--ink-4)",
+                strokeWidth: 1.2,
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+              },
+            },
+            ...paths,
+          )
+        : null}
       <Text style={s.text}>{text}</Text>
     </View>
   );

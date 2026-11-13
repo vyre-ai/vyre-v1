@@ -12,7 +12,13 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { DaemonOptions } from "../src/daemon/daemon.ts";
 import type { SeamFetch } from "../src/seams/ports.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const SECRET = "sk_live_SECRET";
 const DRAFT_REASON = "A drafted action cannot be published.";
@@ -36,7 +42,9 @@ test("a tested connector is shared as a draft and the key is absent", async () =
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "exec-live", free: 80e9,
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -45,12 +53,32 @@ test("a tested connector is shared as a draft and the key is absent", async () =
     }),
     fetch: caddyFetch,
     // names resolve without the outside DNS (a safe read checks its host is public first)
-    seams: { vaultSinks: { env: () => undefined }, fetch: seamFetch, drivers: { setDocumentNetwork: () => ({ lookup: async () => ["93.184.216.34"], fetch: async () => { throw new Error("not used"); } }) } },
+    seams: {
+      vaultSinks: { env: () => undefined },
+      fetch: seamFetch,
+      drivers: {
+        setDocumentNetwork: () => ({
+          lookup: async () => ["93.184.216.34"],
+          fetch: async () => {
+            throw new Error("not used");
+          },
+        }),
+      },
+    },
     session: (h) => {
       const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;
+      return token === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
+        : null;
     },
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 200 },
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      hooks: 3_600_000,
+      tick: 200,
+    },
   } satisfies DaemonOptions);
   const post = async (route: string, body: unknown) => {
     const response = await fetch(`${daemon.url}${route}`, {
@@ -61,26 +89,47 @@ test("a tested connector is shared as a draft and the key is absent", async () =
     });
     const text = await response.text();
     let json: Record<string, unknown> = {};
-    try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+    try {
+      json = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      /* the body is not JSON */
+    }
     return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, json, text };
   };
   try {
-    const folder = await post("/v1/vault/folders/create", { name: "Keys", scope: "shared", idempotencyKey: "share-folder" });
+    const folder = await post("/v1/vault/folders/create", {
+      name: "Keys",
+      scope: "shared",
+      idempotencyKey: "share-folder",
+    });
     assert.equal(folder.status, 200, folder.text);
     const folderId = String((folder.data["folder"] as { id?: string } | undefined)?.id ?? "");
     const put = await post("/v1/vault/item/put", {
-      folderId, name: "Stripe", kind: "api_key", fields: [{ key: "api_key", value: SECRET }], idempotencyKey: "share-stripe",
+      folderId,
+      name: "Stripe",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET }],
+      idempotencyKey: "share-stripe",
     });
     assert.equal(put.status, 200, put.text);
     const handle = String((put.data["item"] as { handle?: string } | undefined)?.handle ?? "");
 
     const read = await post("/v1/automations/try_read", {
-      method: "GET", path: "/v1/customers", domains: ["api.stripe.com"], vaultItemId: `${handle}.api_key`, actionKey: "stripe-listcustomers",
+      method: "GET",
+      path: "/v1/customers",
+      domains: ["api.stripe.com"],
+      vaultItemId: `${handle}.api_key`,
+      actionKey: "stripe-listcustomers",
     });
     assert.equal(read.status, 200, read.text);
     assert.equal(read.data["level"], "tested", read.text);
     assert.equal(read.text.includes(SECRET), false, read.text);
-    assert.equal(seen.some((call) => call.url === "https://api.stripe.com/v1/customers" && call.authorization === `Bearer ${SECRET}`), true);
+    assert.equal(
+      seen.some(
+        (call) => call.url === "https://api.stripe.com/v1/customers" && call.authorization === `Bearer ${SECRET}`,
+      ),
+      true,
+    );
 
     const shared = await post("/v1/automations/connector_share", {
       appName: "Stripe",
@@ -108,13 +157,22 @@ test("a tested connector is shared as a draft and the key is absent", async () =
       automationId,
       definition: {
         triggers: [{ key: "manual" }],
-        nodes: [{ id: "create-customer", key: "stripe-createcustomer", title: "Stripe: Create customer", input: { connectorLevel: "tested" } }],
+        nodes: [
+          {
+            id: "create-customer",
+            key: "stripe-createcustomer",
+            title: "Stripe: Create customer",
+            input: { connectorLevel: "tested" },
+          },
+        ],
       },
     });
     assert.equal(saved.status, 200, saved.text);
     const refused = await post("/v1/automations/set_enabled", { automationId, enabled: true });
     assert.equal(refused.status, 422, refused.text);
-    const error = refused.json["error"] as { code?: string; message?: string; details?: { reason?: string } } | undefined;
+    const error = refused.json["error"] as
+      | { code?: string; message?: string; details?: { reason?: string } }
+      | undefined;
     assert.equal(error?.code, "validation.precondition_failed", refused.text);
     assert.equal(error?.message, DRAFT_REASON, refused.text);
     assert.equal(error?.details?.reason, "draft", refused.text);

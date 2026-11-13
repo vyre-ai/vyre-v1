@@ -12,17 +12,25 @@ import { PERF_TARGET } from "./recipe.ts";
 const scratch = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "perf-seed-test-"));
 const cache = scratch();
 let built: Awaited<ReturnType<typeof bootPerf>> | undefined;
-const first = async (): Promise<Awaited<ReturnType<typeof bootPerf>>> => (built ??= await bootPerf({ scale: "ci", cache, scratch: scratch() }));
+const first = async (): Promise<Awaited<ReturnType<typeof bootPerf>>> =>
+  (built ??= await bootPerf({ scale: "ci", cache, scratch: scratch() }));
 
 const count = (dir: string, where: string): number => {
   const db = new DatabaseSync(path.join(dir, "events.db"), { readOnly: true });
-  try { return (db.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).get() as { n: number }).n; } finally { db.close(); }
+  try {
+    return (db.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).get() as { n: number }).n;
+  } finally {
+    db.close();
+  }
 };
 
 test("the sizes: full scale is the budgets' Space, ci is a hundredth of it", () => {
   assert.equal(PERF_SIZES.full.contacts, PERF_TARGET.records);
   assert.equal(PERF_SIZES.full.channels, PERF_TARGET.channels);
-  assert.deepEqual([PERF_SIZES.full.tasks, PERF_SIZES.full.agents, PERF_SIZES.full.messages, PERF_SIZES.full.files], [2000, 50, 10_000, 10_000]);
+  assert.deepEqual(
+    [PERF_SIZES.full.tasks, PERF_SIZES.full.agents, PERF_SIZES.full.messages, PERF_SIZES.full.files],
+    [2000, 50, 10_000, 10_000],
+  );
   assert.ok(PERF_SIZES.ci.contacts <= PERF_SIZES.full.contacts / 100);
   assert.deepEqual(contactRows(5, 2), contactRows(5, 2));
   assert.equal(new Set(contactRows(0, 5000).map((r) => r["email"])).size, 5000, "every match key is unique");
@@ -35,9 +43,20 @@ test("the ci perf Space is built through capabilities and holds its sizes", asyn
   assert.equal(s.hit, false);
   assert.ok(count(s.dir, "type = 'record.created'") >= PERF_SIZES.ci.contacts, "the contacts");
   assert.equal(count(s.dir, "type = 'task.created'"), PERF_SIZES.ci.tasks, "the tasks");
-  assert.equal(count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"), PERF_SIZES.ci.channels + 1, "the channels, and #vyre, the home channel the host makes in every Space");
-  assert.equal(count(s.dir, "type = 'principal.created' AND json_extract(CAST(payload AS TEXT), '$.kind') = 'agent'"), PERF_SIZES.ci.agents, "the agents");
-  assert.ok(s.gaps.some((g) => g.startsWith("messages")) && s.gaps.some((g) => g.startsWith("files")), `what could not be built is recorded: ${s.gaps.join(" | ")}`);
+  assert.equal(
+    count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"),
+    PERF_SIZES.ci.channels + 1,
+    "the channels, and #vyre, the home channel the host makes in every Space",
+  );
+  assert.equal(
+    count(s.dir, "type = 'principal.created' AND json_extract(CAST(payload AS TEXT), '$.kind') = 'agent'"),
+    PERF_SIZES.ci.agents,
+    "the agents",
+  );
+  assert.ok(
+    s.gaps.some((g) => g.startsWith("messages")) && s.gaps.some((g) => g.startsWith("files")),
+    `what could not be built is recorded: ${s.gaps.join(" | ")}`,
+  );
 });
 
 test("a second boot is a cache hit and a daemon starts on the copy", async () => {
@@ -49,5 +68,8 @@ test("a second boot is a cache hit and a daemon starts on the copy", async () =>
   try {
     const res = await fetch(`${d.url}/healthz`);
     assert.equal(res.status, 200);
-  } finally { await d.stop(); b.close(); }
+  } finally {
+    await d.stop();
+    b.close();
+  }
 });

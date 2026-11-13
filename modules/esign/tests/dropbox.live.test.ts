@@ -21,7 +21,13 @@ import { dropboxSign, hmacSha256Hex } from "../handlers/dropbox.ts";
 import { docusign } from "../handlers/docusign.ts";
 import type { HttpFn } from "../handlers/documenso.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 const OWNER = "tok-usr_olivia";
@@ -48,7 +54,9 @@ function codeRootWithEsignLive(): string {
   for (const name of fs.readdirSync(path.join(CODE_ROOT, "host"))) {
     if (name !== "modules.json") fs.symlinkSync(path.join(CODE_ROOT, "host", name), path.join(root, "host", name));
   }
-  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   const esign = list.modules.find((m) => m.id === "esign");
   assert.ok(esign, "esign is in host/modules.json");
   esign.status = "live";
@@ -61,7 +69,9 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot,
     platform: fakePlatform({
-      os: "linux", hostname: "esign-live", free: 80e9,
+      os: "linux",
+      hostname: "esign-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -79,28 +89,54 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
   });
 }
 
-async function post(d: Daemon, token: string | null, cap: string, body: unknown): Promise<{ status: number; body: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+async function post(
+  d: Daemon,
+  token: string | null,
+  cap: string,
+  body: unknown,
+): Promise<{ status: number; body: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   // the inbound webhook has its own public route (the manifest's http path); every other call is /v1/<module>/<name>
   const path = cap === "esign.hook" ? "/hooks/esign" : `/v1/${cap.replaceAll(".", "/")}`;
   const r = await fetch(`${d.url}${path}`, {
-    method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
   });
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
 // providers that never reach the network: every call is a 503, so a handler that tried to confirm something with them would show
-const down: HttpFn = async () => ({ status: 503, ok: false, json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) });
+const down: HttpFn = async () => ({
+  status: 503,
+  ok: false,
+  json: async () => ({}),
+  arrayBuffer: async () => new ArrayBuffer(0),
+});
 
 test("esign live: a booted daemon lists both providers as connected, only a member with connectors.manage chooses the default, and a call with no token is refused", async () => {
   const dir = seededDir();
   const root = codeRootWithEsignLive();
-  configureEsign({ providers: {
-    dropbox_sign: dropboxSign({ apiKey: API_KEY, http: down }),
-    docusign: docusign({ integrationKey: "ik", userId: "u", accountId: "a", baseUri: "https://demo.docusign.net", privateKey: "unused here", http: down }),
-  } });
+  configureEsign({
+    providers: {
+      dropbox_sign: dropboxSign({ apiKey: API_KEY, http: down }),
+      docusign: docusign({
+        integrationKey: "ik",
+        userId: "u",
+        accountId: "a",
+        baseUri: "https://demo.docusign.net",
+        privateKey: "unused here",
+        http: down,
+      }),
+    },
+  });
   const d = await boot(dir, root);
   try {
-    assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module === "esign"), [], "esign is not reported as missing a driver");
+    assert.deepEqual(
+      (d.seams?.missing ?? []).filter((m) => m.module === "esign"),
+      [],
+      "esign is not reported as missing a driver",
+    );
 
     const none = await post(d, null, "esign.providers", {});
     assert.equal(none.status, 401, "no token, no answer");
@@ -116,11 +152,20 @@ test("esign live: a booted daemon lists both providers as connected, only a memb
     const refused = await post(d, MEMBER, "esign.provider_set", { provider: "dropbox_sign" });
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
     assert.equal(refused.body.error?.code, "permission.role_lacks_permission");
-    assert.equal((await post(d, OWNER, "esign.providers", {})).body.data.providers.find((p: { default: boolean }) => p.default).key, "documenso", "the refused call changed nothing");
+    assert.equal(
+      (await post(d, OWNER, "esign.providers", {})).body.data.providers.find((p: { default: boolean }) => p.default)
+        .key,
+      "documenso",
+      "the refused call changed nothing",
+    );
 
     const set = await post(d, OWNER, "esign.provider_set", { provider: "dropbox_sign" });
     assert.equal(set.status, 200, JSON.stringify(set.body));
-    assert.equal((await post(d, OWNER, "esign.providers", {})).body.data.providers.find((p: { default: boolean }) => p.default).key, "dropbox_sign");
+    assert.equal(
+      (await post(d, OWNER, "esign.providers", {})).body.data.providers.find((p: { default: boolean }) => p.default)
+        .key,
+      "dropbox_sign",
+    );
     const notConnected = await post(d, OWNER, "esign.provider_set", { provider: "documenso" });
     assert.notEqual(notConnected.status, 200, "a provider that is not connected cannot become the default");
   } finally {
@@ -132,17 +177,34 @@ test("esign live: a booted daemon lists both providers as connected, only a memb
 test("esign live: callbacks from both providers go through esign.hook over the gateway; a forged Dropbox Sign hash is refused, genuine ones for documents that are not ours change nothing", async () => {
   const dir = seededDir();
   const root = codeRootWithEsignLive();
-  configureEsign({ providers: {
-    dropbox_sign: dropboxSign({ apiKey: API_KEY, http: down }),
-    docusign: docusign({ integrationKey: "ik", userId: "u", accountId: "a", baseUri: "https://demo.docusign.net", privateKey: "unused here", http: down }),
-  } });
+  configureEsign({
+    providers: {
+      dropbox_sign: dropboxSign({ apiKey: API_KEY, http: down }),
+      docusign: docusign({
+        integrationKey: "ik",
+        userId: "u",
+        accountId: "a",
+        baseUri: "https://demo.docusign.net",
+        privateKey: "unused here",
+        http: down,
+      }),
+    },
+  });
   const d = await boot(dir, root);
   try {
     const dropbox = (type: string, time: string, key: string) => ({
       provider: "dropbox_sign",
-      payload: { event: { event_time: time, event_type: type, event_hash: hmacSha256Hex(key, time + type), event_metadata: {} }, signature_request: { signature_request_id: "sr_not_ours", signatures: [] } },
+      payload: {
+        event: { event_time: time, event_type: type, event_hash: hmacSha256Hex(key, time + type), event_metadata: {} },
+        signature_request: { signature_request_id: "sr_not_ours", signatures: [] },
+      },
     });
-    const forged = await post(d, OWNER, "esign.hook", dropbox("signature_request_all_signed", "1761390000", "someone else's key"));
+    const forged = await post(
+      d,
+      OWNER,
+      "esign.hook",
+      dropbox("signature_request_all_signed", "1761390000", "someone else's key"),
+    );
     assert.equal(forged.status, 422, JSON.stringify(forged.body));
     assert.equal(forged.body.error?.code, "validation.bad_input");
 
@@ -153,7 +215,14 @@ test("esign live: callbacks from both providers go through esign.hook over the g
     const test_ = await post(d, OWNER, "esign.hook", dropbox("callback_test", "1761390001", API_KEY));
     assert.equal(test_.status, 200, "Dropbox Sign's callback test is accepted");
 
-    const connect = await post(d, OWNER, "esign.hook", { provider: "docusign", payload: { event: "envelope-completed", generatedDateTime: "2026-10-25T10:00:00.000Z", data: { envelopeId: "env-not-ours" } } });
+    const connect = await post(d, OWNER, "esign.hook", {
+      provider: "docusign",
+      payload: {
+        event: "envelope-completed",
+        generatedDateTime: "2026-10-25T10:00:00.000Z",
+        data: { envelopeId: "env-not-ours" },
+      },
+    });
     assert.equal(connect.status, 200, JSON.stringify(connect.body));
     assert.deepEqual(connect.body.data, { ok: true });
 

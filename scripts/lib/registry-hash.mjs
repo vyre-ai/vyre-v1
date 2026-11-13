@@ -9,7 +9,10 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 /** @param {string} [repo] */
 export function registryHash(repo = REPO) {
-  return crypto.createHash("sha256").update(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")).digest("hex");
+  return crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8"))
+    .digest("hex");
 }
 
 /** Environment for `expo export`: the process env plus the registry hash. @param {Record<string, string | undefined>} [extra] */

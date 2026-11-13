@@ -74,34 +74,60 @@ export interface McpBridgeOptions {
   fetch?: typeof fetch;
 }
 
-export interface McpBridge { stdio: { command: string; args: string[] }; socket: string; close(): Promise<void> }
+export interface McpBridge {
+  stdio: { command: string; args: string[] };
+  socket: string;
+  close(): Promise<void>;
+}
 
 /** Frames a reply from the MCP endpoint into lines: one JSON body is one line; an event stream gives one line per `data:` event. */
 function replyLines(contentType: string, text: string): string[] {
   if (contentType.includes("text/event-stream")) {
-    return text.split(/\r?\n\r?\n/).map((ev) => ev.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n")).filter((d) => d !== "");
+    return text
+      .split(/\r?\n\r?\n/)
+      .map((ev) =>
+        ev
+          .split(/\r?\n/)
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trimStart())
+          .join("\n"),
+      )
+      .filter((d) => d !== "");
   }
   const t = text.trim();
   return t === "" ? [] : [t.replace(/\r?\n/g, " ")];
 }
 
 /** The far end of one shim connection, whatever carries it (a unix socket here, the WSL agent's relay in sandbox/src/wsl). */
-export interface McpWire { write(line: string): void; end(): void; destroy(): void }
+export interface McpWire {
+  write(line: string): void;
+  end(): void;
+  destroy(): void;
+}
 
 /**
  * One connection from the shim: the first line is {"auth": "<token>"}, and a wrong token destroys the connection before anything is posted. Every later line is posted to the endpoint with the session
  * token as the bearer, and the replies come back as lines. When the shim ends its side, the replies still owed are written before this side ends.
  */
-export function mcpConnection(m: { url: string; token: string }, doFetch: typeof fetch, wire: McpWire): { data(chunk: string): void; end(): void } {
+export function mcpConnection(
+  m: { url: string; token: string },
+  doFetch: typeof fetch,
+  wire: McpWire,
+): { data(chunk: string): void; end(): void } {
   let buf = "";
   let authed = false;
   let sessionId: string | undefined;
   let pending = 0;
   let ended = false;
   let dead = false;
-  const settle = (): void => { if (ended && pending === 0 && !dead) wire.end(); };
+  const settle = (): void => {
+    if (ended && pending === 0 && !dead) wire.end();
+  };
   return {
-    end() { ended = true; settle(); },
+    end() {
+      ended = true;
+      settle();
+    },
     data(chunk) {
       if (dead) return;
       buf += chunk;
@@ -112,8 +138,16 @@ export function mcpConnection(m: { url: string; token: string }, doFetch: typeof
         if (line === "") continue;
         if (!authed) {
           let tok: unknown;
-          try { tok = (JSON.parse(line) as { auth?: unknown }).auth; } catch { tok = undefined; }
-          if (tok !== m.token) { dead = true; wire.destroy(); return; }
+          try {
+            tok = (JSON.parse(line) as { auth?: unknown }).auth;
+          } catch {
+            tok = undefined;
+          }
+          if (tok !== m.token) {
+            dead = true;
+            wire.destroy();
+            return;
+          }
           authed = true;
           continue;
         }
@@ -122,18 +156,35 @@ export function mcpConnection(m: { url: string; token: string }, doFetch: typeof
           try {
             const r = await doFetch(m.url, {
               method: "POST",
-              headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${m.token}`, ...(sessionId ? { "mcp-session-id": sessionId } : {}) },
+              headers: {
+                "content-type": "application/json",
+                accept: "application/json, text/event-stream",
+                authorization: `Bearer ${m.token}`,
+                ...(sessionId ? { "mcp-session-id": sessionId } : {}),
+              },
               body: line,
             });
             const sid = r.headers.get("mcp-session-id");
             if (sid) sessionId = sid;
-            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!dead) wire.write(out);
+            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text()))
+              if (!dead) wire.write(out);
           } catch {
             // Preserve the request id. MCP clients wait for the matching id; id:null
             // turns an endpoint outage into a permanently running agent turn.
             let id: unknown = null;
-            try { id = (JSON.parse(line) as { id?: unknown }).id ?? null; } catch { /* invalid JSON keeps null */ }
-            if (!dead) wire.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } }));
+            try {
+              id = (JSON.parse(line) as { id?: unknown }).id ?? null;
+            } catch {
+              /* invalid JSON keeps null */
+            }
+            if (!dead)
+              wire.write(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id,
+                  error: { code: -32603, message: "The Vyre endpoint could not be reached." },
+                }),
+              );
           } finally {
             pending--;
             settle();
@@ -161,12 +212,23 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
     c.once("close", () => live.delete(c));
     c.on("error", () => c.destroy());
     c.setEncoding("utf8");
-    const conn = mcpConnection(m, doFetch, { write: (l) => { if (!c.destroyed) c.write(`${l}\n`); }, end: () => { if (!c.destroyed) c.end(); }, destroy: () => c.destroy() });
+    const conn = mcpConnection(m, doFetch, {
+      write: (l) => {
+        if (!c.destroyed) c.write(`${l}\n`);
+      },
+      end: () => {
+        if (!c.destroyed) c.end();
+      },
+      destroy: () => c.destroy(),
+    });
     c.on("data", (chunk: string) => conn.data(chunk));
     c.once("end", () => conn.end());
   });
   try {
-    await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(sock.listen, () => ok()); });
+    await new Promise<void>((ok, bad) => {
+      server.once("error", bad);
+      server.listen(sock.listen, () => ok());
+    });
     if (process.platform !== "win32") fs.chmodSync(sock.listen, 0o600);
   } catch (e) {
     sock.remove();
@@ -188,12 +250,24 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
  * (bound read-only into the sandbox). Each connection to it is relayed over the agent's own stdin and stdout and served here by mcpConnection, so the session's token is checked on this side and no
  * port is opened anywhere.
  */
-export async function openWslMcpBridge(agent: Pick<WslAgent, "openMcp" | "closeMcp" | "node">, m: { url: string; token: string }, o: { scratch: string; fetch?: typeof fetch }): Promise<McpBridge> {
+export async function openWslMcpBridge(
+  agent: Pick<WslAgent, "openMcp" | "closeMcp" | "node">,
+  m: { url: string; token: string },
+  o: { scratch: string; fetch?: typeof fetch },
+): Promise<McpBridge> {
   const doFetch = o.fetch ?? fetch;
   fs.mkdirSync(o.scratch, { recursive: true });
   const shim = path.join(o.scratch, "mcp-shim.mjs");
   fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
-  const id = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const id = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
   const socket = await agent.openMcp(id, (wire) => mcpConnection(m, doFetch, wire));
-  return { stdio: { command: agent.node, args: [toWslPath(shim), socket] }, socket, async close() { agent.closeMcp(id); } };
+  return {
+    stdio: { command: agent.node, args: [toWslPath(shim), socket] },
+    socket,
+    async close() {
+      agent.closeMcp(id);
+    },
+  };
 }

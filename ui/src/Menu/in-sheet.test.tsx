@@ -9,14 +9,16 @@ import { fileURLToPath } from "node:url";
 import { clampMenu } from "./index.tsx";
 import { OVERLAY_ROOT_CSS } from "../Overlay/index.tsx";
 
-
 /** Every z-index a layer in the app sets, from the source (a sheet, a dialog veil, a popover). */
 function layers(): Array<{ file: string; z: number }> {
   const out: Array<{ file: string; z: number }> = [];
   const walk = (dir: string): void => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
-      if (e.isDirectory()) { if (e.name !== "node_modules") walk(p); continue; }
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules") walk(p);
+        continue;
+      }
       if (!/\.(tsx|ts)$/.test(e.name) || /\.test\./.test(e.name)) continue;
       for (const m of readFileSync(p, "utf8").matchAll(/zIndex:\s*(\d+)/g)) out.push({ file: p, z: Number(m[1]) });
     }

@@ -68,7 +68,7 @@ function objectItems(body: string, base: number): Item[] {
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }
@@ -108,7 +108,7 @@ function tagEnd(source: string, start: number): number {
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }

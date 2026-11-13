@@ -7,7 +7,15 @@ import { resumeId, saveResumeId } from "../cli-sessions.ts";
 import { harness, NOW } from "../fixtures/harness.ts";
 import type { EngineSession, SessionSpec } from "../../../agent/src/turn-engine/types.ts";
 
-const spec = (over: Partial<SessionSpec> = {}): SessionSpec => ({ threadId: "thr_1", agent: { id: "agt_billing", mode: "lead" }, asker: "usr_olivia", turnId: "trn_1", traceId: "t", ...over } as SessionSpec);
+const spec = (over: Partial<SessionSpec> = {}): SessionSpec =>
+  ({
+    threadId: "thr_1",
+    agent: { id: "agt_billing", mode: "lead" },
+    asker: "usr_olivia",
+    turnId: "trn_1",
+    traceId: "t",
+    ...over,
+  }) as SessionSpec;
 const key = { threadId: "thr_1", agentId: "agt_billing", person: "usr_olivia", driver: "claude_code" };
 
 function world() {
@@ -18,11 +26,37 @@ function world() {
   const opened: string[] = [];
   const call = async (cap: string, input: unknown, as?: string): Promise<unknown> => {
     asked.push(as);
-    if (cap === "threads.get") return { thread: { kind: "chat", starter: "usr_olivia", members: members.map((id) => ({ kind: "person", id })) } };
+    if (cap === "threads.get")
+      return {
+        thread: { kind: "chat", starter: "usr_olivia", members: members.map((id) => ({ kind: "person", id })) },
+      };
     throw new Error(`no ${cap} ${JSON.stringify(input)}`);
   };
-  const open = withAudienceReset(async (s) => { opened.push(s.turnId); return {} as EngineSession; }, { db: h.db, call, now: () => NOW, drop: async (t) => { dropped.push(t); return 1; } });
-  return { h, open, dropped, opened, asked, join: (p: string) => { members = [...members, p]; } };
+  const open = withAudienceReset(
+    async (s) => {
+      opened.push(s.turnId);
+      return {} as EngineSession;
+    },
+    {
+      db: h.db,
+      call,
+      now: () => NOW,
+      drop: async (t) => {
+        dropped.push(t);
+        return 1;
+      },
+    },
+  );
+  return {
+    h,
+    open,
+    dropped,
+    opened,
+    asked,
+    join: (p: string) => {
+      members = [...members, p];
+    },
+  };
 }
 
 test("someone joins: the kept session is forgotten and the warm one closed before the turn opens", async () => {
@@ -38,7 +72,10 @@ test("someone joins: the kept session is forgotten and the warm one closed befor
   assert.equal(resumeId(w.h.db, key), null, "the session that heard the private profile is not resumed");
   assert.deepEqual(w.dropped, ["thr_1"]);
   assert.deepEqual(w.opened, ["t1", "t2", "t3"], "every turn still opens");
-  assert.ok(w.asked.every((as) => as === "usr_olivia"), "read as the asker");
+  assert.ok(
+    w.asked.every((as) => as === "usr_olivia"),
+    "read as the asker",
+  );
 });
 
 test("a step session with no tools and a chat that cannot be read open as before", async () => {
@@ -46,7 +83,13 @@ test("a step session with no tools and a chat that cannot be read open as before
   await w.open(spec({ tools: "none", turnId: "s1" }));
   assert.equal(w.asked.length, 0);
   const h = harness();
-  const open = withAudienceReset(async () => ({} as EngineSession), { db: h.db, call: async () => { throw new Error("gone"); }, now: () => NOW });
+  const open = withAudienceReset(async () => ({}) as EngineSession, {
+    db: h.db,
+    call: async () => {
+      throw new Error("gone");
+    },
+    now: () => NOW,
+  });
   await open(spec());
 });
 

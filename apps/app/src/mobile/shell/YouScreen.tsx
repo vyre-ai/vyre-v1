@@ -16,17 +16,41 @@ export interface YouData {
 }
 
 export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): ReactElement {
-  const rows: { key: string; title: string; note: string; icon: MobileIcon; open?: { tab: "chats"; screen: string; title: string } }[] = [
-    { key: "my-work", title: "My work", note: data.workOpen === 0 ? "All caught up" : `${data.workOpen} open`, icon: "work", open: { tab: "chats", screen: "tasks:list", title: "My work" } },
-    { key: "starred", title: "Starred", note: data.starred === 0 ? "Nothing starred" : `${data.starred} starred`, icon: "star" },
+  const rows: {
+    key: string;
+    title: string;
+    note: string;
+    icon: MobileIcon;
+    open?: { tab: "chats"; screen: string; title: string };
+  }[] = [
+    {
+      key: "my-work",
+      title: "My work",
+      note: data.workOpen === 0 ? "All caught up" : `${data.workOpen} open`,
+      icon: "work",
+      open: { tab: "chats", screen: "tasks:list", title: "My work" },
+    },
+    {
+      key: "starred",
+      title: "Starred",
+      note: data.starred === 0 ? "Nothing starred" : `${data.starred} starred`,
+      icon: "star",
+    },
     { key: "settings", title: "Settings", note: "Profile, appearance, notifications", icon: "settings" },
   ];
   const list: ReactElement[] = [];
   for (const r of rows) {
     list.push(
       <Row
-        key={r.key} id={`you-${r.key}`} title={r.title} note={r.note}
-        leading={<View style={st.lead}><Icon name={r.icon} size={18} /></View>}
+        key={r.key}
+        id={`you-${r.key}`}
+        title={r.title}
+        note={r.note}
+        leading={
+          <View style={st.lead}>
+            <Icon name={r.icon} size={18} />
+          </View>
+        }
         trailing={<Icon name="chev" size={14} color="var(--ink-4)" />}
         onPress={() => nav.open(r.open ?? { tab: "you", screen: `you:${r.key}`, title: r.title })}
       />,
@@ -37,7 +61,9 @@ export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): Rea
       <View style={st.head}>
         <Avatar name={data.name} kind="person" size={56} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text accessibilityRole="header" aria-level={1} style={st.name}>{data.name}</Text>
+          <Text accessibilityRole="header" aria-level={1} style={st.name}>
+            {data.name}
+          </Text>
           <Text style={st.sub}>{data.space}</Text>
         </View>
       </View>
@@ -51,6 +77,13 @@ const st = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 20, paddingHorizontal: 4 },
   name: { fontSize: 22, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 13, color: "var(--ink-3)" as string, marginTop: 2 },
-  list: { borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden", padding: 4 },
+  list: {
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    overflow: "hidden",
+    padding: 4,
+  },
   lead: { width: 24, alignItems: "center" },
 });

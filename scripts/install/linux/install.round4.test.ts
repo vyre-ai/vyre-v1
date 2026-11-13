@@ -18,21 +18,47 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-te
 // the same one (VYRE_TEST_ENGINE for Docker's answers, VYRE_TEST_BOOT_ID_FILE for this computer's, test mode only), so the tests do not depend on this computer's /proc:
 // a macOS runner (the desktop workflow's installer-macos job) has none, and there the missing boot id read as "another kernel".
 const SAME_BOOT = "0b0e1d2c-3a4f-4b5c-8d6e-same-kernel-test";
-const BOOT_FILE = ((): string => { const f = path.join(os.tmpdir(), `vyre-test-boot-id-${process.pid}`); fs.writeFileSync(f, `${SAME_BOOT}\n`); return f; })();
+const BOOT_FILE = ((): string => {
+  const f = path.join(os.tmpdir(), `vyre-test-boot-id-${process.pid}`);
+  fs.writeFileSync(f, `${SAME_BOOT}\n`);
+  return f;
+})();
 const SAME_ENGINE = `Ubuntu|${SAME_BOOT}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE, VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_ENGINE: SAME_ENGINE,
+      VYRE_TEST_BOOT_ID_FILE: BOOT_FILE,
+      VYRE_TEST_OS: "Linux",
+      ...env,
+    },
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
-function fakeHost(dir: string, opts: { fs?: string; src?: string; layers?: string[] }): { mounts: string; lsblk: string } {
+function fakeHost(
+  dir: string,
+  opts: { fs?: string; src?: string; layers?: string[] },
+): { mounts: string; lsblk: string } {
   const mounts = path.join(dir, "mounts");
   const lsblk = path.join(dir, "lsblk");
-  fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n${opts.src ?? "/dev/mapper/vyre-data"} ${dir} ${opts.fs ?? "ext4"} rw 0 0\n`);
-  fs.writeFileSync(lsblk, `#!/bin/sh\nprintf '${(opts.layers ?? ["crypt", "disk"]).join("\\n")}\\n'\n`, { mode: 0o755 });
+  fs.writeFileSync(
+    mounts,
+    `/dev/sda1 / ext4 rw 0 0\n${opts.src ?? "/dev/mapper/vyre-data"} ${dir} ${opts.fs ?? "ext4"} rw 0 0\n`,
+  );
+  fs.writeFileSync(lsblk, `#!/bin/sh\nprintf '${(opts.layers ?? ["crypt", "disk"]).join("\\n")}\\n'\n`, {
+    mode: 0o755,
+  });
   return { mounts, lsblk };
 }
-const hostEnv = (h: { mounts: string; lsblk: string }): Record<string, string> => ({ VYRE_TEST_PROC_MOUNTS: h.mounts, VYRE_TEST_LSBLK: h.lsblk });
+const hostEnv = (h: { mounts: string; lsblk: string }): Record<string, string> => ({
+  VYRE_TEST_PROC_MOUNTS: h.mounts,
+  VYRE_TEST_LSBLK: h.lsblk,
+});
 
 // ---- Round 4: a cloud server with a plain disk, and the walk's other install findings
 
@@ -40,7 +66,12 @@ const hostEnv = (h: { mounts: string; lsblk: string }): Record<string, string> =
 function fakeBin(dir: string, names: string[], extra: Record<string, string> = {}): string {
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin, { recursive: true });
-  for (const n of names) fs.writeFileSync(path.join(bin, n), extra[n] ?? `#!/bin/sh\necho "${n} $*" >>"${dir}/calls.log"\ncat >/dev/null 2>&1 || true\nexit 0\n`, { mode: 0o755 });
+  for (const n of names)
+    fs.writeFileSync(
+      path.join(bin, n),
+      extra[n] ?? `#!/bin/sh\necho "${n} $*" >>"${dir}/calls.log"\ncat >/dev/null 2>&1 || true\nexit 0\n`,
+      { mode: 0o755 },
+    );
   return bin;
 }
 const plainHost = (dir: string) => hostEnv(fakeHost(dir, { src: "/dev/sdb1", layers: ["part", "disk"] }));
@@ -48,7 +79,11 @@ const plainHost = (dir: string) => hostEnv(fakeHost(dir, { src: "/dev/sdb1", lay
 test("the two answers to a plain disk: provider-encrypted and allow-plain-disk pass and are recorded as choices; both at once is refused; a recorded choice is not silently replaced", () => {
   const dir = tmp();
   const env = plainHost(dir);
-  const prov = sh(INSTALL, `ENC_KIND=; PROVIDER_ENC=1; check_encrypted "${dir}/data"; echo "kind=$ENC_KIND explicit=$ENC_EXPLICIT"`, env);
+  const prov = sh(
+    INSTALL,
+    `ENC_KIND=; PROVIDER_ENC=1; check_encrypted "${dir}/data"; echo "kind=$ENC_KIND explicit=$ENC_EXPLICIT"`,
+    env,
+  );
   assert.equal(prov.status, 0, prov.stderr);
   assert.match(prov.stdout, /cannot check that from the inside; it is recorded as your statement, not as verified/);
   assert.match(prov.stdout, /kind=provider explicit=1/);
@@ -59,7 +94,8 @@ test("the two answers to a plain disk: provider-encrypted and allow-plain-disk p
   const both = sh(INSTALL, `parse_args --allow-plain-disk --provider-encrypted`);
   assert.equal(both.status, 2);
   assert.match(both.stderr, /choose one/);
-  for (const gone of ["--encrypt-data", "--encrypt-device /dev/sdb", "--key-file /x", "--encrypt-size 8"]) assert.equal(sh(INSTALL, `parse_args ${gone}`).status, 2, `${gone} is not an option`);
+  for (const gone of ["--encrypt-data", "--encrypt-device /dev/sdb", "--key-file /x", "--encrypt-size 8"])
+    assert.equal(sh(INSTALL, `parse_args ${gone}`).status, 2, `${gone} is not an option`);
   // an encrypted disk needs neither, and says what was and was not verified
   const encDir = tmp();
   const enc = sh(INSTALL, `check_encrypted "${encDir}/data"; echo "kind=$ENC_KIND"`, hostEnv(fakeHost(encDir, {})));
@@ -81,29 +117,51 @@ test("doctor looks at the disk each time and says what was chosen: plain is a st
   const dir = tmp();
   const env = plainHost(dir);
   fs.mkdirSync(path.join(dir, "state"), { recursive: true });
-  const run = (): Out => sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`, env);
+  const run = (): Out =>
+    sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`, env);
   const none = run();
-  assert.match(none.stdout, /host\.disk_encrypted\tdown\t.*--provider-encrypted \(the provider's encrypted volume\) or --allow-plain-disk/, "no choice recorded: down, with the options");
+  assert.match(
+    none.stdout,
+    /host\.disk_encrypted\tdown\t.*--provider-encrypted \(the provider's encrypted volume\) or --allow-plain-disk/,
+    "no choice recorded: down, with the options",
+  );
   fs.writeFileSync(path.join(dir, "state/encryption"), "kind=plain\nsince=2026-11-11\n");
   const plain = run();
-  assert.match(plain.stdout, /host\.disk_encrypted\tdegraded\tThe data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-11/);
+  assert.match(
+    plain.stdout,
+    /host\.disk_encrypted\tdegraded\tThe data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-11/,
+  );
   fs.writeFileSync(path.join(dir, "state/encryption"), "kind=provider\nsince=2026-11-11\n");
   const prov = run();
-  assert.match(prov.stdout, /host\.disk_encrypted\tdegraded\tNot verified: your provider's encryption, as you stated on 2026-11-11\. This server cannot check it/);
+  assert.match(
+    prov.stdout,
+    /host\.disk_encrypted\tdegraded\tNot verified: your provider's encryption, as you stated on 2026-11-11\. This server cannot check it/,
+  );
   assert.doesNotMatch(prov.stdout, /healthy/, "never counted as encrypted");
   // a record that says "detected" is only a record: the disk is looked at now, and is plain
   fs.writeFileSync(path.join(dir, "state/encryption"), "kind=detected\nsince=2026-11-01\n");
   assert.match(run().stdout, /host\.disk_encrypted\tdown\t/, "the disk changed: doctor says so");
   // and a verified volume is healthy, in words that say what was verified
-  const enc = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`, hostEnv(fakeHost(dir, {})));
+  const enc = sh(
+    SERVER,
+    `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`,
+    hostEnv(fakeHost(dir, {})),
+  );
   assert.match(enc.stdout, /host\.disk_encrypted\thealthy\t.*verified here; where its key is kept is not visible/);
   fs.rmSync(dir, { recursive: true });
 });
 test("a file-backed LUKS volume (one the person made) is reported for what it is: a warning, because the check cannot see where the key is", () => {
   const dir = tmp();
   const host = fakeHost(dir, { src: "/dev/mapper/vyre-data", layers: ["crypt", "loop"] });
-  const r = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`, hostEnv(host));
-  assert.match(r.stdout, /host\.disk_encrypted\tdegraded\t.*a file on this disk.*cannot tell where its key is kept.*protects nothing/);
+  const r = sh(
+    SERVER,
+    `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep disk_encrypted`,
+    hostEnv(host),
+  );
+  assert.match(
+    r.stdout,
+    /host\.disk_encrypted\tdegraded\t.*a file on this disk.*cannot tell where its key is kept.*protects nothing/,
+  );
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -119,7 +177,10 @@ test("claim-link: a link on 0.0.0.0 is printed alone on stdout, and stderr says 
   assert.match(r.stderr, /0\.0\.0\.0 is not an address you can open from another computer/);
   assert.match(r.stderr, /ssh -L 8420:127\.0\.0\.1:8420 root@/);
   assert.match(r.stderr, /--domain/);
-  fs.writeFileSync(path.join(dir, "space/logs/claim-link.txt"), "https://mla.example.com/claim/abcdefghijklmnop#s=spc_fixture\n");
+  fs.writeFileSync(
+    path.join(dir, "space/logs/claim-link.txt"),
+    "https://mla.example.com/claim/abcdefghijklmnop#s=spc_fixture\n",
+  );
   assert.equal(sh(SERVER, `DATA_DIR="${dir}"; main claim-link`).stderr, "", "a real address needs no explanation");
   fs.rmSync(dir, { recursive: true });
 });
@@ -135,7 +196,11 @@ test("the finish text in relay mode never offers a 0.0.0.0 link and says what th
   assert.match(bare.stdout, /no web address that a browser can open/);
   assert.match(bare.stdout, /Vyre app/);
   assert.match(bare.stdout, /--domain vyre\.example\.com/);
-  assert.doesNotMatch(bare.stdout, /Go back to the Vyre app to finish/, "not the old line that left a browser-only client stuck");
+  assert.doesNotMatch(
+    bare.stdout,
+    /Go back to the Vyre app to finish/,
+    "not the old line that left a browser-only client stuck",
+  );
   fs.writeFileSync(path.join(dir, "vyre.env"), "VYRE_SETUP_CODE=abc\n");
   const coded = sh(INSTALL, body);
   assert.match(coded.stdout, /Go back to the app: it finds this server/);
@@ -147,17 +212,32 @@ test("the domain route prints its DNS needs as short lines and says which record
   const dir = tmp();
   const resolve = path.join(dir, "resolve");
   fs.writeFileSync(resolve, "vyre.example.com 203.0.113.9\n");
-  const out = sh(INSTALL, `dns_lines vyre.example.com`, { VYRE_TEST_PUBLIC_IP: "203.0.113.9", VYRE_TEST_RESOLVE: resolve });
+  const out = sh(INSTALL, `dns_lines vyre.example.com`, {
+    VYRE_TEST_PUBLIC_IP: "203.0.113.9",
+    VYRE_TEST_RESOLVE: resolve,
+  });
   const lines = out.stdout.trim().split("\n");
-  assert.ok(lines.every((l) => l.length < 140), "no long line");
+  assert.ok(
+    lines.every((l) => l.length < 140),
+    "no long line",
+  );
   assert.match(out.stdout, /1\. An A record for vyre\.example\.com that points to this machine \(203\.0\.113\.9\)/);
   assert.match(out.stdout, /2\. An A record for a\.vyre\.example\.com/);
   assert.match(out.stdout, /3\. Ports 80 and 443 open to the internet/);
   assert.match(out.stdout, /ok {2}vyre\.example\.com points to this machine/);
-  assert.match(out.stdout, /!! {2}a\.vyre\.example\.com has no A record yet\. Create one that points to 203\.0\.113\.9/);
+  assert.match(
+    out.stdout,
+    /!! {2}a\.vyre\.example\.com has no A record yet\. Create one that points to 203\.0\.113\.9/,
+  );
   fs.writeFileSync(resolve, "vyre.example.com 198.51.100.4\na.vyre.example.com 203.0.113.9\n");
-  const wrong = sh(INSTALL, `dns_lines vyre.example.com`, { VYRE_TEST_PUBLIC_IP: "203.0.113.9", VYRE_TEST_RESOLVE: resolve });
-  assert.match(wrong.stdout, /\?\? {2}vyre\.example\.com points to 198\.51\.100\.4; this machine's public address appears to be 203\.0\.113\.9\. If a proxy or load balancer is in front, that is fine/);
+  const wrong = sh(INSTALL, `dns_lines vyre.example.com`, {
+    VYRE_TEST_PUBLIC_IP: "203.0.113.9",
+    VYRE_TEST_RESOLVE: resolve,
+  });
+  assert.match(
+    wrong.stdout,
+    /\?\? {2}vyre\.example\.com points to 198\.51\.100\.4; this machine's public address appears to be 203\.0\.113\.9\. If a proxy or load balancer is in front, that is fine/,
+  );
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -167,7 +247,8 @@ test("switching a relay install to a domain (and back) changes the configuration
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const body = (domain: string, relay: string): string => `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY="${relay}"; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=; write_config`;
+  const body = (domain: string, relay: string): string =>
+    `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY="${relay}"; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=; write_config`;
   const first = sh(INSTALL, body("", "https://relay.vyre.run"), { VYRE_DIR: dirVyre });
   assert.equal(first.status, 0, first.stderr);
   let env = read(path.join(dirVyre, "compose.env"));
@@ -178,7 +259,10 @@ test("switching a relay install to a domain (and back) changes the configuration
   fs.writeFileSync(path.join(dirVyre, "data/space/keep"), "data");
   const sw = sh(INSTALL, body("vyre.example.com", ""), { VYRE_DIR: dirVyre });
   assert.equal(sw.status, 0, sw.stderr);
-  assert.match(sw.stdout, /Changing how this server is reached: from Vyre's relay \(https:\/\/relay\.vyre\.run\) to your own name, https:\/\/vyre\.example\.com\. The Space's data is kept\./);
+  assert.match(
+    sw.stdout,
+    /Changing how this server is reached: from Vyre's relay \(https:\/\/relay\.vyre\.run\) to your own name, https:\/\/vyre\.example\.com\. The Space's data is kept\./,
+  );
   env = read(path.join(dirVyre, "compose.env"));
   assert.match(env, /^VYRE_ADDRESS=vyre\.example\.com$/m);
   assert.doesNotMatch(env, /VYRE_RELAY_URL/);
@@ -197,7 +281,10 @@ test("switching a relay install to a domain (and back) changes the configuration
   assert.doesNotMatch(same.stdout, /Changing how/);
   assert.match(read(path.join(dirVyre, "compose.env")), new RegExp(`^VYRE_NETWORK_REV=${rev}$`, "m"));
   // and the server is recreated, not just started (a plain start does nothing when it already runs)
-  const stack = sh(INSTALL, `DIR="${dirVyre}"; DRY=0; mkdir -p "${dirVyre}/current/bin"; printf '#!/bin/sh\\necho "$@" >>"${dirVyre}/started"\\n' >"${dirVyre}/current/bin/vyre-server"; chmod +x "${dirVyre}/current/bin/vyre-server"; start_stack`);
+  const stack = sh(
+    INSTALL,
+    `DIR="${dirVyre}"; DRY=0; mkdir -p "${dirVyre}/current/bin"; printf '#!/bin/sh\\necho "$@" >>"${dirVyre}/started"\\n' >"${dirVyre}/current/bin/vyre-server"; chmod +x "${dirVyre}/current/bin/vyre-server"; start_stack`,
+  );
   assert.equal(stack.status, 0, stack.stderr);
   assert.equal(read(path.join(dirVyre, "started")).trim(), "start");
   fs.rmSync(dir, { recursive: true });
@@ -206,7 +293,7 @@ test("switching a relay install to a domain (and back) changes the configuration
 test("Docker is added on Debian and Ubuntu: said first, only Docker's own key is trusted (a file holding a second key gives apt nothing extra), a machine with containerd is left alone, and the log survives", () => {
   const dir = tmp();
   const osr = path.join(dir, "os-release");
-  fs.writeFileSync(osr, 'ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble\n');
+  fs.writeFileSync(osr, "ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble\n");
   const key = path.join(dir, "keyrings");
   const lst = path.join(dir, "lists");
   fs.mkdirSync(lst);
@@ -224,16 +311,23 @@ case "$*" in
 esac
 exit 0
 `;
-  const mk = (keyFileLines: string[], dpkgInstalled = ""): string => fakeBin(dir, ["apt-get", "dpkg", "install", "systemctl", "curl", "gpg"], {
-    "apt-get": `#!/bin/sh\necho "apt-get $*" >>"${dir}/calls.log"\n`,
-    dpkg: `#!/bin/sh\nif [ "$1" = -s ]; then case " ${dpkgInstalled} " in *" $2 "*) echo "Status: install ok installed"; exit 0 ;; esac; exit 1; fi\necho amd64\n`,
-    install: `#!/bin/sh\nfor a; do last=$a; done\ncase "$*" in *-d*) mkdir -p "${key}" ;; *) mkdir -p "${key}"; cp "$3" "$last" ;; esac\n`,
-    systemctl: "#!/bin/sh\n",
-    curl: `#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && { shift; printf '%s\\n' ${keyFileLines.map((l) => `'${l}'`).join(" ")} >"$1"; }; shift; done\n`,
-    gpg,
+  const mk = (keyFileLines: string[], dpkgInstalled = ""): string =>
+    fakeBin(dir, ["apt-get", "dpkg", "install", "systemctl", "curl", "gpg"], {
+      "apt-get": `#!/bin/sh\necho "apt-get $*" >>"${dir}/calls.log"\n`,
+      dpkg: `#!/bin/sh\nif [ "$1" = -s ]; then case " ${dpkgInstalled} " in *" $2 "*) echo "Status: install ok installed"; exit 0 ;; esac; exit 1; fi\necho amd64\n`,
+      install: `#!/bin/sh\nfor a; do last=$a; done\ncase "$*" in *-d*) mkdir -p "${key}" ;; *) mkdir -p "${key}"; cp "$3" "$last" ;; esac\n`,
+      systemctl: "#!/bin/sh\n",
+      curl: `#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && { shift; printf '%s\\n' ${keyFileLines.map((l) => `'${l}'`).join(" ")} >"$1"; }; shift; done\n`,
+      gpg,
+    });
+  const env = (bin: string): Record<string, string> => ({
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+    VYRE_OS_RELEASE: osr,
+    VYRE_KEYRING_DIR: key,
+    VYRE_APT_LIST_DIR: lst,
   });
-  const env = (bin: string): Record<string, string> => ({ PATH: `${bin}:${process.env.PATH ?? ""}`, VYRE_OS_RELEASE: osr, VYRE_KEYRING_DIR: key, VYRE_APT_LIST_DIR: lst });
-  const run = (bin: string): Out => sh(INSTALL, `TMP="${dir}/tmp"; DIR="${dir}/srv"; DRY=0; docker_apt_install`, env(bin));
+  const run = (bin: string): Out =>
+    sh(INSTALL, `TMP="${dir}/tmp"; DIR="${dir}/srv"; DRY=0; docker_apt_install`, env(bin));
   // a file that does not hold Docker's key at all: refused, nothing added
   const none = run(mk([`fpr:${evil}`]));
   assert.notEqual(none.status, 0);
@@ -242,14 +336,21 @@ exit 0
   // a file holding Docker's key and a second one: only Docker's is trusted (the keyring apt reads is built from the pinned fingerprint alone)
   const two = run(mk([`fpr:${good}`, `fpr:${evil}`]));
   assert.equal(two.status, 0, two.stderr);
-  assert.match(two.stdout, /Docker is not installed\. This installer will now install Docker Engine .* Add --no-docker-install to stop here instead/, "said before it is done");
+  assert.match(
+    two.stdout,
+    /Docker is not installed\. This installer will now install Docker Engine .* Add --no-docker-install to stop here instead/,
+    "said before it is done",
+  );
   assert.match(two.stdout, /only that key is trusted/);
   const calls = read(path.join(dir, "calls.log"));
   assert.match(calls, new RegExp(`--export ${good}$`, "m"), "the keyring is exported by the pinned fingerprint");
   const ring = read(path.join(key, "docker.gpg"));
   assert.match(ring, new RegExp(good));
   assert.doesNotMatch(ring, new RegExp(evil), "the second key never reaches apt");
-  assert.match(read(path.join(lst, "docker.list")), /signed-by=.*keyrings\/docker\.gpg\] https:\/\/download\.docker\.com\/linux\/ubuntu noble stable/);
+  assert.match(
+    read(path.join(lst, "docker.list")),
+    /signed-by=.*keyrings\/docker\.gpg\] https:\/\/download\.docker\.com\/linux\/ubuntu noble stable/,
+  );
   assert.match(calls, /apt-get install -y docker-ce docker-ce-cli containerd\.io docker-compose-plugin/);
   // Docker's real key has a signing subkey with a fingerprint of its own (1 pub, 1 sub, 2 fpr): that must pass, because only the fingerprint after the pub record counts
   assert.match(read(path.join(key, "docker.gpg")), /SUB|fpr/, "(the fake's listing carries a sub and its fpr)");
@@ -266,11 +367,26 @@ exit 0
   assert.match(conflict.stderr, /Nothing was changed/);
   // a failed install leaves its log where the message says, after the installer has exited and cleaned up its temp folder
   const failBin = mk([`fpr:${good}`]);
-  fs.writeFileSync(path.join(failBin, "apt-get"), `#!/bin/sh\necho "apt-get $*" >>"${dir}/calls.log"\ncase "$*" in *docker-ce*) echo "E: broken" ; exit 100 ;; esac\n`, { mode: 0o755 });
-  const failed = sh(INSTALL, `TMP="${dir}/tmp"; DIR="${dir}/srv"; DRY=0; trap cleanup EXIT; docker_apt_install`, env(failBin));
+  fs.writeFileSync(
+    path.join(failBin, "apt-get"),
+    `#!/bin/sh\necho "apt-get $*" >>"${dir}/calls.log"\ncase "$*" in *docker-ce*) echo "E: broken" ; exit 100 ;; esac\n`,
+    { mode: 0o755 },
+  );
+  const failed = sh(
+    INSTALL,
+    `TMP="${dir}/tmp"; DIR="${dir}/srv"; DRY=0; trap cleanup EXIT; docker_apt_install`,
+    env(failBin),
+  );
   assert.notEqual(failed.status, 0);
-  assert.match(failed.stderr, new RegExp(`Its own output is in ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/srv/state/docker-install\\.log`));
-  assert.match(read(path.join(dir, "srv/state/docker-install.log")), /E: broken/, "the log the message names is still there");
+  assert.match(
+    failed.stderr,
+    new RegExp(`Its own output is in ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/srv/state/docker-install\\.log`),
+  );
+  assert.match(
+    read(path.join(dir, "srv/state/docker-install.log")),
+    /E: broken/,
+    "the log the message names is still there",
+  );
   // --no-docker-install stops instead
   const no = sh(INSTALL, `NO_DOCKER=1; PATH=/nonexistent; need_docker`, {});
   assert.notEqual(no.status, 0);
@@ -298,7 +414,10 @@ test("vyre-server logs says it is following, and --no-follow prints and exits", 
     sh(SERVER, `dc(){ echo "$*" >>"${dir}/dc.log"; }; cmd_logs ${args}`);
     return read(path.join(dir, "dc.log")).trim();
   };
-  assert.equal(run("vyred"), "logs -f --tail 200  vyred".replace("  ", " ").replace("-f --tail 200 vyred", "-f --tail 200 vyred"));
+  assert.equal(
+    run("vyred"),
+    "logs -f --tail 200  vyred".replace("  ", " ").replace("-f --tail 200 vyred", "-f --tail 200 vyred"),
+  );
   assert.equal(run("--no-follow vyred"), "logs --tail 200 vyred");
   assert.equal(run("vyred --no-follow"), "logs --tail 200 vyred");
   assert.match(read(SERVER).slice(0, 1800), /--no-follow/, "the help lists it");
@@ -307,7 +426,10 @@ test("vyre-server logs says it is following, and --no-follow prints and exits", 
 
 test("a backup on the same disk as the data says it is no protection and gives the one command that copies it out; on another disk it is quiet", () => {
   const dir = tmp();
-  const note = (devices: string): string => sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_FILE="${dir}/backups/vyre-manual.tar.gz"; backup_note`, { VYRE_TEST_FS_DEVICE: devices }).stdout;
+  const note = (devices: string): string =>
+    sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_FILE="${dir}/backups/vyre-manual.tar.gz"; backup_note`, {
+      VYRE_TEST_FS_DEVICE: devices,
+    }).stdout;
   const same = note(`${dir}=/dev/vda1`);
   assert.match(same, /on the same disk as the Space's data/);
   assert.match(same, /lost with it/);
@@ -324,21 +446,37 @@ test("backups live with the data: a data folder on another volume holds its back
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const cfg = (data: string): Out => sh(INSTALL, `DIR="${dirVyre}"; DATA_DIR="${data}"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=provider; write_config`, { VYRE_DIR: dirVyre });
+  const cfg = (data: string): Out =>
+    sh(
+      INSTALL,
+      `DIR="${dirVyre}"; DATA_DIR="${data}"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=provider; write_config`,
+      { VYRE_DIR: dirVyre },
+    );
   const other = path.join(dir, "mnt/vyre/data");
   assert.equal(cfg(other).status, 0);
-  assert.equal(read(path.join(dirVyre, "backup-dir")).trim(), path.join(other, "backups"), "a provider volume holds its own backups, so they are as protected as the data");
+  assert.equal(
+    read(path.join(dirVyre, "backup-dir")).trim(),
+    path.join(other, "backups"),
+    "a provider volume holds its own backups, so they are as protected as the data",
+  );
   assert.ok(fs.existsSync(path.join(other, "backups")));
   fs.rmSync(path.join(dirVyre, "backup-dir"));
   assert.equal(cfg(path.join(dirVyre, "data")).status, 0);
-  assert.equal(read(path.join(dirVyre, "backup-dir")).trim(), path.join(dirVyre, "backups"), "the default layout is unchanged");
+  assert.equal(
+    read(path.join(dirVyre, "backup-dir")).trim(),
+    path.join(dirVyre, "backups"),
+    "the default layout is unchanged",
+  );
   // no Space in the data folder (an unmounted volume): no backup, and the earlier ones stay
   const old = path.join(dirVyre, "backups");
   for (const n of ["a", "b", "c"]) fs.writeFileSync(path.join(old, `vyre-${n}-20261101T000000Z.tar.gz`), n);
   const env = { VYRE_DIR: dirVyre };
   const r = sh(SERVER, `DATA_DIR="${dirVyre}/empty"; dc(){ :; }; stop_strays(){ :; }; backup_data manual live`, env);
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /there is no Space in .*empty \(no space\/events\.db\): is the data volume mounted\? No backup was written, and the earlier backups were left as they are/);
+  assert.match(
+    r.stderr,
+    /there is no Space in .*empty \(no space\/events\.db\): is the data volume mounted\? No backup was written, and the earlier backups were left as they are/,
+  );
   assert.equal(fs.readdirSync(old).filter((f) => f.endsWith(".tar.gz")).length, 3, "nothing was pruned or added");
   fs.rmSync(dir, { recursive: true });
 });
@@ -355,13 +493,23 @@ test("--uninstall --purge does what it says and says what it did: contents of a 
   fs.writeFileSync(path.join(dirVyre, "data-dir"), `${data}\n`);
   fs.writeFileSync(path.join(dirVyre, "backup-dir"), `${data}/backups\n`);
   const bin = fakeBin(dir, ["mountpoint"], { mountpoint: `#!/bin/sh\n[ "$2" = "${data}" ]\n` });
-  const out = sh(INSTALL, `DIR="${dirVyre}"; DATA_DIR="${data}"; PURGE=1; YES=1; DRY=0; BIN_DIR="${dir}/bin"; UNIT_DIR="${dir}/units"; uninstall`, { PATH: `${bin}:${process.env.PATH ?? ""}` });
+  const out = sh(
+    INSTALL,
+    `DIR="${dirVyre}"; DATA_DIR="${data}"; PURGE=1; YES=1; DRY=0; BIN_DIR="${dir}/bin"; UNIT_DIR="${dir}/units"; uninstall`,
+    { PATH: `${bin}:${process.env.PATH ?? ""}` },
+  );
   assert.equal(out.status, 0, out.stderr);
   assert.ok(fs.existsSync(data), "a mount point cannot be removed");
   assert.deepEqual(fs.readdirSync(data), [], "but it is emptied, backups included");
   assert.ok(!fs.existsSync(dirVyre));
-  assert.match(out.stdout, /Removed: the server's containers and Docker volumes \(this Space's agents' browser sign-ins too\), the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/);
-  assert.match(out.stdout, /Not removed: the Docker images it pulled .*, Docker itself, your DNS records, certificates issued for the name, and any backup you copied somewhere else\./);
+  assert.match(
+    out.stdout,
+    /Removed: the server's containers and Docker volumes \(this Space's agents' browser sign-ins too\), the Space's data \(the folder .* stays, because it is a separate volume's mount point, but it is empty\), every backup in .*backups, the install folder/,
+  );
+  assert.match(
+    out.stdout,
+    /Not removed: the Docker images it pulled .*, Docker itself, your DNS records, certificates issued for the name, and any backup you copied somewhere else\./,
+  );
   fs.rmSync(dir, { recursive: true });
 });
 
@@ -375,12 +523,27 @@ test("the DNS check asks a public resolver (dig) rather than this machine's host
   const out = sh(INSTALL, `dns_lines vyre.example.com`, env);
   const calls = read(path.join(dir, "calls.log"));
   assert.match(calls, /curl -4 -fsS --max-time 5 https:\/\/api\.ipify\.org/, "IPv4 forced");
-  assert.match(calls, /curl -4 .*ifconfig\.me\/ip/, "an answer that is not an address is skipped and the next service asked");
-  assert.match(calls, /dig \+short \+time=3 \+tries=1 A vyre\.example\.com @1\.1\.1\.1/, "a public resolver, not /etc/hosts");
-  assert.match(out.stdout, /ok {2}vyre\.example\.com points to this machine \(203\.0\.113\.9\)/, "the CNAME line in dig's answer is ignored");
+  assert.match(
+    calls,
+    /curl -4 .*ifconfig\.me\/ip/,
+    "an answer that is not an address is skipped and the next service asked",
+  );
+  assert.match(
+    calls,
+    /dig \+short \+time=3 \+tries=1 A vyre\.example\.com @1\.1\.1\.1/,
+    "a public resolver, not /etc/hosts",
+  );
+  assert.match(
+    out.stdout,
+    /ok {2}vyre\.example\.com points to this machine \(203\.0\.113\.9\)/,
+    "the CNAME line in dig's answer is ignored",
+  );
   fs.writeFileSync(path.join(bin, "dig"), `#!/bin/sh\nprintf '104.16.0.1\\n'\n`, { mode: 0o755 });
   const proxied = sh(INSTALL, `dns_lines vyre.example.com`, env);
-  assert.match(proxied.stdout, /\?\? {2}vyre\.example\.com points to 104\.16\.0\.1; this machine's public address appears to be 203\.0\.113\.9\. If a proxy or load balancer is in front, that is fine/);
+  assert.match(
+    proxied.stdout,
+    /\?\? {2}vyre\.example\.com points to 104\.16\.0\.1; this machine's public address appears to be 203\.0\.113\.9\. If a proxy or load balancer is in front, that is fine/,
+  );
   assert.doesNotMatch(proxied.stdout, /Change the record/, "no advice that would break a working proxy setup");
   fs.rmSync(dir, { recursive: true });
 });
@@ -391,7 +554,12 @@ test("the disk choice is written once and changed only in the open: a first inst
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const cfg = (kind: string): Out => sh(INSTALL, `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=${kind}; write_config`, { VYRE_DIR: dirVyre });
+  const cfg = (kind: string): Out =>
+    sh(
+      INSTALL,
+      `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=${kind}; write_config`,
+      { VYRE_DIR: dirVyre },
+    );
   const first = cfg("provider");
   assert.equal(first.status, 0, first.stderr);
   const rec = read(path.join(dirVyre, "state/encryption"));
@@ -401,7 +569,11 @@ test("the disk choice is written once and changed only in the open: a first inst
   fs.writeFileSync(path.join(dirVyre, "state/encryption"), rec.replace(since, "2026-01-02"));
   const same = cfg("provider");
   assert.doesNotMatch(same.stdout, /recorded disk choice changed/);
-  assert.match(read(path.join(dirVyre, "state/encryption")), /^since=2026-01-02$/m, "the date of the original choice is kept");
+  assert.match(
+    read(path.join(dirVyre, "state/encryption")),
+    /^since=2026-01-02$/m,
+    "the date of the original choice is kept",
+  );
   assert.match(read(path.join(dirVyre, "compose.env")), /^VYRE_DISK_ENCRYPTION_SINCE=2026-01-02$/m);
   const changed = cfg("plain");
   assert.match(changed.stdout, /The recorded disk choice changed: from provider to plain\./);
@@ -412,7 +584,10 @@ test("the disk choice is written once and changed only in the open: a first inst
 test("vyre-server looks at the disk at each start and tells the Console what it sees", () => {
   const dir = tmp();
   fs.mkdirSync(path.join(dir, "state"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=x\nVYRE_DISK_ENCRYPTION=detected\nVYRE_DISK_ENCRYPTION_SINCE=2026-11-01\n");
+  fs.writeFileSync(
+    path.join(dir, "compose.env"),
+    "VYRE_IMAGE=x\nVYRE_DISK_ENCRYPTION=detected\nVYRE_DISK_ENCRYPTION_SINCE=2026-11-01\n",
+  );
   const env = plainHost(dir);
   // the recorded "detected" is not true any more: the volume is plain, nothing was said by the person, so the line goes
   const r = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, env);
@@ -424,17 +599,30 @@ test("vyre-server looks at the disk at each start and tells the Console what it 
   assert.match(p.stdout, /^VYRE_DISK_ENCRYPTION_SINCE=2026-11-05$/m);
   const enc = tmp();
   fs.writeFileSync(path.join(enc, "compose.env"), "VYRE_IMAGE=x\n");
-  const e = sh(SERVER, `DIR="${enc}"; DATA_DIR="${enc}/data"; refresh_disk_env; cat "${enc}/compose.env"`, hostEnv(fakeHost(enc, {})));
+  const e = sh(
+    SERVER,
+    `DIR="${enc}"; DATA_DIR="${enc}/data"; refresh_disk_env; cat "${enc}/compose.env"`,
+    hostEnv(fakeHost(enc, {})),
+  );
   assert.match(e.stdout, /^VYRE_DISK_ENCRYPTION=detected$/m);
   fs.rmSync(dir, { recursive: true });
   fs.rmSync(enc, { recursive: true });
 });
 
-
 // ---- Round 6: the second review (N1 to N7) and Docker's data root
 
 const sqliteWith = (file: string, sql: string): void => {
-  const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`, file, sql], { encoding: "utf8" });
+  const r = spawnSync(
+    "node",
+    [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`,
+      file,
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
   assert.equal(r.status, 0, r.stderr);
 };
 
@@ -444,23 +632,47 @@ test("new installs put backups inside the data folder when the data is on anothe
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const cfg = (devices: string): Out => sh(INSTALL, `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=detected; write_config`, { VYRE_DIR: dirVyre, VYRE_TEST_FS_DEVICE: devices });
+  const cfg = (devices: string): Out =>
+    sh(
+      INSTALL,
+      `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="vyre.example.com"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=detected; write_config`,
+      { VYRE_DIR: dirVyre, VYRE_TEST_FS_DEVICE: devices },
+    );
   assert.equal(cfg(`${dirVyre}/data=/dev/mapper/mine,${dirVyre}=/dev/vda1`).status, 0);
-  assert.equal(read(path.join(dirVyre, "backup-dir")).trim(), path.join(dirVyre, "data/backups"), "an encrypted volume at the default folder holds its backups");
+  assert.equal(
+    read(path.join(dirVyre, "backup-dir")).trim(),
+    path.join(dirVyre, "data/backups"),
+    "an encrypted volume at the default folder holds its backups",
+  );
   fs.rmSync(path.join(dirVyre, "backup-dir"));
   assert.equal(cfg(`${dirVyre}/data=/dev/vda1,${dirVyre}=/dev/vda1`).status, 0);
-  assert.equal(read(path.join(dirVyre, "backup-dir")).trim(), path.join(dirVyre, "backups"), "the same disk keeps the old layout");
+  assert.equal(
+    read(path.join(dirVyre, "backup-dir")).trim(),
+    path.join(dirVyre, "backups"),
+    "the same disk keeps the old layout",
+  );
   fs.writeFileSync(path.join(dirVyre, "backup-dir"), `${dirVyre}/backups\n`);
   assert.equal(cfg(`${dirVyre}/data=/dev/mapper/mine,${dirVyre}=/dev/vda1`).status, 0);
-  assert.equal(read(path.join(dirVyre, "backup-dir")).trim(), path.join(dirVyre, "backups"), "an install that already has a backup folder keeps it");
-  assert.doesNotMatch(read(path.join(HERE, "../../../docs/getting-started.md")), /it is by default when the data folder is on it/, "the docs no longer promise that for the default layout");
+  assert.equal(
+    read(path.join(dirVyre, "backup-dir")).trim(),
+    path.join(dirVyre, "backups"),
+    "an install that already has a backup folder keeps it",
+  );
+  assert.doesNotMatch(
+    read(path.join(HERE, "../../../docs/getting-started.md")),
+    /it is by default when the data folder is on it/,
+    "the docs no longer promise that for the default layout",
+  );
   fs.rmSync(dir, { recursive: true });
 });
 
 test("the Console value for a file-backed encryption layer is its own (degraded), a verified one is detected, and the doctor shows each state's own next step", () => {
   const dir = tmp();
   fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=x\n");
-  const env = { ...hostEnv(fakeHost(dir, { src: "/dev/mapper/vyre-data", layers: ["crypt", "loop"] })), VYRE_TEST_DOCKER_ROOT: "" };
+  const env = {
+    ...hostEnv(fakeHost(dir, { src: "/dev/mapper/vyre-data", layers: ["crypt", "loop"] })),
+    VYRE_TEST_DOCKER_ROOT: "",
+  };
   const r = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, env);
   assert.match(r.stdout, /^VYRE_DISK_ENCRYPTION=detected_file$/m);
   fs.rmSync(dir, { recursive: true });
@@ -470,47 +682,91 @@ test("Docker's data root: verified is healthy; the data encrypted and Docker's r
   const dir = tmp();
   const state = path.join(dir, "state");
   fs.mkdirSync(state, { recursive: true });
-  const encDir = tmp(), plainDir = tmp();
+  const encDir = tmp(),
+    plainDir = tmp();
   // two folders on two disks: Docker's root (/var/lib/docker stand-in) and the data folder
   const mounts = path.join(dir, "mounts");
   const lsblk = path.join(dir, "lsblk");
-  fs.writeFileSync(lsblk, `#!/bin/sh\ncase "$*" in *crypt-dev*) printf 'crypt\\ndisk\\n' ;; *) printf 'part\\ndisk\\n' ;; esac\n`, { mode: 0o755 });
+  fs.writeFileSync(
+    lsblk,
+    `#!/bin/sh\ncase "$*" in *crypt-dev*) printf 'crypt\\ndisk\\n' ;; *) printf 'part\\ndisk\\n' ;; esac\n`,
+    { mode: 0o755 },
+  );
   fs.mkdirSync(path.join(dir, "dockerroot"), { recursive: true });
   const host = (dataEnc: boolean, rootEnc: boolean): Record<string, string> => {
-    fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n/dev/${dataEnc ? "mapper/crypt-dev" : "sdb1"} ${dir}/data ext4 rw 0 0\n/dev/${rootEnc ? "mapper/crypt-dev" : "sdc1"} ${dir}/dockerroot ext4 rw 0 0\n`);
+    fs.writeFileSync(
+      mounts,
+      `/dev/sda1 / ext4 rw 0 0\n/dev/${dataEnc ? "mapper/crypt-dev" : "sdb1"} ${dir}/data ext4 rw 0 0\n/dev/${rootEnc ? "mapper/crypt-dev" : "sdc1"} ${dir}/dockerroot ext4 rw 0 0\n`,
+    );
     return { VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: lsblk, VYRE_TEST_DOCKER_ROOT: `${dir}/dockerroot` };
   };
   const find = (env: Record<string, string>, kind = ""): string => {
-    if (kind) fs.writeFileSync(path.join(state, "encryption"), `kind=${kind}\nsince=2026-11-11\n`); else fs.rmSync(path.join(state, "encryption"), { force: true });
-    return sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep docker_root`, env).stdout;
+    if (kind) fs.writeFileSync(path.join(state, "encryption"), `kind=${kind}\nsince=2026-11-11\n`);
+    else fs.rmSync(path.join(state, "encryption"), { force: true });
+    return sh(
+      SERVER,
+      `DIR="${dir}"; DATA_DIR="${dir}/data"; check_all; printf '%s\n' "$FINDINGS" | grep docker_root`,
+      env,
+    ).stdout;
   };
-  assert.match(find(host(true, true)), /host\.docker_root\thealthy\tDocker's data root .*dockerroot is on an encrypted volume \(verified here\)\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there; that disk's encryption protects them\./);
+  assert.match(
+    find(host(true, true)),
+    /host\.docker_root\thealthy\tDocker's data root .*dockerroot is on an encrypted volume \(verified here\)\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there; that disk's encryption protects them\./,
+  );
   const mixed = find(host(true, false));
-  assert.match(mixed, /host\.docker_root\tdegraded\tDocker's data root \(.*dockerroot\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there, so they are not encrypted at rest\. Next: move Docker's data root onto the encrypted volume, or encrypt its disk\./);
-  assert.match(find(host(false, false), "plain"), /degraded\tAgent browser sign-ins \(.*\) are stored unsealed in Docker volumes on Docker's disk \(.*\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/);
-  assert.match(find(host(false, false), "provider"), /degraded\tNot verified: agent browser sign-ins .* are stored unsealed in Docker volumes on Docker's disk .* covers them only if Docker's data root is on that volume/);
+  assert.match(
+    mixed,
+    /host\.docker_root\tdegraded\tDocker's data root \(.*dockerroot\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there, so they are not encrypted at rest\. Next: move Docker's data root onto the encrypted volume, or encrypt its disk\./,
+  );
+  assert.match(
+    find(host(false, false), "plain"),
+    /degraded\tAgent browser sign-ins \(.*\) are stored unsealed in Docker volumes on Docker's disk \(.*\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/,
+  );
+  assert.match(
+    find(host(false, false), "provider"),
+    /degraded\tNot verified: agent browser sign-ins .* are stored unsealed in Docker volumes on Docker's disk .* covers them only if Docker's data root is on that volume/,
+  );
   assert.match(find(host(false, false)), /degraded\tAgent browser sign-ins .* not verified encrypted/);
   // never down, so an existing server is not stopped or refused (the update waits for doctor with no down finding)
   assert.doesNotMatch(find(host(false, false)), /\tdown\t/);
   // a root the host cannot look at is "cannot tell", not plain: a folder that does not exist here (Docker in a virtual machine), and a Mac
   const unseen = find({ ...host(true, false), VYRE_TEST_DOCKER_ROOT: `${dir}/not-here` });
-  assert.match(unseen, /host\.docker_root\tdegraded\tCould not tell whether Docker's data root \(.*not-here\) is encrypted: it is not a disk this server can look at \(as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image\)/);
+  assert.match(
+    unseen,
+    /host\.docker_root\tdegraded\tCould not tell whether Docker's data root \(.*not-here\) is encrypted: it is not a disk this server can look at \(as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image\)/,
+  );
   assert.doesNotMatch(unseen, /not encrypted at rest/, "never called plain");
   const mac = find({ ...host(true, false), VYRE_TEST_OS: "Darwin" });
   assert.match(mac, /Could not tell whether Docker's data root/);
   // a symlinked root is resolved before it is judged
   fs.mkdirSync(path.join(dir, "real"));
   fs.symlinkSync(path.join(dir, "real"), path.join(dir, "linkroot"));
-  fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n/dev/sdb1 ${dir}/data ext4 rw 0 0\n/dev/mapper/crypt-dev ${dir}/real ext4 rw 0 0\n`);
-  assert.match(find({ VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: lsblk, VYRE_TEST_DOCKER_ROOT: `${dir}/linkroot` }), /host\.docker_root\t(healthy|degraded)\t(Docker's data root .*is on an encrypted volume|Docker's data root \(.*\) is not on an encrypted volume, but)/, "judged by where the link leads, not the link's own path");
+  fs.writeFileSync(
+    mounts,
+    `/dev/sda1 / ext4 rw 0 0\n/dev/sdb1 ${dir}/data ext4 rw 0 0\n/dev/mapper/crypt-dev ${dir}/real ext4 rw 0 0\n`,
+  );
+  assert.match(
+    find({ VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: lsblk, VYRE_TEST_DOCKER_ROOT: `${dir}/linkroot` }),
+    /host\.docker_root\t(healthy|degraded)\t(Docker's data root .*is on an encrypted volume|Docker's data root \(.*\) is not on an encrypted volume, but)/,
+    "judged by where the link leads, not the link's own path",
+  );
   // the host tells the Console what it sees
   fs.writeFileSync(path.join(dir, "compose.env"), "VYRE_IMAGE=x\n");
-  const r = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, host(true, false));
+  const r = sh(
+    SERVER,
+    `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`,
+    host(true, false),
+  );
   assert.match(r.stdout, /^VYRE_DOCKER_ROOT_DIR=.*dockerroot$/m);
   assert.match(r.stdout, /^VYRE_DOCKER_ROOT_STATE=plain$/m);
-  const u = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, { ...host(true, false), VYRE_TEST_DOCKER_ROOT: `${dir}/not-here` });
+  const u = sh(SERVER, `DIR="${dir}"; DATA_DIR="${dir}/data"; refresh_disk_env; cat "${dir}/compose.env"`, {
+    ...host(true, false),
+    VYRE_TEST_DOCKER_ROOT: `${dir}/not-here`,
+  });
   assert.match(u.stdout, /^VYRE_DOCKER_ROOT_STATE=unknown$/m);
-  fs.rmSync(dir, { recursive: true }); fs.rmSync(encDir, { recursive: true }); fs.rmSync(plainDir, { recursive: true });
+  fs.rmSync(dir, { recursive: true });
+  fs.rmSync(encDir, { recursive: true });
+  fs.rmSync(plainDir, { recursive: true });
 });
 
 function mkSpace(dir: string, marker: string): void {
@@ -519,21 +775,45 @@ function mkSpace(dir: string, marker: string): void {
   fs.mkdirSync(path.join(dir, "data", "caddy"), { recursive: true });
   fs.writeFileSync(path.join(dir, "data", "caddy", "cert.pem"), marker);
   for (const n of ["events.db", "modules.db"]) {
-    const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('"+process.argv[2]+"')");d.close()`, path.join(space, n), marker]);
+    const r = spawnSync("node", [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('"+process.argv[2]+"')");d.close()`,
+      path.join(space, n),
+      marker,
+    ]);
     assert.equal(r.status, 0, String(r.stderr));
   }
 }
-const valueIn = (db: string): string => JSON.parse(spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify(d.prepare("SELECT v FROM t").get().v))`, db], { encoding: "utf8" }).stdout);
+const valueIn = (db: string): string =>
+  JSON.parse(
+    spawnSync(
+      "node",
+      [
+        "--no-warnings",
+        "-e",
+        `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify(d.prepare("SELECT v FROM t").get().v))`,
+        db,
+      ],
+      { encoding: "utf8" },
+    ).stdout,
+  );
 
 test("restore into a lost or empty data folder skips the pre-restore backup, says so, and restores; the backup and update guards stay", () => {
   const dir = tmp();
   try {
     mkSpace(dir, "OLD");
-    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, {
+      VYRE_DIR: dir,
+    });
     const file = mk.stdout.trim().split("\n").pop()!;
-    fs.rmSync(path.join(dir, "data"), { recursive: true });   // the data folder is gone, as after a replaced disk
+    fs.rmSync(path.join(dir, "data"), { recursive: true }); // the data folder is gone, as after a replaced disk
     const before = fs.readdirSync(path.join(dir, "backups")).length;
-    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ echo healthy >>"${dir}/dc.log"; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, { VYRE_DIR: dir });
+    const r = sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ echo healthy >>"${dir}/dc.log"; }; trap cleanup EXIT; cmd_restore "${file}" --yes`,
+      { VYRE_DIR: dir },
+    );
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /There is no current Space in .*data to back up; restoring\./);
     assert.match(r.stdout, /There was no Space here before\./);
@@ -544,5 +824,7 @@ test("restore into a lost or empty data folder skips the pre-restore backup, say
     const b = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data again live`, { VYRE_DIR: dir });
     assert.notEqual(b.status, 0);
     assert.match(b.stderr, /there is no Space in/);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

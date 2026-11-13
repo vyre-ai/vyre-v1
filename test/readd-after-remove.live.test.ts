@@ -12,9 +12,12 @@ test("a person removed from a chat and added back sees the chat's own agent agai
   try {
     const ana = await join(d, "ana");
     const ben = await join(d, "ben");
-    const threadId = (await ok(d, ana.token, "chat.start", { kind: "chat", agentIds: [], personId: ben.personId })).thread.threadId as string;
-    const agentId = (await ok(d, ana.token, "threads.agent.create", { threadId, name: "Rejoin checker" })).agentId as string;
-    const sees = async (): Promise<boolean> => (await api(d, ben.token, "access.shares_of", { resource: { type: "agent", id: agentId } })).status === 200;
+    const threadId = (await ok(d, ana.token, "chat.start", { kind: "chat", agentIds: [], personId: ben.personId }))
+      .thread.threadId as string;
+    const agentId = (await ok(d, ana.token, "threads.agent.create", { threadId, name: "Rejoin checker" }))
+      .agentId as string;
+    const sees = async (): Promise<boolean> =>
+      (await api(d, ben.token, "access.shares_of", { resource: { type: "agent", id: agentId } })).status === 200;
     assert.equal(await sees(), true, "Ben, in the chat, sees its agent");
     await ok(d, ana.token, "threads.members.remove", { threadId, personId: ben.personId });
     assert.equal(await sees(), false, "taken out, he does not");
@@ -22,8 +25,10 @@ test("a person removed from a chat and added back sees the chat's own agent agai
     assert.equal(await sees(), true, "added back, he sees it again");
 
     // a project: the same for a role taken away and given again
-    const projectId = (await ok(d, ana.token, "projects.create", { type: "project", title: "Rejoin" })).projectId as string;
-    const onProject = async (): Promise<boolean> => (await api(d, ben.token, "access.shares_of", { resource: { type: "project", id: projectId } })).status === 200;
+    const projectId = (await ok(d, ana.token, "projects.create", { type: "project", title: "Rejoin" }))
+      .projectId as string;
+    const onProject = async (): Promise<boolean> =>
+      (await api(d, ben.token, "access.shares_of", { resource: { type: "project", id: projectId } })).status === 200;
     await ok(d, ana.token, "projects.members.set", { projectId, principal: ben.personId, role: "member" });
     assert.equal(await onProject(), true, "a Member holds the project");
     await ok(d, ana.token, "projects.members.remove", { projectId, principal: ben.personId });

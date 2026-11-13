@@ -51,13 +51,25 @@ export function railPlaceOf(routeId: string): PlaceId | null {
  */
 class PlaceBoundary extends Component<{ place: string; children?: ReactNode }, { failed: boolean }> {
   override state = { failed: false };
-  static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error(`vyre place crashed: ${this.props.place}: ${error.message.slice(0, 160)} in${(info.componentStack ?? "").replace(/\s+/g, " ").slice(0, 700)}`);
+    console.error(
+      `vyre place crashed: ${this.props.place}: ${error.message.slice(0, 160)} in${(info.componentStack ?? "").replace(/\s+/g, " ").slice(0, 700)}`,
+    );
   }
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
-    return <States kind="error" message="Couldn't draw this page" cause="Something went wrong here. The rest of Vyre is fine." retryable onRetry={() => this.setState({ failed: false })} />;
+    return (
+      <States
+        kind="error"
+        message="Couldn't draw this page"
+        cause="Something went wrong here. The rest of Vyre is fine."
+        retryable
+        onRetry={() => this.setState({ failed: false })}
+      />
+    );
   }
 }
 
@@ -66,7 +78,9 @@ function Usable({ place, spaceId }: { place: string; spaceId: string | null }): 
     webUiStateStore().write({ lastPlace: place });
     mark("app.usable");
     // the first usable screen of this page load is a real startup measurement for the Space it opened in
-    const perf = (globalThis as { performance?: { getEntriesByType?: (t: string) => { name: string; startTime: number }[] } }).performance;
+    const perf = (
+      globalThis as { performance?: { getEntriesByType?: (t: string) => { name: string; startTime: number }[] } }
+    ).performance;
     const ms = spaceId ? takeStartupMs(perf?.getEntriesByType?.("mark") ?? []) : null;
     if (spaceId && ms !== null) speed.record(spaceId, "startup", ms);
   }, [place, spaceId]);
@@ -75,11 +89,23 @@ function Usable({ place, spaceId }: { place: string; spaceId: string | null }): 
 
 /** The shell tells Ask Vyre where the person is whenever the place or its tab hash changes. In Chats an Ask names what it is about in its own address, and any other chat is about no screen: nothing is remembered from the page the person left. */
 function ScreenSignal({ place, hash }: { place: string; hash: string }): null {
-  useEffect(() => { setScreenContext(place === "chats" ? screenOfAsk(hash) : screenFromHash(place, hash)); }, [place, hash]);
+  useEffect(() => {
+    setScreenContext(place === "chats" ? screenOfAsk(hash) : screenFromHash(place, hash));
+  }, [place, hash]);
   return null;
 }
 
-export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceId; runtime: ShellRuntime | null; hash?: string; opened?: PlaceHash["opened"] }): ReactElement | null {
+export function PlaceHost({
+  place,
+  runtime,
+  hash = "",
+  opened,
+}: {
+  place: PlaceId;
+  runtime: ShellRuntime | null;
+  hash?: string;
+  opened?: PlaceHash["opened"];
+}): ReactElement | null {
   const latest = useRef(opened);
   latest.current = opened;
   const stable = useCallback<PlaceHash["opened"]>((t) => latest.current?.(t), []);
@@ -92,11 +118,25 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
         <Suspense fallback={<Quiet />}>
           <ScreenSignal place={place} hash={hash} />
           {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
-          <AskPaneHost place={place} rt={runtime}><Place place={routeId} /></AskPaneHost>
+          <AskPaneHost place={place} rt={runtime}>
+            <Place place={routeId} />
+          </AskPaneHost>
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>
     </PlaceHashProvider>
   );
-  return runtime ? <ShellRuntimeProvider value={runtime}><LinkPolicyProvider value={runtime.links ?? null}><ConnectInlineHost rt={runtime}><ZonesHost rt={runtime}><TalkHost rt={runtime}>{body}</TalkHost></ZonesHost></ConnectInlineHost></LinkPolicyProvider></ShellRuntimeProvider> : body;
+  return runtime ? (
+    <ShellRuntimeProvider value={runtime}>
+      <LinkPolicyProvider value={runtime.links ?? null}>
+        <ConnectInlineHost rt={runtime}>
+          <ZonesHost rt={runtime}>
+            <TalkHost rt={runtime}>{body}</TalkHost>
+          </ZonesHost>
+        </ConnectInlineHost>
+      </LinkPolicyProvider>
+    </ShellRuntimeProvider>
+  ) : (
+    body
+  );
 }

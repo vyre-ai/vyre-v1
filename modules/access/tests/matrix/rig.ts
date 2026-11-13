@@ -14,8 +14,14 @@ export function rig() {
   const db = new SqlDb();
   const events: { name: string; subject: string; payload: unknown }[] = [];
   const ctx: ShareCtx = {
-    space: "spc_test", principal: { kind: "person", id: "usr_admin" }, trace: { traceId: "0123456789abcdef0123456789abcdef" },
-    now: () => NOW, db, emit(name, subject, payload) { events.push({ name, subject, payload }); },
+    space: "spc_test",
+    principal: { kind: "person", id: "usr_admin" },
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    now: () => NOW,
+    db,
+    emit(name, subject, payload) {
+      events.push({ name, subject, payload });
+    },
   };
   const store = storeOf(ctx);
   const everyone = store.groups.get(EVERYONE)!;
@@ -27,7 +33,15 @@ export function rig() {
   store.bump();
   const as = (id: string): ShareCtx => ({ ...ctx, principal: { kind: "person", id } });
   const item = (id: string, owner: string | null, type = "site"): void => {
-    store.resources.set(id, { id, type, parentId: null, label: "public", ownerId: owner, holds: 0, row: { title: id } });
+    store.resources.set(id, {
+      id,
+      type,
+      parentId: null,
+      label: "public",
+      ownerId: owner,
+      holds: 0,
+      row: { title: id },
+    });
     store.bump();
   };
   return { db, ctx, events, store, as, item };

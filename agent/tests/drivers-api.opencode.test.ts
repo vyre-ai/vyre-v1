@@ -12,8 +12,24 @@ import type { DriverEvent, SessionSpec } from "../src/turn-engine/types.ts";
 
 const UA = /^vyre\/[\w.+-]+$/;
 
-async function turnOn(fetch: ReturnType<typeof fakeFetch>, s: SessionSpec, base = opencodeGo.defaultBase, adapter = opencodeGo): Promise<DriverEvent[]> {
-  const session = createApiSession({ adapter, account: { ref: "#Team_OpenCode", base }, base, fetch: fetch.fetch, authorize, clock: fakeClock(), context: () => ctx() }, s);
+async function turnOn(
+  fetch: ReturnType<typeof fakeFetch>,
+  s: SessionSpec,
+  base = opencodeGo.defaultBase,
+  adapter = opencodeGo,
+): Promise<DriverEvent[]> {
+  const session = createApiSession(
+    {
+      adapter,
+      account: { ref: "#Team_OpenCode", base },
+      base,
+      fetch: fetch.fetch,
+      authorize,
+      clock: fakeClock(),
+      context: () => ctx(),
+    },
+    s,
+  );
   const out: DriverEvent[] = [];
   for await (const e of session.send(turnInput("kimi-k2"))) out.push(e);
   await session.close();
@@ -34,7 +50,11 @@ test("an OpenCode Go chat carries vyre's user agent and the conversation's sessi
     assert.match(h["x-opencode-session"] ?? "", /^vyre-[\w-]{32}$/, "a session id");
     assert.match(h["authorization"] ?? "", /^Bearer /);
   }
-  assert.equal(heads[0]!["x-opencode-session"], heads[1]!["x-opencode-session"], "the same chat and agent: the same id, turn after turn");
+  assert.equal(
+    heads[0]!["x-opencode-session"],
+    heads[1]!["x-opencode-session"],
+    "the same chat and agent: the same id, turn after turn",
+  );
   assert.notEqual(heads[0]!["x-opencode-session"], heads[2]!["x-opencode-session"], "another chat: another id");
   assert.notEqual(heads[0]!["x-opencode-session"], heads[3]!["x-opencode-session"], "another agent: another id");
   assert.equal(heads[0]!["x-opencode-session"], conversationId(one));
@@ -42,10 +62,26 @@ test("an OpenCode Go chat carries vyre's user agent and the conversation's sessi
 });
 
 test("a one-shot job gets one id per job kind and person, not one per call", () => {
-  const a = conversationId({ threadId: "oneshot_m1", agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" }, asker: "usr_dana" });
-  const b = conversationId({ threadId: "oneshot_m2", agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" }, asker: "usr_dana" });
-  const c = conversationId({ threadId: "oneshot_m3", agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" }, asker: "usr_maya" });
-  const d = conversationId({ threadId: "oneshot_m4", agent: { id: "chat-title", name: "Titles", mode: "lead" }, asker: "usr_dana" });
+  const a = conversationId({
+    threadId: "oneshot_m1",
+    agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" },
+    asker: "usr_dana",
+  });
+  const b = conversationId({
+    threadId: "oneshot_m2",
+    agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" },
+    asker: "usr_dana",
+  });
+  const c = conversationId({
+    threadId: "oneshot_m3",
+    agent: { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" },
+    asker: "usr_maya",
+  });
+  const d = conversationId({
+    threadId: "oneshot_m4",
+    agent: { id: "chat-title", name: "Titles", mode: "lead" },
+    asker: "usr_dana",
+  });
   assert.equal(a, b);
   assert.notEqual(a, c);
   assert.notEqual(a, d);
@@ -54,7 +90,10 @@ test("a one-shot job gets one id per job kind and person, not one per call", () 
 test("the OpenCode model list carries vyre's user agent too", async () => {
   const f = fakeFetch(() => ({ text: JSON.stringify({ data: [{ id: "kimi-k2" }, { id: "glm-5" }] }) }));
   const oc = createApiDriver(opencodeGo, { authorize, context: () => ctx(), fetch: f.fetch, clock: fakeClock() });
-  assert.deepEqual((await oc.models({ ref: "#Team_OpenCode" })).map((m) => m.id), ["kimi-k2", "glm-5"]);
+  assert.deepEqual(
+    (await oc.models({ ref: "#Team_OpenCode" })).map((m) => m.id),
+    ["kimi-k2", "glm-5"],
+  );
   assert.equal(f.requests[0]!.url, "https://opencode.ai/inference/go/v1/models");
   assert.match(f.requests[0]!.headers["user-agent"] ?? "", UA);
   assert.match(opencodeGo.modelsRequest().headers["user-agent"] ?? "", UA, "the adapter's own model request");
@@ -62,7 +101,12 @@ test("the OpenCode model list carries vyre's user agent too", async () => {
 
 test("a custom OpenAI-compatible endpoint pointed at opencode.ai sends the same two headers; any other address sends neither", async () => {
   const f = fakeFetch(() => ({ text: fixture("openai-text") }));
-  await turnOn(f, { ...spec("custom/kimi-k2"), threadId: "thr_custom" }, "https://opencode.ai/inference/go/openai/v1", custom);
+  await turnOn(
+    f,
+    { ...spec("custom/kimi-k2"), threadId: "thr_custom" },
+    "https://opencode.ai/inference/go/openai/v1",
+    custom,
+  );
   assert.match(f.requests[0]!.headers["user-agent"] ?? "", UA);
   assert.ok(f.requests[0]!.headers["x-opencode-session"]);
   assert.deepEqual(opencodeHeaders("https://api.example.com/v1", "x"), {});
@@ -71,7 +115,13 @@ test("a custom OpenAI-compatible endpoint pointed at opencode.ai sends the same 
 });
 
 test("a 400 MissingSessionID reads in plain words", async () => {
-  const f = fakeFetch(() => ({ status: 400, text: JSON.stringify({ type: "error", error: { type: "MissingSessionID", message: "Request is missing x-opencode-session" } }) }));
+  const f = fakeFetch(() => ({
+    status: 400,
+    text: JSON.stringify({
+      type: "error",
+      error: { type: "MissingSessionID", message: "Request is missing x-opencode-session" },
+    }),
+  }));
   const events = await turnOn(f, { ...spec("opencode_go/kimi-k2"), threadId: "thr_err" });
   const err = events.find((e) => e.type === "error") as { message?: string } | undefined;
   assert.ok(err, JSON.stringify(events).slice(0, 300));

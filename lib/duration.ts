@@ -4,6 +4,10 @@ export function durationWords(ms: number): string {
   const min = Math.floor(Math.max(0, Number.isFinite(ms) ? ms : 0) / 60_000);
   if (min < 1) return "now";
   if (min < 60) return `${min} min`;
-  if (min < 24 * 60) { const h = Math.floor(min / 60), m = min % 60; return m === 0 ? `${h} h` : `${h} h ${m} min`; }
+  if (min < 24 * 60) {
+    const h = Math.floor(min / 60),
+      m = min % 60;
+    return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  }
   return `${Math.floor(min / (24 * 60))} d`;
 }

@@ -18,7 +18,8 @@ export function reviewData(rt: ShellRuntime): ReviewData {
     live: (cap, input) => capLive(rt, cap, input as Record<string, unknown>),
     call: rt.call,
     nameOf: nameLookup(rt),
-    openFileTab: (id, background) => rt.open({ subject: { type: "file", id }, ...(background ? { background: true } : {}) }),
+    openFileTab: (id, background) =>
+      rt.open({ subject: { type: "file", id }, ...(background ? { background: true } : {}) }),
     key: attemptKey,
     clock: () => ({ now: rt.clock().now }),
     agents: [{ ...rt.assistant, assistant: true }],

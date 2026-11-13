@@ -11,12 +11,25 @@ import { handlers } from "../impl.ts";
 import { codeOf } from "../fixtures/requestdb.ts";
 import { world } from "../fixtures/askworld.ts";
 
-interface RegCap { name: string; input: JsonSchema; output: JsonSchema }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { $defs: Record<string, JsonSchema>; capabilities: RegCap[] };
+interface RegCap {
+  name: string;
+  input: JsonSchema;
+  output: JsonSchema;
+}
+const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+};
 const cap = registry.capabilities.find((c) => c.name === "access.propose_change")!;
 const FOLDER = { type: "folder", id: "fld_1" };
 const propose = (h: ReturnType<typeof world>["h"], who: string, extra: Record<string, unknown> = {}) =>
-  handlers["access.propose_change"](h.as(who), { resource: FOLDER, change: { op: "rename", name: "Rivera matters 2026" }, note: "The year is wrong in the name", idempotencyKey: `idem_${who}`, ...extra } as never);
+  handlers["access.propose_change"](h.as(who), {
+    resource: FOLDER,
+    change: { op: "rename", name: "Rivera matters 2026" },
+    note: "The year is wrong in the name",
+    idempotencyKey: `idem_${who}`,
+    ...extra,
+  } as never);
 
 test("a viewer's proposal becomes one Review task for the people who can edit, and nothing is written to the object", async () => {
   const { h } = world();
@@ -30,11 +43,23 @@ test("a viewer's proposal becomes one Review task for the people who can edit, a
   assert.equal(t["summary"], "The year is wrong in the name");
   assert.ok(String(t["why"]).includes("Rivera matters 2026"), "the card shows the change");
   assert.match(String(t["title"]), /proposes a change to Rivera matters/);
-  assert.equal(out.taskId, `tsk_${String(t["idempotencyKey"]).replace(/[^a-z0-9]/g, "").slice(-12)}`);
-  assert.deepEqual(h.calls.map((c) => c.cap), ["tasks.create"], "only the task is created: no write to the object");
+  assert.equal(
+    out.taskId,
+    `tsk_${String(t["idempotencyKey"])
+      .replace(/[^a-z0-9]/g, "")
+      .slice(-12)}`,
+  );
+  assert.deepEqual(
+    h.calls.map((c) => c.cap),
+    ["tasks.create"],
+    "only the task is created: no write to the object",
+  );
   assert.deepEqual(h.events, [], "no event: the object did not change");
   const row = h.db.own.rows("access_proposals")[0]!;
-  assert.deepEqual([row["proposer"], row["resource_type"], row["resource_id"], row["note"]], ["usr_maya", "folder", "fld_1", "The year is wrong in the name"]);
+  assert.deepEqual(
+    [row["proposer"], row["resource_type"], row["resource_id"], row["note"]],
+    ["usr_maya", "folder", "fld_1", "The year is wrong in the name"],
+  );
   assert.deepEqual(JSON.parse(String(row["change_json"])), { op: "rename", name: "Rivera matters 2026" });
 });
 
@@ -60,17 +85,41 @@ test("with nobody else who can edit the object the admins review it; with nobody
   store.bump();
   const admin = await propose(h, "usr_maya", { resource: { type: "folder", id: "fld_2" }, idempotencyKey: "idem_f2b" });
   assert.equal(admin.taskId.startsWith("tsk_"), true);
-  assert.deepEqual(h.calls.filter((c) => c.cap === "tasks.create").at(-1)!.input["assigned"], { kind: "person", id: "usr_admin" }, "no editor left: the admin");
+  assert.deepEqual(
+    h.calls.filter((c) => c.cap === "tasks.create").at(-1)!.input["assigned"],
+    { kind: "person", id: "usr_admin" },
+    "no editor left: the admin",
+  );
 });
 
 test("an agent proposes for the person it acts for; bad input, a missing object and an oversized change are refused and write nothing", async () => {
   const { h } = world();
-  const viaAgent = await handlers["access.propose_change"](h.as("agt_helper", "agent", "usr_maya"), { resource: FOLDER, change: { op: "x" }, idempotencyKey: "idem_agent" } as never);
+  const viaAgent = await handlers["access.propose_change"](h.as("agt_helper", "agent", "usr_maya"), {
+    resource: FOLDER,
+    change: { op: "x" },
+    idempotencyKey: "idem_agent",
+  } as never);
   assert.equal(viaAgent.taskId.startsWith("tsk_"), true);
   assert.equal(h.db.own.rows("access_proposals")[0]!["proposer"], "usr_maya");
-  await assert.rejects(handlers["access.propose_change"](h.as("agt_loose", "agent"), { resource: FOLDER, change: { op: "x" }, idempotencyKey: "i" } as never), (e: unknown) => codeOf(e) === "permission.no_grant");
-  await assert.rejects(propose(h, "usr_maya", { change: null, idempotencyKey: "i2" }), (e: unknown) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(propose(h, "usr_maya", { resource: { type: "folder", id: "fld_nope" }, idempotencyKey: "i3" }), (e: unknown) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(propose(h, "usr_maya", { change: { blob: "x".repeat(70_000) }, idempotencyKey: "i4" }), (e: unknown) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["access.propose_change"](h.as("agt_loose", "agent"), {
+      resource: FOLDER,
+      change: { op: "x" },
+      idempotencyKey: "i",
+    } as never),
+    (e: unknown) => codeOf(e) === "permission.no_grant",
+  );
+  await assert.rejects(
+    propose(h, "usr_maya", { change: null, idempotencyKey: "i2" }),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    propose(h, "usr_maya", { resource: { type: "folder", id: "fld_nope" }, idempotencyKey: "i3" }),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    propose(h, "usr_maya", { change: { blob: "x".repeat(70_000) }, idempotencyKey: "i4" }),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
   assert.equal(h.db.own.rows("access_proposals").length, 1, "only the first one was kept");
 });

@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const NOT_PUBLIC = "That address is not a public host.";
 
@@ -24,25 +30,33 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return token === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return token === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-} satisfies DaemonOptions);
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+  } satisfies DaemonOptions);
 
-async function openDocument(d: Daemon, url: string): Promise<{ status: number; data: Record<string, unknown>; text: string }> {
+async function openDocument(
+  d: Daemon,
+  url: string,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> {
   const response = await fetch(`${d.url}/v1/automations/open_document`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
@@ -51,7 +65,11 @@ async function openDocument(d: Daemon, url: string): Promise<{ status: number; d
   });
   const text = await response.text();
   let json: Record<string, unknown> = {};
-  try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+  try {
+    json = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* the body is not JSON */
+  }
   return { status: response.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
 }
 

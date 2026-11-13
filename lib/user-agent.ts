@@ -6,8 +6,9 @@ let version: string | null = null;
  */
 export function vyreVersion(): string {
   if (version !== null) return version;
-  for (const env of [process.env["VYRE_VERSION"], process.env["npm_package_version"]]) if (env && /^[\w.+-]{1,40}$/.test(env)) return (version = env);
-  return (version = "0.0.0-dev");   // the daemon's own default (host/src/daemon/main.ts)
+  for (const env of [process.env["VYRE_VERSION"], process.env["npm_package_version"]])
+    if (env && /^[\w.+-]{1,40}$/.test(env)) return (version = env);
+  return (version = "0.0.0-dev"); // the daemon's own default (host/src/daemon/main.ts)
 }
 
 /** `vyre/<version>`. */
@@ -19,6 +20,10 @@ export const OPENCODE_SESSION = "x-opencode-session";
 /** Whether an address is OpenCode's own (opencode.ai or a host under it). */
 export function isOpencode(address: string): boolean {
   let host = "";
-  try { host = new URL(address).hostname.toLowerCase(); } catch { return false; }
+  try {
+    host = new URL(address).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
   return host === "opencode.ai" || host.endsWith(".opencode.ai");
 }

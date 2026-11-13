@@ -16,10 +16,25 @@ export const TRACE = "0123456789abcdef0123456789abcdef";
 export const HOUR = 3_600_000;
 export const TEN_UTC = 1_760_004_000_000;
 
-export interface Emitted { name: string; subject: string; payload: unknown }
-export interface WorldRecord { id: string; type: string; fields: Record<string, unknown> }
-export interface Busy { who: string; startsAt: number; endsAt: number }
-export interface CalEvent { id: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface WorldRecord {
+  id: string;
+  type: string;
+  fields: Record<string, unknown>;
+}
+export interface Busy {
+  who: string;
+  startsAt: number;
+  endsAt: number;
+}
+export interface CalEvent {
+  id: string;
+  input: Record<string, unknown>;
+}
 
 export class FakeCaptcha implements CaptchaVerifier {
   good = new Set<string>(["human"]);
@@ -34,13 +49,20 @@ export class FakeCaptcha implements CaptchaVerifier {
 }
 
 function err(code: "validation.not_found" | "internal.unexpected", message: string): VyreErr {
-  return new VyreErr({ code, message, retryable: false, traceId: TRACE, next: [{ kind: "report", label: "Report a problem" }] });
+  return new VyreErr({
+    code,
+    message,
+    retryable: false,
+    traceId: TRACE,
+    next: [{ kind: "report", label: "Report a problem" }],
+  });
 }
 
 export function harness(o: { principal?: Principal; now?: number; captcha?: boolean; configure?: boolean } = {}) {
   const db = new MemoryDb();
   const captcha = new FakeCaptcha();
-  if (o.configure !== false) configureForms({ publicBase: "https://harbor.example", ...(o.captcha === false ? {} : { captcha }) });
+  if (o.configure !== false)
+    configureForms({ publicBase: "https://harbor.example", ...(o.captcha === false ? {} : { captcha }) });
   else configureForms(null);
   const events: Emitted[] = [];
   const calls: { cap: string; input: unknown; principal: Principal }[] = [];
@@ -83,12 +105,27 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
         case "records.get": {
           const r = records.get(String(i.recordId));
           if (!r || r.type !== i.type) throw err("validation.not_found", "The thing does not exist.");
-          return { record: { id: r.id, type: r.type, version: 1, label: 0, fields: r.fields, createdAt: NOW, updatedAt: NOW, holds: 0 } };
+          return {
+            record: {
+              id: r.id,
+              type: r.type,
+              version: 1,
+              label: 0,
+              fields: r.fields,
+              createdAt: NOW,
+              updatedAt: NOW,
+              holds: 0,
+            },
+          };
         }
         case "records.query": {
           const filter = i.filter as { and?: { field: string; op: string; value: unknown }[] } | undefined;
-          const rows = [...records.values()].filter((r) => r.type === i.type && (filter?.and ?? []).every((f) => r.fields[f.field] === f.value));
-          return { rows: rows.slice(0, Number(i.limit ?? 100)).map((r) => ({ id: r.id, type: r.type, fields: r.fields })) };
+          const rows = [...records.values()].filter(
+            (r) => r.type === i.type && (filter?.and ?? []).every((f) => r.fields[f.field] === f.value),
+          );
+          return {
+            rows: rows.slice(0, Number(i.limit ?? 100)).map((r) => ({ id: r.id, type: r.type, fields: r.fields })),
+          };
         }
         case "records.create": {
           if (state.failRecords) throw err("internal.unexpected", "records are down");
@@ -115,7 +152,10 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
         }
         case "calendar.availability": {
           const people = i.people as string[];
-          return { busy: state.busy.filter((b) => people.includes(b.who)), unknown: state.unknown.filter((u) => people.includes(u)) };
+          return {
+            busy: state.busy.filter((b) => people.includes(b.who)),
+            unknown: state.unknown.filter((u) => people.includes(u)),
+          };
         }
         case "calendar.list_calendars":
           return { calendars: state.calendars };
@@ -134,17 +174,27 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
     },
     authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision {
       const ok = order.indexOf(action.level) <= order.indexOf("manage");
-      return { effect: ok ? "allow" : "deny", reason: ok ? "granted" : "denied", decisionId: `dec_${resource.type}/${resource.id ?? ""}` };
+      return {
+        effect: ok ? "allow" : "deny",
+        reason: ok ? "granted" : "denied",
+        decisionId: `dec_${resource.type}/${resource.id ?? ""}`,
+      };
     },
     vault: {
       async fill() {},
-      use(handle) { return { handle }; },
+      use(handle) {
+        return { handle };
+      },
     },
-    http: async () => { throw new Error("no network in forms tests"); },
+    http: async () => {
+      throw new Error("no network in forms tests");
+    },
     log: {
       debug() {},
       info() {},
-      warn(msg: string) { warnings.push(msg); },
+      warn(msg: string) {
+        warnings.push(msg);
+      },
       error() {},
     },
     schedule: async () => "sch_1",
@@ -152,12 +202,30 @@ export function harness(o: { principal?: Principal; now?: number; captcha?: bool
   };
 
   return {
-    ctx, db, captcha, events, calls, warnings, records, tasks, calendarEvents: events2, deletedEvents: deleted, state,
-    advance(ms: number) { clock += ms; },
-    names(): string[] { return events.map((e) => e.name); },
-    addRecord(r: WorldRecord): void { records.set(r.id, r); },
+    ctx,
+    db,
+    captcha,
+    events,
+    calls,
+    warnings,
+    records,
+    tasks,
+    calendarEvents: events2,
+    deletedEvents: deleted,
+    state,
+    advance(ms: number) {
+      clock += ms;
+    },
+    names(): string[] {
+      return events.map((e) => e.name);
+    },
+    addRecord(r: WorldRecord): void {
+      records.set(r.id, r);
+    },
     /** The same world as another caller, for the public listener: a service principal svc_form_<id>. */
-    as(p: Principal): Ctx { return { ...ctx, principal: p }; },
+    as(p: Principal): Ctx {
+      return { ...ctx, principal: p };
+    },
   };
 }
 

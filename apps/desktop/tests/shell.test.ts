@@ -14,9 +14,18 @@ const TAURI = path.join(DESKTOP, "src-tauri");
 const REPO = path.resolve(DESKTOP, "..", "..");
 const read = (...p: string[]): string => fs.readFileSync(path.join(TAURI, ...p), "utf8");
 type Conf = {
-  productName: string; identifier: string; build: { frontendDist: string };
+  productName: string;
+  identifier: string;
+  build: { frontendDist: string };
   app: { withGlobalTauri: boolean; security: { csp: string }; windows: { label: string }[] };
-  bundle: { targets: string[]; externalBin: string[]; resources: string[]; icon: string[]; macOS: { signingIdentity: string; hardenedRuntime: boolean }; windows: { nsis: { installMode: string } } };
+  bundle: {
+    targets: string[];
+    externalBin: string[];
+    resources: string[];
+    icon: string[];
+    macOS: { signingIdentity: string; hardenedRuntime: boolean };
+    windows: { nsis: { installMode: string } };
+  };
   plugins: { "deep-link": { desktop: { schemes: string[] } } };
 };
 const conf = (): Conf => JSON.parse(read("tauri.conf.json")) as Conf;
@@ -27,7 +36,10 @@ test("the window loads the Expo web build and the bundle is ad-hoc signed on Mac
   assert.equal(c.identifier, "ai.vyre.desktop");
   assert.equal(c.build.frontendDist, "../../app/dist");
   assert.ok(fs.existsSync(path.join(REPO, "apps/app/package.json")), "frontendDist belongs to apps/app");
-  assert.deepEqual(c.app.windows.map((w) => w.label), ["main"]);
+  assert.deepEqual(
+    c.app.windows.map((w) => w.label),
+    ["main"],
+  );
   assert.equal(c.bundle.macOS.signingIdentity, "-", "ad-hoc: no Developer ID needed (F-B)");
   assert.equal(c.bundle.macOS.hardenedRuntime, false);
   for (const t of ["app", "dmg", "nsis", "deb", "appimage"]) assert.ok(c.bundle.targets.includes(t), t);
@@ -49,8 +61,15 @@ test("the sidecar is the bundled vyred binary plus the staged runtime, and the p
   assert.match(side, /sidecar\("vyred"\)/);
   assert.match(side, /"--role"[\s\S]*"device"/);
   assert.match(side, /"--port"[\s\S]*"0"/, "a free loopback port, read back from the daemon's own line");
-  assert.match(side, /host.*src.*daemon.*main\.ts|join\("host"\)\.join\("src"\)\.join\("daemon"\)\.join\("main\.ts"\)/s);
-  assert.match(side, /POST \/local\/daemon\/stop/, "the shell asks its authenticated loopback daemon to stop before killing it");
+  assert.match(
+    side,
+    /host.*src.*daemon.*main\.ts|join\("host"\)\.join\("src"\)\.join\("daemon"\)\.join\("main\.ts"\)/s,
+  );
+  assert.match(
+    side,
+    /POST \/local\/daemon\/stop/,
+    "the shell asks its authenticated loopback daemon to stop before killing it",
+  );
   assert.match(side, /admin\.token/, "the shutdown request uses the private local admin token");
   assert.match(lib, /RunEvent::Exit[\s\S]*sidecar::stop/);
   assert.ok(fs.existsSync(path.join(REPO, "host/src/daemon/main.ts")), "the entry the shell runs exists");
@@ -66,7 +85,10 @@ test("Talk: the Mac app says why it asks for the microphone, the page may reach 
 
 test("the daemon prints the line the shell reads", () => {
   const main = fs.readFileSync(path.join(REPO, "host/src/daemon/main.ts"), "utf8");
-  assert.match(main, /vyred \$\{version\} \$\{d\.roles\.join\(","\)\} \$\{d\.space \?\? "-"\} listening on \$\{d\.url\}/);
+  assert.match(
+    main,
+    /vyred \$\{version\} \$\{d\.roles\.join\(","\)\} \$\{d\.space \?\? "-"\} listening on \$\{d\.url\}/,
+  );
   const side = read("src", "sidecar.rs");
   assert.match(side, /find\("listening on "\)/);
   assert.match(side, /words\.next\(\)\? != "vyred"/);
@@ -80,7 +102,10 @@ test("the vyre scheme and the global shortcut are registered; single instance is
   assert.match(lib, /register_all\(\)/);
   assert.match(lib, /on_open_url/);
   assert.match(lib, /get_current\(\)/);
-  assert.ok(lib.indexOf("tauri_plugin_single_instance") < lib.indexOf("tauri_plugin_shell::init"), "single instance registers first");
+  assert.ok(
+    lib.indexOf("tauri_plugin_single_instance") < lib.indexOf("tauri_plugin_shell::init"),
+    "single instance registers first",
+  );
   const links = read("src", "links.rs");
   for (const a of ["join", "open", "pair", "signin", "claim"]) assert.ok(links.includes(`"${a}"`), a);
   const commands = read("src", "commands.rs");
@@ -91,12 +116,22 @@ test("the vyre scheme and the global shortcut are registered; single instance is
 });
 
 test("the page gets no shell power beyond the listed permissions, and the app has no keychain", () => {
-  const caps = JSON.parse(read("capabilities", "default.json")) as { windows: string[]; permissions: (string | object)[] };
+  const caps = JSON.parse(read("capabilities", "default.json")) as {
+    windows: string[];
+    permissions: (string | object)[];
+  };
   assert.deepEqual(caps.windows, ["main"]);
   assert.deepEqual(caps.permissions, [
-    "core:default", "deep-link:default", "global-shortcut:allow-register", "global-shortcut:allow-unregister", "global-shortcut:allow-is-registered",
+    "core:default",
+    "deep-link:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
   ]);
-  assert.ok(!JSON.stringify(caps).includes("shell:"), "the page cannot start programs; only the Rust side spawns vyred");
+  assert.ok(
+    !JSON.stringify(caps).includes("shell:"),
+    "the page cannot start programs; only the Rust side spawns vyred",
+  );
   const cargo = read("Cargo.toml");
   assert.doesNotMatch(cargo, /keyring|keychain|security-framework|secret-service|libsecret/i);
   const lib = read("src", "lib.rs");
@@ -108,7 +143,22 @@ test("Rust crates stay on the audited MIT/Apache allowlist, and the package is M
   const cargo = read("Cargo.toml");
   const deps = cargo.split("[dependencies]")[1]?.split("[profile")[0] ?? "";
   const names = [...deps.matchAll(/^([a-z0-9_-]+)\s*=/gm)].map((m) => m[1]).sort();
-  assert.deepEqual(names, ["flate2", "objc2", "rusqlite", "serde", "serde_json", "tauri", "tauri-plugin-deep-link", "tauri-plugin-dialog", "tauri-plugin-global-shortcut", "tauri-plugin-notification", "tauri-plugin-shell", "tauri-plugin-single-instance", "tauri-plugin-updater", "uuid"]);
+  assert.deepEqual(names, [
+    "flate2",
+    "objc2",
+    "rusqlite",
+    "serde",
+    "serde_json",
+    "tauri",
+    "tauri-plugin-deep-link",
+    "tauri-plugin-dialog",
+    "tauri-plugin-global-shortcut",
+    "tauri-plugin-notification",
+    "tauri-plugin-shell",
+    "tauri-plugin-single-instance",
+    "tauri-plugin-updater",
+    "uuid",
+  ]);
   assert.match(cargo, /license = "MIT"/);
   const allow = read("deny.toml");
   assert.doesNotMatch(allow, /GPL|AGPL|SSPL/);
@@ -116,7 +166,12 @@ test("Rust crates stay on the audited MIT/Apache allowlist, and the package is M
 
 test("the bundle icons are real images in the formats each platform wants", () => {
   const icons = path.join(TAURI, "icons");
-  for (const [name, side] of [["32x32.png", 32], ["128x128.png", 128], ["128x128@2x.png", 256], ["icon.png", 512]] as const) {
+  for (const [name, side] of [
+    ["32x32.png", 32],
+    ["128x128.png", 128],
+    ["128x128@2x.png", 256],
+    ["icon.png", 512],
+  ] as const) {
     const b = fs.readFileSync(path.join(icons, name));
     assert.equal(b.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", name);
     assert.equal(b.readUInt32BE(16), side, `${name} width`);
@@ -129,44 +184,103 @@ test("the bundle icons are real images in the formats each platform wants", () =
 });
 
 test("package scripts build the web export, stage the runtime, then run tauri", () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, "package.json"), "utf8")) as { name: string; scripts: Record<string, string>; dependencies?: object };
+  const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, "package.json"), "utf8")) as {
+    name: string;
+    scripts: Record<string, string>;
+    dependencies?: object;
+  };
   assert.equal(pkg.name, "@vyre/desktop");
   assert.match(pkg.scripts["build"] ?? "", /npm run web && npm run stage && npm run tauri -- build/);
-  assert.match(pkg.scripts["web"] ?? "", /scripts\/app-export\.mjs/, "the desktop export carries the registry hash, or the live socket is refused");
+  assert.match(
+    pkg.scripts["web"] ?? "",
+    /scripts\/app-export\.mjs/,
+    "the desktop export carries the registry hash, or the live socket is refused",
+  );
   assert.match(pkg.scripts["stage"] ?? "", /stage-runtime\.ts/);
-  assert.equal(pkg.dependencies, undefined, "the Tauri CLI is fetched by the build, never installed into the workspace");
+  assert.equal(
+    pkg.dependencies,
+    undefined,
+    "the Tauri CLI is fetched by the build, never installed into the workspace",
+  );
   const root = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")) as { workspaces: string[] };
   assert.ok(root.workspaces.includes("apps/*"));
 });
 
 test("the runtime stage copies the daemon's workspaces, leaves tests out and names the binary by target triple", () => {
-  const all = ["lib", "manifest", "contracts", "kernel", "host", "sync", "client", "agent", "sandbox", "modules", "generated", "manifests", "packages", "relay/client", "apps/app", "apps/desktop", "relay/node", "ui"];
-  const p = plan(["lib", "host", "apps/app", "relay/node", "ui", "modules/google"], (rel) => all.includes(rel) || rel === "package.json" || rel === "package-lock.json");
+  const all = [
+    "lib",
+    "manifest",
+    "contracts",
+    "kernel",
+    "host",
+    "sync",
+    "client",
+    "agent",
+    "sandbox",
+    "modules",
+    "generated",
+    "manifests",
+    "packages",
+    "relay/client",
+    "apps/app",
+    "apps/desktop",
+    "relay/node",
+    "ui",
+  ];
+  const p = plan(
+    ["lib", "host", "apps/app", "relay/node", "ui", "modules/google"],
+    (rel) => all.includes(rel) || rel === "package.json" || rel === "package-lock.json",
+  );
   assert.ok(p.copyDirs.includes("host") && p.copyDirs.includes("kernel") && p.copyDirs.includes("generated"));
   assert.deepEqual(p.packageOnly.sort(), ["apps/app", "relay/node", "ui"]);
   assert.deepEqual(p.rootFiles, ["package.json", "package-lock.json"]);
   for (const d of RUNTIME_DIRS) assert.ok(!d.startsWith("apps/") && d !== "ui", d);
-  assert.ok(fs.existsSync(path.join(REPO, "host/modules.json")), "the daemon reads host/modules.json from the runtime root");
-  for (const bad of ["host/tests/x.ts", "kernel/src/a.test.ts", "images/vyred/smoke.heavy.test.ts", "node_modules/x", "modules/a/tests/b.ts"]) assert.match(bad, SKIP, bad);
-  for (const good of ["host/src/daemon/main.ts", "generated/registry.ts", "kernel/src/log/index.ts"]) assert.doesNotMatch(good, SKIP, good);
+  assert.ok(
+    fs.existsSync(path.join(REPO, "host/modules.json")),
+    "the daemon reads host/modules.json from the runtime root",
+  );
+  for (const bad of [
+    "host/tests/x.ts",
+    "kernel/src/a.test.ts",
+    "images/vyred/smoke.heavy.test.ts",
+    "node_modules/x",
+    "modules/a/tests/b.ts",
+  ])
+    assert.match(bad, SKIP, bad);
+  for (const good of ["host/src/daemon/main.ts", "generated/registry.ts", "kernel/src/log/index.ts"])
+    assert.doesNotMatch(good, SKIP, good);
   assert.equal(binaryName("aarch64-apple-darwin"), "vyred-aarch64-apple-darwin");
   assert.equal(binaryName("x86_64-pc-windows-msvc"), "vyred-x86_64-pc-windows-msvc.exe");
 });
 
-test("the Rust unit tests pass where a Rust toolchain exists", { skip: spawnSync("cargo", ["--version"]).status !== 0 && "no cargo on this machine; the desktop job runs them" }, () => {
-  const r = spawnSync("cargo", ["test", "--lib", "--manifest-path", path.join(TAURI, "Cargo.toml")], { encoding: "utf8" });
-  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`.slice(-2000));
-});
+test(
+  "the Rust unit tests pass where a Rust toolchain exists",
+  { skip: spawnSync("cargo", ["--version"]).status !== 0 && "no cargo on this machine; the desktop job runs them" },
+  () => {
+    const r = spawnSync("cargo", ["test", "--lib", "--manifest-path", path.join(TAURI, "Cargo.toml")], {
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`.slice(-2000));
+  },
+);
 
 // Final run on the last commit of P-L10_03: the temporary hosted-runner workflow is gone and this file reports its own ok line.
 
 test("Run this Mac as the Space server: one registered command with no caller input, a fixed team Space on a fixed loopback port linked to the relay, stopped with the app", () => {
   const commands = read("src", "commands.rs");
-  assert.match(commands, /pub async fn ensure_mac_server\(app: AppHandle, state: State<'_, AppState>\)/, "the page passes nothing");
+  assert.match(
+    commands,
+    /pub async fn ensure_mac_server\(app: AppHandle, state: State<'_, AppState>\)/,
+    "the page passes nothing",
+  );
   const lib = read("src", "lib.rs");
   assert.match(lib, /commands::ensure_mac_server,/);
   assert.match(lib, /sidecar::stop\(&server_exit\)/);
-  assert.match(lib, /macserver::profile_exists\(&handle\)/, "a Mac that was set up as a server starts it again on the next launch");
+  assert.match(
+    lib,
+    /macserver::profile_exists\(&handle\)/,
+    "a Mac that was set up as a server starts it again on the next launch",
+  );
   const side = read("src", "sidecar.rs");
   assert.match(side, /MAC_SERVER_PORT: u16 = 8425/);
   assert.match(side, /MAC_SERVER_RELAY: &str = "https:\/\/relay\.vyre\.run"/);
@@ -180,16 +294,37 @@ test("Run this Mac as the Space server: one registered command with no caller in
 });
 
 test("styles added at runtime keep working in the built app: style-src keeps unsafe-inline and Tauri is told not to add a nonce to it (a nonce makes the browser ignore unsafe-inline, and every script-made <style> is dropped)", () => {
-  const sec = (JSON.parse(read("tauri.conf.json")) as { app: { security: { csp: string; dangerousDisableAssetCspModification?: unknown } } }).app.security;
-  const style = sec.csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("style-src "));
+  const sec = (
+    JSON.parse(read("tauri.conf.json")) as {
+      app: { security: { csp: string; dangerousDisableAssetCspModification?: unknown } };
+    }
+  ).app.security;
+  const style = sec.csp
+    .split(";")
+    .map((d) => d.trim())
+    .find((d) => d.startsWith("style-src "));
   assert.ok(style && style.includes("'unsafe-inline'"), "style-src allows inline styles");
   assert.ok(!/'nonce-|'sha(256|384|512)-/.test(style ?? ""), "no nonce or hash of our own in style-src");
-  assert.ok(Array.isArray(sec.dangerousDisableAssetCspModification) && (sec.dangerousDisableAssetCspModification as string[]).includes("style-src"), "Tauri leaves style-src alone");
+  assert.ok(
+    Array.isArray(sec.dangerousDisableAssetCspModification) &&
+      (sec.dangerousDisableAssetCspModification as string[]).includes("style-src"),
+    "Tauri leaves style-src alone",
+  );
 });
 
 test("files dropped on the window reach the page: the main window has Tauri's own drag and drop off, and the built app is checked for it on the Mac", () => {
-  const main = (JSON.parse(read("tauri.conf.json")) as { app: { windows: { label: string; dragDropEnabled?: unknown }[] } }).app.windows.find((w) => w.label === "main");
-  assert.equal(main?.dragDropEnabled, false, "with it on, the native view keeps every file drop and the composer never sees one");
-  assert.match(read("src", "lib.rs"), /fn the_built_main_window_hands_file_drops_to_the_page\(\)[\s\S]*?!main\.drag_drop_enabled/, "the Rust test reads the compiled config the app is built from");
+  const main = (
+    JSON.parse(read("tauri.conf.json")) as { app: { windows: { label: string; dragDropEnabled?: unknown }[] } }
+  ).app.windows.find((w) => w.label === "main");
+  assert.equal(
+    main?.dragDropEnabled,
+    false,
+    "with it on, the native view keeps every file drop and the composer never sees one",
+  );
+  assert.match(
+    read("src", "lib.rs"),
+    /fn the_built_main_window_hands_file_drops_to_the_page\(\)[\s\S]*?!main\.drag_drop_enabled/,
+    "the Rust test reads the compiled config the app is built from",
+  );
   assert.match(read("src", "lib.rs"), /\.build\(context\(\)\)/, "the app is built from that same context");
 });

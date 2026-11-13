@@ -56,8 +56,16 @@ test("the agent that shows: this item's pick, else the suggestion, else the plac
   const key = itemKey("records", CTX);
   assert.equal(key, "ask:records:record:r1");
   storage.set(key ?? "", "intake");
-  assert.equal(resolveAgent({ ...base, suggested: "bill" })?.id, "intake", "a pick for this same item beats the suggestion");
-  assert.equal(resolveAgent({ ...base, agents: [BILLING, INTAKE], context: null, storage: memoryStorage() })?.id, "bill", "with no assistant the first agent");
+  assert.equal(
+    resolveAgent({ ...base, suggested: "bill" })?.id,
+    "intake",
+    "a pick for this same item beats the suggestion",
+  );
+  assert.equal(
+    resolveAgent({ ...base, agents: [BILLING, INTAKE], context: null, storage: memoryStorage() })?.id,
+    "bill",
+    "with no assistant the first agent",
+  );
   assert.equal(resolveAgent({ ...base, agents: [], storage: memoryStorage() }), null, "no agents: nothing to show");
 });
 
@@ -65,7 +73,10 @@ test("an unknown stored or suggested id is ignored, never shown", () => {
   const storage = memoryStorage();
   storage.set(placeKey("records"), "gone");
   storage.set("ask:records:record:r1", "also-gone");
-  assert.equal(resolveAgent({ agents: AGENTS, place: "records", context: CTX, suggested: "nobody", storage })?.id, "asst");
+  assert.equal(
+    resolveAgent({ agents: AGENTS, place: "records", context: CTX, suggested: "nobody", storage })?.id,
+    "asst",
+  );
   assert.equal(findAgent(AGENTS, ""), null);
   assert.equal(findAgent(AGENTS, undefined), null);
   assert.equal(findAgent(AGENTS, "docs")?.name, "Docs");
@@ -103,14 +114,39 @@ test("a pick is remembered for the place, for the item and in the recents (newes
 });
 
 test("the picker lists every agent in the prototype's order: Suggested, Recent, Assistant, Agents", () => {
-  const entries = pickerEntries({ agents: AGENTS, current: BILLING, suggested: BILLING, recents: ["docs", "bill", "intake"] });
-  assert.deepEqual(names(entries), ["# Suggested", "Billing", "# Recent", "Docs", "Intake", "# Assistant", "Assistant"]);
+  const entries = pickerEntries({
+    agents: AGENTS,
+    current: BILLING,
+    suggested: BILLING,
+    recents: ["docs", "bill", "intake"],
+  });
+  assert.deepEqual(names(entries), [
+    "# Suggested",
+    "Billing",
+    "# Recent",
+    "Docs",
+    "Intake",
+    "# Assistant",
+    "Assistant",
+  ]);
   const agents = entries.filter((e) => e.kind === "agent");
   assert.equal(agents.length, AGENTS.length, "all four agents are reachable");
-  assert.equal(entries.find((e) => e.kind === "agent" && e.label === "Billing")?.current, true, "the shown agent carries the check");
+  assert.equal(
+    entries.find((e) => e.kind === "agent" && e.label === "Billing")?.current,
+    true,
+    "the shown agent carries the check",
+  );
   assert.equal(entries.find((e) => e.label === "Docs")?.current, false);
-  assert.equal(entries.find((e) => e.label === "Billing")?.note, "Invoices and payment follow-up", "the role is the quiet line");
-  assert.equal(entries.find((e) => e.kind === "agent" && e.label === "Assistant")?.note, "", "no filler line under the assistant");
+  assert.equal(
+    entries.find((e) => e.label === "Billing")?.note,
+    "Invoices and payment follow-up",
+    "the role is the quiet line",
+  );
+  assert.equal(
+    entries.find((e) => e.kind === "agent" && e.label === "Assistant")?.note,
+    "",
+    "no filler line under the assistant",
+  );
 });
 
 test("with no suggestion and no history the picker is the assistant then the rest", () => {
@@ -128,18 +164,36 @@ test("a role-less suggested agent has one line; the suggested assistant is not l
 });
 
 test("recents skip the shown and the suggested agent, repeats and unknown ids, and cap at three", () => {
-  const many: AskAgent[] = [ASSISTANT, ...["A", "B", "C", "D", "E", "F"].map((n) => ({ id: n.toLowerCase(), name: n }))];
-  const entries = pickerEntries({ agents: many, current: many[1] ?? null, suggested: many[2] ?? null, recents: ["a", "b", "ghost", "c", "d", "d", "e", "f"] });
+  const many: AskAgent[] = [
+    ASSISTANT,
+    ...["A", "B", "C", "D", "E", "F"].map((n) => ({ id: n.toLowerCase(), name: n })),
+  ];
+  const entries = pickerEntries({
+    agents: many,
+    current: many[1] ?? null,
+    suggested: many[2] ?? null,
+    recents: ["a", "b", "ghost", "c", "d", "d", "e", "f"],
+  });
   const list = names(entries);
   const recent = list.slice(list.indexOf("# Recent") + 1, list.indexOf("# Assistant"));
-  assert.deepEqual(recent, ["C", "D", "E"], "a (shown) and b (suggested) are not repeated; ghost and the second d are skipped; f is past the cap");
+  assert.deepEqual(
+    recent,
+    ["C", "D", "E"],
+    "a (shown) and b (suggested) are not repeated; ghost and the second d are skipped; f is past the cap",
+  );
   assert.ok(list.includes("F"), "an agent cut by the cap is still listed under Agents");
 });
 
 test("typing filters by name or role, drops the section titles and keeps rows reachable", () => {
   const byName = pickerEntries({ agents: AGENTS, current: ASSISTANT, suggested: BILLING, recents: [], query: "int" });
   assert.deepEqual(names(byName), ["Intake"]);
-  const byRole = pickerEntries({ agents: AGENTS, current: ASSISTANT, suggested: null, recents: [], query: " INVOICES " });
+  const byRole = pickerEntries({
+    agents: AGENTS,
+    current: ASSISTANT,
+    suggested: null,
+    recents: [],
+    query: " INVOICES ",
+  });
   assert.deepEqual(names(byRole), ["Billing"]);
   const none = pickerEntries({ agents: AGENTS, current: ASSISTANT, suggested: null, recents: [], query: "zzz" });
   assert.deepEqual(none, []);
@@ -205,11 +259,23 @@ test("a blocked or throwing localStorage never throws and picks still stick for 
   const host = globalThis as { localStorage?: unknown };
   const had = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
   try {
-    Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw new Error("blocked"); } });
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("blocked");
+      },
+    });
     assert.equal(webStorage(), null, "the accessor throwing reads as no storage");
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
-      value: { getItem() { throw new Error("denied"); }, setItem() { throw new Error("denied"); } },
+      value: {
+        getItem() {
+          throw new Error("denied");
+        },
+        setItem() {
+          throw new Error("denied");
+        },
+      },
     });
     const web = webStorage();
     assert.ok(web !== null);
@@ -227,7 +293,14 @@ test("a blocked or throwing localStorage never throws and picks still stick for 
 
 test("the control shows the suggested agent's face and name in its labels, with a chevron to change the agent", () => {
   const html = renderToStaticMarkup(
-    <AskButton place="records" context={CTX} agents={AGENTS} suggested="bill" storage={memoryStorage()} onAsk={() => undefined} />,
+    <AskButton
+      place="records"
+      context={CTX}
+      agents={AGENTS}
+      suggested="bill"
+      storage={memoryStorage()}
+      onAsk={() => undefined}
+    />,
   );
   assert.match(html, /data-testid="ask-main"/);
   assert.match(html, /aria-label="Ask Billing about Northwind agreement"/);
@@ -253,13 +326,23 @@ test("with nothing tied to the item the control shows the Space assistant, and t
 test("the last pick in the place is what shows next time", () => {
   const storage = memoryStorage();
   rememberPick(storage, "forms", { ...CTX, id: "other" }, DOCS);
-  const html = renderToStaticMarkup(<AskButton place="forms" context={CTX} agents={AGENTS} storage={storage} onAsk={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <AskButton place="forms" context={CTX} agents={AGENTS} storage={storage} onAsk={() => undefined} />,
+  );
   assert.match(html, /aria-label="Ask Docs about Northwind agreement"/);
 });
 
 test("compact hides the word Ask and keeps the name for assistive tech", () => {
   const html = renderToStaticMarkup(
-    <AskButton place="email" context={CTX} agents={AGENTS} suggested="intake" storage={memoryStorage()} compact onAsk={() => undefined} />,
+    <AskButton
+      place="email"
+      context={CTX}
+      agents={AGENTS}
+      suggested="intake"
+      storage={memoryStorage()}
+      compact
+      onAsk={() => undefined}
+    />,
   );
   assert.doesNotMatch(html, />Ask</);
   assert.match(html, /aria-label="Ask Intake about Northwind agreement"/);
@@ -267,11 +350,24 @@ test("compact hides the word Ask and keeps the name for assistive tech", () => {
 
 test("a custom face is used when given, and no agents renders nothing", () => {
   const custom = renderToStaticMarkup(
-    <AskButton place="sites" context={CTX} agents={AGENTS} suggested="docs" storage={memoryStorage()} renderFace={(a) => <i data-mine={a.id}>x</i>} onAsk={() => undefined} />,
+    <AskButton
+      place="sites"
+      context={CTX}
+      agents={AGENTS}
+      suggested="docs"
+      storage={memoryStorage()}
+      renderFace={(a) => <i data-mine={a.id}>x</i>}
+      onAsk={() => undefined}
+    />,
   );
   assert.match(custom, /data-mine="docs"/);
   assert.doesNotMatch(custom, /data-testid="ask-face-/);
-  assert.equal(renderToStaticMarkup(<AskButton place="sites" context={CTX} agents={[]} storage={memoryStorage()} onAsk={() => undefined} />), "");
+  assert.equal(
+    renderToStaticMarkup(
+      <AskButton place="sites" context={CTX} agents={[]} storage={memoryStorage()} onAsk={() => undefined} />,
+    ),
+    "",
+  );
 });
 
 test("the open picker is a Find field and shared Rows with the face in the leading slot and the check in the trailing slot", () => {
@@ -297,13 +393,27 @@ test("the open picker is a Find field and shared Rows with the face in the leadi
   }
   assert.match(html, /data-testid="row-ask-agent-bill-trailing"/, "the shown agent carries the check");
   assert.doesNotMatch(html, /data-testid="row-ask-agent-docs-trailing"/);
-  assert.match(html, /background-color:var\(--accent\)/, "the lit row is filled with the prototype accent, as in a menu");
+  assert.match(
+    html,
+    /background-color:var\(--accent\)/,
+    "the lit row is filled with the prototype accent, as in a menu",
+  );
   for (const head of ["Suggested", "Assistant", "Agents"]) assert.match(html, new RegExp(`>${head}<`));
 });
 
 test("an empty search says so instead of showing a blank panel", () => {
   const html = renderToStaticMarkup(
-    <AskPicker entries={[]} query="zzz" onQuery={() => undefined} active={-1} onActive={() => undefined} onChoose={() => undefined} onClose={() => undefined} anchor={{ x: 0, y: 0, w: 10, h: 10 }} renderFace={() => null} />,
+    <AskPicker
+      entries={[]}
+      query="zzz"
+      onQuery={() => undefined}
+      active={-1}
+      onActive={() => undefined}
+      onChoose={() => undefined}
+      onClose={() => undefined}
+      anchor={{ x: 0, y: 0, w: 10, h: 10 }}
+      renderFace={() => null}
+    />,
   );
   assert.match(html, /No agent matches\./);
 });
@@ -335,7 +445,13 @@ test("the Assistant row is the real agent when the list has it, under the one na
   const stand: AskAgent = { id: "assistant", name: "Assistant", assistant: true };
   const real: AskAgent = { id: "agt_9", name: "Irfad\u2019s Assistant" };
   const out = withRealAssistant([stand, real, BILLING]);
-  assert.deepEqual(out.map((a) => [a.id, a.name]), [["agt_9", "Assistant"], [BILLING.id, "Billing"]]);
+  assert.deepEqual(
+    out.map((a) => [a.id, a.name]),
+    [
+      ["agt_9", "Assistant"],
+      [BILLING.id, "Billing"],
+    ],
+  );
   assert.equal(out[0]?.assistant, true);
   const entries = pickerEntries({ agents: out, current: null, suggested: null, recents: [] });
   assert.deepEqual(names(entries), ["# Assistant", "Assistant", "# Agents", "Billing"]);
@@ -346,7 +462,18 @@ test("the Assistant row is the real agent when the list has it, under the one na
 
 test("the open control draws the real assistant name in the picker", () => {
   const html = renderToStaticMarkup(
-    <AskButton place="vault" context={CTX} agents={[{ id: "assistant", name: "Assistant", assistant: true }, { id: "agt_9", name: "Irfad\u2019s Assistant" }, BILLING]} onAsk={() => undefined} startOpen storage={memoryStorage()} />,
+    <AskButton
+      place="vault"
+      context={CTX}
+      agents={[
+        { id: "assistant", name: "Assistant", assistant: true },
+        { id: "agt_9", name: "Irfad\u2019s Assistant" },
+        BILLING,
+      ]}
+      onAsk={() => undefined}
+      startOpen
+      storage={memoryStorage()}
+    />,
   );
   assert.doesNotMatch(html, /data-testid="row-ask-agent-assistant"/);
   assert.match(html, /row-ask-agent-agt_9/);
@@ -360,7 +487,17 @@ test("the picker is drawn through the shared overlay layer, not where the button
   assert.match(body, /<MenuPortal>[\s\S]*testID="ask-layer"[\s\S]*<\/MenuPortal>/);
   const entries = pickerEntries({ agents: AGENTS, current: BILLING, suggested: null, recents: [] });
   const html = renderToStaticMarkup(
-    <AskPicker entries={entries} query="" onQuery={() => undefined} active={0} onActive={() => undefined} onChoose={() => undefined} onClose={() => undefined} anchor={{ x: 10, y: 10, w: 90, h: 30 }} renderFace={() => null} />,
+    <AskPicker
+      entries={entries}
+      query=""
+      onQuery={() => undefined}
+      active={0}
+      onActive={() => undefined}
+      onChoose={() => undefined}
+      onClose={() => undefined}
+      anchor={{ x: 10, y: 10, w: 90, h: 30 }}
+      renderFace={() => null}
+    />,
   );
   assert.match(html, /data-testid="ask-layer"/);
   assert.match(html, /data-testid="ask-picker"/);

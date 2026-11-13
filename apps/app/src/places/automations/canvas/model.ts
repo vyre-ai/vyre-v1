@@ -13,15 +13,50 @@ export type Definition = Automation["definition"];
 export type DefNode = Definition["nodes"][number];
 export type DefTrigger = Definition["triggers"][number];
 /** A sign-in or an API key the person can use. `shared` is true when it is shared with the Space and false when it is one person's own; a Space automation can run only on a shared key. */
-export interface KeyChoice { id: string; name: string; kind: "subscription" | "api"; shared?: boolean; /** can run an automation here; false says why in `why` */ usable?: boolean; why?: string }
+export interface KeyChoice {
+  id: string;
+  name: string;
+  kind: "subscription" | "api";
+  shared?: boolean;
+  /** can run an automation here; false says why in `why` */ usable?: boolean;
+  why?: string;
+}
 export type Issue = CapMap["automations.validate"]["out"]["issues"][number];
 
 // ---------------------------------------------------------------- step kinds
 
 export type StepKind = "plain" | "ai" | "http" | "code" | "paths" | "parallel" | "wait" | "loop" | "approval" | "stop";
 export type IconKey =
-  | "bolt" | "clock" | "hook" | "inbox" | "mail" | "chat" | "sheet" | "ci" | "meeting" | "stage" | "reply" | "button" | "hand" | "record"
-  | "search" | "plus" | "edit" | "task" | "send" | "phone" | "ai" | "journey" | "hourglass" | "branch" | "parallel" | "loop" | "stop" | "shield" | "sign" | "code";
+  | "bolt"
+  | "clock"
+  | "hook"
+  | "inbox"
+  | "mail"
+  | "chat"
+  | "sheet"
+  | "ci"
+  | "meeting"
+  | "stage"
+  | "reply"
+  | "button"
+  | "hand"
+  | "record"
+  | "search"
+  | "plus"
+  | "edit"
+  | "task"
+  | "send"
+  | "phone"
+  | "ai"
+  | "journey"
+  | "hourglass"
+  | "branch"
+  | "parallel"
+  | "loop"
+  | "stop"
+  | "shield"
+  | "sign"
+  | "code";
 
 /** Glyphs and fallback titles for cards already on the canvas. The add menu loads automations.steps.list. This list is not the product catalog. */
 export const STEP_PALETTE: readonly { key: string; title: string; group: string; icon: IconKey }[] = [
@@ -71,16 +106,28 @@ export const TRIGGER_PALETTE: readonly { key: string; title: string; icon: IconK
 
 export function kindOfKey(key: string): StepKind {
   switch (key) {
-    case "paths": case "if": return "paths";
-    case "parallel": return "parallel";
-    case "loop": return "loop";
-    case "wait": case "wait_stage": return "wait";
-    case "approval": return "approval";
-    case "stop": return "stop";
-    case "ai": return "ai";
-    case "http_request": return "http";
-    case "code": return "code";
-    default: return "plain";
+    case "paths":
+    case "if":
+      return "paths";
+    case "parallel":
+      return "parallel";
+    case "loop":
+      return "loop";
+    case "wait":
+    case "wait_stage":
+      return "wait";
+    case "approval":
+      return "approval";
+    case "stop":
+      return "stop";
+    case "ai":
+      return "ai";
+    case "http_request":
+      return "http";
+    case "code":
+      return "code";
+    default:
+      return "plain";
   }
 }
 
@@ -123,7 +170,15 @@ export function iconOfKey(key: string): IconKey {
   const hit = STEP_PALETTE.find((p) => p.key === key);
   if (hit) return hit.icon;
   if (key.startsWith("records.")) return "record";
-  if (key.startsWith("sheet.") || key.startsWith("files.") || key.startsWith("google.drive") || key.startsWith("google.sheets") || key.startsWith("google.docs") || key.startsWith("ms.drive")) return "sheet";
+  if (
+    key.startsWith("sheet.") ||
+    key.startsWith("files.") ||
+    key.startsWith("google.drive") ||
+    key.startsWith("google.sheets") ||
+    key.startsWith("google.docs") ||
+    key.startsWith("ms.drive")
+  )
+    return "sheet";
   if (key.startsWith("google.gmail") || key.startsWith("ms.mail")) return "mail";
   if (key.startsWith("calendar.") || key.includes(".calendar.")) return "hourglass";
   if (key.startsWith("github.")) return "code";
@@ -132,7 +187,11 @@ export function iconOfKey(key: string): IconKey {
 }
 
 export function titleOfKey(key: string): string {
-  return STEP_PALETTE.find((p) => p.key === key)?.title ?? PRODUCT_TITLES[key] ?? key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return (
+    STEP_PALETTE.find((p) => p.key === key)?.title ??
+    PRODUCT_TITLES[key] ??
+    key.replace(/[._]+/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
 }
 
 /** Step group for the inspector subtitle. Unknown keys stay "Step". */
@@ -170,7 +229,9 @@ function reach(by: Map<string, DefNode>, from: string): string[] {
     if (!n) return;
     seen.add(id);
     out.push(id);
-    if (isLoop(n)) { if (n.branches?.[0]) walk(n.branches[0].to); }
+    if (isLoop(n)) {
+      if (n.branches?.[0]) walk(n.branches[0].to);
+    }
     for (const s of successors(n)) walk(s);
   };
   walk(from);
@@ -201,7 +262,12 @@ export type RunState = "done" | "failed" | "waiting" | "running" | "skipped" | "
 export type StatusChip = "error" | "waiting" | "tested";
 
 /** A chip only for a real error, a waiting run, or a stored test sample. Never a live stamp. */
-export function stepStatusChip(id: string, issues: readonly { severity: string }[], state: RunState | undefined, tested: ReadonlySet<string> | undefined): StatusChip | null {
+export function stepStatusChip(
+  id: string,
+  issues: readonly { severity: string }[],
+  state: RunState | undefined,
+  tested: ReadonlySet<string> | undefined,
+): StatusChip | null {
   if (issues.some((issue) => issue.severity === "error") || state === "failed") return "error";
   if (state === "waiting") return "waiting";
   if (tested?.has(id)) return "tested";
@@ -224,10 +290,37 @@ export interface CardNode {
   state?: RunState;
   chip?: StatusChip;
 }
-export interface Seg { x1: number; y1: number; x2: number; y2: number; lit?: boolean }
-export interface Chip { x: number; y: number; text: string; mono?: boolean; kind: "if" | "otherwise" | "each" | "lane" | "join"; lit?: boolean }
-export interface Frame { x: number; y: number; w: number; h: number; label: string }
-export interface Layout { cards: CardNode[]; segs: Seg[]; chips: Chip[]; frames: Frame[]; width: number; height: number; order: string[] }
+export interface Seg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  lit?: boolean;
+}
+export interface Chip {
+  x: number;
+  y: number;
+  text: string;
+  mono?: boolean;
+  kind: "if" | "otherwise" | "each" | "lane" | "join";
+  lit?: boolean;
+}
+export interface Frame {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+}
+export interface Layout {
+  cards: CardNode[];
+  segs: Seg[];
+  chips: Chip[];
+  frames: Frame[];
+  width: number;
+  height: number;
+  order: string[];
+}
 
 export function triggerCardHeight(count: number): number {
   return TRIG_HEAD + Math.max(1, count) * TRIG_ROW;
@@ -240,17 +333,38 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
   const composed = messageSummary(n.key, inp);
   if (composed) return composed;
   if (typeof inp["summary"] === "string" && k === "plain") return inp["summary"];
-  const str = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+  const str = (v: unknown): string =>
+    typeof v === "string"
+      ? v
+      : v === undefined || v === null
+        ? ""
+        : typeof v === "number" || typeof v === "boolean"
+          ? String(v)
+          : "";
   if (k === "paths") {
     const c = n.branches?.filter((b) => b.when !== undefined).length ?? 0;
     const other = n.branches?.some((b) => b.when === undefined) ?? false;
     return `${c} ${c === 1 ? "path" : "paths"}${other ? " and Otherwise" : ""}, first match wins`;
   }
-  if (k === "parallel") return `${n.branches?.length ?? 0} lanes at the same time, ${inp["waitFor"] === "any" ? "carry on when one finishes" : "carry on when all finish"}`;
-  if (k === "loop") return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}. ${LOOP_CHILD}`;
-  if (k === "stop") return str(inp["message"]) || (inp["outcome"] === "failed" ? "The run ends as failed" : "The run ends here");
-  if (k === "approval") return `${str(inp["summary"]) || "Waits for a yes"}${inp["timeout"] ? `, up to ${str(inp["timeout"])}` : ""}`;
-  if (k === "wait") return str(inp["note"]) || (inp["event"] ? "Waits for an event" : inp["forDuration"] ? `Waits ${str(inp["forDuration"])}` : inp["until"] ? `Waits until ${str(inp["until"])}` : "Waits");
+  if (k === "parallel")
+    return `${n.branches?.length ?? 0} lanes at the same time, ${inp["waitFor"] === "any" ? "carry on when one finishes" : "carry on when all finish"}`;
+  if (k === "loop")
+    return `For each item in ${str(inp["items"]) || "a list"}${inp["maxIterations"] !== undefined ? `, up to ${str(inp["maxIterations"])}` : ""}. ${LOOP_CHILD}`;
+  if (k === "stop")
+    return str(inp["message"]) || (inp["outcome"] === "failed" ? "The run ends as failed" : "The run ends here");
+  if (k === "approval")
+    return `${str(inp["summary"]) || "Waits for a yes"}${inp["timeout"] ? `, up to ${str(inp["timeout"])}` : ""}`;
+  if (k === "wait")
+    return (
+      str(inp["note"]) ||
+      (inp["event"]
+        ? "Waits for an event"
+        : inp["forDuration"]
+          ? `Waits ${str(inp["forDuration"])}`
+          : inp["until"]
+            ? `Waits until ${str(inp["until"])}`
+            : "Waits")
+    );
   if (n.key === "connector_request") {
     const connector = str(inp["connector"]);
     const action = str(inp["action"]);
@@ -266,14 +380,28 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     return `${method} ${url.replace(/^https:\/\//, "")}${read ? "" : asks ? ", asks before sending" : ""}`;
   }
   if (k === "code") {
-    const lines = str(inp["source"]).split("\n").filter((line) => line.trim() !== "" && !line.trim().startsWith("//")).length;
-    const hosts = Array.isArray(inp["hosts"]) ? (inp["hosts"] as unknown[]).filter((h): h is string => typeof h === "string") : [];
-    const reach = hosts.length === 0 ? "no network" : hosts.length <= 2 ? `reaches ${hosts.join(", ")}` : `reaches ${hosts.length} hosts`;
+    const lines = str(inp["source"])
+      .split("\n")
+      .filter((line) => line.trim() !== "" && !line.trim().startsWith("//")).length;
+    const hosts = Array.isArray(inp["hosts"])
+      ? (inp["hosts"] as unknown[]).filter((h): h is string => typeof h === "string")
+      : [];
+    const reach =
+      hosts.length === 0
+        ? "no network"
+        : hosts.length <= 2
+          ? `reaches ${hosts.join(", ")}`
+          : `reaches ${hosts.length} hosts`;
     return `${lines === 0 ? "Write the code" : `Runs ${lines} ${lines === 1 ? "line" : "lines"} of code`}, ${reach}`;
   }
   if (k === "ai") {
     // one short line: what it is asked to do (data references become an ellipsis, not braces), and where it runs only when that was chosen
-    const prompt = str(inp["prompt"]).replace(/\{\{[^}]*\}\}/g, "\u2026").replace(/\s+/g, " ").trim().replace(/\u2026[.]+$/, "\u2026").replace(/[.]+$/, "");
+    const prompt = str(inp["prompt"])
+      .replace(/\{\{[^}]*\}\}/g, "\u2026")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\u2026[.]+$/, "\u2026")
+      .replace(/[.]+$/, "");
     if (!prompt) return "Write what the AI should do";
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
@@ -297,7 +425,18 @@ export function cardTitle(n: DefNode): string {
   return n.title && n.title.trim() ? n.title : titleOfKey(n.key);
 }
 
-export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string; tested?: ReadonlySet<string>; /** Required input names by step key, from the catalog. A step missing one shows "Not set up". */ required?: Readonly<Record<string, readonly string[]>> } = {}): Layout {
+export function layout(
+  def: Definition,
+  opts: {
+    issues?: readonly Issue[];
+    run?: Readonly<Record<string, RunState>>;
+    keyName?: (id: string) => string;
+    tested?: ReadonlySet<string>;
+    /** Required input names by step key, from the catalog. A step missing one shows "Not set up". */ required?: Readonly<
+      Record<string, readonly string[]>
+    >;
+  } = {},
+): Layout {
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   const issues = opts.issues ?? [];
   const issuesFor = (id: string): Issue[] => issues.filter((i) => i.nodeId === id);
@@ -311,7 +450,12 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
   const lit = (a: string, b: string): boolean => {
     const sa = a === "trigger" ? "done" : stateOf(a);
     const sb = stateOf(b);
-    return (sa === "done" || sa === "failed" || sa === "waiting" || sa === "running") && sb !== undefined && sb !== "pending" && sb !== "skipped";
+    return (
+      (sa === "done" || sa === "failed" || sa === "waiting" || sa === "running") &&
+      sb !== undefined &&
+      sb !== "pending" &&
+      sb !== "skipped"
+    );
   };
 
   /** Width a lane starting at `start` takes, up to (not including) `stop`. */
@@ -346,8 +490,18 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
     const k = kindOfKey(n.key);
     const names = opts.keyName ? { key: opts.keyName } : {};
     const card: CardNode = {
-      id: n.id, type: "step", x: cx - CARD_W / 2, y, w: CARD_W, h: CARD_H, node: n, kind: k, icon: iconOfKey(n.key),
-      title: cardTitle(n), sub: subtitleOf(n, names), issues: issuesFor(n.id),
+      id: n.id,
+      type: "step",
+      x: cx - CARD_W / 2,
+      y,
+      w: CARD_W,
+      h: CARD_H,
+      node: n,
+      kind: k,
+      icon: iconOfKey(n.key),
+      title: cardTitle(n),
+      sub: subtitleOf(n, names),
+      issues: issuesFor(n.id),
     };
     const need = opts.required?.[n.key];
     if (need && missingFor(n.key, n.input ?? {}, need, n.branches?.length ?? 0).length > 0) card.sub = NOT_SET_UP;
@@ -362,7 +516,14 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
   };
 
   /** Lay a lane out with its centre at cx, starting at y; returns the y under its last card and the id of its last card (null when it has none). */
-  const lane = (start: string | null, stop: string | null, cx: number, y: number, prev: { id: string; y: number } | null, depth = 0): { y: number; last: string | null; ends: boolean } => {
+  const lane = (
+    start: string | null,
+    stop: string | null,
+    cx: number,
+    y: number,
+    prev: { id: string; y: number } | null,
+    depth = 0,
+  ): { y: number; last: string | null; ends: boolean } => {
     let cur = start;
     let top = y;
     let last: string | null = prev?.id ?? null;
@@ -396,8 +557,12 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           const isOther = b.when === undefined;
           const litB = (stateOf(b.to) ?? "pending") !== "pending" && (stateOf(b.to) ?? "") !== "skipped";
           chips.push({
-            x: lcx, y: chipY, text: kindOfKey(n.key) === "parallel" ? parallelLaneMark(b.label) : isOther ? "Otherwise" : `If ${b.when}`, mono: !isOther && kindOfKey(n.key) !== "parallel",
-            kind: kindOfKey(n.key) === "parallel" ? "lane" : isOther ? "otherwise" : "if", lit: litB,
+            x: lcx,
+            y: chipY,
+            text: kindOfKey(n.key) === "parallel" ? parallelLaneMark(b.label) : isOther ? "Otherwise" : `If ${b.when}`,
+            mono: !isOther && kindOfKey(n.key) !== "parallel",
+            kind: kindOfKey(n.key) === "parallel" ? "lane" : isOther ? "otherwise" : "if",
+            lit: litB,
           });
           segs.push({ x1: lcx, y1: barY, x2: lcx, y2: chipY, lit: litB });
           if (b.to === join || !b.to) {
@@ -411,13 +576,21 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
           ends2.push({ x: lcx, y: r.y - GAP_Y, id: r.last, ended: r.ends });
           deepest = Math.max(deepest, r.y);
         });
-        if (centres.length > 1) segs.push({ x1: centres[0]!, y1: barY, x2: centres[centres.length - 1]!, y2: barY, lit: false });
+        if (centres.length > 1)
+          segs.push({ x1: centres[0]!, y1: barY, x2: centres[centres.length - 1]!, y2: barY, lit: false });
         segs.push({ x1: cx, y1: lastBottom, x2: cx, y2: barY, lit: lit(n.id, bs[0]?.to ?? "") });
         if (join) {
           const mergeY = deepest + 14;
           const open = ends2.filter((e) => !e.ended);
-          for (const e of open) segs.push({ x1: e.x, y1: e.y, x2: e.x, y2: mergeY, lit: e.id ? stateOf(e.id) === "done" : false });
-          if (open.length > 1) segs.push({ x1: Math.min(...open.map((e) => e.x)), y1: mergeY, x2: Math.max(...open.map((e) => e.x)), y2: mergeY });
+          for (const e of open)
+            segs.push({ x1: e.x, y1: e.y, x2: e.x, y2: mergeY, lit: e.id ? stateOf(e.id) === "done" : false });
+          if (open.length > 1)
+            segs.push({
+              x1: Math.min(...open.map((e) => e.x)),
+              y1: mergeY,
+              x2: Math.max(...open.map((e) => e.x)),
+              y2: mergeY,
+            });
           if (kindOfKey(n.key) === "parallel") chips.push({ x: cx, y: mergeY, text: PARALLEL_JOIN, kind: "join" });
           // the merge bar feeds the join step, which the next turn of the loop places
           last = open.length > 0 ? "merge" : null;
@@ -439,15 +612,27 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
         const fy = lastBottom + 14;
         chips.push({ x: cx, y: fy, text: "For each item", kind: "each" });
         segs.push({ x1: cx, y1: lastBottom, x2: cx, y2: fy + CHIP_H });
-        const r = body ? lane(body, null, cx, fy + CHIP_H + 12, null, depth + 1) : { y: fy + CHIP_H + 12, last: null, ends: false };
-        frames.push({ x: fx, y: fy + CHIP_H - 6, w: bw + 40, h: Math.max(CARD_H, r.y - GAP_Y - (fy + CHIP_H - 6) + 12), label: "" });
+        const r = body
+          ? lane(body, null, cx, fy + CHIP_H + 12, null, depth + 1)
+          : { y: fy + CHIP_H + 12, last: null, ends: false };
+        frames.push({
+          x: fx,
+          y: fy + CHIP_H - 6,
+          w: bw + 40,
+          h: Math.max(CARD_H, r.y - GAP_Y - (fy + CHIP_H - 6) + 12),
+          label: "",
+        });
         last = r.last ?? n.id;
         lastBottom = r.y - GAP_Y + 12;
         top = lastBottom + GAP_Y;
         cur = n.next?.[0] ?? null;
         continue;
       }
-      if (kindOfKey(n.key) === "stop") { ends = true; cur = null; break; }
+      if (kindOfKey(n.key) === "stop") {
+        ends = true;
+        cur = null;
+        break;
+      }
       cur = successors(n)[0] ?? null;
     }
     return { y: top, last, ends };
@@ -455,15 +640,32 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
 
   const trigCount = def.triggers.length;
   const trigH = triggerCardHeight(trigCount);
-  const starts = def.start && def.start.length > 0 ? def.start : (() => {
-    const targeted = new Set<string>();
-    for (const n of def.nodes) { for (const s of successors(n)) targeted.add(s); if (n.branches) for (const b of n.branches) targeted.add(b.to); }
-    return def.nodes.filter((n) => !targeted.has(n.id)).map((n) => n.id).slice(0, 1);
-  })();
+  const starts =
+    def.start && def.start.length > 0
+      ? def.start
+      : (() => {
+          const targeted = new Set<string>();
+          for (const n of def.nodes) {
+            for (const s of successors(n)) targeted.add(s);
+            if (n.branches) for (const b of n.branches) targeted.add(b.to);
+          }
+          return def.nodes
+            .filter((n) => !targeted.has(n.id))
+            .map((n) => n.id)
+            .slice(0, 1);
+        })();
   const total = Math.max(CARD_W, measure(starts[0] ?? null, null));
   const cx = total / 2 + 40;
   const trig: CardNode = {
-    id: "trigger", type: "trigger", x: cx - CARD_W / 2, y: 0, w: CARD_W, h: trigH, title: "Trigger", sub: "Any one starts a run", issues: issuesFor("trigger"),
+    id: "trigger",
+    type: "trigger",
+    x: cx - CARD_W / 2,
+    y: 0,
+    w: CARD_W,
+    h: trigH,
+    title: "Trigger",
+    sub: "Any one starts a run",
+    issues: issuesFor("trigger"),
   };
   cards.push(trig);
   const r = starts[0] ? lane(starts[0], null, cx, trigH + GAP_Y, { id: "trigger", y: trigH }) : { y: trigH + GAP_Y };
@@ -480,7 +682,10 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
   const shift = minX < 40 ? 40 - minX : 0;
   if (shift) {
     for (const c of cards) c.x += shift;
-    for (const s of segs) { s.x1 += shift; s.x2 += shift; }
+    for (const s of segs) {
+      s.x1 += shift;
+      s.x2 += shift;
+    }
     for (const c of chips) c.x += shift;
     for (const f of frames) f.x += shift;
   }
@@ -493,7 +698,18 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
 export function runStates(steps: readonly { nodeId: string; status: string }[]): Record<string, RunState> {
   const out: Record<string, RunState> = {};
   for (const s of steps) {
-    const st: RunState = s.status === "done" || s.status === "succeeded" ? "done" : s.status === "failed" ? "failed" : s.status === "waiting" ? "waiting" : s.status === "running" || s.status === "started" ? "running" : s.status === "skipped" ? "skipped" : "pending";
+    const st: RunState =
+      s.status === "done" || s.status === "succeeded"
+        ? "done"
+        : s.status === "failed"
+          ? "failed"
+          : s.status === "waiting"
+            ? "waiting"
+            : s.status === "running" || s.status === "started"
+              ? "running"
+              : s.status === "skipped"
+                ? "skipped"
+                : "pending";
     out[s.nodeId] = st;
   }
   return out;
@@ -506,23 +722,54 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   "records.find": [{ field: "type", label: "the record type" }],
   "records.create": [{ field: "type", label: "the record type" }],
   "records.update": [{ field: "recordId", label: "which record" }],
-  send_email: [{ field: "to", label: "who to send to" }, { field: "mailboxId", label: "a mailbox" }],
-  send_sms: [{ field: "to", label: "who to text" }, { field: "numberId", label: "a number" }],
-  connector_request: [{ field: "connector", label: "a connector" }, { field: "action", label: "an action" }, { field: "connectionId", label: "a connection" }],
+  send_email: [
+    { field: "to", label: "who to send to" },
+    { field: "mailboxId", label: "a mailbox" },
+  ],
+  send_sms: [
+    { field: "to", label: "who to text" },
+    { field: "numberId", label: "a number" },
+  ],
+  connector_request: [
+    { field: "connector", label: "a connector" },
+    { field: "action", label: "an action" },
+    { field: "connectionId", label: "a connection" },
+  ],
   post_message: [{ field: "channelId", label: "where to post" }],
   create_task: [{ field: "title", label: "a title" }],
-  "records.relate": [{ field: "recordId", label: "which record" }, { field: "toId", label: "the record to link" }],
-  "calendar.create_event": [{ field: "title", label: "a title" }, { field: "calendarId", label: "a calendar" }],
-  "files.create": [{ field: "name", label: "a file name" }, { field: "folderId", label: "a folder" }],
-  "files.move": [{ field: "fileId", label: "a file" }, { field: "toFolderId", label: "a folder" }],
-  "github.issue.create": [{ field: "repo", label: "a repository" }, { field: "title", label: "a title" }],
-  "forms.create": [{ field: "name", label: "a name" }, { field: "recordType", label: "a record type" }],
+  "records.relate": [
+    { field: "recordId", label: "which record" },
+    { field: "toId", label: "the record to link" },
+  ],
+  "calendar.create_event": [
+    { field: "title", label: "a title" },
+    { field: "calendarId", label: "a calendar" },
+  ],
+  "files.create": [
+    { field: "name", label: "a file name" },
+    { field: "folderId", label: "a folder" },
+  ],
+  "files.move": [
+    { field: "fileId", label: "a file" },
+    { field: "toFolderId", label: "a folder" },
+  ],
+  "github.issue.create": [
+    { field: "repo", label: "a repository" },
+    { field: "title", label: "a title" },
+  ],
+  "forms.create": [
+    { field: "name", label: "a name" },
+    { field: "recordType", label: "a record type" },
+  ],
   "forms.publish": [{ field: "formId", label: "a form" }],
   loop: [{ field: "items", label: "the list to go through" }],
   http_request: [{ field: "url", label: "the address" }],
   code: [{ field: "source", label: "the code" }],
   ai: [{ field: "prompt", label: "what to ask" }],
-  approval: [{ field: "title", label: "what needs approval" }, { field: "approver", label: "who approves" }],
+  approval: [
+    { field: "title", label: "what needs approval" },
+    { field: "approver", label: "who approves" },
+  ],
 };
 
 const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
@@ -534,49 +781,98 @@ const blank = (v: unknown): boolean => v === undefined || v === null || (typeof 
 export function check(def: Definition, kind: "personal" | "space" = "space", o: { automatic?: boolean } = {}): Issue[] {
   const out: Issue[] = [];
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
-  if (def.triggers.length === 0) out.push({ severity: "error", message: "Add a trigger so something starts this Automation" });
-  for (const t of def.triggers) if (kind === "personal" && t.key === "webhook") out.push({ nodeId: "trigger", severity: "error", message: "A web request trigger works only on a Space Automation in a Team Space" });
+  if (def.triggers.length === 0)
+    out.push({ severity: "error", message: "Add a trigger so something starts this Automation" });
+  for (const t of def.triggers)
+    if (kind === "personal" && t.key === "webhook")
+      out.push({
+        nodeId: "trigger",
+        severity: "error",
+        message: "A web request trigger works only on a Space Automation in a Team Space",
+      });
   for (const t of def.triggers) {
     const miss = triggerMissing(t);
     if (miss.length === 0) continue;
     const title = triggerMeta(t.key, t.config).title;
     // a schedule with no time never fires; any other trigger with no filter would start on every event of its kind
-    if (t.key === "schedule") out.push({ nodeId: "trigger", severity: "error", message: `${title} needs when it runs` });
-    else out.push({ nodeId: "trigger", severity: "warning", message: `${title} needs ${miss.map((m) => m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : m).join(" and ")}` });
+    if (t.key === "schedule")
+      out.push({ nodeId: "trigger", severity: "error", message: `${title} needs when it runs` });
+    else
+      out.push({
+        nodeId: "trigger",
+        severity: "warning",
+        message: `${title} needs ${miss.map((m) => (m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : m)).join(" and ")}`,
+      });
   }
   if (def.nodes.length === 0) out.push({ severity: "warning", message: "Add a first step" });
   const reachable = new Set<string>();
   for (const s of def.start ?? def.nodes.slice(0, 1).map((n) => n.id)) for (const id of reach(by, s)) reachable.add(id);
   for (const n of def.nodes) {
     const label = cardTitle(n);
-    for (const to of [...(n.next ?? []), ...(n.branches?.map((b) => b.to) ?? [])]) if (to !== "" && !by.has(to)) out.push({ nodeId: n.id, severity: "error", message: `${label} leads to a step that no longer exists` });
-    for (const req of REQUIRED[n.key] ?? []) if (blank(n.input?.[req.field])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs ${req.label}` });
-    if ((n.key.startsWith("google.") || n.key.startsWith("ms.")) && blank(n.input?.["connectionId"])) out.push({ nodeId: n.id, severity: "error", message: `${label} needs a connection` });
+    for (const to of [...(n.next ?? []), ...(n.branches?.map((b) => b.to) ?? [])])
+      if (to !== "" && !by.has(to))
+        out.push({ nodeId: n.id, severity: "error", message: `${label} leads to a step that no longer exists` });
+    for (const req of REQUIRED[n.key] ?? [])
+      if (blank(n.input?.[req.field]))
+        out.push({ nodeId: n.id, severity: "error", message: `${label} needs ${req.label}` });
+    if ((n.key.startsWith("google.") || n.key.startsWith("ms.")) && blank(n.input?.["connectionId"]))
+      out.push({ nodeId: n.id, severity: "error", message: `${label} needs a connection` });
     const k = kindOfKey(n.key);
     if (k === "paths") {
-      if (!n.branches || n.branches.length === 0) out.push({ nodeId: n.id, severity: "error", message: `${label} has no paths` });
+      if (!n.branches || n.branches.length === 0)
+        out.push({ nodeId: n.id, severity: "error", message: `${label} has no paths` });
       else {
-        n.branches.forEach((b, i) => { if (b.when === undefined && i !== n.branches!.length - 1) out.push({ nodeId: n.id, severity: "error", message: `${label}: only the last path can be Otherwise` }); });
-        n.branches.forEach((b) => { if (b.when !== undefined && blank(b.when)) out.push({ nodeId: n.id, severity: "error", message: `${label}: a path needs its condition` }); });
+        n.branches.forEach((b, i) => {
+          if (b.when === undefined && i !== n.branches!.length - 1)
+            out.push({ nodeId: n.id, severity: "error", message: `${label}: only the last path can be Otherwise` });
+        });
+        n.branches.forEach((b) => {
+          if (b.when !== undefined && blank(b.when))
+            out.push({ nodeId: n.id, severity: "error", message: `${label}: a path needs its condition` });
+        });
       }
     }
-    if (k === "parallel" && (n.branches?.length ?? 0) < 2) out.push({ nodeId: n.id, severity: "error", message: `${label} needs at least two lanes` });
-    if (k === "loop" && !n.branches?.[0]) out.push({ nodeId: n.id, severity: "warning", message: `${label} has nothing inside it` });
+    if (k === "parallel" && (n.branches?.length ?? 0) < 2)
+      out.push({ nodeId: n.id, severity: "error", message: `${label} needs at least two lanes` });
+    if (k === "loop" && !n.branches?.[0])
+      out.push({ nodeId: n.id, severity: "warning", message: `${label} has nothing inside it` });
     // a Personal AI step runs on its owner's own account; a Space one runs as itself and needs a key shared with the Space
-    if (k === "ai" && kind === "space" && !n.ai?.keyId && !def.ai?.keyId && o.automatic !== true) out.push({ nodeId: n.id, severity: "error", message: `${label}: a Space automation needs a key shared with the Space, pick one` });
-    if (k === "ai" && n.ai?.keyId && !n.ai.backupKeyId) out.push({ nodeId: n.id, severity: "warning", message: `${label}: add a backup key so a lost key never stops the run` });
+    if (k === "ai" && kind === "space" && !n.ai?.keyId && !def.ai?.keyId && o.automatic !== true)
+      out.push({
+        nodeId: n.id,
+        severity: "error",
+        message: `${label}: a Space automation needs a key shared with the Space, pick one`,
+      });
+    if (k === "ai" && n.ai?.keyId && !n.ai.backupKeyId)
+      out.push({
+        nodeId: n.id,
+        severity: "warning",
+        message: `${label}: add a backup key so a lost key never stops the run`,
+      });
     if (k === "http") {
       const url = typeof n.input?.["url"] === "string" ? n.input["url"].trim() : "";
-      if (url !== "" && !url.includes("{{") && !/^https:\/\//i.test(url)) out.push({ nodeId: n.id, severity: "error", message: `${label}: the address must start with https://` });
-      const auth = n.input?.["auth"] as { kind?: string; handle?: string; username?: string; header?: string } | undefined;
+      if (url !== "" && !url.includes("{{") && !/^https:\/\//i.test(url))
+        out.push({ nodeId: n.id, severity: "error", message: `${label}: the address must start with https://` });
+      const auth = n.input?.["auth"] as
+        | { kind?: string; handle?: string; username?: string; header?: string }
+        | undefined;
       if (auth && typeof auth === "object") {
-        if (!auth.handle) out.push({ nodeId: n.id, severity: "error", message: `${label}: pick the Vault key to sign the request with` });
-        if (auth.kind === "basic" && !auth.username) out.push({ nodeId: n.id, severity: "error", message: `${label}: basic sign-in needs a user name` });
-        if (auth.kind === "header" && !auth.header) out.push({ nodeId: n.id, severity: "error", message: `${label}: name the header the key goes in` });
+        if (!auth.handle)
+          out.push({
+            nodeId: n.id,
+            severity: "error",
+            message: `${label}: pick the Vault key to sign the request with`,
+          });
+        if (auth.kind === "basic" && !auth.username)
+          out.push({ nodeId: n.id, severity: "error", message: `${label}: basic sign-in needs a user name` });
+        if (auth.kind === "header" && !auth.header)
+          out.push({ nodeId: n.id, severity: "error", message: `${label}: name the header the key goes in` });
       }
     }
-    if (n.onError?.mode === "route" && !(n.onError.route && by.has(n.onError.route))) out.push({ nodeId: n.id, severity: "error", message: `${label}: choose the step an error goes to` });
-    if (!reachable.has(n.id)) out.push({ nodeId: n.id, severity: "warning", message: `${label} is not connected to the start` });
+    if (n.onError?.mode === "route" && !(n.onError.route && by.has(n.onError.route)))
+      out.push({ nodeId: n.id, severity: "error", message: `${label}: choose the step an error goes to` });
+    if (!reachable.has(n.id))
+      out.push({ nodeId: n.id, severity: "warning", message: `${label} is not connected to the start` });
   }
   // a step that leads back to one before it would run forever
   const state = new Map<string, 1 | 2>();
@@ -586,11 +882,23 @@ export function check(def: Definition, kind: "personal" | "space" = "space", o: 
     if (s === 2) return false;
     state.set(id, 1);
     const n = by.get(id);
-    if (n) for (const to of successors(n)) if (by.has(to) && dfs(to)) { return true; }
+    if (n)
+      for (const to of successors(n))
+        if (by.has(to) && dfs(to)) {
+          return true;
+        }
     state.set(id, 2);
     return false;
   };
-  for (const n of def.nodes) if (dfs(n.id)) { out.push({ nodeId: n.id, severity: "error", message: `${cardTitle(n)} leads back to an earlier step, so the run would never end` }); break; }
+  for (const n of def.nodes)
+    if (dfs(n.id)) {
+      out.push({
+        nodeId: n.id,
+        severity: "error",
+        message: `${cardTitle(n)} leads back to an earlier step, so the run would never end`,
+      });
+      break;
+    }
   return out;
 }
 
@@ -604,7 +912,13 @@ export function liveBlockerStep(issues: readonly Issue[]): string | null {
 /** Errors first, then warnings, one per step id and text. */
 export function sortedIssues(issues: readonly Issue[]): Issue[] {
   const seen = new Set<string>();
-  return issues.filter((i) => { const k = `${i.nodeId ?? ""}|${i.message}`; if (seen.has(k)) return false; seen.add(k); return true; })
+  return issues
+    .filter((i) => {
+      const k = `${i.nodeId ?? ""}|${i.message}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
     .sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1));
 }
 
@@ -626,15 +940,41 @@ export function newId(def: Definition, key: string): string {
 export function blankStep(def: Definition, key: string): DefNode[] {
   const id = newId(def, key);
   const k = kindOfKey(key);
-  if (k === "paths") return [{ id, key, input: {}, branches: [{ label: "Path 1", to: "", when: "" }, { label: "Otherwise", to: "" }] }];
-  if (k === "parallel") return [{ id, key, input: { waitFor: "all" }, branches: [{ label: "Lane 1", to: "" }, { label: "Lane 2", to: "" }] }];
+  if (k === "paths")
+    return [
+      {
+        id,
+        key,
+        input: {},
+        branches: [
+          { label: "Path 1", to: "", when: "" },
+          { label: "Otherwise", to: "" },
+        ],
+      },
+    ];
+  if (k === "parallel")
+    return [
+      {
+        id,
+        key,
+        input: { waitFor: "all" },
+        branches: [
+          { label: "Lane 1", to: "" },
+          { label: "Lane 2", to: "" },
+        ],
+      },
+    ];
   return [{ id, key, input: startingInput(key) }];
 }
 
 /** What a new step of this kind starts with, so its form opens with a choice made rather than empty. */
 function startingInput(key: string): Record<string, unknown> {
   if (key === "http_request") return { method: "GET" };
-  if (key === "code") return { language: "javascript", source: "// input holds this step's mapped data. Return JSON.\nreturn { ok: true };" };
+  if (key === "code")
+    return {
+      language: "javascript",
+      source: "// input holds this step's mapped data. Return JSON.\nreturn { ok: true };",
+    };
   return {};
 }
 
@@ -660,7 +1000,7 @@ export function addAfter(def: Definition, afterId: string | null, key: string): 
   const prev = d.nodes.find((n) => n.id === afterId);
   if (!prev) throw new Error("no such step");
   const idx = d.nodes.indexOf(prev);
-  const follow = isLoop(prev) ? (prev.next?.[0]) : prev.branches && prev.branches.length > 0 ? undefined : prev.next?.[0];
+  const follow = isLoop(prev) ? prev.next?.[0] : prev.branches && prev.branches.length > 0 ? undefined : prev.next?.[0];
   if (follow && !step.branches) step.next = [follow];
   // a new Paths or Parallel step takes what followed into its first lane, so nothing is left unconnected
   else if (follow && step.branches?.[0]) step.branches[0].to = follow;
@@ -680,7 +1020,10 @@ export function addInto(def: Definition, hostId: string, key: string, laneIndex 
   const step = fresh!;
   if (!host.branches) host.branches = [];
   const b = host.branches[laneIndex];
-  if (b) { if (b.to && !step.branches) step.next = [b.to]; b.to = step.id; } else host.branches.push({ label: `Lane ${laneIndex + 1}`, to: step.id });
+  if (b) {
+    if (b.to && !step.branches) step.next = [b.to];
+    b.to = step.id;
+  } else host.branches.push({ label: `Lane ${laneIndex + 1}`, to: step.id });
   d.nodes.push(step);
   return { def: d, id: step.id };
 }
@@ -708,15 +1051,21 @@ export function moveStep(def: Definition, id: string, by: -1 | 1): Definition {
   const d = clone(def);
   const step = d.nodes.find((n) => n.id === id);
   if (!step || branching(step) || isLoop(step)) return d;
-  const parent = d.nodes.find((n) => !isLoop(n) && (n.next ?? []).includes(id) && !(n.branches && n.branches.length > 0));
+  const parent = d.nodes.find(
+    (n) => !isLoop(n) && (n.next ?? []).includes(id) && !(n.branches && n.branches.length > 0),
+  );
   if (by === -1) {
     if (!parent) return d;
-    const grand = d.nodes.find((n) => (n.next ?? []).includes(parent.id) || (n.branches ?? []).some((b) => b.to === parent.id));
+    const grand = d.nodes.find(
+      (n) => (n.next ?? []).includes(parent.id) || (n.branches ?? []).some((b) => b.to === parent.id),
+    );
     const stepNext = step.next?.[0];
     parent.next = stepNext ? [stepNext] : [];
     step.next = [parent.id];
-    if (grand) { if (grand.next?.includes(parent.id)) grand.next = grand.next.map((x) => (x === parent.id ? id : x)); if (grand.branches) grand.branches = grand.branches.map((b) => (b.to === parent.id ? { ...b, to: id } : b)); }
-    else if (d.start) d.start = d.start.map((x) => (x === parent.id ? id : x));
+    if (grand) {
+      if (grand.next?.includes(parent.id)) grand.next = grand.next.map((x) => (x === parent.id ? id : x));
+      if (grand.branches) grand.branches = grand.branches.map((b) => (b.to === parent.id ? { ...b, to: id } : b));
+    } else if (d.start) d.start = d.start.map((x) => (x === parent.id ? id : x));
     return d;
   }
   const child = d.nodes.find((n) => n.id === step.next?.[0]);
@@ -724,22 +1073,33 @@ export function moveStep(def: Definition, id: string, by: -1 | 1): Definition {
   const grandChild = child.next?.[0];
   if (parent) parent.next = [child.id];
   else if (d.start) d.start = d.start.map((x) => (x === id ? child.id : x));
-  for (const n of d.nodes) if (n.branches) n.branches = n.branches.map((b) => (b.to === id ? { ...b, to: child.id } : b));
+  for (const n of d.nodes)
+    if (n.branches) n.branches = n.branches.map((b) => (b.to === id ? { ...b, to: child.id } : b));
   child.next = [id];
   step.next = grandChild ? [grandChild] : [];
   return d;
 }
 
-export function updateStep(def: Definition, id: string, patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches" | "askBeforeSending">>): Definition {
+export function updateStep(
+  def: Definition,
+  id: string,
+  patch: Partial<Pick<DefNode, "title" | "input" | "onError" | "ai" | "branches" | "askBeforeSending">>,
+): Definition {
   const d = clone(def);
   const n = d.nodes.find((x) => x.id === id);
   if (!n) throw new Error("no such step");
-  if (patch.title !== undefined) { if (patch.title.trim()) n.title = patch.title; else delete n.title; }
+  if (patch.title !== undefined) {
+    if (patch.title.trim()) n.title = patch.title;
+    else delete n.title;
+  }
   if (patch.input !== undefined) n.input = patch.input;
   if (patch.onError !== undefined) n.onError = patch.onError;
   if (patch.ai !== undefined) n.ai = patch.ai;
   if (patch.branches !== undefined) n.branches = patch.branches;
-  if (patch.askBeforeSending !== undefined) { if (patch.askBeforeSending) n.askBeforeSending = true; else delete n.askBeforeSending; }
+  if (patch.askBeforeSending !== undefined) {
+    if (patch.askBeforeSending) n.askBeforeSending = true;
+    else delete n.askBeforeSending;
+  }
   return d;
 }
 
@@ -759,7 +1119,9 @@ export function duplicateStep(def: Definition, id: string): { def: Definition; i
 /** A new trigger. A schedule starts as every day at 09:00 in the person's time zone, so it is never one with no time. */
 export function addTrigger(def: Definition, key: string, zone: string = deviceTimeZone()): Definition {
   const d = clone(def);
-  d.triggers.push(key === "schedule" ? { key, config: { cron: "0 9 * * *", timezone: zone, missed: "skip" } } : { key });
+  d.triggers.push(
+    key === "schedule" ? { key, config: { cron: "0 9 * * *", timezone: zone, missed: "skip" } } : { key },
+  );
   return d;
 }
 
@@ -778,7 +1140,9 @@ export function neighbour(l: Layout, from: string, dir: "up" | "down" | "left" |
     return l.order[i + (dir === "down" ? 1 : -1)] ?? null;
   }
   const row = l.cards.filter((c) => c.id !== from && Math.abs(c.y - cur.y) < CARD_H);
-  const side = row.filter((c) => (dir === "right" ? c.x > cur.x : c.x < cur.x)).sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x));
+  const side = row
+    .filter((c) => (dir === "right" ? c.x > cur.x : c.x < cur.x))
+    .sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x));
   return side[0]?.id ?? null;
 }
 
@@ -796,11 +1160,26 @@ export function messages(issues: readonly Issue[]): string[] {
   return out;
 }
 
-export interface Choice { label: string; checked?: boolean; run(): void }
+export interface Choice {
+  label: string;
+  checked?: boolean;
+  run(): void;
+}
 
-export function keyChoices(keys: readonly KeyChoice[], none: string, set: (id: string | undefined) => void): { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] {
-  const out: { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] = [{ label: none, run: () => set(undefined) }];
-  for (const k of keys) out.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, run: () => set(k.id), ...(k.usable === false ? { disabled: true, ...(k.why ? { reason: k.why } : {}) } : {}) });
+export function keyChoices(
+  keys: readonly KeyChoice[],
+  none: string,
+  set: (id: string | undefined) => void,
+): { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] {
+  const out: { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] = [
+    { label: none, run: () => set(undefined) },
+  ];
+  for (const k of keys)
+    out.push({
+      label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`,
+      run: () => set(k.id),
+      ...(k.usable === false ? { disabled: true, ...(k.why ? { reason: k.why } : {}) } : {}),
+    });
   return out;
 }
 
@@ -813,7 +1192,11 @@ export const ERROR_MODES = [
   { mode: "route", label: "Go to another step" },
 ] as const;
 
-export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<DefNode["branches"]>[number]>): NonNullable<DefNode["branches"]> {
+export function setBranch(
+  n: DefNode,
+  index: number,
+  patch: Partial<NonNullable<DefNode["branches"]>[number]>,
+): NonNullable<DefNode["branches"]> {
   const out: NonNullable<DefNode["branches"]> = [];
   (n.branches ?? []).forEach((b, i) => out.push(i === index ? { ...b, ...patch } : b));
   return out;
@@ -821,7 +1204,9 @@ export function setBranch(n: DefNode, index: number, patch: Partial<NonNullable<
 
 export function setTriggerConfig(def: Definition, index: number, key: string, value: unknown): Definition {
   const triggers: Definition["triggers"] = [];
-  def.triggers.forEach((t, i) => triggers.push(i === index ? { ...t, config: { ...(t.config ?? {}), [key]: value } } : t));
+  def.triggers.forEach((t, i) =>
+    triggers.push(i === index ? { ...t, config: { ...(t.config ?? {}), [key]: value } } : t),
+  );
   return { ...def, triggers };
 }
 
@@ -829,7 +1214,10 @@ export function palette(): { head: string; items: { key: string; title: string }
   const out: { head: string; items: { key: string; title: string }[] }[] = [];
   for (const p of STEP_PALETTE) {
     let g = out.find((x) => x.head === p.group);
-    if (!g) { g = { head: p.group, items: [] }; out.push(g); }
+    if (!g) {
+      g = { head: p.group, items: [] };
+      out.push(g);
+    }
     g.items.push({ key: p.key, title: p.title });
   }
   return out;
@@ -846,9 +1234,11 @@ export function cronWords(cron: string): string | null {
   const num = (x: string): number | null => (/^\d+$/.test(x) ? Number(x) : null);
   if (mon !== "*") return null;
   if (/^\*\/\d+$/.test(mi) && hr === "*" && dom === "*" && dow === "*") return `Every ${mi.slice(2)} minutes`;
-  const m = num(mi), h = hr === "*" ? null : num(hr);
+  const m = num(mi),
+    h = hr === "*" ? null : num(hr);
   if (m === null) return null;
-  if (hr === "*" && dom === "*" && dow === "*") return m === 0 ? "Every hour" : `Every hour at :${String(m).padStart(2, "0")}`;
+  if (hr === "*" && dom === "*" && dow === "*")
+    return m === 0 ? "Every hour" : `Every hour at :${String(m).padStart(2, "0")}`;
   if (h === null) return null;
   if (dom === "*" && dow === "*") return `Every day at ${clock(h, m)}`;
   const d = num(dow);
@@ -868,6 +1258,18 @@ export function startsByHand(def: Definition): boolean {
 }
 
 /** The banner offers "Move to Space" for a web request trigger on a Personal Automation, only in a Team Space and only to someone who may make Space Automations. */
-export function offersMoveToSpace(kind: "personal" | "space", def: Definition, firstError: Issue | undefined, o: { personalSpace?: boolean; canSpace?: boolean }): boolean {
-  return kind === "personal" && o.personalSpace !== true && o.canSpace !== false && firstError?.nodeId === "trigger" && def.triggers.some((t) => t.key === "webhook") && /web request/.test(firstError.message);
+export function offersMoveToSpace(
+  kind: "personal" | "space",
+  def: Definition,
+  firstError: Issue | undefined,
+  o: { personalSpace?: boolean; canSpace?: boolean },
+): boolean {
+  return (
+    kind === "personal" &&
+    o.personalSpace !== true &&
+    o.canSpace !== false &&
+    firstError?.nodeId === "trigger" &&
+    def.triggers.some((t) => t.key === "webhook") &&
+    /web request/.test(firstError.message)
+  );
 }

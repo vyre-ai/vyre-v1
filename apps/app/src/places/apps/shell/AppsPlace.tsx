@@ -19,7 +19,18 @@ import { AppsDataProvider, useAppsData, useOptionalAppsData, useScreenQuery } fr
 import type { AppsData } from "./data.tsx";
 import { AppsSurface } from "./Surfaces.tsx";
 import { NewSiteSheet } from "./NewSiteSheet.tsx";
-import { ACTION_LABEL, GROUPS, NEEDS_YES, actionsFor, domainRow, formRow, groupOf, matches, siteRow, templateRow } from "./model.ts";
+import {
+  ACTION_LABEL,
+  GROUPS,
+  NEEDS_YES,
+  actionsFor,
+  domainRow,
+  formRow,
+  groupOf,
+  matches,
+  siteRow,
+  templateRow,
+} from "./model.ts";
 import type { AppRow, DomainRow, GroupKey, RowAction } from "./model.ts";
 
 export { AppsDataProvider } from "./data.tsx";
@@ -39,18 +50,40 @@ type Lists = Record<GroupKey, { rows: readonly AppRow[]; ready: boolean; error?:
 
 function useLists(): Lists {
   const d = useAppsData();
-  const sites = useScreenQuery<CapMap["sites.list"]["out"]>("apps.sites", "sites", {}, !(d.deferred ?? []).includes("sites"));
+  const sites = useScreenQuery<CapMap["sites.list"]["out"]>(
+    "apps.sites",
+    "sites",
+    {},
+    !(d.deferred ?? []).includes("sites"),
+  );
   const forms = useScreenQuery<CapMap["forms.list"]["out"]>("apps.forms", "forms", {});
   const templates = useScreenQuery<CapMap["templates.list"]["out"]>("apps.templates", "templates", {});
   const [domains, setDomains] = useState<readonly DomainRow[] | null>(null);
   const [domainError, setDomainError] = useState<string | undefined>();
   useEffect(() => {
     let live = true;
-    void (d.call("mail.domain.list", {}) as Promise<{ domains: DomainRow[] }>).then((o) => { if (live) setDomains(o.domains); }).catch((error: unknown) => { if (live) setDomainError(error instanceof Error ? error.message : "Could not load sending domains. Check your access and connection."); });
-    return () => { live = false; };
+    void (d.call("mail.domain.list", {}) as Promise<{ domains: DomainRow[] }>)
+      .then((o) => {
+        if (live) setDomains(o.domains);
+      })
+      .catch((error: unknown) => {
+        if (live)
+          setDomainError(
+            error instanceof Error
+              ? error.message
+              : "Could not load sending domains. Check your access and connection.",
+          );
+      });
+    return () => {
+      live = false;
+    };
   }, [d]);
   return useMemo(() => {
-    const rows = <T,>(q: { status: string; data?: unknown; error?: { message: string } }, pick: (o: never) => T[], map: (x: T) => AppRow): { rows: AppRow[]; ready: boolean; error?: string } => {
+    const rows = <T,>(
+      q: { status: string; data?: unknown; error?: { message: string } },
+      pick: (o: never) => T[],
+      map: (x: T) => AppRow,
+    ): { rows: AppRow[]; ready: boolean; error?: string } => {
       const out: AppRow[] = [];
       if (q.status === "ready") for (const x of pick(q.data as never)) out.push(map(x));
       return { rows: out, ready: q.status === "ready", ...(q.error ? { error: q.error.message } : {}) };
@@ -58,7 +91,17 @@ function useLists(): Lists {
     const dom: AppRow[] = [];
     for (const x of domains ?? []) dom.push(domainRow(x));
     return {
-      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"), (x) => siteRow(x, { now: d.clock().now, ...(d.nameOf ? { nameOf: d.nameOf } : {}), ...(d.me ? { me: d.me.id } : {}) })), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
+      sites: rows(
+        sites,
+        (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"),
+        (x) =>
+          siteRow(x, {
+            now: d.clock().now,
+            ...(d.nameOf ? { nameOf: d.nameOf } : {}),
+            ...(d.me ? { me: d.me.id } : {}),
+          }),
+      ),
+      forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
       templates: rows(templates, (o: CapMap["templates.list"]["out"]) => [...o.templates], templateRow),
       domains: { rows: dom, ready: domains !== null, ...(domainError ? { error: domainError } : {}) },
     };
@@ -67,7 +110,13 @@ function useLists(): Lists {
 
 const EMPTY_ICON = { sites: "files", forms: "doc", templates: "files", domains: "inbox" } as const;
 
-function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
+function Page({
+  initial,
+  route = { kind: "list" },
+}: {
+  initial?: AppsStart | undefined;
+  route?: AppsRoute | undefined;
+}): ReactElement {
   const d = useAppsData();
   const { width } = useWindowDimensions();
   const wide = width === 0 || width >= WIDE;
@@ -77,8 +126,24 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   // Apps opens on Sites (owner, 3 Nov), or on the group this person had open last time
   const usable = (g: GroupKey | undefined | null): g is GroupKey => !!g && groups.some((x) => x.key === g);
   const remembered = lastGroup(d.me?.id);
-  const [group, setGroupState] = useState<GroupKey>(usable(route.group) ? route.group : usable(initial?.group) ? initial!.group! : usable(remembered) ? remembered : usable("sites") ? "sites" : groups[0]?.key ?? "forms");
-  const setGroup = useCallback((g: GroupKey): void => { setGroupState(g); rememberGroup(d.me?.id, g); }, [d.me?.id]);
+  const [group, setGroupState] = useState<GroupKey>(
+    usable(route.group)
+      ? route.group
+      : usable(initial?.group)
+        ? initial!.group!
+        : usable(remembered)
+          ? remembered
+          : usable("sites")
+            ? "sites"
+            : (groups[0]?.key ?? "forms"),
+  );
+  const setGroup = useCallback(
+    (g: GroupKey): void => {
+      setGroupState(g);
+      rememberGroup(d.me?.id, g);
+    },
+    [d.me?.id],
+  );
   const [sheet, setSheet] = useState(false);
   const [selected, setSelected] = useState<string | null>(initial?.selected ?? null);
   const [q, setQ] = useState(initial?.q ?? "");
@@ -94,38 +159,81 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
     return () => clearTimeout(t);
   }, [note]);
 
-  const perform = useCallback((action: RowAction, row: AppRow): void => {
-    if (["publish", "launch", "install"].includes(action)) { d.nav.open(row.group, row.id); return; }
-    runAction(d, action, row).then((r) => { if (r.text) setNote(r.taskId ? { text: r.text, taskId: r.taskId } : { text: r.text }); }).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }));
-  }, [d]);
+  const perform = useCallback(
+    (action: RowAction, row: AppRow): void => {
+      if (["publish", "launch", "install"].includes(action)) {
+        d.nav.open(row.group, row.id);
+        return;
+      }
+      runAction(d, action, row)
+        .then((r) => {
+          if (r.text) setNote(r.taskId ? { text: r.text, taskId: r.taskId } : { text: r.text });
+        })
+        .catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }));
+    },
+    [d],
+  );
   const menuFor = (row: AppRow, x: number, y: number): void => {
     const entries: MenuEntry[] = [];
-    for (const a of actionsFor(row)) entries.push({ label: NEEDS_YES.has(a) ? `${ACTION_LABEL[a]}…` : ACTION_LABEL[a], onSelect: () => perform(a, row) });
+    for (const a of actionsFor(row))
+      entries.push({
+        label: NEEDS_YES.has(a) ? `${ACTION_LABEL[a]}…` : ACTION_LABEL[a],
+        onSelect: () => perform(a, row),
+      });
     show(entries, x, y, "context", { label: row.title });
   };
   const newMenu = (x: number, y: number, only?: GroupKey): void => {
     const entries: MenuEntry[] = [];
-    if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
-    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites")) entries.push({ label: "New site", onSelect: () => setSheet(true) });
-    for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || (g.key === "domains" && d.nav.addDomain))) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => (g.key === "domains" ? d.nav.addDomain?.() : d.nav.create(g.key)) });
-    if ((only === undefined || only === "templates") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
-    if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
+    if (only === undefined || only === "templates")
+      entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
+    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites"))
+      entries.push({ label: "New site", onSelect: () => setSheet(true) });
+    for (const g of groups)
+      if ((only === undefined || only === g.key) && (g.key === "forms" || (g.key === "domains" && d.nav.addDomain)))
+        entries.push({
+          label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`,
+          onSelect: () => (g.key === "domains" ? d.nav.addDomain?.() : d.nav.create(g.key)),
+        });
+    if ((only === undefined || only === "templates") && d.nav.openEmailDesign)
+      entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
+    if (only === undefined || only === "templates")
+      entries.push(
+        { separator: true },
+        {
+          label: "Build a Kit with an agent",
+          onSelect: () =>
+            void openKitBuilder(d).catch((e: unknown) =>
+              setNote({ text: e instanceof Error ? e.message : "That did not work." }),
+            ),
+        },
+      );
     show(entries, x, y, "other");
   };
   const press = (row: AppRow): void => {
     const now = Date.now();
     const again = last.current && last.current.id === row.id && now - last.current.at < DOUBLE_MS;
     last.current = { id: row.id, at: now };
-    setSelected(row.id); setGroup(row.group);
+    setSelected(row.id);
+    setGroup(row.group);
     if (again) d.nav.open(row.group, row.id);
     if (!wide) setShowList(true);
   };
 
   if (!d.team) {
-    return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Sites and forms" onAction={d.nav.joinTeam} /></View></View>;
+    return (
+      <View style={s.page} testID="apps-needs-team">
+        <View style={s.center}>
+          <NeedsTeamSpace density="regular" what="Sites and forms" onAction={d.nav.joinTeam} />
+        </View>
+      </View>
+    );
   }
 
-  const rowsOf = (g: GroupKey): AppRow[] => { const out: AppRow[] = []; for (const r of lists[g].rows) if (matches(r, q)) out.push(r); return out; };
+  const rowsOf = (g: GroupKey): AppRow[] => {
+    const out: AppRow[] = [];
+    for (const r of lists[g].rows) if (matches(r, q)) out.push(r);
+    return out;
+  };
   const side: ReactElement[] = [];
   for (const g of groups) {
     const rows = rowsOf(g.key);
@@ -133,11 +241,26 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
     side.push(
       <View key={g.key} testID={`apps-group-${g.key}`}>
         <Pressable
-          accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${g.title}, ${rows.length}`} testID={`apps-head-${g.key}`}
-          onPress={() => { setGroup(g.key); if (route.kind !== "list") d.nav.show(g.key); setClosed((c) => { const n = new Set(c); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; }); }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          aria-expanded={open}
+          accessibilityLabel={`${g.title}, ${rows.length}`}
+          testID={`apps-head-${g.key}`}
+          onPress={() => {
+            setGroup(g.key);
+            if (route.kind !== "list") d.nav.show(g.key);
+            setClosed((c) => {
+              const n = new Set(c);
+              if (n.has(g.key)) n.delete(g.key);
+              else n.add(g.key);
+              return n;
+            });
+          }}
           style={(state) => [s.gh, (state as { hovered?: boolean }).hovered === true && s.over]}
         >
-          <View style={open ? undefined : s.shut}><MenuIcon icon={iconMarkup("chev")} color="var(--ink-4)" size={12} /></View>
+          <View style={open ? undefined : s.shut}>
+            <MenuIcon icon={iconMarkup("chev")} color="var(--ink-4)" size={12} />
+          </View>
           <Text style={[s.gt, group === g.key && s.gtOn]}>{g.title}</Text>
           <Text style={s.gn}>{rows.length}</Text>
         </Pressable>
@@ -147,19 +270,56 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   }
   function sideRows(g: GroupKey, rows: AppRow[]): ReactElement[] {
     const out: ReactElement[] = [];
-    for (const r of rows.slice(0, 6)) out.push(<View key={r.id} {...menuTrigger((x, y) => menuFor(r, x, y))}><Row id={`nav:${r.id}`} title={r.title} selected={selected === r.id} onPress={() => press(r)} /></View>);
-    if (rows.length > 6) out.push(<Pressable key="more" accessibilityRole="button" testID={`apps-more-${g}`} onPress={() => { setGroup(g); setSelected(null); }}><Text style={s.more}>{`Show all ${rows.length}`}</Text></Pressable>);
+    for (const r of rows.slice(0, 6))
+      out.push(
+        <View key={r.id} {...menuTrigger((x, y) => menuFor(r, x, y))}>
+          <Row id={`nav:${r.id}`} title={r.title} selected={selected === r.id} onPress={() => press(r)} />
+        </View>,
+      );
+    if (rows.length > 6)
+      out.push(
+        <Pressable
+          key="more"
+          accessibilityRole="button"
+          testID={`apps-more-${g}`}
+          onPress={() => {
+            setGroup(g);
+            setSelected(null);
+          }}
+        >
+          <Text style={s.more}>{`Show all ${rows.length}`}</Text>
+        </Pressable>,
+      );
     return out;
   }
 
   const line = (r: AppRow): ReactElement => (
-
-              <View {...menuTrigger((x, y) => menuFor(r, x, y))} style={s.rowWrap}>
-                <Row
-                  id={r.id} title={r.title} note={r.note} selected={selected === r.id} onPress={() => press(r)}
-                  trailing={<View style={s.trail}>{r.count ? <Text style={s.count}>{r.count}</Text> : null}<Pressable accessibilityRole="button" accessibilityLabel={`More for ${r.title}`} testID={`more-${r.id}`} onPress={(e) => { const p = pointOf(e); menuFor(r, p.x, p.y); }} style={s.more2}><Text style={s.moreText}>{"···"}</Text></Pressable></View>}
-                />
-              </View>
+    <View {...menuTrigger((x, y) => menuFor(r, x, y))} style={s.rowWrap}>
+      <Row
+        id={r.id}
+        title={r.title}
+        note={r.note}
+        selected={selected === r.id}
+        onPress={() => press(r)}
+        trailing={
+          <View style={s.trail}>
+            {r.count ? <Text style={s.count}>{r.count}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`More for ${r.title}`}
+              testID={`more-${r.id}`}
+              onPress={(e) => {
+                const p = pointOf(e);
+                menuFor(r, p.x, p.y);
+              }}
+              style={s.more2}
+            >
+              <Text style={s.moreText}>{"···"}</Text>
+            </Pressable>
+          </View>
+        }
+      />
+    </View>
   );
   const cur = lists[group];
   const rows = rowsOf(group);
@@ -167,27 +327,92 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   const main = (
     <View style={s.main} testID="apps-main">
       <View style={s.mh}>
-        {!wide ? <Pressable accessibilityRole="button" accessibilityLabel="Back to the groups" testID="apps-back" onPress={() => setShowList(false)}><Text style={s.back}>{"‹ Apps"}</Text></Pressable> : null}
-        <Text accessibilityRole="header" style={s.mt} testID="apps-title">{g.title}</Text>
+        {!wide ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to the groups"
+            testID="apps-back"
+            onPress={() => setShowList(false)}
+          >
+            <Text style={s.back}>{"‹ Apps"}</Text>
+          </Pressable>
+        ) : null}
+        <Text accessibilityRole="header" style={s.mt} testID="apps-title">
+          {g.title}
+        </Text>
         <Text style={s.mc}>{rows.length}</Text>
         <View style={s.grow} />
-        {group === "templates" ? <Pressable accessibilityRole="button" testID="apps-kit" onPress={() => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }))} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.btnText}>Build a Kit</Text></Pressable> : null}
-        {group === "sites" ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => setSheet(true)} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
-        {group === "forms" || (group === "domains" && d.nav.addDomain) ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
+        {group === "templates" ? (
+          <Pressable
+            accessibilityRole="button"
+            testID="apps-kit"
+            onPress={() =>
+              void openKitBuilder(d).catch((e: unknown) =>
+                setNote({ text: e instanceof Error ? e.message : "That did not work." }),
+              )
+            }
+            style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}
+          >
+            <Text style={s.btnText}>Build a Kit</Text>
+          </Pressable>
+        ) : null}
+        {group === "sites" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="New site"
+            testID="apps-new-site"
+            onPress={() => setSheet(true)}
+            style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}
+          >
+            <Text style={[s.btnText, s.btnPrimaryText]}>New site</Text>
+          </Pressable>
+        ) : null}
+        {group === "forms" || (group === "domains" && d.nav.addDomain) ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`}
+            testID="apps-new-group"
+            onPress={(e) => {
+              const p = pointOf(e);
+              newMenu(p.x, p.y, group);
+            }}
+            style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}
+          >
+            <Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text>
+          </Pressable>
+        ) : null}
       </View>
-      {group === "domains" && !d.nav.addDomain ? <Text style={s.mc} testID="apps-domains-admin">An owner or admin adds sending domains.</Text> : null}
-      {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
-        <View style={s.empty} testID="apps-empty"><States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon={q ? "search" : EMPTY_ICON[g.key]} /></View>
+      {group === "domains" && !d.nav.addDomain ? (
+        <Text style={s.mc} testID="apps-domains-admin">
+          An owner or admin adds sending domains.
+        </Text>
+      ) : null}
+      {cur.error ? (
+        <States kind="error" message={cur.error} />
+      ) : !cur.ready ? (
+        <View testID="apps-loading" style={s.skeleton}>
+          {skeleton()}
+        </View>
+      ) : rows.length === 0 ? (
+        <View style={s.empty} testID="apps-empty">
+          <States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon={q ? "search" : EMPTY_ICON[g.key]} />
+        </View>
       ) : (
         <VirtualList
-          data={rows} rowHeight={ROW_HEIGHT} keyOf={(r) => (r as AppRow).id}
+          data={rows}
+          rowHeight={ROW_HEIGHT}
+          keyOf={(r) => (r as AppRow).id}
           renderItem={(raw) => line(raw as AppRow)}
         />
       )}
       {note ? (
         <View style={s.note} accessibilityRole="alert" testID="apps-note">
           <Text style={s.noteText}>{note.text}</Text>
-          {note.taskId ? <Pressable accessibilityRole="button" testID="apps-note-open" onPress={() => d.nav.openTask(note.taskId!)}><Text style={s.noteLink}>Open the request</Text></Pressable> : null}
+          {note.taskId ? (
+            <Pressable accessibilityRole="button" testID="apps-note-open" onPress={() => d.nav.openTask(note.taskId!)}>
+              <Text style={s.noteLink}>Open the request</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -195,29 +420,69 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
 
   return (
     <View style={s.page} testID="apps-place">
-      {wide || route.kind === "list" && !showList ? (
-        <View style={[s.side, wide ? s.sideWide : s.sideFull]} testID="apps-sidebar" accessibilityRole="menu" accessibilityLabel="Apps">
+      {wide || (route.kind === "list" && !showList) ? (
+        <View
+          style={[s.side, wide ? s.sideWide : s.sideFull]}
+          testID="apps-sidebar"
+          accessibilityRole="menu"
+          accessibilityLabel="Apps"
+        >
           <View style={s.sh}>
-            <Text accessibilityRole="header" style={s.title}>Apps</Text>
+            <Text accessibilityRole="header" style={s.title}>
+              Apps
+            </Text>
             <View style={s.grow} />
-            <Pressable accessibilityRole="button" accessibilityLabel="New" testID="apps-new" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y); }} style={(state) => [s.ib, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.plus}>+</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="New"
+              testID="apps-new"
+              onPress={(e) => {
+                const p = pointOf(e);
+                newMenu(p.x, p.y);
+              }}
+              style={(state) => [s.ib, (state as { hovered?: boolean }).hovered === true && s.over]}
+            >
+              <Text style={s.plus}>+</Text>
+            </Pressable>
           </View>
           <View style={s.search}>
             <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
-            <TextInput ref={(r) => { search.current = r as unknown as { focus?: () => void } | null; }} value={q} onChangeText={setQ} placeholder="Search apps" placeholderTextColor="var(--ink-4)" accessibilityLabel="Search Apps" testID="apps-search" style={s.searchInput} />
+            <TextInput
+              ref={(r) => {
+                search.current = r as unknown as { focus?: () => void } | null;
+              }}
+              value={q}
+              onChangeText={setQ}
+              placeholder="Search apps"
+              placeholderTextColor="var(--ink-4)"
+              accessibilityLabel="Search Apps"
+              testID="apps-search"
+              style={s.searchInput}
+            />
           </View>
           <View style={s.groups}>{side}</View>
         </View>
       ) : null}
       {route.kind !== "list" ? <AppsSurface route={route} /> : wide || showList ? main : null}
-      {sheet ? <NewSiteSheet onClose={() => setSheet(false)} onMade={(siteId) => { setSheet(false); d.nav.open("sites", siteId); }} /> : null}
+      {sheet ? (
+        <NewSiteSheet
+          onClose={() => setSheet(false)}
+          onMade={(siteId) => {
+            setSheet(false);
+            d.nav.open("sites", siteId);
+          }}
+        />
+      ) : null}
       {element}
     </View>
   );
 }
 
 function pointOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const r = ev.currentTarget?.getBoundingClientRect?.();
   return r ? { x: r.left, y: r.bottom + 4 } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
@@ -232,35 +497,91 @@ type KV = { getItem(k: string): string | null; setItem(k: string, v: string): vo
 const store = (): KV | undefined => (globalThis as { localStorage?: KV }).localStorage;
 /** The group a person had open in Apps last, kept on this device per person. */
 export function lastGroup(person: string | undefined): GroupKey | null {
-  try { const v = person ? store()?.getItem(`${TAB_KEY}${person}`) : null; return v === "sites" || v === "forms" || v === "templates" || v === "domains" ? v : null; } catch { return null; }
+  try {
+    const v = person ? store()?.getItem(`${TAB_KEY}${person}`) : null;
+    return v === "sites" || v === "forms" || v === "templates" || v === "domains" ? v : null;
+  } catch {
+    return null;
+  }
 }
-export function rememberGroup(person: string | undefined, g: GroupKey): void { try { if (person) store()?.setItem(`${TAB_KEY}${person}`, g); } catch { /* storage blocked: the default next time */ } }
+export function rememberGroup(person: string | undefined, g: GroupKey): void {
+  try {
+    if (person) store()?.setItem(`${TAB_KEY}${person}`, g);
+  } catch {
+    /* storage blocked: the default next time */
+  }
+}
 
-export interface AppsStart { group?: GroupKey; selected?: string; q?: string; closed?: readonly GroupKey[]; /** On a phone: start on the list rather than the groups. */ open?: boolean }
+export interface AppsStart {
+  group?: GroupKey;
+  selected?: string;
+  q?: string;
+  closed?: readonly GroupKey[];
+  /** On a phone: start on the list rather than the groups. */ open?: boolean;
+}
 
 /** Without data the place draws its frame: the sidebar's title and the main view's blank, the size of the real ones. */
 export function AppsLoading(): ReactElement {
-  return <View style={s.page} testID="apps-loading-frame"><View style={[s.side, s.sideWide]}><View style={s.sh}><Text accessibilityRole="header" style={s.title}>Apps</Text></View></View><View style={s.main}><View style={s.skeleton}>{skeleton()}</View></View></View>;
+  return (
+    <View style={s.page} testID="apps-loading-frame">
+      <View style={[s.side, s.sideWide]}>
+        <View style={s.sh}>
+          <Text accessibilityRole="header" style={s.title}>
+            Apps
+          </Text>
+        </View>
+      </View>
+      <View style={s.main}>
+        <View style={s.skeleton}>{skeleton()}</View>
+      </View>
+    </View>
+  );
 }
 
 function ArtifactsMoved({ data, id }: { data: AppsData; id?: string }): ReactElement {
-  useEffect(() => { data.nav.openArtifact?.(id); }, [data, id]);
+  useEffect(() => {
+    data.nav.openArtifact?.(id);
+  }, [data, id]);
   return <View style={s.page} testID="apps-artifacts-moved" />;
 }
 
-export default function AppsLayout({ data, start, route }: { data?: AppsData | undefined; start?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
+export default function AppsLayout({
+  data,
+  start,
+  route,
+}: {
+  data?: AppsData | undefined;
+  start?: AppsStart | undefined;
+  route?: AppsRoute | undefined;
+}): ReactElement {
   const provided = useOptionalAppsData();
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
   // an old link to an artifact lands in Chats, under the Artifacts row (no Apps page for it)
   if (route?.kind === "artifacts") return <ArtifactsMoved data={v} {...(route.id ? { id: route.id } : {})} />;
-  if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms" onAction={v.nav.joinTeam} /></View></View>;
-  return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
+  if (!v.team)
+    return (
+      <View style={s.page} testID="apps-needs-team">
+        <View style={s.center}>
+          <NeedsTeamSpace density="regular" what="Forms" onAction={v.nav.joinTeam} />
+        </View>
+      </View>
+    );
+  return (
+    <AppsDataProvider value={v}>
+      <Page initial={start} route={route} />
+    </AppsDataProvider>
+  );
 }
 const s = StyleSheet.create({
   page: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  side: { minHeight: 0, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  side: {
+    minHeight: 0,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   sideWide: { width: 268, flexShrink: 0 },
   sideFull: { flex: 1, borderRightWidth: 0 },
   sh: { height: 52, flexDirection: "row", alignItems: "center", paddingLeft: 18, paddingRight: 10 },
@@ -269,10 +590,37 @@ const s = StyleSheet.create({
   ib: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   plus: { fontSize: 18, color: "var(--ink-2)" as string },
   over: { backgroundColor: "var(--hover)" as string },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string },
-  searchInput: { flex: 1, minWidth: 0, height: 30, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as object) },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 32,
+    marginHorizontal: 10,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 30,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    ...({ outlineStyle: "none" } as object),
+  },
   groups: { paddingHorizontal: 8, paddingBottom: 12 },
-  gh: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 6, marginTop: 8 },
+  gh: {
+    height: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginTop: 8,
+  },
   shut: { transform: [{ rotate: "-90deg" }] },
   gt: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, flex: 1 },
   gtOn: { color: "var(--ink)" as string },
@@ -295,7 +643,19 @@ const s = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   skeleton: { paddingHorizontal: 20, paddingTop: 8 },
   skRow: { height: 32, marginBottom: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
-  note: { position: "absolute", left: 20, bottom: 16, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" } as object,
+  note: {
+    position: "absolute",
+    left: 20,
+    bottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 9,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)",
+  } as object,
   noteText: { fontSize: 12.5, color: "var(--ink)" as string },
   noteLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
 });

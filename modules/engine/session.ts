@@ -5,7 +5,15 @@
 import { githubEnv, redactTree, withGithub } from "./github-session.ts";
 import type { GitProxyPort } from "./github-session.ts";
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
+import {
+  ACCESS_ENV,
+  RULE_ENV,
+  SandboxError,
+  WIN_SSH_AGENT_PIPE,
+  accessFromEnv,
+  engineAccess,
+  ruleFromEnv,
+} from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
 import os from "node:os";
 import { openMcpBridge, openWslMcpBridge } from "./mcp-bridge.ts";
@@ -36,8 +44,18 @@ import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.t
 /** What every engine process gets from the daemon's environment: the launcher's short list, with a PATH that finds the CLIs an app started from the Finder would not see. */
 function launcherEnv(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const k of ["HOME", "LANG", "TMPDIR"]) { const v = process.env[k]; if (v !== undefined) out[k] = v; }
-  out["PATH"] = enginePath(process.env, process.env["HOME"] ?? "/", process.platform, undefined, undefined, ownedDirs());
+  for (const k of ["HOME", "LANG", "TMPDIR"]) {
+    const v = process.env[k];
+    if (v !== undefined) out[k] = v;
+  }
+  out["PATH"] = enginePath(
+    process.env,
+    process.env["HOME"] ?? "/",
+    process.platform,
+    undefined,
+    undefined,
+    ownedDirs(),
+  );
   return out;
 }
 
@@ -51,9 +69,16 @@ export function ownedArgv(argv: readonly string[], probe?: NodeCliProbe): readon
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
 export interface EngineSessionPorts {
-  source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort;
+  source: ValueSource;
+  reportMiss: VaultRunDeps["reportMiss"];
+  mcp: McpPort;
   /** The host's save of sign-in files a CLI refreshed during a turn (host/src/seams/signin-refresh.ts). Absent: a refresh is not saved back. */
-  saveSignin?(r: { itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }): Promise<unknown>;
+  saveSignin?(r: {
+    itemId: string;
+    asker: string;
+    filled: string;
+    files: Readonly<Record<string, string | null>>;
+  }): Promise<unknown>;
 }
 
 export interface OpenerHost {
@@ -99,13 +124,17 @@ export interface OpenerHost {
    */
   sessions?: {
     resume(k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }): string | null;
-    checkpoint(k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, sessionId: string | null): void;
+    checkpoint(
+      k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" },
+      sessionId: string | null,
+    ): void;
     keep(threadId: string): string;
   };
 }
 
 import { PEOPLE_RULE, PROBE_RULE } from "../../lib/probe.ts";
-const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
+const MEMORY_RULES =
+  "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
 
 /**
  * The system prompt of an API-key chat. With the turn context (modules/engine/context.ts) it is the ordered context: identity, rules, where, the memory block, skills, what the agent can do here,
@@ -114,23 +143,34 @@ const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a mes
  * a test) gets the one-line role as before.
  */
 /** What a CLI session knows about GitHub: it holds no token, git goes through Vyre, and a held push is waiting for a person. */
-export const GIT_RULE = "You have no GitHub token. git push and git fetch work through Vyre; a push to the default branch waits for the person's OK in Vyre, so wait for it and do not retry in a loop. Open pull requests, comment and merge with Vyre's GitHub tool, not gh or the API.";
+export const GIT_RULE =
+  "You have no GitHub token. git push and git fetch work through Vyre; a push to the default branch waits for the person's OK in Vyre, so wait for it and do not retry in a loop. Open pull requests, comment and merge with Vyre's GitHub tool, not gh or the API.";
 
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE} ${GIT_RULE}` }];
+    const memory: ContextSection[] = [
+      { id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE} ${GIT_RULE}` },
+    ];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
-      if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });
-    } catch { /* no map yet, or this person may not read it: the turn goes on without it */ }
+      if (out.map?.body)
+        memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });
+    } catch {
+      /* no map yet, or this person may not read it: the turn goes on without it */
+    }
     const blocks: SystemBlock[] = [];
     if (input?.context) {
-      const merged: ContextSection[] = ordered([...input.context.sections, { id: "memory", stable: true, text: memory.map((m) => m.text).join("\n\n") }]);
+      const merged: ContextSection[] = ordered([
+        ...input.context.sections,
+        { id: "memory", stable: true, text: memory.map((m) => m.text).join("\n\n") },
+      ]);
       blocks.push(...contextBlocks({ ...input.context, sections: merged }));
     } else {
       let text: string;
       try {
-        const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string; role?: string } };
+        const out = (await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as {
+          agent?: { name?: string; role?: string };
+        };
         const a = out.agent;
         text = `You are ${a?.name ?? spec.agent.id}, an agent in Vyre.${a?.role ? ` ${a.role}` : ""}`;
       } catch {
@@ -148,13 +188,33 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?
  * The memory guide of this agent as the person asking may read it (agent layer only), in the CLI's work folder as CLAUDE.md and AGENTS.md. A CLI engine reads one of them from its folder,
  * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person, thread and agent, so nothing here reaches another person or another agent's folder.
  */
-export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }, keepExisting = false, keep = ""): Promise<void> {
+export async function writeMemoryGuide(
+  call: OpenerHost["call"],
+  dir: string,
+  spec: { agent: { id: string }; asker: string },
+  keepExisting = false,
+  keep = "",
+): Promise<void> {
   let name: string = spec.agent.id;
   let body: string | undefined;
-  try { name = ((await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string } }).agent?.name ?? name; } catch { /* the id names it */ }
-  try { body = ((await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } }).map?.body; } catch { /* no map yet, or not this person's to read */ }
+  try {
+    name =
+      ((await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string } }).agent
+        ?.name ?? name;
+  } catch {
+    /* the id names it */
+  }
+  try {
+    body = ((await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } }).map
+      ?.body;
+  } catch {
+    /* no map yet, or not this person's to read */
+  }
   const text = memoryGuide(name, body) + compactInstructions(keep);
-  for (const f of GUIDE_FILES) { if (keepExisting && fs.existsSync(path.join(dir, f))) continue; fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 }); }
+  for (const f of GUIDE_FILES) {
+    if (keepExisting && fs.existsSync(path.join(dir, f))) continue;
+    fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 });
+  }
 }
 
 /**
@@ -163,14 +223,21 @@ export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, sp
  */
 export function compactInstructions(keep: string): string {
   const k = keep.replace(/\s+/g, " ").trim();
-  return k === "" ? "" : `\n\n# Compact instructions\n\nWhen this conversation is compacted or summarised, keep this, as the person asked: ${k}\n`;
+  return k === ""
+    ? ""
+    : `\n\n# Compact instructions\n\nWhen this conversation is compacted or summarised, keep this, as the person asked: ${k}\n`;
 }
 
 /**
  * What a session's work folder needs before its first turn: a teammate thread of the crew gets its copy of the project repository on its own branch (made once, left alone after), then the memory guide.
  * The guide never overwrites a file the repository already tracks: the copy would show as changed.
  */
-export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: string, spec: { agent: { id: string }; asker: string; threadId: string }, keep = ""): Promise<void> {
+export async function prepareWorkFolder(
+  call: OpenerHost["call"],
+  dataDir: string,
+  spec: { agent: { id: string }; asker: string; threadId: string },
+  keep = "",
+): Promise<void> {
   const dir = workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id);
   const crew = await crewWorkspaceOf(call, spec);
   if (crew) await ensureWorkspace(dataDir, spec.asker, spec.threadId, spec.agent.id, crew);
@@ -180,14 +247,31 @@ export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: strin
 type CrewWorkspace = { repo: string; base: string; branch: string; name: string };
 
 /** The crew copy this thread works in, or null for any other thread. A teammate thread whose job row is not there yet (the start call has not finished) is waited for a moment. */
-async function crewWorkspaceOf(call: OpenerHost["call"], spec: { asker: string; threadId: string }): Promise<CrewWorkspace | null> {
+async function crewWorkspaceOf(
+  call: OpenerHost["call"],
+  spec: { asker: string; threadId: string },
+): Promise<CrewWorkspace | null> {
   const ask = async (): Promise<CrewWorkspace | null> => {
-    try { return ((await call("engine.crew.workspace", { threadId: spec.threadId }, spec.asker)) as { workspace: CrewWorkspace | null }).workspace; } catch { return null; }
+    try {
+      return (
+        (await call("engine.crew.workspace", { threadId: spec.threadId }, spec.asker)) as {
+          workspace: CrewWorkspace | null;
+        }
+      ).workspace;
+    } catch {
+      return null;
+    }
   };
   const found = await ask();
   if (found) return found;
   let helper = false;
-  try { helper = ((await call("threads.get", { threadId: spec.threadId }, spec.asker)) as { thread?: { kind?: string } }).thread?.kind === "helper"; } catch { /* not readable: not a crew thread */ }
+  try {
+    helper =
+      ((await call("threads.get", { threadId: spec.threadId }, spec.asker)) as { thread?: { kind?: string } }).thread
+        ?.kind === "helper";
+  } catch {
+    /* not readable: not a crew thread */
+  }
   if (!helper) return null;
   for (let i = 0; i < 10; i++) {
     await new Promise((r) => setTimeout(r, 300));
@@ -205,15 +289,28 @@ const SAVE_WAIT_MS = 30_000;
 /** When the engine has ended, however it ended: read the sign-in files back, hand them to `back` when they changed (a refreshed token), then remove them. */
 function settleSignin(p: Placed, back: LaunchSpec["signinBack"]): void {
   let files: Record<string, string | null> | null = null;
-  try { files = p.changed(); } catch { files = null; }
+  try {
+    files = p.changed();
+  } catch {
+    files = null;
+  }
   const job = (async () => {
     try {
       if (files !== null && back) {
         let timer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([back(files), new Promise<void>((r) => { timer = setTimeout(r, SAVE_WAIT_MS); timer.unref?.(); })]).finally(() => clearTimeout(timer));
+        await Promise.race([
+          back(files),
+          new Promise<void>((r) => {
+            timer = setTimeout(r, SAVE_WAIT_MS);
+            timer.unref?.();
+          }),
+        ]).finally(() => clearTimeout(timer));
       }
-    } catch { /* the host logs why; the values are never in an error here */ }
-    finally { p.release(); }
+    } catch {
+      /* the host logs why; the values are never in an error here */
+    } finally {
+      p.release();
+    }
   })();
   saving.add(job);
   void job.then(() => saving.delete(job));
@@ -233,7 +330,12 @@ export async function signinsSettled(): Promise<void> {
  * stops when the process ends. No rule: the default, anything public. A plan with no way to open a wall (a host's own) keeps its one wall. `onEgress` hears where the process went, with the person and
  * the thread of the work folder.
  */
-export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: readonly string[], o: { wrapOf?: typeof sandboxWrap; onEgress?: EgressWatch } = {}): Promise<CliProcess> {
+export async function spawnCli(
+  planned: SandboxPlan,
+  spec: LaunchSpec,
+  argv: readonly string[],
+  o: { wrapOf?: typeof sandboxWrap; onEgress?: EgressWatch } = {},
+): Promise<CliProcess> {
   const { signinBack, ...launch } = spec;
   const { [RULE_ENV]: ruleText, [ACCESS_ENV]: accessText, ...rest } = launch.env;
   const rule = ruleFromEnv(ruleText);
@@ -241,8 +343,16 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
   const { env, files } = takeCredentialFiles(rest);
   let placed: Placed | undefined;
   if (files !== undefined) {
-    if (launch.cwd === undefined) throw new LaunchError("engine.account_unavailable", "The engine has no work folder to keep its sign-in in.");
-    try { placed = placeCredentialFiles(planned.dataDir, launch.cwd, files); } catch (e) { throw new LaunchError("engine.account_unavailable", e instanceof Error ? e.message : "The sign-in files could not be put in place."); }
+    if (launch.cwd === undefined)
+      throw new LaunchError("engine.account_unavailable", "The engine has no work folder to keep its sign-in in.");
+    try {
+      placed = placeCredentialFiles(planned.dataDir, launch.cwd, files);
+    } catch (e) {
+      throw new LaunchError(
+        "engine.account_unavailable",
+        e instanceof Error ? e.message : "The sign-in files could not be put in place.",
+      );
+    }
   }
   let wall: { close(): Promise<void> } | undefined;
   try {
@@ -257,20 +367,53 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
     // The engine's home is always the person's scratch home: the CLI keeps its sessions there (Claude Code ~/.claude/projects, Codex ~/.codex/sessions, Grok ~/.grok/sessions), and a chat resumes
     // them after a restart (cli-sessions.ts). An empty home per process would lose them between Codex and Grok turns. Sign-in files placed there are still removed when the process ends.
     const base = launcherEnv();
-    const access = asked ? withSudoShim(accessHere(planned.dataDir, launch.cwd, asked), planned.dataDir, launch.cwd) : undefined;
-    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(plan, { homeFromScratch: true, ...(access ? { access, ...(base["PATH"] ? { basePath: base["PATH"] } : {}) } : {}) }), baseEnv: base }).spawn({ ...launch, env, argv });
-    if (placed) { const p = placed; const end = (): void => settleSignin(p, signinBack); void proc.exited.then(end, end); }
-    if (wall) { const w = wall; const end = (): void => { void w.close().catch(() => undefined); }; void proc.exited.then(end, end); }
+    const access = asked
+      ? withSudoShim(accessHere(planned.dataDir, launch.cwd, asked), planned.dataDir, launch.cwd)
+      : undefined;
+    const proc = await createLocalLauncher({
+      wrap: (o.wrapOf ?? sandboxWrap)(plan, {
+        homeFromScratch: true,
+        ...(access ? { access, ...(base["PATH"] ? { basePath: base["PATH"] } : {}) } : {}),
+      }),
+      baseEnv: base,
+    }).spawn({ ...launch, env, argv });
+    if (placed) {
+      const p = placed;
+      const end = (): void => settleSignin(p, signinBack);
+      void proc.exited.then(end, end);
+    }
+    if (wall) {
+      const w = wall;
+      const end = (): void => {
+        void w.close().catch(() => undefined);
+      };
+      void proc.exited.then(end, end);
+    }
     return proc;
-  } catch (e) { placed?.release(); await wall?.close().catch(() => undefined); throw e; }
+  } catch (e) {
+    placed?.release();
+    await wall?.close().catch(() => undefined);
+    throw e;
+  }
 }
 
 /**
  * What the engine may touch on this machine (engine-access.ts), from what the Space decided (the place, the person's folders) and what only this machine knows: its home, its data folder, which of
  * the folders are here, the SSH agent. A server's toolbox is made on first use and kept, so what an agent installs for the Space is there the next turn.
  */
-export function accessHere(dataDir: string, cwd: string | undefined, asked: AccessAsked, o: { home?: string; platform?: NodeJS.Platform; sshAuthSock?: string | undefined } = {}): EngineAccess {
-  const real = (p: string): string => { try { return fs.realpathSync(p); } catch { return p; } };
+export function accessHere(
+  dataDir: string,
+  cwd: string | undefined,
+  asked: AccessAsked,
+  o: { home?: string; platform?: NodeJS.Platform; sshAuthSock?: string | undefined } = {},
+): EngineAccess {
+  const real = (p: string): string => {
+    try {
+      return fs.realpathSync(p);
+    } catch {
+      return p;
+    }
+  };
   const data = real(dataDir);
   const where = workOf(dataDir, cwd);
   const own = [...(cwd ? [cwd] : []), ...(where ? [scratchFolder(dataDir, where.person)] : [])];
@@ -278,10 +421,19 @@ export function accessHere(dataDir: string, cwd: string | undefined, asked: Acce
   if (asked.where === "server") fs.mkdirSync(toolbox, { recursive: true });
   const platform = o.platform ?? process.platform;
   // Windows OpenSSH's agent answers on its named pipe whether or not SSH_AUTH_SOCK names it
-  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"] ?? (platform === "win32" ? WIN_SSH_AGENT_PIPE : undefined);
+  const sock = Object.hasOwn(o, "sshAuthSock")
+    ? o.sshAuthSock
+    : (process.env["SSH_AUTH_SOCK"] ?? (platform === "win32" ? WIN_SSH_AGENT_PIPE : undefined));
   return engineAccess({
-    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
-    ...(asked.where === "own" && sock ? { sshAuthSock: sock } : {}), exists: fs.existsSync,
+    where: asked.where,
+    home: o.home ?? os.homedir(),
+    dataDir: data,
+    platform,
+    folders: asked.folders.filter((f) => fs.existsSync(f)).map(real),
+    own,
+    toolbox,
+    ...(asked.where === "own" && sock ? { sshAuthSock: sock } : {}),
+    exists: fs.existsSync,
   });
 }
 
@@ -295,16 +447,23 @@ exit 126
 `;
 
 /** The same answer for cmd.exe and PowerShell on Windows. */
-export const SUDO_CMD_SHIM = "@echo off\r\necho sudo: AI tools in Vyre do not get administrator rights. Ask the person to run it: call the terminal_request tool with command \"sudo %*\" and why it is needed; they can run it in their terminal with one click. 1>&2\r\nexit /b 126\r\n";
+export const SUDO_CMD_SHIM =
+  '@echo off\r\necho sudo: AI tools in Vyre do not get administrator rights. Ask the person to run it: call the terminal_request tool with command "sudo %*" and why it is needed; they can run it in their terminal with one click. 1>&2\r\nexit /b 126\r\n';
 
-export function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined, platform: NodeJS.Platform = process.platform): EngineAccess {
+export function withSudoShim(
+  a: EngineAccess,
+  dataDir: string,
+  cwd: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): EngineAccess {
   const who = workOf(dataDir, cwd);
   if (!who) return a;
   const bin = path.join(scratchFolder(dataDir, who.person), "bin");
   fs.mkdirSync(bin, { recursive: true });
   for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, name), SUDO_SHIM, { mode: 0o755 });
   // Windows: cmd.exe and PowerShell find sudo.cmd before Windows' own sudo.exe when this folder is first on PATH; Git Bash runs the script above
-  if (platform === "win32") for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, `${name}.cmd`), SUDO_CMD_SHIM);
+  if (platform === "win32")
+    for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, `${name}.cmd`), SUDO_CMD_SHIM);
   return { ...a, pathAdd: [bin, ...a.pathAdd] };
 }
 
@@ -327,12 +486,16 @@ function egressSampler(where: { person: string; threadId: string }, watch: Egres
   const seen = new Set<string>();
   const counts = { allow: 0, deny: 0 };
   return (e) => {
-    if (e.host === "") return;   // a request that named no host has nothing to show
+    if (e.host === "") return; // a request that named no host has nothing to show
     const key = `${e.verdict} ${e.host}:${e.port}`;
     if (seen.has(key) || counts[e.verdict] >= 40) return;
     seen.add(key);
     counts[e.verdict]++;
-    try { watch(where, e); } catch { /* the record must not break the engine */ }
+    try {
+      watch(where, e);
+    } catch {
+      /* the record must not break the engine */
+    }
   };
 }
 
@@ -347,13 +510,19 @@ export function withRule(spec: LaunchSpec, rule: EgressRule): LaunchSpec {
  */
 export function withGitHost(spec: LaunchSpec, base: string): LaunchSpec {
   let host = "";
-  try { host = new URL(base).hostname; } catch { return spec; }
+  try {
+    host = new URL(base).hostname;
+  } catch {
+    return spec;
+  }
   if (!host || host === "localhost" || /^(127\.|\[?::1\]?$|0\.0\.0\.0)/.test(host)) return spec;
   try {
     const rule = JSON.parse(spec.env[RULE_ENV] ?? "null") as { egress?: string; allow?: string[] } | null;
     if (rule?.egress !== "list" || !Array.isArray(rule.allow) || rule.allow.includes(host)) return spec;
     return { ...spec, env: { ...spec.env, [RULE_ENV]: JSON.stringify({ ...rule, allow: [...rule.allow, host] }) } };
-  } catch { return spec; }
+  } catch {
+    return spec;
+  }
 }
 
 /**
@@ -363,22 +532,38 @@ export function withGitHost(spec: LaunchSpec, base: string): LaunchSpec {
 export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpener {
   const system = roleBlocks(h.call);
   // the Space's network rule travels with the spawn to the person's computer, whose own sandbox applies it (node-cli.ts)
-  const ruled: Launcher = h.egress || h.access || h.folders ? {
-    ...launcher,
-    spawn: async (spec) => {
-      let s = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
-      // the person's own server: package locations, configs and the SSH agent there. Their added folders are on the computer they added them from, which is the Space's own (accessOf below).
-      // a person's own computer in a Team Space (lane l-runson): the folders they added to Vyre from that computer, private or shared (OpenerHost.folders)
-      if (h.access || h.folders) s = withAccess(s, { where: "own", folders: h.folders ? await h.folders().catch(() => []) : [] });
-      return launcher.spawn(s);
-    },
-  } : launcher;
+  const ruled: Launcher =
+    h.egress || h.access || h.folders
+      ? {
+          ...launcher,
+          spawn: async (spec) => {
+            let s = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
+            // the person's own server: package locations, configs and the SSH agent there. Their added folders are on the computer they added them from, which is the Space's own (accessOf below).
+            // a person's own computer in a Team Space (lane l-runson): the folders they added to Vyre from that computer, private or shared (OpenerHost.folders)
+            if (h.access || h.folders)
+              s = withAccess(s, { where: "own", folders: h.folders ? await h.folders().catch(() => []) : [] });
+            return launcher.spawn(s);
+          },
+        }
+      : launcher;
   return createSessionOpener({
-    source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}), ...(h.apiFetch ? { fetch: h.apiFetch } : {}),
-    launcher: ruled, where: "device", placement: "device",
+    source: h.session.source,
+    reportMiss: h.session.reportMiss,
+    mcp: h.session.mcp,
+    ...(h.own ? { own: h.own } : {}),
+    ...(h.apiFetch ? { fetch: h.apiFetch } : {}),
+    launcher: ruled,
+    where: "device",
+    placement: "device",
     apiContext: async (spec, input) => {
-      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] };   // a one-shot (memory learning): its own system prompt and nothing else
-      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] }; // a one-shot (memory learning): its own system prompt and nothing else
+      if (spec.tools === "none")
+        return {
+          system: [
+            { text: "You are completing one step of an automation. Answer with the result only.", stable: true },
+          ],
+          tools: [],
+        };
       return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },
   });
@@ -386,22 +571,38 @@ export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpene
 
 /** An engine that is not installed says so by name; the sandbox's own "execvp failed" says nothing a person can act on. Throws before anything is filled or started. */
 export function refuseMissingProgram(program: string, probe?: NodeCliProbe): void {
-  if (program in CLI_NAME && findProgram(program, probe) === null) throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
+  if (program in CLI_NAME && findProgram(program, probe) === null)
+    throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
 }
 
 /** The Space's rule, or "Only the AI providers" when it cannot be read. */
 async function ruleOf(e: NonNullable<OpenerHost["egress"]>): Promise<EgressRule> {
-  try { return await e.rule(); } catch { return wallEgress({ mode: "providers", hosts: [] }).rule; }
+  try {
+    return await e.rule();
+  } catch {
+    return wallEgress({ mode: "providers", hosts: [] }).rule;
+  }
 }
 
 /** The MCP bridge of one session: refused with sandbox.unavailable where the engine cannot be sandboxed (the spawn would refuse the same way), engine.mcp_unavailable when the bridge cannot open. */
-export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>> | null> {
+export async function openBridge(
+  plan: () => Promise<SandboxPlan>,
+  m: { url: string; token: string },
+  scratch: string,
+): Promise<Awaited<ReturnType<typeof openMcpBridge>> | null> {
   const s = (await plan()).sandbox;
-  if (s.kind === "docker" || s.kind === "server") throw new SandboxError(cliSandboxCode(), s.reason ?? "this engine cannot be sandboxed on this computer");
+  if (s.kind === "docker" || s.kind === "server")
+    throw new SandboxError(cliSandboxCode(), s.reason ?? "this engine cannot be sandboxed on this computer");
   // a Windows Personal Space engine has the loopback (the ruling: the person's own computer): it reaches Vyre's MCP endpoint by its URL, with its session token
   if (s.kind === "lowil") return null;
-  try { return s.kind === "wsl" ? await openWslMcpBridge(s.agent, m, { scratch }) : await openMcpBridge(m, { scratch }); }
-  catch (e) { throw Object.assign(new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`), { code: "engine.mcp_unavailable" }); }
+  try {
+    return s.kind === "wsl" ? await openWslMcpBridge(s.agent, m, { scratch }) : await openMcpBridge(m, { scratch });
+  } catch (e) {
+    throw Object.assign(
+      new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`),
+      { code: "engine.mcp_unavailable" },
+    );
+  }
 }
 
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
@@ -411,20 +612,38 @@ export function buildOpener(h: OpenerHost): SessionOpener {
   let planned: Promise<SandboxPlan> | undefined;
   const plan = (): Promise<SandboxPlan> => {
     if (h.sandbox) return Promise.resolve(h.sandbox);
-    if (!h.defaultSandbox) return Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer"));
+    if (!h.defaultSandbox)
+      return Promise.reject(
+        new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer"),
+      );
     if (planned) return planned;
-    const p = h.defaultSandbox().then((built) => {
-      // the Windows sandbox's agent ends when its VM stops (`wsl --shutdown`, a Windows update): the next turn builds it again
-      if (built.sandbox.kind === "wsl") void built.sandbox.agent.exited.then(() => { if (planned === p) planned = undefined; });
-      return built;
-    }, (e: unknown) => { planned = undefined; throw e; });
+    const p = h.defaultSandbox().then(
+      (built) => {
+        // the Windows sandbox's agent ends when its VM stops (`wsl --shutdown`, a Windows update): the next turn builds it again
+        if (built.sandbox.kind === "wsl")
+          void built.sandbox.agent.exited.then(() => {
+            if (planned === p) planned = undefined;
+          });
+        return built;
+      },
+      (e: unknown) => {
+        planned = undefined;
+        throw e;
+      },
+    );
     planned = p;
     return p;
   };
   const dataDir = h.sandbox?.dataDir ?? h.dataDir;
   const save = h.session.saveSignin?.bind(h.session);
   const sessions = h.sessions ?? { resume: () => null, checkpoint: () => undefined, keep: () => "" };
-  const keyOf = (spec: SessionSpec) => ({ threadId: spec.threadId, agentId: spec.agent.id, person: spec.asker, driver: spec.account?.driver ?? "", ...(spec.tools === "none" ? { tools: "none" as const } : {}) });
+  const keyOf = (spec: SessionSpec) => ({
+    threadId: spec.threadId,
+    agentId: spec.agent.id,
+    person: spec.asker,
+    driver: spec.account?.driver ?? "",
+    ...(spec.tools === "none" ? { tools: "none" as const } : {}),
+  });
   const opener = createSessionOpener({
     source: h.session.source,
     reportMiss: h.session.reportMiss,
@@ -438,7 +657,11 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         if (swap === undefined) refuseMissingProgram(spec.argv[0] ?? "", h.cliProbe);
         let ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
         const who = dataDir ? workOf(dataDir, spec.cwd) : null;
-        if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
+        if (h.access && who)
+          ruled = withAccess(
+            ruled,
+            await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })),
+          );
         // GitHub for the person whose turn this is: the Space's git address and a token for this process alone (a chat of a project whose Files folder points at GitHub); set last
         let gitEnd: (() => void) | null = null;
         if (h.gitProxy && who?.agent) {
@@ -451,41 +674,95 @@ export function buildOpener(h: OpenerHost): SessionOpener {
           gitEnd = g.end;
         }
         let proc;
-        try { proc = await spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {}); }
-        catch (e) { gitEnd?.(); throw e; }
+        try {
+          proc = await spawnCli(
+            await plan(),
+            ruled,
+            swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe),
+            h.egress?.record ? { onEgress: h.egress.record } : {},
+          );
+        } catch (e) {
+          gitEnd?.();
+          throw e;
+        }
         // a process that was given a git token leaves none in the files it wrote (a saved environment, a remote with the token in its address): cleaned when it ends, and the token ends with it
-        if (gitEnd) { const end = gitEnd; const dir = spec.cwd; void proc.exited.then(() => { end(); if (dir) redactTree(dir); }, () => { end(); }); }
+        if (gitEnd) {
+          const end = gitEnd;
+          const dir = spec.cwd;
+          void proc.exited.then(
+            () => {
+              end();
+              if (dir) redactTree(dir);
+            },
+            () => {
+              end();
+            },
+          );
+        }
         return proc;
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61), a named pipe on Windows.
     // A computer that cannot sandbox the engine refuses here, before anything is opened, with the sandbox's own reason; a bridge that cannot open says so with a code of its own.
-    ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openBridge(plan, m, scratchFolder(dataDir, spec.asker)) } : {}),
+    ...(dataDir
+      ? {
+          mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) =>
+            openBridge(plan, m, scratchFolder(dataDir, spec.asker)),
+        }
+      : {}),
     // before a Claude Code or Codex engine starts: the agent's skills where the CLI reads its own (refreshed before each turn by the runtime), then its plugins
-    ...(dataDir && (h.pluginsNative !== false || h.skillsNative !== false) ? {
-      nativePlugins: async (spec: SessionSpec, driver: "claude_code" | "codex") => {
-        const work = workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id);
-        if (h.skillsNative !== false && spec.tools !== "none") await syncNativeSkills({ call: h.call }, driver, spec.agent.id, spec.asker, work).catch(() => undefined);
-        return h.pluginsNative !== false ? nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, work) : null;
-      },
-    } : {}),
-    ...(dataDir ? {
-      cli: {
-        workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id),
-        ...(h.sessions ? {
-          resume: (spec: SessionSpec) => (spec.account ? sessions.resume(keyOf(spec)) : null),
-          checkpoint: (spec: SessionSpec, id: string | null) => { if (spec.account) sessions.checkpoint(keyOf(spec), id); },
-        } : {}),
-      },
-    } : {}),
-    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "") } : {}),
+    ...(dataDir && (h.pluginsNative !== false || h.skillsNative !== false)
+      ? {
+          nativePlugins: async (spec: SessionSpec, driver: "claude_code" | "codex") => {
+            const work = workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id);
+            if (h.skillsNative !== false && spec.tools !== "none")
+              await syncNativeSkills({ call: h.call }, driver, spec.agent.id, spec.asker, work).catch(() => undefined);
+            return h.pluginsNative !== false
+              ? nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, work)
+              : null;
+          },
+        }
+      : {}),
+    ...(dataDir
+      ? {
+          cli: {
+            workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id),
+            ...(h.sessions
+              ? {
+                  resume: (spec: SessionSpec) => (spec.account ? sessions.resume(keyOf(spec)) : null),
+                  checkpoint: (spec: SessionSpec, id: string | null) => {
+                    if (spec.account) sessions.checkpoint(keyOf(spec), id);
+                  },
+                }
+              : {}),
+          },
+        }
+      : {}),
+    ...(dataDir
+      ? {
+          prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) =>
+            prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? ""),
+        }
+      : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
     apiContext: async (spec, input) => {
-      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] };   // a one-shot (memory learning): its own system prompt and nothing else
-      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] }; // a one-shot (memory learning): its own system prompt and nothing else
+      if (spec.tools === "none")
+        return {
+          system: [
+            { text: "You are completing one step of an automation. Answer with the result only.", stable: true },
+          ],
+          tools: [],
+        };
       return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },
   });
   // shutdown: the sessions end (their processes are killed and waited for), then the sign-ins their CLIs refreshed are saved before the daemon closes its databases
-  return { ...opener, close: async () => { await opener.close(); await signinsSettled(); } };
+  return {
+    ...opener,
+    close: async () => {
+      await opener.close();
+      await signinsSettled();
+    },
+  };
 }

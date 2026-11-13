@@ -7,29 +7,55 @@ import type { BatonTask } from "../handlers/task-baton.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
-const DOER = "agt_doer", OWNER = "usr_owner";
-const task = (over: Partial<BatonTask> = {}): BatonTask => ({ id: "tsk_t1", kind: "work", title: "Draft the letter", state: "todo", assigned: { kind: "agent", id: DOER }, createdBy: OWNER, reviewLoops: 0, workingNotes: {}, threadId: "thr_t1", ...over });
+const DOER = "agt_doer",
+  OWNER = "usr_owner";
+const task = (over: Partial<BatonTask> = {}): BatonTask => ({
+  id: "tsk_t1",
+  kind: "work",
+  title: "Draft the letter",
+  state: "todo",
+  assigned: { kind: "agent", id: DOER },
+  createdBy: OWNER,
+  reviewLoops: 0,
+  workingNotes: {},
+  threadId: "thr_t1",
+  ...over,
+});
 const said: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "done" }];
 
 function scene(t: BatonTask, list: readonly BatonTask[] = [t]) {
-  const h = harness({ threads: [{ threadId: "thr_t1", kind: "thread", starter: "svc_host", agents: [{ agentId: DOER, mode: "listen" }] }] });
+  const h = harness({
+    threads: [{ threadId: "thr_t1", kind: "thread", starter: "svc_host", agents: [{ agentId: DOER, mode: "listen" }] }],
+  });
   const provider = scriptedProvider({ script: said });
   const engine = h.runtime({ openSession: provider.openSession });
-  const sent: Array<{ cap: string; input: Record<string, any>; as: string | undefined }> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const sent: Array<{ cap: string; input: Record<string, any>; as: string | undefined }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const host = {
     call: async (cap: string, input: unknown, as?: string) => {
-      const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+      const i = input as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (cap === "tasks.get") return { task: t };
       if (cap === "tasks.list") return { tasks: list };
-      if (cap === "chat.post" || cap === "tasks.create" || cap === "tasks.transition" || cap === "tasks.submit" || cap === "engine.crew.start") { sent.push({ cap, input: i, as }); return {}; }
+      if (
+        cap === "chat.post" ||
+        cap === "tasks.create" ||
+        cap === "tasks.transition" ||
+        cap === "tasks.submit" ||
+        cap === "engine.crew.start"
+      ) {
+        sent.push({ cap, input: i, as });
+        return {};
+      }
       if (cap === "access.principals.get") return { principal: {} };
       return h.ctx.call(cap, input);
     },
     now: () => h.clock.t,
     log: () => undefined,
   };
-  const settle = async (): Promise<void> => { await engine.idle("thr_t1"); };
-  const event = (name: string, payload: Record<string, unknown> = {}) => onTaskEvent(h.ctx, host, engine, { name, payload: { taskId: t.id, ...payload } });
+  const settle = async (): Promise<void> => {
+    await engine.idle("thr_t1");
+  };
+  const event = (name: string, payload: Record<string, unknown> = {}) =>
+    onTaskEvent(h.ctx, host, engine, { name, payload: { taskId: t.id, ...payload } });
   return { h, provider, engine, host, sent, settle, event };
 }
 const caps = (s: ReturnType<typeof scene>, cap: string) => s.sent.filter((c) => c.cap === cap);
@@ -43,7 +69,10 @@ test("a task that waits starts nothing when made, and task.ready starts it as ne
   assert.deepEqual(await s.event("task.ready"), [DOER]);
   await s.settle();
   assert.equal(s.provider.specs.length, 1);
-  assert.deepEqual(caps(s, "tasks.transition").map((c) => c.input), [{ taskId: t.id, to: "doing", expectedFrom: "todo" }]);
+  assert.deepEqual(
+    caps(s, "tasks.transition").map((c) => c.input),
+    [{ taskId: t.id, to: "doing", expectedFrom: "todo" }],
+  );
 });
 
 test("the parent of a plan sleeps through the plan and wakes once per reason and child", async () => {
@@ -60,7 +89,10 @@ test("the parent of a plan sleeps through the plan and wakes once per reason and
 });
 
 test("a planned crew child starts its job as the person who asked, bound to the task, once", async () => {
-  const t = task({ source: { kind: "chat", id: "thr_t1" }, workingNotes: { "worker.kind": "crew", "worker.project": "prj_1", brief: "Build it" } });
+  const t = task({
+    source: { kind: "chat", id: "thr_t1" },
+    workingNotes: { "worker.kind": "crew", "worker.project": "prj_1", brief: "Build it" },
+  });
   const s = scene(t);
   assert.deepEqual(await s.event("task.created"), [DOER]);
   const start = caps(s, "engine.crew.start");
@@ -78,13 +110,25 @@ test("a helper already bound gets a baton row and no second turn, and its answer
   assert.deepEqual(await s.event("task.created"), []);
   assert.equal(s.provider.specs.length, 0);
   assert.deepEqual(batonRow(s.h.ctx.db, t.id)!.woken, [DOER]);
-  assert.equal(await onTurnEnded(s.h.ctx, s.host, s.engine, { type: "turn.completed", threadId: "thr_t1", turnId: "trn_1", agentId: DOER }), "moved");
-  assert.deepEqual(caps(s, "tasks.submit").map((c) => c.input.taskId), [t.id]);
+  assert.equal(
+    await onTurnEnded(s.h.ctx, s.host, s.engine, {
+      type: "turn.completed",
+      threadId: "thr_t1",
+      turnId: "trn_1",
+      agentId: DOER,
+    }),
+    "moved",
+  );
+  assert.deepEqual(
+    caps(s, "tasks.submit").map((c) => c.input.taskId),
+    [t.id],
+  );
 });
 
 test("after a restart a task nobody started is started, and one that waits or is a person's is left", async () => {
   const t = task();
-  const waits = task({ id: "tsk_wait", blocked: true }), persons = task({ id: "tsk_person", assigned: { kind: "person", id: OWNER } });
+  const waits = task({ id: "tsk_wait", blocked: true }),
+    persons = task({ id: "tsk_person", assigned: { kind: "person", id: OWNER } });
   const s = scene(t, [t, waits, persons]);
   assert.deepEqual(await resumeTasks(s.h.ctx, s.host, s.engine), [DOER]);
   await s.settle();
@@ -102,21 +146,42 @@ test("after a restart a turn cut off mid-way is woken again, and a turn that fin
   assert.deepEqual(await resumeTasks(s.h.ctx, s.host, s.engine), [DOER]);
   await s.settle();
   assert.equal(s.provider.specs.length, before + 1);
-  await onTurnEnded(s.h.ctx, s.host, s.engine, { type: "turn.failed", threadId: "thr_t1", turnId: "trn_1", agentId: DOER, code: "provider.overloaded" });
+  await onTurnEnded(s.h.ctx, s.host, s.engine, {
+    type: "turn.failed",
+    threadId: "thr_t1",
+    turnId: "trn_1",
+    agentId: DOER,
+    code: "provider.overloaded",
+  });
   assert.deepEqual(await resumeTasks(s.h.ctx, s.host, s.engine), []);
 });
 
 test("after a restart an automation's task is woken again only if its runs-as person still holds: a republish or a suspension in between leaves it waiting with the line (review 12 Nov, 2)", async () => {
   const auto = "aut_0123456789abcdef0123456789abcdef";
-  const t = task({ createdBy: `svc_${auto.slice(4)}`, source: { kind: "run", id: "run_1" }, workingNotes: { "automation.id": auto } });
+  const t = task({
+    createdBy: `svc_${auto.slice(4)}`,
+    source: { kind: "run", id: "run_1" },
+    workingNotes: { "automation.id": auto },
+  });
   const s = scene(t);
   let runsAs: { runsAs?: string; ok: boolean; line?: string } = { runsAs: "usr_olivia", ok: true };
   const notes: string[] = [];
   const inner = s.host.call;
   s.host.call = async (cap: string, input: unknown, as?: string) => {
-    if (cap === "automations.runs_as.get") return { kind: "space", name: "Olivia Park", trigger: "schedule", ...runsAs };
-    if (cap === "agents.outside.usable" || cap === "audit.append" || cap === "automations.get" || cap === "gate.taint.mark" || cap === "threads.set_mode") return { usable: true };
-    if (cap === "tasks.working_notes.set") { notes.push(String((input as { value?: unknown }).value)); return {}; }
+    if (cap === "automations.runs_as.get")
+      return { kind: "space", name: "Olivia Park", trigger: "schedule", ...runsAs };
+    if (
+      cap === "agents.outside.usable" ||
+      cap === "audit.append" ||
+      cap === "automations.get" ||
+      cap === "gate.taint.mark" ||
+      cap === "threads.set_mode"
+    )
+      return { usable: true };
+    if (cap === "tasks.working_notes.set") {
+      notes.push(String((input as { value?: unknown }).value));
+      return {};
+    }
     return inner(cap, input, as);
   };
   assert.deepEqual(await s.event("task.created"), [DOER]);
@@ -130,9 +195,21 @@ test("after a restart an automation's task is woken again only if its runs-as pe
   assert.equal(s.provider.specs.length, before, "not woken for the person it no longer runs as");
   assert.match(notes.at(-1) ?? "", /now runs as someone else/);
   // suspended: the reason it waits is the one runs_as.get gives
-  runsAs = { runsAs: "usr_olivia", ok: false, line: "Olivia Park turned this automation on and is no longer an active member. Open it to run it as yourself." };
+  runsAs = {
+    runsAs: "usr_olivia",
+    ok: false,
+    line: "Olivia Park turned this automation on and is no longer an active member. Open it to run it as yourself.",
+  };
   await resumeTasks(s.h.ctx, s.host, s.engine);
   assert.equal(notes.at(-1), runsAs.line);
   // and the nudge after a silent stop asks again too
-  assert.equal(await onTurnEnded(s.h.ctx, s.host, s.engine, { type: "turn.completed", threadId: "thr_t1", turnId: "trn_1", agentId: DOER }), "waiting");
+  assert.equal(
+    await onTurnEnded(s.h.ctx, s.host, s.engine, {
+      type: "turn.completed",
+      threadId: "thr_t1",
+      turnId: "trn_1",
+      agentId: DOER,
+    }),
+    "waiting",
+  );
 });

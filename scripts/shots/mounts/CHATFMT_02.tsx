@@ -10,5 +10,9 @@ export const title = "A chat with 2,000 messages";
 export default function Mount(): ReactNode {
   const sample = useMemo(() => createSample("huge"), []);
   const height = useWindowDimensions().height;
-  return <View style={{ height, backgroundColor: "var(--win)" as string }}><Conversation data={sample.data} /></View>;
+  return (
+    <View style={{ height, backgroundColor: "var(--win)" as string }}>
+      <Conversation data={sample.data} />
+    </View>
+  );
 }

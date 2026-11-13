@@ -12,16 +12,25 @@ import { Client, signIn } from "./support/outside-client.ts";
 
 const PASSWORD = "correct horse battery staple 9";
 // its own folder inside a shared capture folder: this test clears OUT, and other walks write beside it at the same time
-const OUT = process.env["VYRE_TEST_CAPTURE_DIR"] ? path.join(process.env["VYRE_TEST_CAPTURE_DIR"], "agent-credit") : "shots-evidence/agent-credit";
-type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const OUT = process.env["VYRE_TEST_CAPTURE_DIR"]
+  ? path.join(process.env["VYRE_TEST_CAPTURE_DIR"], "agent-credit")
+  : "shots-evidence/agent-credit";
+type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 test("Noah's channel view credits Simba's post to Ada Archer (Agent), never Simba; Ada sees Simba", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { t.skip("VYRE_APP_DIST is not set: the shots job runs this after the production export"); return; }
+  if (!dist) {
+    t.skip("VYRE_APP_DIST is not set: the shots job runs this after the production export");
+    return;
+  }
   const pw = await import("playwright-core");
   const chromium = pw.chromium ?? (pw as unknown as { default: typeof pw }).default.chromium;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
-  if (!fs.existsSync(exe)) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail(`no Chromium at ${exe}`); t.skip("no Chromium on this machine"); return; }
+  if (!fs.existsSync(exe)) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail(`no Chromium at ${exe}`);
+    t.skip("no Chromium on this machine");
+    return;
+  }
 
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
@@ -29,18 +38,41 @@ test("Noah's channel view credits Simba's post to Ada Archer (Agent), never Simb
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(OUT, { recursive: true });
   try {
-    const post = async (cap: string, input: unknown, token?: string | null): Promise<{ status: number; body: Json }> => {
-      const r = await fetch(`${space.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(input) });
+    const post = async (
+      cap: string,
+      input: unknown,
+      token?: string | null,
+    ): Promise<{ status: number; body: Json }> => {
+      const r = await fetch(`${space.url}/v1/${cap.replaceAll(".", "/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(input),
+      });
       return { status: r.status, body: await r.json() };
     };
     const keysFor = async (password: string): Promise<Record<string, unknown>> => {
       const made = await makeBundle(password, "recovery-code-for-the-test", { spaceId: space.space });
       const { personKey, ...rest } = made;
       wipe(personKey);
-      return { personKeyByPassword: rest.personKeyByPassword, personKeyByRecovery: rest.personKeyByRecovery, publicKey: rest.publicKey, privateKeyWrapped: rest.privateKeyWrapped, spaceKeys: rest.spaceKeys };
+      return {
+        personKeyByPassword: rest.personKeyByPassword,
+        personKeyByRecovery: rest.personKeyByRecovery,
+        publicKey: rest.publicKey,
+        privateKeyWrapped: rest.privateKeyWrapped,
+        spaceKeys: rest.spaceKeys,
+      };
     };
     const code = decodeURIComponent(new URL(space.claim!).pathname.split("/").pop() ?? "");
-    const claimed = await post("identity.claim_owner", { code, spaceId: space.space, username: "ada", displayName: "Ada Archer", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop", keys: await keysFor(PASSWORD) });
+    const claimed = await post("identity.claim_owner", {
+      code,
+      spaceId: space.space,
+      username: "ada",
+      displayName: "Ada Archer",
+      password: PASSWORD,
+      deviceName: "Setup",
+      deviceClass: "desktop",
+      keys: await keysFor(PASSWORD),
+    });
     assert.equal(claimed.status, 200, JSON.stringify(claimed.body));
     const ada = claimed.body.data.session.token as string;
     let n = 0;
@@ -51,17 +83,43 @@ test("Noah's channel view credits Simba's post to Ada Archer (Agent), never Simb
     };
     const member = ((await api(ada, "access.roles.list")).roles as Json[]).find((r) => r.name === "Member")!.id;
     const invite = await api(ada, "members.invites.create", { role: member });
-    const joined = await post("members.accept", { code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""), username: "noah", displayName: "Noah Park", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop", keys: await keysFor(PASSWORD) });
+    const joined = await post("members.accept", {
+      code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""),
+      username: "noah",
+      displayName: "Noah Park",
+      password: PASSWORD,
+      deviceName: "Setup",
+      deviceClass: "desktop",
+      keys: await keysFor(PASSWORD),
+    });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
     const noahId = joined.body.data.personId as string;
 
     // Ada connects Claude Code through /mcp: it becomes Simba (Claude Code), hers alone
-    const flow = { d: { url: space.url }, call: (cap: string, token: string | null, body?: unknown) => post(cap, body ?? {}, token) } as unknown as Parameters<typeof signIn>[0];
+    const flow = {
+      d: { url: space.url },
+      call: (cap: string, token: string | null, body?: unknown) => post(cap, body ?? {}, token),
+    } as unknown as Parameters<typeof signIn>[0];
     const c = new Client(`${space.url}/mcp`, {}, "Simba (Claude Code)");
     const { agentId: simba } = await signIn(flow, c, ada);
-    await c.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } });
-    const channel = (await api(ada, "channels.create", { name: "launch", visibility: "public", memberIds: [noahId], agentIds: [simba] })).channel;
-    const said = await c.tool("chat_post", { threadId: channel.mainThreadId, body: "The pricing page draft is up.", idempotencyKey: "simba-post" });
+    await c.rpc("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "claude-code", version: "2.1" },
+    });
+    const channel = (
+      await api(ada, "channels.create", {
+        name: "launch",
+        visibility: "public",
+        memberIds: [noahId],
+        agentIds: [simba],
+      })
+    ).channel;
+    const said = await c.tool("chat_post", {
+      threadId: channel.mainThreadId,
+      body: "The pricing page draft is up.",
+      idempotencyKey: "simba-post",
+    });
     assert.equal(said.json.result?.isError ?? false, false, JSON.stringify(said.json).slice(0, 400));
 
     const open = async (username: string): Promise<Json> => {

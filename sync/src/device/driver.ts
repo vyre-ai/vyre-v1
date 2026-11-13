@@ -13,7 +13,9 @@ export interface SyncEngine {
 
 export function createSyncDriver(kind: SqlDriver["kind"], engine: SyncEngine): SqlDriver {
   const prepare = (sql: string): SqlStatement => ({
-    run(params) { engine.run(sql, params); },
+    run(params) {
+      engine.run(sql, params);
+    },
     get(params) {
       const first = engine.all(sql, params)[0];
       return first ? asRow(first) : undefined;
@@ -30,7 +32,9 @@ export function createSyncDriver(kind: SqlDriver["kind"], engine: SyncEngine): S
   return {
     kind,
     sync: true,
-    exec(sql) { engine.exec(sql); },
+    exec(sql) {
+      engine.exec(sql);
+    },
     prepare,
     transaction(fn) {
       engine.exec("BEGIN IMMEDIATE");
@@ -42,8 +46,14 @@ export function createSyncDriver(kind: SqlDriver["kind"], engine: SyncEngine): S
         throw e;
       }
     },
-    query(sql, params) { return Promise.resolve(prepare(sql).get(params)); },
-    flush() { return Promise.resolve(); },
-    close() { engine.close(); },
+    query(sql, params) {
+      return Promise.resolve(prepare(sql).get(params));
+    },
+    flush() {
+      return Promise.resolve();
+    },
+    close() {
+      engine.close();
+    },
   };
 }

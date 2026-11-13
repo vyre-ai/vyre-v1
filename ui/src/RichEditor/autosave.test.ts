@@ -11,11 +11,27 @@ function rig(initial = "a\n", version = 3, results: SaveResult[] = []) {
   const a = new Autosaver({
     delay: 800,
     saved: { text: initial, version },
-    save: async (t) => { sent.push(t); return queue.shift() ?? { ok: true, version: version + sent.length }; },
-    setTimer: (fn, ms) => { const t = { fn, ms, live: true }; timers.push(t); return t; },
-    clearTimer: (h) => { (h as { live: boolean }).live = false; },
+    save: async (t) => {
+      sent.push(t);
+      return queue.shift() ?? { ok: true, version: version + sent.length };
+    },
+    setTimer: (fn, ms) => {
+      const t = { fn, ms, live: true };
+      timers.push(t);
+      return t;
+    },
+    clearTimer: (h) => {
+      (h as { live: boolean }).live = false;
+    },
   });
-  const fire = async (): Promise<void> => { const t = timers.filter((x) => x.live).pop(); if (t) { t.live = false; t.fn(); } await new Promise((r) => setImmediate(r)); };
+  const fire = async (): Promise<void> => {
+    const t = timers.filter((x) => x.live).pop();
+    if (t) {
+      t.live = false;
+      t.fn();
+    }
+    await new Promise((r) => setImmediate(r));
+  };
   return { a, sent, timers, fire };
 }
 
@@ -34,7 +50,9 @@ test("an edit waits for a pause, then saves as a new version and the header says
 
 test("typing again restarts the pause: only the last text is sent", async () => {
   const { a, sent, timers, fire } = rig();
-  a.edit("ab\n"); a.edit("abc\n"); a.edit("abcd\n");
+  a.edit("ab\n");
+  a.edit("abc\n");
+  a.edit("abcd\n");
   assert.equal(timers.filter((t) => t.live).length, 1);
   await fire();
   assert.deepEqual(sent, ["abcd\n"]);
@@ -55,14 +73,18 @@ test("text typed while a save runs is saved next, one save at a time", async () 
 
 test("an edit back to the saved text saves nothing", async () => {
   const { a, sent, fire } = rig();
-  a.edit("changed\n"); a.edit("a\n");
+  a.edit("changed\n");
+  a.edit("a\n");
   await fire();
   assert.deepEqual(sent, []);
   assert.equal(a.state.status, "idle");
 });
 
 test("a refusal shows its words, keeps the text, and the next edit tries again", async () => {
-  const { a, sent, fire } = rig("a\n", 3, [{ ok: false, error: "Someone saved version 4 first." }, { ok: true, version: 5 }]);
+  const { a, sent, fire } = rig("a\n", 3, [
+    { ok: false, error: "Someone saved version 4 first." },
+    { ok: true, version: 5 },
+  ]);
   a.edit("mine\n");
   await fire();
   assert.equal(a.state.status, "error");

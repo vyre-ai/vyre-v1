@@ -3,9 +3,17 @@
 export type SandboxKind = "docker" | "seatbelt" | "bwrap";
 
 /** A folder of the person's the sandbox may see. `host` is a path on the machine running the sandbox; `guest` is where the process sees it (docker only; Seatbelt and bwrap use the host path). */
-export interface Mount { host: string; guest?: string; mode: "ro" | "rw" }
+export interface Mount {
+  host: string;
+  guest?: string;
+  mode: "ro" | "rw";
+}
 
-export interface Limits { cpus: number; memoryMb: number; pids: number }
+export interface Limits {
+  cpus: number;
+  memoryMb: number;
+  pids: number;
+}
 export const DEFAULT_LIMITS: Readonly<Limits> = Object.freeze({ cpus: 2, memoryMb: 2048, pids: 512 });
 
 export interface SandboxSpec {
@@ -32,7 +40,10 @@ export interface SandboxSpec {
 }
 
 /** Where on this machine mounts and scratch may come from: the person's own folders. A mount outside these is refused. */
-export interface Roots { work: readonly string[]; scratch: readonly string[] }
+export interface Roots {
+  work: readonly string[];
+  scratch: readonly string[];
+}
 
 export interface ExecSpec {
   argv: readonly string[];
@@ -41,7 +52,12 @@ export interface ExecSpec {
   /** Kill the process after this long. Default 10 minutes. */
   timeoutMs?: number;
 }
-export interface ExecResult { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean }
+export interface ExecResult {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}
 
 export interface CredentialFile {
   /** Relative to the person's home inside the sandbox (`.claude/.credentials.json`) or to the credential directory. No `..`, no absolute path. */
@@ -66,5 +82,9 @@ export interface Sandbox {
 
 export class SandboxError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = "SandboxError"; this.code = code; }
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "SandboxError";
+    this.code = code;
+  }
 }

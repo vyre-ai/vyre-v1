@@ -22,15 +22,34 @@ async function world() {
   return h;
 }
 
-const ctxWith = (h: Harness, saved: string[], decide?: Decide) => ({
-  ...h.as(ADMIN, { exports: { async save(_name: string, csv: string) { saved.push(csv); return "fil_exp1"; } } }),
-  ...(decide ? { authorize: (_a: unknown, r: { type: string; id: string | null }) => ({ effect: decide(r), reason: "test", decisionId: "dec_t" }) } : {}),
-}) as never;
+const ctxWith = (h: Harness, saved: string[], decide?: Decide) =>
+  ({
+    ...h.as(ADMIN, {
+      exports: {
+        async save(_name: string, csv: string) {
+          saved.push(csv);
+          return "fil_exp1";
+        },
+      },
+    }),
+    ...(decide
+      ? {
+          authorize: (_a: unknown, r: { type: string; id: string | null }) => ({
+            effect: decide(r),
+            reason: "test",
+            decisionId: "dec_t",
+          }),
+        }
+      : {}),
+  }) as never;
 
 test("audit.export: a row naming a resource the caller cannot view is absent from the file; a hold is a deny; rows with no resource stay", async () => {
   const h = await world();
   const saved: string[] = [];
-  const out = await handlers["audit.export"](ctxWith(h, saved, (r) => (r.id === "fld_secret" ? "deny" : r.id === "vlt_held" ? "hold" : "allow")), {});
+  const out = await handlers["audit.export"](
+    ctxWith(h, saved, (r) => (r.id === "fld_secret" ? "deny" : r.id === "vlt_held" ? "hold" : "allow")),
+    {},
+  );
   assert.equal(out.rows, 2);
   const csv = saved[0]!;
   assert.ok(csv.includes("folder:fld_open") && csv.includes("policy.changed"));
@@ -41,6 +60,9 @@ test("audit.export: a row naming a resource the caller cannot view is absent fro
 test("audit.export: a context with no authorize refuses and saves nothing (fail closed)", async () => {
   const h = await world();
   const saved: string[] = [];
-  await assert.rejects(handlers["audit.export"](ctxWith(h, saved), {}), (e) => codeOf(e) === "permission.role_lacks_permission");
+  await assert.rejects(
+    handlers["audit.export"](ctxWith(h, saved), {}),
+    (e) => codeOf(e) === "permission.role_lacks_permission",
+  );
   assert.deepEqual(saved, []);
 });

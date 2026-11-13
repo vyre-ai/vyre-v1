@@ -12,9 +12,16 @@ import { createSampleVault } from "../layout/sample.ts";
 import type { SampleVault } from "../layout/sample.ts";
 
 installDom();
-const Wrap = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => <VaultDataProvider value={data}>{children}</VaultDataProvider>;
+const Wrap = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => (
+  <VaultDataProvider value={data}>{children}</VaultDataProvider>
+);
 const open = (v: SampleVault, itemId: string): Promise<ReturnType<typeof mount> extends Promise<infer R> ? R : never> =>
-  mount(createRoot, <Wrap data={v.data}><ItemEnv itemId={itemId} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  mount(
+    createRoot,
+    <Wrap data={v.data}>
+      <ItemEnv itemId={itemId} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} />
+    </Wrap>,
+  );
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
 
 test("a key item offers Add to Automations, and pressing it hands the item and its handle to the shell", async () => {
@@ -22,7 +29,10 @@ test("a key item offers Add to Automations, and pressing it hands the item and i
   const root = await open(v, "vit_ghl");
   await settle();
   await press(find(root, "item-add-automations"));
-  assert.deepEqual(v.opened.filter((x) => x.startsWith("automate:")), ["automate:vit_ghl:#Northwind_GHL"]);
+  assert.deepEqual(
+    v.opened.filter((x) => x.startsWith("automate:")),
+    ["automate:vit_ghl:#Northwind_GHL"],
+  );
 });
 
 test("a key item also offers Sync to Records, and it waits behind the same blockers", async () => {
@@ -30,14 +40,24 @@ test("a key item also offers Sync to Records, and it waits behind the same block
   const root = await open(v, "vit_ghl");
   await settle();
   await press(find(root, "item-sync-records"));
-  assert.deepEqual(v.opened.filter((x) => x.startsWith("records-sync:")), ["records-sync:vit_ghl:#Northwind_GHL"]);
+  assert.deepEqual(
+    v.opened.filter((x) => x.startsWith("records-sync:")),
+    ["records-sync:vit_ghl:#Northwind_GHL"],
+  );
   const blocked = createSampleVault();
   const base = blocked.data.call.bind(blocked.data);
-  blocked.data = { ...blocked.data, call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)) };
+  blocked.data = {
+    ...blocked.data,
+    call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)),
+  };
   const again = await open(blocked, "vit_ghl");
   await settle();
   await press(find(again, "item-sync-records"));
-  assert.equal(blocked.opened.some((x) => x.startsWith("records-sync:")), false, "a blocked button starts nothing");
+  assert.equal(
+    blocked.opened.some((x) => x.startsWith("records-sync:")),
+    false,
+    "a blocked button starts nothing",
+  );
 });
 
 test("the Automations that use the key are listed with their steps and each one opens", async () => {
@@ -65,12 +85,19 @@ test("an item nothing uses says so, and an item that cannot be a connector has n
 test("with no AI account the button waits and the notice sends the person to connect one", async () => {
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
-  v.data = { ...v.data, call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)) };
+  v.data = {
+    ...v.data,
+    call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)),
+  };
   const root = await open(v, "vit_ghl");
   await settle();
   assert.match(textOf(root), /Connect one first/);
   await press(find(root, "item-add-automations"));
-  assert.equal(v.opened.some((x) => x.startsWith("automate:")), false, "a blocked button starts nothing");
+  assert.equal(
+    v.opened.some((x) => x.startsWith("automate:")),
+    false,
+    "a blocked button starts nothing",
+  );
   await press(find(root, "auto-gate-fix"));
   assert.ok(v.opened.includes("add-provider"));
 });
@@ -82,7 +109,10 @@ test("offline, the notice says the Vault is not reachable and offers Try again",
   await settle();
   assert.match(textOf(root), /Vault is not reachable/);
   await press(find(root, "item-add-automations"));
-  assert.equal(v.opened.some((x) => x.startsWith("automate:")), false);
+  assert.equal(
+    v.opened.some((x) => x.startsWith("automate:")),
+    false,
+  );
   const before = v.calls.filter((c) => c.cap === "engine.accounts.list").length;
   await press(find(root, "auto-gate-fix"));
   await settle();
@@ -92,11 +122,19 @@ test("offline, the notice says the Vault is not reachable and offers Try again",
 const withBuilder = (v: SampleVault, status: { allowed: boolean; canGrant: boolean }, personal = false) => {
   const base = v.data.call.bind(v.data);
   const seen: string[] = [];
-  v.data = { ...v.data, assistantId: "agt_assistant", ...(personal ? { personal: true } : {}), call: async (cap, input) => {
-    if (cap === "access.connector_builder.status") return status;
-    if (cap === "access.connector_builder.grant" || cap === "tasks.create") { seen.push(cap); return {}; }
-    return base(cap, input);
-  } };
+  v.data = {
+    ...v.data,
+    assistantId: "agt_assistant",
+    ...(personal ? { personal: true } : {}),
+    call: async (cap, input) => {
+      if (cap === "access.connector_builder.status") return status;
+      if (cap === "access.connector_builder.grant" || cap === "tasks.create") {
+        seen.push(cap);
+        return {};
+      }
+      return base(cap, input);
+    },
+  };
   return seen;
 };
 
@@ -136,14 +174,40 @@ test("a pending connection built on this key asks for its missing secret inline:
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
-  v.data = { ...v.data, call: async (cap, input) => {
-    calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "connections.list") return { connections: [{ connectionId: "con_r", connector: "resend", state: "pending", handles: ["#Northwind_GHL.GHL_PIT"], filled: ["Resend_Key"] }] };
-    if (cap === "connectors.list") return { connectors: [{ key: "resend", title: "Resend", secrets: [{ name: "Resend_Key", description: "the API key" }, { name: "Resend_Webhook", description: "the webhook signing secret" }] }] };
-    if (cap === "vault.item.put") return { item: { handle: "#Northwind_Resend_Webhook" } };
-    if (cap === "connections.set_secret") return { connection: {} };
-    return base(cap, input);
-  } };
+  v.data = {
+    ...v.data,
+    call: async (cap, input) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      if (cap === "connections.list")
+        return {
+          connections: [
+            {
+              connectionId: "con_r",
+              connector: "resend",
+              state: "pending",
+              handles: ["#Northwind_GHL.GHL_PIT"],
+              filled: ["Resend_Key"],
+            },
+          ],
+        };
+      if (cap === "connectors.list")
+        return {
+          connectors: [
+            {
+              key: "resend",
+              title: "Resend",
+              secrets: [
+                { name: "Resend_Key", description: "the API key" },
+                { name: "Resend_Webhook", description: "the webhook signing secret" },
+              ],
+            },
+          ],
+        };
+      if (cap === "vault.item.put") return { item: { handle: "#Northwind_Resend_Webhook" } };
+      if (cap === "connections.set_secret") return { connection: {} };
+      return base(cap, input);
+    },
+  };
   const root = await open(v, "vit_ghl");
   await settle();
   assert.match(textOf(root), /Resend needs the webhook signing secret\./);
@@ -153,10 +217,22 @@ test("a pending connection built on this key asks for its missing secret inline:
   await press(find(root, "pending-save-con_r:Resend_Webhook"));
   await settle();
   const put = calls.find((c) => c.cap === "vault.item.put")!;
-  assert.equal((put.input["fields"] as { value: string }[])[0]!.value, "whsec_fakefakefakefake1234", "the value goes only to the Vault's own write");
+  assert.equal(
+    (put.input["fields"] as { value: string }[])[0]!.value,
+    "whsec_fakefakefakefake1234",
+    "the value goes only to the Vault's own write",
+  );
   const set = calls.find((c) => c.cap === "connections.set_secret")!;
-  assert.deepEqual(set.input, { connectionId: "con_r", slot: "Resend_Webhook", handle: "#Northwind_Resend_Webhook.secret" });
-  assert.equal(JSON.stringify(calls.filter((c) => c.cap !== "vault.item.put")).includes("whsec_fake"), false, "no other call carries it");
+  assert.deepEqual(set.input, {
+    connectionId: "con_r",
+    slot: "Resend_Webhook",
+    handle: "#Northwind_Resend_Webhook.secret",
+  });
+  assert.equal(
+    JSON.stringify(calls.filter((c) => c.cap !== "vault.item.put")).includes("whsec_fake"),
+    false,
+    "no other call carries it",
+  );
 });
 
 test("an AI account's key is not an app: its item has no Add to Automations", async () => {
@@ -172,7 +248,18 @@ test("an AI account's key is not an app: its item has no Add to Automations", as
 test("Move to Trash names the Automations that use the item", async () => {
   const v = createSampleVault();
   // the Delete key in the list asks this item to confirm its move to Trash
-  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  const root = await mount(
+    createRoot,
+    <Wrap data={v.data}>
+      <ItemEnv
+        itemId="vit_ghl"
+        askDelete={1}
+        onEdit={() => undefined}
+        onGone={() => undefined}
+        onNote={() => undefined}
+      />
+    </Wrap>,
+  );
   await settle();
   const confirm = find(root, "item-confirm-delete");
   assert.ok(confirm, "the confirm shows");
@@ -182,10 +269,40 @@ test("Move to Trash names the Automations that use the item", async () => {
 test("Automations the person cannot open are counted, never linked, in Used in and in the Trash confirm", async () => {
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
-  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
-    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact" }] }], hidden: 2 }] }
-    : base(cap, input)) };
-  const root = await mount(createRoot, <Wrap data={v.data}><ItemEnv itemId="vit_ghl" askDelete={1} onEdit={() => undefined} onGone={() => undefined} onNote={() => undefined} /></Wrap>);
+  v.data = {
+    ...v.data,
+    call: async (cap, input) =>
+      cap === "automations.vault_usage"
+        ? {
+            uses: [
+              {
+                handle: "#Northwind_GHL",
+                automations: [
+                  {
+                    automationId: "aut_nightly",
+                    name: "New lead to GoHighLevel",
+                    status: "on",
+                    steps: [{ nodeId: "n1", title: "Create contact" }],
+                  },
+                ],
+                hidden: 2,
+              },
+            ],
+          }
+        : base(cap, input),
+  };
+  const root = await mount(
+    createRoot,
+    <Wrap data={v.data}>
+      <ItemEnv
+        itemId="vit_ghl"
+        askDelete={1}
+        onEdit={() => undefined}
+        onGone={() => undefined}
+        onNote={() => undefined}
+      />
+    </Wrap>,
+  );
   await settle();
   assert.match(textOf(find(root, "item-used-hidden")), /2 more you cannot open/);
   const confirm = textOf(find(root, "item-confirm-delete"));
@@ -198,39 +315,68 @@ test("Sent to lists the hosts approved for the key, and removing one asks the se
   const base = v.data.call.bind(v.data);
   const removed: unknown[] = [];
   let hosts = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1 }];
-  v.data = { ...v.data, call: async (cap, input) => {
-    if (cap === "automations.key_hosts.list") return { hosts };
-    if (cap === "automations.key_hosts.remove") { removed.push(input); hosts = []; return { removed: true }; }
-    return base(cap, input);
-  } };
+  v.data = {
+    ...v.data,
+    call: async (cap, input) => {
+      if (cap === "automations.key_hosts.list") return { hosts };
+      if (cap === "automations.key_hosts.remove") {
+        removed.push(input);
+        hosts = [];
+        return { removed: true };
+      }
+      return base(cap, input);
+    },
+  };
   const root = await open(v, "vit_ghl");
   await settle();
   assert.match(textOf(find(root, "item-sent-to")), /Sent to.*api\.gohighlevel\.example/);
   await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
   await settle();
   assert.deepEqual(removed, [{ itemId: "vit_ghl", host: "api.gohighlevel.example" }]);
-  assert.equal(find(root, "item-sent-to-remove-api.gohighlevel.example"), null, "the host is no longer listed once it is removed");
+  assert.equal(
+    find(root, "item-sent-to-remove-api.gohighlevel.example"),
+    null,
+    "the host is no longer listed once it is removed",
+  );
 });
 
 test("removing a host an Automation uses warns first, naming it; a host can be allowed again from the key's page", async () => {
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
   const calls: { cap: string; input: unknown }[] = [];
-  let hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 }];
-  v.data = { ...v.data, call: async (cap, input) => {
-    calls.push({ cap, input });
-    if (cap === "automations.key_hosts.list") return { hosts };
-    if (cap === "automations.key_hosts.remove") { hosts = []; return { removed: true }; }
-    if (cap === "automations.key_hosts.allow") { hosts = [{ host: String((input as { host: string }).host), by: "me", at: 2, usedBy: [] }]; return { hosts }; }
-    return base(cap, input);
-  } };
+  let hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] = [
+    { host: "api.gohighlevel.example", by: "usr_irfad", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 },
+  ];
+  v.data = {
+    ...v.data,
+    call: async (cap, input) => {
+      calls.push({ cap, input });
+      if (cap === "automations.key_hosts.list") return { hosts };
+      if (cap === "automations.key_hosts.remove") {
+        hosts = [];
+        return { removed: true };
+      }
+      if (cap === "automations.key_hosts.allow") {
+        hosts = [{ host: String((input as { host: string }).host), by: "me", at: 2, usedBy: [] }];
+        return { hosts };
+      }
+      return base(cap, input);
+    },
+  };
   const root = await open(v, "vit_ghl");
   await settle();
   assert.match(textOf(find(root, "item-sent-to")), /Removing one stops/);
   await press(find(root, "item-sent-to-remove-api.gohighlevel.example"));
   await settle();
-  assert.equal(calls.some((c) => c.cap === "automations.key_hosts.remove"), false, "a host in use asks first");
-  assert.match(textOf(find(root, "item-sent-to-confirm")), /New lead to GoHighLevel and 1 you cannot open send this key there/);
+  assert.equal(
+    calls.some((c) => c.cap === "automations.key_hosts.remove"),
+    false,
+    "a host in use asks first",
+  );
+  assert.match(
+    textOf(find(root, "item-sent-to-confirm")),
+    /New lead to GoHighLevel and 1 you cannot open send this key there/,
+  );
   await press(find(root, "item-sent-to-confirm-yes"));
   await settle();
   assert.ok(calls.some((c) => c.cap === "automations.key_hosts.remove"));
@@ -239,15 +385,43 @@ test("removing a host an Automation uses warns first, naming it; a host can be a
   await typeInto(find(root, "item-sent-to-host"), "api.gohighlevel.example");
   await press(find(root, "item-sent-to-allow"));
   await settle();
-  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_ghl", host: "api.gohighlevel.example" });
+  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, {
+    vaultItemId: "vit_ghl",
+    host: "api.gohighlevel.example",
+  });
 });
 
 test("an Automation whose step may no longer send the key to its host says so on its Used in row, before its next Run", async () => {
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
-  v.data = { ...v.data, call: async (cap, input) => (cap === "automations.vault_usage"
-    ? { uses: [{ handle: "#Northwind_GHL", automations: [{ automationId: "aut_nightly", name: "New lead to GoHighLevel", status: "on", steps: [{ nodeId: "n1", title: "Create contact", blocked: "#Northwind_GHL is not allowed to go to api.gohighlevel.example. Allow it on the key's page, or change this step." }] }] }] }
-    : base(cap, input)) };
+  v.data = {
+    ...v.data,
+    call: async (cap, input) =>
+      cap === "automations.vault_usage"
+        ? {
+            uses: [
+              {
+                handle: "#Northwind_GHL",
+                automations: [
+                  {
+                    automationId: "aut_nightly",
+                    name: "New lead to GoHighLevel",
+                    status: "on",
+                    steps: [
+                      {
+                        nodeId: "n1",
+                        title: "Create contact",
+                        blocked:
+                          "#Northwind_GHL is not allowed to go to api.gohighlevel.example. Allow it on the key's page, or change this step.",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : base(cap, input),
+  };
   const root = await open(v, "vit_ghl");
   await settle();
   const row = find(root, "row-aut_nightly");

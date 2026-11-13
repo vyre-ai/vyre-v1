@@ -20,10 +20,25 @@ const SAVED: TabEntry[] = [
 ];
 
 export default function Mount(): ReactNode {
-  const part = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "after";
+  const part =
+    new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+    "after";
   const controller = useMemo(() => {
-    const data = new Map<string, string>([[tabsStorageKey("mac", "olivia", "firm"), writeTabs({ tabs: SAVED, active: "chats" })]]);
-    const c = createTabsController({ deviceId: "mac", personId: "olivia", spaceId: "firm", storage: { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } }, start: "chats" });
+    const data = new Map<string, string>([
+      [tabsStorageKey("mac", "olivia", "firm"), writeTabs({ tabs: SAVED, active: "chats" })],
+    ]);
+    const c = createTabsController({
+      deviceId: "mac",
+      personId: "olivia",
+      spaceId: "firm",
+      storage: {
+        getItem: (k) => data.get(k) ?? null,
+        setItem: (k, v) => {
+          data.set(k, v);
+        },
+      },
+      start: "chats",
+    });
     c.openPlace("chats");
     c.retitle("chats:subject=thread:thr_9", "Renewal letter for the Rivera account");
     return c;
@@ -31,7 +46,11 @@ export default function Mount(): ReactNode {
   return (
     <View style={{ flex: 1, minHeight: 160, padding: 24, backgroundColor: "var(--win)" as string }}>
       <View data-testid="tabs-shot" style={{ maxWidth: 900, width: "100%" }}>
-        {part === "before" ? <TabStrip label="Open tabs" hideLoneClose noOptions tabs={tabSpecs(SAVED)} active="chats" /> : <MainTabs controller={controller} />}
+        {part === "before" ? (
+          <TabStrip label="Open tabs" hideLoneClose noOptions tabs={tabSpecs(SAVED)} active="chats" />
+        ) : (
+          <MainTabs controller={controller} />
+        )}
       </View>
     </View>
   );

@@ -6,7 +6,16 @@ import { publishHandlers } from "./publish.ts";
 export const handlers = { ...installHandlers, ...publishHandlers };
 
 export { configureKits, checkKit, sheetOf, compareSemver } from "./install.ts";
-export type { KitManifest, KitItem, KitScript, KitTest, KitSource, KitsConfig, FixtureSpace, InstallSheet } from "./install.ts";
+export type {
+  KitManifest,
+  KitItem,
+  KitScript,
+  KitTest,
+  KitSource,
+  KitsConfig,
+  FixtureSpace,
+  InstallSheet,
+} from "./install.ts";
 export { runKitTests, runKitScript, reportDenials } from "./publish.ts";
 export { runSandboxed } from "./sandbox.ts";
 export type { SandboxOptions, SandboxResult } from "./sandbox.ts";

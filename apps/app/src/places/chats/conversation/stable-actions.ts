@@ -2,11 +2,18 @@
 // lag. This keeps the data and swaps every function for one that never changes and calls the newest version, so a row can be skipped (see sameRow in MessageView) and still do the latest thing when pressed.
 
 type Fn = (...args: unknown[]) => unknown;
-export interface Delegates { latest: unknown; fns: Map<string, Fn> }
+export interface Delegates {
+  latest: unknown;
+  fns: Map<string, Fn>;
+}
 
 export const newDelegates = (): Delegates => ({ latest: null, fns: new Map() });
 
-const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v) && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" &&
+  v !== null &&
+  !Array.isArray(v) &&
+  (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 
 function at(root: unknown, path: readonly string[]): unknown {
   let cur = root;

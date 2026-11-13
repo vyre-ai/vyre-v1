@@ -19,8 +19,14 @@ const PEOPLE: QuickPerson[] = [
 test("the @word is read at the end of the text; matches put people first; a pick writes the word quick add resolves", () => {
   assert.deepEqual(atQuery("Call Omar friday @Te"), { at: 17, query: "Te" });
   assert.equal(atQuery("mail a@b.com"), null);
-  assert.deepEqual(atMatches(PEOPLE, "t").map((p) => p.id), ["usr_tom", "agt_test"]);
-  assert.deepEqual(atMatches(PEOPLE, "lee").map((p) => p.id), ["usr_sara"]);
+  assert.deepEqual(
+    atMatches(PEOPLE, "t").map((p) => p.id),
+    ["usr_tom", "agt_test"],
+  );
+  assert.deepEqual(
+    atMatches(PEOPLE, "lee").map((p) => p.id),
+    ["usr_sara"],
+  );
   const agent = atInsert("Call Omar friday @Te", PEOPLE[2]!);
   assert.equal(agent, "Call Omar friday @Test ");
   assert.equal(parseQuick(agent, PEOPLE, 0, 0).assignee?.id, "agt_test");
@@ -34,7 +40,18 @@ test("the field lists who matches under it; a click picks, and Enter picks inste
     const made: string[] = [];
     function Host(): ReactElement {
       const [v, setV] = useState("");
-      return <QuickField testID="qf" label="Add a task" placeholder="Add" value={v} onChangeText={setV} onSubmit={() => made.push(v)} people={PEOPLE} style={{}} />;
+      return (
+        <QuickField
+          testID="qf"
+          label="Add a task"
+          placeholder="Add"
+          value={v}
+          onChangeText={setV}
+          onSubmit={() => made.push(v)}
+          people={PEOPLE}
+          style={{}}
+        />
+      );
     }
     const root = await mount(createRoot, <Host />);
     await typeInto(find(root, "qf"), "Call Omar @Te");
@@ -45,8 +62,23 @@ test("the field lists who matches under it; a click picks, and Enter picks inste
     // the browser's Enter, as react-native-web hands it to the field: onKeyPress first, then submit unless that prevented it
     const enter = async (): Promise<void> => {
       let prevented = false;
-      const e = { key: "Enter", shiftKey: false, nativeEvent: { key: "Enter", isComposing: false }, target: { blur() {} }, currentTarget: { blur() {} }, preventDefault() { prevented = true; }, stopPropagation() {}, isDefaultPrevented: () => prevented, isPropagationStopped: () => false, persist() {} };
-      await act(async () => { ((find(root, "qf") as Node).props.onKeyDown as (e: unknown) => void)(e); });
+      const e = {
+        key: "Enter",
+        shiftKey: false,
+        nativeEvent: { key: "Enter", isComposing: false },
+        target: { blur() {} },
+        currentTarget: { blur() {} },
+        preventDefault() {
+          prevented = true;
+        },
+        stopPropagation() {},
+        isDefaultPrevented: () => prevented,
+        isPropagationStopped: () => false,
+        persist() {},
+      };
+      await act(async () => {
+        ((find(root, "qf") as Node).props.onKeyDown as (e: unknown) => void)(e);
+      });
     };
     await enter();
     assert.equal((find(root, "qf") as Node).props.value, "Call Omar @Test ");
@@ -56,5 +88,7 @@ test("the field lists who matches under it; a click picks, and Enter picks inste
     await typeInto(find(root, "qf"), "Ask @sa");
     await press(find(root, "row-qf-person-usr_sara"));
     assert.equal((find(root, "qf") as Node).props.value, "Ask @sara ");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

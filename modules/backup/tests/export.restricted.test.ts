@@ -10,9 +10,15 @@ import { configureBackup, handlers } from "../handlers/index.ts";
 import type { BackupCtx } from "../handlers/run.ts";
 
 type Fn = (ctx: BackupCtx, input: never) => Promise<unknown>;
-const exportStart = (ctx: BackupCtx): Promise<unknown> => (handlers as unknown as Record<string, Fn>)["backup.export_start"]!(ctx, {} as never);
+const exportStart = (ctx: BackupCtx): Promise<unknown> =>
+  (handlers as unknown as Record<string, Fn>)["backup.export_start"]!(ctx, {} as never);
 const refusal = async (ctx: BackupCtx): Promise<string> => {
-  try { await exportStart(ctx); } catch (e) { assert.ok(e instanceof VyreErr); return e.error.code; }
+  try {
+    await exportStart(ctx);
+  } catch (e) {
+    assert.ok(e instanceof VyreErr);
+    return e.error.code;
+  }
   return "none";
 };
 
@@ -23,10 +29,13 @@ test("backup.export_start: the owner is allowed and the zip is complete", async 
   configureBackup(w.drivers);
   await w.space.append("contact/ada", "Ada Lovelace");
   w.space.blobs.set("fil_1", "the engagement letter");
-  const out = await exportStart(w.ctx) as { runId: string };
+  const out = (await exportStart(w.ctx)) as { runId: string };
   assert.equal(out.runId, "run_testrun1");
   const text = new TextDecoder().decode(w.saved[0]!.bytes);
-  assert.ok(text.includes("Ada Lovelace") && text.includes("the engagement letter"), "nothing the owner holds was filtered out");
+  assert.ok(
+    text.includes("Ada Lovelace") && text.includes("the engagement letter"),
+    "nothing the owner holds was filtered out",
+  );
 });
 
 test("backup.export_start: an admin who is not the owner, and a member, are refused and nothing is saved", async () => {

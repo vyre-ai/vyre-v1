@@ -10,20 +10,34 @@ export interface KitsHostSource {
   read(key: string, version: string): Promise<unknown | null>;
   working(key: string): Promise<unknown | null>;
 }
-export interface KitsHostSeam { source: KitsHostSource; resources?: { ensure(kitId: string): Promise<void> } }
+export interface KitsHostSeam {
+  source: KitsHostSource;
+  resources?: { ensure(kitId: string): Promise<void> };
+}
 
 const KEY = /^[a-z][a-z0-9_.-]{0,60}$/;
 
 /** Reads every kits/<key>/kit.json under `root`. A folder with no kit.json, or one that is not JSON, is skipped (the module checks the rest and warns about a Kit that fails its own check). */
-export function createKitsHost(deps: { root: string; resources?: { ensure(kitId: string): Promise<void> } }): KitsHostSeam {
+export function createKitsHost(deps: {
+  root: string;
+  resources?: { ensure(kitId: string): Promise<void> };
+}): KitsHostSeam {
   const dir = path.join(deps.root, "kits");
   const load = (): { key: string; raw: unknown }[] => {
     let names: string[];
-    try { names = fs.readdirSync(dir).sort(); } catch { return []; }
+    try {
+      names = fs.readdirSync(dir).sort();
+    } catch {
+      return [];
+    }
     const out: { key: string; raw: unknown }[] = [];
     for (const key of names) {
       if (!KEY.test(key)) continue;
-      try { out.push({ key, raw: JSON.parse(fs.readFileSync(path.join(dir, key, "kit.json"), "utf8")) as unknown }); } catch { /* not a Kit folder */ }
+      try {
+        out.push({ key, raw: JSON.parse(fs.readFileSync(path.join(dir, key, "kit.json"), "utf8")) as unknown });
+      } catch {
+        /* not a Kit folder */
+      }
     }
     return out;
   };
@@ -32,7 +46,10 @@ export function createKitsHost(deps: { root: string; resources?: { ensure(kitId:
     source: {
       catalog: () => Promise.resolve(load().map((k) => k.raw)),
       read: (key, version) => {
-        const hit = load().find((k) => { const o = k.raw as { key?: unknown; version?: unknown } | null; return o?.key === key && o?.version === version; });
+        const hit = load().find((k) => {
+          const o = k.raw as { key?: unknown; version?: unknown } | null;
+          return o?.key === key && o?.version === version;
+        });
         return Promise.resolve(hit ? hit.raw : null);
       },
       working: () => Promise.resolve(null),

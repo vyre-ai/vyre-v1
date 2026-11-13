@@ -2,8 +2,29 @@
 import { act, delegate, escalate } from "./act.ts";
 import { agentOnIt, ask, block, decide, review, submit } from "./baton.ts";
 import {
-  assign, countNeedsYou, create, dependenciesAdd, dependenciesRemove, followersAdd, followersRemove, get, history, linksAdd, linksRemove, list, myWorkList,
-  needsYouList, heldRevise, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
+  assign,
+  countNeedsYou,
+  create,
+  dependenciesAdd,
+  dependenciesRemove,
+  followersAdd,
+  followersRemove,
+  get,
+  history,
+  linksAdd,
+  linksRemove,
+  list,
+  myWorkList,
+  needsYouList,
+  heldRevise,
+  notesDelete,
+  notesSet,
+  release,
+  snooze,
+  take,
+  transition,
+  update,
+  withdraw,
 } from "./state.ts";
 
 import { byKey, index, rev } from "./index-read.ts";
@@ -65,6 +86,7 @@ export const handlers = withReversals(base, {
       const gone = historyOf(ctx.db, i.taskId).find((h) => h.type === "deleted");
       return gone && isAgentId(gone.by) ? { agentId: gone.by, ref: gone.eventId } : null;
     },
-    was: (_i: unknown, o: { task?: { title?: string } }) => `deleted the task${o?.task?.title ? ` "${o.task.title}"` : ""}`,
+    was: (_i: unknown, o: { task?: { title?: string } }) =>
+      `deleted the task${o?.task?.title ? ` "${o.task.title}"` : ""}`,
   },
 });

@@ -3,8 +3,18 @@ import assert from "node:assert/strict";
 import { choiceRows } from "../src/places/apps/shell/FormChoices.tsx";
 
 test("saved choices come first, marked gone when the publisher can no longer offer them", () => {
-  const saved = [{ key: "chc_a", refId: "rec_a", label: "Acme" }, { key: "chc_b", refId: "rec_b", label: "Globex" }];
-  const rows = choiceRows(saved, [{ refId: "rec_a", label: "Acme" }, { refId: "rec_c", label: "Initech" }], new Set(["rec_a", "rec_b"]));
+  const saved = [
+    { key: "chc_a", refId: "rec_a", label: "Acme" },
+    { key: "chc_b", refId: "rec_b", label: "Globex" },
+  ];
+  const rows = choiceRows(
+    saved,
+    [
+      { refId: "rec_a", label: "Acme" },
+      { refId: "rec_c", label: "Initech" },
+    ],
+    new Set(["rec_a", "rec_b"]),
+  );
   assert.deepEqual(rows, [
     { refId: "rec_a", label: "Acme", picked: true, gone: false },
     { refId: "rec_b", label: "Globex", picked: true, gone: true },

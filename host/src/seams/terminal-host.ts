@@ -10,10 +10,26 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
-type Target = { host: "agent_computer" | "space_server" | "device"; agentId?: string; computerId?: string; deviceId?: string };
+type Target = {
+  host: "agent_computer" | "space_server" | "device";
+  agentId?: string;
+  computerId?: string;
+  deviceId?: string;
+};
 type ExecResult = { code: number; stdout: string; stderr: string };
-type ShellRun = (a: { command: string; cwd: string; env: Readonly<Record<string, string>>; onData(text: string): void; signal: AbortSignal }) => Promise<{ exitCode: number | null }>;
-export interface TurnPlaceShape { team: boolean; agentComputer: boolean; runsOn: "device" | "agent_computer" | "server" | "space"; deviceId?: string }
+type ShellRun = (a: {
+  command: string;
+  cwd: string;
+  env: Readonly<Record<string, string>>;
+  onData(text: string): void;
+  signal: AbortSignal;
+}) => Promise<{ exitCode: number | null }>;
+export interface TurnPlaceShape {
+  team: boolean;
+  agentComputer: boolean;
+  runsOn: "device" | "agent_computer" | "server" | "space";
+  deviceId?: string;
+}
 
 /** What the terminal module's setTerminalHost takes (modules/terminal/impl.ts TerminalHostSeam). */
 export interface TerminalHostSeamShape {
@@ -34,7 +50,26 @@ export interface TerminalHostSeamShape {
   workspaces?: WorkspacesConfig;
 }
 
-export type ValuesShape = { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<{ kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean } | { kind: "unknown" } | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "team_shared" | "team_unknown_agent" | "needs_approval" }> };
+export type ValuesShape = {
+  lookup(
+    handle: string,
+    who: { agentId: string; asker: string; where: "host" | "device" | "computer" },
+  ): Promise<
+    | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
+    | { kind: "unknown" }
+    | {
+        kind: "denied";
+        reason:
+          | "no_access"
+          | "provider_label"
+          | "other"
+          | "team_agent"
+          | "team_shared"
+          | "team_unknown_agent"
+          | "needs_approval";
+      }
+  >;
+};
 
 /** Where Docker is and which image is the agent workspace; the module builds the manager from it (agent workspaces, 6 Nov). */
 export interface WorkspacesConfig {
@@ -55,16 +90,28 @@ export interface WorkspacesConfig {
   /** Is this agent in Trash now (agents_agent.deletedAt)? undefined when it cannot be told (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** Where mirrors are rooted in Files (agent and project folders, a folder's ancestors, a file's folder): a Files change brings forward only the mirrors it touches. */
-  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
+  folders?: {
+    agentRoot(agentId: string): string | null;
+    projectRoot(projectId: string): string | null;
+    ancestors(folderId: string): string[] | null;
+    ofFile(fileId: string): string | null;
+  };
   /** Does this agent have a turn running now? Making room never puts its workspace to sleep while it does. */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The mirror of each agent's folder in Files onto ~/Vyre in its workspace: the computers module's home sync and tar reader, made by the daemon as the agent principal. Omitted: no mirror. */
   home?: {
-    sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> };
+    sync(o: { agentId: string; computerId: string; fs: never; manifest: string }): {
+      pass(): Promise<{ failed: number }>;
+    };
     readTar(tar: Uint8Array): never;
     manifest(agentId: string): string;
     /** The mirror of a project's shared folder with its folder in Files, every call as the named agent; null when the project has no folder. */
-    syncProject?(o: { projectId: string; agentId: string; fs: never; manifest: string }): { pass(): Promise<{ failed: number }> } | null;
+    syncProject?(o: {
+      projectId: string;
+      agentId: string;
+      fs: never;
+      manifest: string;
+    }): { pass(): Promise<{ failed: number }> } | null;
     projectManifest?(projectId: string): string;
     intervalMs?: number;
   };
@@ -74,7 +121,13 @@ export interface WorkspacesConfig {
     release(agentId: string, nodeId?: string): Promise<void>;
   };
   /** Servers that joined the Space, where an agent's workspace goes when the Space has no container runtime of its own (a Personal Space on a computer without Docker, or a server added for room). */
-  nodes?: { ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>; place(agentId: string): Promise<string | null>; /** Is the server's link to the Space private (compute-stream secure)? A Vault value goes to its workspaces only then. */ secure?(nodeId: string): boolean };
+  nodes?: {
+    ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>;
+    place(agentId: string): Promise<string | null>;
+    /** Is the server's link to the Space private (compute-stream secure)? A Vault value goes to its workspaces only then. */ secure?(
+      nodeId: string,
+    ): boolean;
+  };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;
@@ -103,7 +156,10 @@ export interface TerminalHostDeps {
 /** A short mark that names one daemon (from its data folder) and stays the same across its restarts: FNV-1a in hex. */
 export function daemonMark(dataDir: string): string {
   let h = 0x811c9dc5;
-  for (const c of dataDir) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (const c of dataDir) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(16).padStart(8, "0");
 }
 
@@ -112,18 +168,23 @@ const KEEP = ["HOME", "USER", "LOGNAME", "SHELL", "PATH", "LANG", "LC_ALL", "LC_
 /** The environment a command starts with: who and where the person is, and nothing of the daemon's own. */
 export function commandEnv(base: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const k of KEEP) { const v = base[k]; if (typeof v === "string" && v !== "") out[k] = v; }
+  for (const k of KEEP) {
+    const v = base[k];
+    if (typeof v === "string" && v !== "") out[k] = v;
+  }
   out["TERM"] = "xterm-256color";
   // an app started from the Dock has a short PATH: tmux and the person's tools from Homebrew live here
   const dirs = (out["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin").split(":");
-  for (const extra of ["/opt/homebrew/bin", "/usr/local/bin"]) if (!dirs.includes(extra) && fs.existsSync(extra)) dirs.push(extra);
+  for (const extra of ["/opt/homebrew/bin", "/usr/local/bin"])
+    if (!dirs.includes(extra) && fs.existsSync(extra)) dirs.push(extra);
   out["PATH"] = dirs.join(":");
   return out;
 }
 
 /** The shell and the arguments that run one line in it: a login shell, so the person's PATH (Homebrew and the like) is there even when the app was started from the Dock. */
 export function shellArgv(env: Readonly<Record<string, string>>, command: string): [string, string[]] {
-  const sh = env["SHELL"] && path.isAbsolute(env["SHELL"]) ? env["SHELL"] : fs.existsSync("/bin/zsh") ? "/bin/zsh" : "/bin/sh";
+  const sh =
+    env["SHELL"] && path.isAbsolute(env["SHELL"]) ? env["SHELL"] : fs.existsSync("/bin/zsh") ? "/bin/zsh" : "/bin/sh";
   const login = /\/(zsh|bash)$/.test(sh);
   return [sh, [...(login ? ["-l"] : []), "-c", command]];
 }
@@ -132,7 +193,12 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
   const env = commandEnv(d.env ?? process.env);
   const home = d.home ?? env["HOME"] ?? os.homedir();
   const device = d.roles.includes("device");
-  const workspaces: WorkspacesConfig | undefined = d.workspaces ? { ...d.workspaces, image: d.workspaces.image ?? (process.env["VYRE_WORKSPACE_IMAGE"] || "vyre/agent-workspace:1") } : undefined;
+  const workspaces: WorkspacesConfig | undefined = d.workspaces
+    ? {
+        ...d.workspaces,
+        image: d.workspaces.image ?? (process.env["VYRE_WORKSPACE_IMAGE"] || "vyre/agent-workspace:1"),
+      }
+    : undefined;
   return {
     ...(workspaces ? { workspaces } : {}),
     ...(d.values ? { values: d.values } : {}),
@@ -140,48 +206,130 @@ export function createTerminalHostSeam(d: TerminalHostDeps): TerminalHostSeamSha
     exec(argv, x) {
       return new Promise((resolve) => {
         const [file, ...args] = argv;
-        const child = execFile(file ?? "tmux", args, { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 }, (err, stdout, stderr) => {
-          const code = err ? (typeof (err as { code?: unknown }).code === "number" ? Number((err as { code: number }).code) : 127) : 0;
-          resolve({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? "") || (err && code === 127 ? `${file}: ${err.message}` : "") });
-        });
+        const child = execFile(
+          file ?? "tmux",
+          args,
+          { env, cwd: home, maxBuffer: 16 * 1024 * 1024, timeout: 30_000 },
+          (err, stdout, stderr) => {
+            const code = err
+              ? typeof (err as { code?: unknown }).code === "number"
+                ? Number((err as { code: number }).code)
+                : 127
+              : 0;
+            resolve({
+              code,
+              stdout: String(stdout ?? ""),
+              stderr: String(stderr ?? "") || (err && code === 127 ? `${file}: ${err.message}` : ""),
+            });
+          },
+        );
         child.stdin?.on("error", () => undefined);
         child.stdin?.end(x?.stdin ?? "");
       });
     },
     control(session, onLine) {
-      const child = spawn("tmux", ["-C", "attach", "-t", session], { env, cwd: home, stdio: ["pipe", "pipe", "ignore"] });
+      const child = spawn("tmux", ["-C", "attach", "-t", session], {
+        env,
+        cwd: home,
+        stdio: ["pipe", "pipe", "ignore"],
+      });
       child.on("error", () => undefined);
       readline.createInterface({ input: child.stdout }).on("line", onLine);
-      return () => { try { child.stdin.end(); child.kill(); } catch { /* already gone */ } };
-    },
-    shell: (a) => new Promise((resolve) => {
-      if (!fs.existsSync(a.cwd)) { a.onData(`cd: no such folder: ${a.cwd}\n`); resolve({ exitCode: 1 }); return; }
-      const full = { ...env, ...a.env };
-      const [sh, args] = shellArgv(full, a.command);
-      const child = spawn(sh, args, { cwd: a.cwd, env: full, stdio: ["ignore", "pipe", "pipe"], detached: true });
-      const stop = (): void => {
-        const pid = child.pid;
-        if (pid === undefined) return;
-        try { process.kill(-pid, "SIGINT"); } catch { /* it ended */ }
-        setTimeout(() => { try { process.kill(-pid, "SIGKILL"); } catch { /* it ended */ } }, 2000).unref();
+      return () => {
+        try {
+          child.stdin.end();
+          child.kill();
+        } catch {
+          /* already gone */
+        }
       };
-      if (a.signal.aborted) stop(); else a.signal.addEventListener("abort", stop, { once: true });
-      child.stdout.setEncoding("utf8").on("data", (t: string) => a.onData(t));
-      child.stderr.setEncoding("utf8").on("data", (t: string) => a.onData(t));
-      child.on("error", (e) => { a.onData(`${e.message}\n`); resolve({ exitCode: 127 }); });
-      child.on("close", (code, signal) => { a.signal.removeEventListener("abort", stop); resolve({ exitCode: code ?? (signal ? 130 : null) }); });
-    }),
+    },
+    shell: (a) =>
+      new Promise((resolve) => {
+        if (!fs.existsSync(a.cwd)) {
+          a.onData(`cd: no such folder: ${a.cwd}\n`);
+          resolve({ exitCode: 1 });
+          return;
+        }
+        const full = { ...env, ...a.env };
+        const [sh, args] = shellArgv(full, a.command);
+        const child = spawn(sh, args, { cwd: a.cwd, env: full, stdio: ["ignore", "pipe", "pipe"], detached: true });
+        const stop = (): void => {
+          const pid = child.pid;
+          if (pid === undefined) return;
+          try {
+            process.kill(-pid, "SIGINT");
+          } catch {
+            /* it ended */
+          }
+          setTimeout(() => {
+            try {
+              process.kill(-pid, "SIGKILL");
+            } catch {
+              /* it ended */
+            }
+          }, 2000).unref();
+        };
+        if (a.signal.aborted) stop();
+        else a.signal.addEventListener("abort", stop, { once: true });
+        child.stdout.setEncoding("utf8").on("data", (t: string) => a.onData(t));
+        child.stderr.setEncoding("utf8").on("data", (t: string) => a.onData(t));
+        child.on("error", (e) => {
+          a.onData(`${e.message}\n`);
+          resolve({ exitCode: 127 });
+        });
+        child.on("close", (code, signal) => {
+          a.signal.removeEventListener("abort", stop);
+          resolve({ exitCode: code ?? (signal ? 130 : null) });
+        });
+      }),
     home,
-    ...((): { tmuxPath?: string } => { const t = (env["PATH"] ?? "").split(":").filter((d) => path.isAbsolute(d)).map((d) => path.join(d, "tmux")).find((f) => { try { fs.accessSync(f, fs.constants.X_OK); return true; } catch { return false; } }); return t ? { tmuxPath: t } : {}; })(),
+    ...((): { tmuxPath?: string } => {
+      const t = (env["PATH"] ?? "")
+        .split(":")
+        .filter((d) => path.isAbsolute(d))
+        .map((d) => path.join(d, "tmux"))
+        .find((f) => {
+          try {
+            fs.accessSync(f, fs.constants.X_OK);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+      return t ? { tmuxPath: t } : {};
+    })(),
     runsHere: (t) => t.host === "device" && device,
     async place(a) {
-      const decided = a.threadId === undefined ? null
-        : ((await d.readAs(a.person, "engine.placement.decide", { threadId: a.threadId, agentId: a.agentId, kind: "message" }).catch(() => null)) as { placement?: string; reason?: string; nodeId?: string } | null);
-      const agent = (await d.readAs(a.person, "agents.get", { agentId: a.agentId }).catch(() => null)) as { agent?: { hasComputer?: boolean } } | null;
+      const decided =
+        a.threadId === undefined
+          ? null
+          : ((await d
+              .readAs(a.person, "engine.placement.decide", {
+                threadId: a.threadId,
+                agentId: a.agentId,
+                kind: "message",
+              })
+              .catch(() => null)) as { placement?: string; reason?: string; nodeId?: string } | null);
+      const agent = (await d.readAs(a.person, "agents.get", { agentId: a.agentId }).catch(() => null)) as {
+        agent?: { hasComputer?: boolean };
+      } | null;
       // A turn the Space runs itself (no pin to a server, not the agent's computer) runs on this machine; when this daemon is the person's computer that is their computer.
-      const runsOn: TurnPlaceShape["runsOn"] = decided?.reason === "agent_computer" ? "agent_computer" : decided?.nodeId ? "server" : decided?.placement === "device" || device ? "device" : "space";
+      const runsOn: TurnPlaceShape["runsOn"] =
+        decided?.reason === "agent_computer"
+          ? "agent_computer"
+          : decided?.nodeId
+            ? "server"
+            : decided?.placement === "device" || device
+              ? "device"
+              : "space";
       const deviceId = runsOn === "device" && device ? d.computerOf(a.person) : undefined;
-      return { team: d.team, agentComputer: agent?.agent?.hasComputer === true, runsOn, ...(deviceId === undefined ? {} : { deviceId }) };
+      return {
+        team: d.team,
+        agentComputer: agent?.agent?.hasComputer === true,
+        runsOn,
+        ...(deviceId === undefined ? {} : { deviceId }),
+      };
     },
   };
 }

@@ -30,7 +30,11 @@ export const NO_FILTER: AuditFilter = { query: "", cls: null, traceId: null };
 
 /** The screen state: only the keys that are set, so a cleared filter is the unfiltered query. */
 export function stateOf(f: AuditFilter): Record<string, unknown> {
-  return { ...(f.query.trim() ? { query: f.query.trim() } : {}), ...(f.cls ? { class: f.cls } : {}), ...(f.traceId ? { traceId: f.traceId } : {}) };
+  return {
+    ...(f.query.trim() ? { query: f.query.trim() } : {}),
+    ...(f.cls ? { class: f.cls } : {}),
+    ...(f.traceId ? { traceId: f.traceId } : {}),
+  };
 }
 export function isFiltered(f: AuditFilter): boolean {
   return f.query.trim() !== "" || f.cls !== null || f.traceId !== null;
@@ -39,19 +43,31 @@ export function isFiltered(f: AuditFilter): boolean {
 /** "Priya Raman assigned a role to Omar Haddad, for Andrey": who did what to which thing, and on whose behalf (lib/words). An id the directory has no name for is left out, not read out. */
 export function rowTitle(r: AuditRow, name: (id: string) => string): string {
   const what = r.resource ? name(r.resource.id) : "";
-  return auditSentence({ actor: name(r.actor.id), action: r.action, ...(r.resource && what !== "" && what !== "Someone" ? { resource: what } : {}), ...(r.onBehalfOf ? { onBehalfOf: name(r.onBehalfOf.id) } : {}) });
+  return auditSentence({
+    actor: name(r.actor.id),
+    action: r.action,
+    ...(r.resource && what !== "" && what !== "Someone" ? { resource: what } : {}),
+    ...(r.onBehalfOf ? { onBehalfOf: name(r.onBehalfOf.id) } : {}),
+  });
 }
 
 /** The value of a before or after snapshot as readable lines; secret values are never in the log (CONSOLE-SPEC 1). */
 export function snapshotLines(v: unknown): string[] {
   if (v === undefined) return [];
   if (v === null || typeof v !== "object") return [String(v)];
-  return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${typeof x === "object" && x !== null ? JSON.stringify(x) : String(x)}`);
+  return Object.entries(v as Record<string, unknown>).map(
+    ([k, x]) => `${k}: ${typeof x === "object" && x !== null ? JSON.stringify(x) : String(x)}`,
+  );
 }
 
 /** The details line under an agent's audit row (owner ruling 3 Nov): the headline credits its person, "Irfad Imtiaz (Agent)"; this says which agent, its id, the setup grant when it used one, and the trace. */
-export function agentDetails(r: Pick<AuditRow, "actor" | "after" | "traceId">, agentName: string | undefined): string | null {
+export function agentDetails(
+  r: Pick<AuditRow, "actor" | "after" | "traceId">,
+  agentName: string | undefined,
+): string | null {
   if (r.actor.kind !== "agent") return null;
   const setup = (r.after as { reason?: unknown } | undefined)?.reason === "setup_grant";
-  return [agentName ?? "An agent", r.actor.id, ...(setup ? ["under the setup grant"] : []), `trace ${r.traceId}`].join(" · ");
+  return [agentName ?? "An agent", r.actor.id, ...(setup ? ["under the setup grant"] : []), `trace ${r.traceId}`].join(
+    " · ",
+  );
 }

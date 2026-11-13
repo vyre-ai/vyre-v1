@@ -4,7 +4,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ADAPTERS, createApiDriver, createSseParser, parseSse } from "../src/drivers/api/index.ts";
 import type { ProviderId } from "../src/drivers/api/index.ts";
-import { MODELS, WIRE, authorize, chunked, ctx, fakeClock, fakeFetch, fixture, gate, spec, turnInput } from "../src/drivers/api/testing.ts";
+import {
+  MODELS,
+  WIRE,
+  authorize,
+  chunked,
+  ctx,
+  fakeClock,
+  fakeFetch,
+  fixture,
+  gate,
+  spec,
+  turnInput,
+} from "../src/drivers/api/testing.ts";
 import type { DriverEvent } from "../src/turn-engine/types.ts";
 
 const PROVIDERS: ProviderId[] = ["anthropic", "openai", "openrouter", "google", "xai"];
@@ -23,7 +35,10 @@ async function collect(it: AsyncIterable<DriverEvent>): Promise<DriverEvent[]> {
 }
 
 const within = <T>(p: Promise<T>, ms: number, what: string): Promise<T> =>
-  Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timed out waiting for ${what}`)), ms))]);
+  Promise.race([
+    p,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timed out waiting for ${what}`)), ms)),
+  ]);
 
 for (const provider of PROVIDERS) {
   test(`${provider}: a recorded stream replays as deltas, then usage, then done`, async () => {
@@ -36,7 +51,12 @@ for (const provider of PROVIDERS) {
     const kinds = events.map((e) => e.type);
     assert.deepEqual(kinds, ["text", "text", "text", "text", "usage", "done"]);
     const usage = events.find((e) => e.type === "usage");
-    assert.deepEqual(usage && usage.type === "usage" ? { type: usage.type, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } : usage, { type: "usage", inputTokens: 2200, outputTokens: 12 });
+    assert.deepEqual(
+      usage && usage.type === "usage"
+        ? { type: usage.type, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens }
+        : usage,
+      { type: "usage", inputTokens: 2200, outputTokens: 12 },
+    );
     assert.equal(f.requests.length, 1);
   });
 
@@ -67,12 +87,18 @@ for (const provider of PROVIDERS) {
     const first = it.next();
     g.push(wire.slice(0, firstCut));
     const r1 = await within(first, 2_000, "the first delta");
-    assert.deepEqual(r1.value, { type: "text", text: "Hello" }, "the first delta arrived while the response was still open and incomplete");
+    assert.deepEqual(
+      r1.value,
+      { type: "text", text: "Hello" },
+      "the first delta arrived while the response was still open and incomplete",
+    );
 
     // Nothing more may come until more bytes do.
     let early = false;
     const second = it.next();
-    void second.then(() => { early = true; });
+    void second.then(() => {
+      early = true;
+    });
     await new Promise((r) => setTimeout(r, 25));
     assert.equal(early, false, "the driver did not invent or batch anything while waiting");
 
@@ -83,17 +109,28 @@ for (const provider of PROVIDERS) {
     g.push(wire.slice(secondCut));
     g.end();
     const rest: DriverEvent[] = [];
-    for (;;) { const r = await within(it.next(), 2_000, "the rest"); if (r.done) break; rest.push(r.value); }
-    assert.deepEqual(rest.map((e) => e.type), ["text", "text", "usage", "done"]);
+    for (;;) {
+      const r = await within(it.next(), 2_000, "the rest");
+      if (r.done) break;
+      rest.push(r.value);
+    }
+    assert.deepEqual(
+      rest.map((e) => e.type),
+      ["text", "text", "usage", "done"],
+    );
   });
 }
 
 test("openrouter: processing comments between events are ignored", async () => {
-  const wire = ": OPENROUTER PROCESSING\n\n" + fixture("openai-text").replace(/\n\n/g, "\n\n: OPENROUTER PROCESSING\n\n");
+  const wire =
+    ": OPENROUTER PROCESSING\n\n" + fixture("openai-text").replace(/\n\n/g, "\n\n: OPENROUTER PROCESSING\n\n");
   const f = fakeFetch(() => ({ chunks: chunked(wire, 11) }));
   const session = await driverFor("openrouter", f).open(spec(MODELS.openrouter));
   const events = await collect(session.send(turnInput(MODELS.openrouter)));
-  assert.deepEqual(events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text), DELTAS);
+  assert.deepEqual(
+    events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text),
+    DELTAS,
+  );
 });
 
 test("sse parser: events leave as soon as their blank line is read", async () => {
@@ -106,7 +143,9 @@ test("sse parser: events leave as soon as their blank line is read", async () =>
   g.push("data: two");
   g.push("\n");
   let early = false;
-  void b.then(() => { early = true; });
+  void b.then(() => {
+    early = true;
+  });
   await new Promise((r) => setTimeout(r, 15));
   assert.equal(early, false, "a line without its blank line is not an event yet");
   g.push("\n");
@@ -134,7 +173,9 @@ test("sse parser: CRLF, lone CR, comments, multi-line data, no-colon fields, a f
 test("sse parser: a multi-byte character split across chunks is whole in the event", async () => {
   const bytes = new TextEncoder().encode("data: café ☃\n\n");
   const out: string[] = [];
-  async function* body(): AsyncGenerator<Uint8Array> { for (const b of bytes) yield new Uint8Array([b]); }
+  async function* body(): AsyncGenerator<Uint8Array> {
+    for (const b of bytes) yield new Uint8Array([b]);
+  }
   for await (const ev of parseSse(body())) out.push(ev.data);
   assert.deepEqual(out, ["café ☃"]);
 });

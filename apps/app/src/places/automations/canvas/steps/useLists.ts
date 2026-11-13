@@ -13,23 +13,42 @@ function useLoaded<T>(load: (call: (cap: string, input: unknown) => Promise<unkn
   const connected = useConnectVersion();
   const [value, setValue] = useState<Load<T>>({ state: "loading" });
   useEffect(() => {
-    if (!data) { setValue({ state: "unavailable" }); return; }
+    if (!data) {
+      setValue({ state: "unavailable" });
+      return;
+    }
     let live = true;
-    load(data.call).then((items) => { if (live) setValue({ state: "ready", items }); }, () => { if (live) setValue({ state: "unavailable" }); });
-    return () => { live = false; };
+    load(data.call).then(
+      (items) => {
+        if (live) setValue({ state: "ready", items });
+      },
+      () => {
+        if (live) setValue({ state: "unavailable" });
+      },
+    );
+    return () => {
+      live = false;
+    };
     // the lists are loaded once for a form that is open
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, connected]);
   return value;
 }
 
-export const useVaultPicks = (): Load<VaultPick> => useLoaded(async (call) => vaultPicks(await call("vault.items.list", { limit: 200 })));
-export const useAgentPicks = (): Load<AgentPick> => useLoaded(async (call) => agentPicks(await call("agents.list", {})));
-export const useWhoPicks = (): Load<WhoPick> => useLoaded(async (call) => {
-  const [people, groups] = await Promise.all([call("access.principals.list", { kind: "person", status: "active" }), call("access.groups.list", {}).catch(() => ({ groups: [] }))]);
-  return whoPicks(people, groups);
-});
+export const useVaultPicks = (): Load<VaultPick> =>
+  useLoaded(async (call) => vaultPicks(await call("vault.items.list", { limit: 200 })));
+export const useAgentPicks = (): Load<AgentPick> =>
+  useLoaded(async (call) => agentPicks(await call("agents.list", {})));
+export const useWhoPicks = (): Load<WhoPick> =>
+  useLoaded(async (call) => {
+    const [people, groups] = await Promise.all([
+      call("access.principals.list", { kind: "person", status: "active" }),
+      call("access.groups.list", {}).catch(() => ({ groups: [] })),
+    ]);
+    return whoPicks(people, groups);
+  });
 
 const REF_CAP = { types: "schema.types.list", forms: "forms.list", journeys: "journeys.list" } as const;
 /** The record types, forms or Journeys a trigger can be narrowed to. */
-export const useRefPicks = (kind: "types" | "forms" | "journeys"): Load<RefPick> => useLoaded(async (call) => refPicks(kind, await call(REF_CAP[kind], {})));
+export const useRefPicks = (kind: "types" | "forms" | "journeys"): Load<RefPick> =>
+  useLoaded(async (call) => refPicks(kind, await call(REF_CAP[kind], {})));

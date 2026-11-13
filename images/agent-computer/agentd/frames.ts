@@ -14,7 +14,10 @@ export function createJpegSplitter(onFrame: (jpeg: Buffer) => void): (chunk: Buf
     buf = buf.length === 0 ? chunk : Buffer.concat([buf, chunk]);
     for (;;) {
       const start = buf.indexOf(SOI);
-      if (start < 0) { buf = Buffer.alloc(0); return; }
+      if (start < 0) {
+        buf = Buffer.alloc(0);
+        return;
+      }
       const end = buf.indexOf(EOI, start + 2);
       if (end < 0) {
         buf = start > 0 ? buf.subarray(start) : buf;
@@ -31,7 +34,10 @@ export function createJpegSplitter(onFrame: (jpeg: Buffer) => void): (chunk: Buf
 export function jpegSize(jpeg: Uint8Array): { width: number; height: number } | null {
   let at = 2;
   while (at + 9 < jpeg.length) {
-    if (jpeg[at] !== 0xff) { at += 1; continue; }
+    if (jpeg[at] !== 0xff) {
+      at += 1;
+      continue;
+    }
     const marker = jpeg[at + 1]!;
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
       return { height: (jpeg[at + 5]! << 8) | jpeg[at + 6]!, width: (jpeg[at + 7]! << 8) | jpeg[at + 8]! };
@@ -76,10 +82,32 @@ export function createFrameHub(o: FrameHubOptions): FrameHub {
       lastAt = Date.now();
       for (const w of watchers) w(jpeg);
     });
-    const p = spawn("ffmpeg", [
-      "-loglevel", "error", "-nostdin", "-f", "x11grab", "-framerate", String(o.fps), "-video_size", o.size, "-draw_mouse", "1", "-i", o.display,
-      "-vf", `fps=${o.fps}`, "-q:v", String(o.quality ?? 7), "-f", "mjpeg", "pipe:1",
-    ], { stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn(
+      "ffmpeg",
+      [
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-f",
+        "x11grab",
+        "-framerate",
+        String(o.fps),
+        "-video_size",
+        o.size,
+        "-draw_mouse",
+        "1",
+        "-i",
+        o.display,
+        "-vf",
+        `fps=${o.fps}`,
+        "-q:v",
+        String(o.quality ?? 7),
+        "-f",
+        "mjpeg",
+        "pipe:1",
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
     proc = p;
     p.stdout!.on("data", (c: Buffer) => cut(c));
     p.stderr!.on("data", (c: Buffer) => log(`ffmpeg: ${c.toString("utf8").trim().slice(0, 300)}`));
@@ -101,7 +129,10 @@ export function createFrameHub(o: FrameHubOptions): FrameHub {
   return {
     watch(onFrame) {
       watchers.add(onFrame);
-      if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+      if (stopTimer) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
       start();
       if (last) onFrame(last);
       return () => {

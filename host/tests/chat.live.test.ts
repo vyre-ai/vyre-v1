@@ -17,7 +17,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 function seededDir(): string {
@@ -39,7 +45,9 @@ async function boot(dir: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
-      os: "linux", hostname: "chat-live", free: 80e9,
+      os: "linux",
+      hostname: "chat-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -55,8 +63,13 @@ async function boot(dir: string): Promise<Daemon> {
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
@@ -64,8 +77,14 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
 /** What the host logged at warn level or about the engine, so a reply that never comes says why. */
 function hostLog(d: Daemon): string {
   d.sink.flush();
-  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
-  return JSON.stringify(rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare(
+      "SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30",
+    )
+    .all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  return JSON.stringify(
+    rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`),
+  );
 }
 
 async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: () => string): Promise<T> {
@@ -78,61 +97,148 @@ async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: () => s
   }
 }
 
-test("chat live: a person's message to an agent on a booted daemon gets a streamed reply in the same thread, from a CLI running in the sandbox", { skip }, async () => {
-  const dir = seededDir();
-  const d = await boot(dir);
-  try {
-    assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
-    // her Claude account, the way a person connects it (spec 6.4): her client unlocks her person key on this node, the sign-in starts, her client saves the token as a Mine item, Done links it as her provider, and
-    // she lets the Space use it (a private chat with no desktop device online runs on the Space, spec 6.3)
-    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
-    assert.equal(unlock.status, 204, `unlock: ${unlock.status}`);
-    const folder = await call(d, "vault.folders.create", { idempotencyKey: "chat-live-folder", name: "Accounts", scope: "mine" });
-    assert.equal(folder.status, 200, JSON.stringify(folder.data));
-    const flow = await call(d, "providers.subscription_start", { idempotencyKey: "chat-live-flow", providerKey: "claude-code" });
-    assert.equal(flow.status, 200, JSON.stringify(flow.data));
-    const item = await call(d, "vault.item.put", { idempotencyKey: "chat-live-item", folderId: folder.data.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
-    assert.equal(item.status, 200, JSON.stringify(item.data));
-    const provider = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
-    assert.equal(provider.status, 200, JSON.stringify(provider.data));
-    const allowed = await call(d, "providers.set_space_use", { idempotencyKey: "chat-live-spaceuse", providerId: provider.data.provider.id, allow: true });
-    assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
-    const made = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions.", idempotencyKey: "chat-live-agent" });
-    assert.equal(made.status, 200, JSON.stringify(made.data));
-    const agentId = made.data.agent.agentId as string;
-    const started = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "chat-live-start" });
-    assert.equal(started.status, 200, JSON.stringify(started.data));
-    const threadId = started.data.thread.threadId as string;
-    // a harmless engine call (the bridge consumer builds the runtime itself when the first message arrives, as bridge.boot.test.ts proves)
-    const pool = await call(d, "engine.pool.status", {});
-    assert.equal(pool.status, 200, JSON.stringify(pool.data));
-    // the person's own live socket, open before the message: the words of the reply must arrive on it as they are written
-    const frames: Array<Record<string, any>> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const ws = new WebSocket(`${d.url.replace(/^http/, "ws")}/sync/v1/ws`, { headers: { authorization: `Bearer ${d.token}` } } as never);
-    ws.addEventListener("message", (m) => { try { frames.push(JSON.parse(String(m.data)) as Record<string, any>); } catch { /* not json */ } });   // eslint-disable-line @typescript-eslint/no-explicit-any
-    await new Promise<void>((resolve, reject) => { ws.addEventListener("open", () => resolve()); ws.addEventListener("error", () => reject(new Error("the live socket did not open"))); });
-    ws.send(JSON.stringify({ t: "hello", hello: { deviceId: "dev_stream", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "unknown", cursor: 0, epoch: 0, replica: { entities: {} } } }));
-    const posted = await call(d, "chat.post", { threadId, body: "hello", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "chat-live-post" });
-    assert.equal(posted.status, 200, JSON.stringify(posted.data));
-    // the consumer runs on the hook interval; force a pass the way the daemon's own timer does
-    await d.hooks?.pump?.();
-    const reply = await waitFor(async () => {
+test(
+  "chat live: a person's message to an agent on a booted daemon gets a streamed reply in the same thread, from a CLI running in the sandbox",
+  { skip },
+  async () => {
+    const dir = seededDir();
+    const d = await boot(dir);
+    try {
+      assert.deepEqual(d.seams?.missing, [], "no live module is left without its driver");
+      // her Claude account, the way a person connects it (spec 6.4): her client unlocks her person key on this node, the sign-in starts, her client saves the token as a Mine item, Done links it as her provider, and
+      // she lets the Space use it (a private chat with no desktop device online runs on the Space, spec 6.3)
+      const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+        body: JSON.stringify({
+          key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
+        }),
+      });
+      assert.equal(unlock.status, 204, `unlock: ${unlock.status}`);
+      const folder = await call(d, "vault.folders.create", {
+        idempotencyKey: "chat-live-folder",
+        name: "Accounts",
+        scope: "mine",
+      });
+      assert.equal(folder.status, 200, JSON.stringify(folder.data));
+      const flow = await call(d, "providers.subscription_start", {
+        idempotencyKey: "chat-live-flow",
+        providerKey: "claude-code",
+      });
+      assert.equal(flow.status, 200, JSON.stringify(flow.data));
+      const item = await call(d, "vault.item.put", {
+        idempotencyKey: "chat-live-item",
+        folderId: folder.data.folder.id,
+        name: "Olivia_Claude",
+        kind: "ai_subscription",
+        fields: [{ key: "setup_token", value: KEY, secret: true }],
+      });
+      assert.equal(item.status, 200, JSON.stringify(item.data));
+      const provider = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+      assert.equal(provider.status, 200, JSON.stringify(provider.data));
+      const allowed = await call(d, "providers.set_space_use", {
+        idempotencyKey: "chat-live-spaceuse",
+        providerId: provider.data.provider.id,
+        allow: true,
+      });
+      assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
+      const made = await call(d, "agents.create", {
+        name: "Intake",
+        role: "You answer intake questions.",
+        idempotencyKey: "chat-live-agent",
+      });
+      assert.equal(made.status, 200, JSON.stringify(made.data));
+      const agentId = made.data.agent.agentId as string;
+      const started = await call(d, "chat.start", {
+        kind: "chat",
+        agentIds: [agentId],
+        idempotencyKey: "chat-live-start",
+      });
+      assert.equal(started.status, 200, JSON.stringify(started.data));
+      const threadId = started.data.thread.threadId as string;
+      // a harmless engine call (the bridge consumer builds the runtime itself when the first message arrives, as bridge.boot.test.ts proves)
+      const pool = await call(d, "engine.pool.status", {});
+      assert.equal(pool.status, 200, JSON.stringify(pool.data));
+      // the person's own live socket, open before the message: the words of the reply must arrive on it as they are written
+      const frames: Array<Record<string, any>> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const ws = new WebSocket(`${d.url.replace(/^http/, "ws")}/sync/v1/ws`, {
+        headers: { authorization: `Bearer ${d.token}` },
+      } as never);
+      ws.addEventListener("message", (m) => {
+        try {
+          frames.push(JSON.parse(String(m.data)) as Record<string, any>);
+        } catch {
+          /* not json */
+        }
+      }); // eslint-disable-line @typescript-eslint/no-explicit-any
+      await new Promise<void>((resolve, reject) => {
+        ws.addEventListener("open", () => resolve());
+        ws.addEventListener("error", () => reject(new Error("the live socket did not open")));
+      });
+      ws.send(
+        JSON.stringify({
+          t: "hello",
+          hello: {
+            deviceId: "dev_stream",
+            deviceClass: "desktop",
+            appVersion: "1.2.3",
+            registryHash: "unknown",
+            cursor: 0,
+            epoch: 0,
+            replica: { entities: {} },
+          },
+        }),
+      );
+      const posted = await call(d, "chat.post", {
+        threadId,
+        body: "hello",
+        mentions: [{ kind: "agent", id: agentId }],
+        idempotencyKey: "chat-live-post",
+      });
+      assert.equal(posted.status, 200, JSON.stringify(posted.data));
+      // the consumer runs on the hook interval; force a pass the way the daemon's own timer does
       await d.hooks?.pump?.();
-      const r = await call(d, "chat.messages.list", { threadId });
-      const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "").includes("Hello from the fake engine."));
-      return m ?? null;
-    }, 40_000, () => hostLog(d));
-    assert.ok(reply, "the agent's reply is in the thread the person wrote in");
-    // the reply streamed: start, the words in pieces, end, then which message it became
-    const final = await waitFor(async () => frames.find((f) => f["t"] === "turn" && f["delta"]?.kind === "final") ?? null, 10_000, () => JSON.stringify(frames.slice(-8)));
-    const turn = frames.filter((f) => f["t"] === "turn" && f["turn"] === final["turn"]);
-    const kinds = turn.map((f) => String(f["delta"].kind));
-    assert.equal(kinds[0], "start");
-    assert.equal(kinds.at(-1), "final");
-    assert.ok(kinds.includes("delta") && kinds.includes("end"), kinds.join(","));
-    assert.ok(turn.filter((f) => f["delta"].kind === "delta").map((f) => String(f["delta"].text)).join("").includes("Hello from the fake engine."), "the words came in the deltas");
-    assert.equal(final["delta"].threadId, threadId);
-    assert.equal(final["delta"].messageId, (reply as { messageId?: string }).messageId, "the final frame names the message the thread now holds");
-    ws.close();
-  } finally { await d.stop(); }
-});
+      const reply = await waitFor(
+        async () => {
+          await d.hooks?.pump?.();
+          const r = await call(d, "chat.messages.list", { threadId });
+          const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find(
+            (x) => x.author?.kind === "agent" && (x.body ?? "").includes("Hello from the fake engine."),
+          );
+          return m ?? null;
+        },
+        40_000,
+        () => hostLog(d),
+      );
+      assert.ok(reply, "the agent's reply is in the thread the person wrote in");
+      // the reply streamed: start, the words in pieces, end, then which message it became
+      const final = await waitFor(
+        async () => frames.find((f) => f["t"] === "turn" && f["delta"]?.kind === "final") ?? null,
+        10_000,
+        () => JSON.stringify(frames.slice(-8)),
+      );
+      const turn = frames.filter((f) => f["t"] === "turn" && f["turn"] === final["turn"]);
+      const kinds = turn.map((f) => String(f["delta"].kind));
+      assert.equal(kinds[0], "start");
+      assert.equal(kinds.at(-1), "final");
+      assert.ok(kinds.includes("delta") && kinds.includes("end"), kinds.join(","));
+      assert.ok(
+        turn
+          .filter((f) => f["delta"].kind === "delta")
+          .map((f) => String(f["delta"].text))
+          .join("")
+          .includes("Hello from the fake engine."),
+        "the words came in the deltas",
+      );
+      assert.equal(final["delta"].threadId, threadId);
+      assert.equal(
+        final["delta"].messageId,
+        (reply as { messageId?: string }).messageId,
+        "the final frame names the message the thread now holds",
+      );
+      ws.close();
+    } finally {
+      await d.stop();
+    }
+  },
+);

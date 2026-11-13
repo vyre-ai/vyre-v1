@@ -8,7 +8,20 @@
 import { mustUse } from "../../../lib/vault-check.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  bad, ensure, EMAIL, first, isId, logRead, missing, newId, normalizeEmail, num, partyJson, snippetOf, str, strOrNull,
+  bad,
+  ensure,
+  EMAIL,
+  first,
+  isId,
+  logRead,
+  missing,
+  newId,
+  normalizeEmail,
+  num,
+  partyJson,
+  snippetOf,
+  str,
+  strOrNull,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { htmlToText } from "../../../lib/mail-parse.ts";
@@ -135,7 +148,8 @@ export function setDefaultImapSession(factory: ImapSessionFactory | null): void 
 
 function openImapSession(ctx: MailCtx, cfg: ImapConfig): ImapSession {
   const factory = bound.get(ctx) ?? defaultFactory;
-  if (!factory) throw fail("internal.unavailable", ctx.trace.traceId, { message: "IMAP is not set up on this server." });
+  if (!factory)
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: "IMAP is not set up on this server." });
   return factory(cfg, ctx);
 }
 
@@ -171,7 +185,9 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
     // A copy in another inbox: one record, one more inbox. A copy from a mailbox that may file can still settle the link.
     ctx.db.run(
       `INSERT OR IGNORE INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`,
-      parsed.source, parsed.providerId, known,
+      parsed.source,
+      parsed.providerId,
+      known,
     );
     addInbox(ctx, known, mailboxId);
     noteCopy(ctx, known, mailboxId, parsed);
@@ -184,17 +200,26 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
   const reply = replyContext(ctx, parsed, mailboxId);
   insertMessage(ctx, messageId, parsed, box, reply);
   noteCopy(ctx, messageId, mailboxId, parsed);
-  ctx.db.run(`INSERT INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, parsed.source, parsed.providerId, messageId);
+  ctx.db.run(
+    `INSERT INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`,
+    parsed.source,
+    parsed.providerId,
+    messageId,
+  );
   ctx.db.run(`INSERT INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, parsed.rfc, messageId);
   notePull(ctx, box, parsed);
   const link = await settleLink(ctx, messageId, parsed, box);
   if (parsed.direction === "in") {
     const payload: { messageId: string; mailboxId: string; from: string; subject: string; contactId?: string } = {
-      messageId, mailboxId, from: parsed.from.address, subject: parsed.subject,
+      messageId,
+      mailboxId,
+      from: parsed.from.address,
+      subject: parsed.subject,
     };
     if (link?.contactId) payload.contactId = link.contactId;
     // Mail kept in the mailbox view is announced to the mailbox owner only.
-    if (filingBlocked(box) || str(box, "privacy") === "private") ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });
+    if (filingBlocked(box) || str(box, "privacy") === "private")
+      ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });
     else ctx.emit("mail.received", `mailbox/${mailboxId}`, payload);
   }
   return result(messageId, false, link);
@@ -202,15 +227,18 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
 
 function parseIngest(ctx: MailCtx, input: IngestIn): Parsed {
   if (!SOURCES.has(input.source)) bad(ctx, "Source is not supported.");
-  if (typeof input.providerId !== "string" || input.providerId.trim().length === 0) bad(ctx, "Provider id is required.");
-  if (typeof input.rfcMessageId !== "string" || input.rfcMessageId.trim().length === 0) bad(ctx, "Message id is required.");
+  if (typeof input.providerId !== "string" || input.providerId.trim().length === 0)
+    bad(ctx, "Provider id is required.");
+  if (typeof input.rfcMessageId !== "string" || input.rfcMessageId.trim().length === 0)
+    bad(ctx, "Message id is required.");
   if (typeof input.subject !== "string") bad(ctx, "Subject is required.");
   if (!Number.isSafeInteger(input.receivedAt) || input.receivedAt < 0) bad(ctx, "Received time is not valid.");
   if (!input.from || !EMAIL.test(normalizeEmail(input.from.address ?? ""))) bad(ctx, "From address is not an email.");
   if (!Array.isArray(input.to)) bad(ctx, "To is required.");
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (input.mailboxId === undefined && !input.envelopeTo) bad(ctx, "A mailbox id or an envelope address is required.");
-  if (input.envelopeTo !== undefined && !EMAIL.test(normalizeEmail(input.envelopeTo))) bad(ctx, "Envelope address is not an email.");
+  if (input.envelopeTo !== undefined && !EMAIL.test(normalizeEmail(input.envelopeTo)))
+    bad(ctx, "Envelope address is not an email.");
   const direction = input.direction ?? "in";
   if (direction !== "in" && direction !== "out") bad(ctx, "Direction is not valid.");
   const parsed: Parsed = {
@@ -263,9 +291,17 @@ function resolveMailbox(ctx: MailCtx, p: Parsed): Row {
   const byAddress = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE address = ? AND deleted_at IS NULL`, to));
   if (byAddress) return byAddress;
   const at = to.lastIndexOf("@");
-  const domain = first(ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, to.slice(at + 1)));
+  const domain = first(
+    ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, to.slice(at + 1)),
+  );
   const route = domain
-    ? first(ctx.db.all(`SELECT "mailboxId" FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`, str(domain, "id"), to.slice(0, at)))
+    ? first(
+        ctx.db.all(
+          `SELECT "mailboxId" FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+          str(domain, "id"),
+          to.slice(0, at),
+        ),
+      )
     : null;
   const routed = route ? loadMailbox(ctx, str(route, "mailboxId")) : null;
   if (!routed) missing(ctx, "No mailbox takes that address.");
@@ -273,7 +309,9 @@ function resolveMailbox(ctx: MailCtx, p: Parsed): Row {
 }
 
 function knownMessage(ctx: MailCtx, p: Parsed): string | null {
-  const seen = first(ctx.db.all(`SELECT "messageId" FROM mail_seen WHERE source = ? AND "providerId" = ?`, p.source, p.providerId));
+  const seen = first(
+    ctx.db.all(`SELECT "messageId" FROM mail_seen WHERE source = ? AND "providerId" = ?`, p.source, p.providerId),
+  );
   if (seen) return str(seen, "messageId");
   const byRfc = first(ctx.db.all(`SELECT "messageId" FROM mail_rfc WHERE "rfcMessageId" = ?`, p.rfc));
   return byRfc ? str(byRfc, "messageId") : null;
@@ -290,16 +328,30 @@ interface ReplyContext {
  */
 function replyContext(ctx: MailCtx, p: Parsed, mailboxId: string): ReplyContext {
   if (p.threadKey) {
-    for (const copy of ctx.db.all(`SELECT "messageId" FROM mail_copy WHERE "mailboxId" = ? AND source = ? AND "threadKey" = ?`, mailboxId, p.source, p.threadKey)) {
-      const known = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ? AND deleted_at IS NULL`, str(copy as Row, "messageId")));
+    for (const copy of ctx.db.all(
+      `SELECT "messageId" FROM mail_copy WHERE "mailboxId" = ? AND source = ? AND "threadKey" = ?`,
+      mailboxId,
+      p.source,
+      p.threadKey,
+    )) {
+      const known = first(
+        ctx.db.all(
+          `SELECT "threadId" FROM mail_message WHERE id = ? AND deleted_at IS NULL`,
+          str(copy as Row, "messageId"),
+        ),
+      );
       const thread = strOrNull(known, "threadId");
       if (thread) return { threadId: thread };
     }
   }
   const refs = (p.headers?.references ?? "").split(/\s+/).filter(Boolean).reverse();
-  const candidates = [p.headers?.["in-reply-to"], ...refs].filter((v): v is string => !!v).map((v) => normalizeRfc(v.trim()));
+  const candidates = [p.headers?.["in-reply-to"], ...refs]
+    .filter((v): v is string => !!v)
+    .map((v) => normalizeRfc(v.trim()));
   for (const rfc of [...new Set(candidates)]) {
-    const parent = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc));
+    const parent = first(
+      ctx.db.all(`SELECT "threadId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc),
+    );
     const thread = strOrNull(parent, "threadId");
     if (thread) return { threadId: thread };
   }
@@ -310,7 +362,11 @@ function replyContext(ctx: MailCtx, p: Parsed, mailboxId: string): ReplyContext 
 function noteCopy(ctx: MailCtx, messageId: string, mailboxId: string, p: Parsed): void {
   ctx.db.run(
     `INSERT OR IGNORE INTO mail_copy ("messageId", "mailboxId", source, "providerId", "threadKey") VALUES (?, ?, ?, ?, ?)`,
-    messageId, mailboxId, p.source, p.providerId, p.threadKey ?? null,
+    messageId,
+    mailboxId,
+    p.source,
+    p.providerId,
+    p.threadKey ?? null,
   );
 }
 
@@ -322,17 +378,38 @@ function insertMessage(ctx: MailCtx, messageId: string, p: Parsed, box: Row, rep
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    messageId, mailboxId, JSON.stringify([mailboxId]), p.providerId, p.rfc,
+    messageId,
+    mailboxId,
+    JSON.stringify([mailboxId]),
+    p.providerId,
+    p.rfc,
     reply.threadId ?? p.threadKey ?? p.rfc,
-    p.direction, p.direction === "out" ? "sent" : "received",
-    p.from.address, partyJson(p.to), partyJson(p.cc), p.subject, snippetOf(p.text, p.subject, p.html, p.from.name ?? p.from.address), p.text ?? (p.html ? htmlToText(p.html) : ""), p.receivedAt,
+    p.direction,
+    p.direction === "out" ? "sent" : "received",
+    p.from.address,
+    partyJson(p.to),
+    partyJson(p.cc),
+    p.subject,
+    snippetOf(p.text, p.subject, p.html, p.from.name ?? p.from.address),
+    p.text ?? (p.html ? htmlToText(p.html) : ""),
+    p.receivedAt,
     null,
-    str(box, "privacy") === "private" ? 1 : 0,   // mail in a private mailbox is private-marked: it never leaves the mailbox view
-    JSON.stringify(p.attachments), null, ctx.trace.traceId, 1, ctx.now(), null,
+    str(box, "privacy") === "private" ? 1 : 0, // mail in a private mailbox is private-marked: it never leaves the mailbox view
+    JSON.stringify(p.attachments),
+    null,
+    ctx.trace.traceId,
+    1,
+    ctx.now(),
+    null,
   );
   ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
-    messageId, p.text ?? null, p.html ?? null, p.from.name ?? null, null, p.headers ? JSON.stringify(p.headers) : null,
+    messageId,
+    p.text ?? null,
+    p.html ?? null,
+    p.from.name ?? null,
+    null,
+    p.headers ? JSON.stringify(p.headers) : null,
   );
 }
 
@@ -342,7 +419,12 @@ function addInbox(ctx: MailCtx, messageId: string, mailboxId: string): void {
   const ids = jsonStrings(str(row, "inboxIds"));
   if (ids.includes(mailboxId)) return;
   ids.push(mailboxId);
-  ctx.db.run(`UPDATE mail_message SET "inboxIds" = ?, updated_at = ? WHERE id = ?`, JSON.stringify(ids), ctx.now(), messageId);
+  ctx.db.run(
+    `UPDATE mail_message SET "inboxIds" = ?, updated_at = ? WHERE id = ?`,
+    JSON.stringify(ids),
+    ctx.now(),
+    messageId,
+  );
 }
 
 /**
@@ -355,7 +437,13 @@ function notePull(ctx: MailCtx, box: Row, p: Parsed): void {
   if (owner) logRead(ctx, str(box, "id"), owner, "ingest");
   const state = str(box, "state");
   if (num(box, "paused") === 1 || (state !== "pending" && state !== "error" && state !== "syncing")) return;
-  ctx.db.run(`UPDATE mail_mailbox SET state = ?, "lastSyncAt" = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), ctx.now(), str(box, "id"));
+  ctx.db.run(
+    `UPDATE mail_mailbox SET state = ?, "lastSyncAt" = ?, updated_at = ? WHERE id = ?`,
+    "syncing",
+    ctx.now(),
+    ctx.now(),
+    str(box, "id"),
+  );
 }
 
 interface Link {
@@ -369,7 +457,7 @@ interface Link {
 async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row): Promise<Link | null> {
   const stored = readLink(ctx, messageId);
   if (stored) return stored;
-  if (filingBlocked(box)) return null;   // paused or disconnected: stored, not linked
+  if (filingBlocked(box)) return null; // paused or disconnected: stored, not linked
   const own = str(box, "privacy") === "private" ? strOrNull(box, "ownerId") : null;
   if (str(box, "privacy") === "private" && !own) return null;
   let answer: Link;
@@ -386,9 +474,15 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row):
       subject: p.subject,
       participants: [p.from.address, ...p.to.map((x) => x.address), ...p.cc.map((x) => x.address)],
     };
-    const threadId = strOrNull(first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)), "threadId");
+    const threadId = strOrNull(
+      first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)),
+      "threadId",
+    );
     if (threadId) input.threadId = threadId;
-    if (own) { input.private = true; input.ownerId = own; }   // a private mailbox's mail is linked into a conversation of its owner's own, never to a record
+    if (own) {
+      input.private = true;
+      input.ownerId = own;
+    } // a private mailbox's mail is linked into a conversation of its owner's own, never to a record
     answer = parseLink(await ctx.call("inbox.link_message", input));
   } catch (e) {
     // The message is stored either way. With no link row the next copy (or a re-sync) tries again.
@@ -397,10 +491,19 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row):
   }
   ctx.db.run(
     `INSERT INTO mail_link ("messageId", linked, "contactId", "conversationId", "taskId") VALUES (?, ?, ?, ?, ?)`,
-    messageId, answer.linked, answer.contactId ?? null, answer.conversationId ?? null, answer.taskId ?? null,
+    messageId,
+    answer.linked,
+    answer.contactId ?? null,
+    answer.conversationId ?? null,
+    answer.taskId ?? null,
   );
   if (answer.contactId) {
-    ctx.db.run(`UPDATE mail_message SET "contactId" = ?, updated_at = ? WHERE id = ?`, answer.contactId, ctx.now(), messageId);
+    ctx.db.run(
+      `UPDATE mail_message SET "contactId" = ?, updated_at = ? WHERE id = ?`,
+      answer.contactId,
+      ctx.now(),
+      messageId,
+    );
   }
   return answer;
 }
@@ -409,7 +512,8 @@ function parseLink(v: unknown): Link {
   if (!v || typeof v !== "object") throw new Error("inbox.link_message answered nothing");
   const o = v as Record<string, unknown>;
   const linked = o.linked;
-  if (linked !== "sure" && linked !== "unsure" && linked !== "none") throw new Error("inbox.link_message answered an unknown link state");
+  if (linked !== "sure" && linked !== "unsure" && linked !== "none")
+    throw new Error("inbox.link_message answered an unknown link state");
   const out: Link = { linked };
   if (typeof o.contactId === "string") out.contactId = o.contactId;
   if (typeof o.conversationId === "string") out.conversationId = o.conversationId;
@@ -418,7 +522,12 @@ function parseLink(v: unknown): Link {
 }
 
 function readLink(ctx: MailCtx, messageId: string): Link | null {
-  const row = first(ctx.db.all(`SELECT linked, "contactId", "conversationId", "taskId" FROM mail_link WHERE "messageId" = ?`, messageId));
+  const row = first(
+    ctx.db.all(
+      `SELECT linked, "contactId", "conversationId", "taskId" FROM mail_link WHERE "messageId" = ?`,
+      messageId,
+    ),
+  );
   if (!row) return null;
   const raw = str(row, "linked");
   const out: Link = { linked: raw === "sure" || raw === "unsure" ? raw : "none" };
@@ -471,7 +580,8 @@ function syncBlocked(box: Row): boolean {
 export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox: MailboxOut }> {
   ensure(ctx);
   if (!PROVIDERS.has(input.provider)) bad(ctx, "Provider is not supported.");
-  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0) bad(ctx, "Idempotency key is required.");
+  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0)
+    bad(ctx, "Idempotency key is required.");
   const address = normalizeEmail(input.address ?? "");
   if (!EMAIL.test(address)) bad(ctx, "Address is not an email.");
   const privacy = input.privacy ?? "space";
@@ -488,11 +598,22 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
   }
   const imap = input.provider === "imap" ? requireImap(ctx, input.imap) : null;
   // the poll logs in later as the server: the person connecting must have Use on the password now (lib/vault-check.ts)
-  if (imap) await mustUse((cap, i) => ctx.call(cap, i), imap.passwordHandle, (m) => { throw fail("permission.no_grant", ctx.trace.traceId, { message: m }); });
+  if (imap)
+    await mustUse(
+      (cap, i) => ctx.call(cap, i),
+      imap.passwordHandle,
+      (m) => {
+        throw fail("permission.no_grant", ctx.trace.traceId, { message: m });
+      },
+    );
   if (imap) await probeImap(ctx, imap);
   const own = input.connectionId;
   if (!imap && own === undefined) await mustBeOwnAddress(ctx, input.provider as "google" | "microsoft", address);
-  if (own !== undefined && !(USER_CONNECTION.test(own) && own.startsWith(input.provider === "google" ? "gua_" : "mua_"))) bad(ctx, "That is not a sign-in for this provider.");
+  if (
+    own !== undefined &&
+    !(USER_CONNECTION.test(own) && own.startsWith(input.provider === "google" ? "gua_" : "mua_"))
+  )
+    bad(ctx, "That is not a sign-in for this provider.");
 
   const id = newId("mbx", ctx.now());
   const now = ctx.now();
@@ -500,20 +621,44 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
     `INSERT INTO mail_mailbox (
       id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, agentId ? "agent" : "personal", address, address.split("@")[0] || address, ownerId, agentId, input.provider, privacy,
-    "pending", own ?? null, null, 0, 1, now, null,
+    id,
+    agentId ? "agent" : "personal",
+    address,
+    address.split("@")[0] || address,
+    ownerId,
+    agentId,
+    input.provider,
+    privacy,
+    "pending",
+    own ?? null,
+    null,
+    0,
+    1,
+    now,
+    null,
   );
   if (imap) {
     ctx.db.run(
       `INSERT INTO mail_imap ("mailboxId", host, port, secure, username, "passwordHandle", "uidValidity", cursor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, imap.host, imap.port, imap.secure ? 1 : 0, imap.username, imap.passwordHandle, null, null,
+      id,
+      imap.host,
+      imap.port,
+      imap.secure ? 1 : 0,
+      imap.username,
+      imap.passwordHandle,
+      null,
+      null,
     );
     if (ownerId) logRead(ctx, id, ownerId, "login");
   }
   ctx.db.run(`INSERT INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "connect", id);
-  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string; private?: boolean } = { mailboxId: id, provider: input.provider, auto: false };
+  const payload: { mailboxId: string; provider: string; auto: boolean; memberId?: string; private?: boolean } = {
+    mailboxId: id,
+    provider: input.provider,
+    auto: false,
+  };
   if (ownerId && isId("usr", ownerId)) payload.memberId = ownerId;
-  if (privacy === "private") payload.private = true;   // a private mailbox does not inherit the Space's access
+  if (privacy === "private") payload.private = true; // a private mailbox does not inherit the Space's access
   ctx.emit("mailbox.connected", `mailbox/${id}`, payload, { vis: "participants" });
   const row = loadMailbox(ctx, id);
   if (!row) bad(ctx, "Mailbox does not exist.");
@@ -526,13 +671,27 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
  */
 async function mustBeOwnAddress(ctx: MailCtx, provider: "google" | "microsoft", address: string): Promise<void> {
   if (ctx.principal.kind !== "person" && ctx.actingFor === undefined) return;
-  const mine = await ctx.call(provider === "google" ? "google.dwd.my_account" : "ms.consent.my_account", {}).catch(() => null) as { email?: string } | null;
+  const mine = (await ctx
+    .call(provider === "google" ? "google.dwd.my_account" : "ms.consent.my_account", {})
+    .catch(() => null)) as { email?: string } | null;
   if (typeof mine?.email === "string" && normalizeEmail(mine.email) === address) return;
-  throw fail("permission.no_grant", ctx.trace.traceId, { message: "You can connect only the Workspace address matched to you. Sign in to connect another mailbox." });
+  throw fail("permission.no_grant", ctx.trace.traceId, {
+    message: "You can connect only the Workspace address matched to you. Sign in to connect another mailbox.",
+  });
 }
 
-function duplicateMailbox(ctx: MailCtx, address: string, provider: string, ownerId: string | null, agentId: string | null): boolean {
-  const rows = ctx.db.all(`SELECT "ownerId", "agentId" FROM mail_mailbox WHERE address = ? AND provider = ? AND deleted_at IS NULL`, address, provider);
+function duplicateMailbox(
+  ctx: MailCtx,
+  address: string,
+  provider: string,
+  ownerId: string | null,
+  agentId: string | null,
+): boolean {
+  const rows = ctx.db.all(
+    `SELECT "ownerId", "agentId" FROM mail_mailbox WHERE address = ? AND provider = ? AND deleted_at IS NULL`,
+    address,
+    provider,
+  );
   return rows.some((item) => {
     const row = item as Row;
     return strOrNull(row, "ownerId") === ownerId && strOrNull(row, "agentId") === agentId;
@@ -540,17 +699,27 @@ function duplicateMailbox(ctx: MailCtx, address: string, provider: string, owner
 }
 
 function idemRef(ctx: MailCtx, key: string, kind: string): string | null {
-  return strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, key, kind)), "refId");
+  return strOrNull(
+    first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, key, kind)),
+    "refId",
+  );
 }
 
 function requireImap(ctx: MailCtx, imap: ImapConfig | undefined): ImapConfig {
   if (!imap) bad(ctx, "IMAP needs a host, port, username and password handle.");
-  if (typeof imap.host !== "string" || imap.host.trim().length === 0 || /\s/.test(imap.host)) bad(ctx, "IMAP host is not valid.");
+  if (typeof imap.host !== "string" || imap.host.trim().length === 0 || /\s/.test(imap.host))
+    bad(ctx, "IMAP host is not valid.");
   if (!Number.isSafeInteger(imap.port) || imap.port < 1 || imap.port > 65535) bad(ctx, "IMAP port is not valid.");
   if (typeof imap.secure !== "boolean") bad(ctx, "IMAP secure flag is not valid.");
   if (typeof imap.username !== "string" || imap.username.length === 0) bad(ctx, "IMAP username is required.");
   if (!HANDLE.test(imap.passwordHandle ?? "")) bad(ctx, "Password handle is not valid.");
-  return { host: imap.host.trim().toLowerCase(), port: imap.port, secure: imap.secure, username: imap.username, passwordHandle: imap.passwordHandle };
+  return {
+    host: imap.host.trim().toLowerCase(),
+    port: imap.port,
+    secure: imap.secure,
+    username: imap.username,
+    passwordHandle: imap.passwordHandle,
+  };
 }
 
 /** The ids of a person's own Google (gua_) and Microsoft (mua_) sign-ins. */
@@ -559,7 +728,9 @@ const SIGN_IN_FAILED = "The mailbox did not accept the sign-in.";
 
 /** LOGIN and NOOP only: a probe never fetches, sends or changes anything. */
 async function probeImap(ctx: MailCtx, imap: ImapConfig): Promise<void> {
-  const refuse = (): never => { throw fail("provider.auth_failed", ctx.trace.traceId, { message: SIGN_IN_FAILED }); };
+  const refuse = (): never => {
+    throw fail("provider.auth_failed", ctx.trace.traceId, { message: SIGN_IN_FAILED });
+  };
   try {
     ctx.vault.use(imap.passwordHandle);
   } catch {
@@ -612,15 +783,31 @@ export async function syncNow(ctx: MailCtx, input: { mailboxId: string }): Promi
   const runId = ctx.run && isId("run", ctx.run) ? ctx.run : newId("run", ctx.now());
   const subject = `mailbox/${input.mailboxId}`;
   if (syncBlocked(box)) {
-    ctx.emit("mailbox.sync_failed", subject, { mailboxId: input.mailboxId, reason: "The mailbox is paused. Resume it to sync." }, { vis: "participants" });
+    ctx.emit(
+      "mailbox.sync_failed",
+      subject,
+      { mailboxId: input.mailboxId, reason: "The mailbox is paused. Resume it to sync." },
+      { vis: "participants" },
+    );
     return { runId };
   }
   const provider = str(box, "provider");
   try {
     if (provider === "imap") {
       const pulled = await pullImap(ctx, input.mailboxId);
-      ctx.db.run(`UPDATE mail_mailbox SET state = ?, "lastSyncAt" = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), ctx.now(), input.mailboxId);
-      ctx.emit("mailbox.sync_completed", subject, { mailboxId: input.mailboxId, received: pulled.received, sent: pulled.sent }, { vis: "participants" });
+      ctx.db.run(
+        `UPDATE mail_mailbox SET state = ?, "lastSyncAt" = ?, updated_at = ? WHERE id = ?`,
+        "syncing",
+        ctx.now(),
+        ctx.now(),
+        input.mailboxId,
+      );
+      ctx.emit(
+        "mailbox.sync_completed",
+        subject,
+        { mailboxId: input.mailboxId, received: pulled.received, sent: pulled.sent },
+        { vis: "participants" },
+      );
     } else if (provider === "google" || provider === "microsoft") {
       await askConnector(ctx, provider, str(box, "address"), runId);
     }
@@ -628,19 +815,33 @@ export async function syncNow(ctx: MailCtx, input: { mailboxId: string }): Promi
   } catch (e) {
     ctx.db.run(`UPDATE mail_mailbox SET state = ?, updated_at = ? WHERE id = ?`, "error", ctx.now(), input.mailboxId);
     ctx.log.warn("mail.sync failed", { mailboxId: input.mailboxId, error: e instanceof Error ? e.name : "unknown" });
-    ctx.emit("mailbox.sync_failed", subject, { mailboxId: input.mailboxId, reason: failureReason(e) }, { vis: "participants" });
+    ctx.emit(
+      "mailbox.sync_failed",
+      subject,
+      { mailboxId: input.mailboxId, reason: failureReason(e) },
+      { vis: "participants" },
+    );
   }
   return { runId };
 }
 
 /** The connectors own the pull for Google and Microsoft; a manual sync is a synthetic change notice they dedupe by run id. */
-async function askConnector(ctx: MailCtx, provider: "google" | "microsoft", address: string, runId: string): Promise<void> {
+async function askConnector(
+  ctx: MailCtx,
+  provider: "google" | "microsoft",
+  address: string,
+  runId: string,
+): Promise<void> {
   if (provider === "google") {
     await ctx.call("google.receive_push", { kind: "gmail", messageId: `sync_${runId}`, mailbox: address });
     return;
   }
   await ctx.call("ms.receive_notification", {
-    notificationId: `sync_${runId}`, subscriptionId: "manual", resource: `users/${address}/messages`, changeType: "updated", clientStateOk: true,
+    notificationId: `sync_${runId}`,
+    subscriptionId: "manual",
+    resource: `users/${address}/messages`,
+    changeType: "updated",
+    clientStateOk: true,
   });
 }
 
@@ -653,15 +854,26 @@ function failureReason(e: unknown): string {
   return "The mailbox could not be reached. It will be tried again.";
 }
 
-interface Pulled { received: number; sent: number }
+interface Pulled {
+  received: number;
+  sent: number;
+}
 
 async function pullImap(ctx: MailCtx, mailboxId: string): Promise<Pulled> {
-  const row = first(ctx.db.all(
-    `SELECT host, port, secure, username, "passwordHandle", "uidValidity", cursor FROM mail_imap WHERE "mailboxId" = ?`, mailboxId,
-  ));
-  if (!row) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "This mailbox has no IMAP settings." });
+  const row = first(
+    ctx.db.all(
+      `SELECT host, port, secure, username, "passwordHandle", "uidValidity", cursor FROM mail_imap WHERE "mailboxId" = ?`,
+      mailboxId,
+    ),
+  );
+  if (!row)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "This mailbox has no IMAP settings." });
   const cfg: ImapConfig = {
-    host: str(row, "host"), port: num(row, "port"), secure: num(row, "secure") === 1, username: str(row, "username"), passwordHandle: str(row, "passwordHandle"),
+    host: str(row, "host"),
+    port: num(row, "port"),
+    secure: num(row, "secure") === 1,
+    username: str(row, "username"),
+    passwordHandle: str(row, "passwordHandle"),
   };
   const owner = strOrNull(loadMailbox(ctx, mailboxId), "ownerId");
   if (owner) logRead(ctx, mailboxId, owner, "sync");
@@ -672,16 +884,24 @@ async function pullImap(ctx: MailCtx, mailboxId: string): Promise<Pulled> {
     const { uidValidity } = await session.connect();
     await session.noop();
     let uids = readCursor(strOrNull(row, "cursor"));
-    if (row.uidValidity !== null && row.uidValidity !== undefined && num(row, "uidValidity") !== uidValidity) uids = {};   // new epoch: UIDs mean nothing; dedupe absorbs the re-read
+    if (row.uidValidity !== null && row.uidValidity !== undefined && num(row, "uidValidity") !== uidValidity) uids = {}; // new epoch: UIDs mean nothing; dedupe absorbs the re-read
     const land = async (): Promise<void> => {
       const batch = await session.fetchAfter(uids);
       for (const m of batch) {
         const out = await ctx.call("mail.ingest", toIngest(mailboxId, m));
         const fresh = !(out && typeof out === "object" && (out as { deduped?: unknown }).deduped === true);
-        if (fresh) { if (m.direction === "out") pulled.sent += 1; else pulled.received += 1; }
+        if (fresh) {
+          if (m.direction === "out") pulled.sent += 1;
+          else pulled.received += 1;
+        }
         uids = { ...uids, [m.folder]: Math.max(uids[m.folder] ?? 0, m.uid) };
       }
-      ctx.db.run(`UPDATE mail_imap SET "uidValidity" = ?, cursor = ? WHERE "mailboxId" = ?`, uidValidity, JSON.stringify(uids), mailboxId);
+      ctx.db.run(
+        `UPDATE mail_imap SET "uidValidity" = ?, cursor = ? WHERE "mailboxId" = ?`,
+        uidValidity,
+        JSON.stringify(uids),
+        mailboxId,
+      );
     };
     await land();
     await session.idle(land, IDLE_WINDOW_MS);
@@ -697,7 +917,8 @@ function readCursor(value: string | null): Record<string, number> {
     const parsed = JSON.parse(value) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(parsed)) if (typeof v === "number" && Number.isSafeInteger(v) && v >= 0) out[k] = v;
+    for (const [k, v] of Object.entries(parsed))
+      if (typeof v === "number" && Number.isSafeInteger(v) && v >= 0) out[k] = v;
     return out;
   } catch {
     return {};
@@ -706,8 +927,15 @@ function readCursor(value: string | null): Record<string, number> {
 
 function toIngest(mailboxId: string, m: ImapMessage): IngestIn {
   const input: IngestIn = {
-    source: "imap", mailboxId, providerId: m.providerId, rfcMessageId: m.rfcMessageId, direction: m.direction ?? "in",
-    from: m.from, to: m.to, subject: m.subject, receivedAt: m.receivedAt,
+    source: "imap",
+    mailboxId,
+    providerId: m.providerId,
+    rfcMessageId: m.rfcMessageId,
+    direction: m.direction ?? "in",
+    from: m.from,
+    to: m.to,
+    subject: m.subject,
+    receivedAt: m.receivedAt,
   };
   if (m.threadKey) input.threadKey = m.threadKey;
   if (m.cc) input.cc = m.cc;

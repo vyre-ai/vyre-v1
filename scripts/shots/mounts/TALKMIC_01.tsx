@@ -10,12 +10,30 @@ import type { TalkSocket } from "../../../ui/src/Composer/talk.ts";
 
 export const title = "Composer mic states";
 
-const SESSION = { provider: "deepgram", url: "wss://api.deepgram.com/v1/listen", protocols: ["bearer", "jwt"], source: "space" as const, expiresIn: 30 };
-const result = (text: string, final: boolean): string => JSON.stringify({ type: "Results", is_final: final, channel: { alternatives: [{ transcript: text }] } });
+const SESSION = {
+  provider: "deepgram",
+  url: "wss://api.deepgram.com/v1/listen",
+  protocols: ["bearer", "jwt"],
+  source: "space" as const,
+  expiresIn: 30,
+};
+const result = (text: string, final: boolean): string =>
+  JSON.stringify({ type: "Results", is_final: final, channel: { alternatives: [{ transcript: text }] } });
 
 function fakeSocket(): TalkSocket {
-  const s: TalkSocket = { readyState: 0, onopen: null, onmessage: null, onerror: null, onclose: null, send() {}, close() {} };
-  setTimeout(() => { s.readyState = 1; s.onopen?.({}); }, 60);
+  const s: TalkSocket = {
+    readyState: 0,
+    onopen: null,
+    onmessage: null,
+    onerror: null,
+    onclose: null,
+    send() {},
+    close() {},
+  };
+  setTimeout(() => {
+    s.readyState = 1;
+    s.onopen?.({});
+  }, 60);
   setTimeout(() => s.onmessage?.({ data: result("Can you send Elena the lease draft", true) }), 220);
   setTimeout(() => s.onmessage?.({ data: result("and ask her to confirm Thurs", false) }), 420);
   return s;
@@ -23,27 +41,47 @@ function fakeSocket(): TalkSocket {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   const state = q?.get("state") ?? "idle";
   const port = useMemo<TalkPort>(() => {
-    const unset = state === "unset-member" ? { admin: false, open: () => undefined } : state === "unset-admin" ? { admin: true, open: () => undefined } : undefined;
+    const unset =
+      state === "unset-member"
+        ? { admin: false, open: () => undefined }
+        : state === "unset-admin"
+          ? { admin: true, open: () => undefined }
+          : undefined;
     return {
       on: true,
-      session: async () => { if (unset) throw Object.assign(new Error("Talk needs a key."), { details: { reason: "no_key" } }); return SESSION; },
+      session: async () => {
+        if (unset) throw Object.assign(new Error("Talk needs a key."), { details: { reason: "no_key" } });
+        return SESSION;
+      },
       setup: async () => false,
       noteOff: () => undefined,
       ...(unset ? { unset } : {}),
       deps: {
-        openMic: async (on) => { const id = setInterval(() => on(new ArrayBuffer(0), 0.25 + Math.random() * 0.6), 110); return { stop: () => clearInterval(id) }; },
+        openMic: async (on) => {
+          const id = setInterval(() => on(new ArrayBuffer(0), 0.25 + Math.random() * 0.6), 110);
+          return { stop: () => clearInterval(id) };
+        },
         openSocket: () => fakeSocket(),
-        online: () => true, now: () => Date.now(), later: (fn, ms) => setTimeout(fn, ms), shell: "web",
+        online: () => true,
+        now: () => Date.now(),
+        later: (fn, ms) => setTimeout(fn, ms),
+        shell: "web",
       },
     };
   }, [state]);
   if (!q) return <View style={{ flex: 1 }} />;
   return (
-    <View style={{ flex: 1, justifyContent: "flex-end", padding: 24, maxWidth: 760, alignSelf: "center", width: "100%" }}>
-      <TalkContext.Provider value={port}><Composer whoWillAnswer="" /></TalkContext.Provider>
+    <View
+      style={{ flex: 1, justifyContent: "flex-end", padding: 24, maxWidth: 760, alignSelf: "center", width: "100%" }}
+    >
+      <TalkContext.Provider value={port}>
+        <Composer whoWillAnswer="" />
+      </TalkContext.Provider>
     </View>
   );
 }

@@ -7,9 +7,21 @@ import { createKeyWraps } from "../src/seams/key-wraps.ts";
 
 function rig(o: { on?: () => boolean; space?: string; secret?: Uint8Array } = {}) {
   const raw = new DatabaseSync(":memory:");
-  const db = { run: (sql: string, ...a: unknown[]) => raw.prepare(sql).run(...(a as never[])), all: (sql: string, ...a: unknown[]) => raw.prepare(sql).all(...(a as never[])) as unknown[] };
+  const db = {
+    run: (sql: string, ...a: unknown[]) => raw.prepare(sql).run(...(a as never[])),
+    all: (sql: string, ...a: unknown[]) => raw.prepare(sql).all(...(a as never[])) as unknown[],
+  };
   const secret = o.secret ?? new Uint8Array(32).fill(9);
-  return { raw, db, w: createKeyWraps({ db: () => db, space: () => o.space ?? "spc_a", secret: () => secret, enabled: o.on ?? (() => true) }) };
+  return {
+    raw,
+    db,
+    w: createKeyWraps({
+      db: () => db,
+      space: () => o.space ?? "spc_a",
+      secret: () => secret,
+      enabled: o.on ?? (() => true),
+    }),
+  };
 }
 const KEY = new Uint8Array(32).fill(5);
 
@@ -24,7 +36,12 @@ test("a kept key opens for its own person only, and the database holds no key an
   db.run("INSERT INTO host_person_wrap (person_id, box, made_at) VALUES ('usr_b', ?, 0)", box);
   assert.equal(w.open("usr_b"), null);
   const dump = JSON.stringify(raw.prepare("SELECT * FROM host_person_wrap").all());
-  for (const needle of [Buffer.from(KEY).toString("base64"), Buffer.from(KEY).toString("base64url"), Buffer.from(new Uint8Array(32).fill(9)).toString("hex")]) assert.ok(!dump.includes(needle));
+  for (const needle of [
+    Buffer.from(KEY).toString("base64"),
+    Buffer.from(KEY).toString("base64url"),
+    Buffer.from(new Uint8Array(32).fill(9)).toString("hex"),
+  ])
+    assert.ok(!dump.includes(needle));
 });
 
 test("another server's secret or another Space opens nothing", () => {
@@ -33,7 +50,9 @@ test("another server's secret or another Space opens nothing", () => {
   const box = (a.db.all("SELECT box FROM host_person_wrap")[0] as { box: string }).box;
   for (const o of [{ secret: new Uint8Array(32).fill(1) }, { space: "spc_b" }]) {
     const b = rig(o);
-    b.db.run("CREATE TABLE IF NOT EXISTS host_person_wrap (person_id TEXT PRIMARY KEY, box TEXT NOT NULL, made_at INTEGER NOT NULL)");
+    b.db.run(
+      "CREATE TABLE IF NOT EXISTS host_person_wrap (person_id TEXT PRIMARY KEY, box TEXT NOT NULL, made_at INTEGER NOT NULL)",
+    );
     b.db.run("INSERT INTO host_person_wrap (person_id, box, made_at) VALUES ('usr_a', ?, 0)", box);
     assert.equal(b.w.open("usr_a"), null, JSON.stringify(Object.keys(o)));
   }
@@ -42,7 +61,8 @@ test("another server's secret or another Space opens nothing", () => {
 test("drop takes one away; forget also stops new ones until remember; the policy off drops every one and keeps none", () => {
   let on = true;
   const { w } = rig({ on: () => on });
-  w.make("usr_a", KEY); w.make("usr_b", KEY);
+  w.make("usr_a", KEY);
+  w.make("usr_b", KEY);
   w.drop("usr_a");
   assert.equal(w.open("usr_a"), null);
   assert.equal(w.make("usr_a", KEY), true, "a password unlock keeps one again");

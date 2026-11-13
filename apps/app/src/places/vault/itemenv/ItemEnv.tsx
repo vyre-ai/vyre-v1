@@ -28,8 +28,17 @@ export const ITEM_SCREEN = "vault.item";
 export const LAYOUT_SCREEN = "vault.layout";
 
 const VERB: Record<Entry["action"], string> = {
-  created: "created it", used: "used", revealed: "revealed", edited: "edited", moved: "moved it", rotated: "rotated it", shared: "shared it", unshared: "stopped sharing it",
-  exported: "exported it", deleted: "moved it to Trash", restored: "brought it back",
+  created: "created it",
+  used: "used",
+  revealed: "revealed",
+  edited: "edited",
+  moved: "moved it",
+  rotated: "rotated it",
+  shared: "shared it",
+  unshared: "stopped sharing it",
+  exported: "exported it",
+  deleted: "moved it to Trash",
+  restored: "brought it back",
 };
 
 const SEP: MenuEntry = { separator: true };
@@ -56,12 +65,25 @@ export interface ItemEnvProps {
 /** One reveal store per open item; it is dropped when the item closes or changes. */
 export function useRevealStore(itemId: string): RevealStore {
   const data = useVaultData();
-  const store = useMemo(() => createRevealStore({ itemId, call: data.call, copy: (t) => copyText(data, t) }), [itemId, data]);
+  const store = useMemo(
+    () => createRevealStore({ itemId, call: data.call, copy: (t) => copyText(data, t) }),
+    [itemId, data],
+  );
   useEffect(() => () => store.dispose(), [store]);
   return store;
 }
 
-export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, askDelete, revealAll, initialMode }: ItemEnvProps): ReactElement {
+export function ItemEnv({
+  itemId,
+  onEdit,
+  onAddField,
+  onGone,
+  onNote,
+  onBack,
+  askDelete,
+  revealAll,
+  initialMode,
+}: ItemEnvProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -82,32 +104,57 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
     let live = true;
     void (async () => {
       try {
-        const out = (await data.call("access.shares_of", { resource: { type: "vault_item", id: itemId } })) as { shares: { grant: { subject: Share["subject"]; level: Share["level"] }; through: Share["through"] }[] };
+        const out = (await data.call("access.shares_of", { resource: { type: "vault_item", id: itemId } })) as {
+          shares: { grant: { subject: Share["subject"]; level: Share["level"] }; through: Share["through"] }[];
+        };
         const list: Share[] = [];
         for (const x of out.shares) list.push({ subject: x.grant.subject, level: x.grant.level, through: x.through });
         if (live) setShares(list);
-      } catch { if (live) setShares([]); }
+      } catch {
+        if (live) setShares([]);
+      }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [data, itemId, sharesAt]);
-  useEffect(() => { if (askDelete) setConfirmDelete(true); }, [askDelete]);
+  useEffect(() => {
+    if (askDelete) setConfirmDelete(true);
+  }, [askDelete]);
   // the confirm names the Automations that use this item, so the person knows what stops working
   const [usedBy, setUsedBy] = useState<string[]>([]);
   const [usedHidden, setUsedHidden] = useState(0);
   const usedHandle = got.status === "ready" ? got.data.item.handle : "";
   useEffect(() => {
-    if (!confirmDelete || !usedHandle) { setUsedBy([]); setUsedHidden(0); return undefined; }
+    if (!confirmDelete || !usedHandle) {
+      setUsedBy([]);
+      setUsedHidden(0);
+      return undefined;
+    }
     let live = true;
-    void data.call("automations.vault_usage", { handle: usedHandle }).then((out) => { if (live) { setUsedBy(usedByOf(out).map((u) => u.name)); setUsedHidden(hiddenOf(out)); } }, () => undefined);
-    return () => { live = false; };
+    void data.call("automations.vault_usage", { handle: usedHandle }).then(
+      (out) => {
+        if (live) {
+          setUsedBy(usedByOf(out).map((u) => u.name));
+          setUsedHidden(hiddenOf(out));
+        }
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [confirmDelete, data, usedHandle]);
   const fieldKeys = got.status === "ready" ? got.data.fields.map((f) => f.key) : [];
-  useEffect(() => { if (revealAll && fieldKeys.length > 0) void store.reveal(fieldKeys); }, [revealAll, fieldKeys.length]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (revealAll && fieldKeys.length > 0) void store.reveal(fieldKeys);
+  }, [revealAll, fieldKeys.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (got.status !== "ready") return <DetailSkeleton />;
   const item = got.data.item;
   const fields = got.data.fields;
-  const folder: Folder | undefined = folders.status === "ready" ? folders.data.folders.find((f) => f.id === item.folderId) : undefined;
+  const folder: Folder | undefined =
+    folders.status === "ready" ? folders.data.folders.find((f) => f.id === item.folderId) : undefined;
   const view = mode ?? (item.kind === "login" || item.kind === "card" ? "fields" : "env");
   const clock = data.clock();
   const rot = rotation(item as Item, clock);
@@ -121,19 +168,35 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
     try {
       await data.call("vault.item.delete", { itemId });
       setConfirmDelete(false);
-      onNote(`Moved ${item.name} to Trash`, async () => { await data.call("vault.item.restore", { itemId }); });
+      onNote(`Moved ${item.name} to Trash`, async () => {
+        await data.call("vault.item.restore", { itemId });
+      });
       onGone();
-    } catch (e) { fail(e); }
+    } catch (e) {
+      fail(e);
+    }
   };
   const rotate = async (): Promise<void> => {
-    try { await data.call("vault.item.mark_rotated", { itemId }); onNote(`Marked ${item.name} rotated`, () => undefined); } catch (e) { fail(e); }
+    try {
+      await data.call("vault.item.mark_rotated", { itemId });
+      onNote(`Marked ${item.name} rotated`, () => undefined);
+    } catch (e) {
+      fail(e);
+    }
   };
   const lockSpace = async (): Promise<void> => {
     const to = !item.spaceOnly;
     try {
       await data.call("vault.item.update", { itemId, spaceOnly: to });
-      onNote(to ? `${item.name} now fills on the Space only` : `${item.name} can fill on your computer again`, async () => { await data.call("vault.item.update", { itemId, spaceOnly: !to }); });
-    } catch (e) { fail(e); }
+      onNote(
+        to ? `${item.name} now fills on the Space only` : `${item.name} can fill on your computer again`,
+        async () => {
+          await data.call("vault.item.update", { itemId, spaceOnly: !to });
+        },
+      );
+    } catch (e) {
+      fail(e);
+    }
   };
 
   const copyEnv = async (): Promise<void> => {
@@ -143,152 +206,369 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
       for (const f of out.fields) values.set(f.key, f.value);
       await copyText(data, formatEnv(fields, values));
       onNote(`Copied ${item.name} as .env`, () => undefined);
-    } catch (e) { fail(e); }
+    } catch (e) {
+      fail(e);
+    }
   };
   const subjectName = (sub: Share["subject"]): string => names.name(sub.id);
-  const askAgents: AskAgent[] = names.all.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name, ...(p.id === "agt_assistant" ? { assistant: true } : {}) }));
+  const askAgents: AskAgent[] = names.all
+    .filter((p) => p.kind === "agent")
+    .map((p) => ({ id: p.id, name: p.name, ...(p.id === "agt_assistant" ? { assistant: true } : {}) }));
   if (!askAgents.some((a) => a.assistant)) askAgents.unshift({ id: "assistant", name: "Assistant", assistant: true });
-  const suggested = (shares ?? []).find((x) => x.subject.kind === "agent" && askAgents.some((a) => a.id === x.subject.id))?.subject.id;
+  const suggested = (shares ?? []).find(
+    (x) => x.subject.kind === "agent" && askAgents.some((a) => a.id === x.subject.id),
+  )?.subject.id;
   const meShare = (shares ?? []).find((x) => x.subject.kind === "person" && x.subject.id === data.me.id);
   const setLevel = async (sh: Share, level: Share["level"]): Promise<void> => {
-    try { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level }); setSharesAt((n) => n + 1); } catch (e) { fail(e); }
+    try {
+      await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level });
+      setSharesAt((n) => n + 1);
+    } catch (e) {
+      fail(e);
+    }
   };
   const stopSharing = async (sh: Share): Promise<void> => {
     try {
       await data.call("vault.unshare", { resource: { type: "vault_item", id: itemId }, subject: sh.subject });
       setSharesAt((n) => n + 1);
-      onNote(`Stopped sharing ${item.name} with ${subjectName(sh.subject)}`, async () => { await data.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: sh.subject, level: sh.level }); setSharesAt((n) => n + 1); });
-    } catch (e) { fail(e); }
+      onNote(`Stopped sharing ${item.name} with ${subjectName(sh.subject)}`, async () => {
+        await data.call("vault.share", {
+          resource: { type: "vault_item", id: itemId },
+          subject: sh.subject,
+          level: sh.level,
+        });
+        setSharesAt((n) => n + 1);
+      });
+    } catch (e) {
+      fail(e);
+    }
   };
 
   // Share: the one Access sheet. A Mine item is yours alone, so it says so instead.
-  const shareEntries: MenuEntry[] = [{ head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry, { label: "OK", onSelect: () => undefined }];
-  const openShare = (e?: unknown): void => { if ((item as { scope?: string }).scope === "mine") { const r = rectOf(e); menu.show(shareEntries, r.x, r.y, "other"); } else setSharing(true); };
+  const shareEntries: MenuEntry[] = [
+    { head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry,
+    { label: "OK", onSelect: () => undefined },
+  ];
+  const openShare = (e?: unknown): void => {
+    if ((item as { scope?: string }).scope === "mine") {
+      const r = rectOf(e);
+      menu.show(shareEntries, r.x, r.y, "other");
+    } else setSharing(true);
+  };
   const moreItems: MenuEntry[] = [
     ...(canEdit ? [{ label: "Edit…", onSelect: onEdit }] : []),
-    { label: "Copy handle", onSelect: () => { void copyText(data, item.handle); } },
-    ...(item.yourLevel === "manage" && data.personal !== true ? [{ label: "Share…", onSelect: () => openShare() }] : []),
+    {
+      label: "Copy handle",
+      onSelect: () => {
+        void copyText(data, item.handle);
+      },
+    },
+    ...(item.yourLevel === "manage" && data.personal !== true
+      ? [{ label: "Share…", onSelect: () => openShare() }]
+      : []),
     SEP,
-    ...(canEdit ? [{ label: "Mark as rotated", onSelect: () => { void rotate(); } }, { label: "Fill on the Space only", checked: item.spaceOnly, onSelect: () => { void lockSpace(); } }] : []),
-    ...(item.yourLevel === "manage" && item.scope === "shared" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(item.folderId) }] : []),
-    ...(item.yourLevel === "manage" ? [SEP, { label: "Move to Trash", danger: true, onSelect: () => setConfirmDelete(true) }] : []),
+    ...(canEdit
+      ? [
+          {
+            label: "Mark as rotated",
+            onSelect: () => {
+              void rotate();
+            },
+          },
+          {
+            label: "Fill on the Space only",
+            checked: item.spaceOnly,
+            onSelect: () => {
+              void lockSpace();
+            },
+          },
+        ]
+      : []),
+    ...(item.yourLevel === "manage" && item.scope === "shared"
+      ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(item.folderId) }]
+      : []),
+    ...(item.yourLevel === "manage"
+      ? [SEP, { label: "Move to Trash", danger: true, onSelect: () => setConfirmDelete(true) }]
+      : []),
   ];
 
   const fieldLines: ReactElement[] = [];
   for (const f of fields) {
     fieldLines.push(
-              <FieldLine key={f.key} view={view} fieldKey={f.key} secret={f.secret} hasValue={f.hasValue} value={rv.shown.get(f.key)} canSee={canSee} online={online} busy={rv.busy}
-                onReveal={() => { void store.reveal([f.key]); }} onHide={() => store.hide([f.key])} onCopy={() => { void store.copy(f.key); }} />
+      <FieldLine
+        key={f.key}
+        view={view}
+        fieldKey={f.key}
+        secret={f.secret}
+        hasValue={f.hasValue}
+        value={rv.shown.get(f.key)}
+        canSee={canSee}
+        online={online}
+        busy={rv.busy}
+        onReveal={() => {
+          void store.reveal([f.key]);
+        }}
+        onHide={() => store.hide([f.key])}
+        onCopy={() => {
+          void store.copy(f.key);
+        }}
+      />,
     );
   }
   const historyLines: ReactElement[] = [];
   for (let i = 0; i < shownEntries.length; i++) {
     const e = shownEntries[i]!;
     historyLines.push(
-                <View key={`${e.at}-${i}`} style={s.hist}>
-                  <Text style={s.histText} numberOfLines={1}>{`${names.name(e.onBehalfOf ? e.onBehalfOf.id : e.actor.id)} ${VERB[e.action]}${e.field ? ` ${e.field}` : ""}${e.onBehalfOf ? ` (through ${names.name(e.actor.id)})` : ""}`}</Text>
-                  <Text style={s.histWhen}>{agoLabel(e.at, clock)}</Text>
-                </View>
+      <View key={`${e.at}-${i}`} style={s.hist}>
+        <Text
+          style={s.histText}
+          numberOfLines={1}
+        >{`${names.name(e.onBehalfOf ? e.onBehalfOf.id : e.actor.id)} ${VERB[e.action]}${e.field ? ` ${e.field}` : ""}${e.onBehalfOf ? ` (through ${names.name(e.actor.id)})` : ""}`}</Text>
+        <Text style={s.histWhen}>{agoLabel(e.at, clock)}</Text>
+      </View>,
     );
   }
 
   return (
-    <View style={s.pane} testID="item-env" accessibilityLabel={item.name} {...menuTrigger((x, y) => menu.show(moreItems, x, y))}>
+    <View
+      style={s.pane}
+      testID="item-env"
+      accessibilityLabel={item.name}
+      {...menuTrigger((x, y) => menu.show(moreItems, x, y))}
+    >
       {menu.element}
-      {sharing ? <VaultShareSheet kind="vault_item" id={itemId} name={item.name} onClose={() => setSharing(false)} onChanged={() => setSharesAt((n) => n + 1)} /> : null}
+      {sharing ? (
+        <VaultShareSheet
+          kind="vault_item"
+          id={itemId}
+          name={item.name}
+          onClose={() => setSharing(false)}
+          onChanged={() => setSharesAt((n) => n + 1)}
+        />
+      ) : null}
       <View style={s.bar}>
         {onBack ? <IconBtn icon="back" label="Back to the list" onPress={onBack} testID="item-back" /> : null}
         <View style={{ flex: 1 }} />
         <AskButton
-          place="vault" context={{ kind: "vault_item", id: itemId, title: item.name, access: item.yourLevel }} agents={askAgents} {...(suggested ? { suggested } : {})} testID="item-ask"
-          onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })}
+          place="vault"
+          context={{ kind: "vault_item", id: itemId, title: item.name, access: item.yourLevel }}
+          agents={askAgents}
+          {...(suggested ? { suggested } : {})}
+          testID="item-ask"
+          onAsk={(agent, mode, about) =>
+            data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })
+          }
         />
         {canEdit ? <Btn label="Edit" icon="edit" onPress={onEdit} testID="item-edit" /> : null}
-        <IconBtn icon="more" label="More" testID="item-more" onPress={(e) => { const r = rectOf(e); menu.show(moreItems, r.x, r.y); }} />
+        <IconBtn
+          icon="more"
+          label="More"
+          testID="item-more"
+          onPress={(e) => {
+            const r = rectOf(e);
+            menu.show(moreItems, r.x, r.y);
+          }}
+        />
       </View>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.col}>
           <View style={s.head}>
             <LogoTile name={item.name} size={64} />
             <View style={s.headText}>
-              <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={2}>{item.name}</Text>
+              <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={2}>
+                {item.name}
+              </Text>
               <View style={s.chips}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Copy handle ${item.handle}`} onPress={() => { void copyText(data, item.handle); }} style={s.handle} testID="item-handle">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy handle ${item.handle}`}
+                  onPress={() => {
+                    void copyText(data, item.handle);
+                  }}
+                  style={s.handle}
+                  testID="item-handle"
+                >
                   <Mono size={12}>{item.handle}</Mono>
                 </Pressable>
                 <Text style={s.kind}>{KIND_LABEL[item.kind]}</Text>
               </View>
             </View>
           </View>
-          <Text style={s.access} testID="item-access">{whoLine(item as Item, folder, shares ?? [], data.me.id, subjectName)}</Text>
+          <Text style={s.access} testID="item-access">
+            {whoLine(item as Item, folder, shares ?? [], data.me.id, subjectName)}
+          </Text>
 
           <View style={s.card} testID="env-card">
             <View style={s.cardTop}>
               <View style={s.seg} accessibilityRole="tablist">
-                <SegBtn label="Fields" on={view === "fields"} onPress={() => setMode("fields")} testID="env-mode-fields" />
+                <SegBtn
+                  label="Fields"
+                  on={view === "fields"}
+                  onPress={() => setMode("fields")}
+                  testID="env-mode-fields"
+                />
                 <SegBtn label=".env" on={view === "env"} onPress={() => setMode("env")} testID="env-mode-env" />
               </View>
               <View style={{ flex: 1 }} />
-              {fields.length > 0 && canSee ? <Btn label="Copy as .env" icon="copy" disabled={!online} onPress={() => { void copyEnv(); }} testID="env-copy-all" /> : null}
               {fields.length > 0 && canSee ? (
-                <Btn label={rv.shown.size > 0 ? "Hide values" : "Reveal all"} icon={rv.shown.size > 0 ? "eyeOff" : "eye"} disabled={!online || rv.busy} testID="env-reveal-all"
-                  onPress={() => { if (rv.shown.size > 0) store.hide(); else void store.reveal(keysOf(fields)); }} />
+                <Btn
+                  label="Copy as .env"
+                  icon="copy"
+                  disabled={!online}
+                  onPress={() => {
+                    void copyEnv();
+                  }}
+                  testID="env-copy-all"
+                />
+              ) : null}
+              {fields.length > 0 && canSee ? (
+                <Btn
+                  label={rv.shown.size > 0 ? "Hide values" : "Reveal all"}
+                  icon={rv.shown.size > 0 ? "eyeOff" : "eye"}
+                  disabled={!online || rv.busy}
+                  testID="env-reveal-all"
+                  onPress={() => {
+                    if (rv.shown.size > 0) store.hide();
+                    else void store.reveal(keysOf(fields));
+                  }}
+                />
               ) : null}
             </View>
-            {view === "env" ? <Text style={s.comment} testID="env-comment">{`# ${item.name} · agents ask for ${item.handle}`}</Text> : null}
-            {fields.length === 0 ? <Text style={s.empty} testID="env-empty">No fields yet.</Text> : null}
+            {view === "env" ? (
+              <Text style={s.comment} testID="env-comment">{`# ${item.name} · agents ask for ${item.handle}`}</Text>
+            ) : null}
+            {fields.length === 0 ? (
+              <Text style={s.empty} testID="env-empty">
+                No fields yet.
+              </Text>
+            ) : null}
             {fieldLines}
             {canEdit && onAddField ? (
               <View style={s.cardFoot}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Add field" testID="env-add-field" onPress={onAddField} style={s.addField}>
-                  <Glyph name="plus" size={12} color="var(--accent)" /><Text style={s.addFieldText}>Add field</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add field"
+                  testID="env-add-field"
+                  onPress={onAddField}
+                  style={s.addField}
+                >
+                  <Glyph name="plus" size={12} color="var(--accent)" />
+                  <Text style={s.addFieldText}>Add field</Text>
                 </Pressable>
               </View>
             ) : null}
             {rv.asking ? (
               <View style={s.agree} testID="env-agree" accessibilityRole="alert">
                 <Glyph name="eye" size={15} />
-                <Text style={s.agreeText}>{rv.asking.then === "copy" ? "Copy this value?" : "Show this value?"} It is logged under your name, and it hides again after a minute.</Text>
-                <Btn label={rv.asking.then === "copy" ? "Reveal and copy" : "Reveal"} primary onPress={() => { void store.agree(); }} testID="env-agree-yes" />
+                <Text style={s.agreeText}>
+                  {rv.asking.then === "copy" ? "Copy this value?" : "Show this value?"} It is logged under your name,
+                  and it hides again after a minute.
+                </Text>
+                <Btn
+                  label={rv.asking.then === "copy" ? "Reveal and copy" : "Reveal"}
+                  primary
+                  onPress={() => {
+                    void store.agree();
+                  }}
+                  testID="env-agree-yes"
+                />
                 <Btn label="Not now" onPress={store.decline} testID="env-agree-no" />
               </View>
             ) : null}
-            {!online ? <Text style={s.note} testID="env-offline">Revealing needs a connection. Names stay available offline.</Text> : null}
-            {rv.error ? <Text style={s.error} accessibilityRole="alert" testID="env-error">{rv.error}</Text> : null}
+            {!online ? (
+              <Text style={s.note} testID="env-offline">
+                Revealing needs a connection. Names stay available offline.
+              </Text>
+            ) : null}
+            {rv.error ? (
+              <Text style={s.error} accessibilityRole="alert" testID="env-error">
+                {rv.error}
+              </Text>
+            ) : null}
           </View>
 
-          <AutomationsRow item={{ id: itemId, name: item.name, handle: item.handle, kind: item.kind, yourLevel: item.yourLevel, folderId: item.folderId }} />
+          <AutomationsRow
+            item={{
+              id: itemId,
+              name: item.name,
+              handle: item.handle,
+              kind: item.kind,
+              yourLevel: item.yourLevel,
+              folderId: item.folderId,
+            }}
+          />
 
           {rot ? (
             <View style={s.row} testID="item-rotation">
               <Glyph name="clock" size={14} color={rot.due ? "var(--warn)" : "var(--ink-3)"} />
-              <Text style={[s.rowText, rot.due && { color: "var(--warn)" as string }]}>{`Rotated ${rot.days} days ago · every ${rot.every} days${rot.due ? " · due" : ""}`}</Text>
-              {canEdit ? <Btn label="Rotated now" onPress={() => { void rotate(); }} testID="item-rotate" /> : null}
+              <Text
+                style={[s.rowText, rot.due && { color: "var(--warn)" as string }]}
+              >{`Rotated ${rot.days} days ago · every ${rot.every} days${rot.due ? " · due" : ""}`}</Text>
+              {canEdit ? (
+                <Btn
+                  label="Rotated now"
+                  onPress={() => {
+                    void rotate();
+                  }}
+                  testID="item-rotate"
+                />
+              ) : null}
             </View>
           ) : null}
 
           {confirmDelete ? (
             <View style={s.confirm} testID="item-confirm-delete" accessibilityRole="alert">
               <Text style={s.confirmText}>{trashLine(item, usedBy, usedHidden)}</Text>
-              <Btn label="Move to Trash" danger onPress={() => { void trash(); }} testID="item-delete-yes" />
+              <Btn
+                label="Move to Trash"
+                danger
+                onPress={() => {
+                  void trash();
+                }}
+                testID="item-delete-yes"
+              />
               <Btn label="Cancel" onPress={() => setConfirmDelete(false)} testID="item-delete-no" />
             </View>
           ) : null}
-          {failure ? <Text style={s.error} accessibilityRole="alert" testID="item-error">{failure}</Text> : null}
+          {failure ? (
+            <Text style={s.error} accessibilityRole="alert" testID="item-error">
+              {failure}
+            </Text>
+          ) : null}
 
           {data.personal === true ? null : (
             <WhoCanUse
-            shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
-            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={(e) => openShare(e)}
-            onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
-          />
+              shares={shares ?? []}
+              you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }}
+              nameOf={subjectName}
+              meId={data.me.id}
+              canManage={item.yourLevel === "manage"}
+              onLevel={(sh, l) => {
+                void setLevel(sh, l);
+              }}
+              onRemove={(sh) => {
+                void stopSharing(sh);
+              }}
+              onShare={(e) => openShare(e)}
+              onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
+            />
           )}
 
-          <View style={s.sectionHead}><Text style={s.h2}>Recent use</Text></View>
-          {hist.status !== "ready" ? <Text style={s.note}>Loading</Text> : entries.length === 0 ? <Text style={s.note} testID="history-empty">Nothing has used this item yet.</Text> : (
+          <View style={s.sectionHead}>
+            <Text style={s.h2}>Recent use</Text>
+          </View>
+          {hist.status !== "ready" ? (
+            <Text style={s.note}>Loading</Text>
+          ) : entries.length === 0 ? (
+            <Text style={s.note} testID="history-empty">
+              Nothing has used this item yet.
+            </Text>
+          ) : (
             <View testID="item-history">
               {historyLines}
-              {!showAll && entries.length > 5 ? <Btn label={`Show all ${entries.length}`} onPress={() => setShowAll(true)} testID="history-all" /> : null}
+              {!showAll && entries.length > 5 ? (
+                <Btn label={`Show all ${entries.length}`} onPress={() => setShowAll(true)} testID="history-all" />
+              ) : null}
             </View>
           )}
         </View>
@@ -298,26 +578,66 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
 }
 
 function rectOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const box = ev.currentTarget?.getBoundingClientRect?.();
   return box ? { x: box.left, y: box.bottom } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
 
-function SegBtn({ label, on, onPress, testID }: { label: string; on: boolean; onPress: () => void; testID: string }): ReactElement {
+function SegBtn({
+  label,
+  on,
+  onPress,
+  testID,
+}: {
+  label: string;
+  on: boolean;
+  onPress: () => void;
+  testID: string;
+}): ReactElement {
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={onPress} testID={testID} style={[s.segBtn, on && s.segOn]}>
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: on }}
+      onPress={onPress}
+      testID={testID}
+      style={[s.segBtn, on && s.segOn]}
+    >
       <Text style={[s.segText, on && { color: "var(--ink)" as string }]}>{label}</Text>
     </Pressable>
   );
 }
 
 interface FieldLineProps {
-  view: "env" | "fields"; fieldKey: string; secret: boolean; hasValue: boolean; value: string | undefined; canSee: boolean; online: boolean; busy: boolean;
-  onReveal: () => void; onHide: () => void; onCopy: () => void;
+  view: "env" | "fields";
+  fieldKey: string;
+  secret: boolean;
+  hasValue: boolean;
+  value: string | undefined;
+  canSee: boolean;
+  online: boolean;
+  busy: boolean;
+  onReveal: () => void;
+  onHide: () => void;
+  onCopy: () => void;
 }
 
 /** One field. Hover, focus or a revealed value shows the tools; on a phone they always show. */
-function FieldLine({ view, fieldKey, secret, hasValue, value, canSee, online, busy, onReveal, onHide, onCopy }: FieldLineProps): ReactElement {
+function FieldLine({
+  view,
+  fieldKey,
+  secret,
+  hasValue,
+  value,
+  canSee,
+  online,
+  busy,
+  onReveal,
+  onHide,
+  onCopy,
+}: FieldLineProps): ReactElement {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const shown = value !== undefined;
@@ -325,27 +645,54 @@ function FieldLine({ view, fieldKey, secret, hasValue, value, canSee, online, bu
   const text = shown ? value : hasValue ? MASK : "";
   return (
     <Pressable
-      accessibilityRole="group" accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`} testID={`env-line-${fieldKey}`}
-      onPress={canSee ? onCopy : undefined} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+      accessibilityRole="group"
+      accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`}
+      testID={`env-line-${fieldKey}`}
+      onPress={canSee ? onCopy : undefined}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={() => setFocus(false)}
       style={[s.line, over && { backgroundColor: "var(--hover)" as string }]}
     >
       {view === "env" ? (
         <View style={s.lineMain}>
           <Mono size={13}>{fieldKey}</Mono>
           <Text style={s.eq}>=</Text>
-          <Text numberOfLines={1} style={[s.val, !shown && { color: "var(--ink-3)" as string, letterSpacing: 1 }]} testID={`env-value-${fieldKey}`}>{text}</Text>
+          <Text
+            numberOfLines={1}
+            style={[s.val, !shown && { color: "var(--ink-3)" as string, letterSpacing: 1 }]}
+            testID={`env-value-${fieldKey}`}
+          >
+            {text}
+          </Text>
         </View>
       ) : (
         <View style={s.lineMain}>
           <View style={{ width: 190 }}>
             <Mono size={12.5}>{fieldKey}</Mono>
-            <View style={s.badge}><Glyph name={secret ? "lock" : "eye"} size={11} /><Text style={s.badgeText}>{secret ? "Secret" : "Plain"}</Text></View>
+            <View style={s.badge}>
+              <Glyph name={secret ? "lock" : "eye"} size={11} />
+              <Text style={s.badgeText}>{secret ? "Secret" : "Plain"}</Text>
+            </View>
           </View>
-          <Text numberOfLines={1} style={[s.val, !shown && { color: "var(--ink-3)" as string, letterSpacing: 1 }]} testID={`env-value-${fieldKey}`}>{text}</Text>
+          <Text
+            numberOfLines={1}
+            style={[s.val, !shown && { color: "var(--ink-3)" as string, letterSpacing: 1 }]}
+            testID={`env-value-${fieldKey}`}
+          >
+            {text}
+          </Text>
         </View>
       )}
       <View style={[s.tools, { opacity: tools ? 1 : 0, pointerEvents: tools ? "auto" : "none" }]}>
-        <IconBtn icon={shown ? "eyeOff" : "eye"} label={shown ? `Hide ${fieldKey}` : `Reveal ${fieldKey}`} testID={`env-reveal-${fieldKey}`} onPress={shown ? onHide : onReveal} color={!online || busy ? "var(--ink-4)" : "var(--ink-3)"} />
+        <IconBtn
+          icon={shown ? "eyeOff" : "eye"}
+          label={shown ? `Hide ${fieldKey}` : `Reveal ${fieldKey}`}
+          testID={`env-reveal-${fieldKey}`}
+          onPress={shown ? onHide : onReveal}
+          color={!online || busy ? "var(--ink-4)" : "var(--ink-3)"}
+        />
         <IconBtn icon="copy" label={`Copy ${fieldKey}`} testID={`env-copy-${fieldKey}`} onPress={onCopy} />
       </View>
     </Pressable>
@@ -358,7 +705,13 @@ export function DetailSkeleton(): ReactElement {
     <View style={s.pane} testID="item-loading" accessibilityLabel="Loading">
       <View style={s.bar} />
       <View style={s.col}>
-        <View style={s.head}><View style={[s.sk, { width: 64, height: 64, borderRadius: 18 }]} /><View style={{ gap: 10, flex: 1 }}><View style={[s.sk, { width: "50%", height: 22 }]} /><View style={[s.sk, { width: "30%", height: 14 }]} /></View></View>
+        <View style={s.head}>
+          <View style={[s.sk, { width: 64, height: 64, borderRadius: 18 }]} />
+          <View style={{ gap: 10, flex: 1 }}>
+            <View style={[s.sk, { width: "50%", height: 22 }]} />
+            <View style={[s.sk, { width: "30%", height: 14 }]} />
+          </View>
+        </View>
         <View style={[s.card, { minHeight: 150 }]} />
       </View>
     </View>
@@ -367,7 +720,11 @@ export function DetailSkeleton(): ReactElement {
 
 /** Nothing selected: one calm line. */
 export function NoItem({ text = "Select an item to see its fields" }: { text?: string }): ReactElement {
-  return <View style={[s.pane, { alignItems: "center", justifyContent: "center" }]} testID="item-none"><Text style={s.note}>{text}</Text></View>;
+  return (
+    <View style={[s.pane, { alignItems: "center", justifyContent: "center" }]} testID="item-none">
+      <Text style={s.note}>{text}</Text>
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
@@ -377,36 +734,94 @@ const s = StyleSheet.create({
   col: { width: "100%", maxWidth: 560, alignSelf: "center", paddingHorizontal: 24, paddingBottom: 48 },
   head: { flexDirection: "row", alignItems: "center", gap: 16, paddingTop: 8, marginBottom: 14 },
   headText: { flex: 1, minWidth: 0 },
-  h1: { margin: 0, fontSize: 26, lineHeight: 32, fontWeight: "500", letterSpacing: -0.4, color: "var(--ink)" as string },
+  h1: {
+    margin: 0,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: "500",
+    letterSpacing: -0.4,
+    color: "var(--ink)" as string,
+  },
   chips: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
-  handle: { paddingHorizontal: 8, height: 22, borderRadius: 6, justifyContent: "center", backgroundColor: "var(--sel)" as string },
+  handle: {
+    paddingHorizontal: 8,
+    height: 22,
+    borderRadius: 6,
+    justifyContent: "center",
+    backgroundColor: "var(--sel)" as string,
+  },
   kind: { fontSize: 12.5, color: "var(--ink-3)" as string },
   access: { fontSize: 14, lineHeight: 21, color: "var(--ink-2)" as string, marginBottom: 20 },
-  card: { borderRadius: 14, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 18 },
+  card: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--win)" as string,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 18,
+  },
   cardTop: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sel)" as string },
   segBtn: { height: 24, paddingHorizontal: 11, borderRadius: 6, justifyContent: "center" },
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" as string },
   segText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
-  comment: { fontFamily: "var(--mono)" as string, fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingVertical: 8 },
-  cardFoot: { marginTop: 4, paddingTop: 6, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  comment: {
+    fontFamily: "var(--mono)" as string,
+    fontSize: 12.5,
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  cardFoot: {
+    marginTop: 4,
+    paddingTop: 6,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   addField: { flexDirection: "row", alignItems: "center", gap: 6, height: 26, alignSelf: "flex-start" },
   addFieldText: { fontSize: 13, color: "var(--accent)" as string },
   empty: { fontSize: 13, color: "var(--ink-3)" as string, padding: 10 },
-  line: { minHeight: 34, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7 },
+  line: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7,
+  },
   lineMain: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   eq: { color: "var(--ink-3)" as string, fontFamily: "var(--mono)" as string, fontSize: 13 },
   val: { flex: 1, minWidth: 0, fontFamily: "var(--mono)" as string, fontSize: 13, color: "var(--ink)" as string },
   tools: { flexDirection: "row", gap: 2, marginLeft: 8 },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 },
   badgeText: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  agree: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: "var(--accent-wash)" as string },
+  agree: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   agreeText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   note: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingVertical: 6 },
   error: { fontSize: 12.5, color: "var(--danger)" as string, paddingHorizontal: 8, paddingVertical: 6 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14, paddingHorizontal: 4 },
   rowText: { flex: 1, fontSize: 13, color: "var(--ink-3)" as string },
-  confirm: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, marginBottom: 14, backgroundColor: "var(--sel)" as string },
+  confirm: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+    backgroundColor: "var(--sel)" as string,
+  },
   confirmText: { flex: 1, minWidth: 200, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   sectionHead: { flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6 },
   h2: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },

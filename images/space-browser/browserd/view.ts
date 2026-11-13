@@ -55,7 +55,11 @@ export function createScreencastHub(o: HubOptions): Hub {
   let generation = 0;
   const log = o.log ?? (() => undefined);
 
-  const push = (jpeg: Buffer): void => { last = jpeg; lastAt = Date.now(); for (const w of watchers) w(jpeg); };
+  const push = (jpeg: Buffer): void => {
+    last = jpeg;
+    lastAt = Date.now();
+    for (const w of watchers) w(jpeg);
+  };
 
   async function front(b: HubBrowser): Promise<{ id: string } | null> {
     return (await b.tabs())[0] ?? null;
@@ -72,22 +76,40 @@ export function createScreencastHub(o: HubOptions): Hub {
       c.send("Page.screencastFrameAck", { sessionId: p["sessionId"] }).catch(() => undefined);
     });
     await c.send("Page.enable");
-    await c.send("Page.startScreencast", { format: "jpeg", quality: o.quality ?? 60, maxWidth: o.width ?? 1280, maxHeight: o.height ?? 800, everyNthFrame: 1 });
+    await c.send("Page.startScreencast", {
+      format: "jpeg",
+      quality: o.quality ?? 60,
+      maxWidth: o.width ?? 1280,
+      maxHeight: o.height ?? 800,
+      everyNthFrame: 1,
+    });
     // A page that is not changing sends no frame: give the viewer the picture as it is now.
     try {
-      const shot = await c.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality: o.quality ?? 60 });
+      const shot = await c.send<{ data: string }>("Page.captureScreenshot", {
+        format: "jpeg",
+        quality: o.quality ?? 60,
+      });
       push(Buffer.from(shot.data, "base64"));
-    } catch { /* the next frame will do */ }
+    } catch {
+      /* the next frame will do */
+    }
   }
 
   async function run(gen: number): Promise<void> {
     while (gen === generation && watchers.size > 0) {
       try {
         const b = o.chrome();
-        if (b === null) { await o.wake(); continue; }
+        if (b === null) {
+          await o.wake();
+          continue;
+        }
         const t = await front(b);
         if (t && (t.id !== target || conn === null)) await attach(b, t);
-      } catch (e) { log(`screencast: ${e instanceof Error ? e.message : "failed"}`); conn = null; target = null; }
+      } catch (e) {
+        log(`screencast: ${e instanceof Error ? e.message : "failed"}`);
+        conn = null;
+        target = null;
+      }
       await sleep(700);
     }
   }
@@ -106,8 +128,14 @@ export function createScreencastHub(o: HubOptions): Hub {
     watch(onFrame) {
       watchers.add(onFrame);
       o.activity?.();
-      if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
-      if (!loop) { generation += 1; loop = run(generation); }
+      if (stopTimer) {
+        clearTimeout(stopTimer);
+        stopTimer = null;
+      }
+      if (!loop) {
+        generation += 1;
+        loop = run(generation);
+      }
       if (last) onFrame(last);
       return () => {
         watchers.delete(onFrame);
@@ -123,7 +151,10 @@ export function createScreencastHub(o: HubOptions): Hub {
 
 // ---- input -----------------------------------------------------------------------------------------------------------------------------------------
 
-export interface Pointer { x: number; y: number }
+export interface Pointer {
+  x: number;
+  y: number;
+}
 export interface Input {
   /** One input; resolves once the browser has taken it, with where the pointer is. */
   call(req: Record<string, unknown>): Promise<Pointer>;
@@ -131,18 +162,33 @@ export interface Input {
 
 // X keysym names (what the viewer sends) to DevTools keys.
 const KEYS: Record<string, { key: string; code: string; vk: number; text?: string }> = {
-  Return: { key: "Enter", code: "Enter", vk: 13, text: "\r" }, Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" }, Tab: { key: "Tab", code: "Tab", vk: 9 },
-  Escape: { key: "Escape", code: "Escape", vk: 27 }, BackSpace: { key: "Backspace", code: "Backspace", vk: 8 }, Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
-  Delete: { key: "Delete", code: "Delete", vk: 46 }, Left: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 }, Up: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
-  Right: { key: "ArrowRight", code: "ArrowRight", vk: 39 }, Down: { key: "ArrowDown", code: "ArrowDown", vk: 40 }, Home: { key: "Home", code: "Home", vk: 36 }, End: { key: "End", code: "End", vk: 35 },
-  Page_Up: { key: "PageUp", code: "PageUp", vk: 33 }, Page_Down: { key: "PageDown", code: "PageDown", vk: 34 }, space: { key: " ", code: "Space", vk: 32, text: " " },
+  Return: { key: "Enter", code: "Enter", vk: 13, text: "\r" },
+  Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" },
+  Tab: { key: "Tab", code: "Tab", vk: 9 },
+  Escape: { key: "Escape", code: "Escape", vk: 27 },
+  BackSpace: { key: "Backspace", code: "Backspace", vk: 8 },
+  Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
+  Delete: { key: "Delete", code: "Delete", vk: 46 },
+  Left: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 },
+  Up: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
+  Right: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
+  Down: { key: "ArrowDown", code: "ArrowDown", vk: 40 },
+  Home: { key: "Home", code: "Home", vk: 36 },
+  End: { key: "End", code: "End", vk: 35 },
+  Page_Up: { key: "PageUp", code: "PageUp", vk: 33 },
+  Page_Down: { key: "PageDown", code: "PageDown", vk: 34 },
+  space: { key: " ", code: "Space", vk: 32, text: " " },
 };
 
 /** A pointer and a keyboard for a browser, through DevTools. `page` gives a connection to the front tab (closed after each input: inputs are rare next to frames). */
 export function createCdpInput(page: () => Promise<Cdp>): Input {
   let at: Pointer = { x: 0, y: 0 };
   let buttons = 0;
-  const BUTTON: Record<number, { name: string; bit: number }> = { 1: { name: "left", bit: 1 }, 2: { name: "middle", bit: 4 }, 3: { name: "right", bit: 2 } };
+  const BUTTON: Record<number, { name: string; bit: number }> = {
+    1: { name: "left", bit: 1 },
+    2: { name: "middle", bit: 4 },
+    3: { name: "right", bit: 2 },
+  };
   return {
     async call(req) {
       const c = await page();
@@ -156,14 +202,35 @@ export function createCdpInput(page: () => Promise<Cdp>): Input {
           if (!b) throw new Error("that button does not exist");
           const down = req["down"] === true;
           buttons = down ? buttons | b.bit : buttons & ~b.bit;
-          await c.send("Input.dispatchMouseEvent", { type: down ? "mousePressed" : "mouseReleased", x: at.x, y: at.y, button: b.name, buttons, clickCount: 1 });
+          await c.send("Input.dispatchMouseEvent", {
+            type: down ? "mousePressed" : "mouseReleased",
+            x: at.x,
+            y: at.y,
+            button: b.name,
+            buttons,
+            clickCount: 1,
+          });
         } else if (op === "scroll") {
-          await c.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX: Number(req["dx"] ?? 0), deltaY: Number(req["dy"] ?? 0) });
+          await c.send("Input.dispatchMouseEvent", {
+            type: "mouseWheel",
+            x: at.x,
+            y: at.y,
+            deltaX: Number(req["dx"] ?? 0),
+            deltaY: Number(req["dy"] ?? 0),
+          });
         } else if (op === "key") {
           const name = String(req["name"]);
           const down = req["down"] === true;
           const k = KEYS[name];
-          if (k) await c.send("Input.dispatchKeyEvent", { type: down ? (k.text ? "keyDown" : "rawKeyDown") : "keyUp", key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, ...(down && k.text ? { text: k.text } : {}) });
+          if (k)
+            await c.send("Input.dispatchKeyEvent", {
+              type: down ? (k.text ? "keyDown" : "rawKeyDown") : "keyUp",
+              key: k.key,
+              code: k.code,
+              windowsVirtualKeyCode: k.vk,
+              nativeVirtualKeyCode: k.vk,
+              ...(down && k.text ? { text: k.text } : {}),
+            });
           else if (name.length === 1) {
             if (down) await c.send("Input.dispatchKeyEvent", { type: "keyDown", key: name, text: name });
             else await c.send("Input.dispatchKeyEvent", { type: "keyUp", key: name });
@@ -172,7 +239,9 @@ export function createCdpInput(page: () => Promise<Cdp>): Input {
           await c.send("Input.insertText", { text: String(req["text"] ?? "") });
         } else throw new Error("I do not know that input");
         return at;
-      } finally { c.close(); }
+      } finally {
+        c.close();
+      }
     },
   };
 }
@@ -211,13 +280,22 @@ export function startViewServer(d: ViewDeps): ViewServer {
   const tokens = new Map<string, { exp: number; profileId: string; personId?: string }>();
   let viewers = 0;
   const byPerson = new Map<string, number>();
-  const count = (key: string | null, d: number): void => { if (!key) return; const n = (byPerson.get(key) ?? 0) + d; if (n > 0) byPerson.set(key, n); else byPerson.delete(key); };
-  const keyOf = (got: { profileId: string; personId?: string }): string | null => (got.personId ? `${got.profileId}|${got.personId}` : null);
+  const count = (key: string | null, d: number): void => {
+    if (!key) return;
+    const n = (byPerson.get(key) ?? 0) + d;
+    if (n > 0) byPerson.set(key, n);
+    else byPerson.delete(key);
+  };
+  const keyOf = (got: { profileId: string; personId?: string }): string | null =>
+    got.personId ? `${got.profileId}|${got.personId}` : null;
   const open = (t: string | null): { profileId: string; personId?: string; view: ViewOf } | null => {
     if (!t) return null;
     const e = tokens.get(t);
     if (!e) return null;
-    if (e.exp < Date.now()) { tokens.delete(t); return null; }
+    if (e.exp < Date.now()) {
+      tokens.delete(t);
+      return null;
+    }
     const view = d.viewOf(e.profileId);
     return view ? { profileId: e.profileId, ...(e.personId ? { personId: e.personId } : {}), view } : null;
   };
@@ -226,8 +304,15 @@ export function startViewServer(d: ViewDeps): ViewServer {
     const url = new URL(req.url ?? "/", "http://browserd");
     if (url.pathname === "/stream") {
       const got = open(url.searchParams.get("t"));
-      if (!got) { res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n"); return; }
-      res.writeHead(200, { "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`, "cache-control": "no-store", connection: "close" });
+      if (!got) {
+        res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n");
+        return;
+      }
+      res.writeHead(200, {
+        "content-type": `multipart/x-mixed-replace; boundary=${BOUNDARY}`,
+        "cache-control": "no-store",
+        connection: "close",
+      });
       // an MJPEG view cannot show it is alive (it sends nothing, and a still page sends it no frame that would fill a dead socket), so it never counts as the holder's open view: only a WebSocket
       // view, which the Space's relay pings and closes when it stops answering, keeps a takeover going (second and third looks, 12 Nov)
       viewers += 1;
@@ -238,48 +323,103 @@ export function startViewServer(d: ViewDeps): ViewServer {
         res.write(jpeg);
         res.write("\r\n");
       });
-      res.once("close", () => { stop(); viewers -= 1; if (got.personId) d.seen?.(got.profileId, got.personId); });
+      res.once("close", () => {
+        stop();
+        viewers -= 1;
+        if (got.personId) d.seen?.(got.profileId, got.personId);
+      });
       return;
     }
-    if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true })); return; }
+    if (url.pathname === "/health") {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
+      return;
+    }
     res.writeHead(404, { "content-type": "text/plain" }).end("Not found.\n");
   });
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", "http://browserd");
     const got = url.pathname === "/ws" ? open(url.searchParams.get("t")) : null;
-    if (!got) { socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n"); return; }
+    if (!got) {
+      socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n");
+      return;
+    }
     const view = got.view;
     const ws = acceptWebSocket(req, socket, head);
     if (!ws) return;
     viewers += 1;
     count(keyOf(got), 1);
     if (got.personId) d.seen?.(got.profileId, got.personId);
-    const stop = view.hub.watch((jpeg) => { ws.send(jpeg); });
-    ws.onClose(() => { stop(); viewers -= 1; count(keyOf(got), -1); if (got.personId) d.seen?.(got.profileId, got.personId); });
+    const stop = view.hub.watch((jpeg) => {
+      ws.send(jpeg);
+    });
+    ws.onClose(() => {
+      stop();
+      viewers -= 1;
+      count(keyOf(got), -1);
+      if (got.personId) d.seen?.(got.profileId, got.personId);
+    });
     ws.onMessage((data, binary) => {
       if (binary || typeof data !== "string") return;
       const t0 = performance.now();
-      let m: { t?: string; seq?: number; x?: number; y?: number; n?: number; name?: string; down?: boolean; dx?: number; dy?: number; text?: string };
-      try { m = JSON.parse(data); } catch { return; }
+      let m: {
+        t?: string;
+        seq?: number;
+        x?: number;
+        y?: number;
+        n?: number;
+        name?: string;
+        down?: boolean;
+        dx?: number;
+        dy?: number;
+        text?: string;
+      };
+      try {
+        m = JSON.parse(data);
+      } catch {
+        return;
+      }
       const seq = m.seq ?? 0;
-      if (m.t === "ping") { ws.send(JSON.stringify({ t: "pong", seq })); return; }
-      if (!view.takenOver()) { ws.send(JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." })); return; }
+      if (m.t === "ping") {
+        ws.send(JSON.stringify({ t: "pong", seq }));
+        return;
+      }
+      if (!view.takenOver()) {
+        ws.send(
+          JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." }),
+        );
+        return;
+      }
       let req2: Record<string, unknown> | null = null;
       if (m.t === "move" && Number.isInteger(m.x) && Number.isInteger(m.y)) req2 = { op: "move", x: m.x, y: m.y };
-      else if ((m.t === "down" || m.t === "up") && Number.isInteger(m.n)) req2 = { op: "button", n: m.n, down: m.t === "down" };
-      else if (m.t === "key" && typeof m.name === "string" && m.name.length <= 32) req2 = { op: "key", name: m.name, down: m.down === true };
+      else if ((m.t === "down" || m.t === "up") && Number.isInteger(m.n))
+        req2 = { op: "button", n: m.n, down: m.t === "down" };
+      else if (m.t === "key" && typeof m.name === "string" && m.name.length <= 32)
+        req2 = { op: "key", name: m.name, down: m.down === true };
       else if (m.t === "scroll") req2 = { op: "scroll", dx: Number(m.dx ?? 0), dy: Number(m.dy ?? 0) };
-      else if (m.t === "type" && typeof m.text === "string" && m.text.length <= 2000) req2 = { op: "type", text: m.text };
-      if (!req2) { ws.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." })); return; }
+      else if (m.t === "type" && typeof m.text === "string" && m.text.length <= 2000)
+        req2 = { op: "type", text: m.text };
+      if (!req2) {
+        ws.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." }));
+        return;
+      }
       view.input.call(req2).then(
         (p) => {
           // What the person typed is not written down: a count for text, and a key's name only when it is a named key (Enter, Tab), never a letter.
-          const what = m.t === "type" ? { chars: m.text?.length } : m.t === "key" ? { down: m.down === true, ...(String(m.name).length > 1 ? { name: m.name } : {}) } : (req2 ?? {});
+          const what =
+            m.t === "type"
+              ? { chars: m.text?.length }
+              : m.t === "key"
+                ? { down: m.down === true, ...(String(m.name).length > 1 ? { name: m.name } : {}) }
+                : (req2 ?? {});
           view.onInput({ type: String(m.t), by: "person", ...what });
-          ws.send(JSON.stringify({ t: "ack", seq, x: p.x, y: p.y, ms: Math.round((performance.now() - t0) * 100) / 100 }));
+          ws.send(
+            JSON.stringify({ t: "ack", seq, x: p.x, y: p.y, ms: Math.round((performance.now() - t0) * 100) / 100 }),
+          );
         },
-        (e: unknown) => { ws.send(JSON.stringify({ t: "refused", seq, reason: e instanceof Error ? e.message : "The input failed." })); },
+        (e: unknown) => {
+          ws.send(JSON.stringify({ t: "refused", seq, reason: e instanceof Error ? e.message : "The input failed." }));
+        },
       );
     });
   });
@@ -293,8 +433,13 @@ export function startViewServer(d: ViewDeps): ViewServer {
       tokens.set(t, { exp: Date.now() + TOKEN_TTL_MS, profileId, ...(personId ? { personId } : {}) });
       return t;
     },
-    url: (token, transport) => (transport === "ws" ? `ws://${d.address()}:${d.port}/ws?t=${token}` : `http://${d.address()}:${d.port}/stream?t=${token}`),
-    close() { server.close(); },
+    url: (token, transport) =>
+      transport === "ws"
+        ? `ws://${d.address()}:${d.port}/ws?t=${token}`
+        : `http://${d.address()}:${d.port}/stream?t=${token}`,
+    close() {
+      server.close();
+    },
     viewers: () => viewers,
     viewersOf: (profileId, personId) => byPerson.get(`${profileId}|${personId}`) ?? 0,
   };

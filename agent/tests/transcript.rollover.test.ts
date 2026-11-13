@@ -2,7 +2,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ROLL, SUMMARY_CHARS, contextOf, createTranscript, decide, extractiveSummary, fit, personTurn, pointersOf, refreshSummary, rollSeed, rolloverCheck, windowFor,
+  ROLL,
+  SUMMARY_CHARS,
+  contextOf,
+  createTranscript,
+  decide,
+  extractiveSummary,
+  fit,
+  personTurn,
+  pointersOf,
+  refreshSummary,
+  rollSeed,
+  rolloverCheck,
+  windowFor,
 } from "../src/transcript/index.ts";
 import type { SummarizeInput, Transcript } from "../src/transcript/index.ts";
 import { createTurnBuilder } from "../src/transcript/index.ts";
@@ -10,7 +22,8 @@ import { createTurnBuilder } from "../src/transcript/index.ts";
 const T = "thr_a";
 function chat(n: number, size = 40): Transcript {
   const t = createTranscript();
-  for (let i = 1; i <= n; i++) t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `ask ${i}: ${"w".repeat(size)}`, at: i }));
+  for (let i = 1; i <= n; i++)
+    t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `ask ${i}: ${"w".repeat(size)}`, at: i }));
   return t;
 }
 
@@ -38,20 +51,42 @@ test("the decision to roll", () => {
   assert.deepEqual(decide({ ctx: rep(0.5) }), { roll: false, why: "below the threshold" });
   assert.deepEqual(decide({ ctx: rep(0.8) }), { roll: true, why: "at the threshold" });
   assert.deepEqual(decide({ ctx: rep(0.95) }), { roll: true, why: "forced" });
-  assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running" }), { roll: false, why: "waiting for: a build is running", wait: true });
-  assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running", waited: 3 }), { roll: true, why: "waited 3 turns for: a build is running" });
-  assert.deepEqual(decide({ ctx: rep(0.91), blocked: "a build is running" }), { roll: true, why: "forced (a build is running)" });
+  assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running" }), {
+    roll: false,
+    why: "waiting for: a build is running",
+    wait: true,
+  });
+  assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running", waited: 3 }), {
+    roll: true,
+    why: "waited 3 turns for: a build is running",
+  });
+  assert.deepEqual(decide({ ctx: rep(0.91), blocked: "a build is running" }), {
+    roll: true,
+    why: "forced (a build is running)",
+  });
   // a running Job outlives the window: no share and no number of boundaries rolls over it, and the engine's own compaction is what is left
   assert.deepEqual(decide({ ctx: rep(0.99), jobs: 1 }), { roll: false, why: "a Job is running (1)", wait: true });
-  assert.deepEqual(decide({ ctx: rep(0.99), jobs: 2, blocked: "a build is running", waited: 50 }), { roll: false, why: "a Job is running (2)", wait: true });
+  assert.deepEqual(decide({ ctx: rep(0.99), jobs: 2, blocked: "a build is running", waited: 50 }), {
+    roll: false,
+    why: "a Job is running (2)",
+    wait: true,
+  });
   assert.equal(decide({ ctx: rep(0.2), jobs: 1 }).why, "below the threshold");
   assert.equal(decide({ ctx: rep(0.99), jobs: 0 }).roll, true, "no Job left, it rolls");
-  assert.deepEqual(decide({ ctx: rep(0.9), sinceRoll: 4 }), { roll: false, why: "rolled 4 turns ago" }, "a seed already over the line never rolls again at once");
+  assert.deepEqual(
+    decide({ ctx: rep(0.9), sinceRoll: 4 }),
+    { roll: false, why: "rolled 4 turns ago" },
+    "a seed already over the line never rolls again at once",
+  );
   assert.equal(decide({ ctx: rep(0.9), sinceRoll: 10 }).roll, true);
   // An estimate errs early: 5/6 of the share a report would need.
   assert.equal(decide({ ctx: { share: 0.7, source: "estimated" } }).roll, true);
   assert.equal(decide({ ctx: { share: 0.7, source: "reported" } }).roll, false);
-  assert.equal(decide({ ctx: { share: 0.5, source: "reported" }, limits: { at: 0.4 } }).roll, true, "a setting moves the line");
+  assert.equal(
+    decide({ ctx: { share: 0.5, source: "reported" }, limits: { at: 0.4 } }).roll,
+    true,
+    "a setting moves the line",
+  );
 });
 
 test("rolloverCheck estimates from the transcript when the engine reports nothing", () => {
@@ -61,22 +96,33 @@ test("rolloverCheck estimates from the transcript when the engine reports nothin
   assert.equal(none.ctx.source, "estimated");
 
   const big = createTranscript();
-  for (let i = 1; i <= 10; i++) big.append(personTurn({ threadId: T, authorId: "usr_dana", text: "q".repeat(50_000), at: i }));
+  for (let i = 1; i <= 10; i++)
+    big.append(personTurn({ threadId: T, authorId: "usr_dana", text: "q".repeat(50_000), at: i }));
   const full = rolloverCheck(big, { threadId: T, model: "claude-sonnet-4-5" });
   assert.equal(full.roll, true);
   assert.ok(full.ctx.share > 0.6);
-  assert.equal(rolloverCheck(big, { threadId: T, model: "claude-sonnet-4-5", fromTurn: 10 }).roll, false, "only what was said since the last roll counts");
+  assert.equal(
+    rolloverCheck(big, { threadId: T, model: "claude-sonnet-4-5", fromTurn: 10 }).roll,
+    false,
+    "only what was said since the last roll counts",
+  );
   assert.equal(rolloverCheck(big, { threadId: T, used: 50_000, window: 200_000 }).ctx.source, "reported");
 });
 
 test("the rolling summary is refreshed in steps, and only from turns it does not yet cover", async () => {
   const t = chat(30);
   const calls: SummarizeInput[] = [];
-  const summarize = async (i: SummarizeInput): Promise<string> => { calls.push(i); return `${i.previous}\nsummary through ${i.turns.at(-1)?.n}`.trim(); };
+  const summarize = async (i: SummarizeInput): Promise<string> => {
+    calls.push(i);
+    return `${i.previous}\nsummary through ${i.turns.at(-1)?.n}`.trim();
+  };
 
   const first = await refreshSummary(t, summarize, { threadId: T, now: () => 7 });
   assert.deepEqual([first?.upTo, first?.by, first?.at], [10, "summarizer", 7]);
-  assert.deepEqual([calls[0]?.previous, calls[0]?.turns.length, calls[0]?.turns[0]?.n, calls[0]?.maxChars], ["", 10, 1, SUMMARY_CHARS]);
+  assert.deepEqual(
+    [calls[0]?.previous, calls[0]?.turns.length, calls[0]?.turns[0]?.n, calls[0]?.maxChars],
+    ["", 10, 1, SUMMARY_CHARS],
+  );
 
   for (let i = 31; i <= 33; i++) t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `ask ${i}`, at: i }));
   await refreshSummary(t, summarize, { threadId: T });
@@ -85,13 +131,22 @@ test("the rolling summary is refreshed in steps, and only from turns it does not
   for (let i = 34; i <= 36; i++) t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `ask ${i}`, at: i }));
   const second = await refreshSummary(t, summarize, { threadId: T });
   assert.equal(calls.length, 2);
-  assert.deepEqual([calls[1]?.previous, calls[1]?.turns.map((x) => x.n)], ["summary through 10", [11, 12, 13, 14, 15, 16]]);
+  assert.deepEqual(
+    [calls[1]?.previous, calls[1]?.turns.map((x) => x.n)],
+    ["summary through 10", [11, 12, 13, 14, 15, 16]],
+  );
   assert.equal(second?.upTo, 16);
   assert.equal(second?.text, "summary through 10\nsummary through 16");
 });
 
 test("with no summarizer, an empty answer or a failure, the plain extract stands in and the turns are never lost", async () => {
-  for (const summarize of [undefined, async () => "   ", async () => { throw new Error("down"); }]) {
+  for (const summarize of [
+    undefined,
+    async () => "   ",
+    async () => {
+      throw new Error("down");
+    },
+  ]) {
     const t = chat(30);
     const s = await refreshSummary(t, summarize, { threadId: T });
     assert.equal(s?.by, "extract");
@@ -130,9 +185,15 @@ test("fit keeps the newest lines whole under the cap", () => {
 
 test("a rolled session starts from the summary, the pointers and the last turns", async () => {
   const t = chat(30);
-  const seed = await rollSeed(t, async () => "Dana asked 10 things about the Lee estate.", { threadId: T, now: () => 1 });
+  const seed = await rollSeed(t, async () => "Dana asked 10 things about the Lee estate.", {
+    threadId: T,
+    now: () => 1,
+  });
   assert.match(seed.text, /rolled over to keep the window small/);
-  assert.match(seed.text, /Summary of the conversation so far \(up to turn 10\):\n  \| Dana asked 10 things about the Lee estate\./);
+  assert.match(
+    seed.text,
+    /Summary of the conversation so far \(up to turn 10\):\n  \| Dana asked 10 things about the Lee estate\./,
+  );
   assert.match(seed.text, /Earlier in this conversation \(10 turns before what follows\)/);
   assert.match(seed.text, /ask 30:/);
   assert.equal(seed.turns, 20);
@@ -141,16 +202,28 @@ test("a rolled session starts from the summary, the pointers and the last turns"
 
 test("pointers: one per request, thinned evenly with the newest kept, plus files and commits", () => {
   const t = createTranscript();
-  for (let i = 1; i <= 100; i++) t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `request ${i}`, at: i }));
+  for (let i = 1; i <= 100; i++)
+    t.append(personTurn({ threadId: T, authorId: "usr_dana", text: `request ${i}`, at: i }));
   const p = pointersOf(t.turns(T), 10);
   assert.equal(p.lines.length, 10);
   assert.ok(p.lines[0]?.startsWith("#1 "), "the oldest stretch keeps a pointer");
   assert.ok(p.lines.at(-1)?.startsWith("#100 "));
-  assert.deepEqual(p.lines.slice(-6).map((l) => l.split(" ")[0]), ["#95", "#96", "#97", "#98", "#99", "#100"], "the newest window gets most of the lines");
+  assert.deepEqual(
+    p.lines.slice(-6).map((l) => l.split(" ")[0]),
+    ["#95", "#96", "#97", "#98", "#99", "#100"],
+    "the newest window gets most of the lines",
+  );
   assert.equal(p.turns, 100);
 
   const w = createTranscript();
-  const b = createTurnBuilder({ threadId: T, authorId: "agt_a", engine: "claude_code", model: null, now: () => 1, cwd: "/w" });
+  const b = createTurnBuilder({
+    threadId: T,
+    authorId: "agt_a",
+    engine: "claude_code",
+    model: null,
+    now: () => 1,
+    cwd: "/w",
+  });
   b.push({ type: "tool_call", id: "1", name: "Edit", input: { file_path: "/w/src/a.ts" } });
   b.push({ type: "tool_call", id: "2", name: "Bash", input: { command: "git commit -m x" } });
   b.toolResult("2", { ok: true, content: "[main abc1234] x" });

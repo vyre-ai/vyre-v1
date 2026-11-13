@@ -13,28 +13,61 @@ import { SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample } from "./sample.ts";
 
 const ALL = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const html = (s: Sample, tab: TabKey): string => clean(renderToStaticMarkup(<ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} paneWidth={640} />));
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const html = (s: Sample, tab: TabKey): string =>
+  clean(
+    renderToStaticMarkup(
+      <ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} paneWidth={640} />,
+    ),
+  );
 const deps = (s: Sample): { d: PaneDeps; notes: string[] } => {
   const notes: string[] = [];
   return { notes, d: { call: s.data.call, note: (text) => notes.push(text) } };
 };
 
 test("the Crew tab sits after Threads, and only when teammates work for the chat", () => {
-  assert.deepEqual(tabsOf(false).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
-  assert.deepEqual(tabsOf(true, false, false).map((t) => t.title), ["About", "Chats", "Files", "Terminal", "Knows", "Routines"], "no computer: no Computer tab, but every agent has a Terminal (it opens on this computer)");
-  assert.deepEqual(tabsOf(true).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"]);
-  assert.deepEqual(tabsOf(false, true).map((t) => t.title), ["About", "Computer", "Chats", "Crew", "Files", "Knows", "Routines"]);
+  assert.deepEqual(
+    tabsOf(false).map((t) => t.title),
+    ["About", "Computer", "Chats", "Files", "Knows", "Routines"],
+  );
+  assert.deepEqual(
+    tabsOf(true, false, false).map((t) => t.title),
+    ["About", "Chats", "Files", "Terminal", "Knows", "Routines"],
+    "no computer: no Computer tab, but every agent has a Terminal (it opens on this computer)",
+  );
+  assert.deepEqual(
+    tabsOf(true).map((t) => t.title),
+    ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"],
+  );
+  assert.deepEqual(
+    tabsOf(false, true).map((t) => t.title),
+    ["About", "Computer", "Chats", "Crew", "Files", "Knows", "Routines"],
+  );
   assert.ok(!html(createSample(), "threads").includes(">Crew<"), "no crew, no tab");
   assert.ok(html(createSample("northwind", { crew: true }), "threads").includes(">Crew<"));
 });
 
 test("one row per teammate: its name and job, how it stands, and Merge or Stop where they apply", () => {
   const out = html(createSample("northwind", { crew: true }), "crew");
-  for (const needle of ["Ember · Dark mode", "Working · started 12 min ago", "Rowan · Footer links", "Done 5 min ago · 2 files", "Quill · Docs", "Merged"]) assert.ok(out.includes(needle), needle);
+  for (const needle of [
+    "Ember · Dark mode",
+    "Working · started 12 min ago",
+    "Rowan · Footer links",
+    "Done 5 min ago · 2 files",
+    "Quill · Docs",
+    "Merged",
+  ])
+    assert.ok(out.includes(needle), needle);
   assert.ok(out.includes('data-testid="crew-merge-crw_2"'), "a finished teammate offers Merge");
-  assert.ok(!out.includes('data-testid="crew-merge-crw_1"') && !out.includes('data-testid="crew-merge-crw_3"'), "only a finished one does");
-  assert.ok(out.includes('data-testid="crew-stop-crw_1"') && !out.includes('data-testid="crew-stop-crw_2"'), "only a running one offers Stop");
+  assert.ok(
+    !out.includes('data-testid="crew-merge-crw_1"') && !out.includes('data-testid="crew-merge-crw_3"'),
+    "only a finished one does",
+  );
+  assert.ok(
+    out.includes('data-testid="crew-stop-crw_1"') && !out.includes('data-testid="crew-stop-crw_2"'),
+    "only a running one offers Stop",
+  );
 });
 
 test("a wait on checks is a live row with its progress", () => {
@@ -49,7 +82,19 @@ test("an empty crew says so in a few words", () => {
 
 test("the notes read in a few words", () => {
   const clock = { now: SAMPLE_NOW, zone: "UTC" } as never;
-  const job = (over: Partial<CrewJob>): CrewJob => ({ jobId: "j", threadId: "t", leadThreadId: "l", projectId: "p", agentId: "a", title: "T", branch: "b", base: "main", state: "working", startedAt: SAMPLE_NOW - 60_000, ...over });
+  const job = (over: Partial<CrewJob>): CrewJob => ({
+    jobId: "j",
+    threadId: "t",
+    leadThreadId: "l",
+    projectId: "p",
+    agentId: "a",
+    title: "T",
+    branch: "b",
+    base: "main",
+    state: "working",
+    startedAt: SAMPLE_NOW - 60_000,
+    ...over,
+  });
   assert.equal(crewNote(job({ state: "waiting" }), clock), "Waiting on you");
   assert.match(crewNote(job({ state: "failed", endedAt: SAMPLE_NOW }), clock), /^Could not finish/);
   assert.match(crewNote(job({ state: "stopped", endedAt: SAMPLE_NOW }), clock), /^Stopped/);
@@ -63,13 +108,22 @@ test("Merge and Stop write through one capability each, change what the next ren
   const { d, notes } = deps(s);
   assert.equal(await crewMerge(d, "crw_2", "Rowan", "crew/rowan-1"), true);
   assert.deepEqual(notes, ["Merged crew/rowan-1"]);
-  assert.ok(html(s, "crew").includes("Rowan · Footer links") && !html(s, "crew").includes('data-testid="crew-merge-crw_2"'), "merged: no Merge any more");
+  assert.ok(
+    html(s, "crew").includes("Rowan · Footer links") && !html(s, "crew").includes('data-testid="crew-merge-crw_2"'),
+    "merged: no Merge any more",
+  );
   assert.equal(await crewStop(d, "crw_1", "Ember"), true);
   assert.equal(notes.at(-1), "Stopped Ember");
   s.failNext("engine.crew.merge");
   assert.equal(await crewMerge(d, "crw_3", "Quill", "crew/quill-1"), false);
   assert.equal(notes.at(-1), "Could not merge Quill's work: engine.crew.merge failed");
-  assert.ok(s.calls.some((c) => c.cap === "engine.crew.merge" && (c.input as { idempotencyKey?: string }).idempotencyKey?.startsWith("rp-merge-")));
+  assert.ok(
+    s.calls.some(
+      (c) =>
+        c.cap === "engine.crew.merge" &&
+        (c.input as { idempotencyKey?: string }).idempotencyKey?.startsWith("rp-merge-"),
+    ),
+  );
 });
 
 test("a Personal Space says its crew works while this computer is on; a team Space does not", () => {
@@ -78,7 +132,18 @@ test("a Personal Space says its crew works while this computer is on; a team Spa
 });
 
 test("a Job the server lost asks; it never runs again by itself, and a paused one says why", () => {
-  const job = (state: CrewJob["state"]): CrewJob => ({ jobId: "j", threadId: "t", leadThreadId: "l", projectId: "p", agentId: "a", title: "T", branch: "b", base: "main", state, startedAt: 1 });
+  const job = (state: CrewJob["state"]): CrewJob => ({
+    jobId: "j",
+    threadId: "t",
+    leadThreadId: "l",
+    projectId: "p",
+    agentId: "a",
+    title: "T",
+    branch: "b",
+    base: "main",
+    state,
+    startedAt: 1,
+  });
   assert.equal(canRunAgain(job("lost")), true);
   assert.equal(canRunAgain(job("done")), false);
   assert.equal(canStop(job("paused")), true);

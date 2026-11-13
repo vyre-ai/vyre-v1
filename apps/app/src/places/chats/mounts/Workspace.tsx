@@ -15,11 +15,26 @@ export const WORKSPACE_MIN_W = 1500;
 export function Workspace({ rt, work, children }: { rt: ShellRuntime; work: Work; children: ReactNode }): ReactElement {
   return (
     <View testID="chats-workspace" style={st.row}>
-      <View testID="chats-work" accessibilityLabel={work.type === "project" ? "The project" : "The record"} style={st.work}>
+      <View
+        testID="chats-work"
+        accessibilityLabel={work.type === "project" ? "The project" : "The record"}
+        style={st.work}
+      >
         <RecordDetail key={work.id} rt={rt} recordId={work.id} />
       </View>
-      <ResizableColumn inline paneKey="chats-beside" defaultWidth={CHAT_BESIDE_W} grow="left" min={300} style={st.chat as never} testID="chats-beside" label="The conversation">
-        <Text accessibilityRole="header" style={st.label}>Conversation</Text>
+      <ResizableColumn
+        inline
+        paneKey="chats-beside"
+        defaultWidth={CHAT_BESIDE_W}
+        grow="left"
+        min={300}
+        style={st.chat as never}
+        testID="chats-beside"
+        label="The conversation"
+      >
+        <Text accessibilityRole="header" style={st.label}>
+          Conversation
+        </Text>
         <View style={st.fill}>{children}</View>
       </ResizableColumn>
     </View>
@@ -29,7 +44,20 @@ export function Workspace({ rt, work, children }: { rt: ShellRuntime; work: Work
 const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0 },
   work: { flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" },
-  chat: { width: CHAT_BESIDE_W, minHeight: 0, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
-  label: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  chat: {
+    width: CHAT_BESIDE_W,
+    minHeight: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
+  label: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 2,
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+  },
   fill: { flex: 1, minHeight: 0 },
 });

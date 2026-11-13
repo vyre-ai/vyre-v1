@@ -4,7 +4,13 @@ import path from "node:path";
 
 export const SKINS = ["paper", "graphite"];
 // SHOTS_DESKTOP_WIDTH and SHOTS_DESKTOP_HEIGHT look at the desktop size another way (a lane that must be seen at 1440); unset, it is 1280 by 800 as ever.
-export const SIZES = { desktop: { width: Number(process.env.SHOTS_DESKTOP_WIDTH) || 1280, height: Number(process.env.SHOTS_DESKTOP_HEIGHT) || 800 }, phone: { width: 390, height: 844 } };
+export const SIZES = {
+  desktop: {
+    width: Number(process.env.SHOTS_DESKTOP_WIDTH) || 1280,
+    height: Number(process.env.SHOTS_DESKTOP_HEIGHT) || 800,
+  },
+  phone: { width: 390, height: 844 },
+};
 export const MAX_EXPORT_S = 120;
 
 /** `--key value` and `--flag` arguments. */
@@ -12,14 +18,21 @@ export function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
     if (!argv[i].startsWith("--")) continue;
-    const k = argv[i].slice(2), n = argv[i + 1];
-    if (n === undefined || n.startsWith("--")) out[k] = true; else { out[k] = n; i++; }
+    const k = argv[i].slice(2),
+      n = argv[i + 1];
+    if (n === undefined || n.startsWith("--")) out[k] = true;
+    else {
+      out[k] = n;
+      i++;
+    }
   }
   return out;
 }
 
 /** The prototype hash for a target and skin: `{skin}` in the template is replaced. */
-export function protoHash(template, skin) { return template.replaceAll("{skin}", skin); }
+export function protoHash(template, skin) {
+  return template.replaceAll("{skin}", skin);
+}
 
 /** The route URL on the served export. The skin travels as ?skin= and the mode follows the skin's base unless given. */
 export function routeUrl(origin, route, skin, mode) {
@@ -33,7 +46,8 @@ export function routeUrl(origin, route, skin, mode) {
 export function loadTargets(dir) {
   const files = [path.join(dir, "targets.json")];
   const sub = path.join(dir, "targets");
-  if (fs.existsSync(sub)) for (const f of fs.readdirSync(sub).sort()) if (f.endsWith(".json")) files.push(path.join(sub, f));
+  if (fs.existsSync(sub))
+    for (const f of fs.readdirSync(sub).sort()) if (f.endsWith(".json")) files.push(path.join(sub, f));
   const seen = new Map();
   for (const f of files) {
     if (!fs.existsSync(f)) continue;
@@ -48,9 +62,11 @@ export function loadTargets(dir) {
 }
 
 function shardCoordinate(index, total) {
-  const n = Number(total), i = Number(index);
+  const n = Number(total),
+    i = Number(index);
   if (!Number.isInteger(n) || n < 1) throw new Error(`shard total must be a positive integer, got ${total}`);
-  if (!Number.isInteger(i) || i < 0 || i >= n) throw new Error(`shard index must be an integer from 0 to ${n - 1}, got ${index}`);
+  if (!Number.isInteger(i) || i < 0 || i >= n)
+    throw new Error(`shard index must be an integer from 0 to ${n - 1}, got ${index}`);
   return { index: i, total: n };
 }
 
@@ -71,11 +87,20 @@ export function shardIndexName(index, total) {
 /** Combine complete shard indexes into the canonical artifact index. */
 export function mergeShotIndexes(indexes, expectedShards) {
   const expected = Number(expectedShards);
-  if (!Number.isInteger(expected) || expected < 1) throw new Error(`expected shard count must be a positive integer, got ${expectedShards}`);
-  const names = expected === 1 ? ["index.md"] : Array.from({ length: expected }, (_, index) => shardIndexName(index, expected));
+  if (!Number.isInteger(expected) || expected < 1)
+    throw new Error(`expected shard count must be a positive integer, got ${expectedShards}`);
+  const names =
+    expected === 1 ? ["index.md"] : Array.from({ length: expected }, (_, index) => shardIndexName(index, expected));
   const actual = indexes.map(({ name }) => name).sort();
-  if (JSON.stringify(actual) !== JSON.stringify(names)) throw new Error(`expected shard indexes ${names.join(", ")}; found ${actual.join(", ") || "none"}`);
-  const rows = indexes.flatMap(({ text }) => String(text).split("\n").filter((line) => /^\| /.test(line) && !/^\| target /.test(line) && !/^\|---/.test(line))).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(names))
+    throw new Error(`expected shard indexes ${names.join(", ")}; found ${actual.join(", ") || "none"}`);
+  const rows = indexes
+    .flatMap(({ text }) =>
+      String(text)
+        .split("\n")
+        .filter((line) => /^\| /.test(line) && !/^\| target /.test(line) && !/^\|---/.test(line)),
+    )
+    .sort();
   return `# Side-by-side screenshots\n\nMerged from ${expected} shards.\n\n| target | skin | size | file |\n|---|---|---|---|\n${rows.join("\n")}\n`;
 }
 
@@ -91,7 +116,9 @@ export function sideBySideHtml({ title, real, proto }) {
 }
 
 /** Wrong frames: those whose value differs from the expected one. */
-export function countWrongFrames(frames, expected) { return frames.filter((f) => f !== expected).length; }
+export function countWrongFrames(frames, expected) {
+  return frames.filter((f) => f !== expected).length;
+}
 
 /** Reads a budget row from budgets.json. */
 export function budgetOf(budgets, name) {
@@ -113,13 +140,15 @@ export function waitSelector(side, target, size = "desktop") {
  * desktop layout and is often not on the phone's (a list in place of a table, a bottom bar in place of the rail), and 56 targets still miss that way (SHOTS-BUDGET-2026-11-11.md, Round 3). Those are printed, not failed.
  */
 export function waitIsHard(target, size = "desktop") {
-  return size === "desktop" || (typeof target.waitFor === "object" && target.waitFor !== null && size in target.waitFor);
+  return (
+    size === "desktop" || (typeof target.waitFor === "object" && target.waitFor !== null && size in target.waitFor)
+  );
 }
 
 /** A target's `waitFor` for one size. A string applies to every size; an object names the selector per size ({ desktop, phone }, `any` for the rest), for an element the layout shows on one size only (the phone's bottom rail, its Back button). */
 export function waitForOf(target, size = "desktop") {
   const w = target.waitFor;
-  return w === undefined || typeof w === "string" ? w : w[size] ?? w.any;
+  return w === undefined || typeof w === "string" ? w : (w[size] ?? w.any);
 }
 
 /**
@@ -138,7 +167,13 @@ export async function runTestIdSteps(page, steps, settleMs = 350) {
       else if (kind === "see") await loc.scrollIntoViewIfNeeded({ timeout: 5000 });
       else if (kind === "fill") await loc.fill(rest.join("|"), { timeout: 5000 });
       else errs.push(`unknown step ${step}`);
-    } catch (e) { errs.push(`${kind} ${id}: ${String(e?.message ?? e).split("\n")[0].slice(0, 100)}`); }
+    } catch (e) {
+      errs.push(
+        `${kind} ${id}: ${String(e?.message ?? e)
+          .split("\n")[0]
+          .slice(0, 100)}`,
+      );
+    }
     await page.waitForTimeout(settleMs);
   }
   return errs;

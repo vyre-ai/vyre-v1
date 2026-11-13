@@ -12,7 +12,8 @@ import { mintRecordId } from "../../../lib/ids.ts";
 const NOW = 1_800_000_000_000;
 const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => undefined, actor: "usr_owner" };
 const file = (): string => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-schema-neutral-")), "space.db");
-const keys = (s: ReturnType<typeof openSchema>): string[] => s.tx.all<{ type: string }>("SELECT type FROM sc_types ORDER BY type").map((r) => r.type);
+const keys = (s: ReturnType<typeof openSchema>): string[] =>
+  s.tx.all<{ type: string }>("SELECT type FROM sc_types ORDER BY type").map((r) => r.type);
 const groups = async (s: ReturnType<typeof openSchema>): Promise<string[]> => {
   const out = await s.handlers["schema.types.list"](ctx, {});
   return [...new Set(out.types.map((t: { group?: string }) => t.group ?? ""))].sort();
@@ -27,8 +28,21 @@ async function oldSpace(p: string): Promise<void> {
 test("a new Space has only the neutral record types and no example Kit group", async () => {
   const s = openSchema({ path: file(), now: () => NOW });
   await s.start();
-  assert.deepEqual(keys(s), ["agent", "company", "contact", "envelope", "issue", "meeting", "note_board", "project", "pull_request", "report", "task"]);
-  for (const k of ["client_plan", "commission", "lead", "matter"]) assert.ok(!keys(s).includes(k), `${k} is not seeded`);
+  assert.deepEqual(keys(s), [
+    "agent",
+    "company",
+    "contact",
+    "envelope",
+    "issue",
+    "meeting",
+    "note_board",
+    "project",
+    "pull_request",
+    "report",
+    "task",
+  ]);
+  for (const k of ["client_plan", "commission", "lead", "matter"])
+    assert.ok(!keys(s).includes(k), `${k} is not seeded`);
   assert.deepEqual(s.pruned, []);
   const g = await groups(s);
   for (const name of ["Planning", "Studio", "Intake"]) assert.ok(!g.includes(name), `no ${name} group`);
@@ -43,11 +57,18 @@ test("start removes an unused seeded example Kit type, keeps one with a record, 
   assert.ok(keys(a).includes("client_plan") && keys(a).includes("matter"), "the old seed holds the example types");
   const rec = mintRecordId();
   const matter = (await a.handlers["schema.types.get"](ctx, { type: "matter" })).type;
-  const required = Object.fromEntries(matter.fields.filter((f: { required?: boolean }) => f.required).map((f: { key: string }) => [f.key, "x"]));
+  const required = Object.fromEntries(
+    matter.fields.filter((f: { required?: boolean }) => f.required).map((f: { key: string }) => [f.key, "x"]),
+  );
   await a.store.create("matter", rec, required);
-  await a.handlers["schema.apply"](ctx, { ops: [{ op: "field.add", type: "commission", field: "budget", def: { type: "number", title: "Budget" } }] });
+  await a.handlers["schema.apply"](ctx, {
+    ops: [{ op: "field.add", type: "commission", field: "budget", def: { type: "number", title: "Budget" } }],
+  });
   const lead = (await a.handlers["schema.types.get"](ctx, { type: "lead" })).type;
-  await a.handlers["schema.layout.set"](ctx, { type: "lead", sections: [{ key: "main", title: "Lead", fields: [lead.fields[0].key] }] });
+  await a.handlers["schema.layout.set"](ctx, {
+    type: "lead",
+    sections: [{ key: "main", title: "Lead", fields: [lead.fields[0].key] }],
+  });
   a.host?.close();
 
   const b = openSchema({ path: p, now: () => NOW + 1000 });
@@ -55,7 +76,8 @@ test("start removes an unused seeded example Kit type, keeps one with a record, 
   assert.deepEqual(b.pruned, ["client_plan"], "only the untouched example type goes");
   for (const k of ["matter", "commission", "lead"]) assert.ok(keys(b).includes(k), `${k} is kept`);
   assert.ok(!keys(b).includes("client_plan"));
-  for (const k of ["company", "contact", "task", "agent", "issue", "pull_request"]) assert.ok(keys(b).includes(k), `${k} stays`);
+  for (const k of ["company", "contact", "task", "agent", "issue", "pull_request"])
+    assert.ok(keys(b).includes(k), `${k} stays`);
   assert.equal((await b.store.get("matter", rec)) !== null, true, "the record is untouched");
   const afterFirst = keys(b);
   b.host?.close();

@@ -16,29 +16,56 @@ type Step = Parameters<typeof EmailDesignEditor>[0]["step"];
 export function stepOf(doc: Doc | null, id: string | undefined): Step {
   const config: Record<string, unknown> = doc
     ? {
-      emailId: doc.emailId, subject: doc.subject ?? "", designMode: doc.mode === "blocks" ? "visual" : doc.mode, html: doc.html ?? "", text: doc.plain ?? "",
-      designBlocks: (doc.blocks ?? []).map((block, index) => visibleBlock(block, `blk-${index}`)),
-    }
+        emailId: doc.emailId,
+        subject: doc.subject ?? "",
+        designMode: doc.mode === "blocks" ? "visual" : doc.mode,
+        html: doc.html ?? "",
+        text: doc.plain ?? "",
+        designBlocks: (doc.blocks ?? []).map((block, index) => visibleBlock(block, `blk-${index}`)),
+      }
     : {};
   return { key: id ?? "new-design", config } as unknown as Step;
 }
 
 export function EmailDesigner({ id, back }: { id?: string | undefined; back(): void }): ReactElement {
   const online = useOnline();
-  const doc = useRead<CapMap["email_builder.get"]["out"]>(id ? "email_builder.get" : null, { emailId: id }, "templates");
-  const loaded = id ? doc.data?.email ?? null : null;
+  const doc = useRead<CapMap["email_builder.get"]["out"]>(
+    id ? "email_builder.get" : null,
+    { emailId: id },
+    "templates",
+  );
+  const loaded = id ? (doc.data?.email ?? null) : null;
   const d = useAppsData();
   const designs = useRead<CapMap["email_builder.list"]["out"]>(id ? null : "email_builder.list", {}, "templates");
   return (
-    <Frame testID="apps-email-designer" title={loaded?.name ?? (id ? "Email design" : "New email design")} back={back} offline={!online} error={doc.error} loading={doc.loading && !loaded} retry={doc.refresh}>
+    <Frame
+      testID="apps-email-designer"
+      title={loaded?.name ?? (id ? "Email design" : "New email design")}
+      back={back}
+      offline={!online}
+      error={doc.error}
+      loading={doc.loading && !loaded}
+      retry={doc.refresh}
+    >
       {!id && (designs.data?.emails.length ?? 0) > 0 ? (
         <Card title="Your email designs">
-          {designs.data?.emails.map((e) => <Row key={e.emailId} id={`email-design-${e.emailId}`} title={e.name} note={`Updated ${new Date(e.updatedAt).toLocaleDateString()}`} onPress={() => d.nav.openEmailDesign?.(e.emailId)} />)}
+          {designs.data?.emails.map((e) => (
+            <Row
+              key={e.emailId}
+              id={`email-design-${e.emailId}`}
+              title={e.name}
+              note={`Updated ${new Date(e.updatedAt).toLocaleDateString()}`}
+              onPress={() => d.nav.openEmailDesign?.(e.emailId)}
+            />
+          ))}
         </Card>
       ) : null}
       {id && !loaded ? null : (
         <EmailDesignEditor
-          key={id ?? "new"} step={stepOf(loaded, id)} onChange={() => undefined} title="Email design"
+          key={id ?? "new"}
+          step={stepOf(loaded, id)}
+          onChange={() => undefined}
+          title="Email design"
           intro="Email designs save as versions. Use one from Templates in the Inbox composer or in an Automation email step."
         />
       )}

@@ -24,44 +24,78 @@ if (!args.includes("--skip-export")) {
 }
 fs.mkdirSync(out, { recursive: true });
 const tall = Number(flag("height")) || 0; // --height=N: a taller viewport for a long page
-const SIZES = prefix === "CONSOLIDATE_02" ? { wide: { width: 1440, height: tall || 1000 }, phone: { width: 390, height: tall || 1300 } } : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
+const SIZES =
+  prefix === "CONSOLIDATE_02"
+    ? { wide: { width: 1440, height: tall || 1000 }, phone: { width: 390, height: tall || 1300 } }
+    : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith(prefix) && (only.length === 0 || only.includes(t.id.replace(`${prefix}-`, ""))));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter(
+  (t) => t.id.startsWith(prefix) && (only.length === 0 || only.includes(t.id.replace(`${prefix}-`, ""))),
+);
 const unscripted = new Map();
 const broken = [];
 const lines = [];
-const say = (x) => { console.log(x); lines.push(x); };
-for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
-  if (sizeOnly && size !== sizeOnly) continue;
-  if (skinOnly && skin !== skinOnly) continue;
-  if (size === "wide" && t.id.includes("phone")) continue;
-  const name = t.id.replace(`${prefix}-`, "");
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on("pageerror", (e) => errs.push(String(e)));
-  page.on("console", (m) => { const x = m.text(); if (x.startsWith("UNSCRIPTED ")) { const k = x.split(" ").slice(1).join(" "); unscripted.set(k, true); } });
-  page.on("crash", () => say(`crash ${name}`));
-  // a busy box drops a navigation now and then: one more try before giving up
-  const url = routeUrl(real.origin, t.route, skin);
-  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-  await page.waitForTimeout(500);
-  let found = true;
-  if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  else await page.waitForSelector("[data-testid='console-top'], [data-testid='console']", { timeout: 15000 }).catch(() => { found = false; });
-  await page.waitForTimeout(1600);
-  const text = await page.evaluate(() => document.body.innerText).catch(() => "");
-  const bad = /Couldn.t load|Check access and try again|Something went wrong/.test(text);
-  if (bad) broken.push(`${name}-${skin}-${size}`);
-  const file = path.join(out, `${name}-${skin}-${size}.png`);
-  await page.screenshot({ path: file });
-  say(`shot ${path.basename(file)} found=${found}${bad ? " LOAD-ERROR" : ""}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
-  await ctx.close();
-}
-await browser.close(); real.close();
+const say = (x) => {
+  console.log(x);
+  lines.push(x);
+};
+for (const t of targets)
+  for (const skin of ["paper", "graphite"])
+    for (const [size, vp] of Object.entries(SIZES)) {
+      if (sizeOnly && size !== sizeOnly) continue;
+      if (skinOnly && skin !== skinOnly) continue;
+      if (size === "wide" && t.id.includes("phone")) continue;
+      const name = t.id.replace(`${prefix}-`, "");
+      const ctx = await browser.newContext({
+        viewport: vp,
+        deviceScaleFactor: 1,
+        colorScheme: skin === "graphite" ? "dark" : "light",
+        reducedMotion: "reduce",
+      });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push(String(e)));
+      page.on("console", (m) => {
+        const x = m.text();
+        if (x.startsWith("UNSCRIPTED ")) {
+          const k = x.split(" ").slice(1).join(" ");
+          unscripted.set(k, true);
+        }
+      });
+      page.on("crash", () => say(`crash ${name}`));
+      // a busy box drops a navigation now and then: one more try before giving up
+      const url = routeUrl(real.origin, t.route, skin);
+      await page
+        .goto(url, { waitUntil: "load", timeout: 60000 })
+        .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+      await page.waitForTimeout(500);
+      let found = true;
+      if (t.waitFor)
+        await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => {
+          found = false;
+        });
+      else
+        await page
+          .waitForSelector("[data-testid='console-top'], [data-testid='console']", { timeout: 15000 })
+          .catch(() => {
+            found = false;
+          });
+      await page.waitForTimeout(1600);
+      const text = await page.evaluate(() => document.body.innerText).catch(() => "");
+      const bad = /Couldn.t load|Check access and try again|Something went wrong/.test(text);
+      if (bad) broken.push(`${name}-${skin}-${size}`);
+      const file = path.join(out, `${name}-${skin}-${size}.png`);
+      await page.screenshot({ path: file });
+      say(
+        `shot ${path.basename(file)} found=${found}${bad ? " LOAD-ERROR" : ""}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`,
+      );
+      await ctx.close();
+    }
+await browser.close();
+real.close();
 if (unscripted.size) say("UNSCRIPTED CAPS (part cap input):\n" + [...unscripted.keys()].sort().join("\n"));
 if (broken.length) say("LOAD ERRORS: " + broken.join(" "));
 fs.writeFileSync(path.join(out, "report.txt"), lines.join("\n") + "\n");

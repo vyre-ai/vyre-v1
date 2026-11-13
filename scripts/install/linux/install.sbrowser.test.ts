@@ -16,35 +16,63 @@ const read = (f: string): string => fs.readFileSync(f, "utf8");
 const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-"));
 
 // An engine on this computer's own kernel (vyre-server decides by the boot id read inside Docker): these tests model a Linux server whose Docker runs on its own kernel.
-const SAME_ENGINE = `Ubuntu|${((): string => { try { return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); } catch { return "no-boot-id"; } })()}`;
+const SAME_ENGINE = `Ubuntu|${((): string => {
+  try {
+    return fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+  } catch {
+    return "no-boot-id";
+  }
+})()}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 /** Runs a snippet of sh with a script's functions loaded and nothing else executed. */
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_ENGINE: SAME_ENGINE,
+      VYRE_TEST_OS: "Linux",
+      ...env,
+    },
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
 function installFixture(dir: string): void {
-  for (const [v, img] of [["1.0.0", "old"], ["1.1.0", "new"]] as const) {
+  for (const [v, img] of [
+    ["1.0.0", "old"],
+    ["1.1.0", "new"],
+  ] as const) {
     fs.mkdirSync(path.join(dir, "releases", v), { recursive: true });
-    fs.writeFileSync(path.join(dir, "releases", v, "images.lock"), `VYRE_IMAGE=${img}@sha256:${"a".repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:${(img === "old" ? "1" : "2").repeat(64)}\n`);
+    fs.writeFileSync(
+      path.join(dir, "releases", v, "images.lock"),
+      `VYRE_IMAGE=${img}@sha256:${"a".repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:${(img === "old" ? "1" : "2").repeat(64)}\n`,
+    );
     fs.writeFileSync(path.join(dir, "releases", v, ".complete"), "");
     fs.writeFileSync(path.join(dir, "releases", v, "VERSION"), v);
   }
   fs.symlinkSync("releases/1.1.0", path.join(dir, "current"));
-  fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_PORT=8420\nVYRE_IMAGE=new@sha256:${"a".repeat(64)}\nDOCKER_GID=1\n`);
+  fs.writeFileSync(
+    path.join(dir, "compose.env"),
+    `VYRE_PORT=8420\nVYRE_IMAGE=new@sha256:${"a".repeat(64)}\nDOCKER_GID=1\n`,
+  );
 }
 
 test("ensure_metadata_block keeps containers from the cloud metadata address but lets DNS to it pass, in order, once; skips a Mac; says why when it cannot; doctor reads the rules back", () => {
   const dir = tmp();
   try {
     installFixture(dir);
-    const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
+    const shim = path.join(dir, "shim");
+    fs.mkdirSync(shim);
     const rules = (t: string): string => path.join(dir, `rules-${t}`);
     // a fake iptables and ip6tables keeping DOCKER-USER as an ordered file: -L succeeds when the chain file exists, -C FORWARD -j DOCKER-USER when the jump file exists, -C finds a rule, -I N inserts it at
     // line N, -D removes it once
     for (const t of ["iptables", "ip6tables"]) {
-      fs.writeFileSync(path.join(shim, t), `#!/bin/sh
+      fs.writeFileSync(
+        path.join(shim, t),
+        `#!/bin/sh
 echo "${t} $*" >> "${dir}/calls"
 shift; act=$1; shift; chain=$1; shift
 [ -f "${dir}/chain-${t}" ] || exit 1
@@ -58,18 +86,24 @@ case "$act" in
   -I) n=\${pos:-1}; awk -v n="$n" -v r="$rule" 'NR==n{print r} {print} END{if(NR<n)print r}' "$f" > "$f.new"; mv "$f.new" "$f" ;;
   -D) grep -qxF -- "$rule" "$f" || exit 1; awk -v r="$rule" '!d && $0==r {d=1; next} {print}' "$f" > "$f.new"; mv "$f.new" "$f" ;;
 esac
-`, { mode: 0o755 });
+`,
+        { mode: 0o755 },
+      );
     }
     const env = { VYRE_DIR: dir, VYRE_TEST_METADATA: "1", PATH: `${shim}:${process.env.PATH ?? ""}` };
     // without the test's own opt-in, a test run never reaches the real firewall (the other tests run start and update as root on the box)
     assert.equal(sh(SERVER, "meta_state", { ...env, VYRE_TEST_METADATA: "0" }).stdout, "skip");
     const state = (o: Record<string, string> = {}): string => sh(SERVER, "meta_state", { ...env, ...o }).stdout;
-    const finding = (): string => sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', env).stdout;
+    const finding = (): string =>
+      sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', env).stdout;
     // a Mac: nothing, no finding
     assert.equal(state({ VYRE_TEST_OS: "Darwin" }), "skip");
     // no DOCKER-USER chain: said, in plain words, as degraded; start says it too and changes nothing
     assert.match(state(), /^broken iptables has no DOCKER-USER chain/);
-    assert.match(finding(), /host\.metadata\tdegraded\tAgents' containers may reach the cloud metadata address \(169\.254\.0\.0\/16\): iptables has no DOCKER-USER chain/);
+    assert.match(
+      finding(),
+      /host\.metadata\tdegraded\tAgents' containers may reach the cloud metadata address \(169\.254\.0\.0\/16\): iptables has no DOCKER-USER chain/,
+    );
     let r = sh(SERVER, "ensure_metadata_block", env);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /may reach the cloud metadata address/);
@@ -83,15 +117,22 @@ esac
     r = sh(SERVER, "ensure_metadata_block", env);
     assert.equal(r.status, 0, r.stderr);
     const v4 = read(rules("iptables")).trim().split("\n");
-    assert.deepEqual(v4, [
-      "-i br-+ -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
-      "-i br-+ -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
-      "-i docker0 -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
-      "-i docker0 -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
-      "-i br-+ -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
-      "-i docker0 -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
-    ], "every DNS pass stands above every drop");
-    assert.deepEqual(read(rules("ip6tables")).trim().split("\n").sort(), ["-i br-+ -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP", "-i docker0 -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP"]);
+    assert.deepEqual(
+      v4,
+      [
+        "-i br-+ -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+        "-i br-+ -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+        "-i docker0 -d 169.254.0.0/16 -p tcp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+        "-i docker0 -d 169.254.0.0/16 -p udp --dport 53 -m comment --comment vyre-metadata -j RETURN",
+        "-i br-+ -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+        "-i docker0 -d 169.254.0.0/16 -m comment --comment vyre-metadata -j DROP",
+      ],
+      "every DNS pass stands above every drop",
+    );
+    assert.deepEqual(read(rules("ip6tables")).trim().split("\n").sort(), [
+      "-i br-+ -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
+      "-i docker0 -d fd00:ec2::254/128 -m comment --comment vyre-metadata -j DROP",
+    ]);
     assert.equal(state(), "on");
     assert.match(finding(), /host\.metadata\thealthy\t.*DNS to it still passes/);
     // a second start adds nothing; an old drop-only rule set (dee49d04c) with a DNS pass missing is put back in order
@@ -109,13 +150,26 @@ esac
     sh(SERVER, "ensure_metadata_block", noV6);
     assert.deepEqual(read(rules("iptables")).trim().split("\n"), v4, "IPv4 blocked though there is no ip6tables");
     assert.equal(sh(SERVER, "meta_state", noV6).stdout, "on");
-    assert.match(sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', noV6).stdout, /host\.metadata\tdegraded\t.*IPv4.*fd00:ec2::254.*there is no ip6tables/);
+    assert.match(
+      sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', noV6).stdout,
+      /host\.metadata\tdegraded\t.*IPv4.*fd00:ec2::254.*there is no ip6tables/,
+    );
     // start, the update (also the daily check when there is nothing new) and the rollback all put it there
     const text = read(SERVER);
     assert.match(text, /cmd_start\(\) \{[^\n]*ensure_metadata_block; dc up/, "start (the boot unit runs it)");
-    assert.match(text, /cmd_update\(\) \{\n(?:  if \[ "\$\{VYRE_UPDATE_CONTINUE:-0\}" = 1 \][^\n]*\n)?  parse_update_args "\$@"\n(?:  #[^\n]*\n)*  ensure_metadata_block\n/, "every update run, the daily check included (the child that carries an update out is started by a run that already did it)");
-    assert.equal((text.match(/  ensure_metadata_block\n  refresh_bin\n  ensure_userns\n/g) ?? []).length, 2, "update and rollback");
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.match(
+      text,
+      /cmd_update\(\) \{\n(?:  if \[ "\$\{VYRE_UPDATE_CONTINUE:-0\}" = 1 \][^\n]*\n)?  parse_update_args "\$@"\n(?:  #[^\n]*\n)*  ensure_metadata_block\n/,
+      "every update run, the daily check included (the child that carries an update out is started by a run that already did it)",
+    );
+    assert.equal(
+      (text.match(/  ensure_metadata_block\n  refresh_bin\n  ensure_userns\n/g) ?? []).length,
+      2,
+      "update and rollback",
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // Lead, 12 Nov: the Space browser container survives a restart of the daemon on purpose, but `vyre-server stop` (and so an uninstall, which runs it) stops it; an update does not.
@@ -123,14 +177,25 @@ test("vyre-server stop also stops the Space browser container; the update's own 
   const dir = tmp();
   try {
     installFixture(dir);
-    const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
-    fs.writeFileSync(path.join(shim, "docker"), `#!/bin/sh\necho "docker $*" >> "${dir}/docker.log"\n`, { mode: 0o755 });
-    const r = sh(SERVER, "dc() { echo \"dc $*\" >> \"$VYRE_DIR/docker.log\"; }; cmd_stop", { VYRE_DIR: dir, PATH: `${shim}:${process.env.PATH ?? ""}` });
+    const shim = path.join(dir, "shim");
+    fs.mkdirSync(shim);
+    fs.writeFileSync(path.join(shim, "docker"), `#!/bin/sh\necho "docker $*" >> "${dir}/docker.log"\n`, {
+      mode: 0o755,
+    });
+    const r = sh(SERVER, 'dc() { echo "dc $*" >> "$VYRE_DIR/docker.log"; }; cmd_stop', {
+      VYRE_DIR: dir,
+      PATH: `${shim}:${process.env.PATH ?? ""}`,
+    });
     assert.equal(r.status, 0, r.stderr);
     const log = read(path.join(dir, "docker.log"));
     assert.match(log, /^dc stop$/m);
     assert.match(log, /^docker stop -t 10 vyre-sbrowser$/m, "the browser container stops with the server");
     const text = read(SERVER);
-    assert.ok(!/cmd_update\(\) \{[\s\S]*?\n\}/.exec(text)![0].includes("cmd_stop"), "an update stops the server with dc stop, not cmd_stop, so agents' browsers stay up through it");
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.ok(
+      !/cmd_update\(\) \{[\s\S]*?\n\}/.exec(text)![0].includes("cmd_stop"),
+      "an update stops the server with dc stop, not cmd_stop, so agents' browsers stay up through it",
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

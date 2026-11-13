@@ -2,14 +2,35 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { checkFormHtml, checkFormJs, generateFormHtml, HTML_MAX } from "../form-source.ts";
 
-const ok = (html: string) => { const r = checkFormHtml(html); assert.equal(r.ok, true, JSON.stringify(r)); return r as Extract<ReturnType<typeof checkFormHtml>, { ok: true }>; };
-const bad = (html: string, why: RegExp) => { const r = checkFormHtml(html); assert.equal(r.ok, false, `${html} should be refused`); assert.match((r as { reason: string }).reason, why); };
+const ok = (html: string) => {
+  const r = checkFormHtml(html);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  return r as Extract<ReturnType<typeof checkFormHtml>, { ok: true }>;
+};
+const bad = (html: string, why: RegExp) => {
+  const r = checkFormHtml(html);
+  assert.equal(r.ok, false, `${html} should be refused`);
+  assert.match((r as { reason: string }).reason, why);
+};
 
 test("author markup and placed fields split into pieces; the fields placed are listed", () => {
-  const r = ok('<h1 class="big">Welcome</h1>\n<p>Tell us <strong>about</strong> you. <a href="https://example.com/privacy" target="_blank">Privacy</a></p>\n<vyre-field name="email"></vyre-field>\n<div class="note"><vyre-field name="full_name"/></div>\n<img src="https://example.com/a.png" alt="" width="40">');
+  const r = ok(
+    '<h1 class="big">Welcome</h1>\n<p>Tell us <strong>about</strong> you. <a href="https://example.com/privacy" target="_blank">Privacy</a></p>\n<vyre-field name="email"></vyre-field>\n<div class="note"><vyre-field name="full_name"/></div>\n<img src="https://example.com/a.png" alt="" width="40">',
+  );
   assert.deepEqual(r.fields, ["email", "full_name"]);
-  assert.deepEqual(r.pieces.map((p) => p.type), ["html", "field", "html", "field", "html"]);
-  assert.equal(r.pieces.filter((p) => p.type === "html").map((p) => (p as { html: string }).html).join("").includes("<vyre-field"), false, "markers are not left in the markup");
+  assert.deepEqual(
+    r.pieces.map((p) => p.type),
+    ["html", "field", "html", "field", "html"],
+  );
+  assert.equal(
+    r.pieces
+      .filter((p) => p.type === "html")
+      .map((p) => (p as { html: string }).html)
+      .join("")
+      .includes("<vyre-field"),
+    false,
+    "markers are not left in the markup",
+  );
 });
 
 test("everything that could run script or reach outside the form is refused with where and why", () => {
@@ -50,20 +71,24 @@ test("markup must be balanced and bounded", () => {
 test("a field marker takes exactly a valid name, once", () => {
   bad('<vyre-field name="Email"></vyre-field>', /exactly one attribute/);
   bad('<vyre-field name="a" class="b"></vyre-field>', /exactly one attribute/);
-  bad('<vyre-field></vyre-field>', /exactly one attribute/);
+  bad("<vyre-field></vyre-field>", /exactly one attribute/);
   bad('<vyre-field name="a"></vyre-field><vyre-field name="a"></vyre-field>', /placed twice/);
   bad('<vyre-field name="a"><p>x</p></vyre-field>', /no content/);
   bad('<vyre-field name="a">', /no content/);
-  bad('</vyre-field>', /no matching opening/);
+  bad("</vyre-field>", /no matching opening/);
 });
 
 test("the JavaScript source is bounded and cannot close its own script tag", () => {
   assert.equal(checkFormJs("document.title = 'x';").ok, true);
-  for (const js of ["a</script><script>b", "x </SCRIPT >", "<!-- hi", "a".repeat(70_000), "a\u0000b"]) assert.equal(checkFormJs(js).ok, false, js.slice(0, 20));
+  for (const js of ["a</script><script>b", "x </SCRIPT >", "<!-- hi", "a".repeat(70_000), "a\u0000b"])
+    assert.equal(checkFormJs(js).ok, false, js.slice(0, 20));
 });
 
 test("the generated starting template places every question in order and passes its own check", () => {
-  const html = generateFormHtml([{ key: "email", title: "Email" }, { key: "full_name", title: "Name" }]);
+  const html = generateFormHtml([
+    { key: "email", title: "Email" },
+    { key: "full_name", title: "Name" },
+  ]);
   assert.equal(html, '<vyre-field name="email"></vyre-field>\n<vyre-field name="full_name"></vyre-field>\n');
   assert.deepEqual(ok(html).fields, ["email", "full_name"]);
   assert.equal(generateFormHtml([]), "");

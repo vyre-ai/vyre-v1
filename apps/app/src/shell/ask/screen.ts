@@ -3,7 +3,11 @@
 // The Chats place itself never sets it: an Ask pane is opened from another place, and that place is what the agent should hear about.
 import { parseHash } from "../hash/hash.ts";
 
-export interface ScreenObject { type: string; id: string; title?: string }
+export interface ScreenObject {
+  type: string;
+  id: string;
+  title?: string;
+}
 export interface ScreenContext {
   place: string;
   title?: string;
@@ -33,7 +37,9 @@ export function screenFromHash(place: string, hash: string): ScreenContext {
 export function screenOfAsk(hash: string): ScreenContext | null {
   const about = parseHash(hash).args["about"];
   const at = about === undefined ? -1 : about.indexOf(":");
-  return at > 0 && about !== undefined ? { place: "chats", open: [{ type: about.slice(0, at), id: about.slice(at + 1) }] } : null;
+  return at > 0 && about !== undefined
+    ? { place: "chats", open: [{ type: about.slice(0, at), id: about.slice(at + 1) }] }
+    : null;
 }
 
 let base: ScreenContext | null = null;
@@ -57,17 +63,25 @@ export function currentScreen(): ScreenContext | null {
   return base ? { ...base, ...extra, place: base.place } : null;
 }
 
-export function subscribeScreen(fn: () => void): () => void { listeners.add(fn); return () => { listeners.delete(fn); }; }
+export function subscribeScreen(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
 
 /** The kind of each thread the Chats place has open, noted when it loads. Only an Ask pane's messages carry the screen: a plain chat is not about a screen. */
 const KIND = new Map<string, string>();
-export function noteThreadKind(threadId: string, kind: string): void { KIND.set(threadId, kind); }
+export function noteThreadKind(threadId: string, kind: string): void {
+  KIND.set(threadId, kind);
+}
 export const carriesScreen = (threadId: string): boolean => KIND.get(threadId) === "ask" || PINNED.has(threadId);
 
 /** An Ask pane says what its thread is about (the thing, its place, what the door added), read when a message is sent, so moving around the place never loses it. */
 const PINNED = new Map<string, () => ScreenContext>();
 export function pinThreadScreen(threadId: string, read: (() => ScreenContext) | null): void {
-  if (read) PINNED.set(threadId, read); else PINNED.delete(threadId);
+  if (read) PINNED.set(threadId, read);
+  else PINNED.delete(threadId);
 }
 
 /** The screen a message in this thread carries: the pane's own when it has one, else where the person is for an Ask thread, else none. */

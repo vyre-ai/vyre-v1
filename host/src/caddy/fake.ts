@@ -3,7 +3,11 @@
 import type { AdminFetch } from "./admin.ts";
 
 type Json = Record<string, unknown>;
-export interface FakeCall { method: string; path: string; body?: unknown }
+export interface FakeCall {
+  method: string;
+  path: string;
+  body?: unknown;
+}
 
 export class FakeCaddy {
   config: Json | null = null;
@@ -21,12 +25,18 @@ export class FakeCaddy {
     const body = init?.body ? (JSON.parse(init.body) as unknown) : undefined;
     this.calls.push({ method, path: u.pathname, ...(body !== undefined ? { body } : {}) });
     if (this.down) throw new Error("connect ECONNREFUSED 127.0.0.1:2019");
-    if (this.failNext) { const f = this.failNext; this.failNext = null; return reply(f.status, f.body); }
+    if (this.failNext) {
+      const f = this.failNext;
+      this.failNext = null;
+      return reply(f.status, f.body);
+    }
     return this.handle(method, u.pathname, body);
   };
 
   private servers(): Json[] {
-    const s = ((this.config?.["apps"] as Json | undefined)?.["http"] as Json | undefined)?.["servers"] as Json | undefined;
+    const s = ((this.config?.["apps"] as Json | undefined)?.["http"] as Json | undefined)?.["servers"] as
+      | Json
+      | undefined;
     return s ? Object.values(s).filter((v): v is Json => !!v && typeof v === "object") : [];
   }
 
@@ -42,23 +52,35 @@ export class FakeCaddy {
 
   private handle(method: string, path: string, body: unknown): { status: number; text(): Promise<string> } {
     if (path === "/config/" && method === "GET") return reply(200, JSON.stringify(this.config));
-    if (path === "/load" && method === "POST") { this.config = JSON.parse(JSON.stringify(body)) as Json; return reply(200, ""); }
+    if (path === "/load" && method === "POST") {
+      this.config = JSON.parse(JSON.stringify(body)) as Json;
+      return reply(200, "");
+    }
     const id = path.startsWith("/id/") ? decodeURIComponent(path.slice(4)) : null;
     if (id !== null) {
       const hit = this.find(id);
       if (!hit) return reply(404, JSON.stringify({ error: `unknown object ID '${id}'` }));
       if (method === "GET") return reply(200, JSON.stringify(hit.routes[hit.index]));
-      if (method === "PATCH") { hit.routes[hit.index] = JSON.parse(JSON.stringify(body)) as Json; return reply(200, ""); }
-      if (method === "DELETE") { hit.routes.splice(hit.index, 1); return reply(200, ""); }
+      if (method === "PATCH") {
+        hit.routes[hit.index] = JSON.parse(JSON.stringify(body)) as Json;
+        return reply(200, "");
+      }
+      if (method === "DELETE") {
+        hit.routes.splice(hit.index, 1);
+        return reply(200, "");
+      }
     }
     const m = /^\/config\/apps\/http\/servers\/([^/]+)\/routes$/.exec(path);
     if (m && method === "POST") {
-      const server = ((this.config?.["apps"] as Json | undefined)?.["http"] as Json | undefined)?.["servers"] as Json | undefined;
+      const server = ((this.config?.["apps"] as Json | undefined)?.["http"] as Json | undefined)?.["servers"] as
+        | Json
+        | undefined;
       const s = server?.[m[1]!] as Json | undefined;
       if (!s) return reply(400, JSON.stringify({ error: "invalid traversal path" }));
       const route = JSON.parse(JSON.stringify(body)) as Json;
       this.beforeAppend?.(route);
-      if (this.find(String(route["@id"]))) return reply(400, JSON.stringify({ error: `duplicate ID '${String(route["@id"])}' found in configuration` }));
+      if (this.find(String(route["@id"])))
+        return reply(400, JSON.stringify({ error: `duplicate ID '${String(route["@id"])}' found in configuration` }));
       (s["routes"] as Json[]).push(route);
       return reply(200, "");
     }
@@ -66,4 +88,7 @@ export class FakeCaddy {
   }
 }
 
-const reply = (status: number, text: string): { status: number; text(): Promise<string> } => ({ status, text: async () => text });
+const reply = (status: number, text: string): { status: number; text(): Promise<string> } => ({
+  status,
+  text: async () => text,
+});

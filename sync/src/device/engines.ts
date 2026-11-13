@@ -35,16 +35,41 @@ export function deviceClassOf(target: DeviceTarget): DeviceClass {
 
 export function selectEngine(target: DeviceTarget, outcome: SpikeOutcome = RECORDED_OUTCOME): EngineChoice {
   if (target === "ios" || target === "android") {
-    return { engine: "sqlcipher-expo", fallback: false, reason: "expo-sqlite with SQLCipher; replicaKey wrapped in IndexedDB-equivalent store, no keychain required" };
+    return {
+      engine: "sqlcipher-expo",
+      fallback: false,
+      reason: "expo-sqlite with SQLCipher; replicaKey wrapped in IndexedDB-equivalent store, no keychain required",
+    };
   }
   if (target === "web") {
     return outcome.webCipherOpfs === "pass"
-      ? { engine: "sqlite3mc-opfs", fallback: false, reason: "S5 passed: sqlite3mc on OPFS rejects no key and a wrong key" }
-      : { engine: "wa-sqlite-aes", fallback: true, reason: `S5 web cipher OPFS is ${outcome.webCipherOpfs}: wa-sqlite 1.0.0 with app-layer AES-GCM` };
+      ? {
+          engine: "sqlite3mc-opfs",
+          fallback: false,
+          reason: "S5 passed: sqlite3mc on OPFS rejects no key and a wrong key",
+        }
+      : {
+          engine: "wa-sqlite-aes",
+          fallback: true,
+          reason: `S5 web cipher OPFS is ${outcome.webCipherOpfs}: wa-sqlite 1.0.0 with app-layer AES-GCM`,
+        };
   }
-  const shell = target === "desktop-mac" ? outcome.shell.mac : target === "desktop-windows" ? outcome.shell.windows : outcome.shell.linux;
+  const shell =
+    target === "desktop-mac"
+      ? outcome.shell.mac
+      : target === "desktop-windows"
+        ? outcome.shell.windows
+        : outcome.shell.linux;
   if (shell === "pass" && outcome.webCipherOpfs === "pass") {
-    return { engine: "sqlite3mc-opfs", fallback: false, reason: "S12 passed: the shell runs the web replica in the system webview" };
+    return {
+      engine: "sqlite3mc-opfs",
+      fallback: false,
+      reason: "S12 passed: the shell runs the web replica in the system webview",
+    };
   }
-  return { engine: "sidecar-node-aes", fallback: true, reason: `S12 shell result is ${shell}: the UI talks to the vyred device sidecar (node:sqlite, app-layer AES-GCM)` };
+  return {
+    engine: "sidecar-node-aes",
+    fallback: true,
+    reason: `S12 shell result is ${shell}: the UI talks to the vyred device sidecar (node:sqlite, app-layer AES-GCM)`,
+  };
 }

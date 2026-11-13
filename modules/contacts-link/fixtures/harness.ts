@@ -20,8 +20,15 @@ export interface Rec {
   fields: Record<string, unknown>;
 }
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   principal?: ContactsCtx["principal"];
@@ -39,7 +46,16 @@ export function harness(opts: HarnessOptions = {}) {
   let clock = NOW;
   const db = memoryDb(writes);
 
-  const rowOf = (r: Rec) => ({ id: r.id, type: r.type, version: 1, label: 0, fields: { ...r.fields }, createdAt: NOW, updatedAt: NOW, holds: 0 });
+  const rowOf = (r: Rec) => ({
+    id: r.id,
+    type: r.type,
+    version: 1,
+    label: 0,
+    fields: { ...r.fields },
+    createdAt: NOW,
+    updatedAt: NOW,
+    holds: 0,
+  });
   const stored = (r: Rec) => ({ id: r.id, version: 1, created_at: NOW, updated_at: NOW, type: r.type, data: r.fields });
 
   const ctx: ContactsCtx = {
@@ -65,10 +81,14 @@ export function harness(opts: HarnessOptions = {}) {
           return { record: rowOf(r) };
         }
         case "records.query": {
-          const all = [...records.values()].filter((r) => r.type === body.type && matches(body.filter as Filter | undefined, stored(r))).sort((a, b) => a.id.localeCompare(b.id));
+          const all = [...records.values()]
+            .filter((r) => r.type === body.type && matches(body.filter as Filter | undefined, stored(r)))
+            .sort((a, b) => a.id.localeCompare(b.id));
           const start = typeof body.cursor === "string" ? Number(body.cursor) : 0;
           const size = Math.min(pageSize, typeof body.limit === "number" ? body.limit : pageSize);
-          const out: { rows: ReturnType<typeof rowOf>[]; next?: string } = { rows: all.slice(start, start + size).map(rowOf) };
+          const out: { rows: ReturnType<typeof rowOf>[]; next?: string } = {
+            rows: all.slice(start, start + size).map(rowOf),
+          };
           if (start + size < all.length) out.next = String(start + size);
           return out;
         }
@@ -83,7 +103,8 @@ export function harness(opts: HarnessOptions = {}) {
           if (t === undefined) throw fail("validation.not_found", trace);
           return { text: t, mime: "text/csv", size: t.length, version: 1, truncated: false };
         }
-        default: throw new Error(`unexpected capability ${cap}`);
+        default:
+          throw new Error(`unexpected capability ${cap}`);
       }
     },
     log: { info() {}, warn() {} },
@@ -91,11 +112,25 @@ export function harness(opts: HarnessOptions = {}) {
   ensure(ctx);
 
   return {
-    ctx, db, emitted, called, writes, records, files,
-    advance(ms: number) { clock += ms; },
-    rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    db,
+    emitted,
+    called,
+    writes,
+    records,
+    files,
+    advance(ms: number) {
+      clock += ms;
+    },
+    rows(sql: string, ...args: unknown[]): Row[] {
+      return ctx.db.all(sql, ...args) as Row[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
     /** a contact record */
     contact(id: string, fields: Record<string, unknown> = {}): Rec {
       const r: Rec = { id, type: "contact", fields: { name: id, ...fields } };

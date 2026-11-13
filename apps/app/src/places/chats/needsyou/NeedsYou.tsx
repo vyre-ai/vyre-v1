@@ -18,8 +18,40 @@ import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, questionOf, roleWord, rowNote, sortItems, splitOlder,
-  isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
+  FILTERS,
+  SNOOZES,
+  arrivedLabel,
+  assignedName,
+  accessRequestOf,
+  connectionFixOf,
+  fixOf,
+  footerHint,
+  keyRequestOf,
+  fromName,
+  hasComputer,
+  originOf,
+  blockView,
+  holder,
+  kindWord,
+  matchesFilter,
+  needsLine,
+  needsNote,
+  needsTake,
+  nextSelection,
+  notePrompt,
+  questionOf,
+  roleWord,
+  rowNote,
+  sortItems,
+  splitOlder,
+  isWithdrawn,
+  peopleCount,
+  participants,
+  sourceWord,
+  splitActions,
+  splitWithdrawn,
+  stateWord,
+  stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
 import { isNoAccount, mailFix } from "./account.ts";
@@ -37,18 +69,46 @@ export const LIST_W = 340;
 export const NARROW = 640;
 export const LIST_LIMIT = 100;
 
-export function NeedsYou({ data, window, initialSelected }: { data?: NeedsYouData; window?: VirtualWindow; initialSelected?: string }): ReactElement {
+export function NeedsYou({
+  data,
+  window,
+  initialSelected,
+}: {
+  data?: NeedsYouData;
+  window?: VirtualWindow;
+  initialSelected?: string;
+}): ReactElement {
   const ctx = useOptionalNeedsData();
   const value = data ?? ctx;
   if (!value) return <NeedsYouLoading />;
-  return <NeedsYouDataProvider value={value}><NeedsView {...(window ? { window } : {})} {...(initialSelected ? { initialSelected } : {})} /></NeedsYouDataProvider>;
+  return (
+    <NeedsYouDataProvider value={value}>
+      <NeedsView {...(window ? { window } : {})} {...(initialSelected ? { initialSelected } : {})} />
+    </NeedsYouDataProvider>
+  );
 }
 
 /** The frame before data: rows the size of the real ones, so nothing moves when the data arrives. */
 export function NeedsYouLoading(): ReactElement {
   const rows: ReactElement[] = [];
-  for (let i = 0; i < 8; i++) rows.push(<View key={i} style={st.skRow}><View style={st.skFace} /><View style={{ flex: 1, gap: 6 }}><View style={[st.skBar, { width: `${50 + ((i * 11) % 35)}%` }]} /><View style={[st.skBar, { width: "70%", height: 8 }]} /></View></View>);
-  return <View testID="needs-loading" accessibilityLabel="Loading" style={st.root}><View style={st.list}><View style={st.head} />{rows}</View></View>;
+  for (let i = 0; i < 8; i++)
+    rows.push(
+      <View key={i} style={st.skRow}>
+        <View style={st.skFace} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={[st.skBar, { width: `${50 + ((i * 11) % 35)}%` }]} />
+          <View style={[st.skBar, { width: "70%", height: 8 }]} />
+        </View>
+      </View>,
+    );
+  return (
+    <View testID="needs-loading" accessibilityLabel="Loading" style={st.root}>
+      <View style={st.list}>
+        <View style={st.head} />
+        {rows}
+      </View>
+    </View>
+  );
 }
 
 function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initialSelected?: string }): ReactElement {
@@ -82,60 +142,141 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const count = countQ.status === "ready" ? countQ.data.count : itemsQ.data.total;
   const who = (t: Task): string => fromName(t, data.nameOf);
 
-  const choose = (id: string): void => { setSelected(id); setCompose(null); setDraft(""); setScreen("detail"); };
+  const choose = (id: string): void => {
+    setSelected(id);
+    setCompose(null);
+    setDraft("");
+    setScreen("detail");
+  };
   const doAct = async (i: Item, a: Action, note?: string): Promise<void> => {
-    if (needsNote(a) && (note ?? "").trim() === "") { setCompose({ taskId: i.task.id, action: a }); setSelected(i.task.id); setScreen("detail"); return; }
+    if (needsNote(a) && (note ?? "").trim() === "") {
+      setCompose({ taskId: i.task.id, action: a });
+      setSelected(i.task.id);
+      setScreen("detail");
+      return;
+    }
     const after = nextSelection(pool, i.task.id);
     const ok = await act(deps, i.task, a, who(i.task), note);
-    if (ok) { setSelected(after); setCompose(null); setDraft(""); if (narrow) setScreen("list"); }
+    if (ok) {
+      setSelected(after);
+      setCompose(null);
+      setDraft("");
+      if (narrow) setScreen("list");
+    }
   };
   const entriesFor = (i: Item): MenuEntry[] => {
     const a = splitActions(i.task);
     const out: MenuEntry[] = [];
-    if (a.primary) { const p = a.primary; out.push({ label: p.label, onSelect: () => void doAct(i, p) }); }
-    if (a.sendBack) { const b = a.sendBack; out.push({ label: "Send Back…", onSelect: () => void doAct(i, b) }); }
+    if (a.primary) {
+      const p = a.primary;
+      out.push({ label: p.label, onSelect: () => void doAct(i, p) });
+    }
+    if (a.sendBack) {
+      const b = a.sendBack;
+      out.push({ label: "Send Back…", onSelect: () => void doAct(i, b) });
+    }
     for (const m of a.more) out.push({ label: m.label, onSelect: () => void doAct(i, m) });
     if (out.length > 0) out.push({ separator: true });
-    for (const c of SNOOZES) out.push({ label: `Snooze: ${c.label}`, onSelect: () => void snooze(deps, i.task, c.key, clock) });
+    for (const c of SNOOZES)
+      out.push({ label: `Snooze: ${c.label}`, onSelect: () => void snooze(deps, i.task, c.key, clock) });
     const from = i.task.source;
-    if (from) out.push({ separator: true }, { label: "Open Source", onSelect: () => data.nav.openSource(from.kind, from.id) });
-    if (needsTake(i.task, data.me) && fixOf(i.task) === null) out.push({ label: "Take", onSelect: () => void take(deps, i.task) });
+    if (from)
+      out.push({ separator: true }, { label: "Open Source", onSelect: () => data.nav.openSource(from.kind, from.id) });
+    if (needsTake(i.task, data.me) && fixOf(i.task) === null)
+      out.push({ label: "Take", onSelect: () => void take(deps, i.task) });
     return out;
   };
   const filterMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [];
-    for (const f of FILTERS) items.push({ label: f.label, checked: filter === f.key, onSelect: () => setFilter(f.key) });
+    for (const f of FILTERS)
+      items.push({ label: f.label, checked: filter === f.key, onSelect: () => setFilter(f.key) });
     menu.show(items, x, y, "other");
   };
 
   const onKeyDown = (ev: { key?: string; target?: { tagName?: string }; preventDefault?: () => void }): void => {
     const tag = (ev.target?.tagName ?? "").toUpperCase();
     if (tag === "INPUT" || tag === "TEXTAREA") return;
-    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setSelected(stepSelection(pool, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1)); return; }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault?.();
+      setSelected(stepSelection(pool, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1));
+      return;
+    }
     if (!current) return;
-    if (ev.key === "Enter") { ev.preventDefault?.(); setScreen("detail"); return; }
-    if (fixOf(current.task) !== null || keyRequestOf(current.task) !== null || accessRequestOf(current.task) !== null || connectionFixOf(current.task) !== null) return;
+    if (ev.key === "Enter") {
+      ev.preventDefault?.();
+      setScreen("detail");
+      return;
+    }
+    if (
+      fixOf(current.task) !== null ||
+      keyRequestOf(current.task) !== null ||
+      accessRequestOf(current.task) !== null ||
+      connectionFixOf(current.task) !== null
+    )
+      return;
     const a = splitActions(current.task);
-    if ((ev.key === "a" || ev.key === "A") && a.primary) { ev.preventDefault?.(); void doAct(current, a.primary); }
-    if ((ev.key === "b" || ev.key === "B") && a.sendBack) { ev.preventDefault?.(); void doAct(current, a.sendBack); }
+    if ((ev.key === "a" || ev.key === "A") && a.primary) {
+      ev.preventDefault?.();
+      void doAct(current, a.primary);
+    }
+    if ((ev.key === "b" || ev.key === "B") && a.sendBack) {
+      ev.preventDefault?.();
+      void doAct(current, a.sendBack);
+    }
   };
 
   const renderRow = (i: Item): ReactElement => {
     const sel = current?.task.id === i.task.id;
     const a = splitActions(i.task);
-    const quick = a.primary && !needsNote(a.primary) && !isWithdrawn(i) && fixOf(i.task) === null && keyRequestOf(i.task) === null && accessRequestOf(i.task) === null && connectionFixOf(i.task) === null ? a.primary : null;
+    const quick =
+      a.primary &&
+      !needsNote(a.primary) &&
+      !isWithdrawn(i) &&
+      fixOf(i.task) === null &&
+      keyRequestOf(i.task) === null &&
+      accessRequestOf(i.task) === null &&
+      connectionFixOf(i.task) === null
+        ? a.primary
+        : null;
     const verb = i.task.kind === "unblock" ? "Unblock" : kindWord(i.task);
     const full = rowNote(i, who(i.task), clock);
     const note = full.startsWith(`${verb} \u00b7 `) ? full.slice(verb.length + 3) : full;
     return (
-      <View style={isWithdrawn(i) ? st.dimRow : undefined} {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}>
+      <View
+        style={isWithdrawn(i) ? st.dimRow : undefined}
+        {...menuTrigger((x, y) => menu.show(entriesFor(i), x, y, "context", { label: i.task.title }))}
+      >
         <Row
-          id={`need-${i.task.id}`} title={i.task.title} note={note} noteLead={verb} noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"} selected={sel} onPress={() => choose(i.task.id)}
-          leading={<View style={{ marginRight: 10 }}>{originOf(i.task) ? <OriginMark name={who(i.task)} size={26} /> : <Face name={who(i.task)} seedId={i.task.createdBy} size={26} />}</View>}
+          id={`need-${i.task.id}`}
+          title={i.task.title}
+          note={note}
+          noteLead={verb}
+          noteLeadTone={i.task.kind === "unblock" ? "warning" : "accent"}
+          selected={sel}
+          onPress={() => choose(i.task.id)}
+          leading={
+            <View style={{ marginRight: 10 }}>
+              {originOf(i.task) ? (
+                <OriginMark name={who(i.task)} size={26} />
+              ) : (
+                <Face name={who(i.task)} seedId={i.task.createdBy} size={26} />
+              )}
+            </View>
+          }
           trailing={
             <RowEnd
-              time={arrivedLabel(i.task.updatedAt, clock)} lit={sel}
-              quick={quick && holder(i, data.me).kind === "free" ? <Tool icon="check" label={`${quick.label} ${i.task.title}`} onPress={() => void doAct(i, quick)} testID={`quick-${i.task.id}`} /> : null}
+              time={arrivedLabel(i.task.updatedAt, clock)}
+              lit={sel}
+              quick={
+                quick && holder(i, data.me).kind === "free" ? (
+                  <Tool
+                    icon="check"
+                    label={`${quick.label} ${i.task.title}`}
+                    onPress={() => void doAct(i, quick)}
+                    testID={`quick-${i.task.id}`}
+                  />
+                ) : null
+              }
             />
           }
         />
@@ -146,36 +287,96 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const listPane = (
     <View testID="needs-list" style={[st.list, narrow ? { flex: 1 } : { width: LIST_W }]}>
       <View style={st.head}>
-        <Text accessibilityRole="header" style={st.headText}>Needs you</Text>
-        {count > 0 ? <View testID="needs-count" style={st.badge}><Text style={st.badgeText}>{count > 99 ? "99+" : count}</Text></View> : null}
+        <Text accessibilityRole="header" style={st.headText}>
+          Needs you
+        </Text>
+        {count > 0 ? (
+          <View testID="needs-count" style={st.badge}>
+            <Text style={st.badgeText}>{count > 99 ? "99+" : count}</Text>
+          </View>
+        ) : null}
         <View style={{ flex: 1 }} />
-        {online ? null : <Text testID="needs-offline" style={st.quiet}>Offline</Text>}
+        {online ? null : (
+          <Text testID="needs-offline" style={st.quiet}>
+            Offline
+          </Text>
+        )}
         <Tool icon="filter" label="Filter" onPress={filterMenu} active={filter !== "all"} testID="needs-filter" />
       </View>
       {list.length === 0 && withdrawn.length === 0 ? (
         <View testID="needs-empty" style={{ flex: 1 }}>
-          <States kind="empty" icon="done" title={filter === "all" ? `All caught up. Nothing in ${data.space.name} is waiting on you.` : "Nothing here. Try another filter."} />
+          <States
+            kind="empty"
+            icon="done"
+            title={
+              filter === "all"
+                ? `All caught up. Nothing in ${data.space.name} is waiting on you.`
+                : "Nothing here. Try another filter."
+            }
+          />
         </View>
       ) : (
-        <NeedList items={list} older={split.fresh.length > 0 ? split.older : []} withdrawn={withdrawn} render={renderRow} {...(window ? { window } : {})} />
+        <NeedList
+          items={list}
+          older={split.fresh.length > 0 ? split.older : []}
+          withdrawn={withdrawn}
+          render={renderRow}
+          {...(window ? { window } : {})}
+        />
       )}
-      {line ? <View testID="needs-line" style={st.note}><Text numberOfLines={2} style={st.noteText}>{line}</Text></View> : null}
-      <View style={st.foot}><Text testID="needs-foot" style={st.footText}>{footerHint(current?.task)}</Text></View>
+      {line ? (
+        <View testID="needs-line" style={st.note}>
+          <Text numberOfLines={2} style={st.noteText}>
+            {line}
+          </Text>
+        </View>
+      ) : null}
+      <View style={st.foot}>
+        <Text testID="needs-foot" style={st.footText}>
+          {footerHint(current?.task)}
+        </Text>
+      </View>
     </View>
   );
   const detail = current ? (
     <Detail
-      item={current} narrow={narrow} compose={compose && compose.taskId === current.task.id ? compose.action : null} draft={draft} onDraft={setDraft}
-      onBack={() => setScreen("list")} onAct={(a, note) => void doAct(current, a, note)} onCancel={() => { setCompose(null); setDraft(""); }}
-      menuItems={entriesFor(current)} showMenu={(items, x, y) => menu.show(items, x, y, "other")} deps={deps}
+      item={current}
+      narrow={narrow}
+      compose={compose && compose.taskId === current.task.id ? compose.action : null}
+      draft={draft}
+      onDraft={setDraft}
+      onBack={() => setScreen("list")}
+      onAct={(a, note) => void doAct(current, a, note)}
+      onCancel={() => {
+        setCompose(null);
+        setDraft("");
+      }}
+      menuItems={entriesFor(current)}
+      showMenu={(items, x, y) => menu.show(items, x, y, "other")}
+      deps={deps}
     />
   ) : (
-    <View testID="needs-nothing" style={st.nothing}><Icon name="inbox" size={22} color="var(--ink-4)" /><Text style={st.nothingHead}>Nothing selected</Text><Text style={st.nothingSub}>Approvals, reviews and blocked work from every agent land here.</Text></View>
+    <View testID="needs-nothing" style={st.nothing}>
+      <Icon name="inbox" size={22} color="var(--ink-4)" />
+      <Text style={st.nothingHead}>Nothing selected</Text>
+      <Text style={st.nothingSub}>Approvals, reviews and blocked work from every agent land here.</Text>
+    </View>
   );
 
   return (
     <View testID="needs-you" accessibilityLabel="Needs you" style={st.root} {...({ tabIndex: 0, onKeyDown } as object)}>
-      {narrow ? (screen === "detail" && current ? detail : listPane) : <>{listPane}<View style={st.detail}>{detail}</View></>}
+      {narrow ? (
+        screen === "detail" && current ? (
+          detail
+        ) : (
+          listPane
+        )
+      ) : (
+        <>
+          {listPane}
+          <View style={st.detail}>{detail}</View>
+        </>
+      )}
       {menu.element}
     </View>
   );
@@ -195,7 +396,19 @@ interface DetailProps {
   deps: NeedsDeps;
 }
 
-function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel, menuItems, showMenu, deps }: DetailProps): ReactElement {
+function Detail({
+  item,
+  narrow,
+  compose,
+  draft,
+  onDraft,
+  onBack,
+  onAct,
+  onCancel,
+  menuItems,
+  showMenu,
+  deps,
+}: DetailProps): ReactElement {
   const data = useNeedsData();
   const t = item.task;
   const clock = data.clock();
@@ -211,75 +424,193 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const [replacing, setReplacing] = useState(false);
   const actions = splitActions(t);
   const held = holder(item, data.me);
-  const mustTake = needsTake(t, data.me) && held.kind === "free" && fix === null && keyReq === null && accessReq === null && connFix === null;
+  const mustTake =
+    needsTake(t, data.me) &&
+    held.kind === "free" &&
+    fix === null &&
+    keyReq === null &&
+    accessReq === null &&
+    connFix === null;
   const warn = t.blocked || t.kind === "unblock";
   const src = t.source;
-  const srcTitle = src ? data.sourceTitle(src.kind, src.id) ?? sourceWord(src) : "";
+  const srcTitle = src ? (data.sourceTitle(src.kind, src.id) ?? sourceWord(src)) : "";
   const assigned = assignedName(t, data.nameOf);
   const gone = isWithdrawn(item);
   const people = participants(t, (id) => (id.startsWith("usr_") ? "person" : "agent"));
   const peopleMenu = (x: number, y: number): void => {
     const who: MenuEntry[] = [];
     // who is on it: lines to read, not buttons
-    for (const p of people) who.push({ head: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}` });
+    for (const p of people)
+      who.push({ head: p.kind === "person" ? data.nameOf(p.id) : `${data.nameOf(p.id)}, ${p.role}` });
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];
   const mail = heldMail(t);
   // a held send shows the draft with its record; the raw block would show only its type
-  if (mail) blockNodes.push(<HeldMailCard key="held-mail" mail={mail} call={data.call} onOpenRecord={(id) => data.nav.openSource("record", id)} />);
-  else for (const [i, b] of t.blocks.entries()) if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+  if (mail)
+    blockNodes.push(
+      <HeldMailCard
+        key="held-mail"
+        mail={mail}
+        call={data.call}
+        onOpenRecord={(id) => data.nav.openSource("record", id)}
+      />,
+    );
+  else
+    for (const [i, b] of t.blocks.entries())
+      if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix")
+        blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const question = questionOf(t);
   const picks: ReactElement[] = [];
-  for (const o of question?.options ?? []) picks.push(<Button key={o.key} label={o.label} onPress={() => void pick(deps, t, o.key, who)} testID={`needs-pick-${o.key}`} />);
+  for (const o of question?.options ?? [])
+    picks.push(
+      <Button
+        key={o.key}
+        label={o.label}
+        onPress={() => void pick(deps, t, o.key, who)}
+        testID={`needs-pick-${o.key}`}
+      />,
+    );
   const moreButtons: ReactElement[] = [];
-  for (const m of actions.more) moreButtons.push(<Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
+  for (const m of actions.more)
+    moreButtons.push(
+      <Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />,
+    );
   const noAccount = isNoAccount(t);
   const mailSignIn = mailFix(t);
   const openConnect = useOpenConnect();
   const primary = actions.primary;
   const sendBack = actions.sendBack;
-  const meta = [stateWord(t.state), `Assigned to ${assigned}`, t.kind === "approve" || t.kind === "review" || t.kind === "unblock" || t.kind === "answer" ? `${roleWord(t)}: You` : ""].filter((x) => x !== "").join(" · ");
+  const meta = [
+    stateWord(t.state),
+    `Assigned to ${assigned}`,
+    t.kind === "approve" || t.kind === "review" || t.kind === "unblock" || t.kind === "answer"
+      ? `${roleWord(t)}: You`
+      : "",
+  ]
+    .filter((x) => x !== "")
+    .join(" · ");
   return (
     <ScrollView testID="needs-detail" style={{ flex: 1 }} contentContainerStyle={st.dIn}>
-      {narrow ? <Pressable accessibilityRole="button" accessibilityLabel="Back to Needs you" onPress={onBack} testID="needs-back" style={st.back}><Icon name="back" size={14} /><Text style={st.backText}>Needs you</Text></Pressable> : null}
+      {narrow ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to Needs you"
+          onPress={onBack}
+          testID="needs-back"
+          style={st.back}
+        >
+          <Icon name="back" size={14} />
+          <Text style={st.backText}>Needs you</Text>
+        </Pressable>
+      ) : null}
       <View style={st.dTop}>
         {system ? <OriginMark name={who} size={36} /> : <Face name={who} seedId={t.createdBy} size={36} />}
         <View style={st.dTopText}>
-          <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>{gone ? "Withdrawn" : needsLine(t)}</Text>
-          <Text accessibilityRole="header" style={st.dTitle}>{t.title}</Text>
+          <Text testID="needs-kind" style={[st.dKind, warn && { color: "var(--warn)" as string }]}>
+            {gone ? "Withdrawn" : needsLine(t)}
+          </Text>
+          <Text accessibilityRole="header" style={st.dTitle}>
+            {t.title}
+          </Text>
           {t.summary ? <Text style={st.dSummary}>{t.summary}</Text> : null}
-          <Text testID="needs-meta" style={st.dMeta}>{meta}</Text>
+          <Text testID="needs-meta" style={st.dMeta}>
+            {meta}
+          </Text>
         </View>
-        {peopleCount(people) > 0 ? (<Pressable accessibilityRole="button" accessibilityLabel={`Participants, ${peopleCount(people)}`} testID="needs-participants" onPress={(e) => {
-          const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-          peopleMenu(box ? box.left : 0, box ? box.bottom + 4 : 0);
-        }} style={st.people}>
-          <Icon name="people" size={14} color="var(--accent)" />
-          <Text style={st.peopleN}>{peopleCount(people)}</Text>
-        </Pressable>) : null}
+        {peopleCount(people) > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Participants, ${peopleCount(people)}`}
+            testID="needs-participants"
+            onPress={(e) => {
+              const box = (
+                e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }
+              ).currentTarget?.getBoundingClientRect?.();
+              peopleMenu(box ? box.left : 0, box ? box.bottom + 4 : 0);
+            }}
+            style={st.people}
+          >
+            <Icon name="people" size={14} color="var(--accent)" />
+            <Text style={st.peopleN}>{peopleCount(people)}</Text>
+          </Pressable>
+        ) : null}
         <Tool icon="more" label="More" onPress={(x, y) => showMenu(menuItems, x, y)} testID="needs-more" />
       </View>
-      {gone ? <Text testID="needs-withdrawn" style={st.why}>{t.workingNotes["withdrawn"] ?? `Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
-      {t.why ? <Text testID="needs-why" style={st.why}>{t.why}</Text> : null}
+      {gone ? (
+        <Text testID="needs-withdrawn" style={st.why}>
+          {t.workingNotes["withdrawn"] ?? `Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}
+        </Text>
+      ) : null}
+      {t.why ? (
+        <Text testID="needs-why" style={st.why}>
+          {t.why}
+        </Text>
+      ) : null}
       {blockNodes}
       <View style={st.src}>
         <Text style={st.srcText}>From </Text>
-        {src && !system && src.kind !== "manual" ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
-        <Text style={st.srcText}>{system || src?.kind === "manual" ? ` · ${arrivedLabel(t.updatedAt, clock)}` : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
+        {src && !system && src.kind !== "manual" ? (
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => data.nav.openSource(src.kind, src.id)}
+            testID="needs-source"
+          >
+            <Text style={st.link}>{srcTitle}</Text>
+          </Pressable>
+        ) : (
+          <Text style={st.srcText}>{who}</Text>
+        )}
+        <Text style={st.srcText}>
+          {system || src?.kind === "manual"
+            ? ` · ${arrivedLabel(t.updatedAt, clock)}`
+            : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}
+        </Text>
       </View>
-      {fixNote ? <Text accessibilityRole="status" style={st.why}>{fixNote}</Text> : null}
-      {t.workingNotes["thread"] ? <View style={st.acts}><Button label="Open the chat" onPress={() => data.nav.openSource("chat", t.workingNotes["thread"] ?? "")} testID="needs-open-chat" /></View> : null}
-      {held.kind === "handled" ? <Text testID="needs-handled" style={st.holder}>{`Handled by ${data.nameOf(held.by ?? "")}`}</Text> : null}
-      {held.kind === "taken" ? <Text testID="needs-taken" style={st.holder}>{`Taken by ${data.nameOf(held.by ?? "")}`}</Text> : null}
+      {fixNote ? (
+        <Text accessibilityRole="status" style={st.why}>
+          {fixNote}
+        </Text>
+      ) : null}
+      {t.workingNotes["thread"] ? (
+        <View style={st.acts}>
+          <Button
+            label="Open the chat"
+            onPress={() => data.nav.openSource("chat", t.workingNotes["thread"] ?? "")}
+            testID="needs-open-chat"
+          />
+        </View>
+      ) : null}
+      {held.kind === "handled" ? (
+        <Text testID="needs-handled" style={st.holder}>{`Handled by ${data.nameOf(held.by ?? "")}`}</Text>
+      ) : null}
+      {held.kind === "taken" ? (
+        <Text testID="needs-taken" style={st.holder}>{`Taken by ${data.nameOf(held.by ?? "")}`}</Text>
+      ) : null}
       {compose ? (
         <View testID="needs-compose" style={st.compose}>
           <TextInput
-            accessibilityLabel={noteLabel(compose)} placeholder={notePrompt(compose, who)} value={draft} onChangeText={onDraft} autoFocus multiline style={st.input}
-            {...{ onKeyPress: (e: { nativeEvent?: { key?: string } }) => { if (e.nativeEvent?.key === "Escape") onCancel(); } }}
+            accessibilityLabel={noteLabel(compose)}
+            placeholder={notePrompt(compose, who)}
+            value={draft}
+            onChangeText={onDraft}
+            autoFocus
+            multiline
+            style={st.input}
+            {...{
+              onKeyPress: (e: { nativeEvent?: { key?: string } }) => {
+                if (e.nativeEvent?.key === "Escape") onCancel();
+              },
+            }}
           />
           <View style={st.row}>
-            <Button label={mail ? labelOf(mail, compose) : compose.label} primary disabled={draft.trim() === "" && needsNote(compose)} onPress={() => onAct(compose, draft)} testID="needs-send" />
+            <Button
+              label={mail ? labelOf(mail, compose) : compose.label}
+              primary
+              disabled={draft.trim() === "" && needsNote(compose)}
+              onPress={() => onAct(compose, draft)}
+              testID="needs-send"
+            />
             <Button label="Cancel" onPress={onCancel} testID="needs-cancel" />
           </View>
         </View>
@@ -288,27 +619,127 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
         <View testID="needs-actions" style={st.acts}>
           {picks}
           {mustTake ? <Button label="Take" primary onPress={() => void take(deps, t)} testID="needs-take" /> : null}
-          {connFix ? <Button label="Reconnect" primary onPress={() => void Promise.resolve(data.call("connections.reconnect", { connectionId: connFix.connectionId })).then((out) => {
-            const url = (out as { authUrl?: string } | undefined)?.authUrl;
-            if (url) (globalThis as { open?: (u: string) => void }).open?.(url); else setFixNote("Replace the key in the Vault, then press Check again.");
-          }, () => setFixNote("That did not start. Try again."))} testID="needs-reconnect" /> : null}
-          {connFix ? <Button label="Check again" onPress={() => void Promise.resolve(data.call("connections.test", { connectionId: connFix.connectionId })).then(() => setFixNote("Checked. It clears here when the connection works."), () => setFixNote("It still does not work."))} testID="needs-check-again" /> : null}
-          {accessReq ? <Button label="Allow" primary disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.approve", { requestId: accessReq.requestId, ...(accessReq.level ? { level: accessReq.level } : {}) })).finally(() => setDeciding(false)); }} testID="needs-access-approve" /> : null}
-          {accessReq ? <Button label="Deny" disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.decline", { requestId: accessReq.requestId })).finally(() => setDeciding(false)); }} testID="needs-access-decline" /> : null}
-          {keyReq && !providing ? <Button label="Provide the key" primary onPress={() => setProviding(true)} testID="needs-provide-key" /> : null}
-          {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
-          {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
-          {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
-          {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary && (question === null || question.words) ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
-          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={labelOf(mail, sendBack)} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
+          {connFix ? (
+            <Button
+              label="Reconnect"
+              primary
+              onPress={() =>
+                void Promise.resolve(data.call("connections.reconnect", { connectionId: connFix.connectionId })).then(
+                  (out) => {
+                    const url = (out as { authUrl?: string } | undefined)?.authUrl;
+                    if (url) (globalThis as { open?: (u: string) => void }).open?.(url);
+                    else setFixNote("Replace the key in the Vault, then press Check again.");
+                  },
+                  () => setFixNote("That did not start. Try again."),
+                )
+              }
+              testID="needs-reconnect"
+            />
+          ) : null}
+          {connFix ? (
+            <Button
+              label="Check again"
+              onPress={() =>
+                void Promise.resolve(data.call("connections.test", { connectionId: connFix.connectionId })).then(
+                  () => setFixNote("Checked. It clears here when the connection works."),
+                  () => setFixNote("It still does not work."),
+                )
+              }
+              testID="needs-check-again"
+            />
+          ) : null}
+          {accessReq ? (
+            <Button
+              label="Allow"
+              primary
+              disabled={deciding}
+              onPress={() => {
+                setDeciding(true);
+                void Promise.resolve(
+                  data.call("access.requests.approve", {
+                    requestId: accessReq.requestId,
+                    ...(accessReq.level ? { level: accessReq.level } : {}),
+                  }),
+                ).finally(() => setDeciding(false));
+              }}
+              testID="needs-access-approve"
+            />
+          ) : null}
+          {accessReq ? (
+            <Button
+              label="Deny"
+              disabled={deciding}
+              onPress={() => {
+                setDeciding(true);
+                void Promise.resolve(data.call("access.requests.decline", { requestId: accessReq.requestId })).finally(
+                  () => setDeciding(false),
+                );
+              }}
+              testID="needs-access-decline"
+            />
+          ) : null}
+          {keyReq && !providing ? (
+            <Button label="Provide the key" primary onPress={() => setProviding(true)} testID="needs-provide-key" />
+          ) : null}
+          {fix === "replace_key" ? (
+            <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" />
+          ) : null}
+          {!mustTake && noAccount ? (
+            <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" />
+          ) : null}
+          {!mustTake && mailSignIn ? (
+            <Button
+              label="Sign in again"
+              primary
+              onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })}
+              testID="needs-mailfix"
+            />
+          ) : null}
+          {!mustTake &&
+          !noAccount &&
+          fix === null &&
+          keyReq === null &&
+          accessReq === null &&
+          connFix === null &&
+          !mailSignIn &&
+          primary &&
+          (question === null || question.words) ? (
+            <Button
+              label={labelOf(mail, primary)}
+              primary
+              hint="A"
+              onPress={() => onAct(primary)}
+              testID="needs-primary"
+            />
+          ) : null}
+          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? (
+            <Button label={labelOf(mail, sendBack)} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" />
+          ) : null}
           {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null ? moreButtons : null}
-          {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}
+          {hasComputer(t) && !noAccount ? (
+            <Button
+              label="Open its computer"
+              onPress={() => data.nav.openComputer(t.createdBy)}
+              testID="needs-computer"
+            />
+          ) : null}
         </View>
       ) : null}
-      {keyReq && providing ? <KeyRequestCard requestId={keyReq.requestId} agent={who} agentId={t.createdBy} data={{ call: data.call }} /> : null}
+      {keyReq && providing ? (
+        <KeyRequestCard requestId={keyReq.requestId} agent={who} agentId={t.createdBy} data={{ call: data.call }} />
+      ) : null}
       {replacing && fix === "replace_key" ? (
-        <ReplaceKeySheet call={data.call} connectionId={t.workingNotes["connection"] ?? ""} hubId={t.workingNotes["hub"] ?? ""} onClose={() => setReplacing(false)}
-          onDone={() => { setReplacing(false); const done = t.actions.find((a) => a.key === "resolved"); if (done) onAct(done); }} />
+        <ReplaceKeySheet
+          call={data.call}
+          connectionId={t.workingNotes["connection"] ?? ""}
+          hubId={t.workingNotes["hub"] ?? ""}
+          onClose={() => setReplacing(false)}
+          onDone={() => {
+            setReplacing(false);
+            const done = t.actions.find((a) => a.key === "resolved");
+            if (done) onAct(done);
+          }}
+        />
       ) : null}
     </ScrollView>
   );
@@ -321,7 +752,12 @@ function noteLabel(a: Action): string {
 export function TaskBlock({ view }: { view: BlockView }): ReactElement {
   if (view.type === "table") {
     const head: ReactElement[] = [];
-    for (const [i, c] of view.columns.entries()) head.push(<Text key={c} style={[st.th, i > 0 && st.tdR]}>{c}</Text>);
+    for (const [i, c] of view.columns.entries())
+      head.push(
+        <Text key={c} style={[st.th, i > 0 && st.tdR]}>
+          {c}
+        </Text>,
+      );
     const body: ReactElement[] = [];
     for (const [ri, r] of view.rows.entries()) {
       const cells: ReactElement[] = [];
@@ -334,7 +770,11 @@ export function TaskBlock({ view }: { view: BlockView }): ReactElement {
           </Text>,
         );
       }
-      body.push(<View key={ri} style={st.tr}>{cells}</View>);
+      body.push(
+        <View key={ri} style={st.tr}>
+          {cells}
+        </View>,
+      );
     }
     return (
       <View testID="block-table" style={st.table}>
@@ -346,29 +786,67 @@ export function TaskBlock({ view }: { view: BlockView }): ReactElement {
   }
   if (view.type === "pairs") {
     const pairs: ReactElement[] = [];
-    for (const [i, [k, v]] of view.pairs.entries()) pairs.push(<View key={i} style={st.pair}><Text style={st.pk}>{k}</Text><Text style={st.pv}>{v}</Text></View>);
-    return <View testID="block-pairs" style={st.pairs}>{pairs}</View>;
-  }
-  if (view.type === "quote") {
-    const lines: ReactElement[] = [];
-    for (const [i, l] of view.lines.entries()) lines.push(<Text key={i} style={st.qline}>{l}</Text>);
+    for (const [i, [k, v]] of view.pairs.entries())
+      pairs.push(
+        <View key={i} style={st.pair}>
+          <Text style={st.pk}>{k}</Text>
+          <Text style={st.pv}>{v}</Text>
+        </View>,
+      );
     return (
-      <View testID="block-quote" style={st.quote}>
-        {lines}
-        {view.source ? <View style={st.qsrc}><LeadIcon name="file" size={12} /><Text style={st.qsrcText}>{`${view.source} · open beside`}</Text></View> : null}
+      <View testID="block-pairs" style={st.pairs}>
+        {pairs}
       </View>
     );
   }
-  return <Text testID="block-line" style={st.blockLine}>{view.text}</Text>;
+  if (view.type === "quote") {
+    const lines: ReactElement[] = [];
+    for (const [i, l] of view.lines.entries())
+      lines.push(
+        <Text key={i} style={st.qline}>
+          {l}
+        </Text>,
+      );
+    return (
+      <View testID="block-quote" style={st.quote}>
+        {lines}
+        {view.source ? (
+          <View style={st.qsrc}>
+            <LeadIcon name="file" size={12} />
+            <Text style={st.qsrcText}>{`${view.source} · open beside`}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  return (
+    <Text testID="block-line" style={st.blockLine}>
+      {view.text}
+    </Text>
+  );
 }
 const Block = TaskBlock;
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, flexDirection: "row", backgroundColor: "var(--win)" as string },
-  list: { minHeight: 0, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string, paddingHorizontal: 6 },
+  list: {
+    minHeight: 0,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+    paddingHorizontal: 6,
+  },
   head: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8 },
   headText: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  badge: { minWidth: 18, height: 18, paddingHorizontal: 6, borderRadius: 9, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center" },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 6,
+    borderRadius: 9,
+    backgroundColor: "var(--accent-wash)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badgeText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" as string },
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },
   rowEnd: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -393,14 +871,31 @@ const st = StyleSheet.create({
   link: { fontSize: 12.5, color: "var(--accent)" as string },
   holder: { fontSize: 13, color: "var(--ink-2)" as string, paddingVertical: 4 },
   compose: { gap: 8 },
-  input: { minHeight: 60, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, color: "var(--ink)" as string, fontSize: 13.5 },
+  input: {
+    minHeight: 60,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--raised)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13.5,
+  },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingTop: 4 },
   nothing: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24 },
   nothingHead: { fontSize: 14, fontWeight: "500", color: "var(--ink-2)" as string },
   nothingSub: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   table: { borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
-  tr: { flexDirection: "row", minHeight: 30, alignItems: "center", paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tr: {
+    flexDirection: "row",
+    minHeight: 30,
+    alignItems: "center",
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   th: { flex: 1, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   td: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   tdR: { textAlign: "right" },
@@ -431,7 +926,19 @@ function keyOfItem(i: Item): string {
 
 /** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. Withdrawn requests follow under their own label (same 44 px). */
 type Entry = { key: string; item: Item } | { key: string; label: string };
-function NeedList({ items, older, withdrawn, render, window }: { items: readonly Item[]; older: readonly Item[]; withdrawn: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
+function NeedList({
+  items,
+  older,
+  withdrawn,
+  render,
+  window,
+}: {
+  items: readonly Item[];
+  older: readonly Item[];
+  withdrawn: readonly Item[];
+  render: (i: Item) => ReactElement;
+  window?: VirtualWindow;
+}): ReactElement {
   const entries: Entry[] = [];
   for (const item of items) {
     // what has waited days gets its own heading, only when something newer is above it
@@ -443,12 +950,26 @@ function NeedList({ items, older, withdrawn, render, window }: { items: readonly
     for (const item of withdrawn) entries.push({ key: keyOfItem(item), item });
   }
   const renderEntry = (e: Entry): ReactElement => ("item" in e ? render(e.item) : <WithdrawnLabel label={e.label} />);
-  return <VirtualList data={entries} rowHeight={44} keyOf={(e) => e.key} renderItem={renderEntry} {...(window ? { window } : {})} />;
+  return (
+    <VirtualList
+      data={entries}
+      rowHeight={44}
+      keyOf={(e) => e.key}
+      renderItem={renderEntry}
+      {...(window ? { window } : {})}
+    />
+  );
 }
 
 /** The quiet label above the withdrawn requests: a section heading, not a list item. */
 function WithdrawnLabel({ label }: { label: string }): ReactElement {
-  return <View testID="needs-withdrawn-label" style={st.nsec}><Text accessibilityRole="header" style={st.nsecText}>{label}</Text></View>;
+  return (
+    <View testID="needs-withdrawn-label" style={st.nsec}>
+      <Text accessibilityRole="header" style={st.nsecText}>
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 /** The end of a row: when it arrived and the quick action, which shows on hover and on the selected row. */

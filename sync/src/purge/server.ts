@@ -31,7 +31,12 @@ export interface PurgeServerDeps {
 
 export type BumpScope = "device" | "person" | "space";
 const SCOPE_OF: Record<BumpReason, BumpScope> = {
-  device_revoked: "device", suspended: "person", removed: "person", password_reset: "person", clearance_lowered: "person", key_rotation: "space",
+  device_revoked: "device",
+  suspended: "person",
+  removed: "person",
+  password_reset: "person",
+  clearance_lowered: "person",
+  key_rotation: "space",
 };
 export const scopeOf = (reason: BumpReason): BumpScope => SCOPE_OF[reason];
 
@@ -42,7 +47,9 @@ CREATE TABLE IF NOT EXISTS sync_space_epoch (id INTEGER PRIMARY KEY CHECK (id = 
 /** The epoch a device must present: its person's, or its own if that is higher. */
 export function effectiveEpoch(db: Tx, person: string, device: string): number {
   db.exec(EPOCH_TABLES);
-  const own = db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device)?.epoch ?? 0;
+  const own =
+    db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", person, device)
+      ?.epoch ?? 0;
   return Math.max(epochOf(db, person), own);
 }
 
@@ -52,9 +59,23 @@ export function spaceEpoch(db: Tx): number {
   return db.get<{ epoch: number }>("SELECT epoch FROM sync_space_epoch WHERE id = 1")?.epoch ?? 0;
 }
 
-export type BumpReason = "device_revoked" | "suspended" | "removed" | "password_reset" | "clearance_lowered" | "key_rotation";
-export interface BumpInput { personId: string; reason: BumpReason; deviceId?: string }
-export interface BumpResult { epoch: number; closed: number; scope: BumpScope }
+export type BumpReason =
+  | "device_revoked"
+  | "suspended"
+  | "removed"
+  | "password_reset"
+  | "clearance_lowered"
+  | "key_rotation";
+export interface BumpInput {
+  personId: string;
+  reason: BumpReason;
+  deviceId?: string;
+}
+export interface BumpResult {
+  epoch: number;
+  closed: number;
+  scope: BumpScope;
+}
 
 export function bumpEpoch(d: PurgeServerDeps, input: BumpInput, traceId: string, actor: string): BumpResult {
   const db = d.db;
@@ -66,46 +87,89 @@ export function bumpEpoch(d: PurgeServerDeps, input: BumpInput, traceId: string,
   try {
     const person = epochOf(db, input.personId);
     if (scope === "device") {
-      const own = db.get<{ epoch: number }>("SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?", input.personId, input.deviceId)?.epoch ?? 0;
+      const own =
+        db.get<{ epoch: number }>(
+          "SELECT epoch FROM sync_device_epoch WHERE person = ? AND device = ?",
+          input.personId,
+          input.deviceId,
+        )?.epoch ?? 0;
       // Above anything the device can hold: its own last epoch and the person's.
       epoch = Math.max(person, own) + 1;
-      db.run("INSERT INTO sync_device_epoch (person, device, epoch) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET epoch = excluded.epoch", input.personId, input.deviceId, epoch);
+      db.run(
+        "INSERT INTO sync_device_epoch (person, device, epoch) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET epoch = excluded.epoch",
+        input.personId,
+        input.deviceId,
+        epoch,
+      );
       db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ?", input.personId, input.deviceId);
       db.run("DELETE FROM sync_snapshots WHERE person = ? AND device = ?", input.personId, input.deviceId);
     } else {
       epoch = person + 1;
-      db.run("INSERT INTO sync_epoch (person, epoch) VALUES (?, ?) ON CONFLICT(person) DO UPDATE SET epoch = excluded.epoch", input.personId, epoch);
+      db.run(
+        "INSERT INTO sync_epoch (person, epoch) VALUES (?, ?) ON CONFLICT(person) DO UPDATE SET epoch = excluded.epoch",
+        input.personId,
+        epoch,
+      );
       db.run("DELETE FROM sync_seen_rows WHERE person = ?", input.personId);
       db.run("DELETE FROM sync_snapshots WHERE person = ?", input.personId);
-      if (scope === "space") db.run("INSERT INTO sync_space_epoch (id, epoch) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET epoch = epoch + 1");
+      if (scope === "space")
+        db.run(
+          "INSERT INTO sync_space_epoch (id, epoch) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET epoch = epoch + 1",
+        );
     }
     db.exec("COMMIT");
   } catch (e) {
-    try { db.exec("ROLLBACK"); } catch { /* keep the first failure */ }
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* keep the first failure */
+    }
     throw e;
   }
   let closed = 0;
   try {
     // The epoch is already raised: even if the record of it cannot be written, the replicas purge.
     d.append({
-      type: "sync.epoch_bumped", sv: 1, trace_id: traceId, actor, vis: "owner", entity: "person", entity_id: input.personId,
-      payload: { personId: input.personId, epoch, reason: input.reason, ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}) },
+      type: "sync.epoch_bumped",
+      sv: 1,
+      trace_id: traceId,
+      actor,
+      vis: "owner",
+      entity: "person",
+      entity_id: input.personId,
+      payload: {
+        personId: input.personId,
+        epoch,
+        reason: input.reason,
+        ...(input.deviceId !== undefined ? { deviceId: input.deviceId } : {}),
+      },
     });
   } finally {
-    closed = scope === "device" ? (d.purgeDevice?.(input.personId, input.deviceId as string, epoch) ?? 0) : d.purgeLive(input.personId, epoch);
+    closed =
+      scope === "device"
+        ? (d.purgeDevice?.(input.personId, input.deviceId as string, epoch) ?? 0)
+        : d.purgeLive(input.personId, epoch);
   }
   return { epoch, closed, scope };
 }
 
-export interface ReindexInput { resourceType: string; resourceId: string; entity?: string }
-export interface ReindexResult { changed: number; scopeChanged: boolean }
+export interface ReindexInput {
+  resourceType: string;
+  resourceId: string;
+  entity?: string;
+}
+export interface ReindexResult {
+  changed: number;
+  scopeChanged: boolean;
+}
 
 /** Entities whose rows are guarded by this resource type: the catalog's, plus any entity the server holds rows for that falls back to the same type. */
 function entitiesOf(d: PurgeServerDeps, input: ReindexInput): string[] {
   if (input.entity) return [input.entity];
   const keys = new Set<string>();
   for (const e of d.catalog.known()) if (e.resource === input.resourceType) keys.add(e.key);
-  for (const r of d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows")) if (d.catalog.get(r.entity).resource === input.resourceType) keys.add(r.entity);
+  for (const r of d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows"))
+    if (d.catalog.get(r.entity).resource === input.resourceType) keys.add(r.entity);
   return [...keys].sort();
 }
 
@@ -113,7 +177,10 @@ export function reindexScope(d: PurgeServerDeps, input: ReindexInput, traceId: s
   let changed = 0;
   let scopeChanged = false;
   for (const entity of entitiesOf(d, input)) {
-    const ids = d.db.all<{ id: string }>("SELECT id FROM sync_rows WHERE entity = ? AND deleted = 0 ORDER BY id", entity);
+    const ids = d.db.all<{ id: string }>(
+      "SELECT id FROM sync_rows WHERE entity = ? AND deleted = 0 ORDER BY id",
+      entity,
+    );
     for (const { id } of ids) {
       d.append({ type: "sync.row_rescan", sv: 1, trace_id: traceId, actor, vis: "space", payload: { entity, id } });
       changed += 1;
@@ -121,8 +188,17 @@ export function reindexScope(d: PurgeServerDeps, input: ReindexInput, traceId: s
     if (ids.length > RESCAN_SUMMARY_ROWS) {
       scopeChanged = true;
       d.append({
-        type: "sync.scope_changed", sv: 1, trace_id: traceId, actor, vis: "participants", entity,
-        payload: { entity, filter: { resourceType: input.resourceType, resourceId: input.resourceId }, rows: ids.length },
+        type: "sync.scope_changed",
+        sv: 1,
+        trace_id: traceId,
+        actor,
+        vis: "participants",
+        entity,
+        payload: {
+          entity,
+          filter: { resourceType: input.resourceType, resourceId: input.resourceId },
+          rows: ids.length,
+        },
       });
     }
   }

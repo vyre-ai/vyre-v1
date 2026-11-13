@@ -9,15 +9,38 @@ import type { Responder } from "../fixtures/harness.ts";
 const THREAD = "thr_notes";
 const DANA = "usr_dana";
 const AGENT = "agt_mira";
-const say = (seq: number, body: string, who = { kind: "person", id: DANA }) => ({ messageId: `msg_${seq}`, threadSeq: seq, author: who, body });
-const models = [{ provider: "openrouter", model: "google/gemini-flash-lite", allowed: true, pricing: { prompt: "0.0000001", completion: "0.0000004" } }];
-const messages = [say(1, "Draft the October note for Sara."), say(2, "Hi Sara, here is how October closed.", { kind: "agent", id: AGENT }), say(3, "No, keep notes to Sara to three lines, the number first.")];
+const say = (seq: number, body: string, who = { kind: "person", id: DANA }) => ({
+  messageId: `msg_${seq}`,
+  threadSeq: seq,
+  author: who,
+  body,
+});
+const models = [
+  {
+    provider: "openrouter",
+    model: "google/gemini-flash-lite",
+    allowed: true,
+    pricing: { prompt: "0.0000001", completion: "0.0000004" },
+  },
+];
+const messages = [
+  say(1, "Draft the October note for Sara."),
+  say(2, "Hi Sara, here is how October closed.", { kind: "agent", id: AGENT }),
+  say(3, "No, keep notes to Sara to three lines, the number first."),
+];
 const chat: Record<string, Responder> = {
-  "threads.get": () => ({ thread: { kind: "chat", starter: DANA, agents: [{ agentId: AGENT, mode: "lead" }], members: [{ kind: "person", id: DANA }] } }),
+  "threads.get": () => ({
+    thread: {
+      kind: "chat",
+      starter: DANA,
+      agents: [{ agentId: AGENT, mode: "lead" }],
+      members: [{ kind: "person", id: DANA }],
+    },
+  }),
   "agents.get": () => ({ agent: { folderId: "fld_mira", ownerId: "usr_boss", captureMode: "auto" } }),
   "chat.messages.list": () => ({ messages, hasMore: false }),
   "engine.models.list": () => ({ models }),
-  "engine.complete": () => ({ text: "{\"ops\":[]}", tokensIn: 10, tokensOut: 2 }),
+  "engine.complete": () => ({ text: '{"ops":[]}', tokensIn: 10, tokensOut: 2 }),
 };
 
 for (const mode of ["keyword", "semantic", "hybrid"] as const) {
@@ -27,8 +50,17 @@ for (const mode of ["keyword", "semantic", "hybrid"] as const) {
     (asAgent.ctx as MemCtx & { thread?: string }).thread = THREAD;
     const fresh = await search(asAgent.ctx, { q: "how do we write notes to Sara", agentId: AGENT, mode });
     assert.deepEqual(contractErrors("memory.search", "out", fresh), []);
-    await capture(h.ctx, { threadId: THREAD, reason: "turn", agentId: AGENT, account: { ref: "#a", driver: "openrouter", kind: "api_key", payer: DANA } as never });
-    for (const input of [{ q: "notes to Sara", agentId: AGENT, mode }, { q: "notes to Sara", mode }, { q: "lesson", layers: ["person" as const], mode }]) {
+    await capture(h.ctx, {
+      threadId: THREAD,
+      reason: "turn",
+      agentId: AGENT,
+      account: { ref: "#a", driver: "openrouter", kind: "api_key", payer: DANA } as never,
+    });
+    for (const input of [
+      { q: "notes to Sara", agentId: AGENT, mode },
+      { q: "notes to Sara", mode },
+      { q: "lesson", layers: ["person" as const], mode },
+    ]) {
       const out = await search(asAgent.ctx, input);
       assert.deepEqual(contractErrors("memory.search", "out", out), [], JSON.stringify(out).slice(0, 300));
     }

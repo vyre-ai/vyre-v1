@@ -31,7 +31,9 @@ function FilesBody(): ReactNode {
     <FilesDataProvider value={sample.data}>
       <FilesStateProvider>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+          <SidebarContent title="Files" searchPlaceholder="Search files">
+            {(query, slot) => <FilesTree query={query} slot={slot} />}
+          </SidebarContent>
           <FilesList />
         </View>
       </FilesStateProvider>
@@ -44,7 +46,9 @@ function RecordsBody(): ReactNode {
   return (
     <RecordsDataProvider value={sample.data}>
       <RecordsStateProvider initial={{}}>
-        <View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordViews /></View>
+        <View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+          <RecordViews />
+        </View>
       </RecordsStateProvider>
     </RecordsDataProvider>
   );
@@ -59,18 +63,33 @@ function Phone({ q }: { q: URLSearchParams }): ReactNode {
     const g = globalThis as { document?: { documentElement?: RootLike } };
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go(place);
     return { hub, theme };
   }, [q, place]);
   useEffect(() => {
     if (!open || place !== "files") return undefined;
-    const t = setTimeout(() => { (globalThis as { document?: Doc }).document?.querySelector('[data-testid="row-folder-fld_agents"]')?.click?.(); }, 500);
+    const t = setTimeout(() => {
+      (globalThis as { document?: Doc }).document?.querySelector('[data-testid="row-folder-fld_agents"]')?.click?.();
+    }, 500);
     return () => clearTimeout(t);
   }, [open, place]);
   const renderPlace = (ctx: PlaceContext): ReactNode => {
@@ -87,7 +106,9 @@ function Phone({ q }: { q: URLSearchParams }): ReactNode {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   if (q === null) return <View style={{ flex: 1 }} />;
   return <Phone q={q} />;
 }

@@ -41,7 +41,8 @@ export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Reco
 export const str = (v: unknown): string => (typeof v === "string" ? v : "");
 export const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 export const isNull = (v: unknown): boolean => v === null || v === undefined;
-export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined => (ctx.db.all(sql, ...args) as Row[])[0];
+export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined =>
+  (ctx.db.all(sql, ...args) as Row[])[0];
 export const many = (ctx: Ctx, sql: string, ...args: unknown[]): Row[] => ctx.db.all(sql, ...args) as Row[];
 
 export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
@@ -52,13 +53,15 @@ export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
 
 export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
 export function reqInt(ctx: Ctx, o: Record<string, unknown>, key: string, min: number, max: number): number {
   const v = o[key];
-  if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "number" || !Number.isInteger(v) || v < min || v > max)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -87,7 +90,9 @@ export function linkedAccount(ctx: Ctx, accountId: string): LinkedAccount {
   if (a.state === "disabled") fail(ctx, "permission.suspended", "That account is disabled.");
   if (a.state !== "active") fail(ctx, "permission.no_grant", "That account has not finished signing in yet.");
   if (isNull(a.record_id)) fail(ctx, "validation.precondition_failed", "Link this account to a record first.");
-  const rules = many(ctx, "SELECT * FROM portal_link WHERE account_id = ?", accountId).sort((x, y) => str(x.record_type).localeCompare(str(y.record_type))).map(ruleOf);
+  const rules = many(ctx, "SELECT * FROM portal_link WHERE account_id = ?", accountId)
+    .sort((x, y) => str(x.record_type).localeCompare(str(y.record_type)))
+    .map(ruleOf);
   return { id: str(a.id), siteId: str(a.site_id), email: str(a.email), recordId: str(a.record_id), rules };
 }
 
@@ -109,7 +114,9 @@ export async function visibleRecords(ctx: Ctx, acct: LinkedAccount): Promise<Por
   for (const rule of acct.rules) {
     if (rule.via === undefined) {
       try {
-        const got = (await ctx.call("records.get", { type: rule.recordType, recordId: acct.recordId })) as { record?: unknown };
+        const got = (await ctx.call("records.get", { type: rule.recordType, recordId: acct.recordId })) as {
+          record?: unknown;
+        };
         const r = asRecord(got.record);
         if (r) rows.push(r);
       } catch (e) {
@@ -117,7 +124,11 @@ export async function visibleRecords(ctx: Ctx, acct: LinkedAccount): Promise<Por
       }
       continue;
     }
-    const res = (await ctx.call("records.query", { type: rule.recordType, filter: { and: [{ field: rule.via, op: "eq", value: acct.recordId }] }, limit: QUERY_LIMIT })) as { rows?: unknown };
+    const res = (await ctx.call("records.query", {
+      type: rule.recordType,
+      filter: { and: [{ field: rule.via, op: "eq", value: acct.recordId }] },
+      limit: QUERY_LIMIT,
+    })) as { rows?: unknown };
     for (const raw of Array.isArray(res.rows) ? res.rows : []) {
       const r = asRecord(raw);
       if (r) rows.push(r);
@@ -135,7 +146,8 @@ export function throttle(ctx: Ctx, bucket: string, max: number, windowMs: number
   return {
     bump(): void {
       if (!r) ctx.db.run("INSERT INTO portal_attempt (bucket, count, window_start) VALUES (?, ?, ?)", bucket, 1, now);
-      else if (live === 0) ctx.db.run("UPDATE portal_attempt SET count = ?, window_start = ? WHERE bucket = ?", 1, now, bucket);
+      else if (live === 0)
+        ctx.db.run("UPDATE portal_attempt SET count = ?, window_start = ? WHERE bucket = ?", 1, now, bucket);
       else ctx.db.run("UPDATE portal_attempt SET count = ? WHERE bucket = ?", live + 1, bucket);
     },
   };

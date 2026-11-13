@@ -9,418 +9,1276 @@
 // DECISION: "All in the Space" is a per-admin view toggle, logged in the audit trail, with no event.
 // NOT EXPRESSIBLE: executor placement (host, device, agentd) for terminal, chrome, screen and files tools is stated on AgentToolDef.local only;
 //   CapabilityDef has no such field, so the computers and terminal capabilities do not carry it.
-import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut, principalRef, versionRow } from './_common.ts';
-import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
-import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
-import { installCapabilities } from './_agents-install.ts';
-import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
+import {
+  atool,
+  create,
+  defineManifest,
+  ev,
+  field,
+  list,
+  read,
+  rtype,
+  screen,
+  setting,
+  t,
+  write,
+} from "../packages/contracts/src/index.ts";
+import { id, pageIn, pageOut, principalRef, versionRow } from "./_common.ts";
+import { pluginCapabilities, pluginEvents, pluginScreens } from "./_agents-plugins.ts";
+import { connectionCapabilities, connectionEvents } from "./_agents-connections.ts";
+import { installCapabilities } from "./_agents-install.ts";
+import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from "./_agents-skills.ts";
 
-const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
-const captureMode = t.enm('auto', 'propose', 'auto_low_risk', 'off');
+const agentStatus = t.enm("awake", "working", "asleep", "paused");
+const captureMode = t.enm("auto", "propose", "auto_low_risk", "off");
 const limits = t.obj({
-  runCostMicros: t.opt(t.int()), dayCostMicros: t.opt(t.int()), monthCostMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), minutesPerRun: t.opt(t.int()), tokensPerDay: t.opt(t.int()),
+  runCostMicros: t.opt(t.int()),
+  dayCostMicros: t.opt(t.int()),
+  monthCostMicros: t.opt(t.int()),
+  turnsPerDay: t.opt(t.int()),
+  minutesPerRun: t.opt(t.int()),
+  tokensPerDay: t.opt(t.int()),
 });
 const agentRow = t.obj({
-  agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), runtime: t.opt(t.enm('vyre', 'outside')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
-  status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
-  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), helperModels: t.opt(t.enm('same_provider', 'any', 'ask')), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
-  accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
-  memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
-  workKey: t.opt(t.str({ description: 'Vault handle of the AI account that pays for this agent\'s own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value', examples: ['#Team_Anthropic_Key'] })),
-  switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit; a paid key that is not on a fallback list asks first
-  toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
-  createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
-  teammateOf: t.opt(t.str({ description: 'The project, or the chat, this teammate belongs to' })),
-  chatOf: t.opt(id.thread),   // an agent a chat or channel made for itself: it is not on the Agents page and goes with the chat
+  agentId: id.agent,
+  name: t.str(),
+  kind: t.opt(t.enm("assistant", "teammate", "agent")),
+  runtime: t.opt(t.enm("vyre", "outside")),
+  face: t.str({ description: "DiceBear Notionists seed tinted per Space", examples: ["intake"] }),
+  role: t.opt(t.str({ description: 'The "use me when" line' })),
+  status: agentStatus,
+  pausedReason: t.opt(t.str()),
+  pausedBy: t.opt(t.str()),
+  ownerId: id.user,
+  folderId: id.folder,
+  model: t.opt(t.str()),
+  fallbackModel: t.opt(t.str()),
+  helperModels: t.opt(t.enm("same_provider", "any", "ask")),
+  accountPolicy: t.enm("asker", "key"),
+  accountKey: t.opt(t.str({ description: "Vault handle, never a value", examples: ["#Team_Anthropic_Key"] })),
+  accountFallback: t.arr(
+    t.str({
+      description: "Vault handles, best first: tried in this order when the chat key fails, before the Space backups",
+    }),
+  ),
+  memoryKey: t.opt(
+    t.str({
+      description: "Vault handle that pays for this agent memory upkeep; never a value",
+      examples: ["#Team_Anthropic_Key"],
+    }),
+  ),
+  workKey: t.opt(
+    t.str({
+      description:
+        "Vault handle of the AI account that pays for this agent's own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value",
+      examples: ["#Team_Anthropic_Key"],
+    }),
+  ),
+  switchOnLimit: t.opt(t.bool()), // on unless false: switch to the next usable account when this one runs out of its limit; a paid key that is not on a fallback list asks first
+  toolsAllowed: t.arr(t.str()),
+  toolsDenied: t.arr(t.str()),
+  vaultKeys: t.arr(t.str()),
+  limits,
+  captureMode,
+  hasComputer: t.bool(),
+  templateVersion: t.int(),
+  createdAt: t.ts(),
+  lastActiveAt: t.opt(t.ts()),
+  teammateOf: t.opt(t.str({ description: "The project, or the chat, this teammate belongs to" })),
+  chatOf: t.opt(id.thread), // an agent a chat or channel made for itself: it is not on the Agents page and goes with the chat
 });
 const routineRow = t.obj({
-  routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
-  ownerId: id.user, lastRunAt: t.opt(t.ts()), nextRunAt: t.opt(t.ts()),
+  routineId: t.id("rtn"),
+  agentId: id.agent,
+  title: t.str(),
+  cron: t.opt(
+    t.str({ examples: ["0 9 * * 1-5"], description: "The schedule of a schedule routine; a watcher has none" }),
+  ),
+  prompt: t.str(),
+  channelId: t.opt(id.channel),
+  enabled: t.bool(),
+  ownerId: id.user,
+  lastRunAt: t.opt(t.ts()),
+  nextRunAt: t.opt(t.ts()),
   // kind absent means schedule; a watcher runs when something happens (a new message in watch.channelId), not at a time
-  kind: t.opt(t.enm('schedule', 'watch')),
-  watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
+  kind: t.opt(t.enm("schedule", "watch")),
+  watch: t.opt(t.obj({ on: t.enm("message"), channelId: id.channel })),
   // who set it when that was not the owner by hand: the agent that saved it for them. Absent: the owner set it
   setBy: t.opt(principalRef),
   // the last run it started and how it went (running until its agent's turn ends)
-  lastRun: t.opt(t.obj({ runId: id.run, status: t.enm('running', 'succeeded', 'failed', 'stopped') })),
+  lastRun: t.opt(t.obj({ runId: id.run, status: t.enm("running", "succeeded", "failed", "stopped") })),
   // why it paused itself, when three runs in a row failed for one reason (shown on the row; cleared when the person saves it again or the cause clears)
   pausedReason: t.opt(t.str()),
 });
 const suggestionRow = t.obj({
-  suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),
-  widening: t.bool(), state: t.enm('open', 'accepted', 'dismissed'), proposedBy: t.str(), proposedAt: t.ts(), taskId: t.opt(id.task),
+  suggestionId: t.id("sug"),
+  agentId: id.agent,
+  kind: t.enm("agent_md", "template"),
+  file: t.str({ examples: ["AGENT.md"] }),
+  diff: t.str(),
+  reason: t.opt(t.str()),
+  widening: t.bool(),
+  state: t.enm("open", "accepted", "dismissed"),
+  proposedBy: t.str(),
+  proposedAt: t.ts(),
+  taskId: t.opt(id.task),
 });
 const outsideJob = t.obj({
-  jobId: t.id('ojb'), kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), from: t.str({ description: 'Who asked' }), title: t.str(), text: t.str(), queuedAt: t.ts(),
+  jobId: t.id("ojb"),
+  kind: t.enm("mention", "task", "answer"),
+  threadId: t.opt(id.thread),
+  taskId: t.opt(id.task),
+  messageId: t.opt(id.message),
+  from: t.str({ description: "Who asked" }),
+  title: t.str(),
+  text: t.str(),
+  queuedAt: t.ts(),
 });
-const agentFile = t.enm('AGENT.md', 'agent.toml');
+const agentFile = t.enm("AGENT.md", "agent.toml");
 const target = { agentId: id.agent };
 // A teammate is an agent made for one project (owner ruling 20 Oct): the Agents page leaves it out unless asked, and the project's Teammates tab lists it.
-const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(t.str({ description: 'A project, or a chat, whose teammates to list' })), threadId: t.opt(id.thread), ...pageIn };
-const effort = t.enm('low', 'medium', 'high', 'max');
+const listIn = {
+  section: t.opt(t.enm("personal", "shared", "space")),
+  folderId: t.opt(id.folder),
+  status: t.opt(t.arr(agentStatus)),
+  teammates: t.opt(t.enm("hide", "include", "only")),
+  projectId: t.opt(t.str({ description: "A project, or a chat, whose teammates to list" })),
+  threadId: t.opt(id.thread),
+  ...pageIn,
+};
+const effort = t.enm("low", "medium", "high", "max");
 // Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
 // (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
 const skillRow = t.obj({
-  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), label: t.opt(t.str({ description: 'pdf (from acme/skills): a skill renamed because its name was taken first' })),
-  source: t.str({ description: 'vyre, upload, agent, plugin:<name> or kit:<key>', examples: ['upload'] }), agentId: t.opt(id.agent),
-  system: t.bool(), enabled: t.bool(), bytes: t.int({ minimum: 0 }), updatedAt: t.opt(t.ts()),
-  hash: t.opt(t.str({ description: 'A fingerprint of the text and files; it changes when the skill does' })),
-  shadowedBy: t.opt(t.enm('builtin', 'space', 'agent', 'mine', 'shared')), note: t.opt(t.str({ description: 'Which of two skills with this name is used, and why' })),
-  broken: t.opt(t.str({ description: 'Why this skill cannot be used; it stays listed and is never in a turn' })),
+  name: t.str({ examples: ["deploy-checks"] }),
+  description: t.str(),
+  tier: t.enm("builtin", "space", "agent", "mine", "shared"),
+  label: t.opt(t.str({ description: "pdf (from acme/skills): a skill renamed because its name was taken first" })),
+  source: t.str({ description: "vyre, upload, agent, plugin:<name> or kit:<key>", examples: ["upload"] }),
+  agentId: t.opt(id.agent),
+  system: t.bool(),
+  enabled: t.bool(),
+  bytes: t.int({ minimum: 0 }),
+  updatedAt: t.opt(t.ts()),
+  hash: t.opt(t.str({ description: "A fingerprint of the text and files; it changes when the skill does" })),
+  shadowedBy: t.opt(t.enm("builtin", "space", "agent", "mine", "shared")),
+  note: t.opt(t.str({ description: "Which of two skills with this name is used, and why" })),
+  broken: t.opt(t.str({ description: "Why this skill cannot be used; it stays listed and is never in a turn" })),
 });
 const skillFiles = t.rec(t.str());
 
 export default defineManifest({
-  id: 'agents',
-  title: 'Agents',
-  owner: 'L2',
+  id: "agents",
+  title: "Agents",
+  owner: "L2",
   recordTypes: [
-    rtype('agent', 'Agent', 'Agents', 'bot', [
-      field('name', 'text', 'Name', { required: true }),
-      field('face', 'text', 'Face'),
-      field('role', 'text', 'Role', { options: { hint: 'The "use me when" line; edits agent.toml description' } }),
-      field('status', 'status', 'Status', { options: { stages: [{ key: 'awake', title: 'Awake' }, { key: 'working', title: 'Working' }, { key: 'asleep', title: 'Asleep' }, { key: 'paused', title: 'Paused' }] }, merge: 'assistant' }),
-      field('owner', 'person', 'Owner', { merge: 'assistant' }),
-      field('model', 'text', 'Model'),
-      field('fallback_model', 'text', 'Fallback model'),
-      field('account', 'choice', 'Whose account runs it', { options: { choices: [{ key: 'asker', title: 'The person asking' }, { key: 'key', title: 'A shared key' }] }, default: 'asker' }),
-      field('account_key', 'text', 'Shared key name'),
-      field('tools_allowed', 'multichoice', 'Tools allowed', { options: { choices: [] } }),
-      field('tools_denied', 'multichoice', 'Tools denied', { options: { choices: [] } }),
-      field('vault_keys', 'multichoice', 'Vault key names', { options: { choices: [] } }),
-      field('limit_run_cost', 'money', 'Spend limit per run'),
-      field('limit_day_cost', 'money', 'Spend limit per day'),
-      field('limit_month_cost', 'money', 'Spend limit per month'),
-      field('limit_turns', 'number', 'Turns per day'),
-      field('limit_time', 'duration', 'Time limit per run'),
-      field('capture', 'choice', 'Memory capture', { options: { choices: [{ key: 'propose', title: 'Propose' }, { key: 'auto_low_risk', title: 'Merge low-risk' }, { key: 'off', title: 'Off' }] }, default: 'propose' }),
-      field('computer', 'checkbox', 'Has a computer'),
-      field('watchers', 'multichoice', 'Channels it watches', { options: { choices: [] } }),
-      field('handoffs', 'multichoice', 'Can hand work to', { options: { choices: [] } }),
-      field('template_version', 'number', 'Template version', { merge: 'assistant' }),
-      field('folder', 'text', 'Folder'),
-    ], { system: true, template: null, label: 'internal', titleField: 'name', summaryField: 'role', statusField: 'status', ownerField: 'owner' }),
+    rtype(
+      "agent",
+      "Agent",
+      "Agents",
+      "bot",
+      [
+        field("name", "text", "Name", { required: true }),
+        field("face", "text", "Face"),
+        field("role", "text", "Role", { options: { hint: 'The "use me when" line; edits agent.toml description' } }),
+        field("status", "status", "Status", {
+          options: {
+            stages: [
+              { key: "awake", title: "Awake" },
+              { key: "working", title: "Working" },
+              { key: "asleep", title: "Asleep" },
+              { key: "paused", title: "Paused" },
+            ],
+          },
+          merge: "assistant",
+        }),
+        field("owner", "person", "Owner", { merge: "assistant" }),
+        field("model", "text", "Model"),
+        field("fallback_model", "text", "Fallback model"),
+        field("account", "choice", "Whose account runs it", {
+          options: {
+            choices: [
+              { key: "asker", title: "The person asking" },
+              { key: "key", title: "A shared key" },
+            ],
+          },
+          default: "asker",
+        }),
+        field("account_key", "text", "Shared key name"),
+        field("tools_allowed", "multichoice", "Tools allowed", { options: { choices: [] } }),
+        field("tools_denied", "multichoice", "Tools denied", { options: { choices: [] } }),
+        field("vault_keys", "multichoice", "Vault key names", { options: { choices: [] } }),
+        field("limit_run_cost", "money", "Spend limit per run"),
+        field("limit_day_cost", "money", "Spend limit per day"),
+        field("limit_month_cost", "money", "Spend limit per month"),
+        field("limit_turns", "number", "Turns per day"),
+        field("limit_time", "duration", "Time limit per run"),
+        field("capture", "choice", "Memory capture", {
+          options: {
+            choices: [
+              { key: "propose", title: "Propose" },
+              { key: "auto_low_risk", title: "Merge low-risk" },
+              { key: "off", title: "Off" },
+            ],
+          },
+          default: "propose",
+        }),
+        field("computer", "checkbox", "Has a computer"),
+        field("watchers", "multichoice", "Channels it watches", { options: { choices: [] } }),
+        field("handoffs", "multichoice", "Can hand work to", { options: { choices: [] } }),
+        field("template_version", "number", "Template version", { merge: "assistant" }),
+        field("folder", "text", "Folder"),
+      ],
+      {
+        system: true,
+        template: null,
+        label: "internal",
+        titleField: "name",
+        summaryField: "role",
+        statusField: "status",
+        ownerField: "owner",
+      },
+    ),
   ],
-  lists: [
-    list('agent', 'Agent', 'Agents', 'agents.list'),
-  ],
+  lists: [list("agent", "Agent", "Agents", "agents.list")],
   capabilities: [
-    read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', { level: 'member',
-      in: listIn, out: { agents: t.arr(agentRow), ...pageOut }, tool: 'agents', label: 'filter', cli: 'vyre agents list',
+    read("agents.list", "List agents you are in or that are shared with you (admins may toggle All in the Space)", {
+      level: "member",
+      in: listIn,
+      out: { agents: t.arr(agentRow), ...pageOut },
+      tool: "agents",
+      label: "filter",
+      cli: "vyre agents list",
     }),
     // People's own agents (owner ruling 4 Nov): an admin governs them without opening them. No name, instruction or chat is in either answer.
-    read('agents.people_summary', 'For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content', {
-      in: {}, out: { people: t.arr(t.obj({ personId: id.user, assistant: t.bool(), privateAgents: t.int({ minimum: 0 }), spendMonthMicros: t.int({ minimum: 0 }), capMicros: t.opt(t.int({ minimum: 0 })), paused: t.bool() })) }, perm: 'agents.manage', level: 'manage', tool: 'agents',
-    }),
-    write('agents.pause_person', 'Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which', {
-      in: { personId: id.user, paused: t.bool() }, out: { changed: t.int({ minimum: 0 }) }, perm: 'agents.manage', level: 'manage', emits: ['agent.paused', 'agent.resumed'], audit: 'always', tool: 'agents', idem: 'natural',
-    }),
-    read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
-      in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
-    }),
-    read('agents.memory_key.get', 'The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)', {
-      in: target, out: { memoryKey: t.opt(t.str({ description: 'Vault handle, never a value' })), ownerId: id.user }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
-    }),
-    // the host seam a module working for a person uses to reach that person's Assistant (a meeting close-out when a transcript lands): the host and the person themself get it; anyone else, nothing
-    read('agents.assistant_of', "A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered", {
-      in: { personId: id.user }, out: { agentId: t.opt(id.agent) }, label: 'check',
-    }),
-    read('agents.share_class', "How an agent is shared, for the modules that decide who may watch its work (its browser): private to its person (an Assistant or an outside agent), personal (shared with nobody), shared with named people, or with the whole Space. Only for an agent the caller can see", {
-      in: target, out: { class: t.enm('private', 'personal', 'shared', 'space'), ownerId: id.user, people: t.arr(id.user, { description: 'The people it is shared with by name, without its owner' }) }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
-    }),
-    read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
-      in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
-    }),
-    read('agents.summary', 'The agent page strip: chats this week, open tasks, runs today, spend against limit, memory facts, proposed facts, Working on, Linked', {
+    read(
+      "agents.people_summary",
+      "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
+      {
+        in: {},
+        out: {
+          people: t.arr(
+            t.obj({
+              personId: id.user,
+              assistant: t.bool(),
+              privateAgents: t.int({ minimum: 0 }),
+              spendMonthMicros: t.int({ minimum: 0 }),
+              capMicros: t.opt(t.int({ minimum: 0 })),
+              paused: t.bool(),
+            }),
+          ),
+        },
+        perm: "agents.manage",
+        level: "manage",
+        tool: "agents",
+      },
+    ),
+    write(
+      "agents.pause_person",
+      "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      {
+        in: { personId: id.user, paused: t.bool() },
+        out: { changed: t.int({ minimum: 0 }) },
+        perm: "agents.manage",
+        level: "manage",
+        emits: ["agent.paused", "agent.resumed"],
+        audit: "always",
+        tool: "agents",
+        idem: "natural",
+      },
+    ),
+    read("agents.get", "Read one agent: record, status, limits and the effective configuration", {
       in: target,
-      out: {
-        chatsThisWeek: t.int(), openTasks: t.int(), runsToday: t.int(), spendTodayMicros: t.int(), spendLimitMicros: t.opt(t.int()), memoryFacts: t.int(), proposedFacts: t.int(),
-        workingOn: t.arr(t.obj({ kind: t.str(), id: t.str(), title: t.str() })), linked: t.arr(t.obj({ kind: t.str(), id: t.str(), title: t.str() })),
-        watches: t.arr(id.channel),
+      out: { agent: agentRow },
+      on: ["agent", "/agentId"],
+      tool: "agents",
+      label: "check",
+      errors: ["validation.not_found"],
+    }),
+    read(
+      "agents.memory_key.get",
+      "The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)",
+      {
+        in: target,
+        out: { memoryKey: t.opt(t.str({ description: "Vault handle, never a value" })), ownerId: id.user },
+        on: ["agent", "/agentId"],
+        label: "check",
+        errors: ["validation.not_found"],
       },
-      on: ['agent', '/agentId'], tool: 'agents', label: 'filter',
-    }),
-    create('agents.create', 'Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files', {
-      in: {
-        name: t.str({ examples: ['Intake'] }), role: t.opt(t.str()), face: t.opt(t.str()), model: t.opt(t.str()), ownerId: t.opt(id.user), computer: t.opt(t.bool()),
-        templateKey: t.opt(t.str()), tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })), limits: t.opt(limits),
-        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })), threadId: t.opt(id.thread),
+    ),
+    // the host seam a module working for a person uses to reach that person's Assistant (a meeting close-out when a transcript lands): the host and the person themself get it; anyone else, nothing
+    read(
+      "agents.assistant_of",
+      "A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered",
+      {
+        in: { personId: id.user },
+        out: { agentId: t.opt(id.agent) },
+        label: "check",
       },
-      out: { agent: agentRow }, perm: 'agents.create', emits: ['agent.created'], tool: 'agents', offline: 'queue', cli: 'vyre agents create',
-      errors: ['validation.duplicate'],
-    }),
-    write('agents.update', 'Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running', {
-      in: { ...target, patch: t.rec() }, out: { agent: agentRow }, on: ['agent', '/agentId'], emits: ['agent.config_changed', 'agent.config_error'], tool: 'agents', offline: 'patch',
-      errors: ['validation.field_locked', 'validation.bad_input'], hook: true,
-    }),
-    write('agents.role_line.set', 'Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit', {
-      in: { ...target, description: t.str({ maxLength: 200 }) }, out: { agent: agentRow, undoVersionId: id.version }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents', offline: 'patch',
-    }),
-    write('agents.instruction.append', 'Make a lesson an instruction: one line added to the agent\'s AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent', {
-      in: { ...target, line: t.str({ maxLength: 240 }) }, out: { agent: agentRow, added: t.bool(), versionId: t.opt(id.version), undoVersionId: t.opt(id.version) }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents',
-      errors: ['validation.bad_input'],
-    }),
+    ),
+    read(
+      "agents.share_class",
+      "How an agent is shared, for the modules that decide who may watch its work (its browser): private to its person (an Assistant or an outside agent), personal (shared with nobody), shared with named people, or with the whole Space. Only for an agent the caller can see",
+      {
+        in: target,
+        out: {
+          class: t.enm("private", "personal", "shared", "space"),
+          ownerId: id.user,
+          people: t.arr(id.user, { description: "The people it is shared with by name, without its owner" }),
+        },
+        on: ["agent", "/agentId"],
+        label: "check",
+        errors: ["validation.not_found"],
+      },
+    ),
+    read(
+      "agents.status",
+      "Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who",
+      {
+        in: target,
+        out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) },
+        on: ["agent", "/agentId"],
+        tool: "agents",
+      },
+    ),
+    read(
+      "agents.summary",
+      "The agent page strip: chats this week, open tasks, runs today, spend against limit, memory facts, proposed facts, Working on, Linked",
+      {
+        in: target,
+        out: {
+          chatsThisWeek: t.int(),
+          openTasks: t.int(),
+          runsToday: t.int(),
+          spendTodayMicros: t.int(),
+          spendLimitMicros: t.opt(t.int()),
+          memoryFacts: t.int(),
+          proposedFacts: t.int(),
+          workingOn: t.arr(t.obj({ kind: t.str(), id: t.str(), title: t.str() })),
+          linked: t.arr(t.obj({ kind: t.str(), id: t.str(), title: t.str() })),
+          watches: t.arr(id.channel),
+        },
+        on: ["agent", "/agentId"],
+        tool: "agents",
+        label: "filter",
+      },
+    ),
+    create(
+      "agents.create",
+      "Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files",
+      {
+        in: {
+          name: t.str({ examples: ["Intake"] }),
+          role: t.opt(t.str()),
+          face: t.opt(t.str()),
+          model: t.opt(t.str()),
+          ownerId: t.opt(id.user),
+          computer: t.opt(t.bool()),
+          templateKey: t.opt(t.str()),
+          tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })),
+          limits: t.opt(limits),
+          projectId: t.opt(
+            t.str({
+              description:
+                "Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page",
+            }),
+          ),
+          threadId: t.opt(id.thread),
+        },
+        out: { agent: agentRow },
+        perm: "agents.create",
+        emits: ["agent.created"],
+        tool: "agents",
+        offline: "queue",
+        cli: "vyre agents create",
+        errors: ["validation.duplicate"],
+      },
+    ),
+    write(
+      "agents.update",
+      "Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running",
+      {
+        in: { ...target, patch: t.rec() },
+        out: { agent: agentRow },
+        on: ["agent", "/agentId"],
+        emits: ["agent.config_changed", "agent.config_error"],
+        tool: "agents",
+        offline: "patch",
+        errors: ["validation.field_locked", "validation.bad_input"],
+        hook: true,
+      },
+    ),
+    write(
+      "agents.role_line.set",
+      "Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit",
+      {
+        in: { ...target, description: t.str({ maxLength: 200 }) },
+        out: { agent: agentRow, undoVersionId: id.version },
+        on: ["agent", "/agentId"],
+        emits: ["agent.config_changed"],
+        tool: "agents",
+        offline: "patch",
+      },
+    ),
+    write(
+      "agents.instruction.append",
+      "Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent",
+      {
+        in: { ...target, line: t.str({ maxLength: 240 }) },
+        out: { agent: agentRow, added: t.bool(), versionId: t.opt(id.version), undoVersionId: t.opt(id.version) },
+        on: ["agent", "/agentId"],
+        emits: ["agent.config_changed"],
+        tool: "agents",
+        errors: ["validation.bad_input"],
+      },
+    ),
     // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
-    write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {
-      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created', 'agent.privacy_set'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
+    write(
+      "agents.outside.connect",
+      "System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client",
+      {
+        in: { clientName: t.str() },
+        out: { agentId: id.agent, name: t.str() },
+        perm: "agents.create",
+        emits: ["agent.created", "agent.privacy_set"],
+        audit: "always",
+        idem: "none",
+        risk: "high",
+        offline: "online",
+      },
+    ),
+    write(
+      "agents.outside.enqueue",
+      "System: a mention or a task for an outside agent waits in its queue until it asks",
+      {
+        in: {
+          agentId: id.agent,
+          kind: t.enm("mention", "task", "answer"),
+          threadId: t.opt(id.thread),
+          taskId: t.opt(id.task),
+          messageId: t.opt(id.message),
+          asker: t.str(),
+          title: t.opt(t.str()),
+          text: t.opt(t.str()),
+        },
+        out: { queued: t.bool() },
+        emits: ["agent.job_queued"],
+        idem: "none",
+        risk: "low",
+      },
+    ),
+    read(
+      "agents.outside.usable",
+      "May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person's Assistant is theirs alone",
+      {
+        in: target,
+        out: { usable: t.bool() },
+        level: "member",
+      },
+    ),
+    write("agents.outside.seen", "System: an outside agent called a tool: its status follows", {
+      in: { agentId: id.agent },
+      out: { ok: t.bool() },
+      emits: ["agent.seen"],
+      idem: "none",
+      risk: "low",
     }),
-    write('agents.outside.enqueue', 'System: a mention or a task for an outside agent waits in its queue until it asks', {
-      in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
-      out: { queued: t.bool() }, emits: ['agent.job_queued'], idem: 'none', risk: 'low',
+    write(
+      "agents.next",
+      "Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue",
+      {
+        out: { job: t.nullable(outsideJob), waiting: t.int({ minimum: 0 }) },
+        level: "member",
+        emits: ["agent.job_taken"],
+        tool: "agents",
+        mcpName: "agents_next",
+        agent: { planMode: "allowed" },
+        idem: "none",
+        risk: "low",
+      },
+    ),
+    write("agents.pause", "Pause an agent with a reason; the status shows who paused it", {
+      in: { ...target, reason: t.opt(t.str()) },
+      out: { agent: agentRow },
+      on: ["agent", "/agentId"],
+      level: "manage",
+      emits: ["agent.paused"],
+      tool: "agents",
+      idem: "natural",
     }),
-    read('agents.outside.usable', 'May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person\'s Assistant is theirs alone', {
-      in: target, out: { usable: t.bool() }, level: 'member',
+    write("agents.resume", "Resume a paused agent", {
+      in: target,
+      out: { agent: agentRow },
+      on: ["agent", "/agentId"],
+      level: "manage",
+      emits: ["agent.resumed"],
+      tool: "agents",
+      idem: "natural",
     }),
-    write('agents.outside.seen', 'System: an outside agent called a tool: its status follows', { in: { agentId: id.agent }, out: { ok: t.bool() }, emits: ['agent.seen'], idem: 'none', risk: 'low' }),
-    write('agents.next', 'Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue', {
-      out: { job: t.nullable(outsideJob), waiting: t.int({ minimum: 0 }) }, level: 'member', emits: ['agent.job_taken'], tool: 'agents', mcpName: 'agents_next', agent: { planMode: 'allowed' }, idem: 'none', risk: 'low',
+    write("agents.delete", "Move an agent to Trash (its folder and memory follow the folder rules)", {
+      in: target,
+      out: { deleted: t.bool() },
+      on: ["agent", "/agentId"],
+      level: "manage",
+      emits: ["agent.deleted"],
+      gate: { act: "delete", when: "actor.kind != 'person'" },
+      tool: "agents",
+      audit: "sensitive",
+      errors: ["permission.on_hold"],
     }),
-    write('agents.pause', 'Pause an agent with a reason; the status shows who paused it', {
-      in: { ...target, reason: t.opt(t.str()) }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.paused'], tool: 'agents', idem: 'natural',
+    write(
+      "agents.set_owner",
+      "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
+      {
+        in: { ...target, ownerId: id.user },
+        out: { agent: agentRow },
+        on: ["agent", "/agentId"],
+        level: "manage",
+        emits: ["agent.owner_changed"],
+        gate: { act: "transfer", when: "actor.kind != 'person'" },
+        tool: "agents",
+        audit: "sensitive",
+        errors: ["validation.bad_input", "internal.unexpected"],
+      },
+    ),
+    write("agents.restore", "Restore an agent from Trash", {
+      in: target,
+      out: { agent: agentRow },
+      on: ["agent", "/agentId"],
+      level: "manage",
+      emits: ["agent.restored"],
+      tool: "agents",
     }),
-    write('agents.resume', 'Resume a paused agent', {
-      in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.resumed'], tool: 'agents', idem: 'natural',
-    }),
-    write('agents.delete', 'Move an agent to Trash (its folder and memory follow the folder rules)', {
-      in: target, out: { deleted: t.bool() }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'agents', audit: 'sensitive', errors: ['permission.on_hold'],
-    }),
-    write('agents.set_owner', 'Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them', {
-      in: { ...target, ownerId: id.user }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.owner_changed'], gate: { act: 'transfer', when: "actor.kind != 'person'" }, tool: 'agents', audit: 'sensitive', errors: ['validation.bad_input', 'internal.unexpected'],
-    }),
-    write('agents.restore', 'Restore an agent from Trash', {
-      in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.restored'], tool: 'agents',
-    }),
-    write('agents.visibility.set', 'Admin toggle "All in the Space" for agent lists (logged)', {
-      in: { all: t.bool() }, out: { all: t.bool() }, perm: 'access.manage', audit: 'always', tool: 'agents', idem: 'natural', risk: 'low',
+    write("agents.visibility.set", 'Admin toggle "All in the Space" for agent lists (logged)', {
+      in: { all: t.bool() },
+      out: { all: t.bool() },
+      perm: "access.manage",
+      audit: "always",
+      tool: "agents",
+      idem: "natural",
+      risk: "low",
     }),
     // ---- configuration
-    read('agents.config.get', 'Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error', {
-      in: target, out: { effective: t.rec(), lastGoodVersionId: t.opt(id.version), error: t.opt(t.obj({ line: t.opt(t.int()), message: t.str() })), lines: t.obj({ agentMd: t.int(), vyreMd: t.int() }) },
-      on: ['agent', '/agentId'], tool: 'agents', label: 'check',
-    }),
-    read('agents.config.validate', 'Validate agent.toml text (app limits first, then precedence) without saving', {
-      in: { ...target, toml: t.str() }, out: { ok: t.bool(), errors: t.arr(t.obj({ line: t.opt(t.int()), message: t.str() })), widens: t.arr(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
+    read(
+      "agents.config.get",
+      "Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error",
+      {
+        in: target,
+        out: {
+          effective: t.rec(),
+          lastGoodVersionId: t.opt(id.version),
+          error: t.opt(t.obj({ line: t.opt(t.int()), message: t.str() })),
+          lines: t.obj({ agentMd: t.int(), vyreMd: t.int() }),
+        },
+        on: ["agent", "/agentId"],
+        tool: "agents",
+        label: "check",
+      },
+    ),
+    read("agents.config.validate", "Validate agent.toml text (app limits first, then precedence) without saving", {
+      in: { ...target, toml: t.str() },
+      out: { ok: t.bool(), errors: t.arr(t.obj({ line: t.opt(t.int()), message: t.str() })), widens: t.arr(t.str()) },
+      on: ["agent", "/agentId"],
+      tool: "agents",
     }),
     // Files asks this, as the writer, before it writes a new version of a file named agent.toml: saving an agent's agent.toml is changing its settings, so it takes the right agents.update takes. No tool.
-    read('agents.config.may_save', 'May the caller save this agent.toml, which is an agent\'s settings? Files asks as the writer before it writes; a file that is no agent\'s agent.toml answers allowed', {
-      in: { fileId: id.file }, out: { agentId: t.nullable(id.agent), allowed: t.bool(), reason: t.opt(t.enm('person_only', 'no_edit')), message: t.opt(t.str()) }, level: 'member',
+    read(
+      "agents.config.may_save",
+      "May the caller save this agent.toml, which is an agent's settings? Files asks as the writer before it writes; a file that is no agent's agent.toml answers allowed",
+      {
+        in: { fileId: id.file },
+        out: {
+          agentId: t.nullable(id.agent),
+          allowed: t.bool(),
+          reason: t.opt(t.enm("person_only", "no_edit")),
+          message: t.opt(t.str()),
+        },
+        level: "member",
+      },
+    ),
+    read("agents.limits.get", "Effective limits of an agent: agent.toml capped by Space caps", {
+      in: target,
+      out: { limits, source: t.rec(t.enm("agent", "person", "space")) },
+      on: ["agent", "/agentId"],
+      tool: "agents",
     }),
-    read('agents.limits.get','Effective limits of an agent: agent.toml capped by Space caps', {
-      in: target, out: { limits, source: t.rec(t.enm('agent', 'person', 'space')) }, on: ['agent', '/agentId'], tool: 'agents',
+    write("agents.snapshot.take", "Take the file snapshot a run uses; changes to the files apply between runs", {
+      in: { ...target, runId: t.opt(id.run) },
+      out: { snapshotId: t.id("snp"), version: t.int() },
+      on: ["agent", "/agentId"],
+      idem: "natural",
+      risk: "low",
     }),
-    write('agents.snapshot.take', 'Take the file snapshot a run uses; changes to the files apply between runs', {
-      in: { ...target, runId: t.opt(id.run) }, out: { snapshotId: t.id('snp'), version: t.int() }, on: ['agent', '/agentId'], idem: 'natural', risk: 'low',
+    read("agents.versions", "List versions of an agent definition (AGENT.md, agent.toml) for rollback", {
+      in: { ...target, file: t.opt(agentFile) },
+      out: { versions: t.arr(versionRow) },
+      on: ["agent", "/agentId"],
+      tool: "agents",
     }),
-    read('agents.versions', 'List versions of an agent definition (AGENT.md, agent.toml) for rollback', {
-      in: { ...target, file: t.opt(agentFile) }, out: { versions: t.arr(versionRow) }, on: ['agent', '/agentId'], tool: 'agents',
-    }),
-    write('agents.restore_version', 'Restore AGENT.md or agent.toml to an earlier version', {
-      in: { ...target, versionId: id.version, file: t.opt(agentFile) }, out: { agent: agentRow }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents', agent: { planMode: 'blocked' },
+    write("agents.restore_version", "Restore AGENT.md or agent.toml to an earlier version", {
+      in: { ...target, versionId: id.version, file: t.opt(agentFile) },
+      out: { agent: agentRow },
+      on: ["agent", "/agentId"],
+      emits: ["agent.config_changed"],
+      tool: "agents",
+      agent: { planMode: "blocked" },
     }),
     // ---- routines
-    read('agents.routines.list', 'Routines of an agent (schedules set by the owner)', {
-      in: target, out: { routines: t.arr(routineRow) }, on: ['agent', '/agentId'], tool: 'agents', label: 'filter',
+    read("agents.routines.list", "Routines of an agent (schedules set by the owner)", {
+      in: target,
+      out: { routines: t.arr(routineRow) },
+      on: ["agent", "/agentId"],
+      tool: "agents",
+      label: "filter",
     }),
-    create('agents.routine.save', 'Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"', {
-      in: {
-        ...target, routineId: t.opt(t.id('rtn')), title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'] })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.opt(t.bool()),
-        kind: t.opt(t.enm('schedule', 'watch')), watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
+    create(
+      "agents.routine.save",
+      'Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"',
+      {
+        in: {
+          ...target,
+          routineId: t.opt(t.id("rtn")),
+          title: t.str(),
+          cron: t.opt(t.str({ examples: ["0 9 * * 1-5"] })),
+          prompt: t.str(),
+          channelId: t.opt(id.channel),
+          enabled: t.opt(t.bool()),
+          kind: t.opt(t.enm("schedule", "watch")),
+          watch: t.opt(t.obj({ on: t.enm("message"), channelId: id.channel })),
+        },
+        out: { routine: routineRow },
+        make: ["agent", "/agentId"],
+        perm: "agents.schedule",
+        emits: ["agent.routine_changed"],
+        tool: "agents",
+        idem: "key",
+        errors: ["permission.no_grant"],
       },
-      out: { routine: routineRow }, make: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents', idem: 'key',
-      errors: ['permission.no_grant'],
+    ),
+    write("agents.routine.delete", "Delete a routine", {
+      in: { ...target, routineId: t.id("rtn") },
+      out: { deleted: t.bool() },
+      on: ["agent", "/agentId"],
+      perm: "agents.schedule",
+      emits: ["agent.routine_changed"],
+      tool: "agents",
     }),
-    write('agents.routine.delete', 'Delete a routine', {
-      in: { ...target, routineId: t.id('rtn') }, out: { deleted: t.bool() }, on: ['agent', '/agentId'], perm: 'agents.schedule', emits: ['agent.routine_changed'], tool: 'agents',
-    }),
-    write('agents.routine.run_now', 'Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner\'s', {
-      in: { ...target, routineId: t.id('rtn') }, out: { routine: routineRow, runId: id.run }, on: ['agent', '/agentId'], perm: 'agents.schedule',
-      emits: ['agent.routine_run_started'], tool: 'agents', idem: 'key', errors: ['validation.not_found', 'validation.precondition_failed'],
-    }),
-    write('agents.routine.delegate', 'Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent', {
-      in: { ...target, routineId: t.id('rtn'), to: t.opt(t.obj({ kind: t.enm('person', 'agent'), id: t.str() })), undo: t.opt(t.bool()) },
-      out: { routine: routineRow, previousOwnerId: id.user }, on: ['agent', '/agentId'], perm: 'agents.schedule',
-      emits: ['agent.routine_delegated', 'agent.routine_changed'], tool: 'agents', errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed'],
-    }),
+    write(
+      "agents.routine.run_now",
+      'Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner\'s',
+      {
+        in: { ...target, routineId: t.id("rtn") },
+        out: { routine: routineRow, runId: id.run },
+        on: ["agent", "/agentId"],
+        perm: "agents.schedule",
+        emits: ["agent.routine_run_started"],
+        tool: "agents",
+        idem: "key",
+        errors: ["validation.not_found", "validation.precondition_failed"],
+      },
+    ),
+    write(
+      "agents.routine.delegate",
+      "Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent",
+      {
+        in: {
+          ...target,
+          routineId: t.id("rtn"),
+          to: t.opt(t.obj({ kind: t.enm("person", "agent"), id: t.str() })),
+          undo: t.opt(t.bool()),
+        },
+        out: { routine: routineRow, previousOwnerId: id.user },
+        on: ["agent", "/agentId"],
+        perm: "agents.schedule",
+        emits: ["agent.routine_delegated", "agent.routine_changed"],
+        tool: "agents",
+        errors: ["validation.not_found", "validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
     // ---- suggestions and the Agent template
-    read('agents.suggestions.list', 'Open suggestions for an agent: AGENT.md diffs from the agent and template suggestions', {
-      in: { agentId: t.opt(id.agent), kind: t.opt(t.enm('agent_md', 'template')), state: t.opt(t.arr(t.enm('open', 'accepted', 'dismissed'))), ...pageIn },
-      out: { suggestions: t.arr(suggestionRow), ...pageOut }, tool: 'agents', label: 'filter',
-    }),
-    create('agents.suggestion.propose', 'Propose a change to AGENT.md as a diff; people without Edit see Suggest to <owner>; personal preferences go to private memory instead', {
-      in: { ...target, file: t.opt(t.str()), diff: t.str(), reason: t.opt(t.str()) }, out: { suggestion: suggestionRow }, make: ['agent', '/agentId'], emits: ['agent.suggestion_proposed'], tool: 'agents', idem: 'key',
-    }),
-    write('agents.suggestion.accept', 'Accept a suggestion (shown to the owner and editors only); applies it through files.save as a version', {
-      in: { suggestionId: t.id('sug') }, out: { suggestion: suggestionRow }, perm: null, level: 'edit', emits: ['agent.suggestion_resolved', 'agent.config_changed'], tool: 'agents', errors: ['validation.precondition_failed'],
-    }),
-    write('agents.suggestion.dismiss', 'Dismiss a suggestion', {
-      in: { suggestionId: t.id('sug') }, out: { suggestion: suggestionRow }, perm: null, level: 'edit', emits: ['agent.suggestion_resolved'], tool: 'agents',
-    }),
-    read('agents.template.get', 'The Agent template: version, files, and the propagation mode', {
-      out: { version: t.int(), files: t.arr(t.str()), mode: t.enm('suggest', 'new_only', 'off'), agents: t.int() }, perm: null, level: 'view', tool: 'agents',
-    }),
-    read('agents.template.preview', 'Preview propagation before applying ("12 agents, 3 folders added, 2 suggestions")', {
-      in: { scope: t.enm('all', 'one'), agentId: t.opt(id.agent) },
-      out: { agents: t.int(), foldersAdded: t.int(), filesAdded: t.int(), suggestions: t.int(), widening: t.int() }, perm: null, level: 'view', tool: 'agents',
-    }),
-    write('agents.template.apply', 'Apply the template: adds, never removes or overwrites; changed files become suggestions; widening ones need admin approval; try one agent first', {
-      in: { scope: t.enm('all', 'one'), agentId: t.opt(id.agent) }, out: { applied: t.int(), suggestions: t.int(), taskId: t.opt(id.task) },
-      perm: 'agents.manage', level: 'manage', emits: ['agent.template_applied'], tool: 'agents', audit: 'always', risk: 'medium',
-    }),
-    read('agents.guide.get', 'The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md', {
-      out: { version: t.str({ examples: ['1.0.0'] }), path: t.lit('.vyre/guide.md'), body: t.str() }, perm: null, level: 'view', tool: 'agents',
-    }),
-    read('agents.builtin_skill.get', 'Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer', {
-      in: { name: t.str({ examples: ['focus-records'], pattern: '^[a-z][a-z0-9-]{0,63}$' }) }, out: { name: t.str(), description: t.str(), body: t.str() },
-      perm: null, level: 'view', tool: 'agents', errors: ['validation.not_found'],
-    }),
-    read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
-      out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
-    }),
-    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones', {
-      in: { agentId: t.opt(id.agent), includeOff: t.opt(t.bool()) }, out: { skills: t.arr(skillRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'skills_list', agent: { planMode: 'allowed' },
-    }),
-    read('skills.load', 'Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in', {
-      in: { name: t.str({ examples: ['deploy-checks'] }), agentId: t.opt(id.agent) },
-      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })), text: t.opt(t.str({ description: 'The whole SKILL.md, front matter included' })), hash: t.opt(t.str()) }) },
-      perm: null, level: 'view', tool: 'meta', mcpName: 'load_skill', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
-    }),
-    write('skills.add', 'Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)', {
-      in: {
-        text: t.str({ description: 'The SKILL.md text' }), name: t.opt(t.str({ description: 'Used when the front matter has no name' })), agentId: t.opt(id.agent),
-        source: t.opt(t.str({ description: 'upload (default), plugin:<name> or kit:<key>' })), files: t.opt(skillFiles),
+    read(
+      "agents.suggestions.list",
+      "Open suggestions for an agent: AGENT.md diffs from the agent and template suggestions",
+      {
+        in: {
+          agentId: t.opt(id.agent),
+          kind: t.opt(t.enm("agent_md", "template")),
+          state: t.opt(t.arr(t.enm("open", "accepted", "dismissed"))),
+          ...pageIn,
+        },
+        out: { suggestions: t.arr(suggestionRow), ...pageOut },
+        tool: "agents",
+        label: "filter",
       },
-      out: { skill: skillRow, kept: t.opt(t.bool()), note: t.opt(t.str({ description: 'Set with kept: a Kit tried to add a skill whose name is taken by one it did not install, and that one was kept' })) },
-      perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
+    ),
+    create(
+      "agents.suggestion.propose",
+      "Propose a change to AGENT.md as a diff; people without Edit see Suggest to <owner>; personal preferences go to private memory instead",
+      {
+        in: { ...target, file: t.opt(t.str()), diff: t.str(), reason: t.opt(t.str()) },
+        out: { suggestion: suggestionRow },
+        make: ["agent", "/agentId"],
+        emits: ["agent.suggestion_proposed"],
+        tool: "agents",
+        idem: "key",
+      },
+    ),
+    write(
+      "agents.suggestion.accept",
+      "Accept a suggestion (shown to the owner and editors only); applies it through files.save as a version",
+      {
+        in: { suggestionId: t.id("sug") },
+        out: { suggestion: suggestionRow },
+        perm: null,
+        level: "edit",
+        emits: ["agent.suggestion_resolved", "agent.config_changed"],
+        tool: "agents",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("agents.suggestion.dismiss", "Dismiss a suggestion", {
+      in: { suggestionId: t.id("sug") },
+      out: { suggestion: suggestionRow },
+      perm: null,
+      level: "edit",
+      emits: ["agent.suggestion_resolved"],
+      tool: "agents",
     }),
-    write('skills.remove', 'Remove a skill from the Space library, or from one agent', {
-      in: { name: t.str(), agentId: t.opt(id.agent), source: t.opt(t.str({ description: 'Remove it only when this source added it (a Kit undo names its own)' })) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
+    read("agents.template.get", "The Agent template: version, files, and the propagation mode", {
+      out: { version: t.int(), files: t.arr(t.str()), mode: t.enm("suggest", "new_only", "off"), agents: t.int() },
+      perm: null,
+      level: "view",
+      tool: "agents",
+    }),
+    read(
+      "agents.template.preview",
+      'Preview propagation before applying ("12 agents, 3 folders added, 2 suggestions")',
+      {
+        in: { scope: t.enm("all", "one"), agentId: t.opt(id.agent) },
+        out: { agents: t.int(), foldersAdded: t.int(), filesAdded: t.int(), suggestions: t.int(), widening: t.int() },
+        perm: null,
+        level: "view",
+        tool: "agents",
+      },
+    ),
+    write(
+      "agents.template.apply",
+      "Apply the template: adds, never removes or overwrites; changed files become suggestions; widening ones need admin approval; try one agent first",
+      {
+        in: { scope: t.enm("all", "one"), agentId: t.opt(id.agent) },
+        out: { applied: t.int(), suggestions: t.int(), taskId: t.opt(id.task) },
+        perm: "agents.manage",
+        level: "manage",
+        emits: ["agent.template_applied"],
+        tool: "agents",
+        audit: "always",
+        risk: "medium",
+      },
+    ),
+    read(
+      "agents.guide.get",
+      "The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md",
+      {
+        out: { version: t.str({ examples: ["1.0.0"] }), path: t.lit(".vyre/guide.md"), body: t.str() },
+        perm: null,
+        level: "view",
+        tool: "agents",
+      },
+    ),
+    read(
+      "agents.builtin_skill.get",
+      "Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer",
+      {
+        in: { name: t.str({ examples: ["focus-records"], pattern: "^[a-z][a-z0-9-]{0,63}$" }) },
+        out: { name: t.str(), description: t.str(), body: t.str() },
+        perm: null,
+        level: "view",
+        tool: "agents",
+        errors: ["validation.not_found"],
+      },
+    ),
+    read(
+      "agents.builtin_skills.list",
+      'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces',
+      {
+        out: {
+          skills: t.arr(
+            t.obj({
+              key: t.str({ examples: ["working_in_vyre"] }),
+              title: t.str(),
+              version: t.str({ examples: ["1.0.0"] }),
+              summary: t.str(),
+            }),
+          ),
+        },
+        perm: null,
+        level: "view",
+        tool: "agents",
+      },
+    ),
+    read(
+      "skills.list",
+      "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
+      {
+        in: { agentId: t.opt(id.agent), includeOff: t.opt(t.bool()) },
+        out: { skills: t.arr(skillRow) },
+        perm: null,
+        level: "view",
+        tool: "agents",
+        mcpName: "skills_list",
+        agent: { planMode: "allowed" },
+      },
+    ),
+    read(
+      "skills.load",
+      "Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in",
+      {
+        in: { name: t.str({ examples: ["deploy-checks"] }), agentId: t.opt(id.agent) },
+        out: {
+          skill: t.obj({
+            name: t.str(),
+            description: t.str(),
+            tier: t.enm("builtin", "space", "agent", "mine", "shared"),
+            source: t.str(),
+            body: t.str(),
+            files: t.arr(t.obj({ path: t.str(), text: t.str() })),
+            text: t.opt(t.str({ description: "The whole SKILL.md, front matter included" })),
+            hash: t.opt(t.str()),
+          }),
+        },
+        perm: null,
+        level: "view",
+        tool: "meta",
+        mcpName: "load_skill",
+        agent: { planMode: "allowed" },
+        errors: ["validation.not_found"],
+      },
+    ),
+    write(
+      "skills.add",
+      "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
+      {
+        in: {
+          text: t.str({ description: "The SKILL.md text" }),
+          name: t.opt(t.str({ description: "Used when the front matter has no name" })),
+          agentId: t.opt(id.agent),
+          source: t.opt(t.str({ description: "upload (default), plugin:<name> or kit:<key>" })),
+          files: t.opt(skillFiles),
+        },
+        out: {
+          skill: skillRow,
+          kept: t.opt(t.bool()),
+          note: t.opt(
+            t.str({
+              description:
+                "Set with kept: a Kit tried to add a skill whose name is taken by one it did not install, and that one was kept",
+            }),
+          ),
+        },
+        perm: "agents.manage",
+        level: "manage",
+        risk: "medium",
+        idem: "key",
+        emits: ["skill.added"],
+        audit: "always",
+        tool: "agents",
+        mcpName: "skills_add",
+        errors: ["validation.too_large"],
+      },
+    ),
+    write("skills.remove", "Remove a skill from the Space library, or from one agent", {
+      in: {
+        name: t.str(),
+        agentId: t.opt(id.agent),
+        source: t.opt(t.str({ description: "Remove it only when this source added it (a Kit undo names its own)" })),
+      },
+      out: { removed: t.bool() },
+      perm: "agents.manage",
+      level: "manage",
+      idem: "key",
+      emits: ["skill.removed"],
+      audit: "always",
+      tool: "agents",
+      mcpName: "skills_remove",
     }),
     ...pluginCapabilities,
     ...connectionCapabilities,
-    write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
-      in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
+    write("skills.set_enabled", "Turn a Space or agent skill off or on without removing it", {
+      in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() },
+      out: { skill: skillRow },
+      perm: "agents.manage",
+      level: "manage",
+      idem: "key",
+      emits: ["skill.changed"],
+      audit: "always",
+      tool: "agents",
+      mcpName: "skills_set_enabled",
+      errors: ["validation.not_found"],
     }),
     ...skillScopeCapabilities,
     ...installCapabilities,
   ],
   events: [
-    ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),
-    ev('skill.removed', 'A skill was removed from the Space library or from one agent', { p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/name'] }),
+    ev("skill.added", "A skill was added to the Space library or to one agent", {
+      p: { name: t.str(), tier: t.enm("space", "agent"), agentId: t.opt(id.agent), source: t.str(), by: t.str() },
+      subject: ["entity", "/name"],
+    }),
+    ev("skill.removed", "A skill was removed from the Space library or from one agent", {
+      p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() },
+      subject: ["entity", "/name"],
+    }),
     ...pluginEvents,
     ...connectionEvents,
-    ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
-    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
-    ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int(), private: t.opt(t.bool()) }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
-    ev('agent.privacy_set', 'An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else', { p: { agentId: id.agent, ownerId: id.user, private: t.bool(), assistant: t.opt(t.bool({ description: 'The agent is its person\'s own Assistant' })) }, subject: ['agent', '/agentId'], retention: 'audit' }),
-    ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
-    ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
-    ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
-    ev('agent.job_queued', 'A mention or a task is waiting for an outside agent', { p: { agentId: id.agent, jobId: t.str(), kind: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
-    ev('agent.job_taken', 'An outside agent took a job', { p: { agentId: id.agent, jobId: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
-    ev('agent.seen', 'An outside agent was active', { p: { agentId: id.agent, at: t.ts() }, subject: ['agent', '/agentId'], vis: 'participants' }),
-    ev('agent.deleted', 'An agent moved to Trash', { p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'] }),
-    ev('agent.restored', 'An agent came back from Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
-    ev('agent.config_changed', 'AGENT.md, agent.toml or the agent record changed (a new version was saved)', {
-      p: { agentId: id.agent, fields: t.arr(t.str()), versionId: t.opt(id.version), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent configuration changes', fields: ['/fields'] },
+    ev("skill.changed", "A skill was turned off or on", {
+      p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() },
+      subject: ["entity", "/name"],
     }),
-    ev('agent.config_error', 'An agent.toml failed validation; the last good version keeps running', { p: { agentId: id.agent, message: t.str(), line: t.opt(t.int()) }, subject: ['agent', '/agentId'] }),
-    ev('agent.routine_changed', 'A routine was created, changed or deleted', { p: { agentId: id.agent, routineId: t.id('rtn'), op: t.enm('created', 'updated', 'deleted') }, subject: ['agent', '/agentId'], vis: 'owner' }),
-    ev('agent.routine_run_started', 'A routine run started now, as the routine owner', { p: { agentId: id.agent, routineId: t.id('rtn'), runId: id.run, ownerId: id.user, requestedBy: t.str() }, subject: ['agent', '/agentId'], vis: 'owner' }),
-    ev('agent.routine_delegated', 'A routine was handed to another owner, or handed back', { p: { agentId: id.agent, routineId: t.id('rtn'), from: id.user, to: id.user, undo: t.bool() }, subject: ['agent', '/agentId'], vis: 'owner' }),
-    ev('agent.suggestion_proposed', 'A change to an agent was suggested', { p: { suggestionId: t.id('sug'), agentId: id.agent, kind: t.str(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
-    ev('agent.suggestion_resolved', 'A suggestion was accepted or dismissed', { p: { suggestionId: t.id('sug'), agentId: id.agent, accepted: t.bool(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
-    ev('agent.template_applied', 'The Agent template was applied', { p: { scope: t.str(), agents: t.int(), suggestions: t.int(), by: t.str() }, subject: ['entity', '/scope'] }),
+    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
+    ev("agent.created", "An agent was created", {
+      p: {
+        agentId: id.agent,
+        name: t.str(),
+        ownerId: id.user,
+        folderId: t.str(),
+        templateVersion: t.int(),
+        private: t.opt(t.bool()),
+      },
+      subject: ["agent", "/agentId"],
+      trigger: { title: "An agent is created" },
+    }),
+    ev(
+      "agent.privacy_set",
+      "An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else",
+      {
+        p: {
+          agentId: id.agent,
+          ownerId: id.user,
+          private: t.bool(),
+          assistant: t.opt(t.bool({ description: "The agent is its person's own Assistant" })),
+        },
+        subject: ["agent", "/agentId"],
+        retention: "audit",
+      },
+    ),
+    ev("agent.paused", "An agent was paused", {
+      p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() },
+      subject: ["agent", "/agentId"],
+      trigger: { title: "An agent is paused" },
+    }),
+    ev("agent.resumed", "An agent was resumed", {
+      p: { agentId: id.agent, by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.owner_changed", "An agent was handed to another person", {
+      p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.job_queued", "A mention or a task is waiting for an outside agent", {
+      p: { agentId: id.agent, jobId: t.str(), kind: t.str() },
+      subject: ["agent", "/agentId"],
+      vis: "participants",
+    }),
+    ev("agent.job_taken", "An outside agent took a job", {
+      p: { agentId: id.agent, jobId: t.str() },
+      subject: ["agent", "/agentId"],
+      vis: "participants",
+    }),
+    ev("agent.seen", "An outside agent was active", {
+      p: { agentId: id.agent, at: t.ts() },
+      subject: ["agent", "/agentId"],
+      vis: "participants",
+    }),
+    ev("agent.deleted", "An agent moved to Trash", {
+      p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.restored", "An agent came back from Trash", {
+      p: { agentId: id.agent, by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.config_changed", "AGENT.md, agent.toml or the agent record changed (a new version was saved)", {
+      p: { agentId: id.agent, fields: t.arr(t.str()), versionId: t.opt(id.version), by: t.str() },
+      subject: ["agent", "/agentId"],
+      trigger: { title: "An agent configuration changes", fields: ["/fields"] },
+    }),
+    ev("agent.config_error", "An agent.toml failed validation; the last good version keeps running", {
+      p: { agentId: id.agent, message: t.str(), line: t.opt(t.int()) },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.routine_changed", "A routine was created, changed or deleted", {
+      p: { agentId: id.agent, routineId: t.id("rtn"), op: t.enm("created", "updated", "deleted") },
+      subject: ["agent", "/agentId"],
+      vis: "owner",
+    }),
+    ev("agent.routine_run_started", "A routine run started now, as the routine owner", {
+      p: { agentId: id.agent, routineId: t.id("rtn"), runId: id.run, ownerId: id.user, requestedBy: t.str() },
+      subject: ["agent", "/agentId"],
+      vis: "owner",
+    }),
+    ev("agent.routine_delegated", "A routine was handed to another owner, or handed back", {
+      p: { agentId: id.agent, routineId: t.id("rtn"), from: id.user, to: id.user, undo: t.bool() },
+      subject: ["agent", "/agentId"],
+      vis: "owner",
+    }),
+    ev("agent.suggestion_proposed", "A change to an agent was suggested", {
+      p: { suggestionId: t.id("sug"), agentId: id.agent, kind: t.str(), by: t.str() },
+      subject: ["agent", "/agentId"],
+      vis: "participants",
+    }),
+    ev("agent.suggestion_resolved", "A suggestion was accepted or dismissed", {
+      p: { suggestionId: t.id("sug"), agentId: id.agent, accepted: t.bool(), by: t.str() },
+      subject: ["agent", "/agentId"],
+      vis: "participants",
+    }),
+    ev("agent.template_applied", "The Agent template was applied", {
+      p: { scope: t.str(), agents: t.int(), suggestions: t.int(), by: t.str() },
+      subject: ["entity", "/scope"],
+    }),
     ...skillScopeEvents,
   ],
   agentTools: [
-    atool('tool_search', 'Find tools by what you want to do; returns names and schemas, then they are callable', {
+    atool("tool_search", "Find tools by what you want to do; returns names and schemas, then they are callable", {
       in: { query: t.str(), toolset: t.opt(t.str()), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { tools: t.arr(t.obj({ name: t.str(), summary: t.str(), toolset: t.str(), input: t.json() })) },
-      cap: 'mcp.tool.search', effects: 'read', planMode: 'allowed',
+      cap: "mcp.tool.search",
+      effects: "read",
+      planMode: "allowed",
     }),
-    atool('wait_for', 'End the turn and wake in this thread when an event, a run or a time arrives (a Run of kind wait; shows "Waiting on: build 42")', {
-      in: { on: t.union(t.obj({ event: t.str(), filter: t.opt(t.json()) }), t.obj({ run: id.run }), t.obj({ at: t.ts() })), timeout: t.opt(t.str({ examples: ['30d'] })) },
-      out: { runId: id.run }, cap: 'runs.wait_for', effects: 'write', planMode: 'allowed',
-    }),
-    atool('ask_question', 'Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered. To ask them to connect a folder you cannot see, use options keyed mount:google_drive, mount:onedrive, mount:sharepoint or mount:github', {
-      in: { prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) }))), allowOther: t.opt(t.bool()) },
-      out: { blockId: id.block, messageId: id.message }, cap: 'chat.question.ask', effects: 'write', planMode: 'allowed', blocks: ['question'],
-    }),
-    atool('plan_propose', 'Propose a plan with steps; used when plan mode is on', {
-      in: { title: t.str(), steps: t.arr(t.obj({ text: t.str(), detail: t.opt(t.str()) }), { minItems: 1 }), docFileId: t.opt(id.file) },
-      out: { planId: id.plan, blockId: id.block }, cap: 'chat.plan.propose', effects: 'write', planMode: 'allowed', blocks: ['plan'],
-    }),
-    atool('open_tab', 'Open a side tab beside the chat for the person (a file, record, diff, terminal)', {
-      in: { targetType: t.str({ examples: ['file'] }), targetId: t.str(), title: t.opt(t.str()) },
-      out: { opened: t.bool(), reason: t.opt(t.enm('disabled_by_person', 'no_device')) }, cap: 'chat.open_tab', effects: 'write', planMode: 'blocked', blocks: ['tab_opened'],
-    }),
-    atool('terminal_run', 'Run a command in a terminal session on the agent computer, the Space server or the person computer; secrets by #handle only', {
-      in: {
-        command: t.str(), terminalId: t.opt(id.terminal), host: t.opt(t.enm('agent_computer', 'device')), cwd: t.opt(t.str()), timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })),
-        env: t.opt(t.rec(t.str({ description: 'Literal or a #Handle.field reference' }))),
+    atool(
+      "wait_for",
+      'End the turn and wake in this thread when an event, a run or a time arrives (a Run of kind wait; shows "Waiting on: build 42")',
+      {
+        in: {
+          on: t.union(
+            t.obj({ event: t.str(), filter: t.opt(t.json()) }),
+            t.obj({ run: id.run }),
+            t.obj({ at: t.ts() }),
+          ),
+          timeout: t.opt(t.str({ examples: ["30d"] })),
+        },
+        out: { runId: id.run },
+        cap: "runs.wait_for",
+        effects: "write",
+        planMode: "allowed",
       },
-      out: { terminalId: id.terminal, exitCode: t.nullable(t.int()), output: t.str(), truncated: t.bool(), durationMs: t.int() },
-      cap: 'terminal.run', local: 'terminal', effects: 'write', planMode: 'blocked', blocks: ['terminal'],
+    ),
+    atool(
+      "ask_question",
+      "Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered. To ask them to connect a folder you cannot see, use options keyed mount:google_drive, mount:onedrive, mount:sharepoint or mount:github",
+      {
+        in: {
+          prompt: t.str(),
+          mode: t.enm("single", "multi", "free"),
+          options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) }))),
+          allowOther: t.opt(t.bool()),
+        },
+        out: { blockId: id.block, messageId: id.message },
+        cap: "chat.question.ask",
+        effects: "write",
+        planMode: "allowed",
+        blocks: ["question"],
+      },
+    ),
+    atool("plan_propose", "Propose a plan with steps; used when plan mode is on", {
+      in: {
+        title: t.str(),
+        steps: t.arr(t.obj({ text: t.str(), detail: t.opt(t.str()) }), { minItems: 1 }),
+        docFileId: t.opt(id.file),
+      },
+      out: { planId: id.plan, blockId: id.block },
+      cap: "chat.plan.propose",
+      effects: "write",
+      planMode: "allowed",
+      blocks: ["plan"],
     }),
-    atool('sub_task_model', 'Run a sub-task as a helper thread on a chosen model, provider and effort', {
-      in: { title: t.str(), instruction: t.str(), agentId: t.opt(id.agent), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort) },
-      out: { helper: t.rec(), blockId: id.block }, cap: 'chat.helper.start', effects: 'write', planMode: 'blocked', blocks: ['model_switch', 'helper'],
+    atool("open_tab", "Open a side tab beside the chat for the person (a file, record, diff, terminal)", {
+      in: { targetType: t.str({ examples: ["file"] }), targetId: t.str(), title: t.opt(t.str()) },
+      out: { opened: t.bool(), reason: t.opt(t.enm("disabled_by_person", "no_device")) },
+      cap: "chat.open_tab",
+      effects: "write",
+      planMode: "blocked",
+      blocks: ["tab_opened"],
     }),
-    atool('switch_model', 'Switch this chat to another engine or model; the new engine starts from the summary and the last turns', {
-      in: { driver: t.str(), model: t.str(), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(t.str()) },
-      out: { engine: t.str(), model: t.str(), quietLine: t.str(), handoffTurns: t.int() }, cap: 'engine.switch', effects: 'write', planMode: 'blocked', blocks: ['model_switch'],
+    atool(
+      "terminal_run",
+      "Run a command in a terminal session on the agent computer, the Space server or the person computer; secrets by #handle only",
+      {
+        in: {
+          command: t.str(),
+          terminalId: t.opt(id.terminal),
+          host: t.opt(t.enm("agent_computer", "device")),
+          cwd: t.opt(t.str()),
+          timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })),
+          env: t.opt(t.rec(t.str({ description: "Literal or a #Handle.field reference" }))),
+        },
+        out: {
+          terminalId: id.terminal,
+          exitCode: t.nullable(t.int()),
+          output: t.str(),
+          truncated: t.bool(),
+          durationMs: t.int(),
+        },
+        cap: "terminal.run",
+        local: "terminal",
+        effects: "write",
+        planMode: "blocked",
+        blocks: ["terminal"],
+      },
+    ),
+    atool("sub_task_model", "Run a sub-task as a helper thread on a chosen model, provider and effort", {
+      in: {
+        title: t.str(),
+        instruction: t.str(),
+        agentId: t.opt(id.agent),
+        model: t.opt(t.str()),
+        provider: t.opt(t.str()),
+        effort: t.opt(effort),
+      },
+      out: { helper: t.rec(), blockId: id.block },
+      cap: "chat.helper.start",
+      effects: "write",
+      planMode: "blocked",
+      blocks: ["model_switch", "helper"],
     }),
-    atool('handoff', 'Hand work to another agent in a new linked thread (counted against the hop limit)', {
-      in: { toAgentId: id.agent, note: t.str() }, out: { thread: t.rec(), depth: t.int() }, cap: 'chat.handoff', effects: 'write', planMode: 'blocked',
+    atool(
+      "switch_model",
+      "Switch this chat to another engine or model; the new engine starts from the summary and the last turns",
+      {
+        in: {
+          driver: t.str(),
+          model: t.str(),
+          provider: t.opt(t.str()),
+          effort: t.opt(effort),
+          accountRef: t.opt(t.str()),
+        },
+        out: { engine: t.str(), model: t.str(), quietLine: t.str(), handoffTurns: t.int() },
+        cap: "engine.switch",
+        effects: "write",
+        planMode: "blocked",
+        blocks: ["model_switch"],
+      },
+    ),
+    atool("handoff", "Hand work to another agent in a new linked thread (counted against the hop limit)", {
+      in: { toAgentId: id.agent, note: t.str() },
+      out: { thread: t.rec(), depth: t.int() },
+      cap: "chat.handoff",
+      effects: "write",
+      planMode: "blocked",
     }),
-    atool('notes_create', 'Save a note for the person, private by default, when they ask ("save this as a note"). It links back to the chat message it was saved from', {
-      in: { title: t.opt(t.str()), body: t.opt(t.str()), labels: t.opt(t.arr(t.str())) }, out: { note: t.rec() }, cap: 'notes.create', effects: 'write', planMode: 'blocked',
-    }),
-    atool('offer_note', 'Offer to save something worth keeping from this chat as a note: a card with a preview and Save or Not now. Rare: once per topic, never for small talk', {
-      in: { title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(t.str()) }, out: { offered: t.bool(), why: t.opt(t.str()), blockId: t.opt(id.block), messageId: t.opt(id.message) },
-      cap: 'chat.note_offer.make', effects: 'write', planMode: 'blocked', blocks: ['note_offer'],
-    }),
-    atool('memory_propose', 'Save a fact to the asker layer of this agent memory with its source', {
-      in: { text: t.str(), sourceKind: t.str(), sourceRef: t.str(), layer: t.opt(t.str()), validFrom: t.opt(t.ts()), kind: t.opt(t.str()) },
-      out: { fact: t.rec(), merged: t.bool() }, cap: 'memory.propose_fact', effects: 'write', planMode: 'blocked', blocks: ['memory_saved'],
+    atool(
+      "notes_create",
+      'Save a note for the person, private by default, when they ask ("save this as a note"). It links back to the chat message it was saved from',
+      {
+        in: { title: t.opt(t.str()), body: t.opt(t.str()), labels: t.opt(t.arr(t.str())) },
+        out: { note: t.rec() },
+        cap: "notes.create",
+        effects: "write",
+        planMode: "blocked",
+      },
+    ),
+    atool(
+      "offer_note",
+      "Offer to save something worth keeping from this chat as a note: a card with a preview and Save or Not now. Rare: once per topic, never for small talk",
+      {
+        in: { title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(t.str()) },
+        out: { offered: t.bool(), why: t.opt(t.str()), blockId: t.opt(id.block), messageId: t.opt(id.message) },
+        cap: "chat.note_offer.make",
+        effects: "write",
+        planMode: "blocked",
+        blocks: ["note_offer"],
+      },
+    ),
+    atool("memory_propose", "Save a fact to the asker layer of this agent memory with its source", {
+      in: {
+        text: t.str(),
+        sourceKind: t.str(),
+        sourceRef: t.str(),
+        layer: t.opt(t.str()),
+        validFrom: t.opt(t.ts()),
+        kind: t.opt(t.str()),
+      },
+      out: { fact: t.rec(), merged: t.bool() },
+      cap: "memory.propose_fact",
+      effects: "write",
+      planMode: "blocked",
+      blocks: ["memory_saved"],
     }),
   ],
   settings: [
-    setting('agents.template_mode', 'space', 'Policies', 'Agent template propagation', t.enm('suggest', 'new_only', 'off'), 'suggest'),
+    setting(
+      "agents.template_mode",
+      "space",
+      "Policies",
+      "Agent template propagation",
+      t.enm("suggest", "new_only", "off"),
+      "suggest",
+    ),
   ],
   screens: [
-    screen('chats.agent-page', 'chats', 'ui:AgentPage', {
+    screen("chats.agent-page", "chats", "ui:AgentPage", {
       q: {
-        agent: ['agents.get', { agentId: '/state/agentId' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true],
-        routines: ['agents.routines.list', { agentId: '/state/agentId' }, true], suggestions: ['agents.suggestions.list', { agentId: '/state/agentId' }, true],
-        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', { place: 'chat' }, true],
+        agent: ["agents.get", { agentId: "/state/agentId" }, true],
+        summary: ["agents.summary", { agentId: "/state/agentId" }, true],
+        routines: ["agents.routines.list", { agentId: "/state/agentId" }, true],
+        suggestions: ["agents.suggestions.list", { agentId: "/state/agentId" }, true],
+        config: ["agents.config.get", { agentId: "/state/agentId" }, true],
+        chats: ["threads.list", {}, true],
+        accounts: ["engine.accounts.list", { place: "chat" }, true],
       },
       a: {
-        chat: ['chat.start', {}], setRoleLine: ['agents.role_line.set', { agentId: '/state/agentId' }], update: ['agents.update', { agentId: '/state/agentId' }],
-        pause: ['agents.pause', { agentId: '/state/agentId' }], resume: ['agents.resume', { agentId: '/state/agentId' }], saveRoutine: ['agents.routine.save', { agentId: '/state/agentId' }],
-        deleteRoutine: ['agents.routine.delete', { agentId: '/state/agentId', routineId: '/state/routineId' }], acceptSuggestion: ['agents.suggestion.accept', { suggestionId: '/state/suggestionId' }],
-        dismissSuggestion: ['agents.suggestion.dismiss', { suggestionId: '/state/suggestionId' }], remove: ['agents.delete', { agentId: '/state/agentId' }, 'Move this agent to Trash?'],
+        chat: ["chat.start", {}],
+        setRoleLine: ["agents.role_line.set", { agentId: "/state/agentId" }],
+        update: ["agents.update", { agentId: "/state/agentId" }],
+        pause: ["agents.pause", { agentId: "/state/agentId" }],
+        resume: ["agents.resume", { agentId: "/state/agentId" }],
+        saveRoutine: ["agents.routine.save", { agentId: "/state/agentId" }],
+        deleteRoutine: ["agents.routine.delete", { agentId: "/state/agentId", routineId: "/state/routineId" }],
+        acceptSuggestion: ["agents.suggestion.accept", { suggestionId: "/state/suggestionId" }],
+        dismissSuggestion: ["agents.suggestion.dismiss", { suggestionId: "/state/suggestionId" }],
+        remove: ["agents.delete", { agentId: "/state/agentId" }, "Move this agent to Trash?"],
       },
-      empty: 'No agent selected', primary: 'Choose an agent', perf: { firstPaintMs: 50, completeMs: 100 },
+      empty: "No agent selected",
+      primary: "Choose an agent",
+      perf: { firstPaintMs: 50, completeMs: 100 },
     }),
-    screen('chats.all-agents', 'chats', 'ui:AllAgents', {
-      slot: 'popover', q: { agents: ['agents.list', { section: '/state/section', folderId: '/state/folderId' }, true] }, a: { chat: ['chat.start', {}], create: ['agents.create', {}] },
-      empty: 'No agents yet', primary: 'New agent', needs: ['agents.create'],
+    screen("chats.all-agents", "chats", "ui:AllAgents", {
+      slot: "popover",
+      q: { agents: ["agents.list", { section: "/state/section", folderId: "/state/folderId" }, true] },
+      a: { chat: ["chat.start", {}], create: ["agents.create", {}] },
+      empty: "No agents yet",
+      primary: "New agent",
+      needs: ["agents.create"],
     }),
-    screen('console.agents-register', 'console', 'ui:ConsoleAgents', {
-      q: { agents: ['agents.list', { section: '/state/section' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true] },
+    screen("console.agents-register", "console", "ui:ConsoleAgents", {
+      q: {
+        agents: ["agents.list", { section: "/state/section" }, true],
+        summary: ["agents.summary", { agentId: "/state/agentId" }, true],
+      },
       a: {
-        pause: ['agents.pause', { agentId: '/state/agentId' }], resume: ['agents.resume', { agentId: '/state/agentId' }], remove: ['agents.delete', { agentId: '/state/agentId' }, 'Move this agent to Trash?'],
-        showAll: ['agents.visibility.set', {}],
+        pause: ["agents.pause", { agentId: "/state/agentId" }],
+        resume: ["agents.resume", { agentId: "/state/agentId" }],
+        remove: ["agents.delete", { agentId: "/state/agentId" }, "Move this agent to Trash?"],
+        showAll: ["agents.visibility.set", {}],
       },
-      empty: 'No agents yet', primary: 'New agent', needs: ['console.access'],
+      empty: "No agents yet",
+      primary: "New agent",
+      needs: ["console.access"],
     }),
     ...pluginScreens,
-    screen('console.agent-template', 'console', 'ui:ConsoleAgentTemplate', {
-      q: { template: ['agents.template.get', {}, true], preview: ['agents.template.preview', { scope: '/state/scope', agentId: '/state/agentId' }, false], suggestions: ['agents.suggestions.list', { kind: '/state/kind' }, true] },
-      a: { apply: ['agents.template.apply', { scope: '/state/scope', agentId: '/state/agentId' }, 'Apply the template?'], accept: ['agents.suggestion.accept', { suggestionId: '/state/suggestionId' }], dismiss: ['agents.suggestion.dismiss', { suggestionId: '/state/suggestionId' }] },
-      empty: 'The template has no changes to apply', primary: 'Close', needs: ['agents.manage'],
+    screen("console.agent-template", "console", "ui:ConsoleAgentTemplate", {
+      q: {
+        template: ["agents.template.get", {}, true],
+        preview: ["agents.template.preview", { scope: "/state/scope", agentId: "/state/agentId" }, false],
+        suggestions: ["agents.suggestions.list", { kind: "/state/kind" }, true],
+      },
+      a: {
+        apply: ["agents.template.apply", { scope: "/state/scope", agentId: "/state/agentId" }, "Apply the template?"],
+        accept: ["agents.suggestion.accept", { suggestionId: "/state/suggestionId" }],
+        dismiss: ["agents.suggestion.dismiss", { suggestionId: "/state/suggestionId" }],
+      },
+      empty: "The template has no changes to apply",
+      primary: "Close",
+      needs: ["agents.manage"],
     }),
     ...skillScopeScreens,
   ],

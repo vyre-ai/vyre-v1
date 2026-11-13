@@ -17,21 +17,39 @@ export const SPACE = "spc_test";
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
 
-interface Col { name: string; notNull: boolean }
-interface Table { name: string; cols: Col[]; pk: string[]; auto: string | null; rows: Row[]; nextId: number }
+interface Col {
+  name: string;
+  notNull: boolean;
+}
+interface Table {
+  name: string;
+  cols: Col[];
+  pk: string[];
+  auto: string | null;
+  rows: Row[];
+  nextId: number;
+}
 
 function stripComments(sql: string): string {
-  return sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  return sql
+    .split("\n")
+    .map((l) => l.replace(/--.*$/, ""))
+    .join("\n");
 }
 
 /** Split on commas that are not inside parentheses. */
 function topLevel(body: string): string[] {
   const parts: string[] = [];
-  let depth = 0, cur = "";
+  let depth = 0,
+    cur = "";
   for (const c of body) {
     if (c === "(") depth++;
     if (c === ")") depth--;
-    if (c === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
+    if (c === "," && depth === 0) {
+      parts.push(cur.trim());
+      cur = "";
+      continue;
+    }
     cur += c;
   }
   if (cur.trim()) parts.push(cur.trim());
@@ -43,17 +61,28 @@ export function parseMigration(sql: string): Map<string, Table> {
   const text = stripComments(sql);
   const re = /CREATE TABLE IF NOT EXISTS (\w+)\s*\(/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
-    let depth = 1, i = re.lastIndex;
-    while (i < text.length && depth > 0) { if (text[i] === "(") depth++; else if (text[i] === ")") depth--; i++; }
+    let depth = 1,
+      i = re.lastIndex;
+    while (i < text.length && depth > 0) {
+      if (text[i] === "(") depth++;
+      else if (text[i] === ")") depth--;
+      i++;
+    }
     const body = text.slice(re.lastIndex, i - 1);
     const t: Table = { name: m[1]!, cols: [], pk: [], auto: null, rows: [], nextId: 1 };
     for (const part of topLevel(body)) {
       const tablePk = /^PRIMARY KEY\s*\(([^)]*)\)$/i.exec(part);
-      if (tablePk) { t.pk = tablePk[1]!.split(",").map((c) => c.trim()); continue; }
+      if (tablePk) {
+        t.pk = tablePk[1]!.split(",").map((c) => c.trim());
+        continue;
+      }
       const name = /^(\w+)/.exec(part)![1]!;
       const isPk = /PRIMARY KEY/i.test(part);
       t.cols.push({ name, notNull: /NOT NULL/i.test(part) || isPk });
-      if (isPk) { t.pk = [name]; if (/INTEGER\s+PRIMARY KEY/i.test(part)) t.auto = name; }
+      if (isPk) {
+        t.pk = [name];
+        if (/INTEGER\s+PRIMARY KEY/i.test(part)) t.auto = name;
+      }
     }
     tables.set(t.name, t);
   }
@@ -63,7 +92,8 @@ export function parseMigration(sql: string): Map<string, Table> {
 /** Order two non-null cells: numbers numerically, anything else as text. */
 function cmp(a: string | number, b: string | number): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  const x = String(a), y = String(b);
+  const x = String(a),
+    y = String(b);
   return x === y ? 0 : x < y ? -1 : 1;
 }
 
@@ -96,17 +126,50 @@ class Parser {
   private bound = 0;
   private toks: Tok[];
   private args: unknown[];
-  constructor(toks: Tok[], args: unknown[]) { this.toks = toks; this.args = args; }
+  constructor(toks: Tok[], args: unknown[]) {
+    this.toks = toks;
+    this.args = args;
+  }
 
-  done(): boolean { return this.i >= this.toks.length; }
-  peekWord(): string { const t = this.toks[this.i]; return t && t.k === "id" ? t.v.toUpperCase() : ""; }
-  peekP(): string { const t = this.toks[this.i]; return t && t.k === "p" ? t.v : ""; }
-  word(w: string): boolean { if (this.peekWord() === w) { this.i++; return true; } return false; }
-  need(w: string): void { if (!this.word(w)) throw new Error(`expected ${w}`); }
-  p(v: string): boolean { if (this.peekP() === v) { this.i++; return true; } return false; }
-  needP(v: string): void { if (!this.p(v)) throw new Error(`expected ${v}`); }
-  ident(): string { const t = this.toks[this.i++]; if (!t || t.k !== "id") throw new Error("expected a name"); return t.v; }
-  unused(): number { return this.args.length - this.bound; }
+  done(): boolean {
+    return this.i >= this.toks.length;
+  }
+  peekWord(): string {
+    const t = this.toks[this.i];
+    return t && t.k === "id" ? t.v.toUpperCase() : "";
+  }
+  peekP(): string {
+    const t = this.toks[this.i];
+    return t && t.k === "p" ? t.v : "";
+  }
+  word(w: string): boolean {
+    if (this.peekWord() === w) {
+      this.i++;
+      return true;
+    }
+    return false;
+  }
+  need(w: string): void {
+    if (!this.word(w)) throw new Error(`expected ${w}`);
+  }
+  p(v: string): boolean {
+    if (this.peekP() === v) {
+      this.i++;
+      return true;
+    }
+    return false;
+  }
+  needP(v: string): void {
+    if (!this.p(v)) throw new Error(`expected ${v}`);
+  }
+  ident(): string {
+    const t = this.toks[this.i++];
+    if (!t || t.k !== "id") throw new Error("expected a name");
+    return t.v;
+  }
+  unused(): number {
+    return this.args.length - this.bound;
+  }
 
   /** A value: a bound parameter, a number or a quoted string. */
   value(): Cell {
@@ -125,7 +188,9 @@ class Parser {
     throw new Error(`expected a value, got ${t.v}`);
   }
 
-  where(): (row: Row) => boolean { return this.orExpr(); }
+  where(): (row: Row) => boolean {
+    return this.orExpr();
+  }
 
   private orExpr(): (row: Row) => boolean {
     const parts = [this.andExpr()];
@@ -138,7 +203,11 @@ class Parser {
     return (row) => parts.every((f) => f(row));
   }
   private atom(): (row: Row) => boolean {
-    if (this.p("(")) { const f = this.orExpr(); this.needP(")"); return f; }
+    if (this.p("(")) {
+      const f = this.orExpr();
+      this.needP(")");
+      return f;
+    }
     const col = this.ident();
     if (this.word("IS")) {
       const not = this.word("NOT");
@@ -152,13 +221,21 @@ class Parser {
       const a = row[col];
       if (a === null || a === undefined || v === null) return false;
       switch (op.v) {
-        case "=": return a === v;
-        case "!=": case "<>": return a !== v;
-        case "<": return cmp(a, v) < 0;
-        case "<=": return cmp(a, v) <= 0;
-        case ">": return cmp(a, v) > 0;
-        case ">=": return cmp(a, v) >= 0;
-        default: throw new Error(`unsupported operator ${op.v}`);
+        case "=":
+          return a === v;
+        case "!=":
+        case "<>":
+          return a !== v;
+        case "<":
+          return cmp(a, v) < 0;
+        case "<=":
+          return cmp(a, v) <= 0;
+        case ">":
+          return cmp(a, v) > 0;
+        case ">=":
+          return cmp(a, v) >= 0;
+        default:
+          throw new Error(`unsupported operator ${op.v}`);
       }
     };
   }
@@ -173,7 +250,9 @@ export class MemDb implements RawDb {
     this.tables = parseMigration(schema);
   }
 
-  rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
+  rows(table: string): Row[] {
+    return this.table(table).rows.map((r) => ({ ...r }));
+  }
 
   private table(name: string): Table {
     const t = this.tables.get(name);
@@ -189,8 +268,17 @@ export class MemDb implements RawDb {
     let countAs = "n";
     let cols: string[] | null = null;
     if (p.p("*")) cols = null;
-    else if (p.word("COUNT")) { p.needP("("); p.needP("*"); p.needP(")"); p.need("AS"); countAs = p.ident(); count = true; }
-    else { cols = [p.ident()]; while (p.p(",")) cols.push(p.ident()); }
+    else if (p.word("COUNT")) {
+      p.needP("(");
+      p.needP("*");
+      p.needP(")");
+      p.need("AS");
+      countAs = p.ident();
+      count = true;
+    } else {
+      cols = [p.ident()];
+      while (p.p(",")) cols.push(p.ident());
+    }
     p.need("FROM");
     const t = this.table(p.ident());
     const pred = p.word("WHERE") ? p.where() : () => true;
@@ -204,7 +292,8 @@ export class MemDb implements RawDb {
         order.push({ col, desc });
       } while (p.p(","));
     }
-    let limit: number | null = null, offset = 0;
+    let limit: number | null = null,
+      offset = 0;
     if (p.word("LIMIT")) limit = Number(p.value());
     if (p.word("OFFSET")) offset = Number(p.value());
     if (!p.done()) throw new Error("unsupported SELECT shape");
@@ -216,7 +305,8 @@ export class MemDb implements RawDb {
     for (let k = order.length - 1; k >= 0; k--) {
       const { col, desc } = order[k]!;
       rows.sort((a, b) => {
-        const x = a[col] ?? null, y = b[col] ?? null;
+        const x = a[col] ?? null,
+          y = b[col] ?? null;
         if (x === y) return 0;
         if (x === null) return desc ? 1 : -1;
         if (y === null) return desc ? -1 : 1;
@@ -277,7 +367,10 @@ export class MemDb implements RawDb {
 
   private insert(p: Parser): { changes: number } {
     let replace = false;
-    if (p.word("OR")) { p.need("REPLACE"); replace = true; }
+    if (p.word("OR")) {
+      p.need("REPLACE");
+      replace = true;
+    }
     p.need("INTO");
     const t = this.table(p.ident());
     p.needP("(");
@@ -303,7 +396,8 @@ export class MemDb implements RawDb {
       if (fresh) row[t.auto] = t.nextId;
       t.nextId = Math.max(t.nextId, Number(row[t.auto]) + 1);
     }
-    for (const c of t.cols) if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${t.name}.${c.name}`);
+    for (const c of t.cols)
+      if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${t.name}.${c.name}`);
     const same = (r: Row): boolean => t.pk.length > 0 && t.pk.every((k) => r[k] === row[k]);
     const at = fresh ? -1 : t.rows.findIndex(same);
     if (at >= 0) {
@@ -314,9 +408,7 @@ export class MemDb implements RawDb {
   }
 }
 
-
 // ---- a handler ctx for the extra spaces tests
-
 
 export interface World {
   raw: MemDb;
@@ -338,13 +430,22 @@ export interface World {
 
 /** A Space spc_test: profile "Northwind" of the given kind, owner usr_owner, members usr_owner, usr_ines and usr_a1b2c3. The caller is the owner. */
 /** A one-pixel PNG: what files.read answers for a file the test did not name. */
-export const PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+export const PIXEL_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 /** What files.read answers for a file: its picture, or the refusal Files gives. */
 export type FakeFile = { mime: string; base64: string; size?: number; truncated?: boolean } | { refuse: string };
 
-export function world(o: { kind?: "personal" | "team"; name?: string; principal?: string; files?: Record<string, FakeFile> } = {}): World {
+export function world(
+  o: { kind?: "personal" | "team"; name?: string; principal?: string; files?: Record<string, FakeFile> } = {},
+): World {
   const raw = new MemDb();
-  raw.run("INSERT INTO spaces_profile (id, name, logo_file_id, kind) VALUES (?, ?, ?, ?)", SPACE, o.name ?? "Northwind", null, o.kind ?? "team");
+  raw.run(
+    "INSERT INTO spaces_profile (id, name, logo_file_id, kind) VALUES (?, ?, ?, ?)",
+    SPACE,
+    o.name ?? "Northwind",
+    null,
+    o.kind ?? "team",
+  );
   const events: World["events"] = [];
   const calls: World["calls"] = [];
   const host: string[] = [];
@@ -355,32 +456,81 @@ export function world(o: { kind?: "personal" | "team"; name?: string; principal?
   let who = o.principal ?? "usr_owner";
   let service = false;
   const drivers: SpaceAdminDrivers = {
-    async owner() { return owner.id; },
-    async ownerTimezone() { return zones.owner; },
-    async fingerprint() { return "ab12 cd34 ef56 7890"; },
-    async isMember(id) { return members.has(id); },
-    async transferOwner(from, to) { host.push(`transfer ${from} ${to}`); owner.id = to; return { epoch: 7 }; },
-    async applyAddress(mode, hostName) { host.push(`address ${mode} ${hostName ?? "-"}`); },
-    async deleteSpace() { host.push("delete"); },
-    async hostedOn() { return "Vyre Server on a Mac mini"; },
+    async owner() {
+      return owner.id;
+    },
+    async ownerTimezone() {
+      return zones.owner;
+    },
+    async fingerprint() {
+      return "ab12 cd34 ef56 7890";
+    },
+    async isMember(id) {
+      return members.has(id);
+    },
+    async transferOwner(from, to) {
+      host.push(`transfer ${from} ${to}`);
+      owner.id = to;
+      return { epoch: 7 };
+    },
+    async applyAddress(mode, hostName) {
+      host.push(`address ${mode} ${hostName ?? "-"}`);
+    },
+    async deleteSpace() {
+      host.push("delete");
+    },
+    async hostedOn() {
+      return "Vyre Server on a Mac mini";
+    },
   };
   const ctx = {
     space: SPACE,
-    get principal() { return service ? { kind: "service" as const, id: "host" } : { kind: "person" as const, id: who }; },
+    get principal() {
+      return service ? { kind: "service" as const, id: "host" } : { kind: "person" as const, id: who };
+    },
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     now: () => clock,
     db: scopedDb("spaces", raw, TRACE),
-    emit: ((name: string, subject: string, payload: unknown) => { events.push({ name, subject, payload }); return {} as never; }) as unknown as Ctx["emit"],
+    emit: ((name: string, subject: string, payload: unknown) => {
+      events.push({ name, subject, payload });
+      return {} as never;
+    }) as unknown as Ctx["emit"],
     call: (async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "backup.export_start") return { runId: "run_export1" };
       if (cap === "files.read") {
         const f = o.files?.[String((input as { fileId?: string }).fileId)] ?? { mime: "image/png", base64: PIXEL_PNG };
         if ("refuse" in f) throw Object.assign(new Error(f.refuse), { error: { code: f.refuse, message: f.refuse } });
-        return { base64: f.base64, mime: f.mime, size: f.size ?? Math.floor((f.base64.length * 3) / 4), version: 1, truncated: f.truncated ?? false };
+        return {
+          base64: f.base64,
+          mime: f.mime,
+          size: f.size ?? Math.floor((f.base64.length * 3) / 4),
+          version: 1,
+          truncated: f.truncated ?? false,
+        };
       }
       throw new Error(`unexpected call ${cap}`);
     }) as unknown as Ctx["call"],
   } as unknown as ExtraCtx;
-  return { raw, ctx, drivers, events, calls, host, members, owner, zones, setNow(n) { clock = n; }, asPerson(id) { who = id; service = false; }, asService() { service = true; } };
+  return {
+    raw,
+    ctx,
+    drivers,
+    events,
+    calls,
+    host,
+    members,
+    owner,
+    zones,
+    setNow(n) {
+      clock = n;
+    },
+    asPerson(id) {
+      who = id;
+      service = false;
+    },
+    asService() {
+      service = true;
+    },
+  };
 }

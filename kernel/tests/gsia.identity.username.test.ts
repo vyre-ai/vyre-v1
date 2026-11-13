@@ -14,9 +14,19 @@ test("the person address is vyre.run/u/<name>, and the old host redirects", () =
   assert.equal(hidden.private, true);
   assert.equal("id" in hidden, false, "a private card says nothing but the name");
   const open = publicCard({ name: "alex", id: "per_abc", discoverable: true, github: { login: "alex-studio" } });
-  assert.deepEqual(open.private === false && [open.url, open.github, open.id], ["https://vyre.run/u/alex", "alex-studio", "per_abc"]);
-  assert.throws(() => checkUsername("api"), (e: unknown) => (e as { code?: string }).code === "bad_input");
-  assert.throws(() => checkUsername("a"), (e: unknown) => (e as { code?: string }).code === "bad_input");
+  assert.deepEqual(open.private === false && [open.url, open.github, open.id], [
+    "https://vyre.run/u/alex",
+    "alex-studio",
+    "per_abc",
+  ]);
+  assert.throws(
+    () => checkUsername("api"),
+    (e: unknown) => (e as { code?: string }).code === "bad_input",
+  );
+  assert.throws(
+    () => checkUsername("a"),
+    (e: unknown) => (e as { code?: string }).code === "bad_input",
+  );
   assert.equal(normalizeUsername("  Alex.vyre.run "), "alex");
 });
 
@@ -24,5 +34,8 @@ test("the recovery code is 26 base32 characters in groups of four, and base32 is
   assert.match(newRecoveryCode(), /^([a-z2-7]{4}-){6}[a-z2-7]{2}$/);
   assert.notEqual(newRecoveryCode(), newRecoveryCode());
   assert.equal(base32(new TextEncoder().encode("foobar")), "mzxw6ytboi");
-  assert.equal(newRecoveryCode((n) => new Uint8Array(n)), "aaaa-aaaa-aaaa-aaaa-aaaa-aaaa-aa");
+  assert.equal(
+    newRecoveryCode((n) => new Uint8Array(n)),
+    "aaaa-aaaa-aaaa-aaaa-aaaa-aaaa-aa",
+  );
 });

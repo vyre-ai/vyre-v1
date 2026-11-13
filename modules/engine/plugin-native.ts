@@ -7,11 +7,27 @@ import path from "node:path";
 import type { NativePlugins } from "../../agent/src/drivers/cli/types.ts";
 import { parseSkill } from "../../lib/skill-md.ts";
 
-interface PluginRow { pluginId: string; name: string; enabled: boolean }
-interface Spec { key: string; name: string; from: "plugin" | "connection"; pluginId?: string; transport: string; command?: string; args: string[]; env: Record<string, string>; needs: string[] }
+interface PluginRow {
+  pluginId: string;
+  name: string;
+  enabled: boolean;
+}
+interface Spec {
+  key: string;
+  name: string;
+  from: "plugin" | "connection";
+  pluginId?: string;
+  transport: string;
+  command?: string;
+  args: string[];
+  env: Record<string, string>;
+  needs: string[];
+}
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 
-export interface NativeDeps { call(cap: string, input: unknown, as?: string): Promise<unknown> }
+export interface NativeDeps {
+  call(cap: string, input: unknown, as?: string): Promise<unknown>;
+}
 
 function write(root: string, files: Record<string, string>): void {
   fs.rmSync(root, { recursive: true, force: true });
@@ -24,13 +40,25 @@ function write(root: string, files: Record<string, string>): void {
 }
 
 /** Writes the agent's enabled plugins into `work` and returns what the CLI is started with. Null when the agent has none. Every read runs as the asker. */
-export async function nativePlugins(d: NativeDeps, driver: "claude_code" | "codex", agentId: string, asker: string, work: string): Promise<NativePlugins | null> {
-  const plugins = ((await d.call("plugins.list", { agentId }, asker).catch(() => ({ plugins: [] }))) as { plugins: PluginRow[] }).plugins.filter((p) => p.enabled);
+export async function nativePlugins(
+  d: NativeDeps,
+  driver: "claude_code" | "codex",
+  agentId: string,
+  asker: string,
+  work: string,
+): Promise<NativePlugins | null> {
+  const plugins = (
+    (await d.call("plugins.list", { agentId }, asker).catch(() => ({ plugins: [] }))) as { plugins: PluginRow[] }
+  ).plugins.filter((p) => p.enabled);
   if (plugins.length === 0) return null;
   const dirs: string[] = [];
   const roots = new Map<string, string>();
   for (const p of plugins) {
-    const files = ((await d.call("plugins.files", { pluginId: p.pluginId }, asker).catch(() => ({ files: {} }))) as { files: Record<string, string> }).files;
+    const files = (
+      (await d.call("plugins.files", { pluginId: p.pluginId }, asker).catch(() => ({ files: {} }))) as {
+        files: Record<string, string>;
+      }
+    ).files;
     const root = path.join(work, ".plugins", p.pluginId);
     write(root, files);
     roots.set(p.pluginId, root);
@@ -48,20 +76,37 @@ export async function nativePlugins(d: NativeDeps, driver: "claude_code" | "code
       }
     }
   }
-  const servers = ((await d.call("plugins.mcp.servers", { agentId }, asker).catch(() => ({ servers: [] }))) as { servers: Spec[] }).servers;
+  const servers = (
+    (await d.call("plugins.mcp.servers", { agentId }, asker).catch(() => ({ servers: [] }))) as { servers: Spec[] }
+  ).servers;
   const mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> = {};
   const secrets: Record<string, string> = {};
   let n = 0;
   for (const s of servers) {
     // a plugin's own stdio server only: a remote one cannot be reached from the sandbox, and a connection made by hand is Vyre's to run
-    if (s.from !== "plugin" || s.transport !== "stdio" || !s.command || s.needs.length > 0 || !s.pluginId || !roots.has(s.pluginId)) continue;
+    if (
+      s.from !== "plugin" ||
+      s.transport !== "stdio" ||
+      !s.command ||
+      s.needs.length > 0 ||
+      !s.pluginId ||
+      !roots.has(s.pluginId)
+    )
+      continue;
     const root = roots.get(s.pluginId)!;
-    const fix = (t: string): string => t.replaceAll("${CLAUDE_PLUGIN_ROOT}", root).replaceAll("${CLAUDE_PLUGIN_DATA}", path.join(work, ".plugin-data", s.pluginId!));
+    const fix = (t: string): string =>
+      t
+        .replaceAll("${CLAUDE_PLUGIN_ROOT}", root)
+        .replaceAll("${CLAUDE_PLUGIN_DATA}", path.join(work, ".plugin-data", s.pluginId!));
     const env: Record<string, string> = {};
     let ok = true;
     for (const [k, v] of Object.entries(s.env)) {
-      if (HANDLE.test(v)) { const name = `VYRE_PLUGIN_${++n}`; secrets[name] = v; env[k] = "${" + name + "}"; }
-      else if (/#[A-Za-z0-9_]+/.test(v)) ok = false;   // a handle inside other text is not filled
+      if (HANDLE.test(v)) {
+        const name = `VYRE_PLUGIN_${++n}`;
+        secrets[name] = v;
+        env[k] = "${" + name + "}";
+      } else if (/#[A-Za-z0-9_]+/.test(v))
+        ok = false; // a handle inside other text is not filled
       else env[k] = fix(v);
     }
     if (!ok) continue;

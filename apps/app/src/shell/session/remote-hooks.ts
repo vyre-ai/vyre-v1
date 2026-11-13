@@ -49,7 +49,11 @@ interface Entry {
 }
 
 function failureOf(err: unknown): { message: string; code?: string; traceId?: string } {
-  const o = (typeof err === "object" && err !== null ? err : {}) as { message?: unknown; code?: unknown; traceId?: unknown };
+  const o = (typeof err === "object" && err !== null ? err : {}) as {
+    message?: unknown;
+    code?: unknown;
+    traceId?: unknown;
+  };
   return {
     message: typeof o.message === "string" && o.message !== "" ? o.message : "The read failed.",
     ...(typeof o.code === "string" ? { code: o.code } : {}),
@@ -62,7 +66,11 @@ export function stableJson(v: unknown): string {
   if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
   if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
   const o = v as Record<string, unknown>;
-  return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`).join(",")}}`;
+  return `{${Object.keys(o)
+    .filter((k) => o[k] !== undefined)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`)
+    .join(",")}}`;
 }
 
 export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
@@ -70,37 +78,54 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
   const followers = new Set<() => void>();
   let closed = false;
 
-  const notify = (e: Entry): void => { for (const l of [...e.listeners]) l(); };
+  const notify = (e: Entry): void => {
+    for (const l of [...e.listeners]) l();
+  };
 
   const fetchEntry = (e: Entry): void => {
     if (closed) return;
-    if (e.inflight) { e.dirty = true; return; }
+    if (e.inflight) {
+      e.dirty = true;
+      return;
+    }
     e.inflight = true;
     e.stale = false;
     const done = (): void => {
       e.inflight = false;
-      if (e.dirty && !closed) { e.dirty = false; fetchEntry(e); }
+      if (e.dirty && !closed) {
+        e.dirty = false;
+        fetchEntry(e);
+      }
     };
-    opts.read(e.cap, e.input).then((data) => {
-      const json = stableJson(data);
-      if (e.snap.status !== "ready" || json !== e.json) {
-        e.json = json;
-        e.snap = { status: "ready", data };
-        notify(e);
-      }
-      done();
-    }, (err: unknown) => {
-      opts.onError?.(e.cap, err);
-      if (opts.ignoreError?.(err)) { done(); return; }
-      // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
-      // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
-      if (e.snap.status !== "ready") {
-        const f = failureOf(err);
-        const was = e.snap.error;
-        if (!was || was.message !== f.message || was.code !== f.code) { e.snap = { status: "loading", error: f }; notify(e); }
-      }
-      done();
-    });
+    opts.read(e.cap, e.input).then(
+      (data) => {
+        const json = stableJson(data);
+        if (e.snap.status !== "ready" || json !== e.json) {
+          e.json = json;
+          e.snap = { status: "ready", data };
+          notify(e);
+        }
+        done();
+      },
+      (err: unknown) => {
+        opts.onError?.(e.cap, err);
+        if (opts.ignoreError?.(err)) {
+          done();
+          return;
+        }
+        // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
+        // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
+        if (e.snap.status !== "ready") {
+          const f = failureOf(err);
+          const was = e.snap.error;
+          if (!was || was.message !== f.message || was.code !== f.code) {
+            e.snap = { status: "loading", error: f };
+            notify(e);
+          }
+        }
+        done();
+      },
+    );
   };
 
   const entryFor = (cap: string, input: Record<string, unknown>): Entry => {
@@ -108,12 +133,21 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     let e = entries.get(key);
     if (e) return e;
     const made: Entry = {
-      cap, input, listeners: new Set(), snap: { status: "loading" }, json: "", inflight: false, dirty: false, stale: false,
+      cap,
+      input,
+      listeners: new Set(),
+      snap: { status: "loading" },
+      json: "",
+      inflight: false,
+      dirty: false,
+      stale: false,
       live: {
         subscribe(l) {
           made.listeners.add(l);
           if (made.snap.status === "loading" || made.stale) fetchEntry(made);
-          return () => { made.listeners.delete(l); };
+          return () => {
+            made.listeners.delete(l);
+          };
         },
         getSnapshot: () => made.snap,
       },
@@ -144,7 +178,9 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     },
     onInvalidate(listener) {
       followers.add(listener);
-      return () => { followers.delete(listener); };
+      return () => {
+        followers.delete(listener);
+      };
     },
     prefetch(screenId, name, state = {}) {
       const screen = opts.screens.get(screenId);

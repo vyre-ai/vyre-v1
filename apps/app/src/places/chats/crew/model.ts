@@ -12,7 +12,9 @@ export type Show = "all" | "working" | "needs_you" | "done" | "failed";
 /** 0:12, 1:05, 1:02:03. */
 export function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  const h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60),
+    r = s % 60;
   const two = (n: number): string => String(n).padStart(2, "0");
   return h > 0 ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
 }
@@ -21,8 +23,13 @@ export function clock(ms: number): string {
 export function span(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s} s`;
-  if (s < 3600) { const m = Math.floor(s / 60), r = s % 60; return r === 0 ? `${m} min` : `${m} min ${r} s`; }
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (s < 3600) {
+    const m = Math.floor(s / 60),
+      r = s % 60;
+    return r === 0 ? `${m} min` : `${m} min ${r} s`;
+  }
+  const h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60);
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
@@ -35,7 +42,11 @@ export function money(micros: number): string {
 
 /** 1,234 or 12.3k. */
 export function tokens(n: number): string {
-  return n < 10_000 ? n.toLocaleString("en-US") : n < 1_000_000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  return n < 10_000
+    ? n.toLocaleString("en-US")
+    : n < 1_000_000
+      ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`
+      : `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
 /** The second line of a row: what it is on, what it found, or what went wrong, in plain words. */
@@ -48,15 +59,32 @@ export function lineOf(m: Pick<CrewMember, "state" | "step" | "found">): string 
 }
 
 /** The word for a state, as the peek and the pane say it. */
-export const stateWord = (s: MemberState): string => (s === "working" ? "Working" : s === "needs_you" ? "Needs you" : s === "done" ? "Done" : s === "failed" ? "Failed" : "Stopped");
+export const stateWord = (s: MemberState): string =>
+  s === "working"
+    ? "Working"
+    : s === "needs_you"
+      ? "Needs you"
+      : s === "done"
+        ? "Done"
+        : s === "failed"
+          ? "Failed"
+          : "Stopped";
 
 /** The role next to the name: what the helper was asked to do, short. */
 /** What it was asked, next to its name. A helper with no name of its own is called by what it was asked, so there is nothing to add. */
-export const roleOf = (m: Pick<CrewMember, "title"> & { name?: string | undefined; kind?: string }): string => (m.kind === "teammate" ? m.name ?? "" : m.name === undefined || m.name === m.title ? "" : m.title.length > 28 ? `${m.title.slice(0, 27)}…` : m.title);
+export const roleOf = (m: Pick<CrewMember, "title"> & { name?: string | undefined; kind?: string }): string =>
+  m.kind === "teammate"
+    ? (m.name ?? "")
+    : m.name === undefined || m.name === m.title
+      ? ""
+      : m.title.length > 28
+        ? `${m.title.slice(0, 27)}…`
+        : m.title;
 
 /** The name a row wears: the helper's own name, else its title. */
 /** The bold name of a row: what it was asked, the same for a helper and a coder. */
-export const nameOf = (m: Pick<CrewMember, "name" | "title"> & { kind?: string }): string => (m.kind === "teammate" ? m.title : m.name ?? m.title);
+export const nameOf = (m: Pick<CrewMember, "name" | "title"> & { kind?: string }): string =>
+  m.kind === "teammate" ? m.title : (m.name ?? m.title);
 
 /** The model tag of a row: the model that really ran, and where it came from when the person chose it. */
 export function modelTag(m: Pick<CrewMember, "model" | "accountLabel" | "why" | "fellBackFrom">): string {
@@ -70,7 +98,8 @@ export function stripTitle(t: CrewTotals): string {
   if (t.members === 0) return "";
   const noun = t.members === 1 ? "1 helper" : `${t.members} helpers`;
   if (t.working === 0 && t.needsYou === 0) {
-    if (t.failed > 0 || t.stopped > 0) return `${t.done} of ${t.members} done${t.failed > 0 ? ` · ${t.failed} failed` : ""}${t.stopped > 0 ? ` · ${t.stopped} stopped` : ""} · ${span(t.elapsedMs)}`;
+    if (t.failed > 0 || t.stopped > 0)
+      return `${t.done} of ${t.members} done${t.failed > 0 ? ` · ${t.failed} failed` : ""}${t.stopped > 0 ? ` · ${t.stopped} stopped` : ""} · ${span(t.elapsedMs)}`;
     return `${t.done} of ${t.members} done · ${span(t.elapsedMs)}`;
   }
   const parts = [noun];
@@ -81,7 +110,8 @@ export function stripTitle(t: CrewTotals): string {
 }
 
 /** The strip's light: needs you beats working beats finished. */
-export const stripTone = (t: CrewTotals): "need" | "live" | "idle" => (t.needsYou > 0 ? "need" : t.working > 0 ? "live" : "idle");
+export const stripTone = (t: CrewTotals): "need" | "live" | "idle" =>
+  t.needsYou > 0 ? "need" : t.working > 0 ? "live" : "idle";
 
 const RANK: Record<MemberState, number> = { needs_you: 0, failed: 1, working: 2, stopped: 3, done: 4 };
 
@@ -94,7 +124,10 @@ export function sorted<T extends Pick<CrewMember, "state" | "startedAt">>(member
 }
 
 /** The timeline: each member's bar as fractions of the whole span (start and width, 0 to 1). */
-export function timeline(members: readonly Pick<CrewMember, "startedAt" | "endedAt" | "elapsedMs" | "state">[], now: number): Array<{ left: number; width: number }> {
+export function timeline(
+  members: readonly Pick<CrewMember, "startedAt" | "endedAt" | "elapsedMs" | "state">[],
+  now: number,
+): Array<{ left: number; width: number }> {
   if (members.length === 0) return [];
   const start = Math.min(...members.map((m) => m.startedAt));
   const end = Math.max(...members.map((m) => m.endedAt ?? Math.max(now, m.startedAt + m.elapsedMs)));
@@ -106,7 +139,9 @@ export function timeline(members: readonly Pick<CrewMember, "startedAt" | "ended
 }
 
 /** "Ran together: 41 s instead of 1 min 20 s": only when they really overlapped and all of them have ended. */
-export function ranTogether(members: readonly Pick<CrewMember, "startedAt" | "endedAt" | "elapsedMs" | "state">[]): string | null {
+export function ranTogether(
+  members: readonly Pick<CrewMember, "startedAt" | "endedAt" | "elapsedMs" | "state">[],
+): string | null {
   const ended = members.filter((m) => m.endedAt !== undefined && m.state !== "working");
   if (members.length < 2 || ended.length !== members.length) return null;
   const wall = Math.max(...ended.map((m) => m.endedAt!)) - Math.min(...ended.map((m) => m.startedAt));
@@ -133,7 +168,9 @@ export function totalsLine(t: CrewTotals): string {
 /** A long name cut in the middle, so two helpers with the same start can still be told apart. */
 export function middle(text: string, max = 18): string {
   if (text.length <= max) return text;
-  const keep = max - 1, head = Math.ceil(keep / 2), tail = Math.floor(keep / 2);
+  const keep = max - 1,
+    head = Math.ceil(keep / 2),
+    tail = Math.floor(keep / 2);
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
@@ -152,7 +189,10 @@ export function counts(t: CrewTotals): { active: number; needsYou: number } {
 }
 
 /** Keys in the Crew pane: Cmd or Ctrl and the full stop stops all; Alt and 1 to 9 jumps to that helper. */
-export function keyAction(e: { key: string; code?: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }, rows: readonly { id: string }[]): { kind: "stop_all" } | { kind: "jump"; id: string } | null {
+export function keyAction(
+  e: { key: string; code?: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean },
+  rows: readonly { id: string }[],
+): { kind: "stop_all" } | { kind: "jump"; id: string } | null {
   if ((e.metaKey || e.ctrlKey) && (e.key === "." || e.code === "Period")) return { kind: "stop_all" };
   if (e.altKey) {
     const n = /^(?:Digit|Numpad)([1-9])$/.exec(e.code ?? "")?.[1] ?? (/^[1-9]$/.test(e.key) ? e.key : "");
@@ -166,8 +206,18 @@ export function keyAction(e: { key: string; code?: string; metaKey?: boolean; ct
 export function crewChipOf(t: CrewTotals): { active: number; total: number; label: string; text: string } {
   const c = counts(t);
   const noun = t.members === 1 ? "helper" : "helpers";
-  const label = c.needsYou > 0 ? `${t.members} ${noun}, ${c.needsYou} ${c.needsYou === 1 ? "needs" : "need"} you` : c.active > 0 ? `${c.active} ${c.active === 1 ? "helper" : "helpers"} working` : `${t.members} ${noun}, all done`;
-  const text = c.active === 0 ? "" : [t.working > 0 ? `${t.working} working` : "", c.needsYou > 0 ? `${c.needsYou} needs you` : ""].filter((x) => x !== "").join(" · ");
+  const label =
+    c.needsYou > 0
+      ? `${t.members} ${noun}, ${c.needsYou} ${c.needsYou === 1 ? "needs" : "need"} you`
+      : c.active > 0
+        ? `${c.active} ${c.active === 1 ? "helper" : "helpers"} working`
+        : `${t.members} ${noun}, all done`;
+  const text =
+    c.active === 0
+      ? ""
+      : [t.working > 0 ? `${t.working} working` : "", c.needsYou > 0 ? `${c.needsYou} needs you` : ""]
+          .filter((x) => x !== "")
+          .join(" · ");
   return { active: c.active, total: t.members, label, text };
 }
 
@@ -176,13 +226,19 @@ export function testsWords(t: CrewMember["tests"]): string {
   if (!t) return "";
   if (t.state === "running") return "Tests running";
   if (t.state === "passing") return t.passed !== undefined ? `${t.passed} tests passing` : "Tests passing";
-  if (t.failed !== undefined) return t.passed !== undefined ? `${t.passed} passing, ${t.failed} failing` : `${t.failed} failing`;
+  if (t.failed !== undefined)
+    return t.passed !== undefined ? `${t.passed} passing, ${t.failed} failing` : `${t.failed} failing`;
   return "Tests failing";
 }
 
 /** The helpers that wait for a person's yes with a held request to answer: each one's request is drawn as an approval card under the strip. */
-export const holdsOf = <T extends Pick<CrewMember, "state"> & { holdTaskId?: string }>(members: readonly T[]): Array<T & { holdTaskId: string }> =>
-  members.filter((m): m is T & { holdTaskId: string } => m.state === "needs_you" && typeof m.holdTaskId === "string" && m.holdTaskId !== "");
+export const holdsOf = <T extends Pick<CrewMember, "state"> & { holdTaskId?: string }>(
+  members: readonly T[],
+): Array<T & { holdTaskId: string }> =>
+  members.filter(
+    (m): m is T & { holdTaskId: string } =>
+      m.state === "needs_you" && typeof m.holdTaskId === "string" && m.holdTaskId !== "",
+  );
 
 /** The id a helper's face is drawn from: its own, so each helper has a stable face of its own, distinct within a crew and the same after a reload, even when they all run as the same agent. */
 export const faceSeed = (m: Pick<CrewMember, "id">): string => m.id;
@@ -195,7 +251,10 @@ export function jobLine(m: Pick<CrewMember, "title"> & { name?: string | undefin
 }
 
 /** The coders (teammates) of the chat join the first strip, so the whole crew reads in one place: they are on the strip that holds the earliest helper, or on the only strip there is. */
-export function withTeammates<T extends Pick<CrewMember, "startedAt">>(rows: readonly T[], live: CrewStatusOut | null): Array<T | CrewMember> {
+export function withTeammates<T extends Pick<CrewMember, "startedAt">>(
+  rows: readonly T[],
+  live: CrewStatusOut | null,
+): Array<T | CrewMember> {
   if (!live) return [...rows];
   const mates = live.members.filter((m) => m.kind === "teammate");
   if (mates.length === 0) return [...rows];
@@ -211,17 +270,26 @@ export type SortKey = "state" | "time" | "tokens" | "cost";
 /** The totals sentence as parts a person can press: each figure sorts the helpers by it (who is where, longest, most tokens, dearest). Only the figures that are known. */
 export function totalsParts(t: CrewTotals): Array<{ key: SortKey; text: string }> {
   if (t.members === 0) return [];
-  const where = totalsLine({ ...t, elapsedMs: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 }).split(" · ").slice(0, -1).join(" · ");
-  const parts: Array<{ key: SortKey; text: string }> = [{ key: "state", text: where }, { key: "time", text: span(t.elapsedMs) }];
+  const where = totalsLine({ ...t, elapsedMs: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 })
+    .split(" · ")
+    .slice(0, -1)
+    .join(" · ");
+  const parts: Array<{ key: SortKey; text: string }> = [
+    { key: "state", text: where },
+    { key: "time", text: span(t.elapsedMs) },
+  ];
   if (t.tokensIn + t.tokensOut > 0) parts.push({ key: "tokens", text: `${tokens(t.tokensIn + t.tokensOut)} tokens` });
   if (t.costMicros > 0) parts.push({ key: "cost", text: money(t.costMicros) });
   return parts;
 }
 
 /** Helpers in the order a figure asks for: state is the default (needs you first), the others put the most first. */
-export function sortedBy<T extends Pick<CrewMember, "state" | "startedAt" | "elapsedMs" | "tokensIn" | "tokensOut" | "costMicros">>(members: readonly T[], key: SortKey): T[] {
+export function sortedBy<
+  T extends Pick<CrewMember, "state" | "startedAt" | "elapsedMs" | "tokensIn" | "tokensOut" | "costMicros">,
+>(members: readonly T[], key: SortKey): T[] {
   if (key === "state") return sorted(members);
-  const by = (m: T): number => (key === "time" ? m.elapsedMs : key === "tokens" ? m.tokensIn + m.tokensOut : m.costMicros);
+  const by = (m: T): number =>
+    key === "time" ? m.elapsedMs : key === "tokens" ? m.tokensIn + m.tokensOut : m.costMicros;
   return [...members].sort((a, b) => by(b) - by(a) || a.startedAt - b.startedAt);
 }
 
@@ -231,7 +299,10 @@ export const accountWords = (m: Pick<CrewMember, "accountLabel">): string => acc
 /** The Island's words: who needs what when one helper waits ("Read the Pine quote needs your OK to open pine-works.example"), how many when several do, else that they work. */
 export function islandText(status: CrewStatusOut): string {
   const waiting = status.members.filter((m) => m.state === "needs_you");
-  if (waiting.length === 1) { const m = waiting[0]!; return `${nameOf(m)} · ${lineOf(m)}`; }
+  if (waiting.length === 1) {
+    const m = waiting[0]!;
+    return `${nameOf(m)} · ${lineOf(m)}`;
+  }
   if (waiting.length > 1) return `${waiting.length} helpers need you`;
   return "Working";
 }
@@ -240,7 +311,9 @@ export function islandText(status: CrewStatusOut): string {
  * Where the coders' Review all and Merge stand: "working" while any helper of the strip still works or waits (the buttons are not offered, the header says why: it is still working), "ready" once every helper is done and
  * a coder has something to land, "merged" when every coder's branch has landed. A crew with no coder has none of it.
  */
-export function mergeStateOf(members: ReadonlyArray<Pick<CrewMember, "state" | "kind"> & { merged?: boolean | undefined }>): "none" | "working" | "ready" | "merged" {
+export function mergeStateOf(
+  members: ReadonlyArray<Pick<CrewMember, "state" | "kind"> & { merged?: boolean | undefined }>,
+): "none" | "working" | "ready" | "merged" {
   const coders = members.filter((m) => m.kind === "teammate");
   if (coders.length === 0) return "none";
   if (coders.every((m) => m.merged === true)) return "merged";

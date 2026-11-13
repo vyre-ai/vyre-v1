@@ -7,7 +7,10 @@ export interface FillerPort {
   fill(handle: string, into: { kind: string; ref: string }, now: number): boolean;
 }
 
-export function createFiller(sinks: Record<string, (ref: string, value: string) => void>, now: () => number = Date.now): FillerPort {
+export function createFiller(
+  sinks: Record<string, (ref: string, value: string) => void>,
+  now: () => number = Date.now,
+): FillerPort {
   const held = new Map<string, { value: string; expiresAt: number }>();
   return {
     hold(value, expiresAt) {
@@ -20,7 +23,10 @@ export function createFiller(sinks: Record<string, (ref: string, value: string) 
       const item = held.get(handle);
       const sink = sinks[into.kind];
       if (!item || !sink) return false;
-      if (item.expiresAt <= at) { held.delete(handle); return false; }
+      if (item.expiresAt <= at) {
+        held.delete(handle);
+        return false;
+      }
       sink(into.ref, item.value);
       return true;
     },

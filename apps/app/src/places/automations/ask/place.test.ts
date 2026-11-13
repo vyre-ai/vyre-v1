@@ -41,11 +41,13 @@ test("triggersFrom returns one webhook offer and does not copy a path or a secre
       ],
     },
   });
-  assert.deepEqual(offers, [{
-    key: "webhook",
-    check: "hold",
-    say: "A webhook stays off until you run it.",
-  }]);
+  assert.deepEqual(offers, [
+    {
+      key: "webhook",
+      check: "hold",
+      say: "A webhook stays off until you run it.",
+    },
+  ]);
   const blob = JSON.stringify(offers);
   assert.equal(blob.includes("path"), false);
   assert.equal(blob.includes("https://"), false);
@@ -53,7 +55,10 @@ test("triggersFrom returns one webhook offer and does not copy a path or a secre
 });
 
 test("a payload with no setup returns no trigger offer", () => {
-  assert.deepEqual(triggersFrom({ triggers: [{ key: "webhook", check: "hold", path: "/hooks", url: "https://hooks.example/in" }] }), []);
+  assert.deepEqual(
+    triggersFrom({ triggers: [{ key: "webhook", check: "hold", path: "/hooks", url: "https://hooks.example/in" }] }),
+    [],
+  );
   assert.deepEqual(triggersFrom({}), []);
   assert.deepEqual(triggersFrom(null), []);
   assert.deepEqual(triggersFrom(undefined), []);
@@ -61,7 +66,10 @@ test("a payload with no setup returns no trigger offer", () => {
   assert.deepEqual(triggersFrom({ setup: null }), []);
   assert.deepEqual(triggersFrom({ setup: { triggers: "webhook" } }), []);
   assert.deepEqual(triggersFrom({ setup: { triggers: [{ key: "webhook", check: "run", path: "/hooks" }] } }), []);
-  assert.deepEqual(triggersFrom({ setup: { triggers: [null, "webhook", { check: "hold" }, { key: 1, check: "dry_run" }] } }), []);
+  assert.deepEqual(
+    triggersFrom({ setup: { triggers: [null, "webhook", { check: "hold" }, { key: 1, check: "dry_run" }] } }),
+    [],
+  );
 });
 
 test("placeSteps adds two connector steps and leaves the selected step", () => {
@@ -122,7 +130,9 @@ test("an action named api_key is dropped", () => {
   const node = placed.def.nodes.find((item) => item.id === placed.nodeIds[0]);
   assert.deepEqual(node?.input, { connectionId: "con_1", action: "listNotes" });
   assert.equal(JSON.stringify(placed.def).includes("api_key"), false);
-  assert.deepEqual(placeSteps(tiny(), [{ action: "" }, { action: "api_key" }], account, null), { error: "There is no step to add." });
+  assert.deepEqual(placeSteps(tiny(), [{ action: "" }, { action: "api_key" }], account, null), {
+    error: "There is no step to add.",
+  });
 });
 
 test("empty items returns the error sentence", () => {
@@ -131,7 +141,9 @@ test("empty items returns the error sentence", () => {
 
 test("an empty connection is refused before a step is added", () => {
   const missing: AccountOption = { id: "", app: "notes", title: "Notes", state: "ready" };
-  assert.deepEqual(placeSteps(tiny(), [{ action: "listNotes" }], missing, "s"), { error: "Link a connection before adding this step." });
+  assert.deepEqual(placeSteps(tiny(), [{ action: "listNotes" }], missing, "s"), {
+    error: "Link a connection before adding this step.",
+  });
 });
 
 test("placeWebhook adds one webhook and a second call does not", () => {
@@ -156,5 +168,8 @@ test("a definition after placeSteps does not contain a secret from the account t
   const blob = JSON.stringify(placed.def);
   assert.equal(blob.includes("sk-"), false);
   assert.equal(blob.includes("Bearer"), false);
-  assert.equal((placed.def.nodes.find((node) => node.id === placed.nodeIds[0])?.input as { connectionId?: string }).connectionId, "con_1");
+  assert.equal(
+    (placed.def.nodes.find((node) => node.id === placed.nodeIds[0])?.input as { connectionId?: string }).connectionId,
+    "con_1",
+  );
 });

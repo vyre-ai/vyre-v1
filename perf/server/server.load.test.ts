@@ -11,14 +11,15 @@ import { bootPerf } from "../../fixtures/seed/perf/build.ts";
 import { FULL, SCALE, cache, scratch } from "./support.ts";
 
 test(`perf Space: the ${SCALE} template loads in under 1 s`, async () => {
-  const warm = await bootPerf({ scale: SCALE, cache, scratch: scratch() });   // builds the template when the cache has none
+  const warm = await bootPerf({ scale: SCALE, cache, scratch: scratch() }); // builds the template when the cache has none
   warm.close();
   const t0 = performance.now();
   const s = await bootPerf({ scale: SCALE, cache, scratch: scratch() });
   const ms = performance.now() - t0;
   s.close();
   assert.equal(s.hit, true);
-  console.log(`METRIC ${JSON.stringify({ name: "perf_space_load", scale: SCALE, ms: Math.round(ms), budget_ms: 1000, contacts: s.sizes.contacts })}`);
+  console.log(
+    `METRIC ${JSON.stringify({ name: "perf_space_load", scale: SCALE, ms: Math.round(ms), budget_ms: 1000, contacts: s.sizes.contacts })}`,
+  );
   assert.ok(ms < 1000, `loading the ${SCALE} perf Space took ${ms.toFixed(0)} ms, budget 1000 ms`);
 });
-

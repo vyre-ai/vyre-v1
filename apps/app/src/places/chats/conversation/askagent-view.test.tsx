@@ -27,7 +27,13 @@ function rig(): { data: ConversationData; calls: Call[] } {
     ...s.data,
     async call(cap, input) {
       calls.push({ cap, input: input as Record<string, unknown> });
-      if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" }, { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "assistant" }] };
+      if (cap === "agents.list")
+        return {
+          agents: [
+            { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+            { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "assistant" },
+          ],
+        };
       if (cap === "chat.post") return { message: { messageId: "msg_asked", threadSeq: 9 } };
       if (cap === "chat.edit") return { message: {} };
       return s.data.call(cap, input);
@@ -35,7 +41,11 @@ function rig(): { data: ConversationData; calls: Call[] } {
   };
   return { data, calls };
 }
-const walk = (n: Node, out: Node[] = []): Node[] => { out.push(n); for (const c of n.children ?? []) if (typeof c === "object") walk(c, out); return out; };
+const walk = (n: Node, out: Node[] = []): Node[] => {
+  out.push(n);
+  for (const c of n.children ?? []) if (typeof c === "object") walk(c, out);
+  return out;
+};
 const idOf = (n: Node): unknown => n.props["data-testid"] ?? n.props.testID;
 
 test("the quiet line under your unanswered message opens the picker, the room's agents; picking one asks it about that exact message as you", async () => {
@@ -48,7 +58,15 @@ test("the quiet line under your unanswered message opens the picker, the room's 
     assert.ok(textOf(line).includes("No agent will reply. @mention one"));
     await press(line);
     await flush();
-    const items = [...new Set(walk(root).map(idOf).filter((id): id is string => typeof id === "string" && id.startsWith("menu-item-") && id !== "menu-item-report"))];
+    const items = [
+      ...new Set(
+        walk(root)
+          .map(idOf)
+          .filter(
+            (id): id is string => typeof id === "string" && id.startsWith("menu-item-") && id !== "menu-item-report",
+          ),
+      ),
+    ];
     assert.deepEqual(items, ["menu-item-Docs"], "Maya's Assistant is hers alone and is not offered");
     await press(find(root, "menu-item-Docs"));
     await flush();
@@ -57,23 +75,63 @@ test("the quiet line under your unanswered message opens the picker, the room's 
     assert.deepEqual(post.input["mentions"], [{ kind: "agent", id: "agt_docs" }]);
     assert.equal(post.input["body"], "@Docs");
     assert.match(String(post.input["clientId"]), /^msg_ask[a-z0-9]+$/);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("every message in a channel, yours or someone else's, has Ask an Agent… in its menu and its hover bar; a chat without the action has neither", () => {
-  const theirs = { messageId: "c1", threadId: "c1", threadSeq: 1, author: { kind: "person", id: "usr_maya" }, kind: "text", body: "Did it come back?", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: 1 } as unknown as Message;
+  const theirs = {
+    messageId: "c1",
+    threadId: "c1",
+    threadSeq: 1,
+    author: { kind: "person", id: "usr_maya" },
+    kind: "text",
+    body: "Did it come back?",
+    blocks: [],
+    depth: 0,
+    attachments: [],
+    reactions: [],
+    pinned: false,
+    createdAt: 1,
+  } as unknown as Message;
   const asked: string[] = [];
-  const a = { copy() {}, edit() {}, setPinned() {}, react() {}, openThread() {}, remove() {}, openAgent() {}, openBeside() {}, answer() {}, approvePlan() {}, retryTurn() {}, errorNext() {}, retrySend() {}, discardSend() {}, showMenu() {}, askAgent: (id: string) => { asked.push(id); } } as unknown as MessageActions;
-  const labels = (mine: boolean, acts: MessageActions) => menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+  const a = {
+    copy() {},
+    edit() {},
+    setPinned() {},
+    react() {},
+    openThread() {},
+    remove() {},
+    openAgent() {},
+    openBeside() {},
+    answer() {},
+    approvePlan() {},
+    retryTurn() {},
+    errorNext() {},
+    retrySend() {},
+    discardSend() {},
+    showMenu() {},
+    askAgent: (id: string) => {
+      asked.push(id);
+    },
+  } as unknown as MessageActions;
+  const labels = (mine: boolean, acts: MessageActions) =>
+    menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
   assert.ok(labels(false, a).includes("Ask an Agent…"));
   assert.ok(labels(true, a).includes("Ask an Agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an Agent…") as { onSelect(): void };
+  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an Agent…") as {
+    onSelect(): void;
+  };
   entry.onSelect();
   assert.deepEqual(asked, ["c1"]);
   const { askAgent: _drop, ...without } = a as unknown as Record<string, unknown>;
   assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an Agent…"));
   const bar = renderToStaticMarkup(<HoverBar m={theirs} mine={false} a={a} onEdit={() => undefined} visible />);
-  assert.ok(bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an Agent"'), "a button in the bar, reachable by keyboard");
+  assert.ok(
+    bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an Agent"'),
+    "a button in the bar, reachable by keyboard",
+  );
   assert.ok(!bar.includes("pill"));
 });
 
@@ -82,7 +140,9 @@ test("every message in a channel, yours or someone else's, has Ask an Agent… i
 async function editMine(root: Node, id: string, text: string): Promise<void> {
   const row = find(root, `msg-${id}`);
   assert.ok(row, "your message is on the page");
-  await act(async () => { (row.props["onMouseEnter"] as () => void)(); });
+  await act(async () => {
+    (row.props["onMouseEnter"] as () => void)();
+  });
   await press(find(root, `act-edit-${id}`));
   await typeInto(find(root, `edit-field-${id}`), text);
   await press(find(root, `edit-save-${id}`));
@@ -98,7 +158,13 @@ test("editing your message to add an @mention asks that agent once, as you, and 
       ...s.data,
       async call(cap, input) {
         calls.push({ cap, input: input as Record<string, unknown> });
-        if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" }, { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "agent" }] };
+        if (cap === "agents.list")
+          return {
+            agents: [
+              { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+              { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "agent" },
+            ],
+          };
         if (cap === "chat.post") return { message: { messageId: "msg_asked", threadSeq: 9 } };
         return s.data.call(cap, input);
       },
@@ -115,7 +181,10 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Wednesday?");
     assert.deepEqual(order(), ["chat.edit", "chat.edit", "chat.post"], "the ask follows the saved edit");
     const ask = posts()[0]!.input;
-    assert.deepEqual([ask["replyTo"], ask["body"], ask["mentions"]], ["c2", "@Docs", [{ kind: "agent", id: "agt_docs" }]]);
+    assert.deepEqual(
+      [ask["replyTo"], ask["body"], ask["mentions"]],
+      ["c2", "@Docs", [{ kind: "agent", id: "agt_docs" }]],
+    );
     assert.match(String(ask["clientId"]), /^msg_ask[a-z0-9]+$/);
 
     // a later edit that keeps @Docs asks nobody again
@@ -125,9 +194,15 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     // take the mention out and put it back: the fixed message id makes it the same ask, which the server answers with the first message
     await editMine(root, "c2", "Can someone check the Rivera dates before Thursday?");
     await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Thursday?");
-    assert.equal(new Set(posts().map((c) => c.input["clientId"])).size, 1, "every ask for Docs on that message is one message id");
+    assert.equal(
+      new Set(posts().map((c) => c.input["clientId"])).size,
+      1,
+      "every ask for Docs on that message is one message id",
+    );
     assert.ok(posts().every((c) => c.input["replyTo"] === "c2"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("an edit that names someone who is not in this channel, or a person, asks nobody", async () => {
@@ -135,11 +210,22 @@ test("an edit that names someone who is not in this channel, or a person, asks n
   try {
     const s = createSample("channel");
     const calls: Call[] = [];
-    const data: ConversationData = { ...s.data, async call(cap, input) { calls.push({ cap, input: input as Record<string, unknown> }); return s.data.call(cap, input); } };
+    const data: ConversationData = {
+      ...s.data,
+      async call(cap, input) {
+        calls.push({ cap, input: input as Record<string, unknown> });
+        return s.data.call(cap, input);
+      },
+    };
     const root = await mount(createRoot, <Conversation data={data} />);
     await editMine(root, "c2", "@Maya can you check the Rivera dates?");
     await editMine(root, "c2", "@Billing can you check the Rivera dates?");
-    assert.ok(calls.some((c) => c.cap === "chat.edit"), "the edits saved");
+    assert.ok(
+      calls.some((c) => c.cap === "chat.edit"),
+      "the edits saved",
+    );
     assert.equal(calls.filter((c) => c.cap === "chat.post").length, 0);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

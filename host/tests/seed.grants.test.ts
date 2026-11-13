@@ -13,24 +13,49 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const NOW = 1_790_000_000_000;
 const space = { type: "space", id: CORE_SPACE };
 
 test("seed grants: the recipe holds a Space grant per role (temp none) and one per agent, and nothing else is added", () => {
-  const grants = coreEvents().filter((e) => e.type === "grant.created").map((e) => e.payload as { id: string; subject_kind: string; subject_id: string; resource_id: string; level: string });
+  const grants = coreEvents()
+    .filter((e) => e.type === "grant.created")
+    .map(
+      (e) => e.payload as { id: string; subject_kind: string; subject_id: string; resource_id: string; level: string },
+    );
   const roleGrants = grants.filter((g) => g.subject_kind === "role");
-  assert.deepEqual(roleGrants.map((g) => [g.subject_id, g.level]), [...ROLE_SPACE_LEVEL]);
+  assert.deepEqual(
+    roleGrants.map((g) => [g.subject_id, g.level]),
+    [...ROLE_SPACE_LEVEL],
+  );
   assert.ok(roleGrants.every((g) => g.resource_id === CORE_SPACE));
   assert.ok(!roleGrants.some((g) => g.subject_id === "temp"), "temp holds no Space grant");
-  assert.deepEqual(grants.filter((g) => g.subject_kind === "actor" && g.resource_id === CORE_SPACE).map((g) => g.subject_id).sort(), ["agt_helper", "agt_scout"]);
+  assert.deepEqual(
+    grants
+      .filter((g) => g.subject_kind === "actor" && g.resource_id === CORE_SPACE)
+      .map((g) => g.subject_id)
+      .sort(),
+    ["agt_helper", "agt_scout"],
+  );
 });
 
 test("seed grants: on the seed as it is, the owner manages the Space, a member edits it and cannot manage, an agent edits for its owner, a temp person has no access", () => {
   const c = bootCore();
   try {
     const can = (principal: string, perm: string | null, level: Req["action"]["level"], actingFor?: string): string =>
-      authorize(c.snapshot, { principal, ...(actingFor ? { actingFor } : {}), action: { perm, level }, resource: space, now: NOW }).effect;
+      authorize(c.snapshot, {
+        principal,
+        ...(actingFor ? { actingFor } : {}),
+        action: { perm, level },
+        resource: space,
+        now: NOW,
+      }).effect;
     assert.equal(can("usr_olivia", "schema.manage", "manage"), "allow", "the owner manages the Space");
     assert.equal(can("usr_adam", "schema.manage", "manage"), "allow", "an admin manages the Space");
     assert.equal(can("usr_noah", "records.edit", "edit"), "allow", "a member edits");
@@ -38,7 +63,9 @@ test("seed grants: on the seed as it is, the owner manages the Space, a member e
     assert.equal(can("usr_noah", null, "manage"), "deny", "and holds no manage grant on the Space");
     assert.equal(can("agt_scout", "records.edit", "edit", "usr_noah"), "allow", "an agent edits for its owner");
     assert.equal(can("usr_tess", "records.edit", "view"), "deny", "a temp person holds nothing on the Space itself");
-  } finally { c.close(); }
+  } finally {
+    c.close();
+  }
 });
 
 function dataDir(): string {
@@ -52,11 +79,17 @@ function dataDir(): string {
 
 test("seed grants: through the gateway of a booted daemon, the owner and a member are let through, the member cannot apply schema, a temp person sees no record type", async () => {
   const dir = dataDir();
-  const tokens: Record<string, string> = { "tok-usr_olivia": "usr_olivia", "tok-usr_noah": "usr_noah", "tok-usr_tess": "usr_tess" };
+  const tokens: Record<string, string> = {
+    "tok-usr_olivia": "usr_olivia",
+    "tok-usr_noah": "usr_noah",
+    "tok-usr_tess": "usr_tess",
+  };
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "seed-grants", free: 80e9,
+      os: "linux",
+      hostname: "seed-grants",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -66,20 +99,53 @@ test("seed grants: through the gateway of a booted daemon, the owner and a membe
     fetch: caddyFetch,
     session: (h) => {
       const who = tokens[/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] ?? ""];
-      return who === undefined ? null : { space: CORE_SPACE, principal: { kind: "person", id: who }, device: "seed-grants" };
+      return who === undefined
+        ? null
+        : { space: CORE_SPACE, principal: { kind: "person", id: who }, device: "seed-grants" };
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  const post = (token: string, p: string, body: unknown) => fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  const post = (token: string, p: string, body: unknown) =>
+    fetch(`${d.url}${p}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
   try {
-    assert.notEqual((await post("tok-usr_olivia", "/v1/schema/types/list", {})).status, 403, "the owner is let through");
+    assert.notEqual(
+      (await post("tok-usr_olivia", "/v1/schema/types/list", {})).status,
+      403,
+      "the owner is let through",
+    );
     assert.notEqual((await post("tok-usr_noah", "/v1/schema/types/list", {})).status, 403, "a member is let through");
     const temp = await post("tok-usr_tess", "/v1/schema/types/list", {});
     // a temp person holds nothing on the Space, so the list (level member, l-perms: a guest's places list what is shared with them) answers with nothing in it
     assert.equal(temp.status, 200, "a temp person may ask");
-    assert.deepEqual(((await temp.json()) as { data: { types: unknown[]; total: number } }).data, { types: [], total: 0 }, "and sees no record type: nothing is shared with them");
-    const apply = (token: string, key: string) => post(token, "/v1/schema/apply", { idempotencyKey: key, ops: [{ op: "type.create", type: "rt_seedgrants", def: { title: "Probe", plural: "Probes", icon: "box", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+    assert.deepEqual(
+      ((await temp.json()) as { data: { types: unknown[]; total: number } }).data,
+      { types: [], total: 0 },
+      "and sees no record type: nothing is shared with them",
+    );
+    const apply = (token: string, key: string) =>
+      post(token, "/v1/schema/apply", {
+        idempotencyKey: key,
+        ops: [
+          {
+            op: "type.create",
+            type: "rt_seedgrants",
+            def: {
+              title: "Probe",
+              plural: "Probes",
+              icon: "box",
+              titleField: "name",
+              fields: [{ key: "name", type: "text", title: "Name", required: true }],
+            },
+          },
+        ],
+      });
     assert.equal((await apply("tok-usr_noah", "sg-noah")).status, 403, "a member cannot change record types");
     assert.notEqual((await apply("tok-usr_olivia", "sg-olivia")).status, 403, "the owner is let through");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

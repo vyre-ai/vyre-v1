@@ -7,7 +7,20 @@ import { readFileSync } from "node:fs";
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { completerOf, ensureRuntime } from "../../runtime.ts";
-import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, notCheckedFor, slowFor, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
+import {
+  CLI_PROBE_PARALLEL,
+  CLI_PROBE_TIMEOUT_MS,
+  PROBE_CAP,
+  PROBE_PROMPT,
+  noteAccount,
+  notCheckedFor,
+  slowFor,
+  confirmedFor,
+  probeModels,
+  probeRunning,
+  probing,
+  unavailableFor,
+} from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -20,19 +33,50 @@ import { engineHost } from "../../runtime.ts";
 import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
-  id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean; keepsNothing?: boolean;
+  id: string;
+  providerKey: string;
+  name: string;
+  connection: "subscription" | "api_key" | "local_model";
+  scope: "mine" | "shared";
+  handle?: string;
+  itemId: string;
+  engine: string;
+  spaceMayUse: boolean;
+  state: "ok" | "needs_sign_in" | "failing";
+  spaceKey?: boolean;
+  keepsNothing?: boolean;
   /** Handles of sign-ins of the same account folded into this row. */
   aliases?: string[];
 }
 
-export const DRIVERS = ["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "custom", "claude_code", "codex", "grok"] as const;
+export const DRIVERS = [
+  "anthropic",
+  "openai",
+  "openrouter",
+  "google",
+  "xai",
+  "opencode_go",
+  "local",
+  "custom",
+  "claude_code",
+  "codex",
+  "grok",
+] as const;
 type Driver = (typeof DRIVERS)[number];
 const DRIVER_SET: ReadonlySet<string> = new Set(DRIVERS);
 const CLI: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 const DRIVER_TITLE: Readonly<Record<Driver, string>> = {
-  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "A local model", custom: "A custom endpoint",
-  claude_code: "Claude Code", codex: "Codex", grok: "Grok",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  google: "Google",
+  xai: "xAI",
+  opencode_go: "OpenCode Go",
+  local: "A local model",
+  custom: "A custom endpoint",
+  claude_code: "Claude Code",
+  codex: "Codex",
+  grok: "Grok",
 };
 const LABEL_WORDS: ReadonlySet<string> = new Set(["public", "internal", "confidential", "restricted"]);
 
@@ -45,7 +89,8 @@ export function driverOf(p: Pick<ProviderRow, "engine" | "connection" | "provide
 }
 
 /** Does this account keep nothing of what it is sent: a local model always, any other only when an owner or admin said so. */
-const keeps = (p: Pick<ProviderRow, "connection" | "keepsNothing">): boolean => p.connection === "local_model" || p.keepsNothing === true;
+const keeps = (p: Pick<ProviderRow, "connection" | "keepsNothing">): boolean =>
+  p.connection === "local_model" || p.keepsNothing === true;
 
 async function myProviders(ctx: EngineCtx): Promise<ProviderRow[]> {
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
@@ -66,16 +111,36 @@ async function threadLabel(ctx: EngineCtx, threadId: string | undefined): Promis
 
 function prettyModel(model: string): string {
   const tail = model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-  return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^\d/.test(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ").replace(/(?<=\b\d{1,2}) (?=\d{1,2}\b)/g, ".");
+  return tail
+    .split(/[-_]/)
+    .filter((p) => p !== "")
+    .map((p) => (/^\d/.test(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(" ")
+    .replace(/(?<=\b\d{1,2}) (?=\d{1,2}\b)/g, ".");
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking" | "not_checked" | "slow"; resetsAt?: number;
+  provider: string;
+  model: string;
+  title: string;
+  driver: Driver;
+  contextTokens?: number;
+  allowed: boolean;
+  reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking" | "not_checked" | "slow";
+  resetsAt?: number;
   /** The CLI's own name that resolves to this model today (Claude Code's opus): a pick saved as the alias is this row. */
-  alias?: string; isDefault?: boolean; efforts?: string[]; defaultEffort?: string;
+  alias?: string;
+  isDefault?: boolean;
+  efforts?: string[];
+  defaultEffort?: string;
 }
 /** How fresh the subscription lists in this answer are: the menu says "Updated just now" or "Couldn't refresh, showing saved list" from it. Left out when no subscription engine is listed. */
-interface ListState { source: "live" | "saved" | "shipped"; updatedAt?: number; refreshing: boolean; failed: boolean }
+interface ListState {
+  source: "live" | "saved" | "shipped";
+  updatedAt?: number;
+  refreshing: boolean;
+  failed: boolean;
+}
 
 /** A menu's second call waits this long for the refresh its first call started. */
 const WAIT_MS = 8_000;
@@ -84,50 +149,91 @@ const JUST_NOW_MS = 60_000;
 
 function listState(states: readonly ModelsState[], now: number): ListState | undefined {
   if (states.length === 0) return undefined;
-  const failed = states.some((s) => s.failed), refreshing = states.some((s) => s.refreshing);
+  const failed = states.some((s) => s.failed),
+    refreshing = states.some((s) => s.refreshing);
   const live = states.filter((s) => s.source === "live");
   if (live.length === 0) return { source: "shipped", refreshing, failed };
   const updatedAt = Math.min(...live.map((s) => s.updatedAt ?? 0));
-  return { source: !failed && now - updatedAt <= JUST_NOW_MS ? "live" : "saved", ...(updatedAt > 0 ? { updatedAt } : {}), refreshing, failed };
+  return {
+    source: !failed && now - updatedAt <= JUST_NOW_MS ? "live" : "saved",
+    ...(updatedAt > 0 ? { updatedAt } : {}),
+    refreshing,
+    failed,
+  };
 }
 
 /**
  * `probe: false` is the background read (memory learning after a turn): the saved or shipped lists only. It never asks a vendor and never starts a CLI, so it cannot change an account's
  * state; an API key with no saved list lists nothing here.
  */
-export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label; refresh?: boolean; wait?: boolean; probe?: boolean }): Promise<{ models: ModelInfo[]; listed?: ListState }> {
+export async function modelsList(
+  ctx: EngineCtx,
+  input: {
+    accountRef?: string;
+    threadId?: string;
+    recordLabel?: Label;
+    refresh?: boolean;
+    wait?: boolean;
+    probe?: boolean;
+  },
+): Promise<{ models: ModelInfo[]; listed?: ListState }> {
   const passive = input.probe === false;
   const [all, policy, tl] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const label = input.recordLabel ?? tl;
   // a pin that still names a folded handle reads the row that kept the account
-  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string));
-  if (input.accountRef !== undefined && chosen.length === 0) raise(ctx, "validation.not_found", "There is no such account.", { accountRef: input.accountRef });
+  const chosen =
+    input.accountRef === undefined
+      ? all
+      : all.filter(
+          (p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string),
+        );
+  if (input.accountRef !== undefined && chosen.length === 0)
+    raise(ctx, "validation.not_found", "There is no such account.", { accountRef: input.accountRef });
   const states: ModelsState[] = [];
   const live = new Map<string, LiveModel>();
-  const subs = chosen.filter((p) => p.state === "ok" && p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p)));
+  const subs = chosen.filter(
+    (p) => p.state === "ok" && p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p)),
+  );
   // the runtime's opener runs the engines; without a runtime (no host half) the saved and shipped lists answer
   if (subs.length > 0 && !passive) await ensureRuntime(ctx).catch(() => null);
-  const found = await Promise.all(chosen.map(async (p) => {
-    // A provider that is not signed in cannot list its models; it is shown as one greyed row so the person sees what to reconnect.
-    if (p.state !== "ok") return { p, models: [] as string[] };
-    if (subs.includes(p)) {
-      const got = await modelsFor(ctx.db, { ref: p.handle ?? p.itemId, driver: driverOf(p) }, actorOf(ctx), passive ? { now: ctx.now, passive: true } : { now: ctx.now, ...(input.refresh === true ? { refresh: true } : {}), ...(input.wait === true ? { waitMs: WAIT_MS } : {}) });
-      states.push(got.state);
-      for (const m of got.models) live.set(`${p.providerKey}/${m.id}`, m);
-      return { p, models: got.models.map((m) => m.id) };
-    }
-    try {
-      // the Space AI key: no member may test it, so its models are the list the Vault keeps (asked again from the provider when it is old)
-      if (p.spaceKey === true) return { p, models: ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? [] };
-      if (passive) return { p, models: savedTested(ctx.db, p.handle ?? p.itemId) };
-      const r = (await ctx.call("providers.test", { providerId: p.id })) as { ok: boolean; models: string[] };
-      if (r.ok) saveTested(ctx.db, p.handle ?? p.itemId, driverOf(p), ctx.now(), r.models);
-      return { p, models: r.ok ? r.models : [] };
-    } catch (e) {
-      ctx.log.warn("model list was not read", { provider: p.providerKey, error: e instanceof Error ? e.message : "unknown" });
-      return { p, models: [] as string[] };
-    }
-  }));
+  const found = await Promise.all(
+    chosen.map(async (p) => {
+      // A provider that is not signed in cannot list its models; it is shown as one greyed row so the person sees what to reconnect.
+      if (p.state !== "ok") return { p, models: [] as string[] };
+      if (subs.includes(p)) {
+        const got = await modelsFor(
+          ctx.db,
+          { ref: p.handle ?? p.itemId, driver: driverOf(p) },
+          actorOf(ctx),
+          passive
+            ? { now: ctx.now, passive: true }
+            : {
+                now: ctx.now,
+                ...(input.refresh === true ? { refresh: true } : {}),
+                ...(input.wait === true ? { waitMs: WAIT_MS } : {}),
+              },
+        );
+        states.push(got.state);
+        for (const m of got.models) live.set(`${p.providerKey}/${m.id}`, m);
+        return { p, models: got.models.map((m) => m.id) };
+      }
+      try {
+        // the Space AI key: no member may test it, so its models are the list the Vault keeps (asked again from the provider when it is old)
+        if (p.spaceKey === true)
+          return { p, models: ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? [] };
+        if (passive) return { p, models: savedTested(ctx.db, p.handle ?? p.itemId) };
+        const r = (await ctx.call("providers.test", { providerId: p.id })) as { ok: boolean; models: string[] };
+        if (r.ok) saveTested(ctx.db, p.handle ?? p.itemId, driverOf(p), ctx.now(), r.models);
+        return { p, models: r.ok ? r.models : [] };
+      } catch (e) {
+        ctx.log.warn("model list was not read", {
+          provider: p.providerKey,
+          error: e instanceof Error ? e.message : "unknown",
+        });
+        return { p, models: [] as string[] };
+      }
+    }),
+  );
   const byKey = new Map<string, ModelInfo>();
   for (const { p, models } of found) {
     // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
@@ -145,19 +251,55 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     if (!passive && p.spaceKey !== true && completerOf() !== null && !nc.account) {
       const unsure = models.filter((m) => !refused.has(m) && !known.has(m)).slice(0, PROBE_CAP);
       for (const m of unsure) checking.add(m);
-      if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+      if (unsure.length > 0)
+        probeModels(
+          ctx.db,
+          ref,
+          unsure,
+          async (r, m) => {
+            await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m });
+          },
+          ctx.now,
+          isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {},
+        );
     }
     for (const model of models) {
       if (refused.has(model)) continue;
-      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }), keepsNothing: keeps(p) });
+      const why = blockedBy(policy, {
+        provider: p.providerKey,
+        model,
+        ...(label === undefined ? {} : { label }),
+        keepsNothing: keeps(p),
+      });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
       const spentAs = spent ?? (why === null && lm?.alias ? out.get(lm.alias) : undefined);
       const row: ModelInfo = {
-        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined,
-        ...(why !== null ? { reason: why } : spentAs === undefined && checking.has(model) ? { reason: "checking" as const } : spentAs === undefined && !known.has(model) && (nc.account || nc.models.has(model)) ? { reason: "not_checked" as const } : spentAs === undefined && slow.has(model) ? { reason: "slow" as const } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
-        ...(lm?.alias ? { alias: lm.alias } : {}), ...(lm?.isDefault ? { isDefault: true } : {}), ...(lm?.efforts ? { efforts: lm.efforts } : {}), ...(lm?.defaultEffort ? { defaultEffort: lm.defaultEffort } : {}),
+        provider: p.providerKey,
+        model,
+        title: lm?.title ?? prettyModel(model),
+        driver: driverOf(p),
+        contextTokens: windowFor(model, p.providerKey),
+        allowed: why === null && spentAs === undefined,
+        ...(why !== null
+          ? { reason: why }
+          : spentAs === undefined && checking.has(model)
+            ? { reason: "checking" as const }
+            : spentAs === undefined && !known.has(model) && (nc.account || nc.models.has(model))
+              ? { reason: "not_checked" as const }
+              : spentAs === undefined && slow.has(model)
+                ? { reason: "slow" as const }
+                : spentAs
+                  ? {
+                      reason: "usage_limit" as const,
+                      ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}),
+                    }
+                  : {}),
+        ...(lm?.alias ? { alias: lm.alias } : {}),
+        ...(lm?.isDefault ? { isDefault: true } : {}),
+        ...(lm?.efforts ? { efforts: lm.efforts } : {}),
+        ...(lm?.defaultEffort ? { defaultEffort: lm.defaultEffort } : {}),
       };
       const key = `${row.provider}/${row.model}`;
       const had = byKey.get(key);
@@ -167,34 +309,66 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   // Signed-out providers: one greyed row each, with the model unknown, so the picker can offer "Sign in again".
   for (const { p, models } of found) {
     if (p.state !== "ok" && models.length === 0) {
-      byKey.set(`${p.providerKey}/-`, { provider: p.providerKey, model: p.providerKey, title: p.name, driver: driverOf(p), allowed: false, reason: "not_connected" });
+      byKey.set(`${p.providerKey}/-`, {
+        provider: p.providerKey,
+        model: p.providerKey,
+        title: p.name,
+        driver: driverOf(p),
+        allowed: false,
+        reason: "not_connected",
+      });
     }
   }
   // a subscription engine's rows keep the vendor's order (its own menu's); the rest sort by name
   const order = new Map([...live.keys()].map((k, i) => [k, i]));
   const rank = (m: ModelInfo): number => order.get(`${m.provider}/${m.model}`) ?? Number.MAX_SAFE_INTEGER;
-  const out = [...byKey.values()].sort((a, b) => Number(b.allowed) - Number(a.allowed) || a.provider.localeCompare(b.provider) || rank(a) - rank(b) || a.model.localeCompare(b.model));
+  const out = [...byKey.values()].sort(
+    (a, b) =>
+      Number(b.allowed) - Number(a.allowed) ||
+      a.provider.localeCompare(b.provider) ||
+      rank(a) - rank(b) ||
+      a.model.localeCompare(b.model),
+  );
   const refs = chosen.map((p) => p.handle ?? p.itemId);
   // the menu's second call waits a moment for the checks it started and answers with their result
   if (!passive && input.wait === true && probing(refs).length > 0) {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([Promise.all(probing(refs)), new Promise<void>((r) => { timer = setTimeout(r, WAIT_MS); })]);
+    await Promise.race([
+      Promise.all(probing(refs)),
+      new Promise<void>((r) => {
+        timer = setTimeout(r, WAIT_MS);
+      }),
+    ]);
     if (timer !== undefined) clearTimeout(timer);
     return modelsList(ctx, { ...input, wait: false, refresh: false });
   }
   const checkingNow = !passive && refs.some(probeRunning);
   const base = listState(states, ctx.now());
-  const listed = checkingNow ? { ...(base ?? { source: "live" as const }), refreshing: true, failed: base?.failed ?? false } : base;
+  const listed = checkingNow
+    ? { ...(base ?? { source: "live" as const }), refreshing: true, failed: base?.failed ?? false }
+    : base;
   return { models: out, ...(listed ? { listed } : {}) };
 }
 
-interface ProviderOut { driver: Driver; kind: "api" | "cli"; title: string; connected: boolean; allowed: boolean; reason?: string }
-
-function reasonText(why: "label_provider" | "policy_model", label: Label | undefined): string {
-  return why === "label_provider" ? `${label ?? "This"} records may not go to this provider.` : "This Space's AI policy does not allow this provider.";
+interface ProviderOut {
+  driver: Driver;
+  kind: "api" | "cli";
+  title: string;
+  connected: boolean;
+  allowed: boolean;
+  reason?: string;
 }
 
-export async function providersList(ctx: EngineCtx, input: { threadId?: string }): Promise<{ providers: ProviderOut[] }> {
+function reasonText(why: "label_provider" | "policy_model", label: Label | undefined): string {
+  return why === "label_provider"
+    ? `${label ?? "This"} records may not go to this provider.`
+    : "This Space's AI policy does not allow this provider.";
+}
+
+export async function providersList(
+  ctx: EngineCtx,
+  input: { threadId?: string },
+): Promise<{ providers: ProviderOut[] }> {
   const [all, policy, label] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const gap = sandboxGap();
   const probe = engineHost()?.cli?.probe as NodeCliProbe | undefined;
@@ -213,7 +387,12 @@ export function cliTrouble(row: ProviderOut, all: readonly ProviderRow[], probe?
   const mine = all.filter((p) => driverOf(p) === row.driver);
   if (mine.length === 0) return row;
   const name = CLI_NAME[program] ?? row.title;
-  if (findProgram(program, probe) === null) return { ...row, allowed: false, reason: `${name} is not installed on this computer. Install it, or pick another AI.` };
+  if (findProgram(program, probe) === null)
+    return {
+      ...row,
+      allowed: false,
+      reason: `${name} is not installed on this computer. Install it, or pick another AI.`,
+    };
   if (!row.connected) return { ...row, allowed: false, reason: `Sign in to ${name} again.` };
   return row;
 }
@@ -221,7 +400,8 @@ export function cliTrouble(row: ProviderOut, all: readonly ProviderRow[], probe?
 /** What a CLI account needs before it can run turns here, in one line with what to do, or null. The host's own sandbox plan, when it gave one, decides; otherwise this computer's (sandbox-default.ts). */
 export const NEEDS_SANDBOX = "Needs a sandbox Vyre cannot set up on this computer yet. Use an API key for now.";
 /** Windows without WSL: what turns it on. */
-export const NEEDS_WSL = "Needs WSL: turn it on once (admin and a restart: wsl --install --no-distribution), or use an API key.";
+export const NEEDS_WSL =
+  "Needs WSL: turn it on once (admin and a restart: wsl --install --no-distribution), or use an API key.";
 function sandboxGap(): string | null {
   const h = engineHost();
   if (h?.sandbox) return null;
@@ -229,7 +409,13 @@ function sandboxGap(): string | null {
   return process.platform === "win32" ? NEEDS_WSL : NEEDS_SANDBOX;
 }
 
-export function providerState(driver: Driver, all: readonly ProviderRow[], policy: Policy, label: Label | undefined, gap: string | null = null): ProviderOut {
+export function providerState(
+  driver: Driver,
+  all: readonly ProviderRow[],
+  policy: Policy,
+  label: Label | undefined,
+  gap: string | null = null,
+): ProviderOut {
   const mine = all.filter((p) => driverOf(p) === driver);
   const connected = mine.some((p) => p.state === "ok");
   // The policy names providers by key (anthropic, openai); a CLI engine is allowed when its own name or its provider key is.
@@ -237,14 +423,26 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
   let why: "label_provider" | "policy_model" | null = null;
   for (const k of keys) {
     // Restricted records need an account that keeps nothing: a driver is open to them when any of its accounts does
-    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }), keepsNothing: driver === "local" || mine.some(keeps) });
-    if (w === null) { why = null; break; }
+    const w = blockedBy(policy, {
+      provider: k,
+      ...(label === undefined ? {} : { label }),
+      keepsNothing: driver === "local" || mine.some(keeps),
+    });
+    if (w === null) {
+      why = null;
+      break;
+    }
     why = w;
   }
   // a CLI engine this computer cannot sandbox never runs here: the account is listed with what it needs
-  if (CLI.has(driver) && gap !== null) return { driver, kind: "cli", title: DRIVER_TITLE[driver], connected, allowed: false, reason: gap };
+  if (CLI.has(driver) && gap !== null)
+    return { driver, kind: "cli", title: DRIVER_TITLE[driver], connected, allowed: false, reason: gap };
   return {
-    driver, kind: CLI.has(driver) ? "cli" : "api", title: DRIVER_TITLE[driver], connected, allowed: why === null,
+    driver,
+    kind: CLI.has(driver) ? "cli" : "api",
+    title: DRIVER_TITLE[driver],
+    connected,
+    allowed: why === null,
     ...(why === null ? {} : { reason: reasonText(why, label) }),
   };
 }
@@ -261,14 +459,29 @@ export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
       if (p.state !== "ok" || p.spaceKey === true) continue;
       const ref = p.handle ?? p.itemId;
       const isCli = p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p));
-      const listed = isCli ? (await modelsFor(ctx.db, { ref, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, passive: true })).models.map((m) => m.id) : savedTested(ctx.db, ref);
+      const listed = isCli
+        ? (
+            await modelsFor(ctx.db, { ref, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, passive: true })
+          ).models.map((m) => m.id)
+        : savedTested(ctx.db, ref);
       if (!listed.includes(model)) continue;
-      if (confirmedFor(ctx.db, ref, ctx.now()).has(model) || unavailableFor(ctx.db, ref, ctx.now()).has(model)) continue;
-      probeModels(ctx.db, ref, [model], async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+      if (confirmedFor(ctx.db, ref, ctx.now()).has(model) || unavailableFor(ctx.db, ref, ctx.now()).has(model))
+        continue;
+      probeModels(
+        ctx.db,
+        ref,
+        [model],
+        async (r, m) => {
+          await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m });
+        },
+        ctx.now,
+        isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {},
+      );
     }
-  } catch (e) { ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" }); }
+  } catch (e) {
+    ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" });
+  }
 }
-
 
 // ---- the catalog for helpers (owner, 4 Nov 2026) ----
 // Helpers pick models across the accounts a person can use. This is the one read they need: every account with its models, what each model can do, what it costs as a tier, and whether the
@@ -276,10 +489,29 @@ export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
 
 export type CostTier = "cheap" | "standard" | "strong";
 export type Availability = "ok" | "checking" | "unavailable" | "unverified";
-export interface CatalogModel { id: string; title: string; tools: boolean; vision: boolean; context: number; tier: CostTier; allowed: boolean; available: Availability }
-export interface CatalogAccount { ref: string; label: string; provider: string; kind: "api_key" | "subscription" | "local"; usable: boolean; why?: string; models: CatalogModel[] }
+export interface CatalogModel {
+  id: string;
+  title: string;
+  tools: boolean;
+  vision: boolean;
+  context: number;
+  tier: CostTier;
+  allowed: boolean;
+  available: Availability;
+}
+export interface CatalogAccount {
+  ref: string;
+  label: string;
+  provider: string;
+  kind: "api_key" | "subscription" | "local";
+  usable: boolean;
+  why?: string;
+  models: CatalogModel[];
+}
 
-const PRICES = JSON.parse(readFileSync(new URL("../../prices.json", import.meta.url), "utf8")) as { providers: Record<string, Record<string, { in: number; out: number }>> };
+const PRICES = JSON.parse(readFileSync(new URL("../../prices.json", import.meta.url), "utf8")) as {
+  providers: Record<string, Record<string, { in: number; out: number }>>;
+};
 
 /**
  * The cost tier of a model: from the list price when Vyre has one (input dollars per million tokens: up to 1 cheap, up to 6 standard, above strong), else from the model's name. A name Vyre does
@@ -297,22 +529,44 @@ export function costTier(model: string, provider: string): CostTier {
 /** What a model can do, by its family: every current hosted family calls tools; the ones that read images are named. A local or custom model is taken to call tools and not to read images. */
 export function abilities(model: string, provider: string): { tools: boolean; vision: boolean } {
   const m = model.toLowerCase();
-  const hosted = /claude|gpt|^o\d|gemini|grok/.test(m) || ["anthropic", "openai", "google", "xai", "claude-code", "codex", "grok"].includes(provider);
-  return { tools: !/embed|whisper|tts|image-gen|dall-e/.test(m), vision: hosted && !/embed|whisper|tts|instruct-text|coder-only|haiku-3(\b|-)/.test(m) };
+  const hosted =
+    /claude|gpt|^o\d|gemini|grok/.test(m) ||
+    ["anthropic", "openai", "google", "xai", "claude-code", "codex", "grok"].includes(provider);
+  return {
+    tools: !/embed|whisper|tts|image-gen|dall-e/.test(m),
+    vision: hosted && !/embed|whisper|tts|instruct-text|coder-only|haiku-3(\b|-)/.test(m),
+  };
 }
 
-export async function modelsCatalog(ctx: EngineCtx, input: { accountRef?: string }): Promise<{ accounts: CatalogAccount[] }> {
+export async function modelsCatalog(
+  ctx: EngineCtx,
+  input: { accountRef?: string },
+): Promise<{ accounts: CatalogAccount[] }> {
   const [all, policy] = await Promise.all([myProviders(ctx), readPolicy(ctx)]);
-  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string));
+  const chosen =
+    input.accountRef === undefined
+      ? all
+      : all.filter(
+          (p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string),
+        );
   const watching = completerOf() !== null;
   const out: CatalogAccount[] = [];
   for (const p of chosen) {
     const ref = p.handle ?? p.itemId;
     const driver = driverOf(p);
     const cli = p.connection === "subscription" && LIVE_DRIVERS.has(driver);
-    const kind = p.connection === "subscription" ? "subscription" : p.connection === "local_model" ? "local" : "api_key";
+    const kind =
+      p.connection === "subscription" ? "subscription" : p.connection === "local_model" ? "local" : "api_key";
     const base = { ref, label: p.name, provider: p.providerKey, kind } as const;
-    if (p.state !== "ok") { out.push({ ...base, usable: false, why: p.state === "needs_sign_in" ? "Sign in again" : "Not working just now", models: [] }); continue; }
+    if (p.state !== "ok") {
+      out.push({
+        ...base,
+        usable: false,
+        why: p.state === "needs_sign_in" ? "Sign in again" : "Not working just now",
+        models: [],
+      });
+      continue;
+    }
     let ids: string[] = [];
     let titles = new Map<string, string>();
     if (cli) {
@@ -320,15 +574,35 @@ export async function modelsCatalog(ctx: EngineCtx, input: { accountRef?: string
       ids = got.models.map((m) => m.id);
       titles = new Map(got.models.map((m) => [m.id, m.title ?? m.id]));
     } else if (p.spaceKey === true) {
-      try { ids = ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? []; } catch { ids = []; }
+      try {
+        ids = ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? [];
+      } catch {
+        ids = [];
+      }
     } else ids = savedTested(ctx.db, ref);
     const bad = unavailableFor(ctx.db, ref, ctx.now());
     const good = confirmedFor(ctx.db, ref, ctx.now());
     const models: CatalogModel[] = ids.map((id) => {
       const blocked = blockedBy(policy, { provider: p.providerKey, model: id }) !== null;
       // a CLI's own list is what the vendor offers that sign-in; an API key's models are confirmed by the probe, or still being checked
-      const available: Availability = bad.has(id) ? "unavailable" : good.has(id) ? "ok" : cli && !watching ? "ok" : watching ? "checking" : "unverified";
-      return { id, title: titles.get(id) ?? prettyModel(id), ...abilities(id, p.providerKey), context: windowFor(id, p.providerKey), tier: costTier(id, p.providerKey), allowed: !blocked, available };
+      const available: Availability = bad.has(id)
+        ? "unavailable"
+        : good.has(id)
+          ? "ok"
+          : cli && !watching
+            ? "ok"
+            : watching
+              ? "checking"
+              : "unverified";
+      return {
+        id,
+        title: titles.get(id) ?? prettyModel(id),
+        ...abilities(id, p.providerKey),
+        context: windowFor(id, p.providerKey),
+        tier: costTier(id, p.providerKey),
+        allowed: !blocked,
+        available,
+      };
     });
     out.push({ ...base, usable: models.some((m) => m.allowed && m.available !== "unavailable"), models });
   }

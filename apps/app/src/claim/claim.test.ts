@@ -3,26 +3,61 @@ import assert from "node:assert/strict";
 import { ClaimError, claimOwner } from "./claim.ts";
 import type { ClaimDeps } from "./claim.ts";
 import { CapError } from "../shell/session/caps.ts";
-import { FAILURE_LINE, claimToken, failureOf, fingerprintOf, spaceIdOf, spaceNameOf, isDeadLink, problemOf } from "./logic.ts";
+import {
+  FAILURE_LINE,
+  claimToken,
+  failureOf,
+  fingerprintOf,
+  spaceIdOf,
+  spaceNameOf,
+  isDeadLink,
+  problemOf,
+} from "./logic.ts";
 import { storeClaimedOwnerSession } from "./session.ts";
 
 const bundle = { personKeyByPassword: "pw", personKeyByRecovery: "rc", publicKey: "pk", privateKeyWrapped: "sk" };
 
-function deps(over: Partial<ClaimDeps> = {}): { d: ClaimDeps; calls: { cap: string; input: Record<string, unknown> }[]; held: Uint8Array[]; wiped: Uint8Array[]; seen: string[] } {
+function deps(over: Partial<ClaimDeps> = {}): {
+  d: ClaimDeps;
+  calls: { cap: string; input: Record<string, unknown> }[];
+  held: Uint8Array[];
+  wiped: Uint8Array[];
+  seen: string[];
+} {
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const held: Uint8Array[] = [];
   const wiped: Uint8Array[] = [];
   const seen: string[] = [];
   const d: ClaimDeps = {
-    call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return { status: "ok", session: { token: "vst_owner" }, principal: { id: "usr_owner" } }; },
-    makeBundle: async (_pw, _rc, spaceId) => { seen.push(spaceId); return { ...bundle, personKey: new Uint8Array(32).fill(9) }; },
-    holdKey: async (_t, key) => { held.push(new Uint8Array(key)); return true; },
-    wipe: (b) => { wiped.push(b); b.fill(0); },
+    call: async (cap, input) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      return { status: "ok", session: { token: "vst_owner" }, principal: { id: "usr_owner" } };
+    },
+    makeBundle: async (_pw, _rc, spaceId) => {
+      seen.push(spaceId);
+      return { ...bundle, personKey: new Uint8Array(32).fill(9) };
+    },
+    holdKey: async (_t, key) => {
+      held.push(new Uint8Array(key));
+      return true;
+    },
+    wipe: (b) => {
+      wiped.push(b);
+      b.fill(0);
+    },
     ...over,
   };
   return { d, calls, held, wiped, seen };
 }
-const input = { token: "tok_abcdefgh", spaceId: "spc_core", name: " Irfad Imtiaz ", username: "irfad", password: "correct horse", recoveryCode: "ABCD-EFGH-JKMN-PQRS", deviceName: "Web browser" };
+const input = {
+  token: "tok_abcdefgh",
+  spaceId: "spc_core",
+  name: " Irfad Imtiaz ",
+  username: "irfad",
+  password: "correct horse",
+  recoveryCode: "ABCD-EFGH-JKMN-PQRS",
+  deviceName: "Web browser",
+};
 
 test("claim: the authenticated Space marker is persisted before the shell opens", async () => {
   const saved: unknown[] = [];
@@ -30,7 +65,13 @@ test("claim: the authenticated Space marker is persisted before the shell opens"
   const stored = await storeClaimedOwnerSession(
     { baseUrl: "https://fresh.test", token: "vst_owner", spaceId: "spc_fresh" },
     {
-      open: async () => ({ def: { spaceId: "spc_fresh", name: "Fresh Co" }, me: { id: "usr_owner" }, close: () => { closed++; } }),
+      open: async () => ({
+        def: { spaceId: "spc_fresh", name: "Fresh Co" },
+        me: { id: "usr_owner" },
+        close: () => {
+          closed++;
+        },
+      }),
       getSpace: async () => ({ id: "spc_fresh", marker: "fresh-marker" }),
       persist: (session) => saved.push(session),
     },
@@ -61,20 +102,41 @@ test("claim: the person key goes to the local daemon after the claim, and is wip
   assert.equal(ok.held.length, 1);
   assert.equal(ok.held[0]!.length, 32);
   assert.equal(ok.wiped.length >= 1, true);
-  const refused = deps({ call: async () => { throw new CapError({ code: "auth.claim_used", message: "used", traceId: "t", status: 409 }); } });
+  const refused = deps({
+    call: async () => {
+      throw new CapError({ code: "auth.claim_used", message: "used", traceId: "t", status: 409 });
+    },
+  });
   await assert.rejects(claimOwner(refused.d, input), (e: unknown) => e instanceof ClaimError && e.failure === "used");
   assert.equal(refused.held.length, 0, "a refused claim never hands a key anywhere");
   assert.equal(refused.wiped.length >= 1, true);
 });
 
 test("claim: a daemon that refuses the key does not undo the claim", async () => {
-  const { d } = deps({ holdKey: async () => { throw new Error("not loopback"); } });
+  const { d } = deps({
+    holdKey: async () => {
+      throw new Error("not loopback");
+    },
+  });
   assert.equal((await claimOwner(d, input)).token, "vst_owner");
 });
 
 test("claim: no network is unreachable; no session in the answer is an error", async () => {
-  await assert.rejects(claimOwner(deps({ call: async () => { throw new TypeError("fetch failed"); } }).d, input), (e: unknown) => e instanceof ClaimError && e.failure === "unreachable");
-  await assert.rejects(claimOwner(deps({ call: async () => ({ status: "ok" }) }).d, input), (e: unknown) => e instanceof ClaimError && e.failure === "other");
+  await assert.rejects(
+    claimOwner(
+      deps({
+        call: async () => {
+          throw new TypeError("fetch failed");
+        },
+      }).d,
+      input,
+    ),
+    (e: unknown) => e instanceof ClaimError && e.failure === "unreachable",
+  );
+  await assert.rejects(
+    claimOwner(deps({ call: async () => ({ status: "ok" }) }).d, input),
+    (e: unknown) => e instanceof ClaimError && e.failure === "other",
+  );
 });
 
 test("claim logic: a spent or expired link has no form; other failures keep the form", () => {
@@ -128,4 +190,8 @@ test("claim logic: the Space's name comes from the link fragment, decoded, and i
   assert.equal(spaceNameOf("#n="), null);
 });
 
-test('Native Personal owner claim registers the desktop device class',async()=>{const{d,calls}=deps();await claimOwner(d,{...input,deviceName:'Vyre desktop',deviceClass:'desktop'});assert.equal(calls[0]!.input['deviceClass'],'desktop');});
+test("Native Personal owner claim registers the desktop device class", async () => {
+  const { d, calls } = deps();
+  await claimOwner(d, { ...input, deviceName: "Vyre desktop", deviceClass: "desktop" });
+  assert.equal(calls[0]!.input["deviceClass"], "desktop");
+});

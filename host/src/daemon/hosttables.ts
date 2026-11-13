@@ -44,11 +44,22 @@ export function migrate(db: HostDb, codeRoot: string, now: () => number): { modu
   const ran: { module: string; file: string }[] = [];
   const modulesDir = path.join(codeRoot, "modules");
   let ids: string[] = [];
-  try { ids = fs.readdirSync(modulesDir).sort(); } catch { return ran; }
+  try {
+    ids = fs.readdirSync(modulesDir).sort();
+  } catch {
+    return ran;
+  }
   for (const id of ids) {
     const dir = path.join(modulesDir, id, "migrations");
     let files: string[];
-    try { files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort(); } catch { continue; }
+    try {
+      files = fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith(".sql"))
+        .sort();
+    } catch {
+      continue;
+    }
     for (const file of files) {
       if (db.all("SELECT 1 AS x FROM host_migration WHERE module = ? AND file = ?", id, file).length) continue;
       const sql = fs.readFileSync(path.join(dir, file), "utf8");

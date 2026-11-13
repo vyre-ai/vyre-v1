@@ -40,13 +40,23 @@ export function stepsFromCall(out: unknown): StepRowLite[] | null {
     if (!row || typeof row !== "object") continue;
     const rec = row as Record<string, unknown>;
     if (typeof rec["step"] !== "string" || typeof rec["state"] !== "string") continue;
-    const error = rec["error"] && typeof rec["error"] === "object" ? rec["error"] as { code?: string; message?: string } : undefined;
+    const error =
+      rec["error"] && typeof rec["error"] === "object"
+        ? (rec["error"] as { code?: string; message?: string })
+        : undefined;
     steps.push({
       step: rec["step"],
       state: rec["state"],
       ...(typeof rec["attempt"] === "number" ? { attempt: rec["attempt"] } : {}),
       ...(typeof rec["branch"] === "string" && rec["branch"].length > 0 ? { branch: rec["branch"] } : {}),
-      ...(error ? { error: { ...(typeof error.code === "string" ? { code: error.code } : {}), ...(typeof error.message === "string" ? { message: error.message } : {}) } } : {}),
+      ...(error
+        ? {
+            error: {
+              ...(typeof error.code === "string" ? { code: error.code } : {}),
+              ...(typeof error.message === "string" ? { message: error.message } : {}),
+            },
+          }
+        : {}),
     });
   }
   return steps;

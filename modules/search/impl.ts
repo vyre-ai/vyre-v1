@@ -15,43 +15,100 @@ export { ensure } from "./projections.ts";
 
 /** What a consumer reads of an event: its name, its sequence, whether it is private (enc = 2) and the payload. */
 /** What the host hands a consumer (`name`, `subject` as entity/id), as opposed to the stored shape (`type`, `entityId`) the index logic and its tests use. */
-export interface HostEvent { name: string; seq: number; subject?: string; payload: Record<string, unknown> }
+export interface HostEvent {
+  name: string;
+  seq: number;
+  subject?: string;
+  payload: Record<string, unknown>;
+}
 /** Accept either shape: the live host's event is turned into the stored one, so what the host sends reaches the index. */
 export function indexEventOf(e: IndexEvent | HostEvent): IndexEvent {
   if ("type" in e) return e;
   const at = (e.subject ?? "").indexOf("/");
-  return { type: e.name, seq: e.seq, enc: 0, ...(at > 0 ? { entity: e.subject!.slice(0, at), entityId: e.subject!.slice(at + 1) } : {}), payload: e.payload };
+  return {
+    type: e.name,
+    seq: e.seq,
+    enc: 0,
+    ...(at > 0 ? { entity: e.subject!.slice(0, at), entityId: e.subject!.slice(at + 1) } : {}),
+    payload: e.payload,
+  };
 }
 
-export interface IndexEvent { type: string; seq: number; enc?: number; entity?: string; entityId?: string; payload: Record<string, unknown> }
+export interface IndexEvent {
+  type: string;
+  seq: number;
+  enc?: number;
+  entity?: string;
+  entityId?: string;
+  payload: Record<string, unknown>;
+}
 
 /** The events that change what the index holds: which entity, which payload key holds its id, and whether the event removes it. */
-export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; remove?: boolean; /** a second row the event takes out of the index (a merge: the merged-away record) */ alsoRemove?: string }>> = {
-  "record.created": { entity: "record", idKey: "recordId" }, "record.updated": { entity: "record", idKey: "recordId" }, "record.restored": { entity: "record", idKey: "recordId" },
+export const WATCHED: Readonly<
+  Record<
+    string,
+    {
+      entity: string;
+      idKey: string;
+      remove?: boolean;
+      /** a second row the event takes out of the index (a merge: the merged-away record) */ alsoRemove?: string;
+    }
+  >
+> = {
+  "record.created": { entity: "record", idKey: "recordId" },
+  "record.updated": { entity: "record", idKey: "recordId" },
+  "record.restored": { entity: "record", idKey: "recordId" },
   "record.merged": { entity: "record", idKey: "survivorId", alsoRemove: "mergedId" },
   "record.deleted": { entity: "record", idKey: "recordId", remove: true },
-  "file.created": { entity: "file", idKey: "fileId" }, "file.renamed": { entity: "file", idKey: "fileId" }, "file.moved": { entity: "file", idKey: "fileId" },
-  "file.version_added": { entity: "file", idKey: "fileId" }, "file.restored": { entity: "file", idKey: "fileId" },
-  "file.deleted": { entity: "file", idKey: "fileId", remove: true }, "file.purged": { entity: "file", idKey: "fileId", remove: true },
+  "file.created": { entity: "file", idKey: "fileId" },
+  "file.renamed": { entity: "file", idKey: "fileId" },
+  "file.moved": { entity: "file", idKey: "fileId" },
+  "file.version_added": { entity: "file", idKey: "fileId" },
+  "file.restored": { entity: "file", idKey: "fileId" },
+  "file.deleted": { entity: "file", idKey: "fileId", remove: true },
+  "file.purged": { entity: "file", idKey: "fileId", remove: true },
   // Redaction for AI: the index holds what an agent may read of a file (files.agent_view), so a change to its layer or its Agent access reads it again
-  "file.redacted": { entity: "file", idKey: "fileId" }, "file.unredacted": { entity: "file", idKey: "fileId" }, "file.highlighted": { entity: "file", idKey: "fileId" },
-  "file.reviewed": { entity: "file", idKey: "fileId" }, "file.needs_review": { entity: "file", idKey: "fileId" }, "file.agent_access_changed": { entity: "file", idKey: "fileId" },
-  "thread.started": { entity: "thread", idKey: "threadId" }, "thread.updated": { entity: "thread", idKey: "threadId" }, "thread.replied": { entity: "thread", idKey: "threadId" },
-  "message.received": { entity: "thread", idKey: "threadId" }, "message.edited": { entity: "thread", idKey: "threadId" },
+  "file.redacted": { entity: "file", idKey: "fileId" },
+  "file.unredacted": { entity: "file", idKey: "fileId" },
+  "file.highlighted": { entity: "file", idKey: "fileId" },
+  "file.reviewed": { entity: "file", idKey: "fileId" },
+  "file.needs_review": { entity: "file", idKey: "fileId" },
+  "file.agent_access_changed": { entity: "file", idKey: "fileId" },
+  "thread.started": { entity: "thread", idKey: "threadId" },
+  "thread.updated": { entity: "thread", idKey: "threadId" },
+  "thread.replied": { entity: "thread", idKey: "threadId" },
+  "message.received": { entity: "thread", idKey: "threadId" },
+  "message.edited": { entity: "thread", idKey: "threadId" },
   "message.deleted": { entity: "thread", idKey: "threadId" },
-  "agent.created": { entity: "agent", idKey: "agentId" }, "agent.config_changed": { entity: "agent", idKey: "agentId" }, "agent.restored": { entity: "agent", idKey: "agentId" },
+  "agent.created": { entity: "agent", idKey: "agentId" },
+  "agent.config_changed": { entity: "agent", idKey: "agentId" },
+  "agent.restored": { entity: "agent", idKey: "agentId" },
   "agent.deleted": { entity: "agent", idKey: "agentId", remove: true },
-  "automation.created": { entity: "automation", idKey: "automationId" }, "automation.updated": { entity: "automation", idKey: "automationId" },
-  "automation.restored": { entity: "automation", idKey: "automationId" }, "automation.deleted": { entity: "automation", idKey: "automationId", remove: true },
-  "task.created": { entity: "task", idKey: "taskId" }, "task.updated": { entity: "task", idKey: "taskId" }, "task.transitioned": { entity: "task", idKey: "taskId" },
+  "automation.created": { entity: "automation", idKey: "automationId" },
+  "automation.updated": { entity: "automation", idKey: "automationId" },
+  "automation.restored": { entity: "automation", idKey: "automationId" },
+  "automation.deleted": { entity: "automation", idKey: "automationId", remove: true },
+  "task.created": { entity: "task", idKey: "taskId" },
+  "task.updated": { entity: "task", idKey: "taskId" },
+  "task.transitioned": { entity: "task", idKey: "taskId" },
   // a deleted task leaves search, and one that comes back or changes hands is read again (l-tasks)
-  "task.deleted": { entity: "task", idKey: "taskId", remove: true }, "task.restored": { entity: "task", idKey: "taskId" }, "task.assigned": { entity: "task", idKey: "taskId" },
-  "task.withdrawn": { entity: "task", idKey: "taskId" }, "task.completed": { entity: "task", idKey: "taskId" },
-  "channel.created": { entity: "channel", idKey: "channelId" }, "channel.updated": { entity: "channel", idKey: "channelId" }, "channel.unarchived": { entity: "channel", idKey: "channelId" },
+  "task.deleted": { entity: "task", idKey: "taskId", remove: true },
+  "task.restored": { entity: "task", idKey: "taskId" },
+  "task.assigned": { entity: "task", idKey: "taskId" },
+  "task.withdrawn": { entity: "task", idKey: "taskId" },
+  "task.completed": { entity: "task", idKey: "taskId" },
+  "channel.created": { entity: "channel", idKey: "channelId" },
+  "channel.updated": { entity: "channel", idKey: "channelId" },
+  "channel.unarchived": { entity: "channel", idKey: "channelId" },
   "channel.archived": { entity: "channel", idKey: "channelId", remove: true },
 };
 
-export interface IndexTarget { entity: string; id: string; op: "upsert" | "delete"; seq: number }
+export interface IndexTarget {
+  entity: string;
+  id: string;
+  op: "upsert" | "delete";
+  seq: number;
+}
 
 /** The entity rows an event is about, or none when it is not one the index follows or it is private. A merge has two: the merged-away record leaves, the survivor is read again. */
 export function targetsOf(e: IndexEvent): IndexTarget[] {
@@ -59,7 +116,8 @@ export function targetsOf(e: IndexEvent): IndexTarget[] {
   if (!w || e.enc === 2) return [];
   const id = typeof e.payload[w.idKey] === "string" ? (e.payload[w.idKey] as string) : e.entityId;
   if (!id) return [];
-  const type = w.entity === "record" && typeof e.payload["type"] === "string" ? `record:${e.payload["type"] as string}` : w.entity;
+  const type =
+    w.entity === "record" && typeof e.payload["type"] === "string" ? `record:${e.payload["type"] as string}` : w.entity;
   const out: IndexTarget[] = [];
   const gone = w.alsoRemove !== undefined ? e.payload[w.alsoRemove] : undefined;
   if (typeof gone === "string") out.push({ entity: type, id: gone, op: "delete", seq: e.seq });

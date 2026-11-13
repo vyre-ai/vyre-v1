@@ -12,7 +12,11 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface EmitOpts { idempotencyKey?: string; vis?: string; cause?: string }
+export interface EmitOpts {
+  idempotencyKey?: string;
+  vis?: string;
+  cause?: string;
+}
 export interface HomeCtx {
   space: string;
   principal: { kind: string; id: string };
@@ -25,7 +29,12 @@ export interface HomeCtx {
 }
 
 type Code = Parameters<typeof fail>[0];
-export function raise(ctx: { trace: { traceId: string } }, code: Code, message?: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: { trace: { traceId: string } },
+  code: Code,
+  message?: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 /** Drop undefined keys so payloads and rows stay valid under exactOptionalPropertyTypes and the JSON schemas. */
@@ -39,14 +48,22 @@ const str = (v: unknown): string | undefined => (typeof v === "string" && v.leng
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 function json<T>(v: unknown, fallback: T): T {
   if (typeof v !== "string" || v.length === 0) return fallback;
-  try { return JSON.parse(v) as T; } catch { return fallback; }
+  try {
+    return JSON.parse(v) as T;
+  } catch {
+    return fallback;
+  }
 }
 export const js = (v: unknown): string => JSON.stringify(v);
 
 /** `prefix_` plus 32 lowercase hex digits: the shape every id pattern in the manifests accepts. */
 export const newId = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -60,17 +77,44 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 export const me = (ctx: HomeCtx): string => ctx.actingFor ?? ctx.principal.id;
 export const isService = (ctx: HomeCtx): boolean => isTrustedService(ctx.principal);
 /** The person a digest is about may read it; the host (a service) and the assistant acting for that person may write it. */
-export const mayActFor = (ctx: HomeCtx, person: string): boolean => isService(ctx) || person === ctx.principal.id || person === ctx.actingFor;
+export const mayActFor = (ctx: HomeCtx, person: string): boolean =>
+  isService(ctx) || person === ctx.principal.id || person === ctx.actingFor;
 
 // ---- the digest ----
 
 export type ItemKind = "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
-export interface ResourceRef { type: string; id: string }
-export interface DigestItem { kind: ItemKind; title: string; line: string; subject?: ResourceRef; at?: number; undo?: { cap: string; input: unknown } }
-export interface Digest { id: string; person: string; periodStart: number; periodEnd: number; headline: string[]; items: DigestItem[]; seenAt?: number; builtBy: string }
+export interface ResourceRef {
+  type: string;
+  id: string;
+}
+export interface DigestItem {
+  kind: ItemKind;
+  title: string;
+  line: string;
+  subject?: ResourceRef;
+  at?: number;
+  undo?: { cap: string; input: unknown };
+}
+export interface Digest {
+  id: string;
+  person: string;
+  periodStart: number;
+  periodEnd: number;
+  headline: string[];
+  items: DigestItem[];
+  seenAt?: number;
+  builtBy: string;
+}
 
 /** Where each kind sits in the digest, in the order of spec 3.1: decisions first (each with Undo), then finished work, record changes, routine results, then what waits. */
-export const KIND_RANK: Record<ItemKind, number> = { decision: 0, finished: 1, record_change: 2, routine: 3, notice: 4, waiting: 5 };
+export const KIND_RANK: Record<ItemKind, number> = {
+  decision: 0,
+  finished: 1,
+  record_change: 2,
+  routine: 3,
+  notice: 4,
+  waiting: 5,
+};
 export const MAX_ITEMS = 7;
 export const MAX_HEADLINE = 3;
 
@@ -94,10 +138,16 @@ export function rankItems(items: readonly DigestItem[], full = false): DigestIte
 type Raw = Record<string, unknown>;
 function rowToDigest(r: Raw): Digest {
   const d: Digest = {
-    id: r.id as string, person: r.person as string, periodStart: num(r.period_start) ?? 0, periodEnd: num(r.period_end) ?? 0,
-    headline: json<string[]>(r.headline, []), items: json<DigestItem[]>(r.items, []), builtBy: (str(r.built_by) ?? "") as string,
+    id: r.id as string,
+    person: r.person as string,
+    periodStart: num(r.period_start) ?? 0,
+    periodEnd: num(r.period_end) ?? 0,
+    headline: json<string[]>(r.headline, []),
+    items: json<DigestItem[]>(r.items, []),
+    builtBy: (str(r.built_by) ?? "") as string,
   };
-  const seen = num(r.seen_at); if (seen !== undefined) d.seenAt = seen;
+  const seen = num(r.seen_at);
+  if (seen !== undefined) d.seenAt = seen;
   return d;
 }
 export function findDigest(db: Db, id: string): Digest | undefined {
@@ -106,23 +156,48 @@ export function findDigest(db: Db, id: string): Digest | undefined {
 }
 /** The newest digest of a person that they have not seen. */
 export function latestUnseen(db: Db, person: string): Digest | undefined {
-  const r = (db.all(
-    "SELECT * FROM home_digests WHERE person = ? AND seen_at IS NULL AND deleted_at IS NULL ORDER BY period_end DESC, id DESC LIMIT 1", person,
-  ) as Raw[])[0];
+  const r = (
+    db.all(
+      "SELECT * FROM home_digests WHERE person = ? AND seen_at IS NULL AND deleted_at IS NULL ORDER BY period_end DESC, id DESC LIMIT 1",
+      person,
+    ) as Raw[]
+  )[0];
   return r ? rowToDigest(r) : undefined;
 }
 export function saveDigest(db: Db, d: Digest, now: number): void {
   db.run(
     `INSERT OR REPLACE INTO home_digests (id, person, period_start, period_end, headline, items, seen_at, built_by, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT version FROM home_digests WHERE id = ?), -1) + 1, ?, NULL)`,
-    d.id, d.person, d.periodStart, d.periodEnd, js(d.headline), js(d.items), nul(d.seenAt), d.builtBy, d.id, now,
+    d.id,
+    d.person,
+    d.periodStart,
+    d.periodEnd,
+    js(d.headline),
+    js(d.items),
+    nul(d.seenAt),
+    d.builtBy,
+    d.id,
+    now,
   );
 }
 export function digestOut(d: Digest): Record<string, unknown> {
-  return clean({ id: d.id, person: d.person, periodStart: d.periodStart, periodEnd: d.periodEnd, headline: d.headline, items: d.items, seenAt: d.seenAt, builtBy: d.builtBy });
+  return clean({
+    id: d.id,
+    person: d.person,
+    periodStart: d.periodStart,
+    periodEnd: d.periodEnd,
+    headline: d.headline,
+    items: d.items,
+    seenAt: d.seenAt,
+    builtBy: d.builtBy,
+  });
 }
-export function idemFind(db: Db, key: string): string | undefined { return str((db.all("SELECT digest_id FROM home_idem WHERE idem_key = ?", key) as Raw[])[0]?.digest_id); }
-export function idemSave(db: Db, key: string, digestId: string): void { db.run("INSERT OR REPLACE INTO home_idem (idem_key, digest_id) VALUES (?, ?)", key, digestId); }
+export function idemFind(db: Db, key: string): string | undefined {
+  return str((db.all("SELECT digest_id FROM home_idem WHERE idem_key = ?", key) as Raw[])[0]?.digest_id);
+}
+export function idemSave(db: Db, key: string, digestId: string): void {
+  db.run("INSERT OR REPLACE INTO home_idem (idem_key, digest_id) VALUES (?, ?)", key, digestId);
+}
 
 // ---- Projects at risk ----
 
@@ -135,7 +210,12 @@ export const OPEN_STATES = ["todo", "doing", "in_review", "awaiting_approval"] a
 /** A project that is done or paused is never at risk. */
 export const OUT_OF_PLAY = new Set(["done", "paused"]);
 
-export interface ProjectFacts { projectDue?: number; overdueTasks: number; blockedTasks: number; lateMilestones: number }
+export interface ProjectFacts {
+  projectDue?: number;
+  overdueTasks: number;
+  blockedTasks: number;
+  lateMilestones: number;
+}
 /** Which of the three reasons apply. */
 export function reasonsOf(f: ProjectFacts, now: number): Reason[] {
   const out: Reason[] = [];
@@ -150,11 +230,21 @@ export function reasonsOf(f: ProjectFacts, now: number): Reason[] {
 /** The start and end of the local day that holds `now` in a zone (a day that changes length at a clock change is taken as 24 hours). Falls back to UTC for an unknown zone. */
 export function localDay(now: number, tz: string): { start: number; end: number } {
   let zone = tz;
-  try { new Intl.DateTimeFormat("en-US", { timeZone: zone }); } catch { zone = "UTC"; }
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", hour: "numeric", minute: "numeric", second: "numeric" }).formatToParts(new Date(now));
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(new Date(now));
   const v: Record<string, number> = {};
   for (const p of parts) if (p.type !== "literal") v[p.type] = Number(p.value);
-  const elapsed = ((v.hour! % 24) * 3600 + v.minute! * 60 + v.second!) * 1000 + (now % 1000 + 1000) % 1000;
+  const elapsed = ((v.hour! % 24) * 3600 + v.minute! * 60 + v.second!) * 1000 + (((now % 1000) + 1000) % 1000);
   const start = now - elapsed;
   return { start, end: start + DAY };
 }
@@ -162,10 +252,14 @@ export function localDay(now: number, tz: string): { start: number; end: number 
 /** The person's time zone from their profile setting; UTC when the setting is unreadable (a display preference must not stop Home). */
 export async function personTz(ctx: HomeCtx): Promise<string> {
   try {
-    const r = (await ctx.call?.("settings.get", { key: "profile.timezone" })) as { row?: { value?: unknown } } | undefined;
+    const r = (await ctx.call?.("settings.get", { key: "profile.timezone" })) as
+      | { row?: { value?: unknown } }
+      | undefined;
     const v = r?.row?.value;
     return typeof v === "string" && v.length > 0 ? v : "UTC";
-  } catch { return "UTC"; }
+  } catch {
+    return "UTC";
+  }
 }
 
 // ---- checklist ----

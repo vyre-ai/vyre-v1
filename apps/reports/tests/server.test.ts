@@ -28,21 +28,37 @@ function outbound(): { fn: HttpLike; calls: string[]; githubOk: { value: boolean
 }
 
 const envFor = (dir: string): Record<string, string> => ({
-  PORT: "0", REPORTS_DATA_DIR: dir, REPORTS_PUBLIC_URL: "http://127.0.0.1", REPORTS_ALLOW_INSECURE: "1", GITHUB_TOKEN: "ghp_test", GITHUB_WEBHOOK_SECRET: WEBHOOK_SECRET,
-  TEAM_SPACE_URL: "https://team.vyre.test", TEAM_SPACE_TOKEN: "svc_team", REPORTS_PER_IP: "1000",
+  PORT: "0",
+  REPORTS_DATA_DIR: dir,
+  REPORTS_PUBLIC_URL: "http://127.0.0.1",
+  REPORTS_ALLOW_INSECURE: "1",
+  GITHUB_TOKEN: "ghp_test",
+  GITHUB_WEBHOOK_SECRET: WEBHOOK_SECRET,
+  TEAM_SPACE_URL: "https://team.vyre.test",
+  TEAM_SPACE_TOKEN: "svc_team",
+  REPORTS_PER_IP: "1000",
 });
 
 async function register(base: string, space: Space): Promise<number> {
   const body = utf8(JSON.stringify({ spaceId: space.spaceId, publicKey: space.publicKey, webhook: space.webhook }));
   const ts = String(Date.now());
   const sig = await space.sign(registerMessage(ts, await sha256hex(body)));
-  return (await get(`${base}/v1/spaces`, { method: "POST", headers: { "x-vyre-ts": ts, "x-vyre-sig": sig }, body })).status;
+  return (await get(`${base}/v1/spaces`, { method: "POST", headers: { "x-vyre-ts": ts, "x-vyre-sig": sig }, body }))
+    .status;
 }
 
-async function post(base: string, space: Space, body: Uint8Array): Promise<{ status: number; json: { data?: Record<string, unknown>; error?: { code: string } } }> {
+async function post(
+  base: string,
+  space: Space,
+  body: Uint8Array,
+): Promise<{ status: number; json: { data?: Record<string, unknown>; error?: { code: string } } }> {
   const ts = String(Date.now());
   const sig = await space.sign(reportMessage(ts, await sha256hex(body)));
-  const res = await get(`${base}/v1/reports`, { method: "POST", headers: { "x-vyre-space": space.spaceId, "x-vyre-ts": ts, "x-vyre-sig": sig }, body });
+  const res = await get(`${base}/v1/reports`, {
+    method: "POST",
+    headers: { "x-vyre-space": space.spaceId, "x-vyre-ts": ts, "x-vyre-sig": sig },
+    body,
+  });
   return { status: res.status, json: (await res.json()) as never };
 }
 
@@ -95,7 +111,11 @@ test("process: the signing key and the reports survive a restart, and a report s
     const again = await post(base, alpha, reportBody("rpt_aaaaaaaa1"));
     assert.equal(again.status, 201, "the Space is still registered");
     assert.equal(again.json.data?.issueNumber, 1234);
-    assert.equal(out.calls.filter((u) => u.startsWith("https://api.github.com/")).length, 1, "no second issue after the restart");
+    assert.equal(
+      out.calls.filter((u) => u.startsWith("https://api.github.com/")).length,
+      1,
+      "no second issue after the restart",
+    );
   } finally {
     await first.close();
   }
@@ -115,7 +135,9 @@ test("process: a report GitHub could not take is finished by the retry", async (
     assert.equal(kept.json.data?.issueNumber, null);
     out.githubOk.value = true;
     assert.equal(await running.retry(), 1, "the retry opens the issue and files the record");
-    const db = JSON.parse(await readFile(join(dir, "reports.json"), "utf8")) as { reports: Record<string, { issueNumber: number | null; teamRecordId: string | null }> };
+    const db = JSON.parse(await readFile(join(dir, "reports.json"), "utf8")) as {
+      reports: Record<string, { issueNumber: number | null; teamRecordId: string | null }>;
+    };
     assert.equal(db.reports["rpt_aaaaaaaa1"]?.issueNumber, 1234);
     assert.equal(db.reports["rpt_aaaaaaaa1"]?.teamRecordId, "rec_team1");
   } finally {

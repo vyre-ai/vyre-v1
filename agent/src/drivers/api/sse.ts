@@ -16,7 +16,10 @@ export function createSseParser(): { push(chunk: string): SseEvent[]; end(): Sse
     data = [];
   };
   const onLine = (l: string): void => {
-    if (l === "") { flush(); return; }
+    if (l === "") {
+      flush();
+      return;
+    }
     if (l.startsWith(":")) return;
     const colon = l.indexOf(":");
     const field = colon < 0 ? l : l.slice(0, colon);
@@ -34,14 +37,22 @@ export function createSseParser(): { push(chunk: string): SseEvent[]; end(): Sse
           sawCr = false;
           if (c === "\n") continue;
         }
-        if (c === "\r") { sawCr = true; onLine(line); line = ""; }
-        else if (c === "\n") { onLine(line); line = ""; }
-        else line += c;
+        if (c === "\r") {
+          sawCr = true;
+          onLine(line);
+          line = "";
+        } else if (c === "\n") {
+          onLine(line);
+          line = "";
+        } else line += c;
       }
       return out.splice(0, out.length);
     },
     end() {
-      if (line !== "") { onLine(line); line = ""; }
+      if (line !== "") {
+        onLine(line);
+        line = "";
+      }
       flush();
       return out.splice(0, out.length);
     },
@@ -49,7 +60,10 @@ export function createSseParser(): { push(chunk: string): SseEvent[]; end(): Sse
 }
 
 /** Bytes in, events out, one event at a time as they complete. */
-export async function* parseSse(body: AsyncIterable<Uint8Array>, onChunk?: (bytes: number) => void): AsyncGenerator<SseEvent> {
+export async function* parseSse(
+  body: AsyncIterable<Uint8Array>,
+  onChunk?: (bytes: number) => void,
+): AsyncGenerator<SseEvent> {
   const dec = new TextDecoder();
   const p = createSseParser();
   for await (const chunk of body) {

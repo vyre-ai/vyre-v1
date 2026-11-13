@@ -7,7 +7,10 @@ import type { BlockRec, ChatCtx, ThreadRec } from "../projections.ts";
 export const ALREADY_DECIDED = "Already decided.";
 
 const TITLE_CHARS = 200;
-const firstLine = (s: string): string => { const l = s.split("\n")[0]!.trim(); return l.length > TITLE_CHARS ? `${l.slice(0, TITLE_CHARS - 1)}...` : l; };
+const firstLine = (s: string): string => {
+  const l = s.split("\n")[0]!.trim();
+  return l.length > TITLE_CHARS ? `${l.slice(0, TITLE_CHARS - 1)}...` : l;
+};
 
 /** The person a question or plan waits on: the one whose turn asked it, else the person who started the thread. Nobody when a thread has no person behind it. */
 function personFor(ctx: ChatCtx, t: ThreadRec): string | undefined {
@@ -17,7 +20,14 @@ function personFor(ctx: ChatCtx, t: ThreadRec): string | undefined {
 
 const ANSWER_ONLY = [{ key: "answer", label: "Answer", note: "required" }];
 
-interface Ask { kind: "answer" | "approve"; blockId: string; planId?: string; block: { type: string; data: unknown }; title: string; summary: string }
+interface Ask {
+  kind: "answer" | "approve";
+  blockId: string;
+  planId?: string;
+  block: { type: string; data: unknown };
+  title: string;
+  summary: string;
+}
 
 /**
  * Open the task of a question or plan, before the card is written so the card can name it. A failure leaves a card that still works in its chat: the question is asked either way, and the reason goes to the log.
@@ -28,24 +38,48 @@ export async function openAsk(ctx: ChatCtx, t: ThreadRec, a: Ask): Promise<strin
   if (!person || !ctx.call) return undefined;
   try {
     const made = (await ctx.call("tasks.create", {
-      kind: a.kind, title: firstLine(a.title), summary: a.summary, assigned: { kind: "person", id: person }, source: { kind: "chat", id: t.id }, blocks: [{ type: a.block.type, v: 1, data: a.block.data }],
+      kind: a.kind,
+      title: firstLine(a.title),
+      summary: a.summary,
+      assigned: { kind: "person", id: person },
+      source: { kind: "chat", id: t.id },
+      blocks: [{ type: a.block.type, v: 1, data: a.block.data }],
       notes: { "chat.block": a.blockId, ...(a.planId !== undefined ? { "chat.plan": a.planId } : {}) },
       ...(a.kind === "answer" ? { actions: ANSWER_ONLY } : {}),
       idempotencyKey: `ask:${a.blockId}`,
     })) as { task?: { id?: string } };
     return made.task?.id;
   } catch (e) {
-    ctx.log.warn("a question or plan has no task, so it shows only in its chat", { threadId: t.id, blockId: a.blockId, error: e instanceof Error ? e.message : String(e) });
+    ctx.log.warn("a question or plan has no task, so it shows only in its chat", {
+      threadId: t.id,
+      blockId: a.blockId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return undefined;
   }
 }
 
 /** The agent that asked hears what was decided as the person's own message, naming it: the ordinary way an agent is told something, on the same account as any reply. It is the one wake, from every door. */
-export async function tellAgent(ctx: ChatCtx, t: ThreadRec, block: Pick<BlockRec, "id" | "message">, body: string): Promise<void> {
+export async function tellAgent(
+  ctx: ChatCtx,
+  t: ThreadRec,
+  block: Pick<BlockRec, "id" | "message">,
+  body: string,
+): Promise<void> {
   if (!ctx.call) return;
   const author = messageBy(ctx.db, block.message)?.author;
   try {
-    await ctx.call("chat.post", { threadId: t.id, body, ...(author?.startsWith("agt_") ? { mentions: [{ kind: "agent", id: author }] } : {}), idempotencyKey: `answer_${block.id}` });
-  } catch (e) { ctx.log.warn("the agent could not be told what was decided", { threadId: t.id, blockId: block.id, error: e instanceof Error ? e.message : String(e) }); }
+    await ctx.call("chat.post", {
+      threadId: t.id,
+      body,
+      ...(author?.startsWith("agt_") ? { mentions: [{ kind: "agent", id: author }] } : {}),
+      idempotencyKey: `answer_${block.id}`,
+    });
+  } catch (e) {
+    ctx.log.warn("the agent could not be told what was decided", {
+      threadId: t.id,
+      blockId: block.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 }
-

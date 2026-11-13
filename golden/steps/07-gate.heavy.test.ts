@@ -13,7 +13,15 @@ import { GATE_GAPS } from "./07-agent-gate.ts";
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the CLI runs in the real sandbox)";
 
-test("golden 7: an agent's send is held by the Gate, approved once, and a second one expires", { skip, todo: todoOf(GATE_GAPS) }, async () => {
-  const events = await steps();
-  assert.deepEqual(checkSequence(flow.events, events, flow.tracePolicy), [], `events: ${events.map((e) => e.type).join(", ")}`);
-});
+test(
+  "golden 7: an agent's send is held by the Gate, approved once, and a second one expires",
+  { skip, todo: todoOf(GATE_GAPS) },
+  async () => {
+    const events = await steps();
+    assert.deepEqual(
+      checkSequence(flow.events, events, flow.tracePolicy),
+      [],
+      `events: ${events.map((e) => e.type).join(", ")}`,
+    );
+  },
+);

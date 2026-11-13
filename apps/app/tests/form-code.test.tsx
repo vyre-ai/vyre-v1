@@ -4,18 +4,42 @@ import { Dimensions } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FormCode, codeProblem } from "../src/places/apps/shell/FormCode.tsx";
 
-const asked = [{ key: "email", title: "Email", type: "email" }, { key: "name", title: "Name", type: "text" }];
-const render = (o: { html?: string; js?: string } = {}) => renderToStaticMarkup(<FormCode html={o.html ?? ""} css="" js={o.js ?? ""} onHtml={() => undefined} onCss={() => undefined} onJs={() => undefined} asked={asked} />);
-Dimensions.set({ window: { width: 1280, height: 900, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 900, scale: 1, fontScale: 1 } });
+const asked = [
+  { key: "email", title: "Email", type: "email" },
+  { key: "name", title: "Name", type: "text" },
+];
+const render = (o: { html?: string; js?: string } = {}) =>
+  renderToStaticMarkup(
+    <FormCode
+      html={o.html ?? ""}
+      css=""
+      js={o.js ?? ""}
+      onHtml={() => undefined}
+      onCss={() => undefined}
+      onJs={() => undefined}
+      asked={asked}
+    />,
+  );
+Dimensions.set({
+  window: { width: 1280, height: 900, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 900, scale: 1, fontScale: 1 },
+});
 
 test("the Code tab edits HTML, CSS and JavaScript, offers Generate from Build, and says what is not placed", () => {
   const html = render();
-  for (const label of ["HTML", "Custom CSS", "JavaScript"]) assert.ok(html.includes(`aria-label="${label}"`) || html.includes(`>${label}<`), label);
+  for (const label of ["HTML", "Custom CSS", "JavaScript"])
+    assert.ok(html.includes(`aria-label="${label}"`) || html.includes(`>${label}<`), label);
   assert.ok(html.includes("apps-code-generate"));
   assert.ok(!html.includes("apps-code-html-error"));
   const partial = render({ html: '<vyre-field name="email"></vyre-field>' });
-  assert.ok(partial.includes("apps-code-unplaced") && partial.includes("Not placed in your HTML (shown after it): Name."));
-  assert.ok(!render({ html: '<vyre-field name="email"></vyre-field><vyre-field name="name"></vyre-field>' }).includes("apps-code-unplaced"));
+  assert.ok(
+    partial.includes("apps-code-unplaced") && partial.includes("Not placed in your HTML (shown after it): Name."),
+  );
+  assert.ok(
+    !render({ html: '<vyre-field name="email"></vyre-field><vyre-field name="name"></vyre-field>' }).includes(
+      "apps-code-unplaced",
+    ),
+  );
 });
 
 test("a refused source is shown with the line and reason, and Save is blocked on it", () => {

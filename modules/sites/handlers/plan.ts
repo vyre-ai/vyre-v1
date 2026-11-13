@@ -22,7 +22,13 @@ export interface SitePlan extends BuildPlan {
   from: string[];
 }
 
-const read = (dir: string, name: string): string | null => { try { return fs.readFileSync(path.join(dir, name), "utf8"); } catch { return null; } };
+const read = (dir: string, name: string): string | null => {
+  try {
+    return fs.readFileSync(path.join(dir, name), "utf8");
+  } catch {
+    return null;
+  }
+};
 const has = (dir: string, name: string): boolean => fs.existsSync(path.join(dir, name));
 
 /** A small TOML reader for the keys deploy configs use: [section] and [a.b] headers, key = "string" | 'string' | number | bool | ["a", "b"]. Anything else is skipped. */
@@ -34,46 +40,81 @@ export function readToml(text: string): Record<string, Record<string, unknown>> 
     const line = (lines[i] ?? "").replace(/\s+#.*$/, "").trim();
     if (line === "" || line.startsWith("#")) continue;
     const head = /^\[\[?\s*([A-Za-z0-9_.-]+)\s*\]\]?$/.exec(line);
-    if (head) { section = head[1] as string; out[section] ??= {}; continue; }
+    if (head) {
+      section = head[1] as string;
+      out[section] ??= {};
+      continue;
+    }
     const kv = /^([A-Za-z0-9_.-]+|"[^"]+")\s*=\s*(.+)$/.exec(line);
     if (!kv) continue;
     const key = (kv[1] as string).replace(/^"|"$/g, "");
     let raw = (kv[2] as string).trim();
     // an array may run over several lines
-    if (raw.startsWith("[") && !raw.endsWith("]")) { while (i + 1 < lines.length && !raw.endsWith("]")) raw += ` ${(lines[++i] ?? "").replace(/\s+#.*$/, "").trim()}`; }
+    if (raw.startsWith("[") && !raw.endsWith("]")) {
+      while (i + 1 < lines.length && !raw.endsWith("]")) raw += ` ${(lines[++i] ?? "").replace(/\s+#.*$/, "").trim()}`;
+    }
     (out[section] ??= {})[key] = tomlValue(raw);
   }
   return out;
 }
 
 function tomlValue(raw: string): unknown {
-  if (/^".*"$/.test(raw)) return raw.slice(1, -1).replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
+  if (/^".*"$/.test(raw)) return raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   if (/^'.*'$/.test(raw)) return raw.slice(1, -1);
   if (raw === "true" || raw === "false") return raw === "true";
   if (/^-?\d+(\.\d+)?$/.test(raw)) return Number(raw);
   if (raw.startsWith("[") && raw.endsWith("]")) {
     const items: unknown[] = [];
-    for (const m of raw.slice(1, -1).matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'|(-?\d+(?:\.\d+)?)/g)) items.push(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : Number(m[3]));
+    for (const m of raw.slice(1, -1).matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'|(-?\d+(?:\.\d+)?)/g))
+      items.push(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : Number(m[3]));
     return items;
   }
   return undefined;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() !== "" ? v.trim() : undefined);
-const cmds = (v: unknown): string | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").join(" && ") || undefined : str(v));
+const cmds = (v: unknown): string | undefined =>
+  Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").join(" && ") || undefined
+    : str(v);
 
 /** What a Railway config says: railway.json (or railway.toml) build and deploy keys. */
-export function railwayConfig(dir: string): { build?: string; start?: string; dockerfile?: string; health?: string; builder?: string; file?: string } {
+export function railwayConfig(dir: string): {
+  build?: string;
+  start?: string;
+  dockerfile?: string;
+  health?: string;
+  builder?: string;
+  file?: string;
+} {
   const json = read(dir, "railway.json");
   if (json !== null) {
     let v: { build?: Record<string, unknown>; deploy?: Record<string, unknown> };
-    try { v = JSON.parse(json) as typeof v; } catch { throw new BuildPlanError("railway.json is not valid JSON."); }
-    return clean({ build: str(v.build?.["buildCommand"]), start: str(v.deploy?.["startCommand"]), dockerfile: str(v.build?.["dockerfilePath"]), health: str(v.deploy?.["healthcheckPath"]), builder: str(v.build?.["builder"]), file: "railway.json" });
+    try {
+      v = JSON.parse(json) as typeof v;
+    } catch {
+      throw new BuildPlanError("railway.json is not valid JSON.");
+    }
+    return clean({
+      build: str(v.build?.["buildCommand"]),
+      start: str(v.deploy?.["startCommand"]),
+      dockerfile: str(v.build?.["dockerfilePath"]),
+      health: str(v.deploy?.["healthcheckPath"]),
+      builder: str(v.build?.["builder"]),
+      file: "railway.json",
+    });
   }
   const toml = read(dir, "railway.toml");
   if (toml !== null) {
     const t = readToml(toml);
-    return clean({ build: str(t["build"]?.["buildCommand"]), start: str(t["deploy"]?.["startCommand"]), dockerfile: str(t["build"]?.["dockerfilePath"]), health: str(t["deploy"]?.["healthcheckPath"]), builder: str(t["build"]?.["builder"]), file: "railway.toml" });
+    return clean({
+      build: str(t["build"]?.["buildCommand"]),
+      start: str(t["deploy"]?.["startCommand"]),
+      dockerfile: str(t["build"]?.["dockerfilePath"]),
+      health: str(t["deploy"]?.["healthcheckPath"]),
+      builder: str(t["build"]?.["builder"]),
+      file: "railway.toml",
+    });
   }
   return {};
 }
@@ -83,7 +124,11 @@ export function nixpacksConfig(dir: string): { install?: string; build?: string;
   const text = read(dir, "nixpacks.toml");
   if (text === null) return {};
   const t = readToml(text);
-  return clean({ install: cmds(t["phases.install"]?.["cmds"]), build: cmds(t["phases.build"]?.["cmds"]), start: str(t["start"]?.["cmd"]) });
+  return clean({
+    install: cmds(t["phases.install"]?.["cmds"]),
+    build: cmds(t["phases.build"]?.["cmds"]),
+    start: str(t["start"]?.["cmd"]),
+  });
 }
 
 function clean<T extends Record<string, unknown>>(o: T): T {
@@ -105,7 +150,20 @@ export function exampleEnv(dir: string): string[] {
   return [...names];
 }
 
-const PG_DEPS = ["pg", "postgres", "@prisma/client", "prisma", "drizzle-orm", "knex", "sequelize", "typeorm", "@neondatabase/serverless", "pg-promise", "slonik", "kysely"];
+const PG_DEPS = [
+  "pg",
+  "postgres",
+  "@prisma/client",
+  "prisma",
+  "drizzle-orm",
+  "knex",
+  "sequelize",
+  "typeorm",
+  "@neondatabase/serverless",
+  "pg-promise",
+  "slonik",
+  "kysely",
+];
 const PG_PY = ["psycopg", "psycopg2", "psycopg2-binary", "asyncpg", "sqlalchemy", "django", "sqlmodel", "databases"];
 const REDIS_DEPS = ["redis", "ioredis", "bullmq", "bull", "@upstash/redis", "connect-redis"];
 const REDIS_PY = ["redis", "rq", "celery", "aioredis"];
@@ -115,12 +173,19 @@ export function needsOf(dir: string, env: readonly string[]): ("postgres" | "red
   const out = new Set<"postgres" | "redis">();
   const example = [".env.example", ".env.sample", ".env.template"].map((f) => read(dir, f) ?? "").join("\n");
   const dbUrl = /^\s*DATABASE_URL\s*=\s*["']?([a-z0-9+]+):/im.exec(example)?.[1];
-  if (env.some((n) => /^(DATABASE_URL|POSTGRES_URL|PG(HOST|DATABASE|URL)|DATABASE_PRIVATE_URL)$/.test(n)) && (dbUrl === undefined || /^postgres/.test(dbUrl))) out.add("postgres");
+  if (
+    env.some((n) => /^(DATABASE_URL|POSTGRES_URL|PG(HOST|DATABASE|URL)|DATABASE_PRIVATE_URL)$/.test(n)) &&
+    (dbUrl === undefined || /^postgres/.test(dbUrl))
+  )
+    out.add("postgres");
   if (env.some((n) => /^(REDIS_URL|REDIS_PRIVATE_URL|REDISHOST|KV_URL)$/.test(n))) out.add("redis");
   const pkgText = read(dir, "package.json");
   if (pkgText !== null) {
     try {
-      const pkg = JSON.parse(pkgText) as { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> };
+      const pkg = JSON.parse(pkgText) as {
+        dependencies?: Record<string, unknown>;
+        devDependencies?: Record<string, unknown>;
+      };
       const deps = Object.keys({ ...(pkg.dependencies ?? {}) });
       if (deps.some((d) => PG_DEPS.includes(d))) {
         // prisma says which database in its schema
@@ -128,11 +193,22 @@ export function needsOf(dir: string, env: readonly string[]): ("postgres" | "red
         if (schema === null || /provider\s*=\s*"postgres(ql)?"/.test(schema)) out.add("postgres");
       }
       if (deps.some((d) => REDIS_DEPS.includes(d))) out.add("redis");
-    } catch { /* detectPlan says it is not valid JSON */ }
+    } catch {
+      /* detectPlan says it is not valid JSON */
+    }
   }
   const reqs = `${read(dir, "requirements.txt") ?? ""}\n${read(dir, "pyproject.toml") ?? ""}`.toLowerCase();
-  const pyNames = new Set(reqs.split(/[\s"',[\]=<>~!;]+/).map((w) => w.replace(/\[.*$/, "")).filter(Boolean));
-  if (PG_PY.some((d) => pyNames.has(d)) && (pyNames.has("psycopg") || pyNames.has("psycopg2") || pyNames.has("psycopg2-binary") || pyNames.has("asyncpg"))) out.add("postgres");
+  const pyNames = new Set(
+    reqs
+      .split(/[\s"',[\]=<>~!;]+/)
+      .map((w) => w.replace(/\[.*$/, ""))
+      .filter(Boolean),
+  );
+  if (
+    PG_PY.some((d) => pyNames.has(d)) &&
+    (pyNames.has("psycopg") || pyNames.has("psycopg2") || pyNames.has("psycopg2-binary") || pyNames.has("asyncpg"))
+  )
+    out.add("postgres");
   if (REDIS_PY.some((d) => pyNames.has(d))) out.add("redis");
   return [...out].sort();
 }
@@ -158,7 +234,13 @@ function pythonStart(dir: string, current: string | undefined): string | undefin
 
 /** The port a Dockerfile says (EXPOSE in the last stage), else 3000. */
 function dockerfilePortOf(file: string): number | null {
-  const text = (() => { try { return fs.readFileSync(file, "utf8"); } catch { return ""; } })();
+  const text = (() => {
+    try {
+      return fs.readFileSync(file, "utf8");
+    } catch {
+      return "";
+    }
+  })();
   const stages = text.split(/^\s*FROM\s/im);
   const last = stages.length > 1 ? (stages[stages.length - 1] ?? "") : text;
   for (const line of last.split(/\r?\n/)) {
@@ -180,20 +262,56 @@ export async function sitePlan(dir: string): Promise<SitePlan> {
   let base: BuildPlan;
   if (rw.dockerfile && rw.builder !== "NIXPACKS" && rw.builder !== "RAILPACK") {
     const file = path.resolve(dir, rw.dockerfile);
-    if (!file.startsWith(path.resolve(dir) + path.sep) || !fs.existsSync(file)) throw new BuildPlanError(`${rw.file} names ${rw.dockerfile}, which is not in the project.`);
-    base = { kind: "dockerfile", dockerfile: file, args: {}, lockHash: "railway", lockFiles: [rw.dockerfile], note: `Detected ${rw.dockerfile} from ${rw.file}: building it as is.` };
+    if (!file.startsWith(path.resolve(dir) + path.sep) || !fs.existsSync(file))
+      throw new BuildPlanError(`${rw.file} names ${rw.dockerfile}, which is not in the project.`);
+    base = {
+      kind: "dockerfile",
+      dockerfile: file,
+      args: {},
+      lockHash: "railway",
+      lockFiles: [rw.dockerfile],
+      note: `Detected ${rw.dockerfile} from ${rw.file}: building it as is.`,
+    };
   } else if ((rw.builder === "NIXPACKS" || rw.builder === "RAILPACK") && has(dir, "Dockerfile")) {
     // Railway was told to ignore the Dockerfile: so is this
     const moved = path.join(dir, "Dockerfile");
     fs.renameSync(moved, path.join(dir, "Dockerfile.ignored-by-railway"));
-    try { base = await detectPlan(dir); } finally { fs.renameSync(path.join(dir, "Dockerfile.ignored-by-railway"), moved); }
+    try {
+      base = await detectPlan(dir);
+    } finally {
+      fs.renameSync(path.join(dir, "Dockerfile.ignored-by-railway"), moved);
+    }
   } else {
-    try { base = await detectPlan(dir); } catch (e) {
+    try {
+      base = await detectPlan(dir);
+    } catch (e) {
       // a start command from the config is enough for a node or python project
-      if (e instanceof BuildPlanError && (rw.start || nix.start || null) !== null && (has(dir, "package.json") || has(dir, "requirements.txt") || has(dir, "pyproject.toml"))) {
+      if (
+        e instanceof BuildPlanError &&
+        (rw.start || nix.start || null) !== null &&
+        (has(dir, "package.json") || has(dir, "requirements.txt") || has(dir, "pyproject.toml"))
+      ) {
         base = has(dir, "package.json")
-          ? { kind: "node", dockerfile: path.join(BUILDERS_DIR, "Dockerfile.node"), args: { INSTALL_CMD: "npm install", BUILD_CMD: "", START_CMD: "" }, lockHash: "none", lockFiles: [], note: "" }
-          : { kind: "python", dockerfile: path.join(BUILDERS_DIR, "Dockerfile.python"), args: { INSTALL_CMD: has(dir, "requirements.txt") ? "pip install --no-cache-dir -r requirements.txt" : "true", BUILD_CMD: has(dir, "requirements.txt") ? "" : "pip install --no-cache-dir .", START_CMD: "" }, lockHash: "none", lockFiles: [], note: "" };
+          ? {
+              kind: "node",
+              dockerfile: path.join(BUILDERS_DIR, "Dockerfile.node"),
+              args: { INSTALL_CMD: "npm install", BUILD_CMD: "", START_CMD: "" },
+              lockHash: "none",
+              lockFiles: [],
+              note: "",
+            }
+          : {
+              kind: "python",
+              dockerfile: path.join(BUILDERS_DIR, "Dockerfile.python"),
+              args: {
+                INSTALL_CMD: has(dir, "requirements.txt") ? "pip install --no-cache-dir -r requirements.txt" : "true",
+                BUILD_CMD: has(dir, "requirements.txt") ? "" : "pip install --no-cache-dir .",
+                START_CMD: "",
+              },
+              lockHash: "none",
+              lockFiles: [],
+              note: "",
+            };
       } else throw e;
     }
   }
@@ -201,7 +319,16 @@ export async function sitePlan(dir: string): Promise<SitePlan> {
   if (base.kind === "dockerfile") {
     from.push(path.relative(dir, base.dockerfile) || "Dockerfile");
     const port = dockerfilePortOf(base.dockerfile) ?? 3000;
-    return { ...base, args, port, health: rw.health ?? "/", needs: needsOf(dir, [...exampleEnv(dir)]), env: exampleEnv(dir), from, ...(rw.start ? { start: rw.start } : {}) };
+    return {
+      ...base,
+      args,
+      port,
+      health: rw.health ?? "/",
+      needs: needsOf(dir, [...exampleEnv(dir)]),
+      env: exampleEnv(dir),
+      from,
+      ...(rw.start ? { start: rw.start } : {}),
+    };
   }
   if (has(dir, "Procfile")) from.push("Procfile");
   if (base.kind === "node" || base.kind === "static-build") from.push("package.json");
@@ -211,12 +338,14 @@ export async function sitePlan(dir: string): Promise<SitePlan> {
   if (nix.install && "INSTALL_CMD" in args) args.INSTALL_CMD = nix.install;
   const buildCmd = rw.build ?? nix.build;
   const startCmd = rw.start ?? nix.start;
-  if (buildCmd && (base.kind === "node" || base.kind === "python" || base.kind === "static-build")) args.BUILD_CMD = buildCmd;
+  if (buildCmd && (base.kind === "node" || base.kind === "python" || base.kind === "static-build"))
+    args.BUILD_CMD = buildCmd;
   let kind = base.kind;
   let dockerfile = base.dockerfile;
   if (startCmd && base.kind === "static-build") {
     // a build script and a start command in the config: a node server after all
-    kind = "node"; dockerfile = path.join(BUILDERS_DIR, "Dockerfile.node");
+    kind = "node";
+    dockerfile = path.join(BUILDERS_DIR, "Dockerfile.node");
     args.START_CMD = startCmd;
     delete args.STATIC_DIR;
   } else if (startCmd && (base.kind === "node" || base.kind === "python")) args.START_CMD = startCmd;
@@ -227,16 +356,38 @@ export async function sitePlan(dir: string): Promise<SitePlan> {
   // Next.js serves on PORT with next start; a standalone build starts its own server
   const pkgText = read(dir, "package.json") ?? "";
   if (kind === "node" && /"next"\s*:/.test(pkgText) && !startCmd) {
-    const conf = ["next.config.js", "next.config.mjs", "next.config.ts", "next.config.cjs"].map((f) => read(dir, f) ?? "").join("\n");
+    const conf = ["next.config.js", "next.config.mjs", "next.config.ts", "next.config.cjs"]
+      .map((f) => read(dir, f) ?? "")
+      .join("\n");
     if (NEXT_STANDALONE.test(conf) && !/"start"\s*:/.test(pkgText)) args.START_CMD = "node .next/standalone/server.js";
   }
   const env = [...new Set([...exampleEnv(dir)])];
   const needs = needsOf(dir, env);
   const pretty = (s: string | undefined): string | undefined => (s && s !== "true" && s.trim() !== "" ? s : undefined);
-  const build = kind === "static" ? undefined : [pretty(args.INSTALL_CMD), pretty(args.BUILD_CMD)].filter(Boolean).join(", ") || undefined;
-  const start = kind === "static" || kind === "static-build" ? `serve ${args.STATIC_DIR ?? "."}/` : pretty(args.START_CMD);
-  const note = kind === "static" ? `Plain files from ${args.STATIC_DIR === "." ? "the project root" : `${args.STATIC_DIR}/`}, served as they are.`
-    : kind === "static-build" ? `${base.note.replace(/^Detected /, "").replace(/\.$/, "")}${buildCmd ? ` (build from ${rw.file ?? "nixpacks.toml"})` : ""}.`
-    : `${kind === "node" ? "Node" : "Python"}: ${build ? `${build}, then ` : ""}${start ?? "start"}${from.length > 1 ? ` (from ${from.join(", ")})` : ""}.`;
-  return { ...base, kind, dockerfile, args, note: note.charAt(0).toUpperCase() + note.slice(1), port: 3000, health: rw.health ?? "/", needs, env, from: [...new Set(from)], ...(build ? { build } : {}), ...(start ? { start } : {}) };
+  const build =
+    kind === "static"
+      ? undefined
+      : [pretty(args.INSTALL_CMD), pretty(args.BUILD_CMD)].filter(Boolean).join(", ") || undefined;
+  const start =
+    kind === "static" || kind === "static-build" ? `serve ${args.STATIC_DIR ?? "."}/` : pretty(args.START_CMD);
+  const note =
+    kind === "static"
+      ? `Plain files from ${args.STATIC_DIR === "." ? "the project root" : `${args.STATIC_DIR}/`}, served as they are.`
+      : kind === "static-build"
+        ? `${base.note.replace(/^Detected /, "").replace(/\.$/, "")}${buildCmd ? ` (build from ${rw.file ?? "nixpacks.toml"})` : ""}.`
+        : `${kind === "node" ? "Node" : "Python"}: ${build ? `${build}, then ` : ""}${start ?? "start"}${from.length > 1 ? ` (from ${from.join(", ")})` : ""}.`;
+  return {
+    ...base,
+    kind,
+    dockerfile,
+    args,
+    note: note.charAt(0).toUpperCase() + note.slice(1),
+    port: 3000,
+    health: rw.health ?? "/",
+    needs,
+    env,
+    from: [...new Set(from)],
+    ...(build ? { build } : {}),
+    ...(start ? { start } : {}),
+  };
 }

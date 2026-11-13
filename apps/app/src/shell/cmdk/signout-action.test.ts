@@ -4,8 +4,14 @@ import assert from "node:assert/strict";
 import { gateActions } from "./gate.ts";
 
 test("Sign out is an action only where the shell can sign out, and typing it finds it", () => {
-  assert.ok(!gateActions({ away: false, offline: false }, true).some((a) => a.key === "session.sign-out"), "no handler, no action");
+  assert.ok(
+    !gateActions({ away: false, offline: false }, true).some((a) => a.key === "session.sign-out"),
+    "no handler, no action",
+  );
   const acts = gateActions({ away: false, offline: false }, true, true);
   const hit = acts.filter((a) => a.title.toLowerCase().includes("sign out"));
-  assert.deepEqual(hit.map((a) => [a.key, a.title]), [["session.sign-out", "Sign out"]]);
+  assert.deepEqual(
+    hit.map((a) => [a.key, a.title]),
+    [["session.sign-out", "Sign out"]],
+  );
 });

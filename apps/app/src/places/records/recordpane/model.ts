@@ -19,14 +19,22 @@ export function activityLine(e: Activity, def: TypeDef | undefined, names: (id: 
   const label = (f?.title ?? e.field ?? "").toLowerCase();
   const to = f && e.to !== undefined && e.to !== null ? valueText(f, e.to, names) : "";
   switch (e.kind) {
-    case "created": return `${who} created it`;
-    case "removed": return `${who} moved it to Trash`;
-    case "restored": return `${who} brought it back`;
-    case "stage": return to ? `${who} moved ${label} to ${to}` : `${who} cleared ${label}`;
-    case "linked": return `${who} linked ${label}`;
-    case "unlinked": return `${who} unlinked ${label}`;
-    case "synced": return `${label} updated by a sync`;
-    case "edited": return to ? `${who} set ${label} to ${to}` : `${who} cleared ${label}`;
+    case "created":
+      return `${who} created it`;
+    case "removed":
+      return `${who} moved it to Trash`;
+    case "restored":
+      return `${who} brought it back`;
+    case "stage":
+      return to ? `${who} moved ${label} to ${to}` : `${who} cleared ${label}`;
+    case "linked":
+      return `${who} linked ${label}`;
+    case "unlinked":
+      return `${who} unlinked ${label}`;
+    case "synced":
+      return `${label} updated by a sync`;
+    case "edited":
+      return to ? `${who} set ${label} to ${to}` : `${who} cleared ${label}`;
   }
 }
 
@@ -39,13 +47,17 @@ export function activityDetail(e: Activity, def: TypeDef | undefined, names: (id
   return `${f.title}: ${show(e.from)} to ${show(e.to)}\n${when} UTC`;
 }
 
-export interface Thread { root: Comment; replies: Comment[] }
+export interface Thread {
+  root: Comment;
+  replies: Comment[];
+}
 
 /** A root comment and its replies, oldest first. A reply whose root is not in the list (a hidden or deleted one) is dropped. */
 export function threadsOf(comments: readonly Comment[]): Thread[] {
   const roots = comments.filter((c) => c.parentId === undefined);
   const byRoot = new Map<string, Comment[]>();
-  for (const c of comments) if (c.parentId !== undefined) byRoot.set(c.parentId, [...(byRoot.get(c.parentId) ?? []), c]);
+  for (const c of comments)
+    if (c.parentId !== undefined) byRoot.set(c.parentId, [...(byRoot.get(c.parentId) ?? []), c]);
   return roots.map((root) => ({ root, replies: byRoot.get(root.commentId) ?? [] }));
 }
 
@@ -65,8 +77,17 @@ export function insertMention(text: string, name: string): string {
 /** People and agents whose name starts a word of the query, people first. */
 export function candidates(all: readonly PickEntry[], query: string): PickEntry[] {
   const w = query.trim().toLowerCase();
-  const hit = (e: PickEntry): boolean => w === "" || e.name.toLowerCase().split(/\s+/).some((p) => p.startsWith(w)) || e.name.toLowerCase().startsWith(w);
-  return all.filter(hit).sort((a, b) => Number(a.kind === "agent") - Number(b.kind === "agent")).slice(0, 6);
+  const hit = (e: PickEntry): boolean =>
+    w === "" ||
+    e.name
+      .toLowerCase()
+      .split(/\s+/)
+      .some((p) => p.startsWith(w)) ||
+    e.name.toLowerCase().startsWith(w);
+  return all
+    .filter(hit)
+    .sort((a, b) => Number(a.kind === "agent") - Number(b.kind === "agent"))
+    .slice(0, 6);
 }
 
 /** The people and agents a text names with @Name, longest name first so "Maya Chen" wins over "Maya"; each once. */
@@ -75,7 +96,10 @@ export function mentionsIn(text: string, all: readonly PickEntry[]): Mention[] {
   const seen = new Set<string>();
   for (const e of [...all].sort((a, b) => b.name.length - a.name.length)) {
     const re = new RegExp(`(^|\\s)@${e.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[\\s.,;:!?)])`, "i");
-    if (re.test(text) && !seen.has(e.id)) { seen.add(e.id); out.push({ kind: kindOfId(e.id), id: e.id }); }
+    if (re.test(text) && !seen.has(e.id)) {
+      seen.add(e.id);
+      out.push({ kind: kindOfId(e.id), id: e.id });
+    }
   }
   return out;
 }
@@ -84,7 +108,10 @@ export function mentionsIn(text: string, all: readonly PickEntry[]): Mention[] {
 export function mentionPieces(text: string, names: readonly string[]): { text: string; mention: boolean }[] {
   const sorted = [...names].sort((a, b) => b.length - a.length);
   if (sorted.length === 0) return [{ text, mention: false }];
-  const re = new RegExp(`(^|\\s)(@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))(?=$|[\\s.,;:!?)])`, "gi");
+  const re = new RegExp(
+    `(^|\\s)(@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))(?=$|[\\s.,;:!?)])`,
+    "gi",
+  );
   const out: { text: string; mention: boolean }[] = [];
   let at = 0;
   for (const m of text.matchAll(re)) {
@@ -101,5 +128,7 @@ export function mentionPieces(text: string, names: readonly string[]): { text: s
 export function replyingLine(ids: readonly string[], names: (id: string) => string): string {
   const who = ids.map((i) => first(names(i)));
   if (who.length === 0) return "";
-  return who.length === 1 ? `${who[0]} is replying` : `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]} are replying`;
+  return who.length === 1
+    ? `${who[0]} is replying`
+    : `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]} are replying`;
 }

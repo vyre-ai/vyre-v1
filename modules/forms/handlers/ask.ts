@@ -8,36 +8,71 @@ import { validateCss, validateHtml, validateJs } from "./source.ts";
 
 /** What the host's driver offers; structural, the host owns it. */
 export interface FormAskDriver {
-  propose(req: { instruction: string; agentId: string | null; doc: Record<string, unknown>; principal: { kind: "person" | "agent" | "service"; id: string }; actingFor?: string; signal?: AbortSignal }): Promise<Record<string, unknown>>;
+  propose(req: {
+    instruction: string;
+    agentId: string | null;
+    doc: Record<string, unknown>;
+    principal: { kind: "person" | "agent" | "service"; id: string };
+    actingFor?: string;
+    signal?: AbortSignal;
+  }): Promise<Record<string, unknown>>;
   cancel?(asker: string, formId: string): number;
 }
 let driver: FormAskDriver | null = null;
 /** The host calls this once at start with the driver that runs an agent turn in the Ask pane. Null clears it. */
-export function configureFormsAsk(o: { ask: FormAskDriver | null } | null): void { driver = o?.ask ?? null; }
+export function configureFormsAsk(o: { ask: FormAskDriver | null } | null): void {
+  driver = o?.ask ?? null;
+}
 
 const SOURCE_KEYS = ["html", "css", "js"] as const;
 
-export async function askDiff(ctx: Ctx, input: unknown): Promise<{ changes: { path: string; before: string; after: string }[] }> {
+export async function askDiff(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ changes: { path: string; before: string; after: string }[] }> {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const instruction = reqStr(ctx, o, "instruction");
-  if (instruction.length > 4000) fail(ctx, "validation.too_large", "An instruction is at most 4000 characters.", { field: "instruction" });
-  if (!driver) fail(ctx, "validation.precondition_failed", "No agent is connected to answer. Open Settings and add a model.");
+  if (instruction.length > 4000)
+    fail(ctx, "validation.too_large", "An instruction is at most 4000 characters.", { field: "instruction" });
+  if (!driver)
+    fail(ctx, "validation.precondition_failed", "No agent is connected to answer. Open Settings and add a model.");
   const agentId = optStr(ctx, o, "agentId") ?? null;
-  const current = { html: isNull(form.html) ? "" : str(form.html), css: isNull(form.css) ? "" : str(form.css), js: isNull(form.js) ? "" : str(form.js) };
-  const schema = formsConfig().schemaFields ? await formsConfig().schemaFields!(str(form.record_type)).catch(() => []) : [];
-  const questions = fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => ({ key: str(f.field), title: schema.find((s) => s.key === str(f.field))?.title ?? str(f.field) }));
+  const current = {
+    html: isNull(form.html) ? "" : str(form.html),
+    css: isNull(form.css) ? "" : str(form.css),
+    js: isNull(form.js) ? "" : str(form.js),
+  };
+  const schema = formsConfig().schemaFields
+    ? await formsConfig().schemaFields!(str(form.record_type)).catch(() => [])
+    : [];
+  const questions = fieldsOf(ctx, str(form.id))
+    .filter((f) => f.mode === "ask")
+    .map((f) => ({ key: str(f.field), title: schema.find((s) => s.key === str(f.field))?.title ?? str(f.field) }));
   let proposal: Record<string, unknown>;
   try {
-    proposal = await driver.propose({ instruction, agentId, doc: { formId: str(form.id), ...current, questions }, principal: { kind: ctx.principal.kind, id: ctx.principal.id }, ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}) });
+    proposal = await driver.propose({
+      instruction,
+      agentId,
+      doc: { formId: str(form.id), ...current, questions },
+      principal: { kind: ctx.principal.kind, id: ctx.principal.id },
+      ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}),
+    });
   } catch (e) {
     // the driver says why in an error code of the catalogue; anything else is told plainly, never as a stack
     const code = (e as { code?: unknown } | null)?.code;
-    if (typeof code === "string" && ERROR_CODES.some((c) => c.code === code)) fail(ctx, code as ErrorCode, e instanceof Error ? e.message : undefined);
+    if (typeof code === "string" && ERROR_CODES.some((c) => c.code === code))
+      fail(ctx, code as ErrorCode, e instanceof Error ? e.message : undefined);
     fail(ctx, "internal.unexpected", "The agent could not answer. Try again.");
   }
   const changes: { path: string; before: string; after: string }[] = [];
-  for (const key of Object.keys(proposal)) if (!(SOURCE_KEYS as readonly string[]).includes(key)) fail(ctx, "validation.bad_input", `The agent proposed a change to ${key}, which is not part of the form's source. Try again.`);
+  for (const key of Object.keys(proposal))
+    if (!(SOURCE_KEYS as readonly string[]).includes(key))
+      fail(
+        ctx,
+        "validation.bad_input",
+        `The agent proposed a change to ${key}, which is not part of the form's source. Try again.`,
+      );
   for (const key of SOURCE_KEYS) {
     const after = proposal[key];
     if (after === undefined) continue;

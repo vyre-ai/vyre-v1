@@ -6,7 +6,12 @@
 // So the cost of one machine is its hourly price times the seconds it lived (at least 60), never under one cent, and rounded UP to a hundredth of a cent so a total never undercounts.
 // The hourly prices are the published ones for the sizes below; a size not listed is refused in the settings, so a cost is never a guess.
 export const PRICE_HOURLY: Readonly<Record<string, number>> = {
-  "s-1vcpu-1gb": 0.00893, "s-1vcpu-2gb": 0.01786, "s-2vcpu-2gb": 0.02679, "s-2vcpu-4gb": 0.03571, "s-4vcpu-8gb": 0.07143, "s-8vcpu-16gb": 0.14286,
+  "s-1vcpu-1gb": 0.00893,
+  "s-1vcpu-2gb": 0.01786,
+  "s-2vcpu-2gb": 0.02679,
+  "s-2vcpu-4gb": 0.03571,
+  "s-4vcpu-8gb": 0.07143,
+  "s-8vcpu-16gb": 0.14286,
 };
 export const MIN_SECONDS = 60;
 export const MIN_CHARGE_USD = 0.01;

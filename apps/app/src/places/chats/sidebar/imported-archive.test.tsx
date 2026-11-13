@@ -7,16 +7,23 @@ import { IMPORTED, ids, drawn, fireUp } from "./chats-open.support.tsx";
 import type { Node } from "../../../onboarding/test-dom.ts";
 
 /** A right-click on a row: its menu opens. */
-const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
+const rightClick = (root: Node, rowId: string): Promise<void> =>
+  fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
 
 test("Archive moves an imported session into the Archived section, and Unarchive puts it back", async () => {
   const { s, root } = await drawn(createRoot, { imported: IMPORTED });
   await rightClick(root, "row-i:isc_a");
   await press(find(root, "menu-item-Archive"));
   await flush();
-  assert.deepEqual(s.calls.filter((c) => c.cap === "sessions.archive").map((c) => c.input), [{ conversationId: "isc_a" }]);
+  assert.deepEqual(
+    s.calls.filter((c) => c.cap === "sessions.archive").map((c) => c.input),
+    [{ conversationId: "isc_a" }],
+  );
   assert.ok(!ids(root).includes("row-i:isc_a"), "gone from Imported");
-  assert.ok(ids(root).includes("head-archived") && textOf(find(root, "count-archived")).trim() === "1", "the Archived head counts it");
+  assert.ok(
+    ids(root).includes("head-archived") && textOf(find(root, "count-archived")).trim() === "1",
+    "the Archived head counts it",
+  );
   await press(find(root, "toggle-archived"));
   await flush();
   assert.ok(ids(root).includes("row-i:isc_a"), "it is in the Archived section");
@@ -24,7 +31,10 @@ test("Archive moves an imported session into the Archived section, and Unarchive
   assert.ok(find(root, "menu-item-Unarchive") && !find(root, "menu-item-Archive"));
   await press(find(root, "menu-item-Unarchive"));
   await flush();
-  assert.deepEqual(s.calls.filter((c) => c.cap === "sessions.archive").map((c) => c.input), [{ conversationId: "isc_a" }, { conversationId: "isc_a", unarchive: true }]);
+  assert.deepEqual(
+    s.calls.filter((c) => c.cap === "sessions.archive").map((c) => c.input),
+    [{ conversationId: "isc_a" }, { conversationId: "isc_a", unarchive: true }],
+  );
   assert.ok(!ids(root).includes("head-archived"), "nothing archived, no section");
   assert.ok(ids(root).includes("row-i:isc_a"), "back under Imported");
   assert.deepEqual(s.rejected, []);
@@ -39,7 +49,10 @@ test("Delete asks in the menu, removes the imported copy, keeps the chat it was 
   assert.equal(s.calls.filter((c) => c.cap === "sessions.delete").length, 0, "nothing is deleted before the confirm");
   await press(find(root, "menu-item-Delete session"));
   await flush();
-  assert.deepEqual(s.calls.filter((c) => c.cap === "sessions.delete").map((c) => c.input), [{ conversationId: "isc_b" }]);
+  assert.deepEqual(
+    s.calls.filter((c) => c.cap === "sessions.delete").map((c) => c.input),
+    [{ conversationId: "isc_b" }],
+  );
   assert.ok(!ids(root).includes("row-i:isc_b"), "the imported row is gone");
   assert.ok(ids(root).includes("row-c:c3"), "the chat it was continued in stays");
   assert.equal(s.calls.filter((c) => c.cap.startsWith("threads.")).length, 0, "no chat is touched");

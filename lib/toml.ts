@@ -6,7 +6,11 @@ export type TomlTable = { [key: string]: TomlValue };
 
 export class TomlError extends Error {
   line: number;
-  constructor(line: number, message: string) { super(`line ${line}: ${message}`); this.name = "TomlError"; this.line = line; }
+  constructor(line: number, message: string) {
+    super(`line ${line}: ${message}`);
+    this.name = "TomlError";
+    this.line = line;
+  }
 }
 
 const FORBIDDEN: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
@@ -20,10 +24,19 @@ class Reader {
   nest = 0;
   s: string;
   line: number;
-  constructor(s: string, line: number) { this.s = s; this.line = line; }
-  ws(): void { while (this.i < this.s.length && /[ \t\r\n]/.test(this.s[this.i]!)) this.i++; }
-  peek(): string | undefined { return this.s[this.i]; }
-  fail(m: string): never { throw new TomlError(this.line, m); }
+  constructor(s: string, line: number) {
+    this.s = s;
+    this.line = line;
+  }
+  ws(): void {
+    while (this.i < this.s.length && /[ \t\r\n]/.test(this.s[this.i]!)) this.i++;
+  }
+  peek(): string | undefined {
+    return this.s[this.i];
+  }
+  fail(m: string): never {
+    throw new TomlError(this.line, m);
+  }
   value(): TomlValue {
     this.ws();
     const c = this.peek();
@@ -72,7 +85,11 @@ class Reader {
     const out: TomlValue[] = [];
     for (;;) {
       this.ws();
-      if (this.peek() === "]") { this.i++; this.nest--; return out; }
+      if (this.peek() === "]") {
+        this.i++;
+        this.nest--;
+        return out;
+      }
       out.push(this.value());
       this.ws();
       if (this.peek() === ",") this.i++;
@@ -85,7 +102,11 @@ class Reader {
     const out: TomlTable = {};
     for (;;) {
       this.ws();
-      if (this.peek() === "}") { this.i++; this.nest--; return out; }
+      if (this.peek() === "}") {
+        this.i++;
+        this.nest--;
+        return out;
+      }
       const key = this.key();
       this.ws();
       if (this.peek() !== "=") this.fail("A key needs an equals sign.");
@@ -130,8 +151,10 @@ const depth = (s: string): number => {
   let q: string | undefined;
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
-    if (q) { if (c === "\\" && q === '"') i++; else if (c === q) q = undefined; }
-    else if (c === '"' || c === "'") q = c;
+    if (q) {
+      if (c === "\\" && q === '"') i++;
+      else if (c === q) q = undefined;
+    } else if (c === '"' || c === "'") q = c;
     else if (c === "[" || c === "{") d++;
     else if (c === "]" || c === "}") d--;
   }
@@ -142,7 +165,10 @@ function descend(root: TomlTable, path: string[], line: number, create: boolean)
   let cur = root;
   for (const k of path) {
     let next = cur[k];
-    if (next === undefined && create) { next = {}; cur[k] = next; }
+    if (next === undefined && create) {
+      next = {};
+      cur[k] = next;
+    }
     if (Array.isArray(next)) {
       const last = next[next.length - 1];
       if (!last || typeof last !== "object" || Array.isArray(last)) throw new TomlError(line, `${k} is not a table.`);
@@ -168,7 +194,8 @@ export function parseToml(text: string): TomlTable {
       const array = head[1] === "[[";
       if (array !== (head[3] === "]]")) throw new TomlError(lineNo, "The table header brackets do not match.");
       const path = head[2]!.split(".");
-      if (path.length > MAX_NEST || path.some((k) => FORBIDDEN.has(k))) throw new TomlError(lineNo, "That table name is not allowed.");
+      if (path.length > MAX_NEST || path.some((k) => FORBIDDEN.has(k)))
+        throw new TomlError(lineNo, "That table name is not allowed.");
       const last = path.pop()!;
       const parent = descend(root, path, lineNo, true);
       if (array) {
@@ -188,7 +215,10 @@ export function parseToml(text: string): TomlTable {
     if (eq < 0) throw new TomlError(lineNo, "A line needs a key, an equals sign and a value.");
     const k = new Reader(line.slice(0, eq), lineNo).key();
     let rest = line.slice(eq + 1).trim();
-    while (depth(rest) > 0 && n + 1 < lines.length) { n++; rest += ` ${stripComment(lines[n]!).trim()}`; }
+    while (depth(rest) > 0 && n + 1 < lines.length) {
+      n++;
+      rest += ` ${stripComment(lines[n]!).trim()}`;
+    }
     if (depth(rest) !== 0) throw new TomlError(lineNo, "A bracket is not closed.");
     const r = new Reader(rest, lineNo);
     if (Object.hasOwn(table, k)) throw new TomlError(lineNo, `${k} is set twice.`);

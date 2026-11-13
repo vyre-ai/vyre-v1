@@ -46,7 +46,11 @@ export async function readRegion(region, waitMs, max) {
   /** @type {any} */
   let el = null;
   for (;;) {
-    try { el = doc.querySelector(region.selector); } catch { return { ok: false, error: "The part to watch cannot be found again. Pick it again." }; }
+    try {
+      el = doc.querySelector(region.selector);
+    } catch {
+      return { ok: false, error: "The part to watch cannot be found again. Pick it again." };
+    }
     if (el || Date.now() > end) break;
     await sleep(250);
   }
@@ -66,11 +70,28 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
   function loaded(tabId, ms) {
     return new Promise((resolve) => {
       let done = false;
-      const finish = (/** @type {boolean} */ ok) => { if (done) return; done = true; try { ext.tabs.onUpdated.removeListener(on); } catch { /* gone */ } clearTimeout(timer); resolve(ok); };
-      const on = (/** @type {number} */ id, /** @type {any} */ info) => { if (id === tabId && info.status === "complete") finish(true); };
+      const finish = (/** @type {boolean} */ ok) => {
+        if (done) return;
+        done = true;
+        try {
+          ext.tabs.onUpdated.removeListener(on);
+        } catch {
+          /* gone */
+        }
+        clearTimeout(timer);
+        resolve(ok);
+      };
+      const on = (/** @type {number} */ id, /** @type {any} */ info) => {
+        if (id === tabId && info.status === "complete") finish(true);
+      };
       const timer = setTimeout(() => finish(false), ms);
       ext.tabs.onUpdated.addListener(on);
-      ext.tabs.get(tabId).then((/** @type {any} */ t) => { if (t && t.status === "complete" && t.url && t.url !== "about:blank") finish(true); }).catch(() => finish(false));
+      ext.tabs
+        .get(tabId)
+        .then((/** @type {any} */ t) => {
+          if (t && t.status === "complete" && t.url && t.url !== "about:blank") finish(true);
+        })
+        .catch(() => finish(false));
     });
   }
 
@@ -85,20 +106,38 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
     if (!may.read) return { ok: false, error: "That is not a page Vyre can watch." };
     /** @type {any} */
     let tab;
-    try { tab = await ext.tabs.create({ url, active: false }); } catch { return { ok: false, error: "Chrome would not open the page." }; }
+    try {
+      tab = await ext.tabs.create({ url, active: false });
+    } catch {
+      return { ok: false, error: "Chrome would not open the page." };
+    }
     try {
       const ok = await loaded(tab.id, LOAD_MS);
       if (!ok) return { ok: false, error: "The page did not finish loading." };
-      const [r] = await ext.scripting.executeScript({ target: { tabId: tab.id }, func: readRegion, args: [region, 6000, MAX_READING] });
+      const [r] = await ext.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: readRegion,
+        args: [region, 6000, MAX_READING],
+      });
       return r && r.result ? r.result : { ok: false, error: "The page could not be read." };
-    } catch { return { ok: false, error: "The page could not be read." }; }
-    finally { try { await ext.tabs.remove(tab.id); } catch { /* already closed */ } }
+    } catch {
+      return { ok: false, error: "The page could not be read." };
+    } finally {
+      try {
+        await ext.tabs.remove(tab.id);
+      } catch {
+        /* already closed */
+      }
+    }
   }
 
   /** Check one watch that runs here and report what it read. @param {any} w */
   async function check(w) {
     const r = await read(String(w.url), w.mode === "region" && w.region ? { selector: w.region.selector } : null);
-    const out = await bridge.invoke("automations.watches.report", r.ok ? { watchId: w.watchId, value: r.text } : { watchId: w.watchId, error: r.error });
+    const out = await bridge.invoke(
+      "automations.watches.report",
+      r.ok ? { watchId: w.watchId, value: r.text } : { watchId: w.watchId, error: r.error },
+    );
     return { ok: r.ok, changed: Boolean(out && out.changed), error: r.ok ? null : r.error };
   }
 
@@ -106,7 +145,9 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
   async function due() {
     const out = await bridge.invoke("automations.watches.list", { runsOn: "chrome" });
     const t = now();
-    return (Array.isArray(out && out.watches) ? out.watches : []).filter((/** @type {any} */ w) => w.state !== "paused" && (w.checkNow || w.nextDueAt === undefined || w.nextDueAt <= t));
+    return (Array.isArray(out && out.watches) ? out.watches : []).filter(
+      (/** @type {any} */ w) => w.state !== "paused" && (w.checkNow || w.nextDueAt === undefined || w.nextDueAt <= t),
+    );
   }
 
   /** Whether a watch may be made on this tab: not in incognito, not on a site that is never sent. @param {any} tab */
@@ -122,7 +163,9 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
     /** Start the once-a-minute look. Chrome keeps the alarm across worker restarts. */
     schedule() {
       if (!ext.alarms) return;
-      ext.alarms.get(ALARM, (/** @type {any} */ a) => { if (!a) ext.alarms.create(ALARM, { periodInMinutes: 1, delayInMinutes: 1 }); });
+      ext.alarms.get(ALARM, (/** @type {any} */ a) => {
+        if (!a) ext.alarms.create(ALARM, { periodInMinutes: 1, delayInMinutes: 1 });
+      });
     },
     /** The alarm fired (or the app pushed watch.run): check what is due, one at a time. */
     async look() {
@@ -130,12 +173,23 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
       looking = true;
       let n = 0;
       try {
-        for (const w of await due()) { try { await check(w); } catch { /* the app is away; the next look tries again */ } n++; }
-      } catch { /* not signed in or the app is not running: nothing to look at */ }
-      finally { looking = false; }
+        for (const w of await due()) {
+          try {
+            await check(w);
+          } catch {
+            /* the app is away; the next look tries again */
+          }
+          n++;
+        }
+      } catch {
+        /* not signed in or the app is not running: nothing to look at */
+      } finally {
+        looking = false;
+      }
       return { checked: n };
     },
-    read, check,
+    read,
+    check,
 
     /** The person's watches, for the panel's Watching list. */
     async list() {
@@ -150,10 +204,25 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
       const may = await guard(tab);
       const url = String(tab.url);
       const input = {
-        ...(w.watchId ? { watchId: w.watchId } : {}), title: String(w.title || tab.title || may.host || "A page").slice(0, 200), url, mode: w.mode === "page" ? "page" : "region",
-        ...(w.mode === "region" && w.region ? { region: { label: String(w.region.label || "Part of the page").slice(0, 200), ...(w.region.selector ? { selector: String(w.region.selector).slice(0, 500) } : {}) } } : {}),
-        everyMinutes: Math.max(5, Math.min(10_080, Math.round(Number(w.everyMinutes) || 60))), runsOn: w.runsOn === "computer" ? "computer" : "chrome", ...(w.agentId ? { agentId: String(w.agentId) } : {}),
-        ...(Array.isArray(w.tell) ? { tell: w.tell.map((x) => String(x).slice(0, 80)).slice(0, 20) } : {}), ...(Array.isArray(w.tellThreads) ? { tellThreads: w.tellThreads.map((x) => String(x).slice(0, 80)).slice(0, 20) } : {}),
+        ...(w.watchId ? { watchId: w.watchId } : {}),
+        title: String(w.title || tab.title || may.host || "A page").slice(0, 200),
+        url,
+        mode: w.mode === "page" ? "page" : "region",
+        ...(w.mode === "region" && w.region
+          ? {
+              region: {
+                label: String(w.region.label || "Part of the page").slice(0, 200),
+                ...(w.region.selector ? { selector: String(w.region.selector).slice(0, 500) } : {}),
+              },
+            }
+          : {}),
+        everyMinutes: Math.max(5, Math.min(10_080, Math.round(Number(w.everyMinutes) || 60))),
+        runsOn: w.runsOn === "computer" ? "computer" : "chrome",
+        ...(w.agentId ? { agentId: String(w.agentId) } : {}),
+        ...(Array.isArray(w.tell) ? { tell: w.tell.map((x) => String(x).slice(0, 80)).slice(0, 20) } : {}),
+        ...(Array.isArray(w.tellThreads)
+          ? { tellThreads: w.tellThreads.map((x) => String(x).slice(0, 80)).slice(0, 20) }
+          : {}),
         ...(typeof w.goalId === "string" ? { goalId: w.goalId.slice(0, 80) } : {}),
         ...(w.paused !== undefined ? { paused: Boolean(w.paused) } : {}),
       };
@@ -161,11 +230,24 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
       let value;
       if (input.runsOn === "chrome" || !w.watchId) {
         try {
-          const [r] = await ext.scripting.executeScript({ target: { tabId: tab.id }, func: readRegion, args: [input.mode === "region" && input.region ? { selector: input.region.selector } : null, 1500, MAX_READING] });
+          const [r] = await ext.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: readRegion,
+            args: [
+              input.mode === "region" && input.region ? { selector: input.region.selector } : null,
+              1500,
+              MAX_READING,
+            ],
+          });
           if (r && r.result && r.result.ok) value = r.result.text;
-        } catch { /* the first look will set the baseline */ }
+        } catch {
+          /* the first look will set the baseline */
+        }
       }
-      const out = await bridge.invoke("automations.watches.save", { ...input, ...(value !== undefined ? { value } : {}) });
+      const out = await bridge.invoke("automations.watches.save", {
+        ...input,
+        ...(value !== undefined ? { value } : {}),
+      });
       return { watch: out && out.watch ? out.watch : null };
     },
     /** @param {string} watchId @param {"remove" | "pause" | "resume"} op */
@@ -191,7 +273,12 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
       await guard(tab);
       return new Promise(async (resolve) => {
         pickers.set(tab.id, resolve);
-        try { await ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/content/pick.js"] }); } catch { pickers.delete(tab.id); resolve(null); }
+        try {
+          await ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/content/pick.js"] });
+        } catch {
+          pickers.delete(tab.id);
+          resolve(null);
+        }
       });
     },
     /** The page script answered. @param {number} tabId @param {any} m */
@@ -199,9 +286,16 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
       const done = pickers.get(tabId);
       if (!done) return false;
       pickers.delete(tabId);
-      done(m && m.region ? { label: String(m.region.label || "").slice(0, 200), selector: String(m.region.selector || "").slice(0, 500), text: String(m.region.text || "").slice(0, 300) } : null);
+      done(
+        m && m.region
+          ? {
+              label: String(m.region.label || "").slice(0, 200),
+              selector: String(m.region.selector || "").slice(0, 500),
+              text: String(m.region.text || "").slice(0, 300),
+            }
+          : null,
+      );
       return true;
     },
   };
 }
-

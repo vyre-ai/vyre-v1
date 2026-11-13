@@ -1,14 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { blockers, checkSequence, evaluate, withinCap, exitCode, loadFlows, loadRegistryEvents, loadRegistryModules, ROOT, summary, defineFlow } from "./harness/index.ts";
+import {
+  blockers,
+  checkSequence,
+  evaluate,
+  withinCap,
+  exitCode,
+  loadFlows,
+  loadRegistryEvents,
+  loadRegistryModules,
+  ROOT,
+  summary,
+  defineFlow,
+} from "./harness/index.ts";
 import type { LoadSteps, ModuleStatus, Observed } from "./harness/index.ts";
 import { dueAt, readyReport } from "../scripts/golden-ready.ts";
 
 const flow = defineFlow({ n: 1, name: "demo", title: "Demo", needs: ["a", "b"], events: ["x.one", "x.two"] });
-const mods = (a: "stub" | "live", b: "stub" | "live"): ModuleStatus[] => [{ id: "a", status: a }, { id: "b", status: b }];
+const mods = (a: "stub" | "live", b: "stub" | "live"): ModuleStatus[] => [
+  { id: "a", status: a },
+  { id: "b", status: b },
+];
 const obs = (...t: string[]): Observed[] => t.map((type) => ({ type, traceId: "tr_1" }));
-const noSteps: LoadSteps = async () => { throw new Error("steps must not load for a pending flow"); };
+const noSteps: LoadSteps = async () => {
+  throw new Error("steps must not load for a pending flow");
+};
 
 test("a flow with a stub need is PENDING, not red, and its steps never load", async () => {
   const r = await evaluate(flow, mods("live", "stub"), noSteps);
@@ -20,19 +37,37 @@ test("a flow with a stub need is PENDING, not red, and its steps never load", as
 });
 
 test("a ready flow passes on the right events and fails on wrong order, missing events and split trace ids", async () => {
-  const run = (o: Observed[]): LoadSteps => async () => async () => o;
+  const run =
+    (o: Observed[]): LoadSteps =>
+    async () =>
+    async () =>
+      o;
   assert.equal((await evaluate(flow, mods("live", "live"), run(obs("x.one", "other", "x.two")))).status, "pass");
   assert.equal((await evaluate(flow, mods("live", "live"), run(obs("x.two", "x.one")))).status, "fail");
   assert.equal((await evaluate(flow, mods("live", "live"), run(obs("x.one")))).status, "fail");
-  const split = await evaluate(flow, mods("live", "live"), run([{ type: "x.one", traceId: "t1" }, { type: "x.two", traceId: "t2" }]));
+  const split = await evaluate(
+    flow,
+    mods("live", "live"),
+    run([
+      { type: "x.one", traceId: "t1" },
+      { type: "x.two", traceId: "t2" },
+    ]),
+  );
   assert.equal(split.status, "fail");
   assert.match(split.reasons.join(), /2 trace ids/);
   assert.equal(exitCode([split]), 1);
 });
 
 test("a flow may explicitly span traces without weakening the single-trace default", async () => {
-  const run = (o: Observed[]): LoadSteps => async () => async () => o;
-  const observed = [{ type: "x.one", traceId: "t1" }, { type: "x.two", traceId: "t2" }];
+  const run =
+    (o: Observed[]): LoadSteps =>
+    async () =>
+    async () =>
+      o;
+  const observed = [
+    { type: "x.one", traceId: "t1" },
+    { type: "x.two", traceId: "t2" },
+  ];
   const multiple = defineFlow({ ...flow, tracePolicy: "multiple" });
   assert.equal((await evaluate(multiple, mods("live", "live"), run(observed))).status, "pass");
   assert.equal((await evaluate(flow, mods("live", "live"), run(observed))).status, "fail");
@@ -42,7 +77,9 @@ test("a flow may explicitly span traces without weakening the single-trace defau
 
 test("a ready flow without a steps file, or whose steps throw, is red", async () => {
   assert.match((await evaluate(flow, mods("live", "live"), async () => null)).line, /^FAIL.*no steps file/);
-  const boom = await evaluate(flow, mods("live", "live"), async () => async () => { throw new Error("boom"); });
+  const boom = await evaluate(flow, mods("live", "live"), async () => async () => {
+    throw new Error("boom");
+  });
   assert.match(boom.reasons.join(), /steps threw: boom/);
 });
 
@@ -56,8 +93,12 @@ test("blockers treats an unknown module as blocking", () => {
 
 test("the 15 flow definitions name real modules and real events, in number order", async () => {
   const flows = await loadFlows();
-  assert.deepEqual(flows.map((f) => f.n), Array.from({ length: 15 }, (_, i) => i + 1));
-  const ids = new Set(loadRegistryModules().map((m) => m.id)), events = loadRegistryEvents();
+  assert.deepEqual(
+    flows.map((f) => f.n),
+    Array.from({ length: 15 }, (_, i) => i + 1),
+  );
+  const ids = new Set(loadRegistryModules().map((m) => m.id)),
+    events = loadRegistryEvents();
   for (const f of flows) {
     for (const m of f.needs) assert.ok(ids.has(m), `flow ${f.n} needs unknown module ${m}`);
     for (const e of f.events) assert.ok(events.has(e), `flow ${f.n} names unknown event ${e}`);
@@ -68,12 +109,18 @@ test("the 15 flow definitions name real modules and real events, in number order
 test("golden-ready prints blockers per flow and applies the hour 6, 9 and 11 deadlines", async () => {
   const flows = await loadFlows();
   const all = loadRegistryModules();
-  const stubbed = readyReport(flows, all.map((m) => ({ ...m, status: "stub" as const })));
+  const stubbed = readyReport(
+    flows,
+    all.map((m) => ({ ...m, status: "stub" as const })),
+  );
   assert.equal(stubbed.lines.length, 16);
   assert.match(stubbed.lines[0]!, /^01-lead-to-client-to-project  PENDING \(\d+\): /);
   const live = all.map((m) => ({ ...m, status: "live" as const }));
   assert.match(readyReport(flows, live, 11).lines.at(-1)!, /15 ready, 0 pending; hour 11 deadline: met/);
-  assert.deepEqual(dueAt(6, flows).map((f) => f.n), [1, 4, 14]);
+  assert.deepEqual(
+    dueAt(6, flows).map((f) => f.n),
+    [1, 4, 14],
+  );
   assert.ok(dueAt(9, flows).every((f) => !f.needs.includes("forms")));
   assert.throws(() => dueAt(7, flows));
   // hour 6 is late while a module flow 4 needs is a stub
@@ -82,7 +129,13 @@ test("golden-ready prints blockers per flow and applies the hour 6, 9 and 11 dea
 });
 
 test("the CLIs run: pending flows keep the exit code at 0, golden-ready lists all 15", () => {
-  const sh = (f: string, a: string[] = []) => spawnSync(process.execPath, [f, ...a], { cwd: ROOT, encoding: "utf8", timeout: 100_000, env: { ...process.env, GOLDEN_TIMES: "1" } });
+  const sh = (f: string, a: string[] = []) =>
+    spawnSync(process.execPath, [f, ...a], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 100_000,
+      env: { ...process.env, GOLDEN_TIMES: "1" },
+    });
   const g = sh("golden/harness/cli.ts");
   const m = /^15 flows: (\d+) pass, (\d+) pending, (\d+) fail$/m.exec(g.stdout);
   assert.ok(m, g.stdout + g.stderr);
@@ -94,6 +147,9 @@ test("the CLIs run: pending flows keep the exit code at 0, golden-ready lists al
 });
 
 test("a flow whose steps never finish fails alone, naming the flow, instead of holding the run", async () => {
-  await assert.rejects(withinCap(new Promise<never>(() => undefined), 30, "07-agent-reply steps"), /07-agent-reply steps did not finish within 0 s/);
+  await assert.rejects(
+    withinCap(new Promise<never>(() => undefined), 30, "07-agent-reply steps"),
+    /07-agent-reply steps did not finish within 0 s/,
+  );
   assert.equal(await withinCap(Promise.resolve(5), 1000, "x"), 5);
 });

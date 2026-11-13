@@ -9,11 +9,19 @@ export function filterLabels(selected: readonly string[]): string {
 }
 
 /** The type-filter menu: one checkmarked line per kind, with how many results it holds. */
-export function filterEntries(counts: Readonly<Record<string, number>>, selected: readonly string[], toggle: (id: string) => void): MenuEntry[] {
+export function filterEntries(
+  counts: Readonly<Record<string, number>>,
+  selected: readonly string[],
+  toggle: (id: string) => void,
+): MenuEntry[] {
   const out: MenuEntry[] = [];
   for (const f of FILTERS) {
     const n = counts[f.id];
-    out.push({ label: n ? `${f.label}  ${n}` : f.label, checked: selected.includes(f.id), onSelect: () => toggle(f.id) });
+    out.push({
+      label: n ? `${f.label}  ${n}` : f.label,
+      checked: selected.includes(f.id),
+      onSelect: () => toggle(f.id),
+    });
   }
   return out;
 }

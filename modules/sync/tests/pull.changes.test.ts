@@ -17,14 +17,32 @@ import { ADA, BO, CY, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.t
 const TRACE = "0123456789abcdef0123456789abcdef";
 const DAY = 86_400_000;
 
-interface Rig { s: SyncHandle; access: AccessSnapshot }
+interface Rig {
+  s: SyncHandle;
+  access: AccessSnapshot;
+}
 function rig(over: Partial<SyncOpts> = {}, access: AccessSnapshot = buildAccess()): Rig {
   return { s: openSync({ access: () => access, clock: () => NOW, ...over }), access };
 }
-const ctx = (person: string, device = "dev1", deviceClass: DeviceClass = "desktop"): PullCtx => ({ trace: { traceId: TRACE }, principal: person, deviceId: device, deviceClass });
+const ctx = (person: string, device = "dev1", deviceClass: DeviceClass = "desktop"): PullCtx => ({
+  trace: { traceId: TRACE },
+  principal: person,
+  deviceId: device,
+  deviceClass,
+});
 
-async function pull(r: Rig, c: PullCtx, cursor: number, extra: { limit?: number; entities?: string[]; epoch?: number } = {}): Promise<PullRes> {
-  const res = await r.s.handlers["sync.pull"](c, { cursor, epoch: extra.epoch ?? 0, ...(extra.limit !== undefined ? { limit: extra.limit } : {}), ...(extra.entities ? { entities: extra.entities } : {}) });
+async function pull(
+  r: Rig,
+  c: PullCtx,
+  cursor: number,
+  extra: { limit?: number; entities?: string[]; epoch?: number } = {},
+): Promise<PullRes> {
+  const res = await r.s.handlers["sync.pull"](c, {
+    cursor,
+    epoch: extra.epoch ?? 0,
+    ...(extra.limit !== undefined ? { limit: extra.limit } : {}),
+    ...(extra.entities ? { entities: extra.entities } : {}),
+  });
   const parsed = parsePullRes(JSON.parse(JSON.stringify(res)));
   assert.ok(parsed.ok, parsed.ok ? "" : parsed.error);
   return res;
@@ -32,7 +50,15 @@ async function pull(r: Rig, c: PullCtx, cursor: number, extra: { limit?: number;
 
 async function contact(r: Rig, fields: Record<string, unknown>): Promise<{ id: string; version: number }> {
   const id = mintRecordId();
-  const rec = await r.s.store.create("contact", id, { name: "N", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA, ...fields });
+  const rec = await r.s.store.create("contact", id, {
+    name: "N",
+    email: "n@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+    ...fields,
+  });
   return { id, version: rec.version };
 }
 async function withType(over: Partial<SyncOpts> = {}, access?: AccessSnapshot): Promise<Rig> {
@@ -41,10 +67,25 @@ async function withType(over: Partial<SyncOpts> = {}, access?: AccessSnapshot): 
   return r;
 }
 function row(r: Rig, payload: Record<string, unknown>, extra: Record<string, unknown> = {}): number {
-  return r.s.host.append({ type: "sync.row", sv: 1, trace_id: TRACE, actor: ADA, vis: "space", payload, ...extra } as never).seq;
+  return r.s.host.append({
+    type: "sync.row",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "space",
+    payload,
+    ...extra,
+  } as never).seq;
 }
 function rescan(r: Rig, entity: string, id: string): void {
-  r.s.host.append({ type: "sync.row_rescan", sv: 1, trace_id: TRACE, actor: ADA, vis: "space", payload: { entity, id } } as never);
+  r.s.host.append({
+    type: "sync.row_rescan",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "space",
+    payload: { entity, id },
+  } as never);
 }
 const ids = (cs: readonly Change[]): string[] => cs.map((c) => c.id);
 
@@ -109,7 +150,10 @@ test("visibility is judged on the row as it is now: a row that left and came bac
   await r.s.store.update("contact", a.id, { region: "eu" }, moved.version);
   const res = await pull(r, ctx(BO), first.next);
   assert.deepEqual(res.hide, []);
-  assert.deepEqual(res.changes.map((c) => c.op), ["patch", "patch"]);
+  assert.deepEqual(
+    res.changes.map((c) => c.op),
+    ["patch", "patch"],
+  );
 });
 
 test("delete reaches a device that holds the row; restore brings it back whole", async () => {
@@ -118,11 +162,17 @@ test("delete reaches a device that holds the row; restore brings it back whole",
   const first = await pull(r, ctx(ADA), 0);
   const removed = await r.s.store.remove("contact", a.id, a.version);
   const del = await pull(r, ctx(ADA), first.next);
-  assert.deepEqual(del.changes.map((c) => c.op), ["delete"]);
+  assert.deepEqual(
+    del.changes.map((c) => c.op),
+    ["delete"],
+  );
   assert.deepEqual(del.changes[0]!.fields, {});
   await r.s.store.restore("contact", a.id);
   const back = await pull(r, ctx(ADA), del.next);
-  assert.deepEqual(back.changes.map((c) => c.op), ["upsert"]);
+  assert.deepEqual(
+    back.changes.map((c) => c.op),
+    ["upsert"],
+  );
   assert.equal(back.changes[0]!.fields["name"]?.v, "N");
   assert.ok(removed.deleted_at !== undefined);
 });
@@ -140,7 +190,9 @@ test("limit and cursor: ten rows in pages of four, none twice, none lost, `more`
   const made: string[] = [];
   for (let i = 0; i < 10; i++) made.push((await contact(r, { name: `c${i}` })).id);
   const got: string[] = [];
-  let cursor = 0, calls = 0, more = true;
+  let cursor = 0,
+    calls = 0,
+    more = true;
   while (more) {
     const res = await pull(r, ctx(ADA), cursor, { limit: 4 });
     calls++;
@@ -166,7 +218,10 @@ test("a pull is repeatable: a response that never arrived leaves the device with
   assert.deepEqual(quiet.changes, []);
   await r.s.store.update("contact", a.id, { stage: "won" }, a.version);
   const patch = await pull(r, ctx(ADA), quiet.next);
-  assert.deepEqual(patch.changes.map((c) => c.op), ["patch"]);
+  assert.deepEqual(
+    patch.changes.map((c) => c.op),
+    ["patch"],
+  );
 });
 
 test("a hide that was lost is sent again", async () => {
@@ -189,11 +244,21 @@ test("two devices of one person are separate: the second gets the full row, not 
   assert.equal(phone.changes.length, 1);
   await r.s.store.update("contact", a.id, { stage: "won" }, a.version);
   const laptop = await pull(r, ctx(ADA, "dev_laptop"), 0);
-  assert.deepEqual(laptop.changes.map((c) => c.op), ["upsert"], "the laptop never held the row, and the whole row already carries the later patch");
+  assert.deepEqual(
+    laptop.changes.map((c) => c.op),
+    ["upsert"],
+    "the laptop never held the row, and the whole row already carries the later patch",
+  );
   assert.equal(laptop.changes[0]!.fields["stage"]?.v, "won");
-  assert.ok(laptop.changes[0]!.seq > phone.next, "the whole row carries the version of the patch it absorbed, so the device's next edit is not concurrent with it");
+  assert.ok(
+    laptop.changes[0]!.seq > phone.next,
+    "the whole row carries the version of the patch it absorbed, so the device's next edit is not concurrent with it",
+  );
   const phone2 = await pull(r, ctx(ADA, "dev_phone", "phone"), phone.next);
-  assert.deepEqual(phone2.changes.map((c) => c.op), ["patch"]);
+  assert.deepEqual(
+    phone2.changes.map((c) => c.op),
+    ["patch"],
+  );
 });
 
 test("`entities` limits a pull to those entities", async () => {
@@ -201,7 +266,10 @@ test("`entities` limits a pull to those entities", async () => {
   await contact(r, {});
   row(r, { entity: "note_board", id: "nb1", op: "upsert", fields: { title: "Board" } });
   const res = await pull(r, ctx(ADA), 0, { entities: ["note_board"] });
-  assert.deepEqual(res.changes.map((c) => c.entity), ["note_board"]);
+  assert.deepEqual(
+    res.changes.map((c) => c.entity),
+    ["note_board"],
+  );
   const all = await pull(r, ctx(ADA), 0);
   assert.equal(all.changes.length, 2);
 });
@@ -211,7 +279,10 @@ test("profiles: an entity with profile none never leaves the server, and a phone
   row(r, { entity: "grant", id: "gr1", op: "upsert", fields: { level: "view" } });
   row(r, { entity: "file_version", id: "fv1", op: "upsert", fields: { name: "v1" } });
   const desk = await pull(r, ctx(ADA), 0);
-  assert.deepEqual(desk.changes.map((c) => c.entity), ["file_version"]);
+  assert.deepEqual(
+    desk.changes.map((c) => c.entity),
+    ["file_version"],
+  );
   const phone = await pull(r, ctx(ADA, "dev_phone", "phone"), 0);
   assert.deepEqual(phone.changes, []);
 });
@@ -229,7 +300,14 @@ test("the phone window: a message older than 90 days stays on the server, a desk
 test("a starred thread stays on the phone whatever its age, and the window keeps the newest 200", async () => {
   const r = await withType({ keep: (_p, entity, id) => entity === "thread" && id === "t_old" });
   row(r, { entity: "thread", id: "t_old", op: "upsert", fields: { title: "Old" }, at: NOW - 900 * DAY });
-  for (let i = 0; i < 205; i++) row(r, { entity: "thread", id: `t${String(i).padStart(3, "0")}`, op: "upsert", fields: { title: `T${i}` }, at: NOW - i * 1000 });
+  for (let i = 0; i < 205; i++)
+    row(r, {
+      entity: "thread",
+      id: `t${String(i).padStart(3, "0")}`,
+      op: "upsert",
+      fields: { title: `T${i}` },
+      at: NOW - i * 1000,
+    });
   const phone = await pull(r, ctx(ADA, "dev_phone", "phone"), 0, { limit: 1000 });
   const got = new Set(ids(phone.changes));
   assert.ok(got.has("t_old"), "starred");
@@ -239,28 +317,69 @@ test("a starred thread stays on the phone whatever its age, and the window keeps
 
 test("labels: a row above the person's clearance is not sent, Restricted goes nowhere, and a field above the ceiling is left out", async () => {
   const r = await withType({ phoneCeiling: () => "internal" });
-  row(r, { entity: "client_plan", id: "cp_conf", op: "upsert", fields: { name: "Plan", tax_id: "12-345", region: "eu" } }, { label: 2 });
-  row(r, { entity: "client_plan", id: "cp_open", op: "upsert", fields: { name: "Open", tax_id: "99-999", region: "eu" } }, { label: 0 });
-  row(r, { entity: "client_plan", id: "cp_rest", op: "upsert", fields: { name: "Secret", region: "eu" } }, { label: 3 });
+  row(
+    r,
+    { entity: "client_plan", id: "cp_conf", op: "upsert", fields: { name: "Plan", tax_id: "12-345", region: "eu" } },
+    { label: 2 },
+  );
+  row(
+    r,
+    { entity: "client_plan", id: "cp_open", op: "upsert", fields: { name: "Open", tax_id: "99-999", region: "eu" } },
+    { label: 0 },
+  );
+  row(
+    r,
+    { entity: "client_plan", id: "cp_rest", op: "upsert", fields: { name: "Secret", region: "eu" } },
+    { label: 3 },
+  );
   row(r, { entity: "call", id: "call1", op: "upsert", fields: { from: "+1555", transcript: "hello", region: "eu" } });
   const bo = await pull(r, ctx(BO), 0);
   assert.deepEqual(ids(bo.changes).sort(), ["call1", "cp_open"], "bo has clearance 1 and sees no label 2 row");
-  assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "a confidential field is omitted for clearance 1");
+  assert.equal(
+    bo.changes.find((c) => c.id === "call1")?.fields["transcript"],
+    undefined,
+    "a confidential field is omitted for clearance 1",
+  );
   assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["from"]?.v, "+1555");
   const ada = await pull(r, ctx(ADA), 0);
-  assert.deepEqual(ids(ada.changes).sort(), ["call1", "cp_conf", "cp_open"], "ada sees up to confidential on a desktop, never restricted");
+  assert.deepEqual(
+    ids(ada.changes).sort(),
+    ["call1", "cp_conf", "cp_open"],
+    "ada sees up to confidential on a desktop, never restricted",
+  );
   assert.equal(ada.changes.find((c) => c.id === "call1")?.fields["transcript"]?.v, "hello");
   assert.ok(ada.changes.find((c) => c.id === "cp_conf")?.fields["name"]);
-  assert.equal(ada.changes.find((c) => c.id === "cp_conf")?.fields["tax_id"], undefined, "a Restricted field goes to no device");
+  assert.equal(
+    ada.changes.find((c) => c.id === "cp_conf")?.fields["tax_id"],
+    undefined,
+    "a Restricted field goes to no device",
+  );
   const phone = await pull(r, ctx(ADA, "dev_phone", "phone"), 0);
-  assert.deepEqual(ids(phone.changes).sort(), ["call1", "cp_open"], "a phone ceiling of internal drops the confidential row");
-  assert.equal(phone.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "and the confidential field of a row it does get");
+  assert.deepEqual(
+    ids(phone.changes).sort(),
+    ["call1", "cp_open"],
+    "a phone ceiling of internal drops the confidential row",
+  );
+  assert.equal(
+    phone.changes.find((c) => c.id === "call1")?.fields["transcript"],
+    undefined,
+    "and the confidential field of a row it does get",
+  );
 });
 
 test("a private (enc 2) row goes only to its owner, as one sealed field with its key and nonce", async () => {
   const r = await withType();
   r.s.host.append({
-    type: "sync.row", sv: 1, trace_id: TRACE, actor: ADA, vis: "owner", enc: 2, key_id: "k1", nonce: "bm9uY2U=", entity: "thread", entity_id: "th1",
+    type: "sync.row",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "owner",
+    enc: 2,
+    key_id: "k1",
+    nonce: "bm9uY2U=",
+    entity: "thread",
+    entity_id: "th1",
     payload: new Uint8Array([1, 2, 3, 4]),
   } as never);
   const ada = await pull(r, ctx(ADA), 0);
@@ -290,7 +409,15 @@ test("a rescan after a grant is revoked hides the row from the device that held 
   const a = await contact(r, { region: "eu" });
   const held = await pull(r, ctx(BO), 0);
   assert.equal(held.changes.length, 1);
-  const grant = { id: "gr_bo_record", subject_kind: "actor", subject_id: BO, resource_type: "record", resource_id: null, level: "view", conditions: { rowFilter: { op: "eq", field: "region", value: "eu" } } } as const;
+  const grant = {
+    id: "gr_bo_record",
+    subject_kind: "actor",
+    subject_id: BO,
+    resource_type: "record",
+    resource_id: null,
+    level: "view",
+    conditions: { rowFilter: { op: "eq", field: "region", value: "eu" } },
+  } as const;
   r.access.revokeGrant(grant.id);
   rescan(r, "contact", a.id);
   const gone = await pull(r, ctx(BO), held.next);
@@ -299,7 +426,10 @@ test("a rescan after a grant is revoked hides the row from the device that held 
   r.access.putGrant(grant);
   rescan(r, "contact", a.id);
   const back = await pull(r, ctx(BO), gone.next);
-  assert.deepEqual(back.changes.map((c) => c.op), ["upsert"]);
+  assert.deepEqual(
+    back.changes.map((c) => c.op),
+    ["upsert"],
+  );
 });
 
 test("a rescan that changes nothing for a device that holds the row sends nothing", async () => {

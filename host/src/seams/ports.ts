@@ -24,10 +24,19 @@ export interface FetchedResponse {
   text(): Promise<string>;
   arrayBuffer(): Promise<ArrayBuffer>;
 }
-export type SeamFetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array }) => Promise<FetchedResponse>;
+export type SeamFetch = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+) => Promise<FetchedResponse>;
 
-export interface SpaceFiles { read(space: string, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }> }
-export interface SpaceBlobs { put(space: string, bytes: Uint8Array, mime: string): Promise<string> }
-export interface SpaceMembers { emails(space: string): Promise<{ userId: string; email: string }[]> }
+export interface SpaceFiles {
+  read(space: string, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
+}
+export interface SpaceBlobs {
+  put(space: string, bytes: Uint8Array, mime: string): Promise<string>;
+}
+export interface SpaceMembers {
+  emails(space: string): Promise<{ userId: string; email: string }[]>;
+}
 
 export const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;

@@ -20,7 +20,11 @@ export const isEmpty = (v) => v === null || v === undefined || v === "" || (Arra
 
 /** Is `src` true for these values? An expression that fails to parse or evaluate is false. @param {string} src @param {Record<string, any>} values @param {Evaluator} [ex] @param {Record<string, string[]>} [stageOrder] */
 export function holds(src, values, ex = defaultEvaluator, stageOrder) {
-  try { return ex.evalExpr(ex.parseExpr(src), { values: values || {}, ...(stageOrder ? { stageOrder } : {}) }) === true; } catch { return false; }
+  try {
+    return ex.evalExpr(ex.parseExpr(src), { values: values || {}, ...(stageOrder ? { stageOrder } : {}) }) === true;
+  } catch {
+    return false;
+  }
 }
 
 /** @param {any} def a type definition @returns {Record<string, string[]>} the stage field's order, for `<` and `>` on stages in an expression */
@@ -32,7 +36,8 @@ function orderOf(def) {
 /** Shown and required, for one field of a record. A field with no condition is visible, and required only if `required` says so. @param {any} f @param {Record<string, any>} values @param {Evaluator} [ex] @param {Record<string, string[]>} [order] */
 export function fieldState(f, values, ex = defaultEvaluator, order) {
   const visible = typeof f.visible_if === "string" ? holds(f.visible_if, values, ex, order) : true;
-  const required = visible && (f.required === true || (typeof f.required_if === "string" && holds(f.required_if, values, ex, order)));
+  const required =
+    visible && (f.required === true || (typeof f.required_if === "string" && holds(f.required_if, values, ex, order)));
   return { visible, required };
 }
 
@@ -54,6 +59,7 @@ export function stageNamesOf(def) {
 
 /** The stages this record follows: the first stage set whose `when` holds, else the type's default stages. @param {any} def @param {Record<string, any>} values @param {Evaluator} [ex] @returns {{ set: string | null, stages: any[] }} */
 export function stagesFor(def, values, ex = defaultEvaluator) {
-  for (const set of def.stage_sets || []) if (holds(set.when, values, ex)) return { set: set.name, stages: set.stages || [] };
+  for (const set of def.stage_sets || [])
+    if (holds(set.when, values, ex)) return { set: set.name, stages: set.stages || [] };
   return { set: null, stages: def.stages || [] };
 }

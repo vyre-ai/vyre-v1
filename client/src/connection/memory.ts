@@ -31,22 +31,35 @@ export function memoryLink(): MemoryLink {
       sent[me.name].push(text);
       if (dark) return;
       // A frame sent before a close is delivered before the close is seen, as on a socket; only a path that has gone dark swallows it.
-      queueMicrotask(() => { if (!dark) peer.frame?.(JSON.parse(text) as unknown); });
+      queueMicrotask(() => {
+        if (!dark) peer.frame?.(JSON.parse(text) as unknown);
+      });
     },
-    close(reason = "closed") { cut(reason); },
-    onFrame(cb) { me.frame = cb; },
-    onClose(cb) { me.closed = cb; },
+    close(reason = "closed") {
+      cut(reason);
+    },
+    onFrame(cb) {
+      me.frame = cb;
+    },
+    onClose(cb) {
+      me.closed = cb;
+    },
   });
   function cut(reason = "closed"): void {
     if (!open) return;
     open = false;
-    queueMicrotask(() => { ends.a.closed?.(reason); ends.b.closed?.(reason); });
+    queueMicrotask(() => {
+      ends.a.closed?.(reason);
+      ends.b.closed?.(reason);
+    });
   }
   return {
     client: make(ends.a, ends.b),
     server: make(ends.b, ends.a),
     sent,
-    blackhole(on = true) { dark = on; },
+    blackhole(on = true) {
+      dark = on;
+    },
     cut,
     isOpen: () => open,
   };

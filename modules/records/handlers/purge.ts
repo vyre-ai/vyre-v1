@@ -14,12 +14,20 @@ const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const DEFAULT_LIMIT = 500;
 
 export interface PurgeHandlers {
-  "records.purge"(ctx: WriteCtx, input: { type: string; recordId: string; idempotencyKey: string }): Promise<{ erased: boolean }>;
-  "records.purge_trashed"(ctx: WriteCtx, input: { before: number; limit?: number; idempotencyKey: string }): Promise<{ removed: number; more: boolean; skippedOnHold?: number }>;
+  "records.purge"(
+    ctx: WriteCtx,
+    input: { type: string; recordId: string; idempotencyKey: string },
+  ): Promise<{ erased: boolean }>;
+  "records.purge_trashed"(
+    ctx: WriteCtx,
+    input: { before: number; limit?: number; idempotencyKey: string },
+  ): Promise<{ removed: number; more: boolean; skippedOnHold?: number }>;
 }
 
 function hasTable(tx: Tx, name: string): boolean {
-  return tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?", name)?.n === 1;
+  return (
+    tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?", name)?.n === 1
+  );
 }
 
 /** Delete everything of one record this module and its projections keep. Returns false when no such row existed. */
@@ -31,7 +39,8 @@ function purgeRow(tx: Tx, type: string, id: string): boolean {
   const fm = fieldMetaTable(type);
   if (hasTable(tx, fm)) tx.run(`DELETE FROM ${fm} WHERE id = ?`, id);
   tx.run("DELETE FROM rs_changes WHERE type = ? AND id = ?", type, id);
-  for (const t of ["records_field_history", "records_row_meta", "records_holds", "records_version_notes"]) if (hasTable(tx, t)) tx.run(`DELETE FROM ${t} WHERE type = ? AND id = ?`, type, id);
+  for (const t of ["records_field_history", "records_row_meta", "records_holds", "records_version_notes"])
+    if (hasTable(tx, t)) tx.run(`DELETE FROM ${t} WHERE type = ? AND id = ?`, type, id);
   return true;
 }
 
@@ -48,15 +57,26 @@ export function createPurgeHandlers(deps: { store: Store; tx: Tx }): PurgeHandle
       const due: { type: string; id: string; at: number }[] = [];
       for (const def of await deps.store.types()) {
         if (!NAME.test(def.name) || !hasTable(tx, `rt_${def.name}`)) continue;
-        for (const r of tx.all<{ id: string; deleted_at: number }>(`SELECT id, deleted_at FROM rt_${def.name} WHERE deleted_at IS NOT NULL AND deleted_at < ?`, input.before)) due.push({ type: def.name, id: r.id, at: r.deleted_at });
+        for (const r of tx.all<{ id: string; deleted_at: number }>(
+          `SELECT id, deleted_at FROM rt_${def.name} WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
+          input.before,
+        ))
+          due.push({ type: def.name, id: r.id, at: r.deleted_at });
       }
       due.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
-      let removed = 0, skipped = 0, scanned = 0;
+      let removed = 0,
+        skipped = 0,
+        scanned = 0;
       for (const r of due) {
         if (removed >= limit) break;
         scanned++;
-        const held = hasTable(tx, "records_holds") && tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM records_holds WHERE type = ? AND id = ?", r.type, r.id)?.n;
-        if (held) { skipped++; continue; }
+        const held =
+          hasTable(tx, "records_holds") &&
+          tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM records_holds WHERE type = ? AND id = ?", r.type, r.id)?.n;
+        if (held) {
+          skipped++;
+          continue;
+        }
         if (purgeRow(tx, r.type, r.id)) removed++;
       }
       const more = due.slice(scanned).length > 0;

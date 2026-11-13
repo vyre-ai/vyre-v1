@@ -9,7 +9,11 @@ import { HEARTBEAT_DEAD_MS, HEARTBEAT_MS, decideMode, parseFrame } from "../prot
 import type { DeviceClass, Frame, Hello, Mode, Op, PullReq, PullRes, ServerState } from "../protocol.ts";
 import type { LiveClock, LiveTransport } from "./transport.ts";
 
-export interface LiveWho { person: string; device: string; deviceClass: DeviceClass }
+export interface LiveWho {
+  person: string;
+  device: string;
+  deviceClass: DeviceClass;
+}
 
 export interface LiveDeps {
   state(who: LiveWho): ServerState;
@@ -63,38 +67,62 @@ export function createLiveHub(d: LiveDeps): LiveHub {
   const batch = d.batch ?? 500;
   const live = new Set<Impl>();
 
-  interface Impl extends Session { flush(): void; sendPurge(epoch: number): void }
+  interface Impl extends Session {
+    flush(): void;
+    sendPurge(epoch: number): void;
+  }
 
   function open(t: LiveTransport, who: LiveWho): Impl {
     let mode: Mode | "new" = "new";
-    let sent = 0, acked = 0, epoch = 0;
+    let sent = 0,
+      acked = 0,
+      epoch = 0;
     let inflight: number[] = [];
     let hinted = false;
     let lastRx = d.clock.now();
     let closed = false;
     const stopHb = d.clock.every(hbMs, () => {
       if (closed) return;
-      if (d.clock.now() - lastRx >= deadMs) { close("silent"); return; }
+      if (d.clock.now() - lastRx >= deadMs) {
+        close("silent");
+        return;
+      }
       send({ t: "hb", seq: d.head() });
     });
-    const stopHello = d.clock.after(helloMs, () => { if (mode === "new") close("no hello"); });
+    const stopHello = d.clock.after(helloMs, () => {
+      if (mode === "new") close("no hello");
+    });
 
-    const send = (f: Frame): void => { if (!closed) t.send(f); };
+    const send = (f: Frame): void => {
+      if (!closed) t.send(f);
+    };
     function close(reason = "closed"): void {
       if (closed) return;
       closed = true;
-      stopHb(); stopHello();
+      stopHb();
+      stopHello();
       live.delete(self);
-      try { t.close(reason); } catch { /* already closed */ }
+      try {
+        t.close(reason);
+      } catch {
+        /* already closed */
+      }
     }
 
     function flush(): void {
       if (closed || mode !== "live") return;
       let stalled = false;
       for (;;) {
-        if (inflight.length >= window) { stalled = true; break; }
+        if (inflight.length >= window) {
+          stalled = true;
+          break;
+        }
         const res = d.pull(who, { cursor: sent, epoch, limit: batch });
-        if (res.reset === "purge") { send({ t: "purge", epoch: res.epoch }); close("purged"); return; }
+        if (res.reset === "purge") {
+          send({ t: "purge", epoch: res.epoch });
+          close("purged");
+          return;
+        }
         if (res.changes.length || res.hide.length) {
           send({ t: "ev", seq: res.next, items: res.changes, ...(res.hide.length ? { hide: res.hide } : {}) });
           inflight.push(res.next);
@@ -102,7 +130,10 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         sent = Math.max(sent, res.next);
         if (!res.more) break;
       }
-      if (stalled && !hinted) { hinted = true; send({ t: "pull_hint", seq: d.head() }); }
+      if (stalled && !hinted) {
+        hinted = true;
+        send({ t: "pull_hint", seq: d.head() });
+      }
     }
 
     function hello(h: Hello): void {
@@ -110,12 +141,21 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       epoch = h.epoch;
       send({ t: "hello_ok", ok });
       mode = ok.mode;
-      if (ok.mode === "purge") { send({ t: "purge", epoch: ok.epoch }); close("purged"); return; }
+      if (ok.mode === "purge") {
+        send({ t: "purge", epoch: ok.epoch });
+        close("purged");
+        return;
+      }
       if (ok.mode !== "live") return;
       // A device racing two endpoints holds two for a moment; a third means an old one is a ghost (a half-open link), so the oldest goes.
-      const same = [...live].filter((x) => x.who.person === who.person && x.who.device === who.device && x.mode() === "live");
+      const same = [...live].filter(
+        (x) => x.who.person === who.person && x.who.device === who.device && x.mode() === "live",
+      );
       for (const old of same.slice(0, Math.max(0, same.length - MAX_PER_DEVICE))) old.close("replaced");
-      sent = h.cursor; acked = h.cursor; inflight = []; hinted = false;
+      sent = h.cursor;
+      acked = h.cursor;
+      inflight = [];
+      hinted = false;
       flush();
     }
 
@@ -123,12 +163,23 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       if (closed) return;
       lastRx = d.clock.now();
       const p = parseFrame(raw);
-      if (!p.ok) { close(`bad frame: ${p.error}`); return; }
+      if (!p.ok) {
+        close(`bad frame: ${p.error}`);
+        return;
+      }
       const f = p.value;
-      if (f.t === "hello") { hello(f.hello); return; }
-      if (mode === "new") { close("frame before hello"); return; }
+      if (f.t === "hello") {
+        hello(f.hello);
+        return;
+      }
+      if (mode === "new") {
+        close("frame before hello");
+        return;
+      }
       switch (f.t) {
-        case "hb": send({ t: "hb", seq: d.head() }); break;
+        case "hb":
+          send({ t: "hb", seq: d.head() });
+          break;
         case "ack":
           if (f.seq > acked) {
             acked = f.seq;
@@ -137,18 +188,31 @@ export function createLiveHub(d: LiveDeps): LiveHub {
             flush();
           }
           break;
-        case "op": void Promise.resolve(d.onOp?.(who, f.op)).catch(() => undefined); break;
-        case "hello_ok": case "ev": case "pull_hint": case "purge": break;
-        default: d.onFrame?.(who, f);
+        case "op":
+          void Promise.resolve(d.onOp?.(who, f.op)).catch(() => undefined);
+          break;
+        case "hello_ok":
+        case "ev":
+        case "pull_hint":
+        case "purge":
+          break;
+        default:
+          d.onFrame?.(who, f);
       }
     });
     t.onClose(() => close("peer closed"));
 
     const self: Impl = {
-      who, flush,
-      mode: () => mode, sent: () => sent, acked: () => acked,
+      who,
+      flush,
+      mode: () => mode,
+      sent: () => sent,
+      acked: () => acked,
       close,
-      sendPurge(e) { send({ t: "purge", epoch: e }); close("purged"); },
+      sendPurge(e) {
+        send({ t: "purge", epoch: e });
+        close("purged");
+      },
     };
     live.add(self);
     return self;
@@ -156,14 +220,22 @@ export function createLiveHub(d: LiveDeps): LiveHub {
 
   return {
     accept: (t, who) => open(t, who),
-    commit() { for (const s of [...live]) s.flush(); },
+    commit() {
+      for (const s of [...live]) s.flush();
+    },
     purge(person, epoch) {
       let n = 0;
-      for (const s of [...live]) if (s.who.person === person) { s.sendPurge(epoch); n++; }
+      for (const s of [...live])
+        if (s.who.person === person) {
+          s.sendPurge(epoch);
+          n++;
+        }
       return n;
     },
     sessions: () => live.size,
     sessionsOf: (person, device) => [...live].filter((s) => s.who.person === person && s.who.device === device).length,
-    close() { for (const s of [...live]) s.close("hub closed"); },
+    close() {
+      for (const s of [...live]) s.close("hub closed");
+    },
   };
 }

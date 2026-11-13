@@ -5,27 +5,52 @@ import { workspaceData, workspaceView } from "./workspace-data.ts";
 import { workspaceWords } from "../../places/chats/rightpane/work-model.ts";
 import type { TerminalRowLike, WorkspaceRead } from "./workspace-data.ts";
 
-const row = (o: Partial<TerminalRowLike> & { terminalId: string; name: string }): TerminalRowLike => ({ host: "agent_computer", agentId: "agt_dex", state: "running", ...o });
+const row = (o: Partial<TerminalRowLike> & { terminalId: string; name: string }): TerminalRowLike => ({
+  host: "agent_computer",
+  agentId: "agt_dex",
+  state: "running",
+  ...o,
+});
 const LINE = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const read = (o: Partial<WorkspaceRead> = {}): WorkspaceRead => ({ state: "running", canAttach: true, ...o });
 
 test("the workspace view takes its state, line and attach rule from terminal.workspace, and its sessions from the agent's live rows", () => {
   const rows = [
-    row({ terminalId: "t1", name: "main", by: { kind: "agent" } }), row({ terminalId: "t2", name: "tests", by: { kind: "helper", name: "Tess" } }), row({ terminalId: "t3", name: "old", state: "exited" }),
-    row({ terminalId: "t4", name: "other", agentId: "agt_other" }), row({ terminalId: "t5", name: "mine", host: "device" }), row({ terminalId: "t6", name: "plain" }),
+    row({ terminalId: "t1", name: "main", by: { kind: "agent" } }),
+    row({ terminalId: "t2", name: "tests", by: { kind: "helper", name: "Tess" } }),
+    row({ terminalId: "t3", name: "old", state: "exited" }),
+    row({ terminalId: "t4", name: "other", agentId: "agt_other" }),
+    row({ terminalId: "t5", name: "mine", host: "device" }),
+    row({ terminalId: "t6", name: "plain" }),
   ];
   const v = workspaceView("agt_dex", read(), rows, ["Client portal launch"]);
   assert.equal(v.state, "running");
-  assert.deepEqual(v.sessions.map((s) => [s.name, s.owner]), [["main", { kind: "agent" }], ["tests", { kind: "helper", name: "Tess" }], ["plain", { kind: "agent" }]]);
+  assert.deepEqual(
+    v.sessions.map((s) => [s.name, s.owner]),
+    [
+      ["main", { kind: "agent" }],
+      ["tests", { kind: "helper", name: "Tess" }],
+      ["plain", { kind: "agent" }],
+    ],
+  );
   assert.deepEqual(v.projects, ["Client portal launch"]);
   assert.equal(v.canAttach, true);
 });
 
 test("asleep, waiting (with the line), not made yet (asleep: Attach makes it) and no machine to run it (a line to act on, nothing to press)", () => {
   assert.equal(workspaceView("agt_dex", read({ state: "asleep" }), []).state, "asleep");
-  assert.deepEqual(workspaceView("agt_dex", read({ state: "waiting", line: LINE }), []), { state: "waiting", sessions: [], canAttach: true, line: LINE });
+  assert.deepEqual(workspaceView("agt_dex", read({ state: "waiting", line: LINE }), []), {
+    state: "waiting",
+    sessions: [],
+    canAttach: true,
+    line: LINE,
+  });
   assert.equal(workspaceView("agt_dex", read({ state: "none" }), []).state, "asleep");
-  const gone = workspaceView("agt_dex", read({ state: "unavailable", line: "No machine here can run workspaces. Install Docker, or add a server." }), []);
+  const gone = workspaceView(
+    "agt_dex",
+    read({ state: "unavailable", line: "No machine here can run workspaces. Install Docker, or add a server." }),
+    [],
+  );
   // owner walk, 12 Nov: not a red "Needs attention" but its own quiet state, with the line and nothing to press
   assert.equal(gone.state, "unavailable");
   assert.equal(gone.canAttach, false);
@@ -33,36 +58,83 @@ test("asleep, waiting (with the line), not made yet (asleep: Attach makes it) an
 });
 
 test("who may attach is the server's answer, with its sentence", () => {
-  const v = workspaceView("agt_dex", read({ canAttach: false, cannotAttach: "Only Maya can attach to their Assistant's terminal." }), []);
+  const v = workspaceView(
+    "agt_dex",
+    read({ canAttach: false, cannotAttach: "Only Maya can attach to their Assistant's terminal." }),
+    [],
+  );
   assert.deepEqual([v.canAttach, v.cannotAttach], [false, "Only Maya can attach to their Assistant's terminal."]);
 });
 
-function wire(rows: TerminalRowLike[], o: { fail?: string; ws?: WorkspaceRead; projects?: Record<string, string> } = {}) {
+function wire(
+  rows: TerminalRowLike[],
+  o: { fail?: string; ws?: WorkspaceRead; projects?: Record<string, string> } = {},
+) {
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const opened: string[] = [];
   let listener: () => void = () => undefined;
   const ticks: Array<() => void> = [];
   const queries: Array<{ id: string; name: string; state: unknown }> = [];
   let workspace = o.ws ?? read({ projects: ["prj_a", "prj_gone"] });
-  const screens = { query: (id: string, name: string, state: unknown) => { queries.push({ id, name, state }); return { subscribe: (l: () => void) => { listener = l; return () => { listener = () => undefined; }; }, getSnapshot: () => ({ status: "ready", data: { terminals: rows } }) }; } };
+  const screens = {
+    query: (id: string, name: string, state: unknown) => {
+      queries.push({ id, name, state });
+      return {
+        subscribe: (l: () => void) => {
+          listener = l;
+          return () => {
+            listener = () => undefined;
+          };
+        },
+        getSnapshot: () => ({ status: "ready", data: { terminals: rows } }),
+      };
+    },
+  };
   const data = workspaceData({
-    screens: screens as never, newKey: () => "k1", openTerminal: (id) => opened.push(id), every: (f) => { ticks.push(f); return () => { ticks.splice(ticks.indexOf(f), 1); }; },
+    screens: screens as never,
+    newKey: () => "k1",
+    openTerminal: (id) => opened.push(id),
+    every: (f) => {
+      ticks.push(f);
+      return () => {
+        ticks.splice(ticks.indexOf(f), 1);
+      };
+    },
     call: async (cap, input) => {
       calls.push({ cap, input: input as Record<string, unknown> });
       if (cap === "terminal.workspace") return workspace;
-      if (cap === "projects.get") { const t = (o.projects ?? { prj_a: "Client portal launch" })[String((input as { projectId: string }).projectId)]; if (!t) throw new Error("no such project"); return { project: { title: t } }; }
+      if (cap === "projects.get") {
+        const t = (o.projects ?? { prj_a: "Client portal launch" })[String((input as { projectId: string }).projectId)];
+        if (!t) throw new Error("no such project");
+        return { project: { title: t } };
+      }
       if (o.fail) throw new Error(o.fail);
       return { terminal: { terminalId: "t_new" } };
     },
   });
-  return { data, calls, opened, queries, ticks, fire: () => listener(), rows, set: (w: WorkspaceRead) => { workspace = w; } };
+  return {
+    data,
+    calls,
+    opened,
+    queries,
+    ticks,
+    fire: () => listener(),
+    rows,
+    set: (w: WorkspaceRead) => {
+      workspace = w;
+    },
+  };
 }
-const flush = async (): Promise<void> => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+const flush = async (): Promise<void> => {
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+};
 
 test("watch reads terminal.workspace and the agent's rows now, on a change of the rows and on each tick; project names, never raw ids; stopping ends it", async () => {
   const w = wire([row({ terminalId: "t1", name: "main" })]);
   const seen: string[] = [];
-  const off = w.data.watch("agt_dex", (v) => seen.push(`${v.state}:${v.sessions.length}:${(v.projects ?? []).join("|")}`));
+  const off = w.data.watch("agt_dex", (v) =>
+    seen.push(`${v.state}:${v.sessions.length}:${(v.projects ?? []).join("|")}`),
+  );
   await flush();
   assert.deepEqual(w.queries, [{ id: "chats.terminal-list", name: "terminals", state: { host: "agent_computer" } }]);
   assert.deepEqual(seen, ["running:1:Client portal launch"], "the project that cannot be read is left out");
@@ -79,13 +151,18 @@ test("watch reads terminal.workspace and the agent's rows now, on a change of th
 });
 
 test("attach opens the agent's own live session in the terminal tab, and opens one first (waking the workspace) when there is none", async () => {
-  const a = wire([row({ terminalId: "t_helper", name: "tests", by: { kind: "helper", name: "Tess" } }), row({ terminalId: "t_own", name: "main", by: { kind: "agent" } })]);
+  const a = wire([
+    row({ terminalId: "t_helper", name: "tests", by: { kind: "helper", name: "Tess" } }),
+    row({ terminalId: "t_own", name: "main", by: { kind: "agent" } }),
+  ]);
   await a.data.attach("agt_dex");
   assert.deepEqual(a.opened, ["t_own"]);
   assert.deepEqual(a.calls, []);
   const b = wire([]);
   await b.data.attach("agt_dex");
-  assert.deepEqual(b.calls, [{ cap: "terminal.open", input: { host: "agent_computer", agentId: "agt_dex", idempotencyKey: "k1" } }]);
+  assert.deepEqual(b.calls, [
+    { cap: "terminal.open", input: { host: "agent_computer", agentId: "agt_dex", idempotencyKey: "k1" } },
+  ]);
   assert.deepEqual(b.opened, ["t_new"]);
 });
 
@@ -100,15 +177,32 @@ test("wake opens a session without showing it; a refusal comes back as the serve
 });
 
 test("a workspace kept awake by running work shows what runs in its line (12 Nov, review 6)", () => {
-  const v = workspaceView("agt_dex", { state: "running", canAttach: true, line: "running: tail -f app.log" } as never, []);
+  const v = workspaceView(
+    "agt_dex",
+    { state: "running", canAttach: true, line: "running: tail -f app.log" } as never,
+    [],
+  );
   assert.equal(v.line, "running: tail -f app.log");
   assert.deepEqual(workspaceWords(v), { chip: "Running", tone: "ok", note: "running: tail -f app.log" });
 });
 
 test("owner walk: a workspace nothing can run is 'Not set up yet' in quiet words with the line, and offers no Attach", async () => {
   const { terminalAction } = await import("../../places/chats/rightpane/work-model.ts");
-  const v = workspaceView("agt_dex", { state: "unavailable", canAttach: false, line: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.", cannotAttach: "There is no workspace to attach to." } as never, []);
+  const v = workspaceView(
+    "agt_dex",
+    {
+      state: "unavailable",
+      canAttach: false,
+      line: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.",
+      cannotAttach: "There is no workspace to attach to.",
+    } as never,
+    [],
+  );
   assert.equal(v.state, "unavailable");
-  assert.deepEqual(workspaceWords(v), { chip: "Not set up yet", tone: "quiet", note: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers." });
+  assert.deepEqual(workspaceWords(v), {
+    chip: "Not set up yet",
+    tone: "quiet",
+    note: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.",
+  });
   assert.equal(terminalAction(v), null, "no Attach");
 });

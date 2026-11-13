@@ -34,14 +34,29 @@ const lists: ComposerLists = {
   channels: ["general", "intake", "rivera-engagement"],
   records: [{ t: "Rivera Holdings", s: "Client", sealed: 2 }, "Pruitt & Co."],
   files: ["referral-letter.pdf", "intake-form.docx"],
-  commands: [{ t: "later", s: "Follow up later" }, { t: "memory", s: "Open memory" }, { t: "fork", s: "Fork this chat" }],
+  commands: [
+    { t: "later", s: "Follow up later" },
+    { t: "memory", s: "Open memory" },
+    { t: "fork", s: "Fork this chat" },
+  ],
   templates: [{ t: "Welcome note", body: "Welcome to the firm. " }],
   snippets: [{ t: "Office hours", body: "We are open 9 to 5, Monday to Friday. " }],
 };
 
 // The same table as lib/tests/route.test.ts: the thread has Intake leading, Docs and Billing listening.
-const ctx: WhoContext = { lead: "Intake", listening: ["Docs", "Billing"], agents: ["Intake", "Docs", "Billing"], people: ["Sam Patel", "Maya Chen", "Omar Haddad"] };
-const thread: RouteThread = { agents: [{ id: "Intake", mode: "lead" }, { id: "Docs", mode: "listen" }, { id: "Billing", mode: "listen" }] };
+const ctx: WhoContext = {
+  lead: "Intake",
+  listening: ["Docs", "Billing"],
+  agents: ["Intake", "Docs", "Billing"],
+  people: ["Sam Patel", "Maya Chen", "Omar Haddad"],
+};
+const thread: RouteThread = {
+  agents: [
+    { id: "Intake", mode: "lead" },
+    { id: "Docs", mode: "listen" },
+    { id: "Billing", mode: "listen" },
+  ],
+};
 const person = (id: string) => ({ kind: "person" as const, id });
 const agent = (id: string) => ({ kind: "agent" as const, id });
 
@@ -80,21 +95,40 @@ test("a person named who is not in the chat is only talked about: the lead answe
   assert.deepEqual([w.responders, w.reason], [["Intake"], "lead"]);
   assert.equal(w.line, "Intake will reply");
   // in the chat, the same words go to Sam, with the way to bring the lead in
-  const inChat = whoAnswers("@Sam can you take this?", { ...ctx, members: ["Sam Patel", "Maya Chen"], leadName: "Intake" });
+  const inChat = whoAnswers("@Sam can you take this?", {
+    ...ctx,
+    members: ["Sam Patel", "Maya Chen"],
+    leadName: "Intake",
+  });
   assert.equal(inChat.line, "Goes to Sam; no agent will reply. Ask Intake too");
   // and naming the lead in the words brings it in
-  assert.deepEqual(whoAnswers("@Sam and Intake, can you take this?", { ...ctx, members: ["Sam Patel"], leadName: "Intake" }).responders, ["Intake"]);
+  assert.deepEqual(
+    whoAnswers("@Sam and Intake, can you take this?", { ...ctx, members: ["Sam Patel"], leadName: "Intake" })
+      .responders,
+    ["Intake"],
+  );
 });
 
 test("an agent mention beats a person mention in the same message", () => {
   const w = whoAnswers("@Sam and @Docs", ctx);
-  assert.deepEqual(w.responders, route(thread, { author: person("me"), mentions: [person("Sam Patel"), agent("Docs")] }).responders);
+  assert.deepEqual(
+    w.responders,
+    route(thread, { author: person("me"), mentions: [person("Sam Patel"), agent("Docs")] }).responders,
+  );
   assert.equal(w.line, "Docs will reply");
 });
 
 test("no lead: with several agents that only listen, an unaddressed message has no reply and the line says how to ask one", () => {
   const w = whoAnswers("hello", { listening: ["Docs", "Ops"], agents: ["Docs", "Ops"], people: [] });
-  const r = route({ agents: [{ id: "Docs", mode: "listen" }, { id: "Ops", mode: "listen" }] }, { author: person("me"), mentions: [] } satisfies RouteMessage);
+  const r = route(
+    {
+      agents: [
+        { id: "Docs", mode: "listen" },
+        { id: "Ops", mode: "listen" },
+      ],
+    },
+    { author: person("me"), mentions: [] } satisfies RouteMessage,
+  );
   assert.deepEqual(w.responders, r.responders);
   assert.equal(w.line, "No agent will reply. @mention one");
   assert.equal(w.dim, true);
@@ -111,7 +145,9 @@ test("the caller's own line shows until the text addresses someone", () => {
 });
 
 test("the rendered composer says who will answer (strip and a spoken line), the field, the + menu and an up-arrow send", () => {
-  const html = renderToStaticMarkup(<Composer whoWillAnswer="Intake will reply" lead="Intake" lists={lists} placeholder="Message Intake" />);
+  const html = renderToStaticMarkup(
+    <Composer whoWillAnswer="Intake will reply" lead="Intake" lists={lists} placeholder="Message Intake" />,
+  );
   assert.match(html, /Intake will reply/);
   assert.match(html, /data-testid="composer-who"/);
   assert.match(html, /data-testid="composer-strip"/);
@@ -133,13 +169,23 @@ test("a working agent turns an empty send into Stop and a typed send into Queue 
   const stop = renderToStaticMarkup(<Composer whoWillAnswer="Intake is working" working />);
   assert.match(stop, /aria-label="Stop"/);
   assert.doesNotMatch(stop, /composer-interrupt/);
-  const typed = renderToStaticMarkup(<Composer whoWillAnswer="Intake is working" working value="Use the new intake form" />);
+  const typed = renderToStaticMarkup(
+    <Composer whoWillAnswer="Intake is working" working value="Use the new intake form" />,
+  );
   assert.match(typed, /aria-label="Queue"/);
   assert.match(typed, /composer-interrupt/);
 });
 
 test("chips, files, folder and the engine line render in the tray", () => {
-  const html = renderToStaticMarkup(<Composer whoWillAnswer="x" folder="Projects/Rivera matter" chips={[{ kind: "Record", name: "Rivera Holdings" }]} attachments={[{ name: "referral-letter.pdf" }]} engineLine="Switched to Codex, picked up from the summary and the last 20 turns" />);
+  const html = renderToStaticMarkup(
+    <Composer
+      whoWillAnswer="x"
+      folder="Projects/Rivera matter"
+      chips={[{ kind: "Record", name: "Rivera Holdings" }]}
+      attachments={[{ name: "referral-letter.pdf" }]}
+      engineLine="Switched to Codex, picked up from the summary and the last 20 turns"
+    />,
+  );
   assert.match(html, /Projects\/Rivera matter/);
   assert.match(html, /Rivera Holdings/);
   assert.match(html, /referral-letter\.pdf/);
@@ -171,25 +217,49 @@ test("detectTrigger finds @ # / and [[ before the cursor and ignores paths", () 
 
 test("@ lists agents then people, narrowed by typing, at most eight", () => {
   const all = popupFor({ ch: "@", start: 0, end: 1, query: "" }, lists, true);
-  assert.deepEqual(all.filter((e) => !isPopupItem(e)), [{ head: "Agents" }, { head: "People" }]);
+  assert.deepEqual(
+    all.filter((e) => !isPopupItem(e)),
+    [{ head: "Agents" }, { head: "People" }],
+  );
   assert.equal(all.filter(isPopupItem).length, 6);
   const narrow = popupFor({ ch: "@", start: 0, end: 2, query: "ma" }, lists, true).filter(isPopupItem);
-  assert.deepEqual(narrow.map((i) => i.label), ["Maya Chen", "Omar Haddad"]);
+  assert.deepEqual(
+    narrow.map((i) => i.label),
+    ["Maya Chen", "Omar Haddad"],
+  );
 });
 
 test("# is one search grouped Records, Files, Folders, Chats, Automations, Projects, Channels with section heads; a scope narrows it to one group", () => {
-  const more: ComposerLists = { ...lists, chats: [{ t: "Pricing questions", kind: "Chat", ref: "thr_1" }], automations: [{ t: "Weekly digest", kind: "Automation", ref: "aut_1" }], projects: [{ t: "Acme onboarding", kind: "Project", ref: "prj_1" }] };
-  const heads = (scope?: "All" | "Files") => popupFor({ ch: "#", start: 0, end: 1, query: "" }, more, true, scope).filter((e) => !isPopupItem(e)).map((e) => ("head" in e ? e.head : ""));
+  const more: ComposerLists = {
+    ...lists,
+    chats: [{ t: "Pricing questions", kind: "Chat", ref: "thr_1" }],
+    automations: [{ t: "Weekly digest", kind: "Automation", ref: "aut_1" }],
+    projects: [{ t: "Acme onboarding", kind: "Project", ref: "prj_1" }],
+  };
+  const heads = (scope?: "All" | "Files") =>
+    popupFor({ ch: "#", start: 0, end: 1, query: "" }, more, true, scope)
+      .filter((e) => !isPopupItem(e))
+      .map((e) => ("head" in e ? e.head : ""));
   assert.deepEqual(heads(), ["Records", "Files", "Folders", "Chats", "Automations", "Projects", "Channels"]);
   assert.deepEqual(heads("Files"), ["Files"]);
-  const narrowed = popupFor({ ch: "#", start: 0, end: 4, query: "riv" }, lists, true).filter(isPopupItem).map((i) => i.label);
+  const narrowed = popupFor({ ch: "#", start: 0, end: 4, query: "riv" }, lists, true)
+    .filter(isPopupItem)
+    .map((i) => i.label);
   assert.deepEqual(narrowed, ["Rivera Holdings", "Projects/Rivera matter", "rivera-engagement"]);
 });
 
 test("/ lists commands, templates and snippets", () => {
   const items = popupFor({ ch: "/", start: 0, end: 1, query: "" }, lists, true);
-  assert.deepEqual(items.filter((e) => !isPopupItem(e)), [{ head: "Commands" }, { head: "Templates" }, { head: "Snippets" }]);
-  assert.deepEqual(popupFor({ ch: "/", start: 0, end: 3, query: "off" }, lists, true).filter(isPopupItem).map((i) => i.label), ["Office hours"]);
+  assert.deepEqual(
+    items.filter((e) => !isPopupItem(e)),
+    [{ head: "Commands" }, { head: "Templates" }, { head: "Snippets" }],
+  );
+  assert.deepEqual(
+    popupFor({ ch: "/", start: 0, end: 3, query: "off" }, lists, true)
+      .filter(isPopupItem)
+      .map((i) => i.label),
+    ["Office hours"],
+  );
 });
 
 test("arrow keys skip headings and wrap", () => {
@@ -201,9 +271,15 @@ test("arrow keys skip headings and wrap", () => {
   assert.equal(popupMove(entries, last, 1), first);
 });
 
-const pickOf = (trigger: ReturnType<typeof detectTrigger>, text: string, label: string): { next: ReturnType<typeof initialState>; effect: ReturnType<typeof applyPick>["effect"] } => {
+const pickOf = (
+  trigger: ReturnType<typeof detectTrigger>,
+  text: string,
+  label: string,
+): { next: ReturnType<typeof initialState>; effect: ReturnType<typeof applyPick>["effect"] } => {
   assert.ok(trigger);
-  const item = popupFor(trigger, lists, true).filter(isPopupItem).find((i) => i.label === label) as PopupItem;
+  const item = popupFor(trigger, lists, true)
+    .filter(isPopupItem)
+    .find((i) => i.label === label) as PopupItem;
   assert.ok(item, `${label} is in the popup`);
   return applyPick({ ...initialState(text), cursor: text.length }, trigger, item);
 };
@@ -243,7 +319,12 @@ test("/ runs a command, and a template or snippet inserts its text", () => {
 });
 
 test("send clears the field, the tray and keeps the folder, in the same call", () => {
-  const state = { ...initialState("Hello @Docs"), chips: [{ kind: "Record", name: "Rivera Holdings" }], files: [{ name: "a.pdf" }], folder: "Marketing" };
+  const state = {
+    ...initialState("Hello @Docs"),
+    chips: [{ kind: "Record", name: "Rivera Holdings" }],
+    files: [{ name: "a.pdf" }],
+    folder: "Marketing",
+  };
   const sent = sendNow(state, "Docs will reply", "queue");
   assert.ok(sent);
   assert.equal(sent.payload.text, "Hello @Docs");
@@ -268,13 +349,18 @@ test("Enter sends, Shift+Enter writes a line; email mode needs Cmd or Ctrl; Cmd+
 });
 
 test("the right-click menu ends with Report a problem, after a separator, and every item has an icon", () => {
-  const entries = menuEntries({ items: composerMenu({ attach: () => undefined, paste: () => undefined, clear: () => undefined }) });
+  const entries = menuEntries({
+    items: composerMenu({ attach: () => undefined, paste: () => undefined, clear: () => undefined }),
+  });
   const last = entries[entries.length - 1];
   assert.ok(last && isReportItem(last));
   const before = entries[entries.length - 2];
   assert.ok(before && isSeparator(before));
   const items = entries.filter(isItem);
-  assert.deepEqual(items.map((i) => i.label), ["Attach Files…", "Paste as Plain Text", "Clear Draft", "Report a problem"]);
+  assert.deepEqual(
+    items.map((i) => i.label),
+    ["Attach Files…", "Paste as Plain Text", "Clear Draft", "Report a problem"],
+  );
   assert.ok(items.every((i) => typeof i.icon === "string" && i.icon.length > 0));
 });
 
@@ -291,7 +377,10 @@ test(":name offers emoji in every composer and inserts the character; times and 
   const entries = popupFor(t!, {} as ComposerLists);
   const first = entries[0] as PopupItem;
   assert.equal(first.label, "😄", ":smile comes first for :smi");
-  assert.ok(entries.some((e) => (e as PopupItem).label === "😀"), "other smiles are offered too");
+  assert.ok(
+    entries.some((e) => (e as PopupItem).label === "😀"),
+    "other smiles are offered too",
+  );
   const done = applyPick({ ...initialState("nice :smi"), cursor: 9 }, t!, first);
   assert.equal(done.next.text, "nice 😄 ");
   assert.equal(done.next.cursor, done.next.text.length);
@@ -313,6 +402,13 @@ test("in a channel a lone listening agent waits to be named, as the engine route
   const w = whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [], kind: "channel" });
   assert.deepEqual(w.responders, []);
   assert.equal(w.line, "No agent will reply. @mention one");
-  assert.deepEqual(whoAnswers("@Docs hello", { listening: ["Docs"], agents: ["Docs"], people: [], kind: "channel" }).responders, ["Docs"]);
-  assert.deepEqual(whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] }).responders, ["Docs"], "in a person's own chat the only agent answers");
+  assert.deepEqual(
+    whoAnswers("@Docs hello", { listening: ["Docs"], agents: ["Docs"], people: [], kind: "channel" }).responders,
+    ["Docs"],
+  );
+  assert.deepEqual(
+    whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] }).responders,
+    ["Docs"],
+    "in a person's own chat the only agent answers",
+  );
 });

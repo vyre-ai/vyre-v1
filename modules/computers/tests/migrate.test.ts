@@ -14,13 +14,27 @@ async function made(h: Harness, agent: string): Promise<string> {
 }
 function ports(log: string[], o: { failProfile?: () => boolean } = {}): MigrationPorts {
   return {
-    async ensureWorkspace(_c, a) { log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
-    async ensureBrowserProfile(_c, a) { if (o.failProfile?.()) throw new Error("the browser is not ready"); log.push(`profile ${a.agentId}`); return { profileId: `brw_${a.agentId}` }; },
-    async importChromeData(_c, a) { log.push(`import ${a.profileId} ${a.data.tar.length}`); return { bytes: a.data.tar.length }; },
-    async profileInUse() { return false; },
+    async ensureWorkspace(_c, a) {
+      log.push(`workspace ${a.agentId}`);
+      return { workspaceId: `wks_${a.agentId}` };
+    },
+    async ensureBrowserProfile(_c, a) {
+      if (o.failProfile?.()) throw new Error("the browser is not ready");
+      log.push(`profile ${a.agentId}`);
+      return { profileId: `brw_${a.agentId}` };
+    },
+    async importChromeData(_c, a) {
+      log.push(`import ${a.profileId} ${a.data.tar.length}`);
+      return { bytes: a.data.tar.length };
+    },
+    async profileInUse() {
+      return false;
+    },
   };
 }
-const withChrome = (h: Harness): void => { h.fake.host.chromeData = async () => ({ tar: TAR }); };
+const withChrome = (h: Harness): void => {
+  h.fake.host.chromeData = async () => ({ tar: TAR });
+};
 
 test("an asleep computer gets a workspace and a browser profile, and Chrome's folder goes into the profile", async () => {
   const h = harness();
@@ -30,12 +44,27 @@ test("an asleep computer gets a workspace and a browser profile, and Chrome's fo
   try {
     const id = await made(h, "agt_dex");
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 });
-    assert.deepEqual(log, ["workspace agt_dex", "profile agt_dex", "import brw_agt_dex 5"], "the workspace, then the profile, then the logins into the profile");
-    assert.deepEqual(migrationRows(h.ctx), [{ computerId: id, agentId: "agt_dex", state: "done", workspaceId: "wks_agt_dex", profileId: "brw_agt_dex", chromeBytes: 5 }]);
+    assert.deepEqual(
+      log,
+      ["workspace agt_dex", "profile agt_dex", "import brw_agt_dex 5"],
+      "the workspace, then the profile, then the logins into the profile",
+    );
+    assert.deepEqual(migrationRows(h.ctx), [
+      {
+        computerId: id,
+        agentId: "agt_dex",
+        state: "done",
+        workspaceId: "wks_agt_dex",
+        profileId: "brw_agt_dex",
+        chromeBytes: 5,
+      },
+    ]);
     // the old computer is left alone, asleep, with its profile
     assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "asleep");
     assert.equal(h.fake.named("remove").length, 0);
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("it runs once: a second pass changes nothing and calls nothing", async () => {
@@ -49,7 +78,9 @@ test("it runs once: a second pass changes nothing and calls nothing", async () =
     const n = log.length;
     assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 });
     assert.equal(log.length, n);
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("with the ports not bound nothing runs and nothing is marked, so the move waits for both lanes", async () => {
@@ -75,7 +106,9 @@ test("an awake computer waits: its Chrome databases are not copied while Chrome 
     h.advance(11 * MIN);
     await sleepIdle(h.ctx);
     assert.deepEqual(log, ["workspace agt_dex", "profile agt_dex", "import brw_agt_dex 5"]);
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("a computer that never had a Chrome folder still moves, with nothing to import", async () => {
@@ -88,7 +121,9 @@ test("a computer that never had a Chrome folder still moves, with nothing to imp
     assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 });
     assert.deepEqual(log, ["workspace agt_dex", "profile agt_dex"]);
     assert.equal(migrationRows(h.ctx)[0]?.chromeBytes, 0);
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("a host that cannot hand over Chrome's folder (a joined server) gets a workspace and a profile and is marked partial, with the reason", async () => {
@@ -103,7 +138,9 @@ test("a host that cannot hand over Chrome's folder (a joined server) gets a work
     assert.equal(row?.state, "partial");
     assert.match(row?.error ?? "", /signs in again once/);
     assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 }, "partial is final");
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("a real failure backs off (a minute, an hour, a day) and is never final: it keeps trying once a day, with the reason and the attempts kept", async () => {
@@ -117,7 +154,11 @@ test("a real failure backs off (a minute, an hour, a day) and is never final: it
     assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 1, waiting: 0 }, "first failure");
     assert.equal(migrationRows(h.ctx)[0]?.state, "failed");
     assert.match(migrationRows(h.ctx)[0]?.error ?? "", /browser is not ready/);
-    assert.deepEqual(await migrateComputers(h.ctx), { done: 0, partial: 0, failed: 0, waiting: 0 }, "not due yet: the next pass leaves it");
+    assert.deepEqual(
+      await migrateComputers(h.ctx),
+      { done: 0, partial: 0, failed: 0, waiting: 0 },
+      "not due yet: the next pass leaves it",
+    );
     h.advance(61_000);
     assert.equal((await migrateComputers(h.ctx)).failed, 1, "a minute later, the second try");
     h.advance(61_000);
@@ -131,10 +172,16 @@ test("a real failure backs off (a minute, an hour, a day) and is never final: it
     assert.equal(h.rows("SELECT attempts FROM computers_migration")[0]?.["attempts"], 4);
     broken = false;
     h.advance(25 * 3_600_000);
-    assert.deepEqual(await migrateComputers(h.ctx), { done: 1, partial: 0, failed: 0, waiting: 0 }, "and when the cause is gone it finishes");
+    assert.deepEqual(
+      await migrateComputers(h.ctx),
+      { done: 1, partial: 0, failed: 0, waiting: 0 },
+      "and when the cause is gone it finishes",
+    );
     assert.equal(migrationRows(h.ctx)[0]?.state, "done");
     assert.equal(migrationRows(h.ctx)[0]?.error, undefined);
-  } finally { bindMigration(null); }
+  } finally {
+    bindMigration(null);
+  }
 });
 
 test("each computer is its own row: one that fails does not stop the others", async () => {
@@ -143,11 +190,21 @@ test("each computer is its own row: one that fails does not stop the others", as
   const log: string[] = [];
   bindMigration({
     ...ports(log),
-    async ensureWorkspace(_c, a) { if (a.agentId === "agt_a") throw new Error("the workspace broke"); log.push(`workspace ${a.agentId}`); return { workspaceId: `wks_${a.agentId}` }; },
+    async ensureWorkspace(_c, a) {
+      if (a.agentId === "agt_a") throw new Error("the workspace broke");
+      log.push(`workspace ${a.agentId}`);
+      return { workspaceId: `wks_${a.agentId}` };
+    },
   });
   try {
-    await made(h, "agt_a"); await made(h, "agt_b");
+    await made(h, "agt_a");
+    await made(h, "agt_b");
     await migrateComputers(h.ctx);
-    assert.deepEqual(migrationRows(h.ctx).map((r) => `${r.agentId}:${r.state}`), ["agt_a:failed", "agt_b:done"]);
-  } finally { bindMigration(null); }
+    assert.deepEqual(
+      migrationRows(h.ctx).map((r) => `${r.agentId}:${r.state}`),
+      ["agt_a:failed", "agt_b:done"],
+    );
+  } finally {
+    bindMigration(null);
+  }
 });

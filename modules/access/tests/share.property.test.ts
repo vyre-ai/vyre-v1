@@ -5,7 +5,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import {
-  foldersCreate, foldersDelete, foldersMove, foldersPlace, foldersUnplace, lists, myAccess, share, shareOf, unshare,
+  foldersCreate,
+  foldersDelete,
+  foldersMove,
+  foldersPlace,
+  foldersUnplace,
+  lists,
+  myAccess,
+  share,
+  shareOf,
+  unshare,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { groupsAddMember, groupsRemoveMember, putPrincipal } from "../handlers/roles.ts";
@@ -57,19 +66,33 @@ function model(store: AccessStore, person: string, id: string, now: number): Lev
   for (const g of store.grants.values()) {
     if (!chain.includes(g.resource.id)) continue;
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
-    const hit = g.subject.kind === "person" ? g.subject.id === person
-      : g.subject.kind === "group" ? groups.includes(g.subject.id)
-      : g.subject.kind === "role" ? roles.has(g.subject.id) : false;
+    const hit =
+      g.subject.kind === "person"
+        ? g.subject.id === person
+        : g.subject.kind === "group"
+          ? groups.includes(g.subject.id)
+          : g.subject.kind === "role"
+            ? roles.has(g.subject.id)
+            : false;
     if (hit) best = Math.max(best, ORDER.indexOf(g.level));
   }
   return best < 0 ? null : ORDER[best]!;
 }
 
 /** Section of a row from first principles. */
-function modelSection(store: AccessStore, spaceFolders: ReadonlySet<string>, person: string, id: string, now: number): "personal" | "shared" | "space" {
+function modelSection(
+  store: AccessStore,
+  spaceFolders: ReadonlySet<string>,
+  person: string,
+  id: string,
+  now: number,
+): "personal" | "shared" | "space" {
   const chain: string[] = [];
   let cur: string | null = id;
-  while (cur !== null) { chain.push(cur); cur = store.resources.get(cur)?.parentId ?? null; }
+  while (cur !== null) {
+    chain.push(cur);
+    cur = store.resources.get(cur)?.parentId ?? null;
+  }
   const owner = store.resources.get(id)!.ownerId === person;
   const groups = [...store.groups.values()].filter((g) => g.members.some((m) => m.id === person)).map((g) => g.id);
   const roles = new Set<string>([...store.rolesOf(person), ...groups.flatMap((g) => store.rolesOf(g))]);
@@ -77,12 +100,18 @@ function modelSection(store: AccessStore, spaceFolders: ReadonlySet<string>, per
   for (const g of store.grants.values()) {
     if (!chain.includes(g.resource.id)) continue;
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
-    const mine = g.subject.kind === "person" ? g.subject.id === person
-      : g.subject.kind === "group" ? groups.includes(g.subject.id)
-      : g.subject.kind === "role" ? roles.has(g.subject.id) : false;
-    if (owner ? (g.subject.kind === "person" && g.subject.id === person) : !mine) continue;
+    const mine =
+      g.subject.kind === "person"
+        ? g.subject.id === person
+        : g.subject.kind === "group"
+          ? groups.includes(g.subject.id)
+          : g.subject.kind === "role"
+            ? roles.has(g.subject.id)
+            : false;
+    if (owner ? g.subject.kind === "person" && g.subject.id === person : !mine) continue;
     const onSelf = g.resource.id === id;
-    if ((g.subject.kind === "group" && g.subject.id === EVERYONE) || (!onSelf && spaceFolders.has(g.resource.id))) kinds.push("space");
+    if ((g.subject.kind === "group" && g.subject.id === EVERYONE) || (!onSelf && spaceFolders.has(g.resource.id)))
+      kinds.push("space");
     else kinds.push(onSelf ? "direct" : "folder");
   }
   if (owner) return kinds.includes("space") ? "space" : kinds.length ? "shared" : "personal";
@@ -96,7 +125,9 @@ function codeOf(e: unknown): string {
 function stateOf(store: AccessStore, ctx: ShareCtx): string {
   const ss = shareOf(ctx);
   return JSON.stringify({
-    g: [...store.grants.values()].map((g) => [g.id, g.level, g.subject, g.resource, g.conditions, g.source ?? null]).sort(),
+    g: [...store.grants.values()]
+      .map((g) => [g.id, g.level, g.subject, g.resource, g.conditions, g.source ?? null])
+      .sort(),
     r: [...store.resources.values()].map((x) => [x.id, x.type, x.parentId, x.ownerId]).sort(),
     f: [...ss.folders.values()].map((f) => [f.id, f.name, f.parentId, f.scope]).sort(),
     p: [...ss.placement].sort(),
@@ -111,8 +142,14 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
     const db = new SqlDb();
     let clock = NOW;
     const ctx: ShareCtx = {
-      space: "spc_test", principal: { kind: "person", id: "usr_admin" }, trace: { traceId: "0123456789abcdef0123456789abcdef" },
-      now: () => clock, db, emit() { /* events are checked in share.test.ts */ },
+      space: "spc_test",
+      principal: { kind: "person", id: "usr_admin" },
+      trace: { traceId: "0123456789abcdef0123456789abcdef" },
+      now: () => clock,
+      db,
+      emit() {
+        /* events are checked in share.test.ts */
+      },
     };
     const store = storeOf(ctx);
     const everyone = store.groups.get(EVERYONE)!;
@@ -122,13 +159,27 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
       everyone.members.push({ kind: "person", id });
     }
     for (const gid of ["grp_g1", "grp_g2"]) {
-      store.groups.set(gid, { id: gid, name: gid, builtIn: false, managers: [], members: PEOPLE.filter(() => r.chance(0.5)).map((id) => ({ kind: "person" as const, id })) });
+      store.groups.set(gid, {
+        id: gid,
+        name: gid,
+        builtIn: false,
+        managers: [],
+        members: PEOPLE.filter(() => r.chance(0.5)).map((id) => ({ kind: "person" as const, id })),
+      });
     }
     const sites: string[] = [];
     for (let i = 0; i < 6; i++) {
       const id = `sit_${seed}_${i}`;
       sites.push(id);
-      store.resources.set(id, { id, type: "site", parentId: null, label: "public", ownerId: r.pick(PEOPLE), holds: 0, row: { title: id } });
+      store.resources.set(id, {
+        id,
+        type: "site",
+        parentId: null,
+        label: "public",
+        ownerId: r.pick(PEOPLE),
+        holds: 0,
+        row: { title: id },
+      });
     }
     store.bump();
     const as = (id: string): ShareCtx => ({ ...ctx, principal: { kind: "person", id } });
@@ -147,7 +198,12 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
           const want = model(store, person, res.id, now);
           const got = byKey.get(`${res.type}:${res.id}`);
           assert.equal(got?.level ?? null, want, `${where}: ${person} on ${res.id}`);
-          const d = authorize(snap, { principal: person, action: { perm: null, level: "view" }, resource: { type: res.type, id: res.id }, now });
+          const d = authorize(snap, {
+            principal: person,
+            action: { perm: null, level: "view" },
+            resource: { type: res.type, id: res.id },
+            now,
+          });
           assert.equal(d.effect === "allow", want !== null, `${where}: authorize agrees for ${person} on ${res.id}`);
           if (want !== null) {
             expected++;
@@ -155,18 +211,33 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
             seen.via.add(got!.via);
             if (res.type === "site") {
               const sec = got!.via === "owner" ? "personal" : got!.via === "space" ? "space" : "shared";
-              assert.equal(sec, modelSection(store, spaceFolders, person, res.id, now), `${where}: section of ${res.id} for ${person}`);
+              assert.equal(
+                sec,
+                modelSection(store, spaceFolders, person, res.id, now),
+                `${where}: section of ${res.id} for ${person}`,
+              );
             }
           }
         }
-        assert.equal(rows.filter((x) => x.type === "site" || x.type === "folder").length, expected, `${where}: no extra rows for ${person}`);
+        assert.equal(
+          rows.filter((x) => x.type === "site" || x.type === "folder").length,
+          expected,
+          `${where}: no extra rows for ${person}`,
+        );
         const listed = await lists(as(person), { type: "site" });
         assert.deepEqual(
           listed.rows.map((x) => x.id).sort(),
-          [...store.resources.values()].filter((x) => x.type === "site" && model(store, person, x.id, now) !== null).map((x) => x.id).sort(),
+          [...store.resources.values()]
+            .filter((x) => x.type === "site" && model(store, person, x.id, now) !== null)
+            .map((x) => x.id)
+            .sort(),
           `${where}: lists for ${person}`,
         );
-        assert.equal((listed.counts["personal"] ?? 0) + (listed.counts["shared"] ?? 0) + (listed.counts["space"] ?? 0), listed.rows.length, `${where}: counts add up`);
+        assert.equal(
+          (listed.counts["personal"] ?? 0) + (listed.counts["shared"] ?? 0) + (listed.counts["space"] ?? 0),
+          listed.rows.length,
+          `${where}: counts add up`,
+        );
       }
       // every folder's resource row, folder record and placement agree
       for (const f of ss.folders.values()) {
@@ -195,13 +266,21 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
           name = "folders.create";
           const parent = folders.length && r.chance(0.5) ? r.pick(folders) : undefined;
           actor = parent ? actorFor(parent) : actor;
-          await foldersCreate(actor, { type: "site", name: `F${step}${r.int(3)}`, ...(parent ? { parentId: parent } : {}), ...(!parent && r.chance(0.2) ? { scope: "space" as const } : {}) });
+          await foldersCreate(actor, {
+            type: "site",
+            name: `F${step}${r.int(3)}`,
+            ...(parent ? { parentId: parent } : {}),
+            ...(!parent && r.chance(0.2) ? { scope: "space" as const } : {}),
+          });
         } else if (op === 2 && folders.length) {
           name = "folders.place";
           const item = r.pick(sites);
           const mine = folders.filter((f) => ownerOf(f) === ownerOf(item));
           actor = actorFor(item);
-          await foldersPlace(actor, { resource: { type: "site", id: item }, folderId: mine.length && r.chance(0.7) ? r.pick(mine) : r.pick(folders) });
+          await foldersPlace(actor, {
+            resource: { type: "site", id: item },
+            folderId: mine.length && r.chance(0.7) ? r.pick(mine) : r.pick(folders),
+          });
         } else if (op === 3) {
           name = "folders.unplace";
           const item = r.pick(sites);
@@ -212,7 +291,10 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
           const f = r.pick(folders);
           const mine = folders.filter((x) => ownerOf(x) === ownerOf(f));
           actor = actorFor(f);
-          await foldersMove(actor, { folderId: f, parentId: r.chance(0.3) ? null : mine.length && r.chance(0.7) ? r.pick(mine) : r.pick(folders) });
+          await foldersMove(actor, {
+            folderId: f,
+            parentId: r.chance(0.3) ? null : mine.length && r.chance(0.7) ? r.pick(mine) : r.pick(folders),
+          });
         } else if (op === 5 && folders.length && r.chance(0.3)) {
           name = "folders.delete";
           const f = r.pick(folders);
@@ -220,15 +302,24 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
           await foldersDelete(actor, { folderId: f });
         } else if (op === 6 || op === 7) {
           name = "access.share";
-          const resource = r.chance(0.5) && folders.length ? { type: "folder", id: r.pick(folders) } : { type: "site", id: r.pick(sites) };
+          const resource =
+            r.chance(0.5) && folders.length
+              ? { type: "folder", id: r.pick(folders) }
+              : { type: "site", id: r.pick(sites) };
           actor = actorFor(resource.id);
           const k = r.int(4);
-          const subject = k === 0 ? { kind: "person" as const, id: r.pick(PEOPLE) }
-            : k === 1 ? { kind: "group" as const, id: r.pick(["grp_g1", "grp_g2", EVERYONE]) }
-            : k === 2 ? { kind: "role" as const, id: r.pick(["rol_member", "rol_guest"]) }
-            : { kind: "person" as const, id: r.pick(PEOPLE) };
+          const subject =
+            k === 0
+              ? { kind: "person" as const, id: r.pick(PEOPLE) }
+              : k === 1
+                ? { kind: "group" as const, id: r.pick(["grp_g1", "grp_g2", EVERYONE]) }
+                : k === 2
+                  ? { kind: "role" as const, id: r.pick(["rol_member", "rol_guest"]) }
+                  : { kind: "person" as const, id: r.pick(PEOPLE) };
           await share(actor, {
-            resource, subject, level: r.pick(ORDER),
+            resource,
+            subject,
+            level: r.pick(ORDER),
             ...(r.chance(0.15) ? { conditions: { expiresAt: clock + 500 + r.int(2500) } } : {}),
           });
         } else if (op === 8) {
@@ -245,29 +336,49 @@ test(`folders and sharing: effective access equals the grants through ${SEEDS} r
           else {
             const g = r.pick(["grp_g1", "grp_g2"]);
             const member = { kind: "person" as const, id: r.pick(PEOPLE) };
-            await (r.chance(0.5) ? groupsAddMember(ctx, { groupId: g, member }) : groupsRemoveMember(ctx, { groupId: g, member }));
+            await (r.chance(0.5)
+              ? groupsAddMember(ctx, { groupId: g, member })
+              : groupsRemoveMember(ctx, { groupId: g, member }));
           }
         }
         if (name) seen.ok.set(name, (seen.ok.get(name) ?? 0) + 1);
       } catch (e) {
         const c = codeOf(e);
-        assert.ok(c.startsWith("permission.") || c.startsWith("validation."), `seed ${seed} step ${step} ${name}: unexpected error ${String(e)}`);
-        assert.equal(stateOf(store, ctx), before, `seed ${seed} step ${step} ${name}: a refused ${name} changed something (${c})`);
+        assert.ok(
+          c.startsWith("permission.") || c.startsWith("validation."),
+          `seed ${seed} step ${step} ${name}: unexpected error ${String(e)}`,
+        );
+        assert.equal(
+          stateOf(store, ctx),
+          before,
+          `seed ${seed} step ${step} ${name}: a refused ${name} changed something (${c})`,
+        );
         seen.refused++;
       }
       await verify(`seed ${seed} step ${step} ${name}`);
     }
 
     // the incremental cache equals a full rebuild, and the table holds exactly the cache
-    const incremental = JSON.stringify([...ss.access.values()].sort((x, y) => (`${x.person}${x.type}${x.id}` < `${y.person}${y.type}${y.id}` ? -1 : 1)));
+    const incremental = JSON.stringify(
+      [...ss.access.values()].sort((x, y) => (`${x.person}${x.type}${x.id}` < `${y.person}${y.type}${y.id}` ? -1 : 1)),
+    );
     const persisted = (db.tables.get("access_my_access") ?? []).length;
     assert.equal(persisted, ss.access.size, `seed ${seed}: table rows equal cache rows`);
     store.bump();
     myAccess(ctx, "usr_a");
-    const rebuilt = JSON.stringify([...ss.access.values()].sort((x, y) => (`${x.person}${x.type}${x.id}` < `${y.person}${y.type}${y.id}` ? -1 : 1)));
+    const rebuilt = JSON.stringify(
+      [...ss.access.values()].sort((x, y) => (`${x.person}${x.type}${x.id}` < `${y.person}${y.type}${y.id}` ? -1 : 1)),
+    );
     assert.equal(rebuilt, incremental, `seed ${seed}: incremental refresh equals a full rebuild`);
   }
-  for (const k of ["folders.create", "folders.place", "folders.unplace", "folders.move", "access.share", "access.unshare"]) {
+  for (const k of [
+    "folders.create",
+    "folders.place",
+    "folders.unplace",
+    "folders.move",
+    "access.share",
+    "access.unshare",
+  ]) {
     assert.ok((seen.ok.get(k) ?? 0) >= 8, `${k} succeeded often enough to mean something (${seen.ok.get(k) ?? 0})`);
   }
   assert.ok((seen.ok.get("folders.delete") ?? 0) >= 1, "at least one folder was deleted");

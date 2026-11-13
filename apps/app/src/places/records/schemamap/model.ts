@@ -25,14 +25,47 @@ export const ZMAX = 2.2;
 // ---------------------------------------------------------------- fields on a card
 
 const TYPE_NAME: Readonly<Record<string, string>> = {
-  text: "Text", longtext: "Long text", number: "Number", money: "Money", datetime: "Date and time", duration: "Duration", choice: "Choice", multichoice: "Multi-choice", status: "Status",
-  checkbox: "Checkbox", rating: "Rating", person: "Person", email: "Email", phone: "Phone", url: "URL", address: "Address", relation: "Link", lookup: "Lookup", rollup: "Rollup",
-  formula: "Formula", autonumber: "Auto number", created_time: "Created time", created_by: "Created by", modified_time: "Modified time", modified_by: "Modified by", files: "Files",
-  signature: "Signature", sealed: "Sealed", button: "Button", ai: "AI field",
+  text: "Text",
+  longtext: "Long text",
+  number: "Number",
+  money: "Money",
+  datetime: "Date and time",
+  duration: "Duration",
+  choice: "Choice",
+  multichoice: "Multi-choice",
+  status: "Status",
+  checkbox: "Checkbox",
+  rating: "Rating",
+  person: "Person",
+  email: "Email",
+  phone: "Phone",
+  url: "URL",
+  address: "Address",
+  relation: "Link",
+  lookup: "Lookup",
+  rollup: "Rollup",
+  formula: "Formula",
+  autonumber: "Auto number",
+  created_time: "Created time",
+  created_by: "Created by",
+  modified_time: "Modified time",
+  modified_by: "Modified by",
+  files: "Files",
+  signature: "Signature",
+  sealed: "Sealed",
+  button: "Button",
+  ai: "AI field",
 };
 
 /** The little mark before a field: a symbol for the computed and text kinds, a named icon for the rest. */
-const SYMBOL: Readonly<Record<string, string>> = { text: "Aa", longtext: "¶", money: "$", autonumber: "#", rollup: "Σ", formula: "ƒx" };
+const SYMBOL: Readonly<Record<string, string>> = {
+  text: "Aa",
+  longtext: "¶",
+  money: "$",
+  autonumber: "#",
+  rollup: "Σ",
+  formula: "ƒx",
+};
 
 /** The mark before a field of this type (a symbol or a named icon) and its name, for the pickers that edit fields. */
 export function fieldMark(type: string): { symbol?: string; icon: string; name: string } {
@@ -70,27 +103,65 @@ function iconOf(type: string): string {
 }
 
 /** The rows of a card. With the type's details they are every field; without them (still loading) they are the link fields the map itself knows. */
-export function fieldRows(type: string, edges: readonly MapEdge[], titleOf: (t: string) => string, detail: TypeDetail | undefined): FieldRow[] {
+export function fieldRows(
+  type: string,
+  edges: readonly MapEdge[],
+  titleOf: (t: string) => string,
+  detail: TypeDetail | undefined,
+): FieldRow[] {
   const links = new Map<string, FieldRow>();
   for (const e of edges) {
-    if (e.from === type) links.set(e.field, { key: e.field, title: humanize(e.field), typeLabel: `Link to ${titleOf(e.to)}`, kind: "relation", outgoing: true, other: e.to, icon: "link" });
+    if (e.from === type)
+      links.set(e.field, {
+        key: e.field,
+        title: humanize(e.field),
+        typeLabel: `Link to ${titleOf(e.to)}`,
+        kind: "relation",
+        outgoing: true,
+        other: e.to,
+        icon: "link",
+      });
     if (e.to === type && e.inverse !== undefined && !(e.from === type && e.inverse === e.field)) {
-      if (!links.has(e.inverse)) links.set(e.inverse, { key: e.inverse, title: humanize(e.inverse), typeLabel: `Linked from ${titleOf(e.from)}`, kind: "relation", outgoing: false, other: e.from, icon: "link" });
+      if (!links.has(e.inverse))
+        links.set(e.inverse, {
+          key: e.inverse,
+          title: humanize(e.inverse),
+          typeLabel: `Linked from ${titleOf(e.from)}`,
+          kind: "relation",
+          outgoing: false,
+          other: e.from,
+          icon: "link",
+        });
     }
   }
   const rows: FieldRow[] = [];
   if (detail) {
     for (const f of detail.fields) {
       const link = links.get(f.key);
-      if (link) { rows.push({ ...link, title: f.title }); links.delete(f.key); continue; }
+      if (link) {
+        rows.push({ ...link, title: f.title });
+        links.delete(f.key);
+        continue;
+      }
       const sym = SYMBOL[f.type];
-      rows.push({ key: f.key, title: f.title, typeLabel: TYPE_NAME[f.type] ?? humanize(f.type), kind: "plain", outgoing: false, icon: iconOf(f.type), ...(sym !== undefined ? { symbol: sym } : {}) });
+      rows.push({
+        key: f.key,
+        title: f.title,
+        typeLabel: TYPE_NAME[f.type] ?? humanize(f.type),
+        kind: "plain",
+        outgoing: false,
+        icon: iconOf(f.type),
+        ...(sym !== undefined ? { symbol: sym } : {}),
+      });
     }
   }
   for (const link of links.values()) rows.push(link);
   const title = detail?.titleField;
   const rank = (r: FieldRow): number => (r.key === title ? 0 : r.kind === "relation" ? 1 : 2);
-  return rows.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i).map((x) => x.r);
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i)
+    .map((x) => x.r);
 }
 
 export function humanize(key: string): string {
@@ -108,20 +179,34 @@ export function cardHeight(total: number, expanded: boolean): number {
 
 // ---------------------------------------------------------------- where the cards sit
 
-export interface Rect { x: number; y: number; w: number; h: number }
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 /** Degree of each type: how many links touch it. */
 function degrees(nodes: readonly MapNode[], edges: readonly MapEdge[]): Map<string, number> {
   const d = new Map<string, number>();
   for (const n of nodes) d.set(n.type, 0);
-  for (const e of edges) { d.set(e.from, (d.get(e.from) ?? 0) + 1); d.set(e.to, (d.get(e.to) ?? 0) + 1); }
+  for (const e of edges) {
+    d.set(e.from, (d.get(e.from) ?? 0) + 1);
+    d.set(e.to, (d.get(e.to) ?? 0) + 1);
+  }
   return d;
 }
 
 /** A calm starting layout: the most linked types first, three or four columns, each card under the shortest column, columns a little staggered. Stable for the same map. */
-export function layout(nodes: readonly MapNode[], edges: readonly MapEdge[], heights: ReadonlyMap<string, number>): Map<string, [number, number]> {
+export function layout(
+  nodes: readonly MapNode[],
+  edges: readonly MapEdge[],
+  heights: ReadonlyMap<string, number>,
+): Map<string, [number, number]> {
   const deg = degrees(nodes, edges);
-  const order = [...nodes].sort((a, b) => (deg.get(b.type) ?? 0) - (deg.get(a.type) ?? 0) || a.title.localeCompare(b.title));
+  const order = [...nodes].sort(
+    (a, b) => (deg.get(b.type) ?? 0) - (deg.get(a.type) ?? 0) || a.title.localeCompare(b.title),
+  );
   const cols = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(order.length))));
   const bottoms: number[] = [];
   for (let c = 0; c < cols; c++) bottoms.push(40 + c * 50);
@@ -154,10 +239,16 @@ function rounded(pts: readonly [number, number][], r: number): string {
   const n = (v: number): string => String(Math.round(v * 10) / 10);
   let d = `M${n(pts[0]![0])} ${n(pts[0]![1])}`;
   for (let i = 1; i < pts.length - 1; i++) {
-    const [px, py] = pts[i - 1]!, [x, y] = pts[i]!, [qx, qy] = pts[i + 1]!;
-    const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(qx - x, qy - y);
+    const [px, py] = pts[i - 1]!,
+      [x, y] = pts[i]!,
+      [qx, qy] = pts[i + 1]!;
+    const l1 = Math.hypot(x - px, y - py),
+      l2 = Math.hypot(qx - x, qy - y);
     const k = Math.min(r, l1 / 2, l2 / 2);
-    if (k <= 0) { d += ` L${n(x)} ${n(y)}`; continue; }
+    if (k <= 0) {
+      d += ` L${n(x)} ${n(y)}`;
+      continue;
+    }
     d += ` L${n(x - ((x - px) / l1) * k)} ${n(y - ((y - py) / l1) * k)} Q${n(x)} ${n(y)} ${n(x + ((qx - x) / l2) * k)} ${n(y + ((qy - y) / l2) * k)}`;
   }
   const last = pts[pts.length - 1]!;
@@ -182,15 +273,34 @@ export function edgeGeometry(e: MapEdge, from: Rect, to: Rect, rowIndex: number,
   let pts: [number, number][];
   if (side === 0) {
     const out = Math.max(from.x + from.w, to.x + to.w) + 28 + stagger;
-    pts = [[sx, sy], [out, sy], [out, ty], [tx, ty]];
+    pts = [
+      [sx, sy],
+      [out, sy],
+      [out, ty],
+      [tx, ty],
+    ];
   } else {
-    const gapA = side === 1 ? sx : tx, gapB = side === 1 ? tx : sx;
+    const gapA = side === 1 ? sx : tx,
+      gapB = side === 1 ? tx : sx;
     const mid = Math.min(gapB - 12, Math.max(gapA + 12, (sx + tx) / 2 + stagger - 12));
-    pts = Math.abs(sy - ty) < 0.5 ? [[sx, sy], [tx, ty]] : [[sx, sy], [mid, sy], [mid, ty], [tx, ty]];
+    pts =
+      Math.abs(sy - ty) < 0.5
+        ? [
+            [sx, sy],
+            [tx, ty],
+          ]
+        : [
+            [sx, sy],
+            [mid, sy],
+            [mid, ty],
+            [tx, ty],
+          ];
   }
   const n = (v: number): string => String(Math.round(v * 10) / 10);
   return {
-    from: e.from, to: e.to, field: e.field,
+    from: e.from,
+    to: e.to,
+    field: e.field,
     d: rounded(pts, 8),
     crow: `M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy - 5.5)} M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy)} M${n(sx + dir * 13)} ${n(sy)} L${n(sx)} ${n(sy + 5.5)}`,
     bar: `M${n(tx + tdir * 11)} ${n(ty - 5.5)} L${n(tx + tdir * 11)} ${n(ty + 5.5)}`,
@@ -212,14 +322,26 @@ export function cardDim(hot: string | null, type: string, edges: readonly MapEdg
 
 // ---------------------------------------------------------------- the canvas
 
-export interface View { k: number; x: number; y: number }
+export interface View {
+  k: number;
+  x: number;
+  y: number;
+}
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
 export function bounds(rects: readonly Rect[]): Rect | null {
   if (!rects.length) return null;
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const r of rects) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const r of rects) {
+    x0 = Math.min(x0, r.x);
+    y0 = Math.min(y0, r.y);
+    x1 = Math.max(x1, r.x + r.w);
+    y1 = Math.max(y1, r.y + r.h);
+  }
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
@@ -243,16 +365,26 @@ export const panBy = (v: View, dx: number, dy: number): View => ({ k: v.k, x: v.
 export const MINI_W = 168;
 export const MINI_H = 108;
 
-export interface Mini { cards: { type: string; x: number; y: number; w: number; h: number }[]; viewport: Rect; x0: number; y0: number; s: number }
+export interface Mini {
+  cards: { type: string; x: number; y: number; w: number; h: number }[];
+  viewport: Rect;
+  x0: number;
+  y0: number;
+  s: number;
+}
 
 /** The minimap: every card and the part of the canvas on screen, scaled into 168 by 108. */
 export function miniModel(rects: ReadonlyMap<string, Rect>, v: View, width: number, height: number): Mini {
   const all = [...rects.values()];
-  const vx0 = -v.x / v.k, vy0 = -v.y / v.k, vw = width / v.k, vh = height / v.k;
+  const vx0 = -v.x / v.k,
+    vy0 = -v.y / v.k,
+    vw = width / v.k,
+    vh = height / v.k;
   const b = bounds([...all, { x: vx0, y: vy0, w: vw, h: vh }]) ?? { x: 0, y: 0, w: 1, h: 1 };
   const pad = 40;
   const s = Math.min(MINI_W / (b.w + pad), MINI_H / (b.h + pad));
-  const x0 = b.x - pad / 2, y0 = b.y - pad / 2;
+  const x0 = b.x - pad / 2,
+    y0 = b.y - pad / 2;
   const cards: Mini["cards"] = [];
   for (const [type, r] of rects) cards.push({ type, x: (r.x - x0) * s, y: (r.y - y0) * s, w: r.w * s, h: r.h * s });
   return { cards, viewport: { x: (vx0 - x0) * s, y: (vy0 - y0) * s, w: vw * s, h: vh * s }, x0, y0, s };
@@ -260,27 +392,37 @@ export function miniModel(rects: ReadonlyMap<string, Rect>, v: View, width: numb
 
 /** A press on the minimap centres the view on that spot. */
 export function miniGo(m: Mini, mx: number, my: number, v: View, width: number, height: number): View {
-  const cx = mx / m.s + m.x0, cy = my / m.s + m.y0;
+  const cx = mx / m.s + m.x0,
+    cy = my / m.s + m.y0;
   return { k: v.k, x: width / 2 - cx * v.k, y: height / 2 - cy * v.k };
 }
 
 /** The card to move to from `from` with an arrow key: the nearest one whose centre lies that way. */
-export function neighbor(rects: ReadonlyMap<string, Rect>, from: string | null, dir: "left" | "right" | "up" | "down"): string | null {
+export function neighbor(
+  rects: ReadonlyMap<string, Rect>,
+  from: string | null,
+  dir: "left" | "right" | "up" | "down",
+): string | null {
   const keys = [...rects.keys()];
   if (!keys.length) return null;
   const here = from === null ? undefined : rects.get(from);
   if (!here || from === null) return keys[0] ?? null;
-  const cx = here.x + here.w / 2, cy = here.y + here.h / 2;
+  const cx = here.x + here.w / 2,
+    cy = here.y + here.h / 2;
   let best: string | null = null;
   let bestScore = Infinity;
   for (const [k, r] of rects) {
     if (k === from) continue;
-    const dx = r.x + r.w / 2 - cx, dy = r.y + r.h / 2 - cy;
+    const dx = r.x + r.w / 2 - cx,
+      dy = r.y + r.h / 2 - cy;
     const along = dir === "right" ? dx : dir === "left" ? -dx : dir === "down" ? dy : -dy;
     if (along <= 0) continue;
     const across = dir === "left" || dir === "right" ? Math.abs(dy) : Math.abs(dx);
     const score = along + across * 2;
-    if (score < bestScore) { bestScore = score; best = k; }
+    if (score < bestScore) {
+      bestScore = score;
+      best = k;
+    }
   }
   return best ?? from;
 }
@@ -296,8 +438,21 @@ export type TypeTag = { kind: "synced"; text: string; app: string } | { kind: "p
 
 /** How an app's key is written to a person: HubSpot, GitHub (not Hubspot). */
 const APP_NAME: Readonly<Record<string, string>> = {
-  hubspot: "HubSpot", github: "GitHub", gmail: "Gmail", gcal: "Google Calendar", gdrive: "Google Drive", stripe: "Stripe", quickbooks: "QuickBooks", lawmatics: "Lawmatics",
-  airtable: "Airtable", notion: "Notion", linear: "Linear", slack: "Slack", zoom: "Zoom", calendly: "Calendly", meta: "Meta",
+  hubspot: "HubSpot",
+  github: "GitHub",
+  gmail: "Gmail",
+  gcal: "Google Calendar",
+  gdrive: "Google Drive",
+  stripe: "Stripe",
+  quickbooks: "QuickBooks",
+  lawmatics: "Lawmatics",
+  airtable: "Airtable",
+  notion: "Notion",
+  linear: "Linear",
+  slack: "Slack",
+  zoom: "Zoom",
+  calendly: "Calendly",
+  meta: "Meta",
 };
 export const appName = (key: string): string => APP_NAME[key.toLowerCase()] ?? humanize(key);
 

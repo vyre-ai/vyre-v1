@@ -12,7 +12,8 @@ const LOG = [
   { seq: 42, type: "resource.created", payload: enc({ id: "rec_1", type: "record" }) },
   { seq: 43, type: "chat.posted", payload: enc({}) },
 ];
-const read = (log: typeof LOG) => async (after: number, limit: number) => log.filter((e) => e.seq > after).slice(0, limit);
+const read = (log: typeof LOG) => async (after: number, limit: number) =>
+  log.filter((e) => e.seq > after).slice(0, limit);
 const seqs = (es: readonly Ev[]): number[] => es.map((e) => e.seq);
 
 test("a push of 42 before 41 hands both over, in seq order, in one batch; the late push of 41 adds nothing", async () => {
@@ -21,23 +22,42 @@ test("a push of 42 before 41 hands both over, in seq order, in one batch; the la
   assert.deepEqual(seqs(one.events), [41, 42]);
   assert.equal(one.upTo, 43);
   assert.deepEqual(one.events[0]?.payload, { principalId: "svc_x" }, "decoded from the log");
-  const two = await accessBatch({ held: [{ seq: 41, type: "principal.suspended", payload: { principalId: "svc_x" } }], fedTo: one.upTo, booted: true, read: read(LOG) });
+  const two = await accessBatch({
+    held: [{ seq: 41, type: "principal.suspended", payload: { principalId: "svc_x" } }],
+    fedTo: one.upTo,
+    booted: true,
+    read: read(LOG),
+  });
   assert.deepEqual(seqs(two.events), [], "41 was already handed over in order");
 });
 
 test("across batches: events committed after a batch come in the next one, in order", async () => {
   const log = LOG.slice(0, 3);
-  const one = await accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: read(log) });
+  const one = await accessBatch({
+    held: [{ seq: 42, type: "resource.created", payload: {} }],
+    fedTo: 39,
+    booted: true,
+    read: read(log),
+  });
   assert.deepEqual(seqs(one.events), [41, 42]);
-  log.push({ seq: 44, type: "grant.revoked", payload: enc({ grantId: "gr_1" }) }, { seq: 45, type: "member.removed", payload: enc({ personId: "usr_a" }) });
-  const two = await accessBatch({ held: [{ seq: 45, type: "member.removed", payload: {} }], fedTo: one.upTo, booted: true, read: read(log) });
+  log.push(
+    { seq: 44, type: "grant.revoked", payload: enc({ grantId: "gr_1" }) },
+    { seq: 45, type: "member.removed", payload: enc({ personId: "usr_a" }) },
+  );
+  const two = await accessBatch({
+    held: [{ seq: 45, type: "member.removed", payload: {} }],
+    fedTo: one.upTo,
+    booted: true,
+    read: read(log),
+  });
   assert.deepEqual(seqs(two.events), [44, 45], "the revoke whose push has not come yet is in it too");
 });
 
 test("at start: the boot replay (already read from the log) goes first in order, the host's own seq -1 objects go last, and nothing is handed over twice", async () => {
   const held: Ev[] = [
     { seq: -1, type: "resource.created", payload: { id: "contact", type: "record_type" } },
-    { seq: 42, type: "resource.created", payload: {} }, { seq: 41, type: "principal.suspended", payload: {} },
+    { seq: 42, type: "resource.created", payload: {} },
+    { seq: 41, type: "principal.suspended", payload: {} },
   ];
   const b = await accessBatch({ held, fedTo: 43, booted: false, read: read(LOG) });
   assert.deepEqual(seqs(b.events), [41, 42, -1]);
@@ -50,8 +70,16 @@ test("at start: the boot replay (already read from the log) goes first in order,
 test("a pushed event the log read does not show yet: the batch reads again until it does, so what a commit pushed is folded before its sync returns", async () => {
   let calls = 0;
   // the first read trails the writer: it ends at 41
-  const trailing = async (after: number, limit: number) => { calls++; return LOG.filter((e) => e.seq > after && (calls > 1 || e.seq <= 41)).slice(0, limit); };
-  const one = await accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: trailing });
+  const trailing = async (after: number, limit: number) => {
+    calls++;
+    return LOG.filter((e) => e.seq > after && (calls > 1 || e.seq <= 41)).slice(0, limit);
+  };
+  const one = await accessBatch({
+    held: [{ seq: 42, type: "resource.created", payload: {} }],
+    fedTo: 39,
+    booted: true,
+    read: trailing,
+  });
   assert.deepEqual(seqs(one.events), [41, 42], "42 is in the batch");
   assert.equal(one.upTo, 43);
   assert.ok(calls >= 2, "it read again");
@@ -59,5 +87,9 @@ test("a pushed event the log read does not show yet: the batch reads again until
 
 test("a log that never shows a pushed event: the batch fails, so the sync is retried and the snapshot is marked stale instead of folding without it", async () => {
   const never = async (after: number, limit: number) => LOG.filter((e) => e.seq > after && e.seq <= 41).slice(0, limit);
-  await assert.rejects(() => accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: never }), /event 42 was committed/);
+  await assert.rejects(
+    () =>
+      accessBatch({ held: [{ seq: 42, type: "resource.created", payload: {} }], fedTo: 39, booted: true, read: never }),
+    /event 42 was committed/,
+  );
 });

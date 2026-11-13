@@ -4,36 +4,58 @@
 
 /** The daemon says a vault key is locked by its reason, or (older daemons) in these words. A person stays signed in. */
 export function isVaultLockedError(e: unknown): boolean {
-  const x = e as { message?: string; details?: { reason?: string }; error?: { message?: string; details?: { reason?: string } } } | null | undefined;
-  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked|sign-ins are locked|Vault key is not on this server/i.test(x?.message ?? x?.error?.message ?? "");
+  const x = e as
+    | { message?: string; details?: { reason?: string }; error?: { message?: string; details?: { reason?: string } } }
+    | null
+    | undefined;
+  return (
+    x?.details?.reason === "vault_locked" ||
+    x?.error?.details?.reason === "vault_locked" ||
+    /vault key is locked|sign-ins are locked|Vault key is not on this server/i.test(
+      x?.message ?? x?.error?.message ?? "",
+    )
+  );
 }
 
 export type Unlock = (password: string) => Promise<void>;
 /** What the prompt does with one request: ask for the password, run `unlock` until it works or the person cancels. True when the key is open. */
 export type Asker = (unlock: Unlock, words?: PromptWords) => Promise<boolean>;
 /** Words and the way out for one ask: a Space server says "sign-ins" and offers Forgot password. */
-export interface PromptWords { title?: string; sub?: string; forgot?: () => void }
+export interface PromptWords {
+  title?: string;
+  sub?: string;
+  forgot?: () => void;
+}
 
 let asker: Asker | null = null;
 let open: Promise<boolean> | null = null;
 
 /** The prompt registers itself while it is mounted, and takes itself away when it goes. */
-export function registerVaultPrompt(a: Asker | null): void { asker = a; }
+export function registerVaultPrompt(a: Asker | null): void {
+  asker = a;
+}
 
 /** Ask once, however many calls are waiting: they all share the one prompt and its answer. False when no prompt is mounted. */
 export function askVaultUnlock(unlock: Unlock, words?: PromptWords): Promise<boolean> {
   if (!asker) return Promise.resolve(false);
   if (open) return open;
-  const run = asker(unlock, words).finally(() => { open = null; });
+  const run = asker(unlock, words).finally(() => {
+    open = null;
+  });
   open = run;
   return run;
 }
 
 /** Wraps a call: a locked-vault refusal waits for the prompt and, when the key opens, sends the same call again once. Anything else passes through untouched. */
-export function withVaultGate<A extends unknown[], R>(call: (...a: A) => Promise<R>, unlock: Unlock | undefined, silent?: () => Promise<boolean>): (...a: A) => Promise<R> {
+export function withVaultGate<A extends unknown[], R>(
+  call: (...a: A) => Promise<R>,
+  unlock: Unlock | undefined,
+  silent?: () => Promise<boolean>,
+): (...a: A) => Promise<R> {
   return async (...a: A): Promise<R> => {
-    try { return await call(...a); }
-    catch (e) {
+    try {
+      return await call(...a);
+    } catch (e) {
       if (!isVaultLockedError(e)) throw e;
       // the app still has the key from this session (a daemon restart behind it): hand it back and go again, no prompt
       if (silent && (await silent().catch(() => false))) return call(...a);

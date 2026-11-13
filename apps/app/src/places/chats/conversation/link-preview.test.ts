@@ -15,8 +15,15 @@ test("a helper chat the person may open previews with its title, even when searc
 });
 
 test("a thread the person may not open previews as nothing, as before, and a file still asks search", async () => {
-  const none = (async (cap: string) => { if (cap === "threads.get") throw new Error("no"); return { hit: null }; }) as never;
+  const none = (async (cap: string) => {
+    if (cap === "threads.get") throw new Error("no");
+    return { hit: null };
+  }) as never;
   assert.equal(await preview({ call: none }, { kind: "thread", id: "thr_x", title: "x" }), null);
-  const file = (async (cap: string) => (cap === "search.resolve" ? { hit: { title: "brief.docx", path: "Files", snippet: "" } } : { thread: {} })) as never;
-  assert.deepEqual(await preview({ call: file }, { kind: "file", id: "fil_1", title: "brief" }), { title: "brief.docx", line: "Files" });
+  const file = (async (cap: string) =>
+    cap === "search.resolve" ? { hit: { title: "brief.docx", path: "Files", snippet: "" } } : { thread: {} }) as never;
+  assert.deepEqual(await preview({ call: file }, { kind: "file", id: "fil_1", title: "brief" }), {
+    title: "brief.docx",
+    line: "Files",
+  });
 });

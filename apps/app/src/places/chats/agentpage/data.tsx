@@ -52,7 +52,13 @@ export interface AgentPageData {
 
 const Ctx = createContext<AgentPageData | null>(null);
 
-export function AgentPageDataProvider({ value, children }: { value: AgentPageData; children: ReactNode }): ReactElement {
+export function AgentPageDataProvider({
+  value,
+  children,
+}: {
+  value: AgentPageData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -68,7 +74,18 @@ export function useAgentPageData(): AgentPageData {
 
 /** The same data the Chats right pane tabs (Memory, Files, Computer) read, so the page shows them without a second copy of their code. */
 export function paneDataOf(d: AgentPageData): ChatRightPaneData {
-  return { screens: d.screens, call: d.call, connection: d.connection, threadId: "", agent: d.agent, space: d.space, nav: d.nav, clock: d.clock, ...(d.workspace ? { workspace: d.workspace } : {}), ...(d.browser ? { browser: d.browser } : {}) };
+  return {
+    screens: d.screens,
+    call: d.call,
+    connection: d.connection,
+    threadId: "",
+    agent: d.agent,
+    space: d.space,
+    nav: d.nav,
+    clock: d.clock,
+    ...(d.workspace ? { workspace: d.workspace } : {}),
+    ...(d.browser ? { browser: d.browser } : {}),
+  };
 }
 
 export const AGENT_PAGE_SCREEN = "chats.agent-page";
@@ -77,7 +94,10 @@ export const AGENT_PAGE_SCREEN = "chats.agent-page";
 export function useScreenQuery<T>(name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useAgentPageData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(AGENT_PAGE_SCREEN, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, name, key]);
+  const q = useMemo(
+    () => screens.query(AGENT_PAGE_SCREEN, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

@@ -8,7 +8,17 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { FakeBackupDb, NOW, SPACE, TRACE } from "./db.ts";
 import { handlers } from "../handlers/index.ts";
 import { describeTarget, pack, sha256Hex, wrap, writeConfig } from "../handlers/run.ts";
-import type { ApplyResult, BackupCtx, BackupDrivers, BackupTarget, SnapshotEntry, SpaceSnapshot, SpaceSource, Tombstone, TargetConfig } from "../handlers/run.ts";
+import type {
+  ApplyResult,
+  BackupCtx,
+  BackupDrivers,
+  BackupTarget,
+  SnapshotEntry,
+  SpaceSnapshot,
+  SpaceSource,
+  Tombstone,
+  TargetConfig,
+} from "../handlers/run.ts";
 
 export { NOW, SPACE, TRACE };
 
@@ -26,22 +36,48 @@ export interface MemoryTarget extends BackupTarget {
 export function memoryTarget(): MemoryTarget {
   const objects = new Map<string, Uint8Array>();
   const t: MemoryTarget = {
-    objects, down: false,
-    async put(k, b) { if (t.down) throw new Error("target is down"); objects.set(k, new Uint8Array(b)); },
-    async get(k) { if (t.down) throw new Error("target is down"); return objects.get(k) ?? null; },
-    async del(k) { if (t.down) throw new Error("target is down"); objects.delete(k); },
-    async ping() { if (t.down) throw new Error("target is down"); },
+    objects,
+    down: false,
+    async put(k, b) {
+      if (t.down) throw new Error("target is down");
+      objects.set(k, new Uint8Array(b));
+    },
+    async get(k) {
+      if (t.down) throw new Error("target is down");
+      return objects.get(k) ?? null;
+    },
+    async del(k) {
+      if (t.down) throw new Error("target is down");
+      objects.delete(k);
+    },
+    async ping() {
+      if (t.down) throw new Error("target is down");
+    },
   };
   return t;
 }
 
 // ---- a Space with a chained event log
 
-interface Ev { seq: number; id: string; subject: string; payload: string | null; commit: string; prev: string; hash: string }
+interface Ev {
+  seq: number;
+  id: string;
+  subject: string;
+  payload: string | null;
+  commit: string;
+  prev: string;
+  hash: string;
+}
 
-export interface FakeSpaceState { events: Ev[]; blobs: Map<string, string>; tombstones: Tombstone[]; vault: Map<string, string> }
+export interface FakeSpaceState {
+  events: Ev[];
+  blobs: Map<string, string>;
+  tombstones: Tombstone[];
+  vault: Map<string, string>;
+}
 
-const hashOf = (e: { seq: number; id: string; subject: string; commit: string; prev: string }): Promise<string> => sha256Hex(`${e.seq}|${e.id}|${e.subject}|${e.commit}|${e.prev}`);
+const hashOf = (e: { seq: number; id: string; subject: string; commit: string; prev: string }): Promise<string> =>
+  sha256Hex(`${e.seq}|${e.id}|${e.subject}|${e.commit}|${e.prev}`);
 
 export class FakeSpace implements SpaceSource {
   events: Ev[] = [];
@@ -57,7 +93,13 @@ export class FakeSpace implements SpaceSource {
 
   async append(subject: string, payload: string): Promise<Ev> {
     const prev = this.events.at(-1)?.hash ?? "";
-    const base = { seq: this.events.length + 1, id: `evt_${this.events.length + 1}`, subject, commit: await sha256Hex(payload), prev };
+    const base = {
+      seq: this.events.length + 1,
+      id: `evt_${this.events.length + 1}`,
+      subject,
+      commit: await sha256Hex(payload),
+      prev,
+    };
     const e: Ev = { ...base, payload, hash: await hashOf(base) };
     this.events.push(e);
     return e;
@@ -66,7 +108,11 @@ export class FakeSpace implements SpaceSource {
   /** Erase everything about a subject: the payload goes, the commitment and the chain stay, and a tombstone is written. */
   erase(subject: string, at: number): number {
     let n = 0;
-    for (const e of this.events) if (e.subject === subject && e.payload !== null) { e.payload = null; n++; }
+    for (const e of this.events)
+      if (e.subject === subject && e.payload !== null) {
+        e.payload = null;
+        n++;
+      }
     this.tombstoneList.push({ kind: "subject", subject, at });
     return n;
   }
@@ -102,14 +148,26 @@ export class FakeSpace implements SpaceSource {
     let replayed = 0;
     for (const t of tombstones) {
       let hit = false;
-      for (const e of events) if (e.subject === t.subject && e.payload !== null) { e.payload = null; hit = true; }
-      for (const name of [...blobs.keys()]) if (name === t.subject) { blobs.delete(name); hit = true; }
+      for (const e of events)
+        if (e.subject === t.subject && e.payload !== null) {
+          e.payload = null;
+          hit = true;
+        }
+      for (const name of [...blobs.keys()])
+        if (name === t.subject) {
+          blobs.delete(name);
+          hit = true;
+        }
       if (hit) replayed++;
     }
     // the chain: every event hashes over the one before it
-    let prev = "", chainOk = true;
+    let prev = "",
+      chainOk = true;
     for (const e of events) {
-      if (e.prev !== prev || e.hash !== (await hashOf(e))) { chainOk = false; break; }
+      if (e.prev !== prev || e.hash !== (await hashOf(e))) {
+        chainOk = false;
+        break;
+      }
       prev = e.hash;
     }
     if (mode === "live") {
@@ -122,9 +180,15 @@ export class FakeSpace implements SpaceSource {
 
   async exportEntries(): Promise<SnapshotEntry[]> {
     const out: SnapshotEntry[] = [];
-    for (const e of this.events) if (e.payload !== null) out.push({ path: `records/${e.id}.json`, bytes: enc.encode(JSON.stringify({ subject: e.subject, payload: e.payload })) });
+    for (const e of this.events)
+      if (e.payload !== null)
+        out.push({
+          path: `records/${e.id}.json`,
+          bytes: enc.encode(JSON.stringify({ subject: e.subject, payload: e.payload })),
+        });
     for (const [name, text] of this.blobs) out.push({ path: `files/${name}`, bytes: enc.encode(text) });
-    for (const [name, value] of this.vault) out.push({ path: `vault/${name}.json`, bytes: enc.encode(JSON.stringify({ name, value })) });
+    for (const [name, value] of this.vault)
+      out.push({ path: `vault/${name}.json`, bytes: enc.encode(JSON.stringify({ name, value })) });
     return [...out, ...this.extraExport];
   }
 
@@ -144,9 +208,21 @@ function mergeInto(a: Tombstone[], b: readonly Tombstone[]): Tombstone[] {
 
 // ---- the handler ctx
 
-export interface Saved { fileId: string; name: string; bytes: Uint8Array }
-export interface EmittedEvent { name: string; subject: string; payload: unknown }
-export interface Scheduled { at: number | string; cap: string; input: unknown }
+export interface Saved {
+  fileId: string;
+  name: string;
+  bytes: Uint8Array;
+}
+export interface EmittedEvent {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface Scheduled {
+  at: number | string;
+  cap: string;
+  input: unknown;
+}
 
 export interface World {
   raw: FakeBackupDb;
@@ -183,52 +259,129 @@ export function world(o: { encrypt?: boolean; now?: number; principal?: string }
   let exportAllowed = true;
   const drivers: BackupDrivers = {
     source: space,
-    exports: { async save(name, bytes) { const fileId = `fil_${saved.length + 1}`; saved.push({ fileId, name, bytes }); return { fileId }; } },
+    exports: {
+      async save(name, bytes) {
+        const fileId = `fil_${saved.length + 1}`;
+        saved.push({ fileId, name, bytes });
+        return { fileId };
+      },
+    },
     openTarget: async () => target,
   };
   const ctx = {
-    ownerArchive:{status:async(runId:string)=>({runId,state:"ready",fileId:"fil_fixture",name:"vyre-export-fixture.zip",sizeBytes:4,expiresAt:clock+86400000})},
+    ownerArchive: {
+      status: async (runId: string) => ({
+        runId,
+        state: "ready",
+        fileId: "fil_fixture",
+        name: "vyre-export-fixture.zip",
+        sizeBytes: 4,
+        expiresAt: clock + 86400000,
+      }),
+    },
     space: SPACE,
     principal: { kind: "person", id: o.principal ?? "usr_owner" },
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     depth: 0,
     now: () => clock,
     db: scopedDb("backup", raw, TRACE),
-    emit: ((name: string, subject: string, payload: unknown) => { events.push({ name, subject, payload }); return {} as never; }) as unknown as Ctx["emit"],
+    emit: ((name: string, subject: string, payload: unknown) => {
+      events.push({ name, subject, payload });
+      return {} as never;
+    }) as unknown as Ctx["emit"],
     call: (async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       // the safety backup before a restore goes through the capability, as the pipeline would route it
       if (cap === "backup.run" && self) {
-        const child = { ...self, emit: ((name: string, subject: string, payload: unknown) => { const e = { name, subject, payload }; events.push(e); nested.push(e); return {} as never; }) as unknown as Ctx["emit"] } as BackupCtx;
+        const child = {
+          ...self,
+          emit: ((name: string, subject: string, payload: unknown) => {
+            const e = { name, subject, payload };
+            events.push(e);
+            nested.push(e);
+            return {} as never;
+          }) as unknown as Ctx["emit"],
+        } as BackupCtx;
         return handlers["backup.run"](child, input as Record<string, unknown>);
       }
       if (!answers.has(cap)) throw fail("internal.not_implemented", TRACE, { details: { cap } });
       return answers.get(cap);
     }) as unknown as Ctx["call"],
     seal: createCtxSeal({ key: new Uint8Array(32).fill(7), keyId: "k1" }),
-    schedule: (async (at: number | string, cap: string, input: unknown) => { scheduled.push({ at, cap, input }); return `sch_${scheduled.length}`; }) as unknown as Ctx["schedule"],
+    schedule: (async (at: number | string, cap: string, input: unknown) => {
+      scheduled.push({ at, cap, input });
+      return `sch_${scheduled.length}`;
+    }) as unknown as Ctx["schedule"],
     run: "run_testrun1",
-    authorize: (() => ({ effect: exportAllowed ? "allow" : "deny", reason: "test", decisionId: "dec_1" })) as unknown as Ctx["authorize"],
+    authorize: (() => ({
+      effect: exportAllowed ? "allow" : "deny",
+      reason: "test",
+      decisionId: "dec_1",
+    })) as unknown as Ctx["authorize"],
   } as unknown as BackupCtx;
   self = ctx;
   return {
-    raw, ctx, space, target, saved, events, nested, scheduled, calls, drivers,
-    setNow(n) { clock = n; }, allowExport(v) { exportAllowed = v; }, answer(cap, a) { answers.set(cap, a); },
+    raw,
+    ctx,
+    space,
+    target,
+    saved,
+    events,
+    nested,
+    scheduled,
+    calls,
+    drivers,
+    setNow(n) {
+      clock = n;
+    },
+    allowExport(v) {
+      exportAllowed = v;
+    },
+    answer(cap, a) {
+      answers.set(cap, a);
+    },
   };
 }
 
 /** A backup with a chosen id, written the way runBackup writes one: the archive on the target and its row, as if an earlier run had taken it. */
-export async function seedBackup(w: World, backupId: string, o: { at?: number; kind?: string; encrypted?: boolean } = {}): Promise<void> {
+export async function seedBackup(
+  w: World,
+  backupId: string,
+  o: { at?: number; kind?: string; encrypted?: boolean } = {},
+): Promise<void> {
   const at = o.at ?? w.ctx.now();
   const encrypted = o.encrypted ?? true;
   const snap = await w.space.snapshot();
-  const archive = await pack({ backupId, at, fromSeq: snap.fromSeq, toSeq: snap.toSeq, headHash: snap.headHash, tombstones: await w.space.tombstones() }, snap.entries);
+  const archive = await pack(
+    {
+      backupId,
+      at,
+      fromSeq: snap.fromSeq,
+      toSeq: snap.toSeq,
+      headHash: snap.headHash,
+      tombstones: await w.space.tombstones(),
+    },
+    snap.entries,
+  );
   const blob = wrap(w.ctx, archive, encrypted);
   const objectKey = `b/${backupId}.vybk`;
   await w.target.put(objectKey, blob);
   writeConfig(w.ctx, "target", JSON.stringify(MEMORY_TARGET));
   w.raw.run(
     "INSERT OR REPLACE INTO backup_item (backup_id, at, state, kind, seq, from_seq, size_bytes, verified, target, object_key, head_hash, encrypted, tombstones, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    backupId, at, "done", o.kind ?? "manual", snap.toSeq, snap.fromSeq, blob.length, 0, describeTarget(MEMORY_TARGET), objectKey, snap.headHash, encrypted ? 1 : 0, 0, null,
+    backupId,
+    at,
+    "done",
+    o.kind ?? "manual",
+    snap.toSeq,
+    snap.fromSeq,
+    blob.length,
+    0,
+    describeTarget(MEMORY_TARGET),
+    objectKey,
+    snap.headHash,
+    encrypted ? 1 : 0,
+    0,
+    null,
   );
 }

@@ -30,7 +30,9 @@ export function createRetryableLoader<T>(importer: () => Promise<T>): RetryableL
       );
       return pending;
     },
-    install: (value) => { loaded = value; },
+    install: (value) => {
+      loaded = value;
+    },
   };
 }
 

@@ -21,7 +21,8 @@ import { applySuggestion, historyVersions, latestVersion, shortDay } from "./mod
 import { Btn, IconBtn, Note, Segmented, TextField, anchorOf } from "./parts.tsx";
 import { SuggestionCard } from "./SuggestionCard.tsx";
 
-export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode" | "onReviewPane" | "onHeader" | "apiRef"> {
+export interface AgentFilePageProps
+  extends Omit<AgentFileEditorProps, "above" | "mode" | "onReviewPane" | "onHeader" | "apiRef"> {
   /** "Agents/Intake". */
   path: string;
   agentId: string;
@@ -39,7 +40,14 @@ export function extOf(name: string): string {
   return (e || "FILE").toUpperCase();
 }
 
-export function AgentFilePage({ path, agentId, edit = false, startHistory = false, startViewing, ...file }: AgentFilePageProps): ReactElement {
+export function AgentFilePage({
+  path,
+  agentId,
+  edit = false,
+  startHistory = false,
+  startViewing,
+  ...file
+}: AgentFilePageProps): ReactElement {
   const data = useReviewData();
   const versions = useCap("files.versions", { fileId: file.fileId });
   const [mode, setMode] = useState<"view" | "edit">(edit ? "edit" : "view");
@@ -88,7 +96,10 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   const restore = (): void => {
     if (!picked) return;
     void restoreVersion(data.call, file.fileId, picked.id).then((r) => {
-      if (r.ok) { setViewing(null); setLine({ kind: "ok", text: `Restored version ${picked.n} as a new version.` }); } else setLine({ kind: "error", text: r.error });
+      if (r.ok) {
+        setViewing(null);
+        setLine({ kind: "ok", text: `Restored version ${picked.n} as a new version.` });
+      } else setLine({ kind: "error", text: r.error });
     });
   };
 
@@ -99,13 +110,18 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   };
   const openMore = (e: unknown): void => {
     const at = anchorOf(e);
-    show([
-      { label: pane ? "Hide history" : "Show history", onSelect: toggleHistory },
-      { label: finding ? "Close find" : "Find in file", onSelect: toggleFind },
-      { label: info ? "Hide info" : "Show info", onSelect: () => setInfo(!info) },
-      { separator: true },
-      { label: "Copy path", onSelect: copyPath },
-    ], at.x, at.y, "other");
+    show(
+      [
+        { label: pane ? "Hide history" : "Show history", onSelect: toggleHistory },
+        { label: finding ? "Close find" : "Find in file", onSelect: toggleFind },
+        { label: info ? "Hide info" : "Show info", onSelect: () => setInfo(!info) },
+        { separator: true },
+        { label: "Copy path", onSelect: copyPath },
+      ],
+      at.x,
+      at.y,
+      "other",
+    );
   };
   const compact = file.density === "compact";
   // the header shows the save state while a .md is being edited
@@ -114,22 +130,46 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   const main = (
     <View style={st.main}>
       <View style={st.head}>
-        <View style={st.tile} testID="agent-file-tile" aria-hidden><Text style={st.tileText}>{extOf(file.name)}</Text></View>
+        <View style={st.tile} testID="agent-file-tile" aria-hidden>
+          <Text style={st.tileText}>{extOf(file.name)}</Text>
+        </View>
         <View style={st.title}>
-          <Text accessibilityRole="header" aria-level={2} numberOfLines={1} style={st.h2} testID="agent-file-name">{file.name}</Text>
+          <Text accessibilityRole="header" aria-level={2} numberOfLines={1} style={st.h2} testID="agent-file-name">
+            {file.name}
+          </Text>
           <Text numberOfLines={1} style={st.meta}>
-            {path}{top ? ` · ${data.nameOf(top.by)} · ${shortDay(top.at)}` : ""}
+            {path}
+            {top ? ` · ${data.nameOf(top.by)} · ${shortDay(top.at)}` : ""}
           </Text>
         </View>
         {editing && hd !== null ? (
           <>
             <ViewSwitch view={hd.view} onView={(v) => api.current?.setView(v)} />
-            <View style={st.ver} testID="agent-file-version" aria-label={hd.status === "saved" ? `Saved, version ${hd.version}` : `Version ${hd.version}`}>
-              {hd.status === "dirty" || hd.status === "saving" ? null : <Glyph name="check" size={13} color={hd.status === "error" || hd.status === "draft" ? "var(--warn)" : "var(--ok)"} width={1.8} />}
-              <Text style={st.verText} testID="agent-file-status">{statusWords(hd)}</Text>
-              {hd.canUndo ? <Btn label="Undo" small onPress={() => api.current?.undo()} testID="agent-file-undo" /> : null}
-              {hd.changed ? <Btn label="Discard" small onPress={() => api.current?.discard()} testID="agent-file-discard" /> : null}
-              {hd.reviewRequired && hd.changed ? <Btn label="Review" small onPress={() => api.current?.review()} testID="agent-file-review-btn" /> : null}
+            <View
+              style={st.ver}
+              testID="agent-file-version"
+              aria-label={hd.status === "saved" ? `Saved, version ${hd.version}` : `Version ${hd.version}`}
+            >
+              {hd.status === "dirty" || hd.status === "saving" ? null : (
+                <Glyph
+                  name="check"
+                  size={13}
+                  color={hd.status === "error" || hd.status === "draft" ? "var(--warn)" : "var(--ok)"}
+                  width={1.8}
+                />
+              )}
+              <Text style={st.verText} testID="agent-file-status">
+                {statusWords(hd)}
+              </Text>
+              {hd.canUndo ? (
+                <Btn label="Undo" small onPress={() => api.current?.undo()} testID="agent-file-undo" />
+              ) : null}
+              {hd.changed ? (
+                <Btn label="Discard" small onPress={() => api.current?.discard()} testID="agent-file-discard" />
+              ) : null}
+              {hd.reviewRequired && hd.changed ? (
+                <Btn label="Review" small onPress={() => api.current?.review()} testID="agent-file-review-btn" />
+              ) : null}
             </View>
           </>
         ) : (
@@ -138,7 +178,18 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
             <Text style={st.verText}>{`v${version}`}</Text>
           </View>
         )}
-        {isToml ? null : <Segmented options={[{ id: "view", label: "View" }, { id: "edit", label: "Edit" }]} value={mode} onChange={setMode} label="View or edit" testID="agent-file-mode" />}
+        {isToml ? null : (
+          <Segmented
+            options={[
+              { id: "view", label: "View" },
+              { id: "edit", label: "Edit" },
+            ]}
+            value={mode}
+            onChange={setMode}
+            label="View or edit"
+            testID="agent-file-mode"
+          />
+        )}
         <AskButton
           place="files"
           context={{ kind: "file", id: file.fileId, title: file.name, access: "edit" }}
@@ -146,23 +197,55 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           suggested={agentId}
           compact={file.density === "compact"}
           testID="agent-file-ask"
-          onAsk={(agent, askMode, about) => data.nav.ask?.(agent.id, askMode, { kind: about.kind, id: about.id, title: about.title })}
+          onAsk={(agent, askMode, about) =>
+            data.nav.ask?.(agent.id, askMode, { kind: about.kind, id: about.id, title: about.title })
+          }
         />
-        <IconBtn label="More" onPress={openMore} menu testID="agent-file-more"><Glyph name="more" size={15} color="var(--ink-2)" width={1.8} /></IconBtn>
+        <IconBtn label="More" onPress={openMore} menu testID="agent-file-more">
+          <Glyph name="more" size={15} color="var(--ink-2)" width={1.8} />
+        </IconBtn>
       </View>
-      {info ? <Text style={st.info} testID="agent-file-info-text">{`Version ${version} · ${text.split("\n").length - (text.endsWith("\n") ? 1 : 0)} lines · ${path}/${file.name}`}</Text> : null}
+      {info ? (
+        <Text
+          style={st.info}
+          testID="agent-file-info-text"
+        >{`Version ${version} · ${text.split("\n").length - (text.endsWith("\n") ? 1 : 0)} lines · ${path}/${file.name}`}</Text>
+      ) : null}
       {finding ? (
         <View style={st.find} testID="agent-file-find-bar">
-          <TextField value={query} onChange={setQuery} label="Find in file" placeholder="Find in file" onEscape={() => setFinding(false)} testID="agent-file-find-text" autoFocus />
-          <Text style={st.count} testID="agent-file-find-count">{query ? `${matches} ${matches === 1 ? "match" : "matches"}` : ""}</Text>
+          <TextField
+            value={query}
+            onChange={setQuery}
+            label="Find in file"
+            placeholder="Find in file"
+            onEscape={() => setFinding(false)}
+            testID="agent-file-find-text"
+            autoFocus
+          />
+          <Text style={st.count} testID="agent-file-find-count">
+            {query ? `${matches} ${matches === 1 ? "match" : "matches"}` : ""}
+          </Text>
         </View>
       ) : null}
       {looking && picked ? (
-        <VersionBanner version={picked} showingChanges={changes} canRestore onToggleChanges={() => setChanges(!changes)} onRestore={restore} onBack={() => setViewing(null)} />
+        <VersionBanner
+          version={picked}
+          showingChanges={changes}
+          canRestore
+          onToggleChanges={() => setChanges(!changes)}
+          onRestore={restore}
+          onBack={() => setViewing(null)}
+        />
       ) : null}
       {line ? <Note text={line.text} kind={line.kind} /> : null}
       {looking && picked && changes && current ? (
-        <FileDiff fileId={file.fileId} from={picked.id} to={current.id} name={file.name} {...(file.density ? { density: file.density } : {})} />
+        <FileDiff
+          fileId={file.fileId}
+          from={picked.id}
+          to={current.id}
+          name={file.name}
+          {...(file.density ? { density: file.density } : {})}
+        />
       ) : (
         <AgentFileEditor
           key={applied ? "applied" : "base"}
@@ -173,7 +256,15 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           onReviewPane={onReviewPane}
           onHeader={setHd}
           apiRef={api}
-          above={<SuggestionCard agentId={agentId} file={file.name} text={text} onApplied={setApplied} {...(file.density ? { density: file.density } : {})} />}
+          above={
+            <SuggestionCard
+              agentId={agentId}
+              file={file.name}
+              text={text}
+              onApplied={setApplied}
+              {...(file.density ? { density: file.density } : {})}
+            />
+          }
         />
       )}
     </View>
@@ -183,11 +274,18 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
     <View>
       {reviewNode ? (
         <View testID="agent-file-review">
-          <Text accessibilityRole="header" aria-level={3} style={st.paneHead}>Changes to save</Text>
+          <Text accessibilityRole="header" aria-level={3} style={st.paneHead}>
+            Changes to save
+          </Text>
           {reviewNode}
         </View>
       ) : null}
-      <HistoryPanel fileId={file.fileId} density="compact" selectedId={viewing} onSelect={(id) => setViewing(id === top?.versionId ? null : id)} />
+      <HistoryPanel
+        fileId={file.fileId}
+        density="compact"
+        selectedId={viewing}
+        onSelect={(id) => setViewing(id === top?.versionId ? null : id)}
+      />
     </View>
   );
   return (
@@ -197,14 +295,22 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
       {pane && compact ? (
         <View style={st.under} testID="agent-file-history-pane" role="region" aria-label="History">
           <View style={st.underHead}>
-            <Text accessibilityRole="header" aria-level={3} style={st.underTitle}>History</Text>
+            <Text accessibilityRole="header" aria-level={3} style={st.underTitle}>
+              History
+            </Text>
             <Btn label="Hide" small onPress={() => setPane(false)} testID="agent-file-history-hide" />
           </View>
           {history}
         </View>
       ) : null}
       {pane && !compact ? (
-        <SidePane paneKey="file-history" toggle={{ open: true, onPress: () => setPane(false) }} title="History" tabs={[{ key: "history", title: "History" }]} activeTab="history">
+        <SidePane
+          paneKey="file-history"
+          toggle={{ open: true, onPress: () => setPane(false) }}
+          title="History"
+          tabs={[{ key: "history", title: "History" }]}
+          activeTab="history"
+        >
           {history}
         </SidePane>
       ) : null}
@@ -217,12 +323,36 @@ const st = StyleSheet.create({
   wrapCompact: { flexDirection: "column", alignItems: "stretch" },
   under: { borderTopWidth: 1, borderTopColor: "var(--line)", paddingTop: 4 },
   underHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 6 },
-  paneHead: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 },
+  paneHead: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
   underTitle: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  tile: { width: 30, height: 30, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, marginRight: 4 },
+  tile: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--sunk)" as string,
+    marginRight: 4,
+  },
   tileText: { fontSize: 9.5, fontWeight: "700", color: "var(--ink-3)" as string, letterSpacing: 0.3 },
   main: { flex: 1, minWidth: 0 },
-  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
+  head: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)",
+  },
   title: { flex: 1, minWidth: 150, marginRight: 8 },
   h2: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },

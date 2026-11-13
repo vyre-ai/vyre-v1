@@ -10,7 +10,13 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER_TOKEN = "tok-usr_olivia";
 
 function seededDir(): string {
@@ -28,7 +34,9 @@ async function matrixOf(dir: string, kindFlag: string[]): Promise<Matrix> {
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com", ...kindFlag], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "matrix", free: 80e9,
+      os: "linux",
+      hostname: "matrix",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -36,14 +44,23 @@ async function matrixOf(dir: string, kindFlag: string[]): Promise<Matrix> {
       },
     }),
     fetch: caddyFetch,
-    session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER_TOKEN ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "matrix" } : null),
+    session: (h) =>
+      /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER_TOKEN
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "matrix" }
+        : null,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
-    const r = await fetch(`${d.url}/v1/spaces/matrix`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER_TOKEN}` }, body: "{}" });
+    const r = await fetch(`${d.url}/v1/spaces/matrix`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${OWNER_TOKEN}` },
+      body: "{}",
+    });
     assert.equal(r.status, 200, await r.clone().text());
     return ((await r.json()) as { data: Matrix }).data;
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 }
 
 test("spaces.matrix on a node started with --space-kind personal says personal and marks every team-only feature unavailable; the same Space started as a team says team", async () => {

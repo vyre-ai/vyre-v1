@@ -9,11 +9,48 @@
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { ENC_MINE, ENC_MINE_SEALED, ENC_SHARED, currentFiller, currentKeyPort, openMine, openMineSealed, sealMine, sealMineTo, wrapKeyFromPersonKey } from "./crypto.ts";
+import {
+  ENC_MINE,
+  ENC_MINE_SEALED,
+  ENC_SHARED,
+  currentFiller,
+  currentKeyPort,
+  openMine,
+  openMineSealed,
+  sealMine,
+  sealMineTo,
+  wrapKeyFromPersonKey,
+} from "./crypto.ts";
 import type { Field, SealedFields } from "./crypto.ts";
 import { NEVER_SHARED, isKind, secretByDefault } from "../kinds/index.ts";
 import {
-  atLeast, anyItem, bad, denied, ensure, first, handleOf, isId, isInt, keyOf, levelOn, liveFolder, liveItem, list, metaOut, newId, num, obj, pageOf, paging, parseJson, patchMeta, record, refuse, rowsOf, str, strOrNull,
+  atLeast,
+  anyItem,
+  bad,
+  denied,
+  ensure,
+  first,
+  handleOf,
+  isId,
+  isInt,
+  keyOf,
+  levelOn,
+  liveFolder,
+  liveItem,
+  list,
+  metaOut,
+  newId,
+  num,
+  obj,
+  pageOf,
+  paging,
+  parseJson,
+  patchMeta,
+  record,
+  refuse,
+  rowsOf,
+  str,
+  strOrNull,
 } from "../projections.ts";
 import type { Json, Row, VaultCtx } from "../projections.ts";
 
@@ -26,12 +63,16 @@ export const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_
 
 export function filler(ctx: VaultCtx) {
   const f = currentFiller();
-  if (!f) throw fail("internal.unavailable", ctx.trace.traceId, { message: "The vault service is not running, so values cannot be read or saved. Restart it from Console." });
+  if (!f)
+    throw fail("internal.unavailable", ctx.trace.traceId, {
+      message: "The vault service is not running, so values cannot be read or saved. Restart it from Console.",
+    });
   return f;
 }
 
 /** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
-export const MINE_CLOSED = "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.";
+export const MINE_CLOSED =
+  "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.";
 
 /** The reason an item whose stored value no key this Space has can open carries (saved under an older key: a reset, a restore). A new sign-in replaces such an item. */
 export const UNOPENABLE = "item_unopenable";
@@ -47,7 +88,11 @@ async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
   if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
+  if (!key)
+    throw fail("auth.unauthenticated", ctx.trace.traceId, {
+      message: MINE_CLOSED,
+      details: { reason: "vault_locked" },
+    });
   return wrapKeyFromPersonKey(key);
 }
 
@@ -73,21 +118,46 @@ export function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   const r = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (!r) throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item has no stored value." });
   return {
-    enc: num(r, "enc") === ENC_MINE ? ENC_MINE : num(r, "enc") === ENC_MINE_SEALED ? ENC_MINE_SEALED : ENC_SHARED, keyId: str(r, "keyId"), box: parseJson(r["box"], { iv: "", ct: "", tag: "" }), rev: num(r, "rev"),
+    enc: num(r, "enc") === ENC_MINE ? ENC_MINE : num(r, "enc") === ENC_MINE_SEALED ? ENC_MINE_SEALED : ENC_SHARED,
+    keyId: str(r, "keyId"),
+    box: parseJson(r["box"], { iv: "", ct: "", tag: "" }),
+    rev: num(r, "rev"),
     ...(strOrNull(r, "wrapped") ? { wrapped: parseJson(r["wrapped"], { iv: "", ct: "", tag: "" }) } : {}),
   };
 }
 
 export function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   const have = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
-  if (have) ctx.db.run(`UPDATE vault_secret SET "enc" = ?, "keyId" = ?, "wrapped" = ?, "box" = ?, "rev" = ? WHERE "itemId" = ?`, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev, itemId);
-  else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);
+  if (have)
+    ctx.db.run(
+      `UPDATE vault_secret SET "enc" = ?, "keyId" = ?, "wrapped" = ?, "box" = ?, "rev" = ? WHERE "itemId" = ?`,
+      s.enc,
+      s.keyId,
+      s.wrapped ? JSON.stringify(s.wrapped) : null,
+      JSON.stringify(s.box),
+      s.rev,
+      itemId,
+    );
+  else
+    ctx.db.run(
+      `INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`,
+      itemId,
+      s.enc,
+      s.keyId,
+      s.wrapped ? JSON.stringify(s.wrapped) : null,
+      JSON.stringify(s.box),
+      s.rev,
+    );
 }
 
 /** The wrap key of a Mine item's owner as this node holds it, with no principal check: for the host's save of a refreshed sign-in only, whose caller has checked the item and its owner. */
 async function heldWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "The owner's Mine items open while they are signed in to Vyre.", details: { reason: "vault_locked" } });
+  if (!key)
+    throw fail("auth.unauthenticated", ctx.trace.traceId, {
+      message: "The owner's Mine items open while they are signed in to Vyre.",
+      details: { reason: "vault_locked" },
+    });
   return wrapKeyFromPersonKey(key);
 }
 
@@ -97,11 +167,14 @@ async function heldWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
  */
 export async function resealOwn(ctx: VaultCtx, r: Row, next: (fields: Field[]) => Field[] | null): Promise<boolean> {
   if (str(r, "scope") !== "mine") return false;
-  const id = str(r, "id"), owner = str(r, "owner");
+  const id = str(r, "id"),
+    owner = str(r, "owner");
   const sealed = sealedOf(ctx, id);
   if (sealed.enc !== ENC_MINE && sealed.enc !== ENC_MINE_SEALED) return false;
   const wrap = await heldWrap(ctx, owner);
-  const fields = next(sealed.enc === ENC_MINE ? openMine(id, sealed, wrap) : await openSealedAs(ctx, id, sealed, owner));
+  const fields = next(
+    sealed.enc === ENC_MINE ? openMine(id, sealed, wrap) : await openSealedAs(ctx, id, sealed, owner),
+  );
   if (fields === null) return false;
   storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1));
   ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), id);
@@ -112,9 +185,17 @@ export async function resealOwn(ctx: VaultCtx, r: Row, next: (fields: Field[]) =
 async function openSealedAs(ctx: VaultCtx, id: string, sealed: SealedFields, owner: string): Promise<Field[]> {
   const wrap = await heldWrap(ctx, owner);
   const priv = await currentKeyPort()?.privateKey?.(owner);
-  if (!priv) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
+  if (!priv)
+    throw fail("auth.unauthenticated", ctx.trace.traceId, {
+      message: MINE_CLOSED,
+      details: { reason: "vault_locked" },
+    });
   const fields = openMineSealed(id, sealed, priv);
-  try { storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1)); } catch { /* it opens as it is next time too */ }
+  try {
+    storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1));
+  } catch {
+    /* it opens as it is next time too */
+  }
   return fields;
 }
 
@@ -122,18 +203,36 @@ export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
   const sealed = sealedOf(ctx, str(item, "id"));
   try {
     if (sealed.enc === ENC_MINE) return openMine(str(item, "id"), sealed, await ownerWrap(ctx, str(item, "owner")));
-    if (sealed.enc === ENC_MINE_SEALED) { await ownerWrap(ctx, str(item, "owner")); return await openSealedAs(ctx, str(item, "id"), sealed, str(item, "owner")); }
+    if (sealed.enc === ENC_MINE_SEALED) {
+      await ownerWrap(ctx, str(item, "owner"));
+      return await openSealedAs(ctx, str(item, "id"), sealed, str(item, "owner"));
+    }
     return filler(ctx).open(str(item, "id"), sealed);
   } catch (e) {
-    if (e instanceof Error && "error" in e) throw e;   // a refusal above
-    throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item could not be opened with the keys this Space has. If it was saved before a password reset, add it again.", details: { reason: UNOPENABLE } });
+    if (e instanceof Error && "error" in e) throw e; // a refusal above
+    throw fail("internal.unexpected", ctx.trace.traceId, {
+      message:
+        "This item could not be opened with the keys this Space has. If it was saved before a password reset, add it again.",
+      details: { reason: UNOPENABLE },
+    });
   }
 }
 
-async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: string, fields: Field[], rev: number): Promise<SealedFields> {
+async function sealFor(
+  ctx: VaultCtx,
+  itemId: string,
+  scope: string,
+  owner: string,
+  fields: Field[],
+  rev: number,
+): Promise<SealedFields> {
   if (scope !== "mine") return filler(ctx).seal(itemId, fields, rev);
   const to = await ownerSeal(ctx, owner);
-  if (to === null) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
+  if (to === null)
+    throw fail("auth.unauthenticated", ctx.trace.traceId, {
+      message: MINE_CLOSED,
+      details: { reason: "vault_locked" },
+    });
   return "wrap" in to ? sealMine(itemId, fields, to.wrap, rev) : sealMineTo(itemId, fields, to.publicKey, rev);
 }
 
@@ -141,7 +240,8 @@ async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: stri
 
 /** Mine items are the owner's alone; anything else is visible when authorize allows Use. */
 /** A turn an agent runs for a person: ctx.actingFor comes from the server-side seed, never from input. */
-export const turnFor = (ctx: VaultCtx, r: Row): boolean => ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
+export const turnFor = (ctx: VaultCtx, r: Row): boolean =>
+  ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
 
 export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
@@ -150,17 +250,29 @@ export function visible(ctx: VaultCtx, r: Row): boolean {
 }
 
 export function levelOf(ctx: VaultCtx, r: Row) {
-  return str(r, "owner") === ctx.principal.id ? "manage" as const : levelOn(ctx, "vault_item", str(r, "id"));
+  return str(r, "owner") === ctx.principal.id ? ("manage" as const) : levelOn(ctx, "vault_item", str(r, "id"));
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
-export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edit" | "manage", opts: { trashed?: boolean; forTurn?: boolean } = {}): Row {
+export function reachable(
+  ctx: VaultCtx,
+  id: string,
+  need: "use" | "view" | "edit" | "manage",
+  opts: { trashed?: boolean; forTurn?: boolean } = {},
+): Row {
   if (!isId("vit", id)) bad(ctx, "Item id is not valid.");
   const r = opts.trashed ? anyItem(ctx, id) : liveItem(ctx, id);
   // rulings 62 and 96: only the engine's account lookup (vault.use, forTurn) lets an agent acting for the owner reach the owner's own Mine item, at "use" and nothing more (never listed, viewed, edited, revealed, filled or injected)
-  const turn = opts.forTurn === true && str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && need === "use" && turnFor(ctx, r);
-  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turn) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
-  if (!turn && !atLeast(levelOf(ctx, r), need)) throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
+  const turn =
+    opts.forTurn === true &&
+    str(r, "scope") === "mine" &&
+    str(r, "owner") !== ctx.principal.id &&
+    need === "use" &&
+    turnFor(ctx, r);
+  if (str(r, "scope") === "mine" && str(r, "owner") !== ctx.principal.id && !turn)
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault." });
+  if (!turn && !atLeast(levelOf(ctx, r), need))
+    throw fail("permission.no_grant", ctx.trace.traceId, { message: `That needs ${need} access to the item.` });
   return r;
 }
 
@@ -171,22 +283,48 @@ function matchesText(ctx: VaultCtx, r: Row, q: string): boolean {
   const needle = q.trim().toLowerCase();
   if (needle === "") return true;
   const folder = first(ctx.db.all(`SELECT * FROM vault_folder WHERE id = ?`, str(r, "folderId")));
-  const hay = [str(r, "name"), str(r, "handle"), str(r, "kind"), ...parseJson<string[]>(r["fieldKeys"], []), folder ? str(folder, "name") : ""];
-  return hay.some((h) => h.toLowerCase().includes(needle)) || needle.replace(/^#/, "").split(/\s+/).every((w) => hay.some((h) => h.toLowerCase().replace(/[_\s]+/g, " ").includes(w)));
+  const hay = [
+    str(r, "name"),
+    str(r, "handle"),
+    str(r, "kind"),
+    ...parseJson<string[]>(r["fieldKeys"], []),
+    folder ? str(folder, "name") : "",
+  ];
+  return (
+    hay.some((h) => h.toLowerCase().includes(needle)) ||
+    needle
+      .replace(/^#/, "")
+      .split(/\s+/)
+      .every((w) =>
+        hay.some((h) =>
+          h
+            .toLowerCase()
+            .replace(/[_\s]+/g, " ")
+            .includes(w),
+        ),
+      )
+  );
 }
 
-export async function itemsList(ctx: VaultCtx, input: { section?: string; folder?: string; kind?: string; q?: string; cursor?: string; limit?: number }) {
+export async function itemsList(
+  ctx: VaultCtx,
+  input: { section?: string; folder?: string; kind?: string; q?: string; cursor?: string; limit?: number },
+) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  if (input.section !== undefined && !["personal", "shared", "space", "starred", "following"].includes(input.section)) bad(ctx, "That section is not known.");
+  if (input.section !== undefined && !["personal", "shared", "space", "starred", "following"].includes(input.section))
+    bad(ctx, "That section is not known.");
   if (input.folder !== undefined && !isId("vfd", input.folder)) bad(ctx, "Folder id is not valid.");
   if (input.kind !== undefined && !isKind(input.kind)) bad(ctx, "That kind is not known.");
   if (input.q !== undefined && typeof input.q !== "string") bad(ctx, "The search text is text.");
   const me = ctx.principal.id;
   const seen = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r));
   const counts = {
-    personal: seen.filter((r) => str(r, "owner") === me).length, shared: seen.filter((r) => str(r, "scope") === "shared" && str(r, "owner") !== me).length,
-    space: seen.filter((r) => str(r, "scope") === "shared").length, starred: 0, following: 0,
+    personal: seen.filter((r) => str(r, "owner") === me).length,
+    shared: seen.filter((r) => str(r, "scope") === "shared" && str(r, "owner") !== me).length,
+    space: seen.filter((r) => str(r, "scope") === "shared").length,
+    starred: 0,
+    following: 0,
   };
   const wanted = seen.filter((r) => {
     const s = input.section;
@@ -199,7 +337,11 @@ export async function itemsList(ctx: VaultCtx, input: { section?: string; folder
     if (input.q && !matchesText(ctx, r, input.q)) return false;
     return true;
   });
-  wanted.sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));
+  wanted.sort(
+    (a, b) =>
+      str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||
+      str(a, "id").localeCompare(str(b, "id")),
+  );
   const p = pageOf(wanted, cursor, limit);
   return { items: p.page.map((r) => metaOut(ctx, r)), counts, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -209,7 +351,14 @@ export async function itemGet(ctx: VaultCtx, input: { itemId: string }) {
   const r = reachable(ctx, input.itemId, "use");
   const x = first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id")));
   const secrets = parseJson<Record<string, boolean>>(x?.["secrets"], {});
-  return { item: metaOut(ctx, r), fields: parseJson<string[]>(r["fieldKeys"], []).map((key) => ({ key, secret: secrets[key] !== false, hasValue: true })) };
+  return {
+    item: metaOut(ctx, r),
+    fields: parseJson<string[]>(r["fieldKeys"], []).map((key) => ({
+      key,
+      secret: secrets[key] !== false,
+      hasValue: true,
+    })),
+  };
 }
 
 export async function itemReveal(ctx: VaultCtx, input: { itemId: string; fields?: string[]; reason?: string }) {
@@ -217,8 +366,16 @@ export async function itemReveal(ctx: VaultCtx, input: { itemId: string; fields?
   const r = reachable(ctx, input.itemId, "view");
   if (ctx.principal.kind === "agent") return denied(ctx, "Agents use values by handle; they never see them.");
   if (input.reason !== undefined && typeof input.reason !== "string") bad(ctx, "The reason is text.");
-  if (input.fields !== undefined && (!Array.isArray(input.fields) || input.fields.some((f) => typeof f !== "string" || !FIELD_KEY.test(f)))) bad(ctx, "Field keys are not valid.");
-  if (str(r, "scope") === "shared" && str(r, "owner") !== ctx.principal.id && ctx.authorize({ perm: "vault.reveal", level: "view" }, { type: "vault_item", id: str(r, "id") }).effect !== "allow") {
+  if (
+    input.fields !== undefined &&
+    (!Array.isArray(input.fields) || input.fields.some((f) => typeof f !== "string" || !FIELD_KEY.test(f)))
+  )
+    bad(ctx, "Field keys are not valid.");
+  if (
+    str(r, "scope") === "shared" &&
+    str(r, "owner") !== ctx.principal.id &&
+    ctx.authorize({ perm: "vault.reveal", level: "view" }, { type: "vault_item", id: str(r, "id") }).effect !== "allow"
+  ) {
     return denied(ctx, "Revealing a shared value needs the Reveal vault values permission.");
   }
   const all = await openFields(ctx, r);
@@ -226,8 +383,17 @@ export async function itemReveal(ctx: VaultCtx, input: { itemId: string; fields?
   const unknown = asked.filter((k) => !all.some((f) => f.key === k));
   if (unknown.length) bad(ctx, `This item has no field ${unknown[0]}.`);
   const picked = all.filter((f) => asked.includes(f.key));
-  for (const f of picked) record(ctx, str(r, "id"), "revealed", { field: f.key, ...(input.reason ? { detail: input.reason.slice(0, 200) } : {}) });
-  ctx.emit("vault.revealed", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fields: picked.map((f) => f.key) }, { vis: "participants" });
+  for (const f of picked)
+    record(ctx, str(r, "id"), "revealed", {
+      field: f.key,
+      ...(input.reason ? { detail: input.reason.slice(0, 200) } : {}),
+    });
+  ctx.emit(
+    "vault.revealed",
+    `vault_item/${str(r, "id")}`,
+    { itemId: str(r, "id"), fields: picked.map((f) => f.key) },
+    { vis: "participants" },
+  );
   return { fields: picked.map((f) => ({ key: f.key, value: f.value })) };
 }
 
@@ -235,12 +401,18 @@ export async function itemHistory(ctx: VaultCtx, input: { itemId: string; cursor
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
   const r = reachable(ctx, input.itemId, "edit");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_history WHERE "itemId" = ?`, str(r, "id"))).sort((a, b) => num(b, "at") - num(a, "at") || str(b, "id").localeCompare(str(a, "id")));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_history WHERE "itemId" = ?`, str(r, "id"))).sort(
+    (a, b) => num(b, "at") - num(a, "at") || str(b, "id").localeCompare(str(a, "id")),
+  );
   const p = pageOf(rows, cursor, limit);
   const entries = p.page.map((h) => ({
-    at: num(h, "at"), actor: parseJson<Json>(h["actor"], {}), action: str(h, "action"),
-    ...(strOrNull(h, "onBehalfOf") ? { onBehalfOf: parseJson<Json>(h["onBehalfOf"], {}) } : {}), ...(strOrNull(h, "field") ? { field: str(h, "field") } : {}),
-    ...(strOrNull(h, "via") ? { via: str(h, "via") } : {}), ...(strOrNull(h, "detail") ? { detail: str(h, "detail") } : {}),
+    at: num(h, "at"),
+    actor: parseJson<Json>(h["actor"], {}),
+    action: str(h, "action"),
+    ...(strOrNull(h, "onBehalfOf") ? { onBehalfOf: parseJson<Json>(h["onBehalfOf"], {}) } : {}),
+    ...(strOrNull(h, "field") ? { field: str(h, "field") } : {}),
+    ...(strOrNull(h, "via") ? { via: str(h, "via") } : {}),
+    ...(strOrNull(h, "detail") ? { detail: str(h, "detail") } : {}),
   }));
   return { entries, ...(p.next ? { next: p.next } : {}), total: p.total };
 }
@@ -254,12 +426,28 @@ export async function itemUsage(ctx: VaultCtx, input: { itemId: string; since?: 
   ensure(ctx);
   const r = reachable(ctx, input.itemId, "view");
   const itemId = str(r, "id");
-  const ask = async (by: "agent" | "person"): Promise<{ rows: Array<{ key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }>; totals: { turns: number; tokensIn: number; tokensOut: number } }> =>
-    (await ctx.call("engine.usage.query", { by, itemId, ...(input.since !== undefined ? { from: input.since } : {}) })) as never;
+  const ask = async (
+    by: "agent" | "person",
+  ): Promise<{
+    rows: Array<{ key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }>;
+    totals: { turns: number; tokensIn: number; tokensOut: number };
+  }> =>
+    (await ctx.call("engine.usage.query", {
+      by,
+      itemId,
+      ...(input.since !== undefined ? { from: input.since } : {}),
+    })) as never;
   const [agents, people] = await Promise.all([ask("agent"), ask("person")]);
-  const row = (kind: "agent" | "person") => (x: { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }) =>
-    ({ actor: { kind, id: x.key }, turns: x.totals.turns, tokens: x.totals.tokensIn + x.totals.tokensOut });
-  const actors = [...agents.rows.map(row("agent")), ...people.rows.map(row("person"))].sort((a, b) => b.tokens - a.tokens || a.actor.id.localeCompare(b.actor.id));
+  const row =
+    (kind: "agent" | "person") =>
+    (x: { key: string; totals: { turns: number; tokensIn: number; tokensOut: number } }) => ({
+      actor: { kind, id: x.key },
+      turns: x.totals.turns,
+      tokens: x.totals.tokensIn + x.totals.tokensOut,
+    });
+  const actors = [...agents.rows.map(row("agent")), ...people.rows.map(row("person"))].sort(
+    (a, b) => b.tokens - a.tokens || a.actor.id.localeCompare(b.actor.id),
+  );
   return { actors, total: { turns: agents.totals.turns, tokens: agents.totals.tokensIn + agents.totals.tokensOut } };
 }
 
@@ -271,28 +459,41 @@ function cleanFields(ctx: VaultCtx, raw: unknown, what: string): Field[] {
   const seen = new Set<string>();
   return raw.map((f) => {
     const o = obj(f);
-    if (typeof o["key"] !== "string" || !FIELD_KEY.test(o["key"])) bad(ctx, "A field key starts with a letter and has letters, digits and underscores.");
+    if (typeof o["key"] !== "string" || !FIELD_KEY.test(o["key"]))
+      bad(ctx, "A field key starts with a letter and has letters, digits and underscores.");
     if (typeof o["value"] !== "string") bad(ctx, "A field value is text.");
-    if ((o["value"] as string).length > MAX_VALUE) throw fail("validation.too_large", ctx.trace.traceId, { message: "A field value is up to 64 KB." });
+    if ((o["value"] as string).length > MAX_VALUE)
+      throw fail("validation.too_large", ctx.trace.traceId, { message: "A field value is up to 64 KB." });
     if (o["secret"] !== undefined && typeof o["secret"] !== "boolean") bad(ctx, "secret is true or false.");
     if (seen.has(o["key"] as string)) bad(ctx, `The field ${String(o["key"])} is listed twice.`);
     seen.add(o["key"] as string);
-    return { key: o["key"] as string, value: o["value"] as string, secret: o["secret"] === undefined ? secretByDefault(o["key"] as string) : (o["secret"] as boolean) };
+    return {
+      key: o["key"] as string,
+      value: o["value"] as string,
+      secret: o["secret"] === undefined ? secretByDefault(o["key"] as string) : (o["secret"] as boolean),
+    };
   });
 }
 
 function nameOf(ctx: VaultCtx, v: unknown): string {
-  if (typeof v !== "string" || v.trim() === "" || v.length > 200) return bad(ctx, "An item name is 1 to 200 characters.");
+  if (typeof v !== "string" || v.trim() === "" || v.length > 200)
+    return bad(ctx, "An item name is 1 to 200 characters.");
   return v.trim();
 }
 
 function nameTaken(ctx: VaultCtx, folderId: string, name: string, except?: string): boolean {
-  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).some((r) => live(r) && str(r, "id") !== except && str(r, "name").toLowerCase() === name.toLowerCase());
+  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).some(
+    (r) => live(r) && str(r, "id") !== except && str(r, "name").toLowerCase() === name.toLowerCase(),
+  );
 }
 
 export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: string): string {
   const base = handleOf(name);
-  const taken = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => str(r, "id") !== except).map((r) => str(r, "handle").toLowerCase()));
+  const taken = new Set(
+    rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))
+      .filter((r) => str(r, "id") !== except)
+      .map((r) => str(r, "handle").toLowerCase()),
+  );
   let h = base;
   for (let n = 2; taken.has(h.toLowerCase()); n++) h = `${base}_${n}`;
   return h;
@@ -303,16 +504,45 @@ export const COMPANY_FOLDER = "Company connections";
 
 /** The Restricted shared folder for company keys: the one there is, else made now (through the host, so it is a resource at once), labelled Restricted before anything goes in. Labelling needs an owner or admin. */
 async function companyFolder(ctx: VaultCtx, idem: string): Promise<string> {
-  const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder WHERE "name" = ?`, COMPANY_FOLDER)).find((f) => (f["deleted_at"] === null || f["deleted_at"] === undefined) && str(f, "scope") === "shared");
-  const id = have ? str(have, "id") : String(((await ctx.call("vault.folders.create", { name: COMPANY_FOLDER, scope: "shared", idempotencyKey: `${idem}:company-folder` })) as { folder: { id: string } }).folder.id);
-  try { await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" }); }
-  catch { return refuse(ctx, "A company key is kept in the Restricted Company connections folder, which only an owner or admin can set up. Ask one of them to add it."); }
+  const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder WHERE "name" = ?`, COMPANY_FOLDER)).find(
+    (f) => (f["deleted_at"] === null || f["deleted_at"] === undefined) && str(f, "scope") === "shared",
+  );
+  const id = have
+    ? str(have, "id")
+    : String(
+        (
+          (await ctx.call("vault.folders.create", {
+            name: COMPANY_FOLDER,
+            scope: "shared",
+            idempotencyKey: `${idem}:company-folder`,
+          })) as { folder: { id: string } }
+        ).folder.id,
+      );
+  try {
+    await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" });
+  } catch {
+    return refuse(
+      ctx,
+      "A company key is kept in the Restricted Company connections folder, which only an owner or admin can set up. Ask one of them to add it.",
+    );
+  }
   return id;
 }
 
-export async function itemPut(ctx: VaultCtx, input: {
-  folderId: string; name: string; kind: string; fields: unknown[]; template?: string; spaceOnly?: boolean; injectIntoDeployments?: boolean; rotateEveryDays?: number; idempotencyKey: string;
-}) {
+export async function itemPut(
+  ctx: VaultCtx,
+  input: {
+    folderId: string;
+    name: string;
+    kind: string;
+    fields: unknown[];
+    template?: string;
+    spaceOnly?: boolean;
+    injectIntoDeployments?: boolean;
+    rotateEveryDays?: number;
+    idempotencyKey: string;
+  },
+) {
   ensure(ctx);
   keyOf(ctx, input);
   if (!isId("vfd", input.folderId)) bad(ctx, "Folder id is not valid.");
@@ -320,18 +550,40 @@ export async function itemPut(ctx: VaultCtx, input: {
   if (!isKind(input.kind)) bad(ctx, "That kind is not known.");
   const fields = cleanFields(ctx, input.fields, "fields");
   if (fields.length === 0) bad(ctx, "An item needs at least one field.");
-  for (const [k, v] of [["spaceOnly", input.spaceOnly], ["injectIntoDeployments", input.injectIntoDeployments]] as const) if (v !== undefined && typeof v !== "boolean") bad(ctx, `${k} is true or false.`);
-  if (input.rotateEveryDays !== undefined && (!isInt(input.rotateEveryDays) || input.rotateEveryDays < 1)) bad(ctx, "The rotation reminder is a whole number of days.");
+  for (const [k, v] of [
+    ["spaceOnly", input.spaceOnly],
+    ["injectIntoDeployments", input.injectIntoDeployments],
+  ] as const)
+    if (v !== undefined && typeof v !== "boolean") bad(ctx, `${k} is true or false.`);
+  if (input.rotateEveryDays !== undefined && (!isInt(input.rotateEveryDays) || input.rotateEveryDays < 1))
+    bad(ctx, "The rotation reminder is a whole number of days.");
   // a company key (Google delegation, the Microsoft app, a sign-in app's secret) is filed in the Restricted "Company connections" folder whoever puts it and whichever shared folder they named, so a
   // member with Edit on that folder can never reveal a key that reads every mailbox (vault audit, Broken 8)
   const asked = liveFolder(ctx, input.folderId);
-  const folder = str(asked, "scope") === "shared" && isCompanyKey(handleOf(name)) ? liveFolder(ctx, await companyFolder(ctx, input.idempotencyKey)) : asked;
+  const folder =
+    str(asked, "scope") === "shared" && isCompanyKey(handleOf(name))
+      ? liveFolder(ctx, await companyFolder(ctx, input.idempotencyKey))
+      : asked;
   const scope = str(folder, "scope") === "mine" ? "mine" : "shared";
-  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
-  if (scope === "shared" && !atLeast(levelOn(ctx, "vault_folder", str(folder, "id")), "edit") && str(folder, "owner") !== ctx.principal.id) return denied(ctx, "Adding to this folder needs edit access.");
-  if (scope === "shared" && NEVER_SHARED.has(input.kind)) refuse(ctx, "A subscription sign-in is yours alone. Put it in a Mine folder.");
-  if (ctx.principal.kind === "agent" && scope === "mine") return denied(ctx, "An agent cannot put items in someone's Mine folder. Ask for the key with vault_request; the person pastes it in their own app.");
-  if (nameTaken(ctx, str(folder, "id"), name)) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
+  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id)
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
+  if (
+    scope === "shared" &&
+    !atLeast(levelOn(ctx, "vault_folder", str(folder, "id")), "edit") &&
+    str(folder, "owner") !== ctx.principal.id
+  )
+    return denied(ctx, "Adding to this folder needs edit access.");
+  if (scope === "shared" && NEVER_SHARED.has(input.kind))
+    refuse(ctx, "A subscription sign-in is yours alone. Put it in a Mine folder.");
+  if (ctx.principal.kind === "agent" && scope === "mine")
+    return denied(
+      ctx,
+      "An agent cannot put items in someone's Mine folder. Ask for the key with vault_request; the person pastes it in their own app.",
+    );
+  if (nameTaken(ctx, str(folder, "id"), name))
+    throw fail("validation.duplicate", ctx.trace.traceId, {
+      message: "This folder already has an item with that name.",
+    });
 
   const now = ctx.now();
   const id = newId("vit", now);
@@ -339,20 +591,51 @@ export async function itemPut(ctx: VaultCtx, input: {
   storeSealed(ctx, id, sealed);
   ctx.db.run(
     `INSERT INTO vault_meta ("id", "name", "kind", "folderId", "owner", "scope", "fieldKeys", "handle", "spaceOnly", "injectIntoDeployments", "rotateEveryDays", "version", "updated_at", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, input.kind, str(folder, "id"), ctx.principal.id, scope, JSON.stringify(fields.map((f) => f.key)), uniqueHandle(ctx, name), input.spaceOnly === true ? 1 : 0, input.injectIntoDeployments === true ? 1 : 0,
-    input.rotateEveryDays ?? null, 0, now, now,
+    id,
+    name,
+    input.kind,
+    str(folder, "id"),
+    ctx.principal.id,
+    scope,
+    JSON.stringify(fields.map((f) => f.key)),
+    uniqueHandle(ctx, name),
+    input.spaceOnly === true ? 1 : 0,
+    input.injectIntoDeployments === true ? 1 : 0,
+    input.rotateEveryDays ?? null,
+    0,
+    now,
+    now,
   );
-  ctx.db.run(`INSERT INTO vault_item_x ("itemId", "createdAt", "secrets") VALUES (?, ?, ?)`, id, now, JSON.stringify(Object.fromEntries(fields.map((f) => [f.key, f.secret]))));
+  ctx.db.run(
+    `INSERT INTO vault_item_x ("itemId", "createdAt", "secrets") VALUES (?, ?, ?)`,
+    id,
+    now,
+    JSON.stringify(Object.fromEntries(fields.map((f) => [f.key, f.secret]))),
+  );
   record(ctx, id, "created");
-  ctx.emit("vault.item_created", `vault_item/${id}`, { itemId: id, kind: input.kind, folderId: str(folder, "id"), scope, name }, { vis: "participants" });
+  ctx.emit(
+    "vault.item_created",
+    `vault_item/${id}`,
+    { itemId: id, kind: input.kind, folderId: str(folder, "id"), scope, name },
+    { vis: "participants" },
+  );
   return { item: metaOut(ctx, liveItem(ctx, id)) };
 }
 
-export async function itemUpdate(ctx: VaultCtx, input: {
-  itemId: string; name?: string; fieldsSet?: unknown[]; fieldsRemove?: string[]; spaceOnly?: boolean; injectIntoDeployments?: boolean; rotateEveryDays?: number | null;
-  /** A sign-in saved again over an item no key can open: the new fields REPLACE the unreadable value under the current key (same item, handle, name and history). System use, not an input of the capability. */
-  replaceUnopenable?: boolean;
-}) {
+export async function itemUpdate(
+  ctx: VaultCtx,
+  input: {
+    itemId: string;
+    name?: string;
+    fieldsSet?: unknown[];
+    fieldsRemove?: string[];
+    spaceOnly?: boolean;
+    injectIntoDeployments?: boolean;
+    rotateEveryDays?: number | null;
+    /** A sign-in saved again over an item no key can open: the new fields REPLACE the unreadable value under the current key (same item, handle, name and history). System use, not an input of the capability. */
+    replaceUnopenable?: boolean;
+  },
+) {
   ensure(ctx);
   const r = reachable(ctx, input.itemId, "edit");
   const changed: Record<string, string | number | null> = {};
@@ -360,52 +643,95 @@ export async function itemUpdate(ctx: VaultCtx, input: {
   if (input.name !== undefined) {
     const name = nameOf(ctx, input.name);
     if (name !== str(r, "name")) {
-      if (nameTaken(ctx, str(r, "folderId"), name, str(r, "id"))) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
+      if (nameTaken(ctx, str(r, "folderId"), name, str(r, "id")))
+        throw fail("validation.duplicate", ctx.trace.traceId, {
+          message: "This folder already has an item with that name.",
+        });
       // the handle stays: agents, chats and automations hold it, and renaming must not cut them off from the key
       changed["name"] = name;
       settings.push("name");
     }
   }
-  for (const [k, col] of [["spaceOnly", "spaceOnly"], ["injectIntoDeployments", "injectIntoDeployments"]] as const) {
+  for (const [k, col] of [
+    ["spaceOnly", "spaceOnly"],
+    ["injectIntoDeployments", "injectIntoDeployments"],
+  ] as const) {
     const v = input[k];
     if (v === undefined) continue;
     if (typeof v !== "boolean") bad(ctx, `${k} is true or false.`);
-    if ((v ? 1 : 0) !== num(r, col)) { changed[col] = v ? 1 : 0; settings.push(k); }
+    if ((v ? 1 : 0) !== num(r, col)) {
+      changed[col] = v ? 1 : 0;
+      settings.push(k);
+    }
   }
   if (input.rotateEveryDays !== undefined) {
-    if (input.rotateEveryDays !== null && (!isInt(input.rotateEveryDays) || input.rotateEveryDays < 1)) bad(ctx, "The rotation reminder is a whole number of days, or null to clear it.");
+    if (input.rotateEveryDays !== null && (!isInt(input.rotateEveryDays) || input.rotateEveryDays < 1))
+      bad(ctx, "The rotation reminder is a whole number of days, or null to clear it.");
     changed["rotateEveryDays"] = input.rotateEveryDays;
     settings.push("rotateEveryDays");
   }
   const set = input.fieldsSet === undefined ? [] : cleanFields(ctx, input.fieldsSet, "fieldsSet");
-  const remove = input.fieldsRemove === undefined ? [] : list(input.fieldsRemove).map((k) => (typeof k === "string" && FIELD_KEY.test(k) ? k : bad(ctx, "Field keys are not valid.")));
+  const remove =
+    input.fieldsRemove === undefined
+      ? []
+      : list(input.fieldsRemove).map((k) =>
+          typeof k === "string" && FIELD_KEY.test(k) ? k : bad(ctx, "Field keys are not valid."),
+        );
   const fieldsChanged: string[] = [];
   if (set.length || remove.length) {
     let have: Field[];
     let replaced = false;
-    try { have = await openFields(ctx, r); }
-    catch (e) {
-      if (input.replaceUnopenable === true && isUnopenable(e) && remove.length === 0 && set.length > 0) { have = []; replaced = true; } else throw e;
+    try {
+      have = await openFields(ctx, r);
+    } catch (e) {
+      if (input.replaceUnopenable === true && isUnopenable(e) && remove.length === 0 && set.length > 0) {
+        have = [];
+        replaced = true;
+      } else throw e;
     }
     let next = have.filter((f) => !remove.includes(f.key));
     for (const k of remove) if (!have.some((f) => f.key === k)) bad(ctx, `This item has no field ${k}.`);
-    for (const f of set) next = next.some((n) => n.key === f.key) ? next.map((n) => (n.key === f.key ? f : n)) : [...next, f];
+    for (const f of set)
+      next = next.some((n) => n.key === f.key) ? next.map((n) => (n.key === f.key ? f : n)) : [...next, f];
     if (next.length === 0) bad(ctx, "An item needs at least one field.");
     const rev = sealedOf(ctx, str(r, "id")).rev + 1;
     storeSealed(ctx, str(r, "id"), await sealFor(ctx, str(r, "id"), str(r, "scope"), str(r, "owner"), next, rev));
     changed["fieldKeys"] = JSON.stringify(next.map((f) => f.key));
-    ctx.db.run(`UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`, JSON.stringify(Object.fromEntries(next.map((f) => [f.key, f.secret]))), str(r, "id"));
+    ctx.db.run(
+      `UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`,
+      JSON.stringify(Object.fromEntries(next.map((f) => [f.key, f.secret]))),
+      str(r, "id"),
+    );
     fieldsChanged.push(...new Set([...set.map((f) => f.key), ...remove]));
-    for (const k of fieldsChanged) record(ctx, str(r, "id"), "edited", { field: k, ...(replaced ? { detail: "Replaced: the earlier value could not be opened with the current keys." } : {}) });
+    for (const k of fieldsChanged)
+      record(ctx, str(r, "id"), "edited", {
+        field: k,
+        ...(replaced ? { detail: "Replaced: the earlier value could not be opened with the current keys." } : {}),
+      });
     // a new value is a rotation: a reminder that keeps nagging after the key was changed teaches people to ignore it
-    if (set.length > 0) ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), str(r, "id"));
+    if (set.length > 0)
+      ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), str(r, "id"));
   }
   if (!fieldsChanged.length && !settings.length) return { item: metaOut(ctx, r) };
   patchMeta(ctx, str(r, "id"), changed);
   if (settings.length) record(ctx, str(r, "id"), "edited", { detail: settings.join(", ") });
   // a sign-in saved again on an account that read "Sign in again" puts it back to working; the next turn proves it
-  if (fieldsChanged.some((k) => k === "setup_token" || k === "credentials" || k === "api_key")) { try { ctx.db.run(`UPDATE vault_provider SET "state" = 'ok' WHERE "itemId" = ? AND "state" = 'needs_sign_in'`, str(r, "id")); } catch { /* no provider table yet: nothing to put back */ } }
-  ctx.emit("vault.item_updated", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings }, { vis: "participants" });
+  if (fieldsChanged.some((k) => k === "setup_token" || k === "credentials" || k === "api_key")) {
+    try {
+      ctx.db.run(
+        `UPDATE vault_provider SET "state" = 'ok' WHERE "itemId" = ? AND "state" = 'needs_sign_in'`,
+        str(r, "id"),
+      );
+    } catch {
+      /* no provider table yet: nothing to put back */
+    }
+  }
+  ctx.emit(
+    "vault.item_updated",
+    `vault_item/${str(r, "id")}`,
+    { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings },
+    { vis: "participants" },
+  );
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }
 
@@ -416,10 +742,20 @@ export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId:
   const target = liveFolder(ctx, input.folderId);
   if (str(target, "id") === str(r, "folderId")) return { item: metaOut(ctx, r) };
   const to = str(target, "scope") === "mine" ? "mine" : "shared";
-  if (to === "mine" && (str(target, "owner") !== ctx.principal.id || str(r, "owner") !== ctx.principal.id)) refuse(ctx, "Only the owner can move an item into their own Mine folder.");
-  if (to === "shared" && NEVER_SHARED.has(str(r, "kind") as never)) refuse(ctx, "A subscription sign-in is yours alone. It cannot move to a Shared folder.");
-  if (to === "shared" && !atLeast(levelOn(ctx, "vault_folder", str(target, "id")), "edit") && str(target, "owner") !== ctx.principal.id) return denied(ctx, "Adding to that folder needs edit access.");
-  if (nameTaken(ctx, str(target, "id"), str(r, "name"), str(r, "id"))) throw fail("validation.duplicate", ctx.trace.traceId, { message: "That folder already has an item with this name." });
+  if (to === "mine" && (str(target, "owner") !== ctx.principal.id || str(r, "owner") !== ctx.principal.id))
+    refuse(ctx, "Only the owner can move an item into their own Mine folder.");
+  if (to === "shared" && NEVER_SHARED.has(str(r, "kind") as never))
+    refuse(ctx, "A subscription sign-in is yours alone. It cannot move to a Shared folder.");
+  if (
+    to === "shared" &&
+    !atLeast(levelOn(ctx, "vault_folder", str(target, "id")), "edit") &&
+    str(target, "owner") !== ctx.principal.id
+  )
+    return denied(ctx, "Adding to that folder needs edit access.");
+  if (nameTaken(ctx, str(target, "id"), str(r, "name"), str(r, "id")))
+    throw fail("validation.duplicate", ctx.trace.traceId, {
+      message: "That folder already has an item with this name.",
+    });
   if (to !== str(r, "scope")) {
     // crossing Mine and Shared: open under the old key, seal under the new one. A Mine item can only be opened by its owner, so only they can send it across.
     if (str(r, "owner") !== ctx.principal.id) refuse(ctx, "Only the owner can move a Mine item to a Shared folder.");
@@ -430,9 +766,18 @@ export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId:
   const from = str(r, "folderId");
   patchMeta(ctx, str(r, "id"), { folderId: str(target, "id"), scope: to });
   record(ctx, str(r, "id"), "moved", { detail: `${from} to ${str(target, "id")}` });
-  ctx.emit("vault.item_moved", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fromFolderId: from, toFolderId: str(target, "id") }, { vis: "participants" });
+  ctx.emit(
+    "vault.item_moved",
+    `vault_item/${str(r, "id")}`,
+    { itemId: str(r, "id"), fromFolderId: from, toFolderId: str(target, "id") },
+    { vis: "participants" },
+  );
   // item.moved takes fld_ and vfd_ folders alike (P-CC_28), so a Vault move carries from and to on the shared event too
-  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, { resource: { type: "vault_item", id: str(r, "id") }, fromFolderId: from, toFolderId: str(target, "id") });
+  ctx.emit("item.moved", `vault_item/${str(r, "id")}`, {
+    resource: { type: "vault_item", id: str(r, "id") },
+    fromFolderId: from,
+    toFolderId: str(target, "id"),
+  });
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }
 
@@ -462,7 +807,10 @@ export async function itemRestore(ctx: VaultCtx, input: { itemId: string }) {
   if (live(r)) refuse(ctx, "That item is not in Trash.");
   const folder = first(ctx.db.all(`SELECT * FROM vault_folder WHERE id = ?`, str(r, "folderId")));
   if (!folder || !live(folder)) refuse(ctx, "Its folder is gone. Move the item to another folder first.");
-  if (nameTaken(ctx, str(r, "folderId"), str(r, "name"))) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
+  if (nameTaken(ctx, str(r, "folderId"), str(r, "name")))
+    throw fail("validation.duplicate", ctx.trace.traceId, {
+      message: "This folder already has an item with that name.",
+    });
   patchMeta(ctx, str(r, "id"), { deleted_at: null });
   ctx.db.run(`UPDATE vault_item_x SET "deletedBy" = ? WHERE "itemId" = ?`, null, str(r, "id"));
   record(ctx, str(r, "id"), "restored");
@@ -473,7 +821,11 @@ export async function itemRestore(ctx: VaultCtx, input: { itemId: string }) {
 // ---- sharing: a thin front over access.share and access.unshare
 
 type ResourceIn = { type: string; id: string };
-function shareTarget(ctx: VaultCtx, resource: ResourceIn, need: "view" | "manage"): { row: Row; kind: "vault_item" | "vault_folder" } {
+function shareTarget(
+  ctx: VaultCtx,
+  resource: ResourceIn,
+  need: "view" | "manage",
+): { row: Row; kind: "vault_item" | "vault_folder" } {
   const r = obj(resource);
   if (r["type"] === "vault_item" && typeof r["id"] === "string") {
     const row = reachable(ctx, r["id"], need);
@@ -481,45 +833,72 @@ function shareTarget(ctx: VaultCtx, resource: ResourceIn, need: "view" | "manage
   }
   if (r["type"] === "vault_folder" && isId("vfd", r["id"])) {
     const row = liveFolder(ctx, r["id"] as string);
-    if (str(row, "scope") === "mine" && str(row, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
+    if (str(row, "scope") === "mine" && str(row, "owner") !== ctx.principal.id)
+      throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
     return { row, kind: "vault_folder" };
   }
   return bad(ctx, "Share an item or a folder.");
 }
 
-export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string; notify?: { message?: string } }) {
+export async function share(
+  ctx: VaultCtx,
+  input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string; notify?: { message?: string } },
+) {
   ensure(ctx);
   const key = keyOf(ctx, input);
   const t = shareTarget(ctx, input.resource, "manage");
   if (t.kind === "vault_item") {
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine item is private. Move it to a Shared folder to share it.");
     if (NEVER_SHARED.has(str(t.row, "kind") as never)) refuse(ctx, "A subscription sign-in is never shared.");
-    if (isCompanyKey(str(t.row, "handle")) && obj(input.subject)["kind"] !== "person") refuse(ctx, "This key is for the server alone. Agents and automations never get it.");
+    if (isCompanyKey(str(t.row, "handle")) && obj(input.subject)["kind"] !== "person")
+      refuse(ctx, "This key is for the server alone. Agents and automations never get it.");
   } else {
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine folder is private. Make a Shared folder to share items.");
-    if (!atLeast(levelOn(ctx, "vault_folder", str(t.row, "id")), "manage") && str(t.row, "owner") !== ctx.principal.id) return denied(ctx, "Sharing a folder needs manage access.");
+    if (!atLeast(levelOn(ctx, "vault_folder", str(t.row, "id")), "manage") && str(t.row, "owner") !== ctx.principal.id)
+      return denied(ctx, "Sharing a folder needs manage access.");
   }
-  await ctx.call("access.share", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject, level: input.level, idempotencyKey: key, ...(input.notify ? { notify: input.notify } : {}) });
-  if (t.kind === "vault_item") record(ctx, str(t.row, "id"), "shared", { detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])} at ${input.level}` });
+  await ctx.call("access.share", {
+    resource: { type: t.kind, id: str(t.row, "id") },
+    subject: input.subject,
+    level: input.level,
+    idempotencyKey: key,
+    ...(input.notify ? { notify: input.notify } : {}),
+  });
+  if (t.kind === "vault_item")
+    record(ctx, str(t.row, "id"), "shared", {
+      detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])} at ${input.level}`,
+    });
   return { granted: true };
 }
 
 export async function unshare(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json }) {
   ensure(ctx);
   const t = shareTarget(ctx, input.resource, "manage");
-  const out = obj(await ctx.call("access.unshare", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject }));
+  const out = obj(
+    await ctx.call("access.unshare", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject }),
+  );
   const revoked = isInt(out["revoked"]) ? out["revoked"] : 0;
-  if (t.kind === "vault_item" && revoked > 0) record(ctx, str(t.row, "id"), "unshared", { detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])}` });
+  if (t.kind === "vault_item" && revoked > 0)
+    record(ctx, str(t.row, "id"), "unshared", {
+      detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])}`,
+    });
   return { revoked };
 }
 
 // ---- folders
 
 function folderOut(ctx: VaultCtx, f: Row): Json {
-  const items = rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, str(f, "id"))).filter((r) => visible(ctx, r)).length;
+  const items = rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, str(f, "id"))).filter((r) =>
+    visible(ctx, r),
+  ).length;
   const mine = str(f, "owner") === ctx.principal.id;
   const out: Json = {
-    id: str(f, "id"), name: str(f, "name"), scope: str(f, "scope"), owner: str(f, "owner"), itemCount: items, whoCanExport: parseJson<unknown[]>(f["whoCanExport"], []),
+    id: str(f, "id"),
+    name: str(f, "name"),
+    scope: str(f, "scope"),
+    owner: str(f, "owner"),
+    itemCount: items,
+    whoCanExport: parseJson<unknown[]>(f["whoCanExport"], []),
     yourLevel: mine ? "manage" : (levelOn(ctx, "vault_folder", str(f, "id")) ?? "use"),
   };
   if (strOrNull(f, "parentId")) out["parentId"] = str(f, "parentId");
@@ -528,15 +907,28 @@ function folderOut(ctx: VaultCtx, f: Row): Json {
 
 export async function foldersList(ctx: VaultCtx, input: { scope?: string }) {
   ensure(ctx);
-  if (input.scope !== undefined && input.scope !== "mine" && input.scope !== "shared") bad(ctx, "Scope is mine or shared.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter((f) => live(f)
-    && (input.scope === undefined || str(f, "scope") === input.scope)
-    && (str(f, "scope") === "mine" ? str(f, "owner") === ctx.principal.id : str(f, "owner") === ctx.principal.id || levelOn(ctx, "vault_folder", str(f, "id")) !== null));
-  rows.sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));
+  if (input.scope !== undefined && input.scope !== "mine" && input.scope !== "shared")
+    bad(ctx, "Scope is mine or shared.");
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter(
+    (f) =>
+      live(f) &&
+      (input.scope === undefined || str(f, "scope") === input.scope) &&
+      (str(f, "scope") === "mine"
+        ? str(f, "owner") === ctx.principal.id
+        : str(f, "owner") === ctx.principal.id || levelOn(ctx, "vault_folder", str(f, "id")) !== null),
+  );
+  rows.sort(
+    (a, b) =>
+      str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||
+      str(a, "id").localeCompare(str(b, "id")),
+  );
   return { folders: rows.map((f) => folderOut(ctx, f)) };
 }
 
-export async function foldersCreate(ctx: VaultCtx, input: { name: string; parentId?: string; scope: string; idempotencyKey: string }) {
+export async function foldersCreate(
+  ctx: VaultCtx,
+  input: { name: string; parentId?: string; scope: string; idempotencyKey: string },
+) {
   ensure(ctx);
   keyOf(ctx, input);
   const name = nameOf(ctx, input.name);
@@ -544,16 +936,42 @@ export async function foldersCreate(ctx: VaultCtx, input: { name: string; parent
   if (input.parentId !== undefined) {
     if (!isId("vfd", input.parentId)) bad(ctx, "Parent folder id is not valid.");
     const parent = liveFolder(ctx, input.parentId);
-    if (str(parent, "scope") !== input.scope) refuse(ctx, "A folder lives in a folder of the same kind, Mine or Shared.");
-    if (input.scope === "mine" && str(parent, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
-    if (input.scope === "shared" && !atLeast(levelOn(ctx, "vault_folder", input.parentId), "edit") && str(parent, "owner") !== ctx.principal.id) return denied(ctx, "Adding to this folder needs edit access.");
+    if (str(parent, "scope") !== input.scope)
+      refuse(ctx, "A folder lives in a folder of the same kind, Mine or Shared.");
+    if (input.scope === "mine" && str(parent, "owner") !== ctx.principal.id)
+      throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
+    if (
+      input.scope === "shared" &&
+      !atLeast(levelOn(ctx, "vault_folder", input.parentId), "edit") &&
+      str(parent, "owner") !== ctx.principal.id
+    )
+      return denied(ctx, "Adding to this folder needs edit access.");
   }
-  if (ctx.principal.kind === "agent" && input.scope === "mine") return denied(ctx, "An agent cannot make Mine folders for someone.");
-  const dup = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).some((f) => live(f) && str(f, "scope") === input.scope && (input.scope === "shared" || str(f, "owner") === ctx.principal.id)
-    && (strOrNull(f, "parentId") ?? "") === (input.parentId ?? "") && str(f, "name").toLowerCase() === name.toLowerCase());
-  if (dup) throw fail("validation.duplicate", ctx.trace.traceId, { message: "There is already a folder with that name here." });
+  if (ctx.principal.kind === "agent" && input.scope === "mine")
+    return denied(ctx, "An agent cannot make Mine folders for someone.");
+  const dup = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).some(
+    (f) =>
+      live(f) &&
+      str(f, "scope") === input.scope &&
+      (input.scope === "shared" || str(f, "owner") === ctx.principal.id) &&
+      (strOrNull(f, "parentId") ?? "") === (input.parentId ?? "") &&
+      str(f, "name").toLowerCase() === name.toLowerCase(),
+  );
+  if (dup)
+    throw fail("validation.duplicate", ctx.trace.traceId, {
+      message: "There is already a folder with that name here.",
+    });
   const id = newId("vfd", ctx.now());
-  ctx.db.run(`INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, id, name, input.parentId ?? null, input.scope, ctx.principal.id, "[]", ctx.now());
+  ctx.db.run(
+    `INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    name,
+    input.parentId ?? null,
+    input.scope,
+    ctx.principal.id,
+    "[]",
+    ctx.now(),
+  );
   ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: input.scope }, { vis: "participants" });
   return { folder: folderOut(ctx, liveFolder(ctx, id)) };
 }
@@ -563,7 +981,11 @@ export async function foldersCreate(ctx: VaultCtx, input: { name: string; parent
 export async function serviceHealth(ctx: VaultCtx) {
   void ctx;
   const f = currentFiller();
-  if (!f) return { state: "down" as const, detail: "The vault service has no key loaded. Values are safe while it is down; restart it in Console." };
+  if (!f)
+    return {
+      state: "down" as const,
+      detail: "The vault service has no key loaded. Values are safe while it is down; restart it in Console.",
+    };
   const started = Date.now();
   try {
     const sealed = f.seal("vit_probe", [{ key: "probe", value: "ok", secret: false }]);
@@ -573,4 +995,3 @@ export async function serviceHealth(ctx: VaultCtx) {
   }
   return { state: "healthy" as const, latencyMs: Date.now() - started };
 }
-

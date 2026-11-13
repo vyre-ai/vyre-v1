@@ -17,7 +17,10 @@ test("a session older than 30 days still works, is listed, and signing out or re
     const ben = await join(d, "ben");
     clock += 31 * DAY;
     assert.equal((await api(d, ana.token, "identity.whoami", {})).status, 200, "an old session still works");
-    const listed = (await ok(d, ben.token, "devices.sessions.list", {})).sessions as Array<{ id: string; current?: boolean }>;
+    const listed = (await ok(d, ben.token, "devices.sessions.list", {})).sessions as Array<{
+      id: string;
+      current?: boolean;
+    }>;
     assert.equal(listed.length, 1, "it is listed");
     await ok(d, ana.token, "identity.sign_out", {});
     assert.equal((await api(d, ana.token, "identity.whoami", {})).status, 401, "signing out of it ends it");

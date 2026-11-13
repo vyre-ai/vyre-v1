@@ -10,10 +10,32 @@ const key = (): string => `n-${++seq}`;
 
 test("two accounts of one provider are listed with their own Vault item names, and no secret is in the rows", async () => {
   const h = harness();
-  const a = (await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() }) as { provider: Json }).provider;
-  const b = (await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: `${SECRET}-2`, idempotencyKey: key() }) as { provider: Json }).provider;
-  const listed = (await p.list(h.ctx, {}) as { providers: Json[] }).providers;
-  assert.deepEqual(listed.map((r) => [r.id, r.name, r.itemName]).sort(), [[a.id, "OpenAI", "OpenAI"], [b.id, "OpenAI", "OpenAI 2"]].sort());
+  const a = (
+    (await p.add(h.ctx, {
+      providerKey: "openai",
+      connection: "api_key",
+      scope: "mine",
+      apiKey: SECRET,
+      idempotencyKey: key(),
+    })) as { provider: Json }
+  ).provider;
+  const b = (
+    (await p.add(h.ctx, {
+      providerKey: "openai",
+      connection: "api_key",
+      scope: "mine",
+      apiKey: `${SECRET}-2`,
+      idempotencyKey: key(),
+    })) as { provider: Json }
+  ).provider;
+  const listed = ((await p.list(h.ctx, {})) as { providers: Json[] }).providers;
+  assert.deepEqual(
+    listed.map((r) => [r.id, r.name, r.itemName]).sort(),
+    [
+      [a.id, "OpenAI", "OpenAI"],
+      [b.id, "OpenAI", "OpenAI 2"],
+    ].sort(),
+  );
   assert.ok(!JSON.stringify(listed).includes(SECRET));
   h.cleanup();
 });

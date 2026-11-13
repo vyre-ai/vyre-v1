@@ -8,10 +8,16 @@ export async function agentDisplay(call: Call, agentId: string): Promise<{ name:
   try {
     const a = (await call("agents.get", { agentId })) as { agent?: { name?: string; face?: string } } | null;
     if (a?.agent?.name) return { name: a.agent.name, ...(a.agent.face ? { face: a.agent.face } : {}) };
-  } catch { /* someone else's private agent, or gone: access names it */ }
+  } catch {
+    /* someone else's private agent, or gone: access names it */
+  }
   try {
-    const p = (await call("access.principals.get", { principal: { kind: "agent", id: agentId } })) as { principal?: { name?: string } } | null;
+    const p = (await call("access.principals.get", { principal: { kind: "agent", id: agentId } })) as {
+      principal?: { name?: string };
+    } | null;
     if (p?.principal?.name && p.principal.name !== agentId) return { name: p.principal.name };
-  } catch { /* nobody by that id */ }
+  } catch {
+    /* nobody by that id */
+  }
   return { name: UNNAMED_AGENT };
 }

@@ -15,10 +15,12 @@ export interface ShellPlace {
   load: PlaceLoader;
 }
 
-const withComposer = (load: PlaceLoader): PlaceLoader => async () => {
-  const [place] = await Promise.all([load(), loadComposer()]);
-  return place;
-};
+const withComposer =
+  (load: PlaceLoader): PlaceLoader =>
+  async () => {
+    const [place] = await Promise.all([load(), loadComposer()]);
+    return place;
+  };
 
 export const SHELL_PLACES: readonly ShellPlace[] = [
   { id: "chat", label: "Chats", screens: "chats", load: withComposer(() => import("./providers/chats.tsx")) },
@@ -26,7 +28,12 @@ export const SHELL_PLACES: readonly ShellPlace[] = [
   { id: "records", label: "Records", screens: "records", load: () => import("./providers/records.tsx") },
   { id: "files", label: "Files", screens: "files", load: () => import("./providers/files.tsx") },
   { id: "sites", label: "Apps", screens: "apps", load: withComposer(() => import("./providers/apps.tsx")) },
-  { id: "automations", label: "Automations", screens: "automations", load: () => import("./providers/automations.tsx") },
+  {
+    id: "automations",
+    label: "Automations",
+    screens: "automations",
+    load: () => import("./providers/automations.tsx"),
+  },
   { id: "vault", label: "Vault", screens: "vault", load: () => import("./providers/vault.tsx") },
   { id: "settings", label: "Settings", screens: "settings", load: () => import("./providers/settings.tsx") },
   { id: "console", label: "Console", screens: "console", load: () => import("./providers/console.tsx") },

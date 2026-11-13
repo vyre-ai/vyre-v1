@@ -9,17 +9,54 @@ import { RecordsDataProvider, RecordsStateProvider, pointOf } from "../sidebar/i
 import type { RecordsState } from "../sidebar/index.ts";
 import { PLAIN, countSpec } from "../table/index.ts";
 import {
-  BODY_H, CARD_GAP, CARD_H, COVER_H, GALLERY_PAD, GALLERY_PAGE, KIND_ORDER, LANE_PAGE, NONE_KEY, RecordViews, badgeFieldOf, cardFields, coverHue, coverOf, galleryLayout, initialsOf, isLaneField, kindOf,
-  laneClause, laneCountSpec, laneFieldOf, isPersonField, laneOfRow, laneSpec, lanesOf, moveCard, moveError, movePatch, neighbour, noteOf, pageSpec,
+  BODY_H,
+  CARD_GAP,
+  CARD_H,
+  COVER_H,
+  GALLERY_PAD,
+  GALLERY_PAGE,
+  KIND_ORDER,
+  LANE_PAGE,
+  NONE_KEY,
+  RecordViews,
+  badgeFieldOf,
+  cardFields,
+  coverHue,
+  coverOf,
+  galleryLayout,
+  initialsOf,
+  isLaneField,
+  kindOf,
+  laneClause,
+  laneCountSpec,
+  laneFieldOf,
+  isPersonField,
+  laneOfRow,
+  laneSpec,
+  lanesOf,
+  moveCard,
+  moveError,
+  movePatch,
+  neighbour,
+  noteOf,
+  pageSpec,
 } from "../views-a/index.ts";
 import type { RecordRow, TableViewState } from "../views-a/index.ts";
 import { SAMPLE_NOW, createViewsSample, harbor, northRich, northwind, project } from "../views-a/sample.ts";
 import type { ViewsSample } from "../views-a/sample.ts";
 
 const wrap = (s: ViewsSample, child: ReactElement, initial: Partial<RecordsState> = {}): string =>
-  renderToStaticMarkup(<RecordsDataProvider value={s.data}><RecordsStateProvider initial={initial}>{child}</RecordsStateProvider></RecordsDataProvider>).replaceAll("<!-- -->", "");
-const views = (kind: string, initial: Partial<RecordsState> = { type: "projects" }, s: ViewsSample = createViewsSample(), view?: Partial<TableViewState>): string =>
-  wrap(s, <RecordViews kind={kind} {...(view ? { view } : {})} />, initial);
+  renderToStaticMarkup(
+    <RecordsDataProvider value={s.data}>
+      <RecordsStateProvider initial={initial}>{child}</RecordsStateProvider>
+    </RecordsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+const views = (
+  kind: string,
+  initial: Partial<RecordsState> = { type: "projects" },
+  s: ViewsSample = createViewsSample(),
+  view?: Partial<TableViewState>,
+): string => wrap(s, <RecordViews kind={kind} {...(view ? { view } : {})} />, initial);
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
@@ -27,7 +64,8 @@ const at = (s: string, needle: string): number => {
   return i;
 };
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
-const laneCount = (out: string, key: string): number => Number(new RegExp(`data-testid="lane-count-${key}"[^>]*>([^<]*)<`).exec(out)?.[1]?.replaceAll(",", "") ?? Number.NaN);
+const laneCount = (out: string, key: string): number =>
+  Number(new RegExp(`data-testid="lane-count-${key}"[^>]*>([^<]*)<`).exec(out)?.[1]?.replaceAll(",", "") ?? Number.NaN);
 const cardsIn = (out: string, key: string): string[] => {
   const from = out.indexOf(`data-testid="lane-${key}"`);
   if (from < 0) return [];
@@ -55,12 +93,28 @@ test("the switch: every view of part A has a header with the kind menu, Filter, 
   assert.ok(has(table, 'data-testid="records-table"'), "the table kind draws the table");
   for (const kind of ["board", "gallery", "list"]) {
     const out = views(kind);
-    for (const id of ["records-head", "records-kind", "records-filter", "records-fields", "records-new", "records-find-btn", "records-views"]) assert.ok(has(out, `data-testid="${id}"`), `${kind} has ${id}`);
+    for (const id of [
+      "records-head",
+      "records-kind",
+      "records-filter",
+      "records-fields",
+      "records-new",
+      "records-find-btn",
+      "records-views",
+    ])
+      assert.ok(has(out, `data-testid="${id}"`), `${kind} has ${id}`);
     assert.ok(has(out, "Projects") && has(out, "All projects"), `${kind} names the type and the view`);
     assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
   }
-  assert.ok(has(views("board"), 'aria-label="View as, Board"') && has(views("gallery"), 'aria-label="View as, Gallery"') && has(views("list"), 'aria-label="View as, List"'));
-  assert.ok(has(views("gallery"), "Sort") && has(views("list"), "Sort") && !has(views("board"), 'data-testid="records-sort"'), "a board keeps its lanes' order, so it has no Sort");
+  assert.ok(
+    has(views("board"), 'aria-label="View as, Board"') &&
+      has(views("gallery"), 'aria-label="View as, Gallery"') &&
+      has(views("list"), 'aria-label="View as, List"'),
+  );
+  assert.ok(
+    has(views("gallery"), "Sort") && has(views("list"), "Sort") && !has(views("board"), 'data-testid="records-sort"'),
+    "a board keeps its lanes' order, so it has no Sort",
+  );
 });
 
 test("a saved view of another kind opens as that kind, and the view menu names it", () => {
@@ -74,7 +128,20 @@ test("a saved view of another kind opens as that kind, and the view menu names i
 });
 test("extra kinds from part B join the same switch", () => {
   const s = createViewsSample();
-  const out = wrap(s, <RecordViews kind="calendar" extraKinds={[{ kind: "calendar", label: "Calendar", render: (ctx) => <p data-testid="extra">{`calendar of ${ctx.def.plural}`}</p> }]} />, { type: "projects" });
+  const out = wrap(
+    s,
+    <RecordViews
+      kind="calendar"
+      extraKinds={[
+        {
+          kind: "calendar",
+          label: "Calendar",
+          render: (ctx) => <p data-testid="extra">{`calendar of ${ctx.def.plural}`}</p>,
+        },
+      ]}
+    />,
+    { type: "projects" },
+  );
   assert.ok(has(out, 'data-testid="extra"') && has(out, "calendar of Projects"));
   assert.ok(has(views("calendar"), 'data-testid="records-table"'), "without it the kind falls back to the table");
 });
@@ -83,7 +150,15 @@ test("extra kinds from part B join the same switch", () => {
 
 test("lanes: a status field's options in order, then the lane for records with no value", () => {
   assert.equal(isLaneField(status), true);
-  assert.deepEqual(lanesOf(status).map((l) => [l.key, l.title, l.none]), [["planning", "Planning", false], ["active", "Active", false], ["done", "Done", false], [NONE_KEY, "No status", true]]);
+  assert.deepEqual(
+    lanesOf(status).map((l) => [l.key, l.title, l.none]),
+    [
+      ["planning", "Planning", false],
+      ["active", "Active", false],
+      ["done", "Done", false],
+      [NONE_KEY, "No status", true],
+    ],
+  );
   const d = projectsDef;
   assert.equal(laneFieldOf(d)?.key, "status", "the first status field");
   assert.equal(laneFieldOf(d, { config: { lane: "status" } })?.key, "status");
@@ -92,22 +167,56 @@ test("lanes: a status field's options in order, then the lane for records with n
   assert.equal(laneFieldOf(clients)?.key, "stage", "a status field wins over a choice field");
   assert.equal(laneFieldOf(clients, { config: { lane: "source" } })?.key, "source", "the saved view's lane");
   assert.equal(laneFieldOf(clients, { group: "status" })?.key, "status", "then the saved group");
-  assert.equal(laneFieldOf(clients, { config: { lane: "source" } }, "status")?.key, "status", "a pick in the Lanes menu wins");
+  assert.equal(
+    laneFieldOf(clients, { config: { lane: "source" } }, "status")?.key,
+    "status",
+    "a pick in the Lanes menu wins",
+  );
   assert.equal(laneFieldOf({ ...clients, fields: clients.fields.filter((f) => !isLaneField(f)) }), undefined);
 });
 
 test("a lane asks for its own cards and its own count, with the view's filter and not the lane field's", () => {
   const lanes = lanesOf(status);
-  const active = lanes[1]!, none = lanes[3]!;
+  const active = lanes[1]!,
+    none = lanes[3]!;
   assert.deepEqual(laneClause(status, active), { field: "status", op: "eq", value: "active" });
   assert.deepEqual(laneClause(status, none), { field: "status", op: "empty" });
-  assert.deepEqual(laneSpec("projects", PLAIN, "name", status, active, LANE_PAGE), { type: "projects", filter: { field: "status", op: "eq", value: "active" }, offset: 0, limit: 40 });
-  const v: TableViewState = { ...PLAIN, find: "ri", sort: [{ field: "due", dir: "asc" }], clauses: [{ field: "status", op: "eq", value: "done" }, { field: "lead", op: "eq", value: "usr_maya" }] };
-  assert.deepEqual(laneSpec("projects", v, "name", status, active, 80), {
-    type: "projects", filter: { and: [{ and: [{ field: "lead", op: "eq", value: "usr_maya" }, { field: "name", op: "contains", value: "ri" }] }, { field: "status", op: "eq", value: "active" }] },
-    sort: [{ field: "due", dir: "asc" }], offset: 0, limit: 80,
+  assert.deepEqual(laneSpec("projects", PLAIN, "name", status, active, LANE_PAGE), {
+    type: "projects",
+    filter: { field: "status", op: "eq", value: "active" },
+    offset: 0,
+    limit: 40,
   });
-  assert.deepEqual(laneCountSpec("projects", PLAIN, "name", status, active), { type: "projects", filter: { field: "status", op: "eq", value: "active" } });
+  const v: TableViewState = {
+    ...PLAIN,
+    find: "ri",
+    sort: [{ field: "due", dir: "asc" }],
+    clauses: [
+      { field: "status", op: "eq", value: "done" },
+      { field: "lead", op: "eq", value: "usr_maya" },
+    ],
+  };
+  assert.deepEqual(laneSpec("projects", v, "name", status, active, 80), {
+    type: "projects",
+    filter: {
+      and: [
+        {
+          and: [
+            { field: "lead", op: "eq", value: "usr_maya" },
+            { field: "name", op: "contains", value: "ri" },
+          ],
+        },
+        { field: "status", op: "eq", value: "active" },
+      ],
+    },
+    sort: [{ field: "due", dir: "asc" }],
+    offset: 0,
+    limit: 80,
+  });
+  assert.deepEqual(laneCountSpec("projects", PLAIN, "name", status, active), {
+    type: "projects",
+    filter: { field: "status", op: "eq", value: "active" },
+  });
 });
 
 test("a drop writes the lane field: the lane's key, or null for the lane of no value", () => {
@@ -117,7 +226,11 @@ test("a drop writes the lane field: the lane's key, or null for the lane of no v
   const row = project(0, true);
   assert.equal(laneOfRow(status, row, lanes).key, "planning");
   assert.equal(laneOfRow(status, { ...row, fields: { ...row.fields, status: null } }, lanes).key, NONE_KEY);
-  assert.equal(laneOfRow(status, { ...row, fields: { ...row.fields, status: "gone" } }, lanes).key, NONE_KEY, "a value that is no longer an option sits in the lane of no value");
+  assert.equal(
+    laneOfRow(status, { ...row, fields: { ...row.fields, status: "gone" } }, lanes).key,
+    NONE_KEY,
+    "a value that is no longer an option sits in the lane of no value",
+  );
 });
 
 test("Alt and an arrow move a card to the lane beside it; the lane of no value only counts when it holds cards", () => {
@@ -125,7 +238,11 @@ test("Alt and an arrow move a card to the lane beside it; the lane of no value o
   assert.equal(neighbour(lanes, "planning", 1)?.key, "active");
   assert.equal(neighbour(lanes, "planning", -1), undefined);
   assert.equal(neighbour(lanes, "done", 1)?.key, NONE_KEY);
-  assert.equal(neighbour(lanes, "done", 1, (l) => !l.none), undefined, "an empty lane of no value is not a place to go");
+  assert.equal(
+    neighbour(lanes, "done", 1, (l) => !l.none),
+    undefined,
+    "an empty lane of no value is not a place to go",
+  );
   assert.equal(neighbour(lanes, NONE_KEY, -1)?.key, "done");
 });
 
@@ -133,7 +250,11 @@ test("a card shows the title and up to three fields: people first, then money an
   const d = projectsDef;
   const shown = cardFields(d, [], "status").map((f) => f.key);
   assert.deepEqual(shown, ["lead", "budget", "due"]);
-  assert.deepEqual(cardFields(d, ["budget"], "status").map((f) => f.key), ["lead", "due"], "a hidden field drops out");
+  assert.deepEqual(
+    cardFields(d, ["budget"], "status").map((f) => f.key),
+    ["lead", "due"],
+    "a hidden field drops out",
+  );
   assert.ok(!shown.includes("cover") && !shown.includes("name") && !shown.includes("status"));
   const clients = northwind.types[0]!;
   assert.equal(cardFields(clients, [], "stage").length, 3);
@@ -147,15 +268,24 @@ test("a card shows the title and up to three fields: people first, then money an
 test("screen: a board draws a lane per option with its cached count, and every card in the lane its status puts it in", () => {
   const out = views("board");
   assert.ok(has(out, 'data-testid="records-board"') && has(out, 'aria-label="Projects board"'));
-  assert.deepEqual(["planning", "active", "done"].map((k) => laneCount(out, k)), [3, 6, 3]);
+  assert.deepEqual(
+    ["planning", "active", "done"].map((k) => laneCount(out, k)),
+    [3, 6, 3],
+  );
   assert.ok(!has(out, 'data-testid="lane-none"'), "the lane of no value is not drawn while it is empty");
   assert.deepEqual(cardsIn(out, "planning"), ["projects_0", "projects_4", "projects_8"]);
   assert.deepEqual(cardsIn(out, "done"), ["projects_3", "projects_6", "projects_10"]);
   assert.equal(cardsIn(out, "active").length, 6);
-  assert.ok(has(out, "Rivera engagement") && has(out, ">Maya<") && has(out, "$4,000"), "a card shows the title, the lead and the budget");
+  assert.ok(
+    has(out, "Rivera engagement") && has(out, ">Maya<") && has(out, "$4,000"),
+    "a card shows the title, the lead and the budget",
+  );
   assert.ok(has(out, 'aria-label="Rivera engagement, Planning"'), "a card says which lane it is in");
   assert.ok(has(out, 'data-testid="add-planning"') && has(out, 'data-testid="add-done"'), "a lane has a New button");
-  assert.ok(has(out, 'data-testid="records-lanes"') && has(out, ">Status<"), "the Lanes button names the field the board runs on");
+  assert.ok(
+    has(out, 'data-testid="records-lanes"') && has(out, ">Status<"),
+    "the Lanes button names the field the board runs on",
+  );
 });
 
 test("cards are draggable and every lane is a drop target (web), so a drag needs no handle", () => {
@@ -170,11 +300,23 @@ test("a drop moves the card: one records.update with the lane's value and the ca
   const lanes = lanesOf(status);
   const row = projects(s).find((r) => r.id === "projects_0")!;
   assert.equal(await moveCard(s.data, "projects", status, row, lanes[2]!), true);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["records.update"]);
-  assert.deepEqual(s.calls[0]!.input, { type: "projects", recordId: "projects_0", patch: { status: "done" }, baseVersion: 1 });
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["records.update"],
+  );
+  assert.deepEqual(s.calls[0]!.input, {
+    type: "projects",
+    recordId: "projects_0",
+    patch: { status: "done" },
+    baseVersion: 1,
+  });
   assert.deepEqual(s.updates, [{ type: "projects", recordId: "projects_0", patch: { status: "done" } }]);
   const out = wrap(s, <RecordViews kind="board" />, { type: "projects" });
-  assert.deepEqual(["planning", "active", "done"].map((k) => laneCount(out, k)), [2, 6, 4], "the lane counts move with the card");
+  assert.deepEqual(
+    ["planning", "active", "done"].map((k) => laneCount(out, k)),
+    [2, 6, 4],
+    "the lane counts move with the card",
+  );
   assert.ok(cardsIn(out, "done").includes("projects_0") && !cardsIn(out, "planning").includes("projects_0"));
   assert.equal(projects(s).find((r) => r.id === "projects_0")!.version, 2, "the version moved");
 });
@@ -190,7 +332,12 @@ test("a card dropped on No status clears the field, and that lane then appears",
   const s = createViewsSample();
   const row = projects(s).find((r) => r.id === "projects_2")!;
   await moveCard(s.data, "projects", status, row, lanesOf(status)[3]!);
-  assert.deepEqual(s.calls[0]!.input, { type: "projects", recordId: "projects_2", patch: { status: null }, baseVersion: 1 });
+  assert.deepEqual(s.calls[0]!.input, {
+    type: "projects",
+    recordId: "projects_2",
+    patch: { status: null },
+    baseVersion: 1,
+  });
   const out = wrap(s, <RecordViews kind="board" />, { type: "projects" });
   assert.deepEqual([laneCount(out, "none"), laneCount(out, "active")], [1, 5]);
   assert.deepEqual(cardsIn(out, "none"), ["projects_2"]);
@@ -212,9 +359,14 @@ test("a refused move says why and changes nothing; a card someone else changed i
 test("a board of clients runs on Stage, and a filter narrows every lane", () => {
   const s = createViewsSample();
   const clients = views("board", { type: "clients" }, s);
-  assert.deepEqual(["intake", "engaged", "review", "done"].map((k) => laneCount(clients, k)), [4, 4, 3, 3]);
+  assert.deepEqual(
+    ["intake", "engaged", "review", "done"].map((k) => laneCount(clients, k)),
+    [4, 4, 3, 3],
+  );
   assert.ok(has(clients, ">Stage<"), "the Lanes button names the field");
-  const narrowed = views("board", { type: "projects" }, s, { clauses: [{ field: "lead", op: "eq", value: "usr_maya" }] });
+  const narrowed = views("board", { type: "projects" }, s, {
+    clauses: [{ field: "lead", op: "eq", value: "usr_maya" }],
+  });
   const total = ["planning", "active", "done"].reduce((n, k) => n + laneCount(narrowed, k), 0);
   assert.equal(total, projects(s).filter((r) => r.fields["lead"] === "usr_maya").length);
 });
@@ -247,10 +399,20 @@ test("gallery layout: as many cards of at least 232 px as fit, sharing the width
 
 test("covers: the first image file wins, a card with none gets a steady colour and initials", () => {
   const d = projectsDef;
-  const withCover = project(0, true), without = project(1, true);
+  const withCover = project(0, true),
+    without = project(1, true);
   assert.equal(coverOf(d, withCover)?.name, "cover-0.svg");
   assert.equal(coverOf(d, without), null);
-  const odd = { ...without, fields: { ...without.fields, cover: [{ name: "notes.txt", url: "x", mime: "text/plain" }, { name: "photo.JPG", url: "u", mime: "" }] } };
+  const odd = {
+    ...without,
+    fields: {
+      ...without.fields,
+      cover: [
+        { name: "notes.txt", url: "x", mime: "text/plain" },
+        { name: "photo.JPG", url: "u", mime: "" },
+      ],
+    },
+  };
   assert.equal(coverOf(d, odd)?.url, "u", "an image by its name when the type says nothing");
   assert.equal(coverHue(without, "name"), coverHue(without, "name"));
   assert.ok(coverHue(without, "name") >= 0 && coverHue(without, "name") < 400);
@@ -260,13 +422,23 @@ test("covers: the first image file wins, a card with none gets a steady colour a
 
 test("screen: a gallery draws a card per record in fixed boxes, covers load lazily and keep their size", () => {
   const out = views("gallery");
-  assert.ok(has(out, 'data-testid="records-gallery"') && has(out, 'aria-label="Projects gallery"') && has(out, 'aria-label="12 cards"'));
+  assert.ok(
+    has(out, 'data-testid="records-gallery"') &&
+      has(out, 'aria-label="Projects gallery"') &&
+      has(out, 'aria-label="12 cards"'),
+  );
   assert.equal(count(out, 'data-testid="gal-projects_'), 12);
   assert.equal(count(out, 'data-testid="cover-projects_'), 12, "every card has a cover box");
   assert.equal(count(out, 'data-testid="cover-image"'), 4, "four of the twelve have a picture");
   const img = /<img[^>]*data-testid="cover-image"[^>]*>/.exec(out)?.[0] ?? "";
-  assert.ok(has(img, 'loading="lazy"') && has(img, 'decoding="async"'), "the browser loads a cover when it nears the screen");
-  assert.ok(has(img, 'width="313"') && has(img, 'height="96"') && has(img, "object-fit:cover"), "the picture is drawn in the cover's fixed size");
+  assert.ok(
+    has(img, 'loading="lazy"') && has(img, 'decoding="async"'),
+    "the browser loads a cover when it nears the screen",
+  );
+  assert.ok(
+    has(img, 'width="313"') && has(img, 'height="96"') && has(img, "object-fit:cover"),
+    "the picture is drawn in the cover's fixed size",
+  );
   assert.ok(count(out, "width:313px") >= 12 * 2, "each card and its cover are 313 px wide");
   assert.ok(has(out, 'data-testid="face-Maya Chen"'), "a card with no picture shows its lead's face");
   assert.ok(has(out, "Rivera engagement") && has(out, "12 projects") && has(out, 'data-testid="tag-status"'));
@@ -291,7 +463,10 @@ test("screen: a list is the shared Row with its slots: a face or an icon first, 
   const out = views("list");
   assert.ok(has(out, 'data-testid="records-list"') && has(out, 'aria-label="Projects list"'));
   for (let i = 0; i < 12; i++) assert.ok(has(out, `data-testid="row-rec-projects_${i}"`), `row ${i}`);
-  assert.ok(has(out, 'data-testid="row-rec-projects_0-leading"') && has(out, 'data-testid="row-rec-projects_0-trailing"'), "the leading and trailing slots of ui/Row");
+  assert.ok(
+    has(out, 'data-testid="row-rec-projects_0-leading"') && has(out, 'data-testid="row-rec-projects_0-trailing"'),
+    "the leading and trailing slots of ui/Row",
+  );
   assert.ok(has(out, 'data-testid="face-Maya Chen"'), "the lead's face leads the row");
   assert.ok(has(out, "Maya · $4,000"), "the note joins the lead and the budget");
   assert.ok(has(out, 'data-testid="tag-status"') && has(out, ">Planning<"), "the status is the tag at the right");
@@ -302,7 +477,10 @@ test("screen: a list is the shared Row with its slots: a face or an icon first, 
 test("a list sorts and filters like the others, and says so when nothing matches", () => {
   const s = createViewsSample();
   const sorted = views("list", { type: "projects" }, s, { sort: [{ field: "name", dir: "asc" }] });
-  assert.ok(at(sorted, "row-rec-projects_9") < at(sorted, "row-rec-projects_0"), "Alvarez settlement before Rivera engagement");
+  assert.ok(
+    at(sorted, "row-rec-projects_9") < at(sorted, "row-rec-projects_0"),
+    "Alvarez settlement before Rivera engagement",
+  );
   const done = views("list", { type: "projects" }, s, { clauses: [{ field: "status", op: "eq", value: "done" }] });
   assert.ok(has(done, "3 projects") && !has(done, "row-rec-projects_0"));
   const none = views("list", { type: "projects" }, s, { find: "zzzz" });
@@ -322,7 +500,10 @@ test("every view opens offline from the kept copy and says so", () => {
 test("harbor studio draws its own three projects in the same views", () => {
   const s = createViewsSample(harbor);
   const board = views("board", { type: "projects" }, s);
-  assert.deepEqual(["planning", "active", "done"].map((k) => laneCount(board, k)), [1, 2, 0]);
+  assert.deepEqual(
+    ["planning", "active", "done"].map((k) => laneCount(board, k)),
+    [1, 2, 0],
+  );
   assert.ok(has(views("gallery", { type: "projects" }, s), "3 projects"));
   assert.ok(!has(views("gallery", { type: "projects" }, s), 'data-testid="face-'), "no lead field here, so initials");
 });
@@ -341,7 +522,10 @@ test("the sample is what the views read: twelve projects with budgets and covers
   const s = createViewsSample();
   const rows = projects(s);
   assert.equal(rows.length, 12);
-  assert.equal(rows.filter((r) => Array.isArray(r.fields["cover"]) && (r.fields["cover"] as unknown[]).length > 0).length, 4);
+  assert.equal(
+    rows.filter((r) => Array.isArray(r.fields["cover"]) && (r.fields["cover"] as unknown[]).length > 0).length,
+    4,
+  );
   const c = s.data.live("records.counts", countSpec("projects", PLAIN, "name")).getSnapshot();
   assert.equal(c.status === "ready" ? c.data.count : -1, 12);
   assert.ok(rows.every((r) => r.updatedAt <= SAMPLE_NOW));
@@ -349,19 +533,54 @@ test("the sample is what the views read: twelve projects with budgets and covers
 
 test("a menu opened from a button lands under the button when the press has no pointer: keyboard, code and click open it in the same place", () => {
   const button = { getBoundingClientRect: () => ({ left: 640, bottom: 52 }) };
-  assert.deepEqual(pointOf({ nativeEvent: { pageX: 0, pageY: 0 }, currentTarget: button }), { x: 640, y: 52 }, "Enter on the button");
-  assert.deepEqual(pointOf({ nativeEvent: {}, target: button }), { x: 640, y: 52 }, "a press with no coordinates at all");
-  assert.deepEqual(pointOf({ nativeEvent: { pageX: 700, pageY: 60 }, currentTarget: button }), { x: 700, y: 60 }, "a click keeps its pointer");
+  assert.deepEqual(
+    pointOf({ nativeEvent: { pageX: 0, pageY: 0 }, currentTarget: button }),
+    { x: 640, y: 52 },
+    "Enter on the button",
+  );
+  assert.deepEqual(
+    pointOf({ nativeEvent: {}, target: button }),
+    { x: 640, y: 52 },
+    "a press with no coordinates at all",
+  );
+  assert.deepEqual(
+    pointOf({ nativeEvent: { pageX: 700, pageY: 60 }, currentTarget: button }),
+    { x: 700, y: 60 },
+    "a click keeps its pointer",
+  );
   assert.deepEqual(pointOf({}), { x: 0, y: 0 }, "nothing to anchor to");
 });
 
 test("a board with no chosen field groups by a status or choice people set, never by one the system writes; a type with only those opens with nothing picked", () => {
-  const choice = (key: string, more: object = {}) => ({ key, type: "choice", title: key, options: { choices: [{ key: "a", title: "A" }] }, ...more }) as never;
-  const def = (fields: unknown[], statusField?: string) => ({ key: "t", title: "T", plural: "Ts", fields, ...(statusField ? { statusField } : {}) }) as never;
-  assert.equal(laneFieldOf(def([choice("deliverability"), choice("stage")]))?.key, "stage", "the contact's deliverability is skipped");
-  assert.equal(laneFieldOf(def([choice("pref_email_consent"), choice("rank", { writeOnlyBy: ["billing"] }), choice("stage")]))?.key, "stage", "consent flags and service-written fields are skipped");
-  assert.equal(laneFieldOf(def([choice("kind"), choice("stage")], "stage"))?.key, "stage", "the type's own status field wins");
-  assert.equal(laneFieldOf(def([choice("deliverability"), choice("pref_sms_consent")])), undefined, "only system fields: nothing is picked");
-  assert.equal(laneFieldOf(def([choice("deliverability")]), undefined, "deliverability")?.key, "deliverability", "a person can still pick one");
+  const choice = (key: string, more: object = {}) =>
+    ({ key, type: "choice", title: key, options: { choices: [{ key: "a", title: "A" }] }, ...more }) as never;
+  const def = (fields: unknown[], statusField?: string) =>
+    ({ key: "t", title: "T", plural: "Ts", fields, ...(statusField ? { statusField } : {}) }) as never;
+  assert.equal(
+    laneFieldOf(def([choice("deliverability"), choice("stage")]))?.key,
+    "stage",
+    "the contact's deliverability is skipped",
+  );
+  assert.equal(
+    laneFieldOf(def([choice("pref_email_consent"), choice("rank", { writeOnlyBy: ["billing"] }), choice("stage")]))
+      ?.key,
+    "stage",
+    "consent flags and service-written fields are skipped",
+  );
+  assert.equal(
+    laneFieldOf(def([choice("kind"), choice("stage")], "stage"))?.key,
+    "stage",
+    "the type's own status field wins",
+  );
+  assert.equal(
+    laneFieldOf(def([choice("deliverability"), choice("pref_sms_consent")])),
+    undefined,
+    "only system fields: nothing is picked",
+  );
+  assert.equal(
+    laneFieldOf(def([choice("deliverability")]), undefined, "deliverability")?.key,
+    "deliverability",
+    "a person can still pick one",
+  );
   assert.equal(isPersonField(choice("deliverability")), false);
 });

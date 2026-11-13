@@ -32,17 +32,38 @@ export interface AllAgentsProps {
   window?: VirtualWindow;
 }
 
-const STATUS: Readonly<Record<AgentRow["status"], string>> = { working: "Working", awake: "", asleep: "Idle", paused: "Paused" };
+const STATUS: Readonly<Record<AgentRow["status"], string>> = {
+  working: "Working",
+  awake: "",
+  asleep: "Idle",
+  paused: "Paused",
+};
 
 /** Working agents first, then by name; a query keeps the agents whose name or role holds every word of it. */
 export function pickAgents(list: readonly AgentRow[], query: string): AgentRow[] {
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 0);
-  const hit = (a: AgentRow): boolean => { const hay = `${a.name} ${a.role ?? ""}`.toLowerCase(); return words.every((w) => hay.includes(w)); };
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  const hit = (a: AgentRow): boolean => {
+    const hay = `${a.name} ${a.role ?? ""}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  };
   const rank = (a: AgentRow): number => (a.status === "working" ? 0 : a.status === "paused" ? 2 : 1);
   return list.filter(hit).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
 
-export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onCreate, onClose, window }: AllAgentsProps): ReactElement {
+export function AllAgents({
+  screens,
+  space,
+  x,
+  y,
+  onChat,
+  onOpenPage,
+  onCreate,
+  onClose,
+  window,
+}: AllAgentsProps): ReactElement {
   const q = useLive<AgentsOut>(screens, ALL_AGENTS_SCREEN, "agents", {});
   const [find, setFind] = useState("");
   const [making, setMaking] = useState<string | null>(null);
@@ -51,61 +72,140 @@ export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onCreate, 
     const name = (making ?? "").trim();
     if (name === "" || !onCreate) return;
     setFailed(null);
-    void onCreate(name).then((id) => { onChat(id); onClose(); }, () => setFailed("Could not make the agent."));
+    void onCreate(name).then(
+      (id) => {
+        onChat(id);
+        onClose();
+      },
+      () => setFailed("Could not make the agent."),
+    );
   };
   const all = q.status === "ready" ? q.data.agents : [];
   const shown = pickAgents(all, find);
 
   const entries: Entry[] = [];
-  if (q.status === "loading") entries.push({ key: "loading", type: "empty", text: "Loading", testID: "all-agents-loading" });
-  else if (shown.length === 0) entries.push({ key: "none", type: "empty", text: all.length === 0 ? "This Space has no agents yet." : `No agent matches "${find.trim()}".`, testID: "all-agents-empty" });
+  if (q.status === "loading")
+    entries.push({ key: "loading", type: "empty", text: "Loading", testID: "all-agents-loading" });
+  else if (shown.length === 0)
+    entries.push({
+      key: "none",
+      type: "empty",
+      text: all.length === 0 ? "This Space has no agents yet." : `No agent matches "${find.trim()}".`,
+      testID: "all-agents-empty",
+    });
   for (const a of shown) {
     const word = STATUS[a.status];
     entries.push({
-      key: a.agentId, type: "row", title: agentName(a.agentId, a.name), testID: `agent-${a.agentId}`, ...(a.role ? { note: a.role } : {}),
+      key: a.agentId,
+      type: "row",
+      title: agentName(a.agentId, a.name),
+      testID: `agent-${a.agentId}`,
+      ...(a.role ? { note: a.role } : {}),
       leading: <Face name={agentName(a.agentId, a.name)} seedId={a.agentId} size={22} pulse={a.status === "working"} />,
       ...(word ? { trailing: <Text style={st.status}>{word}</Text> } : {}),
-      onPress: () => { onChat(a.agentId); onClose(); },
+      onPress: () => {
+        onChat(a.agentId);
+        onClose();
+      },
       menu: [
-        { label: "Chat", onSelect: () => { onChat(a.agentId); onClose(); } },
-        { label: `Open ${agentName(a.agentId, a.name)}'s Page`, onSelect: () => { onOpenPage(a.agentId); onClose(); } },
+        {
+          label: "Chat",
+          onSelect: () => {
+            onChat(a.agentId);
+            onClose();
+          },
+        },
+        {
+          label: `Open ${agentName(a.agentId, a.name)}'s Page`,
+          onSelect: () => {
+            onOpenPage(a.agentId);
+            onClose();
+          },
+        },
       ],
     });
   }
 
   return (
     <Popover x={x} y={y} width={360} label="All agents" testID="all-agents" onClose={onClose}>
-      <LayerHead title="All agents" sub={q.status === "ready" ? `${all.length} in ${space.name}` : space.name} onClose={onClose} />
+      <LayerHead
+        title="All agents"
+        sub={q.status === "ready" ? `${all.length} in ${space.name}` : space.name}
+        onClose={onClose}
+      />
       <View style={st.findBox}>
         <TextInput
-          testID="all-agents-search" accessibilityLabel="Find an agent" autoFocus value={find} onChangeText={setFind} placeholder="Find an agent" placeholderTextColor="var(--ink-4)"
-          autoCapitalize="none" autoCorrect={false} style={st.find}
+          testID="all-agents-search"
+          accessibilityLabel="Find an agent"
+          autoFocus
+          value={find}
+          onChangeText={setFind}
+          placeholder="Find an agent"
+          placeholderTextColor="var(--ink-4)"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={st.find}
         />
       </View>
-      <View style={st.list}><PaneList entries={entries} testID="all-agents-rows" {...(window ? { window } : {})} /></View>
+      <View style={st.list}>
+        <PaneList entries={entries} testID="all-agents-rows" {...(window ? { window } : {})} />
+      </View>
       {onCreate ? (
         <View style={st.foot}>
-          {making === null ? <TextButton label="New agent" onPress={() => setMaking("")} testID="all-agents-new" /> : (
+          {making === null ? (
+            <TextButton label="New agent" onPress={() => setMaking("")} testID="all-agents-new" />
+          ) : (
             <>
               <TextInput
-                testID="all-agents-name" accessibilityLabel="Name the new agent" autoFocus value={making} onChangeText={setMaking} onSubmitEditing={make} placeholder="Agent name" placeholderTextColor="var(--ink-4)"
-                autoCapitalize="words" autoCorrect={false} style={[st.find, { flex: 1 }]}
+                testID="all-agents-name"
+                accessibilityLabel="Name the new agent"
+                autoFocus
+                value={making}
+                onChangeText={setMaking}
+                onSubmitEditing={make}
+                placeholder="Agent name"
+                placeholderTextColor="var(--ink-4)"
+                autoCapitalize="words"
+                autoCorrect={false}
+                style={[st.find, { flex: 1 }]}
               />
               <TextButton label="Create" onPress={make} testID="all-agents-create" />
             </>
           )}
         </View>
       ) : null}
-      {failed ? <Text testID="all-agents-line" accessibilityRole="alert" style={st.line}>{failed}</Text> : null}
+      {failed ? (
+        <Text testID="all-agents-line" accessibilityRole="alert" style={st.line}>
+          {failed}
+        </Text>
+      ) : null}
     </Popover>
   );
 }
 
 const st = StyleSheet.create({
   findBox: { paddingHorizontal: 12, paddingBottom: 6 },
-  find: { height: 30, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontSize: 13 },
+  find: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--win)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+  },
   list: { height: 280, paddingHorizontal: 4 },
   status: { fontSize: 11.5, color: "var(--ink-3)" as string },
   line: { fontSize: 12.5, color: "var(--danger)" as string, paddingHorizontal: 14, paddingBottom: 8 },
-  foot: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end", paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  foot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
 });

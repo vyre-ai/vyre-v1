@@ -19,7 +19,8 @@ test("a key is held for a person whose node this is, as a copy, and only at 32 b
 
 test("clear and clearAll take the key out", () => {
   const k = createKeyring({ allowed: () => true });
-  k.hold("usr_a", key(1)); k.hold("usr_b", key(2));
+  k.hold("usr_a", key(1));
+  k.hold("usr_b", key(2));
   k.clear("usr_a");
   assert.equal(k.get("usr_a"), null);
   assert.equal(k.holds("usr_a"), false);
@@ -62,7 +63,10 @@ test("get hands out a copy: changing it changes nothing inside", () => {
 test("sweep wipes the key of a person whose sessions have all ended without anyone reading it, and leaves the others", () => {
   const alive = new Set(["ses_a", "ses_c"]);
   const k = createKeyring({ allowed: () => true, live: (id) => alive.has(id) });
-  k.hold("usr_a", key(1), "ses_a"); k.hold("usr_b", key(2), "ses_b"); k.hold("usr_c", key(3)); k.hold("usr_d", key(4), "ses_c");
+  k.hold("usr_a", key(1), "ses_a");
+  k.hold("usr_b", key(2), "ses_b");
+  k.hold("usr_c", key(3));
+  k.hold("usr_d", key(4), "ses_c");
   assert.equal(k.sweep(), 1, "only usr_b's session is gone");
   assert.deepEqual([k.holds("usr_a"), k.holds("usr_b"), k.holds("usr_c"), k.holds("usr_d")], [true, false, true, true]);
   alive.delete("ses_a");
@@ -76,8 +80,12 @@ test("after a restart the key reopens for a person still signed in through a pro
   const asked: string[] = [];
   const wrap = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
   const ring = createKeyring({
-    allowed: () => true, live: (id) => live.has(id),
-    reopen: (p) => { asked.push(p); return p === "usr_rubab" ? { key: Uint8Array.from(wrap), sessions: ["ses_google"] } : null; },
+    allowed: () => true,
+    live: (id) => live.has(id),
+    reopen: (p) => {
+      asked.push(p);
+      return p === "usr_rubab" ? { key: Uint8Array.from(wrap), sessions: ["ses_google"] } : null;
+    },
   });
   assert.equal(ring.get("usr_sara"), null, "no provider session, no wrap: nothing opens");
   const k = ring.get("usr_rubab");
@@ -94,13 +102,23 @@ test("Lock (Cmd-L) forgets the key and keeps it forgotten, even for a provider s
   const wrap = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
   const sessions: Record<string, number> = { ses_old: 100, ses_new: 300 };
   const ring = createKeyring({
-    allowed: () => true, live: () => true,
-    reopen: (_p, since = 0) => { const ids = Object.entries(sessions).filter(([, at]) => at > since).map(([id]) => id); return ids.length ? { key: Uint8Array.from(wrap), sessions: ids } : null; },
+    allowed: () => true,
+    live: () => true,
+    reopen: (_p, since = 0) => {
+      const ids = Object.entries(sessions)
+        .filter(([, at]) => at > since)
+        .map(([id]) => id);
+      return ids.length ? { key: Uint8Array.from(wrap), sessions: ids } : null;
+    },
   });
   assert.ok(ring.get("usr_a"), "before the lock the wrap opens it for the provider session");
   const realNow = Date.now;
   Date.now = () => 200;
-  try { ring.lock("usr_a"); } finally { Date.now = realNow; }
+  try {
+    ring.lock("usr_a");
+  } finally {
+    Date.now = realNow;
+  }
   assert.equal(ring.holds("usr_a"), false);
   delete sessions["ses_new"];
   assert.equal(ring.get("usr_a"), null, "locked: the older provider session does not reopen it");

@@ -160,7 +160,13 @@ export function emptyStore(personId: string, spaceId: string): AppearanceStore {
 }
 
 function copy(store: AppearanceStore, over: Partial<AppearanceStore>): AppearanceStore {
-  return { personId: store.personId, spaceId: store.spaceId, spaces: { ...store.spaces }, spaceSkin: { ...store.spaceSkin }, ...over };
+  return {
+    personId: store.personId,
+    spaceId: store.spaceId,
+    spaces: { ...store.spaces },
+    spaceSkin: { ...store.spaceSkin },
+    ...over,
+  };
 }
 
 /** Record this person's skin for a Space. The mode choice for that Space is kept. */
@@ -182,7 +188,12 @@ export function withOpenSpace(store: AppearanceStore, spaceId: string): Appearan
 }
 
 export function writeStore(store: AppearanceStore): string {
-  return JSON.stringify({ personId: store.personId, spaceId: store.spaceId, spaces: store.spaces, spaceSkin: store.spaceSkin });
+  return JSON.stringify({
+    personId: store.personId,
+    spaceId: store.spaceId,
+    spaces: store.spaces,
+    spaceSkin: store.spaceSkin,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -200,10 +211,12 @@ export function readStore(raw: string | null): AppearanceStore | null {
   }
   if (!isRecord(data)) return null;
   const { personId, spaceId, spaces: rawSpaces, spaceSkin: rawSkins } = data;
-  if (typeof personId !== "string" || typeof spaceId !== "string" || !isRecord(rawSpaces) || !isRecord(rawSkins)) return null;
+  if (typeof personId !== "string" || typeof spaceId !== "string" || !isRecord(rawSpaces) || !isRecord(rawSkins))
+    return null;
   const spaces: Record<string, SpaceAppearance> = {};
   for (const [id, row] of Object.entries(rawSpaces)) {
-    if (!isRecord(row) || typeof row.skin !== "string" || typeof row.mode !== "string" || !MODE_CHOICES.has(row.mode)) return null;
+    if (!isRecord(row) || typeof row.skin !== "string" || typeof row.mode !== "string" || !MODE_CHOICES.has(row.mode))
+      return null;
     spaces[id] = { skin: row.skin, mode: row.mode as ModeChoice };
   }
   const spaceSkin: Record<string, string> = {};
@@ -215,7 +228,14 @@ export function readStore(raw: string | null): AppearanceStore | null {
 }
 
 export function toInput(store: AppearanceStore, prefersDark: boolean, preview: Preview | null = null): ThemeInput {
-  return { personId: store.personId, spaceId: store.spaceId, person: store.spaces, spaceSkin: store.spaceSkin, prefersDark, preview };
+  return {
+    personId: store.personId,
+    spaceId: store.spaceId,
+    person: store.spaces,
+    spaceSkin: store.spaceSkin,
+    prefersDark,
+    preview,
+  };
 }
 
 function has(table: TokenTable, id: string): boolean {
@@ -230,8 +250,12 @@ function modeOf(skin: string, choice: ModeChoice, prefersDark: boolean): Mode {
 /** Synchronous: the return value is the theme, never a promise. An unknown skin id falls through to System. */
 export function resolveTheme(input: ThemeInput): AppliedTheme {
   const table = tokenTable();
-  const row = Object.prototype.hasOwnProperty.call(input.person, input.spaceId) ? input.person[input.spaceId] : undefined;
-  const fromSpace = Object.prototype.hasOwnProperty.call(input.spaceSkin, input.spaceId) ? input.spaceSkin[input.spaceId] : undefined;
+  const row = Object.prototype.hasOwnProperty.call(input.person, input.spaceId)
+    ? input.person[input.spaceId]
+    : undefined;
+  const fromSpace = Object.prototype.hasOwnProperty.call(input.spaceSkin, input.spaceId)
+    ? input.spaceSkin[input.spaceId]
+    : undefined;
 
   let wanted: string;
   let source: ThemeSource;
@@ -276,30 +300,40 @@ export function headScript(): string {
   for (const skin of skins) bases[skin.id] = skin.base;
   return (
     "(function(){" +
-    "var key=" + JSON.stringify(APPEARANCE_KEY) + ";" +
-    "var table=" + json + ";" +
-    "var bases=" + JSON.stringify(bases) + ";" +
-    "function own(o,p){return !!o&&typeof o===\"object\"&&Object.prototype.hasOwnProperty.call(o,p)?o[p]:null;}" +
+    "var key=" +
+    JSON.stringify(APPEARANCE_KEY) +
+    ";" +
+    "var table=" +
+    json +
+    ";" +
+    "var bases=" +
+    JSON.stringify(bases) +
+    ";" +
+    'function own(o,p){return !!o&&typeof o==="object"&&Object.prototype.hasOwnProperty.call(o,p)?o[p]:null;}' +
     "var root=document.documentElement;" +
     "var dark=false;" +
-    "try{dark=window.matchMedia(\"(prefers-color-scheme: dark)\").matches===true;}catch(e){dark=false;}" +
+    'try{dark=window.matchMedia("(prefers-color-scheme: dark)").matches===true;}catch(e){dark=false;}' +
     "var raw=null;" +
     "try{raw=localStorage.getItem(key);}catch(e){raw=null;}" +
     "var data=null;" +
     "if(raw){try{data=JSON.parse(raw);}catch(e){data=null;}}" +
-    "var sid=data&&typeof data.spaceId===\"string\"?data.spaceId:\"\";" +
-    "var row=own(own(data,\"spaces\"),sid);" +
-    "var a=own(row,\"skin\"),b=own(own(data,\"spaceSkin\"),sid);" +
-    "var skin=typeof a===\"string\"&&a?a:(typeof b===\"string\"&&b?b:" + JSON.stringify(DEFAULT_SKIN) + ");" +
-    "if(!Object.prototype.hasOwnProperty.call(table,skin))skin=" + JSON.stringify(DEFAULT_SKIN) + ";" +
-    "var m=own(row,\"mode\");" +
-    "var mode=m===\"light\"||m===\"dark\"?m:(own(bases,skin)||(dark?\"dark\":\"light\"));" +
+    'var sid=data&&typeof data.spaceId==="string"?data.spaceId:"";' +
+    'var row=own(own(data,"spaces"),sid);' +
+    'var a=own(row,"skin"),b=own(own(data,"spaceSkin"),sid);' +
+    'var skin=typeof a==="string"&&a?a:(typeof b==="string"&&b?b:' +
+    JSON.stringify(DEFAULT_SKIN) +
+    ");" +
+    "if(!Object.prototype.hasOwnProperty.call(table,skin))skin=" +
+    JSON.stringify(DEFAULT_SKIN) +
+    ";" +
+    'var m=own(row,"mode");' +
+    'var mode=m==="light"||m==="dark"?m:(own(bases,skin)||(dark?"dark":"light"));' +
     "var tokens=table[skin][mode];" +
-    "root.setAttribute(\"data-theme\",mode);" +
-    "root.style.setProperty(\"background-color\",tokens[\"--rail\"]);" +
-    "root.setAttribute(\"data-skin\",skin);" +
-    "if(sid)root.setAttribute(\"data-space\",sid);" +
-    "root.style.setProperty(\"color-scheme\",mode);" +
+    'root.setAttribute("data-theme",mode);' +
+    'root.style.setProperty("background-color",tokens["--rail"]);' +
+    'root.setAttribute("data-skin",skin);' +
+    'if(sid)root.setAttribute("data-space",sid);' +
+    'root.style.setProperty("color-scheme",mode);' +
     "for(var n in tokens){if(Object.prototype.hasOwnProperty.call(tokens,n))root.style.setProperty(n,tokens[n]);}" +
     "})();"
   );
@@ -335,7 +369,8 @@ export function applyToRoot(applied: AppliedTheme, root: ThemeRoot): void {
   root.setProperty("color-scheme", applied.mode);
   // the window behind everything: the first frame is the theme's ground, never a white flash
   root.setProperty("background-color", applied.tokens["--rail"] ?? "");
-  for (const name of TOKEN_NAMES) if (!Object.prototype.hasOwnProperty.call(applied.tokens, name)) root.removeProperty(name);
+  for (const name of TOKEN_NAMES)
+    if (!Object.prototype.hasOwnProperty.call(applied.tokens, name)) root.removeProperty(name);
   for (const name of Object.keys(applied.tokens).sort()) {
     const value = applied.tokens[name];
     if (value !== undefined) root.setProperty(name, value);

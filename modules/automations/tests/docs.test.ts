@@ -1,7 +1,18 @@
 // The allowlist loader never reads a URL the person typed. Tests pass a fake fetch.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DIRECTORY_URL, DOC_CAP, KNOWN_DOCS, NO_MATCH, clearDirectoryCache, draftKnown, indexFrom, loadKnownDocument, narrowDocument, specUrlFor } from "../docs.ts";
+import {
+  DIRECTORY_URL,
+  DOC_CAP,
+  KNOWN_DOCS,
+  NO_MATCH,
+  clearDirectoryCache,
+  draftKnown,
+  indexFrom,
+  loadKnownDocument,
+  narrowDocument,
+  specUrlFor,
+} from "../docs.ts";
 
 const STRIPE = KNOWN_DOCS.stripe!;
 const SECRET = "sk-live-do-not-keep";
@@ -39,7 +50,10 @@ test("a redirect is refused before the body is read", async () => {
       status: 302,
       url: "",
       headers: { get: () => null },
-      text: async () => { read = true; return "{}"; },
+      text: async () => {
+        read = true;
+        return "{}";
+      },
     } as Response;
   }) as typeof fetch;
   const out = await loadKnownDocument("stripe", fetchImpl);
@@ -64,8 +78,11 @@ test("a body over the cap is refused and a declared length is not read", async (
   const declared = (async () => ({
     status: 200,
     url: STRIPE,
-    headers: { get: (name: string) => name === "content-length" ? String(DOC_CAP + 1) : null },
-    text: async () => { read = true; return "{}"; },
+    headers: { get: (name: string) => (name === "content-length" ? String(DOC_CAP + 1) : null) },
+    text: async () => {
+      read = true;
+      return "{}";
+    },
   })) as typeof fetch;
   const over = await loadKnownDocument("stripe", declared);
   assert.equal(over.ok, false);
@@ -90,7 +107,9 @@ test("HTML and invalid JSON are refused", async () => {
 });
 
 test("a thrown fetch says the document did not load", async () => {
-  const out = await loadKnownDocument("stripe", (async () => { throw new Error(`down ${SECRET}`); }) as typeof fetch);
+  const out = await loadKnownDocument("stripe", (async () => {
+    throw new Error(`down ${SECRET}`);
+  }) as typeof fetch);
   assert.equal(out.ok, false);
   if (out.ok) return;
   assert.match(out.reason, /did not load/);
@@ -104,12 +123,17 @@ test("an intent keeps the matching read and drops the other path", () => {
     info: { title: "Notes" },
     servers: [{ url: "https://api.notes.test" }],
     paths: {
-      "/customers": { get: { operationId: "listCustomers", summary: "List customers", responses: { "200": { description: "ok" } } } },
+      "/customers": {
+        get: { operationId: "listCustomers", summary: "List customers", responses: { "200": { description: "ok" } } },
+      },
       "/charges": { post: { operationId: "createCharge", responses: { "201": { description: "ok" } } } },
     },
     components: { examples: { leak: { value: SECRET } }, securitySchemes: { key: { type: "apiKey" } } },
   };
-  const narrowed = narrowDocument(doc, "list customers") as { paths: Record<string, Record<string, unknown>>; components?: Record<string, unknown> };
+  const narrowed = narrowDocument(doc, "list customers") as {
+    paths: Record<string, Record<string, unknown>>;
+    components?: Record<string, unknown>;
+  };
   assert.ok(narrowed.paths["/customers"]?.get);
   assert.equal(narrowed.paths["/charges"], undefined);
   assert.equal(JSON.stringify(narrowed).includes(SECRET), false);
@@ -130,10 +154,14 @@ test("no intent keeps a read and drops a post", () => {
 });
 
 test("a document with no matching path is refused and the secret stays out", async () => {
-  const fetchImpl = (async () => responseOf(200, JSON.stringify({
-    openapi: "3.0.3",
-    paths: { "/charges": { post: { operationId: "createCharge", example: SECRET } } },
-  }))) as typeof fetch;
+  const fetchImpl = (async () =>
+    responseOf(
+      200,
+      JSON.stringify({
+        openapi: "3.0.3",
+        paths: { "/charges": { post: { operationId: "createCharge", example: SECRET } } },
+      }),
+    )) as typeof fetch;
   const out = await draftKnown("stripe", "zzzz", fetchImpl, KNOWN_DOCS);
   assert.equal(out.ok, false);
   if (out.ok) return;
@@ -146,11 +174,26 @@ const SLACK_SPEC = "https://api.apis.guru/v2/specs/slack.com/1.7.0/openapi.json"
 test("a provider key matches the app and a longer name does not", () => {
   const index = indexFrom({
     "slack.com": { preferred: "1.7.0", versions: { "1.7.0": { swaggerUrl: SLACK_SPEC } } },
-    "zoom.us": { preferred: "2", versions: { "2": { swaggerUrl: "https://api.apis.guru/v2/specs/zoom.us/2/openapi.json" } } },
-    "zoomconnect.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/zoomconnect.com/1/openapi.json" } } },
-    "box.com": { preferred: "2", versions: { "2": { swaggerUrl: "https://api.apis.guru/v2/specs/box.com/2/openapi.json" } } },
-    "databox.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/databox.com/1/openapi.json" } } },
-    "twilio.com:api": { preferred: "1", versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/twilio.com/api/openapi.json" } } },
+    "zoom.us": {
+      preferred: "2",
+      versions: { "2": { swaggerUrl: "https://api.apis.guru/v2/specs/zoom.us/2/openapi.json" } },
+    },
+    "zoomconnect.com": {
+      preferred: "1",
+      versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/zoomconnect.com/1/openapi.json" } },
+    },
+    "box.com": {
+      preferred: "2",
+      versions: { "2": { swaggerUrl: "https://api.apis.guru/v2/specs/box.com/2/openapi.json" } },
+    },
+    "databox.com": {
+      preferred: "1",
+      versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/databox.com/1/openapi.json" } },
+    },
+    "twilio.com:api": {
+      preferred: "1",
+      versions: { "1": { swaggerUrl: "https://api.apis.guru/v2/specs/twilio.com/api/openapi.json" } },
+    },
     "evil.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://evil.example/openapi.json" } } },
   });
   assert.equal(specUrlFor("slack", index), SLACK_SPEC);
@@ -168,21 +211,33 @@ test("a named app loads its directory document and ignores a foreign address", a
     const target = String(url);
     seen.push(target);
     if (target === DIRECTORY_URL) {
-      return responseOf(200, JSON.stringify({
-        "slack.com": { preferred: "1.7.0", versions: { "1.7.0": { swaggerUrl: SLACK_SPEC } } },
-        "evil.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://evil.example/openapi.json" } } },
-      }));
+      return responseOf(
+        200,
+        JSON.stringify({
+          "slack.com": { preferred: "1.7.0", versions: { "1.7.0": { swaggerUrl: SLACK_SPEC } } },
+          "evil.com": { preferred: "1", versions: { "1": { swaggerUrl: "https://evil.example/openapi.json" } } },
+        }),
+      );
     }
     if (target === SLACK_SPEC) {
-      return responseOf(200, JSON.stringify({
-        openapi: "3.0.3",
-        info: { title: "Slack" },
-        servers: [{ url: "https://slack.com/api" }],
-        paths: {
-          "/conversations.list": { get: { operationId: "listChannels", summary: "List channels", responses: { "200": { description: "ok" } } } },
-          "/chat.postMessage": { post: { operationId: "postMessage", responses: { "200": { description: "ok" } } } },
-        },
-      }));
+      return responseOf(
+        200,
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "Slack" },
+          servers: [{ url: "https://slack.com/api" }],
+          paths: {
+            "/conversations.list": {
+              get: {
+                operationId: "listChannels",
+                summary: "List channels",
+                responses: { "200": { description: "ok" } },
+              },
+            },
+            "/chat.postMessage": { post: { operationId: "postMessage", responses: { "200": { description: "ok" } } } },
+          },
+        }),
+      );
     }
     throw new Error(`unexpected ${target}`);
   }) as typeof fetch;
@@ -197,7 +252,10 @@ test("a named app loads its directory document and ignores a foreign address", a
     const again = await draftKnown("missing", "list", fetchImpl);
     assert.equal(again.ok, false);
     assert.equal(seen.filter((url) => url === DIRECTORY_URL).length, 1);
-    assert.equal(seen.some((url) => url.includes("evil.example")), false);
+    assert.equal(
+      seen.some((url) => url.includes("evil.example")),
+      false,
+    );
   } finally {
     clearDirectoryCache();
   }

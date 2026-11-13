@@ -10,9 +10,24 @@ import { BODY_LINES, linesOf } from "./held-card.tsx";
 
 installDom();
 
-type Call = { cap: string; input: any };   // eslint-disable-line @typescript-eslint/no-explicit-any
-const block = (cap: string, input: Record<string, unknown>, outward: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ type: "approval_preview", v: 1, data: { act: "send", cap, input, holdId: "hld_1", outward, ...extra } });
-const DM = block("chat.message_person", { to: "usr_aliza", body: "Hi **Aliza**,\n\n- the deed is ready\n- call me", timing: "online" }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "Hi **Aliza**,\n\n- the deed is ready\n- call me", bodyField: "body", schedule: { kind: "online" } });
+type Call = { cap: string; input: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const block = (
+  cap: string,
+  input: Record<string, unknown>,
+  outward: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+) => ({ type: "approval_preview", v: 1, data: { act: "send", cap, input, holdId: "hld_1", outward, ...extra } });
+const DM = block(
+  "chat.message_person",
+  { to: "usr_aliza", body: "Hi **Aliza**,\n\n- the deed is ready\n- call me", timing: "online" },
+  {
+    channel: "message",
+    to: [{ kind: "person", id: "usr_aliza" }],
+    body: "Hi **Aliza**,\n\n- the deed is ready\n- call me",
+    bodyField: "body",
+    schedule: { kind: "online" },
+  },
+);
 
 function world(blocks: unknown[], o: { state?: string; onGet?: () => unknown; tz?: string } = {}) {
   const calls: Call[] = [];
@@ -20,10 +35,36 @@ function world(blocks: unknown[], o: { state?: string; onGet?: () => unknown; tz
   const d = {
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
-      if (cap === "tasks.get") return { task: { id: "tsk_1", kind: "approve", title: "Approve: Send a message", state: o.state ?? "awaiting_approval", blocks: current, updatedAt: Date.UTC(2026, 10, 4, 4, 38) } };
+      if (cap === "tasks.get")
+        return {
+          task: {
+            id: "tsk_1",
+            kind: "approve",
+            title: "Approve: Send a message",
+            state: o.state ?? "awaiting_approval",
+            blocks: current,
+            updatedAt: Date.UTC(2026, 10, 4, 4, 38),
+          },
+        };
       if (cap === "settings.public_of") return o.tz ? { timezone: o.tz } : {};
       if (cap === "access.principals.get") return { principal: { name: "Aliza Rizvi" } };
-      if (cap === "gate.holds.revise") { const b = (input as { body: string }).body; current = [block("chat.message_person", { to: "usr_aliza", body: b }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: b, bodyField: "body", edited: { by: "usr_me", at: 1 } })]; return { ok: true }; }
+      if (cap === "gate.holds.revise") {
+        const b = (input as { body: string }).body;
+        current = [
+          block(
+            "chat.message_person",
+            { to: "usr_aliza", body: b },
+            {
+              channel: "message",
+              to: [{ kind: "person", id: "usr_aliza" }],
+              body: b,
+              bodyField: "body",
+              edited: { by: "usr_me", at: 1 },
+            },
+          ),
+        ];
+        return { ok: true };
+      }
       return {};
     },
     nav: { openBeside: () => undefined },
@@ -32,7 +73,17 @@ function world(blocks: unknown[], o: { state?: string; onGet?: () => unknown; tz
 }
 const card = (d: never) => <ApprovalCard taskId="tsk_1" agent="Dex" agentId="agt_dex" data={d} />;
 // a browser's TipTap cannot be typed into under test: the card's editor seam gets a plain field that stands for the shared editor's text
-const typed = (d: never) => <ApprovalCard taskId="tsk_1" agent="Dex" agentId="agt_dex" data={d} editor={({ value, onChange, label }) => <TextInput testID="stub-editor" accessibilityLabel={label} value={value} onChangeText={onChange} multiline />} />;
+const typed = (d: never) => (
+  <ApprovalCard
+    taskId="tsk_1"
+    agent="Dex"
+    agentId="agt_dex"
+    data={d}
+    editor={({ value, onChange, label }) => (
+      <TextInput testID="stub-editor" accessibilityLabel={label} value={value} onChangeText={onChange} multiline />
+    )}
+  />
+);
 
 test("a message to a person: the recipient and the channel in plain words, the schedule only when it is not now, the body rendered, no internal field names", async () => {
   const w = world([DM]);
@@ -42,39 +93,94 @@ test("a message to a person: the recipient and the channel in plain words, the s
   assert.match(t, /Sends when they are next online/);
   assert.ok(t.includes("Hi") && t.includes("Aliza") && t.includes("the deed is ready"), "the body");
   assert.ok(!t.includes("**"), "Markdown is drawn, not shown raw");
-  for (const raw of ["Timing", "timing", "Body", "bodyField", "usr_aliza", "hld_1", "channel", "chat.message_person"]) assert.ok(!t.includes(raw), `${raw} is not on the card`);
-  assert.ok(find(root, "approval-tsk_1-send") && find(root, "approval-tsk_1-edit") && find(root, "approval-tsk_1-drop"));
+  for (const raw of ["Timing", "timing", "Body", "bodyField", "usr_aliza", "hld_1", "channel", "chat.message_person"])
+    assert.ok(!t.includes(raw), `${raw} is not on the card`);
+  assert.ok(
+    find(root, "approval-tsk_1-send") && find(root, "approval-tsk_1-edit") && find(root, "approval-tsk_1-drop"),
+  );
   assert.equal(find(root, "approval-tsk_1-schedule") !== null, true);
-  const now = world([block("chat.message_person", { to: "usr_aliza", body: "x", timing: "now" }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "x", bodyField: "body" })]);
+  const now = world([
+    block(
+      "chat.message_person",
+      { to: "usr_aliza", body: "x", timing: "now" },
+      { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "x", bodyField: "body" },
+    ),
+  ]);
   assert.equal(find(await mount(createRoot, card(now.d)), "approval-tsk_1-schedule"), null, "now: no timing line");
 });
 
 test("email, text and a post each read in their own words", async () => {
-  const mail = world([block("mail.send", { to: [{ address: "aliza@example.com" }], subject: "The deed", text: "Hi" }, { channel: "email", to: [{ kind: "address", address: "aliza@example.com" }], subject: "The deed", body: "Hi", bodyField: "text" })]);
+  const mail = world([
+    block(
+      "mail.send",
+      { to: [{ address: "aliza@example.com" }], subject: "The deed", text: "Hi" },
+      {
+        channel: "email",
+        to: [{ kind: "address", address: "aliza@example.com" }],
+        subject: "The deed",
+        body: "Hi",
+        bodyField: "text",
+      },
+    ),
+  ]);
   const m = textOf(await mount(createRoot, card(mail.d)));
   assert.match(m, /Dex wants to email aliza@example\.com/);
-  assert.match(m, /Subject/); assert.match(m, /The deed/);
-  const sms = world([block("telephony.send_sms", { to: "+14155550123", body: "On my way" }, { channel: "text", to: [{ kind: "phone", address: "+14155550123" }], body: "On my way", bodyField: "body" })]);
+  assert.match(m, /Subject/);
+  assert.match(m, /The deed/);
+  const sms = world([
+    block(
+      "telephony.send_sms",
+      { to: "+14155550123", body: "On my way" },
+      { channel: "text", to: [{ kind: "phone", address: "+14155550123" }], body: "On my way", bodyField: "body" },
+    ),
+  ]);
   assert.match(textOf(await mount(createRoot, card(sms.d))), /Dex wants to text \+14155550123/);
-  const post = world([block("chat.post", { threadId: "thr_1", body: "Update" }, { channel: "post", to: [{ kind: "thread", id: "thr_1" }], body: "Update", bodyField: "body" })]);
+  const post = world([
+    block(
+      "chat.post",
+      { threadId: "thr_1", body: "Update" },
+      { channel: "post", to: [{ kind: "thread", id: "thr_1" }], body: "Update", bodyField: "body" },
+    ),
+  ]);
   assert.match(textOf(await mount(createRoot, card(post.d))), /Dex wants to post in this chat/);
   // a hold parked before the Gate wrote the words is read from its call the same way
-  const old = world([{ type: "approval_preview", v: 1, data: { act: "send", cap: "chat.message_person", input: { to: "usr_aliza", body: "Hello there", timing: "online" } } }]);
+  const old = world([
+    {
+      type: "approval_preview",
+      v: 1,
+      data: {
+        act: "send",
+        cap: "chat.message_person",
+        input: { to: "usr_aliza", body: "Hello there", timing: "online" },
+      },
+    },
+  ]);
   const o = textOf(await mount(createRoot, card(old.d)));
-  assert.match(o, /Dex wants to message Aliza Rizvi/); assert.ok(!o.includes("Timing"));
+  assert.match(o, /Dex wants to message Aliza Rizvi/);
+  assert.ok(!o.includes("Timing"));
 });
 
 test("a long body is cut after twelve lines with Show all, and shown in full when asked", async () => {
   const long = Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of the message`).join("\n\n");
   assert.ok(linesOf(long) > BODY_LINES);
   assert.equal(linesOf("one\ntwo"), 2);
-  const w = world([block("chat.message_person", { to: "usr_aliza", body: long }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: long, bodyField: "body" })]);
+  const w = world([
+    block(
+      "chat.message_person",
+      { to: "usr_aliza", body: long },
+      { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: long, bodyField: "body" },
+    ),
+  ]);
   const root = await mount(createRoot, card(w.d));
   assert.match(textOf(find(root, "approval-tsk_1-all")), /Show all/);
   await press(find(root, "approval-tsk_1-all"));
   assert.match(textOf(find(root, "approval-tsk_1-all")), /Show less/);
   assert.ok(textOf(root).includes("Line 30 of the message"), "all of it is there");
-  assert.equal(find(await mount(createRoot, card(world([DM]).d)), "approval-tsk_1-all"), null, "a short one has no Show all");
+  assert.equal(
+    find(await mount(createRoot, card(world([DM]).d)), "approval-tsk_1-all"),
+    null,
+    "a short one has no Show all",
+  );
 });
 
 test("Edit opens the editor in place; Save keeps it held, says Edited by you and gives the agent the lesson; Cancel puts it back", async () => {
@@ -99,19 +205,35 @@ test("Save sends the edited words to the Gate, keeps it held, says Edited by you
   await typeInto(field!, "Hi Aliza, the deed is ready. Call me.");
   await press(find(root, "approval-tsk_1-save"));
   await flush();
-  assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")!.input, { holdId: "hld_1", taskId: "tsk_1", body: "Hi Aliza, the deed is ready. Call me." });
-  assert.deepEqual(w.calls.find((c) => c.cap === "memory.corrections.record")!.input, { agentId: "agt_dex", how: "edit", was: "Hi **Aliza**,\n\n- the deed is ready\n- call me", now: "Hi Aliza, the deed is ready. Call me." });
+  assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")!.input, {
+    holdId: "hld_1",
+    taskId: "tsk_1",
+    body: "Hi Aliza, the deed is ready. Call me.",
+  });
+  assert.deepEqual(w.calls.find((c) => c.cap === "memory.corrections.record")!.input, {
+    agentId: "agt_dex",
+    how: "edit",
+    was: "Hi **Aliza**,\n\n- the deed is ready\n- call me",
+    now: "Hi Aliza, the deed is ready. Call me.",
+  });
   assert.equal(find(root, "approval-tsk_1-editor"), null, "back to the card");
   assert.match(textOf(find(root, "approval-tsk_1-edited")), /Edited by you/);
   assert.ok(textOf(root).includes("Call me."), "the card shows the edited words");
   assert.ok(find(root, "approval-tsk_1-send"), "still held");
-  assert.equal(w.calls.some((c) => c.cap === "tasks.act"), false, "nothing was sent by saving");
+  assert.equal(
+    w.calls.some((c) => c.cap === "tasks.act"),
+    false,
+    "nothing was sent by saving",
+  );
 });
 
 test("a Save the Gate refuses says so and keeps the editor open", async () => {
   const w = world([DM]);
   const orig = (w.d as { call: (c: string, i: unknown) => Promise<unknown> }).call;
-  (w.d as { call: unknown }).call = async (cap: string, input: unknown) => { if (cap === "gate.holds.revise") throw new Error("That is decided already."); return orig(cap, input); };
+  (w.d as { call: unknown }).call = async (cap: string, input: unknown) => {
+    if (cap === "gate.holds.revise") throw new Error("That is decided already.");
+    return orig(cap, input);
+  };
   const root = await mount(createRoot, typed(w.d));
   await press(find(root, "approval-tsk_1-edit"));
   await typeInto(find(root, "stub-editor")!, "new words");
@@ -138,18 +260,42 @@ test("Don't send asks for a reason that goes back to the agent, and the card rea
   await typeInto(find(root, "approval-tsk_1-reason"), "Wait until Monday");
   await press(find(root, "approval-tsk_1-drop-go"));
   await flush();
-  assert.deepEqual(w.calls.find((c) => c.cap === "tasks.act")!.input, { taskId: "tsk_1", action: "reject", note: "Wait until Monday" });
+  assert.deepEqual(w.calls.find((c) => c.cap === "tasks.act")!.input, {
+    taskId: "tsk_1",
+    action: "reject",
+    note: "Wait until Monday",
+  });
   assert.match(textOf(find(root, "approval-done-tsk_1")).trim(), /^Not sent$/);
   const none = world([DM]);
   const r2 = await mount(createRoot, card(none.d));
-  await press(find(r2, "approval-tsk_1-drop")); await press(find(r2, "approval-tsk_1-drop-go")); await flush();
-  assert.deepEqual(none.calls.find((c) => c.cap === "tasks.act")!.input, { taskId: "tsk_1", action: "reject", note: "Not allowed." }, "no reason: the plain default");
+  await press(find(r2, "approval-tsk_1-drop"));
+  await press(find(r2, "approval-tsk_1-drop-go"));
+  await flush();
+  assert.deepEqual(
+    none.calls.find((c) => c.cap === "tasks.act")!.input,
+    { taskId: "tsk_1", action: "reject", note: "Not allowed." },
+    "no reason: the plain default",
+  );
 });
 
 test("a hold already answered shows the one line at once; a failed answer says so and keeps the buttons", async () => {
-  assert.match(textOf(find(await mount(createRoot, card(world([DM], { state: "done" }).d)), "approval-done-tsk_1")), /Sent to Aliza Rizvi/);
-  assert.match(textOf(find(await mount(createRoot, card(world([DM], { state: "canceled" }).d)), "approval-done-tsk_1")), /Not sent/);
-  const failing = { call: async (cap: string) => { if (cap === "tasks.act") throw new Error("down"); if (cap === "tasks.get") return { task: { id: "tsk_1", kind: "approve", title: "t", state: "awaiting_approval", blocks: [DM] } }; return { principal: { name: "Aliza Rizvi" } }; }, nav: { openBeside: () => undefined } } as never;
+  assert.match(
+    textOf(find(await mount(createRoot, card(world([DM], { state: "done" }).d)), "approval-done-tsk_1")),
+    /Sent to Aliza Rizvi/,
+  );
+  assert.match(
+    textOf(find(await mount(createRoot, card(world([DM], { state: "canceled" }).d)), "approval-done-tsk_1")),
+    /Not sent/,
+  );
+  const failing = {
+    call: async (cap: string) => {
+      if (cap === "tasks.act") throw new Error("down");
+      if (cap === "tasks.get")
+        return { task: { id: "tsk_1", kind: "approve", title: "t", state: "awaiting_approval", blocks: [DM] } };
+      return { principal: { name: "Aliza Rizvi" } };
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
   const root = await mount(createRoot, card(failing));
   await press(find(root, "approval-tsk_1-send"));
   await flush();
@@ -158,7 +304,17 @@ test("a hold already answered shows the one line at once; a failed answer says s
 });
 
 const AT = Date.UTC(2026, 10, 4, 14, 0);
-const timed = block("chat.message_person", { to: "usr_aliza", body: "x", timing: "at", at: AT }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "x", bodyField: "body", schedule: { kind: "at", at: AT } });
+const timed = block(
+  "chat.message_person",
+  { to: "usr_aliza", body: "x", timing: "at", at: AT },
+  {
+    channel: "message",
+    to: [{ kind: "person", id: "usr_aliza" }],
+    body: "x",
+    bodyField: "body",
+    schedule: { kind: "at", at: AT },
+  },
+);
 
 test("a timed send reads in the recipient's time first and yours after; yours alone when they have not set a zone", async () => {
   const withTz = await mount(createRoot, card(world([timed], { tz: "Asia/Karachi" }).d));
@@ -179,13 +335,28 @@ test("the ... menu offers Always allow Dex to message Aliza Rizvi: one rule for 
   await flush();
   const set = w.calls.find((c) => c.cap === "gate.allow.set");
   assert.deepEqual(set?.input, { act: "send", target: "usr_aliza", agentId: "agt_dex", recipient: true });
-  assert.ok(w.calls.findIndex((c) => c.cap === "gate.allow.set") < w.calls.findIndex((c) => c.cap === "tasks.act"), "the rule first, then the send");
+  assert.ok(
+    w.calls.findIndex((c) => c.cap === "gate.allow.set") < w.calls.findIndex((c) => c.cap === "tasks.act"),
+    "the rule first, then the send",
+  );
   assert.equal(w.calls.find((c) => c.cap === "tasks.act")?.input.action, "approve");
 });
 
-const EVENT = { summary: "Rivera closing prep", description: "Agenda\n- the deed\n- the fee", location: "https://us02web.zoom.us/j/123456", sendUpdates: "all", conference: false,
-  start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" }, end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" }, attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }] };
-const eventBlock = (input: Record<string, unknown> = EVENT) => ({ type: "approval_preview", v: 1, data: { act: "send", cap: "google.calendar.create_event", input, holdId: "hld_1" } });
+const EVENT = {
+  summary: "Rivera closing prep",
+  description: "Agenda\n- the deed\n- the fee",
+  location: "https://us02web.zoom.us/j/123456",
+  sendUpdates: "all",
+  conference: false,
+  start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" },
+  end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" },
+  attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }],
+};
+const eventBlock = (input: Record<string, unknown> = EVENT) => ({
+  type: "approval_preview",
+  v: 1,
+  data: { act: "send", cap: "google.calendar.create_event", input, holdId: "hld_1" },
+});
 
 test("a calendar event holds as an event card: the title, when in both zones, the guests and whether they are emailed, where with its link, the agenda folded, never raw fields", async () => {
   const w = world([eventBlock()]);
@@ -202,14 +373,27 @@ test("a calendar event holds as an event card: the title, when in both zones, th
   assert.ok(find(root, "approval-tsk_1-invitees"), "guests as faces and names");
   assert.ok(find(root, "approval-tsk_1-fold"), "the agenda is folded");
   assert.ok(!t.includes("the deed"), "and closed until opened");
-  for (const raw of ["Summary", "Description", "Location", "Send updates", "sendUpdates", "google", "Google", "conference"]) assert.ok(!t.includes(raw), `${raw} is not on the card`);
+  for (const raw of [
+    "Summary",
+    "Description",
+    "Location",
+    "Send updates",
+    "sendUpdates",
+    "google",
+    "Google",
+    "conference",
+  ])
+    assert.ok(!t.includes(raw), `${raw} is not on the card`);
   assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Allow");
   await press(find(root, "approval-tsk_1-fold"));
   assert.match(textOf(root), /the deed/);
 });
 
 test("an event with nobody to email says so and adds to the calendar; guests who are not emailed are said too", async () => {
-  const none = await mount(createRoot, card(world([eventBlock({ summary: "Block", start: EVENT.start, end: EVENT.end })]).d));
+  const none = await mount(
+    createRoot,
+    card(world([eventBlock({ summary: "Block", start: EVENT.start, end: EVENT.end })]).d),
+  );
   assert.match(textOf(none), /No guests/);
   assert.equal(textOf(find(none, "approval-tsk_1-send")).trim(), "Allow");
   const quiet = await mount(createRoot, card(world([eventBlock({ ...EVENT, sendUpdates: "none" })]).d));
@@ -224,11 +408,25 @@ test("Edit on an event changes its title and agenda in place: Save goes to the G
   await typeInto(find(root, "stub-editor")!, "New agenda");
   await press(find(root, "approval-tsk_1-save"));
   await flush();
-  assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")?.input, { holdId: "hld_1", taskId: "tsk_1", body: "New agenda", title: "Closing prep, moved" });
+  assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")?.input, {
+    holdId: "hld_1",
+    taskId: "tsk_1",
+    body: "New agenda",
+    title: "Closing prep, moved",
+  });
 });
 
 test("a message to a handle: the Gate's name for the recipient is on the card, with the agent's face and never a teammate orb", async () => {
-  const named = block("chat.message_person", { to: "noah", body: "The vendor call is Thursday at 14:00." }, { channel: "message", to: [{ kind: "person", id: "noah", name: "Noah Berg" }], body: "The vendor call is Thursday at 14:00.", bodyField: "body" });
+  const named = block(
+    "chat.message_person",
+    { to: "noah", body: "The vendor call is Thursday at 14:00." },
+    {
+      channel: "message",
+      to: [{ kind: "person", id: "noah", name: "Noah Berg" }],
+      body: "The vendor call is Thursday at 14:00.",
+      bodyField: "body",
+    },
+  );
   const w = world([named]);
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_intake" data={w.d} />);
   const t = textOf(root);

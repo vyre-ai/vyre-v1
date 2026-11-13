@@ -14,7 +14,14 @@ import { codeOf, contractErrors, NOW } from "../fixtures/harness.ts";
 import { rig, row, sendIn } from "./send.rig.test.ts";
 import type { RigOptions } from "./send.rig.test.ts";
 
-const ALLOW = { effect: "allow", reason: "ok", steps: [], scope: undefined, obligations: [], decisionId: "dec_gatetest01" } as const;
+const ALLOW = {
+  effect: "allow",
+  reason: "ok",
+  steps: [],
+  scope: undefined,
+  obligations: [],
+  decisionId: "dec_gatetest01",
+} as const;
 const PERSON: CtxSeed["principal"] = { kind: "person", id: "usr_maya01" };
 const AGENT: CtxSeed["principal"] = { kind: "agent", id: "agt_scout01" };
 const SERVICE: CtxSeed["principal"] = { kind: "service", id: "svc_engine01" };
@@ -22,7 +29,14 @@ const APPROVED = "approval-token-for-this-payload";
 
 /** The capabilities mail.send calls while it runs; the rig answers them. */
 const NESTED = [
-  "settings.get", "contacts.suppression.check", "contacts.preferences.get", "resend.send_email", "mailgun.send_email", "google.gmail.send_message", "ms.mail.send_message", "files.get",
+  "settings.get",
+  "contacts.suppression.check",
+  "contacts.preferences.get",
+  "resend.send_email",
+  "mailgun.send_email",
+  "google.gmail.send_message",
+  "ms.mail.send_message",
+  "files.get",
 ];
 
 function stack(o: RigOptions = {}) {
@@ -37,7 +51,10 @@ function stack(o: RigOptions = {}) {
   for (const name of NESTED) handlers[name] = (_ctx, input) => r.ctx.call(name, input);
   const gate: GateHook = {
     // the Gate hook asks the rule this module exports; provider calls made from inside an already cleared send are not asked again
-    applies: (c, _input, seed) => (c.name === "mail.send" || c.name === "mail.send_as" ? sendGateApplies({ principalKind: seed.principal.kind, origin: seed.origin }) : null),
+    applies: (c, _input, seed) =>
+      c.name === "mail.send" || c.name === "mail.send_as"
+        ? sendGateApplies({ principalKind: seed.principal.kind, origin: seed.origin })
+        : null,
     park: async (a) => {
       parked.push({ cap: a.cap.name, act: a.act, principal: a.seed.principal.id });
       return { taskId: "tsk_hold01" };
@@ -57,7 +74,11 @@ function stack(o: RigOptions = {}) {
     services: () => ({ db: r.h.ctx.db }),
     now: () => r.ctx.now(),
   });
-  const as = (principal: CtxSeed["principal"], more: Partial<CtxSeed> = {}): CtxSeed => ({ space: "spc_mailtest", principal, ...more });
+  const as = (principal: CtxSeed["principal"], more: Partial<CtxSeed> = {}): CtxSeed => ({
+    space: "spc_mailtest",
+    principal,
+    ...more,
+  });
   return { r, parked, commits, invoke, as };
 }
 
@@ -86,7 +107,8 @@ test("the Gate rule: a person at a screen skips it; an agent, an automation and 
     [{ principalKind: "person", origin: "automation:aut_1" }, true],
     [{ principalKind: "service", origin: "automation:aut_1" }, true],
   ];
-  for (const [call, held] of cases) assert.deepEqual(sendGateApplies(call), held ? { act: "send" } : null, JSON.stringify(call));
+  for (const [call, held] of cases)
+    assert.deepEqual(sendGateApplies(call), held ? { act: "send" } : null, JSON.stringify(call));
 });
 
 // ---- through the pipeline
@@ -101,8 +123,11 @@ test("a person's own send skips the Gate and goes out, with the trace id in the 
   const body = s.r.calls("resend.send_email")[0]!.input;
   assert.equal((body.headers as Record<string, string>)[TRACE_HEADER], traceId);
   assert.equal(row(s.r, String(output.messageId))!.traceId, traceId);
-  assert.deepEqual(committed(s, "mail.send").events.map((e) => [e.type, e.actor]), [["message.sent", "usr_maya01"]]);
-  assert.equal(body.text, "Hi Pat");   // no agent line on a person's message
+  assert.deepEqual(
+    committed(s, "mail.send").events.map((e) => [e.type, e.actor]),
+    [["message.sent", "usr_maya01"]],
+  );
+  assert.equal(body.text, "Hi Pat"); // no agent line on a person's message
 });
 
 test("an agent's send is held for approval before anything is stored or sent", async () => {
@@ -110,7 +135,7 @@ test("an agent's send is held for approval before anything is stored or sent", a
   const res = await s.invoke("mail.send", sendIn(), s.as(AGENT));
   assert.deepEqual([res.status, res.status === "held" ? res.taskId : null], ["held", "tsk_hold01"]);
   assert.deepEqual(s.parked, [{ cap: "mail.send", act: "send", principal: "agt_scout01" }]);
-  assert.equal(s.r.seen.length, 0);   // not even the suppression list was asked
+  assert.equal(s.r.seen.length, 0); // not even the suppression list was asked
   assert.equal(s.r.h.rows(`SELECT * FROM mail_message`).length, 0);
   assert.equal(s.commits.length, 0);
 });
@@ -145,7 +170,13 @@ test("automations are held like agents; the same call from a person at a screen 
 
 test("send_as follows the same Gate: a person's reply goes, an agent's waits", async () => {
   const s = stack();
-  const input = { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: Question", text: "Yes.", idempotencyKey: "as-1" };
+  const input = {
+    mailboxId: "mbx_maya",
+    to: [{ address: "pat@acme.test" }],
+    subject: "Re: Question",
+    text: "Yes.",
+    idempotencyKey: "as-1",
+  };
   const mine = done(await s.invoke("mail.send_as", input, s.as(PERSON)));
   assert.equal(mine.output.providerId, "gm_1");
   const theirs = await s.invoke("mail.send_as", { ...input, idempotencyKey: "as-2" }, s.as(AGENT));
@@ -155,7 +186,9 @@ test("send_as follows the same Gate: a person's reply goes, an agent's waits", a
 
 test("the preview is never held, whoever asks", async () => {
   const s = stack();
-  const { output } = done(await s.invoke("mail.send_preview", { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }] }, s.as(AGENT)));
+  const { output } = done(
+    await s.invoke("mail.send_preview", { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }] }, s.as(AGENT)),
+  );
   assert.deepEqual(contractErrors("mail.send_preview", "out", output), []);
   assert.deepEqual(s.parked, []);
 });
@@ -164,7 +197,10 @@ test("input that does not fit the contract is refused by the pipeline before the
   const s = stack();
   const noKey = Object.fromEntries(Object.entries(sendIn()).filter(([key]) => key !== "idempotencyKey"));
   await assert.rejects(s.invoke("mail.send", noKey, s.as(AGENT)), (e: unknown) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(s.invoke("mail.send", sendIn({ mailboxId: "nope" }), s.as(PERSON)), (e: unknown) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    s.invoke("mail.send", sendIn({ mailboxId: "nope" }), s.as(PERSON)),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(s.parked, []);
   assert.equal(s.r.seen.length, 0);
 });
@@ -173,7 +209,10 @@ test("a suppressed recipient through the pipeline: the call succeeds as suppress
   const s = stack({ suppressed: { "pat@acme.test": "unsubscribe" } });
   const { output } = done(await s.invoke("mail.send", sendIn(), s.as(PERSON)));
   assert.deepEqual(output, { status: "suppressed", suppressed: ["pat@acme.test"] });
-  assert.deepEqual(committed(s, "mail.send").events.map((e) => [e.type, e.payload]), [["message.suppressed", { channel: "email", address: "pat@acme.test", reason: "unsubscribe" }]]);
+  assert.deepEqual(
+    committed(s, "mail.send").events.map((e) => [e.type, e.payload]),
+    [["message.suppressed", { channel: "email", address: "pat@acme.test", reason: "unsubscribe" }]],
+  );
   assert.equal(s.r.sent().length, 0);
 });
 

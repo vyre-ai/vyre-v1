@@ -1,5 +1,13 @@
 // Fake Stripe behind api.stripe.com (ARCH 8 table, 10.1). Health is GET /v1/balance.
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface StripeBalance {
   available: { amount: number; currency: string }[];
@@ -28,7 +36,7 @@ export function fakeStripe(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}):
       match: (u) => hostIs(u, "stripe.com") && u.pathname === "/v1/customers",
       run: (_u, init) => {
         n += 1;
-        const parsed = init.body ? JSON.parse(init.body) as Record<string, unknown> : {};
+        const parsed = init.body ? (JSON.parse(init.body) as Record<string, unknown>) : {};
         return {
           body: {
             id: `cus_${n}`,

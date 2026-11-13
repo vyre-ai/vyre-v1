@@ -33,10 +33,19 @@ export interface Channel<T> {
 export function channel<T>(): Channel<T> {
   const q: T[] = [];
   let wake: (() => void) | null = null;
-  const poke = (): void => { const w = wake; wake = null; w?.(); };
+  const poke = (): void => {
+    const w = wake;
+    wake = null;
+    w?.();
+  };
   return {
-    push(v) { q.push(v); poke(); },
-    get size() { return q.length; },
+    push(v) {
+      q.push(v);
+      poke();
+    },
+    get size() {
+      return q.length;
+    },
     async next(ms, signal) {
       for (;;) {
         const v = q.shift();
@@ -45,7 +54,10 @@ export function channel<T>(): Channel<T> {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const onAbort = (): void => poke();
         const timedOut = await new Promise<boolean>((resolve) => {
-          timer = setTimeout(() => { wake = null; resolve(true); }, ms);
+          timer = setTimeout(() => {
+            wake = null;
+            resolve(true);
+          }, ms);
           wake = () => resolve(false);
           signal.addEventListener("abort", onAbort, { once: true });
         });

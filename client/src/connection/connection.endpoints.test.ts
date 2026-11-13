@@ -1,7 +1,16 @@
 // Endpoint choice (ARCH 5.9): rank, race the top two, stick to the winner, rest a failed endpoint, back off when none answer. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BACKOFF_BASE_MS, ENDPOINT_COOLDOWN_MS, HELLO_TIMEOUT_MS, createConnection, endpoint, manualScheduler, rank, usable } from "./index.ts";
+import {
+  BACKOFF_BASE_MS,
+  ENDPOINT_COOLDOWN_MS,
+  HELLO_TIMEOUT_MS,
+  createConnection,
+  endpoint,
+  manualScheduler,
+  rank,
+  usable,
+} from "./index.ts";
 import type { Endpoint } from "./index.ts";
 import { elapse, fakeServer, settle } from "./testing.ts";
 
@@ -28,9 +37,26 @@ function make(eps: Endpoint[], over: Partial<Parameters<typeof createConnection>
   const sched = manualScheduler(1_000_000);
   let cursor = 0;
   const conn = createConnection({
-    space: "sp1", endpoints: eps, dial: srv.dial, scheduler: sched,
-    hello: () => ({ deviceId: "dev1", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", epoch: 0, replica: { entities: {} } }),
-    cursor: { get: () => cursor, set: (n) => { cursor = n; } }, apply: () => undefined, ...over,
+    space: "sp1",
+    endpoints: eps,
+    dial: srv.dial,
+    scheduler: sched,
+    hello: () => ({
+      deviceId: "dev1",
+      deviceClass: "desktop",
+      appVersion: "1.0.0",
+      registryHash: "h1",
+      epoch: 0,
+      replica: { entities: {} },
+    }),
+    cursor: {
+      get: () => cursor,
+      set: (n) => {
+        cursor = n;
+      },
+    },
+    apply: () => undefined,
+    ...over,
   });
   return { srv, sched, conn };
 }
@@ -50,7 +76,11 @@ test("the race goes to the endpoint that answers first, and the other is closed"
 });
 
 test("only the top two are raced; a third is not dialled while they work", async () => {
-  const { srv, conn } = make([endpoint("direct", "wss://a"), endpoint("tunnel", "wss://t"), endpoint("relay", "wss://r")]);
+  const { srv, conn } = make([
+    endpoint("direct", "wss://a"),
+    endpoint("tunnel", "wss://t"),
+    endpoint("relay", "wss://r"),
+  ]);
   conn.start();
   await settle();
   assert.equal(conn.stats().dials, 2);
@@ -78,16 +108,21 @@ test("when no endpoint answers the manager backs off 500 ms, 1 s, 2 s and connec
   conn.start();
   await settle();
   assert.equal(conn.stats().dials, 1);
-  sched.advance(BACKOFF_BASE_MS - 1); await settle();
+  sched.advance(BACKOFF_BASE_MS - 1);
+  await settle();
   assert.equal(conn.stats().dials, 1);
-  sched.advance(1); await settle();
+  sched.advance(1);
+  await settle();
   assert.equal(conn.stats().dials, 2);
-  sched.advance(BACKOFF_BASE_MS * 2 - 1); await settle();
+  sched.advance(BACKOFF_BASE_MS * 2 - 1);
+  await settle();
   assert.equal(conn.stats().dials, 2);
-  sched.advance(1); await settle();
+  sched.advance(1);
+  await settle();
   assert.equal(conn.stats().dials, 3);
   srv.refuse("wss://a", false);
-  sched.advance(BACKOFF_BASE_MS * 4); await settle();
+  sched.advance(BACKOFF_BASE_MS * 4);
+  await settle();
   assert.equal(conn.status(), "live");
   assert.equal(srv.open(), 1);
   conn.stop();
@@ -95,11 +130,13 @@ test("when no endpoint answers the manager backs off 500 ms, 1 s, 2 s and connec
 
 test("an endpoint that does not say hello in time is given up on", async () => {
   const { srv, sched, conn } = make([endpoint("direct", "wss://a"), endpoint("relay", "wss://b")]);
-  srv.slow("wss://a"); srv.slow("wss://b");
+  srv.slow("wss://a");
+  srv.slow("wss://b");
   conn.start();
   await settle();
   assert.equal(conn.status(), "connecting");
-  sched.advance(HELLO_TIMEOUT_MS + 1); await settle();
+  sched.advance(HELLO_TIMEOUT_MS + 1);
+  await settle();
   assert.equal(srv.open(), 0, "both were closed");
   assert.ok(conn.endpoints().every((e) => e.health === "down"));
   conn.stop();

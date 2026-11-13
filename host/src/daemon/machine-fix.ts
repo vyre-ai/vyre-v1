@@ -23,8 +23,15 @@ const SCRATCH_MIN_AGE_MS = 60 * 60_000;
 function sizeOf(p: string): number {
   let n = 0;
   let st: fs.Stats;
-  try { st = fs.lstatSync(p); } catch { return 0; }
-  if (st.isDirectory()) { for (const e of fs.readdirSync(p)) n += sizeOf(path.join(p, e)); return n; }
+  try {
+    st = fs.lstatSync(p);
+  } catch {
+    return 0;
+  }
+  if (st.isDirectory()) {
+    for (const e of fs.readdirSync(p)) n += sizeOf(path.join(p, e));
+    return n;
+  }
   return st.size;
 }
 
@@ -34,7 +41,11 @@ export function clearCaches(dataDir: string, now: number): number {
   for (const name of REBUILDABLE) {
     const dir = path.join(dataDir, name);
     let entries: string[];
-    try { entries = fs.readdirSync(dir); } catch { continue; }
+    try {
+      entries = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
     for (const e of entries) {
       const p = path.join(dir, e);
       try {
@@ -43,7 +54,9 @@ export function clearCaches(dataDir: string, now: number): number {
         const n = sizeOf(p);
         fs.rmSync(p, { recursive: true, force: true });
         freed += n;
-      } catch { /* in use or already gone: left */ }
+      } catch {
+        /* in use or already gone: left */
+      }
     }
   }
   return freed;

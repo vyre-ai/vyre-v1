@@ -29,7 +29,11 @@ export interface DomainOut {
   checkedAt?: number;
 }
 
-interface Stored { ref: string; providerVerified: boolean; records: PublishedRecord[] }
+interface Stored {
+  ref: string;
+  providerVerified: boolean;
+  records: PublishedRecord[];
+}
 
 const state = (v: unknown): DnsState => (v === "pass" || v === "fail" ? v : "pending");
 const domId = (ctx: MailCtx, value: unknown): string => {
@@ -46,7 +50,11 @@ function liveDomain(ctx: MailCtx, id: string): Row {
 function readStored(row: Row): Stored {
   try {
     const o = JSON.parse(str(row, "records")) as { ref?: unknown; providerVerified?: unknown; records?: unknown };
-    return { ref: typeof o.ref === "string" ? o.ref : "", providerVerified: o.providerVerified === true, records: cleanRecords(o.records) };
+    return {
+      ref: typeof o.ref === "string" ? o.ref : "",
+      providerVerified: o.providerVerified === true,
+      records: cleanRecords(o.records),
+    };
   } catch {
     return { ref: "", providerVerified: false, records: [] };
   }
@@ -58,10 +66,14 @@ function cleanRecords(value: unknown): PublishedRecord[] {
   const out: PublishedRecord[] = [];
   for (const item of value) {
     const o = (item ?? {}) as Record<string, unknown>;
-    if (typeof o.purpose !== "string" || !PURPOSES.has(o.purpose) || typeof o.type !== "string" || !TYPES.has(o.type)) continue;
+    if (typeof o.purpose !== "string" || !PURPOSES.has(o.purpose) || typeof o.type !== "string" || !TYPES.has(o.type))
+      continue;
     if (typeof o.name !== "string" || typeof o.value !== "string") continue;
     out.push({
-      purpose: o.purpose as PublishedRecord["purpose"], type: o.type as PublishedRecord["type"], name: o.name, value: o.value,
+      purpose: o.purpose as PublishedRecord["purpose"],
+      type: o.type as PublishedRecord["type"],
+      name: o.name,
+      value: o.value,
       state: typeof o.state === "string" && STATES.has(o.state) ? (o.state as DnsState) : "pending",
     });
   }
@@ -70,21 +82,32 @@ function cleanRecords(value: unknown): PublishedRecord[] {
 
 function domainOut(row: Row): DomainOut {
   const out: DomainOut = {
-    id: str(row, "id"), name: str(row, "name"), provider: str(row, "provider") === "mailgun" ? "mailgun" : "resend",
-    spf: state(str(row, "spf")), dkim: state(str(row, "dkim")), dmarc: state(str(row, "dmarc")),
-    verified: num(row, "verified") === 1, isDefault: num(row, "isDefault") === 1,
+    id: str(row, "id"),
+    name: str(row, "name"),
+    provider: str(row, "provider") === "mailgun" ? "mailgun" : "resend",
+    spf: state(str(row, "spf")),
+    dkim: state(str(row, "dkim")),
+    dmarc: state(str(row, "dmarc")),
+    verified: num(row, "verified") === 1,
+    isDefault: num(row, "isDefault") === 1,
   };
   if (typeof row.checkedAt === "number") out.checkedAt = row.checkedAt;
   return out;
 }
 
-const withRecords = (row: Row): { domain: DomainOut; records: PublishedRecord[] } => ({ domain: domainOut(row), records: readStored(row).records });
+const withRecords = (row: Row): { domain: DomainOut; records: PublishedRecord[] } => ({
+  domain: domainOut(row),
+  records: readStored(row).records,
+});
 
 function save(ctx: MailCtx, row: Row, set: Record<string, string | number | null>): void {
   const cols = Object.keys(set);
   ctx.db.run(
     `UPDATE mail_domain SET ${cols.map((c) => `"${c}" = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`,
-    ...cols.map((c) => set[c] ?? null), num(row, "version") + 1, ctx.now(), str(row, "id"),
+    ...cols.map((c) => set[c] ?? null),
+    num(row, "version") + 1,
+    ctx.now(),
+    str(row, "id"),
   );
 }
 
@@ -96,13 +119,19 @@ const codeOf = (e: unknown): string => {
 
 // ---- list / get
 
-export async function domainList(ctx: MailCtx, input: PageIn): Promise<{ domains: DomainOut[]; next?: string; total: number }> {
+export async function domainList(
+  ctx: MailCtx,
+  input: PageIn,
+): Promise<{ domains: DomainOut[]; next?: string; total: number }> {
   ensureAll(ctx);
   const { offset, limit } = parsePage(ctx, input);
   const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE deleted_at IS NULL`));
   rows.sort((a, b) => (str(a, "name") < str(b, "name") ? -1 : str(a, "name") > str(b, "name") ? 1 : 0));
   const page = pageOf(rows, offset, limit);
-  const out: { domains: DomainOut[]; next?: string; total: number } = { domains: page.items.map(domainOut), total: page.total };
+  const out: { domains: DomainOut[]; next?: string; total: number } = {
+    domains: page.items.map(domainOut),
+    total: page.total,
+  };
   if (page.next) out.next = page.next;
   return out;
 }
@@ -115,12 +144,22 @@ export async function domainGet(ctx: MailCtx, input: { domainId: string }) {
 // ---- add
 
 /** What a provider answers to create: its domain, the id we keep for later calls, and the records to publish. */
-function parseCreated(provider: Provider, answer: unknown): { ref: string; spf: DnsState; dkim: DnsState; dmarc: DnsState; records: PublishedRecord[]; verified: boolean } {
+function parseCreated(
+  provider: Provider,
+  answer: unknown,
+): { ref: string; spf: DnsState; dkim: DnsState; dmarc: DnsState; records: PublishedRecord[]; verified: boolean } {
   const a = obj(answer);
   const d = obj(a.domain);
   const ref = provider === "resend" ? String(d.providerDomainId ?? "") : String(d.name ?? "");
   const verified = provider === "resend" ? d.status === "verified" : d.state === "active";
-  return { ref, spf: state(d.spf), dkim: state(d.dkim), dmarc: state(d.dmarc), records: cleanRecords(a.records), verified };
+  return {
+    ref,
+    spf: state(d.spf),
+    dkim: state(d.dkim),
+    dmarc: state(d.dmarc),
+    records: cleanRecords(a.records),
+    verified,
+  };
 }
 
 export async function domainAdd(ctx: MailCtx, input: { name: string; provider: Provider; idempotencyKey: string }) {
@@ -133,17 +172,34 @@ export async function domainAdd(ctx: MailCtx, input: { name: string; provider: P
   const name = typeof input.name === "string" ? input.name.trim().toLowerCase().replace(/\.$/, "") : "";
   if (!HOST.test(name)) bad(ctx, "That is not a domain name. Use something like mail.example.com.");
   if (input.provider !== "resend" && input.provider !== "mailgun") bad(ctx, "Provider must be resend or mailgun.");
-  if (first(ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, name))) duplicate(ctx, "That domain is already added.");
+  if (first(ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, name)))
+    duplicate(ctx, "That domain is already added.");
 
-  const made = parseCreated(input.provider, await ctx.call(`${input.provider}.domains.create`, { name, idempotencyKey: `${input.idempotencyKey}:create` }));
-  if (!made.ref) throw fail("provider.bad_response", ctx.trace.traceId, { message: "The provider did not return the domain." });
+  const made = parseCreated(
+    input.provider,
+    await ctx.call(`${input.provider}.domains.create`, { name, idempotencyKey: `${input.idempotencyKey}:create` }),
+  );
+  if (!made.ref)
+    throw fail("provider.bad_response", ctx.trace.traceId, { message: "The provider did not return the domain." });
   const id = newId("dom", ctx.now());
   const now = ctx.now();
   const stored: Stored = { ref: made.ref, providerVerified: false, records: made.records };
   ctx.db.run(
     `INSERT INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", records, "checkedAt", version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, input.provider, "pending", "pending", "pending", 0, 0, JSON.stringify(stored), null, 1, now, null,
+    id,
+    name,
+    input.provider,
+    "pending",
+    "pending",
+    "pending",
+    0,
+    0,
+    JSON.stringify(stored),
+    null,
+    1,
+    now,
+    null,
   );
   rememberIdem(ctx, input.idempotencyKey, "domadd", id);
   ctx.emit("sending_domain.added", `domain/${id}`, { domainId: id, name, provider: input.provider });
@@ -168,7 +224,9 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
   const dns = dnsFor(ctx);
 
   const [records, dmarc] = await Promise.all([
-    Promise.all(stored.records.map(async (r): Promise<PublishedRecord> => ({ ...r, state: await checkRecord(name, r, dns) }))),
+    Promise.all(
+      stored.records.map(async (r): Promise<PublishedRecord> => ({ ...r, state: await checkRecord(name, r, dns) })),
+    ),
     checkDmarc(name, dns, state(str(row, "dmarc"))),
   ]);
   const spf = groupState(records, "spf", state(str(row, "spf")));
@@ -177,9 +235,14 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
   // Ask the provider to look too. It may not have caught up with DNS yet; a failed ask keeps what it said last time.
   let providerVerified = stored.providerVerified;
   try {
-    const answer = obj(await ctx.call(
-      `${provider}.domains.verify`, provider === "resend" ? { providerDomainId: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` } : { name: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` },
-    ));
+    const answer = obj(
+      await ctx.call(
+        `${provider}.domains.verify`,
+        provider === "resend"
+          ? { providerDomainId: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` }
+          : { name: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` },
+      ),
+    );
     const d = obj(answer.domain);
     providerVerified = provider === "resend" ? d.status === "verified" : d.state === "active";
   } catch (e) {
@@ -188,7 +251,11 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
   const verified = providerVerified && spf === "pass" && dkim === "pass";
   const now = ctx.now();
   save(ctx, row, {
-    spf, dkim, dmarc, verified: verified ? 1 : 0, checkedAt: now,
+    spf,
+    dkim,
+    dmarc,
+    verified: verified ? 1 : 0,
+    checkedAt: now,
     records: JSON.stringify({ ref: stored.ref, providerVerified, records } satisfies Stored),
     // A domain that stops verifying cannot stay the default sender.
     ...(verified ? {} : { isDefault: 0 }),
@@ -202,9 +269,11 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
 export async function domainSetDefault(ctx: MailCtx, input: { domainId: string }): Promise<{ domain: DomainOut }> {
   ensureAll(ctx);
   const row = liveDomain(ctx, domId(ctx, input.domainId));
-  if (num(row, "verified") !== 1) preconditionFailed(ctx, "Only a verified domain can be the default sender. Check the DNS records first.");
+  if (num(row, "verified") !== 1)
+    preconditionFailed(ctx, "Only a verified domain can be the default sender. Check the DNS records first.");
   if (num(row, "isDefault") !== 1) {
-    for (const other of rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE "isDefault" = ? AND deleted_at IS NULL`, 1))) save(ctx, other, { isDefault: 0 });
+    for (const other of rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE "isDefault" = ? AND deleted_at IS NULL`, 1)))
+      save(ctx, other, { isDefault: 0 });
     save(ctx, row, { isDefault: 1 });
   }
   return { domain: domainOut(liveDomain(ctx, str(row, "id"))) };
@@ -215,7 +284,7 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
   const id = domId(ctx, input.domainId);
   const existing = first(ctx.db.all(`SELECT * FROM mail_domain WHERE id = ?`, id));
   if (!existing) missing(ctx, "Sending domain does not exist.");
-  if (existing.deleted_at !== null && existing.deleted_at !== undefined) return { removed: true };   // a retry after success
+  if (existing.deleted_at !== null && existing.deleted_at !== undefined) return { removed: true }; // a retry after success
   const provider: Provider = str(existing, "provider") === "mailgun" ? "mailgun" : "resend";
   const stored = readStored(existing);
 
@@ -225,18 +294,42 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
   for (const route of routes) {
     const ext = first(ctx.db.all(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, str(route, "id")));
     const providerRoute = ext ? str(ext, "providerRouteId") : "";
-    if (providerRoute && provider === "mailgun") await forgive(() => ctx.call("mailgun.routes.delete", { idempotencyKey: `mail.domains.remove:${id}:route:${str(route, "id")}`, routeId: providerRoute }));
+    if (providerRoute && provider === "mailgun")
+      await forgive(() =>
+        ctx.call("mailgun.routes.delete", {
+          idempotencyKey: `mail.domains.remove:${id}:route:${str(route, "id")}`,
+          routeId: providerRoute,
+        }),
+      );
   }
   if (stored.ref) {
-    await forgive(() => ctx.call(`${provider}.domains.delete`, provider === "resend" ? { providerDomainId: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` } : { name: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` }));
+    await forgive(() =>
+      ctx.call(
+        `${provider}.domains.delete`,
+        provider === "resend"
+          ? { providerDomainId: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` }
+          : { name: stored.ref, idempotencyKey: `mail.domains.remove:${id}:domain` },
+      ),
+    );
   }
   const now = ctx.now();
   for (const route of routes) {
-    ctx.db.run(`UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(route, "version") + 1, now, str(route, "id"));
+    ctx.db.run(
+      `UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+      now,
+      num(route, "version") + 1,
+      now,
+      str(route, "id"),
+    );
   }
   ctx.db.run(
     `UPDATE mail_domain SET deleted_at = ?, "isDefault" = ?, verified = ?, version = ?, updated_at = ? WHERE id = ?`,
-    now, 0, 0, num(existing, "version") + 1, now, id,
+    now,
+    0,
+    0,
+    num(existing, "version") + 1,
+    now,
+    id,
   );
   ctx.emit("sending_domain.removed", `domain/${id}`, { domainId: id, name: str(existing, "name") });
   return { removed: true };

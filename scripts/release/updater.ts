@@ -15,7 +15,10 @@ import { publicKeyBytes, publicKeyHexOf } from "./sign.ts";
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
 /** What each update artifact is called on the release and which platform of Tauri's feed it serves. The Mac build is Apple silicon (the hosted runner), the Windows one is x64. */
-export const UPDATE_ARTIFACTS: Readonly<Record<string, string>> = { "Vyre.app.tar.gz": "darwin-aarch64", "VyreSetup.exe": "windows-x86_64" };
+export const UPDATE_ARTIFACTS: Readonly<Record<string, string>> = {
+  "Vyre.app.tar.gz": "darwin-aarch64",
+  "VyreSetup.exe": "windows-x86_64",
+};
 
 export const blake2b512 = (data: Uint8Array): Buffer => crypto.createHash("blake2b512").update(data).digest();
 
@@ -36,20 +39,30 @@ export function minisignPublicKey(publicKey: Uint8Array): string {
   return `untrusted comment: minisign public key: ${idHex(id)}\n${Buffer.concat([Buffer.from("Ed"), id, publicKey]).toString("base64")}\n`;
 }
 /** What goes in tauri.conf.json `plugins.updater.pubkey`. */
-export const minisignPublicKeyBase64 = (publicKey: Uint8Array): string => Buffer.from(minisignPublicKey(publicKey)).toString("base64");
+export const minisignPublicKeyBase64 = (publicKey: Uint8Array): string =>
+  Buffer.from(minisignPublicKey(publicKey)).toString("base64");
 
 /**
  * A minisign signature file over a file whose BLAKE2b-512 digest is `digestHex`. Refuses a key that is not the pinned one. With `version`, the trusted comment names the release the file is for
  * (`version:<v>`, the field Tauri's updater reads): an app then refuses a feed that pairs a new version number with an older signed bundle.
  */
-export function minisignSign(o: { digestHex: string; fileName: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; seconds: number; version?: string }): string {
+export function minisignSign(o: {
+  digestHex: string;
+  fileName: string;
+  privateKeyPem: string;
+  pinnedPublicKey: string | Uint8Array;
+  seconds: number;
+  version?: string;
+}): string {
   if (!/^[0-9a-f]{128}$/.test(o.digestHex)) throw new Error("a digest is 128 hex characters (BLAKE2b-512)");
   const publicKey = publicKeyBytes(o.pinnedPublicKey);
   const key = crypto.createPrivateKey(o.privateKeyPem);
-  if (publicKeyHexOf(o.privateKeyPem) !== Buffer.from(publicKey).toString("hex")) throw new Error("the signing key is not the pinned release key: nothing was signed");
+  if (publicKeyHexOf(o.privateKeyPem) !== Buffer.from(publicKey).toString("hex"))
+    throw new Error("the signing key is not the pinned release key: nothing was signed");
   const id = keyIdBytes(publicKey);
   const signature = crypto.sign(null, Buffer.from(o.digestHex, "hex"), key);
-  if (o.version !== undefined && !/^[0-9A-Za-z.+-]{1,64}$/.test(o.version)) throw new Error("a signed version is a plain version string");
+  if (o.version !== undefined && !/^[0-9A-Za-z.+-]{1,64}$/.test(o.version))
+    throw new Error("a signed version is a plain version string");
   const trusted = `timestamp:${Math.floor(o.seconds)}\tfile:${o.fileName}${o.version !== undefined ? `\tversion:${o.version}` : ""}`;
   const global = crypto.sign(null, Buffer.concat([signature, Buffer.from(trusted)]), key);
   return `untrusted comment: signature from the Vyre release key\n${Buffer.concat([Buffer.from("ED"), id, signature]).toString("base64")}\ntrusted comment: ${trusted}\n${global.toString("base64")}\n`;
@@ -61,18 +74,39 @@ export function minisignVerify(o: { digestHex: string; signatureText: string; pu
     const lines = o.signatureText.split("\n");
     if (!lines[0]?.startsWith("untrusted comment:") || !lines[2]?.startsWith("trusted comment: ")) return false;
     const body = Buffer.from(lines[1] ?? "", "base64");
-    if (body.length !== 74 || body.subarray(0, 2).toString() !== "ED" || !body.subarray(2, 10).equals(keyIdBytes(o.publicKey))) return false;
-    const signature = body.subarray(10), global = Buffer.from(lines[3] ?? "", "base64");
-    const pub = crypto.createPublicKey({ key: Buffer.concat([SPKI_ED25519_PREFIX, o.publicKey]), format: "der", type: "spki" });
+    if (
+      body.length !== 74 ||
+      body.subarray(0, 2).toString() !== "ED" ||
+      !body.subarray(2, 10).equals(keyIdBytes(o.publicKey))
+    )
+      return false;
+    const signature = body.subarray(10),
+      global = Buffer.from(lines[3] ?? "", "base64");
+    const pub = crypto.createPublicKey({
+      key: Buffer.concat([SPKI_ED25519_PREFIX, o.publicKey]),
+      format: "der",
+      type: "spki",
+    });
     const trusted = Buffer.from((lines[2] ?? "").slice("trusted comment: ".length));
-    return crypto.verify(null, Buffer.from(o.digestHex, "hex"), pub, signature) && crypto.verify(null, Buffer.concat([signature, trusted]), pub, global);
-  } catch { return false; }
+    return (
+      crypto.verify(null, Buffer.from(o.digestHex, "hex"), pub, signature) &&
+      crypto.verify(null, Buffer.concat([signature, trusted]), pub, global)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** The signature as the feed and the `.sig` asset carry it: the whole minisign file, base64, on one line. */
 export const signatureAsset = (signatureText: string): string => Buffer.from(signatureText).toString("base64");
 
-export interface DesktopFeedInput { version: string; channel: string; notes: string; pubDate: string; platforms: Record<string, { url: string; signature: string }> }
+export interface DesktopFeedInput {
+  version: string;
+  channel: string;
+  notes: string;
+  pubDate: string;
+  platforms: Record<string, { url: string; signature: string }>;
+}
 /** Tauri's static update JSON. The updater compares `version` with its own and downloads the url of its platform. */
 export function desktopFeed(i: DesktopFeedInput): string {
   if (Object.keys(i.platforms).length === 0) throw new Error("a desktop feed names at least one platform");
@@ -82,7 +116,10 @@ export function desktopFeed(i: DesktopFeedInput): string {
 /** Sidecars in `dir` ("<digest>  <name>" in <name>.b2) read back as { name: digest }. A malformed or unknown one throws: nothing unexplained gets signed. */
 export function readDigests(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith(".b2")).sort()) {
+  for (const f of fs
+    .readdirSync(dir)
+    .filter((n) => n.endsWith(".b2"))
+    .sort()) {
     const name = f.slice(0, -3);
     if (!(name in UPDATE_ARTIFACTS)) throw new Error(`${f} is not a known update artifact`);
     const m = /^([0-9a-f]{128})  (.+)\n?$/.exec(fs.readFileSync(path.join(dir, f), "utf8"));
@@ -100,24 +137,59 @@ export function readDigests(dir: string): Record<string, string> {
  */
 export function feedNotes(version: string, whatsNew: unknown): string {
   const w = whatsNew as { version?: unknown; lines?: unknown } | null;
-  const lines = w && w.version === version && Array.isArray(w.lines) ? w.lines.filter((l): l is string => typeof l === "string" && l.trim() !== "").map((l) => l.trim()).slice(0, 6) : [];
+  const lines =
+    w && w.version === version && Array.isArray(w.lines)
+      ? w.lines
+          .filter((l): l is string => typeof l === "string" && l.trim() !== "")
+          .map((l) => l.trim())
+          .slice(0, 6)
+      : [];
   return lines.length > 0 ? lines.join("\n") : `Vyre ${version}`;
 }
 
-export function signDesktop(o: { dir: string; version: string; channel: string; tag: string; repo: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; now: () => Date; notes?: string }): string[] {
+export function signDesktop(o: {
+  dir: string;
+  version: string;
+  channel: string;
+  tag: string;
+  repo: string;
+  privateKeyPem: string;
+  pinnedPublicKey: string | Uint8Array;
+  now: () => Date;
+  notes?: string;
+}): string[] {
   const digests = readDigests(o.dir);
   if (Object.keys(digests).length === 0) throw new Error("no update digests to sign");
   const platforms: Record<string, { url: string; signature: string }> = {};
   const written: string[] = [];
   for (const [name, digestHex] of Object.entries(digests)) {
-    const text = minisignSign({ digestHex, fileName: name, privateKeyPem: o.privateKeyPem, pinnedPublicKey: o.pinnedPublicKey, seconds: o.now().getTime() / 1000, version: o.version });
+    const text = minisignSign({
+      digestHex,
+      fileName: name,
+      privateKeyPem: o.privateKeyPem,
+      pinnedPublicKey: o.pinnedPublicKey,
+      seconds: o.now().getTime() / 1000,
+      version: o.version,
+    });
     const asset = signatureAsset(text);
     fs.writeFileSync(path.join(o.dir, `${name}.sig`), `${asset}\n`);
     written.push(`${name}.sig`);
-    platforms[UPDATE_ARTIFACTS[name]!] = { url: `https://github.com/${o.repo}/releases/download/${o.tag}/${name}`, signature: asset };
+    platforms[UPDATE_ARTIFACTS[name]!] = {
+      url: `https://github.com/${o.repo}/releases/download/${o.tag}/${name}`,
+      signature: asset,
+    };
   }
   const feed = `desktop-${o.channel}.json`;
-  fs.writeFileSync(path.join(o.dir, feed), desktopFeed({ version: o.version, channel: o.channel, notes: o.notes ?? `Vyre ${o.version}`, pubDate: o.now().toISOString(), platforms }));
+  fs.writeFileSync(
+    path.join(o.dir, feed),
+    desktopFeed({
+      version: o.version,
+      channel: o.channel,
+      notes: o.notes ?? `Vyre ${o.version}`,
+      pubDate: o.now().toISOString(),
+      platforms,
+    }),
+  );
   return [...written, feed];
 }
 
@@ -128,7 +200,8 @@ export function checkDesktopArtifacts(dir: string, artifacts: string): string[] 
     const file = path.join(artifacts, name);
     if (!fs.existsSync(file)) throw new Error(`${name} is not there to attach`);
     const want = readDigests(dir)[name]!;
-    if (blake2b512(fs.readFileSync(file)).toString("hex") !== want) throw new Error(`${name} is not the file that was signed`);
+    if (blake2b512(fs.readFileSync(file)).toString("hex") !== want)
+      throw new Error(`${name} is not the file that was signed`);
   }
   return names;
 }

@@ -4,29 +4,85 @@
 // sent (so the reply shows the memory block) and the learning pass with something the pass cannot parse, so it is the free rules that read the correction.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boot, call, close as closeChat, connect, hostLog, newAgent, say, seededDir, waitFor } from "./memory-live-kit.ts";
+import {
+  boot,
+  call,
+  close as closeChat,
+  connect,
+  hostLog,
+  newAgent,
+  say,
+  seededDir,
+  waitFor,
+} from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const LESSON = "Keep notes to Sara to three lines, the number first.";
 type Msg = { messageId: string; author?: { kind?: string }; body?: string };
 
 /** Post to a chat the agent is in and wait for the agent's nth non-empty reply. */
-async function post(d: Daemon, threadId: string, agentId: string, body: string, key: string, nth: number): Promise<{ reply: string; messages: Msg[] }> {
-  const posted = await call(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` });
+async function post(
+  d: Daemon,
+  threadId: string,
+  agentId: string,
+  body: string,
+  key: string,
+  nth: number,
+): Promise<{ reply: string; messages: Msg[] }> {
+  const posted = await call(d, "chat.post", {
+    threadId,
+    body,
+    mentions: [{ kind: "agent", id: agentId }],
+    idempotencyKey: `${key}-post`,
+  });
   assert.equal(posted.status, 200, JSON.stringify(posted.data));
-  return waitFor(async () => {
-    await d.hooks?.pump?.();
-    // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
-    const under = (((await call(d, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map((t) => t.threadId);
-    const msgs = (await Promise.all([threadId, ...under].map(async (id) => ((await call(d, "chat.messages.list", { threadId: id })).data.messages ?? []) as Msg[]))).flat();
-    const replies = msgs.filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "");
-    return replies.length >= nth ? { reply: replies[nth - 1]!.body as string, messages: msgs } : null;
-  }, 40_000, () => hostLog(d));
+  return waitFor(
+    async () => {
+      await d.hooks?.pump?.();
+      // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
+      const under = (
+        ((await call(d, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{
+          threadId: string;
+        }>
+      ).map((t) => t.threadId);
+      const msgs = (
+        await Promise.all(
+          [threadId, ...under].map(
+            async (id) => ((await call(d, "chat.messages.list", { threadId: id })).data.messages ?? []) as Msg[],
+          ),
+        )
+      ).flat();
+      const replies = msgs.filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "");
+      return replies.length >= nth ? { reply: replies[nth - 1]!.body as string, messages: msgs } : null;
+    },
+    40_000,
+    () => hostLog(d),
+  );
 }
 
-const lessons = async (d: Daemon, agentId: string, status: string[] = ["current"]): Promise<Array<{ factId: string; text: string; status: string; kind?: string; lesson?: { how?: string; used: number; scope: string } }>> =>
-  (await call(d, "memory.facts.list", { agentId, kind: "lesson", status })).data.facts ?? [];
-const waitLessons = (d: Daemon, agentId: string, n: number) => waitFor(async () => { await d.hooks?.pump?.(); const l = await lessons(d, agentId); return l.length >= n ? l : null; }, 30_000, () => hostLog(d));
+const lessons = async (
+  d: Daemon,
+  agentId: string,
+  status: string[] = ["current"],
+): Promise<
+  Array<{
+    factId: string;
+    text: string;
+    status: string;
+    kind?: string;
+    lesson?: { how?: string; used: number; scope: string };
+  }>
+> => (await call(d, "memory.facts.list", { agentId, kind: "lesson", status })).data.facts ?? [];
+const waitLessons = (d: Daemon, agentId: string, n: number) =>
+  waitFor(
+    async () => {
+      await d.hooks?.pump?.();
+      const l = await lessons(d, agentId);
+      return l.length >= n ? l : null;
+    },
+    30_000,
+    () => hostLog(d),
+  );
 
 test("lessons live: a correction in chat makes one lesson; the next chat uses it and shows it; Undo removes it; it never reaches a channel; the switch turns it all off", async () => {
   const d = await boot(seededDir());
@@ -46,7 +102,9 @@ test("lessons live: a correction in chat makes one lesson; the next chat uses it
     const line = second.messages.find((m) => m.author?.kind === "person" && String(m.body).startsWith("No, keep"))!;
     const feed = await call(d, "memory.learned", { threadId });
     assert.equal(feed.status, 200, JSON.stringify(feed.data));
-    const row = (feed.data.items as Array<{ fact: { factId: string; kind?: string; sourceLink?: string }; undone: boolean }>).find((i) => i.fact.factId === made[0]!.factId);
+    const row = (
+      feed.data.items as Array<{ fact: { factId: string; kind?: string; sourceLink?: string }; undone: boolean }>
+    ).find((i) => i.fact.factId === made[0]!.factId);
     assert.ok(row, "the Learned feed shows it");
     assert.equal(row.fact.kind, "lesson");
     assert.equal(row.fact.sourceLink, `/chats/${threadId}#${line.messageId}`, "it links to the line");
@@ -60,14 +118,36 @@ test("lessons live: a correction in chat makes one lesson; the next chat uses it
     assert.ok(next.reply.includes(LESSON), `the lesson is in front of the agent: ${next.reply}`);
     const nextMsgs = ((await call(d, "chat.messages.list", { threadId: next.threadId })).data.messages ?? []) as Msg[];
     const asked = nextMsgs.find((m) => m.author?.kind === "agent" && (m.body ?? "") !== "")!;
-    const used = await waitFor(async () => { const u = await call(d, "memory.used", { threadId: next.threadId, messageId: asked.messageId }); return (u.data.facts ?? []).length > 0 ? u.data : null; }, 20_000, () => hostLog(d));
-    assert.deepEqual(used.facts.map((f: { kind?: string; text: string }) => [f.kind, f.text]), [["lesson", LESSON]]);
+    const used = await waitFor(
+      async () => {
+        const u = await call(d, "memory.used", { threadId: next.threadId, messageId: asked.messageId });
+        return (u.data.facts ?? []).length > 0 ? u.data : null;
+      },
+      20_000,
+      () => hostLog(d),
+    );
+    assert.deepEqual(
+      used.facts.map((f: { kind?: string; text: string }) => [f.kind, f.text]),
+      [["lesson", LESSON]],
+    );
     assert.equal((await lessons(d, mira))[0]!.lesson?.used, 1, "it counts the answer that used it");
 
     // a channel other people read never gets it, whatever the question
-    const ch = await call(d, "channels.create", { name: "notes", visibility: "public", agentIds: [mira], idempotencyKey: "ls-chan" });
+    const ch = await call(d, "channels.create", {
+      name: "notes",
+      visibility: "public",
+      agentIds: [mira],
+      idempotencyKey: "ls-chan",
+    });
     assert.equal(ch.status, 200, JSON.stringify(ch.data));
-    const inChannel = await post(d, ch.data.channel.mainThreadId as string, mira, "Write notes to Sara for the board.", "ls-chan1", 1);
+    const inChannel = await post(
+      d,
+      ch.data.channel.mainThreadId as string,
+      mira,
+      "Write notes to Sara for the board.",
+      "ls-chan1",
+      1,
+    );
     assert.ok(!inChannel.reply.includes(LESSON), "a private lesson stays out of a shared chat");
 
     // Undo: the lesson goes to Trash, and the next chat no longer has it
@@ -89,5 +169,7 @@ test("lessons live: a correction in chat makes one lesson; the next chat uses it
     await d.hooks?.pump?.();
     assert.deepEqual(await lessons(d, mira, ["current", "proposed"]), [], "off means nothing is learned");
     await closeChat(d, q);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

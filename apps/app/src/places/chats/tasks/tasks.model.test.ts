@@ -2,29 +2,88 @@
 // The Tasks page as data: sections, grouping, quick add, status marks. Pure, so every rule is checked without a screen.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { barOf, batonMarks, buildEntries, cardHeight, DAY, openWork, workStep, dueLabel, filterRows, groupRows, holderOf, monthCells, NO_FILTER, QUIET_MS, sectionsOf, sortRows } from "./model.ts";
+import {
+  barOf,
+  batonMarks,
+  buildEntries,
+  cardHeight,
+  DAY,
+  openWork,
+  workStep,
+  dueLabel,
+  filterRows,
+  groupRows,
+  holderOf,
+  monthCells,
+  NO_FILTER,
+  QUIET_MS,
+  sectionsOf,
+  sortRows,
+} from "./model.ts";
 import type { BuildIn, NeedItem, TaskRow } from "./model.ts";
 import { activityOf } from "./activity.ts";
 import { parseQuick } from "./quick.ts";
 import { createTaskStore } from "./store.ts";
 const UTC = { space: "UTC", viewer: "UTC" };
 
-const NOW = Date.UTC(2026, 10, 2, 10);   // a Monday
+const NOW = Date.UTC(2026, 10, 2, 10); // a Monday
 const me = "usr_me";
-const row = (over: Partial<TaskRow> & { id: string }): TaskRow => ({ kind: "work", title: over.id, state: "todo", blocked: false, assigned: { kind: "person", id: me }, labels: [], dependsOn: [], createdBy: me, createdAt: NOW, updatedAt: NOW, ...over } as TaskRow);
+const row = (over: Partial<TaskRow> & { id: string }): TaskRow =>
+  ({
+    kind: "work",
+    title: over.id,
+    state: "todo",
+    blocked: false,
+    assigned: { kind: "person", id: me },
+    labels: [],
+    dependsOn: [],
+    createdBy: me,
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...over,
+  }) as TaskRow;
 const names = { name: (id: string): string => id, project: (id: string): string => `Project ${id}` };
-const base: Omit<BuildIn, "rows"> = { needs: [], me, now: NOW, offsetMin: 0, scope: "mine", group: "smart", sort: "smart", filter: NO_FILTER, doneRows: null, doneCount: 0, names, quietOff: false };
+const base: Omit<BuildIn, "rows"> = {
+  needs: [],
+  me,
+  now: NOW,
+  offsetMin: 0,
+  scope: "mine",
+  group: "smart",
+  sort: "smart",
+  filter: NO_FILTER,
+  doneRows: null,
+  doneCount: 0,
+  names,
+  quietOff: false,
+};
 
 test("the list is ordered for you: Now, Next, Waiting on others, with quiet tasks folded", () => {
   const rows = [
-    row({ id: "late", due: NOW - 2 * DAY }), row({ id: "today", due: NOW + 3_600_000 }), row({ id: "under-way", state: "doing" }), row({ id: "later", due: NOW + 5 * DAY }),
-    row({ id: "old", updatedAt: NOW - QUIET_MS - 1 }), row({ id: "theirs", assigned: { kind: "agent", id: "agt_mira" } }),
+    row({ id: "late", due: NOW - 2 * DAY }),
+    row({ id: "today", due: NOW + 3_600_000 }),
+    row({ id: "under-way", state: "doing" }),
+    row({ id: "later", due: NOW + 5 * DAY }),
+    row({ id: "old", updatedAt: NOW - QUIET_MS - 1 }),
+    row({ id: "theirs", assigned: { kind: "agent", id: "agt_mira" } }),
   ];
   const s = sectionsOf(rows, me, NOW, 0, new Set());
-  assert.deepEqual(s.now.map((r) => r.id), ["late", "today", "under-way"]);
-  assert.deepEqual(s.next.map((r) => r.id), ["later"]);
-  assert.deepEqual(s.quiet.map((r) => r.id), ["old"]);
-  assert.deepEqual(s.waiting.map((r) => r.id), ["theirs"]);
+  assert.deepEqual(
+    s.now.map((r) => r.id),
+    ["late", "today", "under-way"],
+  );
+  assert.deepEqual(
+    s.next.map((r) => r.id),
+    ["later"],
+  );
+  assert.deepEqual(
+    s.quiet.map((r) => r.id),
+    ["old"],
+  );
+  assert.deepEqual(
+    s.waiting.map((r) => r.id),
+    ["theirs"],
+  );
 });
 
 test("a reviewer's turn is theirs: the holder moves with the status", () => {
@@ -38,8 +97,16 @@ test("a reviewer's turn is theirs: the holder moves with the status", () => {
 
 test("the flat list has Needs you first, then the sections, then add and the count of what is done", () => {
   const need = { task: { id: "n", kind: "answer", title: "Q" }, yourTurn: true } as unknown as NeedItem;
-  const entries = buildEntries({ ...base, rows: [row({ id: "a", due: NOW }), row({ id: "b", updatedAt: NOW - QUIET_MS - 1 })], needs: [need], doneCount: 12 });
-  assert.deepEqual(entries.map((e) => e.key), ["h:needs", "n:n", "h:now", "now:a", "quiet", "add", "done"]);
+  const entries = buildEntries({
+    ...base,
+    rows: [row({ id: "a", due: NOW }), row({ id: "b", updatedAt: NOW - QUIET_MS - 1 })],
+    needs: [need],
+    doneCount: 12,
+  });
+  assert.deepEqual(
+    entries.map((e) => e.key),
+    ["h:needs", "n:n", "h:now", "now:a", "quiet", "add", "done"],
+  );
 });
 
 test("work due today stays in Now even though tasks.needs_you lists it", () => {
@@ -50,12 +117,35 @@ test("work due today stays in Now even though tasks.needs_you lists it", () => {
 });
 
 test("group, sort and filter", () => {
-  const rows = [row({ id: "a", labels: ["x", "y"], priority: "low" }), row({ id: "b", priority: "urgent", state: "doing" }), row({ id: "c", blocked: true, title: "Omar" })];
-  assert.deepEqual(groupRows(rows, "label", names, NOW, 0).map((g) => [g.title, g.rows.length]), [["#x", 1], ["#y", 1], ["No label", 2]]);
-  assert.deepEqual(groupRows(rows, "status", names, NOW, 0).map((g) => g.title), ["Doing", "To do"]);
-  assert.deepEqual(sortRows(rows, "priority").map((r) => r.id), ["b", "c", "a"]);
-  assert.deepEqual(filterRows(rows, { ...NO_FILTER, waiting: true }).map((r) => r.id), ["c"]);
-  assert.deepEqual(filterRows(rows, { ...NO_FILTER, query: "om" }).map((r) => r.id), ["c"]);
+  const rows = [
+    row({ id: "a", labels: ["x", "y"], priority: "low" }),
+    row({ id: "b", priority: "urgent", state: "doing" }),
+    row({ id: "c", blocked: true, title: "Omar" }),
+  ];
+  assert.deepEqual(
+    groupRows(rows, "label", names, NOW, 0).map((g) => [g.title, g.rows.length]),
+    [
+      ["#x", 1],
+      ["#y", 1],
+      ["No label", 2],
+    ],
+  );
+  assert.deepEqual(
+    groupRows(rows, "status", names, NOW, 0).map((g) => g.title),
+    ["Doing", "To do"],
+  );
+  assert.deepEqual(
+    sortRows(rows, "priority").map((r) => r.id),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    filterRows(rows, { ...NO_FILTER, waiting: true }).map((r) => r.id),
+    ["c"],
+  );
+  assert.deepEqual(
+    filterRows(rows, { ...NO_FILTER, query: "om" }).map((r) => r.id),
+    ["c"],
+  );
 });
 
 const pick = (d: { text: string; late: boolean }): { text: string; late: boolean } => ({ text: d.text, late: d.late });
@@ -68,7 +158,10 @@ test("a due date reads as a person says it", () => {
 });
 
 test("quick add reads plain words", () => {
-  const people = [{ id: "usr_sara", name: "Sara Malik", kind: "person" }, { id: "agt_mira", name: "Mira", kind: "agent" }];
+  const people = [
+    { id: "usr_sara", name: "Sara Malik", kind: "person" },
+    { id: "agt_mira", name: "Mira", kind: "agent" },
+  ];
   const q = parseQuick("Call Omar friday @sara #portal !high", people, NOW, 0);
   assert.equal(q.title, "Call Omar");
   assert.equal(q.assignee?.id, "usr_sara");
@@ -83,7 +176,10 @@ test("quick add reads plain words", () => {
 
 test("a bar sits between its start and its due date, and a month lays out Monday first", () => {
   const first = NOW;
-  assert.deepEqual(barOf({ start: first + DAY, due: first + 2 * DAY, createdAt: 0 }, first, 14), { left: 1 / 14, width: 2 / 14 });
+  assert.deepEqual(barOf({ start: first + DAY, due: first + 2 * DAY, createdAt: 0 }, first, 14), {
+    left: 1 / 14,
+    width: 2 / 14,
+  });
   assert.equal(barOf({ createdAt: 0 } as never, first, 14), null);
   assert.equal(barOf({ due: first - 30 * DAY, createdAt: 0 }, first, 14), null);
   const cells = monthCells([row({ id: "a", due: NOW })], { year: 2026, month: 10 }, 0);
@@ -95,7 +191,13 @@ test("a bar sits between its start and its due date, and a month lays out Monday
 test("the store shows a change at once, puts it back when asked, and reads only a new revision", async () => {
   const calls: unknown[] = [];
   const out = { rev: "1", unchanged: false, rows: [row({ id: "a" })], doneThisWeek: 0, total: 1 };
-  const store = createTaskStore(async (_c, input) => { calls.push(input); return out; }, { scope: "mine" });
+  const store = createTaskStore(
+    async (_c, input) => {
+      calls.push(input);
+      return out;
+    },
+    { scope: "mine" },
+  );
   store.refresh("1");
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(store.get().rows.length, 1);
@@ -109,45 +211,89 @@ test("the store shows a change at once, puts it back when asked, and reads only 
 
 test("Activity reads in the order it happened, says where a status went, and leaves out who a task was born with", () => {
   const names = (id: string): string => (id === "u" ? "You" : "Mira");
-  const lines = activityOf([
-    { at: 9000, type: "completed", by: "m", eventId: "e6" },
-    { at: 9000, type: "transitioned:done", by: "m", eventId: "e5" },
-    { at: 8000, type: "transitioned:in_review", by: "m", eventId: "e4" },
-    { at: 7000, type: "assigned", by: "u", eventId: "e3" },
-    { at: 1000, type: "assigned", by: "u", eventId: "e2" },
-    { at: 1000, type: "created", by: "u", eventId: "e1" },
-  ], "thr", names);
-  assert.deepEqual(lines.map((m) => m.body), ["You created this", "You changed who is on this", "Mira handed this in for review", "Mira marked this Done"]);
+  const lines = activityOf(
+    [
+      { at: 9000, type: "completed", by: "m", eventId: "e6" },
+      { at: 9000, type: "transitioned:done", by: "m", eventId: "e5" },
+      { at: 8000, type: "transitioned:in_review", by: "m", eventId: "e4" },
+      { at: 7000, type: "assigned", by: "u", eventId: "e3" },
+      { at: 1000, type: "assigned", by: "u", eventId: "e2" },
+      { at: 1000, type: "created", by: "u", eventId: "e1" },
+    ],
+    "thr",
+    names,
+  );
+  assert.deepEqual(
+    lines.map((m) => m.body),
+    ["You created this", "You changed who is on this", "Mira handed this in for review", "Mira marked this Done"],
+  );
 });
 
 test("a card's height is known before it draws", () => {
   assert.equal(cardHeight({ title: "Short", state: "todo", assigned: { kind: "person", id: "u" } }, false), 75);
-  assert.equal(cardHeight({ title: "A title that runs to two lines", state: "doing", assigned: { kind: "agent", id: "a" } }, false), 113);
+  assert.equal(
+    cardHeight(
+      { title: "A title that runs to two lines", state: "doing", assigned: { kind: "agent", id: "a" } },
+      false,
+    ),
+    113,
+  );
 });
 
 test("the work under a chat: only what is open, what is moving first, and each line says what it waits for", () => {
-  const rows = [row({ id: "a", state: "done", createdAt: 1 }), row({ id: "b", state: "todo", createdAt: 2 }), row({ id: "c", state: "doing", createdAt: 3 }), row({ id: "d", state: "in_review", createdAt: 4 }), row({ id: "e", state: "canceled", createdAt: 5 }), row({ id: "f", kind: "answer", state: "todo", createdAt: 6 })];
-  assert.deepEqual(openWork(rows).map((r) => r.id), ["c", "d", "b"]);
+  const rows = [
+    row({ id: "a", state: "done", createdAt: 1 }),
+    row({ id: "b", state: "todo", createdAt: 2 }),
+    row({ id: "c", state: "doing", createdAt: 3 }),
+    row({ id: "d", state: "in_review", createdAt: 4 }),
+    row({ id: "e", state: "canceled", createdAt: 5 }),
+    row({ id: "f", kind: "answer", state: "todo", createdAt: 6 }),
+  ];
+  assert.deepEqual(
+    openWork(rows).map((r) => r.id),
+    ["c", "d", "b"],
+  );
   assert.deepEqual(openWork([rows[0]!, rows[4]!]), []);
   const nameOf = (id: string): string => (id === "agt_r" ? "Rowan" : id);
   const keyOf = (id: string): string | undefined => (id === "a" ? "VY-1" : undefined);
   const base = { assigned: { kind: "agent" as const, id: "agt_m" }, dependsOn: [] as string[], blocked: false };
   assert.equal(workStep({ ...base, state: "todo", blocked: true, dependsOn: ["a"] }, keyOf, nameOf), "Waits on VY-1");
   assert.equal(workStep({ ...base, state: "todo", blocked: true, dependsOn: ["gone"] }, keyOf, nameOf), "Waiting");
-  assert.equal(workStep({ ...base, state: "in_review", reviewer: { kind: "agent", id: "agt_r" } }, keyOf, nameOf), "With Rowan for review");
+  assert.equal(
+    workStep({ ...base, state: "in_review", reviewer: { kind: "agent", id: "agt_r" } }, keyOf, nameOf),
+    "With Rowan for review",
+  );
   assert.equal(workStep({ ...base, state: "doing" }, keyOf, nameOf), "Doing");
   assert.equal(workStep({ ...base, state: "todo" }, keyOf, nameOf), "To do");
 });
 
 test("a section reads soonest first, then by priority, then what changed last, and no date goes last", () => {
-  const list = [row({ id: "none", updatedAt: NOW }), row({ id: "later", due: NOW + 3 * DAY }), row({ id: "soon-low", due: NOW + DAY, priority: "low" }), row({ id: "soon-old", due: NOW + DAY, updatedAt: 1 }), row({ id: "soon-new", due: NOW + DAY, updatedAt: 2 }), row({ id: "soon-urgent", due: NOW + DAY, priority: "urgent" })];
-  assert.deepEqual(sectionsOf(list, me, NOW, 0, new Set()).next.map((r) => r.id), ["soon-urgent", "soon-new", "soon-old", "soon-low", "later", "none"]);
+  const list = [
+    row({ id: "none", updatedAt: NOW }),
+    row({ id: "later", due: NOW + 3 * DAY }),
+    row({ id: "soon-low", due: NOW + DAY, priority: "low" }),
+    row({ id: "soon-old", due: NOW + DAY, updatedAt: 1 }),
+    row({ id: "soon-new", due: NOW + DAY, updatedAt: 2 }),
+    row({ id: "soon-urgent", due: NOW + DAY, priority: "urgent" }),
+  ];
+  assert.deepEqual(
+    sectionsOf(list, me, NOW, 0, new Set()).next.map((r) => r.id),
+    ["soon-urgent", "soon-new", "soon-old", "soon-low", "later", "none"],
+  );
 });
 
 test("work handed to me sits in Needs you, once, and not again in Now (l-tasks)", () => {
   const review = row({ id: "r", state: "in_review", reviewer: { kind: "person", id: me }, yourTurn: true } as never);
-  const entries = buildEntries({ ...base, rows: [review], needs: [{ task: review, reason: "ready", yourTurn: true } as unknown as NeedItem] });
-  assert.deepEqual(entries.map((e) => e.key).filter((k) => k.endsWith(":r")), ["n:r"], "one row, in Needs you");
+  const entries = buildEntries({
+    ...base,
+    rows: [review],
+    needs: [{ task: review, reason: "ready", yourTurn: true } as unknown as NeedItem],
+  });
+  assert.deepEqual(
+    entries.map((e) => e.key).filter((k) => k.endsWith(":r")),
+    ["n:r"],
+    "one row, in Needs you",
+  );
 });
 
 test("a team task I took, or one offered to me, is mine, not Waiting on others (l-tasks)", () => {
@@ -156,14 +302,17 @@ test("a team task I took, or one offered to me, is mine, not Waiting on others (
   const offered = row({ id: "o", assigned: team, yourTurn: true } as never);
   const theirs = row({ id: "x", assigned: team, takenBy: "usr_sara" } as never);
   const s = sectionsOf([taken, offered, theirs], me, NOW, 0, new Set());
-  assert.deepEqual(s.waiting.map((r) => r.id), ["x"]);
+  assert.deepEqual(
+    s.waiting.map((r) => r.id),
+    ["x"],
+  );
   assert.deepEqual([...s.now, ...s.next].map((r) => r.id).sort(), ["o", "t"]);
 });
 
 test("a due chip in a Space's zone: the day is the Space's day, hover names both zones, a plain offset still works", () => {
   const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
-  const now = Date.parse("2026-11-05T15:00:00Z");     // Thu 7:00 AM Pacific, Thu 8:00 PM Karachi
-  const tonight = Date.parse("2026-11-06T06:00:00Z");  // Thu 10:00 PM Pacific, Fri 11:00 AM Karachi
+  const now = Date.parse("2026-11-05T15:00:00Z"); // Thu 7:00 AM Pacific, Thu 8:00 PM Karachi
+  const tonight = Date.parse("2026-11-06T06:00:00Z"); // Thu 10:00 PM Pacific, Fri 11:00 AM Karachi
   const chip = dueLabel(tonight, now, z);
   assert.deepEqual([chip.text, chip.late], ["Today", false], "it is still Thursday in the Space");
   assert.match(chip.title ?? "", /^Thu 5 Nov 2026, 10:00 PM Pacific Time\. Your time: Fri 6 Nov, 11:00 AM Pakistan/);

@@ -53,7 +53,11 @@ export default function Mount(): ReactNode {
   for (let i = 0; i < NOTES.length; i++) {
     const name = tabs[i]?.title ?? "Untitled";
     rows.push(
-      <Pressable key={name + i} style={styles.row} {...menuTrigger((x, y) => show(contextItems(name), x, y, "context", { label: name }))}>
+      <Pressable
+        key={name + i}
+        style={styles.row}
+        {...menuTrigger((x, y) => show(contextItems(name), x, y, "context", { label: name }))}
+      >
         <Text style={styles.rowTitle}>{name}</Text>
         <Text style={styles.rowNote}>{NOTES[i]}</Text>
       </Pressable>,

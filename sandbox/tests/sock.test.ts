@@ -18,7 +18,12 @@ function longDir(): { base: string; dir: string } {
 }
 
 test("Windows gets a named pipe, never a file path", () => {
-  const s = localSocket("C:\\Users\\someone-with-a-long-name\\AppData\\Roaming\\Vyre\\personal\\scratch\\usr_dana", "mcp-1.sock", "mcp", { platform: "win32" });
+  const s = localSocket(
+    "C:\\Users\\someone-with-a-long-name\\AppData\\Roaming\\Vyre\\personal\\scratch\\usr_dana",
+    "mcp-1.sock",
+    "mcp",
+    { platform: "win32" },
+  );
   assert.match(s.listen, /^\\\\\.\\pipe\\vyre-mcp-[0-9a-f]{16}$/);
   assert.equal(s.connect, s.listen);
   assert.notEqual(pipeName("mcp"), pipeName("mcp"), "two pipes never share a name");
@@ -32,23 +37,36 @@ test("a short folder keeps its socket in place", { skip: process.platform === "w
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("a 120-character folder: the socket is made in the folder, through a short private link", { skip: process.platform === "win32" }, async () => {
-  const { base, dir } = longDir();
-  const s = localSocket(dir, "mcp-abc.sock", "mcp");
-  assert.ok(Buffer.byteLength(s.listen) <= MAX_SOCKET_PATH, s.listen);
-  assert.equal(s.real, path.join(dir, "mcp-abc.sock"));
-  const link = path.dirname(path.dirname(s.listen));
-  assert.equal(fs.statSync(link).mode & 0o777, 0o700, "the link folder is private");
-  const server = net.createServer((c) => c.end("hi"));
-  await new Promise<void>((ok) => server.listen(s.listen, ok));
-  assert.ok(fs.existsSync(s.real), "the socket itself is in the long folder");
-  const got = await new Promise<string>((ok) => { let b = ""; net.connect(s.connect).setEncoding("utf8").on("data", (d: string) => { b += d; }).on("close", () => ok(b)); });
-  assert.equal(got, "hi");
-  await new Promise<void>((ok) => server.close(() => ok()));
-  s.remove();
-  assert.ok(!fs.existsSync(s.real) && !fs.existsSync(link), "remove takes the socket and the link folder");
-  fs.rmSync(base, { recursive: true, force: true });
-});
+test(
+  "a 120-character folder: the socket is made in the folder, through a short private link",
+  { skip: process.platform === "win32" },
+  async () => {
+    const { base, dir } = longDir();
+    const s = localSocket(dir, "mcp-abc.sock", "mcp");
+    assert.ok(Buffer.byteLength(s.listen) <= MAX_SOCKET_PATH, s.listen);
+    assert.equal(s.real, path.join(dir, "mcp-abc.sock"));
+    const link = path.dirname(path.dirname(s.listen));
+    assert.equal(fs.statSync(link).mode & 0o777, 0o700, "the link folder is private");
+    const server = net.createServer((c) => c.end("hi"));
+    await new Promise<void>((ok) => server.listen(s.listen, ok));
+    assert.ok(fs.existsSync(s.real), "the socket itself is in the long folder");
+    const got = await new Promise<string>((ok) => {
+      let b = "";
+      net
+        .connect(s.connect)
+        .setEncoding("utf8")
+        .on("data", (d: string) => {
+          b += d;
+        })
+        .on("close", () => ok(b));
+    });
+    assert.equal(got, "hi");
+    await new Promise<void>((ok) => server.close(() => ok()));
+    s.remove();
+    assert.ok(!fs.existsSync(s.real) && !fs.existsSync(link), "remove takes the socket and the link folder");
+    fs.rmSync(base, { recursive: true, force: true });
+  },
+);
 
 test("the network wall starts under a 120-character base folder", { skip: process.platform === "win32" }, async () => {
   const { base, dir } = longDir();

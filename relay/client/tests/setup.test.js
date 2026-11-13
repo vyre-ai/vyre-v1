@@ -5,7 +5,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createSetupKey, setupFingerprint, setupCode, parseSetupCode, setupDerive, resolveSetup, setupHello, setupWords, openMailboxLine, mailboxReader, plainText, SETUP_CODE_LEN,
+  createSetupKey,
+  setupFingerprint,
+  setupCode,
+  parseSetupCode,
+  setupDerive,
+  resolveSetup,
+  setupHello,
+  setupWords,
+  openMailboxLine,
+  mailboxReader,
+  plainText,
+  SETUP_CODE_LEN,
 } from "../setup.js";
 import { connectSetup } from "../setupchannel.js";
 import { openChannel, request } from "../client.js";
@@ -17,7 +28,14 @@ import { crypto, fakeFetch, memoryBox, ROUTE, serveWith, ticketRecord } from "./
 const subtle = globalThis.crypto.subtle;
 const SECRET = Uint8Array.from({ length: 16 }, (_, i) => 40 + i);
 const sha = async (/** @type {Uint8Array} */ b) => new Uint8Array(await subtle.digest("SHA-256", b));
-const code = async (/** @type {() => Promise<unknown>} */ fn) => { try { await fn(); } catch (e) { return /** @type {any} */ (e).code; } return "none"; };
+const code = async (/** @type {() => Promise<unknown>} */ fn) => {
+  try {
+    await fn();
+  } catch (e) {
+    return /** @type {any} */ (e).code;
+  }
+  return "none";
+};
 
 test("setup key: P-256, the private half cannot be read, and the code is the secret and the key's fingerprint", async () => {
   const key = await createSetupKey();
@@ -32,11 +50,12 @@ test("setup key: P-256, the private half cannot be read, and the code is the sec
   const parsed = parseSetupCode(c);
   assert.deepEqual(parsed?.secret, SECRET);
   assert.deepEqual(parsed?.fp, fp);
-  await assert.rejects(setupCode(new Uint8Array(15), key.spki), e => /** @type {any} */ (e).code === "bad_input");
+  await assert.rejects(setupCode(new Uint8Array(15), key.spki), (e) => /** @type {any} */ (e).code === "bad_input");
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
   // the last character of a 32-byte base64url code carries two unused bits: a spelling that sets them is not the canonical code
   const sloppy = c.slice(0, -1) + alphabet[alphabet.indexOf(c.slice(-1)) + 1];
-  for (const bad of ["", c.slice(1), c + "A", c.replace(/.$/, "!"), /** @type {any} */ (null), sloppy]) assert.equal(parseSetupCode(bad), null, String(bad));
+  for (const bad of ["", c.slice(1), c + "A", c.replace(/.$/, "!"), /** @type {any} */ (null), sloppy])
+    assert.equal(parseSetupCode(bad), null, String(bad));
 });
 
 test("setup derive: the relay sees a locator and a mailbox write key, and every key has its own tag", async () => {
@@ -54,14 +73,28 @@ test("setup derive: the relay sees a locator and a mailbox write key, and every 
 
 test("resolveSetup: the secret stands in for a ticket, so the box's sealed offer opens with it", async () => {
   const box = await crypto.generateKeyPair();
-  const rec = await ticketRecord(crypto, SECRET, { v: 1, relay: "wss://relay.test", route: ROUTE, box: base64url(box.publicKey), name: "new server", exp: Date.now() + 60_000 });
-  const found = await resolveSetup(SECRET, { relay: "wss://relay.test", crypto, fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])) });
+  const rec = await ticketRecord(crypto, SECRET, {
+    v: 1,
+    relay: "wss://relay.test",
+    route: ROUTE,
+    box: base64url(box.publicKey),
+    name: "new server",
+    exp: Date.now() + 60_000,
+  });
+  const found = await resolveSetup(SECRET, {
+    relay: "wss://relay.test",
+    crypto,
+    fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])),
+  });
   assert.equal(found.name, "new server");
   assert.deepEqual(found.offer.box, box.publicKey);
   assert.equal(found.offer.secret, base64url((await setupDerive(SECRET)).sec), "the pairing secret is the derived one");
   assert.equal(rec.loc, base64url((await setupDerive(SECRET)).loc));
   const contested = async () => ({ status: 409, ok: false, json: async () => ({}) });
-  assert.equal(await code(() => resolveSetup(SECRET, { relay: "wss://relay.test", crypto, fetch: contested })), "contested");
+  assert.equal(
+    await code(() => resolveSetup(SECRET, { relay: "wss://relay.test", crypto, fetch: contested })),
+    "contested",
+  );
 });
 
 test("setup hello: signed with the page key over the route and this handshake's static key", async () => {
@@ -73,9 +106,14 @@ test("setup hello: signed with the page key over the route and this handshake's 
   assert.equal(hello.setup.key, base64url(key.spki));
   assert.equal(hello.pair, base64url((await setupDerive(SECRET)).sec));
   const pub = await subtle.importKey("spki", key.spki, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-  const verify = (/** @type {Uint8Array} */ msg) => subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, fromBase64url(hello.setup.sig), msg);
+  const verify = (/** @type {Uint8Array} */ msg) =>
+    subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, fromBase64url(hello.setup.sig), msg);
   assert.equal(await verify(concat(utf8(`vyre-setup-hello\n${ROUTE}\n`), noiseStatic)), true);
-  assert.equal(await verify(concat(utf8(`vyre-setup-hello\n${ROUTE}\n`), new Uint8Array(32).fill(7))), false, "a hello from another Noise key does not verify");
+  assert.equal(
+    await verify(concat(utf8(`vyre-setup-hello\n${ROUTE}\n`), new Uint8Array(32).fill(7))),
+    false,
+    "a hello from another Noise key does not verify",
+  );
   assert.equal(await verify(concat(utf8("vyre-setup-hello\nother\n"), noiseStatic)), false, "nor for another route");
   const later = await setupHello({ ...key, route: ROUTE, noiseStatic, name: "Alex's laptop" });
   assert.equal(later.name, "Alex's laptop");
@@ -89,14 +127,18 @@ test("setup words: four words of the box's key and the secret, the same on the b
   const h = await sha(concat(utf8("vyre-setup-words\n"), boxStatic, SECRET));
   let bits = 0n;
   for (let i = 0; i < 6; i++) bits = bits * 256n + BigInt(h[i]);
-  const want = [0n, 1n, 2n, 3n].map(i => WORDS[Number((bits >> (37n - 11n * i)) & 2047n)]);
+  const want = [0n, 1n, 2n, 3n].map((i) => WORDS[Number((bits >> (37n - 11n * i)) & 2047n)]);
   assert.deepEqual(words, want);
   assert.notDeepEqual(words, await setupWords(new Uint8Array(32).fill(3), SECRET));
   assert.notDeepEqual(words, await setupWords(boxStatic, new Uint8Array(16)));
 });
 
 /** One mailbox line as the install script makes it: base64url(iv16 || AES-CTR ciphertext || HMAC(seq || iv || ciphertext)). */
-async function seal(/** @type {Awaited<ReturnType<typeof setupDerive>>} */ keys, /** @type {number} */ seq, /** @type {string} */ text) {
+async function seal(
+  /** @type {Awaited<ReturnType<typeof setupDerive>>} */ keys,
+  /** @type {number} */ seq,
+  /** @type {string} */ text,
+) {
   const iv = new Uint8Array(16).fill(seq + 1);
   const ck = await subtle.importKey("raw", keys.mbxenc, { name: "AES-CTR" }, false, ["encrypt"]);
   const ct = new Uint8Array(await subtle.encrypt({ name: "AES-CTR", counter: iv, length: 128 }, ck, utf8(text)));
@@ -127,18 +169,34 @@ test("mailbox lines: only an untampered line at its own position opens, and it o
 });
 
 /** The relay's mailbox: serves lines after a position to a reader whose signature verifies, as the worker does. */
-function mailbox(/** @type {{ lines: { i: number, line: string }[], status?: number }} */ state, /** @type {Uint8Array} */ spki) {
+function mailbox(
+  /** @type {{ lines: { i: number, line: string }[], status?: number }} */ state,
+  /** @type {Uint8Array} */ spki,
+) {
   /** @type {{ url: string, headers: Record<string, string> }[]} */
   const calls = [];
   const fetch = async (/** @type {string} */ url, /** @type {any} */ init) => {
     calls.push({ url, headers: init.headers });
     if (state.status) return { status: state.status, ok: false, json: async () => ({}) };
     const u = new URL(url);
-    const loc = u.searchParams.get("loc") ?? "", after = Number(u.searchParams.get("after"));
-    const pub = await subtle.importKey("spki", fromBase64url(init.headers["x-vyre-setup-key"]), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-    const okSig = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, fromBase64url(init.headers["x-vyre-setup-sig"]), utf8(`vyre-setup-read\n${loc}\n${init.headers["x-vyre-setup-ts"]}\n${after}`));
-    if (!okSig || init.headers["x-vyre-setup-key"] !== base64url(spki)) return { status: 401, ok: false, json: async () => ({}) };
-    return { status: 200, ok: true, json: async () => ({ lines: state.lines.filter(l => !l || l.i >= after) }) };
+    const loc = u.searchParams.get("loc") ?? "",
+      after = Number(u.searchParams.get("after"));
+    const pub = await subtle.importKey(
+      "spki",
+      fromBase64url(init.headers["x-vyre-setup-key"]),
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"],
+    );
+    const okSig = await subtle.verify(
+      { name: "ECDSA", hash: "SHA-256" },
+      pub,
+      fromBase64url(init.headers["x-vyre-setup-sig"]),
+      utf8(`vyre-setup-read\n${loc}\n${init.headers["x-vyre-setup-ts"]}\n${after}`),
+    );
+    if (!okSig || init.headers["x-vyre-setup-key"] !== base64url(spki))
+      return { status: 401, ok: false, json: async () => ({}) };
+    return { status: 200, ok: true, json: async () => ({ lines: state.lines.filter((l) => !l || l.i >= after) }) };
   };
   return { fetch, calls };
 }
@@ -146,9 +204,21 @@ function mailbox(/** @type {{ lines: { i: number, line: string }[], status?: num
 test("mailbox reader: signs each long poll, checks each line in order, and stops on anything wrong", async () => {
   const key = await createSetupKey();
   const keys = await setupDerive(SECRET);
-  const state = { lines: [{ i: 0, line: await seal(keys, 0, "Checking the disk") }, { i: 1, line: await seal(keys, 1, "Pulling images") }], status: 0 };
+  const state = {
+    lines: [
+      { i: 0, line: await seal(keys, 0, "Checking the disk") },
+      { i: 1, line: await seal(keys, 1, "Pulling images") },
+    ],
+    status: 0,
+  };
   const relay = mailbox(state, key.spki);
-  const reader = await mailboxReader({ relay: "wss://relay.test", secret: SECRET, key, fetch: relay.fetch, now: () => 1234 });
+  const reader = await mailboxReader({
+    relay: "wss://relay.test",
+    secret: SECRET,
+    key,
+    fetch: relay.fetch,
+    now: () => 1234,
+  });
   assert.deepEqual(await reader.next(), ["Checking the disk", "Pulling images"]);
   assert.equal(reader.seq, 2);
   const first = new URL(relay.calls[0].url);
@@ -164,7 +234,12 @@ test("mailbox reader: signs each long poll, checks each line in order, and stops
   assert.deepEqual(await reader.next(), [], "nothing new after the long poll");
 
   const read = async (/** @type {{ lines: any[], status?: number }} */ s) => {
-    const r = await mailboxReader({ relay: "wss://relay.test", secret: SECRET, key, fetch: mailbox({ status: 0, ...s }, key.spki).fetch });
+    const r = await mailboxReader({
+      relay: "wss://relay.test",
+      secret: SECRET,
+      key,
+      fetch: mailbox({ status: 0, ...s }, key.spki).fetch,
+    });
     return code(() => r.next());
   };
   assert.equal(await read({ lines: [{ i: 1, line: await seal(keys, 1, "skipped one") }] }), "out_of_order");
@@ -176,7 +251,12 @@ test("mailbox reader: signs each long poll, checks each line in order, and stops
   assert.equal(await read({ lines: [], status: 503 }), "mailbox_failed");
   // another page key: the relay's signature check fails and the reader reports it
   const stranger = await createSetupKey();
-  const impostor = await mailboxReader({ relay: "wss://relay.test", secret: SECRET, key: stranger, fetch: mailbox({ lines: [], status: 0 }, key.spki).fetch });
+  const impostor = await mailboxReader({
+    relay: "wss://relay.test",
+    secret: SECRET,
+    key: stranger,
+    fetch: mailbox({ lines: [], status: 0 }, key.spki).fetch,
+  });
   assert.equal(await code(() => impostor.next()), "unauthorized");
 });
 
@@ -191,20 +271,39 @@ test("setup channel: the page's own connection to the server, admitted only for 
   const relay = memoryBox({
     box,
     admit: async (pub, hello) => {
-      const verifyKey = await subtle.importKey("spki", fromBase64url(hello.setup.key), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
-      const ok = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, verifyKey, fromBase64url(hello.setup.sig), concat(utf8(`vyre-setup-hello\n${ROUTE}\n`), pub));
+      const verifyKey = await subtle.importKey(
+        "spki",
+        fromBase64url(hello.setup.key),
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["verify"],
+      );
+      const ok = await subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        verifyKey,
+        fromBase64url(hello.setup.sig),
+        concat(utf8(`vyre-setup-hello\n${ROUTE}\n`), pub),
+      );
       if (!ok || hello.setup.key !== base64url(key.spki)) throw new Error("not the page that made the code");
       seen.push(hello.pair);
       return { v: 1, box: { name: "new server" }, device: "setup1" };
     },
     serve: serveWith((s, head, body) => {
-      const say = (/** @type {number} */ status, /** @type {any} */ json) => { s.ch.respond(s, { status, headers: { "content-type": "application/json" } }); s.write(utf8(JSON.stringify(json))); s.end(); };
-      if (head.path === "/v1/tools/setup.finish") return say(403, { error: { code: "setup_over", message: "The setup session is over." } });
-      if (head.path.startsWith("/v1/tools/")) return say(200, { data: { tool: decodeURIComponent(head.path.slice("/v1/tools/".length)), input: JSON.parse(fromUtf8(body)) } });
+      const say = (/** @type {number} */ status, /** @type {any} */ json) => {
+        s.ch.respond(s, { status, headers: { "content-type": "application/json" } });
+        s.write(utf8(JSON.stringify(json)));
+        s.end();
+      };
+      if (head.path === "/v1/tools/setup.finish")
+        return say(403, { error: { code: "setup_over", message: "The setup session is over." } });
+      if (head.path.startsWith("/v1/tools/"))
+        return say(200, {
+          data: { tool: decodeURIComponent(head.path.slice("/v1/tools/".length)), input: JSON.parse(fromUtf8(body)) },
+        });
       if (head.path.startsWith("/v1/events?")) {
         eventReads++;
         const q = new URL(`http://x${head.path}`).searchParams;
-        return say(200, { data: events.filter(e => e.type === q.get("type") && e.id > Number(q.get("since"))) });
+        return say(200, { data: events.filter((e) => e.type === q.get("type") && e.id > Number(q.get("since"))) });
       }
       return say(404, {});
     }),
@@ -215,7 +314,13 @@ test("setup channel: the page's own connection to the server, admitted only for 
   assert.equal(seen[0], base64url((await setupDerive(SECRET)).sec), "the first connection carries the pairing secret");
   assert.deepEqual(await chan.call("setup.check", { disk: true }), { tool: "setup.check", input: { disk: true } });
   assert.deepEqual(await chan.call("a/b"), { tool: "a/b", input: {} }, "tool names are encoded into the path");
-  await assert.rejects(chan.call("setup.finish"), e => /** @type {any} */ (e).code === "setup_over" && /** @type {any} */ (e).status === 403 && /over/.test(/** @type {Error} */ (e).message));
+  await assert.rejects(
+    chan.call("setup.finish"),
+    (e) =>
+      /** @type {any} */ (e).code === "setup_over" &&
+      /** @type {any} */ (e).status === 403 &&
+      /over/.test(/** @type {Error} */ (e).message),
+  );
   assert.deepEqual(await chan.events("setup.step", 0), [{ id: 1, type: "setup.step", payload: { n: 1 } }]);
   assert.deepEqual(await chan.events("setup.step", 1), []);
   assert.deepEqual(await chan.events("other", -5), []);
@@ -224,22 +329,34 @@ test("setup channel: the page's own connection to the server, admitted only for 
   const heard = [];
   let ended = /** @type {Error | null | undefined} */ (undefined);
   const readsBefore = eventReads;
-  const stop = chan.follow("setup.step", e => heard.push(e.id), err => { ended = err; }, 5);
-  while (eventReads === readsBefore) await new Promise(r => setTimeout(r, 2));   // follow has taken its starting point
+  const stop = chan.follow(
+    "setup.step",
+    (e) => heard.push(e.id),
+    (err) => {
+      ended = err;
+    },
+    5,
+  );
+  while (eventReads === readsBefore) await new Promise((r) => setTimeout(r, 2)); // follow has taken its starting point
   events.push({ id: 2, type: "setup.step", payload: { n: 2 } });
-  for (let i = 0; i < 200 && heard.length < 1; i++) await new Promise(r => setTimeout(r, 5));
+  for (let i = 0; i < 200 && heard.length < 1; i++) await new Promise((r) => setTimeout(r, 5));
   stop();
   assert.deepEqual(heard, [2], "only events after the follow began");
   assert.equal(ended, undefined);
 
   let closedWith = "";
-  chan.onClose(reason => { closedWith = reason; });
+  chan.onClose((reason) => {
+    closedWith = reason;
+  });
   chan.close();
-  await new Promise(r => setTimeout(r, 20));
+  await new Promise((r) => setTimeout(r, 20));
   assert.equal(closedWith, "done");
   assert.doesNotThrow(() => chan.close());
 
   // another page's key is not admitted
   const stranger = await createSetupKey();
-  await assert.rejects(connectSetup(lib, { offer, key: stranger, secret: SECRET, WebSocket: relay.WebSocket, timeout: 2000 }), /not the page that made the code/);
+  await assert.rejects(
+    connectSetup(lib, { offer, key: stranger, secret: SECRET, WebSocket: relay.WebSocket, timeout: 2000 }),
+    /not the page that made the code/,
+  );
 });

@@ -66,9 +66,18 @@ export function filterMenuEntries(entries: readonly MenuEntry[], query: string):
   let head: MenuEntry | null = null;
   let any = false;
   for (const e of entries) {
-    if (isSeparator(e)) { head = null; if (out.length > 0 && !isSeparator(out[out.length - 1]!)) out.push(e); continue; }
-    if (isHead(e)) { head = e; any = false; continue; }
-    const hit = e.pinned === true || e.label.toLowerCase().includes(needle) || (e.keywords ?? "").toLowerCase().includes(needle);
+    if (isSeparator(e)) {
+      head = null;
+      if (out.length > 0 && !isSeparator(out[out.length - 1]!)) out.push(e);
+      continue;
+    }
+    if (isHead(e)) {
+      head = e;
+      any = false;
+      continue;
+    }
+    const hit =
+      e.pinned === true || e.label.toLowerCase().includes(needle) || (e.keywords ?? "").toLowerCase().includes(needle);
     if (!hit) continue;
     if (head !== null && !any) out.push(head);
     any = true;
@@ -99,9 +108,8 @@ export function appendReportProblem(items: readonly MenuEntry[]): MenuEntry[] {
   const kept = items.filter((entry) => !isReportItem(entry));
   const actionable = kept.filter(isItem);
   const iconned = actionable.every((entry) => typeof entry.icon === "string" && entry.icon.length > 0);
-  const report: MenuItem = actionable.length > 0 && iconned
-    ? { label: REPORT_A_PROBLEM, icon: "flag" }
-    : { label: REPORT_A_PROBLEM };
+  const report: MenuItem =
+    actionable.length > 0 && iconned ? { label: REPORT_A_PROBLEM, icon: "flag" } : { label: REPORT_A_PROBLEM };
   const last = kept[kept.length - 1];
   if (kept.length > 0 && (last === undefined || !isSeparator(last))) kept.push({ separator: true });
   kept.push(report);

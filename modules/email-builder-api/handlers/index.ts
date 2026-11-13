@@ -4,5 +4,16 @@ import { compileHandlers } from "./compile.ts";
 
 export const handlers = compileHandlers;
 
-export { configureEmailBuilder, compileHtml, compileText, runChecks, diffDocs, applyChanges, validateDoc, cleanInline, cleanHtml, htmlToText } from "./compile.ts";
+export {
+  configureEmailBuilder,
+  compileHtml,
+  compileText,
+  runChecks,
+  diffDocs,
+  applyChanges,
+  validateDoc,
+  cleanInline,
+  cleanHtml,
+  htmlToText,
+} from "./compile.ts";
 export type { AskDriver, Block, EmailDoc, Change, CheckResult } from "./compile.ts";

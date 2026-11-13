@@ -7,33 +7,74 @@ import { getHold, mayHandle, payloadHasher, previewBlocks, raise, reviseHoldInpu
 import { actOf } from "../projections.ts";
 import type { GateCtx } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export async function holdsRevise(ctx: GateCtx, input: In): Promise<unknown> {
   const h = getHold(ctx, input.holdId);
-  if (h.taskId !== input.taskId) raise(ctx, "validation.precondition_failed", "That hold belongs to another task.", { reason: "task_mismatch" });
-  if (ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "Only a person edits what is about to be sent for them.");
+  if (h.taskId !== input.taskId)
+    raise(ctx, "validation.precondition_failed", "That hold belongs to another task.", { reason: "task_mismatch" });
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "permission.no_grant", "Only a person edits what is about to be sent for them.");
   if (!mayHandle(ctx, h)) raise(ctx, "permission.no_grant", "That is not yours to edit.");
-  if (h.state !== "held") raise(ctx, "validation.precondition_failed", `This hold is ${h.state} already.`, { reason: "not_held", state: h.state });
-  if (h.sendingAt !== undefined) raise(ctx, "validation.precondition_failed", "This is being sent right now.", { reason: "sending" });
+  if (h.state !== "held")
+    raise(ctx, "validation.precondition_failed", `This hold is ${h.state} already.`, {
+      reason: "not_held",
+      state: h.state,
+    });
+  if (h.sendingAt !== undefined)
+    raise(ctx, "validation.precondition_failed", "This is being sent right now.", { reason: "sending" });
   const was = outwardOf(h.capName, h.input);
-  if (!was) raise(ctx, "validation.precondition_failed", "Only a message or a calendar event can be edited before it is sent.", { reason: "not_a_message" });
+  if (!was)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "Only a message or a calendar event can be edited before it is sent.",
+      { reason: "not_a_message" },
+    );
   const body = String(input.body ?? "");
   // a calendar event may have no agenda; a message needs its words
-  if (body.trim() === "" && !was!.event) raise(ctx, "validation.precondition_failed", "A message needs words. Use Don't send to stop it.", { reason: "empty" });
+  if (body.trim() === "" && !was!.event)
+    raise(ctx, "validation.precondition_failed", "A message needs words. Use Don't send to stop it.", {
+      reason: "empty",
+    });
   const title = typeof input.title === "string" ? input.title.trim() : undefined;
-  if (title !== undefined && (!was!.event || title === "")) raise(ctx, "validation.precondition_failed", "An event needs a title.", { reason: "empty_title" });
+  if (title !== undefined && (!was!.event || title === ""))
+    raise(ctx, "validation.precondition_failed", "An event needs a title.", { reason: "empty_title" });
   const withWords = withBody(h.capName, h.input, body);
   const next = title !== undefined && withWords ? withTitle(h.capName, withWords, title) : withWords;
   const hash = payloadHasher();
-  if (!next || !hash || !ctx.call) raise(ctx, "internal.unavailable", "Editing is not available right now.", { service: "payload_hash" });
+  if (!next || !hash || !ctx.call)
+    raise(ctx, "internal.unavailable", "Editing is not available right now.", { service: "payload_hash" });
   const inputHash = await sha(next);
   const payloadHash = (hash as NonNullable<typeof hash>)(h.capName, h.capVersion, next, h.principal, h.actingFor);
   const at = ctx.now();
   const a = actOf(h.act);
   // the card first: if the task refuses, the hold is as it was
-  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", { taskId: h.taskId, blocks: previewBlocks(a, h.capName, next, { by: ctx.principal.id, at }, h.id, h.principal.kind === "agent" ? await holdNamesOf(ctx, h.capName, next) : undefined), payloadHash });
+  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", {
+    taskId: h.taskId,
+    blocks: previewBlocks(
+      a,
+      h.capName,
+      next,
+      { by: ctx.principal.id, at },
+      h.id,
+      h.principal.kind === "agent" ? await holdNamesOf(ctx, h.capName, next) : undefined,
+    ),
+    payloadHash,
+  });
   reviseHoldInput(ctx.db, h, next, inputHash, payloadHash);
-  ctx.emit("gate.revised", `task/${h.taskId}`, { holdId: h.id, act: h.act, taskId: h.taskId, by: ctx.principal.id, was: outwardOf(h.capName, h.input)?.body ?? "", now: body }, { vis: "participants" });
+  ctx.emit(
+    "gate.revised",
+    `task/${h.taskId}`,
+    {
+      holdId: h.id,
+      act: h.act,
+      taskId: h.taskId,
+      by: ctx.principal.id,
+      was: outwardOf(h.capName, h.input)?.body ?? "",
+      now: body,
+    },
+    { vis: "participants" },
+  );
   return { ok: true, edited: at };
 }

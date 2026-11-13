@@ -5,11 +5,26 @@ import type { ActionShape } from "../projections.ts";
 import { coerceValue, readPage } from "../syncspec.ts";
 import type { SpecCursor, SpecFieldType } from "../syncspec.ts";
 
-export interface ShapedRow { id: string; data: Record<string, unknown>; updatedAt?: string | number }
+export interface ShapedRow {
+  id: string;
+  data: Record<string, unknown>;
+  updatedAt?: string | number;
+}
 
-export function shapeList(body: unknown, link: string | undefined, shape: ActionShape, after: string | undefined): { rows: ShapedRow[]; next?: string } {
+export function shapeList(
+  body: unknown,
+  link: string | undefined,
+  shape: ActionShape,
+  after: string | undefined,
+): { rows: ShapedRow[]; next?: string } {
   const cursor = (shape.cursor ?? { kind: "none" }) as SpecCursor;
-  const page = readPage(body, link, { itemsAt: shape.items ?? "", id: shape.id ?? "", ...(shape.updatedAt ? { updatedAt: shape.updatedAt } : {}) }, cursor, after);
+  const page = readPage(
+    body,
+    link,
+    { itemsAt: shape.items ?? "", id: shape.id ?? "", ...(shape.updatedAt ? { updatedAt: shape.updatedAt } : {}) },
+    cursor,
+    after,
+  );
   if (!page) throw new ShapeError(`The answer has no list at ${shape.items === "" ? "the top" : shape.items}.`);
   const rows = page.items.map((item, i): ShapedRow => {
     const raw = pointerGet(item, shape.id ?? "");

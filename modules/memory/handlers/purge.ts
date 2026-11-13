@@ -5,10 +5,14 @@ import { trail } from "../trail.ts";
 import { ensure, orNull, rowsOf, str } from "../projections.ts";
 import type { Layer, MemCtx } from "../projections.ts";
 
-const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+const codeOf = (e: unknown): string => (e as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 async function tolerant(run: () => Promise<unknown>): Promise<void> {
-  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e; }
+  try {
+    await run();
+  } catch (e) {
+    if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e;
+  }
 }
 
 export async function noteErase(ctx: MemCtx, input: { noteId: string; idempotencyKey: string }) {
@@ -27,7 +31,15 @@ export async function noteErase(ctx: MemCtx, input: { noteId: string; idempotenc
   ctx.db.run("UPDATE memory_facts SET note_id = ? WHERE note_id = ?", null, input.noteId);
   ctx.db.run("DELETE FROM memory_notes WHERE note_id = ?", input.noteId);
   // The trail keeps one contentless line: that this note was erased, by whom, when and where it lived. Never its title or words.
-  trail(ctx, { action: "erase", pageId: input.noteId, layer: str(note["layer"]) as Layer, ownerRef: str(note["owner_ref"]), agentId: orNull(note["agent_id"]), projectId: orNull(note["project_id"]), reason: "note erased" });
+  trail(ctx, {
+    action: "erase",
+    pageId: input.noteId,
+    layer: str(note["layer"]) as Layer,
+    ownerRef: str(note["owner_ref"]),
+    agentId: orNull(note["agent_id"]),
+    projectId: orNull(note["project_id"]),
+    reason: "note erased",
+  });
   ctx.emit("note.erased", `entity/${input.noteId}`, { noteId: input.noteId });
   return { erased: true };
 }

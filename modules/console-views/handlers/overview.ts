@@ -1,6 +1,15 @@
 // console.overview, console.attention, console.activity, console.usage and console.nav (CONSOLE-SPEC section 4, ARCH 7.10).
 // All reads, all open to console.access (the invoke pipeline checks it); they emit nothing.
-import { ACTIVITY_DEFAULT, DESIGN_BETA, OVERVIEW_ACTIVITY, gather, navFor, recentActivity, usageGlance, usageRows } from "../projections.ts";
+import {
+  ACTIVITY_DEFAULT,
+  DESIGN_BETA,
+  OVERVIEW_ACTIVITY,
+  gather,
+  navFor,
+  recentActivity,
+  usageGlance,
+  usageRows,
+} from "../projections.ts";
 import { ask, asList, asRow, num } from "../projections.ts";
 import type { ViewCtx } from "../projections.ts";
 
@@ -26,9 +35,20 @@ async function lastBackupOf(ctx: ViewCtx): Promise<{ at: number; result: "verifi
 }
 
 export async function overview(ctx: ViewCtx, _input: Record<string, unknown>) {
-  const [g, activity, usage] = await Promise.all([gather(ctx), recentActivity(ctx, OVERVIEW_ACTIVITY), usageGlance(ctx)]);
+  const [g, activity, usage] = await Promise.all([
+    gather(ctx),
+    recentActivity(ctx, OVERVIEW_ACTIVITY),
+    usageGlance(ctx),
+  ]);
   const [machine, lastBackup] = await Promise.all([machineOf(ctx), lastBackupOf(ctx)]);
-  return { health: g.health, attention: g.attention, activity, usage, ...(machine ? { machine } : {}), ...(lastBackup ? { lastBackup } : {}) };
+  return {
+    health: g.health,
+    attention: g.attention,
+    activity,
+    usage,
+    ...(machine ? { machine } : {}),
+    ...(lastBackup ? { lastBackup } : {}),
+  };
 }
 
 export async function attention(ctx: ViewCtx, _input: Record<string, unknown>) {
@@ -39,7 +59,10 @@ export async function activity(ctx: ViewCtx, input: { limit?: number }) {
   return { rows: await recentActivity(ctx, input.limit ?? ACTIVITY_DEFAULT) };
 }
 
-export async function usage(ctx: ViewCtx, input: { period: "day" | "week" | "month"; by: "agent" | "person" | "model" }) {
+export async function usage(
+  ctx: ViewCtx,
+  input: { period: "day" | "week" | "month"; by: "agent" | "person" | "model" },
+) {
   return { rows: await usageRows(ctx, input.period, input.by), note: DESIGN_BETA };
 }
 

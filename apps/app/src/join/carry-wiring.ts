@@ -6,20 +6,39 @@ import { createCapCaller } from "../shell/session/caps.ts";
 import { readStored, spaceEndpoint, writeStored } from "../shell/session/stored.ts";
 import { normalizeSpaceAddress } from "./logic.ts";
 import type { HaveAccountDeps } from "./HaveAccount.tsx";
-import { CarryError, bundleAt, carriedOf, checkCode, homeOptions, recoveryAtHome, recoveryPart, signInHome, usernameAt } from "./identity.ts";
+import {
+  CarryError,
+  bundleAt,
+  carriedOf,
+  checkCode,
+  homeOptions,
+  recoveryAtHome,
+  recoveryPart,
+  signInHome,
+  usernameAt,
+} from "./identity.ts";
 import type { Carried, CarryCrypto, HomeDeps, KnownIdentity, Proof } from "./identity.ts";
 
-export async function cryptoCarry(): Promise<CarryCrypto & { openCode(code: string, bundle: RecoveryBundle): Promise<void> }> {
+export async function cryptoCarry(): Promise<
+  CarryCrypto & { openCode(code: string, bundle: RecoveryBundle): Promise<void> }
+> {
   const k = await loadCryptoKeys();
   return {
     carryBundle: (p, b, id) => k.carryBundle(p, b, id),
     carryWithRecovery: (c, p, b, id) => k.carryWithRecovery(c, p, b, id),
-    openCode: async (code, b) => { const opened = await k.openWithRecovery(code, { personKeyByPassword: "", ...b }); k.wipeOpened(opened); },
+    openCode: async (code, b) => {
+      const opened = await k.openWithRecovery(code, { personKeyByPassword: "", ...b });
+      k.wipeOpened(opened);
+    },
   };
 }
 
 export function homeDeps(device: { deviceName: string; deviceClass: string }): HomeDeps {
-  return { anonymous: (address) => createCapCaller({ baseUrl: address, token: () => null }), signedIn: (address, token) => createCapCaller({ baseUrl: address, token: () => token }), device };
+  return {
+    anonymous: (address) => createCapCaller({ baseUrl: address, token: () => null }),
+    signedIn: (address, token) => createCapCaller({ baseUrl: address, token: () => token }),
+    device,
+  };
 }
 
 /** The deps HaveAccount needs, reached over the network from this device. */
@@ -29,24 +48,37 @@ export function haveAccountDeps(device: { deviceName: string; deviceClass: strin
     options: async (typed) => {
       const normalized = normalizeSpaceAddress(typed);
       const address = normalized ? spaceEndpoint(normalized) : null;
-      if (!address) throw new CarryError("unreachable", "That is not a Space address. It looks like northwind.vyre.run.");
+      if (!address)
+        throw new CarryError("unreachable", "That is not a Space address. It looks like northwind.vyre.run.");
       return { ...(await homeOptions(deps, address)), address };
     },
     signIn: (address, username, password, totp) => signInHome(deps, address, username, password, totp),
     recovery: (address, username) => recoveryAtHome(deps, address, username),
-    checkCode: async (code, bundle) => { const c = await cryptoCarry(); await checkCode(c.openCode, bundle, code); },
+    checkCode: async (code, bundle) => {
+      const c = await cryptoCarry();
+      await checkCode(c.openCode, bundle, code);
+    },
   };
 }
 
 /** A proof turned into what the claim and the join send. */
-export async function carried(proof: Proof): Promise<Carried> { return carriedOf(proof, await cryptoCarry()); }
+export async function carried(proof: Proof): Promise<Carried> {
+  return carriedOf(proof, await cryptoCarry());
+}
 
 /** "Continue as": the known identity's session hands back the bundle; the password, or the code and a new password, prove it here. */
-export async function knownProof(known: KnownIdentity, secret: { password: string } | { code: string; newPassword: string }): Promise<Proof> {
+export async function knownProof(
+  known: KnownIdentity,
+  secret: { password: string } | { code: string; newPassword: string },
+): Promise<Proof> {
   const source = createCapCaller({ baseUrl: known.baseUrl, token: () => known.token });
-  const [username, bundle] = await Promise.all([known.username ? Promise.resolve(known.username) : usernameAt(source), bundleAt(source)]);
+  const [username, bundle] = await Promise.all([
+    known.username ? Promise.resolve(known.username) : usernameAt(source),
+    bundleAt(source),
+  ]);
   if ("password" in secret) {
-    if (!bundle.personKeyByPassword) throw new CarryError("no_keys", "This account has no keys to bring. Use a different account.");
+    if (!bundle.personKeyByPassword)
+      throw new CarryError("no_keys", "This account has no keys to bring. Use a different account.");
     return { kind: "password", username, name: known.name, password: secret.password, bundle };
   }
   const part = recoveryPart(bundle);

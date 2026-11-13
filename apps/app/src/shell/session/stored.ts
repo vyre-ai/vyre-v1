@@ -6,7 +6,10 @@ import type { SpaceDef } from "../spaces/model.ts";
 const KEY = "vyre.session.v1";
 
 export interface StoredSession {
-  baseUrl: string; token: string; def: SpaceDef; personId: string;
+  baseUrl: string;
+  token: string;
+  def: SpaceDef;
+  personId: string;
   /** Server-supplied continuity marker. It can detect a changed response, but does not authenticate the Space. */
   marker: string;
   /** The username typed at sign-in or claim, kept so Settings can start the handle from it. Optional: other ways in (GitHub, single sign-on, a pair code) do not type one. */
@@ -16,16 +19,40 @@ export interface StoredSession {
   /** The sync epoch this device agreed with the server; absent until the first live hello. */
   syncEpoch?: number;
 }
-export interface KeyValueStore { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void }
+export interface KeyValueStore {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+  removeItem(k: string): void;
+}
 
-export interface VerifiedSpace { id: string; marker: string }
+export interface VerifiedSpace {
+  id: string;
+  marker: string;
+}
 /** Optional continuity checks from local state; these are mismatch signals, not trust anchors. */
-export interface SpaceContinuityHint { id?: string; marker?: string }
-interface OpenedSession { def: Pick<SpaceDef, "spaceId">; me: { id: string; name?: string }; close(): void }
+export interface SpaceContinuityHint {
+  id?: string;
+  marker?: string;
+}
+interface OpenedSession {
+  def: Pick<SpaceDef, "spaceId">;
+  me: { id: string; name?: string };
+  close(): void;
+}
 
 /** `fingerprint` is the current anonymous display marker returned by the contract, never used to authenticate a Space. */
-export interface SignInOptions { name: string; fingerprint: string; password: boolean; github: boolean; sso: Array<{ key: string; title: string }>; secondFactorRequired: boolean }
-export interface SignInAnswer { status: "ok" | "second_factor_required"; session?: { token: string } }
+export interface SignInOptions {
+  name: string;
+  fingerprint: string;
+  password: boolean;
+  github: boolean;
+  sso: Array<{ key: string; title: string }>;
+  secondFactorRequired: boolean;
+}
+export interface SignInAnswer {
+  status: "ok" | "second_factor_required";
+  session?: { token: string };
+}
 
 const browserStore = (): KeyValueStore | undefined => (globalThis as { localStorage?: KeyValueStore }).localStorage;
 
@@ -39,7 +66,15 @@ const sessions = (store: KeyValueStore | undefined): Record<string, StoredSessio
     const list = isObj(j) && isObj(j["sessions"]) ? j["sessions"] : isObj(j) ? { [String(j["baseUrl"] ?? "")]: j } : {};
     const valid: Record<string, StoredSession> = {};
     for (const candidate of Object.values(list)) {
-      if (!isObj(candidate) || typeof candidate["baseUrl"] !== "string" || typeof candidate["token"] !== "string" || typeof candidate["personId"] !== "string" || typeof candidate["marker"] !== "string" || !isObj(candidate["def"])) continue;
+      if (
+        !isObj(candidate) ||
+        typeof candidate["baseUrl"] !== "string" ||
+        typeof candidate["token"] !== "string" ||
+        typeof candidate["personId"] !== "string" ||
+        typeof candidate["marker"] !== "string" ||
+        !isObj(candidate["def"])
+      )
+        continue;
       const def = candidate["def"];
       if (typeof def["spaceId"] !== "string" || typeof def["name"] !== "string") continue;
       // a session kept before its Space learnt its name holds the id as the name: it is read as the address (spaces/space-label.ts)
@@ -54,24 +89,61 @@ const sessions = (store: KeyValueStore | undefined): Record<string, StoredSessio
 
 export function readStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): StoredSession | null {
   const all = sessions(store);
-  return baseUrl ? all[baseUrl] ?? null : Object.values(all)[0] ?? null;
+  return baseUrl ? (all[baseUrl] ?? null) : (Object.values(all)[0] ?? null);
 }
 
 /** Saved sessions are hints only: every activation still verifies the authenticated Space. */
-export function readStoredSessions(store:KeyValueStore|undefined=browserStore()):StoredSession[]{return Object.values(sessions(store)).filter(candidate=>{
- try{const url=new URL(candidate.baseUrl),def=candidate.def;return!url.username&&!url.password&&spaceEndpoint(candidate.baseUrl)===candidate.baseUrl&&!!candidate.token&&!!candidate.personId&&(def.kind==='personal'||def.kind==='team')&&typeof def.kit==='string'&&typeof def.skinDefault==='string'&&Array.isArray(def.tint)&&def.tint.length===2&&def.tint.every(value=>typeof value==='string')&&!!def.counts&&!!def.dots;}catch{return false;}
-});}
+export function readStoredSessions(store: KeyValueStore | undefined = browserStore()): StoredSession[] {
+  return Object.values(sessions(store)).filter((candidate) => {
+    try {
+      const url = new URL(candidate.baseUrl),
+        def = candidate.def;
+      return (
+        !url.username &&
+        !url.password &&
+        spaceEndpoint(candidate.baseUrl) === candidate.baseUrl &&
+        !!candidate.token &&
+        !!candidate.personId &&
+        (def.kind === "personal" || def.kind === "team") &&
+        typeof def.kit === "string" &&
+        typeof def.skinDefault === "string" &&
+        Array.isArray(def.tint) &&
+        def.tint.length === 2 &&
+        def.tint.every((value) => typeof value === "string") &&
+        !!def.counts &&
+        !!def.dots
+      );
+    } catch {
+      return false;
+    }
+  });
+}
 
 /** Who the lock screen greets: the first name of the display name. The username is only a stand-in for a session saved before the display name was kept. */
-export const lockName = (s: Pick<StoredSession, "displayName" | "username">): string => (s.displayName?.trim().split(/\s+/)[0] || s.username) ?? "";
+export const lockName = (s: Pick<StoredSession, "displayName" | "username">): string =>
+  (s.displayName?.trim().split(/\s+/)[0] || s.username) ?? "";
 
 /** A managed Personal profile keeps its Space identity when its loopback port changes. */
-export function readStoredSpace(spaceId:string,store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.spaceId===spaceId)??null;}
+export function readStoredSpace(
+  spaceId: string,
+  store: KeyValueStore | undefined = browserStore(),
+): StoredSession | null {
+  return Object.values(sessions(store)).find((s) => s.def.spaceId === spaceId) ?? null;
+}
 
 /** This computer's own Personal Space, saved at whatever loopback port it last ran on. Its daemon takes a new port on every start (an update, a restart), so its session is found by kind, not address,
  * and the gate then verifies it at the new address (SessionGate resumePersonal) before using it. */
-export function readStoredPersonal(store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.kind==='personal'&&isLoopbackAddress(s.baseUrl))??null;}
-const isLoopbackAddress=(value:string):boolean=>{try{const h=new URL(value).hostname.toLowerCase();return h==='127.0.0.1'||h==='localhost'||h==='[::1]'||h==='::1';}catch{return false;}};
+export function readStoredPersonal(store: KeyValueStore | undefined = browserStore()): StoredSession | null {
+  return Object.values(sessions(store)).find((s) => s.def.kind === "personal" && isLoopbackAddress(s.baseUrl)) ?? null;
+}
+const isLoopbackAddress = (value: string): boolean => {
+  try {
+    const h = new URL(value).hostname.toLowerCase();
+    return h === "127.0.0.1" || h === "localhost" || h === "[::1]" || h === "::1";
+  } catch {
+    return false;
+  }
+};
 
 /** The gate never carries a prior Space across an address change. */
 export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } | { kind: "shell"; stored: T } {
@@ -79,28 +151,64 @@ export function phaseForStoredAddress<T>(stored: T | null): { kind: "signin" } |
 }
 
 export function writeStored(s: StoredSession, store: KeyValueStore | undefined = browserStore()): void {
-  try { store?.setItem(KEY, JSON.stringify({ sessions: { ...sessions(store), [s.baseUrl]: s } })); } catch { /* blocked storage: the session lasts until the page closes */ }
+  try {
+    store?.setItem(KEY, JSON.stringify({ sessions: { ...sessions(store), [s.baseUrl]: s } }));
+  } catch {
+    /* blocked storage: the session lasts until the page closes */
+  }
 }
 
 export function clearStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): void {
   try {
-    if (!baseUrl) { store?.removeItem(KEY); return; }
+    if (!baseUrl) {
+      store?.removeItem(KEY);
+      return;
+    }
     const all = sessions(store);
     delete all[baseUrl];
     if (Object.keys(all).length === 0) store?.removeItem(KEY);
     else store?.setItem(KEY, JSON.stringify({ sessions: all }));
-  } catch { /* blocked storage */ }
+  } catch {
+    /* blocked storage */
+  }
 }
 
 /** Opens a signed-in session first, then persists only after authenticated Space ID continuity checks. */
-export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, token, continuity, open, getSpace, persist = writeStored, username }: {
-  baseUrl: string; token: string; username?: string; continuity?: SpaceContinuityHint; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void;
+export async function openVerifiedSession<T extends OpenedSession>({
+  baseUrl,
+  token,
+  continuity,
+  open,
+  getSpace,
+  persist = writeStored,
+  username,
+}: {
+  baseUrl: string;
+  token: string;
+  username?: string;
+  continuity?: SpaceContinuityHint;
+  open: () => Promise<T>;
+  getSpace: () => Promise<VerifiedSpace>;
+  persist?: (stored: StoredSession) => void;
 }): Promise<StoredSession> {
   const real = await open();
   try {
     const actual = await getSpace();
-    if (real.def.spaceId !== actual.id || (continuity?.id !== undefined && actual.id !== continuity.id) || (continuity?.marker !== undefined && actual.marker !== continuity.marker)) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
-    const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, marker: actual.marker, ...(username ? { username } : {}), ...(real.me.name ? { displayName: real.me.name } : {}) };
+    if (
+      real.def.spaceId !== actual.id ||
+      (continuity?.id !== undefined && actual.id !== continuity.id) ||
+      (continuity?.marker !== undefined && actual.marker !== continuity.marker)
+    )
+      throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
+    const stored: StoredSession = {
+      baseUrl,
+      token,
+      def: real.def as SpaceDef,
+      personId: real.me.id,
+      marker: actual.marker,
+      ...(username ? { username } : {}),
+      ...(real.me.name ? { displayName: real.me.name } : {}),
+    };
     persist(stored);
     return stored;
   } finally {
@@ -109,27 +217,68 @@ export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, to
 }
 
 /** A first sign-in displays anonymous options, then records only the authenticated Space response for later continuity checks. */
-export async function signInAndVerify<T extends OpenedSession>({ baseUrl, continuity, discover, signIn, open, getSpace, persist, afterVerified, username }: {
-  baseUrl: string; username?: string; continuity?: SpaceContinuityHint; discover: () => Promise<SignInOptions>; signIn: () => Promise<SignInAnswer>; open: () => Promise<T>; getSpace: () => Promise<VerifiedSpace>; persist?: (stored: StoredSession) => void; afterVerified?: (stored: StoredSession) => Promise<void> | void;
-}): Promise<{ status: "second_factor_required"; options: SignInOptions } | { status: "ok"; options: SignInOptions; stored: StoredSession }> {
+export async function signInAndVerify<T extends OpenedSession>({
+  baseUrl,
+  continuity,
+  discover,
+  signIn,
+  open,
+  getSpace,
+  persist,
+  afterVerified,
+  username,
+}: {
+  baseUrl: string;
+  username?: string;
+  continuity?: SpaceContinuityHint;
+  discover: () => Promise<SignInOptions>;
+  signIn: () => Promise<SignInAnswer>;
+  open: () => Promise<T>;
+  getSpace: () => Promise<VerifiedSpace>;
+  persist?: (stored: StoredSession) => void;
+  afterVerified?: (stored: StoredSession) => Promise<void> | void;
+}): Promise<
+  | { status: "second_factor_required"; options: SignInOptions }
+  | { status: "ok"; options: SignInOptions; stored: StoredSession }
+> {
   const options = await discover();
   const answer = await signIn();
   if (answer.status === "second_factor_required") return { status: answer.status, options };
   const token = answer.session?.token;
   if (!token) throw new Error("The Space did not return a session. Try again.");
-  const stored = await openVerifiedSession({ baseUrl, token, ...(username ? { username } : {}), ...(continuity?{continuity}:{}), open, getSpace, ...(persist ? { persist } : {}) });
+  const stored = await openVerifiedSession({
+    baseUrl,
+    token,
+    ...(username ? { username } : {}),
+    ...(continuity ? { continuity } : {}),
+    open,
+    getSpace,
+    ...(persist ? { persist } : {}),
+  });
   await afterVerified?.(stored);
   return { status: "ok", options, stored };
 }
 
 /** A remembered Space stays open only when its authenticated ID and continuity marker still match this address. */
-export async function verifyStoredSession<T extends OpenedSession>({ stored, open, getSpace }: {
-  stored: StoredSession; open: () => Promise<T>; getSpace: (session: T) => Promise<VerifiedSpace>;
+export async function verifyStoredSession<T extends OpenedSession>({
+  stored,
+  open,
+  getSpace,
+}: {
+  stored: StoredSession;
+  open: () => Promise<T>;
+  getSpace: (session: T) => Promise<VerifiedSpace>;
 }): Promise<T> {
   const real = await open();
   try {
     const actual = await getSpace(real);
-    if (real.me.id !== stored.personId || real.def.spaceId !== actual.id || actual.id !== stored.def.spaceId || actual.marker !== stored.marker) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
+    if (
+      real.me.id !== stored.personId ||
+      real.def.spaceId !== actual.id ||
+      actual.id !== stored.def.spaceId ||
+      actual.marker !== stored.marker
+    )
+      throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
     return real;
   } catch (error) {
     real.close();
@@ -141,15 +290,25 @@ export async function verifyStoredSession<T extends OpenedSession>({ stored, ope
 export function spaceEndpoint(value: string): string | null {
   try {
     const parsed = new URL(value);
-    const loopback = parsed.hostname.toLowerCase() === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]" || parsed.hostname === "::1";
-    return parsed.host && (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) ? parsed.origin : null;
+    const loopback =
+      parsed.hostname.toLowerCase() === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "[::1]" ||
+      parsed.hostname === "::1";
+    return parsed.host && (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback))
+      ? parsed.origin
+      : null;
   } catch {
     return null;
   }
 }
 
 /** The Space's HTTP(S) address for this page: `?space=` when given, else the served origin. Packaged `tauri://` is never a Space. */
-export function spaceAddress(loc: { origin: string; search: string } | undefined = (globalThis as { location?: { origin: string; search: string } }).location): string | null {
+export function spaceAddress(
+  loc: { origin: string; search: string } | undefined = (
+    globalThis as { location?: { origin: string; search: string } }
+  ).location,
+): string | null {
   if (!loc) return null;
   const q = new URLSearchParams(loc.search).get("space");
   return q === null ? spaceEndpoint(loc.origin) : spaceEndpoint(q);

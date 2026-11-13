@@ -19,8 +19,14 @@ export interface ZoomCtx {
   db: ZoomDb;
   emit(name: string, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -32,7 +38,10 @@ export interface ZoomHost {
   /** The value stored in the Vault under a handle (#Zoom_S2S.account_id, #Zoom_S2S.client_id, #Zoom_S2S.client_secret, #Zoom_Webhook_Secret), for one call. Throws provider.auth_failed when there is none. */
   secret(ctx: ZoomCtx, handle: string): Promise<string>;
   /** GET an address with a bearer token and store the bytes as a blob (a recording file). */
-  download(ctx: ZoomCtx, a: { url: string; bearer: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
+  download(
+    ctx: ZoomCtx,
+    a: { url: string; bearer: string; mime?: string },
+  ): Promise<{ blobId: string; size: number; mime: string }>;
 }
 
 let host: ZoomHost | null = null;
@@ -45,7 +54,12 @@ export function needHost(ctx: Pick<ZoomCtx, "trace">): ZoomHost {
   return host;
 }
 
-export const HANDLE = { account: "#Zoom_S2S.account_id", client: "#Zoom_S2S.client_id", secret: "#Zoom_S2S.client_secret", webhook: "#Zoom_Webhook_Secret" } as const;
+export const HANDLE = {
+  account: "#Zoom_S2S.account_id",
+  client: "#Zoom_S2S.client_id",
+  secret: "#Zoom_S2S.client_secret",
+  webhook: "#Zoom_Webhook_Secret",
+} as const;
 export const API = "https://api.zoom.us/v2";
 export const TOKEN_URL = "https://zoom.us/oauth/token";
 
@@ -63,7 +77,7 @@ export const intOrUndef = (v: unknown): number | undefined => {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
   return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
 };
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<ZoomCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -114,7 +128,8 @@ export function getState(ctx: Pick<ZoomCtx, "db">, key: string): string | null {
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<ZoomCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO zoom_state ("key", "value") VALUES (?, ?)`, key, value);
+  if (getState(ctx, key) === null)
+    ctx.db.run(`INSERT OR IGNORE INTO zoom_state ("key", "value") VALUES (?, ?)`, key, value);
   else ctx.db.run(`UPDATE zoom_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
@@ -126,23 +141,36 @@ export async function accessToken(ctx: ZoomCtx, fresh = false): Promise<string> 
   const cached = getState(ctx, "token");
   if (cached && !fresh) {
     const t = obj(JSON.parse(cached));
-    if (typeof t["token"] === "string" && typeof t["exp"] === "number" && t["exp"] - 60_000 > ctx.now()) return t["token"];
+    if (typeof t["token"] === "string" && typeof t["exp"] === "number" && t["exp"] - 60_000 > ctx.now())
+      return t["token"];
   }
   const h = needHost(ctx);
   const account = await h.secret(ctx, HANDLE.account);
-  const basic = Buffer.from(`${await h.secret(ctx, HANDLE.client)}:${await h.secret(ctx, HANDLE.secret)}`).toString("base64");
+  const basic = Buffer.from(`${await h.secret(ctx, HANDLE.client)}:${await h.secret(ctx, HANDLE.secret)}`).toString(
+    "base64",
+  );
   let res: { status: number; text(): Promise<string> };
   try {
-    res = await ctx.http(`${TOKEN_URL}?grant_type=account_credentials&account_id=${encodeURIComponent(account)}`, { method: "POST", headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" }, body: "" });
+    res = await ctx.http(`${TOKEN_URL}?grant_type=account_credentials&account_id=${encodeURIComponent(account)}`, {
+      method: "POST",
+      headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" },
+      body: "",
+    });
   } catch (e) {
     if (typeof e === "object" && e !== null && "error" in e) throw e;
     throw fail("provider.network", ctx.trace.traceId, { message: "Zoom could not be reached." });
   }
   const body = parseBody(await res.text());
-  if (res.status >= 500) throw fail("provider.unavailable", ctx.trace.traceId, { message: "Zoom is not answering right now." });
-  if (res.status === 429) throw fail("provider.rate_limited", ctx.trace.traceId, { message: "Zoom asked us to slow down." });
+  if (res.status >= 500)
+    throw fail("provider.unavailable", ctx.trace.traceId, { message: "Zoom is not answering right now." });
+  if (res.status === 429)
+    throw fail("provider.rate_limited", ctx.trace.traceId, { message: "Zoom asked us to slow down." });
   const token = strOrUndef(body["access_token"]);
-  if (res.status >= 300 || !token) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Zoom did not accept the account. Check the Zoom_S2S item in the Vault and that the Zoom app is activated." });
+  if (res.status >= 300 || !token)
+    throw fail("provider.auth_failed", ctx.trace.traceId, {
+      message:
+        "Zoom did not accept the account. Check the Zoom_S2S item in the Vault and that the Zoom app is activated.",
+    });
   const life = intOrUndef(body["expires_in"]) ?? 3600;
   setState(ctx, "token", JSON.stringify({ token, exp: ctx.now() + life * 1000 }));
   return token;
@@ -157,7 +185,12 @@ export function parseBody(body: string): Json {
   }
 }
 
-export interface Call { method?: string; path: string; query?: Record<string, string>; body?: Json }
+export interface Call {
+  method?: string;
+  path: string;
+  query?: Record<string, string>;
+  body?: Json;
+}
 
 /** One call to the Zoom REST API, with Zoom's refusals mapped to the error catalogue. A 401 gets one retry with a fresh token. Returns the parsed body of a 2xx (204 is {}). */
 export async function api(ctx: ZoomCtx, c: Call): Promise<Json> {
@@ -168,7 +201,11 @@ export async function api(ctx: ZoomCtx, c: Call): Promise<Json> {
     if (c.body) headers["content-type"] = "application/json";
     let res: { status: number; text(): Promise<string> };
     try {
-      res = await ctx.http(`${API}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(c.body ? { body: JSON.stringify(c.body) } : {}) });
+      res = await ctx.http(`${API}${c.path}${qs}`, {
+        method: c.method ?? "GET",
+        headers,
+        ...(c.body ? { body: JSON.stringify(c.body) } : {}),
+      });
     } catch (e) {
       if (typeof e === "object" && e !== null && "error" in e) throw e;
       throw fail("provider.network", ctx.trace.traceId, { message: "Zoom could not be reached." });
@@ -186,9 +223,16 @@ export function refusal(ctx: Pick<ZoomCtx, "trace">, status: number, body: Json)
   const code = typeof body["code"] === "number" ? body["code"] : undefined;
   const details: Record<string, unknown> = code === undefined ? { status } : { status, zoomCode: code };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Zoom asked us to slow down.", details });
-  if (status === 401 || status === 403) return fail("provider.auth_failed", t, { message: "Zoom did not accept the credentials, or the app may not do this. Check the Zoom_S2S item in the Vault and the app scopes.", details });
-  if (status === 404 || code === 3001 || code === 3301) return fail("validation.not_found", t, { message: "Zoom has no such item.", details });
+  if (status === 401 || status === 403)
+    return fail("provider.auth_failed", t, {
+      message:
+        "Zoom did not accept the credentials, or the app may not do this. Check the Zoom_S2S item in the Vault and the app scopes.",
+      details,
+    });
+  if (status === 404 || code === 3001 || code === 3301)
+    return fail("validation.not_found", t, { message: "Zoom has no such item.", details });
   if (status >= 500) return fail("provider.unavailable", t, { message: "Zoom is not answering right now.", details });
-  if (status === 400 || status === 409 || status === 422) return fail("validation.bad_input", t, { message: "Zoom could not use that request.", details });
+  if (status === 400 || status === 409 || status === 422)
+    return fail("validation.bad_input", t, { message: "Zoom could not use that request.", details });
   return fail("provider.bad_response", t, { message: "Zoom answered something unexpected.", details });
 }

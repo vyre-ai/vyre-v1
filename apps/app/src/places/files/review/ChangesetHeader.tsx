@@ -12,7 +12,17 @@ import { useCap, useReviewData, useReviewLayout } from "./data.tsx";
 import { GateRow } from "./GateRow.tsx";
 import { Glyph } from "./icons.tsx";
 import {
-  APPROVE_LABEL, BASE_HELP, approveBlocked, baseLine, blockedReason, changedLine, isOpen, needsGate, requestLabel, settledWords, totalsWords,
+  APPROVE_LABEL,
+  BASE_HELP,
+  approveBlocked,
+  baseLine,
+  blockedReason,
+  changedLine,
+  isOpen,
+  needsGate,
+  requestLabel,
+  settledWords,
+  totalsWords,
 } from "./model.ts";
 import type { GateState, GateView } from "./model.ts";
 import { Btn, IconBtn, Note, Segmented, Skeleton, Switch, TextField, anchorOf, webProps } from "./parts.tsx";
@@ -49,13 +59,17 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
   const { element: menu, show } = useMenu();
 
   const push = isRepo && hasRemote && (pushChoice ?? true);
-  const gate: GateView | null = push && needsGate(status) && status?.branch ? { branch: status.branch, state: gateState } : null;
+  const gate: GateView | null =
+    push && needsGate(status) && status?.branch ? { branch: status.branch, state: gateState } : null;
   const open = cs !== null && isOpen(cs.state);
   const blocked = approveBlocked(gate);
 
   const approve = (): void => {
     if (cs === null || busy || !open) return;
-    if (blocked) { setLine({ kind: "warn", text: blockedReason(gate) }); return; }
+    if (blocked) {
+      setLine({ kind: "warn", text: blockedReason(gate) });
+      return;
+    }
     attempt.current ??= data.key();
     const key = attempt.current;
     setBusy(true);
@@ -80,7 +94,13 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
         const who = data.nameOf(cs?.by ?? "");
         setPanel(null);
         setNote("");
-        setLine({ kind: "ok", text: r.value.sent > 0 ? `Sent ${r.value.sent} ${r.value.sent === 1 ? "comment" : "comments"} to ${who}.` : `Sent back to ${who}.` });
+        setLine({
+          kind: "ok",
+          text:
+            r.value.sent > 0
+              ? `Sent ${r.value.sent} ${r.value.sent === 1 ? "comment" : "comments"} to ${who}.`
+              : `Sent back to ${who}.`,
+        });
         data.nav.settled(changesetId, "changes_requested");
       } else setLine({ kind: "error", text: r.error });
     });
@@ -101,7 +121,11 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
 
   const outside = (actorId?: string): void => {
     void reviewExternally(data.call, changesetId, actorId).then((r) => {
-      setLine(r.ok ? { kind: "ok", text: `Asked ${data.nameOf(r.value.actorId)} to review these changes.` } : { kind: "error", text: r.error });
+      setLine(
+        r.ok
+          ? { kind: "ok", text: `Asked ${data.nameOf(r.value.actorId)} to review these changes.` }
+          : { kind: "error", text: r.error },
+      );
     });
   };
 
@@ -109,14 +133,31 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
     const at = anchorOf(e);
     const people = data.reviewers ?? [];
     const outsideItems: MenuEntry[] = people.length
-      ? [{ head: "Review externally" }, ...people.map((p): MenuEntry => ({ label: p.name, onSelect: () => outside(p.id) }))]
+      ? [
+          { head: "Review externally" },
+          ...people.map((p): MenuEntry => ({ label: p.name, onSelect: () => outside(p.id) })),
+        ]
       : [{ label: "Review externally", onSelect: () => outside() }];
-    show([{ label: "Review changes", onSelect: () => data.nav.openChangeset(changesetId) }, { separator: true }, ...outsideItems], at.x, at.y, "other");
+    show(
+      [
+        { label: "Review changes", onSelect: () => data.nav.openChangeset(changesetId) },
+        { separator: true },
+        ...outsideItems,
+      ],
+      at.x,
+      at.y,
+      "other",
+    );
   };
 
   const onKeyDown = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault?: () => void }): void => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault?.(); approve(); }
-    else if (e.key === "Escape" && panel) { e.preventDefault?.(); setPanel(null); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault?.();
+      approve();
+    } else if (e.key === "Escape" && panel) {
+      e.preventDefault?.();
+      setPanel(null);
+    }
   };
 
   if (cs === null) return <Skeleton height={64} testID="changeset-loading" />;
@@ -126,7 +167,13 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
   const by = data.nameOf(cs.by);
 
   return (
-    <View style={st.wrap} testID="changeset-header" role="group" aria-label={changedLine(by, cs.fileCount)} {...webProps({ onKeyDown })}>
+    <View
+      style={st.wrap}
+      testID="changeset-header"
+      role="group"
+      aria-label={changedLine(by, cs.fileCount)}
+      {...webProps({ onKeyDown })}
+    >
       <View style={st.head}>
         <View style={st.left}>
           <View style={st.t1}>
@@ -137,25 +184,67 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
             </Text>
           </View>
           <View style={st.t2}>
-            <Text style={st.where} testID="changeset-where">{data.nameOf(cs.folderId)}</Text>
-            {baseLine(cs) ? <Text style={st.mut} numberOfLines={1} {...{ title: BASE_HELP }} accessibilityHint={BASE_HELP} testID="changeset-base">{baseLine(cs)}</Text> : null}
+            <Text style={st.where} testID="changeset-where">
+              {data.nameOf(cs.folderId)}
+            </Text>
+            {baseLine(cs) ? (
+              <Text
+                style={st.mut}
+                numberOfLines={1}
+                {...{ title: BASE_HELP }}
+                accessibilityHint={BASE_HELP}
+                testID="changeset-base"
+              >
+                {baseLine(cs)}
+              </Text>
+            ) : null}
           </View>
         </View>
         <View style={st.acts}>
           {open ? (
             <>
-              <Btn label="Discard" onPress={() => setPanel(panel === "discard" ? null : "discard")} pressed={panel === "discard"} testID="changeset-discard" />
-              <Btn label={requestLabel(unsent)} onPress={() => setPanel(panel === "request" ? null : "request")} pressed={panel === "request"} testID="changeset-request" />
-              <Btn label={APPROVE_LABEL} primary disabled={busy || blocked} hint={blockedReason(gate)} onPress={approve} testID="changeset-approve" />
+              <Btn
+                label="Discard"
+                onPress={() => setPanel(panel === "discard" ? null : "discard")}
+                pressed={panel === "discard"}
+                testID="changeset-discard"
+              />
+              <Btn
+                label={requestLabel(unsent)}
+                onPress={() => setPanel(panel === "request" ? null : "request")}
+                pressed={panel === "request"}
+                testID="changeset-request"
+              />
+              <Btn
+                label={APPROVE_LABEL}
+                primary
+                disabled={busy || blocked}
+                hint={blockedReason(gate)}
+                onPress={approve}
+                testID="changeset-approve"
+              />
             </>
           ) : null}
-          <Segmented options={[{ id: "unified", label: "Unified" }, { id: "split", label: "Split" }]} value={layout} onChange={setLayout} label="Layout" testID="changeset-layout" />
-          <IconBtn label="More" onPress={openMore} menu testID="changeset-more"><Glyph name="more" size={15} color="var(--ink-2)" width={1.8} /></IconBtn>
+          <Segmented
+            options={[
+              { id: "unified", label: "Unified" },
+              { id: "split", label: "Split" },
+            ]}
+            value={layout}
+            onChange={setLayout}
+            label="Layout"
+            testID="changeset-layout"
+          />
+          <IconBtn label="More" onPress={openMore} menu testID="changeset-more">
+            <Glyph name="more" size={15} color="var(--ink-2)" width={1.8} />
+          </IconBtn>
         </View>
       </View>
 
       <View style={st.totals} testID="changeset-totals">
-        <Text style={st.totalsText}>{cs.fileCount} {cs.fileCount === 1 ? "file" : "files"}</Text>
+        <Text style={st.totalsText}>
+          {cs.fileCount} {cs.fileCount === 1 ? "file" : "files"}
+        </Text>
         <Text style={st.add}>{totals.added}</Text>
         <Text style={st.del}>{totals.removed}</Text>
         <View style={st.grow} />
@@ -164,7 +253,14 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
 
       {open && isRepo ? (
         <View style={st.commit} testID="changeset-commit">
-          <TextField value={message} onChange={setMessage} label="Commit message" placeholder="Commit message (optional)" onSubmit={approve} testID="changeset-message" />
+          <TextField
+            value={message}
+            onChange={setMessage}
+            label="Commit message"
+            placeholder="Commit message (optional)"
+            onSubmit={approve}
+            testID="changeset-message"
+          />
           {hasRemote ? (
             <View style={st.pushRow}>
               <Switch on={push} onChange={setPushChoice} label="Push after committing" testID="changeset-push" />
@@ -174,10 +270,22 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
         </View>
       ) : null}
 
-      {gate ? <GateRow gate={gate} onApprove={() => setGateState("cleared")} onCancel={() => setGateState("cancelled")} onAsk={() => setGateState("waiting")} /> : null}
+      {gate ? (
+        <GateRow
+          gate={gate}
+          onApprove={() => setGateState("cleared")}
+          onCancel={() => setGateState("cancelled")}
+          onAsk={() => setGateState("waiting")}
+        />
+      ) : null}
 
       {panel === "discard" ? (
-        <View style={st.panel} testID="changeset-discard-confirm" role="alertdialog" aria-label="Discard these changes?">
+        <View
+          style={st.panel}
+          testID="changeset-discard-confirm"
+          role="alertdialog"
+          aria-label="Discard these changes?"
+        >
           <Text style={st.panelText}>Discard these changes?</Text>
           <Btn label="Cancel" small onPress={() => setPanel(null)} testID="changeset-discard-cancel" />
           <Btn label="Discard" small danger disabled={busy} onPress={discard} testID="changeset-discard-go" />
@@ -185,13 +293,26 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
       ) : null}
       {panel === "request" ? (
         <View style={st.panel} testID="changeset-request-panel" role="group" aria-label="Request changes">
-          <TextField value={note} onChange={setNote} label="Note to the agent" placeholder={`What should ${by} change?`} onSubmit={sendBack} onEscape={() => setPanel(null)} testID="changeset-note" autoFocus />
+          <TextField
+            value={note}
+            onChange={setNote}
+            label="Note to the agent"
+            placeholder={`What should ${by} change?`}
+            onSubmit={sendBack}
+            onEscape={() => setPanel(null)}
+            testID="changeset-note"
+            autoFocus
+          />
           <Btn label="Cancel" small onPress={() => setPanel(null)} testID="changeset-request-cancel" />
           <Btn label="Send" small primary disabled={busy} onPress={sendBack} testID="changeset-request-go" />
         </View>
       ) : null}
 
-      {line ? <Note text={line.text} kind={line.kind} /> : settled ? <Note text={settled} kind={cs.state === "discarded" ? "warn" : "ok"} /> : null}
+      {line ? (
+        <Note text={line.text} kind={line.kind} />
+      ) : settled ? (
+        <Note text={settled} kind={cs.state === "discarded" ? "warn" : "ok"} />
+      ) : null}
       {menu}
     </View>
   );
@@ -199,7 +320,15 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
 
 const st = StyleSheet.create({
   wrap: { width: "100%" },
-  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 12, paddingTop: 14, paddingBottom: 10, paddingHorizontal: 22 },
+  head: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 10,
+    paddingHorizontal: 22,
+  },
   left: { flexGrow: 1, flexShrink: 1, flexBasis: 280, minWidth: 0 },
   t1: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
   h2: { flexShrink: 1, fontSize: 18, fontWeight: "600", letterSpacing: -0.18, color: "var(--ink)" as string },
@@ -208,7 +337,15 @@ const st = StyleSheet.create({
   where: { fontSize: 12.5, color: "var(--ink-2)" as string },
   mut: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   acts: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
-  totals: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 22, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
+  totals: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)",
+  },
   totalsText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   add: { fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--ok)" as string },
   del: { fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--danger)" as string },

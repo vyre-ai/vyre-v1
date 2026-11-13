@@ -13,94 +13,263 @@ export const REPLY_GAPS = [];
 
 const TOKEN = "sk-ant-oat01-GOLDENFAKE0123456789abcdefXYZ"; // secret-scan: fake
 
-export async function runAgentReply(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
+export async function runAgentReply(
+  live: readonly string[],
+  opts: Parameters<typeof bootFlowSpace>[1] = {},
+): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootFlowSpace(live, opts);
   const trail = new Trail();
   try {
-    const admin = s.d.token;   // the owner bootstrap token: Olivia, on this node
+    const admin = s.d.token; // the owner bootstrap token: Olivia, on this node
     await trail.step("her client unlocks her person key on this node", async () => {
       // any 32 bytes will do as the person key: the client would have unwrapped it from the sign-in bundle (the heavy job installs no packages, so the client's key code is not imported here)
       const personKey = globalThis.crypto.getRandomValues(new Uint8Array(32));
-      const res = await fetch(`${s.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${admin}` }, body: JSON.stringify({ key: Buffer.from(personKey).toString("base64") }) });
+      const res = await fetch(`${s.d.url}/local/vault/key/unlock`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${admin}` },
+        body: JSON.stringify({ key: Buffer.from(personKey).toString("base64") }),
+      });
       assert.equal(res.status, 204, `unlock: ${res.status} ${await res.text()}`);
     });
-    const folder = await trail.step("a Mine folder holds her account", async () =>
-      expectStatus(await s.call("vault.folders.create", admin, { idempotencyKey: "golden-7-folder", name: "Accounts", scope: "mine" }), 200, "vault.folders.create").folder.id as string,
-    ["her client unlocks her person key on this node"]);
-    await trail.step("her Claude account is a Mine ai_subscription item, signed in and allowed for the Space", async () => {
-      // the sign-in is started first (it stamps the time the item must be newer than), her client saves the token as the Mine item, and Done links it as her provider (providers.subscription_complete)
-      const flow = expectStatus(await s.call("providers.subscription_start", admin, { idempotencyKey: "golden-7-flow", providerKey: "claude-code" }), 200, "providers.subscription_start").flowId as string;
-      expectStatus(await s.call("vault.item.put", admin, { idempotencyKey: "golden-7-item", folderId: folder!, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: TOKEN, secret: true }] }), 200, "vault.item.put");
-      const provider = expectStatus(await s.call("providers.subscription_complete", admin, { flowId: flow }), 200, "providers.subscription_complete").provider as { id: string };
-      // a private chat with no desktop device online runs on the Space (spec 6.3), and the Space may use a Mine subscription only when she says so (spec 6.4)
-      expectStatus(await s.call("providers.set_space_use", admin, { idempotencyKey: "golden-7-spaceuse", providerId: provider.id, allow: true }), 200, "providers.set_space_use");
-    }, ["a Mine folder holds her account"]);
-    const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
-    const thread = await trail.step("she starts a chat with the agent", async () =>
-      expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7-chat", kind: "chat", agentIds: [agent!] }), 200, "chat.start").thread.threadId as string,
-    ["an agent exists"]);
-    await trail.step("she says hello", async () => {
-      expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status");   // the first engine call builds and binds the runtime, so the bridge has an engine to hand the message to
-      expectStatus(await s.call("chat.post", admin, { idempotencyKey: "golden-7-hello", threadId: thread!, body: "hello", mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
-    }, ["she starts a chat with the agent", "her Claude account is a Mine ai_subscription item"]);
-    await trail.step("the agent's streamed reply lands in the thread", async () => {
-      const end = Date.now() + 40_000;
-      for (;;) {
-        await s.d.hooks?.pump?.();   // the bridge consumer runs on the hook interval; force a pass the way the daemon's own timer does
-        const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: thread! }), 200, "chat.messages.list").messages as { author?: { kind?: string }; body?: string }[];
-        if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."))) return;
-        if (Date.now() > end) {
-          // what the host logged while this flow ran: a consumer that failed, a bridge that skipped, an engine that could not open a session
-          s.d.sink.flush();
-          const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all().map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
-          const consumers = (s.d.hooks?.consumers ?? []).map((c) => c.name).filter((n) => /engine|chat/.test(n));
-          const cursors = s.d.db?.all("SELECT name, seq FROM host_hook_cursor WHERE name LIKE 'engine%' OR name LIKE 'chat%'");
-          const head = (await s.events()).slice(-6).map((e) => `${e.type}`);
-          const rows = (sql: string): unknown => { try { return s.d.db?.all(sql); } catch (e) { return String(e); } };
-          const engineMsgs = rows("SELECT id, thread_id FROM engine_messages LIMIT 5");
-          const queue = rows("SELECT * FROM engine_thread_queue LIMIT 5");
-          const leases = rows("SELECT * FROM engine_thread_lease LIMIT 5");
-          const unblock = rows("SELECT * FROM engine_unblock LIMIT 5");
-          const agentState = rows("SELECT * FROM engine_agent_state LIMIT 5");
-          const wired = s.d.seams?.wired?.filter((w) => /ngine|ridge/.test(w));
-          const diag = JSON.stringify({ queue, leases, unblock, agentState, consumers, cursors, lastEvents: head, engineMsgs, wired, missing: s.d.seams?.missing?.filter((m) => /engine|chat/.test(String(m.module))) });
-          const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
-          throw new Error(`no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}; diag ${diag}`);
+    const folder = await trail.step(
+      "a Mine folder holds her account",
+      async () =>
+        expectStatus(
+          await s.call("vault.folders.create", admin, {
+            idempotencyKey: "golden-7-folder",
+            name: "Accounts",
+            scope: "mine",
+          }),
+          200,
+          "vault.folders.create",
+        ).folder.id as string,
+      ["her client unlocks her person key on this node"],
+    );
+    await trail.step(
+      "her Claude account is a Mine ai_subscription item, signed in and allowed for the Space",
+      async () => {
+        // the sign-in is started first (it stamps the time the item must be newer than), her client saves the token as the Mine item, and Done links it as her provider (providers.subscription_complete)
+        const flow = expectStatus(
+          await s.call("providers.subscription_start", admin, {
+            idempotencyKey: "golden-7-flow",
+            providerKey: "claude-code",
+          }),
+          200,
+          "providers.subscription_start",
+        ).flowId as string;
+        expectStatus(
+          await s.call("vault.item.put", admin, {
+            idempotencyKey: "golden-7-item",
+            folderId: folder!,
+            name: "Olivia_Claude",
+            kind: "ai_subscription",
+            fields: [{ key: "setup_token", value: TOKEN, secret: true }],
+          }),
+          200,
+          "vault.item.put",
+        );
+        const provider = expectStatus(
+          await s.call("providers.subscription_complete", admin, { flowId: flow }),
+          200,
+          "providers.subscription_complete",
+        ).provider as { id: string };
+        // a private chat with no desktop device online runs on the Space (spec 6.3), and the Space may use a Mine subscription only when she says so (spec 6.4)
+        expectStatus(
+          await s.call("providers.set_space_use", admin, {
+            idempotencyKey: "golden-7-spaceuse",
+            providerId: provider.id,
+            allow: true,
+          }),
+          200,
+          "providers.set_space_use",
+        );
+      },
+      ["a Mine folder holds her account"],
+    );
+    const agent = await trail.step(
+      "an agent exists",
+      async () =>
+        expectStatus(
+          await s.call("agents.create", admin, {
+            idempotencyKey: "golden-7-agent",
+            name: "Mailer",
+            role: "Writes the weekly note",
+          }),
+          200,
+          "agents.create",
+        ).agent.agentId as string,
+    );
+    const thread = await trail.step(
+      "she starts a chat with the agent",
+      async () =>
+        expectStatus(
+          await s.call("chat.start", admin, { idempotencyKey: "golden-7-chat", kind: "chat", agentIds: [agent!] }),
+          200,
+          "chat.start",
+        ).thread.threadId as string,
+      ["an agent exists"],
+    );
+    await trail.step(
+      "she says hello",
+      async () => {
+        expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status"); // the first engine call builds and binds the runtime, so the bridge has an engine to hand the message to
+        expectStatus(
+          await s.call("chat.post", admin, {
+            idempotencyKey: "golden-7-hello",
+            threadId: thread!,
+            body: "hello",
+            mentions: [{ kind: "agent", id: agent! }],
+          }),
+          200,
+          "chat.post",
+        );
+      },
+      ["she starts a chat with the agent", "her Claude account is a Mine ai_subscription item"],
+    );
+    await trail.step(
+      "the agent's streamed reply lands in the thread",
+      async () => {
+        const end = Date.now() + 40_000;
+        for (;;) {
+          await s.d.hooks?.pump?.(); // the bridge consumer runs on the hook interval; force a pass the way the daemon's own timer does
+          const msgs = expectStatus(
+            await s.call("chat.messages.list", admin, { threadId: thread! }),
+            200,
+            "chat.messages.list",
+          ).messages as { author?: { kind?: string }; body?: string }[];
+          if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine.")))
+            return;
+          if (Date.now() > end) {
+            // what the host logged while this flow ran: a consumer that failed, a bridge that skipped, an engine that could not open a session
+            s.d.sink.flush();
+            const logs = new DatabaseSync(s.d.paths.logs, { readOnly: true })
+              .prepare(
+                "SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30",
+              )
+              .all()
+              .map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`);
+            const consumers = (s.d.hooks?.consumers ?? []).map((c) => c.name).filter((n) => /engine|chat/.test(n));
+            const cursors = s.d.db?.all(
+              "SELECT name, seq FROM host_hook_cursor WHERE name LIKE 'engine%' OR name LIKE 'chat%'",
+            );
+            const head = (await s.events()).slice(-6).map((e) => `${e.type}`);
+            const rows = (sql: string): unknown => {
+              try {
+                return s.d.db?.all(sql);
+              } catch (e) {
+                return String(e);
+              }
+            };
+            const engineMsgs = rows("SELECT id, thread_id FROM engine_messages LIMIT 5");
+            const queue = rows("SELECT * FROM engine_thread_queue LIMIT 5");
+            const leases = rows("SELECT * FROM engine_thread_lease LIMIT 5");
+            const unblock = rows("SELECT * FROM engine_unblock LIMIT 5");
+            const agentState = rows("SELECT * FROM engine_agent_state LIMIT 5");
+            const wired = s.d.seams?.wired?.filter((w) => /ngine|ridge/.test(w));
+            const diag = JSON.stringify({
+              queue,
+              leases,
+              unblock,
+              agentState,
+              consumers,
+              cursors,
+              lastEvents: head,
+              engineMsgs,
+              wired,
+              missing: s.d.seams?.missing?.filter((m) => /engine|chat/.test(String(m.module))),
+            });
+            const turns = await s.call("engine.turns.list", admin, { threadId: thread! });
+            throw new Error(
+              `no reply from the agent after 40 s: ${short(msgs)}; turns ${short(turns.body?.data ?? turns.body)}; host log ${JSON.stringify(logs)}; diag ${diag}`,
+            );
+          }
+          await new Promise((r) => setTimeout(r, 100));
         }
-        await new Promise((r) => setTimeout(r, 100));
-      }
-    }, ["she says hello"]);
-    await trail.step("a turn row holds the usage", async () => {
-      const turns = expectStatus(await s.call("engine.turns.list", admin, { threadId: thread! }), 200, "engine.turns.list").turns as { state: string; tokensIn: number; tokensOut: number }[];
-      assert.ok(turns.some((t) => t.state === "completed" && t.tokensIn > 0 && t.tokensOut > 0), `turns ${short(turns)}`);
-    }, ["the agent's streamed reply lands in the thread"]);
+      },
+      ["she says hello"],
+    );
+    await trail.step(
+      "a turn row holds the usage",
+      async () => {
+        const turns = expectStatus(
+          await s.call("engine.turns.list", admin, { threadId: thread! }),
+          200,
+          "engine.turns.list",
+        ).turns as { state: string; tokensIn: number; tokensOut: number }[];
+        assert.ok(
+          turns.some((t) => t.state === "completed" && t.tokensIn > 0 && t.tokensOut > 0),
+          `turns ${short(turns)}`,
+        );
+      },
+      ["the agent's streamed reply lands in the thread"],
+    );
     // The same for her own private assistant: every person has one, made when their account came to exist, before any AI account. It has to hold what an agent holds to read her key and to speak.
-    const assistant = await trail.step("she has a private assistant", async () => {
-      const me = expectStatus(await s.call("identity.whoami", admin, {}), 200, "identity.whoami").principal.id as string;
-      const end = Date.now() + 20_000;
-      for (;;) {
-        await s.d.hooks?.pump?.();
-        const l = expectStatus(await s.call("agents.list", admin, { section: "personal", limit: 100 }), 200, "agents.list").agents as { agentId: string; ownerId: string; role?: string }[];
-        const mine = l.find((a) => a.ownerId === me && a.role === "assistant");
-        if (mine) return mine.agentId;
-        if (Date.now() > end) throw new Error(`no private assistant for ${me} after 20 s: ${short(l)}`);
-        await new Promise((r) => setTimeout(r, 200));
-      }
-    }, ["the agent's streamed reply lands in the thread"]);
-    const aThread = await trail.step("she starts a chat with her assistant", async () =>
-      expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7-assistant-chat", kind: "chat", agentIds: [assistant!] }), 200, "chat.start (assistant)").thread.threadId as string,
-    ["she has a private assistant"]);
-    await trail.step("her assistant's streamed reply lands in the thread", async () => {
-      expectStatus(await s.call("chat.post", admin, { idempotencyKey: "golden-7-assistant-hello", threadId: aThread!, body: "hello", mentions: [{ kind: "agent", id: assistant! }] }), 200, "chat.post (assistant)");
-      const end = Date.now() + 40_000;
-      for (;;) {
-        await s.d.hooks?.pump?.();
-        const msgs = expectStatus(await s.call("chat.messages.list", admin, { threadId: aThread! }), 200, "chat.messages.list (assistant)").messages as { author?: { kind?: string }; body?: string }[];
-        if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine."))) return;
-        if (Date.now() > end) throw new Error(`no reply from the assistant after 40 s: ${short(msgs)}`);
-        await new Promise((r) => setTimeout(r, 100));
-      }
-    }, ["she starts a chat with her assistant"]);
+    const assistant = await trail.step(
+      "she has a private assistant",
+      async () => {
+        const me = expectStatus(await s.call("identity.whoami", admin, {}), 200, "identity.whoami").principal
+          .id as string;
+        const end = Date.now() + 20_000;
+        for (;;) {
+          await s.d.hooks?.pump?.();
+          const l = expectStatus(
+            await s.call("agents.list", admin, { section: "personal", limit: 100 }),
+            200,
+            "agents.list",
+          ).agents as { agentId: string; ownerId: string; role?: string }[];
+          const mine = l.find((a) => a.ownerId === me && a.role === "assistant");
+          if (mine) return mine.agentId;
+          if (Date.now() > end) throw new Error(`no private assistant for ${me} after 20 s: ${short(l)}`);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      },
+      ["the agent's streamed reply lands in the thread"],
+    );
+    const aThread = await trail.step(
+      "she starts a chat with her assistant",
+      async () =>
+        expectStatus(
+          await s.call("chat.start", admin, {
+            idempotencyKey: "golden-7-assistant-chat",
+            kind: "chat",
+            agentIds: [assistant!],
+          }),
+          200,
+          "chat.start (assistant)",
+        ).thread.threadId as string,
+      ["she has a private assistant"],
+    );
+    await trail.step(
+      "her assistant's streamed reply lands in the thread",
+      async () => {
+        expectStatus(
+          await s.call("chat.post", admin, {
+            idempotencyKey: "golden-7-assistant-hello",
+            threadId: aThread!,
+            body: "hello",
+            mentions: [{ kind: "agent", id: assistant! }],
+          }),
+          200,
+          "chat.post (assistant)",
+        );
+        const end = Date.now() + 40_000;
+        for (;;) {
+          await s.d.hooks?.pump?.();
+          const msgs = expectStatus(
+            await s.call("chat.messages.list", admin, { threadId: aThread! }),
+            200,
+            "chat.messages.list (assistant)",
+          ).messages as { author?: { kind?: string }; body?: string }[];
+          if (msgs.some((m) => m.author?.kind === "agent" && (m.body ?? "").includes("Hello from the fake engine.")))
+            return;
+          if (Date.now() > end) throw new Error(`no reply from the assistant after 40 s: ${short(msgs)}`);
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      },
+      ["she starts a chat with her assistant"],
+    );
     return { events: await s.events(), trail };
-  } finally { await s.stop(); }
+  } finally {
+    await s.stop();
+  }
 }

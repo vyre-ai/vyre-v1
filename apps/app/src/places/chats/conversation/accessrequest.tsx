@@ -9,7 +9,13 @@ import { Glyph } from "./parts.tsx";
 import { Card, CardActions, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 type Data = Pick<ConversationData, "call" | "nameOf" | "changes">;
-interface Block { requestId: string; requester?: string; resourceTitle?: string; level?: string; note?: string }
+interface Block {
+  requestId: string;
+  requester?: string;
+  resourceTitle?: string;
+  level?: string;
+  note?: string;
+}
 
 export const isAccessRequest = (type: string): boolean => type === "access_request";
 
@@ -24,36 +30,86 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
   const [problem, setProblem] = useState("");
   const load = useCallback(async (): Promise<void> => {
     try {
-      const to = (await data.call("access.requests.list", { mine: false })) as { requests?: { id: string; state: "waiting" | "granted" | "declined" }[] };
-      const mine = (await data.call("access.requests.list", { mine: true })) as { requests?: { id: string; state: "waiting" | "granted" | "declined" }[] };
+      const to = (await data.call("access.requests.list", { mine: false })) as {
+        requests?: { id: string; state: "waiting" | "granted" | "declined" }[];
+      };
+      const mine = (await data.call("access.requests.list", { mine: true })) as {
+        requests?: { id: string; state: "waiting" | "granted" | "declined" }[];
+      };
       const row = [...(to.requests ?? []), ...(mine.requests ?? [])].find((r) => r.id === block.requestId);
       setCanDecide((to.requests ?? []).some((r) => r.id === block.requestId));
       setState(row?.state ?? "waiting");
-    } catch { setState("waiting"); }
+    } catch {
+      setState("waiting");
+    }
   }, [data, block.requestId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
   useFollow(data.changes, load, state === null || state === "waiting");
   if (state === null) return null;
   const who = block.requester ? data.nameOf(block.requester) : "Someone";
   const line = accessLine(who, block);
   if (state !== "waiting") {
     return (
-      <CardDone testID={`accessreq-done-${block.requestId}`} ok={state === "granted"} glyph={<Glyph name={state === "granted" ? "check" : "x"} size={13} color={state === "granted" ? "var(--ok)" : "var(--ink-3)"} />} text={`${state === "granted" ? "Approved" : "Declined"} · ${line}`} />
+      <CardDone
+        testID={`accessreq-done-${block.requestId}`}
+        ok={state === "granted"}
+        glyph={
+          <Glyph
+            name={state === "granted" ? "check" : "x"}
+            size={13}
+            color={state === "granted" ? "var(--ok)" : "var(--ink-3)"}
+          />
+        }
+        text={`${state === "granted" ? "Approved" : "Declined"} · ${line}`}
+      />
     );
   }
   const decide = async (cap: "access.requests.approve" | "access.requests.decline"): Promise<void> => {
-    setBusy(true); setProblem("");
-    try { await data.call(cap, cap === "access.requests.approve" ? { requestId: block.requestId, ...(block.level ? { level: block.level } : {}) } : { requestId: block.requestId }); await load(); }
-    catch (e) { setProblem((e as { message?: string }).message ?? "That did not go through. Try again."); void load(); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setProblem("");
+    try {
+      await data.call(
+        cap,
+        cap === "access.requests.approve"
+          ? { requestId: block.requestId, ...(block.level ? { level: block.level } : {}) }
+          : { requestId: block.requestId },
+      );
+      await load();
+    } catch (e) {
+      setProblem((e as { message?: string }).message ?? "That did not go through. Try again.");
+      void load();
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Card kind="decision" testID={`accessreq-${block.requestId}`} label={line}>
       <CardHead title={line} />
       {block.note ? <Text style={st.note}>{block.note}</Text> : null}
       {canDecide ? (
-        <CardActions busy={busy} secondary={[{ label: "Deny", onPress: () => void decide("access.requests.decline"), testID: `accessreq-decline-${block.requestId}` }]} primary={{ label: "Allow", onPress: () => void decide("access.requests.approve"), testID: `accessreq-approve-${block.requestId}` }} error={problem} />
-      ) : <Text testID={`accessreq-wait-${block.requestId}`} style={st.note}>Waiting on the people who can decide it.</Text>}
+        <CardActions
+          busy={busy}
+          secondary={[
+            {
+              label: "Deny",
+              onPress: () => void decide("access.requests.decline"),
+              testID: `accessreq-decline-${block.requestId}`,
+            },
+          ]}
+          primary={{
+            label: "Allow",
+            onPress: () => void decide("access.requests.approve"),
+            testID: `accessreq-approve-${block.requestId}`,
+          }}
+          error={problem}
+        />
+      ) : (
+        <Text testID={`accessreq-wait-${block.requestId}`} style={st.note}>
+          Waiting on the people who can decide it.
+        </Text>
+      )}
     </Card>
   );
 }

@@ -23,8 +23,18 @@ function writeSecret(target, text) {
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   const tmp = `${target}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
   const fd = fs.openSync(tmp, "wx", 0o600);
-  try { fs.writeSync(fd, text); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  try { fs.renameSync(tmp, target); } catch (err) { fs.rmSync(tmp, { force: true }); throw err; }
+  try {
+    fs.writeSync(fd, text);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    fs.renameSync(tmp, target);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
   fs.chmodSync(target, 0o600);
 }
 
@@ -38,7 +48,7 @@ export function load(dir, name) {
     cert = fs.readFileSync(file(dir, name, "crt"), "utf8");
     key = fs.readFileSync(file(dir, name, "key"), "utf8");
   } catch (err) {
-    if (/** @type {any} */ (err).code === "ENOENT") return null;
+    if (/** @type {any} */ err.code === "ENOENT") return null;
     throw err;
   }
   return { cert, key, expires: expiry(cert) };
@@ -59,7 +69,11 @@ export function save(dir, name, { cert, key }) {
 export function accountKey(dir, which) {
   if (which !== "production" && which !== "staging") throw new Error(`unknown ACME directory "${which}"`);
   const p = path.join(dir, `acme-${which}.key`);
-  try { return fs.readFileSync(p, "utf8"); } catch (err) { if (/** @type {any} */ (err).code !== "ENOENT") throw err; }
+  try {
+    return fs.readFileSync(p, "utf8");
+  } catch (err) {
+    if (/** @type {any} */ err.code !== "ENOENT") throw err;
+  }
   writeSecret(p, newKey());
   return fs.readFileSync(p, "utf8");
 }

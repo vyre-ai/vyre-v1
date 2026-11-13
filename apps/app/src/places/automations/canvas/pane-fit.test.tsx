@@ -19,7 +19,20 @@ function inspector(node: DefNode, embedded: boolean): string {
   const d: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
   return renderToStaticMarkup(
     <AutomationsDataProvider value={data}>
-      <Inspector def={d} node={node} trigger={null} triggerIndex={null} issues={check(d, "personal")} keys={keys} kind="personal" embedded={embedded} layout="desktop" onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} />
+      <Inspector
+        def={d}
+        node={node}
+        trigger={null}
+        triggerIndex={null}
+        issues={check(d, "personal")}
+        keys={keys}
+        kind="personal"
+        embedded={embedded}
+        layout="desktop"
+        onChange={() => undefined}
+        onClose={() => undefined}
+        onDelete={() => undefined}
+      />
     </AutomationsDataProvider>,
   ).replaceAll("<!-- -->", "");
 }
@@ -29,7 +42,11 @@ const NODE: DefNode = { id: "mail", key: "send_email", input: {} };
 test("embedded in the side pane the inspector fills the pane: no 300px width of its own", () => {
   const root = rootStyle(inspector(NODE, true));
   assert.notEqual(root, "", "the inspector root is rendered");
-  assert.doesNotMatch(root, /style="[^"]*width:\s*\d+px/, "a pixel width would clip the content when the pane is dragged narrower, and strand it when wider");
+  assert.doesNotMatch(
+    root,
+    /style="[^"]*width:\s*\d+px/,
+    "a pixel width would clip the content when the pane is dragged narrower, and strand it when wider",
+  );
   assert.match(root, /r-width-/, "it takes a width token (100%), not an inline pixel width");
   assert.match(root, /r-maxWidth-/, "max-width: 100%");
   assert.match(root, /r-minWidth-/, "min-width: 0 so its rows can shrink");
@@ -41,7 +58,15 @@ test("standing alone (not in a pane) the desktop column keeps its width but neve
   assert.match(root, /r-maxWidth-/, "max-width: 100%");
 });
 
-const base: EmailBuilderViewProps = { id: "em1", title: "Weekly digest", subject: "Your week", previewText: "Seven things", mode: "visual", blocks: [{ id: "t1", kind: "text", text: "Hi" }], diffs: [] } as never;
+const base: EmailBuilderViewProps = {
+  id: "em1",
+  title: "Weekly digest",
+  subject: "Your week",
+  previewText: "Seven things",
+  mode: "visual",
+  blocks: [{ id: "t1", kind: "text", text: "Hi" }],
+  diffs: [],
+} as never;
 
 test("the email editor lays out for the pane it sits in: it measures itself and stacks under the narrow width", () => {
   assert.ok(NARROW_WIDTH > 360, "a 360px pane is narrow");

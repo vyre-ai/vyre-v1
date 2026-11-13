@@ -21,7 +21,10 @@ export function withReleaseVersion(manifestText: string, release: string): strin
   const v = chromeVersion(release);
   const out: Record<string, unknown> = {};
   for (const [k, val] of Object.entries(manifest)) {
-    if (k === "version") { out["version"] = v.version; out["version_name"] = v.version_name; } else if (k !== "version_name") out[k] = val;
+    if (k === "version") {
+      out["version"] = v.version;
+      out["version_name"] = v.version_name;
+    } else if (k !== "version_name") out[k] = val;
   }
   return `${JSON.stringify(out, null, 2)}\n`;
 }

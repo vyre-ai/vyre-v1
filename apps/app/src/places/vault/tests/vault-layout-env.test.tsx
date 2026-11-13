@@ -2,17 +2,63 @@
 // update input, the masked .env block, and the list rules (dates, second line, handles, arrow steps). No renderer.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MASK, diffEnv, diffWords, filterTemplates, fieldsFor, formatEnv, guessSecret, mergeFields, normalizeKey, parseEnv, rowsToText, templateById, textToRows, understandPaste, updateFromText } from "../itemenv/env.ts";
-import { accessLine, agoLabel, countItems, handleFor, secondLine, stepIndex, usedLabel, visibleItems } from "../layout/model.ts";
+import {
+  MASK,
+  diffEnv,
+  diffWords,
+  filterTemplates,
+  fieldsFor,
+  formatEnv,
+  guessSecret,
+  mergeFields,
+  normalizeKey,
+  parseEnv,
+  rowsToText,
+  templateById,
+  textToRows,
+  understandPaste,
+  updateFromText,
+} from "../itemenv/env.ts";
+import {
+  accessLine,
+  agoLabel,
+  countItems,
+  handleFor,
+  secondLine,
+  stepIndex,
+  usedLabel,
+  visibleItems,
+} from "../layout/model.ts";
 import type { Item } from "../layout/model.ts";
 
 const item = (o: Partial<Item> & { id: string; name: string }): Item => ({
-  kind: "api_key", folderId: "fld_a", owner: "usr_a", scope: "shared", fieldKeys: [], handle: `#S_${o.name}`, spaceOnly: false, injectIntoDeployments: false, yourLevel: "manage", label: 0, createdAt: 0, updatedAt: 0, ...o,
+  kind: "api_key",
+  folderId: "fld_a",
+  owner: "usr_a",
+  scope: "shared",
+  fieldKeys: [],
+  handle: `#S_${o.name}`,
+  spaceOnly: false,
+  injectIntoDeployments: false,
+  yourLevel: "manage",
+  label: 0,
+  createdAt: 0,
+  updatedAt: 0,
+  ...o,
 });
 
 test("paste parses KEY=value: quotes, export, comments, a trailing comment, bad lines skipped", () => {
-  const { fields, skipped } = parseEnv(`# Northwind\nexport GHL_PIT="pit-abc 123"\nGHL_LOCATION_ID=nwLoc7Kq  # main site\n\nnot a line\n9BAD=1\nGHL_LOCATION_ID=nwLoc8`);
-  assert.deepEqual(fields.map((f) => [f.key, f.value]), [["GHL_PIT", "pit-abc 123"], ["GHL_LOCATION_ID", "nwLoc8"]], "a later line wins");
+  const { fields, skipped } = parseEnv(
+    `# Northwind\nexport GHL_PIT="pit-abc 123"\nGHL_LOCATION_ID=nwLoc7Kq  # main site\n\nnot a line\n9BAD=1\nGHL_LOCATION_ID=nwLoc8`,
+  );
+  assert.deepEqual(
+    fields.map((f) => [f.key, f.value]),
+    [
+      ["GHL_PIT", "pit-abc 123"],
+      ["GHL_LOCATION_ID", "nwLoc8"],
+    ],
+    "a later line wins",
+  );
   assert.equal(skipped, 2);
   assert.equal(fields[0]!.secret, true, "a PIT is secret");
   assert.equal(fields[1]!.secret, false, "an id is plain");
@@ -23,7 +69,10 @@ test("paste understanding: a .env becomes a field per line named by its prefix",
   assert.equal(u.shape, "env");
   assert.equal(u.itemKind, "env");
   assert.equal(u.name, "Stripe");
-  assert.deepEqual(u.fields.map((f) => f.key), ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+  assert.deepEqual(
+    u.fields.map((f) => f.key),
+    ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+  );
   assert.match(u.note, /2 keys/);
 });
 
@@ -49,30 +98,61 @@ test("paste understanding: one bare key is matched to its app by shape and named
 });
 
 test("paste understanding: JSON becomes keys from its top level, a link becomes URL, username and password", () => {
-  const j = understandPaste(JSON.stringify({ type: "service_account", project_id: "northwind-prod", private_key: "-----BEGIN-----", client_email: "bot@x.example", nested: { a: 1 } }));
+  const j = understandPaste(
+    JSON.stringify({
+      type: "service_account",
+      project_id: "northwind-prod",
+      private_key: "-----BEGIN-----",
+      client_email: "bot@x.example",
+      nested: { a: 1 },
+    }),
+  );
   assert.equal(j.shape, "json");
-  assert.deepEqual(j.fields.map((f) => [f.key, f.secret]), [["TYPE", false], ["PROJECT_ID", false], ["PRIVATE_KEY", true], ["CLIENT_EMAIL", false]]);
+  assert.deepEqual(
+    j.fields.map((f) => [f.key, f.secret]),
+    [
+      ["TYPE", false],
+      ["PROJECT_ID", false],
+      ["PRIVATE_KEY", true],
+      ["CLIENT_EMAIL", false],
+    ],
+  );
   assert.equal(j.name, "Northwind-prod service account");
   const l = understandPaste("https://ops:Pw%21x@accounts.google.com/signin");
   assert.equal(l.shape, "url");
   assert.equal(l.itemKind, "login");
   assert.equal(l.name, "Accounts");
-  assert.deepEqual(l.fields.map((f) => f.key), ["URL", "USERNAME", "PASSWORD"]);
+  assert.deepEqual(
+    l.fields.map((f) => f.key),
+    ["URL", "USERNAME", "PASSWORD"],
+  );
   assert.equal(l.fields[0]!.value, "https://accounts.google.com/signin", "the password is not left in the URL field");
   assert.equal(l.fields[1]!.value, "ops");
   assert.equal(l.fields[2]!.value, "Pw!x");
   const db = understandPaste("postgres://app:pw@db.example.com:5432/prod");
-  assert.deepEqual(db.fields.map((f) => [f.key, f.secret]), [["DATABASE_URL", true]]);
+  assert.deepEqual(
+    db.fields.map((f) => [f.key, f.secret]),
+    [["DATABASE_URL", true]],
+  );
   assert.equal(understandPaste("   ").shape, "none");
   assert.equal(understandPaste("two words and more").shape, "text");
 });
 
 test("the Add form: templates, the reel filter keeps Custom first, a paste fills a template's fields", () => {
   assert.equal(filterTemplates("")[0]!.id, "custom");
-  assert.deepEqual(filterTemplates("str").map((t) => t.id), ["custom", "stripe"]);
+  assert.deepEqual(
+    filterTemplates("str").map((t) => t.id),
+    ["custom", "stripe"],
+  );
   const stripe = templateById("stripe")!;
   const form = fieldsFor(stripe);
-  assert.deepEqual(form.map((f) => [f.key, f.value]), [["STRIPE_SECRET_KEY", ""], ["STRIPE_WEBHOOK_SECRET", ""]]);
+  assert.deepEqual(
+    form.map((f) => [f.key, f.value]),
+    [
+      ["STRIPE_SECRET_KEY", ""],
+      ["STRIPE_WEBHOOK_SECRET", ""],
+    ],
+  );
   const merged = mergeFields(form, understandPaste("sk_live_abc123").fields);
   assert.equal(merged.length, 2, "the pasted key fills its row, no duplicate");
   assert.equal(merged.find((f) => f.key === "STRIPE_SECRET_KEY")!.value, "sk_live_abc123");
@@ -98,12 +178,30 @@ test("Edit: the diff names what will be added, changed and removed; a masked val
   const d = diffEnv(keys, text);
   assert.deepEqual(d, { added: ["GHL_PIPELINE_ID"], changed: ["GHL_PIT"], removed: ["OLD_KEY"] });
   assert.equal(diffWords(d), "Add GHL_PIPELINE_ID · Change GHL_PIT · Remove OLD_KEY");
-  const up = updateFromText([{ key: "GHL_PIT", secret: true }, { key: "GHL_LOCATION_ID", secret: false }, { key: "OLD_KEY", secret: true }], text);
+  const up = updateFromText(
+    [
+      { key: "GHL_PIT", secret: true },
+      { key: "GHL_LOCATION_ID", secret: false },
+      { key: "OLD_KEY", secret: true },
+    ],
+    text,
+  );
   assert.deepEqual(up.fieldsRemove, ["OLD_KEY"]);
-  assert.deepEqual(up.fieldsSet.map((f) => [f.key, f.value, f.secret]), [["GHL_PIPELINE_ID", "pl_9f2c", false], ["GHL_PIT", "pit-new", true]], "an existing key keeps its secret flag; a new id is plain");
+  assert.deepEqual(
+    up.fieldsSet.map((f) => [f.key, f.value, f.secret]),
+    [
+      ["GHL_PIPELINE_ID", "pl_9f2c", false],
+      ["GHL_PIT", "pit-new", true],
+    ],
+    "an existing key keeps its secret flag; a new id is plain",
+  );
   const rows = textToRows(text, [{ key: "GHL_PIT", value: "", secret: true }]);
   assert.equal(rows[0]!.secret, true);
-  assert.equal(updateFromText([], "NEW_KEY=").fieldsSet[0]!.value, "", "a new field with no value is saved empty, never the mask");
+  assert.equal(
+    updateFromText([], "NEW_KEY=").fieldsSet[0]!.value,
+    "",
+    "a new field with no value is saved empty, never the mask",
+  );
 });
 
 test("list rules: used labels, history labels, the second line, handles and the access sentence", () => {
@@ -117,12 +215,32 @@ test("list rules: used labels, history labels, the second line, handles and the 
   assert.equal(usedLabel(now - 40 * 86_400_000, c), "Used Sep 14");
   assert.equal(usedLabel(undefined, c), "Never used");
   assert.equal(agoLabel(now - 2 * 3_600_000, c), "2 h ago");
-  assert.equal(secondLine(item({ id: "a", name: "GHL", fieldKeys: ["GHL_PIT", "GHL_LOCATION_ID"] })), "GHL_PIT · GHL_LOCATION_ID");
-  assert.equal(secondLine(item({ id: "b", name: "Forms", kind: "login", fieldKeys: ["USERNAME", "PASSWORD"] })), "Login · USERNAME · PASSWORD");
+  assert.equal(
+    secondLine(item({ id: "a", name: "GHL", fieldKeys: ["GHL_PIT", "GHL_LOCATION_ID"] })),
+    "GHL_PIT · GHL_LOCATION_ID",
+  );
+  assert.equal(
+    secondLine(item({ id: "b", name: "Forms", kind: "login", fieldKeys: ["USERNAME", "PASSWORD"] })),
+    "Login · USERNAME · PASSWORD",
+  );
   assert.equal(handleFor("Northwind", "Google service account"), "#Northwind_Google_service_account");
   assert.equal(handleFor("Northwind", "  "), "");
-  assert.equal(accessLine(item({ id: "c", name: "x", scope: "mine", yourLevel: "manage" }), undefined), "Only you can use it · Mine");
-  assert.equal(accessLine(item({ id: "d", name: "x", yourLevel: "edit", spaceOnly: true }), { id: "fld_a", name: "Marketing", scope: "shared", owner: "u", itemCount: 1, whoCanExport: [], yourLevel: "manage" }), "You can change it · Shared › Marketing · Space only");
+  assert.equal(
+    accessLine(item({ id: "c", name: "x", scope: "mine", yourLevel: "manage" }), undefined),
+    "Only you can use it · Mine",
+  );
+  assert.equal(
+    accessLine(item({ id: "d", name: "x", yourLevel: "edit", spaceOnly: true }), {
+      id: "fld_a",
+      name: "Marketing",
+      scope: "shared",
+      owner: "u",
+      itemCount: 1,
+      whoCanExport: [],
+      yourLevel: "manage",
+    }),
+    "You can change it · Shared › Marketing · Space only",
+  );
 });
 
 test("sections, search and the arrow keys", () => {
@@ -133,10 +251,25 @@ test("sections, search and the arrow keys", () => {
     item({ id: "4", name: "Claude", kind: "ai_subscription", scope: "mine" }),
   ];
   const c = countItems(items, new Set(), { total: 4, weak: 0, reused: 0, stale: 1, rotationDue: 1, items: [] }, 2);
-  assert.deepEqual([c.all, c.providers, c.keys, c.logins, c.cards, c.mine, c.health, c.requested], [4, 1, 1, 1, 1, 2, 2, 2]);
-  assert.deepEqual(visibleItems(items, { kind: "all" }, "", new Set(), new Set()).map((i) => i.name), ["Forms", "Stripe", "Visa", "Claude"], "most recently used first, never used last");
-  assert.deepEqual(visibleItems(items, { kind: "all" }, "secret", new Set(), new Set()).map((i) => i.name), ["Stripe"], "search reads names and field names");
-  assert.deepEqual(visibleItems(items, { kind: "all" }, "hunter2", new Set(), new Set()), [], "search never reads values");
+  assert.deepEqual(
+    [c.all, c.providers, c.keys, c.logins, c.cards, c.mine, c.health, c.requested],
+    [4, 1, 1, 1, 1, 2, 2, 2],
+  );
+  assert.deepEqual(
+    visibleItems(items, { kind: "all" }, "", new Set(), new Set()).map((i) => i.name),
+    ["Forms", "Stripe", "Visa", "Claude"],
+    "most recently used first, never used last",
+  );
+  assert.deepEqual(
+    visibleItems(items, { kind: "all" }, "secret", new Set(), new Set()).map((i) => i.name),
+    ["Stripe"],
+    "search reads names and field names",
+  );
+  assert.deepEqual(
+    visibleItems(items, { kind: "all" }, "hunter2", new Set(), new Set()),
+    [],
+    "search never reads values",
+  );
   assert.equal(stepIndex(-1, 3, 1), 0);
   assert.equal(stepIndex(-1, 3, -1), 2);
   assert.equal(stepIndex(2, 3, 1), 2, "stays inside the list");
@@ -148,7 +281,10 @@ test("an account whose saved item cannot be opened reads 'Can't be opened, sign 
   const it = item({ id: "p", name: "Codex, irfad47@icloud.com", kind: "ai_subscription" });
   const prov = { via: "Sign in with Codex", scope: "mine", unopenable: true, state: "needs_sign_in" } as never;
   assert.equal(secondLine(it, prov), "Can't be opened, sign in again");
-  assert.equal(secondLine(it, { via: "Sign in with Codex", scope: "mine", state: "needs_sign_in" } as never), "Sign in with Codex · Mine");
+  assert.equal(
+    secondLine(it, { via: "Sign in with Codex", scope: "mine", state: "needs_sign_in" } as never),
+    "Sign in with Codex · Mine",
+  );
   assert.equal(stateWords("needs_sign_in", true), "Can't be opened, sign in again");
   assert.equal(stateWords("needs_sign_in"), "Needs you to sign in again");
 });

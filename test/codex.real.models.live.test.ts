@@ -17,7 +17,8 @@ test("(d) every model the account lists answers a turn", opts, async () => {
     const s = await open(m.id);
     const ev = await collect(s.send(say("Reply with the single word pong.")));
     const e = errors(ev);
-    if (e.length > 0 || !/pong/i.test(answer(ev))) bad.push(`${m.id}: ${e.map((x) => `${x.code} ${x.message}`).join("; ") || answer(ev).slice(0, 80)}`);
+    if (e.length > 0 || !/pong/i.test(answer(ev)))
+      bad.push(`${m.id}: ${e.map((x) => `${x.code} ${x.message}`).join("; ") || answer(ev).slice(0, 80)}`);
     await s.close();
   }
   assert.deepEqual(bad, [], "models that failed");

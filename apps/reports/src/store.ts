@@ -12,13 +12,16 @@ export interface ObjectStore {
 
 const KEY = /^[a-z0-9][a-z0-9_./-]{0,200}$/;
 const safeKey = (key: string): string => {
-  if (!KEY.test(key) || key.includes("..") || key.includes("//") || key.endsWith("/")) throw new Error("bad object key");
+  if (!KEY.test(key) || key.includes("..") || key.includes("//") || key.endsWith("/"))
+    throw new Error("bad object key");
   return key;
 };
 
 export class MemoryObjectStore implements ObjectStore {
   readonly objects = new Map<string, { bytes: Uint8Array; contentType: string }>();
-  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> { this.objects.set(safeKey(key), { bytes: bytes.slice(), contentType }); }
+  async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+    this.objects.set(safeKey(key), { bytes: bytes.slice(), contentType });
+  }
   async get(key: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
     const o = this.objects.get(safeKey(key));
     return o ? { bytes: o.bytes.slice(), contentType: o.contentType } : null;
@@ -28,7 +31,9 @@ export class MemoryObjectStore implements ObjectStore {
 /** Objects as files under a directory; the content type rides in a sidecar file. */
 export class DirObjectStore implements ObjectStore {
   private readonly dir: string;
-  constructor(dir: string) { this.dir = dir; }
+  constructor(dir: string) {
+    this.dir = dir;
+  }
   async put(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
     const path = join(this.dir, safeKey(key));
     await mkdir(dirname(path), { recursive: true });
@@ -50,7 +55,12 @@ export class DirObjectStore implements ObjectStore {
 
 export type Status = "stored" | "sent" | "resolved";
 
-export interface SpaceRow { spaceId: string; publicKey: string; webhook: string; registeredAt: number }
+export interface SpaceRow {
+  spaceId: string;
+  publicKey: string;
+  webhook: string;
+  registeredAt: number;
+}
 
 export interface ReportRow {
   reportId: string;
@@ -83,15 +93,33 @@ export interface ReportDb {
   firstSight(sig: string, until: number, now: number): Promise<boolean>;
 }
 
-interface Doc { spaces: Record<string, SpaceRow>; reports: Record<string, ReportRow>; seen: Record<string, number> }
+interface Doc {
+  spaces: Record<string, SpaceRow>;
+  reports: Record<string, ReportRow>;
+  seen: Record<string, number>;
+}
 
 export class MemoryDb implements ReportDb {
   protected doc: Doc = { spaces: {}, reports: {}, seen: {} };
-  protected async save(): Promise<void> { /* memory only */ }
-  async getSpace(spaceId: string): Promise<SpaceRow | null> { const r = this.doc.spaces[spaceId]; return r ? { ...r } : null; }
-  async putSpace(row: SpaceRow): Promise<void> { this.doc.spaces[row.spaceId] = { ...row }; await this.save(); }
-  async getReport(reportId: string): Promise<ReportRow | null> { const r = this.doc.reports[reportId]; return r ? { ...r, traceIds: [...r.traceIds] } : null; }
-  async putReport(row: ReportRow): Promise<void> { this.doc.reports[row.reportId] = { ...row, traceIds: [...row.traceIds] }; await this.save(); }
+  protected async save(): Promise<void> {
+    /* memory only */
+  }
+  async getSpace(spaceId: string): Promise<SpaceRow | null> {
+    const r = this.doc.spaces[spaceId];
+    return r ? { ...r } : null;
+  }
+  async putSpace(row: SpaceRow): Promise<void> {
+    this.doc.spaces[row.spaceId] = { ...row };
+    await this.save();
+  }
+  async getReport(reportId: string): Promise<ReportRow | null> {
+    const r = this.doc.reports[reportId];
+    return r ? { ...r, traceIds: [...r.traceIds] } : null;
+  }
+  async putReport(row: ReportRow): Promise<void> {
+    this.doc.reports[row.reportId] = { ...row, traceIds: [...row.traceIds] };
+    await this.save();
+  }
   async byIssue(issueNumber: number): Promise<ReportRow | null> {
     const r = Object.values(this.doc.reports).find((x) => x.issueNumber === issueNumber);
     return r ? { ...r, traceIds: [...r.traceIds] } : null;
@@ -113,13 +141,18 @@ export class MemoryDb implements ReportDb {
 /** The same rows in one JSON file, written whole through a temp file and a rename so a crash leaves the old file or the new one. */
 export class FileDb extends MemoryDb {
   private readonly path: string;
-  private constructor(path: string) { super(); this.path = path; }
+  private constructor(path: string) {
+    super();
+    this.path = path;
+  }
   static async open(path: string): Promise<FileDb> {
     const db = new FileDb(path);
     try {
       const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<Doc>;
       db.doc = { spaces: parsed.spaces ?? {}, reports: parsed.reports ?? {}, seen: parsed.seen ?? {} };
-    } catch { /* a new file */ }
+    } catch {
+      /* a new file */
+    }
     return db;
   }
   protected override async save(): Promise<void> {

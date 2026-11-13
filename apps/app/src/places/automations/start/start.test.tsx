@@ -7,7 +7,13 @@ import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import type { AutomationsData } from "../canvas/data.tsx";
 import { createSampleAutomations, harbor, northwind } from "../sidebar/sample.ts";
-import { AutomationsStart, AutomationsStartView, START_CHOICES, START_STYLE, popularTemplates } from "./AutomationsStart.tsx";
+import {
+  AutomationsStart,
+  AutomationsStartView,
+  START_CHOICES,
+  START_STYLE,
+  popularTemplates,
+} from "./AutomationsStart.tsx";
 import type { StartChoice } from "./AutomationsStart.tsx";
 import type { TemplateItem } from "../operations/read.ts";
 import { ShellRuntimeProvider } from "../../../shell/providers/runtime.tsx";
@@ -18,11 +24,31 @@ import { askPaneOf, resetAskPanes } from "../../../shell/ask/pane.ts";
 
 installDom();
 
-const CATALOG = ["lead-follow-up", "invoice-reminders", "weekly-digest", "meeting-notes", "new-client-welcome", "review-request", "stale-lead-nudge", "backup-check"].map((key, i) => ({
-  key, title: `Template ${i + 1}`, summary: `Does thing ${i + 1}.`, starts: "Every day", setUp: [], steps: [{ id: "a", key: i % 2 ? "send_email" : "records.find", title: "First" }],
+const CATALOG = [
+  "lead-follow-up",
+  "invoice-reminders",
+  "weekly-digest",
+  "meeting-notes",
+  "new-client-welcome",
+  "review-request",
+  "stale-lead-nudge",
+  "backup-check",
+].map((key, i) => ({
+  key,
+  title: `Template ${i + 1}`,
+  summary: `Does thing ${i + 1}.`,
+  starts: "Every day",
+  setUp: [],
+  steps: [{ id: "a", key: i % 2 ? "send_email" : "records.find", title: "First" }],
 }));
-const flat = (style: unknown): Record<string, unknown> => (Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style && typeof style === "object" ? (style as Record<string, unknown>) : {});
-const tileKeys = (root: Node): string[] => CATALOG.map((t) => t.key).filter((k) => find(root, `start-template-${k}`) !== null);
+const flat = (style: unknown): Record<string, unknown> =>
+  Array.isArray(style)
+    ? Object.assign({}, ...style.map(flat))
+    : style && typeof style === "object"
+      ? (style as Record<string, unknown>)
+      : {};
+const tileKeys = (root: Node): string[] =>
+  CATALOG.map((t) => t.key).filter((k) => find(root, `start-template-${k}`) !== null);
 
 function wired(space = { ...harbor, specs: [], groups: [] }) {
   const s = createSampleAutomations(space);
@@ -37,26 +63,56 @@ function wired(space = { ...harbor, specs: [], groups: [] }) {
       if (cap === "automations.templates.use") return { automation: { id: "aut_from_template" } };
       return s.data.call(cap, input);
     },
-    nav: { ...s.data.nav, openAutomation: (id) => { opened.push(id); } },
+    nav: {
+      ...s.data.nav,
+      openAutomation: (id) => {
+        opened.push(id);
+      },
+    },
   };
   return { data, calls, opened };
 }
 
 test("with no automations the page is a centred 'Automate something' with three choices and the first six catalogue templates", async () => {
   const { data } = wired();
-  const root = await mount(createRoot, <AutomationsDataProvider value={data}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   assert.equal(textOf(find(root, "automations-start-title")), "Automate something");
   for (const c of START_CHOICES) assert.ok(find(root, `start-${c.key}`), c.title);
-  assert.deepEqual(START_CHOICES.map((c) => c.title), ["Start from a template", "Blank automation", "Ask Vyre to build it"]);
-  assert.deepEqual(tileKeys(root), CATALOG.slice(0, 6).map((t) => t.key), "six tiles, in the catalogue's order");
-  assert.ok(textOf(find(root, "start-template-lead-follow-up")).includes("Does thing 1."), "a tile carries a name and one line");
+  assert.deepEqual(
+    START_CHOICES.map((c) => c.title),
+    ["Start from a template", "Blank automation", "Ask Vyre to build it"],
+  );
+  assert.deepEqual(
+    tileKeys(root),
+    CATALOG.slice(0, 6).map((t) => t.key),
+    "six tiles, in the catalogue's order",
+  );
+  assert.ok(
+    textOf(find(root, "start-template-lead-follow-up")).includes("Does thing 1."),
+    "a tile carries a name and one line",
+  );
   const page = find(root, "automations-start")!;
   // react-native-web turns the content style into atomic class names; the content box centres both ways and fills the body
   const body = page.children?.find((c): c is Node => typeof c === "object");
   const cls = String(body?.props["className"] ?? "");
-  assert.ok(/r-justifyContent-\w+/.test(cls) && /r-alignItems-\w+/.test(cls) && /r-flexGrow-\w+/.test(cls), "the content is centred in the body, both ways");
-  assert.deepEqual([flat(START_STYLE.center)["justifyContent"], flat(START_STYLE.center)["alignItems"], flat(START_STYLE.center)["flexGrow"]], ["center", "center", 1]);
+  assert.ok(
+    /r-justifyContent-\w+/.test(cls) && /r-alignItems-\w+/.test(cls) && /r-flexGrow-\w+/.test(cls),
+    "the content is centred in the body, both ways",
+  );
+  assert.deepEqual(
+    [
+      flat(START_STYLE.center)["justifyContent"],
+      flat(START_STYLE.center)["alignItems"],
+      flat(START_STYLE.center)["flexGrow"],
+    ],
+    ["center", "center", 1],
+  );
   assert.ok(!/—|§/.test(textOf(page)), "no em dash and no section sign");
 });
 
@@ -69,7 +125,12 @@ test("popularTemplates takes at most six from the catalogue and none when it has
 test("each choice calls its own action", async () => {
   const { data, calls, opened } = wired();
   const hits: string[] = [];
-  const root = await mount(createRoot, <AutomationsDataProvider value={data}><AutomationsStart onTemplates={() => hits.push("templates")} onAsk={() => hits.push("ask")} /></AutomationsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data}>
+      <AutomationsStart onTemplates={() => hits.push("templates")} onAsk={() => hits.push("ask")} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   await press(find(root, "start-template"));
   await press(find(root, "start-ask"));
@@ -77,29 +138,53 @@ test("each choice calls its own action", async () => {
   assert.equal(calls.filter((c) => c.cap === "automations.create").length, 0, "the other two choices make nothing");
   await press(find(root, "start-blank"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "automations.create").map((c) => c.input), [{ name: "New automation" }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "automations.create").map((c) => c.input),
+    [{ name: "New automation" }],
+  );
   assert.deepEqual(opened, ["aut_new"], "the blank automation opens");
 });
 
 test("a template tile makes the draft from that template and opens it", async () => {
   const { data, calls, opened } = wired();
-  const root = await mount(createRoot, <AutomationsDataProvider value={data}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   await press(find(root, "start-template-meeting-notes"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "automations.templates.use").map((c) => c.input), [{ templateKey: "meeting-notes" }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "automations.templates.use").map((c) => c.input),
+    [{ templateKey: "meeting-notes" }],
+  );
   assert.deepEqual(opened, ["aut_from_template"]);
 });
 
 test("when the person has automations the heading is 'Pick an automation', the three choices stay and the tiles go", async () => {
   const { data } = wired(northwind);
-  const root = await mount(createRoot, <AutomationsDataProvider value={data}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   assert.equal(textOf(find(root, "automations-start-title")), "Pick an automation");
   for (const c of START_CHOICES) assert.ok(find(root, `start-${c.key}`));
   assert.deepEqual(tileKeys(root), []);
   const picks: StartChoice[] = [];
-  const view = await mount(createRoot, <AutomationsStartView hasAutomations templates={CATALOG as TemplateItem[]} onChoose={(c) => picks.push(c)} onUseTemplate={() => undefined} />);
+  const view = await mount(
+    createRoot,
+    <AutomationsStartView
+      hasAutomations
+      templates={CATALOG as TemplateItem[]}
+      onChoose={(c) => picks.push(c)}
+      onUseTemplate={() => undefined}
+    />,
+  );
   await press(find(view, "start-ask"));
   assert.deepEqual(picks, ["ask"]);
 });
@@ -108,13 +193,27 @@ test("Ask Vyre opens the assistant in a pane of the tab and does not open Chats"
   const { data, opened } = wired();
   const rt = sampleRuntime({ screens: data.screens, call: data.call, opened: [] });
   // the sample runtime builds a new principals snapshot on every read, which a mounted place treats as a change forever
-  const people = { status: "ready", data: rt.principals.getSnapshot().status === "ready" ? (rt.principals.getSnapshot() as { data: unknown[] }).data : [] };
+  const people = {
+    status: "ready",
+    data:
+      rt.principals.getSnapshot().status === "ready" ? (rt.principals.getSnapshot() as { data: unknown[] }).data : [],
+  };
   (rt as { principals: unknown }).principals = { subscribe: () => () => undefined, getSnapshot: () => people };
   const asked: unknown[] = [];
   const real = rt.open;
-  (rt as { open: typeof rt.open }).open = ((t: unknown) => { asked.push(t); return real(t as never); }) as typeof rt.open;
+  (rt as { open: typeof rt.open }).open = ((t: unknown) => {
+    asked.push(t);
+    return real(t as never);
+  }) as typeof rt.open;
   resetAskPanes();
-  const root = await mount(createRoot, <ShellRuntimeProvider value={rt}><AskPaneHost place="automations" rt={rt}><AutomationsPlace place="automations" /></AskPaneHost></ShellRuntimeProvider>);
+  const root = await mount(
+    createRoot,
+    <ShellRuntimeProvider value={rt}>
+      <AskPaneHost place="automations" rt={rt}>
+        <AutomationsPlace place="automations" />
+      </AskPaneHost>
+    </ShellRuntimeProvider>,
+  );
   await flush();
   assert.equal(find(root, "ask-pane"), null, "closed to begin with");
   await press(find(root, "start-ask"));
@@ -131,29 +230,74 @@ test("Ask Vyre opens the assistant in a pane of the tab and does not open Chats"
 test("a saved Vault item offers a connector: Set up accepts it and starts the session, Not now declines it, and both clear the card", async () => {
   const { data, calls } = wired();
   const set: { itemId: string; appName: string }[] = [];
-  const offered = { ...data, call: async (cap: string, input: unknown) => {
-    if (cap === "automations.connector_offers") return { offers: [{ itemId: "vit_acme", appName: "Acme", text: "Set up Acme for Automations?" }, { itemId: "vit_beta", appName: "Beta", text: "Set up Beta for Automations?" }] };
-    if (cap.startsWith("automations.connector_offer.")) { calls.push({ cap, input }); return { decision: cap.endsWith("accept") ? "accepted" : "declined" }; }
-    return data.call(cap, input);
-  }, nav: { ...data.nav, setUpConnector: (o: { itemId: string; appName: string }) => { set.push(o); } } };
-  const root = await mount(createRoot, <AutomationsDataProvider value={offered}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  const offered = {
+    ...data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "automations.connector_offers")
+        return {
+          offers: [
+            { itemId: "vit_acme", appName: "Acme", text: "Set up Acme for Automations?" },
+            { itemId: "vit_beta", appName: "Beta", text: "Set up Beta for Automations?" },
+          ],
+        };
+      if (cap.startsWith("automations.connector_offer.")) {
+        calls.push({ cap, input });
+        return { decision: cap.endsWith("accept") ? "accepted" : "declined" };
+      }
+      return data.call(cap, input);
+    },
+    nav: {
+      ...data.nav,
+      setUpConnector: (o: { itemId: string; appName: string }) => {
+        set.push(o);
+      },
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={offered}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   assert.match(textOf(find(root, "automations-start-offers")!), /Set up Acme for Automations\?/);
   await press(find(root, "offer-setup-vit_acme"));
   await flush();
-  assert.deepEqual(set.map((o) => [o.itemId, o.appName]), [["vit_acme", "Acme"]]);
-  assert.ok(calls.some((c) => c.cap === "automations.connector_offer.accept" && (c.input as { itemId: string }).itemId === "vit_acme"));
+  assert.deepEqual(
+    set.map((o) => [o.itemId, o.appName]),
+    [["vit_acme", "Acme"]],
+  );
+  assert.ok(
+    calls.some(
+      (c) => c.cap === "automations.connector_offer.accept" && (c.input as { itemId: string }).itemId === "vit_acme",
+    ),
+  );
   assert.equal(find(root, "offer-vit_acme"), null, "the accepted offer is gone");
   await press(find(root, "offer-decline-vit_beta"));
   await flush();
-  assert.ok(calls.some((c) => c.cap === "automations.connector_offer.decline" && (c.input as { itemId: string }).itemId === "vit_beta"));
+  assert.ok(
+    calls.some(
+      (c) => c.cap === "automations.connector_offer.decline" && (c.input as { itemId: string }).itemId === "vit_beta",
+    ),
+  );
   assert.equal(find(root, "automations-start-offers"), null, "no offers left, no card");
 });
 
 test("without a connector_offers answer the page is the page", async () => {
   const { data } = wired();
-  const none = { ...data, call: async (cap: string, input: unknown) => { if (cap === "automations.connector_offers") throw new Error("no module"); return data.call(cap, input); } };
-  const root = await mount(createRoot, <AutomationsDataProvider value={none}><AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} /></AutomationsDataProvider>);
+  const none = {
+    ...data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "automations.connector_offers") throw new Error("no module");
+      return data.call(cap, input);
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={none}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   assert.equal(find(root, "automations-start-offers"), null);
 });

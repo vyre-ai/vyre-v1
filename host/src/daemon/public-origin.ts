@@ -8,11 +8,18 @@ export interface PublicOrigin {
   relay: boolean;
 }
 
-export function publicOriginOf(address: string | null | undefined, claimed: string | null | undefined): PublicOrigin | null {
+export function publicOriginOf(
+  address: string | null | undefined,
+  claimed: string | null | undefined,
+): PublicOrigin | null {
   if (address) {
     const origin = (/^https?:\/\//.test(address) ? address : `https://${address}`).replace(/\/+$/, "");
     let host = "";
-    try { host = new URL(origin).hostname.toLowerCase(); } catch { /* not an address: it stays a plain own domain */ }
+    try {
+      host = new URL(origin).hostname.toLowerCase();
+    } catch {
+      /* not an address: it stays a plain own domain */
+    }
     return { origin, relay: host.endsWith(`.${ZONE}`) };
   }
   return claimed ? { origin: `https://${claimed}.${ZONE}`, relay: true } : null;
@@ -27,14 +34,25 @@ export function artifactHostOf(address: string | null | undefined, claimed: stri
   const o = publicOriginOf(address, claimed);
   if (!o) return null;
   let url: URL;
-  try { url = new URL(o.origin); } catch { return null; }
+  try {
+    url = new URL(o.origin);
+  } catch {
+    return null;
+  }
   const host = url.hostname.toLowerCase();
   // a Space on this computer, reached at a loopback address: browsers send *.localhost to loopback, so a.localhost:<port> is its own origin
-  if (url.protocol === "http:" && /^(127\.0\.0\.1|localhost|\[::1\])$/.test(host)) return `a.localhost${url.port ? `:${url.port}` : ""}`;
+  if (url.protocol === "http:" && /^(127\.0\.0\.1|localhost|\[::1\])$/.test(host))
+    return `a.localhost${url.port ? `:${url.port}` : ""}`;
   if (o.relay) {
-    const label = host.slice(0, -(`.${ZONE}`.length));
+    const label = host.slice(0, -`.${ZONE}`.length);
     return label && !label.includes(".") && !label.endsWith("-a") ? `${label}-a.${ZONE}` : null;
   }
-  if (url.protocol !== "https:" || url.port !== "" || !/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host) || host.startsWith("a.")) return null;
+  if (
+    url.protocol !== "https:" ||
+    url.port !== "" ||
+    !/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host) ||
+    host.startsWith("a.")
+  )
+    return null;
   return `a.${host}`;
 }

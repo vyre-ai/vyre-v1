@@ -6,7 +6,19 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { restoreFact, undoFact } from "./actions.ts";
 import { useMemoryData } from "./data.tsx";
 import { Empty, Flash, KnowColumn, KnowHeader, frame } from "./KnowFrame.tsx";
-import { Bar, ErrorLine, TrashRow, copyText, isDenied, openSourceOf, readError, removedBy, useDoing, useLiveSafe, whoOf } from "./KnowRows.tsx";
+import {
+  Bar,
+  ErrorLine,
+  TrashRow,
+  copyText,
+  isDenied,
+  openSourceOf,
+  readError,
+  removedBy,
+  useDoing,
+  useLiveSafe,
+  whoOf,
+} from "./KnowRows.tsx";
 import type { KFact } from "./know.ts";
 import { each } from "./model.ts";
 
@@ -19,34 +31,79 @@ export function KnowArchive(): ReactElement {
   const aq = useLiveSafe("memory.trash.search", { area: "archive" });
   const trq = useLiveSafe("memory.trail", { limit: 500 });
   const member = isDenied(aq);
-  const list = [...((aq.status === "ready" ? aq.data.facts : []) as KFact[])].sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0));
+  const list = [...((aq.status === "ready" ? aq.data.facts : []) as KFact[])].sort(
+    (a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0),
+  );
   const trail = trq.status === "ready" ? trq.data.rows : [];
   const failed = member ? null : readError(aq, "Could not read Archive");
 
   const restore = (f: KFact): void => {
-    doing.run("Could not restore the fact", () => restoreFact(data, f.factId), () => ({
-      text: "Restored.",
-      undo: () => doing.run("Could not move the fact back to Trash", () => undoFact(data, f.factId), () => ({ text: "Moved back to Trash." })),
-    }));
+    doing.run(
+      "Could not restore the fact",
+      () => restoreFact(data, f.factId),
+      () => ({
+        text: "Restored.",
+        undo: () =>
+          doing.run(
+            "Could not move the fact back to Trash",
+            () => undoFact(data, f.factId),
+            () => ({ text: "Moved back to Trash." }),
+          ),
+      }),
+    );
   };
-  const openPage = (f: KFact): void => { if (f.subject) nav.go({ v: "page", pageId: f.subject.pageId }); };
+  const openPage = (f: KFact): void => {
+    if (f.subject) nav.go({ v: "page", pageId: f.subject.pageId });
+  };
   const entries = (f: KFact): MenuEntry[] => [
-    { label: "Restore", onSelect: () => restore(f) }, ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []),
-    { label: "Open source", onSelect: () => openSourceOf(nav, f) }, { separator: true }, { label: "Copy", onSelect: () => copyText(f.text) },
+    { label: "Restore", onSelect: () => restore(f) },
+    ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []),
+    { label: "Open source", onSelect: () => openSourceOf(nav, f) },
+    { separator: true },
+    { label: "Copy", onSelect: () => copyText(f.text) },
   ];
 
   return (
     <View style={frame.main} testID="know-archive">
       <KnowHeader crumbs={[{ t: "Knowledge", route: { v: "learned" } }, { t: "Archive" }]} />
-      <KnowColumn testID="know-archive-body" label="Archive" title="Archive" lede="Untouched in Trash for 60 days. Out of search and recall. An admin can restore one.">
+      <KnowColumn
+        testID="know-archive-body"
+        label="Archive"
+        title="Archive"
+        lede="Untouched in Trash for 60 days. Out of search and recall. An admin can restore one."
+      >
         <Flash flash={doing.flash} onClose={() => doing.setFlash(null)} />
         <ErrorLine text={doing.err ?? failed} />
-        {member ? <Bar icon="lock" testID="archive-member" text="You are viewing as a member. Only Space admins can restore from Archive." /> : null}
+        {member ? (
+          <Bar
+            icon="lock"
+            testID="archive-member"
+            text="You are viewing as a member. Only Space admins can restore from Archive."
+          />
+        ) : null}
         <View accessibilityRole="list" accessibilityLabel="Archive" testID="archive-rows" style={{ marginTop: 14 }}>
-          {each(list, (f) => <TrashRow key={f.factId} fact={f} who={who} by={removedBy(trail, f)} now={now} keep={60} archive canRestore onRestore={() => restore(f)} onOpen={() => openPage(f)} menu={() => entries(f)} />)}
+          {each(list, (f) => (
+            <TrashRow
+              key={f.factId}
+              fact={f}
+              who={who}
+              by={removedBy(trail, f)}
+              now={now}
+              keep={60}
+              archive
+              canRestore
+              onRestore={() => restore(f)}
+              onOpen={() => openPage(f)}
+              menu={() => entries(f)}
+            />
+          ))}
         </View>
-        {!member && list.length === 0 && aq.status === "ready" ? <Empty title="Archive is empty" text="Nothing has aged out of Trash yet." /> : null}
-        {member ? <Empty title="Archive is for admins" text="Ask a Space admin to restore something from here." /> : null}
+        {!member && list.length === 0 && aq.status === "ready" ? (
+          <Empty title="Archive is empty" text="Nothing has aged out of Trash yet." />
+        ) : null}
+        {member ? (
+          <Empty title="Archive is for admins" text="Ask a Space admin to restore something from here." />
+        ) : null}
       </KnowColumn>
     </View>
   );

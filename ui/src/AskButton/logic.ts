@@ -24,7 +24,9 @@ export function memoryStorage(): AskStorage {
 /** localStorage with every access wrapped, so a private window or blocked storage never throws. */
 export function webStorage(): AskStorage | null {
   try {
-    const host = globalThis as { localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } };
+    const host = globalThis as {
+      localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void };
+    };
     const ls = host.localStorage;
     if (ls === undefined) return null;
     return {
@@ -78,7 +80,12 @@ export function findAgent(agents: readonly AskAgent[], id: string | null | undef
 
 /** The Space assistant: the flagged one, else the one named Assistant, else the first agent. */
 export function assistantOf(agents: readonly AskAgent[]): AskAgent | null {
-  return agents.find((agent) => agent.assistant === true) ?? agents.find((agent) => agent.name === "Assistant") ?? agents[0] ?? null;
+  return (
+    agents.find((agent) => agent.assistant === true) ??
+    agents.find((agent) => agent.name === "Assistant") ??
+    agents[0] ??
+    null
+  );
 }
 
 export interface ResolveInput {
@@ -93,13 +100,21 @@ export interface ResolveInput {
 export function resolveAgent(input: ResolveInput): AskAgent | null {
   const key = itemKey(input.place, input.context);
   const forItem = key === null ? null : findAgent(input.agents, input.storage.get(key));
-  return forItem ?? findAgent(input.agents, input.suggested) ?? findAgent(input.agents, input.storage.get(placeKey(input.place))) ?? assistantOf(input.agents);
+  return (
+    forItem ??
+    findAgent(input.agents, input.suggested) ??
+    findAgent(input.agents, input.storage.get(placeKey(input.place))) ??
+    assistantOf(input.agents)
+  );
 }
 
 /** True when pressing the main button can go straight to a thread: an agent is tied to this item or was picked for it. */
 export function hasDefault(input: ResolveInput): boolean {
   const key = itemKey(input.place, input.context);
-  return findAgent(input.agents, input.suggested) !== null || (key !== null && findAgent(input.agents, input.storage.get(key)) !== null);
+  return (
+    findAgent(input.agents, input.suggested) !== null ||
+    (key !== null && findAgent(input.agents, input.storage.get(key)) !== null)
+  );
 }
 
 export function readRecents(storage: AskStorage): string[] {
@@ -141,7 +156,8 @@ export interface PickerInput {
  */
 export function pickerEntries(input: PickerInput): PickerEntry[] {
   const assistant = assistantOf(input.agents);
-  const note = (agent: AskAgent, fallback: string): string => (agent.role !== undefined && agent.role !== "" ? agent.role : fallback);
+  const note = (agent: AskAgent, fallback: string): string =>
+    agent.role !== undefined && agent.role !== "" ? agent.role : fallback;
   const entry = (agent: AskAgent, fallback: string): PickerEntry => ({
     kind: "agent",
     label: agent.name,
@@ -164,7 +180,9 @@ export function pickerEntries(input: PickerInput): PickerEntry[] {
     recent.push(agent);
     if (recent.length === 3) break;
   }
-  const rest = input.agents.filter((agent) => agent !== assistant && agent !== input.suggested && !recent.includes(agent));
+  const rest = input.agents.filter(
+    (agent) => agent !== assistant && agent !== input.suggested && !recent.includes(agent),
+  );
   const out: PickerEntry[] = [];
   if (input.suggested !== null) {
     out.push({ kind: "head", label: "Suggested" }, entry(input.suggested, ""));
@@ -237,7 +255,15 @@ export function isNarrow(parentWidth: number): boolean {
 }
 
 /** Keeps a panel inside the window with a small margin. */
-export function clampPanel(x: number, y: number, width: number, height: number, viewW: number, viewH: number, margin = 6): { left: number; top: number } {
+export function clampPanel(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  viewW: number,
+  viewH: number,
+  margin = 6,
+): { left: number; top: number } {
   return {
     left: Math.max(margin, Math.min(x, viewW - width - margin)),
     top: Math.max(margin, Math.min(y, viewH - height - margin)),
@@ -271,13 +297,26 @@ export function placePicker(
 export function withRealAssistant(agents: readonly AskAgent[]): readonly AskAgent[] {
   const stand = agents.find((a) => a.assistant === true && a.name === "Assistant");
   if (stand === undefined) return agents;
-  const real = agents.filter((a) => a !== stand && a.assistant !== true && /^.+['\u2019]s Assistant$/i.test(a.name.trim()));
+  const real = agents.filter(
+    (a) => a !== stand && a.assistant !== true && /^.+['\u2019]s Assistant$/i.test(a.name.trim()),
+  );
   if (real.length !== 1) return agents;
   const pick = real[0];
   return agents.filter((a) => a !== stand).map((a) => (a === pick ? { ...a, name: stand.name, assistant: true } : a));
 }
 
 /** Cmd-J or Ctrl-J, no other modifier. */
-export function isAskShortcut(event: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }): boolean {
-  return (event.metaKey === true || event.ctrlKey === true) && event.shiftKey !== true && event.altKey !== true && event.key.toLowerCase() === "j";
+export function isAskShortcut(event: {
+  key: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+}): boolean {
+  return (
+    (event.metaKey === true || event.ctrlKey === true) &&
+    event.shiftKey !== true &&
+    event.altKey !== true &&
+    event.key.toLowerCase() === "j"
+  );
 }

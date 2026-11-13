@@ -6,23 +6,41 @@ import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const cap = (name: string): CapabilityDef => ({
-  v: 1, name, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "space" }, permission: null, level: "view",
-  risk: "low", effects: "read", emits: [], idempotency: "natural", surfaces: {}, examples: [],
-} as unknown as CapabilityDef);
+const cap = (name: string): CapabilityDef =>
+  ({
+    v: 1,
+    name,
+    summary: "s",
+    input: { type: "object" },
+    output: { type: "object" },
+    errors: [],
+    resource: { type: "space" },
+    permission: null,
+    level: "view",
+    risk: "low",
+    effects: "read",
+    emits: [],
+    idempotency: "natural",
+    surfaces: {},
+    examples: [],
+  }) as unknown as CapabilityDef;
 
 /** The trace the inner call ran on, and the trace of the outer call, when the outer asks for `want`. */
 async function run(want: string | undefined): Promise<{ outer: string; inner: string }> {
   const s = new AccessSnapshot();
   s.putPrincipal({ id: "usr_dana", kind: "person", status: "active", name: "Dana" });
   s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_dana", holds: 0 });
-  let inner = "", outer = "";
+  let inner = "",
+    outer = "";
   const deps: InvokeDeps = {
     caps: indexCapabilities([cap("example.outer"), cap("example.inner")]),
     validateInput: () => [],
     authorize: (req) => authorize(s, req),
     handler: (name: string) => async (ctx) => {
-      if (name === "example.inner") { inner = ctx.trace.traceId; return {}; }
+      if (name === "example.inner") {
+        inner = ctx.trace.traceId;
+        return {};
+      }
       outer = ctx.trace.traceId;
       await ctx.call("example.inner" as never, {}, want === undefined ? undefined : { traceId: want });
       return {};

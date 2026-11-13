@@ -14,9 +14,26 @@ function rig() {
   const sample = createSampleMemory();
   const urls: string[] = [];
   const opened: string[] = [];
-  const agents: LiveQuery<unknown> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: { agents: [{ agentId: "agt_intake", name: "Intake" }, { agentId: "agt_docs", name: "Docs" }] } }) };
-  const screens = { capQuery: (cap: string, input: Record<string, unknown>) => (cap === "agents.list" ? agents : sample.data.live(cap as never, input as never)) } as unknown as ScreenHooks;
-  const rt = { ...sampleRuntime({ screens, call: sample.data.call, opened }), openUrl: (u: string) => void urls.push(u) };
+  const agents: LiveQuery<unknown> = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({
+      status: "ready",
+      data: {
+        agents: [
+          { agentId: "agt_intake", name: "Intake" },
+          { agentId: "agt_docs", name: "Docs" },
+        ],
+      },
+    }),
+  };
+  const screens = {
+    capQuery: (cap: string, input: Record<string, unknown>) =>
+      cap === "agents.list" ? agents : sample.data.live(cap as never, input as never),
+  } as unknown as ScreenHooks;
+  const rt = {
+    ...sampleRuntime({ screens, call: sample.data.call, opened }),
+    openUrl: (u: string) => void urls.push(u),
+  };
   return { sample, rt, urls, opened };
 }
 const html = (el: React.ReactElement): string => renderToStaticMarkup(el).replaceAll("<!-- -->", "");
@@ -25,7 +42,11 @@ const noGo = (): void => undefined;
 
 test("Learned mounts over the runtime and holds the facts waiting for review", () => {
   const { rt } = rig();
-  const out = html(<ShellRuntimeProvider value={rt}><MemoryMount rt={rt} route={{ v: "learned" }} go={noGo} /></ShellRuntimeProvider>);
+  const out = html(
+    <ShellRuntimeProvider value={rt}>
+      <MemoryMount rt={rt} route={{ v: "learned" }} go={noGo} />
+    </ShellRuntimeProvider>,
+  );
   assert.ok(out.includes('data-testid="know-learned"'), "the Learned screen");
   assert.ok(!out.includes("know-loading"));
 });
@@ -58,7 +79,11 @@ test("the sidebar rows ask for Learned, Graph and any Knowledge screen, and the 
   assert.deepEqual(seen, [{ v: "learned" }, { v: "graph" }, { v: "list", kind: "client" }, null]);
   const bare = filesData(rt);
   assert.equal(bare.memoryView, undefined);
-  assert.equal(bare.nav.leaveMemory, undefined, "without a place to hold the view, the rows fall back to the shell's screen ids");
+  assert.equal(
+    bare.nav.leaveMemory,
+    undefined,
+    "without a place to hold the view, the rows fall back to the shell's screen ids",
+  );
   bare.nav.openMemory();
   bare.nav.openGraph();
   bare.nav.openKnow({ v: "page", pageId: "pg_ian" });

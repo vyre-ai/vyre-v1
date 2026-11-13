@@ -7,7 +7,15 @@ export type NoteColor = Note["color"];
 export type LabelCount = { name: string; count: number };
 
 /** The seven colours, in the order the swatches show them. */
-export const COLORS: readonly (readonly [NoteColor, string])[] = [["", "Default"], ["rose", "Rose"], ["sand", "Sand"], ["sage", "Sage"], ["sky", "Sky"], ["lilac", "Lilac"], ["slate", "Slate"]];
+export const COLORS: readonly (readonly [NoteColor, string])[] = [
+  ["", "Default"],
+  ["rose", "Rose"],
+  ["sand", "Sand"],
+  ["sage", "Sage"],
+  ["sky", "Sky"],
+  ["lilac", "Lilac"],
+  ["slate", "Slate"],
+];
 
 /** The filter's rows under the labels. A filter key is a label name or one of these. */
 export const SHARED = ":shared";
@@ -22,14 +30,29 @@ export const SPECIAL: readonly { key: string; label: string; icon: "people" | "c
 /** A note is shown when it matches any ticked row (the filter is an "or"); nothing ticked shows every note. */
 export function matchesFilter(n: Note, filter: readonly string[]): boolean {
   if (filter.length === 0) return true;
-  return filter.some((f) => (f === SHARED ? !n.mine : f === CHROME ? n.clip !== undefined : f === IMAGES ? n.hasImage : n.labels.includes(f)));
+  return filter.some((f) =>
+    f === SHARED ? !n.mine : f === CHROME ? n.clip !== undefined : f === IMAGES ? n.hasImage : n.labels.includes(f),
+  );
 }
 
 /** The search box: title, text, labels, a link's title, site and address, a clipped page's selection, title and address. */
 export function matchesQuery(n: Note, q: string): boolean {
   const needle = q.trim().toLowerCase();
   if (needle === "") return true;
-  const hay = [n.title, n.body, n.labels.join(" "), n.link?.title, n.link?.siteName, n.link?.url, n.clip?.selection, n.clip?.title, n.clip?.url].filter((x) => typeof x === "string").join(" ").toLowerCase();
+  const hay = [
+    n.title,
+    n.body,
+    n.labels.join(" "),
+    n.link?.title,
+    n.link?.siteName,
+    n.link?.url,
+    n.clip?.selection,
+    n.clip?.title,
+    n.clip?.url,
+  ]
+    .filter((x) => typeof x === "string")
+    .join(" ")
+    .toLowerCase();
   return hay.includes(needle);
 }
 
@@ -72,16 +95,33 @@ export function firstLine(n: Pick<Note, "body" | "clip" | "link">): string {
   return (n.body || n.clip?.selection || n.link?.description || "").split("\n")[0] ?? "";
 }
 
-export interface Who { meId: string; nameOf(id: string): string; spaceName: string }
+export interface Who {
+  meId: string;
+  nameOf(id: string): string;
+  spaceName: string;
+}
 
 /** Who sees a note, in words: the short form a card shows and the long form the opened note and its share button say. */
-export function shareWords(n: Pick<Note, "mine" | "owner" | "share">, w: Who): { icon: "people" | "globe" | "lock"; short: string; long: string } {
+export function shareWords(
+  n: Pick<Note, "mine" | "owner" | "share">,
+  w: Who,
+): { icon: "people" | "globe" | "lock"; short: string; long: string } {
   if (!n.mine) {
-    const role = n.share.people.find((p) => p.personId === w.meId)?.role ?? (n.share.space === "edit" ? "edit" : "view");
-    return { icon: "people", short: `From ${w.nameOf(n.owner)}`, long: `Shared with you by ${w.nameOf(n.owner)} · you can ${role === "edit" ? "edit" : "view"}` };
+    const role =
+      n.share.people.find((p) => p.personId === w.meId)?.role ?? (n.share.space === "edit" ? "edit" : "view");
+    return {
+      icon: "people",
+      short: `From ${w.nameOf(n.owner)}`,
+      long: `Shared with you by ${w.nameOf(n.owner)} · you can ${role === "edit" ? "edit" : "view"}`,
+    };
   }
   const ppl = n.share.people.map((p) => w.nameOf(p.personId));
-  if (n.share.space !== "off") return { icon: "globe", short: "Space", long: `Shared with ${w.spaceName}${ppl.length ? ` and ${ppl.join(", ")}` : ""}` };
+  if (n.share.space !== "off")
+    return {
+      icon: "globe",
+      short: "Space",
+      long: `Shared with ${w.spaceName}${ppl.length ? ` and ${ppl.join(", ")}` : ""}`,
+    };
   if (ppl.length) return { icon: "people", short: ppl.join(", "), long: `Shared with ${ppl.join(" and ")}` };
   return { icon: "lock", short: "", long: "Private" };
 }
@@ -90,15 +130,19 @@ export function shareWords(n: Pick<Note, "mine" | "owner" | "share">, w: Who): {
 export function agentWords(n: Pick<Note, "mine" | "owner" | "share">, w: Who): string {
   if (!n.mine) return `${w.nameOf(n.owner)} shared it with you, so your agents can read it in your own chats.`;
   const ppl = n.share.people.map((p) => w.nameOf(p.personId));
-  if (n.share.space !== "off") return `Everyone in ${w.spaceName} can see it. Agents can read it in any chat or channel in the Space.`;
-  if (ppl.length) return `${ppl.join(" and ")} can see it. Your agents can read it in your own chats, and theirs in their own chats. Agents in channels cannot.`;
+  if (n.share.space !== "off")
+    return `Everyone in ${w.spaceName} can see it. Agents can read it in any chat or channel in the Space.`;
+  if (ppl.length)
+    return `${ppl.join(" and ")} can see it. Your agents can read it in your own chats, and theirs in their own chats. Agents in channels cannot.`;
   return "Private. Only you see it. Your agents can read it in your own chats, never in a channel or someone else's chat.";
 }
 
 /** The line under the Ask pane: whether Vyre may read this note here. */
 export function askWords(n: Pick<Note, "mine" | "owner" | "share">): string {
   const priv = n.mine && n.share.people.length === 0 && n.share.space === "off";
-  return priv ? "Your own chat, so Vyre can read this private note here. In a channel it cannot." : "Vyre reads it here because you can see it.";
+  return priv
+    ? "Your own chat, so Vyre can read this private note here. In a channel it cannot."
+    : "Vyre reads it here because you can see it.";
 }
 
 const DAY = 86_400_000;
@@ -108,7 +152,8 @@ const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "O
 /** A time the way a note says it: "9:14" today, "Sat" this week, "28 Oct" before that. `offsetMin` is the person's zone. */
 export function whenWords(at: number, now: number, offsetMin = 0): string {
   const local = (t: number): Date => new Date(t + offsetMin * 60_000);
-  const a = local(at), b = local(now);
+  const a = local(at),
+    b = local(now);
   const dayOf = (d: Date): number => Math.floor(d.getTime() / DAY);
   const diff = dayOf(b) - dayOf(a);
   if (diff <= 0) return `${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
@@ -124,17 +169,25 @@ export function editedWords(n: Pick<Note, "clip" | "createdAt" | "updatedAt">, n
 }
 
 /** Where a note was saved from, for the line on the opened note: "From: Weinberger Law prep, 9:12". Null when it came from nowhere. A chat its owner can no longer read keeps only the time. */
-export function fromLine(n: Pick<Note, "from">, now: number, offsetMin = 0): { text: string; open: { threadId: string; messageId: string } | null } | null {
+export function fromLine(
+  n: Pick<Note, "from">,
+  now: number,
+  offsetMin = 0,
+): { text: string; open: { threadId: string; messageId: string } | null } | null {
   const f = n.from;
   if (!f) return null;
   const when = whenWords(f.at, now, offsetMin);
-  if (!f.readable || !f.threadId || !f.messageId) return { text: `From a chat you can no longer read, ${when}`, open: null };
+  if (!f.readable || !f.threadId || !f.messageId)
+    return { text: `From a chat you can no longer read, ${when}`, open: null };
   return { text: `From: ${f.title || "a chat"}, ${when}`, open: { threadId: f.threadId, messageId: f.messageId } };
 }
 
 /** A host as a link card names it when the page gave no site name. */
 export function hostOf(url: string): string {
-  return url.replace(/^https?:\/\//, "").split(/[/?#]/)[0]!.replace(/^www\./, "");
+  return url
+    .replace(/^https?:\/\//, "")
+    .split(/[/?#]/)[0]!
+    .replace(/^www\./, "");
 }
 
 /** The address without its scheme or a closing slash, as a card shows it. */
@@ -151,7 +204,11 @@ export function siteMark(site: string): { letter: string; color: string } {
 }
 
 /** A note changed here before the server answered: the fields that changed laid over the row. */
-export function patchNote(n: Note, p: Partial<Pick<Note, "title" | "body" | "color" | "pinned" | "labels">>, now: number): Note {
+export function patchNote(
+  n: Note,
+  p: Partial<Pick<Note, "title" | "body" | "color" | "pinned" | "labels">>,
+  now: number,
+): Note {
   return { ...n, ...p, updatedAt: now };
 }
 
@@ -173,25 +230,42 @@ export function openable(url: string): string | null {
 
 /* ---------- the task and record sheets ---------- */
 
-export interface DueChoice { label: string; at: number | null }
+export interface DueChoice {
+  label: string;
+  at: number | null;
+}
 
 /** The days a task can be due from the sheet: today, tomorrow, the next five days by name and date, or none. Each at the end of that day in the person's zone. */
 export function dueChoices(now: number, offsetMin = 0): DueChoice[] {
   const DAY = 86_400_000;
   const local = now + offsetMin * 60_000;
   const end = (d: number): number => (Math.floor(local / DAY) + d + 1) * DAY - offsetMin * 60_000 - 1;
-  const name = (t: number): string => { const d = new Date(t + offsetMin * 60_000); return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()]} ${d.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}`; };
-  const out: DueChoice[] = [{ label: "Today", at: end(0) }, { label: "Tomorrow", at: end(1) }];
+  const name = (t: number): string => {
+    const d = new Date(t + offsetMin * 60_000);
+    return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()]} ${d.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}`;
+  };
+  const out: DueChoice[] = [
+    { label: "Today", at: end(0) },
+    { label: "Tomorrow", at: end(1) },
+  ];
   for (let d = 2; d <= 6; d++) out.push({ label: name(end(d)), at: end(d) });
   out.push({ label: "No date", at: null });
   return out;
 }
 
-export interface RecordType { key: string; title: string; plural: string; titleField: string; summaryField?: string; fields: { key: string; type: string; title: string }[] }
+export interface RecordType {
+  key: string;
+  title: string;
+  plural: string;
+  titleField: string;
+  summaryField?: string;
+  fields: { key: string; type: string; title: string }[];
+}
 
 /** The fields the sheet asks for: the type's title field first, then its summary, then the next text fields, four at most. */
 export function recordFields(t: RecordType): { key: string; title: string }[] {
-  const text = (f: { type: string }): boolean => ["text", "string", "longtext", "email", "phone", "url"].includes(f.type);
+  const text = (f: { type: string }): boolean =>
+    ["text", "string", "longtext", "email", "phone", "url"].includes(f.type);
   const keys = [t.titleField, ...(t.summaryField ? [t.summaryField] : []), ...t.fields.filter(text).map((f) => f.key)];
   const out: { key: string; title: string }[] = [];
   for (const k of keys) {
@@ -214,22 +288,64 @@ export function fillFromNote(t: RecordType, n: Pick<Note, "title" | "body" | "li
 
 /* ---------- the Access sheet over a note ---------- */
 
-export type NoteSharePatch = { people?: { personId: string; role: "edit" | "view" | "remove" }[]; space?: "off" | "view" | "edit"; notify?: { message?: string } };
+export type NoteSharePatch = {
+  people?: { personId: string; role: "edit" | "view" | "remove" }[];
+  space?: "off" | "view" | "edit";
+  notify?: { message?: string };
+};
 const EVERYONE = "grp_everyone";
 
 /** A note's shares as the Access sheet's rows: each person at their role, and the Space as Everyone when it is open. */
-export function noteShareRows(n: Pick<Note, "share">, nameOf: (id: string) => string): Array<{ subjectKind: "person" | "group"; subjectId: string; name: string; level: "view" | "edit"; via: "grant"; fromFolderId: null }> {
-  const rows: Array<{ subjectKind: "person" | "group"; subjectId: string; name: string; level: "view" | "edit"; via: "grant"; fromFolderId: null }> = n.share.people.map((p) => ({ subjectKind: "person" as const, subjectId: p.personId, name: nameOf(p.personId), level: p.role, via: "grant" as const, fromFolderId: null }));
-  if (n.share.space !== "off") rows.push({ subjectKind: "group", subjectId: EVERYONE, name: "Everyone", level: n.share.space, via: "grant", fromFolderId: null });
+export function noteShareRows(
+  n: Pick<Note, "share">,
+  nameOf: (id: string) => string,
+): Array<{
+  subjectKind: "person" | "group";
+  subjectId: string;
+  name: string;
+  level: "view" | "edit";
+  via: "grant";
+  fromFolderId: null;
+}> {
+  const rows: Array<{
+    subjectKind: "person" | "group";
+    subjectId: string;
+    name: string;
+    level: "view" | "edit";
+    via: "grant";
+    fromFolderId: null;
+  }> = n.share.people.map((p) => ({
+    subjectKind: "person" as const,
+    subjectId: p.personId,
+    name: nameOf(p.personId),
+    level: p.role,
+    via: "grant" as const,
+    fromFolderId: null,
+  }));
+  if (n.share.space !== "off")
+    rows.push({
+      subjectKind: "group",
+      subjectId: EVERYONE,
+      name: "Everyone",
+      level: n.share.space,
+      via: "grant",
+      fromFolderId: null,
+    });
   return rows;
 }
 
 /** What the sheet's choice means for notes.share. Notes are shared with people or the Space, at View or Edit; anything else is not a note share. */
-export function notePatchOf(input: { subject: { kind: string; id: string }; level?: string }, remove = false, opts?: { notify: boolean; message?: string }): NoteSharePatch | null {
+export function notePatchOf(
+  input: { subject: { kind: string; id: string }; level?: string },
+  remove = false,
+  opts?: { notify: boolean; message?: string },
+): NoteSharePatch | null {
   const { subject } = input;
   const role = input.level === "edit" ? "edit" : "view";
   const notify = opts?.notify && !remove ? { notify: opts.message ? { message: opts.message } : {} } : {};
-  if (subject.kind === "person") return { people: [{ personId: subject.id, role: remove ? "remove" : role }], ...notify };
-  if (subject.kind === "group" && (subject.id === EVERYONE || subject.id === "space")) return { space: remove ? "off" : role };
+  if (subject.kind === "person")
+    return { people: [{ personId: subject.id, role: remove ? "remove" : role }], ...notify };
+  if (subject.kind === "group" && (subject.id === EVERYONE || subject.id === "space"))
+    return { space: remove ? "off" : role };
   return null;
 }

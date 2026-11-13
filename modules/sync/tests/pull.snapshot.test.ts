@@ -12,7 +12,12 @@ import { ADA, BO, NOW, buildAccess } from "../fixtures/world.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const ROWS = 100_000;
-const ctx = (person: string, device = "dev1"): PullCtx => ({ trace: { traceId: TRACE }, principal: person, deviceId: device, deviceClass: "desktop" });
+const ctx = (person: string, device = "dev1"): PullCtx => ({
+  trace: { traceId: TRACE },
+  principal: person,
+  deviceId: device,
+  deviceClass: "desktop",
+});
 
 test("snapshot of 100,000 rows: pages of at most 5000, ordered, resumable, under 10 s; a person's snapshot holds only what they may see", async () => {
   const access = buildAccess();
@@ -28,7 +33,11 @@ test("snapshot of 100,000 rows: pages of at most 5000, ordered, resumable, under
   const pages: Uint8Array[] = [];
   let after: string | undefined;
   for (;;) {
-    const page = await h["sync.snapshot.page"](ctx(ADA), { entity: "contact", ...(after !== undefined ? { after } : {}), asOf: begin.asOfSeq });
+    const page = await h["sync.snapshot.page"](ctx(ADA), {
+      entity: "contact",
+      ...(after !== undefined ? { after } : {}),
+      asOf: begin.asOfSeq,
+    });
     pages.push(encodePage(page));
     if (page.done) break;
     after = page.last;
@@ -38,12 +47,16 @@ test("snapshot of 100,000 rows: pages of at most 5000, ordered, resumable, under
   assert.ok(ms < 10_000, `100k rows took ${ms.toFixed(0)} ms, budget 10000 ms`);
 
   // The client side: decode every page, count, order.
-  let total = 0, prev = "";
+  let total = 0,
+    prev = "";
   const sizes: number[] = [];
   for (const bytes of pages) {
     const page = decodePage(bytes);
     sizes.push(page.rows.length);
-    for (const r of page.rows) { assert.ok(r.id > prev, "ids ascend across pages"); prev = r.id; }
+    for (const r of page.rows) {
+      assert.ok(r.id > prev, "ids ascend across pages");
+      prev = r.id;
+    }
     total += page.rows.length;
   }
   assert.equal(total, ROWS);
@@ -65,15 +78,26 @@ test("snapshot of 100,000 rows: pages of at most 5000, ordered, resumable, under
 
   // Resuming from `last` of page 2 gives exactly page 3.
   const second = decodePage(pages[1]!);
-  const resumed = await h["sync.snapshot.page"](ctx(ADA), { entity: "contact", after: second.last!, asOf: begin.asOfSeq });
-  assert.deepEqual(resumed.rows.map((r) => r.id), decodePage(pages[2]!).rows.map((r) => r.id));
+  const resumed = await h["sync.snapshot.page"](ctx(ADA), {
+    entity: "contact",
+    after: second.last!,
+    asOf: begin.asOfSeq,
+  });
+  assert.deepEqual(
+    resumed.rows.map((r) => r.id),
+    decodePage(pages[2]!).rows.map((r) => r.id),
+  );
 
   // Bo may see region eu only and never the phone field: the other three quarters are never sent.
   const boBegin = await h["sync.snapshot.begin"](ctx(BO), { deviceClass: "desktop" });
   const got: string[] = [];
   let boAfter: string | undefined;
   for (;;) {
-    const page = await h["sync.snapshot.page"](ctx(BO), { entity: "contact", ...(boAfter !== undefined ? { after: boAfter } : {}), asOf: boBegin.asOfSeq });
+    const page = await h["sync.snapshot.page"](ctx(BO), {
+      entity: "contact",
+      ...(boAfter !== undefined ? { after: boAfter } : {}),
+      asOf: boBegin.asOfSeq,
+    });
     for (const r of page.rows) {
       assert.equal(r.fields["region"]?.v, "eu", `row ${r.id} is not in Bo's view`);
       assert.equal(r.fields["phone"], undefined, "the hidden field is never sent");

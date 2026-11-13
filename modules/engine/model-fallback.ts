@@ -10,7 +10,13 @@ const MAKER: Readonly<Record<string, string>> = { anthropic: "Claude", openai: "
 /** "glm-5.3" reads "GLM 5.3", "kimi-k3" reads "Kimi K3": a model's name as a person says it. */
 export function modelWords(model: string): string {
   const tail = model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-  return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^[a-z]{2,4}$/.test(p) && !/[aeiou]/.test(p.slice(1)) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+  return tail
+    .split(/[-_]/)
+    .filter((p) => p !== "")
+    .map((p) =>
+      /^[a-z]{2,4}$/.test(p) && !/[aeiou]/.test(p.slice(1)) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1),
+    )
+    .join(" ");
 }
 
 /** A model as a person says it: claude-sonnet-5-5 is Claude Sonnet 5.5. */
@@ -31,17 +37,34 @@ export function noModelWords(model: string | null, served: readonly string[]): s
 /** The chat's line for a swap. */
 export function fallbackLine(f: { from: string; to?: string }): string {
   const asked = modelName(f.from);
-  return f.to ? `${asked} isn't available here, ran ${modelName(f.to)}.` : `${asked} isn't available here, ran the key's own model.`;
+  return f.to
+    ? `${asked} isn't available here, ran ${modelName(f.to)}.`
+    : `${asked} isn't available here, ran the key's own model.`;
 }
 
-export function noteModelFallback(d: { postAs?: PostAs; log?: (msg: string, attrs?: Record<string, unknown>) => void }): (q: { threadId: string; agentId: string; askerId: string }, f: { from: string; to?: string }) => Promise<void> {
+export function noteModelFallback(d: {
+  postAs?: PostAs;
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
+}): (q: { threadId: string; agentId: string; askerId: string }, f: { from: string; to?: string }) => Promise<void> {
   const said = new Set<string>();
   return async (q, f) => {
     const key = `${q.threadId}|${q.agentId}|${f.from}|${f.to ?? ""}`;
     if (!d.postAs || said.has(key)) return;
     said.add(key);
     try {
-      await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: fallbackLine(f) } }] });
-    } catch (e) { d.log?.("the model swap could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
+      await d.postAs(q.agentId, {
+        actingFor: q.askerId,
+        threadId: q.threadId,
+        body: "",
+        mentions: [],
+        clientId: BRIDGE_PREFIX + mintId("b").slice(2),
+        blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: fallbackLine(f) } }],
+      });
+    } catch (e) {
+      d.log?.("the model swap could not be shown in the chat", {
+        threadId: q.threadId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   };
 }

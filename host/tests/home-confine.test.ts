@@ -3,9 +3,26 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { homeCallAllowed } from "../src/daemon/home-confine.ts";
 
-const folders: Record<string, string | null> = { fld_home: "fld_agents", fld_sub: "fld_home", fld_deep: "fld_sub", fld_agents: null, fld_clients: "fld_agents", fld_loop_a: "fld_loop_b", fld_loop_b: "fld_loop_a" };
+const folders: Record<string, string | null> = {
+  fld_home: "fld_agents",
+  fld_sub: "fld_home",
+  fld_deep: "fld_sub",
+  fld_agents: null,
+  fld_clients: "fld_agents",
+  fld_loop_a: "fld_loop_b",
+  fld_loop_b: "fld_loop_a",
+};
 const files: Record<string, string> = { fil_in: "fld_deep", fil_out: "fld_clients", fil_root: "fld_home" };
-const db = { all: (sql: string, id: string) => (sql.includes("files_folder") ? (id in folders ? [{ parent_id: folders[id] }] : []) : id in files ? [{ folder_id: files[id] }] : []) };
+const db = {
+  all: (sql: string, id: string) =>
+    sql.includes("files_folder")
+      ? id in folders
+        ? [{ parent_id: folders[id] }]
+        : []
+      : id in files
+        ? [{ folder_id: files[id] }]
+        : [],
+};
 const scope = { homeFolder: "fld_home", ownerId: "usr_owner", agentId: "agt_a" };
 const ok = (cap: string, input: unknown) => homeCallAllowed(db, scope, cap, input);
 
@@ -49,7 +66,11 @@ test("the agent's own record, a task for its owner about files inside the home: 
 
 test("a node may name files it made, only inside the home, a few at a time", () => {
   assert.equal(ok("made_files", { files: [{ fileId: "fil_in" }, { fileId: "fil_root" }] }), true);
-  assert.equal(ok("made_files", { files: [{ fileId: "fil_in" }, { fileId: "fil_out" }] }), false, "one outside the home refuses the whole call");
+  assert.equal(
+    ok("made_files", { files: [{ fileId: "fil_in" }, { fileId: "fil_out" }] }),
+    false,
+    "one outside the home refuses the whole call",
+  );
   assert.equal(ok("made_files", { files: [] }), false);
   assert.equal(ok("made_files", { files: Array.from({ length: 51 }, () => ({ fileId: "fil_in" })) }), false);
   assert.equal(ok("made_files", { files: "fil_in" }), false);

@@ -16,7 +16,10 @@ export interface KitScreenContext {
   action(name: string): KitAction | undefined;
 }
 
-export type BuiltinComponent = (props: { screen: KitScreenContext; props?: Readonly<Record<string, unknown>> }) => ReactElement | null;
+export type BuiltinComponent = (props: {
+  screen: KitScreenContext;
+  props?: Readonly<Record<string, unknown>>;
+}) => ReactElement | null;
 
 export interface BuiltinRegistry {
   register(key: string, component: BuiltinComponent): void;

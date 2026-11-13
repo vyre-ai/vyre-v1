@@ -24,7 +24,10 @@ async function doneByRun(ctx: JourneysCtx, ev: Ev): Promise<string[]> {
     await ctx.call("tasks.transition", { taskId: link.taskId, to: "done", note: "Done by its Automation." });
     return [link.taskId];
   } catch (e) {
-    ctx.log?.warn("journeys: the task its Automation finished could not be marked done", { taskId: link.taskId, reason: (e as { error?: { message?: string } } | null)?.error?.message ?? "it failed" });
+    ctx.log?.warn("journeys: the task its Automation finished could not be marked done", {
+      taskId: link.taskId,
+      reason: (e as { error?: { message?: string } } | null)?.error?.message ?? "it failed",
+    });
     return [];
   }
 }
@@ -35,7 +38,8 @@ async function advanceOnTask(ctx: JourneysCtx, ev: Ev): Promise<string[]> {
   if (source?.kind !== "journey" || typeof source.id !== "string" || !ctx.call) return [];
   // only the work of the stage the record is in moves it: not a time limit alert or an unblock raised on it, not a task of a stage it left, not the same event twice
   const rec = findRecord(ctx.db, source.id);
-  if (!rec || !taskLinks(ctx.db, rec.recordId, rec.stage, rec.enteredAt).some((l) => l.taskId === ev.payload["taskId"])) return [];
+  if (!rec || !taskLinks(ctx.db, rec.recordId, rec.stage, rec.enteredAt).some((l) => l.taskId === ev.payload["taskId"]))
+    return [];
   await ctx.call("journeys.advance", { recordId: source.id });
   return [source.id];
 }

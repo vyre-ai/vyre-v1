@@ -10,28 +10,58 @@ import { ALIZA, ANDREY, failed, harness, ME, PNG } from "../fixtures/harness.ts"
 const LUMA = "https://lu.ma/lab-8";
 const ICON_SITE = "https://skool.com/mla-ai-labs";
 const pages = {
-  [LUMA]: JSON.stringify({ title: "Lab 8: Claude reads your intake calls", siteName: "Luma", image: "https://images.lu.ma/lab-8.png", description: "Thu 6 Nov, 6:00 PM ET", preview: { contentType: "image/png", data: PNG, from: "image" } }),
-  [ICON_SITE]: JSON.stringify({ title: "MLA AI Labs", siteName: "Skool", icon: "https://skool.com/apple-touch-icon.png", preview: { contentType: "image/png", data: PNG, from: "icon" } }),
+  [LUMA]: JSON.stringify({
+    title: "Lab 8: Claude reads your intake calls",
+    siteName: "Luma",
+    image: "https://images.lu.ma/lab-8.png",
+    description: "Thu 6 Nov, 6:00 PM ET",
+    preview: { contentType: "image/png", data: PNG, from: "image" },
+  }),
+  [ICON_SITE]: JSON.stringify({
+    title: "MLA AI Labs",
+    siteName: "Skool",
+    icon: "https://skool.com/apple-touch-icon.png",
+    preview: { contentType: "image/png", data: PNG, from: "icon" },
+  }),
   "https://example.org/no-picture": JSON.stringify({ title: "No picture", image: "https://example.org/a.png" }),
-  "https://example.org/svg": JSON.stringify({ title: "An SVG", preview: { contentType: "image/svg+xml", data: PNG, from: "image" } }),
+  "https://example.org/svg": JSON.stringify({
+    title: "An SVG",
+    preview: { contentType: "image/svg+xml", data: PNG, from: "image" },
+  }),
 };
 const threads = {
-  thr_mine: { starter: ME },                                   // my own chat with my Assistant
-  thr_ask: { kind: "ask", starter: ME },                       // the Ask pane, opened by me
-  thr_aliza: { starter: ALIZA },                               // Aliza's own chat
-  thr_both: { starter: ME, members: [ALIZA] },                 // a chat with Aliza in it
-  thr_labs: { channelId: "chn_labs" },                         // a public channel
-  thr_pair: { channelId: "chn_pair" },                         // an invite-only channel of Irfad and Aliza
-  thr_help: { parentThreadId: "thr_labs" },                    // a helper under the channel
+  thr_mine: { starter: ME }, // my own chat with my Assistant
+  thr_ask: { kind: "ask", starter: ME }, // the Ask pane, opened by me
+  thr_aliza: { starter: ALIZA }, // Aliza's own chat
+  thr_both: { starter: ME, members: [ALIZA] }, // a chat with Aliza in it
+  thr_labs: { channelId: "chn_labs" }, // a public channel
+  thr_pair: { channelId: "chn_pair" }, // an invite-only channel of Irfad and Aliza
+  thr_help: { parentThreadId: "thr_labs" }, // a helper under the channel
 };
-const channels = { chn_labs: { visibility: "public" as const, members: [ME, ALIZA, ANDREY] }, chn_pair: { visibility: "invite" as const, members: [ME, ALIZA] } };
+const channels = {
+  chn_labs: { visibility: "public" as const, members: [ME, ALIZA, ANDREY] },
+  chn_pair: { visibility: "invite" as const, members: [ME, ALIZA] },
+};
 const world = () => harness({ threads, channels, pages });
 
 test("take a note, pin it, label it, and find it by label and text; the list puts pinned notes first", async () => {
   const w = world();
-  const a = (await w.call("notes.create", { title: "Weinberger intake call, 31 Oct", body: "Joe wants PI leads routed by county.\nSend the Lawmatics field list by Wed.", labels: ["Clients", "clients", " "] })).note;
-  assert.deepEqual([a.title, a.labels, a.pinned, a.mine, a.canEdit, a.share], ["Weinberger intake call, 31 Oct", ["Clients"], false, true, true, { people: [], space: "off" }], "private, one label, case kept once");
-  assert.deepEqual(w.events.map((e) => [e.name, e.opts]), [["notes.created", { vis: "owner" }]]);
+  const a = (
+    await w.call("notes.create", {
+      title: "Weinberger intake call, 31 Oct",
+      body: "Joe wants PI leads routed by county.\nSend the Lawmatics field list by Wed.",
+      labels: ["Clients", "clients", " "],
+    })
+  ).note;
+  assert.deepEqual(
+    [a.title, a.labels, a.pinned, a.mine, a.canEdit, a.share],
+    ["Weinberger intake call, 31 Oct", ["Clients"], false, true, true, { people: [], space: "off" }],
+    "private, one label, case kept once",
+  );
+  assert.deepEqual(
+    w.events.map((e) => [e.name, e.opts]),
+    [["notes.created", { vis: "owner" }]],
+  );
   assert.deepEqual(Object.keys(w.events[0]!.payload).sort(), ["noteId", "owner"], "events carry ids only");
   w.advance(1000);
   const b = (await w.call("notes.create", { title: "GT+ pricing", body: "$1,500 a month" })).note;
@@ -41,14 +71,31 @@ test("take a note, pin it, label it, and find it by label and text; the list put
   assert.deepEqual(labelled.labels, ["Sales", "Lab 8"]);
   assert.deepEqual((await w.call("notes.label", { noteId: b.noteId, remove: ["lab 8"] })).note.labels, ["Sales"]);
   const list = await w.call("notes.list", {});
-  assert.deepEqual(list.notes.map((n: { noteId: string }) => n.noteId), [a.noteId, b.noteId], "pinned first");
-  assert.deepEqual(list.labels, [{ name: "Clients", count: 1 }, { name: "Sales", count: 1 }]);
-  assert.deepEqual((await w.call("notes.list", { label: "sales" })).notes.map((n: { noteId: string }) => n.noteId), [b.noteId]);
-  assert.deepEqual((await w.call("notes.list", { q: "LAWMATICS" })).notes.map((n: { noteId: string }) => n.noteId), [a.noteId]);
+  assert.deepEqual(
+    list.notes.map((n: { noteId: string }) => n.noteId),
+    [a.noteId, b.noteId],
+    "pinned first",
+  );
+  assert.deepEqual(list.labels, [
+    { name: "Clients", count: 1 },
+    { name: "Sales", count: 1 },
+  ]);
+  assert.deepEqual(
+    (await w.call("notes.list", { label: "sales" })).notes.map((n: { noteId: string }) => n.noteId),
+    [b.noteId],
+  );
+  assert.deepEqual(
+    (await w.call("notes.list", { q: "LAWMATICS" })).notes.map((n: { noteId: string }) => n.noteId),
+    [a.noteId],
+  );
   const hits = (await w.call("notes.search", { q: "field list" })).notes;
   assert.equal(hits.length, 1);
   assert.match(hits[0].snippet, /field list/);
-  assert.equal(await failed(w.call("notes.create", { title: "  ", body: "" })), "validation.bad_input", "an empty note is not made");
+  assert.equal(
+    await failed(w.call("notes.create", { title: "  ", body: "" })),
+    "validation.bad_input",
+    "an empty note is not made",
+  );
 });
 
 test("the same idempotency key makes one note", async () => {
@@ -67,16 +114,25 @@ test("delete takes the note out everywhere; Undo brings it back as it was", asyn
   assert.equal((await w.call("notes.list", {})).total, 0);
   assert.equal(await failed(w.call("notes.get", { noteId: a.noteId })), "validation.not_found");
   assert.equal((await w.call("notes.search", { q: "wifi" })).notes.length, 0);
-  assert.equal(await failed(w.call("notes.restore", { noteId: a.noteId }, ALIZA)), "validation.not_found", "only the owner undoes it");
+  assert.equal(
+    await failed(w.call("notes.restore", { noteId: a.noteId }, ALIZA)),
+    "validation.not_found",
+    "only the owner undoes it",
+  );
   const back = (await w.call("notes.restore", { noteId: a.noteId })).note;
   assert.deepEqual([back.body, back.labels], ["Wifi at the office", ["Ops"]]);
   assert.equal((await w.call("notes.list", {})).total, 1);
-  assert.deepEqual(w.allEvents.map((e) => e.name), ["notes.created", "notes.deleted", "notes.restored"]);
+  assert.deepEqual(
+    w.allEvents.map((e) => e.name),
+    ["notes.created", "notes.deleted", "notes.restored"],
+  );
 });
 
 test("pasting an image stores a blob the blob route never serves; the note hands it back to its readers only", async () => {
   const w = world();
-  const a = (await w.call("notes.create", { title: "Lab 8 registrations, Mon", image: { data: PNG, contentType: "image/png" } })).note;
+  const a = (
+    await w.call("notes.create", { title: "Lab 8 registrations, Mon", image: { data: PNG, contentType: "image/png" } })
+  ).note;
   assert.equal(a.hasImage, true);
   assert.equal(w.blobs.size, 1);
   const [blob] = [...w.blobs.values()];
@@ -87,16 +143,33 @@ test("pasting an image stores a blob the blob route never serves; the note hands
   assert.equal(await failed(w.call("notes.image", { noteId: a.noteId }, ALIZA)), "validation.not_found");
   const gone = (await w.call("notes.update", { noteId: a.noteId, image: null })).note;
   assert.equal(gone.hasImage, false);
-  assert.equal(await failed(w.call("notes.create", { image: { data: "", contentType: "image/png" } })), "validation.bad_input");
+  assert.equal(
+    await failed(w.call("notes.create", { image: { data: "", contentType: "image/png" } })),
+    "validation.bad_input",
+  );
 });
 
 test("a pasted link reads into a card with title, site name and a picture fetched on the server; one that cannot be read stays a plain link", async () => {
   const w = world();
   const a = (await w.call("notes.create", { link: LUMA, body: "Post with reel 1 on Tuesday" })).note;
-  assert.deepEqual(a.link, { url: LUMA, siteName: "Luma", title: "Lab 8: Claude reads your intake calls", description: "Thu 6 Nov, 6:00 PM ET", preview: "image" });
-  assert.deepEqual(w.calls.filter((c) => c.cap === "automations.read_link").map((c) => c.input), [{ url: LUMA, preview: true }], "the picture is fetched by the server");
+  assert.deepEqual(a.link, {
+    url: LUMA,
+    siteName: "Luma",
+    title: "Lab 8: Claude reads your intake calls",
+    description: "Thu 6 Nov, 6:00 PM ET",
+    preview: "image",
+  });
+  assert.deepEqual(
+    w.calls.filter((c) => c.cap === "automations.read_link").map((c) => c.input),
+    [{ url: LUMA, preview: true }],
+    "the picture is fetched by the server",
+  );
   assert.doesNotMatch(JSON.stringify(a), /images\.lu\.ma/, "no other site's address reaches a browser");
-  assert.equal((await w.call("notes.search", { q: "claude reads" })).notes[0].noteId, a.noteId, "the card's title is searchable");
+  assert.equal(
+    (await w.call("notes.search", { q: "claude reads" })).notes[0].noteId,
+    a.noteId,
+    "the card's title is searchable",
+  );
   const b = (await w.call("notes.create", { link: "https://example.org/private" })).note;
   assert.deepEqual(b.link, { url: "https://example.org/private", siteName: "example.org" });
   assert.equal(await failed(w.call("notes.create", { link: "javascript:alert(1)" })), "validation.bad_input");
@@ -109,80 +182,182 @@ test("a link card's picture is a notes blob served by notes.image to readers onl
   const w = world();
   const a = (await w.call("notes.create", { link: LUMA })).note;
   const pic = [...w.blobs.values()].at(-1)!;
-  assert.deepEqual([pic.meta.contentType, pic.resource], ["image/png", undefined], "a module blob with no resource: the blob route never serves it");
-  assert.deepEqual(await w.call("notes.image", { noteId: a.noteId, part: "link" }), { contentType: "image/png", data: PNG });
+  assert.deepEqual(
+    [pic.meta.contentType, pic.resource],
+    ["image/png", undefined],
+    "a module blob with no resource: the blob route never serves it",
+  );
+  assert.deepEqual(await w.call("notes.image", { noteId: a.noteId, part: "link" }), {
+    contentType: "image/png",
+    data: PNG,
+  });
   assert.equal(await failed(w.call("notes.image", { noteId: a.noteId, part: "link" }, ALIZA)), "validation.not_found");
-  assert.equal(await failed(w.call("notes.image", { noteId: a.noteId })), "validation.not_found", "the note itself has no image");
+  assert.equal(
+    await failed(w.call("notes.image", { noteId: a.noteId })),
+    "validation.not_found",
+    "the note itself has no image",
+  );
   const icon = (await w.call("notes.create", { link: ICON_SITE })).note;
   assert.equal(icon.link.preview, "icon");
   assert.equal((await w.call("notes.image", { noteId: icon.noteId, part: "link" })).contentType, "image/png");
   for (const url of ["https://example.org/no-picture", "https://example.org/svg"]) {
     const plain = (await w.call("notes.create", { link: url })).note;
     assert.equal(plain.link.preview, undefined, url);
-    assert.equal(await failed(w.call("notes.image", { noteId: plain.noteId, part: "link" })), "validation.not_found", url);
+    assert.equal(
+      await failed(w.call("notes.image", { noteId: plain.noteId, part: "link" })),
+      "validation.not_found",
+      url,
+    );
   }
   const moved = (await w.call("notes.update", { noteId: a.noteId, link: "https://example.org/no-picture" })).note;
   assert.equal(moved.link.preview, undefined);
-  assert.equal(await failed(w.call("notes.image", { noteId: a.noteId, part: "link" })), "validation.not_found", "a new link without a picture drops the old one");
+  assert.equal(
+    await failed(w.call("notes.image", { noteId: a.noteId, part: "link" })),
+    "validation.not_found",
+    "a new link without a picture drops the old one",
+  );
 });
 
 test("a private note exists for nobody else and for none of their agents", async () => {
   const w = world();
-  const a = (await w.call("notes.create", { title: "Weinberger intake call", body: "He pays the DFY balance after the first live week." })).note;
+  const a = (
+    await w.call("notes.create", {
+      title: "Weinberger intake call",
+      body: "He pays the DFY balance after the first live week.",
+    })
+  ).note;
   for (const who of [ALIZA, ANDREY]) {
     assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, who)), "validation.not_found", who);
     assert.equal((await w.call("notes.list", {}, who)).total, 0, who);
     assert.equal((await w.call("notes.search", { q: "dfy" }, who)).notes.length, 0, who);
-    assert.equal(await failed(w.call("notes.update", { noteId: a.noteId, body: "x" }, who)), "validation.not_found", who);
-    assert.equal(await failed(w.call("notes.pin", { noteId: a.noteId, pinned: true }, who)), "validation.not_found", who);
-    assert.equal(await failed(w.call("notes.share", { noteId: a.noteId, space: "view" }, who)), "validation.not_found", who);
+    assert.equal(
+      await failed(w.call("notes.update", { noteId: a.noteId, body: "x" }, who)),
+      "validation.not_found",
+      who,
+    );
+    assert.equal(
+      await failed(w.call("notes.pin", { noteId: a.noteId, pinned: true }, who)),
+      "validation.not_found",
+      who,
+    );
+    assert.equal(
+      await failed(w.call("notes.share", { noteId: a.noteId, space: "view" }, who)),
+      "validation.not_found",
+      who,
+    );
     assert.equal(await failed(w.call("notes.delete", { noteId: a.noteId }, who)), "validation.not_found", who);
     assert.equal(await failed(w.call("notes.to_task", { noteId: a.noteId }, who)), "validation.not_found", who);
   }
   const aliza = w.agent(ALIZA, "thr_aliza");
-  assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, aliza)), "validation.not_found", "Aliza's agent in her own chat");
+  assert.equal(
+    await failed(w.call("notes.get", { noteId: a.noteId }, aliza)),
+    "validation.not_found",
+    "Aliza's agent in her own chat",
+  );
   assert.equal((await w.call("notes.search", { q: "dfy" }, aliza)).notes.length, 0);
-  assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ALIZA, "thr_both"))), "validation.not_found", "even in a chat I am in, for Aliza's agent");
+  assert.equal(
+    await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ALIZA, "thr_both"))),
+    "validation.not_found",
+    "even in a chat I am in, for Aliza's agent",
+  );
 });
 
 test("an agent reads your note in your own chat and Ask pane, never in a channel or a chat others read, unless the note is shared to them", async () => {
   const w = world();
-  const a = (await w.call("notes.create", { title: "Weinberger intake call", body: "Send the Lawmatics field list by Wed." })).note;
+  const a = (
+    await w.call("notes.create", { title: "Weinberger intake call", body: "Send the Lawmatics field list by Wed." })
+  ).note;
   const mine = w.agent(ME, "thr_mine");
-  assert.equal((await w.call("notes.get", { noteId: a.noteId }, mine)).note.body, "Send the Lawmatics field list by Wed.");
-  assert.deepEqual((await w.call("notes.search", { q: "lawmatics" }, mine)).notes.map((n: { noteId: string }) => n.noteId), [a.noteId]);
-  assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, "thr_ask"))).note.noteId, a.noteId, "the Ask pane is my own");
+  assert.equal(
+    (await w.call("notes.get", { noteId: a.noteId }, mine)).note.body,
+    "Send the Lawmatics field list by Wed.",
+  );
+  assert.deepEqual(
+    (await w.call("notes.search", { q: "lawmatics" }, mine)).notes.map((n: { noteId: string }) => n.noteId),
+    [a.noteId],
+  );
+  assert.equal(
+    (await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, "thr_ask"))).note.noteId,
+    a.noteId,
+    "the Ask pane is my own",
+  );
   for (const t of ["thr_labs", "thr_pair", "thr_both", "thr_help"]) {
     assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ME, t))), "validation.not_found", t);
     assert.equal((await w.call("notes.search", { q: "lawmatics" }, w.agent(ME, t))).notes.length, 0, t);
-    assert.equal(await failed(w.call("notes.pin", { noteId: a.noteId, pinned: true }, w.agent(ME, t))), "validation.not_found", `${t}: a write answers with the note, so it follows the same rule`);
+    assert.equal(
+      await failed(w.call("notes.pin", { noteId: a.noteId, pinned: true }, w.agent(ME, t))),
+      "validation.not_found",
+      `${t}: a write answers with the note, so it follows the same rule`,
+    );
   }
-  assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ME))), "validation.not_found", "an agent in no chat (a run, an outside agent) reads only Space notes");
+  assert.equal(
+    await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ME))),
+    "validation.not_found",
+    "an agent in no chat (a run, an outside agent) reads only Space notes",
+  );
   // shared with Aliza: the chats she and I read, and the invite-only channel of us two
   await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "view" }] });
-  for (const t of ["thr_both", "thr_pair"]) assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, t))).note.noteId, a.noteId, t);
-  assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ME, "thr_labs"))), "validation.not_found", "still not the public channel");
+  for (const t of ["thr_both", "thr_pair"])
+    assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, t))).note.noteId, a.noteId, t);
+  assert.equal(
+    await failed(w.call("notes.get", { noteId: a.noteId }, w.agent(ME, "thr_labs"))),
+    "validation.not_found",
+    "still not the public channel",
+  );
   // shared with the Space: any chat or channel
   await w.call("notes.share", { noteId: a.noteId, space: "view" });
-  for (const t of ["thr_labs", "thr_help"]) assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, t))).note.noteId, a.noteId, t);
+  for (const t of ["thr_labs", "thr_help"])
+    assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ME, t))).note.noteId, a.noteId, t);
   assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ANDREY, "thr_labs"))).note.noteId, a.noteId);
 });
 
 test("a shared note is read by the people it is shared with, edited by editors only, and shared by the owner only", async () => {
   const w = world();
   const a = (await w.call("notes.create", { title: "Lab 8 run of show", body: "6:05 Andrey welcome" })).note;
-  const shared = (await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "edit" }, { personId: ANDREY, role: "view" }] })).note;
-  assert.deepEqual(shared.share, { people: [{ personId: ALIZA, role: "edit" }, { personId: ANDREY, role: "view" }], space: "off" });
-  assert.deepEqual(w.events.map((e) => [e.name, e.payload["people"], e.payload["space"]]), [["notes.shared", [ALIZA, ANDREY], "off"]]);
+  const shared = (
+    await w.call("notes.share", {
+      noteId: a.noteId,
+      people: [
+        { personId: ALIZA, role: "edit" },
+        { personId: ANDREY, role: "view" },
+      ],
+    })
+  ).note;
+  assert.deepEqual(shared.share, {
+    people: [
+      { personId: ALIZA, role: "edit" },
+      { personId: ANDREY, role: "view" },
+    ],
+    space: "off",
+  });
+  assert.deepEqual(
+    w.events.map((e) => [e.name, e.payload["people"], e.payload["space"]]),
+    [["notes.shared", [ALIZA, ANDREY], "off"]],
+  );
   const seen = (await w.call("notes.get", { noteId: a.noteId }, ALIZA)).note;
   assert.deepEqual([seen.mine, seen.canEdit], [false, true]);
   assert.equal((await w.call("notes.list", { from: "shared" }, ALIZA)).total, 1);
   assert.equal((await w.call("notes.list", { from: "mine" }, ALIZA)).total, 0);
-  assert.equal((await w.call("notes.update", { noteId: a.noteId, body: "6:05 Andrey welcome, two minutes" }, ALIZA)).note.body, "6:05 Andrey welcome, two minutes");
+  assert.equal(
+    (await w.call("notes.update", { noteId: a.noteId, body: "6:05 Andrey welcome, two minutes" }, ALIZA)).note.body,
+    "6:05 Andrey welcome, two minutes",
+  );
   assert.equal((await w.call("notes.get", { noteId: a.noteId }, ANDREY)).note.canEdit, false);
-  assert.equal(await failed(w.call("notes.update", { noteId: a.noteId, body: "x" }, ANDREY)), "validation.not_found", "a viewer does not edit");
-  assert.equal(await failed(w.call("notes.share", { noteId: a.noteId, space: "view" }, ALIZA)), "permission.no_grant", "an editor does not share");
-  assert.equal((await w.call("notes.get", { noteId: a.noteId }, w.agent(ALIZA, "thr_aliza"))).note.noteId, a.noteId, "Aliza's agent in her own chat");
+  assert.equal(
+    await failed(w.call("notes.update", { noteId: a.noteId, body: "x" }, ANDREY)),
+    "validation.not_found",
+    "a viewer does not edit",
+  );
+  assert.equal(
+    await failed(w.call("notes.share", { noteId: a.noteId, space: "view" }, ALIZA)),
+    "permission.no_grant",
+    "an editor does not share",
+  );
+  assert.equal(
+    (await w.call("notes.get", { noteId: a.noteId }, w.agent(ALIZA, "thr_aliza"))).note.noteId,
+    a.noteId,
+    "Aliza's agent in her own chat",
+  );
   // Andrey removes it from his notes; his Undo brings it back; my note is untouched
   await w.call("notes.delete", { noteId: a.noteId }, ANDREY);
   assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, ANDREY)), "validation.not_found");
@@ -194,25 +369,68 @@ test("a shared note is read by the people it is shared with, edited by editors o
   assert.equal(await failed(w.call("notes.get", { noteId: a.noteId }, ALIZA)), "validation.not_found");
   // the Space: everyone reads; a Space editor edits
   await w.call("notes.share", { noteId: a.noteId, space: "edit" });
-  assert.equal((await w.call("notes.update", { noteId: a.noteId, title: "Lab 8 run of show, final" }, ALIZA)).note.title, "Lab 8 run of show, final");
+  assert.equal(
+    (await w.call("notes.update", { noteId: a.noteId, title: "Lab 8 run of show, final" }, ALIZA)).note.title,
+    "Lab 8 run of show, final",
+  );
 });
 
 test("turn into task and turn into record make linked items that point back at the note", async () => {
   const w = world();
-  const a = (await w.call("notes.create", { title: "Weinberger intake call, 31 Oct", body: "Send Joe the Lawmatics field list by Wed." })).note;
-  const t = await w.call("notes.to_task", { noteId: a.noteId, title: "Send Joe the Lawmatics custom field list", due: 1_762_300_000_000, idempotencyKey: "tk1" });
+  const a = (
+    await w.call("notes.create", {
+      title: "Weinberger intake call, 31 Oct",
+      body: "Send Joe the Lawmatics field list by Wed.",
+    })
+  ).note;
+  const t = await w.call("notes.to_task", {
+    noteId: a.noteId,
+    title: "Send Joe the Lawmatics custom field list",
+    due: 1_762_300_000_000,
+    idempotencyKey: "tk1",
+  });
   const sent = w.calls.find((c) => c.cap === "tasks.create")!.input;
-  assert.deepEqual([sent["title"], sent["assigned"], sent["source"], sent["due"]], ["Send Joe the Lawmatics custom field list", { kind: "person", id: ME }, { kind: "manual", id: a.noteId }, 1_762_300_000_000]);
-  assert.match(String(sent["summary"]), /Lawmatics field list by Wed\.[\s\S]*From the note "Weinberger intake call, 31 Oct"/);
-  assert.deepEqual(t.note.linked.map((l: { kind: string; id: string }) => [l.kind, l.id]), [["task", t.taskId]]);
+  assert.deepEqual(
+    [sent["title"], sent["assigned"], sent["source"], sent["due"]],
+    [
+      "Send Joe the Lawmatics custom field list",
+      { kind: "person", id: ME },
+      { kind: "manual", id: a.noteId },
+      1_762_300_000_000,
+    ],
+  );
+  assert.match(
+    String(sent["summary"]),
+    /Lawmatics field list by Wed\.[\s\S]*From the note "Weinberger intake call, 31 Oct"/,
+  );
+  assert.deepEqual(
+    t.note.linked.map((l: { kind: string; id: string }) => [l.kind, l.id]),
+    [["task", t.taskId]],
+  );
   const again = await w.call("notes.to_task", { noteId: a.noteId, idempotencyKey: "tk1" });
-  assert.deepEqual([again.taskId, again.note.linked.length], [t.taskId, 1], "the same key: the tasks module answers with the same task, linked once");
-  const r = await w.call("notes.to_record", { noteId: a.noteId, type: "client", fields: { name: "Weinberger Law", contact: "Joe Weinberger" }, keep: false });
-  assert.deepEqual(w.calls.filter((c) => c.cap === "records.create").map((c) => [c.input["type"], c.input["fields"]]), [["client", { name: "Weinberger Law", contact: "Joe Weinberger" }]]);
+  assert.deepEqual(
+    [again.taskId, again.note.linked.length],
+    [t.taskId, 1],
+    "the same key: the tasks module answers with the same task, linked once",
+  );
+  const r = await w.call("notes.to_record", {
+    noteId: a.noteId,
+    type: "client",
+    fields: { name: "Weinberger Law", contact: "Joe Weinberger" },
+    keep: false,
+  });
+  assert.deepEqual(
+    w.calls.filter((c) => c.cap === "records.create").map((c) => [c.input["type"], c.input["fields"]]),
+    [["client", { name: "Weinberger Law", contact: "Joe Weinberger" }]],
+  );
   assert.deepEqual(r.note.linked.at(-1).title, "Weinberger Law");
   assert.ok(w.allEvents.filter((e) => e.name === "notes.linked").every((e) => typeof e.payload["id"] === "string"));
   assert.equal((await w.call("notes.list", {})).total, 0, "keep false: the note leaves the grid");
-  assert.equal((await w.call("notes.get", { noteId: a.noteId })).note.noteId, a.noteId, "and still opens from the task or record");
+  assert.equal(
+    (await w.call("notes.get", { noteId: a.noteId })).note.noteId,
+    a.noteId,
+    "and still opens from the task or record",
+  );
 });
 
 test("a page clipped from Vyre for Chrome keeps its address, title, selection and screenshot, private", async () => {
@@ -221,14 +439,38 @@ test("a page clipped from Vyre for Chrome keeps its address, title, selection an
   // what the extension sends: the tab's address and title, the selected text, a screenshot
   const title = /<title>([^<]*)<\/title>/.exec(html)![1]!.replace(/&amp;/g, "&");
   const selection = /<p id="selected">([^<]*)<\/p>/.exec(html)![1]!;
-  const out = (await w.call("notes.clip", { url: "https://baileyandgalyen.com/free-consultation", title, selection, screenshot: { data: PNG, contentType: "image/png" }, labels: ["Reading"] })).note;
-  assert.deepEqual([out.title, out.clip.url, out.clip.selection, out.clip.hasShot, out.hasImage, out.labels, out.share], [
-    "Free consultation | Bailey & Galyen", "https://baileyandgalyen.com/free-consultation", "Call us 24/7. Se habla español. No fee unless we win.", true, true, ["Reading"], { people: [], space: "off" },
-  ]);
-  assert.deepEqual(w.events.map((e) => e.name), ["notes.clipped"]);
+  const out = (
+    await w.call("notes.clip", {
+      url: "https://baileyandgalyen.com/free-consultation",
+      title,
+      selection,
+      screenshot: { data: PNG, contentType: "image/png" },
+      labels: ["Reading"],
+    })
+  ).note;
+  assert.deepEqual(
+    [out.title, out.clip.url, out.clip.selection, out.clip.hasShot, out.hasImage, out.labels, out.share],
+    [
+      "Free consultation | Bailey & Galyen",
+      "https://baileyandgalyen.com/free-consultation",
+      "Call us 24/7. Se habla español. No fee unless we win.",
+      true,
+      true,
+      ["Reading"],
+      { people: [], space: "off" },
+    ],
+  );
+  assert.deepEqual(
+    w.events.map((e) => e.name),
+    ["notes.clipped"],
+  );
   assert.equal((await w.call("notes.search", { q: "se habla" })).notes[0].noteId, out.noteId);
   assert.equal(await failed(w.call("notes.get", { noteId: out.noteId }, ALIZA)), "validation.not_found");
-  assert.equal(await failed(w.call("notes.clip", { url: "https://example.org" }, w.agent(ME, "thr_mine"))), "permission.no_grant", "only a person clips");
+  assert.equal(
+    await failed(w.call("notes.clip", { url: "https://example.org" }, w.agent(ME, "thr_mine"))),
+    "permission.no_grant",
+    "only a person clips",
+  );
   assert.equal(await failed(w.call("notes.clip", { url: "file:///etc/passwd" })), "validation.bad_input");
 });
 
@@ -250,25 +492,47 @@ test("an address in a note's words gets its link card, on create and when it is 
   const removed = (await w.call("notes.update", { noteId: plain.noteId, link: null })).note;
   assert.equal(removed.link, undefined);
   const edited = (await w.call("notes.update", { noteId: plain.noteId, body: `Testing ${ICON_SITE} again` })).note;
-  assert.equal(edited.link, undefined, "the same address, already in the words, is not read again after the person removed its card");
+  assert.equal(
+    edited.link,
+    undefined,
+    "the same address, already in the words, is not read again after the person removed its card",
+  );
 });
 
 // ---- saved from a chat (agents make notes natively; the person's own private note links back to the message)
 const chats = {
-  thr_dm: { starter: ME, title: "Weinberger Law prep" },                                  // my own chat with my Assistant
-  thr_team: { channelId: "chn_team", title: "intake" },                                    // a channel Aliza and I are in
-  thr_other: { starter: ALIZA, title: "Aliza's own chat" },                                // a chat I cannot read
+  thr_dm: { starter: ME, title: "Weinberger Law prep" }, // my own chat with my Assistant
+  thr_team: { channelId: "chn_team", title: "intake" }, // a channel Aliza and I are in
+  thr_other: { starter: ALIZA, title: "Aliza's own chat" }, // a chat I cannot read
 };
-const sourceWorld = () => harness({
-  threads: chats, channels: { chn_team: { visibility: "invite" as const, members: [ME, ALIZA] } },
-  messages: { thr_dm: [{ messageId: "msg_1", createdAt: NOW_MSG }], thr_team: [{ messageId: "msg_9", createdAt: NOW_MSG }], thr_other: [{ messageId: "msg_5" }] },
-});
+const sourceWorld = () =>
+  harness({
+    threads: chats,
+    channels: { chn_team: { visibility: "invite" as const, members: [ME, ALIZA] } },
+    messages: {
+      thr_dm: [{ messageId: "msg_1", createdAt: NOW_MSG }],
+      thr_team: [{ messageId: "msg_9", createdAt: NOW_MSG }],
+      thr_other: [{ messageId: "msg_5" }],
+    },
+  });
 const NOW_MSG = 1_762_150_000_000;
 
 test("a note saved from a chat is the person's own and private, and links back to that exact message with the chat's title and the message's time", async () => {
   const w = sourceWorld();
-  const n = (await w.call("notes.create", { title: "Weinberger form link", body: "weinbergerlaw.com/intake-form", source: { threadId: "thr_dm", messageId: "msg_1" } })).note;
-  assert.deepEqual(n.from, { threadId: "thr_dm", messageId: "msg_1", title: "Weinberger Law prep", at: NOW_MSG, readable: true });
+  const n = (
+    await w.call("notes.create", {
+      title: "Weinberger form link",
+      body: "weinbergerlaw.com/intake-form",
+      source: { threadId: "thr_dm", messageId: "msg_1" },
+    })
+  ).note;
+  assert.deepEqual(n.from, {
+    threadId: "thr_dm",
+    messageId: "msg_1",
+    title: "Weinberger Law prep",
+    at: NOW_MSG,
+    readable: true,
+  });
   assert.deepEqual([n.mine, n.share], [true, { people: [], space: "off" }], "private to the person");
   const got = (await w.call("notes.get", { noteId: n.noteId })).note;
   assert.equal(got.from?.readable, true);
@@ -276,8 +540,18 @@ test("a note saved from a chat is the person's own and private, and links back t
 
 test("a note saved from a shared channel is still only the person's: Aliza, who is in the channel, does not read it, and the link is not handed to anyone a note is shared with", async () => {
   const w = sourceWorld();
-  const n = (await w.call("notes.create", { title: "Decision", body: "Go with Tuesday", source: { threadId: "thr_team", messageId: "msg_9" } })).note;
-  assert.equal(await failed(w.call("notes.get", { noteId: n.noteId }, ALIZA)), "validation.not_found", "a channel member does not read the person's private note");
+  const n = (
+    await w.call("notes.create", {
+      title: "Decision",
+      body: "Go with Tuesday",
+      source: { threadId: "thr_team", messageId: "msg_9" },
+    })
+  ).note;
+  assert.equal(
+    await failed(w.call("notes.get", { noteId: n.noteId }, ALIZA)),
+    "validation.not_found",
+    "a channel member does not read the person's private note",
+  );
   await w.call("notes.share", { noteId: n.noteId, people: [{ personId: ALIZA, role: "view" }] });
   const theirs = (await w.call("notes.get", { noteId: n.noteId }, ALIZA)).note;
   assert.equal(theirs.from, undefined, "a note shared with someone carries no link into the owner's chat");
@@ -285,13 +559,34 @@ test("a note saved from a shared channel is still only the person's: Aliza, who 
 
 test("the link is refused to someone who cannot read the chat: no chat, no message, no title, and a note cannot be saved from a chat the person cannot read", async () => {
   const w = sourceWorld();
-  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_other", messageId: "msg_5" } })), "validation.not_found", "a chat the person cannot read");
-  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_dm", messageId: "msg_404" } })), "validation.not_found", "a message that is not in that chat");
+  assert.equal(
+    await failed(
+      w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_other", messageId: "msg_5" } }),
+    ),
+    "validation.not_found",
+    "a chat the person cannot read",
+  );
+  assert.equal(
+    await failed(
+      w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_dm", messageId: "msg_404" } }),
+    ),
+    "validation.not_found",
+    "a message that is not in that chat",
+  );
   // the owner loses the chat (removed from the channel): the note keeps only when it was saved
   const own = { ...chats, thr_gone: { channelId: "chn_gone", title: "ops" } };
-  const channels = { chn_team: { visibility: "invite" as const, members: [ME, ALIZA] }, chn_gone: { visibility: "invite" as const, members: [ME] } };
+  const channels = {
+    chn_team: { visibility: "invite" as const, members: [ME, ALIZA] },
+    chn_gone: { visibility: "invite" as const, members: [ME] },
+  };
   const w2 = harness({ threads: own, channels, messages: { thr_gone: [{ messageId: "msg_7", createdAt: NOW_MSG }] } });
-  const made = (await w2.call("notes.create", { title: "Ops", body: "Rotate the key", source: { threadId: "thr_gone", messageId: "msg_7" } })).note;
+  const made = (
+    await w2.call("notes.create", {
+      title: "Ops",
+      body: "Rotate the key",
+      source: { threadId: "thr_gone", messageId: "msg_7" },
+    })
+  ).note;
   channels.chn_gone.members = [ALIZA];
   const later = (await w2.call("notes.get", { noteId: made.noteId })).note;
   assert.deepEqual(later.from, { at: NOW_MSG, readable: false });
@@ -305,7 +600,12 @@ test("an agent saving a note from the chat it is in: the note is the person's, p
   const n = (await w.call("notes.create", { title: "Save this", body: "The answer to keep" }, bot)).note;
   assert.equal(n.from?.messageId, "msg_1");
   assert.equal(n.owner, ME);
-  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_team", messageId: "msg_9" } }, bot)), "validation.not_found");
+  assert.equal(
+    await failed(
+      w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_team", messageId: "msg_9" } }, bot),
+    ),
+    "validation.not_found",
+  );
 });
 
 test("sharing with notify tells each person just added, once, with the line; without it nobody; and the owner hands the note over", async () => {
@@ -313,12 +613,34 @@ test("sharing with notify tells each person just added, once, with the line; wit
   const a = (await w.call("notes.create", { title: "Lab 8 run of show", body: "6:05" })).note;
   await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "view" }] });
   assert.equal(w.calls.filter((c) => c.cap === "notifications.send").length, 0, "no notify, no word");
-  await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "edit" }, { personId: ANDREY, role: "view" }], notify: { message: "Take a look" } });
+  await w.call("notes.share", {
+    noteId: a.noteId,
+    people: [
+      { personId: ALIZA, role: "edit" },
+      { personId: ANDREY, role: "view" },
+    ],
+    notify: { message: "Take a look" },
+  });
   const sent = w.calls.filter((c) => c.cap === "notifications.send");
   assert.equal(sent.length, 1, "Aliza already had it; only Andrey is told");
-  assert.deepEqual(sent[0]!.input, { to: ANDREY, kind: "item.shared", subject: { type: "note", id: a.noteId }, title: "Lab 8 run of show", data: { from: "Irfad", message: "Take a look" }, collapseKey: `item.shared:${a.noteId}:${ANDREY}` });
-  assert.equal(await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: ANDREY }, ALIZA)), "permission.no_grant", "only the owner hands it over");
-  assert.equal(await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: "usr_stranger00" })), "validation.bad_input", "share it first");
+  assert.deepEqual(sent[0]!.input, {
+    to: ANDREY,
+    kind: "item.shared",
+    subject: { type: "note", id: a.noteId },
+    title: "Lab 8 run of show",
+    data: { from: "Irfad", message: "Take a look" },
+    collapseKey: `item.shared:${a.noteId}:${ANDREY}`,
+  });
+  assert.equal(
+    await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: ANDREY }, ALIZA)),
+    "permission.no_grant",
+    "only the owner hands it over",
+  );
+  assert.equal(
+    await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: "usr_stranger00" })),
+    "validation.bad_input",
+    "share it first",
+  );
   const handed = (await w.call("notes.set_owner", { noteId: a.noteId, personId: ANDREY })).note;
   assert.equal(handed.mine, false);
   const andrey = (await w.call("notes.get", { noteId: a.noteId }, ANDREY)).note;

@@ -6,11 +6,14 @@ import { createMadeFilesAnnouncer } from "../src/daemon/daemon.ts";
 const file = (n: number) => ({ fileId: `fil_${n}`, name: `f${n}.pdf`, kind: "pdf", size: 10 * n, version: 1 });
 
 function rig(thread: string | undefined) {
-  const posts: Array<{ agentId: string; cap: string; input: any }> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const posts: Array<{ agentId: string; cap: string; input: any }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const logs: string[] = [];
   const say = createMadeFilesAnnouncer({
     db: { all: () => (thread ? [{ thread_id: thread }] : []) },
-    call: async (agentId, cap, input) => { posts.push({ agentId, cap, input }); return {}; },
+    call: async (agentId, cap, input) => {
+      posts.push({ agentId, cap, input });
+      return {};
+    },
     log: (m) => logs.push(m),
   });
   return { say, posts, logs };
@@ -23,7 +26,13 @@ test("the files land in the chat the computer last worked for, as file cards", a
   assert.equal(r.posts[0]!.cap, "chat.post");
   assert.equal(r.posts[0]!.agentId, "agt_a");
   assert.equal(r.posts[0]!.input.threadId, "thr_1");
-  assert.deepEqual(r.posts[0]!.input.blocks.map((b: any) => [b.type, b.data.fileId, b.data.name]), [["file", "fil_1", "f1.pdf"], ["file", "fil_2", "f2.pdf"]]);   // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    r.posts[0]!.input.blocks.map((b: any) => [b.type, b.data.fileId, b.data.name]),
+    [
+      ["file", "fil_1", "f1.pdf"],
+      ["file", "fil_2", "f2.pdf"],
+    ],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(r.posts[0]!.input.body, "");
 });
 
@@ -42,5 +51,9 @@ test("work for no chat (a routine, a person at the keyboard) posts nothing and s
   await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1)] });
   assert.deepEqual(r.posts, []);
   assert.equal(r.logs.length, 1);
-  assert.equal(await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1)] }), false, "it answers that nothing was said, so the files stay held until a chat appears");
+  assert.equal(
+    await r.say({ agentId: "agt_a", computerId: "cmt_a", files: [file(1)] }),
+    false,
+    "it answers that nothing was said, so the files stay held until a chat appears",
+  );
 });

@@ -12,7 +12,14 @@ import type { BlobMeta, Ctx } from "../../../packages/contracts/src/ctx.ts";
 type Row = Record<string, unknown>;
 
 /** One made image: its place in the preview and its PNG bytes. */
-export interface StoredImage { kind: "thumb" | "page"; size: string; page: number; bytes: Uint8Array; width: number; height: number }
+export interface StoredImage {
+  kind: "thumb" | "page";
+  size: string;
+  page: number;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+}
 
 export const IMAGE_TYPE = "image/png";
 
@@ -34,7 +41,14 @@ export function imageRows(ctx: Ctx, fileId: string, version: number): Row[] {
   return ctx.db.all("SELECT * FROM previews_image WHERE file_id = ? AND version = ?", fileId, version) as Row[];
 }
 
-export function findImage(ctx: Ctx, fileId: string, version: number, kind: string, size: string, page: number): Row | undefined {
+export function findImage(
+  ctx: Ctx,
+  fileId: string,
+  version: number,
+  kind: string,
+  size: string,
+  page: number,
+): Row | undefined {
   return imageRows(ctx, fileId, version).find((r) => r["kind"] === kind && r["size"] === size && r["page"] === page);
 }
 
@@ -48,10 +62,27 @@ export async function putImage(ctx: Ctx, fileId: string, version: number, m: Sto
   const blobs = blobsOf(ctx);
   const meta = await blobs.put(m.bytes, IMAGE_TYPE, { resource: { type: "file", id: fileId } });
   const old = findImage(ctx, fileId, version, m.kind, m.size, m.page);
-  ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?", fileId, version, m.kind, m.size, m.page);
+  ctx.db.run(
+    "DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?",
+    fileId,
+    version,
+    m.kind,
+    m.size,
+    m.page,
+  );
   ctx.db.run(
     "INSERT INTO previews_image (file_id, version, kind, size, page, blob_id, content_type, bytes, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    fileId, version, m.kind, m.size, m.page, meta.id, meta.contentType, meta.size, m.width, m.height, ctx.now(),
+    fileId,
+    version,
+    m.kind,
+    m.size,
+    m.page,
+    meta.id,
+    meta.contentType,
+    meta.size,
+    m.width,
+    m.height,
+    ctx.now(),
   );
   if (old && str(old["blob_id"]) !== meta.id) await blobs.delete(str(old["blob_id"]));
   return meta;
@@ -59,12 +90,21 @@ export async function putImage(ctx: Ctx, fileId: string, version: number, m: Sto
 
 /** Deletes the images of one version, or of every version when `version` is omitted: blobs first, then rows. */
 export async function dropImages(ctx: Ctx, fileId: string, version?: number): Promise<number> {
-  const rows = (ctx.db.all("SELECT * FROM previews_image WHERE file_id = ?", fileId) as Row[]).filter((r) => version === undefined || r["version"] === version);
+  const rows = (ctx.db.all("SELECT * FROM previews_image WHERE file_id = ?", fileId) as Row[]).filter(
+    (r) => version === undefined || r["version"] === version,
+  );
   if (rows.length === 0) return 0;
   const blobs = blobsOf(ctx);
   for (const r of rows) await blobs.delete(str(r["blob_id"]));
   for (const r of rows) {
-    ctx.db.run("DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?", fileId, r["version"], r["kind"], r["size"], r["page"]);
+    ctx.db.run(
+      "DELETE FROM previews_image WHERE file_id = ? AND version = ? AND kind = ? AND size = ? AND page = ?",
+      fileId,
+      r["version"],
+      r["kind"],
+      r["size"],
+      r["page"],
+    );
   }
   return rows.length;
 }

@@ -21,7 +21,10 @@ export interface LogFilter {
   untilMs?: number;
 }
 
-export interface Page { cursor?: string; limit?: number }
+export interface Page {
+  cursor?: string;
+  limit?: number;
+}
 
 export interface ApiLog {
   id: number;
@@ -44,11 +47,37 @@ export interface ApiLog {
   attrs?: Record<string, unknown>;
 }
 
-export interface ApiSpan { traceId: string; spanId: string; name: string; at: number; durUs: number; parent?: string; attrs?: Record<string, unknown> }
-export interface ApiEvent { seq: number; type: string; at: number; actor: string; entity?: string }
-export interface QueryOut { rows: ApiLog[]; total: number; next?: string }
-export interface SpansOut { spans: ApiSpan[]; total: number; next?: string }
-export interface TraceOut { logs: ApiLog[]; spans: ApiSpan[]; events: ApiEvent[] }
+export interface ApiSpan {
+  traceId: string;
+  spanId: string;
+  name: string;
+  at: number;
+  durUs: number;
+  parent?: string;
+  attrs?: Record<string, unknown>;
+}
+export interface ApiEvent {
+  seq: number;
+  type: string;
+  at: number;
+  actor: string;
+  entity?: string;
+}
+export interface QueryOut {
+  rows: ApiLog[];
+  total: number;
+  next?: string;
+}
+export interface SpansOut {
+  spans: ApiSpan[];
+  total: number;
+  next?: string;
+}
+export interface TraceOut {
+  logs: ApiLog[];
+  spans: ApiSpan[];
+  events: ApiEvent[];
+}
 
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 500;
@@ -56,9 +85,16 @@ export const MAX_LIMIT = 500;
 export const TRACE_CAP = 5_000;
 
 const NEXT_LABEL: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Use another model", use_backup_key: "Use the backup key", ask_access: "Ask for access",
-  open_settings: "Open settings", reconnect: "Reconnect", edit_input: "Change what you sent", wait: "Wait a moment",
-  contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Use another model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Change what you sent",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 /** Throw a typed error from the global catalogue with the trace id and the catalogue's next steps. */
@@ -92,7 +128,9 @@ function jsonObj(v: unknown): Record<string, unknown> | undefined {
   try {
     const p = JSON.parse(v) as unknown;
     return p && typeof p === "object" && !Array.isArray(p) ? (p as Record<string, unknown>) : undefined;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 export function limitOf(page: Page | undefined): number {
@@ -107,14 +145,27 @@ function cursorNumber(page: Page | undefined): number | null {
   return c !== undefined && /^[0-9]{1,15}$/.test(c) ? Number(c) : null;
 }
 
-export interface Where { sql: string; args: unknown[] }
+export interface Where {
+  sql: string;
+  args: unknown[];
+}
 
 /** The WHERE clause of a log search. `level` is a floor: warn finds warn and error. */
 export function buildWhere(space: string, f: LogFilter): Where {
   const conds = ["space = ?"];
   const args: unknown[] = [space];
-  const eq = (col: string, v: string | undefined): void => { if (v) { conds.push(`${col} = ?`); args.push(v); } };
-  const who = (v: string | undefined): void => { if (v) { conds.push("(actor = ? OR on_behalf = ?)"); args.push(v, v); } };
+  const eq = (col: string, v: string | undefined): void => {
+    if (v) {
+      conds.push(`${col} = ?`);
+      args.push(v);
+    }
+  };
+  const who = (v: string | undefined): void => {
+    if (v) {
+      conds.push("(actor = ? OR on_behalf = ?)");
+      args.push(v, v);
+    }
+  };
   who(f.person);
   who(f.agent);
   eq("place", f.place);
@@ -123,22 +174,49 @@ export function buildWhere(space: string, f: LogFilter): Where {
   eq("trace_id", f.traceId);
   eq("cap", f.cap);
   eq("result", f.result);
-  if (f.level) { conds.push("level >= ?"); args.push(LEVELS[f.level]); }
-  if (f.sinceMs !== undefined) { conds.push("at >= ?"); args.push(f.sinceMs); }
-  if (f.untilMs !== undefined) { conds.push("at <= ?"); args.push(f.untilMs); }
+  if (f.level) {
+    conds.push("level >= ?");
+    args.push(LEVELS[f.level]);
+  }
+  if (f.sinceMs !== undefined) {
+    conds.push("at >= ?");
+    args.push(f.sinceMs);
+  }
+  if (f.untilMs !== undefined) {
+    conds.push("at <= ?");
+    args.push(f.untilMs);
+  }
   return { sql: conds.join(" AND "), args };
 }
 
 export function toApiLog(r: Row, erased: ReadonlySet<string>): ApiLog | null {
-  const id = numOf(r["id"]), at = numOf(r["at"]), msg = str(r["msg"]);
+  const id = numOf(r["id"]),
+    at = numOf(r["at"]),
+    msg = str(r["msg"]);
   if (id === undefined || at === undefined || msg === undefined) return null;
   const out: ApiLog = { id, at, level: levelName(numOf(r["level"]) ?? LEVELS.info), msg };
-  const set = <K extends "traceId" | "spanId" | "actor" | "onBehalf" | "runId" | "place" | "cap" | "entity" | "entityId" | "result">(k: K, v: string | undefined): void => {
+  const set = <
+    K extends
+      | "traceId"
+      | "spanId"
+      | "actor"
+      | "onBehalf"
+      | "runId"
+      | "place"
+      | "cap"
+      | "entity"
+      | "entityId"
+      | "result",
+  >(
+    k: K,
+    v: string | undefined,
+  ): void => {
     if (v !== undefined) out[k] = v;
   };
   set("traceId", str(r["trace_id"]));
   set("spanId", str(r["span_id"]));
-  const actor = str(r["actor"]), behalf = str(r["on_behalf"]);
+  const actor = str(r["actor"]),
+    behalf = str(r["on_behalf"]);
   set("actor", actor !== undefined && erased.has(actor) ? undefined : actor);
   set("onBehalf", behalf !== undefined && erased.has(behalf) ? undefined : behalf);
   set("runId", str(r["run_id"]));
@@ -147,7 +225,9 @@ export function toApiLog(r: Row, erased: ReadonlySet<string>): ApiLog | null {
   set("entity", str(r["entity"]));
   set("entityId", str(r["entity_id"]));
   set("result", str(r["result"]));
-  const dur = numOf(r["dur_ms"]), cost = numOf(r["cost_micros"]), label = numOf(r["label"]);
+  const dur = numOf(r["dur_ms"]),
+    cost = numOf(r["cost_micros"]),
+    label = numOf(r["label"]);
   if (dur !== undefined) out.durMs = dur;
   if (cost !== undefined) out.costMicros = cost;
   if (label !== undefined) out.label = label;
@@ -157,7 +237,10 @@ export function toApiLog(r: Row, erased: ReadonlySet<string>): ApiLog | null {
 }
 
 export function toApiSpan(r: Row): ApiSpan | null {
-  const traceId = str(r["trace_id"]), spanId = str(r["span_id"]), name = str(r["name"]), at = numOf(r["at"]);
+  const traceId = str(r["trace_id"]),
+    spanId = str(r["span_id"]),
+    name = str(r["name"]),
+    at = numOf(r["at"]);
   if (!traceId || !spanId || !name || at === undefined) return null;
   const out: ApiSpan = { traceId, spanId, name, at, durUs: numOf(r["dur_us"]) ?? 0 };
   const parent = str(r["parent"]);
@@ -168,7 +251,9 @@ export function toApiSpan(r: Row): ApiSpan | null {
 }
 
 export function toApiEvent(r: Row, erased: ReadonlySet<string>): ApiEvent | null {
-  const seq = numOf(r["seq"]), type = str(r["type"]), at = numOf(r["at"]);
+  const seq = numOf(r["seq"]),
+    type = str(r["type"]),
+    at = numOf(r["at"]);
   if (seq === undefined || !type || at === undefined) return null;
   const actor = str(r["actor"]) ?? "";
   const out: ApiEvent = { seq, type, at, actor: erased.has(actor) ? "" : actor };
@@ -191,14 +276,20 @@ function countOf(db: Db, sql: string, args: unknown[]): number {
 /** Newest first. `next` is the id of the last row returned; pass it as `cursor` for the following page. */
 export function queryLogs(db: Db, space: string, filter: LogFilter, page: Page | undefined): QueryOut {
   const erased = erasedActors(db);
-  if ((filter.person && erased.has(filter.person)) || (filter.agent && erased.has(filter.agent))) return { rows: [], total: 0 };
+  if ((filter.person && erased.has(filter.person)) || (filter.agent && erased.has(filter.agent)))
+    return { rows: [], total: 0 };
   const w = buildWhere(space, filter);
   const after = cursorNumber(page);
   const limit = limitOf(page);
   const total = countOf(db, `SELECT COUNT(*) AS n FROM logs_row WHERE ${w.sql}`, w.args);
   const paged = after === null ? w : { sql: `${w.sql} AND id < ?`, args: [...w.args, after] };
   const found = db.all(`SELECT * FROM logs_row WHERE ${paged.sql} ORDER BY id DESC LIMIT ?`, ...paged.args, limit + 1);
-  const rows = compact(found.slice(0, limit).map((r) => { const row = asRow(r); return row ? toApiLog(row, erased) : null; }));
+  const rows = compact(
+    found.slice(0, limit).map((r) => {
+      const row = asRow(r);
+      return row ? toApiLog(row, erased) : null;
+    }),
+  );
   const out: QueryOut = { rows, total };
   const last = rows[rows.length - 1];
   if (found.length > limit && last) out.next = String(last.id);
@@ -208,28 +299,74 @@ export function queryLogs(db: Db, space: string, filter: LogFilter, page: Page |
 /** Everything one trace left: log rows and spans in time order, events in sequence order. */
 export function traceView(db: Db, space: string, traceId: string): TraceOut {
   const erased = erasedActors(db);
-  const logs = db.all("SELECT * FROM logs_row WHERE space = ? AND trace_id = ? ORDER BY at, id LIMIT ?", space, traceId, TRACE_CAP);
-  const spans = db.all("SELECT * FROM logs_span WHERE space = ? AND trace_id = ? ORDER BY at, span_id LIMIT ?", space, traceId, TRACE_CAP);
+  const logs = db.all(
+    "SELECT * FROM logs_row WHERE space = ? AND trace_id = ? ORDER BY at, id LIMIT ?",
+    space,
+    traceId,
+    TRACE_CAP,
+  );
+  const spans = db.all(
+    "SELECT * FROM logs_span WHERE space = ? AND trace_id = ? ORDER BY at, span_id LIMIT ?",
+    space,
+    traceId,
+    TRACE_CAP,
+  );
   const events = db.all("SELECT * FROM logs_event WHERE trace_id = ? ORDER BY seq LIMIT ?", traceId, TRACE_CAP);
   return {
-    logs: compact(logs.map((r) => { const row = asRow(r); return row ? toApiLog(row, erased) : null; })),
-    spans: compact(spans.map((r) => { const row = asRow(r); return row ? toApiSpan(row) : null; })),
-    events: compact(events.map((r) => { const row = asRow(r); return row ? toApiEvent(row, erased) : null; })),
+    logs: compact(
+      logs.map((r) => {
+        const row = asRow(r);
+        return row ? toApiLog(row, erased) : null;
+      }),
+    ),
+    spans: compact(
+      spans.map((r) => {
+        const row = asRow(r);
+        return row ? toApiSpan(row) : null;
+      }),
+    ),
+    events: compact(
+      events.map((r) => {
+        const row = asRow(r);
+        return row ? toApiEvent(row, erased) : null;
+      }),
+    ),
   };
 }
 
 /** Spans of one trace, or of one name (a budget id for the speed page). The cursor is a row offset. */
-export function spansOf(db: Db, space: string, filter: { traceId?: string; name?: string }, page: Page | undefined): SpansOut {
+export function spansOf(
+  db: Db,
+  space: string,
+  filter: { traceId?: string; name?: string },
+  page: Page | undefined,
+): SpansOut {
   const conds = ["space = ?"];
   const args: unknown[] = [space];
-  if (filter.traceId) { conds.push("trace_id = ?"); args.push(filter.traceId); }
-  if (filter.name) { conds.push("name = ?"); args.push(filter.name); }
+  if (filter.traceId) {
+    conds.push("trace_id = ?");
+    args.push(filter.traceId);
+  }
+  if (filter.name) {
+    conds.push("name = ?");
+    args.push(filter.name);
+  }
   const where = conds.join(" AND ");
   const offset = cursorNumber(page) ?? 0;
   const limit = limitOf(page);
   const total = countOf(db, `SELECT COUNT(*) AS n FROM logs_span WHERE ${where}`, args);
-  const found = db.all(`SELECT * FROM logs_span WHERE ${where} ORDER BY at, span_id LIMIT ? OFFSET ?`, ...args, limit, offset);
-  const spans = compact(found.map((r) => { const row = asRow(r); return row ? toApiSpan(row) : null; }));
+  const found = db.all(
+    `SELECT * FROM logs_span WHERE ${where} ORDER BY at, span_id LIMIT ? OFFSET ?`,
+    ...args,
+    limit,
+    offset,
+  );
+  const spans = compact(
+    found.map((r) => {
+      const row = asRow(r);
+      return row ? toApiSpan(row) : null;
+    }),
+  );
   const out: SpansOut = { spans, total };
   if (offset + limit < total) out.next = String(offset + limit);
   return out;

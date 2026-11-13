@@ -11,15 +11,37 @@ import { TELL_SENT } from "./reach.ts";
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 
 /** The places a banner may open (the notification row's place). */
-const PLACES = new Set(["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
+const PLACES = new Set([
+  "home",
+  "chats",
+  "inbox",
+  "records",
+  "files",
+  "apps",
+  "automations",
+  "vault",
+  "settings",
+  "console",
+]);
 
 const leave = (): void => {
-  const h = (globalThis as { history?: { state: unknown; replaceState(s: unknown, t: string, u: string): void } }).history;
+  const h = (globalThis as { history?: { state: unknown; replaceState(s: unknown, t: string, u: string): void } })
+    .history;
   const at = (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "";
   if (at.startsWith("/open/")) h?.replaceState(h.state, "", "/chat");
 };
 
-export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; rt: Pick<ShellRuntime, "call" | "open">; me: string; spaceId: string }): ReactElement | null {
+export function OpenLink({
+  hub,
+  rt,
+  me,
+  spaceId,
+}: {
+  hub: Pick<ShellHub, "go">;
+  rt: Pick<ShellRuntime, "call" | "open">;
+  me: string;
+  spaceId: string;
+}): ReactElement | null {
   const [held, setHeld] = useState<OpenItem | null>(() => peekOpen());
   const [shown, setShown] = useState<{ text: string; ask: { type: string; id: string } | null } | null>(null);
   const [asked, setAsked] = useState(false);
@@ -31,41 +53,93 @@ export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; 
     let live = true;
     const item = takeOpen();
     if (item === null) return undefined;
-    const nav = rt.call("console.nav", {}).then((o) => adminPages({ groups: [], ...(o as object) } as Parameters<typeof adminPages>[0]), () => new Set<string>());
+    const nav = rt.call("console.nav", {}).then(
+      (o) => adminPages({ groups: [], ...(o as object) } as Parameters<typeof adminPages>[0]),
+      () => new Set<string>(),
+    );
     // a link to a place rather than one thing (a desktop banner, a notice email): the place itself, every person's own; Console only for someone it lets in (the same console.nav check
     // decideOpen uses), anyone else lands in their Inbox. Never a place the person cannot open.
     if (item.kind === "place") {
-      if (!PLACES.has(item.id)) { setHeld(null); return undefined; }
-      const go = (place: string): void => { if (!live) return; setHeld(null); leave(); hub.go(place as Parameters<typeof hub.go>[0]); };
-      if (item.id !== "console") { go(item.id); return () => { live = false; }; }
+      if (!PLACES.has(item.id)) {
+        setHeld(null);
+        return undefined;
+      }
+      const go = (place: string): void => {
+        if (!live) return;
+        setHeld(null);
+        leave();
+        hub.go(place as Parameters<typeof hub.go>[0]);
+      };
+      if (item.id !== "console") {
+        go(item.id);
+        return () => {
+          live = false;
+        };
+      }
       void nav.then((pages) => go(pages.size > 0 ? "console" : "inbox"));
-      return () => { live = false; };
+      return () => {
+        live = false;
+      };
     }
-    void decideOpen(item, { viewer: () => ({ id: me, spaceId }), call: (c, i) => rt.call(c, i), consolePages: () => nav, memo: new Map() }).then((d) => {
+    void decideOpen(item, {
+      viewer: () => ({ id: me, spaceId }),
+      call: (c, i) => rt.call(c, i),
+      consolePages: () => nav,
+      memo: new Map(),
+    }).then((d) => {
       if (!live) return;
       setHeld(null);
-      if (d.to === "open") { leave(); rt.open(d.target); return; }
+      if (d.to === "open") {
+        leave();
+        rt.open(d.target);
+        return;
+      }
       leave();
       hub.go("chats");
       setShown({ text: d.text, ask: d.ask });
     });
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [held, hub, rt, me, spaceId]);
   if (shown === null) return null;
   const ask = async (): Promise<void> => {
     if (!shown.ask) return;
-    try { await rt.call("access.request", { resource: shown.ask, level: "view", idempotencyKey: `open:${shown.ask.type}:${shown.ask.id}` }); } catch { /* an earlier ask stands */ }
+    try {
+      await rt.call("access.request", {
+        resource: shown.ask,
+        level: "view",
+        idempotencyKey: `open:${shown.ask.type}:${shown.ask.id}`,
+      });
+    } catch {
+      /* an earlier ask stands */
+    }
     setAsked(true);
   };
   return (
     <View style={[st.layer, phone ? { paddingBottom: 100 } : null]} pointerEvents="box-none">
-    <View testID="open-link-peek" style={st.wrap} accessibilityRole="alert">
-      <Text style={st.text}>{shown.text}</Text>
-      {shown.ask ? asked ? <Text testID="open-link-asked" style={st.text}>{" · Asked for access"}</Text> : (
-        <Pressable accessibilityRole="link" testID="open-link-ask" onPress={() => void ask()}><Text style={st.link}>{" · Ask for access"}</Text></Pressable>
-      ) : null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Close" testID="open-link-close" onPress={() => setShown(null)}><Text style={st.text}>{"  ×"}</Text></Pressable>
-    </View>
+      <View testID="open-link-peek" style={st.wrap} accessibilityRole="alert">
+        <Text style={st.text}>{shown.text}</Text>
+        {shown.ask ? (
+          asked ? (
+            <Text testID="open-link-asked" style={st.text}>
+              {" · Asked for access"}
+            </Text>
+          ) : (
+            <Pressable accessibilityRole="link" testID="open-link-ask" onPress={() => void ask()}>
+              <Text style={st.link}>{" · Ask for access"}</Text>
+            </Pressable>
+          )
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          testID="open-link-close"
+          onPress={() => setShown(null)}
+        >
+          <Text style={st.text}>{"  ×"}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -73,8 +147,29 @@ export function OpenLink({ hub, rt, me, spaceId }: { hub: Pick<ShellHub, "go">; 
 export const OPEN_SENT = TELL_SENT;
 
 const st = StyleSheet.create({
-  layer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 1000, justifyContent: "flex-end", alignItems: "center", paddingBottom: 28 },
-  wrap: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, maxWidth: 520, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, boxShadow: "0 6px 24px rgba(0,0,0,0.18)" as unknown as undefined },
+  layer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 1000,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingBottom: 28,
+  },
+  wrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxWidth: 520,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    boxShadow: "0 6px 24px rgba(0,0,0,0.18)" as unknown as undefined,
+  },
   text: { fontSize: 13, color: "var(--ink)" as string },
   link: { fontSize: 13, color: "var(--accent)" as string },
 });

@@ -39,7 +39,8 @@ export interface EmitOptions {
 }
 
 /** An ephemeral frame for a streaming block (terminal, deploy, screenshot): the live connection carries it, the final state is persisted as the turn's block. */
-export type PatchOp =
-  | { op: "set"; path: string; value: unknown }
-  | { op: "append"; path: string; value: string };
-export interface BlockPatch { id: string; ops: PatchOp[] }
+export type PatchOp = { op: "set"; path: string; value: unknown } | { op: "append"; path: string; value: string };
+export interface BlockPatch {
+  id: string;
+  ops: PatchOp[];
+}

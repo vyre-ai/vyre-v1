@@ -7,20 +7,72 @@ import { ConsoleDataProvider } from "../shell/data.tsx";
 import { RequestsPage, askedLine } from "../pages/Requests.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
-const roles = { roles: [{ id: "rol_member", name: "Member", builtIn: true, permissions: [], holders: 1, clearance: "internal", assignableToAgents: false }, { id: "rol_guest", name: "Guest", builtIn: true, permissions: [], holders: 0, clearance: "internal", assignableToAgents: false }] };
-const invite = (id: string, email?: string) => ({ id, role: "rol_guest", groups: [], agents: [], projects: [], channels: [], expiresAt: Date.UTC(2026, 10, 9), createdBy: "usr_owner", state: "open", createdAt: Date.UTC(2026, 10, 2), ...(email ? { email } : {}) });
-const asked = (id: string, requester: string) => ({ id, requester, resource: { type: "space", id: "spc_1" }, level: "view", state: "waiting", taskId: `tsk_${id}`, at: Date.UTC(2026, 10, 3) });
+const roles = {
+  roles: [
+    {
+      id: "rol_member",
+      name: "Member",
+      builtIn: true,
+      permissions: [],
+      holders: 1,
+      clearance: "internal",
+      assignableToAgents: false,
+    },
+    {
+      id: "rol_guest",
+      name: "Guest",
+      builtIn: true,
+      permissions: [],
+      holders: 0,
+      clearance: "internal",
+      assignableToAgents: false,
+    },
+  ],
+};
+const invite = (id: string, email?: string) => ({
+  id,
+  role: "rol_guest",
+  groups: [],
+  agents: [],
+  projects: [],
+  channels: [],
+  expiresAt: Date.UTC(2026, 10, 9),
+  createdBy: "usr_owner",
+  state: "open",
+  createdAt: Date.UTC(2026, 10, 2),
+  ...(email ? { email } : {}),
+});
+const asked = (id: string, requester: string) => ({
+  id,
+  requester,
+  resource: { type: "space", id: "spc_1" },
+  level: "view",
+  state: "waiting",
+  taskId: `tsk_${id}`,
+  at: Date.UTC(2026, 10, 3),
+});
 const rows = {
-  "access.roles.list": roles, "access.groups.list": { groups: [] },
+  "access.roles.list": roles,
+  "access.groups.list": { groups: [] },
   "members.invites.list": { invites: [invite("inv_a", "dana@example.com"), invite("inv_b")], total: 2 },
   "access.requests.list": { requests: [asked("req_a", "usr_maya")], total: 1 },
 };
 
 async function page(extraRows: Record<string, unknown> = {}) {
   const calls: { cap: string; input: any }[] = [];
-  const call = async (cap: string, input: unknown) => { if (!cap.endsWith(".get")) calls.push({ cap, input }); /* name lookups are not actions */ return cap === "members.invites.create" ? { invite: invite("inv_new"), link: "https://x.vyre.run/join#c=A" } : {}; };
+  const call = async (cap: string, input: unknown) => {
+    if (!cap.endsWith(".get")) calls.push({ cap, input });
+    /* name lookups are not actions */ return cap === "members.invites.create"
+      ? { invite: invite("inv_new"), link: "https://x.vyre.run/join#c=A" }
+      : {};
+  };
   const restore = installDom();
-  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith({ ...rows, ...extraRows }, { call: call as never })}><RequestsPage /></ConsoleDataProvider>);
+  const root = await mount(
+    createRoot,
+    <ConsoleDataProvider value={dataWith({ ...rows, ...extraRows }, { call: call as never })}>
+      <RequestsPage />
+    </ConsoleDataProvider>,
+  );
   return { root, calls, restore };
 }
 
@@ -41,20 +93,30 @@ test("open invites list with role and end date, and Revoke asks first then calls
     await press(find(root, "console-invite-revoke-inv_a"));
     assert.equal(calls.length, 0, "nothing is revoked before it is confirmed");
     await press(find(root, "console-invite-revoke-confirm"));
-    assert.deepEqual(calls.map((c) => c.cap), ["members.invites.revoke"]);
+    assert.deepEqual(
+      calls.map((c) => c.cap),
+      ["members.invites.revoke"],
+    );
     assert.deepEqual(calls[0]!.input, { inviteId: "inv_a" });
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("New link replaces an invite: it revokes the old one and makes the same invite again, showing the new link", async () => {
   const { root, calls, restore } = await page();
   try {
     await press(find(root, "console-invite-again-inv_a"));
-    assert.deepEqual(calls.map((c) => c.cap), ["members.invites.revoke", "members.invites.create"]);
+    assert.deepEqual(
+      calls.map((c) => c.cap),
+      ["members.invites.revoke", "members.invites.create"],
+    );
     assert.equal(calls[1]!.input.role, "rol_guest");
     assert.equal(calls[1]!.input.email, "dana@example.com");
     assert.match(textOf(root), /https:\/\/x\.vyre\.run\/join#c=A/);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("Approve calls access.requests.approve with the request and the level asked for", async () => {
@@ -62,28 +124,43 @@ test("Approve calls access.requests.approve with the request and the level asked
   try {
     assert.match(textOf(root), /Wants view access/);
     await press(find(root, "request-approve-req_a"));
-    assert.deepEqual(calls.map((c) => c.cap), ["access.requests.approve"]);
+    assert.deepEqual(
+      calls.map((c) => c.cap),
+      ["access.requests.approve"],
+    );
     assert.deepEqual(calls[0]!.input, { requestId: "req_a", level: "view" });
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("Decline calls access.requests.decline with the request", async () => {
   const { root, calls, restore } = await page();
   try {
     await press(find(root, "request-decline-req_a"));
-    assert.deepEqual(calls.map((c) => c.cap), ["access.requests.decline"]);
+    assert.deepEqual(
+      calls.map((c) => c.cap),
+      ["access.requests.decline"],
+    );
     assert.deepEqual(calls[0]!.input, { requestId: "req_a" });
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("with no one waiting the line is gone and the list says so; with no invites the page says so", async () => {
-  const { root, restore } = await page({ "access.requests.list": { requests: [] }, "members.invites.list": { invites: [], total: 0 } });
+  const { root, restore } = await page({
+    "access.requests.list": { requests: [] },
+    "members.invites.list": { invites: [], total: 0 },
+  });
   try {
     const text = textOf(root);
     assert.ok(!find(root, "requests-asked"));
     assert.match(text, /No one is waiting/);
     assert.match(text, /No open invites/);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("New invite opens the invite sheet, and Create invite calls members.invites.create with the role and the days", async () => {
@@ -98,5 +175,7 @@ test("New invite opens the invite sheet, and Create invite calls members.invites
     assert.equal(made!.input.role, "rol_member");
     assert.equal(made!.input.expiresInDays, 7);
     assert.match(textOf(root), /https:\/\/x\.vyre\.run\/join#c=A/);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

@@ -15,7 +15,17 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, hostLog, scriptedModel, stop, waitFor, KEY } from "./support/eco-live.ts";
 
 const git = (cwd: string, ...args: string[]): string => {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  const r = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@t",
+    },
+  });
   assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
   return r.stdout;
 };
@@ -23,7 +33,11 @@ const PASSWORD = "crew journey password 7731";
 
 test("a person watches a crew build in the real app: the Crew tab, one result card, and Merge", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for browser evidence"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for browser evidence");
+    return;
+  }
   const pw = await import("playwright-core");
   const engine = process.env["VYRE_BROWSER"] === "webkit" ? pw.webkit : pw.chromium;
   const exe = process.env["CHROME_BIN"] || (engine === pw.chromium ? pw.chromium.executablePath() : undefined);
@@ -34,11 +48,18 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-repo-")));
   git(repo, "init", "--quiet", "-b", "main");
   fs.writeFileSync(path.join(repo, "README.md"), "a small site\n");
-  git(repo, "add", "-A"); git(repo, "commit", "--quiet", "-m", "first");
+  git(repo, "add", "-A");
+  git(repo, "commit", "--quiet", "-m", "first");
 
-  let dir = ""; let owner = ""; let teammate = ""; let project = ""; let lead = "";
+  let dir = "";
+  let owner = "";
+  let teammate = "";
+  let project = "";
+  let lead = "";
   let openEdit!: () => void;
-  const editGate = new Promise<void>((r) => { openEdit = r; });
+  const editGate = new Promise<void>((r) => {
+    openEdit = r;
+  });
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id === teammate) {
       const work = workFolder(dir, owner, input.threadId, teammate);
@@ -53,22 +74,46 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       // a test run the way a real engine reports it: the call, the command, and the summary lines of what it printed
       yield { type: "block", kind: "tool_call", payload: { id: "tst-1", name: "Bash" } };
       yield { type: "block", kind: "tool_input", payload: { id: "tst-1", detail: "node --test dark-mode.test.js" } };
-      yield { type: "block", kind: "tool_result", payload: { id: "tst-1", ok: false, detail: "✔ toggle is on (1ms)\n✖ toggle survives a reload (2ms)\nℹ pass 1\nℹ fail 1" } };
-      yield { type: "text", text: "Added the dark mode toggle and a test. One test fails: the toggle does not survive a reload." };
+      yield {
+        type: "block",
+        kind: "tool_result",
+        payload: {
+          id: "tst-1",
+          ok: false,
+          detail: "✔ toggle is on (1ms)\n✖ toggle survives a reload (2ms)\nℹ pass 1\nℹ fail 1",
+        },
+      };
+      yield {
+        type: "text",
+        text: "Added the dark mode toggle and a test. One test fails: the toggle does not survive a reload.",
+      };
       return;
     }
     if (input.agent.id !== lead) return;
     const ask = input.trigger?.body ?? "";
     if (/build dark mode/.test(ask)) {
       yield* run("tool_search", { query: "crew teammate" });
-      yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "journey-start", projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle and a test." });
+      yield* run("crew_start", {
+        threadId: input.threadId,
+        idempotencyKey: "journey-start",
+        projectId: project,
+        teammateId: teammate,
+        title: "Dark mode",
+        brief: "Add a dark mode toggle and a test.",
+      });
       yield { type: "text", text: "I started Ember on the dark mode toggle." };
     } else if (input.trigger?.author.id === teammate) {
       yield { type: "text", text: "Ember is done." };
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-journey-")));
-  const d = await boot(fresh, model, { config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
+  const d = await boot(fresh, model, {
+    config: loadConfig(
+      ["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"],
+      {},
+      "1.2.3",
+    ),
+  });
   dir = d.paths.root;
   const web = await edge(dist, d.url);
   const browser = await engine.launch(exe ? { executablePath: exe, args: ["--no-sandbox"] } : {});
@@ -78,93 +123,244 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
     const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
     const spaceId = /s=([^&]+)/.exec(d.claim!.url)![1]!;
     const made = await makeBundle(PASSWORD, "crew-journey-recovery-code-1", { spaceId });
-    const claimed = await fetch(`${d.url}/v1/identity/claim_owner`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, spaceId, displayName: "Maya Chen", username: "maya", password: PASSWORD, deviceName: "journey", deviceClass: "desktop", keys: { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys: made.spaceKeys ?? [] } }) });
+    const claimed = await fetch(`${d.url}/v1/identity/claim_owner`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code,
+        spaceId,
+        displayName: "Maya Chen",
+        username: "maya",
+        password: PASSWORD,
+        deviceName: "journey",
+        deviceClass: "desktop",
+        keys: {
+          personKeyByPassword: made.personKeyByPassword,
+          personKeyByRecovery: made.personKeyByRecovery,
+          publicKey: made.publicKey,
+          privateKeyWrapped: made.privateKeyWrapped,
+          spaceKeys: made.spaceKeys ?? [],
+        },
+      }),
+    });
     assert.equal(claimed.status, 200, await claimed.clone().text());
     const token = ((await claimed.json()) as { data: { session: { token: string } } }).data.session.token;
     assert.equal(await holdKeyOnOwnNode(d.url, token, made.personKey), true);
-    const api = async (cap: string, input: unknown): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const api = async (cap: string, input: unknown): Promise<any> => {
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(input),
+      });
       const body = (await r.json()) as { data?: unknown };
       assert.equal(r.status, 200, `${cap}: ${r.status} ${JSON.stringify(body)}`);
       return body.data;
     };
     // her Claude account, as a person connects it
-    const folder = (await api("vault.folders.create", { idempotencyKey: "j-folder", name: "Accounts", scope: "mine" })).folder.id as string;
+    const folder = (await api("vault.folders.create", { idempotencyKey: "j-folder", name: "Accounts", scope: "mine" }))
+      .folder.id as string;
     const flow = await api("providers.subscription_start", { idempotencyKey: "j-flow", providerKey: "claude-code" });
-    await api("vault.item.put", { idempotencyKey: "j-item", folderId: folder, name: "Maya_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+    await api("vault.item.put", {
+      idempotencyKey: "j-item",
+      folderId: folder,
+      name: "Maya_Claude",
+      kind: "ai_subscription",
+      fields: [{ key: "setup_token", value: KEY, secret: true }],
+    });
     const provider = (await api("providers.subscription_complete", { flowId: flow.flowId })).provider.id as string;
     await api("providers.set_space_use", { idempotencyKey: "j-spaceuse", providerId: provider, allow: true });
     await api("engine.pool.status", {});
 
-    lead = (await api("agents.create", { name: "Lead", role: "You lead the build.", idempotencyKey: "j-lead" })).agent.agentId as string;
+    lead = (await api("agents.create", { name: "Lead", role: "You lead the build.", idempotencyKey: "j-lead" })).agent
+      .agentId as string;
     owner = (await api("agents.get", { agentId: lead })).agent.ownerId as string;
-    project = (await api("projects.create", { type: "project", title: "Small site", idempotencyKey: "j-project" })).projectId as string;
-    teammate = (await api("projects.teammates.create", { projectId: project, name: "Ember", role: "member", idempotencyKey: "j-ember" })).teammate.agentId as string;
+    project = (await api("projects.create", { type: "project", title: "Small site", idempotencyKey: "j-project" }))
+      .projectId as string;
+    teammate = (
+      await api("projects.teammates.create", {
+        projectId: project,
+        name: "Ember",
+        role: "member",
+        idempotencyKey: "j-ember",
+      })
+    ).teammate.agentId as string;
     await api("engine.crew.repo.set", { projectId: project, path: repo });
-    const chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Build the site", idempotencyKey: "j-chat" })).thread.threadId as string;
+    const chat = (
+      await api("chat.start", { kind: "chat", agentIds: [lead], title: "Build the site", idempotencyKey: "j-chat" })
+    ).thread.threadId as string;
 
     // the first-run screen has been seen: a person who is already working does not meet it
-    for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
+    for (const flow of ["team", "personal", "member"])
+      await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     const marker = (await api("spaces.get", {})).space.fingerprint as string;
-    const session = { baseUrl: web.origin, token, personId: me, marker, def: { spaceId, name: "Crew Co", kind: "team", address: web.origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: false, counts: {}, dots: {} } };
-    const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
+    const session = {
+      baseUrl: web.origin,
+      token,
+      personId: me,
+      marker,
+      def: {
+        spaceId,
+        name: "Crew Co",
+        kind: "team",
+        address: web.origin,
+        role: "Owner",
+        tint: ["#6E5CF0", "#9B6BE8"],
+        kit: "northwind",
+        skinDefault: "system",
+        starred: true,
+        needsYou: false,
+        console: true,
+        terminal: false,
+        counts: {},
+        dots: {},
+      },
+    };
+    const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => {
+      await page.screenshot({ path: path.join(shots, `${name}.png`) });
+    };
 
-    for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
-      const ctx = await browser.newContext({ viewport: process.env["VYRE_CREW_PHONE"] === "1" ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
-      await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
+    for (const [skin, mode] of [
+      ["paper", "light"],
+      ["graphite", "dark"],
+    ] as const) {
+      const ctx = await browser.newContext({
+        viewport: process.env["VYRE_CREW_PHONE"] === "1" ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+      });
+      await ctx.addInitScript((s: unknown) => {
+        try {
+          localStorage.setItem(
+            "vyre.session.v1",
+            JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } }),
+          );
+        } catch {
+          /* blocked */
+        }
+      }, session);
       const page = await ctx.newPage();
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
-      page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 600)); });
+      page.on("console", (c) => {
+        if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 600));
+      });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
       const phone = process.env["VYRE_CREW_PHONE"] === "1";
-      await (phone ? page.getByText("Build the site", { exact: false }).first() : page.getByTestId("shell")).waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-shell`); throw e; });
+      await (phone ? page.getByText("Build the site", { exact: false }).first() : page.getByTestId("shell"))
+        .waitFor({ timeout: 40_000 })
+        .catch(async (e) => {
+          await shoot(page, `${mode}-FAILED-shell`);
+          throw e;
+        });
       if (mode === "light") {
         // the lead is asked in the chat the way a person asks: the message is posted into the thread
-        await api("chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "j-ask" });
+        await api("chat.post", {
+          threadId: chat,
+          body: "build dark mode",
+          mentions: [{ kind: "agent", id: lead }],
+          idempotencyKey: "j-ask",
+        });
         if (!phone) {
           // while the coder is editing, its row names the file
           await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 });
           // the crew rows are closed until a person opens one: press the coder's row, and its steps name the file
-          await page.locator('[data-testid^="row-crew-chip-"][data-testid$="-toggle"]').first().click({ timeout: 60_000 });
-          await page.getByText(/Editing.*dark-mode\.txt/).first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-editing`); throw e; });
+          await page
+            .locator('[data-testid^="row-crew-chip-"][data-testid$="-toggle"]')
+            .first()
+            .click({ timeout: 60_000 });
+          await page
+            .getByText(/Editing.*dark-mode\.txt/)
+            .first()
+            .waitFor({ timeout: 60_000 })
+            .catch(async (e) => {
+              await shoot(page, `${mode}-FAILED-editing`);
+              throw e;
+            });
           await shoot(page, `${mode}-0-coder-editing`);
         }
         openEdit();
-        await waitFor(async () => {
-          const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
-          return jobs[0] && jobs[0].state !== "working" ? true : null;
-        }, 60_000, () => hostLog(d));
+        await waitFor(
+          async () => {
+            const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
+            return jobs[0] && jobs[0].state !== "working" ? true : null;
+          },
+          60_000,
+          () => hostLog(d),
+        );
       }
       const later = page.getByText("Finish later", { exact: true });
-      if (await later.count()) await later.first().click().catch(() => undefined);
-      await (phone ? Promise.resolve() : page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 })).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
+      if (await later.count())
+        await later
+          .first()
+          .click()
+          .catch(() => undefined);
+      await (
+        phone
+          ? Promise.resolve()
+          : page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 })
+      ).catch(async (e) => {
+        await shoot(page, `${mode}-FAILED-open-chat`);
+        await page
+          .getByText("Details", { exact: true })
+          .click()
+          .catch(() => undefined);
+        console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | "));
+        throw e;
+      });
       const jobId = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string }>)[0]!.jobId;
       // nothing is posted per coder: the strip holds Ember, with Merge in its header; no result card, no "Ember is on ..." line (owner, 5 Nov 2026)
-      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-strip`); throw e; });
+      await page
+        .getByTestId("crew-strip")
+        .first()
+        .waitFor({ timeout: 40_000 })
+        .catch(async (e) => {
+          await shoot(page, `${mode}-FAILED-strip`);
+          throw e;
+        });
       assert.equal(await page.getByTestId(`crew-card-${jobId}`).count(), 0, "no result card in the chat");
       assert.equal(await page.getByText("Ember is on Dark mode").count(), 0, "no line that says it started");
       assert.equal(await page.getByText(/Started a helper/).count(), 0);
-      await waitFor(async () => ((await page.getByText("Working", { exact: true }).count()) === 0 ? true : null), 15_000);   // the live read catches up a moment after the job ends
+      await waitFor(
+        async () => ((await page.getByText("Working", { exact: true }).count()) === 0 ? true : null),
+        15_000,
+      ); // the live read catches up a moment after the job ends
       assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
       await shoot(page, `${mode}-1-strip`);
       // the coder's row and peek say how its last test run went: counts and the first failing test
-      console.log("MEMBERS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string; kind: string; state: string; tests?: unknown; step?: string }>).map((m) => [m.id.slice(-6), m.kind, m.state, m.tests, m.step])));
+      console.log(
+        "MEMBERS",
+        JSON.stringify(
+          (
+            (await api("engine.crew.status", { threadId: chat })).members as Array<{
+              id: string;
+              kind: string;
+              state: string;
+              tests?: unknown;
+              step?: string;
+            }>
+          ).map((m) => [m.id.slice(-6), m.kind, m.state, m.tests, m.step]),
+        ),
+      );
       // the row is closed until a person opens it: its steps then say how the last test run went
       const coderId = ((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id;
-      if ((await page.getByTestId(`crew-chip-${coderId}-steps`).count()) === 0) await page.getByTestId(`row-crew-chip-${coderId}-toggle`).click({ timeout: 15_000 });   // the light pass opened it while the coder worked
+      if ((await page.getByTestId(`crew-chip-${coderId}-steps`).count()) === 0)
+        await page.getByTestId(`row-crew-chip-${coderId}-toggle`).click({ timeout: 15_000 }); // the light pass opened it while the coder worked
       await page.getByTestId(`crew-chip-${coderId}-steps`).waitFor({ timeout: 15_000 });
       // the row opens on its last line at once and its steps arrive with the helper chat's read (CrewBlock useLastSteps), a moment later on a busy box: wait for them, with a bound
-      await page.getByTestId(`crew-chip-${coderId}-steps`).getByText(/1 passing, 1 failing/).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      await page
+        .getByTestId(`crew-chip-${coderId}-steps`)
+        .getByText(/1 passing, 1 failing/)
+        .first()
+        .waitFor({ timeout: 20_000 })
+        .catch(() => undefined);
       assert.match(await page.getByTestId(`crew-chip-${coderId}-steps`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
         await page.getByTestId(`crew-chip-${coderId}-open`).click({ timeout: 15_000 });
         await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
         assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
         // a finished helper says what it did, in the short plain labels that were kept: the file's name and the test counts
-        assert.ok(await page.getByText("Edited dark-mode.txt").count() > 0, "Edited <file>");
-        assert.ok(await page.getByText("Ran the tests: 1 passing, 1 failing").count() > 0, "Ran the tests: counts");
+        assert.ok((await page.getByText("Edited dark-mode.txt").count()) > 0, "Edited <file>");
+        assert.ok((await page.getByText("Ran the tests: 1 passing, 1 failing").count()) > 0, "Ran the tests: counts");
         await shoot(page, `${mode}-2-code-peek`);
         // Merge in the strip header lands the branch, and the header then says Merged
         await page.getByTestId("crew-strip-merge").click({ timeout: 20_000 });
@@ -173,13 +369,24 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
         // the chat keeps one quiet card saying what landed where: the title names the branch and where it went, its body the lines added and removed
         await page.getByText("Merged crew/ember-1 into main", { exact: true }).first().waitFor({ timeout: 20_000 });
-        await page.getByText(/^\+\d+ -\d+$/).first().waitFor({ timeout: 20_000 });
+        await page
+          .getByText(/^\+\d+ -\d+$/)
+          .first()
+          .waitFor({ timeout: 20_000 });
         await shoot(page, `${mode}-3-merged`);
       } else {
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
       }
-      assert.deepEqual(errors.filter((e) => !/#418/.test(e)), [], "no page error");
+      assert.deepEqual(
+        errors.filter((e) => !/#418/.test(e)),
+        [],
+        "no page error",
+      );
       await ctx.close();
     }
-  } finally { await browser.close(); web.close(); await stop(d); }
+  } finally {
+    await browser.close();
+    web.close();
+    await stop(d);
+  }
 });

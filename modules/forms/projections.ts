@@ -19,7 +19,13 @@ export interface CaptchaVerifier {
   verify(token: string, ctx: Ctx): Promise<boolean>;
 }
 
-export interface FormSchemaField { key: string; title: string; type: string; required?: boolean; options?: Record<string, unknown> }
+export interface FormSchemaField {
+  key: string;
+  title: string;
+  type: string;
+  required?: boolean;
+  options?: Record<string, unknown>;
+}
 
 /** What the host says about one record or person offered as a public choice, asked as the publisher: the display label only, or why it cannot be offered. */
 export type ChoiceInfo = { ok: true; label: string } | { ok: false; reason: string };
@@ -27,7 +33,11 @@ export interface ChoiceSource {
   /** The label of one record (relation) or member (person), as the publisher may see it. Refuses a record above the public ceiling, one the publisher cannot see, a missing one and a wrong type. */
   describe(publisherId: string, field: FormSchemaField, refId: string): Promise<ChoiceInfo>;
   /** What the publisher could offer for this question: records they can see (or members), label only, bounded. */
-  candidates(publisherId: string, field: FormSchemaField, q: string | undefined): Promise<{ refId: string; label: string }[]>;
+  candidates(
+    publisherId: string,
+    field: FormSchemaField,
+    q: string | undefined,
+  ): Promise<{ refId: string; label: string }[]>;
 }
 
 export interface FormsConfig {
@@ -92,7 +102,8 @@ export const str = (v: unknown): string => (typeof v === "string" ? v : "");
 export const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 export const isNull = (v: unknown): boolean => v === null || v === undefined;
 export const flag = (v: unknown): boolean => v === 1 || v === true;
-export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined => (ctx.db.all(sql, ...args) as Row[])[0];
+export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined =>
+  (ctx.db.all(sql, ...args) as Row[])[0];
 export const many = (ctx: Ctx, sql: string, ...args: unknown[]): Row[] => ctx.db.all(sql, ...args) as Row[];
 export const nid = (ctx: Ctx, prefix: string): string => `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
 
@@ -119,10 +130,21 @@ export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): strin
   return v;
 }
 
-export function optInt(ctx: Ctx, o: Record<string, unknown>, key: string, min?: number, max?: number): number | undefined {
+export function optInt(
+  ctx: Ctx,
+  o: Record<string, unknown>,
+  key: string,
+  min?: number,
+  max?: number,
+): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "number" || !Number.isInteger(v) || (min !== undefined && v < min) || (max !== undefined && v > max)) {
+  if (
+    typeof v !== "number" ||
+    !Number.isInteger(v) ||
+    (min !== undefined && v < min) ||
+    (max !== undefined && v > max)
+  ) {
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   }
   return v;
@@ -158,7 +180,8 @@ export function strList(text: unknown): string[] {
 export function pageOf(ctx: Ctx, o: Record<string, unknown>): { offset: number; limit: number } {
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor === undefined ? 0 : Number(cursor);
-  if (!Number.isInteger(offset) || offset < 0) fail(ctx, "validation.bad_input", "The cursor is not valid.", { field: "cursor" });
+  if (!Number.isInteger(offset) || offset < 0)
+    fail(ctx, "validation.bad_input", "The cursor is not valid.", { field: "cursor" });
   const limit = optInt(ctx, o, "limit", 1, 500) ?? 100;
   return { offset, limit };
 }
@@ -183,7 +206,9 @@ export async function sha256hex(text: string): Promise<string> {
 }
 
 async function hmac(key: string, message: string): Promise<string> {
-  const k = await globalThis.crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const k = await globalThis.crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   return b64url(new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", k, enc.encode(message))));
 }
 
@@ -197,7 +222,12 @@ export function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function signToken(signingKey: string, linkId: string, recordId: string, expiresAt: number): Promise<string> {
+export async function signToken(
+  signingKey: string,
+  linkId: string,
+  recordId: string,
+  expiresAt: number,
+): Promise<string> {
   return `${linkId}.${await hmac(signingKey, `${linkId}|${recordId}|${expiresAt}`)}`;
 }
 
@@ -222,7 +252,8 @@ export function mustForm(ctx: Ctx, formId: string): Row {
 /** The public lookup: a closed, draft or deleted form answers as not found, so a slug reveals nothing. */
 export function publishedBySlug(ctx: Ctx, slug: string, kinds?: FormKind[]): Row {
   const row = one(ctx, "SELECT * FROM forms_form WHERE slug = ?", slug);
-  if (!row || !isNull(row.deleted_at) || row.state !== "published") fail(ctx, "validation.not_found", "That form is not open.");
+  if (!row || !isNull(row.deleted_at) || row.state !== "published")
+    fail(ctx, "validation.not_found", "That form is not open.");
   if (kinds && !kinds.includes(row.kind as FormKind)) fail(ctx, "validation.not_found", "That form is not open.");
   return row;
 }
@@ -244,7 +275,9 @@ export function formOut(ctx: Ctx, row: Row): FormOut {
 }
 
 export function fieldsOf(ctx: Ctx, formId: string): Row[] {
-  return many(ctx, "SELECT * FROM forms_field WHERE form_id = ?", formId).sort((a, b) => num(a.position) - num(b.position) || str(a.field).localeCompare(str(b.field)));
+  return many(ctx, "SELECT * FROM forms_field WHERE form_id = ?", formId).sort(
+    (a, b) => num(a.position) - num(b.position) || str(a.field).localeCompare(str(b.field)),
+  );
 }
 
 export function matchRuleOf(form: Row): string[] {
@@ -253,7 +286,12 @@ export function matchRuleOf(form: Row): string[] {
 }
 
 export function slugify(name: string): string {
-  const base = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const base = name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
   return base.length > 0 ? base : "form";
 }
 
@@ -262,7 +300,9 @@ export function freeSlug(ctx: Ctx, name: string): string {
   const base = slugify(name);
   if (!one(ctx, "SELECT * FROM forms_form WHERE slug = ?", base)) return base;
   for (let i = 0; i < 20; i++) {
-    const cand = `${base}-${randomToken(3).toLowerCase().replace(/[^a-z0-9]/g, "x")}`;
+    const cand = `${base}-${randomToken(3)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "x")}`;
     if (!one(ctx, "SELECT * FROM forms_form WHERE slug = ?", cand)) return cand;
   }
   return fail(ctx, "internal.unexpected", "Could not find a free address for the form.");
@@ -282,8 +322,28 @@ export function insertForm(ctx: Ctx, f: NewForm): Row {
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO forms_form (id, name, record_type, kind, state, slug, section, folder_id, match_rule, consent_text, captcha, upload_policy, rate_limit, theme, css, logic, thank_you, signing_key, created_by, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, f.name, f.recordType, f.kind, "draft", freeSlug(ctx, f.name), "space", null, JSON.stringify(f.matchRule ?? ["email"]), null, 0, null,
-    f.rateLimit ?? formsConfig().defaultRateLimit ?? DEFAULT_RATE_LIMIT, null, null, null, null, randomToken(32), ctx.principal.id, now, now, null,
+    id,
+    f.name,
+    f.recordType,
+    f.kind,
+    "draft",
+    freeSlug(ctx, f.name),
+    "space",
+    null,
+    JSON.stringify(f.matchRule ?? ["email"]),
+    null,
+    0,
+    null,
+    f.rateLimit ?? formsConfig().defaultRateLimit ?? DEFAULT_RATE_LIMIT,
+    null,
+    null,
+    null,
+    null,
+    randomToken(32),
+    ctx.principal.id,
+    now,
+    now,
+    null,
   );
   return mustForm(ctx, id);
 }
@@ -309,8 +369,17 @@ export function rateLimit(ctx: Ctx, scope: string, subject: string, limit: numbe
     if (num(h.at) <= now - windowMs) ctx.db.run("DELETE FROM forms_hit WHERE id = ?", str(h.id));
     else if (subject === "*" || h.subject === subject) live += 1;
   }
-  if (live >= limit) fail(ctx, "rate_limit.exceeded", "Too many submissions just now. Try again in a minute.", { retryAfterSeconds: Math.ceil(windowMs / 1000) });
-  ctx.db.run("INSERT INTO forms_hit (id, scope, subject, at) VALUES (?, ?, ?, ?)", nid(ctx, "hit"), scope, subject, now);
+  if (live >= limit)
+    fail(ctx, "rate_limit.exceeded", "Too many submissions just now. Try again in a minute.", {
+      retryAfterSeconds: Math.ceil(windowMs / 1000),
+    });
+  ctx.db.run(
+    "INSERT INTO forms_hit (id, scope, subject, at) VALUES (?, ?, ?, ?)",
+    nid(ctx, "hit"),
+    scope,
+    subject,
+    now,
+  );
 }
 
 // ---- attribution ---------------------------------------------------------------------------------------------
@@ -340,7 +409,8 @@ export function cleanAttribution(ctx: Ctx, raw: unknown, consentGiven: boolean):
   const text = (key: string): string | undefined => {
     const v = raw[key];
     if (v === undefined || v === null) return undefined;
-    if (typeof v !== "string") fail(ctx, "validation.bad_input", "The attribution is not valid.", { field: `attribution.${key}` });
+    if (typeof v !== "string")
+      fail(ctx, "validation.bad_input", "The attribution is not valid.", { field: `attribution.${key}` });
     const t = v.trim().slice(0, TEXT_MAX);
     return t.length > 0 ? t : undefined;
   };
@@ -362,7 +432,8 @@ export function cleanAttribution(ctx: Ctx, raw: unknown, consentGiven: boolean):
   if (location !== undefined) out.location = location;
   const ids = raw.clickIds;
   if (ids !== undefined && ids !== null) {
-    if (!isRec(ids)) fail(ctx, "validation.bad_input", "The attribution is not valid.", { field: "attribution.clickIds" });
+    if (!isRec(ids))
+      fail(ctx, "validation.bad_input", "The attribution is not valid.", { field: "attribution.clickIds" });
     const clean: Record<string, string> = {};
     for (const [k, v] of Object.entries(ids).slice(0, CLICK_ID_MAX)) {
       if (typeof v === "string" && /^[A-Za-z0-9_.-]{1,40}$/.test(k)) clean[k] = v.slice(0, 200);
@@ -396,8 +467,27 @@ export function sourceRules(ctx: Ctx): SourceRule[] {
     });
 }
 
-const PAID_MEDIUMS = new Set(["cpc", "ppc", "paid", "paidsearch", "paid_search", "paid-social", "paid_social", "display"]);
-const SOCIAL_HOSTS = ["facebook.", "instagram.", "linkedin.", "twitter.", "x.com", "t.co", "tiktok.", "youtube.", "reddit."];
+const PAID_MEDIUMS = new Set([
+  "cpc",
+  "ppc",
+  "paid",
+  "paidsearch",
+  "paid_search",
+  "paid-social",
+  "paid_social",
+  "display",
+]);
+const SOCIAL_HOSTS = [
+  "facebook.",
+  "instagram.",
+  "linkedin.",
+  "twitter.",
+  "x.com",
+  "t.co",
+  "tiktok.",
+  "youtube.",
+  "reddit.",
+];
 
 function ruleMatches(match: Record<string, unknown>, a: Attribution): boolean {
   const keys = Object.keys(match);
@@ -405,7 +495,14 @@ function ruleMatches(match: Record<string, unknown>, a: Attribution): boolean {
   for (const key of keys) {
     const want = match[key];
     let have: string | undefined;
-    if (key === "utmSource" || key === "utmMedium" || key === "utmCampaign" || key === "referrer" || key === "landingPage") have = a[key];
+    if (
+      key === "utmSource" ||
+      key === "utmMedium" ||
+      key === "utmCampaign" ||
+      key === "referrer" ||
+      key === "landingPage"
+    )
+      have = a[key];
     else if (key === "clickId") have = Object.keys(a.clickIds ?? {}).join(",");
     else return false;
     const h = (have ?? "").toLowerCase();
@@ -426,7 +523,11 @@ function ruleMatches(match: Record<string, unknown>, a: Attribution): boolean {
 export function channelFor(rules: SourceRule[], a: Attribution): string {
   for (const r of rules) if (ruleMatches(r.match, a)) return r.channel;
   const medium = (a.utmMedium ?? "").toLowerCase();
-  if (PAID_MEDIUMS.has(medium) || Object.keys(a.clickIds ?? {}).some((k) => ["gclid", "fbclid", "msclkid", "ttclid", "li_fat_id"].includes(k))) return "paid";
+  if (
+    PAID_MEDIUMS.has(medium) ||
+    Object.keys(a.clickIds ?? {}).some((k) => ["gclid", "fbclid", "msclkid", "ttclid", "li_fat_id"].includes(k))
+  )
+    return "paid";
   if (medium === "email") return "email";
   if (medium === "social") return "social";
   const ref = (a.referrer ?? "").toLowerCase();
@@ -447,12 +548,31 @@ export function recordAttribution(ctx: Ctx, recordId: string, a: Attribution, cr
   if (!cur) {
     ctx.db.run(
       "INSERT INTO forms_attribution (record_id, first, first_channel, first_at, latest, latest_channel, latest_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      recordId, json, channel, now, json, channel, now,
+      recordId,
+      json,
+      channel,
+      now,
+      json,
+      channel,
+      now,
     );
     return;
   }
-  if (created && isNull(cur.first)) ctx.db.run("UPDATE forms_attribution SET first = ?, first_channel = ?, first_at = ? WHERE record_id = ?", json, channel, now, recordId);
-  ctx.db.run("UPDATE forms_attribution SET latest = ?, latest_channel = ?, latest_at = ? WHERE record_id = ?", json, channel, now, recordId);
+  if (created && isNull(cur.first))
+    ctx.db.run(
+      "UPDATE forms_attribution SET first = ?, first_channel = ?, first_at = ? WHERE record_id = ?",
+      json,
+      channel,
+      now,
+      recordId,
+    );
+  ctx.db.run(
+    "UPDATE forms_attribution SET latest = ?, latest_channel = ?, latest_at = ? WHERE record_id = ?",
+    json,
+    channel,
+    now,
+    recordId,
+  );
 }
 
 export function attributionOf(ctx: Ctx, recordId: string): { first?: Attribution; latest?: Attribution } {
