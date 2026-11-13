@@ -236,6 +236,7 @@ export function Field({
         {...(disabled && why ? { hint: why } : {})}
         trailing={
           <View style={st.controls}>
+            {/* ui-rows-lint: not a list (the one or two controls of a single field) */}
             {controls.map((c, i) => (
               <One key={i} c={c} label={label} disabled={disabled} id={`${id}-control${i === 0 ? "" : `-${i}`}`} />
             ))}
