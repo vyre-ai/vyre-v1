@@ -8,7 +8,7 @@
 // contact reaches you through the other reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
 // DECISION: recipient search returns contacts, companies, inboxes and groups. Space members have no list capability in the frozen contract, so kind member returns nothing.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, codeOf, ensure, first, getConversation, itemsOf, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
+import { bad, codeOf, holderOf, ensure, first, getConversation, itemsOf, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
 
@@ -39,7 +39,7 @@ interface Reach {
 }
 
 function reachOf(ctx: InboxCtx): Reach {
-  const follows = new Set(rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id)).map((r) => str(r, "contactId")));
+  const follows = new Set(rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx))).map((r) => str(r, "contactId")));
   return { follows, access: new Map() };
 }
 
@@ -58,7 +58,7 @@ function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean 
 
 async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[]> {
   const out: Reason[] = [];
-  if (strOrNull(row, "ownerId") === ctx.principal.id) out.push("owner");
+  if (strOrNull(row, "ownerId") === holderOf(ctx)) out.push("owner");
   const contactId = strOrNull(row, "contactId");
   if (contactId && reach.follows.has(contactId)) out.push("follow");
   if (jsonList(row.mailboxIds).some((id) => canSee(ctx, reach, "mailbox", id)) || jsonList(row.numberIds).some((id) => canSee(ctx, reach, "number", id))) out.push("shared_inbox");
@@ -405,7 +405,7 @@ export async function following(
     byContact.set(contactId, have);
   }
   // a followed contact with no messages yet still reaches you
-  for (const f of rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id))) {
+  for (const f of rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx)))) {
     const contactId = str(f, "contactId");
     const have = byContact.get(contactId) ?? new Set<Reason>();
     have.add("follow");
@@ -413,7 +413,7 @@ export async function following(
   }
   const rank: Reason[] = ["owner", "project", "follow", "shared_inbox"];
   const all = [...byContact.entries()]
-    .map(([contactId, set]) => ({ contactId, reasons: rank.filter((r) => set.has(r)), alertOnReplies: num(first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, ctx.principal.id)), "alertOnReplies") === 1 }))
+    .map(([contactId, set]) => ({ contactId, reasons: rank.filter((r) => set.has(r)), alertOnReplies: num(first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, holderOf(ctx))), "alertOnReplies") === 1 }))
     .sort((a, b) => a.contactId.localeCompare(b.contactId));
   const p = pageOf(all, w);
   return { rows: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };

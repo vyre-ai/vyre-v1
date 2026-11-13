@@ -6,7 +6,7 @@
 // stays undoable: Undo gives the history back to the sender. Nothing is ever deleted, only folded (the sender's row is hidden) and restored.
 // DECISION: a match remembers the sender's address on the record (contacts.address.add) unless the caller says rememberAddress false; Undo takes it back off again.
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
-import { conversationsShowing, itemsOf, newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
+import { conversationsShowing, holderOf, itemsOf, newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, RecordLite, Row } from "../projections.ts";
 
 const REF_KIND: Record<Channel, string> = { email: "mail_message", sms: "sms", call: "call" };
@@ -571,7 +571,7 @@ export async function followSet(
   if (typeof input.follow !== "boolean") bad(ctx, "Say whether to follow.");
   await ctx.call("follows.toggle", { resource: { type: "record", id: input.contactId }, on: input.follow });
   const now = ctx.now();
-  const existing = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, input.contactId, ctx.principal.id));
+  const existing = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, input.contactId, holderOf(ctx)));
   const had = followOf(ctx, input.contactId);
   const alert = input.follow ? (input.alertOnReplies ?? had.alertOnReplies) : false;
   if (input.follow) {
@@ -579,14 +579,14 @@ export async function followSet(
     else {
       ctx.db.run(
         `INSERT INTO inbox_follow (id, "contactId", "principalId", "alertOnReplies", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        newId("fol", now), input.contactId, ctx.principal.id, alert ? 1 : 0, 1, now, null,
+        newId("fol", now), input.contactId, holderOf(ctx), alert ? 1 : 0, 1, now, null,
       );
     }
   } else if (existing) {
     ctx.db.run(`UPDATE inbox_follow SET deleted_at = ?, "alertOnReplies" = ?, version = ?, updated_at = ? WHERE id = ?`, now, 0, nextVersion(existing), now, str(existing, "id"));
   }
   if (input.follow !== had.followed || alert !== had.alertOnReplies) {
-    ctx.emit("conversation.follow_changed", `record/${input.contactId}`, { contactId: input.contactId, principalId: ctx.principal.id, following: input.follow, alertOnReplies: alert }, { vis: "participants" });
+    ctx.emit("conversation.follow_changed", `record/${input.contactId}`, { contactId: input.contactId, principalId: holderOf(ctx), following: input.follow, alertOnReplies: alert }, { vis: "participants" });
   }
   return { following: input.follow, alertOnReplies: alert };
 }

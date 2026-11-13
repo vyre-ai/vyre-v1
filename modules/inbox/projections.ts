@@ -174,10 +174,16 @@ export function getConversation(ctx: Pick<InboxCtx, "db">, id: string): Row | nu
   return first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ? AND deleted_at IS NULL`, id));
 }
 
+/**
+ * Whose follows and conversations the caller's reads are (lib/agent-asker.ts): the person an agent acts for, else the caller. An agent's own follows and ownership are its work in a turn for nobody; they
+ * never open a conversation for a person who merely asked that agent.
+ */
+export const holderOf = (ctx: Pick<InboxCtx, "principal" | "actingFor">): string => (ctx.principal.kind === "agent" && ctx.actingFor !== undefined && ctx.actingFor.startsWith("usr_") ? ctx.actingFor : ctx.principal.id);
+
 /** The caller's own follow of a contact, if any. */
-export function followOf(ctx: Pick<InboxCtx, "db" | "principal">, contactId: string | null): { followed: boolean; alertOnReplies: boolean } {
+export function followOf(ctx: Pick<InboxCtx, "db" | "principal"> & { actingFor?: string | undefined }, contactId: string | null): { followed: boolean; alertOnReplies: boolean } {
   if (!contactId) return { followed: false, alertOnReplies: false };
-  const row = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, ctx.principal.id));
+  const row = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, holderOf(ctx)));
   return row ? { followed: true, alertOnReplies: num(row, "alertOnReplies") === 1 } : { followed: false, alertOnReplies: false };
 }
 
