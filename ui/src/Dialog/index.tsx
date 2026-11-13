@@ -34,9 +34,16 @@ export interface DialogProps {
   testID?: string;
   veilTestID?: string;
   titleTestID?: string;
+  /**
+   * "composer": a card that sits where the caller put it (above the composer) instead of a veil over the window. No veil, no `aria-modal`, no focus move or trap: the composer keeps the keyboard.
+   * Escape (one layer) and the Close control close it; a press outside is handed to `onPressOutside` with its target, so the owner can leave the composer out of it. The owner also closes it on the next send.
+   */
+  anchor?: "composer";
+  onPressOutside?(target: unknown): void;
 }
 
 const web = Platform.OS === "web";
+type Fn = (t: string, f: (e: { target?: unknown }) => void, capture?: boolean) => void;
 // the card eases in; the rules go through the sheet so a page that drops injected style text still gets them
 function ensureCss(): void {
   injectCss(
@@ -88,18 +95,58 @@ export function Dialog({
   testID,
   veilTestID,
   titleTestID,
+  anchor,
+  onPressOutside,
 }: DialogProps): ReactElement {
   const card = useRef<unknown>(null);
   const winW = useWindowDimensions().width;
   const full = fill && winW > 0 && winW < 560;
   useEscapeLayer(true, onClose);
+  const outside = useRef(onPressOutside);
+  outside.current = onPressOutside;
   useEffect(() => {
-    if (!web) return;
+    if (!web || anchor === undefined) return undefined;
+    const d = (globalThis as { document?: { addEventListener?: Fn; removeEventListener?: Fn } }).document;
+    const hear = (e: { target?: unknown }): void => {
+      const el = card.current as { contains?: (n: unknown) => boolean } | null;
+      if (el?.contains?.(e.target)) return;
+      outside.current?.(e.target);
+    };
+    d?.addEventListener?.("pointerdown", hear, true);
+    return () => d?.removeEventListener?.("pointerdown", hear, true);
+  }, [anchor]);
+  useEffect(() => {
+    if (!web || anchor !== undefined) return;
     ensureCss();
     // the first field inside the card takes focus (a dialog with only buttons keeps none, so no button wears a focus ring before a key is pressed), so the keyboard works at once
     const el = card.current as { querySelector?: (q: string) => { focus?: () => void } | null } | null;
     el?.querySelector?.("input,textarea,select")?.focus?.();
   }, []);
+  if (anchor !== undefined)
+    return (
+      <View ref={card as never} role="dialog" accessibilityLabel={title} testID={testID} style={s.anchored}>
+        <View style={s.anchoredHead}>
+          <Text accessibilityRole="header" testID={titleTestID} style={s.anchoredTitle}>
+            {title}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            testID="dialog-close"
+            onPress={onClose}
+            style={({ hovered }: { hovered?: boolean }) => [
+              s.close,
+              hovered === true ? { backgroundColor: "var(--hover)" } : null,
+            ]}
+          >
+            <Text style={s.closeX}>{"\u00d7"}</Text>
+          </Pressable>
+        </View>
+        <ScrollView style={s.anchoredBody} keyboardShouldPersistTaps="handled">
+          {children}
+        </ScrollView>
+      </View>
+    );
   // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
   const buttons: ReactElement[] = [];
   for (const a of actions) if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
@@ -178,6 +225,19 @@ const s = StyleSheet.create({
     paddingBottom: 14,
     paddingHorizontal: 16,
   } as never,
+  anchored: {
+    width: "100%",
+    maxHeight: 420,
+    backgroundColor: "var(--raised)" as string,
+    borderRadius: 12,
+    overflow: "hidden",
+    boxShadow: "var(--sh-pop)",
+  } as never,
+  anchoredHead: { flexDirection: "row", alignItems: "center", height: 44, paddingLeft: 16, paddingRight: 8 },
+  anchoredTitle: { flex: 1, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  anchoredBody: { paddingHorizontal: 16, minHeight: 0 },
+  close: { width: 28, height: 28, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  closeX: { fontSize: 18, lineHeight: 20, color: "var(--ink-3)" as string },
   bodyIn: { gap: 12 },
   bodyFull: { flex: 1, minHeight: 0, marginTop: 12 },
   title: { fontSize: 16, lineHeight: 22, fontWeight: "600", color: "var(--ink)" as string, letterSpacing: -0.2 },
