@@ -17,7 +17,8 @@ import { GUEST_BRIDGE, GUEST_CONNECT, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from
 import { startNetWall } from "./host.ts";
 import type { NetWall, NetWallOptions } from "./host.ts";
 
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
+// /etc/passwd and /etc/group give the user inside a name (whoami, id, git, ssh): the user that runs the sandbox is mapped in as itself, and with no entry it is only a number (13 Nov 2026).
+const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime", "/etc/passwd", "/etc/group"];
 const HOME = "/home/agent";
 /** bwrap is started with an empty environment, so it must be found by path (an empty PATH finds nothing). */
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"].find((p) => fs.existsSync(p)) ?? "bwrap";

@@ -7,7 +7,8 @@ import type { PolicyOptions } from "./policy.ts";
 import { SandboxError } from "./types.ts";
 import type { Roots, SandboxSpec } from "./types.ts";
 
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
+// /etc/passwd and /etc/group give the user inside a name (whoami, id, git, ssh): the user that runs the sandbox is mapped in as itself, and with no entry it is only a number (13 Nov 2026).
+const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime", "/etc/passwd", "/etc/group"];
 const HOME = "/home/agent";
 
 export interface BwrapOptions {
