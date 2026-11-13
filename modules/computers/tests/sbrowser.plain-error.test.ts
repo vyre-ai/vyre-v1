@@ -2,6 +2,8 @@
 // around the browser's own answer (making room, the hold, the agent's details), the agent is told in plain words that the browser is not available, with the tool that was called, and told to call it again;
 // the server's log keeps the cause. A failure after the page loaded (noting its tab) never fails the call.
 import test from "node:test";
+import { coldStartRetry } from "../handlers/tools/common.ts";
+import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import assert from "node:assert/strict";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import { resetAgentInfo } from "../sbrowser/agentinfo.ts";
@@ -98,4 +100,45 @@ test("a cold browser that works answers the first call", async () => {
     bindSpaceBrowser(null);
     resetAgentInfo();
   }
+});
+
+test("a failure of a waking browser is waited out inside the call: the model sees one answer", async () => {
+  let n = 0;
+  const out = await coldStartRetry(
+    async () => {
+      if (++n < 3) throw new Error("starting");
+      return "ok";
+    },
+    3,
+    1,
+  );
+  assert.equal(out, "ok");
+  assert.equal(n, 3);
+});
+
+test("a refusal with its own words is not retried, and a failure that outlasts the bound ends", async () => {
+  let n = 0;
+  await assert.rejects(() =>
+    coldStartRetry(
+      async () => {
+        n++;
+        throw new HostError(makeError("provider.unavailable", "t", { message: "full" }));
+      },
+      3,
+      1,
+    ),
+  );
+  assert.equal(n, 1);
+  let m = 0;
+  await assert.rejects(() =>
+    coldStartRetry(
+      async () => {
+        m++;
+        throw new Error("x");
+      },
+      3,
+      1,
+    ),
+  );
+  assert.equal(m, 3);
 });
