@@ -257,7 +257,11 @@ export function personOfHash(hash: string): string | null {
 /** A link or tab switch arrives while the place is mounted: the same page keeps its pane and place, a different page replaces them. A layer the link names (Open Terminal on the landing, All agents) goes up over the page that is already there. */
 export function linkedTo(s: Shown, hash: string): Shown {
   const next = hash === "" ? START : fromHash(hash);
-  if (JSON.stringify(next.route) === JSON.stringify(s.route)) return next.layer !== null ? { ...s, layer: next.layer } : s;
+  // a terminal and a layer are shown over the page that is open, not instead of it: fromHash gives them on the landing page, which must not replace the page the person is on (Attach on the
+  // Computer tab sent the chat to the landing page, 13 Nov)
+  if (next.terminalId !== null) return { ...s, terminalId: next.terminalId, pane: false, layer: null };
+  if (next.layer !== null) return { ...s, layer: next.layer };
+  if (JSON.stringify(next.route) === JSON.stringify(s.route)) return s;
   return { ...next, pane: s.pane, terminalId: s.terminalId };
 }
 

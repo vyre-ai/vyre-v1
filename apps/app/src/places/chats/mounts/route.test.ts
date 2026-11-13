@@ -111,3 +111,28 @@ test("a link to a person names the person and no page: the place keeps its page 
   assert.equal(personOfHash(""), null);
   assert.deepEqual(fromHash("subject=person:usr_omar").route, START.route, "as a page it is nothing: the profile is not a route");
 });
+
+// 13 Nov 2026 (owner, rc.26): Attach on the Computer tab sent the chat's tab to the landing page. A terminal link or a layer link was turned into a whole new Shown (the landing page, and the old terminal
+// state put back over the link's own), so the page that was open went and the terminal never showed.
+test("a link to a terminal opens it beside the page that is open: the chat stays, the terminal shows, the agent's pane makes room", () => {
+  const chat = step(START, { t: "chat", threadId: "c1", pane: true });
+  const next = linkedTo(chat, "screen=chats.terminal-tab&terminalId=ter_1");
+  assert.deepEqual(next.route, chat.route, "the chat is still the page");
+  assert.equal(next.terminalId, "ter_1", "the terminal is the one the link names");
+  assert.equal(next.pane, false, "the terminal takes the right column from the agent's pane");
+  const agent = step(START, { t: "agent", agentId: "agt_1", tab: "computer" });
+  const onAgent = linkedTo(agent, "screen=chats.terminal-tab&terminalId=ter_2");
+  assert.deepEqual([onAgent.route, onAgent.terminalId], [agent.route, "ter_2"], "an agent's page keeps its page too");
+  assert.equal(linkedTo(START, "screen=chats.terminal-tab&terminalId=ter_3").terminalId, "ter_3", "on the landing it just shows");
+  assert.equal(linkedTo({ ...chat, terminalId: "ter_old" }, "screen=chats.terminal-tab&terminalId=ter_4").terminalId, "ter_4", "another terminal replaces the one that was open");
+});
+
+test("every layer link opens over the page that is open, and none of them drops it", () => {
+  const chat = step(START, { t: "chat", threadId: "c1", pane: true });
+  for (const hash of ["screen=chats.terminal-list&at=1", "screen=chats.terminal-rules", "screen=chats.all-agents", "screen=chats.computer-popup&computerId=cmp_1", "screen=chats.agent-computer&computerId=cmp_1", "screen=chats.recording-sheet&recordingId=rec_1", "screen=chats.connect-outside-agent&channelId=chn_1"]) {
+    const next = linkedTo(chat, hash);
+    assert.notEqual(next.layer, null, `${hash} puts its layer up`);
+    assert.deepEqual(next.route, chat.route, `${hash} keeps the chat`);
+    assert.equal(next.pane, true, `${hash} keeps the pane`);
+  }
+});

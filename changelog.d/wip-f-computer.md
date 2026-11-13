@@ -1,0 +1,2 @@
+- Attach on an agent's Computer tab now shows its terminal beside the chat you are in; it used to send the tab to the start page.
+- The same fix applies to every other link that opens the terminal list, the rules, All agents or an agent's computer over the page you are on: the page stays.
