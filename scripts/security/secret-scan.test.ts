@@ -74,3 +74,19 @@ test("a marked fake in a production path still fails: production code can never 
     "host/src/a.ts",
   );
 });
+
+test("in a wrapped list each real-looking key needs its own marker on its line or the line before; an unmarked one beside a marked one is still found", () => {
+  const key = seeded["anthropic-or-openai-key"]!;
+  const file = "test/a.live.test.ts";
+  const list = (marks: boolean[]) =>
+    `const KEYS = [\n${marks.map((m, i) => `${m ? `  // ${MARK}\n` : ""}  "${key}${i}",`).join("\n")}\n];`;
+  assert.deepEqual(scanText(file, list([true, true, true])), []);
+  const one = scanText(file, list([true, false, true]));
+  assert.equal(one.length, 1);
+  assert.equal(one[0]!.rule, "anthropic-or-openai-key");
+  assert.equal(
+    scanText(file, `// ${MARK}\nconst A = "${key}",\n  B = "${key}2";`).length,
+    1,
+    "a marker above the first of two declarators does not cover the second",
+  );
+});
