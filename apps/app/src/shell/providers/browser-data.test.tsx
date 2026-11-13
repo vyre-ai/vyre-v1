@@ -137,3 +137,9 @@ test("a press on the web is the browser's click: its place comes from clientX an
 test("the left button is browserd's button 1: its buttons are numbered from 1, and 0 does not exist", () => {
   assert.equal(LEFT_BUTTON, 1);
 });
+
+test("Tab and Escape are never sent to the page: they are how a person leaves the live view", () => {
+  assert.deepEqual(keyMessages({ key: "Tab" }), []);
+  assert.deepEqual(keyMessages({ key: "Escape" }), []);
+  assert.equal(keyMessages({ key: "Enter" }).length, 2, "other named keys still go");
+});

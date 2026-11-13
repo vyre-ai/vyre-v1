@@ -92,6 +92,20 @@ test("on the real Space browser: watching and in control, the picture is never b
     let scrolled = 0;
     for (let i = 0; i < 40 && scrolled <= 0; i++) { scrolled = Number(await page("window.scrollY")); if (scrolled <= 0) await new Promise((r) => setTimeout(r, 100)); }
     assert.ok(scrolled > 0, `the wheel over the picture scrolled the page (scrollY ${scrolled})`);
+    // leaving the view: Tab goes out of it (and is not sent), then Shift+Tab reaches Give back, and Enter on it hands control back without the page ever receiving that Enter
+    await k.me.page.evaluate(() => { (window as unknown as { __sent: string[] }).__sent.length = 0; });
+    await k.me.page.keyboard.press("Tab");
+    const onView = await k.me.page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "browser-live-view");
+    assert.equal(onView, false, "Tab leaves the live view");
+    for (let i = 0; i < 14; i++) {
+      if (await k.me.page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "browser-give")) break;
+      await k.me.page.keyboard.press("Shift+Tab");
+    }
+    assert.equal(await k.me.page.evaluate(() => document.activeElement?.getAttribute("data-testid")), "browser-give", "Give back has the focus");
+    await k.me.page.keyboard.press("Enter");
+    await k.me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
+    const keysSent = await k.me.page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.map((m) => JSON.parse(m) as { t: string; name?: string }).filter((m) => m.t === "type" || (m.t === "key" && m.name !== "Shift")));   // Shift itself, pressed to go backwards while the view still has the focus, is a modifier on its own: harmless to the page
+    assert.deepEqual(keysSent, [], `no Enter, text or other key reached the page while leaving: ${JSON.stringify(keysSent)}`);
     assert.ok(drawn.resizes <= 1, `the canvas was sized ${drawn.resizes} times: each one clears it`);
   } finally { await k.close(); }
 });

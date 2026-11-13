@@ -11,3 +11,4 @@
 - Clicks you make on an agent's browser while you are in control now land where you clicked; on the web they all went to the page's top left corner.
 - Controlling an agent's browser from the app now works: clicks used the wrong button number and landed in the page's top left corner, Space and Enter clicked that corner instead of typing, and the mouse wheel did not scroll. Clicks, typing and scrolling now reach the page.
 - Closing a terminal opened with Attach gives the right column back to the agent's pane when it was open before.
+- While you control an agent's browser, keys go to it only while its view has the focus; Tab and Escape always leave the view, and the app's own keys work again after you hand control back. The mouse wheel scrolls by lines and pages as well as pixels.

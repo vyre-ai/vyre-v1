@@ -45,6 +45,8 @@ export const LEFT_BUTTON = 1;
 
 /** What a key sends: a letter or digit typed alone is text; a named key (Enter, Tab, arrows) or one with Ctrl, Alt or Meta goes as a key press and release. */
 export function keyMessages(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): Array<Record<string, unknown>> {
+  // Tab and Escape are how a person leaves the view: they are never sent to the page and never swallowed
+  if (e.key === "Tab" || e.key === "Escape") return [];
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) return [{ t: "type", text: e.key }];
   if (e.key.length > 32 || e.key === "Dead" || e.key === "Unidentified") return [];
   return [{ t: "key", name: e.key, down: true }, { t: "key", name: e.key, down: false }];
@@ -156,23 +158,6 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
 
   const send = (m: Record<string, unknown>): void => { socket.current?.send(JSON.stringify({ ...m, seq: ++seq.current })); };
 
-  useEffect(() => {
-    if (!control) return;
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void, c?: boolean): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void, c?: boolean): void } }).document;
-    if (!doc) return;
-    const onKey = (e: KeyboardEvent): void => {
-      const tag = ((e.target as { tagName?: string } | null)?.tagName ?? "").toUpperCase();
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as { isContentEditable?: boolean } | null)?.isContentEditable === true) return;
-      const out = keyMessages(e);
-      if (out.length === 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      for (const m of out) send(m);
-    };
-    // capture phase: the focused view is a button, and the framework turns Space and Enter on it into a press before a bubbling listener would see the key
-    doc.addEventListener("keydown", onKey, true);
-    return () => doc.removeEventListener("keydown", onKey, true);
-  }, [control]);
 
   const onPress = (e: PressEvent): void => {
     if (!control) return;
@@ -185,14 +170,29 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     send({ t: "down", n: LEFT_BUTTON });
     send({ t: "up", n: LEFT_BUTTON });
   };
-  // the wheel is a DOM listener on the view (a native press view does not forward onWheel): not passive, so the page behind does not scroll too
+  // The keys and the wheel are DOM listeners on the view itself (a native press view forwards neither): keys go to the page only while the view has the focus, so leaving it (Tab, Escape, a click elsewhere) or
+  // handing the controls back stops them at once, and nothing else in the app loses its keys. The key listener is in the capture phase because the framework turns Space and Enter on a focused view into a press.
   const viewRef = useRef<unknown>(null);
   useEffect(() => {
-    const el = viewRef.current as { addEventListener?: (t: string, f: (e: WheelEvent) => void, o: { passive: boolean }) => void; removeEventListener?: (t: string, f: (e: WheelEvent) => void) => void } | null;
+    type Target = { addEventListener?: (t: string, f: (e: never) => void, o?: boolean | { passive: boolean }) => void; removeEventListener?: (t: string, f: (e: never) => void, o?: boolean) => void };
+    const el = viewRef.current as Target | null;
     if (Platform.OS !== "web" || !control || !el?.addEventListener) return;
-    const onWheel = (e: WheelEvent): void => { e.preventDefault(); send({ t: "scroll", dx: e.deltaX ?? 0, dy: e.deltaY ?? 0 }); };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener?.("wheel", onWheel);
+    const onWheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      // lines (a mouse wheel in Firefox) and pages are converted to pixels, as the page expects
+      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1;
+      send({ t: "scroll", dx: (e.deltaX ?? 0) * k, dy: (e.deltaY ?? 0) * k });
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      const out = keyMessages(e);
+      if (out.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      for (const m of out) send(m);
+    };
+    el.addEventListener("wheel", onWheel as never, { passive: false });
+    el.addEventListener("keydown", onKey as never, true);
+    return () => { el.removeEventListener?.("wheel", onWheel as never); el.removeEventListener?.("keydown", onKey as never, true); };
   }, [control]);
   const uri = control && canvasOk ? null : control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
   // while you are in control the frames are painted on one canvas that fills the box and keeps the page's shape, as the picture does ("contain"): clicks are mapped the same way (pointOf)
