@@ -16338,6 +16338,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
 };
@@ -17160,6 +17161,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
   readings: Array<{

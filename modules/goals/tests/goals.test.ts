@@ -179,7 +179,7 @@ test("budget: a warning at 80%, a pause at 100% that stops the work waking, and 
   let g = getGoal(w.db, goal.id)!;
   assert.equal(g.spentMicros, 850_000, "a turn read twice counts once");
   assert.equal(w.named("goal.budget_warned").length, 1);
-  assert.ok(w.state.posts.some((p) => /80% of the budget is used: \$0\.85 of \$1\.00, 1 of 100 turns/.test(p.body)));
+  assert.ok(w.state.posts.some((p) => /80% of the budget is used: \$0\.85 of \$1\.00 and 1 of 100 turns/.test(p.body)));
   await w.turn("turn.completed", { turnId: "trn_2", threadId: goal.threadId, agentId: LEAD, costMicros: 200_000 });
   g = getGoal(w.db, goal.id)!;
   assert.equal(g.status, "paused");
@@ -206,7 +206,7 @@ test("missed: the deadline passes short of the line, the summary is honest, and 
   await w.sweep();
   const g = getGoal(w.db, goal.id)!;
   assert.equal(g.status, "missed");
-  assert.match(g.summary!, /^Got to 268 of 300 registrations \(68%\) by the deadline, Sat 7 Nov, 10:00\. 1 of 2 tasks done\. Still open: Post in Skool\. Used \$0\.00 of \$10\.00, 0 of 20 turns\.$/);
+  assert.match(g.summary!, /^Got to 268 of 300 registrations \(68%\) by the deadline, Sat 7 Nov, 10:00\. 1 of 2 tasks done\. Still open: Post in Skool\. Used \$0\.00 of \$10\.00 and 0 of 20 turns\.$/);
   const ended = w.state.posts.find((p) => p.blocks?.[0]?.data.kind === "ended")!;
   assert.match(ended.body, /Extend to /);
   assert.equal(w.woken().at(-1)!.payload.reason.includes("ended"), true, "the lead gets one turn for the retrospective");
@@ -390,7 +390,7 @@ test("a lead whose turn ends without a check-in is asked again at once, then the
   await w.turn("turn.completed", { turnId: "trn_b", threadId: goal.threadId, agentId: LEAD, costMicros: 1 });
   const g = getGoal(w.db, goal.id)!;
   assert.equal(g.status, "stuck");
-  assert.equal(g.statusReason, "The lead agent did not check in after two wake-ups: the turn ended without a check-in.");
+  assert.equal(g.statusReason, "The lead agent did not check in after two tries: it ended without writing a check-in.");
 });
 
 test("a watched page is a source: the number it last read, or how many times it changed; a watch that is gone or has read nothing says so", async () => {
@@ -509,7 +509,7 @@ test("the owner asks an agent in another chat to change the deadline: it does, a
   assert.equal(ext.goal.deadline, due + DAY);
   const moved = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "extended");
   assert.equal(moved.ref, "msg_ask_thu");
-  assert.match(moved.tpl, /Deadline moved to .*, asked by \{who:usr_owner\}\./);
+  assert.match(moved.tpl, /\{who:agt_lead\} moved the deadline to \{at:\d+\}, asked by \{who:usr_owner\}\./);
 });
 
 test("an asked agent may pause, resume and stop the owner's goal; done stays the owner's press", async () => {

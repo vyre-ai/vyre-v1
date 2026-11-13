@@ -4,3 +4,6 @@
 - A goal's side pane now opens on Details, with the tabs in the order Details, Activity, Files.
 - Saved email blocks, snippets and designs an agent makes for you are now yours: you see and change them, and nobody else does.
 - A shared inbox an agent creates for you is now owned by you, and the mail health check names any shared inbox that has no owner.
+- A goal's Activity now reads in plain sentences with names ("Dex could not check in: Vyre's server restarted while it was working"), never a raw code, and long summaries are no longer cut. The wake-up line no longer says "woken because ended".
+- A goal's Activity loads earlier rows when you reach the end of the list, so the start of the goal's story is always there.
+- The server is no longer credited as "Vyre" under an activity line.

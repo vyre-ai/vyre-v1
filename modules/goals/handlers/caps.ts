@@ -1,6 +1,6 @@
 // The goals capabilities. Who may do what is decided here (a goal is not a kernel resource yet): see projections.ts canSee, mustControl, isOwnerPress, isLead.
 import {
-  ENDED, LIVE, activity, addTask, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
+  ENDED, LIVE, activity, addTask, andList, said, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
   money, mustControl, newGoalId, nextCheckin, openWake, progressOf, offsetAt, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
 } from "../projections.ts";
 import { ownerAsked } from "../../../lib/owner-asked.ts";
@@ -10,7 +10,7 @@ import {
 } from "./life.ts";
 import type { PlanChild, Seat } from "./life.ts";
 import { sourceWords } from "../sources.ts";
-import { whoToken } from "../../../lib/words/time.ts";
+import { atToken, whoToken } from "../../../lib/words/time.ts";
 import { expandWords, whoIn } from "../../../lib/words/activity.ts";
 import { validZone } from "../../../lib/zones.ts";
 
@@ -105,7 +105,7 @@ export async function create(ctx: GoalsCtx, input: In) {
     ? `${whoToken(ctx.principal.id)} ${isOwner(ctx, g) && input.start !== false ? "made" : "drafted"} this goal for ${whoToken(owner)}.`
     : `${whoToken(owner)} made this goal.`);
   const found = overlaps(ctx, g);
-  for (const o of found) note(ctx, g.id, "overlap", `Shares a record with the goal "${o.title}": work on it goes through tasks, one at a time.`, o.goalId);
+  for (const o of found) note(ctx, g.id, "overlap", `Uses the same record as "${o.title}". Work on it goes through tasks, one at a time.`, o.goalId);
   // the owner (in the app, or an outside agent under their setup grant) starts it at once; an agent's draft waits for the owner's press on its card
   const plan = (input.plan ?? []) as PlanChild[];
   if (isOwnerPress(ctx, g)) g.permissions = g.permissions.map((p) => ({ ...p, granted: true }));
@@ -149,7 +149,7 @@ export async function get(ctx: GoalsCtx, input: In) {
     const got = (await tryCall<{ task?: { id: string; key?: string; title: string; state: string; assigned?: Who; blocked?: boolean } }>(ctx, "tasks.get", { taskId: t.taskId }))?.task;
     tasks.push(clean({ taskId: t.taskId, key: got?.key ?? t.key, title: got?.title ?? t.title, state: got?.state ?? t.state, assigned: got?.assigned, blocked: got?.blocked === true }));
   }
-  return { ...out(ctx, g), tasks, ...(g.status === "draft" ? { draftPlan: draftPlanOf(ctx, g) } : {}), waiting: waits(ctx, g.id), activity: await worded(ctx, g, activity(ctx.db, g.id, 30)), readings: readings(ctx.db, g.id) };
+  return { ...out(ctx, g), tasks, ...(g.status === "draft" ? { draftPlan: draftPlanOf(ctx, g) } : {}), waiting: waits(ctx, g.id), activity: await worded(ctx, g, activity(ctx.db, g.id, 30, undefined, isAdmin(ctx))), readings: readings(ctx.db, g.id) };
 }
 
 export async function list(ctx: GoalsCtx, input: In) {
@@ -180,7 +180,7 @@ export async function count(ctx: GoalsCtx, input: In) {
 
 export async function activityList(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  return { activity: await worded(ctx, g, activity(ctx.db, g.id, input.limit ?? 50, input.before)) };
+  return { activity: await worded(ctx, g, activity(ctx.db, g.id, input.limit ?? 50, input.before, isAdmin(ctx))) };
 }
 
 export async function update(ctx: GoalsCtx, input: In) {
@@ -235,13 +235,13 @@ export async function update(ctx: GoalsCtx, input: In) {
   if (input.helpers || g.owner !== wasOwner || g.leadAgentId !== wasLead) { seated = await seat(ctx, g); await shareFolder(ctx, g); }
   if (g.owner !== wasOwner) await syncGrants(ctx, g, { press: false });
   emit(ctx, g, "goal.updated", { fields, by: ctx.principal.id });
-  note(ctx, g.id, "edit", `Changed the ${fields.map((f) => FIELD_WORDS[f] ?? f).join(", ")}.`);
+  note(ctx, g.id, "edit", said(ctx, `changed the ${andList(fields.map((f) => `${FIELD_WORDS[f] ?? f}`))}.`));
   if (input.finish && LIVE.has(g.status)) { delete g.startValue; await readNow(ctx, g, "edit"); }
   if (input.permissions) await syncGrants(ctx, g, { press: pressGrants });
   // a raised budget lets a goal the budget paused go on
   if (input.budget && g.status === "paused" && g.statusReason?.startsWith("The budget is used") && !overBudget(g)) {
     await resumeGoal(ctx, g, "budget_raised");
-    note(ctx, g.id, "budget", `Budget raised from ${money(budgetBefore.spendMicros ?? 0)} to ${money(g.budget.spendMicros ?? 0)}.`);
+    note(ctx, g.id, "budget", said(ctx, `raised the budget from ${money(budgetBefore.spendMicros ?? 0)} to ${money(g.budget.spendMicros ?? 0)}.`));
   }
   saveGoal(ctx, g);
   return { ...out(ctx, g), ...(seated ? { seated } : {}) };
@@ -301,7 +301,7 @@ export async function extend(ctx: GoalsCtx, input: In) {
   if (g.status === "done" || g.status === "stopped" || g.status === "draft") raise(ctx, "validation.precondition_failed", `A ${g.status} goal cannot be extended.`, { reason: "not_extendable" });
   g.deadline = input.deadline;
   emit(ctx, g, "goal.extended", { deadline: g.deadline, by: ctx.principal.id });
-  note(ctx, g.id, "extended", `Deadline moved to ${when(g.deadline, g.zone)}.`);
+  note(ctx, g.id, "extended", said(ctx, `moved the deadline to ${atToken(g.deadline)}.`));
   if (g.status === "missed") {
     delete g.ended; delete g.endedAt;
     g.flatCheckins = 0;
@@ -335,7 +335,7 @@ export async function checklistTick(ctx: GoalsCtx, input: In) {
   const item = (g.finish.items ?? []).find((i) => i.id === input.itemId);
   if (g.finish.kind !== "checklist" || !item) raise(ctx, "validation.not_found", "That condition does not exist.");
   item.done = input.done === true;
-  note(ctx, g.id, "checklist", `${item.done ? "Done" : "Not done"}: ${item.text}`);
+  note(ctx, g.id, "checklist", `${item.done ? "Condition met" : "Condition reopened"}: ${item.text}`);
   emit(ctx, g, "goal.progress", { ok: true, value: (g.finish.items ?? []).filter((i) => i.done).length, target: (g.finish.items ?? []).length });
   if (LIVE.has(g.status) && reached(g)) await endGoal(ctx, g, "done");
   dispatch(ctx, g);
@@ -355,7 +355,7 @@ export async function plan(ctx: GoalsCtx, input: In) {
     const keys = new Set(incoming.map((c) => c.key));
     const drafted = [...draftPlanOf(ctx, g).filter((c) => !keys.has(c.key)), ...incoming];
     saveDraftPlan(ctx, g, drafted);
-    note(ctx, g.id, "plan", `Added ${incoming.length} step${incoming.length === 1 ? "" : "s"} to the drafted plan. They become tasks when the owner starts the goal.`);
+    note(ctx, g.id, "plan", said(ctx, `added ${incoming.length} step${incoming.length === 1 ? "" : "s"} to the draft plan. They become tasks when ${whoToken(g.owner)} starts the goal.`));
     saveGoal(ctx, g);
     return { tasks: [], drafted: drafted.length };
   }
@@ -430,7 +430,7 @@ export async function complete(ctx: GoalsCtx, input: In) {
     return { saved: false, askedOwner: true, taskId: r.taskId };
   }
   g.retro = retro;
-  note(ctx, g.id, "retro", `Retrospective: ${retro.summary}`);
+  note(ctx, g.id, "retro", said(ctx, `wrote the retrospective: ${retro.summary}`));
   const text = [`# Retrospective: ${g.title}`, "", `${g.ended === "done" ? "Done" : g.ended === "missed" ? "Missed" : "Stopped"}. ${g.summary ?? ""}`, "", retro.summary, "",
     "## What worked", ...retro.worked.map((w) => `- ${w}`), "", "## What did not", ...retro.didNot.map((w) => `- ${w}`), ...(retro.playbook ? ["", "## Playbook", retro.playbook] : [])].join("\n");
   const reports = await ensureFolder(ctx, g, "Reports");
@@ -488,13 +488,13 @@ export async function step(ctx: GoalsCtx, input: In) {
     ctx.db.run("INSERT INTO goals_step (goal_id, step_id, title, state, result, by, at, done_at) VALUES (?, ?, ?, 'done', ?, ?, ?, ?) ON CONFLICT (goal_id, step_id) DO UPDATE SET state = 'done', result = excluded.result, done_at = excluded.done_at",
       g.id, stepId, input.title ?? null, input.result ?? null, ctx.principal.id, ctx.now(), ctx.now());
     emit(ctx, g, "goal.step_done", { stepId, by: ctx.principal.id }, `step:${g.id}:${stepId}`);
-    note(ctx, g.id, "step", `Done: ${input.title ?? stepId}${input.result ? `. ${String(input.result).slice(0, 200)}` : ""}`, stepId);
+    note(ctx, g.id, "step", said(ctx, `finished "${input.title ?? stepId}".${input.result ? ` ${String(input.result)}` : ""}`), stepId);
     saveGoal(ctx, g);
     return clean({ state: "done" as const, result: input.result, idempotencyKey });
   }
   if (!row) {
     ctx.db.run("INSERT INTO goals_step (goal_id, step_id, title, state, by, at) VALUES (?, ?, ?, 'started', ?, ?)", g.id, stepId, input.title ?? null, ctx.principal.id, ctx.now());
-    note(ctx, g.id, "step", `Started: ${input.title ?? stepId}`, stepId);
+    note(ctx, g.id, "step", said(ctx, `started "${input.title ?? stepId}".`), stepId);
     saveGoal(ctx, g);
   }
   return { state: "started" as const, idempotencyKey };

@@ -71,12 +71,12 @@ const rand = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint
 
 // ---- schema ----
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_goals.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_goals.sql", "0002_activity_data.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split(/;\s*\n/).map((s) => s.replace(/^\s*--.*$/gm, "").trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT id FROM goals_goal WHERE id = ?", "probe"); db.all("SELECT goal_id FROM goals_activity WHERE goal_id = ?", "probe"); }
+  try { db.all("SELECT id FROM goals_goal WHERE id = ?", "probe"); db.all("SELECT goal_id FROM goals_activity WHERE goal_id = ?", "probe"); db.all("SELECT goal_id FROM goals_activity_data WHERE goal_id = ?", "probe"); }
   catch { for (const s of SCHEMA) db.run(s); }
   ready.add(db);
 }
@@ -240,19 +240,35 @@ export const money = (micros: number): string => `$${(micros / 1_000_000).toFixe
 
 // ---- activity ----
 
-export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string): void {
+/** "<name> <rest>" for a person or agent that did it, or the sentence alone when the server did (a sentence must not start with a bare id). */
+export function said(ctx: Pick<GoalsCtx, "principal">, rest: string): string {
+  return ctx.principal.kind === "service" ? rest.charAt(0).toUpperCase() + rest.slice(1) : `${whoToken(ctx.principal.id)} ${rest}`;
+}
+/** "a", "a and b", "a, b and c". */
+export const andList = (xs: readonly string[]): string => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string, data?: Record<string, unknown>): void {
   ensure(ctx.db);
   const asked = askedIn.get(ctx);
   if (asked) { text = `${text.replace(/\.$/, "")}, asked by ${whoToken(asked.person)}.`; ref ??= asked.messageIds[0]; }
   const last = (ctx.db.all("SELECT MAX(seq) AS s FROM goals_activity WHERE goal_id = ?", goalId)[0] as { s: number | null } | undefined)?.s ?? 0;
-  ctx.db.run("INSERT INTO goals_activity (goal_id, seq, at, kind, text, by, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", goalId, last + 1, ctx.now(), kind, text.slice(0, 600), ctx.actingFor && ctx.principal.kind === "agent" ? `${ctx.principal.id}>${ctx.actingFor}` : ctx.principal.id, ref ?? null);
+  // the whole sentence is kept: a long summary is shown in full, never cut
+  ctx.db.run("INSERT INTO goals_activity (goal_id, seq, at, kind, text, by, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", goalId, last + 1, ctx.now(), kind, text, ctx.actingFor && ctx.principal.kind === "agent" ? `${ctx.principal.id}>${ctx.actingFor}` : ctx.principal.id, ref ?? null);
+  // what only an admin reads (an error code, a wake id) stays out of the sentence
+  if (data) ctx.db.run("INSERT OR REPLACE INTO goals_activity_data (goal_id, seq, data) VALUES (?, ?, ?)", goalId, last + 1, JSON.stringify(data));
 }
-export function activity(db: Db, goalId: string, limit = 50, before?: number): Array<{ at: number; kind: string; text: string; by?: string | undefined; ref?: string | undefined }> {
+export function activity(db: Db, goalId: string, limit = 50, before?: number, withData = false): Array<{ at: number; kind: string; text: string; by?: string | undefined; ref?: string | undefined; data?: Record<string, unknown> | undefined }> {
   ensure(db);
-  const rows = (before === undefined
-    ? db.all("SELECT * FROM goals_activity WHERE goal_id = ? ORDER BY seq DESC LIMIT ?", goalId, limit)
-    : db.all("SELECT * FROM goals_activity WHERE goal_id = ? AND at < ? ORDER BY seq DESC LIMIT ?", goalId, before, limit)) as Raw[];
-  return rows.map((r) => clean({ at: Number(r["at"]), kind: String(r["kind"]), text: String(r["text"]), by: str(r["by"]), ref: str(r["ref"]) }));
+  let rows = (before === undefined
+    ? db.all("SELECT a.*, d.data AS data FROM goals_activity a LEFT JOIN goals_activity_data d ON d.goal_id = a.goal_id AND d.seq = a.seq WHERE a.goal_id = ? ORDER BY a.seq DESC LIMIT ?", goalId, limit)
+    : db.all("SELECT a.*, d.data AS data FROM goals_activity a LEFT JOIN goals_activity_data d ON d.goal_id = a.goal_id AND d.seq = a.seq WHERE a.goal_id = ? AND a.at < ? ORDER BY a.seq DESC LIMIT ?", goalId, before, limit)) as Raw[];
+  // a page never ends inside one moment: rows written in the same millisecond as its oldest row come with it, so paging by time loses none
+  const oldest = rows.length === limit ? num(rows[rows.length - 1]?.["at"]) : undefined;
+  if (oldest !== undefined) {
+    const seen = new Set(rows.map((r) => Number(r["seq"])));
+    for (const r of db.all("SELECT a.*, d.data AS data FROM goals_activity a LEFT JOIN goals_activity_data d ON d.goal_id = a.goal_id AND d.seq = a.seq WHERE a.goal_id = ? AND a.at = ? ORDER BY a.seq DESC", goalId, oldest) as Raw[]) if (!seen.has(Number(r["seq"]))) rows = [...rows, r];
+  }
+  return rows.map((r) => clean({ at: Number(r["at"]), kind: String(r["kind"]), text: String(r["text"]), by: str(r["by"]), ref: str(r["ref"]), data: withData ? json<Record<string, unknown> | undefined>(r["data"], undefined) : undefined }));
 }
 
 // ---- events ----
@@ -353,14 +369,13 @@ export function dispatch(ctx: GoalsCtx, g: Goal): number {
   }
   return sent;
 }
-export function reasonWords(reasons: string): string {
-  const words: Record<string, string> = {
+/** Why a lead was woken, in words. Every reason the code queues has an entry (a test walks them); a reason with none reads "something changed", never its key. */
+export const REASON_WORDS: Readonly<Record<string, string>> = {
     start: "the goal started", checkin: "it is time for a check-in", task_done: "a task finished", task_blocked: "a task is blocked", task_asked: "a task has a question", source_changed: "the number moved",
-    answered: "an answer came back", resumed: "the goal was resumed", budget_raised: "the budget was raised", extended: "the deadline moved", done: "the finish line was reached", retry: "the last wake-up got no reply",
+    answered: "an answer came back", resumed: "the goal was resumed", budget_raised: "the budget was raised", extended: "the deadline moved", done: "the finish line was reached", ended: "the goal ended", retry: "the last one got no reply",
     stuck: "there is no progress",
-  };
-  return reasons.split(",").map((r) => words[r] ?? r).join(", ");
-}
+};
+export const reasonWords = (reasons: string): string => andList(reasons.split(",").map((r) => REASON_WORDS[r] ?? "something changed"));
 
 // ---- the output shapes ----
 

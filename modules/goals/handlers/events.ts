@@ -2,6 +2,7 @@
 import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, openWake, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
 import { whoToken } from "../../../lib/words/time.ts";
+import { failureClause } from "../../../lib/words/failure.ts";
 import { addWait, dropWait, ensureFolder, setTaskState, spend, stuck, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
 
 type Obj = Record<string, unknown>;
@@ -41,7 +42,7 @@ export async function onTask(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
     const g = getGoal(ctx.db, goalId);
     if (!g || ENDED.has(g.status)) return [];
     if (REQUESTS.has(t.kind)) { addTask(ctx.db, g.id, t.id, "ask"); addWait(ctx, g, { id: t.id, kind: t.kind, title: t.title, ...(t.assigned ? { assigned: t.assigned } : {}) }); }
-    else if (viaRoot && t.kind === "work") { addTask(ctx.db, g.id, t.id, "plan"); setTaskState(ctx, t.id, t.state, t.title, t.key); note(ctx, g.id, "plan", `Planned ${t.key ? `${t.key} ` : ""}${t.title}`, t.id); if (g.status === "planning") setStatus(ctx, g, "active"); }
+    else if (viaRoot && t.kind === "work") { addTask(ctx.db, g.id, t.id, "plan"); setTaskState(ctx, t.id, t.state, t.title, t.key); note(ctx, g.id, "plan", `Planned ${t.key ? `${t.key} ` : ""}${t.title}.`, t.id); if (g.status === "planning") setStatus(ctx, g, "active"); }
     else return [];
     known = goalOfTask(ctx.db, t.id);
     finishGoal(ctx, g);
@@ -62,14 +63,14 @@ export async function onTask(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
     setTaskState(ctx, taskId, to);
     if (to === "done" && ev.name !== "task.transitioned") {
       const t = await read();
-      note(ctx, g.id, "task", `Done: ${t?.key ? `${t.key} ` : ""}${t?.title ?? taskId}`, taskId);
+      note(ctx, g.id, "task", `${t?.key ? `${t.key} ` : ""}${t?.title ?? taskId} is done.`, taskId);
       await keepOutputs(ctx, g, taskId);
       await tickFromTask(ctx, g, taskId);
       if (LIVE.has(g.status)) queueWake(ctx, g, "task_done", `Done: ${t?.title ?? taskId}`, `task:${taskId}:done`);
     }
   } else if (closed && (known.role === "ask" || known.role === "notice")) {
     const answered = dropWait(ctx, g, taskId, to === "done" ? "Answered" : "Withdrawn");
-    if (known.role === "notice" && taskId === g.stuckTaskId && to === "done" && g.status === "stuck") await unstick(ctx, g, "The owner answered the stuck notice.");
+    if (known.role === "notice" && taskId === g.stuckTaskId && to === "done" && g.status === "stuck") await unstick(ctx, g, `${whoToken(g.owner)} answered the question. Active again.`);
     if ((answered || known.role === "notice") && LIVE.has(g.status) && to === "done") queueWake(ctx, g, "answered", undefined, `ans:${taskId}`);
   }
   finishGoal(ctx, g);
@@ -86,7 +87,7 @@ export async function onTurn(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   if (ctx.db.run("INSERT OR IGNORE INTO goals_step (goal_id, step_id, title, state, by, at) VALUES (?, ?, NULL, 'done', 'turn', ?)", g.id, `turn:${str(ev.payload["turnId"])}`, ctx.now()).changes === 0) return [];
   await spend(ctx, g, Number(ev.payload["costMicros"] ?? 0), 1);
   // the lead's turn ended and the wake-up it was on got no check-in: offer it again now, once, rather than after the clock's wait; then the goal is stuck, never silent
-  if (str(ev.payload["agentId"]) === g.leadAgentId && (LIVE.has(g.status) || ENDED.has(g.status))) await unanswered(ctx, g, ev.name === "turn.failed" ? `the turn failed (${str(ev.payload["code"]) || "no reason given"})` : "the turn ended without a check-in");
+  if (str(ev.payload["agentId"]) === g.leadAgentId && (LIVE.has(g.status) || ENDED.has(g.status))) await unanswered(ctx, g, ev.name === "turn.failed" ? str(ev.payload["code"]) ?? "" : undefined);
   finishGoal(ctx, g);
   return [g.id];
 }
@@ -112,7 +113,7 @@ export async function onMention(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   const g = goalId ? getGoal(ctx.db, goalId) : undefined;
   if (!g?.folderId || !personId.startsWith("usr_") || personId === g.owner || g.helpers.some((h) => h.id === personId)) return [];
   await tryCall(ctx, "access.share", { resource: { type: "folder", id: g.folderId }, subject: { kind: "person", id: personId }, level: "view", source: `goal:${g.id}:mention`, idempotencyKey: `goal-mention:${g.id}:${personId}:${globalThis.crypto.randomUUID()}` });
-  note(ctx, g.id, "access", `${whoToken(personId)} was mentioned in the goal chat and can now open its folder.`, personId);
+  note(ctx, g.id, "access", `${whoToken(personId)} can now open the goal's folder. They were mentioned in the goal chat.`, personId);
   saveGoal(ctx, g);
   return [g.id];
 }
@@ -122,7 +123,7 @@ export async function sweep(ctx: GoalsCtx): Promise<string[]> {
   ensure(ctx.db);
   const ids = allGoals(ctx.db, "status IN ('planning', 'active', 'waiting', 'stuck', 'paused') OR id IN (SELECT goal_id FROM goals_wake WHERE state = 'pending')").map((g) => g.id);
   for (const id of ids) {
-    try { await tick(ctx, id); } catch (e) { note(ctx, id, "error", `A check-in did not run. It will try again at the next one.`); }
+    try { await tick(ctx, id); } catch (e) { note(ctx, id, "error", "The check-in did not run: something went wrong that Vyre could not read. It tries again at the next one.", undefined, { error: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200) }); }
   }
   return ids;
 }
@@ -156,20 +157,22 @@ export async function onMessage(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   if (!g.folderId) return [];
   let n = 0;
   for (const fileId of files) if (await tryCall(ctx, "files.copy", { fileId, toFolderId: g.folderId, idempotencyKey: `goal-drop:${g.id}:${fileId}` })) n++;
-  if (n > 0) note(ctx, g.id, "files", `Kept ${n} file${n === 1 ? "" : "s"} dropped in the goal chat in the goal's folder.`, messageId);
+  if (n > 0) note(ctx, g.id, "files", `Kept ${n} file${n === 1 ? "" : "s"} from the goal chat in the goal's folder.`, messageId);
   saveGoal(ctx, g);
   return [g.id];
 }
 
 /** A wake-up the lead took and ended its turn on without a check-in. */
-async function unanswered(ctx: GoalsCtx, g: Goal, why: string): Promise<void> {
+async function unanswered(ctx: GoalsCtx, g: Goal, code: string | undefined): Promise<void> {
+  // a failed turn says why in plain words; the code stays in the row's data for an admin and is never part of a sentence
+  const why = failureClause(code);
   const w = openWake(ctx.db, g.id);
   if (!w || w.state !== "claimed") return;
   if (w.attempt < 2) {
     ctx.db.run("UPDATE goals_wake SET state = 'pending', reason = reason || ',retry', due_at = ? WHERE id = ?", ctx.now(), w.id);
-    note(ctx, g.id, "wake", `The lead's wake-up got no check-in (${why}); asking once more.`, w.id);
+    note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} could not check in: ${why}. Asking once more.`, w.id, { code: code ?? null, wakeId: w.id, attempt: w.attempt });
     return;
   }
   ctx.db.run("UPDATE goals_wake SET state = 'dropped' WHERE id = ?", w.id);
-  if (LIVE.has(g.status) && g.status !== "stuck") await stuck(ctx, g, `The lead agent did not check in after two wake-ups: ${why}.`, ["Ask the lead agent in the goal chat what is wrong", "Give the goal another lead agent"]);
+  if (LIVE.has(g.status) && g.status !== "stuck") await stuck(ctx, g, `The lead agent did not check in after two tries: ${why}.`, ["Ask the lead agent in the goal chat what is wrong", "Give the goal another lead agent"]);
 }
