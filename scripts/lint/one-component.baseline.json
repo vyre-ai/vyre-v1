@@ -194,7 +194,7 @@
     "read-hook": 1
   },
   "apps/app/src/places/settings/ui.tsx": {
-    "declared": 7
+    "declared": 5
   },
   "apps/app/src/places/vault/layout/data.tsx": {
     "read-hook": 1
