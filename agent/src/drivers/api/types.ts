@@ -12,12 +12,23 @@ export type ApiId = ProviderId | CompatId;
 export const API_IDS: readonly ApiId[] = [...PROVIDER_IDS, ...COMPAT_IDS];
 
 /** A tool as the model sees it. The list is sorted by name before it is sent so the cached prefix never changes by accident. */
-export interface ApiTool { name: string; description: string; inputSchema: unknown }
+export interface ApiTool {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+}
 
 /** One block of the system prompt. Stable blocks (guide, VYRE.md, AGENT.md, MAP.md) carry the cache marker; volatile ones (pointer block, clock) come after it. */
-export interface SystemBlock { text: string; stable: boolean }
+export interface SystemBlock {
+  text: string;
+  stable: boolean;
+}
 
-export interface ToolCall { id: string; name: string; input: unknown }
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
 
 /** The conversation a provider call is built from. Rebuilt from the thread on every send; the only state kept between sends is the connection. */
 export type Msg =
@@ -47,7 +58,10 @@ export interface WireRequest {
 }
 
 export interface Usage {
-  inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   /** Reasoning tokens inside outputTokens, when the provider counts them apart. */
   reasoningTokens?: number;
   /** The provider's own price for the call in dollars (OpenRouter's usage.cost). */
@@ -63,9 +77,18 @@ export type Decoded =
   | { type: "tool_call"; call: ToolCall }
   | { type: "usage"; usage: Partial<Usage> }
   | { type: "stop"; reason: "end" | "tool_use" | "length" | "filtered" | "other" }
-  | { type: "error"; status: number; code?: string; message: string; /** A refusal for a limit that said when to come back (Retry-After). */ retryAfterMs?: number };
+  | {
+      type: "error";
+      status: number;
+      code?: string;
+      message: string;
+      /** A refusal for a limit that said when to come back (Retry-After). */ retryAfterMs?: number;
+    };
 
-export interface SseEvent { event: string; data: string }
+export interface SseEvent {
+  event: string;
+  data: string;
+}
 
 /** One decoder per call: it may keep state (partial tool-call arguments), never a buffer of text. */
 export interface StreamDecoder {
@@ -101,16 +124,27 @@ export interface ProviderAdapter {
 }
 
 /** `contextTokens`: the window the provider's own list says for it, when it does. */
-export interface ModelInfo { id: string; label?: string; contextTokens?: number }
+export interface ModelInfo {
+  id: string;
+  label?: string;
+  contextTokens?: number;
+}
 
 /** An account as a driver sees it: the Vault handle, and the address when the account names its own (OpenAI-compatible endpoints). */
 /** `keyless`: the account has no key (a local server); the authorizer returns no headers and never asks the Vault. */
-export interface AccountRef { ref: string; base?: string; keyless?: boolean }
+export interface AccountRef {
+  ref: string;
+  base?: string;
+  keyless?: boolean;
+}
 
 /** Auth headers for one account, built at the HTTP layer from the Vault. The key never reaches module code. */
 export type Authorizer = (account: AccountRef, provider: ApiId) => Promise<Record<string, string>>;
 
-export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<FetchResponse>;
+export type Fetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal },
+) => Promise<FetchResponse>;
 export interface FetchResponse {
   ok: boolean;
   status: number;
@@ -120,6 +154,9 @@ export interface FetchResponse {
   json(): Promise<unknown>;
 }
 
-export interface Clock { now(): number; sleep(ms: number, signal?: AbortSignal): Promise<void> }
+export interface Clock {
+  now(): number;
+  sleep(ms: number, signal?: AbortSignal): Promise<void>;
+}
 
 export type { DriverEvent };

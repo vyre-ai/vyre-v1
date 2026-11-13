@@ -3,8 +3,12 @@
 
 /** Frequencies the sheet offers, in minutes. */
 export const FREQS = Object.freeze([
-  { min: 15, label: "Every 15 minutes" }, { min: 30, label: "Every 30 minutes" }, { min: 60, label: "Every hour" },
-  { min: 120, label: "Every 2 hours" }, { min: 360, label: "Every 6 hours" }, { min: 1440, label: "Every day" },
+  { min: 15, label: "Every 15 minutes" },
+  { min: 30, label: "Every 30 minutes" },
+  { min: 60, label: "Every hour" },
+  { min: 120, label: "Every 2 hours" },
+  { min: 360, label: "Every 6 hours" },
+  { min: 1440, label: "Every day" },
 ]);
 
 /** @param {number} min */
@@ -42,6 +46,10 @@ export function agoWords(ms) {
 export function watchLine(w, now) {
   if (w.state === "paused") return "Paused";
   if (w.state === "error") return `Can't read it${w.error ? `: ${w.error}` : ""}`;
-  const when = w.lastChange ? `Changed ${agoWords(now - w.lastChange.at)}` : w.lastCheckedAt ? `No change since ${agoWords(now - w.lastCheckedAt)}` : "Not checked yet";
+  const when = w.lastChange
+    ? `Changed ${agoWords(now - w.lastChange.at)}`
+    : w.lastCheckedAt
+      ? `No change since ${agoWords(now - w.lastCheckedAt)}`
+      : "Not checked yet";
   return `${freqLabel(w.everyMinutes)} · ${when}`;
 }

@@ -15,12 +15,27 @@ export function openingTitle(first: string): string | undefined {
 }
 
 /** What the person brings into an Ask from the chat they were in: its rolling summary and its last few messages, as one message. Null when there is nothing to bring. */
-export async function broughtSummary(rt: { call(cap: string, input: unknown): Promise<unknown> }, threadId: string): Promise<string | null> {
+export async function broughtSummary(
+  rt: { call(cap: string, input: unknown): Promise<unknown> },
+  threadId: string,
+): Promise<string | null> {
   try {
     const sum = (await rt.call("chat.transcript.summary", { threadId })) as { summary?: string };
-    const msgs = (await rt.call("chat.messages.list", { threadId })) as { messages?: Array<{ body: string; author: { kind: string } }> };
-    const last = (msgs.messages ?? []).filter((m) => m.body.trim() !== "").slice(-6).map((m) => `${m.author.kind === "agent" ? "Agent" : "Me"}: ${m.body.replace(/\s+/g, " ").slice(0, 400)}`);
-    const parts = [sum.summary?.trim() ? `Summary so far:\n${sum.summary.trim()}` : "", last.length > 0 ? `The last messages:\n${last.join("\n")}` : ""].filter((x) => x !== "");
-    return parts.length === 0 ? null : `I am bringing this conversation with me, so you can carry on from it.\n\n${parts.join("\n\n")}`;
-  } catch { return null; }
+    const msgs = (await rt.call("chat.messages.list", { threadId })) as {
+      messages?: Array<{ body: string; author: { kind: string } }>;
+    };
+    const last = (msgs.messages ?? [])
+      .filter((m) => m.body.trim() !== "")
+      .slice(-6)
+      .map((m) => `${m.author.kind === "agent" ? "Agent" : "Me"}: ${m.body.replace(/\s+/g, " ").slice(0, 400)}`);
+    const parts = [
+      sum.summary?.trim() ? `Summary so far:\n${sum.summary.trim()}` : "",
+      last.length > 0 ? `The last messages:\n${last.join("\n")}` : "",
+    ].filter((x) => x !== "");
+    return parts.length === 0
+      ? null
+      : `I am bringing this conversation with me, so you can carry on from it.\n\n${parts.join("\n\n")}`;
+  } catch {
+    return null;
+  }
 }

@@ -17,8 +17,13 @@ import * as selector from "./selector.js";
 export function toSnapshot(raw) {
   const nodes = /** @type {Node[]} */ (Array.isArray(raw && raw.nodes) ? raw.nodes : []);
   return {
-    title: String((raw && raw.title) || ""), url: String((raw && raw.url) || ""), text: String((raw && raw.text) || ""),
-    viewport: (raw && raw.viewport) || { w: 0, h: 0 }, nodes, controls: /** @type {Control[]} */ (nodes.filter((n) => n.k === "c")), truncated: Boolean(raw && raw.truncated),
+    title: String((raw && raw.title) || ""),
+    url: String((raw && raw.url) || ""),
+    text: String((raw && raw.text) || ""),
+    viewport: (raw && raw.viewport) || { w: 0, h: 0 },
+    nodes,
+    controls: /** @type {Control[]} */ (nodes.filter((n) => n.k === "c")),
+    truncated: Boolean(raw && raw.truncated),
   };
 }
 
@@ -57,7 +62,10 @@ export function renderTree(snap, limit = 60_000) {
   let out = "";
   let cut = false;
   for (const l of lines) {
-    if (out.length + l.length + 1 > limit) { cut = true; break; }
+    if (out.length + l.length + 1 > limit) {
+      cut = true;
+      break;
+    }
     out += `${out ? "\n" : ""}${l}`;
   }
   return { tree: cut ? `${out}\n(cut here)` : out, truncated: cut || snap.truncated };

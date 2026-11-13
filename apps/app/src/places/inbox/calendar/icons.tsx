@@ -8,17 +8,33 @@ export const PATHS = {
   chevl: ["M10 3.5L5.5 8l4.5 4.5"],
   chevd: ["M3.5 6l4.5 4.5L12.5 6"],
   plus: ["M8 3v10M3 8h10"],
-  users: ["M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z", "M1.8 13a4.2 4.2 0 018.4 0", "M10.5 3.5a2.3 2.3 0 010 4.4", "M12 9.2a4.2 4.2 0 012.2 3.8"],
+  users: [
+    "M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z",
+    "M1.8 13a4.2 4.2 0 018.4 0",
+    "M10.5 3.5a2.3 2.3 0 010 4.4",
+    "M12 9.2a4.2 4.2 0 012.2 3.8",
+  ],
   cal: ["M4.5 3.5h7a2 2 0 012 2v6a2 2 0 01-2 2h-7a2 2 0 01-2-2v-6a2 2 0 012-2z", "M2.5 6.5h11M5.5 2v3M10.5 2v3"],
   spark: ["M8 2.5l1.2 3.3 3.3 1.2-3.3 1.2L8 11.5 6.8 8.2 3.5 7l3.3-1.2z"],
   lock: ["M5 7h6a1 1 0 011 1v4.5a1 1 0 01-1 1H5a1 1 0 01-1-1V8a1 1 0 011-1z", "M5.5 7V5a2.5 2.5 0 015 0v2"],
-  link: ["M6.8 9.2a2.6 2.6 0 003.7 0l2-2a2.6 2.6 0 00-3.7-3.7l-.6.6", "M9.2 6.8a2.6 2.6 0 00-3.7 0l-2 2a2.6 2.6 0 003.7 3.7l.6-.6"],
-  inbox: ["M2.5 9.5l1.6-5.2a1.5 1.5 0 011.4-1.1h5a1.5 1.5 0 011.4 1.1l1.6 5.2V12a1.5 1.5 0 01-1.5 1.5h-8A1.5 1.5 0 012.5 12z", "M2.5 9.5h3l1 1.5h3l1-1.5h3"],
+  link: [
+    "M6.8 9.2a2.6 2.6 0 003.7 0l2-2a2.6 2.6 0 00-3.7-3.7l-.6.6",
+    "M9.2 6.8a2.6 2.6 0 00-3.7 0l-2 2a2.6 2.6 0 003.7 3.7l.6-.6",
+  ],
+  inbox: [
+    "M2.5 9.5l1.6-5.2a1.5 1.5 0 011.4-1.1h5a1.5 1.5 0 011.4 1.1l1.6 5.2V12a1.5 1.5 0 01-1.5 1.5h-8A1.5 1.5 0 012.5 12z",
+    "M2.5 9.5h3l1 1.5h3l1-1.5h3",
+  ],
   x: ["M4 4l8 8M12 4l-8 8"],
   check: ["M3 8.5l3 3 7-7"],
-  video: ["M3 4.5h6.5A1.5 1.5 0 0111 6v4a1.5 1.5 0 01-1.5 1.5H3A1.5 1.5 0 011.5 10V6A1.5 1.5 0 013 4.5z", "M11 7l3.5-2v6L11 9"],
+  video: [
+    "M3 4.5h6.5A1.5 1.5 0 0111 6v4a1.5 1.5 0 01-1.5 1.5H3A1.5 1.5 0 011.5 10V6A1.5 1.5 0 013 4.5z",
+    "M11 7l3.5-2v6L11 9",
+  ],
   pin: ["M8 14s4.5-4.1 4.5-7.5a4.5 4.5 0 00-9 0C3.5 9.9 8 14 8 14z", "M9.6 6.5a1.6 1.6 0 11-3.2 0 1.6 1.6 0 013.2 0z"],
-  phone: ["M3.2 2.8h2.3l1 2.8-1.3.9a8 8 0 003.4 3.4l.9-1.3 2.8 1v2.3c0 .6-.5 1.1-1.1 1.1A9.8 9.8 0 012.1 3.9c0-.6.5-1.1 1.1-1.1z"],
+  phone: [
+    "M3.2 2.8h2.3l1 2.8-1.3.9a8 8 0 003.4 3.4l.9-1.3 2.8 1v2.3c0 .6-.5 1.1-1.1 1.1A9.8 9.8 0 012.1 3.9c0-.6.5-1.1 1.1-1.1z",
+  ],
   pen: ["M3 13h2.2L12.6 5.6a1.5 1.5 0 000-2.1l-.1-.1a1.5 1.5 0 00-2.1 0L3 10.8z", "M9.2 4.6l2.2 2.2"],
   chat: ["M3 4.5A1.5 1.5 0 014.5 3h7A1.5 1.5 0 0113 4.5v5a1.5 1.5 0 01-1.5 1.5H7l-3 2.5V11h-.5A1.5 1.5 0 013 9.5z"],
   more: ["M3.5 8h.01", "M8 8h.01", "M12.5 8h.01"],
@@ -26,13 +42,34 @@ export const PATHS = {
 } as const;
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, size = 15, color = "var(--ink-3)" }: { name: IconName; size?: number; color?: string }): ReactElement | null {
+export function Icon({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of PATHS[name]) paths.push(createElement("path", { key: d, d, fill: "none" }));
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        strokeWidth: name === "more" ? 2.4 : 1.4,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
     ...paths,
   );
 }

@@ -11,12 +11,32 @@ function world(o: { fail?: string; clip?: "ok" | "none" | "throws" } = {}) {
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (o.fail === cap) throw new Error("This needs an admin");
-    if (cap === "members.invites.create") return { invite: { id: "inv_1" }, link: "https://northwind.example.com/join/K7P2-9QXA#fp=ab12" };
+    if (cap === "members.invites.create")
+      return { invite: { id: "inv_1" }, link: "https://northwind.example.com/join/K7P2-9QXA#fp=ab12" };
     if (cap === "notifications.away.get") return { away: true, until: 9 };
     return {};
   };
-  const clip = o.clip === "none" ? () => undefined : () => ({ writeText: async (t: string) => { if (o.clip === "throws") throw new Error("denied"); copied.push(t); } });
-  const a = teamActions({ call, hub: { flash: (t) => flashes.push(t), setAway: (on) => { away = on; } }, space: "Northwind", now: () => 1_000, clip });
+  const clip =
+    o.clip === "none"
+      ? () => undefined
+      : () => ({
+          writeText: async (t: string) => {
+            if (o.clip === "throws") throw new Error("denied");
+            copied.push(t);
+          },
+        });
+  const a = teamActions({
+    call,
+    hub: {
+      flash: (t) => flashes.push(t),
+      setAway: (on) => {
+        away = on;
+      },
+    },
+    space: "Northwind",
+    now: () => 1_000,
+    clip,
+  });
   return { a, calls, flashes, copied, away: () => away };
 }
 
@@ -48,7 +68,10 @@ test("Invite People never says copied when it was not: a refusal and a blocked c
 test("Set Yourself Away is stored until I'm Back, and I'm Back clears it; the menu reads it at open", async () => {
   const w = world();
   await w.a.away(true);
-  assert.deepEqual(w.calls.at(-1), { cap: "notifications.away.set", input: { until: 1_000 + AWAY_HOLD_MS, delegate: { kind: "none" } } });
+  assert.deepEqual(w.calls.at(-1), {
+    cap: "notifications.away.set",
+    input: { until: 1_000 + AWAY_HOLD_MS, delegate: { kind: "none" } },
+  });
   assert.equal(w.away(), true);
   await w.a.away(false);
   assert.equal(w.calls.at(-1)!.cap, "notifications.away.clear");

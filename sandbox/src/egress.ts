@@ -18,10 +18,27 @@ import { VYRE_PORTS, addressRefusal, ownNetworks, targetOf } from "./egress-poli
 import type { Cidr, EgressRule } from "./egress-policy.ts";
 
 export type Verdict = "allow" | "deny";
-export interface EgressEvent { verdict: Verdict; host: string; port: number; reason: "ok" | "not_listed" | "bad_port" | "private_address" | "own_network" | "no_address" | "bad_request" | "busy" | "unreachable" }
+export interface EgressEvent {
+  verdict: Verdict;
+  host: string;
+  port: number;
+  reason:
+    | "ok"
+    | "not_listed"
+    | "bad_port"
+    | "private_address"
+    | "own_network"
+    | "no_address"
+    | "bad_request"
+    | "busy"
+    | "unreachable";
+}
 
 /** A host name the proxy answers itself instead of dialling out: the Space's own git address for a walled engine (modules/engine/github-session.ts). It never reaches the allow-list or the network. */
-export interface LocalRoute { host: string; handle(req: http.IncomingMessage, res: http.ServerResponse): boolean }
+export interface LocalRoute {
+  host: string;
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+}
 
 export interface EgressOptions {
   /** Read at each request. Absent or null: no local host. */
@@ -54,26 +71,59 @@ export interface EgressProxy {
   stats(): { allowed: number; denied: number; open: number };
 }
 
-const HOP_BY_HOP = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade"]);
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
 const DENIED_BODY = "Blocked by this Space's network policy.\n";
 
 async function systemLookup(host: string): Promise<readonly string[]> {
   const r = await dns.lookup(host, { all: true, verbatim: true });
   return r.map((x) => x.address);
 }
-const connectWithin = (ms: number) => (_h: string, port: number, ip: string): Promise<net.Socket> =>
-  new Promise((resolve, reject) => {
-    const s = net.connect({ host: ip, port });
-    const t = setTimeout(() => { s.destroy(); reject(new Error("timed out")); }, ms);
-    s.once("connect", () => { clearTimeout(t); s.removeAllListeners("error"); resolve(s); });
-    s.once("error", (e) => { clearTimeout(t); reject(e); });
-  });
+const connectWithin =
+  (ms: number) =>
+  (_h: string, port: number, ip: string): Promise<net.Socket> =>
+    new Promise((resolve, reject) => {
+      const s = net.connect({ host: ip, port });
+      const t = setTimeout(() => {
+        s.destroy();
+        reject(new Error("timed out"));
+      }, ms);
+      s.once("connect", () => {
+        clearTimeout(t);
+        s.removeAllListeners("error");
+        resolve(s);
+      });
+      s.once("error", (e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+    });
 
 /** The networks of this machine, read at most every 30 s (an interface can come and go while the proxy runs). */
 function cachedOwnNetworks(): () => readonly Cidr[] {
   let at = 0;
   let last: readonly Cidr[] = [];
-  return () => { const now = Date.now(); if (now - at > 30_000) { try { last = ownNetworks(); } catch { /* keep the last answer */ } at = now; } return last; };
+  return () => {
+    const now = Date.now();
+    if (now - at > 30_000) {
+      try {
+        last = ownNetworks();
+      } catch {
+        /* keep the last answer */
+      }
+      at = now;
+    }
+    return last;
+  };
 }
 
 export function createEgressProxy(o: EgressOptions): EgressProxy {
@@ -93,34 +143,63 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
   let denied = 0;
   let open = 0;
 
-  const note = (e: EgressEvent): void => { if (e.verdict === "allow") allowed++; else denied++; try { o.onEvent?.(e); } catch { /* an observer must not break the proxy */ } };
+  const note = (e: EgressEvent): void => {
+    if (e.verdict === "allow") allowed++;
+    else denied++;
+    try {
+      o.onEvent?.(e);
+    } catch {
+      /* an observer must not break the proxy */
+    }
+  };
 
   /** Check a target and resolve it. Returns the address to connect to, or the reason it was refused. */
-  async function admit(host: string, port: number): Promise<{ ok: true; ip: string } | { ok: false; reason: EgressEvent["reason"] }> {
+  async function admit(
+    host: string,
+    port: number,
+  ): Promise<{ ok: true; ip: string } | { ok: false; reason: EgressEvent["reason"] }> {
     const r = rule();
     let ips: readonly string[];
     // the Space this turn belongs to, at exactly its own address and port (a turn on a person's computer reaches Vyre's tools there): reachable whatever the rest of the rule says
     if (r.space !== undefined && r.space === targetOf(host, port)) {
       if (net.isIP(host) !== 0) return { ok: true, ip: host };
-      try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+      try {
+        ips = await lookup(host);
+      } catch {
+        return { ok: false, reason: "no_address" };
+      }
       return ips.length > 0 ? { ok: true, ip: ips[0] as string } : { ok: false, reason: "no_address" };
     }
     if (r.egress === "public") {
-      if (!Number.isInteger(port) || port < 1 || port > 65535 || VYRE_PORTS.includes(port)) return { ok: false, reason: "bad_port" };
-      if (net.isIP(host) !== 0) ips = [host];   // a public address is as good as a public name; the checks below refuse every other kind
-      else if (!/^[A-Za-z0-9.-]{1,253}$/.test(host) || !host.includes(".")) return { ok: false, reason: "not_listed" };   // a single label (localhost, a LAN name) is never public
+      if (!Number.isInteger(port) || port < 1 || port > 65535 || VYRE_PORTS.includes(port))
+        return { ok: false, reason: "bad_port" };
+      if (net.isIP(host) !== 0)
+        ips = [host]; // a public address is as good as a public name; the checks below refuse every other kind
+      else if (!/^[A-Za-z0-9.-]{1,253}$/.test(host) || !host.includes("."))
+        return { ok: false, reason: "not_listed" }; // a single label (localhost, a LAN name) is never public
       else {
-        try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+        try {
+          ips = await lookup(host);
+        } catch {
+          return { ok: false, reason: "no_address" };
+        }
       }
     } else {
       if (!ports.has(port)) return { ok: false, reason: "bad_port" };
       if (!hostAllowed(host, r.allow)) return { ok: false, reason: "not_listed" };
-      try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+      try {
+        ips = await lookup(host);
+      } catch {
+        return { ok: false, reason: "no_address" };
+      }
     }
     if (ips.length === 0) return { ok: false, reason: "no_address" };
     // Every address must be public and off this machine's networks: a name that also points inside is refused whole, so a resolver cannot pick the private one at connect time.
     const nets = own();
-    for (const ip of ips) { const why = addressRefusal(ip, nets); if (why) return { ok: false, reason: why }; }
+    for (const ip of ips) {
+      const why = addressRefusal(ip, nets);
+      if (why) return { ok: false, reason: why };
+    }
     return { ok: true, ip: ips[0] as string };
   }
 
@@ -128,7 +207,10 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
   function track(s: Duplex, counted: boolean): void {
     sockets.add(s);
     if (counted) open++;
-    s.once("close", () => { sockets.delete(s); if (counted) open--; });
+    s.once("close", () => {
+      sockets.delete(s);
+      if (counted) open--;
+    });
   }
 
   /** "host:port" of a CONNECT line: a name or an IPv4 address, or a bracketed IPv6 address ([2606:4700::1111]:443). No spaces, no path. */
@@ -143,42 +225,86 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
   }
 
   const refuse = (socket: Duplex, status: number, text: string): void => {
-    try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${DENIED_BODY.length}\r\n\r\n${DENIED_BODY}`, () => socket.destroy()); } catch { socket.destroy(); }   // answered at once and closed once written: a refused client never waits on a half-open tunnel
+    try {
+      socket.end(
+        `HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${DENIED_BODY.length}\r\n\r\n${DENIED_BODY}`,
+        () => socket.destroy(),
+      );
+    } catch {
+      socket.destroy();
+    } // answered at once and closed once written: a refused client never waits on a half-open tunnel
   };
 
   const server = http.createServer(async (req, res) => {
     // Plain HTTP through a proxy arrives in absolute form: GET http://host/path.
     let url: URL;
-    try { url = new URL(req.url ?? ""); } catch { note({ verdict: "deny", host: "", port: 0, reason: "bad_request" }); res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("This is a proxy: send absolute URLs.\n"); return; }
-    if (url.protocol !== "http:") { note({ verdict: "deny", host: url.hostname, port: Number(url.port || 0), reason: "bad_request" }); res.writeHead(400, { connection: "close" }).end(); return; }
+    try {
+      url = new URL(req.url ?? "");
+    } catch {
+      note({ verdict: "deny", host: "", port: 0, reason: "bad_request" });
+      res
+        .writeHead(400, { "content-type": "text/plain", connection: "close" })
+        .end("This is a proxy: send absolute URLs.\n");
+      return;
+    }
+    if (url.protocol !== "http:") {
+      note({ verdict: "deny", host: url.hostname, port: Number(url.port || 0), reason: "bad_request" });
+      res.writeHead(400, { connection: "close" }).end();
+      return;
+    }
     const host = url.hostname.startsWith("[") ? url.hostname.slice(1, -1) : url.hostname;
     const port = Number(url.port || 80);
     const local = o.local?.();
     if (local && host === local.host && port === 80) {
       req.url = `${url.pathname}${url.search}`;
-      if (!local.handle(req, res)) res.writeHead(404, { "content-type": "text/plain", connection: "close" }).end("Not found.\n");
+      if (!local.handle(req, res))
+        res.writeHead(404, { "content-type": "text/plain", connection: "close" }).end("Not found.\n");
       return;
     }
-    if (open >= maxConnections) { note({ verdict: "deny", host, port, reason: "busy" }); res.writeHead(503, { connection: "close" }).end("Busy.\n"); return; }
+    if (open >= maxConnections) {
+      note({ verdict: "deny", host, port, reason: "busy" });
+      res.writeHead(503, { connection: "close" }).end("Busy.\n");
+      return;
+    }
     const v = await admit(host, port);
-    if (!v.ok) { note({ verdict: "deny", host, port, reason: v.reason }); res.writeHead(403, { "content-type": "text/plain", connection: "close" }).end(DENIED_BODY); return; }
+    if (!v.ok) {
+      note({ verdict: "deny", host, port, reason: v.reason });
+      res.writeHead(403, { "content-type": "text/plain", connection: "close" }).end(DENIED_BODY);
+      return;
+    }
     let upstream: net.Socket;
-    try { upstream = await connect(host, port, v.ip); } catch { note({ verdict: "deny", host, port, reason: "unreachable" }); res.writeHead(502, { connection: "close" }).end("Could not reach that host.\n"); return; }
+    try {
+      upstream = await connect(host, port, v.ip);
+    } catch {
+      note({ verdict: "deny", host, port, reason: "unreachable" });
+      res.writeHead(502, { connection: "close" }).end("Could not reach that host.\n");
+      return;
+    }
     note({ verdict: "allow", host, port, reason: "ok" });
     track(upstream, false);
     open++;
-    res.once("close", () => { open--; });
+    res.once("close", () => {
+      open--;
+    });
     const headers: http.OutgoingHttpHeaders = {};
-    for (const [k, val] of Object.entries(req.headers)) if (!HOP_BY_HOP.has(k.toLowerCase()) && val !== undefined) headers[k] = val;
+    for (const [k, val] of Object.entries(req.headers))
+      if (!HOP_BY_HOP.has(k.toLowerCase()) && val !== undefined) headers[k] = val;
     headers["host"] = url.host;
     headers["connection"] = "close";
-    const out = http.request({ createConnection: () => upstream, method: req.method ?? "GET", path: `${url.pathname}${url.search}`, headers }, (r) => {
-      const rh: http.OutgoingHttpHeaders = {};
-      for (const [k, val] of Object.entries(r.headers)) if (!HOP_BY_HOP.has(k.toLowerCase()) && val !== undefined) rh[k] = val;
-      res.writeHead(r.statusCode ?? 502, rh);
-      r.pipe(res);
+    const out = http.request(
+      { createConnection: () => upstream, method: req.method ?? "GET", path: `${url.pathname}${url.search}`, headers },
+      (r) => {
+        const rh: http.OutgoingHttpHeaders = {};
+        for (const [k, val] of Object.entries(r.headers))
+          if (!HOP_BY_HOP.has(k.toLowerCase()) && val !== undefined) rh[k] = val;
+        res.writeHead(r.statusCode ?? 502, rh);
+        r.pipe(res);
+      },
+    );
+    out.on("error", () => {
+      if (!res.headersSent) res.writeHead(502, { connection: "close" });
+      res.end();
     });
-    out.on("error", () => { if (!res.headersSent) res.writeHead(502, { connection: "close" }); res.end(); });
     req.pipe(out);
   });
   server.keepAliveTimeout = 1;
@@ -188,12 +314,30 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
     track(clientSocket, true);
     clientSocket.on("error", () => clientSocket.destroy());
     const target = parseAuthority(req.url ?? "");
-    if (!target) { note({ verdict: "deny", host: "", port: 0, reason: "bad_request" }); refuse(clientSocket, 400, "Bad Request"); return; }
-    if (open > maxConnections) { note({ verdict: "deny", ...target, reason: "busy" }); refuse(clientSocket, 503, "Service Unavailable"); return; }   // this tunnel is already counted
+    if (!target) {
+      note({ verdict: "deny", host: "", port: 0, reason: "bad_request" });
+      refuse(clientSocket, 400, "Bad Request");
+      return;
+    }
+    if (open > maxConnections) {
+      note({ verdict: "deny", ...target, reason: "busy" });
+      refuse(clientSocket, 503, "Service Unavailable");
+      return;
+    } // this tunnel is already counted
     const v = await admit(target.host, target.port);
-    if (!v.ok) { note({ verdict: "deny", ...target, reason: v.reason }); refuse(clientSocket, 403, "Forbidden"); return; }
+    if (!v.ok) {
+      note({ verdict: "deny", ...target, reason: v.reason });
+      refuse(clientSocket, 403, "Forbidden");
+      return;
+    }
     let upstream: net.Socket;
-    try { upstream = await connect(target.host, target.port, v.ip); } catch { note({ verdict: "deny", ...target, reason: "unreachable" }); refuse(clientSocket, 502, "Bad Gateway"); return; }
+    try {
+      upstream = await connect(target.host, target.port, v.ip);
+    } catch {
+      note({ verdict: "deny", ...target, reason: "unreachable" });
+      refuse(clientSocket, 502, "Bad Gateway");
+      return;
+    }
     note({ verdict: "allow", ...target, reason: "ok" });
     track(upstream, false);
     upstream.on("error", () => clientSocket.destroy());
@@ -201,24 +345,39 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
     if (head.length > 0) upstream.write(head);
     upstream.pipe(clientSocket);
     clientSocket.pipe(upstream);
-    for (const s of [clientSocket, upstream] as net.Socket[]) { s.setTimeout?.(idleMs, () => { clientSocket.destroy(); upstream.destroy(); }); }
+    for (const s of [clientSocket, upstream] as net.Socket[]) {
+      s.setTimeout?.(idleMs, () => {
+        clientSocket.destroy();
+        upstream.destroy();
+      });
+    }
   });
 
   server.on("clientError", (_e, socket) => {
     note({ verdict: "deny", host: "", port: 0, reason: "bad_request" });
-    try { socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n"); } catch { socket.destroy(); }
+    try {
+      socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+    } catch {
+      socket.destroy();
+    }
   });
 
   return {
-    listen: (port = 0, host = "127.0.0.1") => new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(port, host, () => { server.off("error", reject); const a = server.address() as net.AddressInfo; resolve({ port: a.port, host: a.address }); });
-    }),
-    close: () => new Promise<void>((resolve) => {
-      for (const s of sockets) s.destroy();
-      server.close(() => resolve());
-      server.closeAllConnections?.();
-    }),
+    listen: (port = 0, host = "127.0.0.1") =>
+      new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(port, host, () => {
+          server.off("error", reject);
+          const a = server.address() as net.AddressInfo;
+          resolve({ port: a.port, host: a.address });
+        });
+      }),
+    close: () =>
+      new Promise<void>((resolve) => {
+        for (const s of sockets) s.destroy();
+        server.close(() => resolve());
+        server.closeAllConnections?.();
+      }),
     stats: () => ({ allowed, denied, open }),
   };
 }

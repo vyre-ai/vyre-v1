@@ -15,14 +15,38 @@ export const DANA = "usr_dana";
 export const MAYA = "usr_maya";
 export const LEO = "usr_leo";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
 
 type Handler = (input: any, opts?: { idempotencyKey?: string }) => unknown;
-const fail = (code: string, message: string): never => { throw Object.assign(new Error(message), { error: { code, message } }); };
+const fail = (code: string, message: string): never => {
+  throw Object.assign(new Error(message), { error: { code, message } });
+};
 
-interface FileVersion { versionId: string; n: number; text: string; by: string; at: number; reason?: string }
-interface FakeFile { fileId: string; folderId: string; name: string; versions: FileVersion[]; deletedAt?: number }
-interface FakeFolder { folderId: string; parentId?: string; name: string; deleted: boolean }
+interface FileVersion {
+  versionId: string;
+  n: number;
+  text: string;
+  by: string;
+  at: number;
+  reason?: string;
+}
+interface FakeFile {
+  fileId: string;
+  folderId: string;
+  name: string;
+  versions: FileVersion[];
+  deletedAt?: number;
+}
+interface FakeFolder {
+  folderId: string;
+  parentId?: string;
+  name: string;
+  deleted: boolean;
+}
 
 /** Files in memory: the capabilities agents calls, with the rules that matter to it (names unique in a folder, a version per save, a lint on agent.toml). */
 export function fakeFiles(clock: { t: number }) {
@@ -30,36 +54,92 @@ export function fakeFiles(clock: { t: number }) {
   const files = new Map<string, FakeFile>();
   const keys = new Map<string, unknown>();
   /** Agent principals access knows, whether or not the agents module has a record for them (the seed writes some straight to the log). */
-  const homeGrants: Array<{ resource: { type: string; id: string }; subject: { kind: string; id: string }; level: string; source?: string }> = [];
-  const principals: Array<{ id: string; kind: "agent" | "actor"; name: string; owner?: string; status: "active" | "removed" }> = [];
+  const homeGrants: Array<{
+    resource: { type: string; id: string };
+    subject: { kind: string; id: string };
+    level: string;
+    source?: string;
+  }> = [];
+  const principals: Array<{
+    id: string;
+    kind: "agent" | "actor";
+    name: string;
+    owner?: string;
+    status: "active" | "removed";
+  }> = [];
   const calls: Array<{ cap: string; input: unknown; opts?: { idempotencyKey?: string } }> = [];
   const settings: Record<string, unknown> = {};
   let n = 0;
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
-  const path = (id: string): string => { const f = folders.get(id)!; return f.parentId ? `${path(f.parentId)}/${f.name}` : f.name; };
-  const folderOut = (f: FakeFolder) => ({ folderId: f.folderId, ...(f.parentId ? { parentId: f.parentId } : {}), name: f.name, path: path(f.folderId) });
-  const fileOut = (f: FakeFile) => ({ fileId: f.fileId, folderId: f.folderId, name: f.name, version: f.versions.length, ...(f.deletedAt !== undefined ? { deletedAt: f.deletedAt } : {}) });
+  const path = (id: string): string => {
+    const f = folders.get(id)!;
+    return f.parentId ? `${path(f.parentId)}/${f.name}` : f.name;
+  };
+  const folderOut = (f: FakeFolder) => ({
+    folderId: f.folderId,
+    ...(f.parentId ? { parentId: f.parentId } : {}),
+    name: f.name,
+    path: path(f.folderId),
+  });
+  const fileOut = (f: FakeFile) => ({
+    fileId: f.fileId,
+    folderId: f.folderId,
+    name: f.name,
+    version: f.versions.length,
+    ...(f.deletedAt !== undefined ? { deletedAt: f.deletedAt } : {}),
+  });
   const addVersion = (f: FakeFile, text: string, by: string, reason?: string): FileVersion => {
-    const v: FileVersion = { versionId: next("ver"), n: f.versions.length + 1, text, by, at: clock.t, ...(reason !== undefined ? { reason } : {}) };
+    const v: FileVersion = {
+      versionId: next("ver"),
+      n: f.versions.length + 1,
+      text,
+      by,
+      at: clock.t,
+      ...(reason !== undefined ? { reason } : {}),
+    };
     f.versions.push(v);
     return v;
   };
   const file = (id: string): FakeFile => files.get(id) ?? fail("validation.not_found", "no such file");
-  const root = (name: string): string => { const id = next("fld"); folders.set(id, { folderId: id, name, deleted: false }); return id; };
+  const root = (name: string): string => {
+    const id = next("fld");
+    folders.set(id, { folderId: id, name, deleted: false });
+    return id;
+  };
   const agentsRoot = root("Agents");
 
   const handlers: Record<string, Handler> = {
     // agents.create shares the new folder to an owner who is not the asker (ruling 88): the share is recorded in `calls`
     // agents.set_owner asks who the new owner is and moves ownership of the agent and its folder (ruling 88)
-    "access.principals.get": (i) => { const id = String((i["principal"] as { id: string }).id); return { principal: { id, kind: "person", name: id, status: id === "usr_gone" ? "removed" : "active", roles: [], groups: [], createdAt: 0 } }; },
+    "access.principals.get": (i) => {
+      const id = String((i["principal"] as { id: string }).id);
+      return {
+        principal: {
+          id,
+          kind: "person",
+          name: id,
+          status: id === "usr_gone" ? "removed" : "active",
+          roles: [],
+          groups: [],
+          createdAt: 0,
+        },
+      };
+    },
     "access.transfer_ownership": () => true,
-    "access.share": (i) => ({ grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] } }),
-    "files.folder.search": (i) => ({ folders: [...folders.values()].filter((f) => !f.deleted && f.name.toLowerCase().includes(String(i.q).toLowerCase())).map(folderOut) }),
+    "access.share": (i) => ({
+      grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] },
+    }),
+    "files.folder.search": (i) => ({
+      folders: [...folders.values()]
+        .filter((f) => !f.deleted && f.name.toLowerCase().includes(String(i.q).toLowerCase()))
+        .map(folderOut),
+    }),
     "files.folder.create": (i, o) => {
       const k = o?.idempotencyKey ? `fc:${o.idempotencyKey}` : undefined;
       if (k && keys.has(k)) return keys.get(k);
       if (![...folders.values()].some((f) => f.folderId === i.parentId)) fail("validation.bad_input", "no such parent");
-      if ([...folders.values()].some((f) => !f.deleted && f.parentId === i.parentId && f.name === i.name)) fail("validation.duplicate", "a folder with that name exists");
+      if ([...folders.values()].some((f) => !f.deleted && f.parentId === i.parentId && f.name === i.name))
+        fail("validation.duplicate", "a folder with that name exists");
       const id = next("fld");
       folders.set(id, { folderId: id, parentId: i.parentId, name: i.name, deleted: false });
       const out = { folder: folderOut(folders.get(id)!) };
@@ -68,16 +148,29 @@ export function fakeFiles(clock: { t: number }) {
     },
     "files.folder.rename": (i) => {
       const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder");
-      if ([...folders.values()].some((x) => x.folderId !== f.folderId && !x.deleted && x.parentId === f.parentId && x.name === i.name)) fail("validation.duplicate", "a folder with that name exists");
+      if (
+        [...folders.values()].some(
+          (x) => x.folderId !== f.folderId && !x.deleted && x.parentId === f.parentId && x.name === i.name,
+        )
+      )
+        fail("validation.duplicate", "a folder with that name exists");
       f.name = i.name;
       return { folder: folderOut(f) };
     },
-    "files.folder.delete": (i) => { (folders.get(i.folderId) ?? fail("validation.not_found", "no such folder")).deleted = true; return { deleted: true }; },
-    "files.folder.restore": (i) => { const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder"); f.deleted = false; return { folder: folderOut(f) }; },
+    "files.folder.delete": (i) => {
+      (folders.get(i.folderId) ?? fail("validation.not_found", "no such folder")).deleted = true;
+      return { deleted: true };
+    },
+    "files.folder.restore": (i) => {
+      const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder");
+      f.deleted = false;
+      return { folder: folderOut(f) };
+    },
     "files.create": (i, o) => {
       const k = o?.idempotencyKey ? `fi:${o.idempotencyKey}` : undefined;
       if (k && keys.has(k)) return keys.get(k);
-      if ([...files.values()].some((f) => f.deletedAt === undefined && f.folderId === i.folderId && f.name === i.name)) fail("validation.duplicate", "a file with that name exists");
+      if ([...files.values()].some((f) => f.deletedAt === undefined && f.folderId === i.folderId && f.name === i.name))
+        fail("validation.duplicate", "a file with that name exists");
       const f: FakeFile = { fileId: next("fil"), folderId: i.folderId, name: i.name, versions: [] };
       files.set(f.fileId, f);
       addVersion(f, i.content?.text ?? "", "usr_system", "Created");
@@ -86,19 +179,50 @@ export function fakeFiles(clock: { t: number }) {
       return out;
     },
     "access.share": (i) => {
-      const g = homeGrants.find((x) => x.resource.id === i.resource.id && x.subject.kind === i.subject.kind && x.subject.id === i.subject.id && x.source === i.source);
-      if (g) g.level = i.level; else homeGrants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source });
+      const g = homeGrants.find(
+        (x) =>
+          x.resource.id === i.resource.id &&
+          x.subject.kind === i.subject.kind &&
+          x.subject.id === i.subject.id &&
+          x.source === i.source,
+      );
+      if (g) g.level = i.level;
+      else homeGrants.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source });
       return { grant: { id: next("gnt") } };
     },
-    "access.shares_of": (i) => ({ shares: homeGrants.filter((x) => x.resource.id === i.resource.id).map((g) => ({ grant: { ...g, id: "gnt_x", conditions: {}, by: "usr_x", createdAt: clock.t }, through: "direct" })) }),
-    "access.principals.list": (i) => ({ principals: principals.filter((p) => i.kind === undefined || p.kind === i.kind).map((p) => ({ ...p, roles: [], groups: [], createdAt: clock.t })) }),
+    "access.shares_of": (i) => ({
+      shares: homeGrants
+        .filter((x) => x.resource.id === i.resource.id)
+        .map((g) => ({
+          grant: { ...g, id: "gnt_x", conditions: {}, by: "usr_x", createdAt: clock.t },
+          through: "direct",
+        })),
+    }),
+    "access.principals.list": (i) => ({
+      principals: principals
+        .filter((p) => i.kind === undefined || p.kind === i.kind)
+        .map((p) => ({ ...p, roles: [], groups: [], createdAt: clock.t })),
+    }),
     "files.get": (i) => ({ file: fileOut(file(i.fileId)) }),
-    "files.delete": (i) => { file(i.fileId).deletedAt = clock.t; return { deleted: true }; },
-    "files.restore": (i) => { const f = file(i.fileId); delete f.deletedAt; if (i.toFolderId) f.folderId = i.toFolderId; return { file: fileOut(f) }; },
+    "files.delete": (i) => {
+      file(i.fileId).deletedAt = clock.t;
+      return { deleted: true };
+    },
+    "files.restore": (i) => {
+      const f = file(i.fileId);
+      delete f.deletedAt;
+      if (i.toFolderId) f.folderId = i.toFolderId;
+      return { file: fileOut(f) };
+    },
     "files.move": (i) => {
       const f = file(i.fileId);
       const name = i.name ?? f.name;
-      if ([...files.values()].some((x) => x.fileId !== f.fileId && x.deletedAt === undefined && x.folderId === i.toFolderId && x.name === name)) fail("validation.duplicate", "a file with that name exists");
+      if (
+        [...files.values()].some(
+          (x) => x.fileId !== f.fileId && x.deletedAt === undefined && x.folderId === i.toFolderId && x.name === name,
+        )
+      )
+        fail("validation.duplicate", "a file with that name exists");
       f.folderId = i.toFolderId;
       f.name = name;
       return { file: fileOut(f) };
@@ -106,30 +230,58 @@ export function fakeFiles(clock: { t: number }) {
     "files.list": (i) => {
       const parent = i.folder as string | undefined;
       return {
-        files: parent === undefined ? [] : [...files.values()].filter((f) => f.folderId === parent && f.deletedAt === undefined).map(fileOut),
-        folders: [...folders.values()].filter((f) => !f.deleted && (parent === undefined ? f.parentId === undefined : f.parentId === parent)).map(folderOut),
+        files:
+          parent === undefined
+            ? []
+            : [...files.values()].filter((f) => f.folderId === parent && f.deletedAt === undefined).map(fileOut),
+        folders: [...folders.values()]
+          .filter((f) => !f.deleted && (parent === undefined ? f.parentId === undefined : f.parentId === parent))
+          .map(folderOut),
       };
     },
     "files.read": (i) => {
       const f = file(i.fileId);
-      const v = i.versionId ? f.versions.find((x) => x.versionId === i.versionId) ?? fail("validation.not_found", "no such version") : f.versions[f.versions.length - 1]!;
+      const v = i.versionId
+        ? (f.versions.find((x) => x.versionId === i.versionId) ?? fail("validation.not_found", "no such version"))
+        : f.versions[f.versions.length - 1]!;
       return { text: v.text, mime: "text/plain", size: v.text.length, version: v.n, truncated: false };
     },
     "files.save": (i) => {
       const f = file(i.fileId);
       if (f.name === "agent.toml") {
         const c = checkToml(i.text);
-        if (!c.ok) fail("validation.precondition_failed", `Not saved: ${c.errors[0]?.message ?? "the lint found an error."}`);
+        if (!c.ok)
+          fail("validation.precondition_failed", `Not saved: ${c.errors[0]?.message ?? "the lint found an error."}`);
       }
-      if (!["AGENT.md", "agent.toml", "VYRE.md"].includes(f.name)) fail("validation.precondition_failed", "files.save is for guidance files");
+      if (!["AGENT.md", "agent.toml", "VYRE.md"].includes(f.name))
+        fail("validation.precondition_failed", "files.save is for guidance files");
       const v = addVersion(f, i.text, "usr_saver", i.reason);
-      return { versionId: v.versionId, n: v.n, lint: { file: "other", lines: 0, state: "ok", overrides: [], secrets: [], problems: [] }, added: 0, removed: 0 };
+      return {
+        versionId: v.versionId,
+        n: v.n,
+        lint: { file: "other", lines: 0, state: "ok", overrides: [], secrets: [], problems: [] },
+        added: 0,
+        removed: 0,
+      };
     },
-    "files.write": (i) => { const f = file(i.fileId); const v = addVersion(f, i.content?.text ?? "", "usr_writer", i.reason); return { file: fileOut(f), versionId: v.versionId }; },
-    "files.versions": (i) => ({ versions: [...file(i.fileId).versions].reverse().map((v) => ({ versionId: v.versionId, n: v.n, by: v.by, at: v.at, ...(v.reason !== undefined ? { reason: v.reason } : {}) })) }),
+    "files.write": (i) => {
+      const f = file(i.fileId);
+      const v = addVersion(f, i.content?.text ?? "", "usr_writer", i.reason);
+      return { file: fileOut(f), versionId: v.versionId };
+    },
+    "files.versions": (i) => ({
+      versions: [...file(i.fileId).versions].reverse().map((v) => ({
+        versionId: v.versionId,
+        n: v.n,
+        by: v.by,
+        at: v.at,
+        ...(v.reason !== undefined ? { reason: v.reason } : {}),
+      })),
+    }),
     "files.restore_version": (i) => {
       const f = file(i.fileId);
-      const old = f.versions.find((x) => x.versionId === i.versionId) ?? fail("validation.not_found", "no such version");
+      const old =
+        f.versions.find((x) => x.versionId === i.versionId) ?? fail("validation.not_found", "no such version");
       const v = addVersion(f, old.text, "usr_restorer", `Restored version ${old.n}`);
       return { file: fileOut(f), versionId: v.versionId };
     },
@@ -138,41 +290,77 @@ export function fakeFiles(clock: { t: number }) {
   };
 
   return {
-    root: agentsRoot, folders, files, calls, handlers, principals, homeGrants,
-    answer(cap: string, f: Handler) { handlers[cap] = f; },
-    setting(key: string, value: unknown) { settings[key] = value; },
-    folderNamed(name: string, parent?: string): FakeFolder | undefined { return [...folders.values()].find((f) => !f.deleted && f.name === name && f.parentId === parent); },
+    root: agentsRoot,
+    folders,
+    files,
+    calls,
+    handlers,
+    principals,
+    homeGrants,
+    answer(cap: string, f: Handler) {
+      handlers[cap] = f;
+    },
+    setting(key: string, value: unknown) {
+      settings[key] = value;
+    },
+    folderNamed(name: string, parent?: string): FakeFolder | undefined {
+      return [...folders.values()].find((f) => !f.deleted && f.name === name && f.parentId === parent);
+    },
     /** Everything under a folder as relative paths (files and folders). */
     tree(folderId: string): string[] {
       const out: string[] = [];
       const walk = (id: string, prefix: string): void => {
-        for (const f of folders.values()) if (!f.deleted && f.parentId === id) { out.push(`${prefix}${f.name}/`); walk(f.folderId, `${prefix}${f.name}/`); }
+        for (const f of folders.values())
+          if (!f.deleted && f.parentId === id) {
+            out.push(`${prefix}${f.name}/`);
+            walk(f.folderId, `${prefix}${f.name}/`);
+          }
         for (const f of files.values()) if (f.folderId === id) out.push(`${prefix}${f.name}`);
       };
       walk(folderId, "");
       return out.sort();
     },
-    fileIn(folderId: string, name: string): FakeFile | undefined { return [...files.values()].find((f) => f.folderId === folderId && f.name === name); },
-    text(fileId: string): string { const f = file(fileId); return f.versions[f.versions.length - 1]!.text; },
+    fileIn(folderId: string, name: string): FakeFile | undefined {
+      return [...files.values()].find((f) => f.folderId === folderId && f.name === name);
+    },
+    text(fileId: string): string {
+      const f = file(fileId);
+      return f.versions[f.versions.length - 1]!.text;
+    },
     /** A person saves a file in Files, outside the module. Returns the event the host would then raise. */
-    edit(fileId: string, text: string, by = DANA): { payload: { fileId: string; versionId: string; n: number; by: string } } {
+    edit(
+      fileId: string,
+      text: string,
+      by = DANA,
+    ): { payload: { fileId: string; versionId: string; n: number; by: string } } {
       const f = file(fileId);
       const v = addVersion(f, text, by, "Edited by hand");
       return { payload: { fileId, versionId: v.versionId, n: v.n, by } };
     },
     /** A template file in the Space's Agent template folder. */
     templateFile(path: string, text: string): void {
-      let home = [...folders.values()].find((f) => !f.deleted && f.name === "Agent template" && f.parentId === undefined)?.folderId;
+      let home = [...folders.values()].find(
+        (f) => !f.deleted && f.name === "Agent template" && f.parentId === undefined,
+      )?.folderId;
       if (!home) home = root("Agent template");
       const parts = path.split("/");
       let parent = home;
       for (const part of parts.slice(0, -1)) {
         const found = [...folders.values()].find((f) => f.parentId === parent && f.name === part);
-        parent = found ? found.folderId : (() => { const id = next("fld"); folders.set(id, { folderId: id, parentId: parent, name: part, deleted: false }); return id; })();
+        parent = found
+          ? found.folderId
+          : (() => {
+              const id = next("fld");
+              folders.set(id, { folderId: id, parentId: parent, name: part, deleted: false });
+              return id;
+            })();
       }
       const name = parts[parts.length - 1] as string;
       const old = [...files.values()].find((f) => f.folderId === parent && f.name === name);
-      if (old) { addVersion(old, text, "usr_admin", "Changed"); return; }
+      if (old) {
+        addVersion(old, text, "usr_admin", "Changed");
+        return;
+      }
       const f: FakeFile = { fileId: next("fil"), folderId: parent, name, versions: [] };
       files.set(f.fileId, f);
       addVersion(f, text, "usr_admin", "Created");
@@ -204,7 +392,8 @@ export function harness(o: HarnessOptions = {}) {
   const raw = o.raw ?? openRaw();
   const clock = o.clock ?? { t: NOW };
   const emitted: Emitted[] = [];
-  const warned: string[] = [], errored: { msg: string; attrs?: Record<string, unknown> }[] = [];
+  const warned: string[] = [],
+    errored: { msg: string; attrs?: Record<string, unknown> }[] = [];
   const world = o.files ?? fakeFiles(clock);
   let allow = o.allow ?? (() => true);
   const db = scopedDb("agents", raw, TRACE);
@@ -215,27 +404,64 @@ export function harness(o: HarnessOptions = {}) {
     trace: { traceId: TRACE },
     now: () => clock.t,
     db,
-    emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
+    emit(name, subject, payload) {
+      emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+      return null;
+    },
     async call(cap, input, opts) {
       world.calls.push({ cap, input, opts });
       const f = world.handlers[cap];
-      if (!f) throw Object.assign(new Error(`${cap} is not available`), { error: { code: "internal.unavailable", message: `${cap} is not available` } });
+      if (!f)
+        throw Object.assign(new Error(`${cap} is not available`), {
+          error: { code: "internal.unavailable", message: `${cap} is not available` },
+        });
       return f(input, opts);
     },
     authorize: (action, resource) => ({ effect: allow(action, resource) ? "allow" : "deny" }),
-    log: { warn(msg) { warned.push(msg); }, error(msg, attrs) { errored.push({ msg, ...(attrs ? { attrs } : {}) }); } },
+    log: {
+      warn(msg) {
+        warned.push(msg);
+      },
+      error(msg, attrs) {
+        errored.push({ msg, ...(attrs ? { attrs } : {}) });
+      },
+    },
   };
   const h = {
-    ctx, raw, db, emitted, clock, world, warned, errored,
-    advance(ms: number) { clock.t += ms; },
-    allowOnly(f: NonNullable<HarnessOptions["allow"]>) { allow = f; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    names(): string[] { return emitted.map((e) => e.name); },
-    clear() { emitted.length = 0; world.calls.length = 0; },
+    ctx,
+    raw,
+    db,
+    emitted,
+    clock,
+    world,
+    warned,
+    errored,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    allowOnly(f: NonNullable<HarnessOptions["allow"]>) {
+      allow = f;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    names(): string[] {
+      return emitted.map((e) => e.name);
+    },
+    clear() {
+      emitted.length = 0;
+      world.calls.length = 0;
+    },
     /** The same database as another principal. */
-    as(principal: Principal, actingFor?: string): AgentsCtx { return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) }; },
-    person(id: string): AgentsCtx { return h.as({ kind: "person", id }); },
+    as(principal: Principal, actingFor?: string): AgentsCtx {
+      return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) };
+    },
+    person(id: string): AgentsCtx {
+      return h.as({ kind: "person", id });
+    },
   };
   return h;
 }
@@ -260,6 +486,10 @@ export function codeOf(err: unknown): string {
   return e?.error?.code ?? e?.code ?? "unknown";
 }
 export async function failure(f: () => unknown): Promise<string> {
-  try { await f(); } catch (e) { return codeOf(e); }
+  try {
+    await f();
+  } catch (e) {
+    return codeOf(e);
+  }
   return "none";
 }

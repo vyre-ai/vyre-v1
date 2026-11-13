@@ -11,14 +11,30 @@ import type { Audience } from "../../lib/audience.ts";
 
 const TRACKED = new Set(["decision", "commitment", "preference", "role", "fact"]);
 
-export interface SharedIn extends Omit<NewFact, "place" | "placeThread" | "audience"> { threadId: string; heard: Audience }
-export interface SharedOut { fact: Fact; deduped?: boolean; replaced?: Fact; disputedWith?: Fact; questionId?: string }
+export interface SharedIn extends Omit<NewFact, "place" | "placeThread" | "audience"> {
+  threadId: string;
+  heard: Audience;
+}
+export interface SharedOut {
+  fact: Fact;
+  deduped?: boolean;
+  replaced?: Fact;
+  disputedWith?: Fact;
+  questionId?: string;
+}
 
 /** Current facts in the same place and layer that are on the same subject, newest first. */
 function neighbours(ctx: MemCtx, n: SharedIn, placeKind: string, placeId: string): Fact[] {
-  const rows = rowsOf(ctx.db,
+  const rows = rowsOf(
+    ctx.db,
     "SELECT * FROM memory_facts WHERE layer = ? AND owner_ref = ? AND COALESCE(agent_id, '') = ? AND COALESCE(project_id, '') = ? AND place_kind = ? AND place_id = ? AND status = 'current' AND trashed_at IS NULL ORDER BY learned_at DESC",
-    n.layer, n.ownerRef, n.agentId ?? "", n.projectId ?? "", placeKind, placeId);
+    n.layer,
+    n.ownerRef,
+    n.agentId ?? "",
+    n.projectId ?? "",
+    placeKind,
+    placeId,
+  );
   return rows.map((r) => readFact(ctx, r)).filter((f) => f.text !== "");
 }
 
@@ -29,7 +45,13 @@ export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> 
 /** The same with the place already known, so the per-turn learn pass (which cannot wait) writes through the one door too. */
 export function writeSharedWith(ctx: MemCtx, n: SharedIn, place: Place): SharedOut {
   const kind = kindOf(n.kind);
-  const common: NewFact = { ...n, kind, place: { kind: place.kind, id: place.id, ...(place.parent ? { parent: place.parent } : {}) }, placeThread: place.thread ?? n.threadId, audience: n.heard };
+  const common: NewFact = {
+    ...n,
+    kind,
+    place: { kind: place.kind, id: place.id, ...(place.parent ? { parent: place.parent } : {}) },
+    placeThread: place.thread ?? n.threadId,
+    audience: n.heard,
+  };
   const same = neighbours(ctx, n, place.kind, place.id);
   const dup = same.find((f) => normal(f.text) === normal(n.text));
   if (dup) return { fact: dup, deduped: true };
@@ -38,33 +60,97 @@ export function writeSharedWith(ctx: MemCtx, n: SharedIn, place: Place): SharedO
   if (n.status === "current" && TRACKED.has(kind)) {
     for (const f of same) {
       if (kindOf(f.kind) !== kind || !sameSubject(f.text, n.text)) continue;
-      if (f.sourcePerson === n.sourcePerson) { replaced = f; break; }
-      if (disagree(f.text, n.text)) { clash = f; break; }
+      if (f.sourcePerson === n.sourcePerson) {
+        replaced = f;
+        break;
+      }
+      if (disagree(f.text, n.text)) {
+        clash = f;
+        break;
+      }
     }
   }
   const now = ctx.now();
-  if (replaced) ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, replaced.id);
-  const fact = insertFact(ctx, { ...common, ...(replaced ? { replaces: replaced.id } : {}), ...(clash ? { state: "disputed" } : {}) });
+  if (replaced)
+    ctx.db.run(
+      "UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?",
+      now,
+      now,
+      replaced.id,
+    );
+  const fact = insertFact(ctx, {
+    ...common,
+    ...(replaced ? { replaces: replaced.id } : {}),
+    ...(clash ? { state: "disputed" } : {}),
+  });
   // a marker that pointed at the older statement follows the one that replaced it
-  if (replaced) ctx.db.run("UPDATE memory_facts SET promoted_from = ? WHERE promoted_from = ? AND state = 'marker'", fact.id, replaced.id);
-  if (replaced) trail(ctx, { action: "edit", factId: fact.id, layer: fact.layer, ownerRef: fact.ownerRef, agentId: fact.agentId, projectId: fact.projectId, reason: "a newer statement on the same subject", detail: { replaces: replaced.id } });
+  if (replaced)
+    ctx.db.run(
+      "UPDATE memory_facts SET promoted_from = ? WHERE promoted_from = ? AND state = 'marker'",
+      fact.id,
+      replaced.id,
+    );
+  if (replaced)
+    trail(ctx, {
+      action: "edit",
+      factId: fact.id,
+      layer: fact.layer,
+      ownerRef: fact.ownerRef,
+      agentId: fact.agentId,
+      projectId: fact.projectId,
+      reason: "a newer statement on the same subject",
+      detail: { replaces: replaced.id },
+    });
   let questionId: string | undefined;
   if (clash) {
     ctx.db.run("UPDATE memory_facts SET state = 'disputed' WHERE id = ?", clash.id);
     questionId = mintId("qst", now);
     ctx.db.run(
       "INSERT INTO memory_questions (id, kind, fact_a, fact_b, layer, owner_ref, agent_id, project_id, status, created_at, run_id) VALUES (?, 'contradiction', ?, ?, ?, ?, ?, ?, 'open', ?, NULL)",
-      questionId, clash.id, fact.id, fact.layer, fact.ownerRef, fact.agentId, fact.projectId, now,
+      questionId,
+      clash.id,
+      fact.id,
+      fact.layer,
+      fact.ownerRef,
+      fact.agentId,
+      fact.projectId,
+      now,
     );
-    trail(ctx, { action: "flag", factId: fact.id, layer: fact.layer, ownerRef: fact.ownerRef, agentId: fact.agentId, projectId: fact.projectId, reason: "two people, one subject", detail: { other: clash.id } });
+    trail(ctx, {
+      action: "flag",
+      factId: fact.id,
+      layer: fact.layer,
+      ownerRef: fact.ownerRef,
+      agentId: fact.agentId,
+      projectId: fact.projectId,
+      reason: "two people, one subject",
+      detail: { other: clash.id },
+    });
   }
-  return { fact: { ...fact, ...(clash ? { state: "disputed" } : {}) }, ...(replaced ? { replaced } : {}), ...(clash ? { disputedWith: clash } : {}), ...(questionId ? { questionId } : {}) };
+  return {
+    fact: { ...fact, ...(clash ? { state: "disputed" } : {}) },
+    ...(replaced ? { replaced } : {}),
+    ...(clash ? { disputedWith: clash } : {}),
+    ...(questionId ? { questionId } : {}),
+  };
 }
 
 /** The line a room sees when something is remembered in it. Data only: kind, words, and the fact Undo acts on. The chat module draws it. */
-export interface NotedLine { threadId: string; factId: string; kind: string; text: string; replaces?: string; disputed?: boolean; question?: { questionId: string; a: Said; b: Said } }
+export interface NotedLine {
+  threadId: string;
+  factId: string;
+  kind: string;
+  text: string;
+  replaces?: string;
+  disputed?: boolean;
+  question?: { questionId: string; a: Said; b: Said };
+}
 /** Who said it, and when. */
-export interface Said { text: string; by: string; at: number }
+export interface Said {
+  text: string;
+  by: string;
+  at: number;
+}
 
 /** Post the quiet "Noted: decision, go with Harbor . Undo" line through the chat module. Silent failure here would be remembering without telling the room, so a failure is logged, never swallowed quietly. */
 export async function postNoted(ctx: MemCtx, line: NotedLine): Promise<boolean> {
@@ -72,7 +158,11 @@ export async function postNoted(ctx: MemCtx, line: NotedLine): Promise<boolean> 
     await ctx.call("chat.noted", line);
     return true;
   } catch (e) {
-    ctx.log.warn("the room was not told what memory noted", { threadId: line.threadId, factId: line.factId, error: str((e as { message?: unknown })?.message) });
+    ctx.log.warn("the room was not told what memory noted", {
+      threadId: line.threadId,
+      factId: line.factId,
+      error: str((e as { message?: unknown })?.message),
+    });
     return false;
   }
 }

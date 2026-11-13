@@ -18,7 +18,13 @@ async function open(mine: string, kind: "vault_item" | "vault_folder" = "vault_i
   };
   const data = { ...v.data, call } as typeof v.data;
   const root = createRoot();
-  await act(async () => { root.render(<VaultDataProvider value={data}><VaultShareSheet kind={kind} id="vit_ghl" name="GoHighLevel" onClose={() => undefined} /></VaultDataProvider>); });
+  await act(async () => {
+    root.render(
+      <VaultDataProvider value={data}>
+        <VaultShareSheet kind={kind} id="vit_ghl" name="GoHighLevel" onClose={() => undefined} />
+      </VaultDataProvider>,
+    );
+  });
   await flush();
   await flush();
   return { calls, tree: root.container as unknown as Parameters<typeof find>[0] };
@@ -29,9 +35,12 @@ test("the sheet lists the owner once and who holds the item, with the Vault's ow
   try {
     const s = await open("manage");
     const text = textOf(s.tree);
-    for (const word of ["GoHighLevel", "Owner", "General access", "Maya", "Omar", "Can edit", "Can see"]) assert.ok(text.includes(word), word);
+    for (const word of ["GoHighLevel", "Owner", "General access", "Maya", "Omar", "Can edit", "Can see"])
+      assert.ok(text.includes(word), word);
     assert.ok(!text.includes("never lowered"), "no legend");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a level change is vault.share and a removal is vault.unshare, each once", async () => {
@@ -44,10 +53,22 @@ test("a level change is vault.share and a removal is vault.unshare, each once", 
     await press(find(s.tree, "menu-item-Remove access"));
     await flush();
     const writes = s.calls.filter((c) => c.cap.startsWith("vault."));
-    assert.deepEqual(writes.map((c) => c.cap), ["vault.share", "vault.unshare"]);
-    assert.deepEqual(writes[0]!.input, { resource: { type: "vault_item", id: "vit_ghl" }, subject: { kind: "person", id: "usr_omar" }, level: "manage" });
-    assert.deepEqual(writes[1]!.input, { resource: { type: "vault_item", id: "vit_ghl" }, subject: { kind: "person", id: "usr_omar" } });
-  } finally { restore(); }
+    assert.deepEqual(
+      writes.map((c) => c.cap),
+      ["vault.share", "vault.unshare"],
+    );
+    assert.deepEqual(writes[0]!.input, {
+      resource: { type: "vault_item", id: "vit_ghl" },
+      subject: { kind: "person", id: "usr_omar" },
+      level: "manage",
+    });
+    assert.deepEqual(writes[1]!.input, {
+      resource: { type: "vault_item", id: "vit_ghl" },
+      subject: { kind: "person", id: "usr_omar" },
+    });
+  } finally {
+    restore();
+  }
 });
 
 test("someone who holds View is not offered Can manage, and the Vault offers three levels", async () => {
@@ -58,5 +79,7 @@ test("someone who holds View is not offered Can manage, and the Vault offers thr
     assert.ok(find(s.tree, "menu-item-Can manage") === null, "a person gives no more than they have");
     assert.ok(find(s.tree, "menu-item-Can edit") === null, "Can edit is not a Vault choice any more");
     assert.ok(find(s.tree, "menu-item-Can use without seeing") !== null);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

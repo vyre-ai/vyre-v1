@@ -12,8 +12,14 @@ export default function Mount() {
     const stop = watchLayoutShift();
     requestAnimationFrame(() => requestAnimationFrame(() => setProbe("navigate", performance.now() - t0.current)));
     setProbe("prefetch", 100);
-    const t = setTimeout(() => { stop(); probesReady(); }, 300);
-    return () => { clearTimeout(t); stop(); };
+    const t = setTimeout(() => {
+      stop();
+      probesReady();
+    }, 300);
+    return () => {
+      clearTimeout(t);
+      stop();
+    };
   }, []);
   return (
     <View testID="probe-ready" style={{ height: 120, padding: 16 }}>

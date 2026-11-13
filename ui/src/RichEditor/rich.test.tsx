@@ -71,19 +71,34 @@ test("markdown round-trips: parse then render gives the same text", () => {
 
 test("blocks carry the structure: headings, lists, quote, code, rule", () => {
   const blocks = parseMarkdown(SAMPLE);
-  assert.deepEqual(blocks.map((b) => b.type), ["heading", "paragraph", "bulletList", "orderedList", "blockquote", "codeBlock", "horizontalRule", "paragraph"]);
+  assert.deepEqual(
+    blocks.map((b) => b.type),
+    ["heading", "paragraph", "bulletList", "orderedList", "blockquote", "codeBlock", "horizontalRule", "paragraph"],
+  );
   const code = blocks[5];
   assert.ok(code !== undefined && code.type === "codeBlock");
-  if (code !== undefined && code.type === "codeBlock") { assert.equal(code.lang, "ts"); assert.equal(code.text, "const x = 1;"); }
+  if (code !== undefined && code.type === "codeBlock") {
+    assert.equal(code.lang, "ts");
+    assert.equal(code.text, "const x = 1;");
+  }
   const list = blocks[2];
   assert.ok(list !== undefined && list.type === "bulletList" && list.items.length === 2);
 });
 
 test("inline marks parse and render, nested marks and escapes included", () => {
   const runs = parseInline("a **bold *and italic*** b `c*d` [t](https://x.y)");
-  assert.deepEqual(runs.map((r) => [r.text, [...r.marks].sort().join("+")]), [
-    ["a ", ""], ["bold ", "bold"], ["and italic", "bold+italic"], [" b ", ""], ["c*d", "code"], [" ", ""], ["t", "link"],
-  ]);
+  assert.deepEqual(
+    runs.map((r) => [r.text, [...r.marks].sort().join("+")]),
+    [
+      ["a ", ""],
+      ["bold ", "bold"],
+      ["and italic", "bold+italic"],
+      [" b ", ""],
+      ["c*d", "code"],
+      [" ", ""],
+      ["t", "link"],
+    ],
+  );
   assert.equal(runs[6]?.href, "https://x.y");
   assert.equal(renderInline(parseInline("**bold** and *it*")), "**bold** and *it*");
   assert.equal(renderInline(parseInline("a \\* star")), "a \\* star");
@@ -100,7 +115,10 @@ test("markdown goes into a Yjs document and comes back the same", () => {
   assert.equal((frag.get(2) as Y.XmlElement).nodeName, "bulletList");
   assert.equal(((frag.get(2) as Y.XmlElement).get(0) as Y.XmlElement).nodeName, "listItem");
   const delta = textOf(doc, 1).toDelta() as { insert: string; attributes?: Record<string, unknown> }[];
-  assert.ok(delta.some((d) => d.insert === "signed" && d.attributes?.["bold"] !== undefined), "marks are Yjs text attributes, as y-prosemirror writes them");
+  assert.ok(
+    delta.some((d) => d.insert === "signed" && d.attributes?.["bold"] !== undefined),
+    "marks are Yjs text attributes, as y-prosemirror writes them",
+  );
   assert.ok(delta.some((d) => d.attributes?.["link"] !== undefined));
 });
 
@@ -167,8 +185,14 @@ test("each editor sees the other's cursor with its name and colour, and loses it
     setLocalCursor(b, { name: "Omar Haddad", color: "#2f9e44" }, 3, 8);
     sendAwareness(a, b);
     sendAwareness(b, a);
-    assert.deepEqual(remoteCursors(b).map((c) => [c.name, c.color, c.anchor, c.head]), [["Maya Chen", "#e8590c", 12, 12]]);
-    assert.deepEqual(remoteCursors(a).map((c) => [c.name, c.anchor, c.head]), [["Omar Haddad", 3, 8]]);
+    assert.deepEqual(
+      remoteCursors(b).map((c) => [c.name, c.color, c.anchor, c.head]),
+      [["Maya Chen", "#e8590c", 12, 12]],
+    );
+    assert.deepEqual(
+      remoteCursors(a).map((c) => [c.name, c.anchor, c.head]),
+      [["Omar Haddad", 3, 8]],
+    );
     dropAwareness(b, [a.clientID]);
     assert.deepEqual(remoteCursors(b), []);
   } finally {
@@ -205,7 +229,14 @@ test("the page says hello, the app answers with the document, and edits flow bot
     importMarkdown(appDoc, "# Title\n\nBody text");
     let app: ReturnType<typeof connectBridge> | undefined;
     const queue: string[] = [];
-    const page = connectBridge(pageDoc, pageAware, (raw) => { queue.push(raw); }, false);
+    const page = connectBridge(
+      pageDoc,
+      pageAware,
+      (raw) => {
+        queue.push(raw);
+      },
+      false,
+    );
     app = connectBridge(appDoc, appAware, (raw) => page.receive(raw), true);
     for (const raw of queue.splice(0)) app.receive(raw);
     assert.equal(exportMarkdown(pageDoc), "# Title\n\nBody text\n", "the page got the whole document");
@@ -220,7 +251,10 @@ test("the page says hello, the app answers with the document, and edits flow bot
 
     setLocalCursor(pageAware, { name: "Phone", color: "#1c7ed6" }, 4);
     for (const raw of queue.splice(0)) app.receive(raw);
-    assert.deepEqual(remoteCursors(appAware).map((c) => c.name), ["Phone"]);
+    assert.deepEqual(
+      remoteCursors(appAware).map((c) => c.name),
+      ["Phone"],
+    );
     page.destroy();
     app.destroy();
   } finally {
@@ -291,7 +325,11 @@ test("mode flags, engine choice, and cursor placement", () => {
   assert.equal(defaultEngine("edit", "web", false), "tiptap");
   assert.equal(defaultEngine("read", "web", false), "static");
   assert.equal(defaultEngine("edit", "ios", true), "webview");
-  assert.equal(defaultEngine("edit", "ios", false), "static", "the phone needs the editor bundle; without it the document is shown, not faked");
+  assert.equal(
+    defaultEngine("edit", "ios", false),
+    "static",
+    "the phone needs the editor bundle; without it the document is shown, not faked",
+  );
   const blocks = parseMarkdown("ab\n\ncd ef");
   assert.deepEqual(locateOffset(blocks, 1), { block: 0, col: 1 });
   assert.deepEqual(locateOffset(blocks, 3), { block: 1, col: 0 });
@@ -303,7 +341,14 @@ test("mode flags, engine choice, and cursor placement", () => {
 });
 
 test("the note header shows the file mark, name, path line, version and View and Edit; the toolbar draws icons, not letters", () => {
-  const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="x" header={{ name: "Rivera notes.md", meta: "Projects \u00b7 Docs", version: 3 }} />);
+  const html = renderToStaticMarkup(
+    <RichEditor
+      {...base}
+      mode="edit"
+      markdown="x"
+      header={{ name: "Rivera notes.md", meta: "Projects \u00b7 Docs", version: 3 }}
+    />,
+  );
   assert.match(html, /data-testid="richeditor-header"/);
   assert.match(html, /Rivera notes\.md/);
   assert.match(html, /Projects \u00b7 Docs/);
@@ -313,16 +358,30 @@ test("the note header shows the file mark, name, path line, version and View and
   assert.match(html, /aria-label="Version history"/);
   assert.match(html, /aria-label="Details"/);
   assert.match(html, /aria-label="Edit"/);
-  for (const c of TOOLBAR) assert.ok(TOOL_ICONS[c.id] !== undefined && TOOL_ICONS[c.id]?.startsWith("<svg"), `${c.id} has a drawn icon`);
+  for (const c of TOOLBAR)
+    assert.ok(TOOL_ICONS[c.id] !== undefined && TOOL_ICONS[c.id]?.startsWith("<svg"), `${c.id} has a drawn icon`);
   const bold = html.slice(html.indexOf('data-testid="richeditor-tool-bold"'));
   assert.match(bold.slice(0, 600), /<svg/);
-  const first = renderToStaticMarkup(<RichEditor {...base} mode="read" markdown="x" header={{ name: "n.md", meta: "m", version: 1 }} />);
+  const first = renderToStaticMarkup(
+    <RichEditor {...base} mode="read" markdown="x" header={{ name: "n.md", meta: "m", version: 1 }} />,
+  );
   assert.doesNotMatch(first, /richeditor-version/, "no saved mark on the first version");
 });
 
 test("the header carries the shared Ask control and a Details toggle that shows pressed", () => {
-  const ask = { place: "files", context: { kind: "file", id: "f1", title: "n.md", access: "edit" as const }, agents: [{ id: "a", name: "Assistant", assistant: true }, { id: "d", name: "Docs" }], suggested: "d", onAsk: () => undefined };
-  const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="x" header={{ name: "n.md", meta: "m", ask, detailsOpen: true }} />);
+  const ask = {
+    place: "files",
+    context: { kind: "file", id: "f1", title: "n.md", access: "edit" as const },
+    agents: [
+      { id: "a", name: "Assistant", assistant: true },
+      { id: "d", name: "Docs" },
+    ],
+    suggested: "d",
+    onAsk: () => undefined,
+  };
+  const html = renderToStaticMarkup(
+    <RichEditor {...base} mode="edit" markdown="x" header={{ name: "n.md", meta: "m", ask, detailsOpen: true }} />,
+  );
   assert.match(html, /data-testid="ask"/);
   assert.match(html, /Docs/);
   assert.match(html, /aria-label="Hide details"/, "Details offers Hide while its column is open");
@@ -338,9 +397,20 @@ test("a collaborator's name flag floats above the line at the caret instead of s
     sendAwareness(peer, aw);
     const html = renderToStaticMarkup(<RichEditor {...base} mode="edit" markdown="" doc={doc} awareness={aw} />);
     const caret = html.slice(html.indexOf('data-testid="richeditor-cursor-'));
-    assert.match(caret.slice(0, 900), /Maya Chen(&#x27;|')s cursor/, "the flag lives inside the caret's own box, not in the text runs");
-    assert.doesNotMatch(html.slice(0, html.indexOf('data-testid="richeditor-cursor-')).slice(-200), /Maya Chen/, "no flag text before the caret in the line");
+    assert.match(
+      caret.slice(0, 900),
+      /Maya Chen(&#x27;|')s cursor/,
+      "the flag lives inside the caret's own box, not in the text runs",
+    );
+    assert.doesNotMatch(
+      html.slice(0, html.indexOf('data-testid="richeditor-cursor-')).slice(-200),
+      /Maya Chen/,
+      "no flag text before the caret in the line",
+    );
     assert.match(html, /Hello/);
     assert.match(html, / world/);
-  } finally { aw.destroy(); peer.destroy(); }
+  } finally {
+    aw.destroy();
+    peer.destroy();
+  }
 });

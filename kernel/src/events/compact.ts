@@ -63,15 +63,24 @@ export function subjectKey(s: CompactSubject): string {
 function matcher(s: CompactSubject): (e: StoredEvent) => boolean {
   const entities = s.entities ?? [];
   // an entity named without a type is found by its id wherever a payload carries it; with a type, only by the envelope
-  const entityIds = entities.filter((x) => x.type === undefined).map((x) => x.id).filter((x) => x.length > 0);
+  const entityIds = entities
+    .filter((x) => x.type === undefined)
+    .map((x) => x.id)
+    .filter((x) => x.length > 0);
   // payloads are canonical JSON, where quotes, backslashes and non-ASCII may be escaped: look for both spellings of each identifier
-  const needles = (s.identifiers ?? []).filter((x) => x.length > 0).flatMap((x) => {
-    const escaped = JSON.stringify(x).slice(1, -1);
-    return escaped === x ? [x] : [x, escaped];
-  });
+  const needles = (s.identifiers ?? [])
+    .filter((x) => x.length > 0)
+    .flatMap((x) => {
+      const escaped = JSON.stringify(x).slice(1, -1);
+      return escaped === x ? [x] : [x, escaped];
+    });
   const person = s.person;
   return (e) => {
-    if (e.entity_id !== undefined && entities.some((x) => x.id === e.entity_id && (x.type === undefined || x.type === e.entity))) return true;
+    if (
+      e.entity_id !== undefined &&
+      entities.some((x) => x.id === e.entity_id && (x.type === undefined || x.type === e.entity))
+    )
+      return true;
     if (person !== undefined && (e.actor === person || e.on_behalf === person || e.entity_id === person)) return true;
     if (needles.length > 0 || entityIds.length > 0) {
       const text = decode.decode(e.payload);
@@ -81,7 +90,11 @@ function matcher(s: CompactSubject): (e: StoredEvent) => boolean {
   };
 }
 
-export async function compact(port: CompactPort, subject: CompactSubject, o: CompactOptions = {}): Promise<CompactResult> {
+export async function compact(
+  port: CompactPort,
+  subject: CompactSubject,
+  o: CompactOptions = {},
+): Promise<CompactResult> {
   const key = subjectKey(subject);
   if (key === "") throw new Error("name what to erase: an entity, a person or some text");
   if (o.db) o.db.exec("PRAGMA secure_delete = ON");
@@ -93,14 +106,19 @@ export async function compact(port: CompactPort, subject: CompactSubject, o: Com
     if (page.length === 0) break;
     for (const e of page) {
       if (!hit(e)) continue;
-      if (isErased(e)) { already++; continue; }
+      if (isErased(e)) {
+        already++;
+        continue;
+      }
       if (await port.erase(e.seq)) erased.push(e.seq);
     }
     after = page[page.length - 1]!.seq;
     if (page.length < PAGE) break;
   }
   if (o.db) {
-    o.db.prepare("INSERT OR IGNORE INTO tombstones (kind, subject, at) VALUES (?, ?, ?)").run("events", key, (o.now ?? Date.now)());
+    o.db
+      .prepare("INSERT OR IGNORE INTO tombstones (kind, subject, at) VALUES (?, ?, ?)")
+      .run("events", key, (o.now ?? Date.now)());
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     if (o.vacuum !== false) o.db.exec("VACUUM");
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -111,14 +129,21 @@ export async function compact(port: CompactPort, subject: CompactSubject, o: Com
 /**
  * Erase these events by seq (what a restore replays: the tombstone kept the seqs, never the text). A seq that is not there, or already erased, is skipped. The file is scrubbed the same way.
  */
-export async function compactSeqs(port: CompactPort & { get?(seq: number): StoredEvent | null | Promise<StoredEvent | null> }, seqs: readonly number[], o: CompactOptions = {}): Promise<CompactResult> {
+export async function compactSeqs(
+  port: CompactPort & { get?(seq: number): StoredEvent | null | Promise<StoredEvent | null> },
+  seqs: readonly number[],
+  o: CompactOptions = {},
+): Promise<CompactResult> {
   if (o.db) o.db.exec("PRAGMA secure_delete = ON");
   const erased: number[] = [];
   let already = 0;
   for (const seq of [...new Set(seqs)].sort((a, b) => a - b)) {
     const e = port.get ? await port.get(seq) : (await port.read({ after: seq - 1, limit: 1 }))[0];
     if (!e || e.seq !== seq) continue;
-    if (isErased(e)) { already++; continue; }
+    if (isErased(e)) {
+      already++;
+      continue;
+    }
     if (await port.erase(seq)) erased.push(seq);
   }
   if (o.db) {

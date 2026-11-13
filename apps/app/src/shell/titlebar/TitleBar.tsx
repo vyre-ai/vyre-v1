@@ -34,38 +34,90 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   // the connection is a notice like any other: raised while it is not plain "Connected", resolved when it is
   useEffect(() => {
     if (sync.tone === "ok") notices.resolve("sync");
-    else notices.raise({ id: "sync", kind: "offline", text: sync.text, ...(sync.opens ? { action: { label: "Open", run: props.onOpenWaiting } } : {}) });
-  }, [sync.tone, sync.text, sync.opens]);   // eslint-disable-line react-hooks/exhaustive-deps
+    else
+      notices.raise({
+        id: "sync",
+        kind: "offline",
+        text: sync.text,
+        ...(sync.opens ? { action: { label: "Open", run: props.onOpenWaiting } } : {}),
+      });
+  }, [sync.tone, sync.text, sync.opens]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <View testID="shell-titlebar" accessibilityRole="header" accessibilityLabel={title} style={styles.bar}>
       <View style={styles.side}>
-        {resume?.pill ? <View testID="title-setup" style={styles.setup}>{resume.pill}</View> : null}
-        {props.call ? <View testID="title-call" style={styles.call}>{props.call}</View> : null}
+        {resume?.pill ? (
+          <View testID="title-setup" style={styles.setup}>
+            {resume.pill}
+          </View>
+        ) : null}
+        {props.call ? (
+          <View testID="title-call" style={styles.call}>
+            {props.call}
+          </View>
+        ) : null}
       </View>
       <Pressable
-        role="button" aria-label="Search" testID="title-search" onPress={props.onSearch}
-        onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+        role="button"
+        aria-label="Search"
+        testID="title-search"
+        onPress={props.onSearch}
+        onHoverIn={() => setOver(true)}
+        onHoverOut={() => setOver(false)}
         style={[styles.omni, compact ? styles.omniCompact : null]}
       >
         <ShellIcon name="search" size={13} color={over ? "var(--ink-2)" : "var(--ink-3)"} />
-        {compact ? null : <Text numberOfLines={1} style={[styles.omniText, over ? styles.omniOver : null]}>Search or run a command</Text>}
+        {compact ? null : (
+          <Text numberOfLines={1} style={[styles.omniText, over ? styles.omniOver : null]}>
+            Search or run a command
+          </Text>
+        )}
         {compact ? null : <Text style={styles.kbd}>⌘K</Text>}
       </Pressable>
-      <View style={[styles.side, styles.noticeSide]} testID="title-notices"><NoticeSlot compact={compact} /></View>
+      <View style={[styles.side, styles.noticeSide]} testID="title-notices">
+        <NoticeSlot compact={compact} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   // above the place below it, so the notifications popover opens over the page instead of under it
-  bar: { height: TITLE_BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 14, paddingRight: 14, position: "relative", zIndex: 30, overflow: "visible" },
+  bar: {
+    height: TITLE_BAR_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 14,
+    paddingRight: 14,
+    position: "relative",
+    zIndex: 30,
+    overflow: "visible",
+  },
   side: { flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   noticeSide: { justifyContent: "flex-start", paddingLeft: 10 },
   call: { justifyContent: "center" },
   setup: { justifyContent: "center", flexShrink: 0 },
-  omni: { width: 340, maxWidth: "60%" as unknown as number, height: 26, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 11, paddingRight: 6, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
+  omni: {
+    width: 340,
+    maxWidth: "60%" as unknown as number,
+    height: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 11,
+    paddingRight: 6,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+  },
   omniCompact: { width: 34, paddingLeft: 10, paddingRight: 0 },
   omniText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-3)" as string },
   omniOver: { color: "var(--ink-2)" as string },
-  kbd: { fontSize: 10.5, lineHeight: 15, color: "var(--ink-4)" as string, paddingHorizontal: 4, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  kbd: {
+    fontSize: 10.5,
+    lineHeight: 15,
+    color: "var(--ink-4)" as string,
+    paddingHorizontal: 4,
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
 });

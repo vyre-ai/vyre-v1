@@ -8,7 +8,12 @@ export interface ContinueData {
 
 /** Continue the archive in a live chat and return its thread id. Asking again returns the same chat. */
 export async function continueImported(data: ContinueData, conversationId: string): Promise<string> {
-  const out = await data.call("sessions.continue", { conversationId, destinationSpaceId: data.spaceId, destinationScope: "personal", agentId: data.assistantId }) as { threadId?: string } | undefined;
+  const out = (await data.call("sessions.continue", {
+    conversationId,
+    destinationSpaceId: data.spaceId,
+    destinationScope: "personal",
+    agentId: data.assistantId,
+  })) as { threadId?: string } | undefined;
   if (typeof out?.threadId !== "string" || out.threadId === "") throw new Error("The chat did not start. Try again.");
   return out.threadId;
 }

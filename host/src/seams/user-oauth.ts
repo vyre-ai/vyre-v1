@@ -16,8 +16,18 @@ export interface UserOauthSeam {
   userApp(ctx: SeamCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean; tenant?: string }>;
   /** The address people reach this Space at (https://host), for the redirect the sign-in comes back to. */
   userPublicUrl(ctx: SeamCtx): Promise<string>;
-  userExchange(ctx: SeamCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
-  userRefresh(ctx: SeamCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number; /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string }>;
+  userExchange(
+    ctx: SeamCtx,
+    a: { appHandle: string; code: string; verifier: string; redirectUri: string },
+  ): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
+  userRefresh(
+    ctx: SeamCtx,
+    a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean },
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string;
+  }>;
 }
 
 export interface UserOauthDeps {
@@ -40,17 +50,32 @@ const parse = (text: string): Json => {
   try {
     const v = text ? (JSON.parse(text) as unknown) : {};
     return v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 };
 
 export function createUserOauth(d: UserOauthDeps, p: UserOauthProvider): UserOauthSeam {
   const cache = new Map<string, { token: string; expiresAt: number }>();
 
-  const field = async (ctx: SeamCtx, handle: string, name: "client_id" | "client_secret" | "tenant", required: boolean): Promise<string | undefined> => {
-    if (!APP_ITEM.test(handle)) throw fail("validation.bad_input", ctx.trace.traceId, { message: "The Vault item is not a valid handle." });
+  const field = async (
+    ctx: SeamCtx,
+    handle: string,
+    name: "client_id" | "client_secret" | "tenant",
+    required: boolean,
+  ): Promise<string | undefined> => {
+    if (!APP_ITEM.test(handle))
+      throw fail("validation.bad_input", ctx.trace.traceId, { message: "The Vault item is not a valid handle." });
     let value = "";
-    try { value = await d.vault.secret(`${handle}.${name}`, ctx.space); } catch { /* the Vault refused or has no such field: the same answer below */ }
-    if (!value && required) throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${handle} has no ${name}. Add the ${p.name} OAuth client ${name === "client_id" ? "id" : name.replace("_", " ")} to that Vault item.` });
+    try {
+      value = await d.vault.secret(`${handle}.${name}`, ctx.space);
+    } catch {
+      /* the Vault refused or has no such field: the same answer below */
+    }
+    if (!value && required)
+      throw fail("provider.auth_failed", ctx.trace.traceId, {
+        message: `${handle} has no ${name}. Add the ${p.name} OAuth client ${name === "client_id" ? "id" : name.replace("_", " ")} to that Vault item.`,
+      });
     return value || undefined;
   };
 
@@ -63,40 +88,77 @@ export function createUserOauth(d: UserOauthDeps, p: UserOauthProvider): UserOau
     const url = checked(ctx, p.tokenUrl(tenant), p.domains);
     let r;
     try {
-      r = await d.fetch(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body: form.toString() });
+      r = await d.fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+        body: form.toString(),
+      });
     } catch {
       throw fail("provider.network", ctx.trace.traceId, { message: `${p.name} could not be reached.` });
     }
     const body = parse(await r.text());
     if (r.status === 400 || r.status === 401 || r.status === 403) {
       const why = typeof body["error"] === "string" ? (body["error"] as string).slice(0, 60) : "";
-      throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${p.name} did not accept the sign-in. Sign in again.`, details: { status: r.status, why } });
+      throw fail("provider.auth_failed", ctx.trace.traceId, {
+        message: `${p.name} did not accept the sign-in. Sign in again.`,
+        details: { status: r.status, why },
+      });
     }
     if (r.status < 200 || r.status >= 300) statusError(ctx, r.status, "token");
-    if (typeof body["access_token"] !== "string" || body["access_token"] === "") throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "token answer has no access_token" } });
+    if (typeof body["access_token"] !== "string" || body["access_token"] === "")
+      throw fail("provider.bad_response", ctx.trace.traceId, { details: { what: "token answer has no access_token" } });
     return body;
   }
 
-  const lifeOf = (body: Json): number => (typeof body["expires_in"] === "number" && body["expires_in"] > 0 ? (body["expires_in"] as number) : 3600) * 1000;
+  const lifeOf = (body: Json): number =>
+    (typeof body["expires_in"] === "number" && body["expires_in"] > 0 ? (body["expires_in"] as number) : 3600) * 1000;
 
   return {
     async userApp(ctx, handle) {
       const clientId = (await field(ctx, handle, "client_id", true)) as string;
       const tenant = await field(ctx, handle, "tenant", false);
-      return { clientId, hasSecret: (await field(ctx, handle, "client_secret", false)) !== undefined, ...(tenant ? { tenant } : {}) };
+      return {
+        clientId,
+        hasSecret: (await field(ctx, handle, "client_secret", false)) !== undefined,
+        ...(tenant ? { tenant } : {}),
+      };
     },
     userPublicUrl(ctx) {
-      if (!d.publicUrl) return Promise.reject(fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no public address yet, so ${p.name} cannot send people back to it.` }));
+      if (!d.publicUrl)
+        return Promise.reject(
+          fail("internal.unavailable", ctx.trace.traceId, {
+            message: `This server has no public address yet, so ${p.name} cannot send people back to it.`,
+          }),
+        );
       return d.publicUrl(ctx.space);
     },
     async userExchange(ctx, a) {
-      const body = await tokenCall(ctx, a.appHandle, new URLSearchParams({ grant_type: "authorization_code", code: a.code, redirect_uri: a.redirectUri, code_verifier: a.verifier }));
+      const body = await tokenCall(
+        ctx,
+        a.appHandle,
+        new URLSearchParams({
+          grant_type: "authorization_code",
+          code: a.code,
+          redirect_uri: a.redirectUri,
+          code_verifier: a.verifier,
+        }),
+      );
       const refresh = body["refresh_token"];
-      if (typeof refresh !== "string" || refresh === "") throw fail("provider.bad_response", ctx.trace.traceId, { message: `${p.name} gave no way to stay signed in. The app must allow offline access.` });
-      return { refreshToken: refresh, accessToken: body["access_token"] as string, expiresAt: ctx.now() + lifeOf(body) };
+      if (typeof refresh !== "string" || refresh === "")
+        throw fail("provider.bad_response", ctx.trace.traceId, {
+          message: `${p.name} gave no way to stay signed in. The app must allow offline access.`,
+        });
+      return {
+        refreshToken: refresh,
+        accessToken: body["access_token"] as string,
+        expiresAt: ctx.now() + lifeOf(body),
+      };
     },
     async userRefresh(ctx, a) {
-      if (a.refreshToken === "") throw fail("provider.auth_failed", ctx.trace.traceId, { message: `The ${p.name} sign-in is gone. Sign in again.` });
+      if (a.refreshToken === "")
+        throw fail("provider.auth_failed", ctx.trace.traceId, {
+          message: `The ${p.name} sign-in is gone. Sign in again.`,
+        });
       const key = `${ctx.space}|${a.cacheKey}`;
       const hit = cache.get(key);
       if (hit && !a.fresh && hit.expiresAt - ctx.now() > 60_000) return hit;
@@ -107,7 +169,9 @@ export function createUserOauth(d: UserOauthDeps, p: UserOauthProvider): UserOau
       cache.set(key, fresh);
       // Microsoft sends a new refresh token with every refresh and the old one stops working in about 90 days: hand it back so the module keeps it (vault audit, Broken 11). Never cached here.
       const rotated = body["refresh_token"];
-      return typeof rotated === "string" && rotated !== "" && rotated !== a.refreshToken ? { ...fresh, refreshToken: rotated } : fresh;
+      return typeof rotated === "string" && rotated !== "" && rotated !== a.refreshToken
+        ? { ...fresh, refreshToken: rotated }
+        : fresh;
     },
   };
 }

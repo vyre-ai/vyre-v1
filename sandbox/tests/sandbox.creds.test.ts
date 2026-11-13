@@ -24,12 +24,40 @@ function memFs() {
   const writes: Array<{ path: string; data: Uint8Array }> = [];
   const stuck = new Set<string>();
   const fsys: CredFs = {
-    async mkdir(p, mode) { log.push(`mkdir ${p} ${mode.toString(8)}`); if (dirs.has(p)) throw new Error("exists"); dirs.set(p, mode); },
-    async writeNew(p, data, mode) { log.push(`write ${p} ${mode.toString(8)}`); if (files.has(p)) throw new Error("exists"); files.set(p, { data: new Uint8Array(data), mode }); },
-    async overwrite(p, data) { const f = files.get(p); if (!f) throw new Error("gone"); log.push(`overwrite ${p} ${data.length}`); writes.push({ path: p, data: new Uint8Array(data) }); f.data = new Uint8Array(data); },
-    async size(p) { return files.get(p)?.data.length ?? null; },
-    async unlink(p) { log.push(`unlink ${p}`); if (stuck.has(p)) throw new Error("busy"); const f = files.get(p); if (!f) throw new Error("gone"); atUnlink.set(p, f.data); files.delete(p); },
-    async rmdir(p) { log.push(`rmdir ${p}`); const kids = [...files.keys(), ...dirs.keys()].filter((k) => k.startsWith(`${p}/`)); if (kids.length > 0) throw new Error("not empty"); dirs.delete(p); },
+    async mkdir(p, mode) {
+      log.push(`mkdir ${p} ${mode.toString(8)}`);
+      if (dirs.has(p)) throw new Error("exists");
+      dirs.set(p, mode);
+    },
+    async writeNew(p, data, mode) {
+      log.push(`write ${p} ${mode.toString(8)}`);
+      if (files.has(p)) throw new Error("exists");
+      files.set(p, { data: new Uint8Array(data), mode });
+    },
+    async overwrite(p, data) {
+      const f = files.get(p);
+      if (!f) throw new Error("gone");
+      log.push(`overwrite ${p} ${data.length}`);
+      writes.push({ path: p, data: new Uint8Array(data) });
+      f.data = new Uint8Array(data);
+    },
+    async size(p) {
+      return files.get(p)?.data.length ?? null;
+    },
+    async unlink(p) {
+      log.push(`unlink ${p}`);
+      if (stuck.has(p)) throw new Error("busy");
+      const f = files.get(p);
+      if (!f) throw new Error("gone");
+      atUnlink.set(p, f.data);
+      files.delete(p);
+    },
+    async rmdir(p) {
+      log.push(`rmdir ${p}`);
+      const kids = [...files.keys(), ...dirs.keys()].filter((k) => k.startsWith(`${p}/`));
+      if (kids.length > 0) throw new Error("not empty");
+      dirs.delete(p);
+    },
     async list(p): Promise<DirEntry[]> {
       const out = new Map<string, boolean>();
       for (const k of [...files.keys(), ...dirs.keys()]) {
@@ -40,13 +68,18 @@ function memFs() {
       }
       return [...out].map(([name, dir]) => ({ name, dir }));
     },
-    async exists(p) { return files.has(p) || dirs.has(p); },
+    async exists(p) {
+      return files.has(p) || dirs.has(p);
+    },
   };
   return { fs: fsys, files, dirs, log, atUnlink, writes, stuck };
 }
 
 const ROOT = "/run/user/1000/vyre-creds";
-const FILES = [{ path: ".claude/.credentials.json", data: bytes('{"token":"sk-ant-oat01-SECRET"}') }, { path: ".codex/auth.json", data: bytes("codex-secret-token") }];
+const FILES = [
+  { path: ".claude/.credentials.json", data: bytes('{"token":"sk-ant-oat01-SECRET"}') },
+  { path: ".codex/auth.json", data: bytes("codex-secret-token") },
+];
 
 test("put: files are created exclusively, mode 0600 in folders of 0700, and the store answers where they are", async () => {
   const m = memFs();
@@ -54,7 +87,8 @@ test("put: files are created exclusively, mode 0600 in folders of 0700, and the 
   const r = await store.put("session-one", FILES);
   assert.equal(r.dir, `${ROOT}/session-one`);
   assert.deepEqual(r.paths, [`${ROOT}/session-one/.claude/.credentials.json`, `${ROOT}/session-one/.codex/auth.json`]);
-  for (const d of [ROOT, `${ROOT}/session-one`, `${ROOT}/session-one/.claude`, `${ROOT}/session-one/.codex`]) assert.equal(m.dirs.get(d), 0o700, d);
+  for (const d of [ROOT, `${ROOT}/session-one`, `${ROOT}/session-one/.claude`, `${ROOT}/session-one/.codex`])
+    assert.equal(m.dirs.get(d), 0o700, d);
   for (const p of r.paths) assert.equal(m.files.get(p)?.mode, 0o600, p);
   assert.equal(new TextDecoder().decode(m.files.get(r.paths[0] as string)?.data), '{"token":"sk-ant-oat01-SECRET"}');
 });
@@ -62,7 +96,10 @@ test("put: files are created exclusively, mode 0600 in folders of 0700, and the 
 test("shred: every file is overwritten with random bytes, then zeros, before it is removed; the folders go last; nothing is left", async () => {
   const m = memFs();
   let n = 0;
-  const store = createCredentialStore(m.fs, { root: ROOT, random: (len) => new Uint8Array(len).fill(0xa0 + (n++ % 8)) });
+  const store = createCredentialStore(m.fs, {
+    root: ROOT,
+    random: (len) => new Uint8Array(len).fill(0xa0 + (n++ % 8)),
+  });
   const { paths } = await store.put("session-one", FILES);
   const secrets = paths.map((p) => new TextDecoder().decode(m.files.get(p)?.data));
   const out = await store.shred("session-one");
@@ -75,9 +112,18 @@ test("shred: every file is overwritten with random bytes, then zeros, before it 
     assert.ok(i >= 0 && j > i, `${p} is overwritten before it is removed`);
     assert.equal(m.log.filter((l) => l.startsWith(`overwrite ${p} `)).length, 2, "two passes");
     const passes = m.writes.filter((w) => w.path === p);
-    assert.ok(passes[0]!.data.every((b) => b >= 0xa0), "the first pass is random");
-    assert.ok(passes[1]!.data.every((b) => b === 0), "the second pass is zeros");
-    assert.ok(m.atUnlink.get(p)!.every((b) => b === 0), "what was on disk when it was unlinked is zeros");
+    assert.ok(
+      passes[0]!.data.every((b) => b >= 0xa0),
+      "the first pass is random",
+    );
+    assert.ok(
+      passes[1]!.data.every((b) => b === 0),
+      "the second pass is zeros",
+    );
+    assert.ok(
+      m.atUnlink.get(p)!.every((b) => b === 0),
+      "what was on disk when it was unlinked is zeros",
+    );
   }
   for (const s of secrets) for (const w of m.writes) assert.equal(new TextDecoder().decode(w.data).includes(s), false);
   m.log.forEach((l, i) => {
@@ -94,10 +140,16 @@ test("shred ends the session's files even when one cannot be removed: the rest g
   const store = createCredentialStore(m.fs, { root: ROOT });
   const { paths } = await store.put("session-one", FILES);
   m.stuck.add(paths[0] as string);
-  await assert.rejects(() => store.shred("session-one"), (e: unknown) => e instanceof SandboxError && e.code === "sandbox.shred" && /1 credential file/.test(e.message));
+  await assert.rejects(
+    () => store.shred("session-one"),
+    (e: unknown) => e instanceof SandboxError && e.code === "sandbox.shred" && /1 credential file/.test(e.message),
+  );
   assert.equal(m.files.has(paths[1] as string), false, "the other file was still shredded");
   assert.ok(m.atUnlink.get(paths[1] as string)!.every((b) => b === 0));
-  assert.ok(m.writes.some((w) => w.path === paths[0] && w.data.every((b) => b === 0)), "the stuck file's content was destroyed even though it could not be removed");
+  assert.ok(
+    m.writes.some((w) => w.path === paths[0] && w.data.every((b) => b === 0)),
+    "the stuck file's content was destroyed even though it could not be removed",
+  );
   m.stuck.clear();
   await store.shred("session-one");
   assert.equal(m.files.size, 0);
@@ -107,7 +159,15 @@ test("put refuses a path that climbs, is absolute or repeats, and takes back wha
   for (const bad of ["../x", "/etc/x", "a//b", "a/./b", "", "a/../../b", ".claude/../../x"]) {
     const m = memFs();
     const store = createCredentialStore(m.fs, { root: ROOT });
-    await assert.rejects(() => store.put("session-one", [{ path: "ok.json", data: bytes("secret") }, { path: bad, data: bytes("x") }]), isPolicy, JSON.stringify(bad));
+    await assert.rejects(
+      () =>
+        store.put("session-one", [
+          { path: "ok.json", data: bytes("secret") },
+          { path: bad, data: bytes("x") },
+        ]),
+      isPolicy,
+      JSON.stringify(bad),
+    );
     assert.equal(m.files.size, 0, `${JSON.stringify(bad)}: the first file was taken back`);
     assert.equal([...m.dirs.keys()].filter((d) => d !== ROOT).length, 0, "and its folder");
   }
@@ -159,7 +219,9 @@ test("on disk: modes are 0600 and 0700, the content is overwritten and gone afte
     await store.shred("session-one");
     assert.equal(fs.existsSync(dir), false);
     assert.equal(fs.readFileSync(victim, "utf8"), "do not touch");
-  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });
 
 test("on disk: a file is created only if it is new and is not a link, so a planted link cannot redirect a write", async () => {
@@ -172,11 +234,16 @@ test("on disk: a file is created only if it is new and is not a link, so a plant
     await assert.rejects(() => cfs.writeNew(path.join(base, "link"), bytes("secret"), 0o600));
     assert.equal(fs.readFileSync(victim, "utf8"), "do not touch");
     await cfs.writeNew(path.join(base, "fresh"), bytes("secret"), 0o600);
-    await assert.rejects(() => cfs.writeNew(path.join(base, "fresh"), bytes("again"), 0o600), "an existing file is not replaced");
+    await assert.rejects(
+      () => cfs.writeNew(path.join(base, "fresh"), bytes("again"), 0o600),
+      "an existing file is not replaced",
+    );
     assert.equal(await cfs.size(path.join(base, "fresh")), 6);
     assert.equal(await cfs.size(path.join(base, "link")), 0, "a link has no size of its own");
     assert.equal(await cfs.size(path.join(base, "missing")), null);
-  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });
 
 // ---- the Docker sandbox
@@ -198,9 +265,17 @@ test("Docker: credentials are written inside the container's home tmpfs by a sho
     assert.match(e.cmd[2]!, /^umask 077; mkdir -p .* base64 -d > .* chmod 600/);
     assert.equal(e.cmd.join(" ").includes("SECRET"), false, "the bytes are not in the arguments");
   }
-  const sent = d.execs.map((e) => Object.fromEntries(e.env.map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)])));
-  assert.deepEqual(sent.map((s) => s["VYRE_CRED_PATH"]), ["/home/agent/.claude/.credentials.json", "/home/agent/.codex/auth.json"]);
-  assert.equal(Buffer.from(sent[0]!["VYRE_CRED_DATA"] as string, "base64").toString(), '{"token":"sk-ant-oat01-SECRET"}');
+  const sent = d.execs.map((e) =>
+    Object.fromEntries(e.env.map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)])),
+  );
+  assert.deepEqual(
+    sent.map((s) => s["VYRE_CRED_PATH"]),
+    ["/home/agent/.claude/.credentials.json", "/home/agent/.codex/auth.json"],
+  );
+  assert.equal(
+    Buffer.from(sent[0]!["VYRE_CRED_DATA"] as string, "base64").toString(),
+    '{"token":"sk-ant-oat01-SECRET"}',
+  );
   assert.equal(JSON.stringify(d.execs).includes("SECRET"), false, "and not in the clear anywhere else");
   const cfg = [...d.containers.values()][0]!.config;
   assert.ok(cfg.HostConfig.Tmpfs["/home/agent"], "the home is a tmpfs, so the files are in RAM");
@@ -214,7 +289,11 @@ test("Docker: credentials are written inside the container's home tmpfs by a sho
 test("Docker: a credential path may not climb, be absolute, or carry a character that could mean something to a shell", async () => {
   const { d, sbx } = await dockerSandbox();
   for (const bad of ["../x", "/etc/x", "a//b", "a/./b", "", ".claude/../../x", "a b", "a;b", "a$(b)", "a'b", "a\nb"]) {
-    await assert.rejects(() => sbx.putCredentials([{ path: bad, data: bytes("x") }]), (e: unknown) => e instanceof SandboxError, JSON.stringify(bad));
+    await assert.rejects(
+      () => sbx.putCredentials([{ path: bad, data: bytes("x") }]),
+      (e: unknown) => e instanceof SandboxError,
+      JSON.stringify(bad),
+    );
   }
   assert.equal(d.execs.length, 0);
 });
@@ -237,10 +316,16 @@ test("Docker: wipe shreds each file by its full path in the container, once; sto
   const before = d.calls.length;
   await sbx.stop();
   const after = d.calls.slice(before);
-  assert.ok(after.indexOf("exec") >= 0 && after.indexOf("exec") < after.indexOf("containerRemove"), `the wipe comes before the container goes: ${after.join(",")}`);
+  assert.ok(
+    after.indexOf("exec") >= 0 && after.indexOf("exec") < after.indexOf("containerRemove"),
+    `the wipe comes before the container goes: ${after.join(",")}`,
+  );
   await sbx.stop();
   assert.equal(d.calls.slice(before).filter((c) => c === "exec").length, 1);
-  await assert.rejects(() => sbx.putCredentials(FILES), (e: unknown) => e instanceof SandboxError && e.code === "sandbox.stopped");
+  await assert.rejects(
+    () => sbx.putCredentials(FILES),
+    (e: unknown) => e instanceof SandboxError && e.code === "sandbox.stopped",
+  );
 });
 
 test("Docker: a failed wipe does not stop the container from being removed", async () => {

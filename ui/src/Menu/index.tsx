@@ -8,14 +8,30 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { EMPTY_LABEL, LOADING_LABEL, filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
+import {
+  EMPTY_LABEL,
+  LOADING_LABEL,
+  filterMenuEntries,
+  isHead,
+  isItem,
+  isReportItem,
+  isSeparator,
+  resolveMenuItems,
+} from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { RADIUS } from "../tokens/radius.ts";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
-export { EMPTY_LABEL, LOADING_LABEL, REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
+export {
+  EMPTY_LABEL,
+  LOADING_LABEL,
+  REPORT_A_PROBLEM,
+  appendReportProblem,
+  filterMenuEntries,
+  resolveMenuItems,
+} from "./props.ts";
 
 /* ---------- Report a problem hook-up ---------- */
 
@@ -98,7 +114,15 @@ export function typeAhead(entries: readonly MenuEntry[], from: number, typed: st
 }
 
 /** Keeps the whole menu inside the window with a small margin, like a native menu. */
-export function clampMenu(x: number, y: number, width: number, height: number, viewW: number, viewH: number, margin = 8): { left: number; top: number } {
+export function clampMenu(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  viewW: number,
+  viewH: number,
+  margin = 8,
+): { left: number; top: number } {
   const left = Math.max(margin, Math.min(x, viewW - width - margin));
   const top = Math.max(margin, Math.min(y, viewH - height - margin));
   return { left, top };
@@ -125,7 +149,11 @@ export interface KitMenuItem {
   when?: string;
 }
 
-export function kitMenuEntries(items: readonly KitMenuItem[], run: (action: string) => void, visible: (when: string) => boolean = () => true): MenuEntry[] {
+export function kitMenuEntries(
+  items: readonly KitMenuItem[],
+  run: (action: string) => void,
+  visible: (when: string) => boolean = () => true,
+): MenuEntry[] {
   const out: MenuEntry[] = [];
   for (const item of items) {
     if (item.when !== undefined && !visible(item.when)) continue;
@@ -177,23 +205,41 @@ export function iconNames(): string[] {
 const ICON_SIZE = 15;
 
 /** An icon: a name from the built-in set or an svg string. Web draws inline svg; native draws a glyph character. */
-export function MenuIcon({ icon, color, size = ICON_SIZE }: { icon: string; color?: string; size?: number }): ReactElement {
+export function MenuIcon({
+  icon,
+  color,
+  size = ICON_SIZE,
+}: {
+  icon: string;
+  color?: string;
+  size?: number;
+}): ReactElement {
   const box = { width: size, height: size };
   if (Platform.OS !== "web") {
     const glyph = NATIVE_GLYPHS[icon];
     return (
       <View style={[styles.iconSlot, box]}>
-        {glyph === undefined ? null : <Text style={{ color: color ?? "var(--ink-3)", fontSize: size, lineHeight: size }}>{glyph}</Text>}
+        {glyph === undefined ? null : (
+          <Text style={{ color: color ?? "var(--ink-3)", fontSize: size, lineHeight: size }}>{glyph}</Text>
+        )}
       </View>
     );
   }
   const named = ICON_PATHS[icon];
-  const markup = named !== undefined
-    ? `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${named}</svg>`
-    : icon.trimStart().startsWith("<svg") ? icon : "";
+  const markup =
+    named !== undefined
+      ? `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${named}</svg>`
+      : icon.trimStart().startsWith("<svg")
+        ? icon
+        : "";
   return (
     <View style={[styles.iconSlot, box]} aria-hidden>
-      {markup === "" ? null : createElement("span", { style: { display: "inline-flex", color: color ?? "inherit" }, dangerouslySetInnerHTML: { __html: markup } })}
+      {markup === ""
+        ? null
+        : createElement("span", {
+            style: { display: "inline-flex", color: color ?? "inherit" },
+            dangerouslySetInnerHTML: { __html: markup },
+          })}
     </View>
   );
 }
@@ -256,7 +302,9 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const panel = useRef<unknown>(null);
 
   // A menu opens with no row lit, but keyboard focus still has to be inside it: Escape and the arrow keys are read on the menu, so focus left on the button below would leave them dead.
-  useEffect(() => { if (!searching) focusNode(panel.current); }, [searching]);
+  useEffect(() => {
+    if (!searching) focusNode(panel.current);
+  }, [searching]);
 
   const close = useCallback(() => {
     setGone(true);
@@ -267,11 +315,14 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   // or dialog it was opened from stays, and the key is taken before that sheet's own handlers see it.
   useEscapeLayer(!gone, close);
 
-  const land = useCallback((index: number) => {
-    if (index < 0) return;
-    setActive(index);
-    if (!searching) focusNode(nodes.current[index]);
-  }, [searching]);
+  const land = useCallback(
+    (index: number) => {
+      if (index < 0) return;
+      setActive(index);
+      if (!searching) focusNode(nodes.current[index]);
+    },
+    [searching],
+  );
 
   // new rows (a filter row ticked, a search typed) keep the lit row when it is still a choice; otherwise the first row is lit
   const activeRef = useRef(active);
@@ -284,10 +335,13 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     land(still ? at : moveActive(entries, -1, "Home"));
   }, [entries, land]);
 
-  const choose = useCallback((entry: MenuItem) => {
-    if (entry.keep !== true) close();
-    if (entry.onSelect) entry.onSelect();
-  }, [close]);
+  const choose = useCallback(
+    (entry: MenuItem) => {
+      if (entry.keep !== true) close();
+      if (entry.onSelect) entry.onSelect();
+    },
+    [close],
+  );
 
   const onKeyDown = (event: KeyEventLike): void => {
     const { key } = event;
@@ -309,7 +363,10 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     }
     if (key === "Enter" && searching) {
       const at = entries[active];
-      if (at !== undefined && isItem(at)) { event.preventDefault?.(); choose(at); }
+      if (at !== undefined && isItem(at)) {
+        event.preventDefault?.();
+        choose(at);
+      }
       return;
     }
     if (!searching && key.length === 1 && key !== " " && event.metaKey !== true && event.ctrlKey !== true) {
@@ -332,7 +389,11 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     if (isSeparator(entry)) {
       rows.push(<View key={`s${i}`} style={styles.sep} {...webProps({ dataSet: { separator: "true" } })} />);
     } else if (isHead(entry)) {
-      rows.push(<Text key={`h${i}`} style={styles.head} role="heading" aria-level={3}>{entry.head}</Text>);
+      rows.push(
+        <Text key={`h${i}`} style={styles.head} role="heading" aria-level={3}>
+          {entry.head}
+        </Text>,
+      );
     } else {
       rows.push(
         <MenuRow
@@ -341,7 +402,9 @@ export function Menu(props: MenuViewProps): ReactElement | null {
           lit={i === active}
           onHover={() => land(i)}
           onChoose={() => choose(entry)}
-          nodeRef={(node) => { nodes.current[i] = node; }}
+          nodeRef={(node) => {
+            nodes.current[i] = node;
+          }}
         />,
       );
     }
@@ -349,38 +412,69 @@ export function Menu(props: MenuViewProps): ReactElement | null {
 
   return (
     <MenuPortal>
-    <View style={styles.layer} testID="menu-layer" pointerEvents="box-none">
-      <Pressable
-        accessibilityLabel="Close menu"
-        style={styles.backdrop}
-        onPress={(event) => { event.stopPropagation(); close(); }}
-        {...webProps({ onContextMenu: (event: { preventDefault: () => void }) => { event.preventDefault(); close(); }, tabIndex: -1 })}
-      />
-      <View
-        role="menu"
-        aria-label={menuLabel(entries)}
-        testID="menu"
-        ref={(node) => { panel.current = node; }}
-        onLayout={(event) => {
-          const { width, height } = event.nativeEvent.layout;
-          if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
-        }}
-        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
-        {...webProps({ onKeyDown, tabIndex: -1 })}
-      >
-        {searching ? (
-          <View style={styles.search}>
-            <MenuIcon icon="search" color="var(--ink-3)" />
-            <TextInput
-              autoFocus value={query} onChangeText={(t) => { setQuery(t); setActive(-1); activeRef.current = -1; props.onSearch?.(t); }} placeholder={props.search} placeholderTextColor="var(--ink-3)"
-              accessibilityLabel={props.search} testID="menu-search" style={styles.searchInput}
-            />
-          </View>
-        ) : null}
-        {rows}
-        {searching && rows.length === 0 ? <Text style={styles.none} testID="menu-none">Nothing matches.</Text> : null}
+      <View style={styles.layer} testID="menu-layer" pointerEvents="box-none">
+        <Pressable
+          accessibilityLabel="Close menu"
+          style={styles.backdrop}
+          onPress={(event) => {
+            event.stopPropagation();
+            close();
+          }}
+          {...webProps({
+            onContextMenu: (event: { preventDefault: () => void }) => {
+              event.preventDefault();
+              close();
+            },
+            tabIndex: -1,
+          })}
+        />
+        <View
+          role="menu"
+          aria-label={menuLabel(entries)}
+          testID="menu"
+          ref={(node) => {
+            panel.current = node;
+          }}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
+          }}
+          style={[
+            styles.panel,
+            { left, top, maxHeight: Math.max(120, window.height - 12) },
+            props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null,
+            webProps({ style: { overflowY: "auto" } }).style as object | undefined,
+          ]}
+          {...webProps({ onKeyDown, tabIndex: -1 })}
+        >
+          {searching ? (
+            <View style={styles.search}>
+              <MenuIcon icon="search" color="var(--ink-3)" />
+              <TextInput
+                autoFocus
+                value={query}
+                onChangeText={(t) => {
+                  setQuery(t);
+                  setActive(-1);
+                  activeRef.current = -1;
+                  props.onSearch?.(t);
+                }}
+                placeholder={props.search}
+                placeholderTextColor="var(--ink-3)"
+                accessibilityLabel={props.search}
+                testID="menu-search"
+                style={styles.searchInput}
+              />
+            </View>
+          ) : null}
+          {rows}
+          {searching && rows.length === 0 ? (
+            <Text style={styles.none} testID="menu-none">
+              Nothing matches.
+            </Text>
+          ) : null}
+        </View>
       </View>
-    </View>
     </MenuPortal>
   );
 }
@@ -390,7 +484,13 @@ function menuLabel(entries: readonly MenuEntry[]): string {
   return "Menu";
 }
 
-function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
+function MenuRow({
+  entry,
+  lit,
+  onHover,
+  onChoose,
+  nodeRef,
+}: {
   entry: MenuItem;
   lit: boolean;
   onHover: () => void;
@@ -411,22 +511,62 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       aria-current={entry.checked === true ? "true" : undefined}
       aria-disabled={entry.disabled === true ? true : undefined}
       disabled={entry.disabled === true}
-      onPress={(event) => { event.stopPropagation(); if (entry.disabled !== true) onChoose(); }}
+      onPress={(event) => {
+        event.stopPropagation();
+        if (entry.disabled !== true) onChoose();
+      }}
       onHoverIn={entry.disabled === true ? undefined : onHover}
       onFocus={entry.disabled === true ? undefined : onHover}
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
-      {...webProps({ ...(report ? { dataSet: { report: "true" } } : {}), ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}) })}
+      {...webProps({
+        ...(report ? { dataSet: { report: "true" } } : {}),
+        ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}),
+      })}
     >
-      {entry.leading !== undefined ? <View style={[styles.leading, lit ? styles.leadingLit : null]}>{entry.leading}</View> : null}
-      {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
-      <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
-      {entry.mark !== undefined ? (Platform.OS === "web"
-        ? createElement("span", { title: entry.mark, "aria-label": entry.mark, role: "img", "data-mark": "true", "data-testid": `menu-mark-${entry.label}`, style: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", flexShrink: 0, background: "var(--warn)" } })
-        : <View accessibilityLabel={entry.mark} style={styles.mark} />) : null}
-      {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
-      {entry.hint !== undefined ? <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
-      {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
+      {entry.leading !== undefined ? (
+        <View style={[styles.leading, lit ? styles.leadingLit : null]}>{entry.leading}</View>
+      ) : null}
+      {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? (
+        <MenuIcon icon={entry.icon} color={ink} />
+      ) : null}
+      <Text numberOfLines={1} style={[styles.label, { color: ink }]}>
+        {entry.label}
+      </Text>
+      {entry.mark !== undefined ? (
+        Platform.OS === "web" ? (
+          createElement("span", {
+            title: entry.mark,
+            "aria-label": entry.mark,
+            role: "img",
+            "data-mark": "true",
+            "data-testid": `menu-mark-${entry.label}`,
+            style: {
+              width: 7,
+              height: 7,
+              borderRadius: 4,
+              marginLeft: "auto",
+              flexShrink: 0,
+              background: "var(--warn)",
+            },
+          })
+        ) : (
+          <View accessibilityLabel={entry.mark} style={styles.mark} />
+        )
+      ) : null}
+      {entry.count !== undefined ? (
+        <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>
+          {entry.count}
+        </Text>
+      ) : null}
+      {entry.hint !== undefined ? (
+        <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>
+          {entry.hint}
+        </Text>
+      ) : null}
+      {entry.checked === true ? (
+        <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -477,14 +617,23 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
   let timer: ReturnType<typeof setTimeout> | null = null;
   let at = { x: 0, y: 0 };
   let firedAt = 0;
-  const clear = (): void => { if (timer !== null) { clearTimeout(timer); timer = null; } };
+  const clear = (): void => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
   return {
     // a finger held still opens the menu; moving, lifting or a second touch cancels; the click the lift makes is not a press on the row
     onPointerDown: (event: PointerLike): void => {
       if (event.pointerType !== "touch") return;
       clear();
       at = pointOf(event);
-      timer = setTimeout(() => { timer = null; firedAt = Date.now(); open(at.x, at.y); }, LONG_PRESS_MS);
+      timer = setTimeout(() => {
+        timer = null;
+        firedAt = Date.now();
+        open(at.x, at.y);
+      }, LONG_PRESS_MS);
     },
     onPointerMove: (event: PointerLike): void => {
       if (timer === null) return;
@@ -494,14 +643,20 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
     onPointerUp: clear,
     onPointerCancel: clear,
     onClickCapture: (event: PointerLike): void => {
-      if (firedAt !== 0 && Date.now() - firedAt < 700) { firedAt = 0; event.stopPropagation?.(); event.preventDefault?.(); }
+      if (firedAt !== 0 && Date.now() - firedAt < 700) {
+        firedAt = 0;
+        event.stopPropagation?.();
+        event.preventDefault?.();
+      }
     },
     onContextMenu: (event: PointerLike): void => {
       event.preventDefault?.();
       const { x, y } = pointOf(event);
       open(x, y);
     },
-    onKeyDown: (event: KeyEventLike & { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }): void => {
+    onKeyDown: (
+      event: KeyEventLike & { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } },
+    ): void => {
       if (event.key !== "ContextMenu" && !(event.key === "F10" && event.shiftKey === true)) return;
       event.preventDefault?.();
       const box = event.currentTarget?.getBoundingClientRect?.();
@@ -513,8 +668,15 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
 
 /* ---------- anchoring to the button that was pressed ---------- */
 
-interface RectLike { left: number; right?: number; bottom: number }
-interface AnchorEl { getBoundingClientRect?: () => RectLike; closest?: (selector: string) => AnchorEl | null }
+interface RectLike {
+  left: number;
+  right?: number;
+  bottom: number;
+}
+interface AnchorEl {
+  getBoundingClientRect?: () => RectLike;
+  closest?: (selector: string) => AnchorEl | null;
+}
 
 const BUTTONISH = "button, [role=button], [role=menuitem], [role=tab], a[href], summary";
 let lastAnchor: { x: number; y: number; right?: number } | null = null;
@@ -526,17 +688,39 @@ export function noteAnchor(target: unknown): void {
   if (el === null || el === undefined) return;
   const host = typeof el.closest === "function" ? (el.closest(BUTTONISH) ?? el) : el;
   const rect = typeof host.getBoundingClientRect === "function" ? host.getBoundingClientRect() : null;
-  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4, ...(typeof rect.right === "number" && Number.isFinite(rect.right) ? { right: rect.right } : {}) };
+  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom))
+    lastAnchor = {
+      x: rect.left,
+      y: rect.bottom + 4,
+      ...(typeof rect.right === "number" && Number.isFinite(rect.right) ? { right: rect.right } : {}),
+    };
 }
 
 /** One document listener, installed once on web. A menu opened by a button that has no pointer position (the caller passes -1, or nothing) lands under that button. */
 function listenForPresses(): void {
   if (listening || Platform.OS !== "web") return;
-  const doc = (globalThis as { document?: { addEventListener?: (type: string, fn: (e: { target?: unknown; key?: string }) => void, capture?: boolean) => void; activeElement?: unknown } }).document;
+  const doc = (
+    globalThis as {
+      document?: {
+        addEventListener?: (
+          type: string,
+          fn: (e: { target?: unknown; key?: string }) => void,
+          capture?: boolean,
+        ) => void;
+        activeElement?: unknown;
+      };
+    }
+  ).document;
   if (doc === undefined || typeof doc.addEventListener !== "function") return;
   listening = true;
   doc.addEventListener("pointerdown", (e) => noteAnchor(e.target), true);
-  doc.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement); }, true);
+  doc.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement);
+    },
+    true,
+  );
 }
 
 /** A point is "unknown" when it is missing, negative or not a number: the caller had no coordinates to give. */
@@ -563,32 +747,80 @@ export function menuLeft(x: number, width: number, viewW: number, anchorRight: n
 }
 
 /** Forgets the remembered control (tests). */
-export function resetAnchor(): void { lastAnchor = null; }
+export function resetAnchor(): void {
+  lastAnchor = null;
+}
 
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => void;
+  show: (
+    items: readonly MenuEntry[],
+    x: number,
+    y: number,
+    source?: MenuSource,
+    context?: ReportContext,
+    opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number },
+  ) => void;
   hide: () => void;
   /** New rows for the menu that is open, in place: it stays where it is, with its search and its lit row (a ticked filter row, a label made). Nothing when no menu is open. */
   update: (items: readonly MenuEntry[]) => void;
 } {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
-  useEffect(() => { listenForPresses(); }, []);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number }) => {
-    counter.current += 1;
-    const anchorRight = opts?.anchorRight ?? anchorRightFor(x);
-    const at = resolveMenuPoint(x, y);
-    x = at.x;
-    y = at.y;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(anchorRight === undefined ? {} : { anchorRight }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
+  useEffect(() => {
+    listenForPresses();
   }, []);
-  const hide = useCallback(() => setOpen(null), []);
-  const update = useCallback((items: readonly MenuEntry[]) => setOpen((o) => (o === null ? null : { ...o, items })), []);
-  const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} {...(open.anchorRight === undefined ? {} : { anchorRight: open.anchorRight })} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
+  const show = useCallback(
+    (
+      items: readonly MenuEntry[],
+      x: number,
+      y: number,
+      source: MenuSource = "context",
+      context?: ReportContext,
+      opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number },
+    ) => {
+      counter.current += 1;
+      const anchorRight = opts?.anchorRight ?? anchorRightFor(x);
+      const at = resolveMenuPoint(x, y);
+      x = at.x;
+      y = at.y;
+      setOpen({
+        items,
+        x,
+        y,
+        source,
+        nonce: counter.current,
+        ...(context === undefined ? {} : { context }),
+        ...(anchorRight === undefined ? {} : { anchorRight }),
+        ...(opts?.search === undefined ? {} : { search: opts.search }),
+        ...(opts?.width === undefined ? {} : { width: opts.width }),
+        ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }),
+      });
+    },
+    [],
   );
+  const hide = useCallback(() => setOpen(null), []);
+  const update = useCallback(
+    (items: readonly MenuEntry[]) => setOpen((o) => (o === null ? null : { ...o, items })),
+    [],
+  );
+  const element =
+    open === null ? null : (
+      <Menu
+        key={open.nonce}
+        items={open.items}
+        x={open.x}
+        y={open.y}
+        {...(open.anchorRight === undefined ? {} : { anchorRight: open.anchorRight })}
+        source={open.source}
+        onClose={hide}
+        {...(open.context === undefined ? {} : { reportContext: open.context })}
+        {...(open.search === undefined ? {} : { search: open.search })}
+        {...(open.width === undefined ? {} : { width: open.width })}
+        {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })}
+      />
+    );
   return { element, show, hide, update };
 }
 
@@ -603,10 +835,14 @@ export function choiceRows(rows: readonly MenuItem[], loading: boolean): MenuEnt
 
 /** Sends new rows to the menu that is open, in place, when they change (the data arrived while the list was open). Nothing happens while no menu is open. */
 export function useLiveRows(update: (items: readonly MenuEntry[]) => void, rows: readonly MenuEntry[]): void {
-  const key = rows.map((r) => (isItem(r) ? `${r.label}|${r.checked === true ? 1 : 0}|${r.disabled === true ? 1 : 0}` : "-")).join("\n");
+  const key = rows
+    .map((r) => (isItem(r) ? `${r.label}|${r.checked === true ? 1 : 0}|${r.disabled === true ? 1 : 0}` : "-"))
+    .join("\n");
   const latest = useRef(rows);
   latest.current = rows;
-  useEffect(() => { update(latest.current); }, [key, update]);
+  useEffect(() => {
+    update(latest.current);
+  }, [key, update]);
 }
 
 /* ---------- styles ---------- */
@@ -625,20 +861,58 @@ const styles = StyleSheet.create({
     ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: RADIUS, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 28,
+    paddingHorizontal: 9,
+    borderRadius: RADIUS,
+    gap: 9,
+    width: "100%",
+    ...({ outlineStyle: "none" } as unknown as ViewStyle),
+  },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
-  count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
+  count: {
+    marginLeft: "auto",
+    minWidth: 24,
+    textAlign: "right",
+    fontSize: 12,
+    color: "var(--ink-3)" as string,
+    fontVariant: ["tabular-nums"],
+  },
   hint: { marginLeft: "auto", paddingLeft: 16, fontSize: 11.5, color: "var(--ink-4)" as string },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
   // a mark that is the accent colour (a status ring) would vanish on the lit row: it sits on a light disc there
   leadingLit: { borderRadius: RADIUS, backgroundColor: "var(--raised)" as string },
-  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as unknown as ViewStyle) },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 32,
+    paddingHorizontal: 9,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    ...({ outlineStyle: "none" } as unknown as ViewStyle),
+  },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
-  head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  head: {
+    paddingTop: 6,
+    paddingBottom: 4,
+    paddingHorizontal: 9,
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+  },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },
 });

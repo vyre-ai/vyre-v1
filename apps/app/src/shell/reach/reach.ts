@@ -19,22 +19,43 @@ export interface Viewer {
 
 export type Level = "none" | "view" | "use" | "edit" | "manage";
 
-export interface Target { place: PlaceId; hash?: string; screen?: string; args?: Record<string, string> }
+export interface Target {
+  place: PlaceId;
+  hash?: string;
+  screen?: string;
+  args?: Record<string, string>;
+}
 
 export type Item =
   | { kind: "console"; page: string; args?: Record<string, string> }
   | {
-      kind: "machine"; id: string; name: string; online: boolean; machineKind: "space" | "server" | "linked"; owner?: string; ownerName?: string;
+      kind: "machine";
+      id: string;
+      name: string;
+      online: boolean;
+      machineKind: "space" | "server" | "linked";
+      owner?: string;
+      ownerName?: string;
       /** Names of the agents that run there. */
       agents: readonly string[];
       /** What needs an admin ("Offline", "Disk almost full"), when something does. */
       needs?: string;
     }
-  | { kind: "item"; type: string; id: string; title: string; place?: PlaceId; hash?: string;
+  | {
+      kind: "item";
+      type: string;
+      id: string;
+      title: string;
+      place?: PlaceId;
+      hash?: string;
       /** The viewer's level on it, when the caller read it from the same grant the destination checks. */
-      level?: Level; private?: boolean; members?: readonly string[]; owner?: string;
+      level?: Level;
+      private?: boolean;
+      members?: readonly string[];
+      owner?: string;
       /** A line a peek may show when the viewer cannot open it but may know it exists (a task someone else holds shows its title). Absent: no peek. */
-      summary?: string }
+      summary?: string;
+    }
   | { kind: "place"; place: PlaceId; hash?: string };
 
 export interface Peek {
@@ -44,10 +65,7 @@ export interface Peek {
   tell?: { label: string; reason: string };
 }
 
-export type Reach =
-  | { to: "open"; target: Target; where: string }
-  | { to: "peek"; peek: Peek }
-  | { to: "none" };
+export type Reach = { to: "open"; target: Target; where: string } | { to: "peek"; peek: Peek } | { to: "none" };
 
 const NONE: Reach = { to: "none" };
 
@@ -66,17 +84,53 @@ function openItem(item: Extract<Item, { kind: "item" }>, viewer: Viewer): boolea
   return item.private !== true;
 }
 
-const PLACE_OF_TYPE: Readonly<Record<string, PlaceId>> = { record: "records", project: "records", file: "files", folder: "files", chat: "chats", task: "chats", run: "automations", computer: "chats", vault: "vault", agent: "chats" };
+const PLACE_OF_TYPE: Readonly<Record<string, PlaceId>> = {
+  record: "records",
+  project: "records",
+  file: "files",
+  folder: "files",
+  chat: "chats",
+  task: "chats",
+  run: "automations",
+  computer: "chats",
+  vault: "vault",
+  agent: "chats",
+};
 
 function machine(m: Extract<Item, { kind: "machine" }>, viewer: Viewer): Reach {
   if (isAdmin(viewer)) {
     const page = PAGES.find((p) => p.id === "machines");
-    return { to: "open", where: "Console › Computers", target: { place: "console", screen: page?.screen ?? "console.machines", args: { page: "machines", machineId: m.id } } };
+    return {
+      to: "open",
+      where: "Console › Computers",
+      target: {
+        place: "console",
+        screen: page?.screen ?? "console.machines",
+        args: { page: "machines", machineId: m.id },
+      },
+    };
   }
-  if (m.owner !== undefined && m.owner === viewer.id) return { to: "open", where: "Settings › This device", target: { place: "settings", screen: "settings.page", args: { page: "computer" } } };
-  const whose = m.machineKind === "space" || m.owner === undefined ? "Shared server" : `${m.ownerName ?? "Someone"}'s computer`;
-  const lines = [m.online ? "Online" : "Offline", m.agents.length === 0 ? "No agents run here" : `Runs ${m.agents.join(", ")}`, whose];
-  return { to: "peek", peek: { title: m.name, lines, ...(m.needs !== undefined ? { tell: { label: "Tell an admin", reason: `${m.name}: ${m.needs}` } } : {}) } };
+  if (m.owner !== undefined && m.owner === viewer.id)
+    return {
+      to: "open",
+      where: "Settings › This device",
+      target: { place: "settings", screen: "settings.page", args: { page: "computer" } },
+    };
+  const whose =
+    m.machineKind === "space" || m.owner === undefined ? "Shared server" : `${m.ownerName ?? "Someone"}'s computer`;
+  const lines = [
+    m.online ? "Online" : "Offline",
+    m.agents.length === 0 ? "No agents run here" : `Runs ${m.agents.join(", ")}`,
+    whose,
+  ];
+  return {
+    to: "peek",
+    peek: {
+      title: m.name,
+      lines,
+      ...(m.needs !== undefined ? { tell: { label: "Tell an admin", reason: `${m.name}: ${m.needs}` } } : {}),
+    },
+  };
 }
 
 export function reach(item: Item, viewer: Viewer): Reach {
@@ -84,17 +138,31 @@ export function reach(item: Item, viewer: Viewer): Reach {
     case "console": {
       const page = PAGES.find((p) => p.id === item.page);
       if (page === undefined || !canOpenPage(viewer, item.page)) return NONE;
-      return { to: "open", where: `Console › ${page.title}`, target: { place: "console", screen: page.screen, args: { page: page.id, ...(item.args ?? {}) } } };
+      return {
+        to: "open",
+        where: `Console › ${page.title}`,
+        target: { place: "console", screen: page.screen, args: { page: page.id, ...(item.args ?? {}) } },
+      };
     }
-    case "machine": return machine(item, viewer);
+    case "machine":
+      return machine(item, viewer);
     case "place": {
       if (viewer.places !== undefined && !viewer.places.has(item.place)) return NONE;
-      return { to: "open", where: item.place, target: { place: item.place, ...(item.hash !== undefined ? { hash: item.hash } : {}) } };
+      return {
+        to: "open",
+        where: item.place,
+        target: { place: item.place, ...(item.hash !== undefined ? { hash: item.hash } : {}) },
+      };
     }
     case "item": {
       const place = item.place ?? PLACE_OF_TYPE[item.type] ?? "chats";
       if (viewer.places !== undefined && !viewer.places.has(place)) return NONE;
-      if (openItem(item, viewer)) return { to: "open", where: item.title, target: { place, hash: item.hash ?? `subject=${item.type === "computer" ? "agent" : item.type}:${item.id}` } };
+      if (openItem(item, viewer))
+        return {
+          to: "open",
+          where: item.title,
+          target: { place, hash: item.hash ?? `subject=${item.type === "computer" ? "agent" : item.type}:${item.id}` },
+        };
       return item.summary !== undefined ? { to: "peek", peek: { title: item.title, lines: [item.summary] } } : NONE;
     }
   }
@@ -114,8 +182,14 @@ export interface Acts {
 
 /** What a click does. Returns what it did, so a test can compare it with the hover. */
 export function act(r: Reach, acts: Acts): "open" | "peek" | null {
-  if (r.to === "open") { acts.open(r.target); return "open"; }
-  if (r.to === "peek") { acts.peek(r.peek); return "peek"; }
+  if (r.to === "open") {
+    acts.open(r.target);
+    return "open";
+  }
+  if (r.to === "peek") {
+    acts.peek(r.peek);
+    return "peek";
+  }
   return null;
 }
 
@@ -131,7 +205,16 @@ export function listable(hit: { kind: string; place?: PlaceId; consolePage?: str
 
 /** The request "Tell an admin" files: the Space's admins get it as a Needs you card, and the viewer sees one quiet line. */
 export const TELL_SENT = "Sent to the Space's admins";
-export async function tellAdmins(call: (cap: string, input: unknown) => Promise<unknown>, viewer: Viewer, reason: string): Promise<string> {
-  await call("access.request", { resource: { type: "space", id: viewer.spaceId ?? "" }, level: "view", note: reason, idempotencyKey: `tell:${viewer.id}:${reason}`.slice(0, 120) });
+export async function tellAdmins(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  viewer: Viewer,
+  reason: string,
+): Promise<string> {
+  await call("access.request", {
+    resource: { type: "space", id: viewer.spaceId ?? "" },
+    level: "view",
+    note: reason,
+    idempotencyKey: `tell:${viewer.id}:${reason}`.slice(0, 120),
+  });
   return TELL_SENT;
 }

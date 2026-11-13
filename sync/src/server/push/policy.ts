@@ -3,8 +3,12 @@ import type { Catalog } from "../pull/catalog.ts";
 import type { Policy } from "./merge.ts";
 import type { PushDeps } from "./types.ts";
 
-export function catalogPolicy(catalog: Catalog, own?: (entity: string, field: string) => Policy | undefined): PushDeps["policy"] {
-  return (entity, field) => own?.(entity, field) ?? (catalog.get(entity).protectedFields.includes(field) ? "assistant" : "lww");
+export function catalogPolicy(
+  catalog: Catalog,
+  own?: (entity: string, field: string) => Policy | undefined,
+): PushDeps["policy"] {
+  return (entity, field) =>
+    own?.(entity, field) ?? (catalog.get(entity).protectedFields.includes(field) ? "assistant" : "lww");
 }
 
 /** Restricted is rank 3 (labels.ts). */

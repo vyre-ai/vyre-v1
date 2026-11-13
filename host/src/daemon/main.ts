@@ -5,7 +5,15 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
 import type { DaemonConfig } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
-import { DAMAGED_EXIT, damagedDatabase, damagedLine, hold, isCorruption, markDamaged, stillDamaged } from "./damaged-db.ts";
+import {
+  DAMAGED_EXIT,
+  damagedDatabase,
+  damagedLine,
+  hold,
+  isCorruption,
+  markDamaged,
+  stillDamaged,
+} from "./damaged-db.ts";
 import type { Daemon } from "./daemon.ts";
 
 const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
@@ -25,22 +33,55 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   const importSeams = (root: string): Promise<unknown> => fileExportsImporter(root)("computers");
   const { runComputeNode } = await import("../compute/node.ts");
   const os = await import("node:os");
-  if (!config.server) { process.stderr.write("vyred: --role compute needs --server <the Space address>\n"); return 2; }
+  if (!config.server) {
+    process.stderr.write("vyred: --role compute needs --server <the Space address>\n");
+    return 2;
+  }
   const { createReporter } = await import("../machines/reporter.ts");
-  const reporter = createReporter({ dataDir: config.dataDir, version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => ["claude_code", "codex"], docker: () => dockerUp });
+  const reporter = createReporter({
+    dataDir: config.dataDir,
+    version,
+    runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }),
+    engines: () => ["claude_code", "codex"],
+    docker: () => dockerUp,
+  });
   const { runFix } = await import("./machine-fix.ts");
   const abort = new AbortController();
-  process.once("SIGTERM", () => abort.abort()); process.once("SIGINT", () => abort.abort());
-  const docker = async (): Promise<boolean> => { try { const { execFileSync } = await import("node:child_process"); execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore", timeout: 4000 }); return true; } catch { return false; } };
+  process.once("SIGTERM", () => abort.abort());
+  process.once("SIGINT", () => abort.abort());
+  const docker = async (): Promise<boolean> => {
+    try {
+      const { execFileSync } = await import("node:child_process");
+      execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore", timeout: 4000 });
+      return true;
+    } catch {
+      return false;
+    }
+  };
   let dockerUp = await docker();
-  const timer = setInterval(() => { void docker().then((v) => { dockerUp = v; }); }, 60_000); timer.unref();
+  const timer = setInterval(() => {
+    void docker().then((v) => {
+      dockerUp = v;
+    });
+  }, 60_000);
+  timer.unref();
   // a site's custom domain on this machine: Caddy beside this process, as on the Space server
-  const router = new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: process.env["VYRE_CADDY_ADMIN"] ?? "http://127.0.0.1:2019" }), space: "node", base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} });
-  const nodeEdge = async (input: unknown, addressOf: (computerId: string) => Promise<string | null>): Promise<unknown> => {
+  const router = new CaddyRouter({
+    admin: new CaddyAdmin({ baseUrl: process.env["VYRE_CADDY_ADMIN"] ?? "http://127.0.0.1:2019" }),
+    space: "node",
+    base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
+  });
+  const nodeEdge = async (
+    input: unknown,
+    addressOf: (computerId: string) => Promise<string | null>,
+  ): Promise<unknown> => {
     const a = (input ?? {}) as { op?: string; computerId?: string; domain?: string; port?: number };
     const domain = String(a.domain);
     if (a.op === "cert") return router.certState(domain);
-    if (a.op === "remove") { await router.removeRoute(domain); return true; }
+    if (a.op === "remove") {
+      await router.removeRoute(domain);
+      return true;
+    }
     const address = await addressOf(String(a.computerId));
     if (!address) throw new Error("The computer it runs on is asleep.");
     await router.setRoute({ host: domain, upstream: `${address}:${Number(a.port)}`, auth: null });
@@ -48,21 +89,61 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   };
   try {
     const end = await runComputeNode({
-      server: config.server, join: config.join, dataDir: config.dataDir, name: os.hostname(), signal: abort.signal, now: Date.now,
+      server: config.server,
+      join: config.join,
+      dataDir: config.dataDir,
+      name: os.hostname(),
+      signal: abort.signal,
+      now: Date.now,
       fetch: (url, init) => fetch(url, init) as never,
-      sleep: (ms, signal) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+      sleep: (ms, signal) =>
+        new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, ms);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(t);
+              reject(new Error("stopped"));
+            },
+            { once: true },
+          );
+        }),
       // what runs the jobs: the agent computers module's own Docker host (the same one a Space binds), reached through its host seam; its home mirror goes back to the Space on each job's token
       makeHost: (link) => {
         const root = fileURLToPath(new URL("../../..", import.meta.url));
         const seams = importSeams(root);
         return {
           async run(kind, input) {
-            const s = (await seams) as { buildComputerHost?: (c: unknown) => unknown; nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown> } | undefined;
+            const s = (await seams) as
+              | {
+                  buildComputerHost?: (c: unknown) => unknown;
+                  nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown>;
+                }
+              | undefined;
             if (!s?.buildComputerHost || !s.nodeRun) throw new Error("this computer has no agent computers module");
             // the Space asks this machine's Docker for an agent workspace: through the runner's own policy, in this process (host/src/compute/docker-ask.ts)
             if (kind === "docker") return (workspaceDocker ??= await startWorkspaceDocker(config.dataDir))(input);
-            if (kind === "edge") return nodeEdge(input, (computerId) => s.nodeRun!(host!, "address", { computerId }) as Promise<string | null>);
-            host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, announce: async (m) => ((await link.call(m.agentId, "made_files", { files: m.files.map((f) => ({ fileId: f.fileId })) })) as { said?: boolean } | undefined)?.said !== false, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
+            if (kind === "edge")
+              return nodeEdge(
+                input,
+                (computerId) => s.nodeRun!(host!, "address", { computerId }) as Promise<string | null>,
+              );
+            host ??= s.buildComputerHost(
+              createComputersHost({
+                dataDir: config.dataDir,
+                callAs: link.call,
+                putBytes: link.put,
+                announce: async (m) =>
+                  (
+                    (await link.call(m.agentId, "made_files", {
+                      files: m.files.map((f) => ({ fileId: f.fileId })),
+                    })) as { said?: boolean } | undefined
+                  )?.said !== false,
+                homeIntervalMs: 2_000_000_000,
+                log: (level, msg, attrs) =>
+                  process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`),
+              }),
+            );
             return s.nodeRun(host, kind, input);
           },
         };
@@ -71,26 +152,47 @@ async function runCompute(config: DaemonConfig): Promise<number> {
       cliLauncher: {
         async spawn(spec) {
           const root = fileURLToPath(new URL("../../..", import.meta.url));
-          const engine = (await fileExportsImporter(root)("engine")) as { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => { spawn(spec: unknown): Promise<never> } } | undefined;
-          if (!engine?.nodeCliLauncher) throw Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" });
+          const engine = (await fileExportsImporter(root)("engine")) as
+            | {
+                nodeCliLauncher?: (
+                  dataDir: string,
+                  deps?: { install?: boolean },
+                ) => { spawn(spec: unknown): Promise<never> };
+              }
+            | undefined;
+          if (!engine?.nodeCliLauncher)
+            throw Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" });
           // an engine this computer lacks (Grok, or any on an older image) is installed into its own engines folder the first time a turn needs it
           cli ??= engine.nodeCliLauncher(config.dataDir, { install: true });
           return cli.spawn(spec);
         },
       },
-      pollMs: Number(process.env["VYRE_POLL_MS"]) || 3_000, log: (line) => process.stdout.write(`vyred: ${line}\n`),
+      pollMs: Number(process.env["VYRE_POLL_MS"]) || 3_000,
+      log: (line) => process.stdout.write(`vyred: ${line}\n`),
       facts: () => ({ os: process.platform, arch: process.arch, docker: dockerUp, version }),
       report: (now) => ({ ...reporter.report({ turns: now.turns }) }) as unknown as Record<string, unknown>,
-      fix: (fix, service) => (fix === "clear_caches" || fix === "stop_idle" || fix === "restart_service" ? runFix(fix, service, { dataDir: config.dataDir, now: Date.now }) : Promise.reject(new Error("unknown fix"))),
+      fix: (fix, service) =>
+        fix === "clear_caches" || fix === "stop_idle" || fix === "restart_service"
+          ? runFix(fix, service, { dataDir: config.dataDir, now: Date.now })
+          : Promise.reject(new Error("unknown fix")),
     });
     return end === "stopped" ? 0 : end === "declined" ? 3 : 4;
-  } catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 1; } finally { clearInterval(timer); }
+  } catch (e) {
+    process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`);
+    return 1;
+  } finally {
+    clearInterval(timer);
+  }
 }
 
 async function main(): Promise<number> {
   let config: DaemonConfig;
-  try { config = loadConfig(process.argv.slice(2), process.env, version); }
-  catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 2; }
+  try {
+    config = loadConfig(process.argv.slice(2), process.env, version);
+  } catch (e) {
+    process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`);
+    return 2;
+  }
   if (config.roles.includes("compute")) return runCompute(config);
   // a database an earlier start found damaged, and still damaged: hold (damaged-db.ts) instead of starting, so nothing re-opens it in a restart loop
   const held = stillDamaged(config.dataDir);
@@ -98,11 +200,14 @@ async function main(): Promise<number> {
     process.stderr.write(`${held}\n`);
     return hold(held, config.host, config.port);
   }
-  let resolveStopped:()=>void=()=>{};
-  const stopped=new Promise<void>(resolve=>{resolveStopped=resolve;});
+  let resolveStopped: () => void = () => {};
+  const stopped = new Promise<void>((resolve) => {
+    resolveStopped = resolve;
+  });
   let d: Daemon;
-  try { d = await startDaemon({ config, onStopped:resolveStopped, engineInstall: true }); }
-  catch (e) {
+  try {
+    d = await startDaemon({ config, onStopped: resolveStopped, engineInstall: true });
+  } catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
     // shell that started it would wait out its timeout instead of showing this line. A damaged database is named, with the way back (damaged-db.ts), and exits 3.
     if (isCorruption(e)) {
@@ -117,15 +222,22 @@ async function main(): Promise<number> {
   }
   process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
   if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);
-  await Promise.race([stopped,new Promise<void>((resolve) => {
-    let stopping = false;
-    const stop = (): void => { if (stopping) return; stopping = true; void d.stop().finally(resolve); };
-    process.once("SIGTERM", stop);
-    process.once("SIGINT", stop);
-    // SIGBREAK is Windows' console-control signal; unlike a forced taskkill it lets
-    // the daemon remove vyred.json and close its stores before the process exits.
-    if (process.platform === "win32") process.once("SIGBREAK", stop);
-  })]);
+  await Promise.race([
+    stopped,
+    new Promise<void>((resolve) => {
+      let stopping = false;
+      const stop = (): void => {
+        if (stopping) return;
+        stopping = true;
+        void d.stop().finally(resolve);
+      };
+      process.once("SIGTERM", stop);
+      process.once("SIGINT", stop);
+      // SIGBREAK is Windows' console-control signal; unlike a forced taskkill it lets
+      // the daemon remove vyred.json and close its stores before the process exits.
+      if (process.platform === "win32") process.once("SIGBREAK", stop);
+    }),
+  ]);
   return 0;
 }
 

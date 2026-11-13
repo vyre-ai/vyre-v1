@@ -12,7 +12,12 @@ import { Dot, Segmented, Skeleton, anchorOf, webProps } from "./parts.tsx";
 
 export type EditView = "text" | "form";
 
-export const SEV_COLOR: Readonly<Record<Sev, string>> = { ok: "var(--ok)", warn: "var(--warn)", err: "var(--danger)", info: "var(--accent)" };
+export const SEV_COLOR: Readonly<Record<Sev, string>> = {
+  ok: "var(--ok)",
+  warn: "var(--warn)",
+  err: "var(--danger)",
+  info: "var(--accent)",
+};
 
 export interface LintBarProps {
   fileId: string;
@@ -42,19 +47,38 @@ function Chip({ item, onPress }: { item: LintItem; onPress: (e: unknown) => void
       {...webProps({ title: item.tip || item.label, ...(many ? { "aria-haspopup": "menu" } : {}) })}
     >
       <Dot color={SEV_COLOR[item.sev]} />
-      <Text style={st.chipText} numberOfLines={1}>{item.label}</Text>
+      <Text style={st.chipText} numberOfLines={1}>
+        {item.label}
+      </Text>
     </Pressable>
   );
 }
 
-function ProblemsChip({ problems, onPress }: { problems: readonly LintItem[]; onPress: (e: unknown) => void }): ReactElement {
+function ProblemsChip({
+  problems,
+  onPress,
+}: {
+  problems: readonly LintItem[];
+  onPress: (e: unknown) => void;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const label = `${problems.length} ${problems.length === 1 ? "problem" : "problems"}`;
   const red = problems.some((p) => p.sev === "err");
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} testID="lint-problems" style={[st.chip, st.probs, over && st.chipOver]} {...webProps({ title: "Show what to fix", "aria-haspopup": "menu" })}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      testID="lint-problems"
+      style={[st.chip, st.probs, over && st.chipOver]}
+      {...webProps({ title: "Show what to fix", "aria-haspopup": "menu" })}
+    >
       <Dot color={red ? SEV_COLOR.err : SEV_COLOR.warn} />
-      <Text style={[st.chipText, st.probsText]} numberOfLines={1}>{label}</Text>
+      <Text style={[st.chipText, st.probsText]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -64,29 +88,67 @@ export function LintBar({ fileId, name, text, view, onView, onJump, onOpenName }
   const { element: menu, show } = useMenu();
   if (q.status !== "ready") return <Skeleton height={34} testID="lint-loading" />;
   const items = lintItems(q.data, text);
-  const press = (item: LintItem) => (e: unknown): void => {
-    // a press goes to the line that says it follows VYRE.md; Cmd or Ctrl with it opens VYRE.md itself
-    if (item.k === "inherits" && item.sev === "ok" && onOpenName) { const ev = e as { metaKey?: boolean; ctrlKey?: boolean } | undefined; if (ev?.metaKey === true || ev?.ctrlKey === true) { onOpenName("VYRE.md", false); return; } }
-    if (item.list.length > 1) {
-      const at = anchorOf(e);
-      show(item.list.slice(0, 12).map((p) => ({ label: jumpLabel(p), onSelect: () => onJump(p.line) })), at.x, at.y, "other");
-    } else onJump(item.line);
-  };
+  const press =
+    (item: LintItem) =>
+    (e: unknown): void => {
+      // a press goes to the line that says it follows VYRE.md; Cmd or Ctrl with it opens VYRE.md itself
+      if (item.k === "inherits" && item.sev === "ok" && onOpenName) {
+        const ev = e as { metaKey?: boolean; ctrlKey?: boolean } | undefined;
+        if (ev?.metaKey === true || ev?.ctrlKey === true) {
+          onOpenName("VYRE.md", false);
+          return;
+        }
+      }
+      if (item.list.length > 1) {
+        const at = anchorOf(e);
+        show(
+          item.list.slice(0, 12).map((p) => ({ label: jumpLabel(p), onSelect: () => onJump(p.line) })),
+          at.x,
+          at.y,
+          "other",
+        );
+      } else onJump(item.line);
+    };
   // every check that is not green, as one list: a press on a row jumps to its line
   const problems = items.filter((i) => i.sev === "warn" || i.sev === "err");
   const openProblems = (e: unknown): void => {
     const at = anchorOf(e);
-    show(problems.flatMap((i) => (i.list.length > 0 ? i.list.slice(0, 12).map((p) => ({ label: `${jumpLabel(p)}`, onSelect: () => onJump(p.line) })) : [{ label: `Line ${i.line}: ${i.label}`, onSelect: () => onJump(i.line) }])), at.x, at.y, "other");
+    show(
+      problems.flatMap((i) =>
+        i.list.length > 0
+          ? i.list.slice(0, 12).map((p) => ({ label: `${jumpLabel(p)}`, onSelect: () => onJump(p.line) }))
+          : [{ label: `Line ${i.line}: ${i.label}`, onSelect: () => onJump(i.line) }],
+      ),
+      at.x,
+      at.y,
+      "other",
+    );
   };
   return (
     <View style={st.bar} testID="lint-bar" role="status" aria-label={`Checks for ${name}`}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.scroll} contentContainerStyle={st.items}>
-        {problems.length > 0 ? <><ProblemsChip problems={problems} onPress={openProblems} /><View style={st.lsep} /></> : null}
+        {problems.length > 0 ? (
+          <>
+            <ProblemsChip problems={problems} onPress={openProblems} />
+            <View style={st.lsep} />
+          </>
+        ) : null}
         {/* ui-rows-lint: not a list (a bar of check chips in one 34 px line, as in the prototype) */}
-        {items.map((i) => <Chip key={i.k} item={i} onPress={press(i)} />)}
+        {items.map((i) => (
+          <Chip key={i.k} item={i} onPress={press(i)} />
+        ))}
       </ScrollView>
       {q.data.file === "agent_toml" && view && onView ? (
-        <Segmented options={[{ id: "text", label: "Text" }, { id: "form", label: "Form" }]} value={view} onChange={onView} label="Text or form" testID="lint-view" />
+        <Segmented
+          options={[
+            { id: "text", label: "Text" },
+            { id: "form", label: "Form" },
+          ]}
+          value={view}
+          onChange={onView}
+          label="Text or form"
+          testID="lint-view"
+        />
       ) : null}
       {menu}
     </View>
@@ -94,7 +156,17 @@ export function LintBar({ fileId, name, text, view, onView, onJump, onOpenName }
 }
 
 const st = StyleSheet.create({
-  bar: { flexDirection: "row", alignItems: "center", gap: 8, height: 34, paddingLeft: 10, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)", backgroundColor: "var(--win)" as string },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 34,
+    paddingLeft: 10,
+    paddingRight: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)",
+    backgroundColor: "var(--win)" as string,
+  },
   scroll: { flex: 1, minWidth: 0 },
   items: { alignItems: "center", gap: 2 },
   chip: { flexDirection: "row", alignItems: "center", gap: 7, height: 24, paddingHorizontal: 8, borderRadius: 6 },

@@ -31,43 +31,117 @@ export interface TakeProps {
   focusBody: number;
 }
 
-export function TakeNote({ take, dispatch, close, pickImage, colour, labels, who, menu, spaceName, dropping, focusBody }: TakeProps): ReactElement {
+export function TakeNote({
+  take,
+  dispatch,
+  close,
+  pickImage,
+  colour,
+  labels,
+  who,
+  menu,
+  spaceName,
+  dropping,
+  focusBody,
+}: TakeProps): ReactElement {
   const [bodyFocusKey, setBodyFocusKey] = useState(0);
   const title = useRef<ComponentRef<typeof TextInput> | null>(null);
-  useEffect(() => { if (take.open && focusBody > 0) setBodyFocusKey((k) => k + 1); }, [focusBody, take.open]);
+  useEffect(() => {
+    if (take.open && focusBody > 0) setBodyFocusKey((k) => k + 1);
+  }, [focusBody, take.open]);
   const keys = (e: unknown, field: "title" | "body"): void => {
-    const ev = (e as { nativeEvent?: { key?: string; metaKey?: boolean; ctrlKey?: boolean }; preventDefault?: () => void });
+    const ev = e as {
+      nativeEvent?: { key?: string; metaKey?: boolean; ctrlKey?: boolean };
+      preventDefault?: () => void;
+    };
     const k = ev.nativeEvent?.key;
-    if (k === "Escape" || (k === "Enter" && (ev.nativeEvent?.metaKey || ev.nativeEvent?.ctrlKey))) { ev.preventDefault?.(); close(); return; }
-    if (k === "Enter" && field === "title") { ev.preventDefault?.(); setBodyFocusKey((k) => k + 1); }
+    if (k === "Escape" || (k === "Enter" && (ev.nativeEvent?.metaKey || ev.nativeEvent?.ctrlKey))) {
+      ev.preventDefault?.();
+      close();
+      return;
+    }
+    if (k === "Enter" && field === "title") {
+      ev.preventDefault?.();
+      setBodyFocusKey((k) => k + 1);
+    }
   };
   if (!take.open) {
     return (
       <View style={s.closedWrap} {...menuTrigger(menu)}>
         <Pressable
-          accessibilityRole="button" accessibilityLabel="Take a note" testID="take-closed" onPress={() => dispatch({ t: "open" })}
-          style={[s.take, s.closed]} {...dom({ dataSet: { ntake: "closed", ndrop: dropping ? "true" : "false" } })}
+          accessibilityRole="button"
+          accessibilityLabel="Take a note"
+          testID="take-closed"
+          onPress={() => dispatch({ t: "open" })}
+          style={[s.take, s.closed]}
+          {...dom({ dataSet: { ntake: "closed", ndrop: dropping ? "true" : "false" } })}
         >
           <Text style={s.ph}>Take a note</Text>
-          <IconBtn icon="image" label="Add an image" iconSize={17} tabbable={false} onPress={() => pickImage()} testID="take-image-closed" />
+          <IconBtn
+            icon="image"
+            label="Add an image"
+            iconSize={17}
+            tabbable={false}
+            onPress={() => pickImage()}
+            testID="take-image-closed"
+          />
         </Pressable>
       </View>
     );
   }
-  const share = take.share === "private" ? { icon: "lock" as const, text: "Private" } : take.share === "space" ? { icon: "globe" as const, text: "Space" } : { icon: "people" as const, text: "A person" };
+  const share =
+    take.share === "private"
+      ? { icon: "lock" as const, text: "Private" }
+      : take.share === "space"
+        ? { icon: "globe" as const, text: "Space" }
+        : { icon: "people" as const, text: "A person" };
   return (
-    <View testID="take-open" style={[s.take, { backgroundColor: noteFill(take.color) }]} {...dom({ dataSet: { ntake: "open", ndrop: dropping ? "true" : "false" } })}>
+    <View
+      testID="take-open"
+      style={[s.take, { backgroundColor: noteFill(take.color) }]}
+      {...dom({ dataSet: { ntake: "open", ndrop: dropping ? "true" : "false" } })}
+    >
       {take.image ? (
         <View style={s.im}>
           <Picture uri={take.image.uri} alt="Pasted image" height={200} testID="take-picture" />
-          <IconBtn icon="x" label="Remove the image" iconSize={14} onPress={() => dispatch({ t: "rm-image" })} style={s.over} over testID="take-rm-image" />
+          <IconBtn
+            icon="x"
+            label="Remove the image"
+            iconSize={14}
+            onPress={() => dispatch({ t: "rm-image" })}
+            style={s.over}
+            over
+            testID="take-rm-image"
+          />
         </View>
       ) : null}
       <TextInput
-        ref={title} value={take.title} onChangeText={(v) => dispatch({ t: "title", v })} onKeyPress={(e) => keys(e, "title")} placeholder="Title" placeholderTextColor="var(--ink-3)"
-        accessibilityLabel="Title" testID="take-title" style={s.tkT}
+        ref={title}
+        value={take.title}
+        onChangeText={(v) => dispatch({ t: "title", v })}
+        onKeyPress={(e) => keys(e, "title")}
+        placeholder="Title"
+        placeholderTextColor="var(--ink-3)"
+        accessibilityLabel="Title"
+        testID="take-title"
+        style={s.tkT}
       />
-      <View style={s.tkBWrap}><MarkdownEditor testID="take-body" label="Note" value={take.body} onChange={(v) => dispatch({ t: "body", v })} placeholder="Take a note, or paste text, an image or a link" bare density="compact" minHeight={44} autoFocus={!take.title && !take.body} focusKey={bodyFocusKey} onEscape={close} onModEnter={close} /></View>
+      <View style={s.tkBWrap}>
+        <MarkdownEditor
+          testID="take-body"
+          label="Note"
+          value={take.body}
+          onChange={(v) => dispatch({ t: "body", v })}
+          placeholder="Take a note, or paste text, an image or a link"
+          bare
+          density="compact"
+          minHeight={44}
+          autoFocus={!take.title && !take.body}
+          focusKey={bodyFocusKey}
+          onEscape={close}
+          onModEnter={close}
+        />
+      </View>
       {take.reading ? (
         <View style={s.reading} testID="take-reading">
           <Ico name="link" size={14} color="var(--ink-3)" />
@@ -77,19 +151,46 @@ export function TakeNote({ take, dispatch, close, pickImage, colour, labels, who
       {take.link ? (
         <View style={s.linkWrap}>
           <LinkCard link={take.link} row={!!take.link.image} testID="take-link" />
-          <IconBtn icon="x" label="Remove the preview" iconSize={13} onPress={() => dispatch({ t: "rm-link" })} style={[s.over, { right: 22, top: 16 }]} over testID="take-rm-link" />
+          <IconBtn
+            icon="x"
+            label="Remove the preview"
+            iconSize={13}
+            onPress={() => dispatch({ t: "rm-link" })}
+            style={[s.over, { right: 22, top: 16 }]}
+            over
+            testID="take-rm-link"
+          />
         </View>
       ) : null}
       {take.labels.length ? (
-        <View style={s.labels}><Ico name="tag" size={12} color="var(--ink-3)" /><Text style={s.labelsText}>{take.labels.join(", ")}</Text></View>
+        <View style={s.labels}>
+          <Ico name="tag" size={12} color="var(--ink-3)" />
+          <Text style={s.labelsText}>{take.labels.join(", ")}</Text>
+        </View>
       ) : null}
       <View style={s.tbar}>
         <IconBtn icon="palette" label="Colour" onPress={colour} testID="take-colour" />
         <IconBtn icon="tag" label="Labels" onPress={labels} testID="take-labels" />
         <IconBtn icon="image" label="Add an image" onPress={() => pickImage()} testID="take-image" />
-        <IconBtn icon={take.pinned ? "pinf" : "pin"} label={take.pinned ? "Unpin" : "Pin"} on={take.pinned} onPress={() => dispatch({ t: "pin" })} testID="take-pin" />
+        <IconBtn
+          icon={take.pinned ? "pinf" : "pin"}
+          label={take.pinned ? "Unpin" : "Pin"}
+          on={take.pinned}
+          onPress={() => dispatch({ t: "pin" })}
+          testID="take-pin"
+        />
         <Tooltip text={take.share === "space" ? `Everyone in ${spaceName}` : "Who can see it"}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Who can see it: ${share.text}`} testID="take-who" onPress={(e) => { const p = pressPoint(e); who(p.x, p.y); }} style={s.who} {...dom({ dataSet: { nbtn: "ghost" } })}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Who can see it: ${share.text}`}
+            testID="take-who"
+            onPress={(e) => {
+              const p = pressPoint(e);
+              who(p.x, p.y);
+            }}
+            style={s.who}
+            {...dom({ dataSet: { nbtn: "ghost" } })}
+          >
             <Ico name={share.icon} size={13} color="var(--ink-3)" />
             <Text style={s.whoText}>{share.text}</Text>
           </Pressable>
@@ -104,17 +205,63 @@ export function TakeNote({ take, dispatch, close, pickImage, colour, labels, who
 const s = StyleSheet.create({
   closedWrap: { width: "100%", maxWidth: 600, alignSelf: "center", marginTop: 18, marginBottom: 28 },
   take: {
-    width: "100%", maxWidth: 600, alignSelf: "center", borderRadius: 14, backgroundColor: "var(--raised)" as string, marginTop: 18, marginBottom: 28,
+    width: "100%",
+    maxWidth: 600,
+    alignSelf: "center",
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+    marginTop: 18,
+    marginBottom: 28,
     ...(web ? ({ boxShadow: "var(--sh-2)" } as object) : null),
   },
-  closed: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingLeft: 16, paddingRight: 8, marginTop: 0, marginBottom: 0, ...(web ? ({ cursor: "text", boxShadow: "0 0 0 1px var(--line), var(--sh-1)" } as object) : null) },
+  closed: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 48,
+    paddingLeft: 16,
+    paddingRight: 8,
+    marginTop: 0,
+    marginBottom: 0,
+    ...(web ? ({ cursor: "text", boxShadow: "0 0 0 1px var(--line), var(--sh-1)" } as object) : null),
+  },
   ph: { flex: 1, fontSize: 15, color: "var(--ink-3)" as string },
   im: { position: "relative", borderTopLeftRadius: 14, borderTopRightRadius: 14, overflow: "hidden" },
   over: { position: "absolute", right: 8, top: 8 },
-  tkT: { width: "100%", fontSize: 16, lineHeight: 22, fontWeight: "600", color: "var(--ink)" as string, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 2, ...(web ? ({ outlineStyle: "none" } as object) : null) },
+  tkT: {
+    width: "100%",
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: "var(--ink)" as string,
+    paddingTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 2,
+    ...(web ? ({ outlineStyle: "none" } as object) : null),
+  },
   tkBWrap: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
-  tkB: { width: "100%", fontSize: 14, lineHeight: 21, color: "var(--ink)" as string, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
-  reading: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 4, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  tkB: {
+    width: "100%",
+    fontSize: 14,
+    lineHeight: 21,
+    color: "var(--ink)" as string,
+    paddingTop: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null),
+  },
+  reading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 4,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+  },
   readingText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   linkWrap: { paddingHorizontal: 16, paddingBottom: 8, position: "relative" },
   labels: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 4 },

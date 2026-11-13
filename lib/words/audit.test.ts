@@ -4,30 +4,65 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { actParts, auditPhrase, auditSentence, leaksCode, sayWords } from "./audit.ts";
 
-const registry = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; audit?: string }[]; events: { name: string }[] };
+const registry = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as {
+  capabilities: { name: string; audit?: string }[];
+  events: { name: string }[];
+};
 
 test("known acts read as sentences", () => {
-  assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save", resource: "Fee agreement.pdf" }), "Priya Raman saved the file Fee agreement.pdf");
+  assert.equal(
+    auditSentence({ actor: "Priya Raman", action: "files.save", resource: "Fee agreement.pdf" }),
+    "Priya Raman saved the file Fee agreement.pdf",
+  );
   assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save" }), "Priya Raman saved a file");
-  assert.equal(auditSentence({ actor: "Dex", action: "tasks.working_notes.set", onBehalfOf: "Andrey" }), "Dex changed the working notes of a task, for Andrey");
-  assert.equal(auditSentence({ actor: "Omar", action: "tasks.working_notes.set", resource: "Send Josh the link" }), "Omar changed the working notes of Send Josh the link");
+  assert.equal(
+    auditSentence({ actor: "Dex", action: "tasks.working_notes.set", onBehalfOf: "Andrey" }),
+    "Dex changed the working notes of a task, for Andrey",
+  );
+  assert.equal(
+    auditSentence({ actor: "Omar", action: "tasks.working_notes.set", resource: "Send Josh the link" }),
+    "Omar changed the working notes of Send Josh the link",
+  );
   assert.equal(auditSentence({ actor: "Sara", action: "records.create" }), "Sara created a record");
   assert.equal(auditSentence({ actor: "Sara", action: "files.delete" }), "Sara deleted a file");
   assert.equal(auditSentence({ actor: "Mira", action: "vault.share" }), "Mira shared the Vault");
-  assert.equal(auditSentence({ actor: "", action: "access.actors.create" }), "Someone created an outside tool in access settings");
+  assert.equal(
+    auditSentence({ actor: "", action: "access.actors.create" }),
+    "Someone created an outside tool in access settings",
+  );
 });
 
 test("a thing done to someone joins with its own word, and a named thing says what kind it is", () => {
-  assert.equal(auditSentence({ actor: "Priya Raman", action: "access.roles.assign", resource: "Omar Haddad" }), "Priya Raman assigned a role to Omar Haddad");
-  assert.equal(auditSentence({ actor: "Priya Raman", action: "access.groups.remove_member", resource: "Sales" }), "Priya Raman removed a group member from Sales");
-  assert.equal(auditSentence({ actor: "Intake", action: "records.reveal", resource: "Rivera engagement", onBehalfOf: "Priya Raman" }), "Intake revealed the record Rivera engagement, for Priya Raman");
-  assert.equal(auditSentence({ actor: "Tom Reyes", action: "agents.delete", resource: "Dex" }), "Tom Reyes deleted the agent Dex");
+  assert.equal(
+    auditSentence({ actor: "Priya Raman", action: "access.roles.assign", resource: "Omar Haddad" }),
+    "Priya Raman assigned a role to Omar Haddad",
+  );
+  assert.equal(
+    auditSentence({ actor: "Priya Raman", action: "access.groups.remove_member", resource: "Sales" }),
+    "Priya Raman removed a group member from Sales",
+  );
+  assert.equal(
+    auditSentence({
+      actor: "Intake",
+      action: "records.reveal",
+      resource: "Rivera engagement",
+      onBehalfOf: "Priya Raman",
+    }),
+    "Intake revealed the record Rivera engagement, for Priya Raman",
+  );
+  assert.equal(
+    auditSentence({ actor: "Tom Reyes", action: "agents.delete", resource: "Dex" }),
+    "Tom Reyes deleted the agent Dex",
+  );
 });
 
 test("events read the same way, and a state needs no actor", () => {
   assert.equal(auditPhrase("file.comment_resolved"), "resolved the comment of a file");
   assert.equal(auditPhrase("file.renamed", "plan.md"), "renamed the file plan.md");
-  assert.match(auditSentence({ actor: "x", action: "call.recording_ready" }), /^Call recording is ready$|^Recording of a call is ready$/i);
+  assert.match(
+    auditSentence({ actor: "x", action: "call.recording_ready" }),
+    /^Call recording is ready$|^Recording of a call is ready$/i,
+  );
 });
 
 test("code words are said plainly", () => {
@@ -42,7 +77,10 @@ test("every act the registry has reads without a dotted name, an id, an undersco
   assert.ok(acts.length > 1500, `${acts.length} acts`);
   const bad: string[] = [];
   for (const a of acts) {
-    for (const line of [auditSentence({ actor: "Priya Raman", action: a }), auditSentence({ actor: "Priya Raman", action: a, resource: "Fee agreement.pdf", onBehalfOf: "Andrey" })]) {
+    for (const line of [
+      auditSentence({ actor: "Priya Raman", action: a }),
+      auditSentence({ actor: "Priya Raman", action: a, resource: "Fee agreement.pdf", onBehalfOf: "Andrey" }),
+    ]) {
       const why = leaksCode(line);
       if (why) bad.push(`${a}: ${line} (${why})`);
       if (!/^[A-Z]/.test(line) || line.length < 8) bad.push(`${a}: "${line}" is not a sentence`);
@@ -61,11 +99,35 @@ test("the guard catches what it is for", () => {
 });
 
 test("joining reads as sentences a person says (owner walk, 12 Nov: 'Vyre accepted the create account of an invite', 'created an invite of a member')", () => {
-  assert.equal(auditSentence({ actor: "Olivia Owner", action: "members.invites.create", resource: "Northwind Studio" }), "Olivia Owner made an invite to the Space");
-  assert.equal(auditSentence({ actor: "Maya Lin", action: "members.accept" }), "Maya Lin joined the Space from an invite");
-  assert.equal(auditSentence({ actor: "Vyre", action: "invites.accept_create_account" }), "Vyre set up a new member's account");
+  assert.equal(
+    auditSentence({ actor: "Olivia Owner", action: "members.invites.create", resource: "Northwind Studio" }),
+    "Olivia Owner made an invite to the Space",
+  );
+  assert.equal(
+    auditSentence({ actor: "Maya Lin", action: "members.accept" }),
+    "Maya Lin joined the Space from an invite",
+  );
+  assert.equal(
+    auditSentence({ actor: "Vyre", action: "invites.accept_create_account" }),
+    "Vyre set up a new member's account",
+  );
   assert.equal(auditSentence({ actor: "Vyre", action: "access.groups.add_member" }), "Vyre added a member to a team");
-  assert.equal(auditSentence({ actor: "Vyre", action: "access.roles.assign" }), "Vyre assigned a role", "a role given while someone joins reads plainly; with a name it keeps 'assigned a role to Omar'");
-  assert.equal(auditSentence({ actor: "Olivia Owner", action: "access.share" }), "Olivia Owner shared an item", "not 'shared the access settings'");
-  for (const a of ["members.invites.create", "members.accept", "invites.accept_create_account", "access.groups.add_member", "access.roles.assign"]) assert.equal(leaksCode(auditSentence({ actor: "Vyre", action: a })), null, a);
+  assert.equal(
+    auditSentence({ actor: "Vyre", action: "access.roles.assign" }),
+    "Vyre assigned a role",
+    "a role given while someone joins reads plainly; with a name it keeps 'assigned a role to Omar'",
+  );
+  assert.equal(
+    auditSentence({ actor: "Olivia Owner", action: "access.share" }),
+    "Olivia Owner shared an item",
+    "not 'shared the access settings'",
+  );
+  for (const a of [
+    "members.invites.create",
+    "members.accept",
+    "invites.accept_create_account",
+    "access.groups.add_member",
+    "access.roles.assign",
+  ])
+    assert.equal(leaksCode(auditSentence({ actor: "Vyre", action: a })), null, a);
 });

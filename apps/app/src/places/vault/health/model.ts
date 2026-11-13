@@ -10,7 +10,12 @@ export const ISSUE_WORDS: Readonly<Record<Issue, string>> = {
   rotation_due: "Its rotation reminder has passed",
 };
 
-export const ISSUE_SHORT: Readonly<Record<Issue, string>> = { weak: "weak", reused: "reused", stale: "stale", rotation_due: "rotation due" };
+export const ISSUE_SHORT: Readonly<Record<Issue, string>> = {
+  weak: "weak",
+  reused: "reused",
+  stale: "stale",
+  rotation_due: "rotation due",
+};
 
 /** "2 weak, 1 reused, 3 stale": only the kinds that have something; "All clear" when nothing does. */
 export function summaryWords(h: Pick<Health, "weak" | "reused" | "stale" | "rotationDue">): string {

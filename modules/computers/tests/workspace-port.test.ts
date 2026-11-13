@@ -2,7 +2,13 @@
 // opens. The terminal module cannot import this one, so the daemon binds the two with these. The machine and its report are the fakes of capacity.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { workspaceClaim, workspaceRelease, workspaceWaiting, workspaceKey, bindWorkspaceStart } from "../workspace-port.ts";
+import {
+  workspaceClaim,
+  workspaceRelease,
+  workspaceWaiting,
+  workspaceKey,
+  bindWorkspaceStart,
+} from "../workspace-port.ts";
 import { hostCalls } from "../impl.ts";
 import { heldOn, LIMITS } from "../capacity.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -10,7 +16,17 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const MB = 1024 * 1024;
 function report(h: Harness, o: { memMb: number; usedMb?: number }): void {
-  h.respond["machines.list"] = () => ({ machines: [{ machineId: "space", name: "Space", cores: 4, memBytes: o.memMb * MB, load: { memUsedBytes: (o.usedMb ?? 512) * MB, diskFreeBytes: 50_000 * MB } }] });
+  h.respond["machines.list"] = () => ({
+    machines: [
+      {
+        machineId: "space",
+        name: "Space",
+        cores: 4,
+        memBytes: o.memMb * MB,
+        load: { memUsedBytes: (o.usedMb ?? 512) * MB, diskFreeBytes: 50_000 * MB },
+      },
+    ],
+  });
 }
 
 test("the calls are host calls, never capabilities, and name the workspace by its container", () => {
@@ -35,12 +51,17 @@ test("a full host queues the claim with the plain line, and a release that opens
   // room for exactly one workspace beside the headroom
   report(h, { memMb: 1536 + LIMITS.workspace.reserveMb, usedMb: 100 });
   const started: string[] = [];
-  bindWorkspaceStart(async (agentId) => { started.push(agentId); });
+  bindWorkspaceStart(async (agentId) => {
+    started.push(agentId);
+  });
   assert.deepEqual(await workspaceClaim(h.ctx, { agentId: "agt_a" }), { state: "running" });
   const b = await workspaceClaim(h.ctx, { agentId: "agt_b" });
   assert.equal(b.state, "waiting");
   // the workspace's own line (lead, 12 Nov: a compute server cannot help a workspace on a Space server with Docker)
-  assert.match(b.line ?? "", /^Waiting for room on the Space server\. The workspace starts by itself when there is room\.$/);
+  assert.match(
+    b.line ?? "",
+    /^Waiting for room on the Space server\. The workspace starts by itself when there is room\.$/,
+  );
   assert.deepEqual(await workspaceWaiting(h.ctx, { agentId: "agt_b" }), { line: b.line });
   assert.deepEqual(await workspaceWaiting(h.ctx, { agentId: "agt_a" }), { line: null });
   assert.deepEqual(started, []);

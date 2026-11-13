@@ -12,12 +12,22 @@ const MIN = 60_000;
 
 function setup(): Harness {
   const h = harness();
-  seedMailbox(h, "mbx_maya", "maya@vyre.test", { kind: "personal", provider: "google", ownerId: "usr_maya01", privacy: "space" });
+  seedMailbox(h, "mbx_maya", "maya@vyre.test", {
+    kind: "personal",
+    provider: "google",
+    ownerId: "usr_maya01",
+    privacy: "space",
+  });
   return h;
 }
 
 function syncedAgo(h: Harness, id: string, ms: number | null, state = "syncing"): void {
-  h.ctx.db.run(`UPDATE mail_mailbox SET "lastSyncAt" = ?, state = ? WHERE id = ?`, ms === null ? null : NOW - ms, state, id);
+  h.ctx.db.run(
+    `UPDATE mail_mailbox SET "lastSyncAt" = ?, state = ? WHERE id = ?`,
+    ms === null ? null : NOW - ms,
+    state,
+    id,
+  );
 }
 
 // ---- mail.health
@@ -78,7 +88,7 @@ test("health: a failed last sync is at least degraded; paused, inbound-only and 
 test("health: a mailbox that never synced counts from when it was connected", async () => {
   const h = setup();
   syncedAgo(h, "mbx_maya", null, "pending");
-  assert.equal((await health(h.ctx, {})).state, "healthy");   // connected a moment ago
+  assert.equal((await health(h.ctx, {})).state, "healthy"); // connected a moment ago
   h.advance(2 * 60 * MIN);
   const out = await health(h.ctx, {});
   assert.equal(out.state, "degraded");
@@ -96,10 +106,14 @@ test("health refuses a bad or unknown mailbox id", async () => {
 function withSuppression(h: Harness): void {
   script(h, { "contacts.suppression.add": (i) => ({ added: 1, rows: [{ ...i }] }) });
 }
-const status = (h: Harness, id: string): string => String(h.rows(`SELECT status FROM mail_message WHERE id = ?`, id)[0]!.status);
+const status = (h: Harness, id: string): string =>
+  String(h.rows(`SELECT status FROM mail_message WHERE id = ?`, id)[0]!.status);
 let at = NOW;
-const event = (providerId: string, s: Parameters<typeof statusUpdate>[1]["status"], extra: Partial<Parameters<typeof statusUpdate>[1]> = {}): Parameters<typeof statusUpdate>[1] =>
-  ({ providerId, status: s, at: ++at, ...extra });
+const event = (
+  providerId: string,
+  s: Parameters<typeof statusUpdate>[1]["status"],
+  extra: Partial<Parameters<typeof statusUpdate>[1]> = {},
+): Parameters<typeof statusUpdate>[1] => ({ providerId, status: s, at: ++at, ...extra });
 
 test("delivered moves a sent message up the ladder once and announces it", async () => {
   const h = setup();
@@ -109,8 +123,11 @@ test("delivered moves a sent message up the ladder once and announces it", async
   assert.deepEqual(contractErrors("mail.status_update", "out", out), []);
   assert.deepEqual(out, { messageId: "eml_m1", suppressed: false });
   assert.equal(status(h, "eml_m1"), "delivered");
-  assert.deepEqual(h.named("message.delivered").map((e) => [e.subject, e.payload]), [["mail_message/eml_m1", { messageId: "eml_m1", channel: "email" }]]);
-  assert.deepEqual(await statusUpdate(h.ctx, input), out);   // the provider retries the webhook
+  assert.deepEqual(
+    h.named("message.delivered").map((e) => [e.subject, e.payload]),
+    [["mail_message/eml_m1", { messageId: "eml_m1", channel: "email" }]],
+  );
+  assert.deepEqual(await statusUpdate(h.ctx, input), out); // the provider retries the webhook
   assert.equal(h.named("message.delivered").length, 1);
   assert.equal(h.rows(`SELECT version FROM mail_message WHERE id = ?`, "eml_m1")[0]!.version, 2);
   assert.deepEqual(eventErrors(h), []);
@@ -124,11 +141,31 @@ test("a hard bounce suppresses the address, marks the message and says why", asy
   const out = await statusUpdate(h.ctx, input);
   assert.deepEqual(out, { messageId: "eml_m1", suppressed: true });
   assert.equal(status(h, "eml_m1"), "bounced");
-  assert.deepEqual(h.calls("contacts.suppression.add").map((c) => c.input), [
-    { channel: "email", addresses: ["pat@acme.test"], reason: "bounce_hard", source: "mail.bounce", note: "Mailbox does not exist" },
-  ]);
-  assert.deepEqual(h.named("message.bounced").map((e) => e.payload), [{ messageId: "eml_m1", channel: "email", address: "pat@acme.test", kind: "hard", reason: "Mailbox does not exist" }]);
-  assert.deepEqual(await statusUpdate(h.ctx, input), out);   // replay: same answer, nothing again
+  assert.deepEqual(
+    h.calls("contacts.suppression.add").map((c) => c.input),
+    [
+      {
+        channel: "email",
+        addresses: ["pat@acme.test"],
+        reason: "bounce_hard",
+        source: "mail.bounce",
+        note: "Mailbox does not exist",
+      },
+    ],
+  );
+  assert.deepEqual(
+    h.named("message.bounced").map((e) => e.payload),
+    [
+      {
+        messageId: "eml_m1",
+        channel: "email",
+        address: "pat@acme.test",
+        kind: "hard",
+        reason: "Mailbox does not exist",
+      },
+    ],
+  );
+  assert.deepEqual(await statusUpdate(h.ctx, input), out); // replay: same answer, nothing again
   assert.equal(h.calls("contacts.suppression.add").length, 1);
   assert.equal(h.named("message.bounced").length, 1);
   assert.deepEqual(eventErrors(h), []);
@@ -139,11 +176,17 @@ test("a soft bounce marks the message but leaves the address deliverable", async
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   seedSent(h, { id: "eml_m2", mailboxId: "mbx_maya", providerId: "re_2" });
   const soft = await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", reason: "Mailbox full" }));
-  const unknownKind = await statusUpdate(h.ctx, event("re_2", "bounced"));   // no kind: do not suppress on a guess
+  const unknownKind = await statusUpdate(h.ctx, event("re_2", "bounced")); // no kind: do not suppress on a guess
   assert.deepEqual([soft.suppressed, unknownKind.suppressed], [false, false]);
   assert.deepEqual([status(h, "eml_m1"), status(h, "eml_m2")], ["bounced", "bounced"]);
   assert.equal(h.calls("contacts.suppression.add").length, 0);
-  assert.deepEqual(h.named("message.bounced").map((e) => [e.payload.kind, e.payload.address]), [["soft", "pat@acme.test"], ["soft", "pat@acme.test"]]);
+  assert.deepEqual(
+    h.named("message.bounced").map((e) => [e.payload.kind, e.payload.address]),
+    [
+      ["soft", "pat@acme.test"],
+      ["soft", "pat@acme.test"],
+    ],
+  );
   assert.deepEqual(eventErrors(h), []);
 });
 
@@ -153,7 +196,10 @@ test("without an address the only recipient is meant; with several recipients no
   seedSent(h, { id: "eml_one", mailboxId: "mbx_maya", providerId: "re_1", to: [], bcc: ["Hidden@Acme.test"] });
   seedSent(h, { id: "eml_many", mailboxId: "mbx_maya", providerId: "re_2", to: ["a@acme.test"], cc: ["b@acme.test"] });
   assert.equal((await statusUpdate(h.ctx, event("re_1", "complained"))).suppressed, true);
-  assert.deepEqual(h.calls("contacts.suppression.add").map((c) => c.input.addresses), [["hidden@acme.test"]]);
+  assert.deepEqual(
+    h.calls("contacts.suppression.add").map((c) => c.input.addresses),
+    [["hidden@acme.test"]],
+  );
   assert.equal((await statusUpdate(h.ctx, event("re_2", "complained"))).suppressed, false);
   assert.equal(h.calls("contacts.suppression.add").length, 1);
   assert.equal(h.named("message.complained").length, 2);
@@ -166,14 +212,17 @@ test("a complaint suppresses, and upgrades a bounced message; nothing moves a me
   withSuppression(h);
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
-  await statusUpdate(h.ctx, event("re_1", "delivered"));              // late: ignored
+  await statusUpdate(h.ctx, event("re_1", "delivered")); // late: ignored
   assert.equal(status(h, "eml_m1"), "bounced");
   assert.equal(h.named("message.delivered").length, 0);
   const out = await statusUpdate(h.ctx, event("re_1", "complained", { address: "pat@acme.test" }));
   assert.equal(out.suppressed, true);
   assert.equal(status(h, "eml_m1"), "complained");
-  assert.deepEqual(h.calls("contacts.suppression.add").map((c) => [c.input.reason, c.input.source]), [["complaint", "mail.complaint"]]);
-  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "hard", address: "pat@acme.test" }));   // after a complaint: stays
+  assert.deepEqual(
+    h.calls("contacts.suppression.add").map((c) => [c.input.reason, c.input.source]),
+    [["complaint", "mail.complaint"]],
+  );
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "hard", address: "pat@acme.test" })); // after a complaint: stays
   assert.equal(status(h, "eml_m1"), "complained");
   assert.equal(h.named("message.bounced").length, 1);
   assert.deepEqual(eventErrors(h), []);
@@ -186,7 +235,10 @@ test("failed records the reason, or a plain one when the provider gave none", as
   await statusUpdate(h.ctx, event("re_1", "failed", { reason: "Quota exceeded" }));
   await statusUpdate(h.ctx, event("re_2", "failed"));
   assert.deepEqual([status(h, "eml_m1"), status(h, "eml_m2")], ["failed", "failed"]);
-  assert.deepEqual(h.named("message.failed").map((e) => e.payload.reason), ["Quota exceeded", "The provider could not send the message."]);
+  assert.deepEqual(
+    h.named("message.failed").map((e) => e.payload.reason),
+    ["Quota exceeded", "The provider could not send the message."],
+  );
   assert.deepEqual(eventErrors(h), []);
 });
 
@@ -196,14 +248,17 @@ test("opened and clicked announce each distinct event once and leave the status 
   const open = event("re_1", "opened");
   await statusUpdate(h.ctx, open);
   await statusUpdate(h.ctx, open);
-  await statusUpdate(h.ctx, event("re_1", "opened"));                          // opened again later
+  await statusUpdate(h.ctx, event("re_1", "opened")); // opened again later
   const click = event("re_1", "clicked", { url: "https://acme.test/offer" });
   await statusUpdate(h.ctx, click);
   await statusUpdate(h.ctx, click);
-  await statusUpdate(h.ctx, event("re_1", "clicked"));                         // a click with no url
+  await statusUpdate(h.ctx, event("re_1", "clicked")); // a click with no url
   assert.equal(status(h, "eml_m1"), "delivered");
   assert.equal(h.named("message.opened").length, 2);
-  assert.deepEqual(h.named("message.clicked").map((e) => e.payload), [{ messageId: "eml_m1", url: "https://acme.test/offer" }, { messageId: "eml_m1" }]);
+  assert.deepEqual(
+    h.named("message.clicked").map((e) => e.payload),
+    [{ messageId: "eml_m1", url: "https://acme.test/offer" }, { messageId: "eml_m1" }],
+  );
   assert.deepEqual(eventErrors(h), []);
 });
 
@@ -215,7 +270,7 @@ test("an event for a send we have no record of still suppresses a hard bounce, a
   assert.deepEqual(out, { suppressed: true });
   assert.equal(h.emitted.length, 0);
   assert.deepEqual(await statusUpdate(h.ctx, event("re_unknown", "delivered")), { suppressed: false });
-  assert.deepEqual(await statusUpdate(h.ctx, event("re_unknown", "complained")), { suppressed: false });   // no address, no message: nobody to name
+  assert.deepEqual(await statusUpdate(h.ctx, event("re_unknown", "complained")), { suppressed: false }); // no address, no message: nobody to name
   assert.equal(h.calls("contacts.suppression.add").length, 1);
   assert.equal(h.rows(`SELECT "eventKey" FROM mail_status_log`).length, 0);
 });
@@ -232,7 +287,12 @@ test("an event that arrives before the send is saved applies when the provider r
 test("a suppression failure leaves the message untouched so the retry applies the whole event", async () => {
   const h = setup();
   let down = true;
-  script(h, { "contacts.suppression.add": () => { if (down) throw hostError(h, "internal.unavailable"); return { added: 1, rows: [] }; } });
+  script(h, {
+    "contacts.suppression.add": () => {
+      if (down) throw hostError(h, "internal.unavailable");
+      return { added: 1, rows: [] };
+    },
+  });
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   const input = event("re_1", "bounced", { kind: "hard", address: "pat@acme.test" });
   await assert.rejects(statusUpdate(h.ctx, input), (e) => codeOf(e) === "internal.unavailable");
@@ -255,7 +315,16 @@ test("only mail we sent is matched: an inbound message with the same provider id
 test("status_update refuses a missing provider id, an unknown status, a bad kind and a bad time", async () => {
   const h = setup();
   await assert.rejects(statusUpdate(h.ctx, event(" ", "delivered")), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(statusUpdate(h.ctx, event("re_1", "queued" as never)), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(statusUpdate(h.ctx, event("re_1", "bounced", { kind: "medium" as never })), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(statusUpdate(h.ctx, { providerId: "re_1", status: "delivered", at: -1 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    statusUpdate(h.ctx, event("re_1", "queued" as never)),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    statusUpdate(h.ctx, event("re_1", "bounced", { kind: "medium" as never })),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    statusUpdate(h.ctx, { providerId: "re_1", status: "delivered", at: -1 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });

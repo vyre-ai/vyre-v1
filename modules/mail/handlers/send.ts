@@ -18,12 +18,37 @@
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import { isTenantService } from "../../../lib/trust.ts";
-import { DAY, DEFAULT_LIMITS, capMessage, capOk, heldText, planSend, throttleOk, windowOk } from "../../../lib/send-limits.ts";
+import {
+  DAY,
+  DEFAULT_LIMITS,
+  capMessage,
+  capOk,
+  heldText,
+  planSend,
+  throttleOk,
+  windowOk,
+} from "../../../lib/send-limits.ts";
 import type { SendLimits } from "../../../lib/send-limits.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  allow, bad, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readStrings, rowsOf, snippetOf, statements, str, strOrNull,
+  allow,
+  bad,
+  EMAIL,
+  ensure,
+  first,
+  isId,
+  missing,
+  newId,
+  normalizeEmail,
+  num,
+  partyJson,
+  readStrings,
+  rowsOf,
+  snippetOf,
+  statements,
+  str,
+  strOrNull,
   readParties,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
@@ -119,14 +144,19 @@ export function actorOf(principalKind: MailCtx["principal"]["kind"], origin: str
  * An agent or an automation is held for approval (unless the effective rule allows it, which the Gate decides);
  * a person sending their own mail is not.
  */
-export function sendGateApplies(call: { principalKind: MailCtx["principal"]["kind"]; origin?: string | undefined }): { act: "send" } | null {
+export function sendGateApplies(call: {
+  principalKind: MailCtx["principal"]["kind"];
+  origin?: string | undefined;
+}): { act: "send" } | null {
   return actorOf(call.principalKind, call.origin) === "person" ? null : { act: "send" };
 }
 
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0003_unsubscribe.sql", "0006_send_ticks.sql"].map((f) => readFileSync(fileURLToPath(new URL(`../migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0003_unsubscribe.sql", "0006_send_ticks.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`../migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 function ensureSend(ctx: SendCtx): void {
   ensure(ctx);
@@ -142,7 +172,8 @@ function ensureSend(ctx: SendCtx): void {
 
 // ---- small helpers
 
-const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const text = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
 const refuse = (ctx: SendCtx, message: string): never => {
@@ -155,11 +186,21 @@ async function setting<T>(ctx: SendCtx, key: string, fallback: T, ok: (v: unknow
     const value = obj(obj(await ctx.call("settings.get", { key })).row).value;
     return ok(value) ? value : fallback;
   } catch {
-    return fallback;   // the manifest default stands when the settings service gives nothing
+    return fallback; // the manifest default stands when the settings service gives nothing
   }
 }
 
-const zoneOk = (v: unknown): v is string => typeof v === "string" && v !== "" && (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: v }); return true; } catch { return false; } })();
+const zoneOk = (v: unknown): v is string =>
+  typeof v === "string" &&
+  v !== "" &&
+  (() => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: v });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
 
 /** The Space sending limits; a setting the settings service does not give stands at its manifest default. */
 async function limitsOf(ctx: SendCtx): Promise<SendLimits> {
@@ -175,16 +216,32 @@ async function limitsOf(ctx: SendCtx): Promise<SendLimits> {
  * Otherwise it returns the time the message may leave and takes that slot; a time later than the one asked for means the message is held (queued), not dropped. A person is not made to wait.
  * A queued message coming back at its time already holds its slot, so it is not checked again.
  */
-async function reserveSlot(ctx: SendCtx, p: Plan, wanted: number, id: string, mayHold = true): Promise<{ at: number; note: string | null }> {
+async function reserveSlot(
+  ctx: SendCtx,
+  p: Plan,
+  wanted: number,
+  id: string,
+  mayHold = true,
+): Promise<{ at: number; note: string | null }> {
   const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
   const ticks: number[] = [];
   for (const r of rowsOf(ctx.db.all(`SELECT * FROM mail_send_tick`))) {
     if (num(r, "at") < p.now - 2 * DAY) ctx.db.run(`DELETE FROM mail_send_tick WHERE id = ?`, str(r, "id"));
     else ticks.push(num(r, "at"));
   }
-  const plan = planSend({ now: p.now, wanted, zone, limits: await limitsOf(ctx), ticks, bulk: mayHold && p.actor !== "person" });
+  const plan = planSend({
+    now: p.now,
+    wanted,
+    zone,
+    limits: await limitsOf(ctx),
+    ticks,
+    bulk: mayHold && p.actor !== "person",
+  });
   if (!plan.ok) {
-    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: capMessage(plan.limit, plan.resetAt, zone), details: { reason: plan.reason, limit: plan.limit, resetAt: plan.resetAt } });
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: capMessage(plan.limit, plan.resetAt, zone),
+      details: { reason: plan.reason, limit: plan.limit, resetAt: plan.resetAt },
+    });
   }
   ctx.db.run(`INSERT INTO mail_send_tick (id, at) VALUES (?, ?)`, id, plan.at);
   return { at: plan.at, note: plan.held ? heldText(plan.held, plan.at, zone) : null };
@@ -214,11 +271,12 @@ function cleanParties(ctx: SendCtx, list: unknown, label: string): Party[] {
 /** One recipient field everywhere (spec 2.18): an address appears once, To before Cc before Bcc. */
 function dedupe(to: Party[], cc: Party[], bcc: Party[]): { to: Party[]; cc: Party[]; bcc: Party[] } {
   const seen = new Set<string>();
-  const keep = (list: Party[]): Party[] => list.filter((p) => {
-    if (seen.has(p.address)) return false;
-    seen.add(p.address);
-    return true;
-  });
+  const keep = (list: Party[]): Party[] =>
+    list.filter((p) => {
+      if (seen.has(p.address)) return false;
+      seen.add(p.address);
+      return true;
+    });
   const a = keep(to);
   const b = keep(cc);
   return { to: a, cc: b, bcc: keep(bcc) };
@@ -254,7 +312,12 @@ function compose(ctx: SendCtx, input: SendAsIn | SendIn, draft: Row | null): Com
   const firstTo = lists.to[0];
   if (input.contactId && firstTo && !firstTo.contactId) firstTo.contactId = input.contactId;
   return {
-    ...lists, subject: input.subject, text: textBody, html: htmlBody, files, contactId: input.contactId ?? strOrNull(draft, "contactId") ?? undefined,
+    ...lists,
+    subject: input.subject,
+    text: textBody,
+    html: htmlBody,
+    files,
+    contactId: input.contactId ?? strOrNull(draft, "contactId") ?? undefined,
   };
 }
 
@@ -268,13 +331,20 @@ const CUT_OFF = /(?:\.\.\.|\u2026)\s*$/;
 function asStored(ctx: SendCtx, input: SendIn, draft: Row): SendIn {
   const body = bodyOf(ctx, str(draft, "id"));
   const text = strOrNull(body, "text") ?? strOrNull(body, "html") ?? "";
-  if (CUT_OFF.test(text) && num(draft, "version") <= 1) refuse(ctx, "This draft ends in a cut-off marker, so it looks like a preview, not a finished email. Open it, finish it and send again. Nothing was sent.");
+  if (CUT_OFF.test(text) && num(draft, "version") <= 1)
+    refuse(
+      ctx,
+      "This draft ends in a cut-off marker, so it looks like a preview, not a finished email. Open it, finish it and send again. Nothing was sent.",
+    );
   const { text: _t, html: _h, ...rest } = input;
   return {
     ...rest,
-    to: readParties(str(draft, "toAddresses")), cc: readParties(str(draft, "ccAddresses")), bcc: readParties(strOrNull(body, "bcc") ?? "[]"),
+    to: readParties(str(draft, "toAddresses")),
+    cc: readParties(str(draft, "ccAddresses")),
+    bcc: readParties(strOrNull(body, "bcc") ?? "[]"),
     subject: str(draft, "subject"),
-    ...(strOrNull(body, "text") ? { text: str(body, "text") } : {}), ...(strOrNull(body, "html") ? { html: str(body, "html") } : {}),
+    ...(strOrNull(body, "text") ? { text: str(body, "text") } : {}),
+    ...(strOrNull(body, "html") ? { html: str(body, "html") } : {}),
     ...(strOrNull(draft, "contactId") ? { contactId: str(draft, "contactId") } : {}),
   };
 }
@@ -305,19 +375,24 @@ function authorizeSender(ctx: SendCtx, box: Row): void {
 const memberProvider = (box: Row): boolean => ["google", "microsoft"].includes(str(box, "provider"));
 
 function resolveRoute(ctx: SendCtx, box: Row, actor: Actor, requested: Route | undefined): Route {
-  if (requested !== undefined && requested !== "mailbox" && requested !== "space_domain") bad(ctx, "Route is not valid.");
+  if (requested !== undefined && requested !== "mailbox" && requested !== "space_domain")
+    bad(ctx, "Route is not valid.");
   if (requested === "mailbox") {
     if (!memberProvider(box)) refuse(ctx, "This mailbox cannot send mail. Send through the Space domain instead.");
     return "mailbox";
   }
   if (requested === "space_domain") return "space_domain";
   // a Personal Automation runs as its owner, so their own Gmail or Outlook is theirs to send from; a Space Automation goes through the Space domain
-  const asked = ctx.principal.kind === "agent" && ctx.actingFor === strOrNull(box, "ownerId");   // an agent sends from its person's own Gmail or Outlook as that person would
-  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person" || asked) ? "mailbox" : "space_domain";
+  const asked = ctx.principal.kind === "agent" && ctx.actingFor === strOrNull(box, "ownerId"); // an agent sends from its person's own Gmail or Outlook as that person would
+  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person" || asked)
+    ? "mailbox"
+    : "space_domain";
 }
 
 function pickDomain(ctx: SendCtx, provider: string, mailboxAddress: string): Row | null {
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE verified = ? AND deleted_at IS NULL`, 1)).filter((r) => str(r, "provider") === provider);
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE verified = ? AND deleted_at IS NULL`, 1)).filter(
+    (r) => str(r, "provider") === provider,
+  );
   const host = domainOf(mailboxAddress);
   return rows.find((r) => str(r, "name") === host) ?? rows.find((r) => num(r, "isDefault") === 1) ?? rows[0] ?? null;
 }
@@ -326,10 +401,13 @@ function pickDomain(ctx: SendCtx, provider: string, mailboxAddress: string): Row
 
 async function screen(ctx: SendCtx, parties: Party[]): Promise<{ address: string; reason: string }[]> {
   const refused = new Map<string, string>();
-  const checked = obj(await ctx.call("contacts.suppression.check", { channel: "email", addresses: parties.map((p) => p.address) }));
+  const checked = obj(
+    await ctx.call("contacts.suppression.check", { channel: "email", addresses: parties.map((p) => p.address) }),
+  );
   for (const row of Array.isArray(checked.suppressed) ? checked.suppressed : []) {
     const r = obj(row);
-    if (typeof r.address === "string") refused.set(normalizeEmail(r.address), typeof r.reason === "string" ? r.reason : "suppressed");
+    if (typeof r.address === "string")
+      refused.set(normalizeEmail(r.address), typeof r.reason === "string" ? r.reason : "suppressed");
   }
   const prefsOf = new Map<string, Record<string, unknown> | null>();
   for (const p of parties) {
@@ -338,7 +416,7 @@ async function screen(ctx: SendCtx, parties: Party[]): Promise<{ address: string
       try {
         prefsOf.set(p.contactId, obj(await ctx.call("contacts.preferences.get", { contactId: p.contactId })));
       } catch (e) {
-        if (!(e instanceof HostError) || e.error.code !== "validation.not_found") throw e;   // a missing record has no preferences; any other failure stops the send
+        if (!(e instanceof HostError) || e.error.code !== "validation.not_found") throw e; // a missing record has no preferences; any other failure stops the send
         prefsOf.set(p.contactId, null);
       }
     }
@@ -348,7 +426,9 @@ async function screen(ctx: SendCtx, parties: Party[]): Promise<{ address: string
     else if (prefs.emailConsent === "denied") refused.set(p.address, "consent_denied");
     else if (Array.isArray(prefs.optedOut) && prefs.optedOut.includes("email")) refused.set(p.address, "opted_out");
   }
-  return parties.filter((p) => refused.has(p.address)).map((p) => ({ address: p.address, reason: refused.get(p.address) ?? "suppressed" }));
+  return parties
+    .filter((p) => refused.has(p.address))
+    .map((p) => ({ address: p.address, reason: refused.get(p.address) ?? "suppressed" }));
 }
 
 // ---- the plan: everything decided before a byte leaves
@@ -369,35 +449,61 @@ interface Plan {
 /** A sender chosen from comms.senders.list must still be there, allowed and connected at send time; the refusal says what to do. A connection still waiting for its first sync can send (the first send proves it). */
 function checkChosenSender(ctx: SendCtx, box: Row): void {
   const state = str(box, "state");
-  if (state === "disconnected") refuse(ctx, "That sender is disconnected. Connect it again in Console, Comms, or pick another sender.");
-  if (state === "paused" || num(box, "paused") === 1) refuse(ctx, "That sender is paused. Resume it in Console, Comms, or pick another sender.");
-  if (state === "error") refuse(ctx, "That sender needs to be reconnected. Sign in again in Console, Comms, or pick another sender.");
+  if (state === "disconnected")
+    refuse(ctx, "That sender is disconnected. Connect it again in Console, Comms, or pick another sender.");
+  if (state === "paused" || num(box, "paused") === 1)
+    refuse(ctx, "That sender is paused. Resume it in Console, Comms, or pick another sender.");
+  if (state === "error")
+    refuse(ctx, "That sender needs to be reconnected. Sign in again in Console, Comms, or pick another sender.");
 }
 
 /** senderId is the mailbox id for email; naming two different ones is a mistake, not a choice. */
 function agreeSender(ctx: SendCtx, input: { mailboxId: string; senderId?: string }): void {
   if (input.senderId === undefined) return;
-  if (!isId("mbx", input.senderId)) bad(ctx, "That sender is not an email sender. Pick one from the list of senders for email.");
-  if (input.senderId !== input.mailboxId) bad(ctx, "The sender and the mailbox name different senders. Pass the same id for both.");
+  if (!isId("mbx", input.senderId))
+    bad(ctx, "That sender is not an email sender. Pick one from the list of senders for email.");
+  if (input.senderId !== input.mailboxId)
+    bad(ctx, "The sender and the mailbox name different senders. Pass the same id for both.");
 }
 
-async function makePlan(ctx: SendCtx, input: SendIn | PreviewIn | SendAsIn, composed: Composed, requested: Route | undefined, enforce: boolean): Promise<Plan> {
+async function makePlan(
+  ctx: SendCtx,
+  input: SendIn | PreviewIn | SendAsIn,
+  composed: Composed,
+  requested: Route | undefined,
+  enforce: boolean,
+): Promise<Plan> {
   agreeSender(ctx, input);
   const box = loadMailbox(ctx, input.mailboxId);
-  if (ctx.principal.kind === "agent" && !(await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean"))) refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
+  if (
+    ctx.principal.kind === "agent" &&
+    !(await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean"))
+  )
+    refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
   authorizeSender(ctx, box);
   if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const route = resolveRoute(ctx, box, actor, requested);
   if (route === "mailbox" && enforce) {
-    if (["paused", "disconnected", "error"].includes(str(box, "state")) || num(box, "paused") === 1) refuse(ctx, "This mailbox is not connected. Resume or reconnect it first.");
+    if (["paused", "disconnected", "error"].includes(str(box, "state")) || num(box, "paused") === 1)
+      refuse(ctx, "This mailbox is not connected. Resume or reconnect it first.");
     if (!strOrNull(box, "connectionId")) refuse(ctx, "This mailbox has no connection to send through.");
   }
   const provider = await setting<"resend" | "mailgun">(ctx, "mail.provider", "resend", providerOk);
   const domain = route === "space_domain" ? pickDomain(ctx, provider, str(box, "address")) : null;
   const suppressed = await screen(ctx, flat(composed));
   const refusedSet = new Set(suppressed.map((s) => s.address));
-  return { box, actor, route, composed, allowed: flat(composed).filter((p) => !refusedSet.has(p.address)), suppressed, domain, provider, now: ctx.now() };
+  return {
+    box,
+    actor,
+    route,
+    composed,
+    allowed: flat(composed).filter((p) => !refusedSet.has(p.address)),
+    suppressed,
+    domain,
+    provider,
+    now: ctx.now(),
+  };
 }
 
 // ---- mail.send_preview
@@ -407,7 +513,16 @@ export async function sendPreview(ctx: SendCtx, input: PreviewIn): Promise<Previ
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   const to = cleanParties(ctx, input.to, "To");
   if (to.length === 0) bad(ctx, "At least one recipient is required.");
-  const composed: Composed = { to: dedupe(to, [], []).to, cc: [], bcc: [], subject: "", text: undefined, html: undefined, files: [], contactId: undefined };
+  const composed: Composed = {
+    to: dedupe(to, [], []).to,
+    cc: [],
+    bcc: [],
+    subject: "",
+    text: undefined,
+    html: undefined,
+    files: [],
+    contactId: undefined,
+  };
   const p = await makePlan(ctx, input, composed, undefined, false);
   return { allowed: p.allowed.map((a) => a.address), suppressed: p.suppressed, providerRoute: p.route };
 }
@@ -416,14 +531,19 @@ export async function sendPreview(ctx: SendCtx, input: PreviewIn): Promise<Previ
 
 export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   ensureSend(ctx);
-  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0) bad(ctx, "Idempotency key is required.");
+  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0)
+    bad(ctx, "Idempotency key is required.");
   if (input.sendAt !== undefined && !isInt(input.sendAt)) bad(ctx, "Send time is not valid.");
-  const prior = strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "send")), "refId");
+  const prior = strOrNull(
+    first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "send")),
+    "refId",
+  );
   if (prior) return JSON.parse(prior) as SendOut;
 
   const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
   // An agent's draft goes out as it is stored: its own words, recipients, Cc and subject, whatever a composer or a card holds at the moment of Send (the person edits it with mail.draft first). Never a preview.
-  if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft") input = asStored(ctx, input, pending);
+  if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft")
+    input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
@@ -436,21 +556,35 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   const refused = p.suppressed.map((s) => s.address);
   if (p.allowed.length === 0) {
     // a queued message whose recipients were all suppressed while it waited will never leave: it is marked failed, not left queued
-    if (pending && str(pending, "status") === "queued") ctx.db.run(`UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`, "failed", num(pending, "version") + 1, now, str(pending, "id"));
+    if (pending && str(pending, "status") === "queued")
+      ctx.db.run(
+        `UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`,
+        "failed",
+        num(pending, "version") + 1,
+        now,
+        str(pending, "id"),
+      );
     return remember(ctx, input.idempotencyKey, { status: "suppressed", suppressed: refused });
   }
 
   const sendable: Composed = narrow(composed, p.allowed);
-  if (p.route === "space_domain" && !p.domain) refuse(ctx, `No verified ${p.provider} sending domain. Add and verify one in Console, Comms.`);
+  if (p.route === "space_domain" && !p.domain)
+    refuse(ctx, `No verified ${p.provider} sending domain. Add and verify one in Console, Comms.`);
 
   // a link is one person's, so a message that carries links goes out once per recipient
   if (input.unsubscribe === true && p.allowed.length > 1 && !pending) {
-    if (!hasPublicAddress()) refuse(ctx, "This Space has no public address yet, so its emails could not carry an unsubscribe link.");
+    if (!hasPublicAddress())
+      refuse(ctx, "This Space has no public address yet, so its emails could not carry an unsubscribe link.");
     const { cc: _cc, bcc: _bcc, ...one } = input;
     const each: SendOut[] = [];
-    for (const party of p.allowed) each.push(await send(ctx, { ...one, to: [party], idempotencyKey: `${input.idempotencyKey}:${party.address}` }));
+    for (const party of p.allowed)
+      each.push(await send(ctx, { ...one, to: [party], idempotencyKey: `${input.idempotencyKey}:${party.address}` }));
     const lead = each.find((e) => e.messageId !== undefined)?.messageId;
-    return remember(ctx, input.idempotencyKey, { ...(lead ? { messageId: lead } : {}), status: each.some((e) => e.status === "sent") ? "sent" : "queued", suppressed: refused });
+    return remember(ctx, input.idempotencyKey, {
+      ...(lead ? { messageId: lead } : {}),
+      status: each.some((e) => e.status === "sent") ? "sent" : "queued",
+      suppressed: refused,
+    });
   }
 
   let when = Math.max(now, input.sendAt ?? now);
@@ -465,12 +599,25 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
   if (when > now) {
     // scheduled: the message waits as a queued row and a scheduled call delivers it
-    if (!ctx.schedule) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Scheduling is not available right now." });
+    if (!ctx.schedule)
+      throw fail("internal.unavailable", ctx.trace.traceId, { message: "Scheduling is not available right now." });
     writeRow(ctx, p, sendable, parent, pending, row, "queued", when, null);
-    const again: Record<string, unknown> = { ...stripUndefined(input), to: sendable.to, cc: sendable.cc, bcc: sendable.bcc, draftId: row, idempotencyKey: `${input.idempotencyKey}:due` };
+    const again: Record<string, unknown> = {
+      ...stripUndefined(input),
+      to: sendable.to,
+      cc: sendable.cc,
+      bcc: sendable.bcc,
+      draftId: row,
+      idempotencyKey: `${input.idempotencyKey}:due`,
+    };
     delete again.sendAt;
     await ctx.schedule(when, "mail.send", again);
-    return remember(ctx, input.idempotencyKey, { messageId: row, status: "queued", suppressed: refused, ...(note ? { note } : {}) });
+    return remember(ctx, input.idempotencyKey, {
+      messageId: row,
+      status: "queued",
+      suppressed: refused,
+      ...(note ? { note } : {}),
+    });
   }
 
   const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true);
@@ -479,7 +626,12 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
 function narrow(c: Composed, allowed: Party[]): Composed {
   const keep = new Set(allowed.map((a) => a.address));
-  return { ...c, to: c.to.filter((p) => keep.has(p.address)), cc: c.cc.filter((p) => keep.has(p.address)), bcc: c.bcc.filter((p) => keep.has(p.address)) };
+  return {
+    ...c,
+    to: c.to.filter((p) => keep.has(p.address)),
+    cc: c.cc.filter((p) => keep.has(p.address)),
+    bcc: c.bcc.filter((p) => keep.has(p.address)),
+  };
 }
 
 function stripUndefined(input: SendIn): Record<string, unknown> {
@@ -487,7 +639,12 @@ function stripUndefined(input: SendIn): Record<string, unknown> {
 }
 
 function remember(ctx: SendCtx, key: string, out: SendOut): SendOut {
-  ctx.db.run(`INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, key, "send", JSON.stringify(out));
+  ctx.db.run(
+    `INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`,
+    key,
+    "send",
+    JSON.stringify(out),
+  );
   return out;
 }
 
@@ -503,34 +660,67 @@ function loadPending(ctx: SendCtx, id: string, mailboxId: string): Row {
 function loadParent(ctx: SendCtx, id: string, mailboxId: string): Row {
   if (!isId("eml", id)) bad(ctx, "Reply target id is not valid.");
   const parent = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND deleted_at IS NULL`, id));
-  if (!parent || !readStrings(str(parent, "inboxIds")).includes(mailboxId)) return missing(ctx, "The message you are replying to is not in this mailbox.");
+  if (!parent || !readStrings(str(parent, "inboxIds")).includes(mailboxId))
+    return missing(ctx, "The message you are replying to is not in this mailbox.");
   return parent;
 }
 
 // ---- delivery
 
-interface Delivered { messageId: string; providerId: string | null }
+interface Delivered {
+  messageId: string;
+  providerId: string | null;
+}
 
 /** Write the row for a message, send it through the route's provider and settle the row. */
-async function deliver(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pending: Row | null, id: string, unsubscribe = false): Promise<Delivered> {
+async function deliver(
+  ctx: SendCtx,
+  p: Plan,
+  c: Composed,
+  parent: Row | null,
+  pending: Row | null,
+  id: string,
+  unsubscribe = false,
+): Promise<Delivered> {
   const agentLine = (await agentLabelOn(ctx)) && (p.actor === "agent" || strOrNull(pending, "draftedByAgent") !== null);
-  const signed: Composed = agentLine ? { ...c, text: c.text === undefined ? undefined : c.text + AGENT_TEXT, html: c.html === undefined ? undefined : withAgentHtml(c.html) } : c;
-  if (agentLine && signed.text === undefined && signed.html === undefined) bad(ctx, "A message needs a text or an html body.");
+  const signed: Composed = agentLine
+    ? {
+        ...c,
+        text: c.text === undefined ? undefined : c.text + AGENT_TEXT,
+        html: c.html === undefined ? undefined : withAgentHtml(c.html),
+      }
+    : c;
+  if (agentLine && signed.text === undefined && signed.html === undefined)
+    bad(ctx, "A message needs a text or an html body.");
   const everyone = flat(signed);
   const link = unsubscribe && everyone.length === 1 ? await unsubscribeLink(ctx, (everyone[0] as Party).address) : null;
-  const final: Composed = link === null ? signed : {
-    ...signed, listUnsubscribe: link, text: signed.text === undefined ? undefined : signed.text + footerText(link),
-    html: signed.html === undefined ? undefined : beforeBodyEnd(signed.html, footerHtml(link)),
-  };
+  const final: Composed =
+    link === null
+      ? signed
+      : {
+          ...signed,
+          listUnsubscribe: link,
+          text: signed.text === undefined ? undefined : signed.text + footerText(link),
+          html: signed.html === undefined ? undefined : beforeBodyEnd(signed.html, footerHtml(link)),
+        };
   const domain = p.domain ? str(p.domain, "name") : domainOf(str(p.box, "address"));
   const rfcId = p.route === "space_domain" ? `<${id}@${domain}>` : null;
   const now = ctx.now();
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
   let providerId: string | null;
   try {
-    providerId = p.route === "space_domain" ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId) : await viaMailbox(ctx, p.box, final, id, parent);
+    providerId =
+      p.route === "space_domain"
+        ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId)
+        : await viaMailbox(ctx, p.box, final, id, parent);
   } catch (e) {
-    ctx.db.run(`UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`, "failed", nextVersion(ctx, id), ctx.now(), id);
+    ctx.db.run(
+      `UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`,
+      "failed",
+      nextVersion(ctx, id),
+      ctx.now(),
+      id,
+    );
     ctx.log.warn("mail.send failed", { messageId: id, route: p.route, traceId: ctx.trace.traceId });
     throw e;
   }
@@ -556,7 +746,17 @@ function withAgentHtml(html: string): string {
 }
 
 /** Insert the message row, or turn the draft or queued row into this message. */
-function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pending: Row | null, id: string, status: string, at: number, rfcId: string | null): void {
+function writeRow(
+  ctx: SendCtx,
+  p: Plan,
+  c: Composed,
+  parent: Row | null,
+  pending: Row | null,
+  id: string,
+  status: string,
+  at: number,
+  rfcId: string | null,
+): void {
   const now = ctx.now();
   const agentId = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   const draftedBy = strOrNull(pending, "draftedByAgent") ?? (p.actor === "agent" ? agentId : null);
@@ -570,10 +770,31 @@ function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pendin
     ctx.db.run(
       `UPDATE mail_message SET status = ?, "fromAddress" = ?, "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
         attachments = ?, "draftedByAgent" = ?, "traceId" = ?, "rfcMessageId" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      status, own, partyJson(c.to), partyJson(c.cc), c.subject, snippetOf(c.text, c.subject), bodyText, at, contactId, files, draftedBy,
-      ctx.trace.traceId, rfcId, num(pending, "version") + 1, now, id,
+      status,
+      own,
+      partyJson(c.to),
+      partyJson(c.cc),
+      c.subject,
+      snippetOf(c.text, c.subject),
+      bodyText,
+      at,
+      contactId,
+      files,
+      draftedBy,
+      ctx.trace.traceId,
+      rfcId,
+      num(pending, "version") + 1,
+      now,
+      id,
     );
-    ctx.db.run(`UPDATE mail_body SET text = ?, html = ?, bcc = ?, headers = ? WHERE "messageId" = ?`, c.text ?? null, c.html ?? null, partyJson(c.bcc), headers, id);
+    ctx.db.run(
+      `UPDATE mail_body SET text = ?, html = ?, bcc = ?, headers = ? WHERE "messageId" = ?`,
+      c.text ?? null,
+      c.html ?? null,
+      partyJson(c.bcc),
+      headers,
+      id,
+    );
     return;
   }
   ctx.db.run(
@@ -582,13 +803,38 @@ function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pendin
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, str(p.box, "id"), JSON.stringify([str(p.box, "id")]), null, rfcId, threadId, "out", status,
-    own, partyJson(c.to), partyJson(c.cc), c.subject, snippetOf(c.text, c.subject), bodyText, at, contactId,
-    str(p.box, "privacy") === "private" ? 1 : 0, files, draftedBy, ctx.trace.traceId, 1, now, null,
+    id,
+    str(p.box, "id"),
+    JSON.stringify([str(p.box, "id")]),
+    null,
+    rfcId,
+    threadId,
+    "out",
+    status,
+    own,
+    partyJson(c.to),
+    partyJson(c.cc),
+    c.subject,
+    snippetOf(c.text, c.subject),
+    bodyText,
+    at,
+    contactId,
+    str(p.box, "privacy") === "private" ? 1 : 0,
+    files,
+    draftedBy,
+    ctx.trace.traceId,
+    1,
+    now,
+    null,
   );
   ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
-    id, c.text ?? null, c.html ?? null, null, partyJson(c.bcc), headers,
+    id,
+    c.text ?? null,
+    c.html ?? null,
+    null,
+    partyJson(c.bcc),
+    headers,
   );
 }
 
@@ -598,10 +844,15 @@ function replyIds(ctx: SendCtx, parent: Row | null): { inReplyTo: string; refere
   if (!parent || !parentRfc) return null;
   let refs: string[] = [];
   try {
-    const h = JSON.parse(str(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, str(parent, "id"))), "headers") || "{}") as Record<string, unknown>;
+    const h = JSON.parse(
+      str(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, str(parent, "id"))), "headers") ||
+        "{}",
+    ) as Record<string, unknown>;
     const v = h.references ?? h.References;
     if (typeof v === "string") refs = v.split(/\s+/).filter((x) => /^<[^<>\s]+>$/.test(x));
-  } catch { /* no stored headers: the parent alone */ }
+  } catch {
+    /* no stored headers: the parent alone */
+  }
   const chain = [...refs.filter((x) => x.toLowerCase() !== parentRfc.toLowerCase()), parentRfc].slice(-20);
   return { inReplyTo: parentRfc, references: chain.join(" ") };
 }
@@ -626,15 +877,30 @@ async function attachmentsOf(ctx: SendCtx, files: string[]): Promise<{ name: str
   return out;
 }
 
-async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, id: string, rfcId: string | null): Promise<string> {
+async function viaSpaceDomain(
+  ctx: SendCtx,
+  p: Plan,
+  c: Composed,
+  parent: Row | null,
+  id: string,
+  rfcId: string | null,
+): Promise<string> {
   const domain = p.domain ? str(p.domain, "name") : "";
   const own = str(p.box, "address");
   const from = domainOf(own) === domain ? own : `${own.split("@")[0] ?? "mail"}@${domain}`;
   const title = str(p.box, "title");
   const body: Record<string, unknown> = {
-    mailboxId: str(p.box, "id"), from, to: c.to.map((x) => x.address), subject: c.subject,
-    headers: { ...outHeaders(ctx, parent, rfcId), ...(c.listUnsubscribe ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : {}) },
-    idempotencyKey: id,   // the provider capabilities need a key; the message id is stable across the one delivery of this message
+    mailboxId: str(p.box, "id"),
+    from,
+    to: c.to.map((x) => x.address),
+    subject: c.subject,
+    headers: {
+      ...outHeaders(ctx, parent, rfcId),
+      ...(c.listUnsubscribe
+        ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+        : {}),
+    },
+    idempotencyKey: id, // the provider capabilities need a key; the message id is stable across the one delivery of this message
   };
   if (title && title !== own) body.fromName = title;
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
@@ -654,7 +920,14 @@ async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | 
 }
 
 function acceptedId(ctx: SendCtx, result: unknown): string {
-  return text(obj(result).providerId) ?? (() => { throw fail("provider.bad_response", ctx.trace.traceId, { message: "The sending provider did not return a message id." }); })();
+  return (
+    text(obj(result).providerId) ??
+    (() => {
+      throw fail("provider.bad_response", ctx.trace.traceId, {
+        message: "The sending provider did not return a message id.",
+      });
+    })()
+  );
 }
 
 /**
@@ -663,13 +936,26 @@ function acceptedId(ctx: SendCtx, result: unknown): string {
  */
 async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string, parent: Row | null): Promise<string | null> {
   const body: Record<string, unknown> = {
-    connectionId: str(box, "connectionId"), as: str(box, "address"), to: c.to.map((x) => x.address), subject: c.subject, idempotencyKey: id,
+    connectionId: str(box, "connectionId"),
+    as: str(box, "address"),
+    to: c.to.map((x) => x.address),
+    subject: c.subject,
+    idempotencyKey: id,
   };
   if (parent) {
-    const copy = first(ctx.db.all(`SELECT "providerId", "threadKey" FROM mail_copy WHERE "messageId" = ? AND "mailboxId" = ?`, str(parent, "id"), str(box, "id")));
+    const copy = first(
+      ctx.db.all(
+        `SELECT "providerId", "threadKey" FROM mail_copy WHERE "messageId" = ? AND "mailboxId" = ?`,
+        str(parent, "id"),
+        str(box, "id"),
+      ),
+    );
     if (str(box, "provider") === "google") {
       const ids = replyIds(ctx, parent);
-      if (ids) { body.inReplyTo = ids.inReplyTo; body.references = ids.references; }
+      if (ids) {
+        body.inReplyTo = ids.inReplyTo;
+        body.references = ids.references;
+      }
       const thread = strOrNull(copy, "threadKey");
       if (thread) body.threadId = thread;
     } else if (str(box, "provider") === "microsoft") {
@@ -687,29 +973,59 @@ async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string, paren
   if (own) {
     const { connectionId, as: _as, ...rest } = body;
     const mine = { ...rest, accountId: connectionId };
-    if (str(box, "provider") === "google") return gmailSent(ctx, box, id, await ctx.call("google.user.send_message", mine));
+    if (str(box, "provider") === "google")
+      return gmailSent(ctx, box, id, await ctx.call("google.user.send_message", mine));
     await ctx.call("ms.user.send_message", mine);
     return null;
   }
-  if (str(box, "provider") === "google") return gmailSent(ctx, box, id, await ctx.call("google.gmail.send_message", body));
-  await ctx.call("ms.mail.send_message", body);   // Graph answers sent: true and no id; the Sent folder copy arrives through sync
+  if (str(box, "provider") === "google")
+    return gmailSent(ctx, box, id, await ctx.call("google.gmail.send_message", body));
+  await ctx.call("ms.mail.send_message", body); // Graph answers sent: true and no id; the Sent folder copy arrives through sync
   return null;
 }
 
 /** Gmail answers the sent message's id and thread: this mailbox's copy, so the next reply from here stays in the thread. */
 function gmailSent(ctx: SendCtx, box: Row, id: string, result: unknown): string | null {
-  const r = obj(result), providerId = text(r.id) ?? null, thread = text(r.threadId);
-  if (providerId) ctx.db.run(`INSERT OR IGNORE INTO mail_copy ("messageId", "mailboxId", source, "providerId", "threadKey") VALUES (?, ?, ?, ?, ?)`, id, str(box, "id"), "google", providerId, thread || null);
+  const r = obj(result),
+    providerId = text(r.id) ?? null,
+    thread = text(r.threadId);
+  if (providerId)
+    ctx.db.run(
+      `INSERT OR IGNORE INTO mail_copy ("messageId", "mailboxId", source, "providerId", "threadKey") VALUES (?, ?, ?, ?, ?)`,
+      id,
+      str(box, "id"),
+      "google",
+      providerId,
+      thread || null,
+    );
   return providerId;
 }
 
 /** The provider accepted the message: the row becomes sent, the counters move, the event goes out. */
 function settle(ctx: SendCtx, p: Plan, c: Composed, id: string, providerId: string | null, rfcId: string | null): void {
   const now = ctx.now();
-  ctx.db.run(`UPDATE mail_message SET status = ?, "providerId" = ?, "sentAt" = ?, version = ?, updated_at = ? WHERE id = ?`, "sent", providerId, now, nextVersion(ctx, id), now, id);
+  ctx.db.run(
+    `UPDATE mail_message SET status = ?, "providerId" = ?, "sentAt" = ?, version = ?, updated_at = ? WHERE id = ?`,
+    "sent",
+    providerId,
+    now,
+    nextVersion(ctx, id),
+    now,
+    id,
+  );
   if (rfcId) ctx.db.run(`INSERT OR IGNORE INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, rfcId, id);
-  if (providerId) ctx.db.run(`INSERT OR IGNORE INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, p.route === "space_domain" ? p.provider : str(p.box, "provider"), providerId, id);
-  const payload: { messageId: string; channel: "email"; mailboxId: string; contactId?: string } = { messageId: id, channel: "email", mailboxId: str(p.box, "id") };
+  if (providerId)
+    ctx.db.run(
+      `INSERT OR IGNORE INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`,
+      p.route === "space_domain" ? p.provider : str(p.box, "provider"),
+      providerId,
+      id,
+    );
+  const payload: { messageId: string; channel: "email"; mailboxId: string; contactId?: string } = {
+    messageId: id,
+    channel: "email",
+    mailboxId: str(p.box, "id"),
+  };
   const contactId = c.contactId ?? c.to[0]?.contactId;
   if (contactId) payload.contactId = contactId;
   ctx.emit("message.sent", `mail_message/${id}`, payload);
@@ -724,12 +1040,19 @@ function settle(ctx: SendCtx, p: Plan, c: Composed, id: string, providerId: stri
  */
 export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId: string; providerId?: string }> {
   ensureSend(ctx);
-  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0) bad(ctx, "Idempotency key is required.");
-  const prior = strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "send_as")), "refId");
+  if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.length === 0)
+    bad(ctx, "Idempotency key is required.");
+  const prior = strOrNull(
+    first(
+      ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "send_as"),
+    ),
+    "refId",
+  );
   if (prior) return JSON.parse(prior) as { messageId: string; providerId?: string };
   try {
     const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
-    const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
+    const parent =
+      input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
     const composed = compose(ctx, input, pending);
     const p = await makePlan(ctx, input, composed, "mailbox", true);
     if (p.suppressed.length > 0) {
@@ -740,12 +1063,20 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
     // a reply from a member's own mailbox is never held (it has nowhere to wait), but it counts toward the Space's daily limit and is refused over it
     if (!(pending && str(pending, "status") === "queued")) await reserveSlot(ctx, p, p.now, id, false);
     const sent = await deliver(ctx, p, composed, parent, pending, id);
-    const out = sent.providerId ? { messageId: sent.messageId, providerId: sent.providerId } : { messageId: sent.messageId };
-    ctx.db.run(`INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "send_as", JSON.stringify(out));
+    const out = sent.providerId
+      ? { messageId: sent.messageId, providerId: sent.providerId }
+      : { messageId: sent.messageId };
+    ctx.db.run(
+      `INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`,
+      input.idempotencyKey,
+      "send_as",
+      JSON.stringify(out),
+    );
     return out;
   } catch (e) {
     // mail.send_as declares bad_input but not precondition_failed: the caller gets the same message under the declared code
-    if (e instanceof HostError && e.error.code === "validation.precondition_failed") throw fail("validation.bad_input", ctx.trace.traceId, { message: e.error.message });
+    if (e instanceof HostError && e.error.code === "validation.precondition_failed")
+      throw fail("validation.bad_input", ctx.trace.traceId, { message: e.error.message });
     throw e;
   }
 }

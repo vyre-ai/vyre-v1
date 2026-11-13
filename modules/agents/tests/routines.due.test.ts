@@ -9,7 +9,7 @@ import { consumers, handlers, periodic } from "../impl.ts";
 import { NOW, assertEventsConform, contractErrors, harness, openRaw } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 let n = 0;
 const MIN = 60_000;
 const svc = { kind: "service" as const, id: "svc_host" };
@@ -27,8 +27,18 @@ function runsWith(hn: Harness): { keys: string[]; runs: Map<string, string> } {
 }
 const tick = (hn: Harness): Promise<string[]> => periodic["agents.routines_due"].run(hn.as(svc));
 async function withRoutine(hn: Harness, cron = "* * * * *", over: Record<string, unknown> = {}) {
-  const agent = (await h["agents.create"]!(hn.ctx, { name: `Pinger${++n}`, role: "Says hi.", idempotencyKey: `c${n}` })).agent;
-  const routine = (await h["agents.routine.save"]!(hn.ctx, { agentId: agent.agentId, title: "Hi every minute", cron, prompt: "Post Hi.", idempotencyKey: `r${n}`, ...over })).routine;
+  const agent = (await h["agents.create"]!(hn.ctx, { name: `Pinger${++n}`, role: "Says hi.", idempotencyKey: `c${n}` }))
+    .agent;
+  const routine = (
+    await h["agents.routine.save"]!(hn.ctx, {
+      agentId: agent.agentId,
+      title: "Hi every minute",
+      cron,
+      prompt: "Post Hi.",
+      idempotencyKey: `r${n}`,
+      ...over,
+    })
+  ).routine;
   hn.clear();
   return { agentId: agent.agentId as string, routine };
 }
@@ -43,9 +53,17 @@ test("a due routine fires once, under its owner, and its next run moves on", asy
   assert.deepEqual(await tick(hn), ["run_r1"]);
   const started = hn.world.calls.filter((c) => c.cap === "runs.start");
   assert.equal(started.length, 1);
-  assert.deepEqual(started[0]!.input, { idempotencyKey: `routine:${routine.routineId}:${routine.nextRunAt}`, kind: "routine", name: "Hi every minute", owner: routine.ownerId });
+  assert.deepEqual(started[0]!.input, {
+    idempotencyKey: `routine:${routine.routineId}:${routine.nextRunAt}`,
+    kind: "routine",
+    name: "Hi every minute",
+    owner: routine.ownerId,
+  });
   assert.deepEqual(contractErrors("runs.start", "in", started[0]!.input), []);
-  assert.deepEqual(hn.named("agent.routine_run_started").map((e) => e.payload), [{ agentId, routineId: routine.routineId, runId: "run_r1", ownerId: routine.ownerId, requestedBy: "schedule" }]);
+  assert.deepEqual(
+    hn.named("agent.routine_run_started").map((e) => e.payload),
+    [{ agentId, routineId: routine.routineId, runId: "run_r1", ownerId: routine.ownerId, requestedBy: "schedule" }],
+  );
   assert.deepEqual(assertEventsConform(hn), []);
   const after = (await h["agents.routines.list"]!(hn.ctx, { agentId })).routines[0];
   assert.deepEqual([after.lastRunAt, after.nextRunAt], [NOW + MIN, routine.nextRunAt + MIN]);
@@ -66,7 +84,11 @@ test("a restart that runs the same tick again does not fire twice: the same minu
   const key = `routine:${routine.routineId}:${routine.nextRunAt}`;
   first.world.handlers["runs.start"]!({ idempotencyKey: key }, { idempotencyKey: key });
   const second = harness({ raw, clock, files: first.world });
-  assert.deepEqual(await tick(second), ["run_r1"], "the restarted server asks with the same key and gets the run that already started");
+  assert.deepEqual(
+    await tick(second),
+    ["run_r1"],
+    "the restarted server asks with the same key and gets the run that already started",
+  );
   assert.equal(runs.runs.size, 1, "one run for that minute");
   assert.deepEqual(await tick(second), [], "and it is marked now");
 });
@@ -75,7 +97,7 @@ test("after downtime a missed routine runs once, now, never a burst; its next ru
   const hn = harness();
   runsWith(hn);
   const { agentId } = await withRoutine(hn);
-  hn.advance(3 * 60 * MIN + 17_000);   // three hours off
+  hn.advance(3 * 60 * MIN + 17_000); // three hours off
   assert.deepEqual(await tick(hn), ["run_r1"], "one run for all the missed minutes");
   assert.deepEqual(await tick(hn), [], "no catching up");
   const r = (await h["agents.routines.list"]!(hn.ctx, { agentId })).routines[0];
@@ -86,7 +108,11 @@ test("a paused routine, a watcher and a paused agent's routine do not fire", asy
   const hn = harness();
   const runs = runsWith(hn);
   await withRoutine(hn, "* * * * *", { enabled: false });
-  await withRoutine(hn, undefined as unknown as string, { cron: undefined, kind: "watch", watch: { on: "message", channelId: "chn_leads" } });
+  await withRoutine(hn, undefined as unknown as string, {
+    cron: undefined,
+    kind: "watch",
+    watch: { on: "message", channelId: "chn_leads" },
+  });
   const paused = await withRoutine(hn);
   hn.db.run("UPDATE agents_agent SET paused = 1 WHERE id = ?", paused.agentId);
   hn.advance(2 * MIN);
@@ -98,13 +124,32 @@ test("a paused routine, a watcher and a paused agent's routine do not fire", asy
 
 test("a routine an agent saved for its person says so (setBy): the panel reads it through the one credit resolver; one the person saved has none", async () => {
   const hn = harness();
-  const agent = (await h["agents.create"]!(hn.ctx, { name: "Helper", role: "Sets routines.", idempotencyKey: `c${++n}` })).agent;
+  const agent = (
+    await h["agents.create"]!(hn.ctx, { name: "Helper", role: "Sets routines.", idempotencyKey: `c${++n}` })
+  ).agent;
   const viaAgent = hn.as({ kind: "agent", id: agent.agentId }, hn.ctx.principal.id);
-  const set = (await h["agents.routine.save"]!(viaAgent, { agentId: agent.agentId, title: "Hi every minute", cron: "* * * * *", prompt: "Post Hi.", idempotencyKey: `r${++n}` })).routine;
+  const set = (
+    await h["agents.routine.save"]!(viaAgent, {
+      agentId: agent.agentId,
+      title: "Hi every minute",
+      cron: "* * * * *",
+      prompt: "Post Hi.",
+      idempotencyKey: `r${++n}`,
+    })
+  ).routine;
   assert.deepEqual(set.setBy, { kind: "agent", id: agent.agentId });
   assert.equal(set.ownerId, hn.ctx.principal.id, "it is still the person's routine");
   assert.deepEqual(contractErrors("agents.routine.save", "out", { routine: set }), []);
-  const mine = (await h["agents.routine.save"]!(hn.ctx, { agentId: agent.agentId, routineId: set.routineId, title: "Hi every minute", cron: "* * * * *", prompt: "Post Hi.", idempotencyKey: `r${++n}` })).routine;
+  const mine = (
+    await h["agents.routine.save"]!(hn.ctx, {
+      agentId: agent.agentId,
+      routineId: set.routineId,
+      title: "Hi every minute",
+      cron: "* * * * *",
+      prompt: "Post Hi.",
+      idempotencyKey: `r${++n}`,
+    })
+  ).routine;
   assert.equal(mine.setBy, undefined, "saved again by the person by hand: they set it");
 });
 
@@ -117,7 +162,11 @@ test("the routine's Last run follows its last run: running when it starts, then 
   const list = async () => (await h["agents.routines.list"]!(hn.ctx, { agentId })).routines[0];
   assert.deepEqual((await list()).lastRun, { runId: "run_r1", status: "running" });
   assert.deepEqual(contractErrors("agents.routines.list", "out", { routines: [await list()] }), []);
-  const outcome = (name: string, runId: string) => (consumers["agents.routine_outcome"].run as (c: Harness["ctx"], e: unknown) => Promise<string[]>)(hn.as(svc), { name, payload: { runId } });
+  const outcome = (name: string, runId: string) =>
+    (consumers["agents.routine_outcome"].run as (c: Harness["ctx"], e: unknown) => Promise<string[]>)(hn.as(svc), {
+      name,
+      payload: { runId },
+    });
   assert.equal((await outcome("run.succeeded", "run_r1")).length, 1);
   assert.deepEqual((await list()).lastRun, { runId: "run_r1", status: "succeeded" });
   hn.advance(MIN);

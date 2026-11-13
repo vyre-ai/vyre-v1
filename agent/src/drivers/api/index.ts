@@ -1,4 +1,12 @@
-export { ADAPTERS, DriverError, createApiDriver, createApiDrivers, okBase, openaiCompatible, realFetch } from "./driver.ts";
+export {
+  ADAPTERS,
+  DriverError,
+  createApiDriver,
+  createApiDrivers,
+  okBase,
+  openaiCompatible,
+  realFetch,
+} from "./driver.ts";
 export type { ApiDriver, ApiDriverDeps, ProbeOutcome } from "./driver.ts";
 export { createApiSession, RETRY_DEFAULTS } from "./session.ts";
 export type { ApiSession, RetryPolicy, SessionContext, SessionDeps, SessionStats } from "./session.ts";
@@ -12,5 +20,24 @@ export { COMPACT_AT, compact, extractive, threadMessages } from "./messages.ts";
 export { classify, retryAfterMs, scrub } from "./errors.ts";
 export { API_IDS, COMPAT_IDS, PROVIDER_IDS } from "./types.ts";
 export type {
-  AccountRef, ApiTool, Authorizer, CallRequest, Clock, Decoded, Fetch, FetchResponse, ModelInfo, Msg, ProviderAdapter, ProviderId, ApiId, CompatId, SseEvent, StreamDecoder, SystemBlock, ToolCall, Usage, WireRequest,
+  AccountRef,
+  ApiTool,
+  Authorizer,
+  CallRequest,
+  Clock,
+  Decoded,
+  Fetch,
+  FetchResponse,
+  ModelInfo,
+  Msg,
+  ProviderAdapter,
+  ProviderId,
+  ApiId,
+  CompatId,
+  SseEvent,
+  StreamDecoder,
+  SystemBlock,
+  ToolCall,
+  Usage,
+  WireRequest,
 } from "./types.ts";

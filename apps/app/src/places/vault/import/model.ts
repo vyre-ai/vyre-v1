@@ -6,7 +6,12 @@ export type Source = CapMap["vault.import_parse"]["in"]["source"];
 export type Parsed = CapMap["vault.import_parse"]["out"]["items"][number];
 export type Dedupe = CapMap["vault.import"]["in"]["dedupe"];
 
-export interface SourceDef { key: Source; name: string; file: string; accept: string }
+export interface SourceDef {
+  key: Source;
+  name: string;
+  file: string;
+  accept: string;
+}
 export const SOURCES: readonly SourceDef[] = [
   { key: "onepassword", name: "1Password", file: "An export from 1Password (.1pux or .csv)", accept: ".1pux,.csv" },
   { key: "bitwarden", name: "Bitwarden", file: "An export from Bitwarden (.json or .csv)", accept: ".json,.csv" },
@@ -21,11 +26,22 @@ export const DEDUPE: readonly { key: Dedupe; label: string; note: string }[] = [
 ];
 
 export const KIND_WORDS: Readonly<Record<Parsed["kind"], string>> = {
-  login: "Login", api_key: "API key", env: ".env", card: "Card", note: "Note", totp: "One-time code", ssh_key: "SSH key", ai_subscription: "AI provider", other: "Other",
+  login: "Login",
+  api_key: "API key",
+  env: ".env",
+  card: "Card",
+  note: "Note",
+  totp: "One-time code",
+  ssh_key: "SSH key",
+  ai_subscription: "AI provider",
+  other: "Other",
 };
 
 export function previewLine(p: Parsed): string {
-  const bits = [KIND_WORDS[p.kind], p.fieldKeys.length ? `${p.fieldKeys.length} ${p.fieldKeys.length === 1 ? "field" : "fields"}` : "no fields"];
+  const bits = [
+    KIND_WORDS[p.kind],
+    p.fieldKeys.length ? `${p.fieldKeys.length} ${p.fieldKeys.length === 1 ? "field" : "fields"}` : "no fields",
+  ];
   if (p.duplicateOf) bits.push("already in your Vault");
   if (p.warnings.length) bits.push(p.warnings.join(", "));
   return bits.join(" · ");
@@ -39,7 +55,12 @@ export function planWords(items: readonly Parsed[], dedupe: Dedupe): string {
   const fresh = items.length - dup;
   if (items.length === 0) return "There is nothing in that file to import.";
   if (dup === 0) return `${fresh} ${fresh === 1 ? "item" : "items"} will be added.`;
-  const tail = dedupe === "skip" ? `${dup} already here will be skipped` : dedupe === "overwrite" ? `${dup} already here will be replaced` : `${dup} already here will be kept and added again`;
+  const tail =
+    dedupe === "skip"
+      ? `${dup} already here will be skipped`
+      : dedupe === "overwrite"
+        ? `${dup} already here will be replaced`
+        : `${dup} already here will be kept and added again`;
   return `${fresh} new, ${tail}.`;
 }
 

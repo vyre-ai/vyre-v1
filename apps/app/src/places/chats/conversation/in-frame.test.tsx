@@ -12,13 +12,19 @@ test("in a project frame the conversation draws no header and hands its controls
   installDom();
   Dimensions.set({ window: { width: 1280, height: 844, scale: 1, fontScale: 1 } });
   const store = createFrameStore();
-  const framed = await mount(createRoot, <InProjectFrame value={store}><Conversation data={createSample("idle").data} /></InProjectFrame>);
+  const framed = await mount(
+    createRoot,
+    <InProjectFrame value={store}>
+      <Conversation data={createSample("idle").data} />
+    </InProjectFrame>,
+  );
   await flush();
   assert.equal(find(framed, "conversation-head"), null, "one header: the project's");
   const c = store.get()!;
   assert.ok(c, "the controls are handed up");
   assert.equal(c.find.active, false);
-  c.find.toggle(); await flush();
+  c.find.toggle();
+  await flush();
   assert.equal(store.get()!.find.active, true, "find toggles the conversation's own find bar");
   const labels = c.chatEntries().flatMap((e) => ("label" in e ? [e.label] : []));
   for (const l of ["Plan Mode", "Fork This Chat", "Export as Markdown"]) assert.ok(labels.includes(l), l);

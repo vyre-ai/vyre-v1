@@ -28,11 +28,24 @@ export default function Mount(): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     const part = query.get("part") ?? "cmdk";
     hub.go(part === "newtab" ? "home" : "files");
@@ -42,7 +55,12 @@ export default function Mount(): ReactNode {
   return (
     <Fragment>
       <View style={{ height }}>
-        <Shell hub={made.hub} theme={made.theme} renderPlace={samplePlace} renderNewTab={() => <NewTabSearch data={data} />} />
+        <Shell
+          hub={made.hub}
+          theme={made.theme}
+          renderPlace={samplePlace}
+          renderNewTab={() => <NewTabSearch data={data} />}
+        />
       </View>
       {made.part === "cmdk" ? <CmdK data={data} /> : null}
     </Fragment>

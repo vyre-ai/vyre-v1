@@ -15,19 +15,29 @@ export function LiveRerun({ run, stepKeys }: { run: Run; stepKeys: readonly stri
   const warning = liveRerunWarning(outwardEffects(stepKeys));
   const go = (): void => {
     if (!automationId) return;
-    void data.call("automations.replay", { automationId, runId: run.id, version: "current", confirm: true }).then((out) => {
-      const id = out && typeof out === "object" && typeof (out as { runId?: unknown }).runId === "string" ? (out as { runId: string }).runId : null;
-      setOpen(false);
-      setNote("Live re-run started");
-      if (id) data.nav.openRunSide(id);
-    }).catch((e: unknown) => setNote(e instanceof Error ? e.message : "The live re-run did not start."));
+    void data
+      .call("automations.replay", { automationId, runId: run.id, version: "current", confirm: true })
+      .then((out) => {
+        const id =
+          out && typeof out === "object" && typeof (out as { runId?: unknown }).runId === "string"
+            ? (out as { runId: string }).runId
+            : null;
+        setOpen(false);
+        setNote("Live re-run started");
+        if (id) data.nav.openRunSide(id);
+      })
+      .catch((e: unknown) => setNote(e instanceof Error ? e.message : "The live re-run did not start."));
   };
   return (
     <View style={s.wrap}>
       <QuietButton label={LIVE_RERUN_LABEL} testID="live-rerun" onPress={() => setOpen(true)} />
       {open ? (
         <View testID="live-rerun-confirm" style={s.box}>
-          {automationId ? <Text style={s.text}>{warning}</Text> : <Text style={s.text}>This run is not tied to an Automation, so it cannot be re-run live.</Text>}
+          {automationId ? (
+            <Text style={s.text}>{warning}</Text>
+          ) : (
+            <Text style={s.text}>This run is not tied to an Automation, so it cannot be re-run live.</Text>
+          )}
           {automationId ? <QuietButton label="Confirm re-run live" testID="live-rerun-go" onPress={go} /> : null}
           <QuietButton label="Cancel" testID="live-rerun-cancel" onPress={() => setOpen(false)} />
         </View>

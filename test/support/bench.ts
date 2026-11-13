@@ -14,10 +14,14 @@ export const MAX_CALLS = 8;
 const gen = loadGenerated();
 export const isListed = (name: string): boolean => gen.defaults.has(name);
 
-export class BudgetExceeded extends Error { constructor() { super("out of tool calls"); } }
+export class BudgetExceeded extends Error {
+  constructor() {
+    super("out of tool calls");
+  }
+}
 
 /** The envelope tools answer with: { data } or { error }. */
-export type Env = { data?: any; error?: { code: string; message: string } };   // eslint-disable-line @typescript-eslint/no-explicit-any
+export type Env = { data?: any; error?: { code: string; message: string } }; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type Use = (name: string, input: unknown) => AsyncGenerator<DriverEvent, Env>;
 export type Say = (text: string) => DriverEvent;
 
@@ -46,10 +50,15 @@ export function factsOf(view: string, mode: "before" | "after"): Facts {
   const m = (re: RegExp): string | undefined => re.exec(view)?.[1];
   const now = /It is (\w+), (\d+) \w+ \d{4}, (\d\d):(\d\d) \(([^)]+)\)\./.exec(view);
   const handles = /Vault items you may use by handle: (.*?) \(call vault_use/.exec(view)?.[1];
-  const routines = [...view.matchAll(/^- (schedule|watcher) "([^"]+)"(?: cron "([^"]+)")?[^\n]*\((rtn_[a-z0-9]+)\)$/gm)].map((r) => ({ id: r[4]!, title: r[2]!, kind: r[1] as "schedule" | "watcher", ...(r[3] ? { cron: r[3] } : {}) }));
-  const open = [...(/Open: ([^\n]+)\./.exec(view)?.[1] ?? "").matchAll(/(\w+) ((?:rec|fil|aut|prj|tsk)_[a-z0-9]+)(?: "([^"]*)")?/g)].map((o) => ({ type: o[1]!, id: o[2]!, ...(o[3] ? { title: o[3] } : {}) }));
+  const routines = [
+    ...view.matchAll(/^- (schedule|watcher) "([^"]+)"(?: cron "([^"]+)")?[^\n]*\((rtn_[a-z0-9]+)\)$/gm),
+  ].map((r) => ({ id: r[4]!, title: r[2]!, kind: r[1] as "schedule" | "watcher", ...(r[3] ? { cron: r[3] } : {}) }));
+  const open = [
+    ...(/Open: ([^\n]+)\./.exec(view)?.[1] ?? "").matchAll(/(\w+) ((?:rec|fil|aut|prj|tsk)_[a-z0-9]+)(?: "([^"]*)")?/g),
+  ].map((o) => ({ type: o[1]!, id: o[2]!, ...(o[3] ? { title: o[3] } : {}) }));
   return {
-    view, mode,
+    view,
+    mode,
     agentName: m(/You are (.+?)(?: \(agentId agt_[a-z0-9]+\))?, an agent in Vyre/) ?? "",
     ...(m(/agentId (agt_[a-z0-9]+)/) ? { agentId: m(/agentId (agt_[a-z0-9]+)/)! } : {}),
     ...(m(/threadId (thr_[a-z0-9]+)/) ? { threadId: m(/threadId (thr_[a-z0-9]+)/)! } : {}),
@@ -57,19 +66,37 @@ export function factsOf(view: string, mode: "before" | "after"): Facts {
     ...(m(/You are talking with (.+?) \(usr_/) ? { askerName: m(/You are talking with (.+?) \(usr_/)! } : {}),
     ...(now ? { tz: now[5]!, localNow: { weekday: now[1]!, hour: Number(now[3]), minute: Number(now[4]) } } : {}),
     vaultHandles: handles ? [...handles.matchAll(/#([A-Za-z0-9_]+)/g)].map((h) => h[1]!) : [],
-    ...(/Your computer is/.test(view) ? { hasComputer: true } : /You have no desktop computer/.test(view) ? { hasComputer: false } : {}),
-    routines, open,
+    ...(/Your computer is/.test(view)
+      ? { hasComputer: true }
+      : /You have no desktop computer/.test(view)
+        ? { hasComputer: false }
+        : {}),
+    routines,
+    open,
     teaches: {
-      utc: /cron runs in UTC/i.test(view), inPlace: /give routineId to change/.test(view) || /pass its `?routineId`?/.test(view),
-      testFirst: /automations_test runs it with sample data/.test(view) || /Test before enabling|test before you turn/i.test(view),
-      routineTool: /agents_routine_save/.test(view), draftNotSend: /Prefer a draft/.test(view),
+      utc: /cron runs in UTC/i.test(view),
+      inPlace: /give routineId to change/.test(view) || /pass its `?routineId`?/.test(view),
+      testFirst:
+        /automations_test runs it with sample data/.test(view) ||
+        /Test before enabling|test before you turn/i.test(view),
+      routineTool: /agents_routine_save/.test(view),
+      draftNotSend: /Prefer a draft/.test(view),
     },
   };
 }
 
 /** The prompt text of a turn, as a driver builds it: system blocks in order, then the messages. */
-export async function viewOf(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, input: TurnInput): Promise<string> {
-  const spec = { threadId: input.threadId, agent: input.agent, asker: input.asker, turnId: input.turnId, traceId: "bench" };
+export async function viewOf(
+  call: (cap: string, input: unknown, as?: string) => Promise<unknown>,
+  input: TurnInput,
+): Promise<string> {
+  const spec = {
+    threadId: input.threadId,
+    agent: input.agent,
+    asker: input.asker,
+    turnId: input.turnId,
+    traceId: "bench",
+  };
   const blocks = await roleBlocks(call)(spec, input);
   const msgs = threadMessages(input).map((m) => (m.role === "user" ? m.text : m.role === "assistant" ? m.text : ""));
   return `${blocks.map((b) => b.text).join("\n\n")}\n\n${msgs.join("\n\n")}`;
@@ -88,7 +115,8 @@ export function makeUse(run: RunTool, counter: { calls: number; log: string[] })
     if (++counter.calls > MAX_CALLS) throw new BudgetExceeded();
     counter.log.push(name);
     const r: ToolResult = yield* run(name, input);
-    if (process.env["VYRE_BENCH_DEBUG"]) console.log(`  ${name}(${JSON.stringify(input).slice(0, 160)}) -> ${JSON.stringify(r.content).slice(0, 300)}`);
+    if (process.env["VYRE_BENCH_DEBUG"])
+      console.log(`  ${name}(${JSON.stringify(input).slice(0, 160)}) -> ${JSON.stringify(r.content).slice(0, 300)}`);
     return (r.content ?? {}) as Env;
   };
 }
@@ -97,7 +125,9 @@ export function makeUse(run: RunTool, counter: { calls: number; log: string[] })
 export async function* agentIdOf(f: Facts, use: Use): AsyncGenerator<DriverEvent, string | undefined> {
   if (f.agentId) return f.agentId;
   const r = yield* use("agents_list", {});
-  const hit = (r.data?.agents as Array<{ agentId: string; name: string }> | undefined)?.find((a) => a.name === f.agentName);
+  const hit = (r.data?.agents as Array<{ agentId: string; name: string }> | undefined)?.find(
+    (a) => a.name === f.agentName,
+  );
   if (hit) f.agentId = hit.agentId;
   return f.agentId;
 }
@@ -112,7 +142,15 @@ export async function* zoneOf(f: Facts, use: Use): AsyncGenerator<DriverEvent, s
 
 /** Whole-hour offset of a zone from UTC, right now. */
 export function offsetHours(zone: string, at = Date.now()): number {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(at);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(at);
   const g = (t: string): number => Number(parts.find((p) => p.type === t)!.value);
   const asUtc = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"));
   return Math.round((asUtc - at) / 3_600_000);
@@ -125,8 +163,14 @@ export function cronFor(weekday: string, hour: number, zone: string | undefined,
   let h = hour;
   if (utc && zone) {
     h = hour - offsetHours(zone);
-    while (h < 0) { h += 24; dow = (dow + 6) % 7; }
-    while (h > 23) { h -= 24; dow = (dow + 1) % 7; }
+    while (h < 0) {
+      h += 24;
+      dow = (dow + 6) % 7;
+    }
+    while (h > 23) {
+      h -= 24;
+      dow = (dow + 1) % 7;
+    }
   }
   return `0 ${h} * * ${dow}`;
 }

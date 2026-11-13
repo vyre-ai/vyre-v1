@@ -7,7 +7,14 @@ export type DiagramRender = (source: string, theme: DiagramTheme) => Promise<str
 export type MathRender = (tex: string, display: boolean) => Promise<string>;
 
 /** The skin's colours, read from the page when a diagram is drawn, so paper and graphite each get their own. */
-export interface DiagramTheme { ink: string; sunk: string; line: string; accent: string; win: string; dark: boolean }
+export interface DiagramTheme {
+  ink: string;
+  sunk: string;
+  line: string;
+  accent: string;
+  win: string;
+  dark: boolean;
+}
 
 let diagram: (() => Promise<DiagramRender>) | null = null;
 let math: (() => Promise<MathRender>) | null = null;
@@ -16,11 +23,18 @@ let diagramFn: Promise<DiagramRender> | null = null;
 let mathFn: Promise<MathRender> | null = null;
 
 /** The app registers how to load Mermaid (a dynamic import that resolves to a render function). */
-export function setDiagramLoader(load: (() => Promise<DiagramRender>) | null): void { diagram = load; diagramFn = null; cache.clear(); }
-export function setMathLoader(load: (() => Promise<MathRender>) | null): void { math = load; mathFn = null; cache.clear(); }
+export function setDiagramLoader(load: (() => Promise<DiagramRender>) | null): void {
+  diagram = load;
+  diagramFn = null;
+  cache.clear();
+}
+export function setMathLoader(load: (() => Promise<MathRender>) | null): void {
+  math = load;
+  mathFn = null;
+  cache.clear();
+}
 export const hasDiagramLoader = (): boolean => diagram !== null;
 export const hasMathLoader = (): boolean => math !== null;
-
 
 /** The SVG for a diagram source, drawn once per source and theme. Rejects with a sentence when there is no loader or the source does not draw. */
 export function renderDiagram(source: string, theme: DiagramTheme): Promise<string> {

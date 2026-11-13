@@ -1,6 +1,10 @@
 // 30 pairs for calibrating meaning search: a question and a stored fact, 15 where the fact answers the question and 15 where it does not (half of those from the same office, so they share a setting but not a subject).
 // The threshold in modules/memory/meaning.ts is chosen on this set, and modules/memory/tests/meaning.pairs.test.ts holds a model's scores to it.
-export interface Pair { query: string; text: string; related: boolean }
+export interface Pair {
+  query: string;
+  text: string;
+  related: boolean;
+}
 
 const RELATED: Array<[string, string]> = [
   ["bank reconciliation", "The Chase feed didn't match"],
@@ -43,11 +47,18 @@ export const PAIRS: readonly Pair[] = [
 ];
 
 /** Precision and recall of "related" when a score at or above `threshold` counts as related. */
-export function scoreAt(scores: readonly number[], threshold: number): { precision: number; recall: number; f1: number } {
-  let tp = 0, fp = 0, fn = 0;
+export function scoreAt(
+  scores: readonly number[],
+  threshold: number,
+): { precision: number; recall: number; f1: number } {
+  let tp = 0,
+    fp = 0,
+    fn = 0;
   PAIRS.forEach((p, i) => {
     const hit = (scores[i] ?? 0) >= threshold;
-    if (hit && p.related) tp++; else if (hit) fp++; else if (p.related) fn++;
+    if (hit && p.related) tp++;
+    else if (hit) fp++;
+    else if (p.related) fn++;
   });
   const precision = tp + fp === 0 ? 1 : tp / (tp + fp);
   const recall = tp + fn === 0 ? 0 : tp / (tp + fn);

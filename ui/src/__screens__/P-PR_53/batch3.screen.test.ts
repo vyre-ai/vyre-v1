@@ -7,13 +7,18 @@ import { fileURLToPath } from "node:url";
 // Node runs .ts files by stripping types but has no loader for .tsx. The placeholders hold no JSX, so load them as TypeScript.
 registerHooks({
   load(url, context, nextLoad) {
-    if (url.endsWith(".tsx")) return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
+    if (url.endsWith(".tsx"))
+      return { format: "module-typescript", source: readFileSync(fileURLToPath(url)), shortCircuit: true };
     return nextLoad(url, context);
   },
 });
 
-const { renderScreen, softphoneSample, terminalSample, emailSample, viewerSample, viewerScreen } = await import("../index.tsx");
-const { renderBlock, NATIVE_BLOCK_TYPES, blockRenderers, sampleNativeBlocks, unknownBlockSample } = await import("../../blocks/registry.ts");
+const { renderScreen, softphoneSample, terminalSample, emailSample, viewerSample, viewerScreen } = await import(
+  "../index.tsx"
+);
+const { renderBlock, NATIVE_BLOCK_TYPES, blockRenderers, sampleNativeBlocks, unknownBlockSample } = await import(
+  "../../blocks/registry.ts"
+);
 const { EMAIL_BLOCK_KINDS, EMAIL_PREVIEWS } = await import("../../EmailBuilder/props.ts");
 const { TerminalPlaceholder } = await import("../../Terminal/Placeholder.tsx");
 const { isKitScreen } = await import("../../kit/types.ts");

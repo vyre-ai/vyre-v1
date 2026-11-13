@@ -38,7 +38,10 @@ export const handlers: Record<string, Handler> = {
   "google.user.list": (ctx) => h.userList(ctx),
   "google.user.remove": (ctx, i) => h.userRemove(ctx, i),
   "google.user.send_message": (ctx, i) => h.userSend(ctx, i),
-  "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
+  "google.receive_push": async (ctx, i) => {
+    internalOnly(ctx, "google.receive_push");
+    return h.receivePush(ctx, i);
+  },
   "google.gmail.get_profile": (ctx, i) => h.getProfile(ctx, i),
   "google.gmail.list_labels": (ctx, i) => h.listLabels(ctx, i),
   "google.gmail.list_messages": (ctx, i) => h.listMessages(ctx, i),
@@ -102,7 +105,11 @@ const joinConsumers = {
   "google.match_on_join": {
     on: ["member.joined"],
     async run(ctx: Ctx, _event: unknown): Promise<string[]> {
-      try { await h.syncMembers(ctx as never, {}); } catch { /* not connected yet: the admin matches later */ }
+      try {
+        await h.syncMembers(ctx as never, {});
+      } catch {
+        /* not connected yet: the admin matches later */
+      }
       return [];
     },
   },
@@ -113,8 +120,10 @@ const personLeft = {
   "google.person_left": {
     on: ["member.removed"],
     run: async (ctx: Ctx, event: { payload: { personId?: unknown } }): Promise<number> => {
-      await h.personLeft(ctx as never, event as never);   // their delegated mail, calendar and files stop being read
-      return (typeof event.payload.personId === "string" ? h.dropAccountsOf(ctx as never, event.payload.personId) : Promise.resolve(0));
+      await h.personLeft(ctx as never, event as never); // their delegated mail, calendar and files stop being read
+      return typeof event.payload.personId === "string"
+        ? h.dropAccountsOf(ctx as never, event.payload.personId)
+        : Promise.resolve(0);
     },
   },
 };
@@ -144,7 +153,7 @@ export const hostCalls = {
     return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
   },
   "google.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
-    hostOnly(ctx, "google.accept_webhook");   // a host call: the webhook route is the only way in
+    hostOnly(ctx, "google.accept_webhook"); // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);
   },
 };

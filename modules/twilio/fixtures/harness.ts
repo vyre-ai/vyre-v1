@@ -27,22 +27,61 @@ export const SERVICE_SID = "MG00000000000000000000000000000008";
 export const CAMPAIGN_SID = "QE00000000000000000000000000000009";
 
 const incoming = (over: Record<string, unknown> = {}) => ({
-  sid: NUMBER_SID, phone_number: "+14155550123", friendly_name: "Main line", capabilities: { voice: true, sms: true, mms: false, fax: false },
-  voice_url: `${PUBLIC_URL}/hooks/twilio/voice`, sms_url: `${PUBLIC_URL}/hooks/twilio/sms`, status_callback: `${PUBLIC_URL}/hooks/twilio/status`, ...over,
+  sid: NUMBER_SID,
+  phone_number: "+14155550123",
+  friendly_name: "Main line",
+  capabilities: { voice: true, sms: true, mms: false, fax: false },
+  voice_url: `${PUBLIC_URL}/hooks/twilio/voice`,
+  sms_url: `${PUBLIC_URL}/hooks/twilio/sms`,
+  status_callback: `${PUBLIC_URL}/hooks/twilio/status`,
+  ...over,
 });
 
 export const RECORDED = {
   incoming,
-  numbersPage1: { incoming_phone_numbers: [incoming(), incoming({ sid: "PN00000000000000000000000000000010", phone_number: "+14155550124", friendly_name: "", voice_url: "", sms_url: null })], next_page_uri: `${REST}/IncomingPhoneNumbers.json?PageSize=1000&Page=1&PageToken=x` },
-  numbersPage2: { incoming_phone_numbers: [incoming({ sid: "PN00000000000000000000000000000011", phone_number: "+14155550125", capabilities: { voice: true, sms: true, mms: true } })], next_page_uri: null },
+  numbersPage1: {
+    incoming_phone_numbers: [
+      incoming(),
+      incoming({
+        sid: "PN00000000000000000000000000000010",
+        phone_number: "+14155550124",
+        friendly_name: "",
+        voice_url: "",
+        sms_url: null,
+      }),
+    ],
+    next_page_uri: `${REST}/IncomingPhoneNumbers.json?PageSize=1000&Page=1&PageToken=x`,
+  },
+  numbersPage2: {
+    incoming_phone_numbers: [
+      incoming({
+        sid: "PN00000000000000000000000000000011",
+        phone_number: "+14155550125",
+        capabilities: { voice: true, sms: true, mms: true },
+      }),
+    ],
+    next_page_uri: null,
+  },
   available: {
     available_phone_numbers: [
-      { phone_number: "+14155550199", locality: "San Francisco", region: "CA", capabilities: { voice: true, sms: true, mms: true } },
-      { phone_number: "+14155550198", locality: null, region: "CA", capabilities: { voice: true, sms: false, mms: false } },
+      {
+        phone_number: "+14155550199",
+        locality: "San Francisco",
+        region: "CA",
+        capabilities: { voice: true, sms: true, mms: true },
+      },
+      {
+        phone_number: "+14155550198",
+        locality: null,
+        region: "CA",
+        capabilities: { voice: true, sms: false, mms: false },
+      },
     ],
   },
   noApp: { applications: [] },
-  app: { applications: [{ sid: APP_SID, friendly_name: "Vyre spc_twilio", voice_url: "https://old.example.test/voice" }] },
+  app: {
+    applications: [{ sid: APP_SID, friendly_name: "Vyre spc_twilio", voice_url: "https://old.example.test/voice" }],
+  },
   appCreated: { sid: APP_SID, friendly_name: "Vyre spc_twilio", voice_url: `${PUBLIC_URL}/hooks/twilio/voice` },
   call: { sid: CALL_SID, status: "queued", from: "+14155550123", to: "+14155550177", duration: null },
   callDone: { sid: CALL_SID, status: "completed", from: "+14155550123", to: "+14155550177", duration: "42" },
@@ -58,22 +97,81 @@ export const RECORDED = {
   service: { sid: SERVICE_SID, friendly_name: "Vyre spc_twilio" },
   campaign: { sid: CAMPAIGN_SID, campaign_status: "IN_PROGRESS" },
   campaignList: { compliance: [{ sid: CAMPAIGN_SID, campaign_status: "VERIFIED", errors: [] }] },
-  campaignFailed: { compliance: [{ sid: CAMPAIGN_SID, campaign_status: "FAILED", errors: [{ description: "Sample messages missing opt-out language" }] }] },
+  campaignFailed: {
+    compliance: [
+      {
+        sid: CAMPAIGN_SID,
+        campaign_status: "FAILED",
+        errors: [{ description: "Sample messages missing opt-out language" }],
+      },
+    ],
+  },
 } as const;
 
 /** The posts Twilio makes to the four hooks, as the form fields it sends. */
 export const HOOKS = {
-  voice: { CallSid: CALL_SID, AccountSid: ACCOUNT, From: "+14155550177", To: "+14155550123", CallStatus: "ringing", Direction: "inbound", CallerName: "LEE PAT" },
-  sms: { MessageSid: "SM00000000000000000000000000000020", AccountSid: ACCOUNT, From: "+14155550177", To: "+14155550123", Body: "Can you call me?", NumMedia: "1", MediaUrl0: "https://api.twilio.com/media/ME1" },
-  statusCall: { CallSid: CALL_SID, CallStatus: "completed", CallDuration: "42", From: "+14155550177", To: "+14155550123" },
-  statusSms: { MessageSid: "SM00000000000000000000000000000021", MessageStatus: "undelivered", ErrorCode: "30003", To: "+14155550177", From: "+14155550123" },
-  recording: { CallSid: CALL_SID, RecordingSid: REC_SID, RecordingStatus: "completed", RecordingUrl: `https://api.twilio.com${REST}/Recordings/${REC_SID}`, RecordingDuration: "17" },
+  voice: {
+    CallSid: CALL_SID,
+    AccountSid: ACCOUNT,
+    From: "+14155550177",
+    To: "+14155550123",
+    CallStatus: "ringing",
+    Direction: "inbound",
+    CallerName: "LEE PAT",
+  },
+  sms: {
+    MessageSid: "SM00000000000000000000000000000020",
+    AccountSid: ACCOUNT,
+    From: "+14155550177",
+    To: "+14155550123",
+    Body: "Can you call me?",
+    NumMedia: "1",
+    MediaUrl0: "https://api.twilio.com/media/ME1",
+  },
+  statusCall: {
+    CallSid: CALL_SID,
+    CallStatus: "completed",
+    CallDuration: "42",
+    From: "+14155550177",
+    To: "+14155550123",
+  },
+  statusSms: {
+    MessageSid: "SM00000000000000000000000000000021",
+    MessageStatus: "undelivered",
+    ErrorCode: "30003",
+    To: "+14155550177",
+    From: "+14155550123",
+  },
+  recording: {
+    CallSid: CALL_SID,
+    RecordingSid: REC_SID,
+    RecordingStatus: "completed",
+    RecordingUrl: `https://api.twilio.com${REST}/Recordings/${REC_SID}`,
+    RecordingDuration: "17",
+  },
 } as const;
 
-export interface Reply { status: number; body?: unknown; throws?: boolean }
-export interface Seen { method: string; url: string; path: string; headers: Record<string, string>; form: [string, string][] | null }
-export interface Called { cap: string; input: Record<string, unknown> }
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
+export interface Reply {
+  status: number;
+  body?: unknown;
+  throws?: boolean;
+}
+export interface Seen {
+  method: string;
+  url: string;
+  path: string;
+  headers: Record<string, string>;
+  form: [string, string][] | null;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
 
 export function harness(o: { apiKey?: boolean; instruction?: Record<string, unknown> } = {}) {
   const emitted: Emitted[] = [];
@@ -83,7 +181,12 @@ export function harness(o: { apiKey?: boolean; instruction?: Record<string, unkn
   const scripted = new Map<string, Reply[]>();
   let clock = NOW;
   let ingestFails = false;
-  let instruction: Record<string, unknown> = o.instruction ?? { action: "ring", targets: [{ kind: "person", id: "usr_maya0001" }], ringSeconds: 25, record: false };
+  let instruction: Record<string, unknown> = o.instruction ?? {
+    action: "ring",
+    targets: [{ kind: "person", id: "usr_maya0001" }],
+    ringSeconds: 25,
+    record: false,
+  };
 
   const host: TwilioHost = {
     async secret(_ctx, handle) {
@@ -97,9 +200,15 @@ export function harness(o: { apiKey?: boolean; instruction?: Record<string, unkn
     },
     async download(_ctx, a) {
       downloads.push(a);
-      return { blobId: `blb_${downloads.length}`, size: 2000 + downloads.length, mime: a.mime ?? "application/octet-stream" };
+      return {
+        blobId: `blb_${downloads.length}`,
+        size: 2000 + downloads.length,
+        mime: a.mime ?? "application/octet-stream",
+      };
     },
-    async publicUrl() { return `${PUBLIC_URL}/`; },
+    async publicUrl() {
+      return `${PUBLIC_URL}/`;
+    },
   };
   setTwilioHost(host);
 
@@ -136,22 +245,42 @@ export function harness(o: { apiKey?: boolean; instruction?: Record<string, unkn
       if (!queue || queue.length === 0) throw new Error(`unscripted request ${method} ${u.host}${path}`);
       const reply = queue.length > 1 ? (queue.shift() as Reply) : (queue[0] as Reply);
       if (reply.throws) throw new Error("socket hang up");
-      const text = reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
+      const text =
+        reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
       return { status: reply.status, text: async () => text };
     },
     log: { info() {}, warn() {} },
   };
 
   return {
-    ctx, emitted, called, requests, downloads, host,
+    ctx,
+    emitted,
+    called,
+    requests,
+    downloads,
+    host,
     /** Script what Twilio answers to `METHOD host/path[?query]`; a request that matches the path with its query is preferred; several replies are answered in order, the last one repeatedly. */
-    on(request: string, ...replies: Reply[]): void { scripted.set(request, replies); },
-    advance(ms: number) { clock += ms; },
-    failIngest(on: boolean) { ingestFails = on; },
-    setInstruction(i: Record<string, unknown>) { instruction = i; },
-    rows(sql: string, ...args: unknown[]) { return ctx.db.all(sql, ...args) as Record<string, string | number | null>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    on(request: string, ...replies: Reply[]): void {
+      scripted.set(request, replies);
+    },
+    advance(ms: number) {
+      clock += ms;
+    },
+    failIngest(on: boolean) {
+      ingestFails = on;
+    },
+    setInstruction(i: Record<string, unknown>) {
+      instruction = i;
+    },
+    rows(sql: string, ...args: unknown[]) {
+      return ctx.db.all(sql, ...args) as Record<string, string | number | null>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 

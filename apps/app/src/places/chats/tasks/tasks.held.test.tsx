@@ -17,5 +17,6 @@ test("one person at every seat is no path: You to You says nothing", () => {
 test("the rail foot never prints a bare kind label, for any task kind", () => {
   assert.equal(railFootnote(0), "");
   assert.equal(railFootnote(3), "3 under it");
-  for (const kind of ["work", "approve", "review", "answer", "unblock"]) assert.ok(!railFootnote(0).toLowerCase().includes(kind));
+  for (const kind of ["work", "approve", "review", "answer", "unblock"])
+    assert.ok(!railFootnote(0).toLowerCase().includes(kind));
 });

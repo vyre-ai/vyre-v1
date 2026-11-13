@@ -10,11 +10,16 @@ const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
 /** The pinned public key as 32 raw bytes, from hex, base64 or a PEM. */
 export function publicKeyBytes(key: string | Uint8Array): Uint8Array {
-  if (typeof key !== "string") { if (key.length !== 32) throw new Error("an Ed25519 public key is 32 bytes"); return key; }
+  if (typeof key !== "string") {
+    if (key.length !== 32) throw new Error("an Ed25519 public key is 32 bytes");
+    return key;
+  }
   const t = key.trim();
   const raw = t.includes("BEGIN PUBLIC KEY")
     ? crypto.createPublicKey(t).export({ type: "spki", format: "der" }).subarray(SPKI_ED25519_PREFIX.length)
-    : /^[0-9a-f]{64}$/i.test(t) ? Buffer.from(t, "hex") : Buffer.from(t, "base64");
+    : /^[0-9a-f]{64}$/i.test(t)
+      ? Buffer.from(t, "hex")
+      : Buffer.from(t, "base64");
   if (raw.length !== 32) throw new Error("an Ed25519 public key is 32 bytes");
   return new Uint8Array(raw);
 }
@@ -26,14 +31,22 @@ function publicKeyObject(raw: Uint8Array): crypto.KeyObject {
 export function verifyManifest(manifest: string, signatureB64: string, key: string | Uint8Array): boolean {
   const sig = Buffer.from(signatureB64.trim(), "base64");
   if (sig.length !== 64) return false;
-  try { return crypto.verify(null, Buffer.from(SIGNATURE_PREFIX + manifest), publicKeyObject(publicKeyBytes(key)), sig); } catch { return false; }
+  try {
+    return crypto.verify(null, Buffer.from(SIGNATURE_PREFIX + manifest), publicKeyObject(publicKeyBytes(key)), sig);
+  } catch {
+    return false;
+  }
 }
 
 /** Sign `manifest` with a PKCS8 PEM private key and refuse to return a signature the pinned key does not accept. */
 export function signManifest(manifest: string, privateKeyPem: string, pinnedPublicKey: string | Uint8Array): string {
-  if (privateKeyPem.trim() === "") throw new Error(`no signing key: ${SIGNING_KEY_ENV} is only set in the release environment`);
-  const sig = crypto.sign(null, Buffer.from(SIGNATURE_PREFIX + manifest), crypto.createPrivateKey(privateKeyPem)).toString("base64");
-  if (!verifyManifest(manifest, sig, pinnedPublicKey)) throw new Error("the signing key is not the pinned release key: nothing was signed");
+  if (privateKeyPem.trim() === "")
+    throw new Error(`no signing key: ${SIGNING_KEY_ENV} is only set in the release environment`);
+  const sig = crypto
+    .sign(null, Buffer.from(SIGNATURE_PREFIX + manifest), crypto.createPrivateKey(privateKeyPem))
+    .toString("base64");
+  if (!verifyManifest(manifest, sig, pinnedPublicKey))
+    throw new Error("the signing key is not the pinned release key: nothing was signed");
   return sig;
 }
 

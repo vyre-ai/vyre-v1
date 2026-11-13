@@ -37,7 +37,9 @@ export function shellPurgeClient(o: ShellPurgeOpts): PurgeClient {
 
 /** Send each purge signal the connection hears to the client; a purge that fails is left for the next signal (the client clears its running state), never thrown into the shell. Returns how to stop. */
 export function watchPurge(p: ShellPurge, onError?: (error: unknown) => void): () => void {
-  return p.subscribe((epoch) => { void p.client.onFrame({ t: "purge", epoch }).catch((e: unknown) => onError?.(e)); });
+  return p.subscribe((epoch) => {
+    void p.client.onFrame({ t: "purge", epoch }).catch((e: unknown) => onError?.(e));
+  });
 }
 
 export interface WebPurgeOpts {
@@ -70,7 +72,9 @@ export function webPurgeClient(o: WebPurgeOpts): ShellPurge["client"] {
       if (seen.has(frame.epoch)) return null;
       seen.add(frame.epoch);
       try {
-        await acker.afterWipe(o.deviceId, frame.epoch, async () => { await o.wipe(frame.epoch); });
+        await acker.afterWipe(o.deviceId, frame.epoch, async () => {
+          await o.wipe(frame.epoch);
+        });
       } catch (e) {
         seen.delete(frame.epoch); // a wipe that failed is tried again on the next signal
         throw e;
@@ -89,11 +93,18 @@ export function webPurgeClient(o: WebPurgeOpts): ShellPurge["client"] {
 
 /** Remove everything this browser keeps under the app's own prefix (the stored session, the remembered tabs, the sidebar's collapsed state). Blocked storage is not an error: there is nothing to remove. */
 export function wipeBrowserStorage(prefix = "vyre."): void {
-  const ls = (globalThis as { localStorage?: { length: number; key(i: number): string | null; removeItem(k: string): void } }).localStorage;
+  const ls = (
+    globalThis as { localStorage?: { length: number; key(i: number): string | null; removeItem(k: string): void } }
+  ).localStorage;
   if (!ls) return;
   try {
     const keys: string[] = [];
-    for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k !== null && k.startsWith(prefix)) keys.push(k); }
+    for (let i = 0; i < ls.length; i++) {
+      const k = ls.key(i);
+      if (k !== null && k.startsWith(prefix)) keys.push(k);
+    }
     for (const k of keys) ls.removeItem(k);
-  } catch { /* blocked storage */ }
+  } catch {
+    /* blocked storage */
+  }
 }

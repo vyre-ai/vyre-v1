@@ -10,15 +10,33 @@ import { createCtxSeal } from "./seal.ts";
 import { ScheduleQueue } from "./schedule.ts";
 import { hostServices, invokeRunner } from "./services.ts";
 
-const cap = (name: string): CapabilityDef => ({
-  name, v: 1, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "record", id: "/id" }, permission: "records.edit", level: "edit",
-  risk: "low", effects: "write", emits: [], idempotency: "natural", surfaces: {}, examples: [],
-} as unknown as CapabilityDef);
+const cap = (name: string): CapabilityDef =>
+  ({
+    name,
+    v: 1,
+    summary: "s",
+    input: { type: "object" },
+    output: { type: "object" },
+    errors: [],
+    resource: { type: "record", id: "/id" },
+    permission: "records.edit",
+    level: "edit",
+    risk: "low",
+    effects: "write",
+    emits: [],
+    idempotency: "natural",
+    surfaces: {},
+    examples: [],
+  }) as unknown as CapabilityDef;
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const TRACE = "d".repeat(32);
-const seed: CtxSeed = { space: "spc_1", principal: { kind: "person", id: "usr_dana" }, trace: { traceId: TRACE, spanId: "e".repeat(16) } };
+const seed: CtxSeed = {
+  space: "spc_1",
+  principal: { kind: "person", id: "usr_dana" },
+  trace: { traceId: TRACE, spanId: "e".repeat(16) },
+};
 
 function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
   const clock = { t: 1_760_000_000_000 };
@@ -31,12 +49,29 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
       const id = await ctx.schedule("+1m", "demo.later", { id: "rec_1", n: 7 });
       return { back: dec.decode(ctx.seal.unseal(sealed)), keyId: sealed.keyId, id };
     },
-    "demo.later": (ctx: Ctx, input: unknown) => { later.push({ principal: ctx.principal.id, origin: ctx.origin, trace: ctx.trace.traceId, input }); return {}; },
+    "demo.later": (ctx: Ctx, input: unknown) => {
+      later.push({ principal: ctx.principal.id, origin: ctx.origin, trace: ctx.trace.traceId, input });
+      return {};
+    },
     "demo.plain": (ctx: Ctx) => ({ sealIsFn: typeof ctx.seal.seal, dbIs: typeof ctx.db.all }),
-    "demo.vault": async (ctx: Ctx) => { await ctx.vault.fill("#x", { kind: "k", ref: "r" }); return {}; },
+    "demo.vault": async (ctx: Ctx) => {
+      await ctx.vault.fill("#x", { kind: "k", ref: "r" });
+      return {};
+    },
   };
-  const queue = new ScheduleQueue({ db, now: () => clock.t, run: async (c) => { await runner(c); } });
-  const services = hostServices({ base: () => ({ db: { all: () => [], run: () => ({ changes: 0 }) } }), seal, queue, ...extra });
+  const queue = new ScheduleQueue({
+    db,
+    now: () => clock.t,
+    run: async (c) => {
+      await runner(c);
+    },
+  });
+  const services = hostServices({
+    base: () => ({ db: { all: () => [], run: () => ({ changes: 0 }) } }),
+    seal,
+    queue,
+    ...extra,
+  });
   const deps: InvokeDeps = {
     caps: indexCapabilities(Object.keys(handlers).map(cap)),
     validateInput: () => [],
@@ -95,9 +130,19 @@ test("the loader's own services (ctx.db) are kept next to the host's", async () 
 
 test("ctx.vault refuses until a Vault is given, and is the Vault's once it is", async () => {
   const none = rig();
-  await assert.rejects(none.invoke("demo.vault", { id: "rec_1" }, seed), (e: unknown) => (e as { error?: { code?: string } }).error?.code === "internal.not_implemented");
+  await assert.rejects(
+    none.invoke("demo.vault", { id: "rec_1" }, seed),
+    (e: unknown) => (e as { error?: { code?: string } }).error?.code === "internal.not_implemented",
+  );
   const filled: string[] = [];
-  const withVault = rig({ vault: () => ({ fill: async (h: string) => { filled.push(h); }, use: (h: string) => ({ handle: h }) }) });
+  const withVault = rig({
+    vault: () => ({
+      fill: async (h: string) => {
+        filled.push(h);
+      },
+      use: (h: string) => ({ handle: h }),
+    }),
+  });
   await withVault.invoke("demo.vault", { id: "rec_1" }, seed);
   assert.deepEqual(filled, ["#x"]);
 });

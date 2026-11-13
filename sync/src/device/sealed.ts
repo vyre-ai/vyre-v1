@@ -20,7 +20,9 @@ export async function createSealCodec(key: Uint8Array, c: CryptoLike = defaultCr
   return {
     async seal(plain, rowId) {
       const iv = c.getRandomValues(new Uint8Array(IV));
-      const ct = new Uint8Array(await c.subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(rowId) }, k, plain));
+      const ct = new Uint8Array(
+        await c.subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(rowId) }, k, plain),
+      );
       const out = new Uint8Array(IV + ct.length);
       out.set(iv, 0);
       out.set(ct, IV);
@@ -29,7 +31,13 @@ export async function createSealCodec(key: Uint8Array, c: CryptoLike = defaultCr
     async open(sealed, rowId) {
       if (sealed.length < IV + TAG) throw new ReplicaError("wrong_key", "sealed payload is too short");
       try {
-        return new Uint8Array(await c.subtle.decrypt({ name: "AES-GCM", iv: sealed.subarray(0, IV), additionalData: te.encode(rowId) }, k, sealed.subarray(IV)));
+        return new Uint8Array(
+          await c.subtle.decrypt(
+            { name: "AES-GCM", iv: sealed.subarray(0, IV), additionalData: te.encode(rowId) },
+            k,
+            sealed.subarray(IV),
+          ),
+        );
       } catch {
         throw new ReplicaError("wrong_key", "the replica key does not open this payload");
       }

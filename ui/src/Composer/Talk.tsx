@@ -55,7 +55,11 @@ export interface TalkControl {
   bars(i: number): (node: unknown) => void;
 }
 
-export function useTalk(o: { read(): { text: string; cursor: number }; write(text: string, cursor: number): void; focus(): void }): TalkControl {
+export function useTalk(o: {
+  read(): { text: string; cursor: number };
+  write(text: string, cursor: number): void;
+  focus(): void;
+}): TalkControl {
   const port = useContext(TalkContext);
   const [phase, setPhase] = useState<TalkControl["phase"]>("idle");
   const [line, setLine] = useState<string | null>(null);
@@ -75,13 +79,20 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     if (lineTimer.current !== null) clearTimeout(lineTimer.current);
     setLine(text);
     setLink(text === null ? null : withLink);
-    if (text !== null) lineTimer.current = setTimeout(() => { setLine(null); setLink(null); }, LINE_MS);
+    if (text !== null)
+      lineTimer.current = setTimeout(() => {
+        setLine(null);
+        setLink(null);
+      }, LINE_MS);
   }, []);
   const paint = useCallback((level: number) => {
-    nodes.current.forEach((n, i) => { if (n?.style) n.style.transform = `scaleY(${Math.max(0.16, Math.min(1, level * (BARS[i] ?? 1))).toFixed(2)})`; });
+    nodes.current.forEach((n, i) => {
+      if (n?.style) n.style.transform = `scaleY(${Math.max(0.16, Math.min(1, level * (BARS[i] ?? 1))).toFixed(2)})`;
+    });
   }, []);
   const over = useCallback(() => {
-    run.current = null; anchor.current = null;
+    run.current = null;
+    anchor.current = null;
     setPhase("idle");
   }, []);
 
@@ -93,7 +104,11 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     anchor.current = { before: cur.text.slice(0, cur.cursor), after: cur.text.slice(cur.cursor), skip: 0 };
     heard.current = "";
     setPhase("starting");
-    const G = globalThis as { navigator?: { onLine?: boolean; platform?: string }; __TAURI__?: unknown; WebSocket?: new (url: string, protocols: string[]) => unknown };
+    const G = globalThis as {
+      navigator?: { onLine?: boolean; platform?: string };
+      __TAURI__?: unknown;
+      WebSocket?: new (url: string, protocols: string[]) => unknown;
+    };
     const deps: TalkDeps = {
       session: () => p.session(),
       openMic: (on) => openWebMic(on),
@@ -101,42 +116,79 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
       online: () => G.navigator?.onLine !== false,
       now: () => Date.now(),
       later: (fn, ms) => setTimeout(fn, ms),
-      shell: !G.__TAURI__ ? "web" : /win/i.test(G.navigator?.platform ?? "") && !/darwin|mac/i.test(G.navigator?.platform ?? "") ? "windows" : "mac",
+      shell: !G.__TAURI__
+        ? "web"
+        : /win/i.test(G.navigator?.platform ?? "") && !/darwin|mac/i.test(G.navigator?.platform ?? "")
+          ? "windows"
+          : "mac",
       ...p.deps,
     };
-    run.current = startTalk(deps, {
-      words(all) {
-        const a = anchor.current;
-        if (!a) return;
-        heard.current = all;
-        const at = placed(a, wordsAfter(all, a.skip));
-        latest.current.write(at.text, at.cursor);
+    run.current = startTalk(
+      deps,
+      {
+        words(all) {
+          const a = anchor.current;
+          if (!a) return;
+          heard.current = all;
+          const at = placed(a, wordsAfter(all, a.skip));
+          latest.current.write(at.text, at.cursor);
+        },
+        level: paint,
+        listening() {
+          warm.current = true;
+          setPhase("listening");
+        },
+        ended: over,
+        failed(text) {
+          over();
+          warm.current = false;
+          say(text);
+        },
+        off(text) {
+          over();
+          p.noteOff();
+          say(text);
+        },
+        needsKey() {
+          over();
+          // a team Space with nothing set: say so (an admin gets the way to add one); never ask a member for a key they cannot be given
+          if (p.unset) {
+            say(LINE.notSetUp, p.unset.admin ? { label: "Add a key in Console", open: p.unset.open } : null);
+            return;
+          }
+          void p.setup().then(
+            (saved) => {
+              if (saved) {
+                warm.current = false;
+                begin();
+              }
+            },
+            () => say("Talk could not start. Try again."),
+          );
+        },
       },
-      level: paint,
-      listening() { warm.current = true; setPhase("listening"); },
-      ended: over,
-      failed(text) { over(); warm.current = false; say(text); },
-      off(text) { over(); p.noteOff(); say(text); },
-      needsKey() {
-        over();
-        // a team Space with nothing set: say so (an admin gets the way to add one); never ask a member for a key they cannot be given
-        if (p.unset) { say(LINE.notSetUp, p.unset.admin ? { label: "Add a key in Console", open: p.unset.open } : null); return; }
-        void p.setup().then((saved) => { if (saved) { warm.current = false; begin(); } }, () => say("Talk could not start. Try again."));
-      },
-    }, { warm: warm.current });
+      { warm: warm.current },
+    );
   }, [port, paint, over, say]);
 
   /** Esc: the field goes back to what it was, less only the words Talk added. */
   const cancel = useCallback(() => {
     const a = anchor.current;
     run.current?.cancel();
-    if (a) { const at = placed(a, ""); latest.current.write(at.text, at.cursor); }
+    if (a) {
+      const at = placed(a, "");
+      latest.current.write(at.text, at.cursor);
+    }
     over();
     latest.current.focus();
   }, [over]);
 
   const pressIn = useCallback(() => {
-    if (run.current) { pressed.current = { at: Date.now(), started: false }; run.current.stop(); return; }
+    if (run.current) {
+      pressed.current = { at: Date.now(), started: false };
+      run.current.stop();
+      return;
+    }
     pressed.current = { at: Date.now(), started: true };
     begin();
   }, [begin]);
@@ -145,37 +197,72 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     pressed.current = null;
     clicked.current = p !== null;
     if (p?.started && Date.now() - p.at >= HOLD_MS) run.current?.stop();
-    if (e?.pointerType !== "touch") latest.current.focus();   // on a phone the keyboard would rise and move everything
+    if (e?.pointerType !== "touch") latest.current.focus(); // on a phone the keyboard would rise and move everything
   }, []);
   const tapped = useCallback(() => {
-    if (clicked.current) { clicked.current = false; return; }
-    if (run.current) run.current.stop(); else begin();
+    if (clicked.current) {
+      clicked.current = false;
+      return;
+    }
+    if (run.current) run.current.stop();
+    else begin();
   }, [begin]);
   const edited = useCallback((text: string, cursor: number) => {
     const a = anchor.current;
     if (!a) return;
-    anchor.current = { before: text.slice(0, cursor), after: text.slice(cursor), skip: heard.current.split(/\s+/).filter(Boolean).length };
+    anchor.current = {
+      before: text.slice(0, cursor),
+      after: text.slice(cursor),
+      skip: heard.current.split(/\s+/).filter(Boolean).length,
+    };
   }, []);
   const finish = useCallback(() => {
     if (!run.current) return;
     run.current.cancel();
     over();
   }, [over]);
-  const bars = useCallback((i: number) => (node: unknown) => { nodes.current[i] = node as { style?: { transform: string } } | null; }, []);
+  const bars = useCallback(
+    (i: number) => (node: unknown) => {
+      nodes.current[i] = node as { style?: { transform: string } } | null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (phase === "idle" || !web) return undefined;
-    type Key = { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault(): void; stopPropagation(): void };
-    const w = globalThis as unknown as { addEventListener(t: string, f: (e: Key) => void, c: boolean): void; removeEventListener(t: string, f: (e: Key) => void, c: boolean): void };
+    type Key = {
+      key: string;
+      metaKey?: boolean;
+      ctrlKey?: boolean;
+      shiftKey?: boolean;
+      preventDefault(): void;
+      stopPropagation(): void;
+    };
+    const w = globalThis as unknown as {
+      addEventListener(t: string, f: (e: Key) => void, c: boolean): void;
+      removeEventListener(t: string, f: (e: Key) => void, c: boolean): void;
+    };
     // Esc, and Undo (Cmd or Ctrl Z): Talk ends at once, the words still on their way are dropped and the field goes back to what it was before Talk, so Undo works the moment it is pressed, even in the moments Talk waits for the last words
     const onKey = (e: Key): void => {
-      const undo = (e.key === "z" || e.key === "Z") && (e.metaKey === true || e.ctrlKey === true) && e.shiftKey !== true;
-      if (e.key === "Escape" || undo) { e.preventDefault(); e.stopPropagation(); cancel(); }
+      const undo =
+        (e.key === "z" || e.key === "Z") && (e.metaKey === true || e.ctrlKey === true) && e.shiftKey !== true;
+      if (e.key === "Escape" || undo) {
+        e.preventDefault();
+        e.stopPropagation();
+        cancel();
+      }
     };
     w.addEventListener("keydown", onKey, true);
     return () => w.removeEventListener("keydown", onKey, true);
   }, [phase, cancel]);
-  useEffect(() => () => { run.current?.cancel(); run.current = null; if (lineTimer.current !== null) clearTimeout(lineTimer.current); }, []);
+  useEffect(
+    () => () => {
+      run.current?.cancel();
+      run.current = null;
+      if (lineTimer.current !== null) clearTimeout(lineTimer.current);
+    },
+    [],
+  );
 
   return { port, phase, line, link, pressIn, pressOut, tapped, edited, finish, bars };
 }
@@ -188,21 +275,42 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
   const live = talk.phase !== "idle";
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={live ? "Stop listening" : "Talk"} accessibilityState={{ selected: live }} testID="composer-talk"
+      accessibilityRole="button"
+      accessibilityLabel={live ? "Stop listening" : "Talk"}
+      accessibilityState={{ selected: live }}
+      testID="composer-talk"
       onPress={talk.tapped}
-      {...(web ? {
-        title: live ? "Listening. Press to stop, Esc to cancel" : talk.port?.unset ? LINE.notSetUp : "Talk",
-        onPointerDown: (e: { pointerId?: number; currentTarget?: { setPointerCapture?: (id: number) => void } }) => { if (e.pointerId !== undefined) e.currentTarget?.setPointerCapture?.(e.pointerId); talk.pressIn(); },
-        onPointerUp: talk.pressOut, onPointerCancel: talk.pressOut,
-      } as object : {})}
-      style={({ hovered }: { hovered?: boolean }) => [s.mic, WEB_PRESS, talk.port?.unset ? s.unset : null, hovered === true && s.hover]}
+      {...(web
+        ? ({
+            title: live ? "Listening. Press to stop, Esc to cancel" : talk.port?.unset ? LINE.notSetUp : "Talk",
+            onPointerDown: (e: {
+              pointerId?: number;
+              currentTarget?: { setPointerCapture?: (id: number) => void };
+            }) => {
+              if (e.pointerId !== undefined) e.currentTarget?.setPointerCapture?.(e.pointerId);
+              talk.pressIn();
+            },
+            onPointerUp: talk.pressOut,
+            onPointerCancel: talk.pressOut,
+          } as object)
+        : {})}
+      style={({ hovered }: { hovered?: boolean }) => [
+        s.mic,
+        WEB_PRESS,
+        talk.port?.unset ? s.unset : null,
+        hovered === true && s.hover,
+      ]}
     >
       {live ? (
         <View style={s.bars} testID="composer-talk-level">
           {/* ui-rows-lint: not a list (four level bars) */}
-          {BARS.map((_, i) => <View key={i} ref={talk.bars(i) as never} style={s.bar} />)}
+          {BARS.map((_, i) => (
+            <View key={i} ref={talk.bars(i) as never} style={s.bar} />
+          ))}
         </View>
-      ) : <Glyph icon={I.mic} native={"●"} size={18} color="var(--ink-3)" />}
+      ) : (
+        <Glyph icon={I.mic} native={"●"} size={18} color="var(--ink-3)" />
+      )}
     </Pressable>
   );
 }
@@ -212,8 +320,14 @@ export function TalkLine({ talk }: { talk: TalkControl }): ReactElement | null {
   if (talk.line === null) return null;
   return (
     <View style={s.line} testID="composer-talk-line-box">
-      <Text style={s.lineText} testID="composer-talk-line" accessibilityRole="alert" accessibilityLiveRegion="polite">{talk.line}</Text>
-      {talk.link ? <Text accessibilityRole="link" testID="composer-talk-link" onPress={talk.link.open} style={s.lineLink}>{talk.link.label}</Text> : null}
+      <Text style={s.lineText} testID="composer-talk-line" accessibilityRole="alert" accessibilityLiveRegion="polite">
+        {talk.line}
+      </Text>
+      {talk.link ? (
+        <Text accessibilityRole="link" testID="composer-talk-link" onPress={talk.link.open} style={s.lineLink}>
+          {talk.link.label}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -222,7 +336,16 @@ const s = StyleSheet.create({
   mic: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   hover: { backgroundColor: "var(--hover)" as string },
   bars: { flexDirection: "row", alignItems: "center", gap: 2.5, height: 16 },
-  bar: { width: 2, height: 14, borderRadius: 1, backgroundColor: "var(--beacon)" as string, transform: [{ scaleY: 0.16 }], transitionProperty: "transform", transitionDuration: "110ms", transitionTimingFunction: "linear" } as object,
+  bar: {
+    width: 2,
+    height: 14,
+    borderRadius: 1,
+    backgroundColor: "var(--beacon)" as string,
+    transform: [{ scaleY: 0.16 }],
+    transitionProperty: "transform",
+    transitionDuration: "110ms",
+    transitionTimingFunction: "linear",
+  } as object,
   line: { position: "absolute", left: 14, right: 14, bottom: "100%", marginBottom: 8, gap: 2 } as object,
   lineText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   lineLink: { fontSize: 12.5, lineHeight: 18, color: "var(--accent)" as string, textDecorationLine: "underline" },

@@ -5,12 +5,24 @@ import assert from "node:assert/strict";
 import { inspect } from "node:util";
 import { argon2id, STRETCH } from "../../../kernel/src/seal/index.ts";
 import {
-  ENC_MINE, ENC_SHARED, Filler, VAULT_STRETCH, keyIdOf, openMine, rewrapMine, sealMine, wrapKeyFromPassword, wrapKeyFromPersonKey,
+  ENC_MINE,
+  ENC_SHARED,
+  Filler,
+  VAULT_STRETCH,
+  keyIdOf,
+  openMine,
+  rewrapMine,
+  sealMine,
+  wrapKeyFromPassword,
+  wrapKeyFromPersonKey,
 } from "../handlers/crypto.ts";
 import type { Field } from "../handlers/crypto.ts";
 import { MAYA, ROB, keyOfPerson } from "../fixtures/harness.ts";
 
-const FIELDS: Field[] = [{ key: "username", value: "dana", secret: false }, { key: "api_key", value: "sk-test-1234", secret: true }];
+const FIELDS: Field[] = [
+  { key: "username", value: "dana", secret: false },
+  { key: "api_key", value: "sk-test-1234", secret: true },
+];
 const wrapMaya = wrapKeyFromPersonKey(keyOfPerson(MAYA));
 
 test("enc=2: a Mine row holds a random item key wrapped for the owner, and nothing else opens it", () => {
@@ -56,14 +68,26 @@ test("enc=1: the filler seals and opens Shared rows, never shows its key, and an
 });
 
 test("Argon2id: the vault uses the kernel's parameters and a salt per person", () => {
-  assert.deepEqual({ ...VAULT_STRETCH }, { memoryKiB: 19456, passes: 2, lanes: 1, tagLength: 32 }, "19 MiB, two passes, one lane, a 32 byte tag");
+  assert.deepEqual(
+    { ...VAULT_STRETCH },
+    { memoryKiB: 19456, passes: 2, lanes: 1, tagLength: 32 },
+    "19 MiB, two passes, one lane, a 32 byte tag",
+  );
   assert.deepEqual({ ...VAULT_STRETCH }, { ...STRETCH }, "the same parameters as the recovery stretch");
   const a = wrapKeyFromPassword("correct horse battery staple", MAYA);
   assert.equal(a.length, 32);
   assert.deepEqual(a, wrapKeyFromPassword("correct horse battery staple", MAYA), "deterministic");
   assert.notDeepEqual(a, wrapKeyFromPassword("correct horse battery stapl3", MAYA), "a different password");
-  assert.notDeepEqual(a, wrapKeyFromPassword("correct horse battery staple", ROB), "a different person: two people with one password do not share a key");
-  assert.deepEqual(a, wrapKeyFromPersonKey(argon2id("correct horse battery staple", `vyre-vault-mine:${MAYA}`, VAULT_STRETCH)), "Argon2id, then the wrap derivation");
+  assert.notDeepEqual(
+    a,
+    wrapKeyFromPassword("correct horse battery staple", ROB),
+    "a different person: two people with one password do not share a key",
+  );
+  assert.deepEqual(
+    a,
+    wrapKeyFromPersonKey(argon2id("correct horse battery staple", `vyre-vault-mine:${MAYA}`, VAULT_STRETCH)),
+    "Argon2id, then the wrap derivation",
+  );
 });
 
 test("key rotation, Mine: a new password moves the item key to a new wrap key without touching the sealed fields", () => {

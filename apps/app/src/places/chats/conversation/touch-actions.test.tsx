@@ -18,35 +18,93 @@ function media(hoverNone: boolean) {
   const listeners = new Set<Listener>();
   const state = { hoverNone, added: 0, removed: 0 };
   const mm = (q: string) => ({
-    get matches() { return q.includes("hover: none") ? state.hoverNone : false; },
-    addEventListener: (_t: string, f: Listener) => { state.added++; listeners.add(f); },
-    removeEventListener: (_t: string, f: Listener) => { state.removed++; listeners.delete(f); },
+    get matches() {
+      return q.includes("hover: none") ? state.hoverNone : false;
+    },
+    addEventListener: (_t: string, f: Listener) => {
+      state.added++;
+      listeners.add(f);
+    },
+    removeEventListener: (_t: string, f: Listener) => {
+      state.removed++;
+      listeners.delete(f);
+    },
   });
-  return { state, mm, set: async (v: boolean) => { state.hoverNone = v; await reactAct(async () => { for (const f of [...listeners]) f(); }); } };
+  return {
+    state,
+    mm,
+    set: async (v: boolean) => {
+      state.hoverNone = v;
+      await reactAct(async () => {
+        for (const f of [...listeners]) f();
+      });
+    },
+  };
 }
 
-const reply: Message = { messageId: "m_ans", threadId: "thr_1", threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false } as unknown as Message;
+const reply: Message = {
+  messageId: "m_ans",
+  threadId: "thr_1",
+  threadSeq: 2,
+  author: { kind: "agent", id: "agt_billing" },
+  kind: "agent",
+  body: "Three invoices are paid, two are open.",
+  blocks: [],
+  createdAt: 2,
+  reactions: [],
+  pinned: false,
+} as unknown as Message;
 
 async function rig(m: ReturnType<typeof media>) {
   const restore = installDom();
   (globalThis as { matchMedia?: unknown }).matchMedia = m.mm;
   const s = createSample("idle");
-  const items = timeline([reply], { meId: s.data.me.id, nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
-  const actions = { openBeside: () => undefined, nameOf: s.data.nameOf, makeTask: () => undefined, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined, showMenu: () => undefined, remove: () => undefined, react: () => undefined } as never;
-  const root = await mount(createRoot as never, <MessageView item={items.find((i) => (i as { message?: Message }).message?.messageId === "m_ans")!} actions={actions} meId={s.data.me.id} />);
+  const items = timeline([reply], {
+    meId: s.data.me.id,
+    nameOf: s.data.nameOf,
+    kindOf: s.data.kindOf,
+    clock: s.data.clock(),
+  });
+  const actions = {
+    openBeside: () => undefined,
+    nameOf: s.data.nameOf,
+    makeTask: () => undefined,
+    copy: () => undefined,
+    openThread: () => undefined,
+    setPinned: () => undefined,
+    fork: () => undefined,
+    showMenu: () => undefined,
+    remove: () => undefined,
+    react: () => undefined,
+  } as never;
+  const root = await mount(
+    createRoot as never,
+    <MessageView
+      item={items.find((i) => (i as { message?: Message }).message?.messageId === "m_ans")!}
+      actions={actions}
+      meId={s.data.me.id}
+    />,
+  );
   return { root, restore };
 }
 
 /** The first node that carries a touch-start handler: the row a finger presses. */
 const rowOf = (n: Node): Node | null => {
   if (typeof n.props["onTouchStart"] === "function") return n;
-  for (const c of n.children ?? []) { if (typeof c === "string") continue; const f = rowOf(c); if (f) return f; }
+  for (const c of n.children ?? []) {
+    if (typeof c === "string") continue;
+    const f = rowOf(c);
+    if (f) return f;
+  }
   return null;
 };
 const longPress = async (root: Node): Promise<void> => {
   const row = rowOf(root);
   assert.ok(row, "the message row listens for a touch");
-  await reactAct(async () => { (row.props["onTouchStart"] as () => void)(); await new Promise((r) => setTimeout(r, 520)); });
+  await reactAct(async () => {
+    (row.props["onTouchStart"] as () => void)();
+    await new Promise((r) => setTimeout(r, 520));
+  });
 };
 
 test("a device that hovers and has a touch screen has both: the bar is there, and a long press opens the sheet", async () => {
@@ -58,7 +116,9 @@ test("a device that hovers and has a touch screen has both: the bar is there, an
     await longPress(root);
     assert.ok(textOf(root).includes("Make a Task"), "the long press opened the sheet with Make a Task");
     assert.ok(find(root, "hover-m_ans"), "and the hover bar is still there");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("when the device stops being able to hover the bar goes away, and comes back when it can again, live and on the same row", async () => {
@@ -77,5 +137,7 @@ test("when the device stops being able to hover the bar goes away, and comes bac
     await m.set(false);
     assert.ok(find(root, "hover-m_ans"), "the bar comes back when the device can hover again");
     assert.equal(textOf(root).includes("Three invoices"), before.includes("Three invoices"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

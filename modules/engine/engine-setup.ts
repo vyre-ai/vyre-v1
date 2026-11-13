@@ -14,9 +14,18 @@ export interface InstallOnConnectDeps {
 
 /** Starts the install for the program a connected provider runs on, unless it is here already, has no build for this computer, or the installer is off. Answers the programs it started; never waits. */
 export function installOnConnect(providerKey: string | undefined, d: InstallOnConnectDeps = {}): string[] {
-  const program = providerKey !== undefined && Object.hasOwn(PROGRAM_OF_PROVIDER, providerKey) ? PROGRAM_OF_PROVIDER[providerKey] : undefined;
+  const program =
+    providerKey !== undefined && Object.hasOwn(PROGRAM_OF_PROVIDER, providerKey)
+      ? PROGRAM_OF_PROVIDER[providerKey]
+      : undefined;
   const installer = d.installer === undefined ? engines() : d.installer;
-  if (program === undefined || !installer || !installer.supported(program) || findProgram(program, d.probe) !== null) return [];
-  installer.ensure(program).catch((e: unknown) => d.log?.("an engine could not be set up after its account was connected", { program, error: e instanceof Error ? e.message : String(e) }));
+  if (program === undefined || !installer || !installer.supported(program) || findProgram(program, d.probe) !== null)
+    return [];
+  installer.ensure(program).catch((e: unknown) =>
+    d.log?.("an engine could not be set up after its account was connected", {
+      program,
+      error: e instanceof Error ? e.message : String(e),
+    }),
+  );
   return [program];
 }

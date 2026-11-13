@@ -9,7 +9,11 @@ import { openRecordStore } from "../../../kernel/src/store/records.ts";
 import type { Store } from "../../../kernel/src/store/types.ts";
 import type { SeamDriver } from "../seams/index.ts";
 
-export interface SpaceStoreHandle { host: ProjectionHost; store: Store; tx: Tx }
+export interface SpaceStoreHandle {
+  host: ProjectionHost;
+  store: Store;
+  tx: Tx;
+}
 
 /** What a data module receives. */
 export interface SpaceStoreSeam {
@@ -31,7 +35,12 @@ export interface SpaceStore extends SpaceStoreSeam {
 }
 
 /** The setters the four data modules export; each is a distinct name because two modules may not offer the same setter. */
-export const SPACE_STORE_SETTERS = ["setRecordsSpaceStore", "setSchemaSpaceStore", "setSourcesSpaceStore", "setConnectorsSpaceStore"] as const;
+export const SPACE_STORE_SETTERS = [
+  "setRecordsSpaceStore",
+  "setSchemaSpaceStore",
+  "setSourcesSpaceStore",
+  "setConnectorsSpaceStore",
+] as const;
 
 export const spaceStorePath = (root: string): string => path.join(root, "space.db");
 
@@ -76,7 +85,10 @@ export function spaceStoreDrivers(store: SpaceStoreSeam): Record<string, SeamDri
  * two-computer tests), so the module cannot hold one value: it keeps the stores handed to it and, for each call, picks the one whose daemon the call's `ctx.db` belongs to. A stopped daemon's store
  * is never picked. With no store at all (a unit test) `build(null)` makes the module's private one. `build` runs once per store.
  */
-export function perSpaceStore<T>(build: (seam: SpaceStoreSeam | null) => T, onSet?: (seam: SpaceStoreSeam) => void): { set(seam: SpaceStoreSeam | null): void; get(ctx?: { db?: unknown }): T } {
+export function perSpaceStore<T>(
+  build: (seam: SpaceStoreSeam | null) => T,
+  onSet?: (seam: SpaceStoreSeam) => void,
+): { set(seam: SpaceStoreSeam | null): void; get(ctx?: { db?: unknown }): T } {
   const seams: SpaceStoreSeam[] = [];
   const built = new Map<SpaceStoreSeam | null, T>();
   const pick = (ctx?: { db?: unknown }): SpaceStoreSeam | null => {
@@ -86,8 +98,15 @@ export function perSpaceStore<T>(build: (seam: SpaceStoreSeam | null) => T, onSe
   };
   return {
     set(seam) {
-      for (let i = seams.length - 1; i >= 0; i--) if (seams[i]!.closed?.()) { built.delete(seams[i]!); seams.splice(i, 1); }
-      if (seam && !seams.includes(seam)) { seams.push(seam); onSet?.(seam); }
+      for (let i = seams.length - 1; i >= 0; i--)
+        if (seams[i]!.closed?.()) {
+          built.delete(seams[i]!);
+          seams.splice(i, 1);
+        }
+      if (seam && !seams.includes(seam)) {
+        seams.push(seam);
+        onSet?.(seam);
+      }
     },
     get(ctx) {
       const k = pick(ctx);

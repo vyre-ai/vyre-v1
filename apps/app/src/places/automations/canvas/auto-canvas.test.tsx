@@ -11,11 +11,20 @@ import type { Definition } from "./model.ts";
 import { createSampleAutomations, harbor, northwind, LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 import type { SampleAutomations } from "../sidebar/sample.ts";
 
-const html = (s: SampleAutomations, id = "aut_lead", props: Partial<Parameters<typeof AutomationCanvas>[0]> = {}): string =>
-  renderToStaticMarkup(<AutomationsDataProvider value={s.data}><AutomationCanvas automationId={id} {...props} /></AutomationsDataProvider>).replaceAll("<!-- -->", "");
+const html = (
+  s: SampleAutomations,
+  id = "aut_lead",
+  props: Partial<Parameters<typeof AutomationCanvas>[0]> = {},
+): string =>
+  renderToStaticMarkup(
+    <AutomationsDataProvider value={s.data}>
+      <AutomationCanvas automationId={id} {...props} />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
-const defOf = (s: SampleAutomations, id: string): Definition => (s.replica.rows("automations").find((r) => r.id === id) as unknown as { definition: Definition }).definition;
+const defOf = (s: SampleAutomations, id: string): Definition =>
+  (s.replica.rows("automations").find((r) => r.id === id) as unknown as { definition: Definition }).definition;
 
 test("the header shows the name, the Space, why it needs attention and the actions", () => {
   const out = html(createSampleAutomations(northwind));
@@ -40,8 +49,19 @@ test("the trigger card lists every trigger, then each step is a card with its ti
   const out = html(createSampleAutomations(northwind));
   assert.ok(has(out, "Any one starts a run"));
   assert.ok(has(out, "A new lead is created"));
-  assert.ok(has(out, "Client intake form is submitted") && has(out, "Any form is submitted"), "a form trigger with no form named reads as any form");
-  for (const t of ["Look up the person by email", "Draft a personal reply from the first hello", "Does the lead have a mobile number?", "Text the lead a first hello", "Wait until they reply, or 1 day", "Email the lead a first hello"]) assert.ok(has(out, t), t);
+  assert.ok(
+    has(out, "Client intake form is submitted") && has(out, "Any form is submitted"),
+    "a form trigger with no form named reads as any form",
+  );
+  for (const t of [
+    "Look up the person by email",
+    "Draft a personal reply from the first hello",
+    "Does the lead have a mobile number?",
+    "Text the lead a first hello",
+    "Wait until they reply, or 1 day",
+    "Email the lead a first hello",
+  ])
+    assert.ok(has(out, t), t);
   assert.ok(has(out, "Your Claude sign-in, then Northwind OpenAI key"), "the AI step names its key and backup");
   assert.ok(has(out, "1 path and Otherwise, first match wins"));
   for (const id of LEAD_FOLLOW_UP.nodes.map((n) => n.id)) assert.ok(has(out, `data-testid="card-${id}"`), `card ${id}`);
@@ -67,11 +87,16 @@ test("a selected card carries the accent ring; the step panel opens on it with i
   assert.ok(!has(sel, 'data-testid="inspector"'), "selecting alone does not open the panel");
   const open = html(s, "aut_lead", { initialSelected: "mobile", initialPanel: true });
   assert.ok(has(open, 'data-testid="inspector"'));
-  assert.ok(has(open, 'data-testid="field-title"') && has(open, 'data-testid="field-path-0"'), "name and the path's condition");
+  assert.ok(
+    has(open, 'data-testid="field-title"') && has(open, 'data-testid="field-path-0"'),
+    "name and the path's condition",
+  );
   assert.ok(has(open, "lead.phone is not empty"));
   assert.ok(has(open, "If this step fails") && has(open, "Stop the run"));
   const ai = html(s, "aut_lead", { initialSelected: "draft", initialPanel: true });
-  assert.ok(has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'));
+  assert.ok(
+    has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'),
+  );
 });
 
 test("build a three-path Automation: the lanes appear, save writes one version, and a missing condition shows inline", async () => {
@@ -79,15 +104,31 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
   const made = (await s.data.call("automations.create", { name: "Score the lead" })) as { automation: { id: string } };
   const id = made.automation.id;
   let d: Definition = { triggers: [{ key: "record_change" }], nodes: [] };
-  const first = addAfter(d, null, "records.find"); d = updateStep(first.def, first.id, { input: { type: "lead" } });
-  const p = addAfter(d, first.id, "paths"); d = p.def;
-  d = updateStep(d, p.id, { title: "How warm is the lead?", branches: [{ label: "Hot", to: "", when: "lead.score > 80" }, { label: "Warm", to: "", when: "" }, { label: "Otherwise", to: "" }] });
-  const hot = addInto(d, p.id, "create_task", 0); d = updateStep(hot.def, hot.id, { input: { title: "Call now" } });
-  const warm = addInto(d, p.id, "send_email", 1); d = warm.def;
+  const first = addAfter(d, null, "records.find");
+  d = updateStep(first.def, first.id, { input: { type: "lead" } });
+  const p = addAfter(d, first.id, "paths");
+  d = p.def;
+  d = updateStep(d, p.id, {
+    title: "How warm is the lead?",
+    branches: [
+      { label: "Hot", to: "", when: "lead.score > 80" },
+      { label: "Warm", to: "", when: "" },
+      { label: "Otherwise", to: "" },
+    ],
+  });
+  const hot = addInto(d, p.id, "create_task", 0);
+  d = updateStep(hot.def, hot.id, { input: { title: "Call now" } });
+  const warm = addInto(d, p.id, "send_email", 1);
+  d = warm.def;
   await s.data.call("automations.update", { automationId: id, definition: d, expectedVersion: 1 });
   const out = html(s, id);
-  for (const t of ["How warm is the lead?", "Call now", "Send an email"]) assert.ok(has(out, t) || has(out, "Create a task"), t);
-  assert.ok(has(out, `data-testid="card-${p.id}"`) && has(out, `data-testid="card-${hot.id}"`) && has(out, `data-testid="card-${warm.id}"`));
+  for (const t of ["How warm is the lead?", "Call now", "Send an email"])
+    assert.ok(has(out, t) || has(out, "Create a task"), t);
+  assert.ok(
+    has(out, `data-testid="card-${p.id}"`) &&
+      has(out, `data-testid="card-${hot.id}"`) &&
+      has(out, `data-testid="card-${warm.id}"`),
+  );
   assert.equal(defOf(s, id).nodes.length, 4);
   assert.ok(has(out, "v2"), "one new version");
   // three lanes, three labels
@@ -98,7 +139,13 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
   assert.ok(has(out, `data-testid="issue-${warm.id}"`), "so does the email with no recipient");
   assert.ok(check(defOf(s, id)).some((i) => i.nodeId === p.id && /needs its condition/.test(i.message)));
   // fix them and the line goes away
-  let fixed = updateStep(defOf(s, id), p.id, { branches: [{ label: "Hot", to: hot.id, when: "lead.score > 80" }, { label: "Warm", to: warm.id, when: "lead.score > 40" }, { label: "Otherwise", to: "" }] });
+  let fixed = updateStep(defOf(s, id), p.id, {
+    branches: [
+      { label: "Hot", to: hot.id, when: "lead.score > 80" },
+      { label: "Warm", to: warm.id, when: "lead.score > 40" },
+      { label: "Otherwise", to: "" },
+    ],
+  });
   fixed = updateStep(fixed, warm.id, { input: { to: "{{lead.email}}", mailboxId: "mbx_main" } });
   await s.data.call("automations.update", { automationId: id, definition: fixed, expectedVersion: 2 });
   const clean = html(s, id);
@@ -108,20 +155,35 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
 
 test("a stale save is refused with a sentence, and the edit is kept for another try", async () => {
   const s = createSampleAutomations(northwind);
-  await assert.rejects(() => s.data.call("automations.update", { automationId: "aut_lead", definition: LEAD_FOLLOW_UP, expectedVersion: 2 }), /newer version/);
+  await assert.rejects(
+    () =>
+      s.data.call("automations.update", { automationId: "aut_lead", definition: LEAD_FOLLOW_UP, expectedVersion: 2 }),
+    /newer version/,
+  );
   assert.equal(s.replica.rows("automations").find((r) => r.id === "aut_lead")!["version"], 5, "nothing was written");
 });
 
 test("the server's check merges with the local one: the Twilio step needs its key", async () => {
   const s = createSampleAutomations(northwind);
-  const out = (await s.data.call("automations.validate", { definition: LEAD_FOLLOW_UP, kind: "space" })) as { ok: boolean; issues: { nodeId?: string; message: string; severity: string }[] };
-  assert.ok(out.issues.some((i) => i.nodeId === "text" && i.message === "Needs the Twilio key" && i.severity === "warning"));
+  const out = (await s.data.call("automations.validate", { definition: LEAD_FOLLOW_UP, kind: "space" })) as {
+    ok: boolean;
+    issues: { nodeId?: string; message: string; severity: string }[];
+  };
+  assert.ok(
+    out.issues.some((i) => i.nodeId === "text" && i.message === "Needs the Twilio key" && i.severity === "warning"),
+  );
   assert.equal(out.ok, true, "a missing connection is a warning, so the Automation can still be saved");
 });
 
 test("a run lights its lane and says which run is shown", () => {
   const s = createSampleAutomations(northwind);
-  const out = html(s, "aut_lead", { run: { id: "run_b", label: "Lead from Meta: Marcus Pruitt", states: { find: "done", draft: "done", mobile: "done", email: "done", text: "skipped" } } });
+  const out = html(s, "aut_lead", {
+    run: {
+      id: "run_b",
+      label: "Lead from Meta: Marcus Pruitt",
+      states: { find: "done", draft: "done", mobile: "done", email: "done", text: "skipped" },
+    },
+  });
   assert.ok(has(out, "Showing Lead from Meta: Marcus Pruitt"));
   assert.ok(has(out, 'data-testid="run-chip"'));
   assert.ok(has(out, 'aria-label="Stop showing this run"'));
@@ -131,13 +193,25 @@ test("the Versions tab lists versions with who and why; the Runs tab lists runs"
   const s = createSampleAutomations(northwind);
   const v = html(s, "aut_lead", { initialTab: "versions" });
   assert.ok(has(v, 'data-testid="versions-list"'));
-  assert.ok(has(v, "Version 5, current definition") && has(v, "Added the text branch for leads with a mobile number") && has(v, "Maya Chen"));
+  assert.ok(
+    has(v, "Version 5, current definition") &&
+      has(v, "Added the text branch for leads with a mobile number") &&
+      has(v, "Maya Chen"),
+  );
   assert.ok(has(v, "Restore"), "older versions can be restored");
   const r = html(s, "aut_lead", { initialTab: "runs" });
   assert.ok(has(r, 'data-testid="runs-list"'));
   assert.ok(has(r, "Text the lead failed: no Twilio key"));
   assert.ok(!has(html(s, "aut_lead", { initialTab: "steps" }), 'data-testid="runs-list"'));
-  const own = renderToStaticMarkup(<AutomationsDataProvider value={s.data}><AutomationCanvas automationId="aut_lead" initialTab="settings" tabBodies={{ settings: <span data-x="settings-body">Settings body</span> }} /></AutomationsDataProvider>);
+  const own = renderToStaticMarkup(
+    <AutomationsDataProvider value={s.data}>
+      <AutomationCanvas
+        automationId="aut_lead"
+        initialTab="settings"
+        tabBodies={{ settings: <span data-x="settings-body">Settings body</span> }}
+      />
+    </AutomationsDataProvider>,
+  );
   assert.ok(has(own, "Settings body"), "another packet's body fills the tab");
 });
 
@@ -167,9 +241,22 @@ test("an empty definition draws the trigger card and the first plus; nothing thr
 
 test("opening an Automation does not crash when the shell refuses the Versions query as not live (the real registry marks it live: false)", () => {
   const s = createSampleAutomations(northwind);
-  const real = { ...s.data, screens: { ...s.data.screens, query: (screen: string, name: string, state?: Record<string, unknown>) => { if (name === "versions") throw new Error(`query ${screen}.${name} is not live`); return s.data.screens.query(screen, name, state); } } };
-  const out = renderToStaticMarkup(<AutomationsDataProvider value={real as typeof s.data}><AutomationCanvas automationId="aut_lead" initialTab="steps" /></AutomationsDataProvider>);
-  assert.ok(out.length > 0 && has(out, 'data-testid'), "the canvas draws, with the versions read as a plain call");
+  const real = {
+    ...s.data,
+    screens: {
+      ...s.data.screens,
+      query: (screen: string, name: string, state?: Record<string, unknown>) => {
+        if (name === "versions") throw new Error(`query ${screen}.${name} is not live`);
+        return s.data.screens.query(screen, name, state);
+      },
+    },
+  };
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={real as typeof s.data}>
+      <AutomationCanvas automationId="aut_lead" initialTab="steps" />
+    </AutomationsDataProvider>,
+  );
+  assert.ok(out.length > 0 && has(out, "data-testid"), "the canvas draws, with the versions read as a plain call");
 });
 
 test("a place that names an id once gets the registry's /route pointers filled in, so the real shell resolves the query and stops showing a skeleton", async () => {
@@ -177,5 +264,9 @@ test("a place that names an id once gets the registry's /route pointers filled i
   assert.deepEqual(withRoute({ automationId: "aut_1" }), { automationId: "aut_1", route: { automationId: "aut_1" } });
   assert.deepEqual(withRoute({ runId: "run_1", route: { x: 1 } }), { runId: "run_1", route: { x: 1, runId: "run_1" } });
   assert.deepEqual(withRoute({ scope: "subject" }), { scope: "subject" }, "a state with no id is left as it was");
-  assert.deepEqual(withRoute({ automationId: "a", route: { automationId: "b" } }).route, { automationId: "b" }, "an explicit route wins");
+  assert.deepEqual(
+    withRoute({ automationId: "a", route: { automationId: "b" } }).route,
+    { automationId: "b" },
+    "an explicit route wins",
+  );
 });

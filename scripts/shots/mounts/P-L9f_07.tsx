@@ -8,16 +8,30 @@ import type { FlowState, JoinInvite } from "../../../apps/app/src/join/logic.ts"
 export const title = "Join pages";
 
 const NORTHWIND: JoinInvite = {
-  space: "Northwind", host: "northwind", by: "Irfad Imtiaz", role: "Member", email: "irfad@northwind.example",
-  names: { first: "Dana", last: "Whitfield" }, deviceName: "Dana's MacBook",
+  space: "Northwind",
+  host: "northwind",
+  by: "Irfad Imtiaz",
+  role: "Member",
+  email: "irfad@northwind.example",
+  names: { first: "Dana", last: "Whitfield" },
+  deviceName: "Dana's MacBook",
   starting: { agents: ["Intake", "Billing", "Research", "Docs"], projects: ["Rivera matter", "Q4 billing", "Hiring"] },
-  sso: ["Google", "Microsoft", "Okta"], github: true, adminKey: true,
+  sso: ["Google", "Microsoft", "Okta"],
+  github: true,
+  adminKey: true,
 };
 const HARBOR: JoinInvite = {
-  space: "Harbor Studio", host: "harbor", by: "Ines Costa", role: "Member", email: "ines@harborstudio.example",
-  names: { first: "June", last: "Okafor" }, deviceName: "June's MacBook",
+  space: "Harbor Studio",
+  host: "harbor",
+  by: "Ines Costa",
+  role: "Member",
+  email: "ines@harborstudio.example",
+  names: { first: "June", last: "Okafor" },
+  deviceName: "June's MacBook",
   starting: { agents: ["Assistant", "Scheduler", "Proofer"], projects: ["Brand refresh", "Launch site", "Studio ops"] },
-  sso: ["Google"], github: true, adminKey: false,
+  sso: ["Google"],
+  github: true,
+  adminKey: false,
 };
 const TAKEN = ["irfad", "maya", "omar", "lena", "sam", "admin", "ines", "theo"];
 const CODE = "K7QM-4TXD-92HB-WPLE";
@@ -27,17 +41,28 @@ function stateFor(view: string, invite: JoinInvite): Partial<FlowState> {
   const user = invite.names?.first.toLowerCase() ?? "";
   const filled = { user, pw: PASSWORD, pw2: PASSWORD };
   switch (view) {
-    case "s1": return { stage: "steps", step: 0, user };
-    case "s2": return { stage: "steps", step: 1, ...filled };
-    case "s3": return { stage: "steps", step: 2, ...filled };
-    case "rec": return { stage: "steps", step: 2, ...filled, rec: "new", sheet: true, code: CODE };
-    case "ai": return { stage: "steps", step: 3, ...filled };
-    case "setuprun": return { stage: "run", step: 3, run: 0, ...filled };
-    case "setup": return { stage: "run", step: 3, run: 2, ...filled };
-    case "done": return { stage: "done", step: 3, ...filled };
-    case "signin": return { stage: "signin", si: "pw" };
-    case "totp": return { stage: "signin", si: "totp", siUser: user, siPw: "x" };
-    default: return {};
+    case "s1":
+      return { stage: "steps", step: 0, user };
+    case "s2":
+      return { stage: "steps", step: 1, ...filled };
+    case "s3":
+      return { stage: "steps", step: 2, ...filled };
+    case "rec":
+      return { stage: "steps", step: 2, ...filled, rec: "new", sheet: true, code: CODE };
+    case "ai":
+      return { stage: "steps", step: 3, ...filled };
+    case "setuprun":
+      return { stage: "run", step: 3, run: 0, ...filled };
+    case "setup":
+      return { stage: "run", step: 3, run: 2, ...filled };
+    case "done":
+      return { stage: "done", step: 3, ...filled };
+    case "signin":
+      return { stage: "signin", si: "pw" };
+    case "totp":
+      return { stage: "signin", si: "totp", siUser: user, siPw: "x" };
+    default:
+      return {};
   }
 }
 
@@ -48,7 +73,11 @@ export default function Mount(): ReactNode {
   if (view === "checklist") {
     return (
       <Checklist
-        space={invite.space} visible assistantLocked heading={`Good morning, ${invite.names?.first ?? ""}`} dateLine="Friday, October 24"
+        space={invite.space}
+        visible
+        assistantLocked
+        heading={`Good morning, ${invite.names?.first ?? ""}`}
+        dateLine="Friday, October 24"
         items={[
           { key: "photo_and_title", title: "Add a photo and title", done: false },
           { key: "connect_mailbox_and_calendar", title: "Connect your mailbox and calendar", done: false },
@@ -59,5 +88,13 @@ export default function Mount(): ReactNode {
       />
     );
   }
-  return <JoinFlow invite={invite} expired={view === "expired"} initial={stateFor(view, invite)} isTaken={(u) => TAKEN.includes(u)} hold={view !== "setuprun"} />;
+  return (
+    <JoinFlow
+      invite={invite}
+      expired={view === "expired"}
+      initial={stateFor(view, invite)}
+      isTaken={(u) => TAKEN.includes(u)}
+      hold={view !== "setuprun"}
+    />
+  );
 }

@@ -6,10 +6,12 @@ import * as h from "./handlers/index.ts";
 import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
 
 /** A capability on one conversation: the access rules know no row for a conversation (an unmatched sender has no record above it), so the manifest binds these to the Space and the Inbox's own rule decides who may touch it. */
-const guarded = (run: Handler): Handler => async (ctx, input) => {
-  await h.guardConversation(ctx as never, (input as { conversationId?: unknown } | undefined)?.conversationId);
-  return run(ctx, input);
-};
+const guarded =
+  (run: Handler): Handler =>
+  async (ctx, input) => {
+    await h.guardConversation(ctx as never, (input as { conversationId?: unknown } | undefined)?.conversationId);
+    return run(ctx, input);
+  };
 
 export const handlers: Record<string, Handler> = {
   "inbox.list_by_contact": (ctx, i) => h.listByContact(ctx, i),

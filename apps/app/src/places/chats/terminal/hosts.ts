@@ -22,16 +22,32 @@ export const ONLINE_MS = 5 * 60_000;
  * `desktop`: this app is the desktop app, so the device it signed in as is this computer whatever class it was registered with (sign-in in the desktop app once registered as "Web browser").
  * `live`: the devices that still have a session; a computer whose every session ended (signed out, or replaced by a later sign-in) is gone, not offline, and is not listed.
  */
-export function deviceHosts(devices: readonly Device[], now: number, o: { desktop?: boolean; live?: ReadonlySet<string> } = {}): HostChoice[] {
+export function deviceHosts(
+  devices: readonly Device[],
+  now: number,
+  o: { desktop?: boolean; live?: ReadonlySet<string> } = {},
+): HostChoice[] {
   const computer = (d: Device): boolean => d.class === "desktop" || d.class === "daemon";
-  const here = devices.find((d) => d.revokedAt === undefined && d.current === true && (computer(d) || o.desktop === true));
-  const mine = devices.filter((d) => d.revokedAt === undefined && computer(d) && (d === here || o.live === undefined || o.live.has(d.id)));
+  const here = devices.find(
+    (d) => d.revokedAt === undefined && d.current === true && (computer(d) || o.desktop === true),
+  );
+  const mine = devices.filter(
+    (d) => d.revokedAt === undefined && computer(d) && (d === here || o.live === undefined || o.live.has(d.id)),
+  );
   const out: HostChoice[] = [];
-  if (here) out.push({ key: `device:${here.id}`, label: "This computer", kind: "device", online: true, deviceId: here.id });
+  if (here)
+    out.push({ key: `device:${here.id}`, label: "This computer", kind: "device", online: true, deviceId: here.id });
   for (const d of mine) {
     if (d === here) continue;
     const on = d.lastSeenAt !== undefined && now - d.lastSeenAt <= ONLINE_MS;
-    out.push({ key: `device:${d.id}`, label: d.name, kind: "device", online: on, ...(on ? {} : { why: "Offline" }), deviceId: d.id });
+    out.push({
+      key: `device:${d.id}`,
+      label: d.name,
+      kind: "device",
+      online: on,
+      ...(on ? {} : { why: "Offline" }),
+      deviceId: d.id,
+    });
   }
   return out;
 }
@@ -39,18 +55,38 @@ export function deviceHosts(devices: readonly Device[], now: number, o: { deskto
 export function agentHosts(computers: readonly Computer[], nameOf: (agentId: string) => string): HostChoice[] {
   return computers.map((c) => {
     const on = c.state !== "error" && c.state !== "provisioning";
-    return { key: `agent:${c.computerId}`, label: `${nameOf(c.agentId)}'s computer`, kind: "agent" as const, online: on, ...(on ? {} : { why: c.state === "error" ? "Not working" : "Starting" }), agentId: c.agentId, computerId: c.computerId };
+    return {
+      key: `agent:${c.computerId}`,
+      label: `${nameOf(c.agentId)}'s computer`,
+      kind: "agent" as const,
+      online: on,
+      ...(on ? {} : { why: c.state === "error" ? "Not working" : "Starting" }),
+      agentId: c.agentId,
+      computerId: c.computerId,
+    };
   });
 }
 
 /** The hosts of this Space. The server and the agent computers are read only in a Team Space; a read that fails leaves its part out. */
-export async function loadHosts(call: Call, o: { team: boolean; now: number; nameOf(agentId: string): string; desktop?: boolean }): Promise<HostChoice[]> {
-  const read = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r, () => ({ devices: [] as Device[], sessions: undefined }));
+export async function loadHosts(
+  call: Call,
+  o: { team: boolean; now: number; nameOf(agentId: string): string; desktop?: boolean },
+): Promise<HostChoice[]> {
+  const read = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then(
+    (r) => r,
+    () => ({ devices: [] as Device[], sessions: undefined }),
+  );
   const live = read.sessions ? new Set(read.sessions.flatMap((s) => (s.deviceId ? [s.deviceId] : []))) : undefined;
-  const out = deviceHosts(read.devices ?? [], o.now, { desktop: o.desktop ?? desktopBridge() !== null, ...(live ? { live } : {}) });
+  const out = deviceHosts(read.devices ?? [], o.now, {
+    desktop: o.desktop ?? desktopBridge() !== null,
+    ...(live ? { live } : {}),
+  });
   if (o.team) {
     out.push({ key: "server", label: "Space server", kind: "server", online: true });
-    const computers = await (call("computers.list", {}) as Promise<CapMap["computers.list"]["out"]>).then((r) => r.computers, () => [] as Computer[]);
+    const computers = await (call("computers.list", {}) as Promise<CapMap["computers.list"]["out"]>).then(
+      (r) => r.computers,
+      () => [] as Computer[],
+    );
     out.push(...agentHosts(computers, o.nameOf));
   }
   return out;
@@ -58,15 +94,35 @@ export async function loadHosts(call: Call, o: { team: boolean; now: number; nam
 
 /** The id of this computer as the Space knows it (the device the person is signed in on), or the only computer they have; undefined when there is none. A terminal on a computer needs it. */
 export async function thisDeviceId(call: Call): Promise<string | undefined> {
-  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices ?? [], () => [] as Device[]);
+  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then(
+    (r) => r.devices ?? [],
+    () => [] as Device[],
+  );
   const mine = devices.filter((d) => d.revokedAt === undefined && (d.class === "desktop" || d.class === "daemon"));
-  const here = devices.find((d) => d.revokedAt === undefined && d.current === true && (mine.includes(d) || desktopBridge() !== null));
+  const here = devices.find(
+    (d) => d.revokedAt === undefined && d.current === true && (mine.includes(d) || desktopBridge() !== null),
+  );
   return (here ?? (mine.length === 1 ? mine[0] : undefined))?.id;
 }
 
 /** The call that opens a session on one host. */
-export function openHostCall(h: HostChoice, key: string): { cap: "terminal.open" | "terminal.open_server"; input: Record<string, unknown> } {
+export function openHostCall(
+  h: HostChoice,
+  key: string,
+): { cap: "terminal.open" | "terminal.open_server"; input: Record<string, unknown> } {
   if (h.kind === "server") return { cap: "terminal.open_server", input: { idempotencyKey: key } };
-  if (h.kind === "agent") return { cap: "terminal.open", input: { host: "agent_computer", ...(h.agentId ? { agentId: h.agentId } : {}), ...(h.computerId ? { computerId: h.computerId } : {}), idempotencyKey: key } };
-  return { cap: "terminal.open", input: { host: "device", ...(h.deviceId ? { deviceId: h.deviceId } : {}), idempotencyKey: key } };
+  if (h.kind === "agent")
+    return {
+      cap: "terminal.open",
+      input: {
+        host: "agent_computer",
+        ...(h.agentId ? { agentId: h.agentId } : {}),
+        ...(h.computerId ? { computerId: h.computerId } : {}),
+        idempotencyKey: key,
+      },
+    };
+  return {
+    cap: "terminal.open",
+    input: { host: "device", ...(h.deviceId ? { deviceId: h.deviceId } : {}), idempotencyKey: key },
+  };
 }

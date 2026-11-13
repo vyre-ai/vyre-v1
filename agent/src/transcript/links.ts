@@ -36,7 +36,8 @@ export function toolLinks(name: string, input: unknown, cwd: string | null): Lin
   } else if (name === "Read") {
     const r = pathRef(i["file_path"], cwd);
     if (r) out.push({ kind: "read", ref: r });
-  } else if (name === "WebFetch" && typeof i["url"] === "string") out.push({ kind: "url", ref: i["url"].slice(0, 300) });
+  } else if (name === "WebFetch" && typeof i["url"] === "string")
+    out.push({ kind: "url", ref: i["url"].slice(0, 300) });
   return out;
 }
 
@@ -46,7 +47,10 @@ export function textLinks(text: string): Link[] {
   const seen = new Set<string>();
   const add = (kind: Link["kind"], ref: string): void => {
     const k = `${kind}\0${ref}`;
-    if (!seen.has(k)) { seen.add(k); out.push({ kind, ref }); }
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push({ kind, ref });
+    }
   };
   for (const re of [COMMIT_WORD, COMMIT_BRACKET]) {
     for (const m of text.matchAll(re)) {
@@ -71,7 +75,14 @@ export function commitLinks(output: string): Link[] {
 /** A tool result's text, whichever way a CLI shaped it. */
 export function resultText(c: unknown): string {
   if (typeof c === "string") return c;
-  if (Array.isArray(c)) return c.map((p: unknown) => (p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : "")).join("\n");
+  if (Array.isArray(c))
+    return c
+      .map((p: unknown) =>
+        p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string"
+          ? (p as { text: string }).text
+          : "",
+      )
+      .join("\n");
   return "";
 }
 

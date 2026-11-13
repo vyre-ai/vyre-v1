@@ -14,13 +14,39 @@ function boxAnswer(status, headers, chunks) {
 
 test("a request reaches the box with its path, query, method, headers and body, minus the phone's own hop", async () => {
   /** @type {any[]} */ const seen = [];
-  const bridge = createBridge({ label: () => "Home laptop", box: async () => ({ fetch: async (path, init) => { seen.push({ path, init }); return boxAnswer(201, { "content-type": "application/json", "set-cookie": "a=b", "content-length": "9" }, ['{"a":', "1}"]); } }) });
-  const res = await bridge.handle(new Request("https://alex.vyre.run/v1/things?x=1&y=2", { method: "POST", headers: { authorization: "Bearer t", "content-type": "application/json", "accept-encoding": "gzip", host: "alex.vyre.run" }, body: '{"k":1}' }));
+  const bridge = createBridge({
+    label: () => "Home laptop",
+    box: async () => ({
+      fetch: async (path, init) => {
+        seen.push({ path, init });
+        return boxAnswer(201, { "content-type": "application/json", "set-cookie": "a=b", "content-length": "9" }, [
+          '{"a":',
+          "1}",
+        ]);
+      },
+    }),
+  });
+  const res = await bridge.handle(
+    new Request("https://alex.vyre.run/v1/things?x=1&y=2", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer t",
+        "content-type": "application/json",
+        "accept-encoding": "gzip",
+        host: "alex.vyre.run",
+      },
+      body: '{"k":1}',
+    }),
+  );
   assert.ok(res);
   assert.equal(res.status, 201);
   assert.equal(await res.text(), '{"a":1}');
   assert.equal(res.headers.get("content-type"), "application/json");
-  assert.equal(res.headers.get("set-cookie"), null, "a service worker response cannot set cookies, and the box's must not leak");
+  assert.equal(
+    res.headers.get("set-cookie"),
+    null,
+    "a service worker response cannot set cookies, and the box's must not leak",
+  );
   assert.equal(seen[0].path, "/v1/things?x=1&y=2");
   assert.equal(seen[0].init.method, "POST");
   assert.equal(seen[0].init.headers.authorization, "Bearer t");
@@ -34,18 +60,39 @@ test("a phone with no pin is not ours: the network answers", async () => {
 });
 
 test("a box that does not answer is 'asleep': a page for a navigation, JSON for anything else", async () => {
-  const bridge = createBridge({ label: () => "Home <laptop>", waitMs: 20, box: async () => ({ fetch: (_p, init) => new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(Object.assign(new Error("aborted"), { name: "AbortError" })))) }) });
+  const bridge = createBridge({
+    label: () => "Home <laptop>",
+    waitMs: 20,
+    box: async () => ({
+      fetch: (_p, init) =>
+        new Promise((_r, rej) =>
+          init.signal?.addEventListener("abort", () =>
+            rej(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          ),
+        ),
+    }),
+  });
   const nav = await bridge.handle(new Request("https://alex.vyre.run/", { headers: { accept: "text/html" } }));
   assert.equal(nav?.status, 503);
   const html = await nav?.text();
   assert.match(html || "", /Home &lt;laptop&gt; is asleep/);
-  const api = await bridge.handle(new Request("https://alex.vyre.run/v1/x", { headers: { accept: "application/json" } }));
+  const api = await bridge.handle(
+    new Request("https://alex.vyre.run/v1/x", { headers: { accept: "application/json" } }),
+  );
   assert.equal(api?.status, 503);
   assert.deepEqual(await api?.json(), { error: "Home <laptop> is asleep" });
 });
 
 test("a removed phone is told so, not told the box sleeps", async () => {
-  const bridge = createBridge({ label: () => "Home laptop", box: async () => ({ state: "relay_removed", fetch: async () => { throw Object.assign(new Error("device removed"), { code: "relay_removed" }); } }) });
+  const bridge = createBridge({
+    label: () => "Home laptop",
+    box: async () => ({
+      state: "relay_removed",
+      fetch: async () => {
+        throw Object.assign(new Error("device removed"), { code: "relay_removed" });
+      },
+    }),
+  });
   const res = await bridge.handle(new Request("https://alex.vyre.run/", { headers: { accept: "text/html" } }));
   assert.equal(res?.status, 403);
   assert.match((await res?.text()) || "", /was removed/);
@@ -53,7 +100,22 @@ test("a removed phone is told so, not told the box sleeps", async () => {
 
 test("a stream keeps flowing chunk by chunk and a cancelled read stops the box's stream", async () => {
   let returned = false;
-  const body = { [Symbol.asyncIterator]() { let n = 0; return { async next() { return n++ < 3 ? { value: new TextEncoder().encode(`data: ${n}\n\n`), done: false } : await new Promise(() => {}); }, async return() { returned = true; return { done: true, value: undefined }; } }; } };
+  const body = {
+    [Symbol.asyncIterator]() {
+      let n = 0;
+      return {
+        async next() {
+          return n++ < 3
+            ? { value: new TextEncoder().encode(`data: ${n}\n\n`), done: false }
+            : await new Promise(() => {});
+        },
+        async return() {
+          returned = true;
+          return { done: true, value: undefined };
+        },
+      };
+    },
+  };
   const res = toResponse({ status: 200, headers: [["content-type", "text/event-stream"]], body });
   const reader = /** @type {ReadableStream} */ (res.body).getReader();
   const got = [];
@@ -70,35 +132,77 @@ test("a body-less status stays body-less", async () => {
 });
 
 test("an invite link whose box closes the hello reads as an ended invite, not a sleeping computer; the same failure on a phone's own pin still reads asleep", async () => {
-  const refusing = () => ({ state: "connecting", lastError: new Error("box closed the connection"), fetch: (/** @type {string} */ _p, /** @type {any} */ init) => new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(new Error("aborted")))) });
+  const refusing = () => ({
+    state: "connecting",
+    lastError: new Error("box closed the connection"),
+    fetch: (/** @type {string} */ _p, /** @type {any} */ init) =>
+      new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(new Error("aborted")))),
+  });
   const invite = createBridge({ label: () => "Acme", waitMs: 20, invite: () => true, box: async () => refusing() });
-  const nav = await invite.handle(new Request("https://acme.vyre.run/join/ABCD-1234", { headers: { accept: "text/html" } }));
+  const nav = await invite.handle(
+    new Request("https://acme.vyre.run/join/ABCD-1234", { headers: { accept: "text/html" } }),
+  );
   assert.equal(nav?.status, 410);
-  assert.match((await nav?.text()) || "", /This invite has ended[\s\S]*Ask the person who invited you to Acme for a new link/);
-  const api = await invite.handle(new Request("https://acme.vyre.run/v1/members/invites/preview", { method: "POST", headers: { accept: "application/json" }, body: "{}" }));
+  assert.match(
+    (await nav?.text()) || "",
+    /This invite has ended[\s\S]*Ask the person who invited you to Acme for a new link/,
+  );
+  const api = await invite.handle(
+    new Request("https://acme.vyre.run/v1/members/invites/preview", {
+      method: "POST",
+      headers: { accept: "application/json" },
+      body: "{}",
+    }),
+  );
   assert.equal(api?.status, 410);
   const own = createBridge({ label: () => "Acme", waitMs: 20, invite: () => false, box: async () => refusing() });
-  assert.equal((await own.handle(new Request("https://acme.vyre.run/", { headers: { accept: "text/html" } })))?.status, 503);
+  assert.equal(
+    (await own.handle(new Request("https://acme.vyre.run/", { headers: { accept: "text/html" } })))?.status,
+    503,
+  );
 });
 
 test("the box key the accept hands back reaches the worker on the answer, untouched", async () => {
   const key = "A".repeat(43);
-  const bridge = createBridge({ label: () => "Acme", box: async () => ({ fetch: async () => boxAnswer(200, { "content-type": "application/json", "x-vyre-box": key }, ["{}"]) }) });
-  const res = await bridge.handle(new Request("https://acme.vyre.run/v1/members/accept", { method: "POST", body: "{}" }));
+  const bridge = createBridge({
+    label: () => "Acme",
+    box: async () => ({
+      fetch: async () => boxAnswer(200, { "content-type": "application/json", "x-vyre-box": key }, ["{}"]),
+    }),
+  });
+  const res = await bridge.handle(
+    new Request("https://acme.vyre.run/v1/members/accept", { method: "POST", body: "{}" }),
+  );
   assert.equal(res?.headers.get("x-vyre-box"), key);
 });
 
 test("the computer the phone dialled sleeps: the worker is told first, and a page comes from whichever computer of the Space the gateway finds awake", async () => {
   /** @type {any[]} */ const told = [];
   const bridge = createBridge({
-    label: () => "Home laptop", waitMs: 20,
-    box: async () => ({ fetch: (_p, init) => new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(Object.assign(new Error("aborted"), { name: "AbortError" })))) }),
-    asleep: async (req, navigation) => { told.push([new URL(req.url).pathname, navigation]); return navigation ? new Response("shell from the office computer", { status: 200 }) : null; },
+    label: () => "Home laptop",
+    waitMs: 20,
+    box: async () => ({
+      fetch: (_p, init) =>
+        new Promise((_r, rej) =>
+          init.signal?.addEventListener("abort", () =>
+            rej(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          ),
+        ),
+    }),
+    asleep: async (req, navigation) => {
+      told.push([new URL(req.url).pathname, navigation]);
+      return navigation ? new Response("shell from the office computer", { status: 200 }) : null;
+    },
   });
   const nav = await bridge.handle(new Request("https://alex.vyre.run/chat", { headers: { accept: "text/html" } }));
   assert.equal(nav?.status, 200);
   assert.equal(await nav?.text(), "shell from the office computer");
-  const api = await bridge.handle(new Request("https://alex.vyre.run/v1/x", { headers: { accept: "application/json" } }));
+  const api = await bridge.handle(
+    new Request("https://alex.vyre.run/v1/x", { headers: { accept: "application/json" } }),
+  );
   assert.equal(api?.status, 503, "a call says asleep once; the next one dials again");
-  assert.deepEqual(told, [["/chat", true], ["/v1/x", false]]);
+  assert.deepEqual(told, [
+    ["/chat", true],
+    ["/v1/x", false],
+  ]);
 });

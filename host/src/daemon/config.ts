@@ -17,24 +17,42 @@ export function dataHome(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export interface DaemonPaths {
-  root: string; events: string; modules: string; logs: string; logDir: string; pid: string; info: string; adminToken: string;
+  root: string;
+  events: string;
+  modules: string;
+  logs: string;
+  logDir: string;
+  pid: string;
+  info: string;
+  adminToken: string;
 }
 export function pathsFor(root: string): DaemonPaths {
   return {
-    root, events: path.join(root, "events.db"), modules: path.join(root, "modules.db"), logs: path.join(root, "logs.db"), logDir: path.join(root, "logs"),
-    pid: path.join(root, "vyred.pid"), info: path.join(root, "vyred.json"), adminToken: path.join(root, "admin.token"),
+    root,
+    events: path.join(root, "events.db"),
+    modules: path.join(root, "modules.db"),
+    logs: path.join(root, "logs.db"),
+    logDir: path.join(root, "logs"),
+    pid: path.join(root, "vyred.pid"),
+    info: path.join(root, "vyred.json"),
+    adminToken: path.join(root, "admin.token"),
   };
 }
 
 export function parseRoles(text: string): Role[] {
   const out: Role[] = [];
-  for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
-    if (part !== "space" && part !== "device" && part !== "compute") throw new Error(`unknown role "${part}": use space, device, space,device or compute`);
+  for (const part of text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    if (part !== "space" && part !== "device" && part !== "compute")
+      throw new Error(`unknown role "${part}": use space, device, space,device or compute`);
     if (!out.includes(part)) out.push(part);
   }
   if (!out.length) throw new Error("a role is needed: space, device, space,device or compute");
   // a compute computer is only that: it joins somebody else's Space and keeps no Space of its own
-  if (out.includes("compute") && out.length > 1) throw new Error("the compute role runs alone: a computer that joins a Space for compute hosts no Space of its own");
+  if (out.includes("compute") && out.length > 1)
+    throw new Error("the compute role runs alone: a computer that joins a Space for compute hosts no Space of its own");
   return out;
 }
 
@@ -97,10 +115,15 @@ function spaceKindOf(text: string | undefined): { spaceKind?: "personal" | "team
   return { spaceKind: text };
 }
 
-export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = process.env, version = "0.0.0"): DaemonConfig {
+export function loadConfig(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  version = "0.0.0",
+): DaemonConfig {
   const portText = flag(argv, "port") ?? env["VYRE_PORT"];
   const port = portText === undefined ? DEFAULTS.port : Number(portText);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`--port must be 0 to 65535, got "${String(portText)}"`);
+  if (!Number.isInteger(port) || port < 0 || port > 65535)
+    throw new Error(`--port must be 0 to 65535, got "${String(portText)}"`);
   return {
     roles: parseRoles(flag(argv, "role") ?? env["VYRE_ROLE"] ?? "space"),
     dataDir: path.resolve(untilde(flag(argv, "data-dir") ?? dataHome(env))),
@@ -116,14 +139,29 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     phoneRelayUrl: env["VYRE_PHONE_RELAY_URL"] ?? "wss://relay.vyre.run",
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
     ...(env["VYRE_NETWORK_REV"] ? { networkRev: env["VYRE_NETWORK_REV"] } : {}),
-    ...(env["VYRE_DOCKER_ROOT_DIR"] && env["VYRE_DOCKER_ROOT_STATE"] ? { dockerRoot: { dir: env["VYRE_DOCKER_ROOT_DIR"], state: env["VYRE_DOCKER_ROOT_STATE"] } } : {}),
-    ...(env["VYRE_DISK_ENCRYPTION"] ? { diskChoice: { kind: env["VYRE_DISK_ENCRYPTION"], ...(env["VYRE_DISK_ENCRYPTION_SINCE"] ? { since: env["VYRE_DISK_ENCRYPTION_SINCE"] } : {}) } } : {}),
+    ...(env["VYRE_DOCKER_ROOT_DIR"] && env["VYRE_DOCKER_ROOT_STATE"]
+      ? { dockerRoot: { dir: env["VYRE_DOCKER_ROOT_DIR"], state: env["VYRE_DOCKER_ROOT_STATE"] } }
+      : {}),
+    ...(env["VYRE_DISK_ENCRYPTION"]
+      ? {
+          diskChoice: {
+            kind: env["VYRE_DISK_ENCRYPTION"],
+            ...(env["VYRE_DISK_ENCRYPTION_SINCE"] ? { since: env["VYRE_DISK_ENCRYPTION_SINCE"] } : {}),
+          },
+        }
+      : {}),
     ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
-    ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
+    ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])
+      ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! }
+      : {}),
     ...(argv.includes("--peers") || env["VYRE_PEERS"] === "1" ? { peers: true } : {}),
-    ...((flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"]) ? { peerName: (flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"])!.slice(0, 60) } : {}),
+    ...((flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"])
+      ? { peerName: (flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"])!.slice(0, 60) }
+      : {}),
     ...((flag(argv, "peer-kind") ?? env["VYRE_PEER_KIND"]) === "server" ? { peerKind: "server" as const } : {}),
-    ...((flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"]) ? { peerJoin: (flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"])!.trim() } : {}),
+    ...((flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"])
+      ? { peerJoin: (flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"])!.trim() }
+      : {}),
   };
 }
 
@@ -140,19 +178,35 @@ export function ensureAdminToken(p: DaemonPaths, env: NodeJS.ProcessEnv = proces
   try {
     const t = fs.readFileSync(p.adminToken, "utf8").trim();
     if (t) return t;
-  } catch { /* first start */ }
-  const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    /* first start */
+  }
+  const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
   fs.writeFileSync(p.adminToken, `${token}\n`, { mode: 0o600 });
   return token;
 }
 
-export interface DaemonInfo { pid: number; url: string; port: number; roles: Role[]; space: string | null; version: string; startedAt: number }
+export interface DaemonInfo {
+  pid: number;
+  url: string;
+  port: number;
+  roles: Role[];
+  space: string | null;
+  version: string;
+  startedAt: number;
+}
 export function writeInfo(p: DaemonPaths, info: DaemonInfo): void {
   fs.writeFileSync(p.pid, `${info.pid}\n`);
   fs.writeFileSync(p.info, JSON.stringify(info));
 }
 export function readInfo(p: DaemonPaths): DaemonInfo | null {
-  try { return JSON.parse(fs.readFileSync(p.info, "utf8")) as DaemonInfo; } catch { return null; }
+  try {
+    return JSON.parse(fs.readFileSync(p.info, "utf8")) as DaemonInfo;
+  } catch {
+    return null;
+  }
 }
 export function clearInfo(p: DaemonPaths): void {
   fs.rmSync(p.pid, { force: true });
@@ -160,5 +214,10 @@ export function clearInfo(p: DaemonPaths): void {
 }
 /** Is this pid a live process? (EPERM means it is.) */
 export function alive(pid: number): boolean {
-  try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
 }

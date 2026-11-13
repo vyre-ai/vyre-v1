@@ -11,12 +11,26 @@ export function focusRingCss(): string {
 
 /** One stylesheet for the builder. No animation. */
 export function installFocusRing(): void {
-  const doc = (globalThis as { document?: { getElementById(id: string): unknown; head?: { appendChild(node: unknown): void }; createElement(tag: string): { id: string; textContent: string } } }).document;
+  const doc = (
+    globalThis as {
+      document?: {
+        getElementById(id: string): unknown;
+        head?: { appendChild(node: unknown): void };
+        createElement(tag: string): { id: string; textContent: string };
+      };
+    }
+  ).document;
   if (!doc?.head || !doc.createElement || doc.getElementById("vyre-auto-focus")) return;
   injectCss(doc as never, "vyre-auto-focus", focusRingCss());
 }
 
-export function cardLabel(input: { title: string; sub: string; issues: number; chip?: string | null; state?: string | null }): string {
+export function cardLabel(input: {
+  title: string;
+  sub: string;
+  issues: number;
+  chip?: string | null;
+  state?: string | null;
+}): string {
   let label = `${input.title}. ${input.sub}`;
   if (input.chip) label += `. ${input.chip}`;
   const run = runStateText(input.chip, input.state);

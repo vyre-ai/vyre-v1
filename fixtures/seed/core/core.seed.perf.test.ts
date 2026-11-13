@@ -10,22 +10,44 @@ import { fileURLToPath } from "node:url";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Req } from "../../../kernel/src/authorize/index.ts";
 import { canonical } from "../../../lib/canonical.ts";
-import { AGENTS, CORE_SOURCES, CORE_SPACE, FOLDERS, GROUPS, PEOPLE, bootCore, coreEvents, ensureTemplate, registryHash, templateKey } from "./index.ts";
+import {
+  AGENTS,
+  CORE_SOURCES,
+  CORE_SPACE,
+  FOLDERS,
+  GROUPS,
+  PEOPLE,
+  bootCore,
+  coreEvents,
+  ensureTemplate,
+  registryHash,
+  templateKey,
+} from "./index.ts";
 import { discoverSeeds } from "../small/recipe.ts";
 import { smallRecipe, SMALL_TARGET } from "../small/recipe.ts";
 import { perfRecipe, PERF_TARGET } from "../perf/recipe.ts";
 
 /** The frozen shape: sha-256 of the recipe's events (type, entity, id, payload). Only the lead changes it, together with the recipe. */
 const CORE_SHAPE_HASH = "63fcbb588f72c7205c236a6903f172e882ec305b03c13ac9a44cf5b6deecda6f";
-const shapeHash = (): string => crypto.createHash("sha256").update(canonical(coreEvents().map((e) => [e.type, e.entity, e.entity_id, e.payload]))).digest("hex");
+const shapeHash = (): string =>
+  crypto
+    .createHash("sha256")
+    .update(canonical(coreEvents().map((e) => [e.type, e.entity, e.entity_id, e.payload])))
+    .digest("hex");
 
 const scratch = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "core-seed-"));
-const can = (snap: ReturnType<typeof bootCore>["snapshot"], principal: string, perm: string | null, level: Req["action"]["level"], resource: Req["resource"]): string =>
-  authorize(snap, { principal, action: { perm, level }, resource, now: 1_790_000_000_000 }).effect;
+const can = (
+  snap: ReturnType<typeof bootCore>["snapshot"],
+  principal: string,
+  perm: string | null,
+  level: Req["action"]["level"],
+  resource: Req["resource"],
+): string => authorize(snap, { principal, action: { perm, level }, resource, now: 1_790_000_000_000 }).effect;
 
 test("PERF: core boots in under 100 ms on a template cache hit", () => {
-  const cache = scratch(), sc = scratch();
-  bootCore({ cache, scratch: sc }).close();             // build the template
+  const cache = scratch(),
+    sc = scratch();
+  bootCore({ cache, scratch: sc }).close(); // build the template
   const times: number[] = [];
   for (let i = 0; i < 7; i++) {
     const t0 = performance.now();
@@ -36,7 +58,9 @@ test("PERF: core boots in under 100 ms on a template cache hit", () => {
   }
   times.sort((a, b) => a - b);
   const median = times[3]!;
-  console.log(`core boot on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 100 ms)`);
+  console.log(
+    `core boot on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 100 ms)`,
+  );
   assert.ok(median < 100, `median ${median.toFixed(1)} ms is over the 100 ms budget`);
   assert.ok(times[6]! < 100 * 3, "even the slowest boot stays near the budget");
 });

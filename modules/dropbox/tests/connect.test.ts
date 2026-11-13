@@ -6,7 +6,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import manifest from "../../../manifests/dropbox.ts";
 import * as d from "../handlers/index.ts";
-import { useContract, ACCESS, APP_KEY, MAYA, OTHER, RECORDED, REFRESH, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import {
+  useContract,
+  ACCESS,
+  APP_KEY,
+  MAYA,
+  OTHER,
+  RECORDED,
+  REFRESH,
+  contractErrors,
+  harness,
+  refusedWith,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 useContract(manifest);
@@ -28,11 +39,25 @@ test("app.set names the Vault item and keeps the public key only; status shows t
   assert.deepEqual(set, { configured: true, appKey: APP_KEY, webhooks: true });
   const status = out(await d.appStatus(h.ctx));
   assert.deepEqual(contractErrors("dropbox.app.status", "out", status), []);
-  assert.deepEqual(status, { configured: true, appKey: APP_KEY, vaultItem: "#Dropbox_App", redirectUri: "https://space.vyre.test/oauth/callback", webhooks: true, webhookUri: "https://space.vyre.test/hooks/dropbox" });
-  assert.ok(!JSON.stringify(h.rows(`SELECT * FROM dropbox_config`)).includes("appsecret_not_real"), "the secret is never kept");
+  assert.deepEqual(status, {
+    configured: true,
+    appKey: APP_KEY,
+    vaultItem: "#Dropbox_App",
+    redirectUri: "https://space.vyre.test/oauth/callback",
+    webhooks: true,
+    webhookUri: "https://space.vyre.test/hooks/dropbox",
+  });
+  assert.ok(
+    !JSON.stringify(h.rows(`SELECT * FROM dropbox_config`)).includes("appsecret_not_real"),
+    "the secret is never kept",
+  );
   await d.appSet(h.ctx, { vaultItem: "#Dropbox_NoSecret" });
   assert.equal(h.rows(`SELECT * FROM dropbox_config`).length, 1, "set again replaces, never adds");
-  assert.equal(out(await d.appStatus(h.ctx))["webhooks"], false, "without an app secret change notices cannot be verified");
+  assert.equal(
+    out(await d.appStatus(h.ctx))["webhooks"],
+    false,
+    "without an app secret change notices cannot be verified",
+  );
   assert.equal(out(await d.appSet(h.ctx, { vaultItem: "#Dropbox_NoSecret" }))["webhooks"], false);
   assert.equal(await refusedWith(d.appSet(h.ctx, { vaultItem: "Dropbox_App" })), "validation.bad_input");
   assert.equal(await refusedWith(d.appSet(h.ctx, { vaultItem: "#Dropbox_Missing" })), "provider.auth_failed");
@@ -47,14 +72,27 @@ test("connect.start needs the app, builds a PKCE address with offline access, an
   const u = new URL(start["authUrl"] as string);
   assert.equal(`${u.origin}${u.pathname}`, "https://www.dropbox.com/oauth2/authorize");
   const q = u.searchParams;
-  assert.deepEqual([q.get("client_id"), q.get("response_type"), q.get("token_access_type"), q.get("code_challenge_method"), q.get("redirect_uri")], [APP_KEY, "code", "offline", "S256", "https://space.vyre.test/oauth/callback"]);
+  assert.deepEqual(
+    [
+      q.get("client_id"),
+      q.get("response_type"),
+      q.get("token_access_type"),
+      q.get("code_challenge_method"),
+      q.get("redirect_uri"),
+    ],
+    [APP_KEY, "code", "offline", "S256", "https://space.vyre.test/oauth/callback"],
+  );
   assert.equal(q.get("state"), start["state"]);
   assert.match(String(start["state"]), /^dbs_[0-9a-f]{48}$/);
   assert.match(q.get("scope") ?? "", /files\.content\.write/);
   const row = h.rows(`SELECT * FROM dropbox_oauth`)[0]!;
   const verifier = String(row["verifier"]);
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  assert.equal(q.get("code_challenge"), Buffer.from(new Uint8Array(digest)).toString("base64url"), "the challenge is the verifier's hash; the verifier is not in the address");
+  assert.equal(
+    q.get("code_challenge"),
+    Buffer.from(new Uint8Array(digest)).toString("base64url"),
+    "the challenge is the verifier's hash; the verifier is not in the address",
+  );
   assert.ok(!start["authUrl"]!.toString().includes(verifier));
 });
 
@@ -67,7 +105,10 @@ test("a Space connection takes the admin grant", async () => {
   assert.ok(out(await d.connectStart(ok.ctx, { ownerKind: "space" }))["state"]);
 });
 
-async function signIn(h: Harness, ownerKind: "person" | "space" = "person"): Promise<{ state: string; verifier: string }> {
+async function signIn(
+  h: Harness,
+  ownerKind: "person" | "space" = "person",
+): Promise<{ state: string; verifier: string }> {
   const start = out(await d.connectStart(h.ctx, { ownerKind }));
   const state = String(start["state"]);
   const row = h.rows(`SELECT * FROM dropbox_oauth WHERE "state" = ?`, state)[0]!;
@@ -82,24 +123,61 @@ test("connect.complete trades the code, seals the refresh token in the module's 
   const done = out(await d.connectComplete(h.ctx, { state, code: "good-code" }));
   assert.deepEqual(contractErrors("dropbox.connect.complete", "out", done), []);
   assert.match(String(done["connectionId"]), /^con_[0-9a-f]{24}$/);
-  assert.deepEqual([done["accountId"], done["email"], done["name"]], ["dbid:AAH4f99T0taONIb", "maya@firm.example", "Maya Rivera"]);
+  assert.deepEqual(
+    [done["accountId"], done["email"], done["name"]],
+    ["dbid:AAH4f99T0taONIb", "maya@firm.example", "Maya Rivera"],
+  );
   // the host got the verifier, the call to Dropbox used the access token it was handed
-  assert.deepEqual(h.requests.find((r) => r.method === "EXCHANGE")?.body, { verifier, redirectUri: "https://space.vyre.test/oauth/callback" });
+  assert.deepEqual(h.requests.find((r) => r.method === "EXCHANGE")?.body, {
+    verifier,
+    redirectUri: "https://space.vyre.test/oauth/callback",
+  });
   assert.equal(h.api()[0]?.headers["authorization"], `Bearer ${ACCESS}`);
   // the refresh token is not in the Vault: no Vault capability is called, so no Member, Admin or agent can list, reveal, copy, fill or use it
-  assert.deepEqual(h.called.filter((c) => c.cap.startsWith("vault.")), [], "no Vault item is made");
+  assert.deepEqual(
+    h.called.filter((c) => c.cap.startsWith("vault.")),
+    [],
+    "no Vault item is made",
+  );
   const kept = h.rows(`SELECT * FROM dropbox_account`)[0]!;
-  assert.ok(!String(kept["refreshSealed"]).includes(REFRESH) && !Buffer.from(JSON.parse(String(kept["refreshSealed"])).bytes, "base64").toString().includes(REFRESH), "it is sealed, not plain");
+  assert.ok(
+    !String(kept["refreshSealed"]).includes(REFRESH) &&
+      !Buffer.from(JSON.parse(String(kept["refreshSealed"])).bytes, "base64")
+        .toString()
+        .includes(REFRESH),
+    "it is sealed, not plain",
+  );
   assert.equal(JSON.parse(String(kept["refreshSealed"])).nonce, "dropbox.refresh", "sealed for this module's purpose");
   // nothing the module keeps holds a token
   const kept2 = JSON.stringify([h.rows(`SELECT * FROM dropbox_account`), h.rows(`SELECT * FROM dropbox_oauth`)]);
   assert.ok(!kept2.includes(REFRESH) && !kept2.includes(ACCESS), "no token in the module's tables");
   assert.equal(h.rows(`SELECT * FROM dropbox_oauth`).length, 0, "the sign-in is used up");
-  assert.deepEqual(h.named("dropbox.connected").map((e) => e.payload), [{ connectionId: done["connectionId"], accountId: "dbid:AAH4f99T0taONIb", ownerKind: "person", email: "maya@firm.example" }]);
+  assert.deepEqual(
+    h.named("dropbox.connected").map((e) => e.payload),
+    [
+      {
+        connectionId: done["connectionId"],
+        accountId: "dbid:AAH4f99T0taONIb",
+        ownerKind: "person",
+        email: "maya@firm.example",
+      },
+    ],
+  );
   const mine = out(d.accountList(h.ctx));
   assert.deepEqual(contractErrors("dropbox.account.list", "out", mine), []);
-  assert.ok(!JSON.stringify(mine).includes("refresh") && !JSON.stringify(mine).includes("sealed"), "no capability answer carries the token, sealed or not");
-  assert.deepEqual(mine["connections"], [{ connectionId: done["connectionId"], ownerKind: "person", accountId: "dbid:AAH4f99T0taONIb", email: "maya@firm.example", name: "Maya Rivera" }]);
+  assert.ok(
+    !JSON.stringify(mine).includes("refresh") && !JSON.stringify(mine).includes("sealed"),
+    "no capability answer carries the token, sealed or not",
+  );
+  assert.deepEqual(mine["connections"], [
+    {
+      connectionId: done["connectionId"],
+      ownerKind: "person",
+      accountId: "dbid:AAH4f99T0taONIb",
+      email: "maya@firm.example",
+      name: "Maya Rivera",
+    },
+  ]);
 });
 
 test("a Space connection is listed for every member", async () => {
@@ -111,7 +189,11 @@ test("a Space connection is listed for every member", async () => {
   assert.equal(h.rows(`SELECT * FROM dropbox_account`)[0]?.["ownerKind"], "space");
   const other = harness({ principal: { kind: "person", id: OTHER } });
   other.connect({ ownerKind: "space" });
-  assert.equal((out(d.accountList(other.ctx))["connections"] as unknown[]).length, 1, "a member sees the Space's Dropbox");
+  assert.equal(
+    (out(d.accountList(other.ctx))["connections"] as unknown[]).length,
+    1,
+    "a member sees the Space's Dropbox",
+  );
 });
 
 test("a person's connection is theirs alone; the host's own services act for it", async () => {
@@ -122,12 +204,23 @@ test("a person's connection is theirs alone; the host's own services act for it"
   stranger.connect({ ownerId: MAYA });
   assert.deepEqual(out(d.accountList(stranger.ctx))["connections"], []);
   stranger.on("POST api.dropboxapi.com/2/files/get_metadata", { status: 200, body: RECORDED.file });
-  assert.equal(await refusedWith(d.getMetadata(stranger.ctx, { connectionId: "con_dbx0001", path: "/Sales" })), "validation.not_found", "a connection that is not yours does not exist for you");
+  assert.equal(
+    await refusedWith(d.getMetadata(stranger.ctx, { connectionId: "con_dbx0001", path: "/Sales" })),
+    "validation.not_found",
+    "a connection that is not yours does not exist for you",
+  );
   const service = harness({ principal: { kind: "service", id: "svc_engine01" } });
   service.connect();
   service.on("POST api.dropboxapi.com/2/files/get_metadata", { status: 200, body: RECORDED.file });
-  assert.ok(await d.getMetadata(service.ctx, { connectionId: "con_dbx0001", path: "/Sales/Report.docx" }), "the engine syncs a mount for its owner");
-  assert.deepEqual(service.tokenAsks[0], { cacheKey: "con_dbx0001", refreshToken: "refresh_not_real" }, "and the sealed token opens with the Space seal, no person's key: a scheduled pass has nobody signed in");
+  assert.ok(
+    await d.getMetadata(service.ctx, { connectionId: "con_dbx0001", path: "/Sales/Report.docx" }),
+    "the engine syncs a mount for its owner",
+  );
+  assert.deepEqual(
+    service.tokenAsks[0],
+    { cacheKey: "con_dbx0001", refreshToken: "refresh_not_real" },
+    "and the sealed token opens with the Space seal, no person's key: a scheduled pass has nobody signed in",
+  );
 });
 
 test("signing in again to the same Dropbox keeps the connection and replaces the token", async () => {
@@ -155,7 +248,11 @@ test("only the person who started a sign-in can finish it, once, within ten minu
   assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: "dbs_nonsense", code: "c" })), "auth.invalid_code");
   const late = await signIn(h);
   h.advance(11 * 60_000);
-  assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: late.state, code: "c" })), "auth.invalid_code", "expired");
+  assert.equal(
+    await refusedWith(d.connectComplete(h.ctx, { state: late.state, code: "c" })),
+    "auth.invalid_code",
+    "expired",
+  );
   assert.equal(h.rows(`SELECT * FROM dropbox_oauth`).length, 0, "an expired state is gone too");
 });
 
@@ -163,14 +260,29 @@ test("a declined sign-in, a missing code and a refused code say so and leave not
   const h = harness();
   await setUp(h);
   let e: unknown;
-  try { await d.connectComplete(h.ctx, { state: (await signIn(h)).state, error: "access_denied" }); } catch (x) { e = x; }
+  try {
+    await d.connectComplete(h.ctx, { state: (await signIn(h)).state, error: "access_denied" });
+  } catch (x) {
+    e = x;
+  }
   assert.equal((e as { error: { details: { reason: string } } }).error.details.reason, "declined");
   assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state })), "validation.bad_input");
-  assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "bad-code" })), "provider.auth_failed");
+  assert.equal(
+    await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "bad-code" })),
+    "provider.auth_failed",
+  );
   h.on(ME, { status: 401, body: {} });
-  assert.equal(await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "c" })), "provider.auth_failed", "the token does not work");
+  assert.equal(
+    await refusedWith(d.connectComplete(h.ctx, { state: (await signIn(h)).state, code: "c" })),
+    "provider.auth_failed",
+    "the token does not work",
+  );
   assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 0);
-  assert.equal(h.rows(`SELECT * FROM dropbox_account`).length, 0, "no token is kept for an account that never signed in");
+  assert.equal(
+    h.rows(`SELECT * FROM dropbox_account`).length,
+    0,
+    "no token is kept for an account that never signed in",
+  );
 });
 
 test("account.remove tells Dropbox, removes the Vault item and the rows; only an admin removes the Space's", async () => {
@@ -188,7 +300,11 @@ test("account.remove tells Dropbox, removes the Vault item and the rows; only an
   const gone = harness();
   gone.connect();
   gone.on("POST api.dropboxapi.com/2/auth/token/revoke", { status: 401, body: {} });
-  assert.deepEqual(out(await d.accountRemove(gone.ctx, { connectionId: "con_dbx0001" })), { removed: true }, "a token Dropbox already lost is no reason to keep the connection");
+  assert.deepEqual(
+    out(await d.accountRemove(gone.ctx, { connectionId: "con_dbx0001" })),
+    { removed: true },
+    "a token Dropbox already lost is no reason to keep the connection",
+  );
 });
 
 test("health: not set up and not connected are not unhealthy; a refused token is down; a slow answer is degraded", async () => {
@@ -213,14 +329,23 @@ test("a mount pass run by the scheduler, with no person signed in, gets a valid 
   // the scheduler runs as the host's own service; the refresh token is a Shared item, so no asker and no key are involved
   const h = harness({ principal: { kind: "service", id: "svc_host" } });
   h.connect();
-  h.on("POST api.dropboxapi.com/2/files/list_folder", { status: 200, body: { entries: [], cursor: "c1", has_more: false } });
+  h.on("POST api.dropboxapi.com/2/files/list_folder", {
+    status: 200,
+    body: { entries: [], cursor: "c1", has_more: false },
+  });
   const out = out_(await d.listFolder(h.ctx, { connectionId: "con_dbx0001", path: "" }));
   assert.equal(out["cursor"], "c1");
-  assert.deepEqual(h.tokenAsks.map((t) => t.cacheKey), ["con_dbx0001"]);
+  assert.deepEqual(
+    h.tokenAsks.map((t) => t.cacheKey),
+    ["con_dbx0001"],
+  );
   assert.equal(h.called.filter((c) => c.cap.startsWith("vault.")).length, 0, "and no Vault is involved");
   assert.equal(h.api()[0]?.headers["authorization"], "Bearer tok-1");
   // and a tenant-made service principal (an Automation, a form) is not the host's own service: it does not get someone's Dropbox
   const tenant = harness({ principal: { kind: "service", id: `svc_${"a".repeat(32)}` } });
   tenant.connect();
-  assert.equal(await refusedWith(d.listFolder(tenant.ctx, { connectionId: "con_dbx0001", path: "" })), "validation.not_found");
+  assert.equal(
+    await refusedWith(d.listFolder(tenant.ctx, { connectionId: "con_dbx0001", path: "" })),
+    "validation.not_found",
+  );
 });

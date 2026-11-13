@@ -1,16 +1,38 @@
 // Budget connection_count (ARCH 9): twenty screens open, the server sees exactly one socket per device. Runs against the in-memory live hub.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { IDLE_CLOSE_MS, connectionFor, createConnection, endpoint, forgetConnections, manualScheduler } from "./index.ts";
+import {
+  IDLE_CLOSE_MS,
+  connectionFor,
+  createConnection,
+  endpoint,
+  forgetConnections,
+  manualScheduler,
+} from "./index.ts";
 import type { Connection } from "./index.ts";
 import { elapse, fakeServer, settle } from "./testing.ts";
 
 function make(srv = fakeServer(), sched = manualScheduler(1_000_000)) {
   let cursor = 0;
   const conn = createConnection({
-    space: "sp1", endpoints: [endpoint("direct", "wss://direct.example/live"), endpoint("relay", "wss://relay.example/live")], dial: srv.dial, scheduler: sched,
-    hello: () => ({ deviceId: "dev1", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", epoch: 0, replica: { entities: {} } }),
-    cursor: { get: () => cursor, set: (n) => { cursor = n; } },
+    space: "sp1",
+    endpoints: [endpoint("direct", "wss://direct.example/live"), endpoint("relay", "wss://relay.example/live")],
+    dial: srv.dial,
+    scheduler: sched,
+    hello: () => ({
+      deviceId: "dev1",
+      deviceClass: "desktop",
+      appVersion: "1.0.0",
+      registryHash: "h1",
+      epoch: 0,
+      replica: { entities: {} },
+    }),
+    cursor: {
+      get: () => cursor,
+      set: (n) => {
+        cursor = n;
+      },
+    },
     apply: () => undefined,
   });
   return { srv, sched, conn };
@@ -33,7 +55,8 @@ test("the connection stays while any screen holds it, and closes after the last 
   const { srv, sched, conn } = make();
   const hs = [conn.acquire(), conn.acquire(), conn.acquire()];
   await settle();
-  hs[0]!.release(); hs[1]!.release();
+  hs[0]!.release();
+  hs[1]!.release();
   await elapse(sched, IDLE_CLOSE_MS * 2);
   assert.equal(srv.open(), 1, "one screen still holds it");
   hs[2]!.release();
@@ -67,8 +90,13 @@ test("one connection per Space: every caller of connectionFor gets the same one"
   forgetConnections();
   let made = 0;
   const { conn } = make();
-  const factory = (): Connection => { made++; return conn; };
-  const a = connectionFor("sp1", factory), b = connectionFor("sp1", factory), c = connectionFor("sp2", factory);
+  const factory = (): Connection => {
+    made++;
+    return conn;
+  };
+  const a = connectionFor("sp1", factory),
+    b = connectionFor("sp1", factory),
+    c = connectionFor("sp2", factory);
   assert.equal(a, b);
   assert.equal(made, 2, "one per Space id");
   assert.equal(c, conn);
@@ -77,14 +105,18 @@ test("one connection per Space: every caller of connectionFor gets the same one"
 });
 
 test("leaving a Space closes pending hello transports immediately, before the handshake timeout", async () => {
-  const {srv,conn,sched}=make();
-  srv.slow("wss://direct.example/live");srv.slow("wss://relay.example/live");
-  conn.start();await settle();
-  assert.equal(srv.open(),2);
-  conn.stop();await settle();
-  assert.equal(srv.open(),0,"both in-flight transports close on stop");
-  srv.slow("wss://direct.example/live",false);srv.slow("wss://relay.example/live",false);
-  await elapse(sched,30_000);
-  assert.equal(srv.open(),0,"late hello replies cannot reopen a stopped Space");
-  assert.equal(conn.status(),"stopped");
+  const { srv, conn, sched } = make();
+  srv.slow("wss://direct.example/live");
+  srv.slow("wss://relay.example/live");
+  conn.start();
+  await settle();
+  assert.equal(srv.open(), 2);
+  conn.stop();
+  await settle();
+  assert.equal(srv.open(), 0, "both in-flight transports close on stop");
+  srv.slow("wss://direct.example/live", false);
+  srv.slow("wss://relay.example/live", false);
+  await elapse(sched, 30_000);
+  assert.equal(srv.open(), 0, "late hello replies cannot reopen a stopped Space");
+  assert.equal(conn.status(), "stopped");
 });

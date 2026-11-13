@@ -6,7 +6,13 @@ import { fakeTmux } from "./fake-tmux.ts";
 import { BUSY_SCRIPT } from "../workspace.ts";
 import type { FakeTmux, FakeTmuxOptions } from "./fake-tmux.ts";
 
-interface Box { name: string; config: Record<string, any>; running: boolean; tmux: FakeTmux; starts: number }   // eslint-disable-line @typescript-eslint/no-explicit-any
+interface Box {
+  name: string;
+  config: Record<string, any>;
+  running: boolean;
+  tmux: FakeTmux;
+  starts: number;
+} // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface FakeDockerOptions {
   /** The image is on the machine. Default true. */
@@ -32,8 +38,19 @@ const frame = (kind: 1 | 2, text: string): Uint8Array => {
   out.set(body, 8);
   return out;
 };
-const cat = (...parts: Uint8Array[]): Uint8Array => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let at = 0; for (const p of parts) { out.set(p, at); at += p.length; } return out; };
-const json = (status: number, v: unknown): DockerResponse => ({ status, body: new TextEncoder().encode(JSON.stringify(v)) });
+const cat = (...parts: Uint8Array[]): Uint8Array => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+};
+const json = (status: number, v: unknown): DockerResponse => ({
+  status,
+  body: new TextEncoder().encode(JSON.stringify(v)),
+});
 const empty = (status: number): DockerResponse => ({ status, body: new Uint8Array(0) });
 
 export function fakeDocker(o: FakeDockerOptions = {}) {
@@ -48,7 +65,9 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
   let execSeq = 0;
   let helperExit = 0;
 
-  const note = (op: string, name?: string, detail?: unknown): void => { log.push({ op, ...(name === undefined ? {} : { name }), ...(detail === undefined ? {} : { detail }) }); };
+  const note = (op: string, name?: string, detail?: unknown): void => {
+    log.push({ op, ...(name === undefined ? {} : { name }), ...(detail === undefined ? {} : { detail }) });
+  };
 
   async function runExec(b: Box, argv: readonly string[], env: readonly string[]): Promise<ExecResult> {
     note("exec", b.name, argv);
@@ -59,7 +78,12 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const name = rest[rest.indexOf("-s") + 1] as string;
       return b.tmux.sessions.has(name) ? { code: 0, stdout: "", stderr: "" } : b.tmux.exec(rest);
     }
-    if (argv[0] === "tmux" && argv[1] === "list-panes") return { code: 0, stdout: o.panes?.(b.name) ?? [...b.tmux.sessions.keys()].map(() => "bash").join("\n"), stderr: "" };
+    if (argv[0] === "tmux" && argv[1] === "list-panes")
+      return {
+        code: 0,
+        stdout: o.panes?.(b.name) ?? [...b.tmux.sessions.keys()].map(() => "bash").join("\n"),
+        stderr: "",
+      };
     if (argv[0] === "tmux" && argv[1] === "pipe-pane") return { code: 0, stdout: "", stderr: "" };
     if (argv[0] === "sh" && argv[2] === BUSY_SCRIPT) return { code: 0, stdout: o.procs?.(b.name) ?? "", stderr: "" };
     return b.tmux.exec(argv);
@@ -71,16 +95,36 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
     if (p === "/_ping") return { status: 200, body: new TextEncoder().encode("OK") };
     let r = /^\/images\/(.+)\/json$/.exec(p);
     if (r && m === "GET") return image ? json(200, {}) : json(404, { message: "no such image" });
-    if (p === "/images/create" && m === "POST") { note("pull", undefined, req.query); if (o.pullWorks === true) { image = true; return empty(200); } return json(404, { message: "pull access denied" }); }
+    if (p === "/images/create" && m === "POST") {
+      note("pull", undefined, req.query);
+      if (o.pullWorks === true) {
+        image = true;
+        return empty(200);
+      }
+      return json(404, { message: "pull access denied" });
+    }
     if (p === "/containers/json" && m === "GET") {
       const all = req.query?.["all"] === "true";
-      const rows = [...boxes.values()].filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined).map((b) => ({ Names: [`/${b.name}`], State: b.running ? "running" : "exited", Labels: b.config["Labels"], HostConfig: { NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } }));   // as Docker lists them
+      const rows = [...boxes.values()]
+        .filter((b) => (all || b.running) && b.config["Labels"]?.["vyre.workspace"] !== undefined)
+        .map((b) => ({
+          Names: [`/${b.name}`],
+          State: b.running ? "running" : "exited",
+          Labels: b.config["Labels"],
+          HostConfig: { NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" },
+        })); // as Docker lists them
       return json(200, rows);
     }
     if (p === "/containers/create" && m === "POST") {
       const name = req.query?.["name"] as string;
       if (boxes.has(name)) return json(409, { message: "name in use" });
-      boxes.set(name, { name, config: req.json as Record<string, any>, running: false, tmux: fakeTmux(o.tmux), starts: 0 });   // eslint-disable-line @typescript-eslint/no-explicit-any
+      boxes.set(name, {
+        name,
+        config: req.json as Record<string, any>,
+        running: false,
+        tmux: fakeTmux(o.tmux),
+        starts: 0,
+      }); // eslint-disable-line @typescript-eslint/no-explicit-any
       note("create", name, req.json);
       return json(201, { Id: `id_${name}` });
     }
@@ -90,17 +134,47 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const b = boxes.get(name);
       const act = r[2] ?? (m === "DELETE" ? "remove" : "");
       if (!b) return json(404, { message: "no such container" });
-      if (act === "json") return json(200, { State: { Running: b.running }, Config: { Labels: b.config["Labels"] ?? {} }, HostConfig: { Binds: b.config["HostConfig"]?.["Binds"] ?? [], NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default" } });
-      if (act === "start") { if (!b.running) { b.running = true; b.starts += 1; b.tmux = fakeTmux(o.tmux); } note("start", name); return empty(204); }
-      if (act === "stop") { b.running = false; note("stop", name); return empty(204); }
-      if (act === "wait") { note("wait", name); return json(200, { StatusCode: helperExit }); }
-      if (act === "remove") { boxes.delete(name); note("remove", name); return empty(204); }
+      if (act === "json")
+        return json(200, {
+          State: { Running: b.running },
+          Config: { Labels: b.config["Labels"] ?? {} },
+          HostConfig: {
+            Binds: b.config["HostConfig"]?.["Binds"] ?? [],
+            NetworkMode: b.config["HostConfig"]?.["NetworkMode"] ?? "default",
+          },
+        });
+      if (act === "start") {
+        if (!b.running) {
+          b.running = true;
+          b.starts += 1;
+          b.tmux = fakeTmux(o.tmux);
+        }
+        note("start", name);
+        return empty(204);
+      }
+      if (act === "stop") {
+        b.running = false;
+        note("stop", name);
+        return empty(204);
+      }
+      if (act === "wait") {
+        note("wait", name);
+        return json(200, { StatusCode: helperExit });
+      }
+      if (act === "remove") {
+        boxes.delete(name);
+        note("remove", name);
+        return empty(204);
+      }
     }
     r = /^\/containers\/([^/]+)\/archive$/.exec(p);
     if (r && (m === "GET" || m === "PUT")) {
       const b = boxes.get(r[1] as string);
       if (!b) return json(404, { message: "no such container" });
-      note(m === "GET" ? "archive_get" : "archive_put", b.name, { path: req.query?.["path"], bytes: req.body?.length ?? 0 });
+      note(m === "GET" ? "archive_get" : "archive_put", b.name, {
+        path: req.query?.["path"],
+        bytes: req.body?.length ?? 0,
+      });
       return m === "GET" ? { status: 200, body: new TextEncoder().encode("TAR") } : empty(200);
     }
     r = /^\/containers\/([^/]+)\/exec$/.exec(p);
@@ -113,39 +187,93 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       return json(201, { Id: id });
     }
     r = /^\/exec\/([^/]+)\/start$/.exec(p);
-    if (r && m === "POST") { const e = execs.get(r[1] as string) as ExecResult; return { status: 200, body: cat(frame(1, e.stdout), frame(2, e.stderr)) }; }
+    if (r && m === "POST") {
+      const e = execs.get(r[1] as string) as ExecResult;
+      return { status: 200, body: cat(frame(1, e.stdout), frame(2, e.stderr)) };
+    }
     r = /^\/exec\/([^/]+)\/json$/.exec(p);
     if (r && m === "GET") return json(200, { ExitCode: (execs.get(r[1] as string) as ExecResult).code });
     r = /^\/volumes\/([^/]+)$/.exec(p);
-    if (r && m === "GET") return volumes.has(r[1] as string) ? json(200, { Name: r[1] }) : json(404, { message: "no such volume" });
-    if (p === "/volumes/create" && m === "POST") { const v = req.json as { Name: string }; volumes.set(v.Name, v as Record<string, unknown>); note("volume", v.Name); return json(201, { Name: v.Name }); }
-    if (r && m === "DELETE") { volumes.delete(r[1] as string); note("volume_remove", r[1]); return empty(204); }
+    if (r && m === "GET")
+      return volumes.has(r[1] as string) ? json(200, { Name: r[1] }) : json(404, { message: "no such volume" });
+    if (p === "/volumes/create" && m === "POST") {
+      const v = req.json as { Name: string };
+      volumes.set(v.Name, v as Record<string, unknown>);
+      note("volume", v.Name);
+      return json(201, { Name: v.Name });
+    }
+    if (r && m === "DELETE") {
+      volumes.delete(r[1] as string);
+      note("volume_remove", r[1]);
+      return empty(204);
+    }
     if (p === "/networks" && m === "GET") {
       const want = (JSON.parse(String(req.query?.["filters"] ?? "{}")) as { label?: string[] }).label ?? [];
-      const rows = [...networks].map((n, i) => ({ Name: n, Labels: netLabels.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } })).filter((x) => want.length === 0 || want.some((l) => l in x.Labels));
+      const rows = [...networks]
+        .map((n, i) => ({
+          Name: n,
+          Labels: netLabels.get(n) ?? {},
+          IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] },
+        }))
+        .filter((x) => want.length === 0 || want.some((l) => l in x.Labels));
       return json(200, rows);
     }
     if (/^\/networks\/[^/]+$/.test(p) && m === "GET") {
       const n = p.slice("/networks/".length);
       // Docker's default bridge is always there
-      if (n === "bridge") return json(200, { Name: "bridge", Labels: {}, Options: {}, IPAM: { Config: [{ Subnet: "172.17.0.0/16" }] } });
+      if (n === "bridge")
+        return json(200, { Name: "bridge", Labels: {}, Options: {}, IPAM: { Config: [{ Subnet: "172.17.0.0/16" }] } });
       const i = [...networks].indexOf(n);
-      return i < 0 ? json(404, { message: "no such network" }) : json(200, { Name: n, Labels: netLabels.get(n) ?? {}, Options: netOptions.get(n) ?? {}, IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] } });
+      return i < 0
+        ? json(404, { message: "no such network" })
+        : json(200, {
+            Name: n,
+            Labels: netLabels.get(n) ?? {},
+            Options: netOptions.get(n) ?? {},
+            IPAM: { Config: [{ Subnet: `172.31.${i}.0/24` }] },
+          });
     }
-    if (p === "/networks/create" && m === "POST") { const n = (req.json as { Name: string }).Name; if (networks.has(n)) return json(409, { message: "network exists" }); if (o.networkFails?.()) return json(400, { message: "all predefined address pools have been fully subnetted" }); networks.add(n); netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {}); netOptions.set(n, (req.json as { Options?: Record<string, string> }).Options ?? {}); note("network", n, req.json); return json(201, { Id: "net" }); }
+    if (p === "/networks/create" && m === "POST") {
+      const n = (req.json as { Name: string }).Name;
+      if (networks.has(n)) return json(409, { message: "network exists" });
+      if (o.networkFails?.()) return json(400, { message: "all predefined address pools have been fully subnetted" });
+      networks.add(n);
+      netLabels.set(n, (req.json as { Labels?: Record<string, string> }).Labels ?? {});
+      netOptions.set(n, (req.json as { Options?: Record<string, string> }).Options ?? {});
+      note("network", n, req.json);
+      return json(201, { Id: "net" });
+    }
     r = /^\/networks\/([^/]+)$/.exec(p);
-    if (r && m === "DELETE") { networks.delete(r[1] as string); return empty(204); }
+    if (r && m === "DELETE") {
+      networks.delete(r[1] as string);
+      return empty(204);
+    }
     return json(404, { message: `the stand-in does not know ${m} ${p}` });
   };
 
   return {
-    http, boxes, volumes, networks, log,
-    ops(op: string): Array<{ op: string; name?: string; detail?: unknown }> { return log.filter((l) => l.op === op); },
-    box(name: string): Box { return boxes.get(name) as Box; },
-    setImage(v: boolean) { image = v; },
+    http,
+    boxes,
+    volumes,
+    networks,
+    log,
+    ops(op: string): Array<{ op: string; name?: string; detail?: unknown }> {
+      return log.filter((l) => l.op === op);
+    },
+    box(name: string): Box {
+      return boxes.get(name) as Box;
+    },
+    setImage(v: boolean) {
+      image = v;
+    },
     /** The container stops without Vyre asking (someone ran docker stop). */
-    kill(name: string) { const b = boxes.get(name); if (b) b.running = false; },
-    helperFails() { helperExit = 1; },
+    kill(name: string) {
+      const b = boxes.get(name);
+      if (b) b.running = false;
+    },
+    helperFails() {
+      helperExit = 1;
+    },
   };
 }
 export type FakeDocker = ReturnType<typeof fakeDocker>;

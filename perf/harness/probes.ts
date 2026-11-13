@@ -34,10 +34,16 @@ export function parseProbes(raw: unknown): Probe[] {
 /** `{ source, probes }`. `source` is perf/generated/probes.json or generated/probes.json. */
 export function loadProbes(): { source: string; probes: Probe[] } {
   if (fs.existsSync(ARCH_PROBES)) {
-    return { source: "perf/generated/probes.json", probes: parseProbes(JSON.parse(fs.readFileSync(ARCH_PROBES, "utf8"))) };
+    return {
+      source: "perf/generated/probes.json",
+      probes: parseProbes(JSON.parse(fs.readFileSync(ARCH_PROBES, "utf8"))),
+    };
   }
   if (!fs.existsSync(GENERATED_PROBES)) fail("no probes.json at perf/generated/probes.json or generated/probes.json");
-  return { source: "generated/probes.json", probes: parseProbes(JSON.parse(fs.readFileSync(GENERATED_PROBES, "utf8"))) };
+  return {
+    source: "generated/probes.json",
+    probes: parseProbes(JSON.parse(fs.readFileSync(GENERATED_PROBES, "utf8"))),
+  };
 }
 
 /** Budget rows whose `probe` is missing from the catalog. Empty means the contract holds. */

@@ -3,7 +3,12 @@
 import { DEFAULT_LIMITS } from "./service.ts";
 import type { Config } from "./service.ts";
 
-export interface Settings { port: number; dataDir: string; trustProxy: boolean; config: Config }
+export interface Settings {
+  port: number;
+  dataDir: string;
+  trustProxy: boolean;
+  config: Config;
+}
 
 type Env = Record<string, string | undefined>;
 
@@ -23,9 +28,12 @@ export function loadConfig(env: Env): Settings {
   };
   const publicUrl = need("REPORTS_PUBLIC_URL").replace(/\/+$/, "");
   const insecure = env.REPORTS_ALLOW_INSECURE === "1";
-  if (!/^https:\/\//.test(publicUrl) && !(insecure && /^http:\/\//.test(publicUrl))) throw new Error("REPORTS_PUBLIC_URL must start with https://");
-  const teamUrl = env.TEAM_SPACE_URL, teamToken = env.TEAM_SPACE_TOKEN;
-  if (Boolean(teamUrl) !== Boolean(teamToken)) throw new Error("TEAM_SPACE_URL and TEAM_SPACE_TOKEN are set together or not at all");
+  if (!/^https:\/\//.test(publicUrl) && !(insecure && /^http:\/\//.test(publicUrl)))
+    throw new Error("REPORTS_PUBLIC_URL must start with https://");
+  const teamUrl = env.TEAM_SPACE_URL,
+    teamToken = env.TEAM_SPACE_TOKEN;
+  if (Boolean(teamUrl) !== Boolean(teamToken))
+    throw new Error("TEAM_SPACE_URL and TEAM_SPACE_TOKEN are set together or not at all");
   const repo = env.GITHUB_REPO || "vyre-ai/vyre";
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw new Error("GITHUB_REPO is owner/name");
   const limits = {
@@ -43,7 +51,10 @@ export function loadConfig(env: Env): Settings {
     config: {
       publicUrl,
       github: { repo, token: need("GITHUB_TOKEN"), webhookSecret: need("GITHUB_WEBHOOK_SECRET") },
-      team: teamUrl && teamToken ? { baseUrl: teamUrl, token: teamToken, recordType: env.TEAM_RECORD_TYPE || "report" } : null,
+      team:
+        teamUrl && teamToken
+          ? { baseUrl: teamUrl, token: teamToken, recordType: env.TEAM_RECORD_TYPE || "report" }
+          : null,
       limits,
       allowInsecureWebhooks: insecure,
     },

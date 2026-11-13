@@ -4,7 +4,16 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import { DEFAULT_AGENT_SETTINGS, joinNames } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import type { AccessDirectory, AccessEntry, AccessPick, AddCall, AddTarget, AgentHow, AgentSettings, ShareLevel } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import type {
+  AccessDirectory,
+  AccessEntry,
+  AccessPick,
+  AddCall,
+  AddTarget,
+  AgentHow,
+  AgentSettings,
+  ShareLevel,
+} from "../../../../../../ui/src/AccessSheet/index.tsx";
 
 type Principals = CapMap["access.principals.list"]["out"]["principals"];
 type AgentRows = CapMap["agents.list"]["out"]["agents"];
@@ -29,7 +38,9 @@ export interface AddSheetDeps {
 /* ---------- how an agent answers in a chat ---------- */
 
 /** The row a chat keeps for an agent, in the sheet's words: answers everything, answers when mentioned, or listens and posts only when poked. */
-export function settingsOf(a: Pick<ThreadAgentRow, "mode" | "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">): AgentSettings {
+export function settingsOf(
+  a: Pick<ThreadAgentRow, "mode" | "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">,
+): AgentSettings {
   const how: AgentHow = a.quiet === true ? "listen" : a.mode === "lead" ? "lead" : "tag";
   return {
     how,
@@ -43,7 +54,14 @@ export function settingsOf(a: Pick<ThreadAgentRow, "mode" | "quiet" | "when" | "
 
 /** The line under an agent on a Here now row. */
 export function hereSub(a: Pick<ThreadAgentRow, "mode" | "quiet" | "owned">, only: boolean): string {
-  const how = a.quiet === true ? "Only listens" : a.mode === "lead" ? (only ? "In this chat" : "Answers everything") : "Answers when mentioned";
+  const how =
+    a.quiet === true
+      ? "Only listens"
+      : a.mode === "lead"
+        ? only
+          ? "In this chat"
+          : "Answers everything"
+        : "Answers when mentioned";
   return a.owned === true ? `${how} · made for this chat` : how;
 }
 
@@ -63,16 +81,43 @@ export function directoryOf(i: DirectoryInput): AccessDirectory {
   const people: AccessEntry[] = i.principals
     .filter((p) => p.kind === "person" && p.status === "active" && p.id !== i.me)
     .map((p) => ({ id: p.id, name: p.name, sub: p.title ?? "Space member", kind: "person" as const }));
-  const usable = i.agents.filter((a) => a.runtime !== "outside" && a.chatOf === undefined && (a.teammateOf === undefined || a.teammateOf === i.projectId) && !(isAssistantRow(a) && a.ownerId !== i.me));
+  const usable = i.agents.filter(
+    (a) =>
+      a.runtime !== "outside" &&
+      a.chatOf === undefined &&
+      (a.teammateOf === undefined || a.teammateOf === i.projectId) &&
+      !(isAssistantRow(a) && a.ownerId !== i.me),
+  );
   const mine = usable.filter((a) => isAssistantRow(a) && a.ownerId === i.me);
   const rest = usable.filter((a) => !mine.includes(a));
   const agents: AccessEntry[] = [
-    ...mine.map((a) => ({ id: a.agentId, name: "Assistant", sub: "Yours, private to you", kind: "agent" as const, assistant: true })),
-    ...rest.map((a) => ({ id: a.agentId, name: a.name, sub: a.role ?? (a.teammateOf !== undefined ? "Project teammate" : "Space agent"), kind: "agent" as const })),
+    ...mine.map((a) => ({
+      id: a.agentId,
+      name: "Assistant",
+      sub: "Yours, private to you",
+      kind: "agent" as const,
+      assistant: true,
+    })),
+    ...rest.map((a) => ({
+      id: a.agentId,
+      name: a.name,
+      sub: a.role ?? (a.teammateOf !== undefined ? "Project teammate" : "Space agent"),
+      kind: "agent" as const,
+    })),
   ];
-  const outside: AccessEntry[] = i.connected.filter((c) => c.setup !== true).map((c) => ({ id: c.agentId, name: c.clientName, sub: c.redirectHost ?? "Outside agent", kind: "outside" as const }));
+  const outside: AccessEntry[] = i.connected
+    .filter((c) => c.setup !== true)
+    .map((c) => ({
+      id: c.agentId,
+      name: c.clientName,
+      sub: c.redirectHost ?? "Outside agent",
+      kind: "outside" as const,
+    }));
   // the few the person reaches for most: the two agents used last, and the first person
-  const recent = [...rest].sort((a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0)).slice(0, 2).map((a) => agents.find((e) => e.id === a.agentId) as AccessEntry);
+  const recent = [...rest]
+    .sort((a, b) => (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0))
+    .slice(0, 2)
+    .map((a) => agents.find((e) => e.id === a.agentId) as AccessEntry);
   const suggested = [...recent, ...people.slice(0, 1)];
   return { suggested, people, agents, outside };
 }
@@ -93,12 +138,14 @@ export interface ProjectExtras {
 }
 
 export function projectExtras(unsupported: readonly AccessPick[], newKey: (p: AccessPick) => string): ProjectExtras {
-  const creates = unsupported.filter((p) => p.kind === "new").map((p) => ({
-    name: p.name,
-    ...(p.brief !== undefined && p.brief.trim() !== "" ? { role: p.brief.trim() } : {}),
-    ...(p.model !== undefined && p.model !== "" ? { model: p.model } : {}),
-    key: newKey(p),
-  }));
+  const creates = unsupported
+    .filter((p) => p.kind === "new")
+    .map((p) => ({
+      name: p.name,
+      ...(p.brief !== undefined && p.brief.trim() !== "" ? { role: p.brief.trim() } : {}),
+      ...(p.model !== undefined && p.model !== "" ? { model: p.model } : {}),
+      key: newKey(p),
+    }));
   return { creates, viaChat: unsupported.filter((p) => p.kind === "outside" || p.kind === "guest") };
 }
 

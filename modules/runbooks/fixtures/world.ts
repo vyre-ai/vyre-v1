@@ -12,10 +12,24 @@ export const MIGRATION = new URL("../migrations/0001_runbooks.sql", import.meta.
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const ROOT = "fld_root";
 
-export interface Version { id: string; text: string }
-export interface FileSpec { id: string; name: string; folderId: string; versions: Version[] }
-export interface Outcome { exitCode: number | null; output: string }
-export interface Call { cap: string; input: Record<string, unknown> }
+export interface Version {
+  id: string;
+  text: string;
+}
+export interface FileSpec {
+  id: string;
+  name: string;
+  folderId: string;
+  versions: Version[];
+}
+export interface Outcome {
+  exitCode: number | null;
+  output: string;
+}
+export interface Call {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface World {
   ctx: Ctx;
@@ -38,7 +52,10 @@ export interface World {
   edit(fileId: string, text: string, versionId?: string): string;
 }
 
-function err(code: "validation.not_found" | "permission.needs_team" | "permission.role_lacks_permission" | "provider.unavailable", message: string): VyreErr {
+function err(
+  code: "validation.not_found" | "permission.needs_team" | "permission.role_lacks_permission" | "provider.unavailable",
+  message: string,
+): VyreErr {
   return new VyreErr({ code, message, retryable: false, traceId: TRACE, next: [] });
 }
 
@@ -54,7 +71,10 @@ export function world(): World {
   let files_n = 0;
   let terminals = 0;
   const state: Pick<World, "script" | "computers" | "team"> = {
-    script: (command) => (command.includes("FAIL") ? { exitCode: 2, output: "boom" } : { exitCode: 0, output: `ok: ${command.split("\n")[0] ?? ""}` }),
+    script: (command) =>
+      command.includes("FAIL")
+        ? { exitCode: 2, output: "boom" }
+        : { exitCode: 0, output: `ok: ${command.split("\n")[0] ?? ""}` },
     computers: [],
     team: true,
   };
@@ -78,22 +98,37 @@ export function world(): World {
     emit: <T>(name: string, subject: string, payload: T): EventEnvelope<T> => {
       events.push({ name, subject, payload });
       return {
-        seq: events.length, id: `evt_${events.length}`, type: name, sv: 1, hlc: String(clock), at: clock, traceId: TRACE, actor: "per_maya", depth: 0, label: 0, vis: "space", enc: 0, payload,
+        seq: events.length,
+        id: `evt_${events.length}`,
+        type: name,
+        sv: 1,
+        hlc: String(clock),
+        at: clock,
+        traceId: TRACE,
+        actor: "per_maya",
+        depth: 0,
+        label: 0,
+        vis: "space",
+        enc: 0,
+        payload,
       };
     },
     call: async (cap: string, input: unknown): Promise<unknown> => {
       const i = (input ?? {}) as Record<string, unknown>;
       calls.push({ cap, input: i });
       switch (cap) {
-        case "files.get": return { file: row(need(i.fileId)) };
+        case "files.get":
+          return { file: row(need(i.fileId)) };
         case "files.read": {
           const f = need(i.fileId);
-          const at = typeof i.versionId === "string" ? f.versions.findIndex((v) => v.id === i.versionId) : f.versions.length - 1;
+          const at =
+            typeof i.versionId === "string" ? f.versions.findIndex((v) => v.id === i.versionId) : f.versions.length - 1;
           const v = f.versions[at];
           if (!v) throw err("validation.not_found", "That version is not on this file.");
           return { text: v.text, mime: "text/markdown", size: v.text.length, version: at + 1, truncated: false };
         }
-        case "files.versions": return { versions: need(i.fileId).versions.map((v, k) => ({ versionId: v.id, n: k + 1 })) };
+        case "files.versions":
+          return { versions: need(i.fileId).versions.map((v, k) => ({ versionId: v.id, n: k + 1 })) };
         case "files.list": {
           if (i.section === "space") return { files: [], folders: [], total: 0 };
           const folder = typeof i.folder === "string" ? i.folder : ROOT;
@@ -104,13 +139,15 @@ export function world(): World {
           };
         }
         case "terminal.open_server": {
-          if (denied.has("server.services")) throw err("permission.role_lacks_permission", "No role of yours includes server.services.");
+          if (denied.has("server.services"))
+            throw err("permission.role_lacks_permission", "No role of yours includes server.services.");
           return { terminal: { terminalId: `trm_${++terminals}` } };
         }
         case "terminal.open": {
           if (!state.team) throw err("permission.needs_team", "Agent computers are part of a Team Space.");
           // as the terminal module does (modules/terminal/handlers/sessions.ts openSession): an agent's terminal is opened by its agent, a computer id alone opens nothing
-          if (i.host === "agent_computer" && typeof i.agentId !== "string") throw err("validation.bad_input", "Say which agent's workspace to open the terminal in.");
+          if (i.host === "agent_computer" && typeof i.agentId !== "string")
+            throw err("validation.bad_input", "Say which agent's workspace to open the terminal in.");
           return { terminal: { terminalId: `trm_${++terminals}` } };
         }
         case "terminal.run": {
@@ -120,31 +157,60 @@ export function world(): World {
           const out = await state.script(command, terminalId);
           return { terminalId, exitCode: out.exitCode, output: out.output, truncated: false, durationMs: 5 };
         }
-        case "terminal.interrupt": return { ok: true };
+        case "terminal.interrupt":
+          return { ok: true };
         case "computers.list": {
           if (!state.team) throw err("permission.needs_team", "Agent computers are part of a Team Space.");
           return { computers: state.computers };
         }
-        default: throw new Error(`unexpected call ${cap}`);
+        default:
+          throw new Error(`unexpected call ${cap}`);
       }
     },
-    authorize: (action, resource) => ((action.perm !== null && denied.has(action.perm)) || (resource.id !== null && denied.has(resource.id))
-      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
-      : { effect: "allow", reason: "test", decisionId: "dec_test" }),
+    authorize: (action, resource) =>
+      (action.perm !== null && denied.has(action.perm)) || (resource.id !== null && denied.has(resource.id))
+        ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+        : { effect: "allow", reason: "test", decisionId: "dec_test" },
     vault: { fill: async () => {}, use: (handle: string) => ({ handle }) },
     http: async () => ({ status: 0, text: async () => "" }),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     schedule: async () => "sch_test",
-    seal: { seal: () => { throw new Error("seal is not used"); }, unseal: () => { throw new Error("seal is not used"); } },
+    seal: {
+      seal: () => {
+        throw new Error("seal is not used");
+      },
+      unseal: () => {
+        throw new Error("seal is not used");
+      },
+    },
   };
   const w: World = {
-    ctx, events, calls, db, files, folders, ran, denied,
-    get script() { return state.script; },
-    set script(f) { state.script = f; },
-    get computers() { return state.computers; },
-    set computers(c) { state.computers = c; },
-    get team() { return state.team; },
-    set team(v) { state.team = v; },
+    ctx,
+    events,
+    calls,
+    db,
+    files,
+    folders,
+    ran,
+    denied,
+    get script() {
+      return state.script;
+    },
+    set script(f) {
+      state.script = f;
+    },
+    get computers() {
+      return state.computers;
+    },
+    set computers(c) {
+      state.computers = c;
+    },
+    get team() {
+      return state.team;
+    },
+    set team(v) {
+      state.team = v;
+    },
     addFile(name, text, folderId = ROOT, fileId, versionId) {
       files_n += 1;
       const id = fileId ?? `fil_${files_n}`;
@@ -174,7 +240,7 @@ export const RUNBOOK = [
   "```",
   "",
   "## Check",
-  "```sh title=\"Smoke test\"",
+  '```sh title="Smoke test"',
   "curl -fsS localhost/health",
   "```",
   "",

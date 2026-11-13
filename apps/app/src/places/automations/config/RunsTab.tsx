@@ -22,34 +22,83 @@ export function RunsTab({ automationId, version }: { automationId: string; versi
   const extras = useConfigExtras();
   const saved = useSaved();
   const { element, show } = useMenu();
-  const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
+  const q = useScreenQuery<RunsOut>(CONFIG, "runs", {
+    subject: { type: "automation", id: automationId },
+    scope: "subject",
+  });
   const runs: readonly Run[] = q.status === "ready" ? [...q.data.runs].sort((a, b) => b.startedAt - a.startedAt) : [];
   const handled = handledIds(runs);
   const now = data.clock().now;
   const latest = runs.slice(0, LATEST);
 
-  const retry = (r: Run): void => { void saved.run("Retrying the run", () => data.call("automations.retry", { automationId, runId: r.id })); };
-  const menu = (r: Run, x: number, y: number): void => show([
-    { label: "Open to the Side", onSelect: () => data.nav.openRun(r.id) },
-    ...(needsAttention(r, handled) ? [{ label: "Retry", onSelect: () => retry(r) }] : []),
-    { label: "Copy error details", onSelect: () => void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(r.traceId) },
-  ], x, y, "context", { label: r.name ?? "Run" });
+  const retry = (r: Run): void => {
+    void saved.run("Retrying the run", () => data.call("automations.retry", { automationId, runId: r.id }));
+  };
+  const menu = (r: Run, x: number, y: number): void =>
+    show(
+      [
+        { label: "Open to the Side", onSelect: () => data.nav.openRun(r.id) },
+        ...(needsAttention(r, handled) ? [{ label: "Retry", onSelect: () => retry(r) }] : []),
+        {
+          label: "Copy error details",
+          onSelect: () =>
+            void (
+              globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }
+            ).navigator?.clipboard?.writeText(r.traceId),
+        },
+      ],
+      x,
+      y,
+      "context",
+      { label: r.name ?? "Run" },
+    );
 
   return (
     <View testID="runs-tab" accessibilityLabel="Runs" style={t.body}>
       <Lab first>Latest runs</Lab>
-      {q.status === "loading" ? <Text style={t.dim}>Loading</Text> : latest.length === 0 ? <Text testID="runs-empty" style={t.dim}>None yet.</Text> : (
+      {q.status === "loading" ? (
+        <Text style={t.dim}>Loading</Text>
+      ) : latest.length === 0 ? (
+        <Text testID="runs-empty" style={t.dim}>
+          None yet.
+        </Text>
+      ) : (
         <View testID="runs-list">
           {each(latest, (r) => (
             <RunRow
-              key={r.id} run={r} now={now} rowKey={r.id} open={needsAttention(r, handled)} {...(version !== undefined ? { currentVersion: version } : {})}
-              onOpen={(x) => data.nav.openRun(x.id)} onRetry={retry} onMenu={menu}
+              key={r.id}
+              run={r}
+              now={now}
+              rowKey={r.id}
+              open={needsAttention(r, handled)}
+              {...(version !== undefined ? { currentVersion: version } : {})}
+              onOpen={(x) => data.nav.openRun(x.id)}
+              onRetry={retry}
+              onMenu={menu}
             />
           ))}
         </View>
       )}
-      <View style={t.more}><TextButton label="All runs in the main view" icon="open" primary={false} testID="all-runs" onPress={() => (extras.openRuns ? extras.openRuns(automationId) : latest[0] ? data.nav.openRun(latest[0].id) : undefined)} /></View>
-      {saved.note ? <Text testID="saved-note" accessibilityLiveRegion="polite" style={[t.note, saved.note.failed && { color: "var(--danger)" as string }]}>{saved.note.text}</Text> : null}
+      <View style={t.more}>
+        <TextButton
+          label="All runs in the main view"
+          icon="open"
+          primary={false}
+          testID="all-runs"
+          onPress={() =>
+            extras.openRuns ? extras.openRuns(automationId) : latest[0] ? data.nav.openRun(latest[0].id) : undefined
+          }
+        />
+      </View>
+      {saved.note ? (
+        <Text
+          testID="saved-note"
+          accessibilityLiveRegion="polite"
+          style={[t.note, saved.note.failed && { color: "var(--danger)" as string }]}
+        >
+          {saved.note.text}
+        </Text>
+      ) : null}
       {element}
     </View>
   );

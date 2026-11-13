@@ -28,16 +28,24 @@ function delayedHooks(): ScreenHooks {
     query(screenId, name) {
       const key = `${screenId}/${name}`;
       let entry = cache.get(key);
-      if (!entry) { entry = { snap: { status: "loading" }, listeners: new Set(), started: false }; cache.set(key, entry); }
+      if (!entry) {
+        entry = { snap: { status: "loading" }, listeners: new Set(), started: false };
+        cache.set(key, entry);
+      }
       const e = entry;
       return {
         subscribe(listener) {
           e.listeners.add(listener);
           if (!e.started) {
             e.started = true;
-            setTimeout(() => { e.snap = { status: "ready", data: SAMPLE }; e.listeners.forEach((l) => l()); }, 60);
+            setTimeout(() => {
+              e.snap = { status: "ready", data: SAMPLE };
+              e.listeners.forEach((l) => l());
+            }, 60);
           }
-          return () => { e.listeners.delete(listener); };
+          return () => {
+            e.listeners.delete(listener);
+          };
         },
         getSnapshot: () => e.snap,
       };
@@ -46,21 +54,28 @@ function delayedHooks(): ScreenHooks {
 }
 
 const env: KitEnv = { hooks: delayedHooks(), online: true, invoke: () => {} };
-const run = screens.filter((s) => isScreenPlace(s.place) && Object.keys(s.queries).length > 0).slice(0, 20).map(previewDef);
+const run = screens
+  .filter((s) => isScreenPlace(s.place) && Object.keys(s.queries).length > 0)
+  .slice(0, 20)
+  .map(previewDef);
 
 export default function Mount() {
   // The run mounts after the first commit, so the page frame exists before the slots do and no slot is measured at 0 height.
   const [on, setOn] = useState(false);
-  useEffect(() => { setOn(true); }, []);
+  useEffect(() => {
+    setOn(true);
+  }, []);
   return (
     <View style={{ flex: 1 }}>
-    {on ? <ScrollView testID="kit-run" style={styles.run}>
-      {run.map((def) => (
-        <View key={def.id} style={styles.slot}>
-          <KitScreen def={def} env={env} />
-        </View>
-      ))}
-    </ScrollView> : null}
+      {on ? (
+        <ScrollView testID="kit-run" style={styles.run}>
+          {run.map((def) => (
+            <View key={def.id} style={styles.slot}>
+              <KitScreen def={def} env={env} />
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }

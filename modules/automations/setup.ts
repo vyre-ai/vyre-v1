@@ -69,7 +69,7 @@ function deref(schemes: Record<string, unknown>, value: unknown): Record<string,
   const ref = value.$ref;
   if (typeof ref !== "string") return value;
   const name = ref.startsWith("#/components/securitySchemes/") ? ref.slice("#/components/securitySchemes/".length) : "";
-  return name && isRecord(schemes[name]) ? schemes[name] as Record<string, unknown> : undefined;
+  return name && isRecord(schemes[name]) ? (schemes[name] as Record<string, unknown>) : undefined;
 }
 
 function cleanName(value: unknown, fallback: string): string {
@@ -95,13 +95,15 @@ function fieldsFromScheme(name: string, scheme: Record<string, unknown>): PasteF
   if (type === "apiKey") {
     const headerName = cleanName(scheme.name, name);
     const where = placement(scheme.in);
-    return [{
-      name: headerName,
-      secret: true,
-      in: where,
-      ...(where === "header" ? { headerName } : {}),
-      hint: SECRET_HINT,
-    }];
+    return [
+      {
+        name: headerName,
+        secret: true,
+        in: where,
+        ...(where === "header" ? { headerName } : {}),
+        hint: SECRET_HINT,
+      },
+    ];
   }
   if (type === "http") {
     const http = typeof scheme.scheme === "string" ? scheme.scheme.toLowerCase() : "";
@@ -186,13 +188,21 @@ export function actionChecks(actions: readonly { key: string; effect: "read" | "
   }));
 }
 
-export function setupFrom(doc: unknown, actions: readonly { key: string; effect: "read" | "outward" }[], docsUrl?: string): ConnectorSetup {
+export function setupFrom(
+  doc: unknown,
+  actions: readonly { key: string; effect: "read" | "outward" }[],
+  docsUrl?: string,
+): ConnectorSetup {
   const { fields, scopes } = pasteFields(doc);
   const docs = docsUrl && !containsSecret(docsUrl) ? [docsUrl] : undefined;
   const ask = askBundle({
     resource: "connection",
     message: fields.length > 0 ? PASTE : SIGN_IN,
-    fields: fields.map((field) => ({ name: field.name, valueType: field.secret ? "secret" : "string", presence: "missing" })),
+    fields: fields.map((field) => ({
+      name: field.name,
+      valueType: field.secret ? "secret" : "string",
+      presence: "missing",
+    })),
     ...(docs ? { docs } : {}),
   });
   return { fields, triggers: draftTriggers(doc), checks: actionChecks(actions), scopes, ask };

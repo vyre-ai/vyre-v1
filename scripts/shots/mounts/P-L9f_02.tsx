@@ -20,9 +20,14 @@ export default function Mount(): ReactNode {
   const { width, height } = useWindowDimensions();
   const phone = width < 640;
   const harborView = space.id === "harbor";
-  const subject = { type: "automation" as const, id: harborView ? "aut_h1" : view === "waiting" ? "aut_invoice" : "aut_lead" };
+  const subject = {
+    type: "automation" as const,
+    id: harborView ? "aut_h1" : view === "waiting" ? "aut_invoice" : "aut_lead",
+  };
   const runId = harborView ? "rh3" : view === "chat-ok" || view === "undo" ? "rl3" : view === "waiting" ? "ri1" : "rl1";
-  const history = <RunHistory subject={subject} currentVersion={harborView ? 2 : view === "waiting" ? 4 : 5} selectedRunId={runId} />;
+  const history = (
+    <RunHistory subject={subject} currentVersion={harborView ? 2 : view === "waiting" ? 4 : 5} selectedRunId={runId} />
+  );
   const chat = <RunChat runId={runId} initialUndo={q.get("undo") === "1"} />;
   return (
     <RunsDataProvider value={sample.data}>
@@ -30,7 +35,11 @@ export default function Mount(): ReactNode {
         {view === "failed" ? (
           <FailedRuns />
         ) : phone ? (
-          view === "history" ? history : chat
+          view === "history" ? (
+            history
+          ) : (
+            chat
+          )
         ) : (
           <View style={{ flex: 1, flexDirection: "row" }}>
             <View style={{ flex: 1, minWidth: 0 }}>{history}</View>

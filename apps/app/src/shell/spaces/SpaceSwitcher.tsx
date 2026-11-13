@@ -28,7 +28,8 @@ export interface SpaceMenuInput {
 /** The menu's entries. Pure, so the content is tested without a window. Every item has an icon (icons are all or none, D51). */
 export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   const open = input.spaces.find((s) => s.spaceId === input.openId);
-  const dot = '<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="3.5" fill="currentColor"/></svg>';
+  const dot =
+    '<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="3.5" fill="currentColor"/></svg>';
   const out: MenuEntry[] = [{ head: "Spaces" }];
   input.spaces.forEach((s) => {
     const hint = s.spaceId === input.openId ? "" : s.needsYou ? ", needs you" : "";
@@ -43,21 +44,39 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ separator: true });
   out.push({ label: "Add a Space", icon: iconMarkup("join"), onSelect: () => input.onAction("add") });
   // copies a real invite link (a Member, 7 days): only for someone who may invite, and never in a Personal Space
-  if (open !== undefined && open.kind !== "personal" && open.invite === true) out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
+  if (open !== undefined && open.kind !== "personal" && open.invite === true)
+    out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   // the Space's own settings: in a Team Space they are the Console's (Console > Space), so only someone who may open the Console is offered them; a Personal Space keeps them in Settings
-  if (open === undefined || open.kind === "personal" || open.console === true) out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
+  if (open === undefined || open.kind === "personal" || open.console === true)
+    out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
   // a server runs work for the whole Team Space, so it is added by whoever runs the Space (an owner or admin, who has the Console); in a Personal Space it is the owner's own
-  if (open === undefined || open.kind === "personal" || open.console === true) out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
-  if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
+  if (open === undefined || open.kind === "personal" || open.console === true)
+    out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
+  if (open !== undefined && open.terminal)
+    out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
   if (input.runsOn !== undefined && open?.kind === "team") {
     const on = input.runsOn;
     out.push({ separator: true });
     out.push({ head: "Chats run on" });
-    out.push({ label: "This computer", icon: iconMarkup("monitor"), checked: on.value === "device", onSelect: () => on.set("device") });
-    out.push({ label: "The Space", icon: iconMarkup("cloud"), checked: on.value === "space", onSelect: () => on.set("space") });
+    out.push({
+      label: "This computer",
+      icon: iconMarkup("monitor"),
+      checked: on.value === "device",
+      onSelect: () => on.set("device"),
+    });
+    out.push({
+      label: "The Space",
+      icon: iconMarkup("cloud"),
+      checked: on.value === "space",
+      onSelect: () => on.set("space"),
+    });
   }
   out.push({ separator: true });
-  out.push({ label: input.away ? "I'm Back" : "Set Yourself Away", icon: iconMarkup(input.away ? "check" : "moon"), onSelect: () => input.onAction("away") });
+  out.push({
+    label: input.away ? "I'm Back" : "Set Yourself Away",
+    icon: iconMarkup(input.away ? "check" : "moon"),
+    onSelect: () => input.onAction("away"),
+  });
   out.push({ label: "Your Profile", icon: iconMarkup("user"), onSelect: () => input.onAction("profile") });
   out.push({ label: "Sign Out", icon: iconMarkup("signOut"), onSelect: () => input.onAction("sign-out") });
   return out;
@@ -65,7 +84,8 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
 
 /** A Space image as a menu icon: the picture in a rounded 16 px square. Only a data: picture is drawn; anything else falls back to the dot. */
 export function imageIcon(image: string, key: string): string {
-  if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image)) return '<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="3.5" fill="currentColor"/></svg>';
+  if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image))
+    return '<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="3.5" fill="currentColor"/></svg>';
   const id = `space-face-${key.replace(/[^A-Za-z0-9_-]/g, "")}`;
   return `<svg viewBox="0 0 16 16" width="16" height="16" data-space-image="${id}"><defs><clipPath id="${id}"><rect width="16" height="16" rx="4.5"/></clipPath></defs><image href="${image}" width="16" height="16" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/></svg>`;
 }
@@ -88,9 +108,12 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
         aria-label={`Space: ${open.name}${red ? ", another Space needs you" : ""}`}
         testID="space-tile"
         onPress={(e) => {
-          const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { right: number; top: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+          const ev = e as unknown as {
+            currentTarget?: { getBoundingClientRect?: () => { right: number; top: number } };
+            nativeEvent?: { pageX?: number; pageY?: number };
+          };
           const box = ev.currentTarget?.getBoundingClientRect?.();
-          at(box ? box.right + 8 : ev.nativeEvent?.pageX ?? 0, box ? box.top : ev.nativeEvent?.pageY ?? 0);
+          at(box ? box.right + 8 : (ev.nativeEvent?.pageX ?? 0), box ? box.top : (ev.nativeEvent?.pageY ?? 0));
         }}
         onHoverIn={() => setOver(true)}
         onHoverOut={() => setOver(false)}
@@ -99,10 +122,22 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
         style={[styles.tile, { opacity: over ? 0.92 : 1 }, open.image ? styles.imageTile : tintStyle(open)]}
         {...sq("tile")}
       >
-        {open.image
-          ? <Image testID="space-tile-image" source={{ uri: open.image }} accessibilityLabel={open.name} style={styles.image} resizeMode="cover" />
-          : <Text style={styles.letter}>{initialOf(open)}</Text>}
-        {away ? <View testID="tile-away" style={styles.away}><ShellIcon name="moon" size={9} color="#fff" /></View> : null}
+        {open.image ? (
+          <Image
+            testID="space-tile-image"
+            source={{ uri: open.image }}
+            accessibilityLabel={open.name}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.letter}>{initialOf(open)}</Text>
+        )}
+        {away ? (
+          <View testID="tile-away" style={styles.away}>
+            <ShellIcon name="moon" size={9} color="#fff" />
+          </View>
+        ) : null}
         {red ? <View testID="tile-dot" accessibilityLabel="Another Space needs you" style={styles.dot} /> : null}
       </Pressable>
       {element}
@@ -112,15 +147,48 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
 
 /** A gradient is a web-only style; native falls back to the first colour. */
 function tintStyle(def: SpaceDef): ViewStyle {
-  return (Platform.OS === "web" ? { backgroundImage: "linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 72%,#2A1A8C))" } : { backgroundColor: def.tint[0] }) as ViewStyle;
+  return (
+    Platform.OS === "web"
+      ? { backgroundImage: "linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 72%,#2A1A8C))" }
+      : { backgroundColor: def.tint[0] }
+  ) as ViewStyle;
 }
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 2 },
-  tile: { width: 36, height: 36, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}) },
+  tile: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}),
+  },
   letter: { color: "var(--accent-ink)" as string, fontSize: 14, fontWeight: "600" },
   imageTile: { backgroundColor: "var(--panel)" as string },
   image: { width: 36, height: 36, borderRadius: RADIUS },
-  dot: { position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--danger)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
-  away: { position: "absolute", right: -3, bottom: -3, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
+  dot: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "var(--danger)" as string,
+    borderWidth: 2,
+    borderColor: "var(--rail)" as string,
+  },
+  away: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--warn)" as string,
+    borderWidth: 2,
+    borderColor: "var(--rail)" as string,
+  },
 });

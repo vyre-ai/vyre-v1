@@ -8,207 +8,444 @@
 // DECISION: code runs in the engine's bubblewrap sandbox with a network wall (no network unless hosts names it), never in node:vm; steps.support says whether this server has it.
 // DECISION: http_request is one step with two capabilities. GET and HEAD are reads (automations.http_read, they also run in a sandbox test); every other method is outward (automations.http_send, Gate act send, recorded in a sandbox test).
 // NOT EXPRESSIBLE: step input mapping and templating ({{ }} expressions over earlier outputs) are plain strings here; the schema cannot say "string or typed value".
-import { defineManifest, read, step, t } from '../packages/contracts/src/index.ts';
-import { id, expr } from './_common.ts';
+import { defineManifest, read, step, t } from "../packages/contracts/src/index.ts";
+import { id, expr } from "./_common.ts";
 
 const tpl = (d: string) => t.str({ description: `${d}. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}` });
-const duration = t.str({ description: 'Duration such as 90m, 6h or 30d', examples: ['30d'] });
-const assignee = t.obj({ kind: t.enm('person', 'agent', 'group', 'role', 'automation'), id: t.str({ examples: ['usr_a1b2c3'] }) });
-const sheetName = t.opt(t.str({ description: 'Sheet (tab) name; the first when absent' }));
+const duration = t.str({ description: "Duration such as 90m, 6h or 30d", examples: ["30d"] });
+const assignee = t.obj({
+  kind: t.enm("person", "agent", "group", "role", "automation"),
+  id: t.str({ examples: ["usr_a1b2c3"] }),
+});
+const sheetName = t.opt(t.str({ description: "Sheet (tab) name; the first when absent" }));
 const rowValues = t.rec();
-const rowId = t.str({ description: 'Stable row id inside a sheet', examples: ['r_12'] });
+const rowId = t.str({ description: "Stable row id inside a sheet", examples: ["r_12"] });
 const sheetRow = t.obj({ rowId, values: t.rec() });
 const aiKeys = {
-  agentId: t.opt(id.agent), keyId: t.opt(t.str({ description: 'Inference key: a subscription sign-in or a shared API key' })), backupKeyId: t.opt(t.str()),
-  assigned: t.opt(assignee), reviewer: t.opt(assignee), approver: t.opt(assignee),
-  timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
-  mode: t.opt(t.enm('answer', 'task')), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
+  agentId: t.opt(id.agent),
+  keyId: t.opt(t.str({ description: "Inference key: a subscription sign-in or a shared API key" })),
+  backupKeyId: t.opt(t.str()),
+  assigned: t.opt(assignee),
+  reviewer: t.opt(assignee),
+  approver: t.opt(assignee),
+  timeoutMinutes: t.opt(t.int({ minimum: 1 })),
+  nudgeMinutes: t.opt(t.int({ minimum: 1 })),
+  escalateTo: t.opt(assignee),
+  mode: t.opt(t.enm("answer", "task")),
+  doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
 };
 
 export default defineManifest({
-  id: 'steps-core',
-  title: 'Core steps and spreadsheets',
-  owner: 'L6',
+  id: "steps-core",
+  title: "Core steps and spreadsheets",
+  owner: "L6",
   capabilities: [
-    read('steps.test', 'Run one step in test mode with sample data: reads run for real, writes and sends are stubbed', {
-      in: { key: t.str({ examples: ['records.update'] }), input: t.rec(), sample: t.opt(t.rec()) },
-      out: { output: t.json(), stubbed: t.bool(), error: t.opt(t.obj({ code: t.str(), message: t.str() })) }, tool: 'automations',
+    read("steps.test", "Run one step in test mode with sample data: reads run for real, writes and sends are stubbed", {
+      in: { key: t.str({ examples: ["records.update"] }), input: t.rec(), sample: t.opt(t.rec()) },
+      out: { output: t.json(), stubbed: t.bool(), error: t.opt(t.obj({ code: t.str(), message: t.str() })) },
+      tool: "automations",
     }),
-    read('steps.support', 'Which live steps this server can run (Run code needs a sandbox; the AI step needs the agent runtime), with the reason when one cannot', {
-      out: { code: t.obj({ available: t.bool(), reason: t.opt(t.str()) }), ai: t.obj({ available: t.bool(), reason: t.opt(t.str()) }) },
-    }),
+    read(
+      "steps.support",
+      "Which live steps this server can run (Run code needs a sandbox; the AI step needs the agent runtime), with the reason when one cannot",
+      {
+        out: {
+          code: t.obj({ available: t.bool(), reason: t.opt(t.str()) }),
+          ai: t.obj({ available: t.bool(), reason: t.opt(t.str()) }),
+        },
+      },
+    ),
   ],
   steps: [
     // data
-    step('records.create', 'Create a record', 'data', 'capability', {
-      cap: 'records.create', effects: 'write', idempotency: 'key', compensate: 'records.delete',
-      in: { type: id.recordType, fields: t.rec() }, out: { recordId: id.record },
+    step("records.create", "Create a record", "data", "capability", {
+      cap: "records.create",
+      effects: "write",
+      idempotency: "key",
+      compensate: "records.delete",
+      in: { type: id.recordType, fields: t.rec() },
+      out: { recordId: id.record },
     }),
-    step('records.find', 'Find records', 'data', 'capability', {
-      cap: 'records.query', effects: 'read',
-      in: { type: id.recordType, filter: t.opt(t.json()), sort: t.opt(t.json()), limit: t.opt(t.int({ minimum: 1, maximum: 1000 })) }, out: { rows: t.arr(t.rec()), count: t.int() },
+    step("records.find", "Find records", "data", "capability", {
+      cap: "records.query",
+      effects: "read",
+      in: {
+        type: id.recordType,
+        filter: t.opt(t.json()),
+        sort: t.opt(t.json()),
+        limit: t.opt(t.int({ minimum: 1, maximum: 1000 })),
+      },
+      out: { rows: t.arr(t.rec()), count: t.int() },
     }),
-    step('records.update', 'Update a record', 'data', 'capability', {
-      cap: 'records.update', effects: 'write', idempotency: 'key', compensate: 'records.restore_version', errors: ['validation.bad_input', 'internal.unexpected', 'validation.field_locked', 'validation.version_conflict', 'permission.on_hold'],
-      in: { type: id.recordType, recordId: id.record, patch: t.rec() }, out: { recordId: id.record, version: t.int() },
+    step("records.update", "Update a record", "data", "capability", {
+      cap: "records.update",
+      effects: "write",
+      idempotency: "key",
+      compensate: "records.restore_version",
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "validation.field_locked",
+        "validation.version_conflict",
+        "permission.on_hold",
+      ],
+      in: { type: id.recordType, recordId: id.record, patch: t.rec() },
+      out: { recordId: id.record, version: t.int() },
     }),
-    step('records.relate', 'Link records', 'data', 'capability', {
-      cap: 'records.relate', effects: 'write',
+    step("records.relate", "Link records", "data", "capability", {
+      cap: "records.relate",
+      effects: "write",
       in: { type: id.recordType, recordId: id.record, field: t.str(), toId: id.record, unlink: t.opt(t.bool()) },
       out: { record: t.rec() },
     }),
-    step('create_task', 'Create a task', 'data', 'capability', {
-      cap: 'tasks.create', effects: 'write', idempotency: 'key', compensate: 'tasks.transition',
+    step("create_task", "Create a task", "data", "capability", {
+      cap: "tasks.create",
+      effects: "write",
+      idempotency: "key",
+      compensate: "tasks.transition",
       in: {
-        kind: t.opt(t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature')), title: tpl('Task title'), summary: t.opt(tpl('One line')),
-        assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), due: t.opt(t.str({ description: 'Time or duration from now', examples: ['2d'] })), recordId: t.opt(id.record),
-        wait: t.opt(t.bool()),   // true: the Run waits until the task is Done or Canceled, then goes on with what was submitted
+        kind: t.opt(t.enm("work", "approve", "review", "answer", "unblock", "signature")),
+        title: tpl("Task title"),
+        summary: t.opt(tpl("One line")),
+        assigned: assignee,
+        reviewer: t.opt(assignee),
+        approver: t.opt(assignee),
+        due: t.opt(t.str({ description: "Time or duration from now", examples: ["2d"] })),
+        recordId: t.opt(id.record),
+        wait: t.opt(t.bool()), // true: the Run waits until the task is Done or Canceled, then goes on with what was submitted
       },
       out: { taskId: id.task, state: t.opt(t.str()), outputs: t.opt(t.rec()), summary: t.opt(t.str()) },
     }),
     // send
-    step('send_email', 'Send an email', 'send', 'capability', {
-      cap: 'mail.send', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 3, backoff: 'exp', baseMs: 1000 },
-      errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
+    step("send_email", "Send an email", "send", "capability", {
+      cap: "mail.send",
+      effects: "outward",
+      gateAct: "send",
+      idempotency: "key",
+      retry: { max: 3, backoff: "exp", baseMs: 1000 },
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.unavailable",
+        "provider.network",
+        "permission.needs_approval",
+      ],
       in: {
-        mailboxId: t.opt(id.mailbox), to: t.arr(tpl('Recipient email'), { minItems: 1 }), cc: t.opt(t.arr(tpl('Cc'))), subject: tpl('Subject'), body: tpl('Body'),
-        fileIds: t.opt(t.arr(id.file)), recordId: t.opt(id.record), draftOnly: t.opt(t.bool()),
+        mailboxId: t.opt(id.mailbox),
+        to: t.arr(tpl("Recipient email"), { minItems: 1 }),
+        cc: t.opt(t.arr(tpl("Cc"))),
+        subject: tpl("Subject"),
+        body: tpl("Body"),
+        fileIds: t.opt(t.arr(id.file)),
+        recordId: t.opt(id.record),
+        draftOnly: t.opt(t.bool()),
       },
       out: { messageId: t.str(), threadId: t.opt(t.str()) },
     }),
-    step('send_sms', 'Send a text message', 'send', 'capability', {
-      cap: 'telephony.send_sms', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 3, backoff: 'exp', baseMs: 1000 },
-      errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
-      in: { numberId: t.opt(id.number), to: tpl('Phone number'), body: tpl('Message'), recordId: t.opt(id.record), sendAtOnce: t.opt(t.bool()) }, out: { messageId: t.str() },
+    step("send_sms", "Send a text message", "send", "capability", {
+      cap: "telephony.send_sms",
+      effects: "outward",
+      gateAct: "send",
+      idempotency: "key",
+      retry: { max: 3, backoff: "exp", baseMs: 1000 },
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.unavailable",
+        "provider.network",
+        "permission.needs_approval",
+      ],
+      in: {
+        numberId: t.opt(id.number),
+        to: tpl("Phone number"),
+        body: tpl("Message"),
+        recordId: t.opt(id.record),
+        sendAtOnce: t.opt(t.bool()),
+      },
+      out: { messageId: t.str() },
     }),
-    step('post_message', 'Post a chat message', 'send', 'capability', {
-      cap: 'chat.post', effects: 'outward', gateAct: 'post', idempotency: 'key',
-      in: { channelId: t.opt(id.channel), threadId: t.opt(id.thread), text: tpl('Message') }, out: { messageId: id.message },
+    step("post_message", "Post a chat message", "send", "capability", {
+      cap: "chat.post",
+      effects: "outward",
+      gateAct: "post",
+      idempotency: "key",
+      in: { channelId: t.opt(id.channel), threadId: t.opt(id.thread), text: tpl("Message") },
+      out: { messageId: id.message },
     }),
     // ai
-    step('ai', 'AI step', 'ai', 'ai', {
-      effects: 'write', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 2000 },
-      errors: ['validation.bad_input', 'internal.unexpected', 'provider.rate_limited', 'provider.auth_failed', 'provider.overloaded', 'provider.context_too_long', 'provider.content_filtered', 'provider.unavailable', 'permission.limit', 'timeout.deadline', 'validation.too_large', 'internal.unavailable'],
-      in: { prompt: tpl('What the agent should do'), ...aiKeys, outputSchema: t.opt(t.json()), inputs: t.opt(t.rec()) },
+    step("ai", "AI step", "ai", "ai", {
+      effects: "write",
+      idempotency: "key",
+      retry: { max: 2, backoff: "exp", baseMs: 2000 },
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.rate_limited",
+        "provider.auth_failed",
+        "provider.overloaded",
+        "provider.context_too_long",
+        "provider.content_filtered",
+        "provider.unavailable",
+        "permission.limit",
+        "timeout.deadline",
+        "validation.too_large",
+        "internal.unavailable",
+      ],
+      in: { prompt: tpl("What the agent should do"), ...aiKeys, outputSchema: t.opt(t.json()), inputs: t.opt(t.rec()) },
       out: { text: t.str(), data: t.opt(t.json()), keyUsed: t.str(), modelUsed: t.str(), taskId: t.opt(id.task) },
-      sample: { text: 'A sample answer.', keyUsed: 'sample', modelUsed: 'sample' },
+      sample: { text: "A sample answer.", keyUsed: "sample", modelUsed: "sample" },
     }),
     // journey
-    step('start_journey', 'Start a Journey', 'journey', 'capability', {
-      cap: 'journeys.start', effects: 'write', idempotency: 'key',
-      in: { journeyId: id.journey, subjectRecordId: id.record, startStage: t.opt(t.str()) }, out: { recordId: id.record },
+    step("start_journey", "Start a Journey", "journey", "capability", {
+      cap: "journeys.start",
+      effects: "write",
+      idempotency: "key",
+      in: { journeyId: id.journey, subjectRecordId: id.record, startStage: t.opt(t.str()) },
+      out: { recordId: id.record },
     }),
-    step('wait_stage', 'Wait for a Journey stage', 'wait', 'wait', {
-      effects: 'read', in: { recordId: id.record, stage: t.str(), timeout: t.opt(duration) }, out: { enteredAt: t.ts(), timedOut: t.bool() },
-      waits: { timeoutDefault: '30d', cancelsOn: ['record.deleted', 'journey.stage_exited'] },
+    step("wait_stage", "Wait for a Journey stage", "wait", "wait", {
+      effects: "read",
+      in: { recordId: id.record, stage: t.str(), timeout: t.opt(duration) },
+      out: { enteredAt: t.ts(), timedOut: t.bool() },
+      waits: { timeoutDefault: "30d", cancelsOn: ["record.deleted", "journey.stage_exited"] },
     }),
     // wait
-    step('wait', 'Wait', 'wait', 'wait', {
-      effects: 'read',
+    step("wait", "Wait", "wait", "wait", {
+      effects: "read",
       in: {
-        forDuration: t.opt(duration), until: t.opt(t.str({ description: 'A time or an expression that yields one' })), event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })), timeout: t.opt(duration),
-        hours: t.opt(t.obj({
-          timezone: t.str(), days: t.arr(t.int({ minimum: 0, maximum: 6 }), { minItems: 1 }), start: t.str(), end: t.str(),
-        })),
+        forDuration: t.opt(duration),
+        until: t.opt(t.str({ description: "A time or an expression that yields one" })),
+        event: t.opt(t.obj({ event: t.str(), filter: t.opt(t.json()) })),
+        timeout: t.opt(duration),
+        hours: t.opt(
+          t.obj({
+            timezone: t.str(),
+            days: t.arr(t.int({ minimum: 0, maximum: 6 }), { minItems: 1 }),
+            start: t.str(),
+            end: t.str(),
+          }),
+        ),
       },
-      out: { resumedBy: t.enm('duration', 'time', 'event', 'timeout'), at: t.ts() },
-      waits: { timeoutDefault: '30d', cancelsOn: ['record.deleted'] },
+      out: { resumedBy: t.enm("duration", "time", "event", "timeout"), at: t.ts() },
+      waits: { timeoutDefault: "30d", cancelsOn: ["record.deleted"] },
     }),
     // control
-    step('if', 'If', 'control', 'control', { effects: 'read', in: { condition: expr }, out: { result: t.bool() } }),
-    step('paths', 'Paths', 'control', 'control', {
-      effects: 'read', in: { paths: t.arr(t.obj({ name: t.str(), when: expr }), { minItems: 1 }), otherwise: t.opt(t.bool()) }, out: { taken: t.str() },
+    step("if", "If", "control", "control", { effects: "read", in: { condition: expr }, out: { result: t.bool() } }),
+    step("paths", "Paths", "control", "control", {
+      effects: "read",
+      in: { paths: t.arr(t.obj({ name: t.str(), when: expr }), { minItems: 1 }), otherwise: t.opt(t.bool()) },
+      out: { taken: t.str() },
     }),
-    step('parallel', 'Parallel', 'control', 'control', {
-      effects: 'read', in: { branches: t.arr(t.str(), { minItems: 2 }), waitFor: t.opt(t.enm('all', 'any')) }, out: { finished: t.arr(t.str()) },
+    step("parallel", "Parallel", "control", "control", {
+      effects: "read",
+      in: { branches: t.arr(t.str(), { minItems: 2 }), waitFor: t.opt(t.enm("all", "any")) },
+      out: { finished: t.arr(t.str()) },
     }),
-    step('loop', 'Loop', 'control', 'control', {
-      effects: 'read', in: { items: expr, maxIterations: t.opt(t.int({ minimum: 1, maximum: 1000 })), concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })) },
+    step("loop", "Loop", "control", "control", {
+      effects: "read",
+      in: {
+        items: expr,
+        maxIterations: t.opt(t.int({ minimum: 1, maximum: 1000 })),
+        concurrency: t.opt(t.int({ minimum: 1, maximum: 20 })),
+      },
       out: { iterations: t.int(), results: t.arr(t.json()) },
     }),
-    step('stop', 'Stop', 'control', 'control', {
-      effects: 'read', in: { outcome: t.opt(t.enm('succeeded', 'failed')), message: t.opt(tpl('Why the run stops')) }, out: { stopped: t.bool() },
+    step("stop", "Stop", "control", "control", {
+      effects: "read",
+      in: { outcome: t.opt(t.enm("succeeded", "failed")), message: t.opt(tpl("Why the run stops")) },
+      out: { stopped: t.bool() },
     }),
-    step('transform', 'Transform', 'control', 'control', {
-      effects: 'read', in: { value: t.json(), mapping: t.rec() }, out: { value: t.rec() },
+    step("transform", "Transform", "control", "control", {
+      effects: "read",
+      in: { value: t.json(), mapping: t.rec() },
+      out: { value: t.rec() },
     }),
-    step('collect', 'Collect', 'control', 'control', {
-      effects: 'read', in: { items: t.json(), fields: t.opt(t.arr(t.str())) }, out: { items: t.arr(t.json()), count: t.int() },
+    step("collect", "Collect", "control", "control", {
+      effects: "read",
+      in: { items: t.json(), fields: t.opt(t.arr(t.str())) },
+      out: { items: t.arr(t.json()), count: t.int() },
     }),
-    step('group_by', 'Group by', 'control', 'control', {
-      effects: 'read', in: { items: t.json(), by: t.str() }, out: { groups: t.arr(t.obj({ key: t.str(), items: t.arr(t.json()), count: t.int() })) },
+    step("group_by", "Group by", "control", "control", {
+      effects: "read",
+      in: { items: t.json(), by: t.str() },
+      out: { groups: t.arr(t.obj({ key: t.str(), items: t.arr(t.json()), count: t.int() })) },
     }),
-    step('call_automation', 'Run another automation', 'journey', 'control', {
-      effects: 'write', in: { automationId: id.automation, trigger: t.str(), payload: t.opt(t.rec()) }, out: { runId: id.run, status: t.str() },
+    step("call_automation", "Run another automation", "journey", "control", {
+      effects: "write",
+      in: { automationId: id.automation, trigger: t.str(), payload: t.opt(t.rec()) },
+      out: { runId: id.run, status: t.str() },
     }),
-    step('approval', 'Approval', 'control', 'control', {
-      effects: 'write', idempotency: 'key', compensate: 'tasks.transition',
-      in: { title: tpl('What needs approval'), summary: t.opt(tpl('One line')), approver: assignee, reviewer: t.opt(assignee), blocks: t.opt(t.arr(t.json())), timeout: t.opt(duration) },
-      out: { decision: t.enm('approved', 'rejected', 'timed_out'), note: t.opt(t.str()), by: t.opt(t.str()), taskId: id.task },
-      waits: { timeoutDefault: '30d', cancelsOn: ['task.withdrawn'] },
+    step("approval", "Approval", "control", "control", {
+      effects: "write",
+      idempotency: "key",
+      compensate: "tasks.transition",
+      in: {
+        title: tpl("What needs approval"),
+        summary: t.opt(tpl("One line")),
+        approver: assignee,
+        reviewer: t.opt(assignee),
+        blocks: t.opt(t.arr(t.json())),
+        timeout: t.opt(duration),
+      },
+      out: {
+        decision: t.enm("approved", "rejected", "timed_out"),
+        note: t.opt(t.str()),
+        by: t.opt(t.str()),
+        taskId: id.task,
+      },
+      waits: { timeoutDefault: "30d", cancelsOn: ["task.withdrawn"] },
     }),
     // sheet (wrap the files module sheets.* capabilities)
-    step('sheet.create', 'Create a spreadsheet', 'sheet', 'capability', {
-      cap: 'sheets.create', effects: 'write', idempotency: 'key',
-      in: { folderId: id.folder, name: tpl('File name'), format: t.enm('csv', 'xlsx'), columns: t.arr(t.str(), { minItems: 1 }), sheet: sheetName }, out: { fileId: id.file },
+    step("sheet.create", "Create a spreadsheet", "sheet", "capability", {
+      cap: "sheets.create",
+      effects: "write",
+      idempotency: "key",
+      in: {
+        folderId: id.folder,
+        name: tpl("File name"),
+        format: t.enm("csv", "xlsx"),
+        columns: t.arr(t.str(), { minItems: 1 }),
+        sheet: sheetName,
+      },
+      out: { fileId: id.file },
     }),
-    step('sheet.add_rows', 'Add rows', 'sheet', 'capability', {
-      cap: 'sheets.append_rows', effects: 'write', idempotency: 'key', compensate: 'sheets.delete_row',
-      in: { fileId: id.file, sheet: sheetName, rows: t.arr(rowValues, { minItems: 1 }) }, out: { appended: t.int(), rowIds: t.arr(rowId) },
+    step("sheet.add_rows", "Add rows", "sheet", "capability", {
+      cap: "sheets.append_rows",
+      effects: "write",
+      idempotency: "key",
+      compensate: "sheets.delete_row",
+      in: { fileId: id.file, sheet: sheetName, rows: t.arr(rowValues, { minItems: 1 }) },
+      out: { appended: t.int(), rowIds: t.arr(rowId) },
     }),
-    step('sheet.find_rows', 'Find rows', 'sheet', 'capability', {
-      cap: 'sheets.read_rows', effects: 'read',
-      in: { fileId: id.file, sheet: sheetName, where: t.opt(t.json()), columns: t.opt(t.arr(t.str())) }, out: { rows: t.arr(sheetRow) },
+    step("sheet.find_rows", "Find rows", "sheet", "capability", {
+      cap: "sheets.read_rows",
+      effects: "read",
+      in: { fileId: id.file, sheet: sheetName, where: t.opt(t.json()), columns: t.opt(t.arr(t.str())) },
+      out: { rows: t.arr(sheetRow) },
     }),
-    step('sheet.update_rows', 'Update rows', 'sheet', 'capability', {
-      cap: 'sheets.update_row', effects: 'write',
-      in: { fileId: id.file, sheet: sheetName, rowId: t.opt(rowId), key: t.opt(t.obj({ column: t.str(), value: t.json() })), values: rowValues }, out: { rowId, versionId: t.opt(id.version) },
+    step("sheet.update_rows", "Update rows", "sheet", "capability", {
+      cap: "sheets.update_row",
+      effects: "write",
+      in: {
+        fileId: id.file,
+        sheet: sheetName,
+        rowId: t.opt(rowId),
+        key: t.opt(t.obj({ column: t.str(), value: t.json() })),
+        values: rowValues,
+      },
+      out: { rowId, versionId: t.opt(id.version) },
     }),
-    step('sheet.delete_rows', 'Delete rows', 'sheet', 'capability', {
-      cap: 'sheets.delete_row', effects: 'write', gateAct: 'delete',
-      in: { fileId: id.file, sheet: sheetName, rowId }, out: { deleted: t.bool() },
+    step("sheet.delete_rows", "Delete rows", "sheet", "capability", {
+      cap: "sheets.delete_row",
+      effects: "write",
+      gateAct: "delete",
+      in: { fileId: id.file, sheet: sheetName, rowId },
+      out: { deleted: t.bool() },
     }),
-    step('sheet.read_all', 'Read all rows', 'sheet', 'capability', {
-      cap: 'sheets.read_rows', effects: 'read',
-      in: { fileId: id.file, sheet: sheetName }, out: { rows: t.arr(sheetRow) },
+    step("sheet.read_all", "Read all rows", "sheet", "capability", {
+      cap: "sheets.read_rows",
+      effects: "read",
+      in: { fileId: id.file, sheet: sheetName },
+      out: { rows: t.arr(sheetRow) },
     }),
     // sign
-    step('sign', 'Send for signature', 'sign', 'capability', {
-      cap: 'esign.send', effects: 'outward', gateAct: 'signature_send', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 2000 },
-      errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
-      in: { fileId: id.file, signers: t.arr(t.obj({ name: t.str(), email: tpl('Signer email'), order: t.opt(t.int({ minimum: 1 })) }), { minItems: 1 }), recordId: t.opt(id.record), message: t.opt(tpl('Note to signers')) },
+    step("sign", "Send for signature", "sign", "capability", {
+      cap: "esign.send",
+      effects: "outward",
+      gateAct: "signature_send",
+      idempotency: "key",
+      retry: { max: 2, backoff: "exp", baseMs: 2000 },
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "provider.unavailable",
+        "provider.network",
+        "permission.needs_approval",
+      ],
+      in: {
+        fileId: id.file,
+        signers: t.arr(t.obj({ name: t.str(), email: tpl("Signer email"), order: t.opt(t.int({ minimum: 1 })) }), {
+          minItems: 1,
+        }),
+        recordId: t.opt(id.record),
+        message: t.opt(tpl("Note to signers")),
+      },
       out: { envelopeId: t.str(), taskId: t.opt(id.task) },
     }),
-    step('connector_request', 'Authenticated request', 'data', 'capability', {
-      cap: 'connectors.run', effects: 'outward', gateAct: 'send', idempotency: 'key',
-      errors: ['validation.bad_input', 'validation.precondition_failed', 'internal.unexpected', 'provider.unavailable', 'provider.auth_failed', 'permission.needs_approval'],
+    step("connector_request", "Authenticated request", "data", "capability", {
+      cap: "connectors.run",
+      effects: "outward",
+      gateAct: "send",
+      idempotency: "key",
+      errors: [
+        "validation.bad_input",
+        "validation.precondition_failed",
+        "internal.unexpected",
+        "provider.unavailable",
+        "provider.auth_failed",
+        "permission.needs_approval",
+      ],
       in: {
-        connector: t.str({ description: 'Connector key', examples: ['stripe'] }),
-        action: t.str({ description: 'Action name from that connector', examples: ['ping'] }),
+        connector: t.str({ description: "Connector key", examples: ["stripe"] }),
+        action: t.str({ description: "Action name from that connector", examples: ["ping"] }),
         connectionId: t.opt(id.connection),
         input: t.opt(t.rec()),
         dryRun: t.opt(t.bool()),
       },
       out: { output: t.json(), dryRun: t.bool() },
     }),
-    step('http_request', 'HTTP request', 'data', 'capability', {
-      cap: 'automations.http_send', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 1000 },
-      errors: ['validation.bad_input', 'validation.too_large', 'validation.precondition_failed', 'internal.unexpected', 'provider.network', 'permission.no_grant', 'permission.needs_approval'],
+    step("http_request", "HTTP request", "data", "capability", {
+      cap: "automations.http_send",
+      effects: "outward",
+      gateAct: "send",
+      idempotency: "key",
+      retry: { max: 2, backoff: "exp", baseMs: 1000 },
+      errors: [
+        "validation.bad_input",
+        "validation.too_large",
+        "validation.precondition_failed",
+        "internal.unexpected",
+        "provider.network",
+        "permission.no_grant",
+        "permission.needs_approval",
+      ],
       in: {
-        method: t.enm('GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'), url: tpl('An https address'),
-        headers: t.opt(t.rec(t.str())), query: t.opt(t.rec()), json: t.opt(t.json()), text: t.opt(tpl('Text body')),
-        auth: t.opt(t.obj({ kind: t.enm('bearer', 'basic', 'header'), handle: t.str({ description: 'Vault handle of the key', examples: ['#Acme_API'] }), username: t.opt(t.str()), header: t.opt(t.str()) })),
+        method: t.enm("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"),
+        url: tpl("An https address"),
+        headers: t.opt(t.rec(t.str())),
+        query: t.opt(t.rec()),
+        json: t.opt(t.json()),
+        text: t.opt(tpl("Text body")),
+        auth: t.opt(
+          t.obj({
+            kind: t.enm("bearer", "basic", "header"),
+            handle: t.str({ description: "Vault handle of the key", examples: ["#Acme_API"] }),
+            username: t.opt(t.str()),
+            header: t.opt(t.str()),
+          }),
+        ),
       },
       out: { status: t.int(), ok: t.bool(), headers: t.rec(t.str()), body: t.json() },
     }),
     // code
-    step('code', 'Run code', 'code', 'code', {
-      effects: 'read', retry: { max: 1, backoff: 'none', baseMs: 0 }, errors: ['validation.bad_input', 'validation.too_large', 'internal.unexpected', 'timeout.deadline'],
+    step("code", "Run code", "code", "code", {
+      effects: "read",
+      retry: { max: 1, backoff: "none", baseMs: 0 },
+      errors: ["validation.bad_input", "validation.too_large", "internal.unexpected", "timeout.deadline"],
       in: {
-        language: t.opt(t.enm('javascript')),
-        source: t.str({ description: 'Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 128 MB of memory (a kernel limit), 1 MB out' }),
+        language: t.opt(t.enm("javascript")),
+        source: t.str({
+          description:
+            "Async function body; receives input and log, awaits freely and returns a JSON value. Runs in the sandbox: no files, no Vault, no network unless hosts names it. 10 seconds of processor time, 128 MB of memory (a kernel limit), 1 MB out",
+        }),
         input: t.opt(t.rec()),
-        hosts: t.opt(t.arr(t.str({ examples: ['api.example.com'] }), { maxItems: 10, description: 'Hosts the code may reach with fetch, by name (api.example.com or *.example.com). Empty or absent: no network' })),
+        hosts: t.opt(
+          t.arr(t.str({ examples: ["api.example.com"] }), {
+            maxItems: 10,
+            description:
+              "Hosts the code may reach with fetch, by name (api.example.com or *.example.com). Empty or absent: no network",
+          }),
+        ),
       },
       out: { result: t.json(), logs: t.arr(t.str()) },
     }),

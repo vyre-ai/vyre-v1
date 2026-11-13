@@ -79,11 +79,21 @@ test("the stored row never contains a field value", () => {
   assert.equal(row["updated_at"], h.now());
   assert.equal(JSON.stringify(rows).includes(FIELD), false);
   const cols = h.db.all("PRAGMA table_info(automations_connector_levels)") as { name: string }[];
-  assert.deepEqual(cols.map((col) => col.name), ["action_key", "level", "updated_at"]);
+  assert.deepEqual(
+    cols.map((col) => col.name),
+    ["action_key", "level", "updated_at"],
+  );
 });
 
 test("every recorded level is listed by key, and a row that is neither draft nor tested is left out", async () => {
   const { allLevels } = await import("../connector-level.ts");
-  const rows = [{ action_key: "fathom.list_meetings", level: "tested" }, { action_key: "fathom.create_webhook", level: "draft" }, { action_key: "x", level: "odd" }];
-  assert.deepEqual(allLevels({ all: () => rows, run: () => ({ changes: 0 }) }), [{ actionKey: "fathom.list_meetings", level: "tested" }, { actionKey: "fathom.create_webhook", level: "draft" }]);
+  const rows = [
+    { action_key: "fathom.list_meetings", level: "tested" },
+    { action_key: "fathom.create_webhook", level: "draft" },
+    { action_key: "x", level: "odd" },
+  ];
+  assert.deepEqual(allLevels({ all: () => rows, run: () => ({ changes: 0 }) }), [
+    { actionKey: "fathom.list_meetings", level: "tested" },
+    { actionKey: "fathom.create_webhook", level: "draft" },
+  ]);
 });

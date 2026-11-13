@@ -5,14 +5,21 @@ import { performance } from "node:perf_hooks";
 import { shardFiles, type Timings } from "./shard.ts";
 
 const mk = (n: number, sec: number): { files: string[]; timings: Timings } => {
-  const files: string[] = [], timings: Timings = {};
-  for (let i = 0; i < n; i++) { const f = `f${i}.test.ts`; files.push(f); timings[f] = { ms: sec * 1000 }; }
+  const files: string[] = [],
+    timings: Timings = {};
+  for (let i = 0; i < n; i++) {
+    const f = `f${i}.test.ts`;
+    files.push(f);
+    timings[f] = { ms: sec * 1000 };
+  }
   return { files, timings };
 };
 
 test("perf: sharding 5,000 files stays far inside the select budget (ci_push_5m)", (t) => {
   const { files, timings } = mk(5000, 1);
-  files.forEach((f, i) => { timings[f] = { ms: 200 + ((i * 37) % 9000) }; });
+  files.forEach((f, i) => {
+    timings[f] = { ms: 200 + ((i * 37) % 9000) };
+  });
   const t0 = performance.now();
   const s = shardFiles(files, timings, []);
   const ms = performance.now() - t0;
@@ -20,4 +27,3 @@ test("perf: sharding 5,000 files stays far inside the select budget (ci_push_5m)
   assert.ok(ms < 2000);
   assert.ok(s.makespanSec <= s.totalSec / s.count + 20);
 });
-

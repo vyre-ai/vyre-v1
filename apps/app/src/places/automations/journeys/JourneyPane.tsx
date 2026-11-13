@@ -20,10 +20,36 @@ import { Group, Hint, Lab, PickButton, SRow, Switch } from "../config/parts.tsx"
 import { useDesign, useJourney } from "./data.ts";
 import { StageFields } from "./StageFields.tsx";
 import type { Selection } from "./JourneyDesigner.tsx";
-import { DUE_CHOICES, automationsByStage, initials, agentNames as seatNames, EXIT_RULES, LIMIT_CHOICES, SLOTS, agentSeats, clearTaskField, countOf, doneByWords, dueWords, exitRuleId, exitWords, findTask, limitWords, plural, renameStage, setSeat, tasksWords, updateTask } from "./model.ts";
+import {
+  DUE_CHOICES,
+  automationsByStage,
+  initials,
+  agentNames as seatNames,
+  EXIT_RULES,
+  LIMIT_CHOICES,
+  SLOTS,
+  agentSeats,
+  clearTaskField,
+  countOf,
+  doneByWords,
+  dueWords,
+  exitRuleId,
+  exitWords,
+  findTask,
+  limitWords,
+  plural,
+  renameStage,
+  setSeat,
+  tasksWords,
+  updateTask,
+} from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
 
-export interface JourneyPaneProps { journeyId: string; selection: Selection | null; canDesign?: boolean }
+export interface JourneyPaneProps {
+  journeyId: string;
+  selection: Selection | null;
+  canDesign?: boolean;
+}
 
 export function JourneyPane({ journeyId, selection, canDesign = true }: JourneyPaneProps): ReactElement {
   const st = useJourney(journeyId);
@@ -40,7 +66,12 @@ const peopleMenu = (dir: ConfigDirectory, on: (r: Ref) => void, none?: () => voi
   const out: MenuEntry[] = [];
   if (none) out.push({ label: "Nobody", onSelect: none }, { separator: true });
   let first = true;
-  for (const [head, list, kind] of [["People", dir.people, "person"], ["Agents", dir.agents, "agent"], ["Groups", dir.groups, "group"], ["Roles", dir.roles, "role"]] as const) {
+  for (const [head, list, kind] of [
+    ["People", dir.people, "person"],
+    ["Agents", dir.agents, "agent"],
+    ["Groups", dir.groups, "group"],
+    ["Roles", dir.roles, "role"],
+  ] as const) {
     if (list.length === 0) continue;
     if (!first) out.push({ separator: true });
     first = false;
@@ -49,13 +80,27 @@ const peopleMenu = (dir: ConfigDirectory, on: (r: Ref) => void, none?: () => voi
   return out.length ? out : [{ head: "Nobody to pick" }];
 };
 
-function PaneHead({ tile, title, sub, right }: { tile: ReactElement; title: string; sub: string; right?: ReactElement | null }): ReactElement {
+function PaneHead({
+  tile,
+  title,
+  sub,
+  right,
+}: {
+  tile: ReactElement;
+  title: string;
+  sub: string;
+  right?: ReactElement | null;
+}): ReactElement {
   return (
     <View style={p.ph}>
       {tile}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={2} style={p.name}>{title}</Text>
-        <Text numberOfLines={1} style={p.sub}>{sub}</Text>
+        <Text numberOfLines={2} style={p.name}>
+          {title}
+        </Text>
+        <Text numberOfLines={1} style={p.sub}>
+          {sub}
+        </Text>
       </View>
       {right}
     </View>
@@ -69,19 +114,56 @@ function JourneyInfo({ journey: j, counts }: { journey: Journey; counts: StageCo
   const total = counts.reduce((n, c) => n + c.count, 0);
   return (
     <View testID="journey-pane" accessibilityLabel={`${j.name}, Journey`} style={p.frame}>
-      <PaneHead tile={<View style={p.tile}><Text style={p.tileText}>{initials(j.name)}</Text></View>} title={j.name} sub={plural(total, "active record")} right={<TextButton label="Records" icon="records" testID="pane-records" onPress={() => extras.openRecords?.(j.recordType)} />} />
+      <PaneHead
+        tile={
+          <View style={p.tile}>
+            <Text style={p.tileText}>{initials(j.name)}</Text>
+          </View>
+        }
+        title={j.name}
+        sub={plural(total, "active record")}
+        right={
+          <TextButton
+            label="Records"
+            icon="records"
+            testID="pane-records"
+            onPress={() => extras.openRecords?.(j.recordType)}
+          />
+        }
+      />
       <ScrollView style={p.scroll} contentContainerStyle={p.body}>
         <Lab first>Record type</Lab>
-        <Group><SRow label={j.recordType} sub={`Subject: ${j.subjectType}`} last minHeight={48} /></Group>
+        <Group>
+          <SRow label={j.recordType} sub={`Subject: ${j.subjectType}`} last minHeight={48} />
+        </Group>
         <Lab>Stages</Lab>
         <Group testID="pane-stages">
-          {j.stages.map((g, i) => <Row key={g.key} id={`info-stage-${g.key}`} title={`${i + 1}. ${g.title}`} trailing={<Text style={p.dimr}>{plural(countOf(counts, g.key).count, "record")}</Text>} />)}
+          {j.stages.map((g, i) => (
+            <Row
+              key={g.key}
+              id={`info-stage-${g.key}`}
+              title={`${i + 1}. ${g.title}`}
+              trailing={<Text style={p.dimr}>{plural(countOf(counts, g.key).count, "record")}</Text>}
+            />
+          ))}
         </Group>
         {used.length ? (
           <>
             <Lab>Automations on its stages</Lab>
             <Group testID="pane-autos">
-              {used.map((u) => <Row key={`${u.id}-${u.stage}`} id={`info-auto-${u.id}-${u.stage}`} title={data.name(u.id)} note={`On entering ${u.stage}`} leading={<View style={p.lead}><Glyph name="bolt" size={14} color="var(--accent)" /></View>} />)}
+              {used.map((u) => (
+                <Row
+                  key={`${u.id}-${u.stage}`}
+                  id={`info-auto-${u.id}-${u.stage}`}
+                  title={data.name(u.id)}
+                  note={`On entering ${u.stage}`}
+                  leading={
+                    <View style={p.lead}>
+                      <Glyph name="bolt" size={14} color="var(--accent)" />
+                    </View>
+                  }
+                />
+              ))}
             </Group>
           </>
         ) : null}
@@ -90,7 +172,17 @@ function JourneyInfo({ journey: j, counts }: { journey: Journey; counts: StageCo
   );
 }
 
-function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journey; stage: Stage; counts: StageCounts; canDesign: boolean }): ReactElement {
+function StagePane({
+  journey: j,
+  stage: g,
+  counts,
+  canDesign,
+}: {
+  journey: Journey;
+  stage: Stage;
+  counts: StageCounts;
+  canDesign: boolean;
+}): ReactElement {
   const data = useAutomationsData();
   const extras = useConfigExtras();
   const d = useDesign(j);
@@ -99,53 +191,222 @@ function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journ
   useEffect(() => setTitle(g.title), [g.title]);
   const i = j.stages.findIndex((x) => x.key === g.key);
   const c = countOf(counts, g.key);
-  const commit = (): void => { const v = title.trim(); if (!v || v === g.title) { setTitle(g.title); return; } void d.design(renameStage(j.stages, g.key, v), `Renamed to ${v}`); };
+  const commit = (): void => {
+    const v = title.trim();
+    if (!v || v === g.title) {
+      setTitle(g.title);
+      return;
+    }
+    void d.design(renameStage(j.stages, g.key, v), `Renamed to ${v}`);
+  };
   const toldWho = g.timeLimit?.escalateTo;
   return (
     <View testID="stage-pane" accessibilityLabel={`${g.title}, stage ${i + 1} of ${j.stages.length}`} style={p.frame}>
       <PaneHead
-        tile={<View style={p.tile}><Text style={p.tileText}>{String(i + 1)}</Text></View>} title={g.title} sub={`Stage ${i + 1} of ${j.stages.length}, ${plural(c.count, "record")}`}
-        right={<TextButton label="Records" icon="records" testID="pane-records" onPress={() => extras.openRecords?.(j.recordType, g.title)} />}
+        tile={
+          <View style={p.tile}>
+            <Text style={p.tileText}>{String(i + 1)}</Text>
+          </View>
+        }
+        title={g.title}
+        sub={`Stage ${i + 1} of ${j.stages.length}, ${plural(c.count, "record")}`}
+        right={
+          <TextButton
+            label="Records"
+            icon="records"
+            testID="pane-records"
+            onPress={() => extras.openRecords?.(j.recordType, g.title)}
+          />
+        }
       />
       <ScrollView style={p.scroll} contentContainerStyle={p.body}>
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <View style={p.nameRow}><TextInput accessibilityLabel="Stage name" testID="stage-name" value={title} onChangeText={setTitle} onBlur={commit} onSubmitEditing={commit} onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setTitle(g.title); e.stopPropagation?.(); } }) as never} style={p.input} /></View>
+            <View style={p.nameRow}>
+              <TextInput
+                accessibilityLabel="Stage name"
+                testID="stage-name"
+                value={title}
+                onChangeText={setTitle}
+                onBlur={commit}
+                onSubmitEditing={commit}
+                onKeyPress={
+                  ((e: KeyEventLike) => {
+                    if (e.key === "Escape") {
+                      setTitle(g.title);
+                      e.stopPropagation?.();
+                    }
+                  }) as never
+                }
+                style={p.input}
+              />
+            </View>
           </>
         ) : null}
         <Lab first={!canDesign}>When a record moves on</Lab>
         <Group testID="stage-rules">
           <SRow label="Moves on" minHeight={44}>
-            <PickButton label="Moves on" value={exitWords(g.exit)} disabled={!canDesign} testID="exit-rule" onPress={(x, y) => show(each(EXIT_RULES, (r) => ({ label: r.label, checked: r.id === exitRuleId(g.exit), onSelect: () => void d.setRule(g.key, { exit: r.exit }, r.label) })), x, y, "other", { label: "When a record moves on" })} />
+            <PickButton
+              label="Moves on"
+              value={exitWords(g.exit)}
+              disabled={!canDesign}
+              testID="exit-rule"
+              onPress={(x, y) =>
+                show(
+                  each(EXIT_RULES, (r) => ({
+                    label: r.label,
+                    checked: r.id === exitRuleId(g.exit),
+                    onSelect: () => void d.setRule(g.key, { exit: r.exit }, r.label),
+                  })),
+                  x,
+                  y,
+                  "other",
+                  { label: "When a record moves on" },
+                )
+              }
+            />
           </SRow>
-          <SRow label="Tasks" minHeight={40}><Text style={p.dimr}>{tasksWords(g)}</Text></SRow>
-          <SRow label="Time limit" sub={c.over ? `${plural(c.over, "record is", "records are")} over it` : undefined} minHeight={44} last={!g.timeLimit}>
-            <PickButton label="Time limit" value={g.timeLimit ? limitWords({ hours: g.timeLimit.hours }, data.name) : "None"} disabled={!canDesign} testID="time-limit" empty={!g.timeLimit}
-              onPress={(x, y) => show([{ label: "None", checked: !g.timeLimit, onSelect: () => void d.setRule(g.key, { timeLimit: null }, "No time limit") }, { separator: true }, ...each(LIMIT_CHOICES, (h) => ({ label: limitWords({ hours: h }, data.name), checked: g.timeLimit?.hours === h, onSelect: () => void d.setRule(g.key, { timeLimit: { hours: h, ...(g.timeLimit?.escalateTo ? { escalateTo: g.timeLimit.escalateTo } : {}) } }, `Limit of ${limitWords({ hours: h }, data.name)}`) }))], x, y, "other", { label: "Time limit" })} />
+          <SRow label="Tasks" minHeight={40}>
+            <Text style={p.dimr}>{tasksWords(g)}</Text>
+          </SRow>
+          <SRow
+            label="Time limit"
+            sub={c.over ? `${plural(c.over, "record is", "records are")} over it` : undefined}
+            minHeight={44}
+            last={!g.timeLimit}
+          >
+            <PickButton
+              label="Time limit"
+              value={g.timeLimit ? limitWords({ hours: g.timeLimit.hours }, data.name) : "None"}
+              disabled={!canDesign}
+              testID="time-limit"
+              empty={!g.timeLimit}
+              onPress={(x, y) =>
+                show(
+                  [
+                    {
+                      label: "None",
+                      checked: !g.timeLimit,
+                      onSelect: () => void d.setRule(g.key, { timeLimit: null }, "No time limit"),
+                    },
+                    { separator: true },
+                    ...each(LIMIT_CHOICES, (h) => ({
+                      label: limitWords({ hours: h }, data.name),
+                      checked: g.timeLimit?.hours === h,
+                      onSelect: () =>
+                        void d.setRule(
+                          g.key,
+                          {
+                            timeLimit: {
+                              hours: h,
+                              ...(g.timeLimit?.escalateTo ? { escalateTo: g.timeLimit.escalateTo } : {}),
+                            },
+                          },
+                          `Limit of ${limitWords({ hours: h }, data.name)}`,
+                        ),
+                    })),
+                  ],
+                  x,
+                  y,
+                  "other",
+                  { label: "Time limit" },
+                )
+              }
+            />
           </SRow>
           {g.timeLimit ? (
             <SRow label="When it runs over, tell" minHeight={44} last>
-              <PickButton label="Who is told" value={toldWho ? data.name(toldWho.id) : "Nobody"} disabled={!canDesign} testID="told-who" empty={!toldWho}
-                onPress={(x, y) => show([{ label: "Nobody", checked: !toldWho, onSelect: () => void d.setRule(g.key, { timeLimit: { hours: g.timeLimit!.hours } }, "Nobody is told") }, { separator: true }, ...each([...each(extras.directory.roles, (r) => ({ kind: "role" as const, ...r })), ...each(extras.directory.people, (r) => ({ kind: "person" as const, ...r }))], (e) => ({ label: e.name, checked: toldWho?.id === e.id, onSelect: () => void d.setRule(g.key, { timeLimit: { hours: g.timeLimit!.hours, escalateTo: { kind: e.kind, id: e.id } } }, `${e.name} is told when it runs over`) }))], x, y, "other", { label: "Who is told" })} />
+              <PickButton
+                label="Who is told"
+                value={toldWho ? data.name(toldWho.id) : "Nobody"}
+                disabled={!canDesign}
+                testID="told-who"
+                empty={!toldWho}
+                onPress={(x, y) =>
+                  show(
+                    [
+                      {
+                        label: "Nobody",
+                        checked: !toldWho,
+                        onSelect: () =>
+                          void d.setRule(g.key, { timeLimit: { hours: g.timeLimit!.hours } }, "Nobody is told"),
+                      },
+                      { separator: true },
+                      ...each(
+                        [
+                          ...each(extras.directory.roles, (r) => ({ kind: "role" as const, ...r })),
+                          ...each(extras.directory.people, (r) => ({ kind: "person" as const, ...r })),
+                        ],
+                        (e) => ({
+                          label: e.name,
+                          checked: toldWho?.id === e.id,
+                          onSelect: () =>
+                            void d.setRule(
+                              g.key,
+                              { timeLimit: { hours: g.timeLimit!.hours, escalateTo: { kind: e.kind, id: e.id } } },
+                              `${e.name} is told when it runs over`,
+                            ),
+                        }),
+                      ),
+                    ],
+                    x,
+                    y,
+                    "other",
+                    { label: "Who is told" },
+                  )
+                }
+              />
             </SRow>
           ) : null}
         </Group>
         <Lab>Runs here</Lab>
         {g.automations.length ? (
           <Group testID="stage-autos">
-            {g.automations.map((id) => <Row key={id} id={`stage-auto-${id}`} title={data.name(id)} note="On entering" leading={<View style={p.lead}><Glyph name="bolt" size={14} color="var(--accent)" /></View>} />)}
+            {g.automations.map((id) => (
+              <Row
+                key={id}
+                id={`stage-auto-${id}`}
+                title={data.name(id)}
+                note="On entering"
+                leading={
+                  <View style={p.lead}>
+                    <Glyph name="bolt" size={14} color="var(--accent)" />
+                  </View>
+                }
+              />
+            ))}
           </Group>
-        ) : <Text style={p.dim}>No automations on this stage.</Text>}
+        ) : (
+          <Text style={p.dim}>No automations on this stage.</Text>
+        )}
         <StageFields journey={j} stage={g} design={d} canDesign={canDesign} />
-        {d.saved.note ? <Text testID="saved-note" accessibilityLiveRegion="polite" style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}>{d.saved.note.text}</Text> : null}
+        {d.saved.note ? (
+          <Text
+            testID="saved-note"
+            accessibilityLiveRegion="polite"
+            style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}
+          >
+            {d.saved.note.text}
+          </Text>
+        ) : null}
       </ScrollView>
       {element}
     </View>
   );
 }
 
-function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journey; stage: Stage; task: Task; canDesign: boolean }): ReactElement {
+function TaskPane({
+  journey: j,
+  stage: g,
+  task: t,
+  canDesign,
+}: {
+  journey: Journey;
+  stage: Stage;
+  task: Task;
+  canDesign: boolean;
+}): ReactElement {
   const data = useAutomationsData();
   const extras = useConfigExtras();
   const d = useDesign(j);
@@ -155,29 +416,100 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
   const [brief, setBrief] = useState(t.description ?? "");
   useEffect(() => setTitle(t.title), [t.title]);
   useEffect(() => setBrief(t.description ?? ""), [t.description]);
-  const edit = (next: Stage[], text: string): void => { void d.design(next, text); };
+  const edit = (next: Stage[], text: string): void => {
+    void d.design(next, text);
+  };
   const seat = (slot: Slot): Ref | undefined => t[slot];
   const agents = agentSeats(t);
   const agentNames = seatNames(t, data.name);
-  const keyName = (id: string | undefined): string => (id ? data.keys.find((k) => k.id === id)?.name ?? data.name(id) : "None");
-  const commitTitle = (): void => { const v = title.trim(); if (!v || v === t.title) { setTitle(t.title); return; } edit(updateTask(j.stages, g.key, t.key, { title: v }), `Renamed to ${v}`); };
-  const commitBrief = (): void => { const v = brief.trim(); if (v === (t.description ?? "")) return; edit(v ? updateTask(j.stages, g.key, t.key, { description: v }) : clearTaskField(j.stages, g.key, t.key, "description"), "Saved the instructions"); };
+  const keyName = (id: string | undefined): string =>
+    id ? (data.keys.find((k) => k.id === id)?.name ?? data.name(id)) : "None";
+  const commitTitle = (): void => {
+    const v = title.trim();
+    if (!v || v === t.title) {
+      setTitle(t.title);
+      return;
+    }
+    edit(updateTask(j.stages, g.key, t.key, { title: v }), `Renamed to ${v}`);
+  };
+  const commitBrief = (): void => {
+    const v = brief.trim();
+    if (v === (t.description ?? "")) return;
+    edit(
+      v
+        ? updateTask(j.stages, g.key, t.key, { description: v })
+        : clearTaskField(j.stages, g.key, t.key, "description"),
+      "Saved the instructions",
+    );
+  };
   const keyMenu = (field: "keyId" | "backupKeyId", x: number, y: number): void => {
-    const items: MenuEntry[] = each(data.keys, (k) => ({ label: k.name, checked: t[field] === k.id, onSelect: () => edit(updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: k.id } : { backupKeyId: k.id }), `${field === "keyId" ? "Key" : "Backup key"}: ${k.name}`) }));
-    if (field === "backupKeyId") items.unshift({ label: "None", checked: t.backupKeyId === undefined, onSelect: () => edit(clearTaskField(j.stages, g.key, t.key, "backupKeyId"), "No backup key") }, { separator: true });
-    const took = (made: { id: string }): void => edit(updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: made.id } : { backupKeyId: made.id }), `${field === "keyId" ? "Key" : "Backup key"}: ${made.id}`);
+    const items: MenuEntry[] = each(data.keys, (k) => ({
+      label: k.name,
+      checked: t[field] === k.id,
+      onSelect: () =>
+        edit(
+          updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: k.id } : { backupKeyId: k.id }),
+          `${field === "keyId" ? "Key" : "Backup key"}: ${k.name}`,
+        ),
+    }));
+    if (field === "backupKeyId")
+      items.unshift(
+        {
+          label: "None",
+          checked: t.backupKeyId === undefined,
+          onSelect: () => edit(clearTaskField(j.stages, g.key, t.key, "backupKeyId"), "No backup key"),
+        },
+        { separator: true },
+      );
+    const took = (made: { id: string }): void =>
+      edit(
+        updateTask(j.stages, g.key, t.key, field === "keyId" ? { keyId: made.id } : { backupKeyId: made.id }),
+        `${field === "keyId" ? "Key" : "Backup key"}: ${made.id}`,
+      );
     const real = data.keys.length > 0;
-    show(connectEntries(real || t.backupKeyId !== undefined ? items : [], { kind: "ai" }, openConnect, took, !real), x, y, "other", { label: field === "keyId" ? "Key" : "Backup key" });
+    show(
+      connectEntries(real || t.backupKeyId !== undefined ? items : [], { kind: "ai" }, openConnect, took, !real),
+      x,
+      y,
+      "other",
+      { label: field === "keyId" ? "Key" : "Backup key" },
+    );
   };
 
   return (
     <View testID="task-pane" accessibilityLabel={`${t.title}, task in ${g.title}`} style={p.frame}>
-      <PaneHead tile={<View style={p.tile}><Glyph name="task" size={16} color="var(--ink-2)" /></View>} title={t.title} sub={`Task in ${g.title}`} />
+      <PaneHead
+        tile={
+          <View style={p.tile}>
+            <Glyph name="task" size={16} color="var(--ink-2)" />
+          </View>
+        }
+        title={t.title}
+        sub={`Task in ${g.title}`}
+      />
       <ScrollView style={p.scroll} contentContainerStyle={p.body}>
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <View style={p.nameRow}><TextInput accessibilityLabel="Task name" testID="task-name" value={title} onChangeText={setTitle} onBlur={commitTitle} onSubmitEditing={commitTitle} onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setTitle(t.title); e.stopPropagation?.(); } }) as never} style={p.input} /></View>
+            <View style={p.nameRow}>
+              <TextInput
+                accessibilityLabel="Task name"
+                testID="task-name"
+                value={title}
+                onChangeText={setTitle}
+                onBlur={commitTitle}
+                onSubmitEditing={commitTitle}
+                onKeyPress={
+                  ((e: KeyEventLike) => {
+                    if (e.key === "Escape") {
+                      setTitle(t.title);
+                      e.stopPropagation?.();
+                    }
+                  }) as never
+                }
+                style={p.input}
+              />
+            </View>
           </>
         ) : null}
         <Lab first={!canDesign}>People on this task</Lab>
@@ -187,9 +519,36 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
             return (
               <SRow key={key} label={label} minHeight={40} last={n === SLOTS.length - 1} testID={`seat-${key}`}>
                 <PickButton
-                  label={label} value={who ? data.name(who.id) : "Nobody"} empty={!who} disabled={!canDesign} testID={`pick-${key}`}
-                  lead={who ? <Face name={data.name(who.id)} seedId={who.id} kind={who.kind === "person" ? "person" : "agent"} size={16} /> : undefined}
-                  onPress={(x, y) => show(peopleMenu(extras.directory, (r) => edit(setSeat(j.stages, g.key, t.key, key, r), `${label}: ${data.name(r.id)}`), key === "assigned" ? undefined : () => edit(setSeat(j.stages, g.key, t.key, key, null), `No ${label.toLowerCase()}`)), x, y, "other", { label })}
+                  label={label}
+                  value={who ? data.name(who.id) : "Nobody"}
+                  empty={!who}
+                  disabled={!canDesign}
+                  testID={`pick-${key}`}
+                  lead={
+                    who ? (
+                      <Face
+                        name={data.name(who.id)}
+                        seedId={who.id}
+                        kind={who.kind === "person" ? "person" : "agent"}
+                        size={16}
+                      />
+                    ) : undefined
+                  }
+                  onPress={(x, y) =>
+                    show(
+                      peopleMenu(
+                        extras.directory,
+                        (r) => edit(setSeat(j.stages, g.key, t.key, key, r), `${label}: ${data.name(r.id)}`),
+                        key === "assigned"
+                          ? undefined
+                          : () => edit(setSeat(j.stages, g.key, t.key, key, null), `No ${label.toLowerCase()}`),
+                      ),
+                      x,
+                      y,
+                      "other",
+                      { label },
+                    )
+                  }
                 />
               </SRow>
             );
@@ -201,10 +560,24 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
             <Lab>Agent key</Lab>
             <Group testID="agent-key">
               <SRow label="Key" sub={`For ${agentNames}`} minHeight={44}>
-                <PickButton label="Key" value={keyName(t.keyId)} empty={!t.keyId} disabled={!canDesign} testID="pick-key" onPress={(x, y) => keyMenu("keyId", x, y)} />
+                <PickButton
+                  label="Key"
+                  value={keyName(t.keyId)}
+                  empty={!t.keyId}
+                  disabled={!canDesign}
+                  testID="pick-key"
+                  onPress={(x, y) => keyMenu("keyId", x, y)}
+                />
               </SRow>
               <SRow label="Backup" minHeight={40} last>
-                <PickButton label="Backup key" value={keyName(t.backupKeyId)} empty={!t.backupKeyId} disabled={!canDesign} testID="pick-backup" onPress={(x, y) => keyMenu("backupKeyId", x, y)} />
+                <PickButton
+                  label="Backup key"
+                  value={keyName(t.backupKeyId)}
+                  empty={!t.backupKeyId}
+                  disabled={!canDesign}
+                  testID="pick-backup"
+                  onPress={(x, y) => keyMenu("backupKeyId", x, y)}
+                />
               </SRow>
             </Group>
           </>
@@ -212,13 +585,49 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
 
         <Lab>Done by</Lab>
         <Group testID="task-done-by">
-          <SRow label="Done by" sub={t.doneByAutomation ? "Its run does this task. A run that fails leaves it for a person." : "The people above do this task"} minHeight={44} last>
+          <SRow
+            label="Done by"
+            sub={
+              t.doneByAutomation
+                ? "Its run does this task. A run that fails leaves it for a person."
+                : "The people above do this task"
+            }
+            minHeight={44}
+            last
+          >
             <PickButton
-              label="Done by" value={doneByWords(t, data.name)} empty={!t.doneByAutomation} disabled={!canDesign} testID="pick-done-by"
-              onPress={(x, y) => show([
-                { label: "A person or agent", checked: !t.doneByAutomation, onSelect: () => edit(clearTaskField(j.stages, g.key, t.key, "doneByAutomation"), "Done by a person or agent") },
-                ...(extras.directory.automations.length > 0 ? [{ separator: true } as MenuEntry, ...each(extras.directory.automations, (a) => ({ label: a.name, checked: t.doneByAutomation === a.id, onSelect: () => edit(updateTask(j.stages, g.key, t.key, { doneByAutomation: a.id }), `Done by ${a.name}`) }))] : [{ head: "No Automations to pick yet" } as MenuEntry]),
-              ], x, y, "other", { label: "Done by" })}
+              label="Done by"
+              value={doneByWords(t, data.name)}
+              empty={!t.doneByAutomation}
+              disabled={!canDesign}
+              testID="pick-done-by"
+              onPress={(x, y) =>
+                show(
+                  [
+                    {
+                      label: "A person or agent",
+                      checked: !t.doneByAutomation,
+                      onSelect: () =>
+                        edit(clearTaskField(j.stages, g.key, t.key, "doneByAutomation"), "Done by a person or agent"),
+                    },
+                    ...(extras.directory.automations.length > 0
+                      ? [
+                          { separator: true } as MenuEntry,
+                          ...each(extras.directory.automations, (a) => ({
+                            label: a.name,
+                            checked: t.doneByAutomation === a.id,
+                            onSelect: () =>
+                              edit(updateTask(j.stages, g.key, t.key, { doneByAutomation: a.id }), `Done by ${a.name}`),
+                          })),
+                        ]
+                      : [{ head: "No Automations to pick yet" } as MenuEntry]),
+                  ],
+                  x,
+                  y,
+                  "other",
+                  { label: "Done by" },
+                )
+              }
             />
           </SRow>
         </Group>
@@ -226,10 +635,45 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
         <Lab>When</Lab>
         <Group testID="task-when">
           <SRow label="Due after entering" minHeight={40}>
-            <PickButton label="Due after entering" value={dueWords(t.dueAfterHours)} disabled={!canDesign} testID="pick-due" onPress={(x, y) => show(each(DUE_CHOICES, (h) => ({ label: dueWords(h), checked: (t.dueAfterHours ?? 0) === h, onSelect: () => edit(h === 0 ? clearTaskField(j.stages, g.key, t.key, "dueAfterHours") : updateTask(j.stages, g.key, t.key, { dueAfterHours: h }), `Due ${dueWords(h)} after entering`) })), x, y, "other", { label: "Due after entering" })} />
+            <PickButton
+              label="Due after entering"
+              value={dueWords(t.dueAfterHours)}
+              disabled={!canDesign}
+              testID="pick-due"
+              onPress={(x, y) =>
+                show(
+                  each(DUE_CHOICES, (h) => ({
+                    label: dueWords(h),
+                    checked: (t.dueAfterHours ?? 0) === h,
+                    onSelect: () =>
+                      edit(
+                        h === 0
+                          ? clearTaskField(j.stages, g.key, t.key, "dueAfterHours")
+                          : updateTask(j.stages, g.key, t.key, { dueAfterHours: h }),
+                        `Due ${dueWords(h)} after entering`,
+                      ),
+                  })),
+                  x,
+                  y,
+                  "other",
+                  { label: "Due after entering" },
+                )
+              }
+            />
           </SRow>
-          <SRow label="Required" sub={t.required ? "The stage waits for it" : "The stage does not wait"} minHeight={44} last>
-            <Switch on={t.required} label="Required" disabled={!canDesign} testID="task-required" onChange={(v) => edit(updateTask(j.stages, g.key, t.key, { required: v }), v ? "Required" : "Optional")} />
+          <SRow
+            label="Required"
+            sub={t.required ? "The stage waits for it" : "The stage does not wait"}
+            minHeight={44}
+            last
+          >
+            <Switch
+              on={t.required}
+              label="Required"
+              disabled={!canDesign}
+              testID="task-required"
+              onChange={(v) => edit(updateTask(j.stages, g.key, t.key, { required: v }), v ? "Required" : "Optional")}
+            />
           </SRow>
         </Group>
 
@@ -237,12 +681,34 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
           <>
             <Lab>Instructions</Lab>
             {canDesign ? (
-              <TextInput accessibilityLabel="Instructions" testID="task-brief" value={brief} onChangeText={setBrief} onBlur={commitBrief} multiline placeholder="What the doer should know" placeholderTextColor="var(--ink-4)" style={[p.input, p.brief]} />
-            ) : <Text style={p.para}>{t.description}</Text>}
+              <TextInput
+                accessibilityLabel="Instructions"
+                testID="task-brief"
+                value={brief}
+                onChangeText={setBrief}
+                onBlur={commitBrief}
+                multiline
+                placeholder="What the doer should know"
+                placeholderTextColor="var(--ink-4)"
+                style={[p.input, p.brief]}
+              />
+            ) : (
+              <Text style={p.para}>{t.description}</Text>
+            )}
           </>
         ) : null}
-        <Hint>Each task gets its own chat, listed under this Journey. It opens when the first person or agent speaks.</Hint>
-        {d.saved.note ? <Text testID="saved-note" accessibilityLiveRegion="polite" style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}>{d.saved.note.text}</Text> : null}
+        <Hint>
+          Each task gets its own chat, listed under this Journey. It opens when the first person or agent speaks.
+        </Hint>
+        {d.saved.note ? (
+          <Text
+            testID="saved-note"
+            accessibilityLiveRegion="polite"
+            style={[p.note, d.saved.note.failed && { color: "var(--danger)" as string }]}
+          >
+            {d.saved.note.text}
+          </Text>
+        ) : null}
       </ScrollView>
       {element}
     </View>
@@ -251,9 +717,26 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
 
 const p = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  ph: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 14, paddingBottom: 12, paddingLeft: 16, paddingRight: 14 },
+  ph: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingLeft: 16,
+    paddingRight: 14,
+  },
   lead: { flexDirection: "row", alignItems: "center", marginRight: 8 },
-  tile: { width: 34, height: 34, borderRadius: 10, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center" },
+  tile: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tileText: { fontSize: 12, fontWeight: "700", color: "var(--ink-2)" as string },
   name: { fontSize: 14, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
@@ -263,7 +746,19 @@ const p = StyleSheet.create({
   dimr: { fontSize: 12.5, color: "var(--ink-2)" as string },
   para: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   nameRow: { alignSelf: "stretch" },
-  input: { alignSelf: "stretch", width: "100%", height: 36, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, paddingHorizontal: 10, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
+  input: {
+    alignSelf: "stretch",
+    width: "100%",
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--win)" as string,
+    ...({ outlineStyle: "none", outlineWidth: 0 } as object),
+  },
   brief: { minHeight: 72, height: undefined, paddingTop: 8, paddingBottom: 8, flex: undefined },
   note: { fontSize: 12, color: "var(--ink-2)" as string, marginTop: 14 },
 });

@@ -14,7 +14,12 @@ const NUMBERS = [
   { id: "n2", label: "Intake line", num: "+1 415 555 0177" },
 ];
 
-const CALLER = { name: "Elena Rivera", number: "+1 415 555 0161", company: "Northwind Holdings", recordId: "rec_elena" };
+const CALLER = {
+  name: "Elena Rivera",
+  number: "+1 415 555 0161",
+  company: "Northwind Holdings",
+  recordId: "rec_elena",
+};
 
 const TARGETS = [
   { name: "Maya Chen", kind: "teammate" as const },
@@ -43,17 +48,43 @@ function Live({ withPane }: { withPane: boolean }) {
   const [muted, setMuted] = useState(false);
   const [held, setHeld] = useState(false);
   const [recording, setRecording] = useState(false);
-  const props: SoftphoneProps = { open: true, mode: held ? "held" : "live", numbers: NUMBERS, caller: CALLER, muted, held, recording, consent: recording, transferTargets: TARGETS };
+  const props: SoftphoneProps = {
+    open: true,
+    mode: held ? "held" : "live",
+    numbers: NUMBERS,
+    caller: CALLER,
+    muted,
+    held,
+    recording,
+    consent: recording,
+    transferTargets: TARGETS,
+  };
   return (
     <View style={{ width: "100%" }}>
-      <CallBar {...props} secs={134} onMute={() => setMuted((v) => !v)} onHold={() => setHeld((v) => !v)} onRecord={() => setRecording((v) => !v)} />
+      <CallBar
+        {...props}
+        secs={134}
+        onMute={() => setMuted((v) => !v)}
+        onHold={() => setHeld((v) => !v)}
+        onRecord={() => setRecording((v) => !v)}
+      />
       {withPane ? (
         <CallPane
           caller={CALLER}
           notes=""
           recording={recording}
           consent={recording}
-          card={{ last: [{ kind: "mail", text: "Engagement letter sent", when: "Mon" }, { kind: "sms", text: "Can we move the signing?", when: "Tue" }, { kind: "call", text: "Call 04:12", when: "Last week" }], tasks: [{ title: "Send intake form", due: "Today" }, { title: "Review lease", due: "Fri" }] }}
+          card={{
+            last: [
+              { kind: "mail", text: "Engagement letter sent", when: "Mon" },
+              { kind: "sms", text: "Can we move the signing?", when: "Tue" },
+              { kind: "call", text: "Call 04:12", when: "Last week" },
+            ],
+            tasks: [
+              { title: "Send intake form", due: "Today" },
+              { title: "Review lease", due: "Fri" },
+            ],
+          }}
         />
       ) : null}
     </View>
@@ -64,16 +95,34 @@ export default function Mount() {
   const { part = "dialer" } = useLocalSearchParams<{ part?: string }>();
   const frame = { flex: 1, padding: 16 } as const;
   if (part === "incoming") {
-    return <View style={frame}><Softphone placement="inline" open mode="incoming" numbers={NUMBERS} fromId="n2" caller={CALLER} /></View>;
+    return (
+      <View style={frame}>
+        <Softphone placement="inline" open mode="incoming" numbers={NUMBERS} fromId="n2" caller={CALLER} />
+      </View>
+    );
   }
-  if (part === "live") return <View style={{ flex: 1 }}><Live withPane /></View>;
+  if (part === "live")
+    return (
+      <View style={{ flex: 1 }}>
+        <Live withPane />
+      </View>
+    );
   if (part === "ended") {
     return (
       <View style={frame}>
         <Softphone
-          placement="inline" open mode="ended" numbers={NUMBERS} caller={CALLER} endedSecs={134}
+          placement="inline"
+          open
+          mode="ended"
+          numbers={NUMBERS}
+          caller={CALLER}
+          endedSecs={134}
           summary="Elena sends the lease Thursday and asks to move signing to the 30th. You will send her a new time today."
-          transcript={[{ who: "Elena", text: "I am sending the lease documents Thursday morning." }, { who: "You", text: "Great. Lena will review them the same day." }, { who: "Elena", text: "Can we move the signing to the 30th?" }]}
+          transcript={[
+            { who: "Elena", text: "I am sending the lease documents Thursday morning." },
+            { who: "You", text: "Great. Lena will review them the same day." },
+            { who: "Elena", text: "Can we move the signing to the 30th?" },
+          ]}
         />
       </View>
     );
@@ -88,9 +137,21 @@ export default function Mount() {
   if (part === "locked") {
     return (
       <View style={{ flex: 1, minHeight: 560 }}>
-        <Terminal sessionId="ter_2" title="" host="server" hostLabel="Space server" locked owner="Maya Chen" fallbackLabel="Intake's computer" />
+        <Terminal
+          sessionId="ter_2"
+          title=""
+          host="server"
+          hostLabel="Space server"
+          locked
+          owner="Maya Chen"
+          fallbackLabel="Intake's computer"
+        />
       </View>
     );
   }
-  return <View style={frame}><Softphone placement="inline" open mode="dialer" numbers={NUMBERS} suggestions={[]} /></View>;
+  return (
+    <View style={frame}>
+      <Softphone placement="inline" open mode="dialer" numbers={NUMBERS} suggestions={[]} />
+    </View>
+  );
 }

@@ -12,7 +12,10 @@ export async function guidedSetup(s: Screens, who: Seat, dir: string): Promise<v
   await who.page.getByTestId("row-page-signin").click();
   await who.page.getByTestId("signin-google").click();
   await who.page.getByTestId("row-signin.google.redirect").waitFor({ timeout: 15_000 });
-  assert.ok((await who.page.getByTestId("row-signin.google.redirect").innerText()).includes(`${s.web.origin}/oauth/callback`), "the exact redirect address to register");
+  assert.ok(
+    (await who.page.getByTestId("row-signin.google.redirect").innerText()).includes(`${s.web.origin}/oauth/callback`),
+    "the exact redirect address to register",
+  );
   await shoot(who.page, dir, "guided-setup");
   await who.page.getByTestId("signin-google-id").fill(CLIENT.id);
   await who.page.getByTestId("signin-google-id").press("Tab");

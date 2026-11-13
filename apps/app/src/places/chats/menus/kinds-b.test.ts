@@ -1,73 +1,247 @@
 // The menus of Vault items, automations, goals, projects, tabs and the Console rows: what each offers for each state and permission, in what order, with which key, and that every item calls what it says.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { automationMenu, consoleDomainMenu, consoleGroupMenu, consoleNumberMenu, consolePersonMenu, consoleRoleMenu, goalMenu, projectMenu, tabMenu, vaultItemMenu } from "./kinds-b.ts";
+import {
+  automationMenu,
+  consoleDomainMenu,
+  consoleGroupMenu,
+  consoleNumberMenu,
+  consolePersonMenu,
+  consoleRoleMenu,
+  goalMenu,
+  projectMenu,
+  tabMenu,
+  vaultItemMenu,
+} from "./kinds-b.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 
-const rows = (e: readonly MenuEntry[]): MenuItem[] => e.filter((x): x is MenuItem => !("separator" in x) && !("head" in x));
-const labels = (e: readonly MenuEntry[]): string[] => e.map((x) => ("separator" in x ? "-" : "head" in x ? `# ${x.head}` : x.label));
+const rows = (e: readonly MenuEntry[]): MenuItem[] =>
+  e.filter((x): x is MenuItem => !("separator" in x) && !("head" in x));
+const labels = (e: readonly MenuEntry[]): string[] =>
+  e.map((x) => ("separator" in x ? "-" : "head" in x ? `# ${x.head}` : x.label));
 const calls: string[] = [];
-const rec = (n: string) => (...a: unknown[]): void => { calls.push(a.length ? `${n}:${a.join(",")}` : n); };
+const rec =
+  (n: string) =>
+  (...a: unknown[]): void => {
+    calls.push(a.length ? `${n}:${a.join(",")}` : n);
+  };
 /** A `do` object whose every method records its own name. */
-const recorder = <T extends object>(names: readonly string[]): T => Object.fromEntries(names.map((n) => [n, rec(n)])) as T;
+const recorder = <T extends object>(names: readonly string[]): T =>
+  Object.fromEntries(names.map((n) => [n, rec(n)])) as T;
 const dangerLast = (e: readonly MenuEntry[]): void => {
   const r = rows(e);
   const danger = r.filter((x) => x.danger);
   assert.ok(danger.length <= 1, "one danger item");
-  if (danger.length === 1) { assert.equal(r.at(-1), danger[0], "danger is last"); assert.ok("separator" in e[e.length - 2]!, "and alone, after a separator"); }
+  if (danger.length === 1) {
+    assert.equal(r.at(-1), danger[0], "danger is last");
+    assert.ok("separator" in e[e.length - 2]!, "and alone, after a separator");
+  }
 };
 
 // ---- vault item
-const vaultDo = recorder<Parameters<typeof vaultItemMenu>[1]>(["open", "edit", "reveal", "copyHandle", "copyName", "share", "markRotated", "usage", "trash"]);
-const vaultFacts = (o: Partial<Parameters<typeof vaultItemMenu>[0]> = {}): Parameters<typeof vaultItemMenu>[0] => ({ name: "Stripe key", kind: "key", level: "manage", rotates: true, moveTo: [{ id: "vfl_ops", name: "Ops" }], ...o });
+const vaultDo = recorder<Parameters<typeof vaultItemMenu>[1]>([
+  "open",
+  "edit",
+  "reveal",
+  "copyHandle",
+  "copyName",
+  "share",
+  "markRotated",
+  "usage",
+  "trash",
+]);
+const vaultFacts = (o: Partial<Parameters<typeof vaultItemMenu>[0]> = {}): Parameters<typeof vaultItemMenu>[0] => ({
+  name: "Stripe key",
+  kind: "key",
+  level: "manage",
+  rotates: true,
+  moveTo: [{ id: "vfl_ops", name: "Ops" }],
+  ...o,
+});
 test("vault item: a manager sees the whole menu, danger last; the words follow the level", () => {
   const e = vaultItemMenu(vaultFacts(), { ...vaultDo, move: rec("move") });
-  assert.deepEqual(labels(e), ["Edit…", "Reveal Values…", "-", "Copy Handle", "Copy Name", "-", "Share…", "# Move to Folder", "Ops", "-", "Mark as Rotated", "Usage…", "-", "Move to Trash…"]);
+  assert.deepEqual(labels(e), [
+    "Edit…",
+    "Reveal Values…",
+    "-",
+    "Copy Handle",
+    "Copy Name",
+    "-",
+    "Share…",
+    "# Move to Folder",
+    "Ops",
+    "-",
+    "Mark as Rotated",
+    "Usage…",
+    "-",
+    "Move to Trash…",
+  ]);
   dangerLast(e);
   assert.equal(rows(e).at(-1)!.hint, "⌘⌫");
   const use = labels(vaultItemMenu(vaultFacts({ level: "use", moveTo: [] }), { ...vaultDo, move: rec("move") }));
-  assert.deepEqual(use, ["Open", "-", "Copy Handle", "Copy Name"], "use-only: the handle to fill with, never the values");
-  assert.deepEqual(labels(vaultItemMenu(vaultFacts({ level: "view", moveTo: [] }), { ...vaultDo, move: rec("move") })), ["Open", "Reveal Values…", "-", "Copy Handle", "Copy Name"], "a viewer may reveal");
+  assert.deepEqual(
+    use,
+    ["Open", "-", "Copy Handle", "Copy Name"],
+    "use-only: the handle to fill with, never the values",
+  );
+  assert.deepEqual(
+    labels(vaultItemMenu(vaultFacts({ level: "view", moveTo: [] }), { ...vaultDo, move: rec("move") })),
+    ["Open", "Reveal Values…", "-", "Copy Handle", "Copy Name"],
+    "a viewer may reveal",
+  );
   const edit = labels(vaultItemMenu(vaultFacts({ level: "edit" }), { ...vaultDo, move: rec("move") }));
-  assert.ok(edit.includes("Edit…") && edit.includes("Mark as Rotated") && !edit.includes("Share…") && !edit.some((x) => /Trash|Move to Folder/.test(x)));
+  assert.ok(
+    edit.includes("Edit…") &&
+      edit.includes("Mark as Rotated") &&
+      !edit.includes("Share…") &&
+      !edit.some((x) => /Trash|Move to Folder/.test(x)),
+  );
   const card = labels(vaultItemMenu(vaultFacts({ kind: "card", rotates: false }), { ...vaultDo, move: rec("move") }));
-  assert.ok(!card.includes("Mark as Rotated") && !card.includes("Usage…"), "rotation and usage are for keys and logins");
-  assert.ok(!labels(vaultItemMenu(vaultFacts({ rotates: false }), { ...vaultDo, move: rec("move") })).includes("Mark as Rotated"));
+  assert.ok(
+    !card.includes("Mark as Rotated") && !card.includes("Usage…"),
+    "rotation and usage are for keys and logins",
+  );
+  assert.ok(
+    !labels(vaultItemMenu(vaultFacts({ rotates: false }), { ...vaultDo, move: rec("move") })).includes(
+      "Mark as Rotated",
+    ),
+  );
 });
 test("vault item: every item does what it says", () => {
   calls.length = 0;
   for (const x of rows(vaultItemMenu(vaultFacts(), { ...vaultDo, move: rec("move") }))) x.onSelect?.();
-  assert.deepEqual(calls, ["edit", "reveal", "copyHandle", "copyName", "share", "move:vfl_ops", "markRotated", "usage", "trash"]);
+  assert.deepEqual(calls, [
+    "edit",
+    "reveal",
+    "copyHandle",
+    "copyName",
+    "share",
+    "move:vfl_ops",
+    "markRotated",
+    "usage",
+    "trash",
+  ]);
 });
 
 // ---- automation
-const autoDo = recorder<Parameters<typeof automationMenu>[1]>(["open", "run", "test", "makePersonalCopy", "runs", "copyLink", "remove"]);
-const autoFacts = (o: Partial<Parameters<typeof automationMenu>[0]> = {}): Parameters<typeof automationMenu>[0] => ({ name: "Lab 7 nurture", enabled: true, space: true, canEdit: true, canRun: true, canDelete: true, failedRuns: 0, group: "Labs", groups: [{ id: "agp_a", name: "Sales" }], ...o });
+const autoDo = recorder<Parameters<typeof automationMenu>[1]>([
+  "open",
+  "run",
+  "test",
+  "makePersonalCopy",
+  "runs",
+  "copyLink",
+  "remove",
+]);
+const autoFacts = (o: Partial<Parameters<typeof automationMenu>[0]> = {}): Parameters<typeof automationMenu>[0] => ({
+  name: "Lab 7 nurture",
+  enabled: true,
+  space: true,
+  canEdit: true,
+  canRun: true,
+  canDelete: true,
+  failedRuns: 0,
+  group: "Labs",
+  groups: [{ id: "agp_a", name: "Sales" }],
+  ...o,
+});
 test("automation: an editor sees the whole menu; the words follow on or off; a member sees Open and the runs", () => {
   const d = { ...autoDo, setEnabled: rec("enabled"), move: rec("move") };
   const e = automationMenu(autoFacts(), d);
-  assert.deepEqual(labels(e), ["Open", "Run Now", "Turn Off", "Test…", "Runs", "-", "Make a Personal Copy", "# Move to Group", "Sales", "Out of Its Group", "-", "Copy Link", "-", "Move to Trash…"]);
+  assert.deepEqual(labels(e), [
+    "Open",
+    "Run Now",
+    "Turn Off",
+    "Test…",
+    "Runs",
+    "-",
+    "Make a Personal Copy",
+    "# Move to Group",
+    "Sales",
+    "Out of Its Group",
+    "-",
+    "Copy Link",
+    "-",
+    "Move to Trash…",
+  ]);
   dangerLast(e);
   assert.ok(labels(automationMenu(autoFacts({ enabled: false }), d)).includes("Turn On"));
   assert.ok(labels(automationMenu(autoFacts({ failedRuns: 3 }), d)).includes("Runs (3 failed)"));
   const member = labels(automationMenu(autoFacts({ canEdit: false, canRun: false, canDelete: false }), d));
   assert.deepEqual(member, ["Open", "Runs", "-", "Make a Personal Copy", "-", "Copy Link"]);
-  assert.ok(!labels(automationMenu(autoFacts({ space: false, group: null, groups: [] }), d)).some((x) => /Personal Copy|Group/.test(x)), "a personal automation has no copy and no group to leave");
+  assert.ok(
+    !labels(automationMenu(autoFacts({ space: false, group: null, groups: [] }), d)).some((x) =>
+      /Personal Copy|Group/.test(x),
+    ),
+    "a personal automation has no copy and no group to leave",
+  );
 });
 test("automation: every item does what it says", () => {
   calls.length = 0;
-  for (const x of rows(automationMenu(autoFacts(), { ...autoDo, setEnabled: rec("enabled"), move: rec("move") }))) x.onSelect?.();
-  assert.deepEqual(calls, ["open", "run", "enabled:false", "test", "runs", "makePersonalCopy", "move:agp_a", "move:", "copyLink", "remove"]);
+  for (const x of rows(automationMenu(autoFacts(), { ...autoDo, setEnabled: rec("enabled"), move: rec("move") })))
+    x.onSelect?.();
+  assert.deepEqual(calls, [
+    "open",
+    "run",
+    "enabled:false",
+    "test",
+    "runs",
+    "makePersonalCopy",
+    "move:agp_a",
+    "move:",
+    "copyLink",
+    "remove",
+  ]);
 });
 
 // ---- goal
-const goalDo = recorder<Parameters<typeof goalMenu>[1]>(["open", "pause", "resume", "markStuck", "report", "stop", "copyLink"]);
+const goalDo = recorder<Parameters<typeof goalMenu>[1]>([
+  "open",
+  "pause",
+  "resume",
+  "markStuck",
+  "report",
+  "stop",
+  "copyLink",
+]);
 test("goal: Pause or Resume by state, stuck and report only while it runs, Stop last; a member only opens and copies", () => {
-  assert.deepEqual(labels(goalMenu({ title: "300 registrations", status: "running", manage: true }, goalDo)), ["Open", "-", "Pause", "Mark Stuck…", "Report Progress…", "-", "Copy Link", "-", "Stop Goal…"]);
-  assert.deepEqual(labels(goalMenu({ title: "g", status: "paused", manage: true }, goalDo)), ["Open", "-", "Resume", "Report Progress…", "-", "Copy Link", "-", "Stop Goal…"]);
-  assert.deepEqual(labels(goalMenu({ title: "g", status: "stuck", manage: true }, goalDo)), ["Open", "-", "Pause", "Report Progress…", "-", "Copy Link", "-", "Stop Goal…"]);
+  assert.deepEqual(labels(goalMenu({ title: "300 registrations", status: "running", manage: true }, goalDo)), [
+    "Open",
+    "-",
+    "Pause",
+    "Mark Stuck…",
+    "Report Progress…",
+    "-",
+    "Copy Link",
+    "-",
+    "Stop Goal…",
+  ]);
+  assert.deepEqual(labels(goalMenu({ title: "g", status: "paused", manage: true }, goalDo)), [
+    "Open",
+    "-",
+    "Resume",
+    "Report Progress…",
+    "-",
+    "Copy Link",
+    "-",
+    "Stop Goal…",
+  ]);
+  assert.deepEqual(labels(goalMenu({ title: "g", status: "stuck", manage: true }, goalDo)), [
+    "Open",
+    "-",
+    "Pause",
+    "Report Progress…",
+    "-",
+    "Copy Link",
+    "-",
+    "Stop Goal…",
+  ]);
   assert.deepEqual(labels(goalMenu({ title: "g", status: "done", manage: true }, goalDo)), ["Open", "-", "Copy Link"]);
-  assert.deepEqual(labels(goalMenu({ title: "g", status: "running", manage: false }, goalDo)), ["Open", "-", "Copy Link"]);
+  assert.deepEqual(labels(goalMenu({ title: "g", status: "running", manage: false }, goalDo)), [
+    "Open",
+    "-",
+    "Copy Link",
+  ]);
   dangerLast(goalMenu({ title: "g", status: "running", manage: true }, goalDo));
   calls.length = 0;
   for (const x of rows(goalMenu({ title: "g", status: "running", manage: true }, goalDo))) x.onSelect?.();
@@ -75,33 +249,80 @@ test("goal: Pause or Resume by state, stuck and report only while it runs, Stop 
 });
 
 // ---- project
-const projDo = recorder<Parameters<typeof projectMenu>[1]>(["open", "share", "addPeople", "pinFile", "archive", "unarchive", "copyLink"]);
+const projDo = recorder<Parameters<typeof projectMenu>[1]>([
+  "open",
+  "share",
+  "addPeople",
+  "pinFile",
+  "archive",
+  "unarchive",
+  "copyLink",
+]);
 test("project: star by state, Share, Add People and Archive or Unarchive for a manager, Pin File for an editor", () => {
   const d = { ...projDo, star: rec("star") };
-  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d)), ["Open", "Star", "-", "Share…", "Add People…", "Pin File…", "-", "Archive", "-", "Copy Link"]);
-  assert.ok(labels(projectMenu({ title: "Portal", starred: false, archived: true, manage: true, edit: true }, d)).includes("Unarchive"), "the words follow the state");
-  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: true, archived: false, manage: false, edit: false }, d)), ["Open", "Remove Star", "-", "Copy Link"], "someone who only reads cannot archive");
+  assert.deepEqual(
+    labels(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d)),
+    ["Open", "Star", "-", "Share…", "Add People…", "Pin File…", "-", "Archive", "-", "Copy Link"],
+  );
+  assert.ok(
+    labels(projectMenu({ title: "Portal", starred: false, archived: true, manage: true, edit: true }, d)).includes(
+      "Unarchive",
+    ),
+    "the words follow the state",
+  );
+  assert.deepEqual(
+    labels(projectMenu({ title: "Portal", starred: true, archived: false, manage: false, edit: false }, d)),
+    ["Open", "Remove Star", "-", "Copy Link"],
+    "someone who only reads cannot archive",
+  );
   calls.length = 0;
-  for (const x of rows(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d))) x.onSelect?.();
+  for (const x of rows(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d)))
+    x.onSelect?.();
   assert.deepEqual(calls, ["open", "star:true", "share", "addPeople", "pinFile", "archive", "copyLink"]);
 });
 
 test("project row in the sidebar: a manager with no Share, Add People, Pin File or Archive handler sees none of them (no item that does nothing)", () => {
   const bare = { open: () => undefined, star: () => undefined, copyLink: () => undefined };
-  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true, roles: true }, bare)), ["Open", "Star", "-", "Copy Link"]);
+  assert.deepEqual(
+    labels(
+      projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true, roles: true }, bare),
+    ),
+    ["Open", "Star", "-", "Copy Link"],
+  );
 });
 
 // ---- tab
 const tabDo = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "copyLink", "reopen"]);
-const tabFacts = (o: Partial<Parameters<typeof tabMenu>[0]> = {}): Parameters<typeof tabMenu>[0] => ({ title: "Rivera", pinned: false, count: 4, toTheRight: 2, item: true, canReopen: true, ...o });
+const tabFacts = (o: Partial<Parameters<typeof tabMenu>[0]> = {}): Parameters<typeof tabMenu>[0] => ({
+  title: "Rivera",
+  pinned: false,
+  count: 4,
+  toTheRight: 2,
+  item: true,
+  canReopen: true,
+  ...o,
+});
 test("tab: the words follow pinned; Close Others and Right only when there are others; Reopen only when one was closed; no Duplicate or Move to New Window (a tab is unique by what it shows, and the app opens no windows)", () => {
   const d = { ...tabDo, pin: rec("pin") };
   const e = tabMenu(tabFacts(), d);
-  assert.deepEqual(labels(e), ["Close", "Close Other Tabs", "Close Tabs to the Right", "-", "Copy Link", "Pin", "-", "Reopen Closed Tab"]);
+  assert.deepEqual(labels(e), [
+    "Close",
+    "Close Other Tabs",
+    "Close Tabs to the Right",
+    "-",
+    "Copy Link",
+    "Pin",
+    "-",
+    "Reopen Closed Tab",
+  ]);
   assert.equal(rows(e)[0]!.hint, "⌘W");
   assert.equal(rows(e).at(-1)!.hint, "⇧⌘T");
   assert.ok(labels(tabMenu(tabFacts({ pinned: true }), d)).includes("Unpin"));
-  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false }), d)), ["Close", "-", "Pin"]);
+  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false }), d)), [
+    "Close",
+    "-",
+    "Pin",
+  ]);
   assert.ok(!labels(e).includes("Move to New Window") && !labels(e).includes("Duplicate"), "no item the app cannot do");
   calls.length = 0;
   for (const x of rows(e)) x.onSelect?.();
@@ -110,14 +331,31 @@ test("tab: the words follow pinned; Close Others and Right only when there are o
 
 // ---- Console rows
 test("console person: Suspend or Reactivate by state, no actions on yourself or the owner, Remove last", () => {
-  const d = { ...recorder<Parameters<typeof consolePersonMenu>[1]>(["open", "copyName", "suspend", "reactivate", "changeRole", "remove"]) };
+  const d = {
+    ...recorder<Parameters<typeof consolePersonMenu>[1]>([
+      "open",
+      "copyName",
+      "suspend",
+      "reactivate",
+      "changeRole",
+      "remove",
+    ]),
+  };
   const base = { name: "Sara", manage: true, suspended: false, self: false, owner: false };
   const e = consolePersonMenu(base, d);
   assert.deepEqual(labels(e), ["Open", "Copy Name", "-", "Suspend", "Change Role…", "-", "Remove from Space…"]);
   dangerLast(e);
   assert.ok(labels(consolePersonMenu({ ...base, suspended: true }, d)).includes("Reactivate"));
-  assert.deepEqual(labels(consolePersonMenu({ ...base, self: true }, d)), ["Open", "Copy Name", "-", "Change Role…"], "you cannot suspend or remove yourself");
-  assert.deepEqual(labels(consolePersonMenu({ ...base, owner: true }, d)), ["Open", "Copy Name", "-"].slice(0, 2), "the owner's role and presence are not changed here");
+  assert.deepEqual(
+    labels(consolePersonMenu({ ...base, self: true }, d)),
+    ["Open", "Copy Name", "-", "Change Role…"],
+    "you cannot suspend or remove yourself",
+  );
+  assert.deepEqual(
+    labels(consolePersonMenu({ ...base, owner: true }, d)),
+    ["Open", "Copy Name", "-"].slice(0, 2),
+    "the owner's role and presence are not changed here",
+  );
   assert.deepEqual(labels(consolePersonMenu({ ...base, manage: false }, d)), ["Open", "Copy Name"]);
   calls.length = 0;
   for (const x of rows(e)) x.onSelect?.();
@@ -125,20 +363,66 @@ test("console person: Suspend or Reactivate by state, no actions on yourself or 
 });
 test("console group, role, computer, number and domain: Manage shows the changing items, Remove or Delete is last", () => {
   const g = recorder<Parameters<typeof consoleGroupMenu>[1]>(["open", "copyName", "addPerson", "rename", "remove"]);
-  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: true, builtIn: false }, g)), ["Open", "Copy Name", "-", "Add Person…", "Rename…", "-", "Delete Group…"]);
-  assert.deepEqual(labels(consoleGroupMenu({ name: "Everyone", manage: true, builtIn: true }, g)), ["Open", "Copy Name", "-", "Add Person…"], "a built-in group is not renamed or deleted");
-  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: false, builtIn: false }, g)), ["Open", "Copy Name"]);
+  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: true, builtIn: false }, g)), [
+    "Open",
+    "Copy Name",
+    "-",
+    "Add Person…",
+    "Rename…",
+    "-",
+    "Delete Group…",
+  ]);
+  assert.deepEqual(
+    labels(consoleGroupMenu({ name: "Everyone", manage: true, builtIn: true }, g)),
+    ["Open", "Copy Name", "-", "Add Person…"],
+    "a built-in group is not renamed or deleted",
+  );
+  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: false, builtIn: false }, g)), [
+    "Open",
+    "Copy Name",
+  ]);
   dangerLast(consoleGroupMenu({ name: "Sales", manage: true, builtIn: false }, g));
   const r = recorder<Parameters<typeof consoleRoleMenu>[1]>(["open", "copyName", "duplicate", "preview", "remove"]);
-  assert.deepEqual(labels(consoleRoleMenu({ name: "Editor", manage: true, builtIn: false, holders: 0 }, r)), ["Open", "Copy Name", "-", "Duplicate", "Preview Changes…", "-", "Delete Role…"]);
-  assert.ok(!labels(consoleRoleMenu({ name: "Admin", manage: true, builtIn: true, holders: 3 }, r)).some((x) => /Delete/.test(x)), "a built-in role is never deleted");
+  assert.deepEqual(labels(consoleRoleMenu({ name: "Editor", manage: true, builtIn: false, holders: 0 }, r)), [
+    "Open",
+    "Copy Name",
+    "-",
+    "Duplicate",
+    "Preview Changes…",
+    "-",
+    "Delete Role…",
+  ]);
+  assert.ok(
+    !labels(consoleRoleMenu({ name: "Admin", manage: true, builtIn: true, holders: 3 }, r)).some((x) =>
+      /Delete/.test(x),
+    ),
+    "a built-in role is never deleted",
+  );
   const held = rows(consoleRoleMenu({ name: "Editor", manage: true, builtIn: false, holders: 2 }, r)).at(-1)!;
   assert.equal(held.disabled, true);
   assert.match(held.reason ?? "", /2 people hold this role/);
   const n = recorder<Parameters<typeof consoleNumberMenu>[1]>(["open", "copyNumber", "assign", "release"]);
-  assert.deepEqual(labels(consoleNumberMenu({ name: "+1 415", manage: true }, n)), ["Open", "Copy Number", "-", "Assign…", "-", "Release Number…"]);
+  assert.deepEqual(labels(consoleNumberMenu({ name: "+1 415", manage: true }, n)), [
+    "Open",
+    "Copy Number",
+    "-",
+    "Assign…",
+    "-",
+    "Release Number…",
+  ]);
   const m = recorder<Parameters<typeof consoleDomainMenu>[1]>(["open", "copyName", "check", "remove"]);
-  assert.deepEqual(labels(consoleDomainMenu({ name: "firm.test", manage: true }, m)), ["Open", "Copy Name", "-", "Check Now", "-", "Remove Domain…"]);
+  assert.deepEqual(labels(consoleDomainMenu({ name: "firm.test", manage: true }, m)), [
+    "Open",
+    "Copy Name",
+    "-",
+    "Check Now",
+    "-",
+    "Remove Domain…",
+  ]);
   assert.deepEqual(labels(consoleDomainMenu({ name: "firm.test", manage: false }, m)), ["Open", "Copy Name"]);
-  for (const e of [consoleNumberMenu({ name: "n", manage: true }, n), consoleDomainMenu({ name: "d", manage: true }, m)]) dangerLast(e);
+  for (const e of [
+    consoleNumberMenu({ name: "n", manage: true }, n),
+    consoleDomainMenu({ name: "d", manage: true }, m),
+  ])
+    dangerLast(e);
 });

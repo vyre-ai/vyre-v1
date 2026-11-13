@@ -27,7 +27,11 @@ export function recipeName(site) {
 }
 
 /** @param {string} segment */
-const changing = (segment) => /^\d{2,}$/.test(segment) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) || /^[A-Za-z0-9_-]{20,}$/.test(segment) || /^[a-z]{2,5}_[a-z0-9]{6,}$/.test(segment);
+const changing = (segment) =>
+  /^\d{2,}$/.test(segment) ||
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
+  /^[A-Za-z0-9_-]{20,}$/.test(segment) ||
+  /^[a-z]{2,5}_[a-z0-9]{6,}$/.test(segment);
 
 /**
  * An address as a call template: origin, then the path with each changing part named {id}, {id2}..., and the query keys as parameters (values dropped).
@@ -36,11 +40,22 @@ const changing = (segment) => /^\d{2,}$/.test(segment) || /^[0-9a-f]{8}-[0-9a-f]
 export function callTemplate(u) {
   /** @type {URL} */
   let x;
-  try { x = new URL(u); } catch { return null; }
+  try {
+    x = new URL(u);
+  } catch {
+    return null;
+  }
   if (x.protocol !== "https:" && x.protocol !== "http:") return null;
   let n = 0;
-  const path = x.pathname.split("/").map((s) => (s && changing(s) ? (n++ === 0 ? "{id}" : `{id${n}}`) : s)).join("/");
-  return { template: `${x.protocol}//${x.host}${path}`, host: x.hostname.toLowerCase(), query: [...new Set([...x.searchParams.keys()])].sort() };
+  const path = x.pathname
+    .split("/")
+    .map((s) => (s && changing(s) ? (n++ === 0 ? "{id}" : `{id${n}}`) : s))
+    .join("/");
+  return {
+    template: `${x.protocol}//${x.host}${path}`,
+    host: x.hostname.toLowerCase(),
+    query: [...new Set([...x.searchParams.keys()])].sort(),
+  };
 }
 
 /** @param {unknown} v @returns {string} */
@@ -70,7 +85,11 @@ export function paramsOf(body, mime) {
   if (/x-www-form-urlencoded/i.test(mime ?? "")) {
     for (const k of new URLSearchParams(body).keys()) out.push({ name: k, type: "string", secret: isSecretName(k) });
   } else {
-    try { walk(JSON.parse(body), "", 0); } catch { /* not JSON: no parameters to name */ }
+    try {
+      walk(JSON.parse(body), "", 0);
+    } catch {
+      /* not JSON: no parameters to name */
+    }
   }
   const seen = new Set();
   return out.filter((p) => (seen.has(p.name) ? false : (seen.add(p.name), true))).slice(0, 40);
@@ -80,12 +99,18 @@ export function paramsOf(body, mime) {
 function stepLine(s) {
   const target = s.name ? ` ${s.role ?? "element"} "${scrub(s.name)}"` : s.role ? ` ${s.role}` : "";
   switch (s.kind) {
-    case "navigate": return `Open ${scrub(s.url ?? "")}`;
-    case "click": return `Click${target || " the element"}`;
-    case "type": return `Type into${target || " the field"} (a value from the Vault or the task, never written here)`;
-    case "select": return `Choose an option in${target || " the list"}`;
-    case "key": return `Press ${scrub(s.key ?? "a key")}`;
-    default: return "Do a step";
+    case "navigate":
+      return `Open ${scrub(s.url ?? "")}`;
+    case "click":
+      return `Click${target || " the element"}`;
+    case "type":
+      return `Type into${target || " the field"} (a value from the Vault or the task, never written here)`;
+    case "select":
+      return `Choose an option in${target || " the list"}`;
+    case "key":
+      return `Press ${scrub(s.key ?? "a key")}`;
+    default:
+      return "Do a step";
   }
 }
 
@@ -104,7 +129,14 @@ export function callNotes(rec) {
     if (!t || !hostUnder(t.host, site)) continue;
     const key = `${c.method.toUpperCase()} ${t.template}`;
     if (found.has(key)) continue;
-    found.set(key, { method: c.method.toUpperCase(), template: t.template, query: t.query, params: paramsOf(c.body, c.mime), status: c.status, ...(c.ms !== undefined ? { ms: c.ms } : {}) });
+    found.set(key, {
+      method: c.method.toUpperCase(),
+      template: t.template,
+      query: t.query,
+      params: paramsOf(c.body, c.mime),
+      status: c.status,
+      ...(c.ms !== undefined ? { ms: c.ms } : {}),
+    });
     if (found.size >= MAX_CALLS) break;
   }
   return [...found.values()];
@@ -138,7 +170,11 @@ export function recipeNote(rec, o = {}) {
   ];
   if (!calls.length) lines.push("(none seen)");
   for (const c of calls) {
-    lines.push("", `### ${c.method} ${c.template}`, `- Worked in the recording (${c.status}${c.ms !== undefined ? `, ${c.ms} ms` : ""}).`);
+    lines.push(
+      "",
+      `### ${c.method} ${c.template}`,
+      `- Worked in the recording (${c.status}${c.ms !== undefined ? `, ${c.ms} ms` : ""}).`,
+    );
     if (c.query.length) lines.push(`- Query: ${c.query.join(", ")}`);
     if (c.params.length) {
       lines.push("- Parameters:");
@@ -161,10 +197,21 @@ export async function saveRecipe(session, note, meta) {
   const files = Array.isArray(listed && listed.files) ? listed.files : [];
   const have = files.find((/** @type {any} */ f) => f && f.name === note.name);
   if (have && typeof have.id === "string") {
-    await session.invoke("files.write", { fileId: have.id, content: note.markdown, reason: `Recipe relearned from ${meta.recordingId}` });
+    await session.invoke("files.write", {
+      fileId: have.id,
+      content: note.markdown,
+      reason: `Recipe relearned from ${meta.recordingId}`,
+    });
     return { path: note.path, created: false, fileId: have.id };
   }
-  const made = await session.invoke("files.create", { folderId: session.recipesFolderId, name: note.name, content: note.markdown, mime: "text/markdown", kind: "file", idempotencyKey: `recipe-${note.name}-${meta.recordingId}` });
+  const made = await session.invoke("files.create", {
+    folderId: session.recipesFolderId,
+    name: note.name,
+    content: note.markdown,
+    mime: "text/markdown",
+    kind: "file",
+    idempotencyKey: `recipe-${note.name}-${meta.recordingId}`,
+  });
   const id = made && (made.file && made.file.id ? made.file.id : made.id);
   return { path: note.path, created: true, fileId: typeof id === "string" ? id : "" };
 }

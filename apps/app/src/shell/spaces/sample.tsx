@@ -16,7 +16,8 @@ export interface SampleRow {
   title: string;
 }
 
-const rows = (id: string, titles: readonly string[]): SampleRow[] => titles.map((title, i) => ({ id: `${id}-${i + 1}`, title }));
+const rows = (id: string, titles: readonly string[]): SampleRow[] =>
+  titles.map((title, i) => ({ id: `${id}-${i + 1}`, title }));
 
 /** What each Space shows in each place. A place a Space has nothing in shows its empty line. */
 export const SAMPLE_ROWS: Readonly<Record<string, Readonly<Partial<Record<PlaceId, readonly SampleRow[]>>>>> = {
@@ -71,7 +72,9 @@ export function SamplePlace({ ctx }: { ctx: PlaceContext }): ReactElement {
   const list = SAMPLE_ROWS[ctx.spaceId]?.[ctx.place] ?? [];
   return (
     <View testID={`sample-${ctx.place}`} style={styles.page}>
-      <Text accessibilityRole="header" style={styles.h1}>{PLACE_TITLE[ctx.place]}</Text>
+      <Text accessibilityRole="header" style={styles.h1}>
+        {PLACE_TITLE[ctx.place]}
+      </Text>
       {list.length === 0 ? <Text style={styles.empty}>Nothing here yet</Text> : null}
       {rowViews(list)}
       {ctx.hash === "" ? null : <Text style={styles.empty}>{`Opened ${ctx.hash}`}</Text>}
@@ -87,7 +90,9 @@ export function memoryStorage(): TabsStorage & { dump(): Record<string, string> 
   const data = new Map<string, string>();
   return {
     getItem: (k) => data.get(k) ?? null,
-    setItem: (k, v) => { data.set(k, v); },
+    setItem: (k, v) => {
+      data.set(k, v);
+    },
     dump: () => Object.fromEntries(data),
   };
 }
@@ -117,7 +122,13 @@ export function createSampleShell(options: SampleShellOptions = {}): ShellHub {
 const styles = StyleSheet.create({
   page: { flex: 1, padding: 24, gap: 8, backgroundColor: "var(--win)" as string },
   h1: { fontSize: 22, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 8 },
-  row: { height: 32, justifyContent: "center", paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  row: {
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "var(--sunk)" as string,
+  },
   rowText: { fontSize: 13.5, color: "var(--ink)" as string },
   empty: { fontSize: 13, color: "var(--ink-3)" as string },
 });

@@ -14,13 +14,23 @@ test("backup.list shows the backup right after backup.run, with governance live"
   try {
     const admin = s.d.token;
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-backup-list-"));
-    const set = await s.call("backup.config_set", admin, { idempotencyKey: "bl-cfg", target: { kind: "local", path: target }, schedule: "0 3 * * *", enabled: true });
+    const set = await s.call("backup.config_set", admin, {
+      idempotencyKey: "bl-cfg",
+      target: { kind: "local", path: target },
+      schedule: "0 3 * * *",
+      enabled: true,
+    });
     assert.equal(set.status, 200, JSON.stringify(set.body));
     const run = await s.call("backup.run", admin, { idempotencyKey: "bl-run" });
     assert.equal(run.status, 200, JSON.stringify(run.body));
     const list = await s.call("backup.list", admin, {});
     assert.equal(list.status, 200, JSON.stringify(list.body));
     const attempts = s.d.db.all("SELECT backup_id, state, reason FROM backup_item");
-    assert.ok(list.body.data.backups.some((b) => b.backupId === run.body.data.backupId), `the backup is listed; stored attempts: ${JSON.stringify(attempts)}`);
-  } finally { await s.stop(); }
+    assert.ok(
+      list.body.data.backups.some((b) => b.backupId === run.body.data.backupId),
+      `the backup is listed; stored attempts: ${JSON.stringify(attempts)}`,
+    );
+  } finally {
+    await s.stop();
+  }
 });

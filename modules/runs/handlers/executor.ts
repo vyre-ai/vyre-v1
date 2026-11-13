@@ -11,7 +11,11 @@ import type { DriveOptions, Executor, PlanStep } from "./engine.ts";
 import { findRun } from "../projections.ts";
 import type { Run, RunsCtx } from "../projections.ts";
 
-export interface ResolvedRun { plan: readonly PlanStep[]; exec: Executor; opts?: DriveOptions }
+export interface ResolvedRun {
+  plan: readonly PlanStep[];
+  exec: Executor;
+  opts?: DriveOptions;
+}
 export interface RunsHost {
   /** What to execute for this Run, or nothing when it is not a Run this server executes. */
   resolve(run: Run): Promise<ResolvedRun | undefined> | ResolvedRun | undefined;
@@ -21,7 +25,9 @@ export interface RunsHost {
 
 let host: RunsHost | null = null;
 /** The host registers its half once at boot (ruling 31). Null takes it back. */
-export function setRunsHost(h: RunsHost | null): void { host = h; }
+export function setRunsHost(h: RunsHost | null): void {
+  host = h;
+}
 
 type Row = Record<string, unknown>;
 

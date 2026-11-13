@@ -15,16 +15,38 @@ export function readPage(textMax, selMax) {
   const g = /** @type {any} */ (globalThis);
   const doc = g.document;
   const body = doc.body;
-  const text = body ? String(body.innerText || "").replace(/\n{3,}/g, "\n\n").slice(0, textMax) : "";
+  const text = body
+    ? String(body.innerText || "")
+        .replace(/\n{3,}/g, "\n\n")
+        .slice(0, textMax)
+    : "";
   let selection = "";
   const sel = g.getSelection ? g.getSelection() : null;
   const active = doc.activeElement;
   const inSecret = active && active.tagName === "INPUT" && String(active.type).toLowerCase() === "password";
-  if (sel && !inSecret) selection = String(sel.toString() || "").trim().slice(0, selMax);
-  const emails = [...new Set((text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((e) => e.toLowerCase()))].slice(0, 10);
-  const phones = [...new Set((text.match(/\+?\d[\d ().-]{7,}\d/g) || []).map((p) => p.replace(/[^\d+]/g, "")).filter((p) => p.length >= 8 && p.length <= 15))].slice(0, 10);
+  if (sel && !inSecret)
+    selection = String(sel.toString() || "")
+      .trim()
+      .slice(0, selMax);
+  const emails = [
+    ...new Set((text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map((e) => e.toLowerCase())),
+  ].slice(0, 10);
+  const phones = [
+    ...new Set(
+      (text.match(/\+?\d[\d ().-]{7,}\d/g) || [])
+        .map((p) => p.replace(/[^\d+]/g, ""))
+        .filter((p) => p.length >= 8 && p.length <= 15),
+    ),
+  ].slice(0, 10);
   const desc = doc.querySelector('meta[name="description"]');
-  return { title: String(doc.title || ""), description: desc ? String(desc.getAttribute("content") || "").slice(0, 300) : "", text, selection, emails, phones };
+  return {
+    title: String(doc.title || ""),
+    description: desc ? String(desc.getAttribute("content") || "").slice(0, 300) : "",
+    text,
+    selection,
+    emails,
+    phones,
+  };
 }
 
 /**
@@ -35,9 +57,15 @@ export function createContext(ext, privacy) {
   /** @param {number} tabId */
   async function read(tabId) {
     try {
-      const [r] = await ext.scripting.executeScript({ target: { tabId }, func: readPage, args: [TEXT_MAX, SELECTION_MAX] });
+      const [r] = await ext.scripting.executeScript({
+        target: { tabId },
+        func: readPage,
+        args: [TEXT_MAX, SELECTION_MAX],
+      });
       return r && r.result ? r.result : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   return {
@@ -49,7 +77,13 @@ export function createContext(ext, privacy) {
     async page(tab, o = {}) {
       const may = await privacy.of(tab);
       const p = pageOf(tab && tab.url);
-      const base = { tabId: tab ? tab.id : null, url: tab ? String(tab.url || "") : "", title: tab ? String(tab.title || "") : "", host: p ? p.host : "", privacy: may };
+      const base = {
+        tabId: tab ? tab.id : null,
+        url: tab ? String(tab.url || "") : "",
+        title: tab ? String(tab.title || "") : "",
+        host: p ? p.host : "",
+        privacy: may,
+      };
       if (!may.read) return { ...base, page: null, shot: null };
       const got = o.text === false ? null : await read(tab.id);
       const shot = o.shot === false ? null : await maskedShot(ext, tab.id, { maxW: 1280 });

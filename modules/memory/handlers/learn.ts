@@ -16,8 +16,24 @@ import { HOWS, correctionOf, groundedIn, lessonsOn, writeLesson } from "../lesso
 import type { How } from "../lessons.ts";
 import type { ListedModel } from "../learn-model.ts";
 import {
-  accountFailed, accountOf, accountServed, capsOf, chatForgotten, countRulePass, cursorOf, isLimitError, learnTables, localDay, MODEL_TTL_MS, moveCursor, rememberModel, reservationFor, reserve,
-  settle, timezoneOf, usageOf,
+  accountFailed,
+  accountOf,
+  accountServed,
+  capsOf,
+  chatForgotten,
+  countRulePass,
+  cursorOf,
+  isLimitError,
+  learnTables,
+  localDay,
+  MODEL_TTL_MS,
+  moveCursor,
+  rememberModel,
+  reservationFor,
+  reserve,
+  settle,
+  timezoneOf,
+  usageOf,
 } from "../learn-quota.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
@@ -33,7 +49,12 @@ import type { CaptureMessage } from "./facts.ts";
 
 // ---- seams for the sibling lanes
 
-export interface LearnTarget { layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null }
+export interface LearnTarget {
+  layer: Layer;
+  ownerRef: string;
+  agentId: string | null;
+  projectId: string | null;
+}
 export interface LearnSeams {
   /** Where a fact learned about the asker lands. Default: their own person layer, kept by the agent that learned it. */
   target(i: { asker: string; agentId: string | null; threadId: string }): LearnTarget;
@@ -46,12 +67,17 @@ const DEFAULT_SEAMS: LearnSeams = {
 };
 let seams: LearnSeams = DEFAULT_SEAMS;
 /** A sibling lane binds its own target or audience rule here; null puts the defaults back. */
-export function setLearnSeams(s: Partial<LearnSeams> | null): void { seams = s ? { ...DEFAULT_SEAMS, ...s } : DEFAULT_SEAMS; }
+export function setLearnSeams(s: Partial<LearnSeams> | null): void {
+  seams = s ? { ...DEFAULT_SEAMS, ...s } : DEFAULT_SEAMS;
+}
 
 // ---- the one hook: may memory learn from this chat?
 
 /** The chat fields shouldLearn reads: the thread setting `memory.off` (lane l-decisions' composer switch sets it, at the top of the thread or under its settings). */
-export interface LearnThread { "memory.off"?: unknown; settings?: Record<string, unknown> | null }
+export interface LearnThread {
+  "memory.off"?: unknown;
+  settings?: Record<string, unknown> | null;
+}
 /**
  * "Don't remember this chat" (owner decision D11): false when the thread setting `memory.off` is true, or when memory's own switch (memory.chat_learning.set) is off.
  * Every learning path asks this first, the pass after a turn and capture at chat end, and when it says no nothing is read and nothing is written.
@@ -63,13 +89,37 @@ export function shouldLearn(ctx: Pick<MemCtx, "db">, threadId: string, thread?: 
 
 // ---- the model pass
 
-export interface TurnAccount { ref: string; driver: string; kind?: string; payer?: string; spaceKey?: boolean }
-export interface LearnIn { threadId: string; reason: "turn"; turnId?: string; agentId?: string; account?: TurnAccount }
+export interface TurnAccount {
+  ref: string;
+  driver: string;
+  kind?: string;
+  payer?: string;
+  spaceKey?: boolean;
+}
+export interface LearnIn {
+  threadId: string;
+  reason: "turn";
+  turnId?: string;
+  agentId?: string;
+  account?: TurnAccount;
+}
 export interface LearnOut {
-  proposed: number; merged: number; updated?: number; closed?: number; via?: "model" | "rules" | "none"; skipped?: "forgotten" | "off" | "nothing_new";
+  proposed: number;
+  merged: number;
+  updated?: number;
+  closed?: number;
+  via?: "model" | "rules" | "none";
+  skipped?: "forgotten" | "off" | "nothing_new";
 }
 
-export const LEARN_KINDS: ReadonlySet<string> = new Set(["preference", "profile", "decision", "deadline", "relationship", "note"]);
+export const LEARN_KINDS: ReadonlySet<string> = new Set([
+  "preference",
+  "profile",
+  "decision",
+  "deadline",
+  "relationship",
+  "note",
+]);
 /** In a chat with other people, the rules keep only what a person says about themselves ("I prefer", "my X is"): decisions, deadlines and notes there are the group's, not theirs. */
 const SELF_KINDS: ReadonlySet<string> = new Set(["preference", "profile"]);
 const MAX_LINE_CHARS = 1_200;
@@ -77,28 +127,41 @@ const MAX_PROMPT_LINES_CHARS = 8_000;
 const RELATED_MATCHED = 12;
 const RELATED_TOTAL = 20;
 
-export const LEARN_SYSTEM = "You keep one person's private memory. You are given what we already know about them (id: fact) and the lines of a chat since you last looked. " +
+export const LEARN_SYSTEM =
+  "You keep one person's private memory. You are given what we already know about them (id: fact) and the lines of a chat since you last looked. " +
   "Decide what is worth remembering for later chats: who they are, how they like work done, the people, clients, dates and decisions they deal with. " +
-  "Answer with one JSON object and nothing else: {\"ops\":[...]}. Each op is one of: " +
-  "{\"op\":\"add\",\"line\":N,\"text\":a short fact that reads well on its own,\"kind\":\"preference\"|\"profile\"|\"decision\"|\"deadline\"|\"relationship\"|\"note\"}; " +
-  "{\"op\":\"update\",\"id\":a known id,\"line\":N,\"text\":the fact as it is now} when a line changes something we know; " +
-  "{\"op\":\"close\",\"id\":a known id,\"line\":N} when a line says something we know is no longer true. " +
+  'Answer with one JSON object and nothing else: {"ops":[...]}. Each op is one of: ' +
+  '{"op":"add","line":N,"text":a short fact that reads well on its own,"kind":"preference"|"profile"|"decision"|"deadline"|"relationship"|"note"}; ' +
+  '{"op":"update","id":a known id,"line":N,"text":the fact as it is now} when a line changes something we know; ' +
+  '{"op":"close","id":a known id,"line":N} when a line says something we know is no longer true. ' +
   "Learn only from lines marked You; N is that line's number. Skip questions, small talk, one-off requests and anything you are unsure of. Use only ids you were given. " +
-  "When nothing is worth keeping answer {\"ops\":[]}.";
+  'When nothing is worth keeping answer {"ops":[]}.';
 
 /** What a pass is also told when the person keeps lessons (setting memory.lessons): a line that corrects the agent becomes a short rule for next time. */
-export const LESSON_SYSTEM = " When a You line corrects what the Agent just did (it edits or rewrites the Agent's draft, says no, undoes or refuses something, asks for it another way), also add " +
-  "{\"op\":\"lesson\",\"line\":N,\"text\":the rule the Agent should follow next time, one short sentence using only words from the chat,\"how\":\"edit\"|\"refuse\"|\"reverse\"|\"rewrite\"}. " +
+export const LESSON_SYSTEM =
+  " When a You line corrects what the Agent just did (it edits or rewrites the Agent's draft, says no, undoes or refuses something, asks for it another way), also add " +
+  '{"op":"lesson","line":N,"text":the rule the Agent should follow next time, one short sentence using only words from the chat,"how":"edit"|"refuse"|"reverse"|"rewrite"}. ' +
   "A lesson is about how the Agent should work for this person, never a fact about someone else.";
 
-export interface LearnOp { op: "add" | "update" | "close" | "lesson"; line: number; text?: string; kind?: string; id?: string; how?: How }
+export interface LearnOp {
+  op: "add" | "update" | "close" | "lesson";
+  line: number;
+  text?: string;
+  kind?: string;
+  id?: string;
+  how?: How;
+}
 /** The ops in a model's answer: the first JSON object in the text, each op checked for the fields it needs. Anything else is dropped. */
 export function parseOps(text: string): LearnOp[] {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return [];
   let obj: unknown;
-  try { obj = JSON.parse(text.slice(start, end + 1)); } catch { return []; }
+  try {
+    obj = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return [];
+  }
   const list = (obj as { ops?: unknown }).ops;
   if (!Array.isArray(list)) return [];
   const out: LearnOp[] = [];
@@ -109,28 +172,45 @@ export function parseOps(text: string): LearnOp[] {
     const id = typeof o["id"] === "string" ? o["id"] : "";
     const kind = typeof o["kind"] === "string" && LEARN_KINDS.has(o["kind"]) ? o["kind"] : "note";
     if (o["op"] === "add" && words.length >= 3) out.push({ op: "add", line, text: words.slice(0, 300), kind });
-    else if (o["op"] === "update" && id !== "" && words.length >= 3) out.push({ op: "update", line, id, text: words.slice(0, 300) });
+    else if (o["op"] === "update" && id !== "" && words.length >= 3)
+      out.push({ op: "update", line, id, text: words.slice(0, 300) });
     else if (o["op"] === "close" && id !== "") out.push({ op: "close", line, id });
-    else if (o["op"] === "lesson" && words.length >= 8) out.push({ op: "lesson", line, text: words.slice(0, 200), how: typeof o["how"] === "string" && HOWS.has(o["how"]) ? (o["how"] as How) : "rewrite" });
+    else if (o["op"] === "lesson" && words.length >= 8)
+      out.push({
+        op: "lesson",
+        line,
+        text: words.slice(0, 200),
+        how: typeof o["how"] === "string" && HOWS.has(o["how"]) ? (o["how"] as How) : "rewrite",
+      });
   }
   return out;
 }
 
-interface Line { n: number; mine: boolean; m: CaptureMessage & { threadSeq?: number } }
+interface Line {
+  n: number;
+  mine: boolean;
+  m: CaptureMessage & { threadSeq?: number };
+}
 
 export function promptOf(i: { today: string; shared: boolean; known: Fact[]; lines: Line[] }): string {
   const out = [`Today is ${i.today}.`];
-  if (i.shared) out.push("Other people are in this chat. Keep only what this person says about themselves, never a fact about anyone else in the chat.");
+  if (i.shared)
+    out.push(
+      "Other people are in this chat. Keep only what this person says about themselves, never a fact about anyone else in the chat.",
+    );
   out.push("", "What we already know:");
   if (i.known.length === 0) out.push("(nothing yet)");
   for (const f of i.known) out.push(`- ${f.id}: ${f.text.replace(/\s+/g, " ")}`);
   out.push("", "The chat since you last looked:");
-  for (const l of i.lines) out.push(`[${l.n}] ${l.mine ? "You" : "Agent"}: ${l.m.body.replace(/\s+/g, " ").slice(0, MAX_LINE_CHARS)}`);
+  for (const l of i.lines)
+    out.push(`[${l.n}] ${l.mine ? "You" : "Agent"}: ${l.m.body.replace(/\s+/g, " ").slice(0, MAX_LINE_CHARS)}`);
   return out.join("\n");
 }
 
-const ACKS = /^(?:ok(?:ay)?|k|thanks?|thank you|thx|ty|yes|yep|yeah|no|nope|sure|great|cool|nice|done|perfect|good|fine|got it|sounds good|lgtm|please|go ahead|do it)[\s.!]*$/i;
-const worthAPass = (lines: Line[]): boolean => lines.some((l) => l.mine && l.m.body.trim().length >= 12 && !ACKS.test(l.m.body.trim()));
+const ACKS =
+  /^(?:ok(?:ay)?|k|thanks?|thank you|thx|ty|yes|yep|yeah|no|nope|sure|great|cool|nice|done|perfect|good|fine|got it|sounds good|lgtm|please|go ahead|do it)[\s.!]*$/i;
+const worthAPass = (lines: Line[]): boolean =>
+  lines.some((l) => l.mine && l.m.body.trim().length >= 12 && !ACKS.test(l.m.body.trim()));
 /** A body that is still an envelope (modules/chat/handlers/private.ts) cannot be read here. */
 const sealedBody = (m: CaptureMessage): boolean => Boolean(m.enc) && /^enc2\.\d+\./.test(m.body);
 
@@ -140,10 +220,20 @@ export async function modeOf(ctx: MemCtx, agentId: string | null): Promise<Captu
   try {
     const m = ((await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } }).agent?.captureMode;
     return m === "off" || m === "propose" || m === "auto_low_risk" || m === "auto" ? m : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-interface ThreadIn extends LearnThread { kind?: string; /** when each person after the first joined: what was said before is not theirs to have read */ joinedAt?: Record<string, number>; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
+interface ThreadIn extends LearnThread {
+  kind?: string;
+  /** when each person after the first joined: what was said before is not theirs to have read */ joinedAt?: Record<
+    string,
+    number
+  >;
+  agents?: Array<{ agentId: string; mode: string }>;
+  members?: Array<{ kind?: string; id?: string }>;
+}
 
 /**
  * The model this account learns with: the one remembered for it, else the cheapest on its saved list. The list is read passively (probe: false): a learning pass never asks the vendor,
@@ -151,27 +241,45 @@ interface ThreadIn extends LearnThread { kind?: string; /** when each person aft
  */
 async function modelFor(ctx: MemCtx, acct: TurnAccount, now: number): Promise<string | null> {
   const known = accountOf(ctx, acct.ref);
-  if (known.model !== null && now - known.modelAt < (known.model === "-" ? MODEL_TTL_MS / 12 : MODEL_TTL_MS)) return known.model === "-" ? null : known.model;
+  if (known.model !== null && now - known.modelAt < (known.model === "-" ? MODEL_TTL_MS / 12 : MODEL_TTL_MS))
+    return known.model === "-" ? null : known.model;
   let listed: ListedModel[] = [];
-  try { listed = ((await ctx.call("engine.models.list", { accountRef: acct.ref, probe: false })) as { models?: ListedModel[] }).models ?? []; } catch { listed = []; }
+  try {
+    listed =
+      ((await ctx.call("engine.models.list", { accountRef: acct.ref, probe: false })) as { models?: ListedModel[] })
+        .models ?? [];
+  } catch {
+    listed = [];
+  }
   const pick = cheapestModel(acct.driver, listed);
   rememberModel(ctx, acct.ref, pick ?? "-", now);
   return pick;
 }
 
-interface Tally { proposed: number; merged: number; updated: number; closed: number }
+interface Tally {
+  proposed: number;
+  merged: number;
+  updated: number;
+  closed: number;
+}
 
 export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> {
   ensure(ctx.db);
   learnTables(ctx.db);
-  const none = (skipped?: LearnOut["skipped"]): LearnOut => ({ proposed: 0, merged: 0, via: "none", ...(skipped ? { skipped } : {}) });
+  const none = (skipped?: LearnOut["skipped"]): LearnOut => ({
+    proposed: 0,
+    merged: 0,
+    via: "none",
+    ...(skipped ? { skipped } : {}),
+  });
   // only a person learns about themselves: the engine hands the chat over as the person whose turn it was
-  if (ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "Learning runs for the person whose turn it was.");
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "permission.no_grant", "Learning runs for the person whose turn it was.");
   const asker = actorOf(ctx);
   if (!shouldLearn(ctx, input.threadId)) return none("forgotten");
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as { thread?: ThreadIn }).thread ?? {};
   if (!shouldLearn(ctx, input.threadId, t)) return none("forgotten");
-  if (t.kind === "run") return none("off");   // a routine's run: nothing a person said
+  if (t.kind === "run") return none("off"); // a routine's run: nothing a person said
   const agentId = input.agentId ?? (t.agents?.find((a) => a.mode === "lead") ?? t.agents?.[0])?.agentId ?? null;
   const mode = await modeOf(ctx, agentId);
   if (mode === "off") return none("off");
@@ -180,14 +288,25 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
 
   // what is new since this person's last pass; the cursor moves before any slow step, so two passes that end together never read the same lines
   const from = cursorOf(ctx, input.threadId, asker);
-  const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, ...(from >= 0 ? { after: from } : {}), limit: 200 })) as { messages: Array<CaptureMessage & { threadSeq?: number }> };
-  const seen = cursorOf(ctx, input.threadId, asker);   // read again: a pass that ended meanwhile may have taken some of these
-  const fresh = page.messages.filter((m) => num(m.threadSeq) > seen).sort((a, b) => num(a.threadSeq) - num(b.threadSeq));
+  const page = (await ctx.call("chat.messages.list", {
+    threadId: input.threadId,
+    ...(from >= 0 ? { after: from } : {}),
+    limit: 200,
+  })) as { messages: Array<CaptureMessage & { threadSeq?: number }> };
+  const seen = cursorOf(ctx, input.threadId, asker); // read again: a pass that ended meanwhile may have taken some of these
+  const fresh = page.messages
+    .filter((m) => num(m.threadSeq) > seen)
+    .sort((a, b) => num(a.threadSeq) - num(b.threadSeq));
   if (fresh.length === 0) return none("nothing_new");
   moveCursor(ctx, input.threadId, asker, Math.max(...fresh.map((m) => num(m.threadSeq))));
   const lines: Line[] = [];
   let chars = 0;
-  const cut = Math.max(0, ...Object.entries(t.joinedAt ?? {}).filter(([id]) => id !== asker).map(([, at]) => num(at)));
+  const cut = Math.max(
+    0,
+    ...Object.entries(t.joinedAt ?? {})
+      .filter(([id]) => id !== asker)
+      .map(([, at]) => num(at)),
+  );
   const beforeJoin = new Set<string>();
   for (const m of fresh) {
     if (sealedBody(m) || IMPORTED_PREAMBLE.test(String(m.body ?? ""))) continue;
@@ -213,37 +332,91 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   // rule 8: what a person says in a place other people read is that place's memory, not their private one; their own one-to-one chats stay private
   const place = shared && agentId ? await placeOf(ctx, input.threadId) : null;
   const heard = place ? await chatAudience((cap, i) => ctx.call(cap, i), input.threadId) : null;
-  const target = place && agentId ? { layer: "agent" as const, ownerRef: agentId, agentId, projectId: null } : seams.target({ asker, agentId, threadId: input.threadId });
+  const target =
+    place && agentId
+      ? { layer: "agent" as const, ownerRef: agentId, agentId, projectId: null }
+      : seams.target({ asker, agentId, threadId: input.threadId });
   const audience = seams.audience({ threadId: input.threadId, shared, people });
   const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
   const keepLessons = await lessonsOn(ctx);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, said: new Map(lines.map((l) => [l.m.messageId, String(l.m.body ?? "")])), beforeJoin, ...(place && heard ? { place, heard } : {}) };
+  const w: Writer = {
+    ctx,
+    threadId: input.threadId,
+    target,
+    audience,
+    who,
+    sourceKind,
+    statusFor,
+    low: (kind) => kinds.includes(kind),
+    known,
+    mode,
+    lessons: keepLessons,
+    shared,
+    agentId,
+    said: new Map(lines.map((l) => [l.m.messageId, String(l.m.body ?? "")])),
+    beforeJoin,
+    ...(place && heard ? { place, heard } : {}),
+  };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
   const { day } = localDay(ctx.now(), tz);
   const taught = new Set<string>();
-  const ran = await modelPass(ctx, input, { asker, day, shared, lines, known: relatedOf(known, mineOnly), w, tally, taught });
+  const ran = await modelPass(ctx, input, {
+    asker,
+    day,
+    shared,
+    lines,
+    known: relatedOf(known, mineOnly),
+    w,
+    tally,
+    taught,
+  });
   if (!ran) {
     // the free rules: the quota is spent, the account is paused or out, or no cheap model is there
     countRulePass(ctx, asker, day);
     for (const c of heuristicExtract(mineOnly)) {
       // in a place others read, the asker's own lines of every kind become the place's memory (the kinds a model keeps are the model's call); elsewhere only what they say about themselves
       if (shared && !place && !SELF_KINDS.has(c.kind)) continue;
-      addFact(w, { text: c.text, kind: c.kind, messageId: c.messageId, key: `${input.threadId}:${c.messageId}:${c.index}` }, tally);
+      addFact(
+        w,
+        { text: c.text, kind: c.kind, messageId: c.messageId, key: `${input.threadId}:${c.messageId}:${c.index}` },
+        tally,
+      );
     }
   }
   // the free rules also catch a correction the model passed over; a line the model already made a lesson from is not counted twice
   if (keepLessons) lessonRules(w, lines, taught, tally, from >= 0);
-  ctx.emit("memory.captured", input.threadId, { threadId: input.threadId, proposed: tally.proposed, merged: tally.merged });
-  return { proposed: tally.proposed, merged: tally.merged, updated: tally.updated, closed: tally.closed, via: ran ? "model" : "rules" };
+  ctx.emit("memory.captured", input.threadId, {
+    threadId: input.threadId,
+    proposed: tally.proposed,
+    merged: tally.merged,
+  });
+  return {
+    proposed: tally.proposed,
+    merged: tally.merged,
+    updated: tally.updated,
+    closed: tally.closed,
+    via: ran ? "model" : "rules",
+  };
 }
 
 /** One model pass on the asker's account, inside the day's quota. False when it did not run (the caller then uses the rules); a provider's limit or fault never leaves this function. */
 async function modelPass(
-  ctx: MemCtx, input: LearnIn, p: { asker: string; day: string; shared: boolean; lines: Line[]; known: Fact[]; w: Writer; tally: Tally; taught: Set<string> },
+  ctx: MemCtx,
+  input: LearnIn,
+  p: {
+    asker: string;
+    day: string;
+    shared: boolean;
+    lines: Line[];
+    known: Fact[];
+    w: Writer;
+    tally: Tally;
+    taught: Set<string>;
+  },
 ): Promise<boolean> {
   const acct = input.account;
   // the account that ran this turn, and only when it is the asker's to spend: someone else's account never pays for this person's memory
@@ -265,9 +438,15 @@ async function modelPass(
     settle(ctx, p.asker, p.day, held, null);
     // the person's computer is off or not on a private link: nothing is wrong with the account, so the pass is only skipped (the rules run) and no pause is put on it
     const code = String((e as { code?: unknown })?.code ?? (e as { error?: { code?: unknown } })?.error?.code ?? "");
-    if (code === "engine.device_off" || code === "engine.link_insecure" || code === "internal.unavailable") { ctx.log.warn("memory learning skipped: the person's computer did not take the pass", { code }); return false; }
+    if (code === "engine.device_off" || code === "engine.link_insecure" || code === "internal.unavailable") {
+      ctx.log.warn("memory learning skipped: the person's computer did not take the pass", { code });
+      return false;
+    }
     accountFailed(ctx, acct.ref, ctx.now(), isLimitError(e));
-    ctx.log.warn("memory learning paused for an account", { limit: isLimitError(e), reason: e instanceof Error ? e.name : "error" });
+    ctx.log.warn("memory learning paused for an account", {
+      limit: isLimitError(e),
+      reason: e instanceof Error ? e.name : "error",
+    });
     return false;
   }
   const tokensIn = num(out.tokensIn);
@@ -277,10 +456,26 @@ async function modelPass(
   const knownById = new Map(p.known.map((f) => [f.id, f]));
   for (const op of parseOps(String(out.text ?? ""))) {
     const line = byLine.get(op.line);
-    if (!line?.mine) continue;   // a fact comes from something the asker said, never from an agent's reply or another person
+    if (!line?.mine) continue; // a fact comes from something the asker said, never from an agent's reply or another person
     const key = `${input.threadId}:${line.m.messageId}:learn`;
-    if (op.op === "lesson") { if (p.w.lessons && addLesson(p.w, { text: op.text!, how: op.how ?? "rewrite", messageId: line.m.messageId, key: `${input.threadId}:${line.m.messageId}:lesson` }, p.lines, p.tally)) p.taught.add(line.m.messageId); }
-    else if (op.op === "add") addFact(p.w, { text: op.text!, kind: op.kind ?? "note", messageId: line.m.messageId, key }, p.tally);
+    if (op.op === "lesson") {
+      if (
+        p.w.lessons &&
+        addLesson(
+          p.w,
+          {
+            text: op.text!,
+            how: op.how ?? "rewrite",
+            messageId: line.m.messageId,
+            key: `${input.threadId}:${line.m.messageId}:lesson`,
+          },
+          p.lines,
+          p.tally,
+        )
+      )
+        p.taught.add(line.m.messageId);
+    } else if (op.op === "add")
+      addFact(p.w, { text: op.text!, kind: op.kind ?? "note", messageId: line.m.messageId, key }, p.tally);
     else {
       const old = knownById.get(op.id!);
       if (!old || old.status !== "current") continue;
@@ -295,54 +490,147 @@ async function modelPass(
 
 /** The person's live facts where learned facts land, newest first (the 300 most recent), opened under their own key. */
 function liveFacts(ctx: MemCtx, target: LearnTarget): Fact[] {
-  const rows = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = ? AND owner_ref = ? AND status = 'current' ORDER BY learned_at DESC, id LIMIT 300", target.layer, target.ownerRef);
-  return rows.map((r) => readFact(ctx, r)).filter((f) => f.text !== "" && (f.validTo === null || f.validTo > ctx.now()));
+  const rows = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_facts WHERE layer = ? AND owner_ref = ? AND status = 'current' ORDER BY learned_at DESC, id LIMIT 300",
+    target.layer,
+    target.ownerRef,
+  );
+  return rows
+    .map((r) => readFact(ctx, r))
+    .filter((f) => f.text !== "" && (f.validTo === null || f.validTo > ctx.now()));
 }
 
 /** The facts a pass is shown: those that share words with what the person just said, then the newest, at most 20. */
 export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
   if (known.length === 0) return [];
   const q = said.map((m) => m.body).join(" ");
-  const ranked = bm25(known.map((f) => ({ title: f.kind ?? "", text: f.text })), q);
-  const matched = known.map((f, i) => ({ f, r: ranked[i]! })).filter((x) => x.r.matched > 0).sort((a, b) => b.r.score - a.r.score).slice(0, RELATED_MATCHED).map((x) => x.f);
+  const ranked = bm25(
+    known.map((f) => ({ title: f.kind ?? "", text: f.text })),
+    q,
+  );
+  const matched = known
+    .map((f, i) => ({ f, r: ranked[i]! }))
+    .filter((x) => x.r.matched > 0)
+    .sort((a, b) => b.r.score - a.r.score)
+    .slice(0, RELATED_MATCHED)
+    .map((x) => x.f);
   const out = [...matched];
-  for (const f of known) { if (out.length >= RELATED_TOTAL) break; if (!out.includes(f)) out.push(f); }
+  for (const f of known) {
+    if (out.length >= RELATED_TOTAL) break;
+    if (!out.includes(f)) out.push(f);
+  }
   return out;
 }
 
 // ---- writing: add, update (close and replace), close
 
 interface Writer {
-  ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience; /** what the person wrote on a line, by message id: a line they marked for themselves only stays theirs */ said?: Map<string, string>; /** their lines said before another person in the place joined: kept in their own layer only */ beforeJoin?: Set<string>;
+  ctx: MemCtx;
+  threadId: string;
+  target: LearnTarget;
+  audience: Array<[string, string]>;
+  who: Who;
+  sourceKind: SourceKind;
+  statusFor(kind: string): FactStatus;
+  low(kind: string): boolean;
+  known: Fact[];
+  mode: CaptureMode | null;
+  lessons: boolean;
+  shared: boolean;
+  agentId: string | null;
+  place?: Place;
+  heard?: Audience;
+  /** what the person wrote on a line, by message id: a line they marked for themselves only stays theirs */ said?: Map<
+    string,
+    string
+  >;
+  /** their lines said before another person in the place joined: kept in their own layer only */ beforeJoin?: Set<string>;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
 
-function write(w0: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
+function write(
+  w0: Writer,
+  f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string },
+  status: FactStatus,
+): Fact {
   // a line the person marked for themselves only is theirs, in their own layer, in any kind of place
   const priv = privateIntent(w0.said?.get(f.messageId) ?? "") || w0.beforeJoin?.has(f.messageId) === true;
-  const w: Writer = priv ? { ...w0, target: { layer: "person", ownerRef: actorOf(w0.ctx), agentId: w0.target.agentId, projectId: null }, place: undefined as never, heard: undefined as never } : w0;
+  const w: Writer = priv
+    ? {
+        ...w0,
+        target: { layer: "person", ownerRef: actorOf(w0.ctx), agentId: w0.target.agentId, projectId: null },
+        place: undefined as never,
+        heard: undefined as never,
+      }
+    : w0;
   const { ctx, target } = w;
   let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
   const base = {
-    layer: target.layer, ownerRef: target.ownerRef, agentId: target.agentId, projectId: target.projectId, kind: f.kind, text: f.text, validFrom: ctx.now(), sourceKind: w.sourceKind,
-    sourceRef: w.threadId, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status, lowRisk: w.low(f.kind),
-    links: [["capture", f.key], ["message", f.messageId], ...w.audience] as Array<[string, string]>, sourceLink: lineLink(w.threadId, f.messageId), how: "learn" as const, who: w.who,
+    layer: target.layer,
+    ownerRef: target.ownerRef,
+    agentId: target.agentId,
+    projectId: target.projectId,
+    kind: f.kind,
+    text: f.text,
+    validFrom: ctx.now(),
+    sourceKind: w.sourceKind,
+    sourceRef: w.threadId,
+    sourcePerson: actorOf(ctx),
+    proposedBy: ctx.principal.id,
+    status,
+    lowRisk: w.low(f.kind),
+    links: [["capture", f.key], ["message", f.messageId], ...w.audience] as Array<[string, string]>,
+    sourceLink: lineLink(w.threadId, f.messageId),
+    how: "learn" as const,
+    who: w.who,
   };
   let fact: Fact;
   if (w.place && w.heard && !f.replaces) {
     // what a person says in a place others read goes through the one door: replace by subject, dispute a clash, keep its place and message
-    const out = writeSharedWith(ctx, { ...base, threadId: w.threadId, heard: w.heard, msgId: f.messageId, span: f.text }, w.place);
-    fact = out.fact; note = out;
+    const out = writeSharedWith(
+      ctx,
+      { ...base, threadId: w.threadId, heard: w.heard, msgId: f.messageId, span: f.text },
+      w.place,
+    );
+    fact = out.fact;
+    note = out;
     if (out.deduped) return fact;
   } else {
     fact = insertFact(ctx, {
-      ...base, ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
-      ...(w.place && w.heard ? { place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) }, placeThread: w.threadId, audience: w.heard, msgId: f.messageId, span: f.text } : {}),
+      ...base,
+      ...(f.replaces ? { replaces: f.replaces } : {}),
+      ...(f.why ? { why: f.why } : {}),
+      ...(w.place && w.heard
+        ? {
+            place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) },
+            placeThread: w.threadId,
+            audience: w.heard,
+            msgId: f.messageId,
+            span: f.text,
+          }
+        : {}),
     });
   }
-  if (w.place && status === "current") void postNoted(ctx, { threadId: w.threadId, factId: fact.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: fact.sourcePerson, at: fact.learnedAt } } } : {}) });
+  if (w.place && status === "current")
+    void postNoted(ctx, {
+      threadId: w.threadId,
+      factId: fact.id,
+      kind: kindOf(f.kind),
+      text: f.text,
+      ...(note.replaced ? { replaces: note.replaced.id } : {}),
+      ...(note.disputedWith ? { disputed: true } : {}),
+      ...(note.questionId && note.disputedWith
+        ? {
+            question: {
+              questionId: note.questionId,
+              a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt },
+              b: { text: f.text, by: fact.sourcePerson, at: fact.learnedAt },
+            },
+          }
+        : {}),
+    });
   emitProposed(ctx, fact);
   emitLearned(ctx, fact, status === "current", w.who);
   if (status === "current") emitAccepted(ctx, fact, true);
@@ -362,11 +650,31 @@ function addFact(w: Writer, f: { text: string; kind: string; messageId: string; 
 // ---- lessons: a correction of the agent's work, kept as a fact of kind lesson (lessons.ts)
 
 /** Keep one lesson from a line. In a chat other people read its words must already be on screen. False when nothing was kept. */
-function addLesson(w: Writer, f: { text: string; how: How; messageId: string; key: string }, lines: Line[], tally: Tally): boolean {
+function addLesson(
+  w: Writer,
+  f: { text: string; how: How; messageId: string; key: string },
+  lines: Line[],
+  tally: Tally,
+): boolean {
   if (!w.agentId) return false;
-  if (w.shared && !groundedIn(f.text, lines.map((l) => l.m.body))) return false;
+  if (
+    w.shared &&
+    !groundedIn(
+      f.text,
+      lines.map((l) => l.m.body),
+    )
+  )
+    return false;
   const made = writeLesson(w.ctx, {
-    agentId: w.agentId, how: f.how, text: f.text, who: w.who, key: f.key, threadId: w.threadId, messageId: f.messageId, sourceKind: w.sourceKind === "channel" ? "channel" : "chat", audience: w.audience,
+    agentId: w.agentId,
+    how: f.how,
+    text: f.text,
+    who: w.who,
+    key: f.key,
+    threadId: w.threadId,
+    messageId: f.messageId,
+    sourceKind: w.sourceKind === "channel" ? "channel" : "chat",
+    audience: w.audience,
     propose: w.mode === "propose",
   });
   if (!made) return false;
@@ -382,7 +690,13 @@ function lessonRules(w: Writer, lines: Line[], taught: Set<string>, tally: Tally
     const afterAgent = i === 0 ? hadBefore : lines[i - 1]?.mine === false;
     if (!l.mine || taught.has(l.m.messageId) || !afterAgent) return;
     const spot = correctionOf(l.m.body);
-    if (spot) addLesson(w, { text: spot.text, how: spot.how, messageId: l.m.messageId, key: `${w.threadId}:${l.m.messageId}:lesson` }, lines, tally);
+    if (spot)
+      addLesson(
+        w,
+        { text: spot.text, how: spot.how, messageId: l.m.messageId, key: `${w.threadId}:${l.m.messageId}:lesson` },
+        lines,
+        tally,
+      );
   });
 }
 
@@ -394,8 +708,16 @@ function updateFact(w: Writer, old: Fact, f: { text: string; messageId: string; 
   const { ctx } = w;
   if (status === "current") {
     const now = ctx.now();
-    ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'", now, now, old.id);
-    w.known.splice(w.known.findIndex((k) => k.id === old.id), 1);
+    ctx.db.run(
+      "UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'",
+      now,
+      now,
+      old.id,
+    );
+    w.known.splice(
+      w.known.findIndex((k) => k.id === old.id),
+      1,
+    );
     write(w, { ...f, kind, replaces: old.id, why: "updated" }, "current");
     tally.updated++;
     tally.merged++;
@@ -409,24 +731,61 @@ function updateFact(w: Writer, old: Fact, f: { text: string; messageId: string; 
 /** A line says a known fact is no longer true. With saving on it closes now, its history kept; otherwise it becomes a question. */
 function closeFact(w: Writer, old: Fact, messageId: string, tally: Tally): void {
   const { ctx } = w;
-  if (w.mode !== "auto") { question(ctx, "stale", old, null); return; }
+  if (w.mode !== "auto") {
+    question(ctx, "stale", old, null);
+    return;
+  }
   const now = ctx.now();
-  ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'", now, now, old.id);
-  ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, 'closed_by', ?)", old.id, messageId);
+  ctx.db.run(
+    "UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'",
+    now,
+    now,
+    old.id,
+  );
+  ctx.db.run(
+    "INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, 'closed_by', ?)",
+    old.id,
+    messageId,
+  );
   trail(ctx, {
-    action: "edit", factId: old.id, layer: old.layer, ownerRef: old.ownerRef, agentId: old.agentId, projectId: old.projectId, who: w.who, source: `${w.sourceKind}:${w.threadId}`,
-    reason: "no longer true", detail: { message: messageId, link: lineLink(w.threadId, messageId) },
+    action: "edit",
+    factId: old.id,
+    layer: old.layer,
+    ownerRef: old.ownerRef,
+    agentId: old.agentId,
+    projectId: old.projectId,
+    who: w.who,
+    source: `${w.sourceKind}:${w.threadId}`,
+    reason: "no longer true",
+    detail: { message: messageId, link: lineLink(w.threadId, messageId) },
   });
-  w.known.splice(w.known.findIndex((k) => k.id === old.id), 1);
+  w.known.splice(
+    w.known.findIndex((k) => k.id === old.id),
+    1,
+  );
   tally.closed++;
 }
 
 function question(ctx: MemCtx, kind: "contradiction" | "stale", a: Fact, b: string | null): void {
-  const open = rowsOf(ctx.db, "SELECT id FROM memory_questions WHERE kind = ? AND fact_a = ? AND COALESCE(fact_b, '') = ? AND status = 'open'", kind, a.id, b ?? "")[0];
+  const open = rowsOf(
+    ctx.db,
+    "SELECT id FROM memory_questions WHERE kind = ? AND fact_a = ? AND COALESCE(fact_b, '') = ? AND status = 'open'",
+    kind,
+    a.id,
+    b ?? "",
+  )[0];
   if (open) return;
   ctx.db.run(
     "INSERT INTO memory_questions (id, kind, fact_a, fact_b, layer, owner_ref, agent_id, project_id, status, created_at, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, NULL)",
-    mintId("qst", ctx.now()), kind, a.id, b, a.layer, a.ownerRef, a.agentId, a.projectId, ctx.now(),
+    mintId("qst", ctx.now()),
+    kind,
+    a.id,
+    b,
+    a.layer,
+    a.ownerRef,
+    a.agentId,
+    a.projectId,
+    ctx.now(),
   );
 }
 
@@ -443,7 +802,15 @@ export async function learningToday(ctx: MemCtx, _input: Record<string, never>) 
   const u = usageOf(ctx, me, day);
   const full = u.passes >= caps.passes || u.tokensIn + u.reserved >= caps.tokens;
   return {
-    day, passes: u.passes, tokensIn: u.tokensIn, tokensOut: u.tokensOut, rulePasses: u.rulePasses, capPasses: caps.passes, capTokens: caps.tokens, resetsAt, timezone: tz,
+    day,
+    passes: u.passes,
+    tokensIn: u.tokensIn,
+    tokensOut: u.tokensOut,
+    rulePasses: u.rulePasses,
+    capPasses: caps.passes,
+    capTokens: caps.tokens,
+    resetsAt,
+    timezone: tz,
     state: full ? ("rules_only" as const) : ("learning" as const),
   };
 }
@@ -452,7 +819,9 @@ async function needChat(ctx: MemCtx, threadId: string): Promise<{ starter?: stri
   try {
     const t = ((await ctx.call("threads.get", { threadId })) as { thread?: { starter?: string } }).thread;
     if (t) return t;
-  } catch { /* not one of the caller's chats */ }
+  } catch {
+    /* not one of the caller's chats */
+  }
   raise(ctx, "validation.not_found", "There is no such chat.", { threadId });
 }
 
@@ -471,12 +840,26 @@ export async function chatLearningSet(ctx: MemCtx, input: { threadId: string; re
   const me = actorOf(ctx);
   const s = chatForgotten(ctx, input.threadId);
   if (input.remember) {
-    if (s.off && s.by !== me && t.starter !== me) raise(ctx, "permission.no_grant", "Only the person who turned this off, or who started the chat, can turn it back on.");
+    if (s.off && s.by !== me && t.starter !== me)
+      raise(
+        ctx,
+        "permission.no_grant",
+        "Only the person who turned this off, or who started the chat, can turn it back on.",
+      );
     ctx.db.run("DELETE FROM memory_chat_learning WHERE thread_id = ?", input.threadId);
   } else if (!s.off) {
-    ctx.db.run("INSERT INTO memory_chat_learning (thread_id, off, by, at) VALUES (?, 1, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET off = 1, by = excluded.by, at = excluded.at", input.threadId, me, ctx.now());
+    ctx.db.run(
+      "INSERT INTO memory_chat_learning (thread_id, off, by, at) VALUES (?, 1, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET off = 1, by = excluded.by, at = excluded.at",
+      input.threadId,
+      me,
+      ctx.now(),
+    );
   }
-  ctx.emit("memory.chat_learning_changed", input.threadId, { threadId: input.threadId, remember: input.remember, by: me });
+  ctx.emit("memory.chat_learning_changed", input.threadId, {
+    threadId: input.threadId,
+    remember: input.remember,
+    by: me,
+  });
   return chatLearningGet(ctx, { threadId: input.threadId });
 }
 
@@ -484,7 +867,16 @@ export async function chatLearningSet(ctx: MemCtx, input: { threadId: string; re
  * For capture at chat end: a line of the person's that a turn pass already read AND learned a fact from (the fact links the line's message) is left alone. A line a pass read but learned nothing from
  * (a model that found nothing, a pass that failed) still goes through the rules, so nothing said is lost to a pass that did not keep it.
  */
-export function readByTurns(ctx: Pick<MemCtx, "db">, threadId: string, person: string, seq: number | undefined, messageId?: string): boolean {
+export function readByTurns(
+  ctx: Pick<MemCtx, "db">,
+  threadId: string,
+  person: string,
+  seq: number | undefined,
+  messageId?: string,
+): boolean {
   if (seq === undefined || messageId === undefined || seq > cursorOf(ctx, threadId, person)) return false;
-  return rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'message' AND ref = ? LIMIT 1", messageId).length > 0;
+  return (
+    rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'message' AND ref = ? LIMIT 1", messageId)
+      .length > 0
+  );
 }

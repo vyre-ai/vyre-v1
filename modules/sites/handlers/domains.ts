@@ -19,7 +19,8 @@ export function edgeTarget(spaceDomain: string): string {
 
 function cleanDomain(ctx: Ctx, raw: string, spaceDomain: string): string {
   const domain = raw.trim().toLowerCase().replace(/\.$/, "");
-  if (!DOMAIN.test(domain)) fail(ctx, "validation.bad_input", "That is not a domain name, for example www.example.com.", { field: "domain" });
+  if (!DOMAIN.test(domain))
+    fail(ctx, "validation.bad_input", "That is not a domain name, for example www.example.com.", { field: "domain" });
   if (domain === spaceDomain || domain.endsWith(`.${spaceDomain}`)) {
     fail(ctx, "validation.bad_input", "Addresses under the Space domain are managed by Vyre.", { field: "domain" });
   }
@@ -31,8 +32,12 @@ function certOf(v: unknown): CertState {
 }
 
 function productionRow(ctx: Ctx, siteId: string): Row | undefined {
-  const rows = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL", siteId, "production")
-    .filter((r) => !isNull(r.upstream) && !isNull(r.container_id));
+  const rows = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND removed_at IS NULL",
+    siteId,
+    "production",
+  ).filter((r) => !isNull(r.upstream) && !isNull(r.container_id));
   let best: Row | undefined;
   for (const r of rows) if (!best || num(r.at) > num(best.at)) best = r;
   return best;
@@ -43,7 +48,12 @@ async function routeDomain(ctx: Ctx, d: SiteDrivers, siteId: string, domain: str
   ctx.db.run("DELETE FROM sites_route WHERE host = ?", domain);
   ctx.db.run(
     "INSERT INTO sites_route (host, site_id, deployment_id, env, auth_handle, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-    domain, siteId, prod.id, "production", null, ctx.now(),
+    domain,
+    siteId,
+    prod.id,
+    "production",
+    null,
+    ctx.now(),
   );
 }
 
@@ -57,10 +67,15 @@ export async function routeProductionDomains(ctx: Ctx, siteId: string): Promise<
   return domains.length;
 }
 
-async function domainsGet(ctx: Ctx, input: unknown): Promise<{ domains: { domain: string; dnsOk: boolean; certificate: CertState }[] }> {
+async function domainsGet(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ domains: { domain: string; dnsOk: boolean; certificate: CertState }[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const rows = many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", site.id).sort((a, b) => str(a.domain).localeCompare(str(b.domain)));
+  const rows = many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", site.id).sort((a, b) =>
+    str(a.domain).localeCompare(str(b.domain)),
+  );
   if (rows.length === 0) return { domains: [] };
   const d = siteDrivers(ctx);
   const out: { domain: string; dnsOk: boolean; certificate: CertState }[] = [];
@@ -77,9 +92,19 @@ async function domainsGet(ctx: Ctx, input: unknown): Promise<{ domains: { domain
     try {
       certificate = await d.router.certState(domain);
     } catch (e) {
-      ctx.log.warn("sites: certificate state unavailable", { domain, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("sites: certificate state unavailable", {
+        domain,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
-    ctx.db.run("UPDATE sites_domain SET dns_ok = ?, certificate = ?, checked_at = ? WHERE site_id = ? AND domain = ?", dnsOk ? 1 : 0, certificate, ctx.now(), site.id, domain);
+    ctx.db.run(
+      "UPDATE sites_domain SET dns_ok = ?, certificate = ?, checked_at = ? WHERE site_id = ? AND domain = ?",
+      dnsOk ? 1 : 0,
+      certificate,
+      ctx.now(),
+      site.id,
+      domain,
+    );
     out.push({ domain, dnsOk, certificate });
   }
   return { domains: out };
@@ -109,7 +134,8 @@ async function domainSet(ctx: Ctx, input: unknown): Promise<{ dnsOk: boolean }> 
     return { dnsOk: true };
   }
 
-  if (existing.some((r) => r.site_id !== siteId)) fail(ctx, "validation.duplicate", "Another site already uses that domain.", { domain });
+  if (existing.some((r) => r.site_id !== siteId))
+    fail(ctx, "validation.duplicate", "Another site already uses that domain.", { domain });
 
   let dnsOk = false;
   try {
@@ -119,12 +145,23 @@ async function domainSet(ctx: Ctx, input: unknown): Promise<{ dnsOk: boolean }> 
   }
   const now = ctx.now();
   if (mine) {
-    ctx.db.run("UPDATE sites_domain SET dns_ok = ?, checked_at = ? WHERE site_id = ? AND domain = ?", dnsOk ? 1 : 0, now, siteId, domain);
+    ctx.db.run(
+      "UPDATE sites_domain SET dns_ok = ?, checked_at = ? WHERE site_id = ? AND domain = ?",
+      dnsOk ? 1 : 0,
+      now,
+      siteId,
+      domain,
+    );
     return { dnsOk };
   }
   ctx.db.run(
     "INSERT INTO sites_domain (site_id, domain, dns_ok, certificate, created_at, checked_at) VALUES (?, ?, ?, ?, ?, ?)",
-    siteId, domain, dnsOk ? 1 : 0, "pending", now, now,
+    siteId,
+    domain,
+    dnsOk ? 1 : 0,
+    "pending",
+    now,
+    now,
   );
   const prod = productionRow(ctx, siteId);
   if (prod) await routeDomain(ctx, d, siteId, domain, prod);

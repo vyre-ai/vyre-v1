@@ -1,6 +1,14 @@
 // Fake Microsoft Graph behind graph.microsoft.com (ARCH 8 table, 10.1).
 // mailListMessages speaks GET /me/messages, the page connectors replay from tests/.
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export interface GraphMessage {
   id: string;

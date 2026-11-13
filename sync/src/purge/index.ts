@@ -8,4 +8,12 @@ export type { FolderPort, KeychainPort, OpenDocs, PurgeReason, PurgeStatus } fro
 export { PurgeError, purgeReplica, replicaTables } from "./purge.ts";
 export type { PurgeOpts, PurgeReport } from "./purge.ts";
 export { bumpEpoch, effectiveEpoch, reindexScope, scopeOf, spaceEpoch, RESCAN_SUMMARY_ROWS } from "./server.ts";
-export type { BumpInput, BumpReason, BumpResult, BumpScope, PurgeServerDeps, ReindexInput, ReindexResult } from "./server.ts";
+export type {
+  BumpInput,
+  BumpReason,
+  BumpResult,
+  BumpScope,
+  PurgeServerDeps,
+  ReindexInput,
+  ReindexResult,
+} from "./server.ts";

@@ -24,7 +24,17 @@ export { fakeStripe, type StripeProvider } from "./stripe.ts";
 export { TWILIO_ACCOUNT_SID, fakeTwilio, type TwilioProvider } from "./twilio.ts";
 export { fakeZoom, type ZoomProvider } from "./zoom.ts";
 
-export const PROVIDER_NAMES = ["llm", "mail", "twilio", "github", "google", "microsoft", "stripe", "documenso", "zoom"] as const;
+export const PROVIDER_NAMES = [
+  "llm",
+  "mail",
+  "twilio",
+  "github",
+  "google",
+  "microsoft",
+  "stripe",
+  "documenso",
+  "zoom",
+] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export interface FakeProviderOptions {
@@ -82,7 +92,17 @@ export function fakeProviders(opts: FakeProviderOptions = {}): FakeProviders {
   const stripe = fakeStripe(tape("stripe"));
   const documenso = fakeDocumenso(tape("documenso"));
   const zoom = fakeZoom(tape("zoom"));
-  const byName: Record<ProviderName, { fetch: FetchLike }> = { llm, mail, twilio, github, google, microsoft, stripe, documenso, zoom };
+  const byName: Record<ProviderName, { fetch: FetchLike }> = {
+    llm,
+    mail,
+    twilio,
+    github,
+    google,
+    microsoft,
+    stripe,
+    documenso,
+    zoom,
+  };
   const http: FetchLike = async (url, init) => {
     const method = (init?.method ?? "GET").toUpperCase();
     let host: string;

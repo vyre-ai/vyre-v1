@@ -24,33 +24,70 @@ import { RulesPanel } from "./RulesPanel.tsx";
 import { ShareSheet } from "./ShareSheet.tsx";
 import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 
-export interface ConnectionsData { home: Home | null; accounts: Account[]; connectors: Connector[]; groups: Map<string, string>; error: string | null; loaded: boolean; sites?: BrowserSite[] }
+export interface ConnectionsData {
+  home: Home | null;
+  accounts: Account[];
+  connectors: Connector[];
+  groups: Map<string, string>;
+  error: string | null;
+  loaded: boolean;
+  sites?: BrowserSite[];
+}
 
 /** Reads the three sources; a source the person cannot read (built-in integrations for a guest) is left out, never an error for the page. */
-export function useConnections(call: (cap: string, input: unknown) => Promise<unknown>, admin = true, initial?: ConnectionsData): ConnectionsData & { refresh(): void } {
-  const [state, setState] = useState<ConnectionsData>(initial ?? { home: null, accounts: [], connectors: [], groups: new Map(), error: null, loaded: false });
+export function useConnections(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  admin = true,
+  initial?: ConnectionsData,
+): ConnectionsData & { refresh(): void } {
+  const [state, setState] = useState<ConnectionsData>(
+    initial ?? { home: null, accounts: [], connectors: [], groups: new Map(), error: null, loaded: false },
+  );
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
     void (async () => {
-      const soft = <T,>(p: Promise<unknown>, d: T): Promise<T> => p.then((x) => x as T, () => d);
+      const soft = <T,>(p: Promise<unknown>, d: T): Promise<T> =>
+        p.then(
+          (x) => x as T,
+          () => d,
+        );
       try {
         const [home, accounts, connectors, groups, sites] = await Promise.all([
           call("plugins.connections.home", {}) as Promise<Home>,
           soft<{ connections: Account[] }>(call("connections.list", { whose: "all" }), { connections: [] }),
           soft<{ connectors: Connector[] }>(call("connectors.list", {}), { connectors: [] }),
-          admin ? soft<{ groups: { id: string; name: string }[] }>(call("access.groups.list", {}), { groups: [] }) : Promise.resolve({ groups: [] }),
+          admin
+            ? soft<{ groups: { id: string; name: string }[] }>(call("access.groups.list", {}), { groups: [] })
+            : Promise.resolve({ groups: [] }),
           soft<{ sites: BrowserSite[] }>(call("browser.sites.list", {}), { sites: [] }),
         ]);
-        if (live) setState({ home, accounts: accounts.connections ?? [], connectors: connectors.connectors ?? [], groups: new Map((groups.groups ?? []).map((g) => [g.id, g.name] as const)), error: null, loaded: true, sites: sites.sites ?? [] });
-      } catch (e) { if (live) setState((s) => ({ ...s, error: messageOf(e), loaded: true })); }
+        if (live)
+          setState({
+            home,
+            accounts: accounts.connections ?? [],
+            connectors: connectors.connectors ?? [],
+            groups: new Map((groups.groups ?? []).map((g) => [g.id, g.name] as const)),
+            error: null,
+            loaded: true,
+            sites: sites.sites ?? [],
+          });
+      } catch (e) {
+        if (live) setState((s) => ({ ...s, error: messageOf(e), loaded: true }));
+      }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [call, tick, admin]);
   return { ...state, refresh: () => setTick((n) => n + 1) };
 }
 
-interface Tested { health: Health; tools?: number; note?: string }
+interface Tested {
+  health: Health;
+  tools?: number;
+  note?: string;
+}
 
 export interface ConnectionsViewProps {
   onClose?: (() => void) | undefined;
@@ -62,7 +99,12 @@ export interface ConnectionsViewProps {
   initialData?: ConnectionsData;
 }
 
-export function ConnectionsView({ onClose, initialAdd = false, initialSite = false, initialData }: ConnectionsViewProps): ReactElement {
+export function ConnectionsView({
+  onClose,
+  initialAdd = false,
+  initialSite = false,
+  initialData,
+}: ConnectionsViewProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -74,8 +116,21 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
   const [agents, setAgents] = useState<SheetAgent[]>([]);
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("agents.list", { limit: 100 })).then((r) => { if (live) setAgents(((r as { agents?: Array<{ agentId: string; name: string }> })?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name }))); }, () => undefined);
-    return () => { live = false; };
+    void Promise.resolve(data.call("agents.list", { limit: 100 })).then(
+      (r) => {
+        if (live)
+          setAgents(
+            ((r as { agents?: Array<{ agentId: string; name: string }> })?.agents ?? []).map((a) => ({
+              id: a.agentId,
+              name: a.name,
+            })),
+          );
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data.call]);
   const [tested, setTested] = useState<Record<string, Tested>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,25 +138,47 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
   const now = data.clock().now;
   const agentName = useCallback((id: string) => names.name(id), [names]);
   const groupName = useCallback((id: string) => conns.groups.get(id) ?? "a group", [conns.groups]);
-  const sections = useMemo(() => assemble(conns.home, conns.accounts, conns.connectors, data.me.id, groupName, agentName, conns.sites ?? []), [conns.home, conns.accounts, conns.connectors, conns.sites, data.me.id, groupName, agentName]);
+  const sections = useMemo(
+    () => assemble(conns.home, conns.accounts, conns.connectors, data.me.id, groupName, agentName, conns.sites ?? []),
+    [conns.home, conns.accounts, conns.connectors, conns.sites, data.me.id, groupName, agentName],
+  );
   const admin = conns.home?.admin === true;
   const canAddSpace = conns.home?.canAddSpace === true;
   const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
 
   const run = async (row: ConnRow, what: string, f: () => Promise<string | void>): Promise<void> => {
     setBusy(row.id);
-    try { const said = await f(); setNote(said || what); conns.refresh(); }
-    catch (e) { setNote(messageOf(e)); }
-    finally { setBusy(null); }
+    try {
+      const said = await f();
+      setNote(said || what);
+      conns.refresh();
+    } catch (e) {
+      setNote(messageOf(e));
+    } finally {
+      setBusy(null);
+    }
   };
   const test = (row: ConnRow): void => {
     void run(row, `Checked ${row.title}`, async () => {
       if (row.accountId) {
-        const r = (await data.call("connections.test", { connectionId: row.accountId })) as { state: string; detail?: string };
-        setTested((t) => ({ ...t, [row.id]: { health: r.state === "healthy" ? "ok" : r.state === "degraded" ? "needs_signin" : "not_answering", ...(r.detail ? { note: r.detail } : {}) } }));
+        const r = (await data.call("connections.test", { connectionId: row.accountId })) as {
+          state: string;
+          detail?: string;
+        };
+        setTested((t) => ({
+          ...t,
+          [row.id]: {
+            health: r.state === "healthy" ? "ok" : r.state === "degraded" ? "needs_signin" : "not_answering",
+            ...(r.detail ? { note: r.detail } : {}),
+          },
+        }));
         return;
       }
-      const r = await check(data.call, { key: row.key ?? "", connectionId: row.connectionId, oauth: row.oauth }, data.assistantId);
+      const r = await check(
+        data.call,
+        { key: row.key ?? "", connectionId: row.connectionId, oauth: row.oauth },
+        data.assistantId,
+      );
       setTested((t) => ({ ...t, [row.id]: r }));
       return `${row.title}: ${healthWords(r.health, r.tools)}`;
     });
@@ -120,31 +197,90 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
   };
   const remove = (row: ConnRow): void => {
     void run(row, `Removed ${row.title}`, async () => {
-      if (row.accountId) { await data.call("connections.delete", { connectionId: row.accountId }); return; }
-      if (row.connectionId) await data.call("plugins.connection.forget", { connectionId: row.connectionId, idempotencyKey: attemptKey() });
+      if (row.accountId) {
+        await data.call("connections.delete", { connectionId: row.accountId });
+        return;
+      }
+      if (row.connectionId)
+        await data.call("plugins.connection.forget", { connectionId: row.connectionId, idempotencyKey: attemptKey() });
     });
   };
   const toggle = (row: ConnRow, on: boolean): void => {
     void run(row, on ? `Turned ${row.title} on` : `Turned ${row.title} off`, async () => {
-      if (row.connectionId) await data.call("plugins.connection.update", { connectionId: row.connectionId, enabled: on, idempotencyKey: attemptKey() });
+      if (row.connectionId)
+        await data.call("plugins.connection.update", {
+          connectionId: row.connectionId,
+          enabled: on,
+          idempotencyKey: attemptKey(),
+        });
     });
   };
 
   const rowMenu = (row: ConnRow, x: number, y: number): void => {
     if (row.kind === "browser" && row.site) {
       const site = row.site;
-      menu.show([{ label: "Edit…", onSelect: () => setSiteSheet(site) }, { separator: true } as MenuEntry, { label: "Remove", danger: true, onSelect: () => { void run(row, `Removed ${row.title}`, async () => { await data.call("browser.sites.remove", { siteId: site.id }); }); } }], x, y, "other");
+      menu.show(
+        [
+          { label: "Edit…", onSelect: () => setSiteSheet(site) },
+          { separator: true } as MenuEntry,
+          {
+            label: "Remove",
+            danger: true,
+            onSelect: () => {
+              void run(row, `Removed ${row.title}`, async () => {
+                await data.call("browser.sites.remove", { siteId: site.id });
+              });
+            },
+          },
+        ],
+        x,
+        y,
+        "other",
+      );
       return;
     }
     const mcp = row.kind !== "app" && row.kind !== "plugin" && row.kind !== "skill";
     const entries: MenuEntry[] = [
       { label: "Test", onSelect: () => test(row) },
-      ...(row.kind === "app" || (mcp && row.oauth) ? [{ label: row.health === "ok" ? "Reconnect" : "Sign in", onSelect: () => reconnect(row) } as MenuEntry] : []),
-      ...(mcp && row.section === "space" && row.canManage && !data.personal ? [{ label: "Share…", onSelect: () => setSharing(row) } as MenuEntry] : []),
-      ...(mcp && row.canManage ? [row.health === "off" ? { label: "Turn on", onSelect: () => toggle(row, true) } as MenuEntry : { label: "Turn off", onSelect: () => toggle(row, false) } as MenuEntry] : []),
-      ...((mcp || row.kind === "app") && row.canManage ? [{ separator: true } as MenuEntry, { label: "Remove", danger: true, onSelect: () => remove(row) } as MenuEntry] : []),
-      ...(row.kind === "plugin" ? [{ separator: true } as MenuEntry, { label: "Managed on its plugin", disabled: true, reason: "Turn the plugin off or remove it in the Console's Plugins page" } as MenuEntry] : []),
-      ...(row.kind === "skill" ? [{ separator: true } as MenuEntry, { label: "Managed on its skill", disabled: true, reason: "Set its keys, turn it off or remove it on the skill's page" } as MenuEntry] : []),
+      ...(row.kind === "app" || (mcp && row.oauth)
+        ? [{ label: row.health === "ok" ? "Reconnect" : "Sign in", onSelect: () => reconnect(row) } as MenuEntry]
+        : []),
+      ...(mcp && row.section === "space" && row.canManage && !data.personal
+        ? [{ label: "Share…", onSelect: () => setSharing(row) } as MenuEntry]
+        : []),
+      ...(mcp && row.canManage
+        ? [
+            row.health === "off"
+              ? ({ label: "Turn on", onSelect: () => toggle(row, true) } as MenuEntry)
+              : ({ label: "Turn off", onSelect: () => toggle(row, false) } as MenuEntry),
+          ]
+        : []),
+      ...((mcp || row.kind === "app") && row.canManage
+        ? [
+            { separator: true } as MenuEntry,
+            { label: "Remove", danger: true, onSelect: () => remove(row) } as MenuEntry,
+          ]
+        : []),
+      ...(row.kind === "plugin"
+        ? [
+            { separator: true } as MenuEntry,
+            {
+              label: "Managed on its plugin",
+              disabled: true,
+              reason: "Turn the plugin off or remove it in the Console's Plugins page",
+            } as MenuEntry,
+          ]
+        : []),
+      ...(row.kind === "skill"
+        ? [
+            { separator: true } as MenuEntry,
+            {
+              label: "Managed on its skill",
+              disabled: true,
+              reason: "Set its keys, turn it off or remove it on the skill's page",
+            } as MenuEntry,
+          ]
+        : []),
     ];
     menu.show(entries, x, y, "other");
   };
@@ -157,10 +293,39 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
       const tools = t ? t.tools : r.tools;
       out.push(
         <Row
-          key={r.id} id={`conn-${r.id}`} title={r.title} titleSuffix={healthWords(health, tools)} note={noteOf(r, now, agentName)}
-          leading={<View style={s.lead}><View style={[s.dot, { backgroundColor: dotColor(health) as string }]} accessibilityLabel={healthWords(health, tools)} testID={`conn-dot-${r.id}`} /></View>}
-          trailing={busy === r.id ? <Text style={s.quiet}>Working…</Text> : <IconBtn icon="more" label={`Actions for ${r.title}`} onPress={(e) => { const p = pointOf(e); rowMenu(r, p.x - 180, p.y); }} testID={`conn-more-${r.id}`} />}
-          onPress={(e) => { const p = pointOf(e); rowMenu(r, p.x, p.y); }}
+          key={r.id}
+          id={`conn-${r.id}`}
+          title={r.title}
+          titleSuffix={healthWords(health, tools)}
+          note={noteOf(r, now, agentName)}
+          leading={
+            <View style={s.lead}>
+              <View
+                style={[s.dot, { backgroundColor: dotColor(health) as string }]}
+                accessibilityLabel={healthWords(health, tools)}
+                testID={`conn-dot-${r.id}`}
+              />
+            </View>
+          }
+          trailing={
+            busy === r.id ? (
+              <Text style={s.quiet}>Working…</Text>
+            ) : (
+              <IconBtn
+                icon="more"
+                label={`Actions for ${r.title}`}
+                onPress={(e) => {
+                  const p = pointOf(e);
+                  rowMenu(r, p.x - 180, p.y);
+                }}
+                testID={`conn-more-${r.id}`}
+              />
+            )
+          }
+          onPress={(e) => {
+            const p = pointOf(e);
+            rowMenu(r, p.x, p.y);
+          }}
         />,
       );
     }
@@ -169,7 +334,10 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
 
   const section = (title: string, list: readonly ConnRow[], empty: string, testID: string): ReactElement => (
     <View style={s.section} testID={testID}>
-      <Text style={s.sectionHead} accessibilityRole="header">{title}<Text style={s.count}>{`  ${list.length}`}</Text></Text>
+      <Text style={s.sectionHead} accessibilityRole="header">
+        {title}
+        <Text style={s.count}>{`  ${list.length}`}</Text>
+      </Text>
       {list.length === 0 ? <Text style={s.emptyLine}>{empty}</Text> : rowsOf(list)}
     </View>
   );
@@ -179,36 +347,130 @@ export function ConnectionsView({ onClose, initialAdd = false, initialSite = fal
     <View style={s.frame} testID="vault-connections">
       {menu.element}
       <ScrollView style={s.scroll} contentContainerStyle={s.page}>
-      <View style={s.head}>
-        {onClose ? <Btn label="Back" icon="back" onPress={onClose} testID="connections-back" /> : null}
-        <Text accessibilityRole="header" style={s.title}>Connections</Text>
-        <View style={{ flex: 1 }} />
-        <Btn label={narrow ? "Site" : "Add a site"} icon="plus" onPress={() => setSiteSheet("new")} testID="connections-add-site" />
-        <Btn label={narrow ? "Add" : "Add a connection"} icon="plus" primary onPress={() => setAdding(true)} disabled={!online} why={!online ? "Adding needs the Space to be online" : undefined} testID="connections-add" />
-      </View>
-      <Text style={s.intro}>{data.personal ? "Apps and tool servers you and your agents can use. Keys stay in your Vault." : "Apps and tool servers you and your agents can use. Yours are only yours; the Space's are for everyone or the groups an admin picks. Keys stay in the Vault."}</Text>
-      {!conns.loaded ? <Text style={s.quiet} testID="connections-loading">Loading</Text>
-        : conns.error ? <States kind="error" message="Couldn't load your connections" cause={conns.error} retryable onRetry={conns.refresh} />
-        : (
+        <View style={s.head}>
+          {onClose ? <Btn label="Back" icon="back" onPress={onClose} testID="connections-back" /> : null}
+          <Text accessibilityRole="header" style={s.title}>
+            Connections
+          </Text>
+          <View style={{ flex: 1 }} />
+          <Btn
+            label={narrow ? "Site" : "Add a site"}
+            icon="plus"
+            onPress={() => setSiteSheet("new")}
+            testID="connections-add-site"
+          />
+          <Btn
+            label={narrow ? "Add" : "Add a connection"}
+            icon="plus"
+            primary
+            onPress={() => setAdding(true)}
+            disabled={!online}
+            why={!online ? "Adding needs the Space to be online" : undefined}
+            testID="connections-add"
+          />
+        </View>
+        <Text style={s.intro}>
+          {data.personal
+            ? "Apps and tool servers you and your agents can use. Keys stay in your Vault."
+            : "Apps and tool servers you and your agents can use. Yours are only yours; the Space's are for everyone or the groups an admin picks. Keys stay in the Vault."}
+        </Text>
+        {!conns.loaded ? (
+          <Text style={s.quiet} testID="connections-loading">
+            Loading
+          </Text>
+        ) : conns.error ? (
+          <States
+            kind="error"
+            message="Couldn't load your connections"
+            cause={conns.error}
+            retryable
+            onRetry={conns.refresh}
+          />
+        ) : (
           <>
-            {section("Mine", sections.mine, "Nothing of yours yet. Add a connection to use an app or a tool server in your chats.", "connections-mine")}
-            {data.personal && sections.space.length === 0 ? null : section(data.personal ? "This Space" : "Space", sections.space, canAddSpace ? "Nothing for the whole Space yet." : "Nothing shared with you yet. An admin adds connections for the Space.", "connections-space")}
+            {section(
+              "Mine",
+              sections.mine,
+              "Nothing of yours yet. Add a connection to use an app or a tool server in your chats.",
+              "connections-mine",
+            )}
+            {data.personal && sections.space.length === 0
+              ? null
+              : section(
+                  data.personal ? "This Space" : "Space",
+                  sections.space,
+                  canAddSpace
+                    ? "Nothing for the whole Space yet."
+                    : "Nothing shared with you yet. An admin adds connections for the Space.",
+                  "connections-space",
+                )}
             {sections.agents.length > 0 ? section("Your agents' own", sections.agents, "", "connections-agents") : null}
-            {admin && !data.personal ? <View style={s.section} testID="connections-hubs"><Text style={s.sectionHead} accessibilityRole="header">App hubs</Text><AppHubsCard call={data.call} /></View> : null}
-            {admin && !data.personal && conns.home ? <RulesPanel policy={conns.home.policy} onSaved={(t) => { setNote(t); conns.refresh(); }} /> : null}
+            {admin && !data.personal ? (
+              <View style={s.section} testID="connections-hubs">
+                <Text style={s.sectionHead} accessibilityRole="header">
+                  App hubs
+                </Text>
+                <AppHubsCard call={data.call} />
+              </View>
+            ) : null}
+            {admin && !data.personal && conns.home ? (
+              <RulesPanel
+                policy={conns.home.policy}
+                onSaved={(t) => {
+                  setNote(t);
+                  conns.refresh();
+                }}
+              />
+            ) : null}
           </>
         )}
-      <View style={s.lineSlot}>{note ? <QuietLine text={note} testID="connections-line" /> : null}</View>
+        <View style={s.lineSlot}>{note ? <QuietLine text={note} testID="connections-line" /> : null}</View>
       </ScrollView>
-      {adding ? <AddConnection canAddSpace={canAddSpace && !data.personal} canAsk={!!conns.home && !canAddSpace && !data.personal} {...(typeof adding === "object" ? { initial: adding } : {})} onClose={() => setAdding(false)} onAdded={(t) => { setNote(t); conns.refresh(); }} /> : null}
-      {siteSheet ? <BrowserSheet site={siteSheet === "new" ? null : siteSheet} agents={agents} onClose={() => setSiteSheet(null)} onSaved={(t) => { setSiteSheet(null); setNote(t); conns.refresh(); }} /> : null}
-      {sharing ? <ShareSheet row={sharing} groups={conns.groups} onClose={() => setSharing(null)} onSaved={(t) => { setSharing(null); setNote(t); conns.refresh(); }} /> : null}
+      {adding ? (
+        <AddConnection
+          canAddSpace={canAddSpace && !data.personal}
+          canAsk={!!conns.home && !canAddSpace && !data.personal}
+          {...(typeof adding === "object" ? { initial: adding } : {})}
+          onClose={() => setAdding(false)}
+          onAdded={(t) => {
+            setNote(t);
+            conns.refresh();
+          }}
+        />
+      ) : null}
+      {siteSheet ? (
+        <BrowserSheet
+          site={siteSheet === "new" ? null : siteSheet}
+          agents={agents}
+          onClose={() => setSiteSheet(null)}
+          onSaved={(t) => {
+            setSiteSheet(null);
+            setNote(t);
+            conns.refresh();
+          }}
+        />
+      ) : null}
+      {sharing ? (
+        <ShareSheet
+          row={sharing}
+          groups={conns.groups}
+          onClose={() => setSharing(null)}
+          onSaved={(t) => {
+            setSharing(null);
+            setNote(t);
+            conns.refresh();
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 function pointOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number; right: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number; right: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const box = ev?.currentTarget?.getBoundingClientRect?.();
   return box ? { x: box.right, y: box.bottom } : { x: ev?.nativeEvent?.pageX ?? 0, y: ev?.nativeEvent?.pageY ?? 0 };
 }
@@ -222,7 +484,15 @@ const s = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string },
   intro: { fontSize: 13, color: "var(--ink-3)" as string, marginBottom: 6, maxWidth: 640 },
   section: { marginTop: 14, gap: 1 },
-  sectionHead: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingBottom: 6, textTransform: "uppercase" as const, letterSpacing: 0.4 },
+  sectionHead: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.4,
+  },
   count: { fontWeight: "400" },
   emptyLine: { fontSize: 13, color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingVertical: 8 },
   lead: { width: 22, alignItems: "flex-start", justifyContent: "center" },

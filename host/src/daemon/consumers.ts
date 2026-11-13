@@ -49,19 +49,34 @@ export const MODULE_PATH_CALL: Readonly<Record<string, readonly string[]>> = {
   // terminal_run's new tab, opened in a call of its own so it is committed (and its access resource registered) before the command runs
   "terminal.open_tab": ["terminal.run"],
 };
-export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string }; callerCap?: string }): void {
+export function guardCall(
+  name: string,
+  ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string }; callerCap?: string },
+): void {
   const only = MODULE_PATH_CALL[name];
   if (only) {
-    if (ctx.depth < 1 || ctx.callerCap === undefined || !only.includes(ctx.callerCap)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This host call is made only by the call that needs it; it cannot be called from here.", details: { call: name } });
+    if (ctx.depth < 1 || ctx.callerCap === undefined || !only.includes(ctx.callerCap))
+      throw fail("permission.no_grant", ctx.trace.traceId, {
+        message: "This host call is made only by the call that needs it; it cannot be called from here.",
+        details: { call: name },
+      });
     return;
   }
   if (HOST_ONLY_CALL.test(name)) {
     const host = ctx.principal?.kind === SYSTEM_PRINCIPAL.kind && ctx.principal.id === SYSTEM_PRINCIPAL.id;
-    if (ctx.origin !== "hook" || ctx.depth !== 0 || !host) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is the host's own call; it cannot be called from here.", details: { call: name } });
+    if (ctx.origin !== "hook" || ctx.depth !== 0 || !host)
+      throw fail("permission.no_grant", ctx.trace.traceId, {
+        message: "This is the host's own call; it cannot be called from here.",
+        details: { call: name },
+      });
     return;
   }
   if (!GUARDED_CALL.test(name)) return;
-  if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is a host call for the removal wizard; it cannot be called from here.", details: { call: name } });
+  if (ctx.origin !== "hook" || ctx.depth !== 0)
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "This is a host call for the removal wizard; it cannot be called from here.",
+      details: { call: name },
+    });
 }
 
 /** What a consumer sees of one event. `payload` is `{}` for an event whose payload is sealed. */
@@ -81,11 +96,31 @@ export interface HookEvent {
   device?: string;
 }
 
-export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
-export interface PeriodicDef { name: string; module: string; everyMs: number; /** run once as soon as the scheduler starts (a boot check), then every everyMs */ immediate?: boolean; run(ctx: Ctx): Promise<unknown> | unknown }
+export interface ConsumerDef {
+  name: string;
+  module: string;
+  on: readonly string[];
+  run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown;
+}
+export interface PeriodicDef {
+  name: string;
+  module: string;
+  everyMs: number;
+  /** run once as soon as the scheduler starts (a boot check), then every everyMs */ immediate?: boolean;
+  run(ctx: Ctx): Promise<unknown> | unknown;
+}
 /** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
-export interface CallDef { name: string; module: string; run(ctx: Ctx, input: unknown): Promise<unknown> | unknown }
-export interface ModuleHooks { module: string; consumers: ConsumerDef[]; periodic: PeriodicDef[]; calls?: CallDef[] }
+export interface CallDef {
+  name: string;
+  module: string;
+  run(ctx: Ctx, input: unknown): Promise<unknown> | unknown;
+}
+export interface ModuleHooks {
+  module: string;
+  consumers: ConsumerDef[];
+  periodic: PeriodicDef[];
+  calls?: CallDef[];
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -93,27 +128,52 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 export function collectHooks(module: string, ns: Record<string, unknown>): ModuleHooks {
   const out: ModuleHooks = { module, consumers: [], periodic: [], calls: [] };
   if (isRecord(ns["hostCalls"])) {
-    for (const [name, run] of Object.entries(ns["hostCalls"])) if (typeof run === "function") out.calls!.push({ name, module, run: (ctx, input) => (run as (c: Ctx, i: unknown) => unknown)(ctx, input) });
+    for (const [name, run] of Object.entries(ns["hostCalls"]))
+      if (typeof run === "function")
+        out.calls!.push({ name, module, run: (ctx, input) => (run as (c: Ctx, i: unknown) => unknown)(ctx, input) });
   }
   if (isRecord(ns["consumers"])) {
     for (const [name, def] of Object.entries(ns["consumers"])) {
-      if (!isRecord(def) || !Array.isArray(def["on"]) || typeof def["run"] !== "function") continue;   // a kernel projection has `mode: "async"` and an object `on`
+      if (!isRecord(def) || !Array.isArray(def["on"]) || typeof def["run"] !== "function") continue; // a kernel projection has `mode: "async"` and an object `on`
       const run = def["run"] as (ctx: Ctx, event: HookEvent) => Promise<unknown> | unknown;
-      out.consumers.push({ name, module, on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"), run: (ctx, event) => run(ctx, event) });
+      out.consumers.push({
+        name,
+        module,
+        on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"),
+        run: (ctx, event) => run(ctx, event),
+      });
     }
   }
   if (isRecord(ns["periodic"])) {
     for (const [name, def] of Object.entries(ns["periodic"])) {
-      if (!isRecord(def) || typeof def["everyMs"] !== "number" || !(def["everyMs"] > 0) || typeof def["run"] !== "function") continue;
+      if (
+        !isRecord(def) ||
+        typeof def["everyMs"] !== "number" ||
+        !(def["everyMs"] > 0) ||
+        typeof def["run"] !== "function"
+      )
+        continue;
       const run = def["run"] as (ctx: Ctx) => Promise<unknown> | unknown;
-      out.periodic.push({ name, module, everyMs: def["everyMs"], ...(def["immediate"] === true ? { immediate: true } : {}), run: (ctx) => run(ctx) });
+      out.periodic.push({
+        name,
+        module,
+        everyMs: def["everyMs"],
+        ...(def["immediate"] === true ? { immediate: true } : {}),
+        run: (ctx) => run(ctx),
+      });
     }
   }
   // the runs module's alerts (P-L6_11), found by the names it exports
-  const failed = ns["onRunFailed"], sweep = ns["sweepEscalations"];
+  const failed = ns["onRunFailed"],
+    sweep = ns["sweepEscalations"];
   if (typeof failed === "function" && !out.consumers.some((c) => c.name === "runs.alerts")) {
     const f = failed as (ctx: Ctx, ev: { runId: string }) => Promise<unknown>;
-    out.consumers.push({ name: "runs.alerts", module, on: ["run.failed"], run: (ctx, ev) => f(ctx, { runId: String(ev.payload["runId"] ?? "") }) });
+    out.consumers.push({
+      name: "runs.alerts",
+      module,
+      on: ["run.failed"],
+      run: (ctx, ev) => f(ctx, { runId: String(ev.payload["runId"] ?? "") }),
+    });
   }
   if (typeof sweep === "function" && !out.periodic.some((p) => p.name === "runs.escalations")) {
     const f = sweep as (ctx: Ctx) => Promise<unknown>;
@@ -126,9 +186,25 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
 export function toHookEvent(e: StoredEvent): HookEvent {
   let payload: Record<string, unknown> = {};
   if (e.enc === 0) {
-    try { const v: unknown = JSON.parse(new TextDecoder().decode(e.payload)); if (isRecord(v)) payload = v; } catch { /* a payload that is not JSON reads as empty */ }
+    try {
+      const v: unknown = JSON.parse(new TextDecoder().decode(e.payload));
+      if (isRecord(v)) payload = v;
+    } catch {
+      /* a payload that is not JSON reads as empty */
+    }
   }
-  return { id: e.id, seq: e.seq, name: e.type, subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""), payload, actor: e.actor, traceId: e.trace_id, at: e.at, ...(e.run_id ? { runId: e.run_id } : {}), ...(e.device ? { device: e.device } : {}) };
+  return {
+    id: e.id,
+    seq: e.seq,
+    name: e.type,
+    subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""),
+    payload,
+    actor: e.actor,
+    traceId: e.trace_id,
+    at: e.at,
+    ...(e.run_id ? { runId: e.run_id } : {}),
+    ...(e.device ? { device: e.device } : {}),
+  };
 }
 
 export interface LogReader {
@@ -179,69 +255,133 @@ export interface HookRunner {
   runPeriodic(name: string): Promise<void>;
   /** Run a module's hostCall as that module and answer what it returns. */
   /** `as`: run it for that principal (the admin whose action this is), with their authority for anything the call asks of other modules; omitted: as the host. `run` is the Run this call belongs to, so a hold can resume it. */
-  call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string }): Promise<unknown>;
+  call(
+    name: string,
+    input: unknown,
+    as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string },
+  ): Promise<unknown>;
 }
 
 const capName = (kind: "consumer" | "periodic" | "call", name: string): string => `host.hook.${kind}.${name}`;
 
 export function createHookRunner(d: HookRunnerDeps): HookRunner {
-  d.db.run("CREATE TABLE IF NOT EXISTS host_hook_cursor (name TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL)");
+  d.db.run(
+    "CREATE TABLE IF NOT EXISTS host_hook_cursor (name TEXT PRIMARY KEY, seq INTEGER NOT NULL, at INTEGER NOT NULL)",
+  );
   const consumers = d.hooks.flatMap((h) => h.consumers);
   const periodic = d.hooks.flatMap((h) => h.periodic);
   const caps: CapabilityDef[] = [];
   const handlers: Record<string, Handler> = {};
   const moduleOf = new Map<string, string>();
-  const base = (name: string, module: string, permission: string | null = null): CapabilityDef => ({
-    name, v: 1, module, summary: "A module hook the host runs", permission, level: "view", resource: { type: "space" }, idempotency: "natural", effects: "write", risk: "low",
-    emits: d.emitsOf(module), examples: [], surfaces: {}, input: {}, output: {}, errors: [],
-  } as unknown as CapabilityDef);
-  const byConsumer = new Map<string, ConsumerDef>(), byPeriodic = new Map<string, PeriodicDef>();
+  const base = (name: string, module: string, permission: string | null = null): CapabilityDef =>
+    ({
+      name,
+      v: 1,
+      module,
+      summary: "A module hook the host runs",
+      permission,
+      level: "view",
+      resource: { type: "space" },
+      idempotency: "natural",
+      effects: "write",
+      risk: "low",
+      emits: d.emitsOf(module),
+      examples: [],
+      surfaces: {},
+      input: {},
+      output: {},
+      errors: [],
+    }) as unknown as CapabilityDef;
+  const byConsumer = new Map<string, ConsumerDef>(),
+    byPeriodic = new Map<string, PeriodicDef>();
   for (const c of consumers) {
-    if (byConsumer.has(c.name)) { d.warn("two modules export a consumer with one name; the second is not run", { consumer: c.name, module: c.module }); continue; }
+    if (byConsumer.has(c.name)) {
+      d.warn("two modules export a consumer with one name; the second is not run", {
+        consumer: c.name,
+        module: c.module,
+      });
+      continue;
+    }
     byConsumer.set(c.name, c);
     const n = capName("consumer", c.name);
-    caps.push(base(n, c.module)); moduleOf.set(n, c.module);
+    caps.push(base(n, c.module));
+    moduleOf.set(n, c.module);
     handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, input.event);
   }
   for (const p of periodic) {
-    if (byPeriodic.has(p.name)) { d.warn("two modules export a periodic job with one name; the second is not run", { job: p.name, module: p.module }); continue; }
+    if (byPeriodic.has(p.name)) {
+      d.warn("two modules export a periodic job with one name; the second is not run", {
+        job: p.name,
+        module: p.module,
+      });
+      continue;
+    }
     byPeriodic.set(p.name, p);
     const n = capName("periodic", p.name);
-    caps.push(base(n, p.module)); moduleOf.set(n, p.module);
+    caps.push(base(n, p.module));
+    moduleOf.set(n, p.module);
     handlers[n] = (ctx) => p.run(ctx);
   }
   const byCall = new Map<string, CallDef>();
   for (const c of d.hooks.flatMap((h) => h.calls ?? [])) {
-    if (byCall.has(c.name)) { d.warn("two modules export a host call with one name; the second is not offered", { call: c.name, module: c.module }); continue; }
+    if (byCall.has(c.name)) {
+      d.warn("two modules export a host call with one name; the second is not offered", {
+        call: c.name,
+        module: c.module,
+      });
+      continue;
+    }
     byCall.set(c.name, c);
     const n = capName("call", c.name);
-    caps.push(base(n, c.module, GUARDED_CALL.test(c.name) ? GUARDED_CALL_PERMISSION : null)); moduleOf.set(n, c.module);
-    handlers[n] = (ctx, input: { input: unknown }) => { guardCall(c.name, ctx); return c.run(ctx, input.input); };
+    caps.push(base(n, c.module, GUARDED_CALL.test(c.name) ? GUARDED_CALL_PERMISSION : null));
+    moduleOf.set(n, c.module);
+    handlers[n] = (ctx, input: { input: unknown }) => {
+      guardCall(c.name, ctx);
+      return c.run(ctx, input.input);
+    };
   }
-  const seed = (extra: Partial<CtxSeed> = {}): CtxSeed => ({ space: d.space, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...extra });
+  const seed = (extra: Partial<CtxSeed> = {}): CtxSeed => ({
+    space: d.space,
+    principal: { ...SYSTEM_PRINCIPAL },
+    preAuth: true,
+    origin: "hook",
+    ...extra,
+  });
 
   // Each consumer's cursor, as stored (`saved`) and as far as this process has read (`read`). A delivered event is stored at once, so a crash repeats at most the one in flight. Moving past
   // events a consumer does not take is stored once at the end of a pass, and only when it moved: a crash before that only reads those events again, and a consumer is never handed an event twice
   // for it (an event it takes is stored before the next is read). Before, every consumer wrote its cursor after every page of every pass, moved or not.
-  const saved = new Map<string, number>(), read = new Map<string, number>();
+  const saved = new Map<string, number>(),
+    read = new Map<string, number>();
   const cursor = (name: string): number | undefined => {
     const have = read.get(name);
     if (have !== undefined) return have;
     const r = d.db.all("SELECT seq FROM host_hook_cursor WHERE name = ?", name)[0] as { seq: number } | undefined;
     if (!r) return undefined;
-    saved.set(name, Number(r.seq)); read.set(name, Number(r.seq));
+    saved.set(name, Number(r.seq));
+    read.set(name, Number(r.seq));
     return Number(r.seq);
   };
   const setCursor = (name: string, seq: number): void => {
-    if (abandoned) return;   // the stop let a running consumer go: nothing more is stored, the next start reads from what was
+    if (abandoned) return; // the stop let a running consumer go: nothing more is stored, the next start reads from what was
     read.set(name, seq);
     if (saved.get(name) === seq) return;
-    d.db.run("INSERT INTO host_hook_cursor (name, seq, at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET seq = excluded.seq, at = excluded.at", name, seq, d.now());
+    d.db.run(
+      "INSERT INTO host_hook_cursor (name, seq, at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET seq = excluded.seq, at = excluded.at",
+      name,
+      seq,
+      d.now(),
+    );
     saved.set(name, seq);
   };
   /** Past events the consumer does not take: kept in memory until the end of the pass. */
-  const readPast = (name: string, seq: number): void => { read.set(name, seq); };
-  const flush = (): void => { if (abandoned) return; for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq); };
+  const readPast = (name: string, seq: number): void => {
+    read.set(name, seq);
+  };
+  const flush = (): void => {
+    if (abandoned) return;
+    for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq);
+  };
   const tries = new Map<string, number>();
   const kept = new Set<string>();
 
@@ -249,9 +389,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const ev = toHookEvent(e);
     inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
-      await d.invoke(capName("consumer", c.name), { event: ev }, seed({ trace: { traceId: e.trace_id, spanId: "0".repeat(16) }, depth: e.depth + 1 }));
-      if (abandoned) return false;   // let go by the stop: this answer is dropped, the event is delivered again at the next start
-      tries.delete(`${c.name}:${e.seq}`); kept.delete(`${c.name}:${e.seq}`);
+      await d.invoke(
+        capName("consumer", c.name),
+        { event: ev },
+        seed({ trace: { traceId: e.trace_id, spanId: "0".repeat(16) }, depth: e.depth + 1 }),
+      );
+      if (abandoned) return false; // let go by the stop: this answer is dropped, the event is delivered again at the next start
+      tries.delete(`${c.name}:${e.seq}`);
+      kept.delete(`${c.name}:${e.seq}`);
       return true;
     } catch (err) {
       if (abandoned) return false;
@@ -262,14 +407,25 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         if (!kept.has(key)) {
           kept.add(key);
           // during a stop this is how it should go; while the server runs it means a service stopped under it, and this consumer's events wait behind this one until it comes back
-          if (closing) d.info?.("a consumer kept an event for the next start", { consumer: c.name, event: e.type, seq: e.seq });
-          else d.warn("a consumer kept an event for the next start while the server is running: its later events wait behind it", { consumer: c.name, event: e.type, seq: e.seq });
+          if (closing)
+            d.info?.("a consumer kept an event for the next start", { consumer: c.name, event: e.type, seq: e.seq });
+          else
+            d.warn(
+              "a consumer kept an event for the next start while the server is running: its later events wait behind it",
+              { consumer: c.name, event: e.type, seq: e.seq },
+            );
         }
         return false;
       }
       const n = (tries.get(key) ?? 0) + 1;
       tries.set(key, n);
-      d.warn("a consumer failed on an event", { consumer: c.name, event: e.type, seq: e.seq, try: n, error: err instanceof Error ? err.message : String(err) });
+      d.warn("a consumer failed on an event", {
+        consumer: c.name,
+        event: e.type,
+        seq: e.seq,
+        try: n,
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (n < MAX_TRIES) return false;
       tries.delete(key);
       d.warn("a consumer gave up on an event and skipped it", { consumer: c.name, event: e.type, seq: e.seq });
@@ -279,21 +435,30 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
 
   async function passFor(c: ConsumerDef): Promise<void> {
     let at = cursor(c.name);
-    if (at === undefined) return;   // start() has not run for it yet
+    if (at === undefined) return; // start() has not run for it yet
     let since = performance.now();
     for (;;) {
       const page = await d.log.read({ after: at, limit: PAGE });
       if (!page.length) return;
       for (const e of page) {
-        if (closing) { setCursor(c.name, at); return; }   // stopping: this event and the ones after it are for the next start
+        if (closing) {
+          setCursor(c.name, at);
+          return;
+        } // stopping: this event and the ones after it are for the next start
         // an erased event (events.compact) has no payload to act on: it is skipped, as the projections skip it
         if (c.on.includes(e.type) && !isErased(e)) {
           const taken = await deliver(c, e);
           inFlight = null;
-          if (!taken) { setCursor(c.name, at); return; }   // stop here: this event is tried again on the next pass, before any later one
+          if (!taken) {
+            setCursor(c.name, at);
+            return;
+          } // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
-          setCursor(c.name, at);   // a delivered event is recorded at once, so a crash repeats at most the one in flight
-          if (performance.now() - since >= YIELD_EVERY_MS) { await yieldLoop(); since = performance.now(); }
+          setCursor(c.name, at); // a delivered event is recorded at once, so a crash repeats at most the one in flight
+          if (performance.now() - since >= YIELD_EVERY_MS) {
+            await yieldLoop();
+            since = performance.now();
+          }
         } else at = e.seq;
       }
       readPast(c.name, at);
@@ -302,21 +467,33 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     }
   }
 
-  let running: Promise<void> | null = null, again = false, closing = false, abandoned = false;
+  let running: Promise<void> | null = null,
+    again = false,
+    closing = false,
+    abandoned = false;
   let inFlight: { consumer: string; event: string; seq: number } | null = null;
-  const run = (): Promise<void> => (async () => {
-    try {
-      await null;   // let `running` be assigned before the first check, even with nothing to run
-      do {
-        again = false;
-        for (const c of byConsumer.values()) { if (closing) break; await passFor(c); }
-        flush();
-      } while (again);
-    } finally { running = null; }   // set in the same tick as the last check of `again`, so a call can never be told "a pass is running" by a pass that has finished
-  })();
+  const run = (): Promise<void> =>
+    (async () => {
+      try {
+        await null; // let `running` be assigned before the first check, even with nothing to run
+        do {
+          again = false;
+          for (const c of byConsumer.values()) {
+            if (closing) break;
+            await passFor(c);
+          }
+          flush();
+        } while (again);
+      } finally {
+        running = null;
+      } // set in the same tick as the last check of `again`, so a call can never be told "a pass is running" by a pass that has finished
+    })();
 
   return {
-    caps, handlers, consumers: [...byConsumer.values()], periodic: [...byPeriodic.values()],
+    caps,
+    handlers,
+    consumers: [...byConsumer.values()],
+    periodic: [...byPeriodic.values()],
     serviceCap(cap) {
       const m = moduleOf.get(cap.name);
       const real = m ? d.capOf(m) : undefined;
@@ -327,8 +504,11 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       for (const c of byConsumer.values()) if (cursor(c.name) === undefined) setCursor(c.name, head);
     },
     pump() {
-      if (closing) return abandoned ? Promise.resolve() : running ?? Promise.resolve();
-      if (running) { again = true; return running; }
+      if (closing) return abandoned ? Promise.resolve() : (running ?? Promise.resolve());
+      if (running) {
+        again = true;
+        return running;
+      }
       running = run();
       return running;
     },
@@ -339,18 +519,34 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       if (boundMs === undefined) return pass;
       return new Promise<void>((done) => {
         const t = setTimeout(() => {
-          abandoned = true;   // before the stop goes on: from here this pass stores nothing, so no write lands in a database the stop closes
-          d.warn("a consumer was still running when the server stopped; it is handed the same event again at the next start", { ...(inFlight ?? {}), boundMs });
+          abandoned = true; // before the stop goes on: from here this pass stores nothing, so no write lands in a database the stop closes
+          d.warn(
+            "a consumer was still running when the server stopped; it is handed the same event again at the next start",
+            { ...(inFlight ?? {}), boundMs },
+          );
           done();
         }, boundMs);
         t.unref?.();
-        void pass.then(() => { clearTimeout(t); done(); }, () => { clearTimeout(t); done(); });
+        void pass.then(
+          () => {
+            clearTimeout(t);
+            done();
+          },
+          () => {
+            clearTimeout(t);
+            done();
+          },
+        );
       });
     },
     async call(name, input, as) {
       if (!byCall.has(name)) throw new Error(`no host call named ${name}`);
       const run = typeof as?.run === "string" && as.run !== "" ? as.run : undefined;
-      const r = await d.invoke(capName("call", name), { input }, as ? seed({ principal: { ...as.principal }, preAuth: false, ...(run ? { run } : {}) }) : seed());
+      const r = await d.invoke(
+        capName("call", name),
+        { input },
+        as ? seed({ principal: { ...as.principal }, preAuth: false, ...(run ? { run } : {}) }) : seed(),
+      );
       if (r.status !== "ok") throw new Error(`${name} was held`);
       return r.output;
     },

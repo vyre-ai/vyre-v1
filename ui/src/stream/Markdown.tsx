@@ -6,7 +6,21 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { Block, Inline } from "./markdown.ts";
 import { CODE_TINT, HIGHLIGHT, RADIUS } from "../tokens/calm.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
-import { CalloutBlock, CheckBox, ChartBlock, ChoicesBlock, CodeBlock, ReplyCtx, SectionScope, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
+import {
+  CalloutBlock,
+  CheckBox,
+  ChartBlock,
+  ChoicesBlock,
+  CodeBlock,
+  ReplyCtx,
+  SectionScope,
+  DetailsBlock,
+  DiagramBlock,
+  FootnoteLine,
+  ImageBlock,
+  MathBlock,
+  MathInline,
+} from "./Blocks.tsx";
 
 /** Draws a link its own way (a known subject with its hover card) or returns null to draw it as the plain link. */
 /** Draws something under a fenced code block (a Run bar), or null for nothing. Only called for a block that is finished. */
@@ -35,37 +49,88 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
         out.push(<RunText key={i} v={n.v} />);
         break;
       case "code":
-        out.push(<Text key={i} style={styles.code}>{n.v}</Text>);
+        out.push(
+          <Text key={i} style={styles.code}>
+            {n.v}
+          </Text>,
+        );
         break;
       case "strong":
-        out.push(<Text key={i} style={styles.strong}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(
+          <Text key={i} style={styles.strong}>
+            {inlineNodes(n.c, onLink, renderLink)}
+          </Text>,
+        );
         break;
       case "del":
-        out.push(<Text key={i} style={styles.del}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(
+          <Text key={i} style={styles.del}>
+            {inlineNodes(n.c, onLink, renderLink)}
+          </Text>,
+        );
         break;
       case "br":
         out.push(<Fragment key={i}>{"\n"}</Fragment>);
         break;
       case "fnref":
-        out.push(<Text key={i} accessibilityLabel={`Footnote ${n.id}`} testID={`fnref-${n.id}`} style={styles.fnref}>{`[${n.id}]`}</Text>);
+        out.push(
+          <Text
+            key={i}
+            accessibilityLabel={`Footnote ${n.id}`}
+            testID={`fnref-${n.id}`}
+            style={styles.fnref}
+          >{`[${n.id}]`}</Text>,
+        );
         break;
       case "math":
         out.push(<MathInline key={i} tex={n.v} />);
         break;
       case "html":
-        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "u" ? styles.u : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(
+          <Text
+            key={i}
+            style={
+              n.tag === "kbd"
+                ? styles.kbd
+                : n.tag === "mark"
+                  ? styles.mark
+                  : n.tag === "u"
+                    ? styles.u
+                    : n.tag === "sup"
+                      ? styles.sup
+                      : styles.sub
+            }
+          >
+            {inlineNodes(n.c, onLink, renderLink)}
+          </Text>,
+        );
         break;
       case "em":
-        out.push(<Text key={i} style={styles.em}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        out.push(
+          <Text key={i} style={styles.em}>
+            {inlineNodes(n.c, onLink, renderLink)}
+          </Text>,
+        );
         break;
       case "link": {
         const href = n.href;
         const own = renderLink ? renderLink(href, inlineNodes(n.c, onLink, renderLink), i) : null;
-        if (own !== null && own !== undefined) { out.push(own); break; }
+        if (own !== null && own !== undefined) {
+          out.push(own);
+          break;
+        }
         // a reference address nothing resolved: the words it has (none), never a link to an address
-        if (/^https:\/\/ref\.vyre\.invalid\//i.test(href)) { out.push(<Fragment key={i}>{inlineNodes(n.c, onLink, renderLink)}</Fragment>); break; }
+        if (/^https:\/\/ref\.vyre\.invalid\//i.test(href)) {
+          out.push(<Fragment key={i}>{inlineNodes(n.c, onLink, renderLink)}</Fragment>);
+          break;
+        }
         out.push(
-          <Text key={i} accessibilityRole="link" onPress={() => (onLink ? onLink(href) : void Linking.openURL(href))} style={styles.link}>
+          <Text
+            key={i}
+            accessibilityRole="link"
+            onPress={() => (onLink ? onLink(href) : void Linking.openURL(href))}
+            style={styles.link}
+          >
             {inlineNodes(n.c, onLink, renderLink)}
           </Text>,
         );
@@ -99,15 +164,28 @@ function withCaret(items: readonly Inline[]): readonly Inline[] {
   return [...items, { t: "text", v: CARET }];
 }
 
-function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean, onLink?: (href: string) => void, renderLink?: RenderLink): ReactNode {
+function listItems(
+  block: Extract<Block, { kind: "ul" | "ol" }>,
+  caret: boolean,
+  onLink?: (href: string) => void,
+  renderLink?: RenderLink,
+): ReactNode {
   const out: ReactNode[] = [];
   for (let i = 0; i < block.items.length; i++) {
     out.push(
       <View key={i} style={styles.item}>
-        {block.checks && block.checks[i] !== null && block.checks[i] !== undefined
-          ? <CheckBox id={block.key} index={i} initial={block.checks[i] === true} />
-          : <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
-        <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink, renderLink)}</Text>
+        {block.checks && block.checks[i] !== null && block.checks[i] !== undefined ? (
+          <CheckBox id={block.key} index={i} initial={block.checks[i] === true} />
+        ) : (
+          <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>
+        )}
+        <Text style={styles.itemText}>
+          {inlineNodes(
+            caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []),
+            onLink,
+            renderLink,
+          )}
+        </Text>
       </View>,
     );
   }
@@ -122,7 +200,8 @@ export function inlineText(items: readonly Inline[]): string {
     else if (n.t === "math") out += n.v;
     else if (n.t === "br") out += " ";
     else if (n.t === "fnref") out += `[${n.id}]`;
-    else if (n.t === "strong" || n.t === "em" || n.t === "del" || n.t === "link" || n.t === "html") out += inlineText(n.c);
+    else if (n.t === "strong" || n.t === "em" || n.t === "del" || n.t === "link" || n.t === "html")
+      out += inlineText(n.c);
   }
   return out;
 }
@@ -139,63 +218,148 @@ export function sortRows(rows: readonly (readonly (readonly Inline[])[])[], col:
   idx.sort((a, b) => {
     const x = asNumber(cell(a));
     const y = asNumber(cell(b));
-    const c = x !== null && y !== null ? x - y : cell(a).localeCompare(cell(b), undefined, { numeric: true, sensitivity: "base" });
+    const c =
+      x !== null && y !== null
+        ? x - y
+        : cell(a).localeCompare(cell(b), undefined, { numeric: true, sensitivity: "base" });
     return (c === 0 ? a - b : c) * dir;
   });
   return idx;
 }
 
 /** A table: sortable on a header press, Copy as CSV, and its own horizontal scroll inside the message, so a wide table never widens the page. The header is bold on a quiet ground, columns keep a readable width, and each column aligns as the separator row said. */
-function TableView({ block, onLink, renderLink }: { block: Extract<Block, { kind: "table" }>; onLink?: (href: string) => void; renderLink?: RenderLink }) {
+function TableView({
+  block,
+  onLink,
+  renderLink,
+}: {
+  block: Extract<Block, { kind: "table" }>;
+  onLink?: (href: string) => void;
+  renderLink?: RenderLink;
+}) {
   const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
   const [copied, setCopied] = useState(false);
   const order = sort ? sortRows(block.rows, sort.col, sort.dir) : block.rows.map((_, i) => i);
-  const press = (c: number): void => setSort(sort && sort.col === c ? (sort.dir === 1 ? { col: c, dir: -1 } : null) : { col: c, dir: 1 });
+  const press = (c: number): void =>
+    setSort(sort && sort.col === c ? (sort.dir === 1 ? { col: c, dir: -1 } : null) : { col: c, dir: 1 });
   const row = (cs: readonly (readonly Inline[])[], head: boolean, r: number): ReactNode => {
     const out: ReactNode[] = [];
     for (let c = 0; c < block.head.length; c++) {
       const cell = (
         <Text style={[styles.cellText, head && styles.cellTextHead, { textAlign: block.align[c] ?? "left" }]}>
-          {inlineNodes(cs[c] ?? [], onLink, renderLink)}{head && sort && sort.col === c ? (sort.dir === 1 ? " \u25B2" : " \u25BC") : ""}
+          {inlineNodes(cs[c] ?? [], onLink, renderLink)}
+          {head && sort && sort.col === c ? (sort.dir === 1 ? " \u25B2" : " \u25BC") : ""}
         </Text>
       );
       out.push(
-        head
-          ? <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Sort by ${inlineText(cs[c] ?? [])}`} testID={`sort-${block.key}-${c}`} onPress={() => press(c)} style={[styles.cell, styles.cellHead, c === block.head.length - 1 && styles.cellLast]}>{cell}</Pressable>
-          : <View key={c} testID={`cell-${block.key}-${r}-${c}`} style={[styles.cell, c === block.head.length - 1 && styles.cellLast]}>{cell}</View>,
+        head ? (
+          <Pressable
+            key={c}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort by ${inlineText(cs[c] ?? [])}`}
+            testID={`sort-${block.key}-${c}`}
+            onPress={() => press(c)}
+            style={[styles.cell, styles.cellHead, c === block.head.length - 1 && styles.cellLast]}
+          >
+            {cell}
+          </Pressable>
+        ) : (
+          <View
+            key={c}
+            testID={`cell-${block.key}-${r}-${c}`}
+            style={[styles.cell, c === block.head.length - 1 && styles.cellLast]}
+          >
+            {cell}
+          </View>
+        ),
       );
     }
-    return <View key={head ? "h" : r} style={[styles.tr, head && styles.trHead, !head && r % 2 === 1 && styles.trAlt]} testID={head ? `thead-${block.key}` : `row-${block.key}-${r}`} accessibilityRole={head ? "header" : undefined}>{out}</View>;
+    return (
+      <View
+        key={head ? "h" : r}
+        style={[styles.tr, head && styles.trHead, !head && r % 2 === 1 && styles.trAlt]}
+        testID={head ? `thead-${block.key}` : `row-${block.key}-${r}`}
+        accessibilityRole={head ? "header" : undefined}
+      >
+        {out}
+      </View>
+    );
   };
   const body: ReactNode[] = [];
   order.forEach((ri, pos) => body.push(row(block.rows[ri] ?? [], false, pos)));
-  const csv = (): string => [block.head, ...block.rows.map((r) => block.head.map((_, c) => r[c] ?? []))].map((r) => r.map((c) => `"${inlineText(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const csv = (): string =>
+    [block.head, ...block.rows.map((r) => block.head.map((_, c) => r[c] ?? []))]
+      .map((r) => r.map((c) => `"${inlineText(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
   const copy = (): void => {
-    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator
+      ?.clipboard;
     void clip?.writeText?.(csv())?.catch(() => undefined);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <View testID={`block-${block.key}`} style={styles.tableWrap} accessibilityRole={Platform.OS === "web" ? ("table" as never) : undefined}>
-      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.tableScroll} testID={`table-scroll-${block.key}`}>
-        <View style={styles.table}>{row(block.head, true, 0)}{body}</View>
+    <View
+      testID={`block-${block.key}`}
+      style={styles.tableWrap}
+      accessibilityRole={Platform.OS === "web" ? ("table" as never) : undefined}
+    >
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        contentContainerStyle={styles.tableScroll}
+        testID={`table-scroll-${block.key}`}
+      >
+        <View style={styles.table}>
+          {row(block.head, true, 0)}
+          {body}
+        </View>
       </ScrollView>
-      <View style={styles.tableFoot}><Pressable accessibilityRole="button" accessibilityLabel="Copy as CSV" testID={`csv-${block.key}`} onPress={copy} style={styles.csvBtn}><Text style={styles.csvText}>{copied ? "Copied" : "Copy as CSV"}</Text></Pressable></View>
+      <View style={styles.tableFoot}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Copy as CSV"
+          testID={`csv-${block.key}`}
+          onPress={copy}
+          style={styles.csvBtn}
+        >
+          <Text style={styles.csvText}>{copied ? "Copied" : "Copy as CSV"}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-export const BlockView = memo(function BlockView({ block, caret = false, onLink, renderLink, renderCode }: BlockViewProps) {
+export const BlockView = memo(function BlockView({
+  block,
+  caret = false,
+  onLink,
+  renderLink,
+  renderCode,
+}: BlockViewProps) {
   switch (block.kind) {
     case "p":
-      return <Text testID={`block-${block.key}`} style={styles.p}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text>;
+      return (
+        <Text testID={`block-${block.key}`} style={styles.p}>
+          {inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}
+        </Text>
+      );
     case "h":
-      return <Text testID={`block-${block.key}`} accessibilityRole="header" style={[styles.p, styles.h, HEADING[block.level]]}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text>;
+      return (
+        <Text
+          testID={`block-${block.key}`}
+          accessibilityRole="header"
+          style={[styles.p, styles.h, HEADING[block.level]]}
+        >
+          {inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}
+        </Text>
+      );
     case "quote":
       return (
         <View testID={`block-${block.key}`} style={styles.quote}>
-          <Text style={styles.quoteText}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text>
+          <Text style={styles.quoteText}>
+            {inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}
+          </Text>
         </View>
       );
     case "hr":
@@ -218,14 +382,34 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
     case "img":
       return <ImageBlock id={block.key} src={block.src} alt={block.alt} />;
     case "fn":
-      return <FootnoteLine id={block.id} blockId={block.key}>{inlineNodes(block.inline, onLink, renderLink)}</FootnoteLine>;
+      return (
+        <FootnoteLine id={block.id} blockId={block.key}>
+          {inlineNodes(block.inline, onLink, renderLink)}
+        </FootnoteLine>
+      );
     case "callout":
-      return <CalloutBlock id={block.key} variant={block.variant} title={block.title}>{block.inline.length > 0 ? <Text style={styles.quoteText}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text> : null}</CalloutBlock>;
+      return (
+        <CalloutBlock id={block.key} variant={block.variant} title={block.title}>
+          {block.inline.length > 0 ? (
+            <Text style={styles.quoteText}>
+              {inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}
+            </Text>
+          ) : null}
+        </CalloutBlock>
+      );
     case "details":
       return (
         <DetailsBlock id={block.key} open={block.open} summary={inlineNodes(block.summary, onLink, renderLink)}>
           {/* ui-rows-lint: not a list (the blocks of a collapsible section: paragraphs, lists, code) */}
-          {block.blocks.map((b) => <BlockView key={b.key} block={b} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />)}
+          {block.blocks.map((b) => (
+            <BlockView
+              key={b.key}
+              block={b}
+              {...(onLink ? { onLink } : {})}
+              {...(renderLink ? { renderLink } : {})}
+              {...(renderCode ? { renderCode } : {})}
+            />
+          ))}
         </DetailsBlock>
       );
     case "table":
@@ -233,7 +417,9 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
     case "ul":
     case "ol":
       return (
-        <View testID={`block-${block.key}`} style={styles.list}>{listItems(block, caret, onLink, renderLink)}</View>
+        <View testID={`block-${block.key}`} style={styles.list}>
+          {listItems(block, caret, onLink, renderLink)}
+        </View>
       );
   }
 });
@@ -256,13 +442,35 @@ export interface MarkdownBlocksProps {
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
-export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText, scope, onChoose }: MarkdownBlocksProps) {
+export function MarkdownBlocks({
+  blocks,
+  streaming = false,
+  onLink,
+  renderLink,
+  renderCode,
+  renderText,
+  scope,
+  onChoose,
+}: MarkdownBlocksProps) {
   const last = blocks.length - 1;
-  const reply = useMemo(() => ({ scope: scope ?? null, send: scope !== undefined && !streaming && onChoose ? onChoose : null }), [scope, streaming, onChoose]);
+  const reply = useMemo(
+    () => ({ scope: scope ?? null, send: scope !== undefined && !streaming && onChoose ? onChoose : null }),
+    [scope, streaming, onChoose],
+  );
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    if (b) views.push(<BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />);
+    if (b)
+      views.push(
+        <BlockView
+          key={b.key}
+          block={b}
+          caret={streaming && i === last}
+          {...(onLink ? { onLink } : {})}
+          {...(renderLink ? { renderLink } : {})}
+          {...(renderCode ? { renderCode } : {})}
+        />,
+      );
   }
   return (
     <TextCtx.Provider value={renderText ?? null}>
@@ -307,26 +515,63 @@ const styles = StyleSheet.create({
   quote: { borderLeftWidth: 2, borderLeftColor: "var(--line-2)" as string, paddingLeft: 12, marginBottom: BLOCK_GAP },
   quoteText: { color: "var(--ink-2)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 12 },
-  pre: { backgroundColor: CODE_TINT, borderRadius: RADIUS, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
+  pre: {
+    backgroundColor: CODE_TINT,
+    borderRadius: RADIUS,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: BLOCK_GAP,
+  },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20 },
   list: { marginBottom: BLOCK_GAP },
-  box: { width: 16, height: 16, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  box: {
+    width: 16,
+    height: 16,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "var(--ink-4)" as string,
+    marginRight: 6,
+    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
   codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5 },
   copy: { paddingHorizontal: 8, height: 24, borderRadius: RADIUS, justifyContent: "center" },
   copyText: { color: "var(--ink-3)" as string, fontSize: 12 },
-  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  tableWrap: {
+    marginBottom: BLOCK_GAP,
+    maxWidth: "100%",
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    overflow: "hidden",
+  },
   tableScroll: { flexGrow: 1 },
   table: { minWidth: "100%" as unknown as number },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   trHead: { borderTopWidth: 0 },
-  tableFoot: { flexDirection: "row", justifyContent: "flex-end", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  tableFoot: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   csvBtn: { paddingHorizontal: 10, height: 26, justifyContent: "center" },
   csvText: { color: "var(--ink-3)" as string, fontSize: 12 },
   trAlt: { backgroundColor: "var(--sunk)" as string },
-  cell: { flexGrow: 1, flexShrink: 0, flexBasis: 120, minWidth: 96, paddingHorizontal: 12, paddingVertical: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  cell: {
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: 120,
+    minWidth: 96,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+  },
   cellLast: { borderRightWidth: 0 },
   cellHead: { backgroundColor: "var(--sunk)" as string },
   cellText: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20 },

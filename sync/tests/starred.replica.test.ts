@@ -12,11 +12,21 @@ const NOW = 1_700_000_000_000;
 let tick = 0;
 const hlc = (): string => `${(NOW + ++tick).toString(16).padStart(12, "0")}-0001-dev1`;
 
-function device(cls: "phone" | "desktop" | "web", driver = createNodeDriver()): { store: ReplicaStore; driver: ReturnType<typeof createNodeDriver>; st: Starred } {
+function device(
+  cls: "phone" | "desktop" | "web",
+  driver = createNodeDriver(),
+): { store: ReplicaStore; driver: ReturnType<typeof createNodeDriver>; st: Starred } {
   const store = openReplica({ driver, deviceClass: cls, registryHash: "h1", personId: ME, clock: () => NOW });
   let n = 0;
   const st = createStarred({
-    store, person: ME, actor: ME, clock: () => NOW, hlc, newId: () => `op-${cls}-${++n}`, newTrace: () => String(++n).padStart(32, "0"), recordEntities: () => ["contact"],
+    store,
+    person: ME,
+    actor: ME,
+    clock: () => NOW,
+    hlc,
+    newId: () => `op-${cls}-${++n}`,
+    newTrace: () => String(++n).padStart(32, "0"),
+    recordEntities: () => ["contact"],
   });
   return { store, driver, st };
 }
@@ -47,19 +57,39 @@ test("a toggle writes the row and queues stars.toggle at once, offline; unstar q
   const person = { type: "record", id: "rec_co" };
   st.toggleStar(person, true, true);
   assert.equal(st.isFollowing(person), true);
-  assert.deepEqual(st.starred().map((x) => x.id), ["rec_co"]);
+  assert.deepEqual(
+    st.starred().map((x) => x.id),
+    ["rec_co"],
+  );
   st.toggleFollow({ type: "thread", id: "thr_2" }, true);
-  assert.deepEqual(st.following().map((x) => x.id).sort(), ["rec_co", "thr_2"]);
+  assert.deepEqual(
+    st
+      .following()
+      .map((x) => x.id)
+      .sort(),
+    ["rec_co", "thr_2"],
+  );
 });
 
 test("a star made on one device converges on the others: the server's row, applied through onRow, sets the flags", () => {
-  const phone = device("phone"), desk = device("desktop");
+  const phone = device("phone"),
+    desk = device("desktop");
   const r = { type: "thread", id: "thr_9" };
   desk.st.toggleStar(r, true);
   const row = desk.store.read("star", "str_thread.thr_9");
   assert.ok(row);
   // The server echoes the row to the phone.
-  assert.equal(phone.store.write({ entity: "star", id: "str_thread.thr_9", fields: { person: ME, resourceType: "thread", resourceId: "thr_9", createdAt: NOW }, hlc: hlc(), actor: ME, origin: "mirror" }).applied, true);
+  assert.equal(
+    phone.store.write({
+      entity: "star",
+      id: "str_thread.thr_9",
+      fields: { person: ME, resourceType: "thread", resourceId: "thr_9", createdAt: NOW },
+      hlc: hlc(),
+      actor: ME,
+      origin: "mirror",
+    }).applied,
+    true,
+  );
   phone.st.onRow("star", { person: ME, resourceType: "thread", resourceId: "thr_9" });
   assert.equal(phone.st.isStarred(r), true);
   assert.deepEqual(phone.store.isKept("thread", "thr_9"), { starred: true, follows: false });
@@ -79,13 +109,28 @@ test("on a phone a starred thread outlives the 200-row window, and a starred or 
   st.toggleStar(old, true);
   for (let i = 0; i < 205; i++) {
     const id = `thr_${String(i).padStart(3, "0")}`;
-    store.write({ entity: "thread", id, fields: { title: id, createdAt: NOW + i * 1000, updated_at: NOW + i * 1000 }, hlc: hlc(), actor: ME, origin: "mirror" });
+    store.write({
+      entity: "thread",
+      id,
+      fields: { title: id, createdAt: NOW + i * 1000, updated_at: NOW + i * 1000 },
+      hlc: hlc(),
+      actor: ME,
+      origin: "mirror",
+    });
   }
   assert.ok(store.read("thread", "thr_000"), "the oldest thread is starred and stays");
   assert.equal(store.read("thread", "thr_001"), null, "an unstarred old thread was trimmed");
   assert.ok(store.read("thread", "thr_204"));
 
-  const other = (id: string) => store.write({ entity: "contact", id, fields: { name: id, owner: "prs_other" }, hlc: hlc(), actor: ME, origin: "mirror" });
+  const other = (id: string) =>
+    store.write({
+      entity: "contact",
+      id,
+      fields: { name: id, owner: "prs_other" },
+      hlc: hlc(),
+      actor: ME,
+      origin: "mirror",
+    });
   assert.equal(other("rec_a").reason, "not_owned");
   st.toggleStar({ type: "record", id: "rec_b" }, true);
   st.toggleFollow({ type: "record", id: "rec_c" }, true);
@@ -102,10 +147,20 @@ test("refresh rebuilds the flags from the rows after a restart, and recheck flag
   first.st.toggleStar({ type: "thread", id: "thr_gone" }, true);
   first.st.toggleStar({ type: "thread", id: "thr_gone" }, false);
   const second = device("phone", driver);
-  assert.deepEqual(second.store.isKept("thread", "thr_s"), { starred: true, follows: false }, "the store reloads replica_keep");
+  assert.deepEqual(
+    second.store.isKept("thread", "thr_s"),
+    { starred: true, follows: false },
+    "the store reloads replica_keep",
+  );
   second.st.refresh(driver);
-  assert.deepEqual(second.st.starred().map((x) => x.id), ["thr_s"]);
-  assert.deepEqual(second.st.following().map((x) => x.id), ["rec_f"]);
+  assert.deepEqual(
+    second.st.starred().map((x) => x.id),
+    ["thr_s"],
+  );
+  assert.deepEqual(
+    second.st.following().map((x) => x.id),
+    ["rec_f"],
+  );
   assert.deepEqual(second.store.isKept("contact", "rec_f"), { starred: false, follows: true });
   assert.deepEqual(second.store.isKept("thread", "thr_gone"), { starred: false, follows: false });
   second.st.recheck();

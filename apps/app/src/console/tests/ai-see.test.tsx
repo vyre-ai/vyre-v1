@@ -14,32 +14,98 @@ const PROVIDERS = [
 ];
 // the accounts an admin can mark: two of Claude (one marked), one of OpenAI, and a local model that always keeps nothing
 const ACCOUNTS = [
-  { ref: "#Team_Claude", driver: "anthropic", kind: "api_key", title: "Anthropic", name: "Team Claude", mine: false, status: "ok", providerId: "prv_a1" },
-  { ref: "#Zero_Claude", driver: "anthropic", kind: "api_key", title: "Anthropic", name: "Zero Claude", mine: false, status: "ok", providerId: "prv_a2", keepsNothing: true },
-  { ref: "#Team_OpenAI", driver: "openai", kind: "api_key", title: "OpenAI", name: "Team OpenAI", mine: false, status: "ok", providerId: "prv_o1" },
-  { ref: "#Local", driver: "local", kind: "api_key", title: "Local", mine: false, status: "ok", providerId: "prv_l1", keepsNothing: true },
+  {
+    ref: "#Team_Claude",
+    driver: "anthropic",
+    kind: "api_key",
+    title: "Anthropic",
+    name: "Team Claude",
+    mine: false,
+    status: "ok",
+    providerId: "prv_a1",
+  },
+  {
+    ref: "#Zero_Claude",
+    driver: "anthropic",
+    kind: "api_key",
+    title: "Anthropic",
+    name: "Zero Claude",
+    mine: false,
+    status: "ok",
+    providerId: "prv_a2",
+    keepsNothing: true,
+  },
+  {
+    ref: "#Team_OpenAI",
+    driver: "openai",
+    kind: "api_key",
+    title: "OpenAI",
+    name: "Team OpenAI",
+    mine: false,
+    status: "ok",
+    providerId: "prv_o1",
+  },
+  {
+    ref: "#Local",
+    driver: "local",
+    kind: "api_key",
+    title: "Local",
+    mine: false,
+    status: "ok",
+    providerId: "prv_l1",
+    keepsNothing: true,
+  },
 ];
 const UNIVERSE = ["anthropic", "openai", "local"];
 
 async function page(labelProviders: Record<string, string[]>) {
   const restore = installDom();
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
-  let policy = { allowedAccounts: "any", allowedModels: [], allowedProviders: [], labelProviders, hops: { agentHops: 8, reviewLoops: 2, ciFixLoops: 2 } };
+  let policy = {
+    allowedAccounts: "any",
+    allowedModels: [],
+    allowedProviders: [],
+    labelProviders,
+    hops: { agentHops: 8, reviewLoops: 2, ciFixLoops: 2 },
+  };
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "engine.policy.set") { policy = { ...policy, ...(input as object) }; return { ok: true }; }
+    if (cap === "engine.policy.set") {
+      policy = { ...policy, ...(input as object) };
+      return { ok: true };
+    }
     if (cap === "engine.policy.get") return policy;
     if (cap === "providers.set_keeps_nothing") return { provider: {} };
     throw new Error(`unscripted ${cap}`);
   };
   const { createRoot } = await import("test-renderer");
-  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith({ "engine.policy.get": policy, "engine.providers.list": { providers: PROVIDERS }, "engine.accounts.list": { accounts: ACCOUNTS } }, { call: call as never })}><AiSeePage /></ConsoleDataProvider>);
+  const root = await mount(
+    createRoot,
+    <ConsoleDataProvider
+      value={dataWith(
+        {
+          "engine.policy.get": policy,
+          "engine.providers.list": { providers: PROVIDERS },
+          "engine.accounts.list": { accounts: ACCOUNTS },
+        },
+        { call: call as never },
+      )}
+    >
+      <AiSeePage />
+    </ConsoleDataProvider>,
+  );
   return { root, calls, restore };
 }
-const sets = (calls: Array<{ cap: string; input: Record<string, unknown> }>) => calls.filter((c) => c.cap === "engine.policy.set").map((c) => c.input);
+const sets = (calls: Array<{ cap: string; input: Record<string, unknown> }>) =>
+  calls.filter((c) => c.cap === "engine.policy.set").map((c) => c.input);
 
 test("the sentence for a provider: Everything, Everything except one, Only the few, Nothing", () => {
-  const lp = { restricted: ["local"], confidential: ["local"], internal: ["local", "anthropic"], public: ["anthropic"] };
+  const lp = {
+    restricted: ["local"],
+    confidential: ["local"],
+    internal: ["local", "anthropic"],
+    public: ["anthropic"],
+  };
   assert.equal(seeSays({}, "openai"), "Everything");
   assert.equal(seeSays({ restricted: ["anthropic"] }, "openai"), "Everything except Restricted");
   assert.equal(seeSays(lp, "anthropic"), "Only Public, Internal");
@@ -48,7 +114,10 @@ test("the sentence for a provider: Everything, Everything except one, Only the f
   assert.equal(mayTakeRestricted(ACCOUNTS as never, "openai"), false);
   assert.equal(mayTakeRestricted(ACCOUNTS as never, "anthropic"), true, "one marked account is enough");
   assert.equal(mayTakeRestricted([], "local"), true);
-  assert.deepEqual(ACCOUNTS.map((a) => accountKeeps(a as never)), [false, true, false, true]);
+  assert.deepEqual(
+    ACCOUNTS.map((a) => accountKeeps(a as never)),
+    [false, true, false, true],
+  );
 });
 
 test("a tick adds or removes the provider and a label every provider may read goes back to no entry", () => {
@@ -62,7 +131,9 @@ test("one row per provider, in plain words, with the muted line about Restricted
     assert.equal(textOf(find(root, "row-see-anthropic")).includes("Everything except Restricted"), true);
     assert.equal(textOf(find(root, "row-see-local")).includes("Everything"), true);
     assert.match(textOf(root), /Restricted data only goes to accounts that keep nothing\./);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a tap opens the sheet and unticking Internal saves labelProviders with the provider out of it, read back", async () => {
@@ -73,11 +144,16 @@ test("a tap opens the sheet and unticking Internal saves labelProviders with the
     assert.match(textOf(find(root, "see-sheet")), /What OpenAI may see/);
     await press(find(root, "see-tick-openai-internal"));
     assert.deepEqual(sets(calls), [{ labelProviders: { internal: ["anthropic", "local"] } }]);
-    assert.ok(calls.some((c) => c.cap === "engine.policy.get"), "read back");
+    assert.ok(
+      calls.some((c) => c.cap === "engine.policy.get"),
+      "read back",
+    );
     await press(find(root, "see-done"));
     assert.equal(find(root, "see-sheet"), null);
     assert.match(textOf(find(root, "row-see-openai")), /Everything except Internal/);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("Restricted is off for a provider that keeps something: disabled once it is not allowed, with the reason", async () => {
@@ -86,8 +162,13 @@ test("Restricted is off for a provider that keeps something: disabled once it is
     await press(find(root, "row-see-openai"));
     assert.match(textOf(find(root, "see-sheet")), /Only accounts that keep nothing/);
     const box = find(root, "see-tick-openai-restricted");
-    assert.equal((box?.props as { disabled?: boolean })["aria-disabled"] ?? (box?.props as { disabled?: boolean }).disabled, true);
-  } finally { restore(); }
+    assert.equal(
+      (box?.props as { disabled?: boolean })["aria-disabled"] ?? (box?.props as { disabled?: boolean }).disabled,
+      true,
+    );
+  } finally {
+    restore();
+  }
 });
 
 test("a keep-nothing provider can take Restricted and the tick saves it", async () => {
@@ -96,11 +177,21 @@ test("a keep-nothing provider can take Restricted and the tick saves it", async 
     await press(find(root, "row-see-local"));
     await press(find(root, "see-tick-local-restricted"));
     assert.deepEqual(sets(calls), [{ labelProviders: { restricted: ["anthropic", "local"] } }]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
-const disabled = (n: ReturnType<typeof find>): unknown => {  const p = (n?.props ?? {}) as { "aria-disabled"?: boolean; disabled?: boolean; accessibilityState?: { disabled?: boolean } }; return p["aria-disabled"] ?? p.disabled ?? p.accessibilityState?.disabled; };
-const saves = (calls: Array<{ cap: string; input: Record<string, unknown> }>) => calls.filter((c) => c.cap === "providers.set_keeps_nothing").map((c) => c.input);
+const disabled = (n: ReturnType<typeof find>): unknown => {
+  const p = (n?.props ?? {}) as {
+    "aria-disabled"?: boolean;
+    disabled?: boolean;
+    accessibilityState?: { disabled?: boolean };
+  };
+  return p["aria-disabled"] ?? p.disabled ?? p.accessibilityState?.disabled;
+};
+const saves = (calls: Array<{ cap: string; input: Record<string, unknown> }>) =>
+  calls.filter((c) => c.cap === "providers.set_keeps_nothing").map((c) => c.input);
 
 test("a provider with an account that keeps nothing can take Restricted; one without cannot", async () => {
   const { root, restore } = await page({ restricted: ["local"] });
@@ -110,7 +201,9 @@ test("a provider with an account that keeps nothing can take Restricted; one wit
     await press(find(root, "see-done"));
     await press(find(root, "row-see-openai"));
     assert.equal(disabled(find(root, "see-tick-openai-restricted")), true);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("each account has the switch: pressing it saves the flag for that account; the sheet names it plainly", async () => {
@@ -125,7 +218,9 @@ test("each account has the switch: pressing it saves the flag for that account; 
     await press(find(root, "row-see-anthropic"));
     await press(find(root, "see-keeps-prv_a1"));
     assert.deepEqual(saves(calls).at(-1), { providerId: "prv_a1", keepsNothing: true });
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a local model shows the switch on and locked", async () => {
@@ -137,7 +232,9 @@ test("a local model shows the switch on and locked", async () => {
     assert.equal((sw?.props as { "aria-checked"?: boolean })["aria-checked"], true);
     await press(sw);
     assert.deepEqual(saves(calls), []);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("turning off the last account that keeps nothing takes the provider off Restricted first, then saves the flag", async () => {
@@ -145,9 +242,16 @@ test("turning off the last account that keeps nothing takes the provider off Res
   try {
     await press(find(root, "row-see-anthropic"));
     await press(find(root, "see-keeps-prv_a2"));
-    assert.deepEqual(calls.filter((c) => c.cap === "engine.policy.set" || c.cap === "providers.set_keeps_nothing").map((c) => [c.cap, c.input]), [
-      ["engine.policy.set", { labelProviders: { restricted: ["local"] } }],
-      ["providers.set_keeps_nothing", { providerId: "prv_a2", keepsNothing: false }],
-    ]);
-  } finally { restore(); }
+    assert.deepEqual(
+      calls
+        .filter((c) => c.cap === "engine.policy.set" || c.cap === "providers.set_keeps_nothing")
+        .map((c) => [c.cap, c.input]),
+      [
+        ["engine.policy.set", { labelProviders: { restricted: ["local"] } }],
+        ["providers.set_keeps_nothing", { providerId: "prv_a2", keepsNothing: false }],
+      ],
+    );
+  } finally {
+    restore();
+  }
 });

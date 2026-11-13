@@ -13,7 +13,11 @@ export function dueAt(hour: number, flows: Flow[]): Flow[] {
   throw new Error(`deadline hour must be 6, 9 or 11, got ${hour}`);
 }
 
-export function readyReport(flows: Flow[], modules: ModuleStatus[], hour?: number): { lines: string[]; late: string[] } {
+export function readyReport(
+  flows: Flow[],
+  modules: ModuleStatus[],
+  hour?: number,
+): { lines: string[]; late: string[] } {
   const due = new Set((hour ? dueAt(hour, flows) : []).map((f) => f.n));
   const lines: string[] = [];
   const late: string[] = [];
@@ -23,7 +27,9 @@ export function readyReport(flows: Flow[], modules: ModuleStatus[], hour?: numbe
     if (b.length && due.has(f.n)) late.push(flowId(f));
   }
   const pending = lines.filter((l) => l.includes("PENDING")).length;
-  lines.push(`${flows.length - pending} ready, ${pending} pending${hour ? `; hour ${hour} deadline: ${late.length ? `late ${late.join(", ")}` : "met"}` : ""}`);
+  lines.push(
+    `${flows.length - pending} ready, ${pending} pending${hour ? `; hour ${hour} deadline: ${late.length ? `late ${late.join(", ")}` : "met"}` : ""}`,
+  );
   return { lines, late };
 }
 

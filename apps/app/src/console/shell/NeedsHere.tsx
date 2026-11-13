@@ -14,7 +14,10 @@ type Out = CapMap["console.overview"]["out"];
 /** The attention items whose page sits on the same tab as `page`. */
 export function itemsHere(items: Out["attention"], page: string): Out["attention"] {
   const tab = tabOf(page);
-  return items.filter((a) => { const to = resolve(ATTENTION_PAGE[a.kind]); return tab !== undefined && tab.views.some((x) => x.page === to); });
+  return items.filter((a) => {
+    const to = resolve(ATTENTION_PAGE[a.kind]);
+    return tab !== undefined && tab.views.some((x) => x.page === to);
+  });
 }
 
 export function NeedsHere({ page }: { page: string }): ReactElement | null {
@@ -28,8 +31,25 @@ export function NeedsHere({ page }: { page: string }): ReactElement | null {
     <Section title="Needs you" count={here.length}>
       <Group testID="needs-here">
         {here.map((a, i) => (
-          <Row key={`${a.kind}-${a.ref ?? i}`} id={`needs-${a.kind}-${a.ref ?? i}`} title={a.title} note={`${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}`} leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
-            trailing={<LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`needs-go-${i}`} />} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} />
+          <Row
+            key={`${a.kind}-${a.ref ?? i}`}
+            id={`needs-${a.kind}-${a.ref ?? i}`}
+            title={a.title}
+            note={`${ATTENTION_SENTENCE[a.kind]}${forHowLong(now, a.since)}`}
+            leading={
+              <Lead>
+                <Glyph name="warn" size={16} color="var(--warn)" />
+              </Lead>
+            }
+            trailing={
+              <LinkButton
+                label={a.next}
+                onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
+                testID={`needs-go-${i}`}
+              />
+            }
+            onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
+          />
         ))}
       </Group>
     </Section>

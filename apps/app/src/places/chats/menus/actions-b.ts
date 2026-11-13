@@ -55,7 +55,9 @@ export interface MenuApiB {
 }
 
 export function createMenuApiB(data: Call): MenuApiB {
-  const c = async (cap: string, input: unknown): Promise<void> => { await data.call(cap, input); };
+  const c = async (cap: string, input: unknown): Promise<void> => {
+    await data.call(cap, input);
+  };
   return {
     vaultMove: (itemId, folderId) => c("vault.item.move", { itemId, folderId }),
     vaultMarkRotated: (itemId) => c("vault.item.mark_rotated", { itemId }),
@@ -64,7 +66,8 @@ export function createMenuApiB(data: Call): MenuApiB {
     automationRun: (automationId) => c("automations.run", { automationId, idempotencyKey: key("run", automationId) }),
     automationSetEnabled: (automationId, enabled) => c("automations.set_enabled", { automationId, enabled }),
     automationTest: (automationId) => c("automations.test", { automationId }),
-    automationPersonalCopy: (automationId) => c("automations.make_personal_copy", { automationId, idempotencyKey: key("copy", automationId) }),
+    automationPersonalCopy: (automationId) =>
+      c("automations.make_personal_copy", { automationId, idempotencyKey: key("copy", automationId) }),
     automationMove: (automationId, groupId) => c("automations.move", { automationId, groupId }),
     automationTrash: (automationId) => c("automations.delete", { automationId }),
 
@@ -75,7 +78,13 @@ export function createMenuApiB(data: Call): MenuApiB {
     goalStop: (goalId) => c("goals.stop", { goalId }),
 
     projectStar: (projectId, on) => c("stars.toggle", { resource: { type: "project", id: projectId }, on }),
-    projectAddPerson: (projectId, principal, role) => c("projects.members.set", { projectId, principal, role, idempotencyKey: key("member", `${projectId}:${principal.id}`) }),
+    projectAddPerson: (projectId, principal, role) =>
+      c("projects.members.set", {
+        projectId,
+        principal,
+        role,
+        idempotencyKey: key("member", `${projectId}:${principal.id}`),
+      }),
     projectPinFile: (projectId, fileId) => c("projects.pin_file", { projectId, fileId }),
     projectArchive: (projectId) => c("projects.archive", { projectId }),
     projectUnarchive: (projectId) => c("projects.unarchive", { projectId }),
@@ -85,20 +94,28 @@ export function createMenuApiB(data: Call): MenuApiB {
     personRole: (personId, roleId) => c("access.roles.assign", { subject: { kind: "person", id: personId }, roleId }),
     /** The removal wizard's own defaults: what the person owns is reassigned or paused as the preview proposes. */
     async personRemove(personId) {
-      const prev = (await data.call("members.remove_preview", { personId })) as { items?: { kind: string; defaultAction: string; reassignTo?: string }[] } | null;
-      const plan = (prev?.items ?? []).map((i) => ({ kind: i.kind, action: i.defaultAction, ...(i.reassignTo ? { to: i.reassignTo } : {}) }));
+      const prev = (await data.call("members.remove_preview", { personId })) as {
+        items?: { kind: string; defaultAction: string; reassignTo?: string }[];
+      } | null;
+      const plan = (prev?.items ?? []).map((i) => ({
+        kind: i.kind,
+        action: i.defaultAction,
+        ...(i.reassignTo ? { to: i.reassignTo } : {}),
+      }));
       await data.call("members.remove", { personId, plan });
     },
     groupAddMember: (groupId, member) => c("access.groups.add_member", { groupId, member }),
     groupRename: (groupId, name) => c("access.groups.update", { groupId, name }),
     groupDelete: (groupId) => c("access.groups.delete", { groupId }),
-    roleDuplicate: (roleId, name) => c("access.roles.create", { name, cloneFrom: roleId, idempotencyKey: key("role", roleId) }),
+    roleDuplicate: (roleId, name) =>
+      c("access.roles.create", { name, cloneFrom: roleId, idempotencyKey: key("role", roleId) }),
     roleDelete: (roleId) => c("access.roles.delete", { roleId }),
     computerWake: (computerId) => c("computers.wake", { computerId }),
     computerSleep: (computerId) => c("computers.sleep", { computerId }),
     computerTakeOver: (computerId) => c("computers.take_over", { computerId }),
     computerRemove: (computerId) => c("computers.remove", { computerId }),
-    numberAssign: (numberId, assigneeKind, assigneeId) => c("telephony.number.assign", { numberId, assigneeKind, assigneeId }),
+    numberAssign: (numberId, assigneeKind, assigneeId) =>
+      c("telephony.number.assign", { numberId, assigneeKind, assigneeId }),
     numberRelease: (numberId) => c("telephony.number.release", { numberId, idempotencyKey: key("release", numberId) }),
     domainCheck: (domainId) => c("mail.domain.check", { domainId }),
     domainRemove: (domainId) => c("mail.domain.remove", { domainId }),
@@ -113,6 +130,7 @@ export function createMenuApiB(data: Call): MenuApiB {
 export const vyreLink = (kind: string, id: string): string => `vyre://${kind}/${id}`;
 /** Put text on the clipboard; a device with none does nothing. */
 export function copyToClipboard(text: string): void {
-  const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;
+  const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator
+    ?.clipboard;
   void clip?.writeText(text);
 }

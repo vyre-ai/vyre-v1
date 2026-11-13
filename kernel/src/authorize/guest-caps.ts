@@ -9,9 +9,9 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "channels.agents.add": "never",
   "channels.agents.remove": "never",
   "channels.archive": "never",
-  "channels.get": "view",   // the channel they were added to, its name and people
+  "channels.get": "view", // the channel they were added to, its name and people
   "channels.join": "never",
-  "channels.leave": "view",   // leave the channel they were added to
+  "channels.leave": "view", // leave the channel they were added to
   "channels.members.add": "never",
   "channels.members.remove": "never",
   "channels.stream": "never",
@@ -24,10 +24,10 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "chat.aside": "never",
   "chat.aside_keep": "never",
   "chat.ask_level": "never",
-  "chat.catch_up": "view",   // what they missed since they last looked
+  "chat.catch_up": "view", // what they missed since they last looked
   "chat.crew_line": "never",
-  "chat.delete_message": "reply",   // delete their own message (the handler refuses anyone elses)
-  "chat.edit": "reply",   // edit their own message (the handler refuses anyone elses)
+  "chat.delete_message": "reply", // delete their own message (the handler refuses anyone elses)
+  "chat.edit": "reply", // edit their own message (the handler refuses anyone elses)
   "chat.flow_card": "never",
   "chat.handoff": "never",
   "chat.helper.note": "never",
@@ -37,32 +37,32 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "chat.helper.start": "never",
   "chat.helper.steer": "never",
   "chat.helpers.list": "never",
-  "chat.history.page": "view",   // scroll back in the chat
+  "chat.history.page": "view", // scroll back in the chat
   "chat.hook_line": "never",
   "chat.hook_resolve": "never",
   "chat.make_task": "never",
-  "chat.message.get": "view",   // read one message
-  "chat.messages.list": "view",   // read the chat and its reply threads
+  "chat.message.get": "view", // read one message
+  "chat.messages.list": "view", // read the chat and its reply threads
   "chat.note_offer.answer": "never",
   "chat.note_offer.make": "never",
   "chat.noted": "never",
   "chat.open_as_chat": "never",
   "chat.open_tab": "never",
   "chat.pin": "never",
-  "chat.pins.list": "view",   // see what is pinned
+  "chat.pins.list": "view", // see what is pinned
   "chat.plan.propose": "never",
   "chat.plan.reject": "never",
   "chat.plan.step_done": "never",
-  "chat.post": "reply",   // say something, mention an agent
+  "chat.post": "reply", // say something, mention an agent
   "chat.question.ask": "never",
   "chat.question.withdraw": "never",
-  "chat.react": "reply",   // react to a message
-  "chat.read_floor": "view",   // where their history starts
+  "chat.react": "reply", // react to a message
+  "chat.read_floor": "view", // where their history starts
   "chat.remember": "never",
-  "chat.reply_details": "view",   // who replied in a thread
+  "chat.reply_details": "view", // who replied in a thread
   "chat.screen.get": "never",
   "chat.share": "never",
-  "chat.thread": "reply",   // open the reply thread under a message
+  "chat.thread": "reply", // open the reply thread under a message
   "chat.title_make": "never",
   "chat.transcript.append": "never",
   "chat.transcript.get": "never",
@@ -116,13 +116,13 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "threads.archive": "never",
   "threads.close": "never",
   "threads.delete": "never",
-  "threads.follow": "view",   // follow or mute it
-  "threads.get": "view",   // open the chat or reply thread
+  "threads.follow": "view", // follow or mute it
+  "threads.get": "view", // open the chat or reply thread
   "threads.invite_guest": "never",
   "threads.leave": "never",
   "threads.make_channel": "never",
-  "threads.mark_read": "view",   // mark it read
-  "threads.mark_unread_from": "view",   // mark it unread again
+  "threads.mark_read": "view", // mark it read
+  "threads.mark_unread_from": "view", // mark it unread again
   "threads.members.add": "never",
   "threads.members.remove": "never",
   "threads.move": "never",

@@ -16,8 +16,21 @@ const steps = stepsOf("personal");
 test("each of the 8 steps renders Finish later, Back (not on the first), Skip for now and Continue (Done on the last)", () => {
   assert.equal(steps.length, 8);
   steps.forEach((st, i) => {
-    const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{}} stepKey={st.key} device="mac" onStep={noop} onClose={noop} />);
-    assert.ok(out.includes("Finish later") && out.includes(">Skip for now<") && out.includes('data-testid="step-next"'), st.key);
+    const out = renderToStaticMarkup(
+      <OnboardingScreen
+        flow="personal"
+        spaceName="Maya"
+        progress={{}}
+        stepKey={st.key}
+        device="mac"
+        onStep={noop}
+        onClose={noop}
+      />,
+    );
+    assert.ok(
+      out.includes("Finish later") && out.includes(">Skip for now<") && out.includes('data-testid="step-next"'),
+      st.key,
+    );
     assert.equal(out.includes('data-testid="step-back"'), i > 0, `${st.key}: Back`);
     assert.ok(out.includes(i === steps.length - 1 ? ">Done<" : ">Continue<"), st.key);
   });
@@ -28,7 +41,20 @@ test("Continue on a done step opens the next one, and Done on the last ends on t
   for (let i = 0; i < steps.length; i++) {
     const opened: string[] = [];
     const r = createRoot();
-    await act(async () => { r.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ [steps[i]!.key]: "done" }} stepKey={steps[i]!.key} device="mac" onStep={noop} onOpenStep={(k) => opened.push(k)} onClose={noop} />); });
+    await act(async () => {
+      r.render(
+        <OnboardingScreen
+          flow="personal"
+          spaceName="Maya"
+          progress={{ [steps[i]!.key]: "done" }}
+          stepKey={steps[i]!.key}
+          device="mac"
+          onStep={noop}
+          onOpenStep={(k) => opened.push(k)}
+          onClose={noop}
+        />,
+      );
+    });
     await press(find(r.container as never, "step-next"));
     await flush();
     if (i < steps.length - 1) assert.deepEqual(opened, [steps[i + 1]!.key], steps[i]!.key);
@@ -38,15 +64,42 @@ test("Continue on a done step opens the next one, and Done on the last ends on t
 
 test("Skip for now on an open step marks it skipped and moves on; a done step has no Skip, so it is never downgraded", async () => {
   installDom();
-  const seen: string[] = [], opened: string[] = [];
+  const seen: string[] = [],
+    opened: string[] = [];
   const r = createRoot();
-  await act(async () => { r.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done" }} stepKey="folders" device="mac" onStep={(k, st) => seen.push(`${k}:${st}`)} onOpenStep={(k) => opened.push(k)} onClose={noop} />); });
+  await act(async () => {
+    r.render(
+      <OnboardingScreen
+        flow="personal"
+        spaceName="Maya"
+        progress={{ ai: "done" }}
+        stepKey="folders"
+        device="mac"
+        onStep={(k, st) => seen.push(`${k}:${st}`)}
+        onOpenStep={(k) => opened.push(k)}
+        onClose={noop}
+      />,
+    );
+  });
   await press(find(r.container as never, "step-later"));
   await flush();
   assert.deepEqual(seen, ["folders:later"]);
   assert.deepEqual(opened, ["chrome"]);
   const d = createRoot();
-  await act(async () => { d.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done" }} stepKey="ai" device="mac" onStep={(k, st) => seen.push(`${k}:${st}`)} onOpenStep={(k) => opened.push(k)} onClose={noop} />); });
+  await act(async () => {
+    d.render(
+      <OnboardingScreen
+        flow="personal"
+        spaceName="Maya"
+        progress={{ ai: "done" }}
+        stepKey="ai"
+        device="mac"
+        onStep={(k, st) => seen.push(`${k}:${st}`)}
+        onOpenStep={(k) => opened.push(k)}
+        onClose={noop}
+      />,
+    );
+  });
   assert.equal(find(d.container as never, "step-later"), null);
   await press(find(d.container as never, "step-next"));
   await flush();
@@ -57,11 +110,26 @@ test("Skip for now on an open step marks it skipped and moves on; a done step ha
 function mountWin(hasAi: boolean) {
   const calls: { cap: string; input: unknown }[] = [];
   const steps2: string[] = [];
-  const call = (async (cap: string, input?: unknown) => { calls.push({ cap, input }); return cap === "automations.create" ? { automation: { id: "aut_1" } } : {}; }) as unknown as CapCall;
+  const call = (async (cap: string, input?: unknown) => {
+    calls.push({ cap, input });
+    return cap === "automations.create" ? { automation: { id: "aut_1" } } : {};
+  }) as unknown as CapCall;
   const connect: string[] = [];
   const el = (
-    <OnboardingScreen flow="personal" spaceName="Maya" progress={{}} stepKey="win" device="mac" onStep={(k, st) => steps2.push(`${k}:${st}`)} onClose={noop}
-      renderCard={(card, ctx) => card === "first_win" ? <FirstWinCard call={call} hasAi={hasAi} gate={ctx.gate} onConnectAi={() => connect.push("ai")} /> : null} />
+    <OnboardingScreen
+      flow="personal"
+      spaceName="Maya"
+      progress={{}}
+      stepKey="win"
+      device="mac"
+      onStep={(k, st) => steps2.push(`${k}:${st}`)}
+      onClose={noop}
+      renderCard={(card, ctx) =>
+        card === "first_win" ? (
+          <FirstWinCard call={call} hasAi={hasAi} gate={ctx.gate} onConnectAi={() => connect.push("ai")} />
+        ) : null
+      }
+    />
   );
   return { calls, steps2, connect, el };
 }
@@ -71,13 +139,18 @@ test("First win lists the starter routines; picking one and Continue creates, en
   assert.ok(STARTERS.length >= 3 && STARTERS.length <= 4);
   const t = mountWin(true);
   const r = createRoot();
-  await act(async () => { r.render(t.el); });
+  await act(async () => {
+    r.render(t.el);
+  });
   const root = r.container as never;
   for (const st of STARTERS) assert.ok(find(root, `row-starter-${st.id}`), st.id);
   await press(find(root, "row-starter-inbox"));
   await press(find(root, "step-next"));
   await flush();
-  assert.deepEqual(t.calls.map((c) => c.cap), ["automations.create", "automations.set_enabled", "automations.run"]);
+  assert.deepEqual(
+    t.calls.map((c) => c.cap),
+    ["automations.create", "automations.set_enabled", "automations.run"],
+  );
   assert.deepEqual(t.steps2, ["win:done"]);
 });
 
@@ -85,7 +158,9 @@ test("First win without an AI account says so and offers Connect your AI; Skip i
   installDom();
   const t = mountWin(false);
   const r = createRoot();
-  await act(async () => { r.render(t.el); });
+  await act(async () => {
+    r.render(t.el);
+  });
   const root = r.container as never;
   assert.ok(find(root, "first-win-needs-ai") && !find(root, "starter-morning"));
   await press(find(root, "first-win-connect"));
@@ -100,16 +175,42 @@ test("the X and Finish later both leave to the app, and Esc does too", async () 
   for (const id of ["onboarding-x", "onboarding-close"]) {
     let left = 0;
     const r = createRoot();
-    await act(async () => { r.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{}} stepKey="ai" device="mac" onStep={noop} onClose={() => { left++; }} />); });
+    await act(async () => {
+      r.render(
+        <OnboardingScreen
+          flow="personal"
+          spaceName="Maya"
+          progress={{}}
+          stepKey="ai"
+          device="mac"
+          onStep={noop}
+          onClose={() => {
+            left++;
+          }}
+        />,
+      );
+    });
     await press(find(r.container as never, id));
     assert.equal(left, 1, id);
   }
-  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{}} device="mac" onStep={noop} />);
+  const out = renderToStaticMarkup(
+    <OnboardingScreen flow="personal" spaceName="Maya" progress={{}} device="mac" onStep={noop} />,
+  );
   assert.ok(!out.includes("onboarding-x"), "no X without a way out");
 });
 
 test("the counter and the bar follow the step on show, done or skipped: Step 4 of 8 on the fourth step", () => {
-  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done", interview: "later", sessions: "later" }} stepKey="folders" device="mac" onStep={noop} onClose={noop} />);
+  const out = renderToStaticMarkup(
+    <OnboardingScreen
+      flow="personal"
+      spaceName="Maya"
+      progress={{ ai: "done", interview: "later", sessions: "later" }}
+      stepKey="folders"
+      device="mac"
+      onStep={noop}
+      onClose={noop}
+    />,
+  );
   assert.ok(out.includes(">Step 4 of 8<"), "the fourth step says so");
   assert.match(out, /aria-valuenow="4"/);
   assert.match(out, /width:50%/, "the bar is half full on step 4 of 8");
@@ -119,13 +220,19 @@ test("the Finish setup entry counts what is really done, reopens the first open 
   installDom();
   const { ResumeChip, resumeInfo } = await import("./ResumeChip.tsx");
   const progress = { ai: "done", interview: "later", sessions: "done" } as const;
-  assert.deepEqual(resumeInfo("personal", progress, "mac"), { done: 2, total: 8, step: "folders" }, "a skipped step moves the entry on, not the number");
+  assert.deepEqual(
+    resumeInfo("personal", progress, "mac"),
+    { done: 2, total: 8, step: "folders" },
+    "a skipped step moves the entry on, not the number",
+  );
   assert.equal(resumeInfo("personal", { ai: "later" }, "mac")?.done, 0, "skip one step with nothing done: 0");
   const all = Object.fromEntries(steps.map((st) => [st.key, "later" as const]));
   assert.equal(resumeInfo("personal", all, "mac"), null);
   const opened: string[] = [];
   const r = createRoot();
-  await act(async () => { r.render(<ResumeChip flow="personal" progress={progress} device="mac" onOpen={(k) => opened.push(k)} />); });
+  await act(async () => {
+    r.render(<ResumeChip flow="personal" progress={progress} device="mac" onOpen={(k) => opened.push(k)} />);
+  });
   const root = r.container as never;
   assert.ok(JSON.stringify(find(root, "resume-open")).includes("Finish setup, 2 of 8") || find(root, "resume-open"));
   await press(find(root, "resume-open"));
@@ -133,13 +240,31 @@ test("the Finish setup entry counts what is really done, reopens the first open 
   await press(find(root, "resume-hide"));
   assert.equal(find(root, "resume-chip"), null, "Hide puts it away");
   const g = createRoot();
-  await act(async () => { g.render(<ResumeChip flow="team" progress={Object.fromEntries(stepsOf("team").map((st) => [st.key, "done" as const]))} device="mac" onOpen={noop} />); });
+  await act(async () => {
+    g.render(
+      <ResumeChip
+        flow="team"
+        progress={Object.fromEntries(stepsOf("team").map((st) => [st.key, "done" as const]))}
+        device="mac"
+        onOpen={noop}
+      />,
+    );
+  });
   assert.equal(find(g.container as never, "resume-chip"), null);
 });
 
 test("on the phone the Finish setup entry never floats over the page; the computer keeps the pill", async () => {
   const { ResumeChip } = await import("./ResumeChip.tsx");
-  const draw = (compact: boolean): string => renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
+  const draw = (compact: boolean): string =>
+    renderToStaticMarkup(
+      <ResumeChip
+        flow="personal"
+        progress={{ ai: "done" }}
+        device={compact ? "phone" : "mac"}
+        compact={compact}
+        onOpen={noop}
+      />,
+    );
   assert.equal(draw(true), "", "the phone shows setup as a row on the You page instead");
   assert.match(draw(false), /Finish setup, 1 of/);
 });
@@ -147,12 +272,27 @@ test("on the phone the Finish setup entry never floats over the page; the comput
 test("the new chat lists the top three steps left: not done, the ones not put off first, on this device, and says how many more", async () => {
   const { setupRows, setupTop } = await import("./setup-rows.ts");
   const fresh = setupTop(setupRows("personal", {}, "mac"));
-  assert.deepEqual(fresh.rows.map((r) => r.key), ["ai", "interview", "sessions"]);
+  assert.deepEqual(
+    fresh.rows.map((r) => r.key),
+    ["ai", "interview", "sessions"],
+  );
   assert.equal(fresh.more, 5);
   const web = setupTop(setupRows("personal", {}, "web"));
-  assert.deepEqual(web.rows.map((r) => r.key), ["ai", "interview", "chrome"], "a browser is not offered what it cannot do");
+  assert.deepEqual(
+    web.rows.map((r) => r.key),
+    ["ai", "interview", "chrome"],
+    "a browser is not offered what it cannot do",
+  );
   assert.equal(web.more, 3);
   const later = setupTop(setupRows("personal", { ai: "done", interview: "later" }, "web"));
-  assert.deepEqual(later.rows.map((r) => r.key), ["chrome", "phone", "win"], "a done step has gone and a skipped one waits its turn");
-  assert.equal(setupTop(setupRows("personal", Object.fromEntries(steps.map((st) => [st.key, "done" as const])), "mac")).rows.length, 0);
+  assert.deepEqual(
+    later.rows.map((r) => r.key),
+    ["chrome", "phone", "win"],
+    "a done step has gone and a skipped one waits its turn",
+  );
+  assert.equal(
+    setupTop(setupRows("personal", Object.fromEntries(steps.map((st) => [st.key, "done" as const])), "mac")).rows
+      .length,
+    0,
+  );
 });

@@ -1,5 +1,19 @@
 // One handler per scheduler-api capability (18). Schedules and their clock work live in schedule.ts; background waits in waits.ts.
-import { cancel, catchUp, fire, get, list, missed, nextTimes, pause, reschedule, resume, runNow, schedule, status } from "./schedule.ts";
+import {
+  cancel,
+  catchUp,
+  fire,
+  get,
+  list,
+  missed,
+  nextTimes,
+  pause,
+  reschedule,
+  resume,
+  runNow,
+  schedule,
+  status,
+} from "./schedule.ts";
 import { cancelWait, expire, listWaits, match, register } from "./waits.ts";
 
 export const handlers = {

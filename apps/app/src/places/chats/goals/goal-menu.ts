@@ -8,12 +8,19 @@ import type { Status } from "./model.ts";
 /** The goal's state as the menu knows it. A draft has nothing to pause yet. */
 export function menuStatus(s: Status): GoalFacts["status"] {
   switch (s) {
-    case "paused": return "paused";
-    case "stuck": return "stuck";
-    case "done": return "done";
-    case "missed": case "stopped": return "stopped";
-    case "draft": return "done";
-    default: return "running";
+    case "paused":
+      return "paused";
+    case "stuck":
+      return "stuck";
+    case "done":
+      return "done";
+    case "missed":
+    case "stopped":
+      return "stopped";
+    case "draft":
+      return "done";
+    default:
+      return "running";
   }
 }
 
@@ -24,7 +31,11 @@ export interface GoalMenuDeps {
   /** Words from the person: Mark Stuck asks why, Report Progress asks what to say. */
   ask(kind: "stuck" | "report"): void;
 }
-export function goalMenuEntries(goal: { id: string; title: string; status: Status; owner: string }, me: string | undefined, d: GoalMenuDeps): MenuEntry[] {
+export function goalMenuEntries(
+  goal: { id: string; title: string; status: Status; owner: string },
+  me: string | undefined,
+  d: GoalMenuDeps,
+): MenuEntry[] {
   return goalMenu(
     { title: goal.title, status: menuStatus(goal.status), manage: me !== undefined && goal.owner === me },
     {
@@ -40,8 +51,15 @@ export function goalMenuEntries(goal: { id: string; title: string; status: Statu
 }
 
 /** What a typed answer calls: stuck with its reason and the two ways on, or a report. */
-export function askedCall(kind: "stuck" | "report", text: string): { cap: string; input: Record<string, unknown>; done: string } {
+export function askedCall(
+  kind: "stuck" | "report",
+  text: string,
+): { cap: string; input: Record<string, unknown>; done: string } {
   return kind === "stuck"
-    ? { cap: "goals.mark_stuck", input: { reason: text.slice(0, 400), options: ["Keep going", "Stop the goal"] }, done: "Marked stuck. It waits for your answer." }
+    ? {
+        cap: "goals.mark_stuck",
+        input: { reason: text.slice(0, 400), options: ["Keep going", "Stop the goal"] },
+        done: "Marked stuck. It waits for your answer.",
+      }
     : { cap: "goals.report", input: { summary: text.slice(0, 600) }, done: "Reported in the goal chat" };
 }

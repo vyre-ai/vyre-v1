@@ -14,7 +14,25 @@ import { MAP_SCREEN, useSchemaData, useSchemaQuery, useTypeDetails } from "./dat
 import { Glyph } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import {
-  CARD_W, MINI_H, MINI_W, cardDim, cardHeight, edgeGeometry, emphasis, fieldRows, fitView, hueOf, layout, miniGo, miniModel, moreCount, neighbor, panBy, shownCount, summary, zoomAt,
+  CARD_W,
+  MINI_H,
+  MINI_W,
+  cardDim,
+  cardHeight,
+  edgeGeometry,
+  emphasis,
+  fieldRows,
+  fitView,
+  hueOf,
+  layout,
+  miniGo,
+  miniModel,
+  moreCount,
+  neighbor,
+  panBy,
+  shownCount,
+  summary,
+  zoomAt,
 } from "./model.ts";
 import type { EdgeGeometry, FieldRow, MapEdge, MapNode, Rect, TypeDetail, View as Viewport } from "./model.ts";
 import { FieldsPane } from "./FieldsPane.tsx";
@@ -36,7 +54,16 @@ export interface SchemaMapProps {
 const DOUBLE_MS = 450;
 const DEFAULT_SIZE = { width: 1100, height: 700 };
 
-interface Pt { clientX: number; clientY: number; target: unknown; ctrlKey?: boolean; metaKey?: boolean; deltaY?: number; deltaX?: number; preventDefault?: () => void }
+interface Pt {
+  clientX: number;
+  clientY: number;
+  target: unknown;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  deltaY?: number;
+  deltaX?: number;
+  preventDefault?: () => void;
+}
 interface Host {
   addEventListener(type: string, fn: (e: Pt) => void, opts?: { passive: boolean }): void;
   removeEventListener(type: string, fn: (e: Pt) => void): void;
@@ -89,7 +116,12 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
   const rects = new Map<string, Rect>();
   for (const n of nodes) {
     const p = pos.get(n.type) ?? [70, 40];
-    rects.set(n.type, { x: p[0], y: p[1], w: CARD_W, h: cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true) });
+    rects.set(n.type, {
+      x: p[0],
+      y: p[1],
+      w: CARD_W,
+      h: cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true),
+    });
   }
   const rectList: Rect[] = [...rects.values()];
   const v: Viewport = view ?? fitView(rectList, dim.width, dim.height);
@@ -101,14 +133,20 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
     const host = canvas.current as Host | null;
     if (!host || typeof host.addEventListener !== "function") return;
     let drag: { x: number; y: number } | null = null;
-    const down = (e: Pt): void => { if (insideControl(e.target)) return; drag = { x: e.clientX, y: e.clientY }; };
+    const down = (e: Pt): void => {
+      if (insideControl(e.target)) return;
+      drag = { x: e.clientX, y: e.clientY };
+    };
     const move = (e: Pt): void => {
       if (!drag) return;
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      const dx = e.clientX - drag.x,
+        dy = e.clientY - drag.y;
       drag = { x: e.clientX, y: e.clientY };
       setView(panBy(live.current.view as Viewport, dx, dy));
     };
-    const up = (): void => { drag = null; };
+    const up = (): void => {
+      drag = null;
+    };
     const wheel = (e: Pt): void => {
       e.preventDefault?.();
       const cur = live.current.view as Viewport;
@@ -139,32 +177,82 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
     const now = Date.now();
     const twice = last.current.key === type && now - last.current.at < DOUBLE_MS;
     last.current = { key: type, at: now };
-    if (twice) { open(type); return; }
+    if (twice) {
+      open(type);
+      return;
+    }
     setSel((s) => (s === type ? null : type));
   };
 
   const onKeyDown = (e: { key: string; preventDefault?: () => void }): void => {
-    const dir = e.key === "ArrowLeft" ? "left" : e.key === "ArrowRight" ? "right" : e.key === "ArrowUp" ? "up" : e.key === "ArrowDown" ? "down" : null;
-    if (dir) { e.preventDefault?.(); setSel(neighbor(rects, sel, dir)); return; }
-    if (e.key === "Enter" && sel) { e.preventDefault?.(); open(sel); return; }
-    if (e.key === "Escape") { setSel(null); return; }
-    if (e.key === "+" || e.key === "=") { e.preventDefault?.(); zoom(1.2); return; }
-    if (e.key === "-") { e.preventDefault?.(); zoom(1 / 1.2); return; }
-    if (e.key === "0") { e.preventDefault?.(); fit(); }
+    const dir =
+      e.key === "ArrowLeft"
+        ? "left"
+        : e.key === "ArrowRight"
+          ? "right"
+          : e.key === "ArrowUp"
+            ? "up"
+            : e.key === "ArrowDown"
+              ? "down"
+              : null;
+    if (dir) {
+      e.preventDefault?.();
+      setSel(neighbor(rects, sel, dir));
+      return;
+    }
+    if (e.key === "Enter" && sel) {
+      e.preventDefault?.();
+      open(sel);
+      return;
+    }
+    if (e.key === "Escape") {
+      setSel(null);
+      return;
+    }
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault?.();
+      zoom(1.2);
+      return;
+    }
+    if (e.key === "-") {
+      e.preventDefault?.();
+      zoom(1 / 1.2);
+      return;
+    }
+    if (e.key === "0") {
+      e.preventDefault?.();
+      fit();
+    }
   };
 
   const cardMenu = (type: string, x: number, y: number): void => {
-    menu.show([{ label: "Open", onSelect: () => open(type) }, ...(data.nav.openConsole ? [{ label: "Open in the Console", onSelect: () => data.nav.openConsole?.(type) }] : [])], x, y, "context", { label: titleOf(type) });
+    menu.show(
+      [
+        { label: "Open", onSelect: () => open(type) },
+        ...(data.nav.openConsole
+          ? [{ label: "Open in the Console", onSelect: () => data.nav.openConsole?.(type) }]
+          : []),
+      ],
+      x,
+      y,
+      "context",
+      { label: titleOf(type) },
+    );
   };
 
   // curves
   const geometry: EdgeGeometry[] = [];
   for (const e of edges) {
-    const a = rects.get(e.from), b = rects.get(e.to);
+    const a = rects.get(e.from),
+      b = rects.get(e.to);
     if (!a || !b) continue;
     const rows = rowsOf.get(e.from) as FieldRow[];
     let at = -1;
-    for (let i = 0; i < rows.length; i++) if ((rows[i] as FieldRow).key === e.field) { at = i; break; }
+    for (let i = 0; i < rows.length; i++)
+      if ((rows[i] as FieldRow).key === e.field) {
+        at = i;
+        break;
+      }
     geometry.push(edgeGeometry(e, a, b, at, shownCount(rows.length, exp[e.from] === true)));
   }
 
@@ -190,7 +278,10 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
     );
   }
 
-  const fieldTotal = nodes.length && keys.every((k) => details.has(k)) ? keys.reduce((s, k) => s + (details.get(k)?.fields.length ?? 0), 0) : null;
+  const fieldTotal =
+    nodes.length && keys.every((k) => details.has(k))
+      ? keys.reduce((s, k) => s + (details.get(k)?.fields.length ?? 0), 0)
+      : null;
   const mini = miniModel(rects, v, dim.width, dim.height);
 
   return (
@@ -199,53 +290,71 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
         <Glyph name="schema" size={15} color="var(--ink)" />
         <Text style={st.crumb}>Schema map</Text>
         <Text style={st.sl}>/</Text>
-        <Text style={st.dimText} testID="schema-map-summary">{summary(nodes.length, fieldTotal)}</Text>
+        <Text style={st.dimText} testID="schema-map-summary">
+          {summary(nodes.length, fieldTotal)}
+        </Text>
         <View style={st.grow} />
         {data.nav.openConsole ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Structure is edited in the Console" onPress={() => data.nav.openConsole?.()} testID="schema-map-console" style={st.consoleBtn}>
-          <Glyph name="lock" size={12} />
-          <Text style={st.consoleText}>Edit in the Console</Text>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Structure is edited in the Console"
+            onPress={() => data.nav.openConsole?.()}
+            testID="schema-map-console"
+            style={st.consoleBtn}
+          >
+            <Glyph name="lock" size={12} />
+            <Text style={st.consoleText}>Edit in the Console</Text>
+          </Pressable>
         ) : null}
       </View>
       <View style={st.body}>
-      <View
-        ref={canvas as never}
-        style={st.canvas}
-        testID="schema-map"
-        role="listbox"
-        accessibilityLabel="Schema map. Arrow keys move between tables, Enter opens one."
-        onLayout={(e) => { const { width, height } = e.nativeEvent.layout; if (width > 0 && height > 0 && (width !== dim.width || height !== dim.height)) setMeasured({ width, height }); }}
-        {...webProps({ tabIndex: 0, onKeyDown })}
-      >
-        <View style={[st.world, sx({ transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.k }] })]} testID="schema-world">
-          <Edges geometry={geometry} hot={hot} />
-          {cards}
+        <View
+          ref={canvas as never}
+          style={st.canvas}
+          testID="schema-map"
+          role="listbox"
+          accessibilityLabel="Schema map. Arrow keys move between tables, Enter opens one."
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            if (width > 0 && height > 0 && (width !== dim.width || height !== dim.height))
+              setMeasured({ width, height });
+          }}
+          {...webProps({ tabIndex: 0, onKeyDown })}
+        >
+          <View
+            style={[st.world, sx({ transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.k }] })]}
+            testID="schema-world"
+          >
+            <Edges geometry={geometry} hot={hot} />
+            {cards}
+          </View>
+          {q.status === "ready" && nodes.length === 0 ? (
+            <View style={st.empty} testID="schema-map-empty">
+              <Text style={st.emptyTitle}>No tables yet</Text>
+              <Text style={st.emptyText}>Record types are created in the Console.</Text>
+            </View>
+          ) : null}
+          <View style={st.ctl} testID="schema-controls" {...webProps({ dataSet: { ctl: "1" } })}>
+            <Ctl glyph="plus" label="Zoom in" onPress={() => zoom(1.2)} testID="schema-zoom-in" />
+            <Ctl glyph="minus" label="Zoom out" onPress={() => zoom(1 / 1.2)} testID="schema-zoom-out" second />
+            <Ctl glyph="expand" label="Fit to screen" onPress={fit} testID="schema-fit" second />
+          </View>
+          <Minimap mini={mini} sel={sel} onGo={(mx, my) => setView(miniGo(mini, mx, my, v, dim.width, dim.height))} />
         </View>
-        {q.status === "ready" && nodes.length === 0 ? (
-          <View style={st.empty} testID="schema-map-empty"><Text style={st.emptyTitle}>No tables yet</Text><Text style={st.emptyText}>Record types are created in the Console.</Text></View>
+        {sel !== null && titles.has(sel) ? (
+          <FieldsPane
+            type={sel}
+            title={titleOf(sel)}
+            icon={details.get(sel)?.icon}
+            syncedFrom={details.get(sel)?.syncedFrom}
+            rowCount={nodes.find((n) => n.type === sel)?.rowCount ?? 0}
+            rows={rowsOf.get(sel) as FieldRow[]}
+            titleField={details.get(sel)?.titleField}
+            onClose={() => setSel(null)}
+            onOpen={() => open(sel)}
+            {...(data.nav.openConsole ? { onConsole: () => data.nav.openConsole?.(sel) } : {})}
+          />
         ) : null}
-        <View style={st.ctl} testID="schema-controls" {...webProps({ dataSet: { ctl: "1" } })}>
-          <Ctl glyph="plus" label="Zoom in" onPress={() => zoom(1.2)} testID="schema-zoom-in" />
-          <Ctl glyph="minus" label="Zoom out" onPress={() => zoom(1 / 1.2)} testID="schema-zoom-out" second />
-          <Ctl glyph="expand" label="Fit to screen" onPress={fit} testID="schema-fit" second />
-        </View>
-        <Minimap mini={mini} sel={sel} onGo={(mx, my) => setView(miniGo(mini, mx, my, v, dim.width, dim.height))} />
-      </View>
-      {sel !== null && titles.has(sel) ? (
-        <FieldsPane
-          type={sel}
-          title={titleOf(sel)}
-          icon={details.get(sel)?.icon}
-          syncedFrom={details.get(sel)?.syncedFrom}
-          rowCount={nodes.find((n) => n.type === sel)?.rowCount ?? 0}
-          rows={rowsOf.get(sel) as FieldRow[]}
-          titleField={details.get(sel)?.titleField}
-          onClose={() => setSel(null)}
-          onOpen={() => open(sel)}
-          {...(data.nav.openConsole ? { onConsole: () => data.nav.openConsole?.(sel) } : {})}
-        />
-      ) : null}
       </View>
       {menu.element}
     </View>
@@ -265,7 +374,12 @@ function Edges({ geometry, hot }: { geometry: readonly EdgeGeometry[]; hot: stri
     kids.push(
       createElement(
         "g",
-        { key: `${g.from}:${g.field}:${i}`, "data-edge": `${g.from}>${g.to}`, "data-emphasis": e, style: { opacity: e === "dim" ? 0.18 : 1 } },
+        {
+          key: `${g.from}:${g.field}:${i}`,
+          "data-edge": `${g.from}>${g.to}`,
+          "data-emphasis": e,
+          style: { opacity: e === "dim" ? 0.18 : 1 },
+        },
         createElement("path", { d: g.d, fill: "none", stroke, strokeWidth: w }),
         createElement("path", { d: g.crow, fill: "none", stroke, strokeWidth: w }),
         createElement("path", { d: g.bar, fill: "none", stroke, strokeWidth: w }),
@@ -273,7 +387,17 @@ function Edges({ geometry, hot }: { geometry: readonly EdgeGeometry[]; hot: stri
       ),
     );
   }
-  return createElement("svg", { width: 1, height: 1, "aria-hidden": true, "data-testid": "schema-edges", style: { position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" } }, ...kids);
+  return createElement(
+    "svg",
+    {
+      width: 1,
+      height: 1,
+      "aria-hidden": true,
+      "data-testid": "schema-edges",
+      style: { position: "absolute", left: 0, top: 0, overflow: "visible", pointerEvents: "none" },
+    },
+    ...kids,
+  );
 }
 
 // ---------------------------------------------------------------- a card
@@ -293,16 +417,39 @@ interface CardProps {
   onMenu(x: number, y: number): void;
 }
 
-function Card({ node, meta, rect, rows, selected, lit, dim, expanded, onHover, onPress, onToggle, onMenu }: CardProps): ReactElement {
+function Card({
+  node,
+  meta,
+  rect,
+  rows,
+  selected,
+  lit,
+  dim,
+  expanded,
+  onHover,
+  onPress,
+  onToggle,
+  onMenu,
+}: CardProps): ReactElement {
   const shown = shownCount(rows.length, expanded);
   const fieldViews: ReactElement[] = [];
   for (let i = 0; i < shown; i++) {
     const f = rows[i] as FieldRow;
     fieldViews.push(
       <View key={f.key} style={st.field} testID={`field-${node.type}-${f.key}`}>
-        <View style={st.gl}>{f.symbol ? <Text style={st.glText}>{f.symbol}</Text> : <Glyph name={f.icon as IconName} size={14} color="var(--ink-4)" />}</View>
-        <Text numberOfLines={1} style={[st.fname, f.kind === "relation" && st.fnameRel]}>{f.title}</Text>
-        <Text numberOfLines={1} style={[st.ftype, f.kind === "relation" && st.ftypeRel]}>{f.typeLabel}</Text>
+        <View style={st.gl}>
+          {f.symbol ? (
+            <Text style={st.glText}>{f.symbol}</Text>
+          ) : (
+            <Glyph name={f.icon as IconName} size={14} color="var(--ink-4)" />
+          )}
+        </View>
+        <Text numberOfLines={1} style={[st.fname, f.kind === "relation" && st.fnameRel]}>
+          {f.title}
+        </Text>
+        <Text numberOfLines={1} style={[st.ftype, f.kind === "relation" && st.ftypeRel]}>
+          {f.typeLabel}
+        </Text>
         {f.kind === "relation" && f.outgoing ? <View style={st.sdot} aria-hidden /> : null}
       </View>,
     );
@@ -317,52 +464,129 @@ function Card({ node, meta, rect, rows, selected, lit, dim, expanded, onHover, o
       onHoverIn={() => onHover(true)}
       onHoverOut={() => onHover(false)}
       testID={`schema-card-${node.type}`}
-      style={[st.card, { left: rect.x, top: rect.y, width: rect.w }, selected ? st.cardSel : lit ? st.cardLit : null, dim && st.cardDim]}
+      style={[
+        st.card,
+        { left: rect.x, top: rect.y, width: rect.w },
+        selected ? st.cardSel : lit ? st.cardLit : null,
+        dim && st.cardDim,
+      ]}
       {...webProps({ dataSet: { card: node.type } })}
       {...menuTrigger(onMenu)}
     >
       <View style={st.cardHead}>
         <TypeGlyph type={node.type} icon={meta?.icon} syncedFrom={meta?.syncedFrom} size={22} />
-        <Text numberOfLines={1} style={st.cardTitle}>{node.title}</Text>
-        <Text style={st.count} testID={`schema-count-${node.type}`}>{String(node.rowCount)}</Text>
+        <Text numberOfLines={1} style={st.cardTitle}>
+          {node.title}
+        </Text>
+        <Text style={st.count} testID={`schema-count-${node.type}`}>
+          {String(node.rowCount)}
+        </Text>
       </View>
       {fieldViews}
       {more > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? "Show fewer fields" : `Show ${more} more fields`} onPress={onToggle} testID={`schema-more-${node.type}`} style={st.more}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Show fewer fields" : `Show ${more} more fields`}
+          onPress={onToggle}
+          testID={`schema-more-${node.type}`}
+          style={st.more}
+        >
           <Text style={st.moreText}>{expanded ? "Show fewer" : `+${more} more`}</Text>
         </Pressable>
-      ) : <View style={{ height: 6 }} />}
+      ) : (
+        <View style={{ height: 6 }} />
+      )}
     </Pressable>
   );
 }
 
 // ---------------------------------------------------------------- controls and minimap
 
-function Ctl({ glyph, label, onPress, testID, second = false }: { glyph: "plus" | "minus" | "expand"; label: string; onPress: () => void; testID: string; second?: boolean }): ReactElement {
+function Ctl({
+  glyph,
+  label,
+  onPress,
+  testID,
+  second = false,
+}: {
+  glyph: "plus" | "minus" | "expand";
+  label: string;
+  onPress: () => void;
+  testID: string;
+  second?: boolean;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} testID={testID} style={[st.ctlBtn, second && st.ctlSecond, over && st.ctlOver]} {...webProps({ title: label })}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      testID={testID}
+      style={[st.ctlBtn, second && st.ctlSecond, over && st.ctlOver]}
+      {...webProps({ title: label })}
+    >
       <Glyph name={glyph} size={15} color={over ? "var(--ink)" : "var(--ink-2)"} />
     </Pressable>
   );
 }
 
-function Minimap({ mini, sel, onGo }: { mini: ReturnType<typeof miniModel>; sel: string | null; onGo(x: number, y: number): void }): ReactElement | null {
+function Minimap({
+  mini,
+  sel,
+  onGo,
+}: {
+  mini: ReturnType<typeof miniModel>;
+  sel: string | null;
+  onGo(x: number, y: number): void;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const kids: ReactElement[] = [];
   for (const c of mini.cards) {
-    kids.push(createElement("rect", { key: c.type, x: c.x, y: c.y, width: c.w, height: c.h, rx: 2, fill: `hsl(${hueOf(c.type)} 50% 55% / .7)`, stroke: c.type === sel ? "var(--ink)" : "none", strokeWidth: 1.2 }));
+    kids.push(
+      createElement("rect", {
+        key: c.type,
+        x: c.x,
+        y: c.y,
+        width: c.w,
+        height: c.h,
+        rx: 2,
+        fill: `hsl(${hueOf(c.type)} 50% 55% / .7)`,
+        stroke: c.type === sel ? "var(--ink)" : "none",
+        strokeWidth: 1.2,
+      }),
+    );
   }
-  kids.push(createElement("rect", { key: "viewport", x: mini.viewport.x, y: mini.viewport.y, width: mini.viewport.w, height: mini.viewport.h, rx: 3, fill: "var(--accent-wash)", stroke: "var(--accent)", strokeWidth: 1.2 }));
+  kids.push(
+    createElement("rect", {
+      key: "viewport",
+      x: mini.viewport.x,
+      y: mini.viewport.y,
+      width: mini.viewport.w,
+      height: mini.viewport.h,
+      rx: 3,
+      fill: "var(--accent-wash)",
+      stroke: "var(--accent)",
+      strokeWidth: 1.2,
+    }),
+  );
   return (
     <Pressable
       accessible={false}
-      onPress={(e) => { const n = e.nativeEvent as unknown as { locationX?: number; locationY?: number }; onGo(n.locationX ?? 0, n.locationY ?? 0); }}
+      onPress={(e) => {
+        const n = e.nativeEvent as unknown as { locationX?: number; locationY?: number };
+        onGo(n.locationX ?? 0, n.locationY ?? 0);
+      }}
       testID="schema-minimap"
       style={st.mini}
       {...webProps({ dataSet: { ctl: "1" }, "aria-hidden": true })}
     >
-      {createElement("svg", { width: MINI_W, height: MINI_H, style: { display: "block", pointerEvents: "none" } }, ...kids)}
+      {createElement(
+        "svg",
+        { width: MINI_W, height: MINI_H, style: { display: "block", pointerEvents: "none" } },
+        ...kids,
+      )}
     </Pressable>
   );
 }
@@ -378,32 +602,92 @@ const st = StyleSheet.create({
   consoleBtn: { height: 28, paddingHorizontal: 8, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   consoleText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   canvas: sx({
-    flex: 1, minHeight: 0, overflow: "hidden", position: "relative", outlineStyle: "none", cursor: "grab", touchAction: "none",
-    backgroundImage: "radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0)", backgroundSize: "22px 22px",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    position: "relative",
+    outlineStyle: "none",
+    cursor: "grab",
+    touchAction: "none",
+    backgroundImage: "radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0)",
+    backgroundSize: "22px 22px",
   }),
   world: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
-  card: sx({ position: "absolute", borderRadius: 12, backgroundColor: "var(--raised)", boxShadow: "var(--sh-2)", overflow: "hidden", userSelect: "none", cursor: "default" }),
+  card: sx({
+    position: "absolute",
+    borderRadius: 12,
+    backgroundColor: "var(--raised)",
+    boxShadow: "var(--sh-2)",
+    overflow: "hidden",
+    userSelect: "none",
+    cursor: "default",
+  }),
   cardLit: sx({ boxShadow: "var(--sh-2), 0 0 0 1.5px var(--accent-line)" }),
   cardSel: sx({ boxShadow: "var(--sh-2), 0 0 0 2px var(--accent)" }),
   cardDim: { opacity: 0.35 },
-  cardHead: sx({ height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, boxShadow: "inset 0 -1px var(--line)" }),
+  cardHead: sx({
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    boxShadow: "inset 0 -1px var(--line)",
+  }),
   cardTitle: { flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   count: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  field: { height: 26, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 12, paddingRight: 22, position: "relative" },
+  field: {
+    height: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 22,
+    position: "relative",
+  },
   gl: { width: 14, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   glText: { fontSize: 11, fontWeight: "600", color: "var(--ink-4)" as string },
   fname: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string },
   fnameRel: { color: "var(--ink)" as string },
   ftype: { fontSize: 11, color: "var(--ink-4)" as string },
   ftypeRel: { color: "var(--accent)" as string },
-  sdot: sx({ position: "absolute", right: 7, top: 8.5, width: 9, height: 9, borderRadius: 99, backgroundColor: "var(--raised)", boxShadow: "inset 0 0 0 1.5px var(--accent)", opacity: 0.55 }),
+  sdot: sx({
+    position: "absolute",
+    right: 7,
+    top: 8.5,
+    width: 9,
+    height: 9,
+    borderRadius: 99,
+    backgroundColor: "var(--raised)",
+    boxShadow: "inset 0 0 0 1.5px var(--accent)",
+    opacity: 0.55,
+  }),
   more: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 9 },
   moreText: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  ctl: sx({ position: "absolute", right: 14, bottom: 134, borderRadius: 10, backgroundColor: "var(--raised)", boxShadow: "var(--sh-pop)", overflow: "hidden", zIndex: 3 }),
+  ctl: sx({
+    position: "absolute",
+    right: 14,
+    bottom: 134,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)",
+    boxShadow: "var(--sh-pop)",
+    overflow: "hidden",
+    zIndex: 3,
+  }),
   ctlBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   ctlSecond: sx({ boxShadow: "inset 0 1px var(--line)" }),
   ctlOver: { backgroundColor: "var(--hover)" as string },
-  mini: sx({ position: "absolute", right: 14, bottom: 14, width: MINI_W, height: MINI_H, borderRadius: 10, backgroundColor: "var(--raised)", boxShadow: "var(--sh-pop)", overflow: "hidden", zIndex: 3 }),
+  mini: sx({
+    position: "absolute",
+    right: 14,
+    bottom: 14,
+    width: MINI_W,
+    height: MINI_H,
+    borderRadius: 10,
+    backgroundColor: "var(--raised)",
+    boxShadow: "var(--sh-pop)",
+    overflow: "hidden",
+    zIndex: 3,
+  }),
   empty: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 6 },
   emptyTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   emptyText: { fontSize: 13, color: "var(--ink-3)" as string },

@@ -15,8 +15,17 @@ export const MIN_MS = 60_000;
 
 /** What the sidebar can select. A folder carries its id. */
 export type Selection =
-  | { kind: "all" } | { kind: "providers" } | { kind: "google" } | { kind: "connections" } | { kind: "keys" } | { kind: "logins" } | { kind: "cards" }
-  | { kind: "health" } | { kind: "requested" } | { kind: "mine" } | { kind: "folder"; folderId: string };
+  | { kind: "all" }
+  | { kind: "providers" }
+  | { kind: "google" }
+  | { kind: "connections" }
+  | { kind: "keys" }
+  | { kind: "logins" }
+  | { kind: "cards" }
+  | { kind: "health" }
+  | { kind: "requested" }
+  | { kind: "mine" }
+  | { kind: "folder"; folderId: string };
 
 export const ALL: Selection = { kind: "all" };
 
@@ -27,17 +36,57 @@ const KEY_KINDS: readonly ItemKind[] = ["api_key", "env", "ssh_key"];
 const LOGIN_KINDS: readonly ItemKind[] = ["login", "totp"];
 
 export const KIND_LABEL: Record<ItemKind, string> = {
-  login: "Login", api_key: "API key", env: "Environment", card: "Card", note: "Note", totp: "One-time code", ssh_key: "SSH key", ai_subscription: "AI subscription", other: "Other",
+  login: "Login",
+  api_key: "API key",
+  env: "Environment",
+  card: "Card",
+  note: "Note",
+  totp: "One-time code",
+  ssh_key: "SSH key",
+  ai_subscription: "AI subscription",
+  other: "Other",
 };
 
 /** The clock every date rule reads (minutes east of UTC for the person's day). */
-export interface Clock { now: number }
+export interface Clock {
+  now: number;
+}
 
-export interface Counts { all: number; providers: number; google: number; connections: number; keys: number; logins: number; cards: number; mine: number; health: number; requested: number; folders: Map<string, number> }
+export interface Counts {
+  all: number;
+  providers: number;
+  google: number;
+  connections: number;
+  keys: number;
+  logins: number;
+  cards: number;
+  mine: number;
+  health: number;
+  requested: number;
+  folders: Map<string, number>;
+}
 
 /** Sidebar counts, worked out once over the whole list. `providerItemIds` are the items that are AI provider connections. */
-export function countItems(items: readonly Item[], providerItemIds: ReadonlySet<string>, health: Health | null, requested: number, folderName: (id: string) => string | undefined = () => undefined): Counts {
-  const c: Counts = { all: items.length, providers: 0, google: 0, connections: 0, keys: 0, logins: 0, cards: 0, mine: 0, health: health ? health.weak + health.reused + health.stale + health.rotationDue : 0, requested, folders: new Map() };
+export function countItems(
+  items: readonly Item[],
+  providerItemIds: ReadonlySet<string>,
+  health: Health | null,
+  requested: number,
+  folderName: (id: string) => string | undefined = () => undefined,
+): Counts {
+  const c: Counts = {
+    all: items.length,
+    providers: 0,
+    google: 0,
+    connections: 0,
+    keys: 0,
+    logins: 0,
+    cards: 0,
+    mine: 0,
+    health: health ? health.weak + health.reused + health.stale + health.rotationDue : 0,
+    requested,
+    folders: new Map(),
+  };
   for (const it of items) {
     // each item is counted in its one primary section (layout/sections.ts); Keys, Logins and Cards are everything else
     const sec = sectionOf(it, providerItemIds, folderName);
@@ -56,20 +105,37 @@ export function countItems(items: readonly Item[], providerItemIds: ReadonlySet<
 }
 
 /** Whether one item belongs to a sidebar selection. */
-export function inSelection(it: Item, sel: Selection, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>, folderName: (id: string) => string | undefined = () => undefined): boolean {
+export function inSelection(
+  it: Item,
+  sel: Selection,
+  providerItemIds: ReadonlySet<string>,
+  healthIds: ReadonlySet<string>,
+  folderName: (id: string) => string | undefined = () => undefined,
+): boolean {
   const sec = (): ReturnType<typeof sectionOf> => sectionOf(it, providerItemIds, folderName);
   switch (sel.kind) {
-    case "all": return true;
-    case "providers": return sec() === "ai";
-    case "google": return sec() === "google";
-    case "connections": return sec() === "connections";
-    case "keys": return sec() === "other" && KEY_KINDS.includes(it.kind);
-    case "logins": return sec() === "other" && LOGIN_KINDS.includes(it.kind);
-    case "cards": return sec() === "other" && it.kind === "card";
-    case "mine": return it.scope === "mine";
-    case "health": return healthIds.has(it.id);
-    case "folder": return it.folderId === sel.folderId;
-    case "requested": return false;
+    case "all":
+      return true;
+    case "providers":
+      return sec() === "ai";
+    case "google":
+      return sec() === "google";
+    case "connections":
+      return sec() === "connections";
+    case "keys":
+      return sec() === "other" && KEY_KINDS.includes(it.kind);
+    case "logins":
+      return sec() === "other" && LOGIN_KINDS.includes(it.kind);
+    case "cards":
+      return sec() === "other" && it.kind === "card";
+    case "mine":
+      return it.scope === "mine";
+    case "health":
+      return healthIds.has(it.id);
+    case "folder":
+      return it.folderId === sel.folderId;
+    case "requested":
+      return false;
   }
 }
 
@@ -80,12 +146,25 @@ export function byRecent(a: Item, b: Item): number {
 }
 
 /** What the list shows for a selection and a search text: filtered, searched on name and field names (never values), sorted. */
-export function visibleItems(items: readonly Item[], sel: Selection, query: string, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>, folderName: (id: string) => string | undefined = () => undefined): Item[] {
+export function visibleItems(
+  items: readonly Item[],
+  sel: Selection,
+  query: string,
+  providerItemIds: ReadonlySet<string>,
+  healthIds: ReadonlySet<string>,
+  folderName: (id: string) => string | undefined = () => undefined,
+): Item[] {
   const q = query.trim().toLowerCase();
   const out: Item[] = [];
   for (const it of items) {
     if (!inSelection(it, sel, providerItemIds, healthIds, folderName)) continue;
-    if (q && !it.name.toLowerCase().includes(q) && !it.handle.toLowerCase().includes(q) && !it.fieldKeys.some((k) => k.toLowerCase().includes(q))) continue;
+    if (
+      q &&
+      !it.name.toLowerCase().includes(q) &&
+      !it.handle.toLowerCase().includes(q) &&
+      !it.fieldKeys.some((k) => k.toLowerCase().includes(q))
+    )
+      continue;
     out.push(it);
   }
   return out.sort(byRecent);
@@ -122,9 +201,13 @@ export function agoLabel(ts: number, c: Clock): string {
 
 /** The second line of a row: the field names (never values), "Login · USERNAME", or how a provider signs in. */
 export function secondLine(it: Item, provider?: Provider): string {
-  if (provider) return provider.unopenable === true ? "Can't be opened, sign in again" : `${provider.via} · ${provider.scope === "mine" ? "Mine" : "Shared"}`;
+  if (provider)
+    return provider.unopenable === true
+      ? "Can't be opened, sign in again"
+      : `${provider.via} · ${provider.scope === "mine" ? "Mine" : "Shared"}`;
   const keys = it.fieldKeys.join(" · ");
-  if (it.kind === "login" || it.kind === "card" || it.kind === "totp" || it.kind === "note") return keys ? `${KIND_LABEL[it.kind]} · ${keys}` : KIND_LABEL[it.kind];
+  if (it.kind === "login" || it.kind === "card" || it.kind === "totp" || it.kind === "note")
+    return keys ? `${KIND_LABEL[it.kind]} · ${keys}` : KIND_LABEL[it.kind];
   return keys || KIND_LABEL[it.kind];
 }
 
@@ -152,7 +235,11 @@ export function accessLine(it: Item, folder: Folder | undefined): string {
 }
 
 /** One grant on an item, as `access.shares_of` returns it: who, at what level, and through what (a direct grant, a group, the folder, the owner). */
-export interface Share { subject: { kind: "person" | "group" | "role" | "agent" | "actor" | "service" | "link"; id: string }; level: "view" | "use" | "edit" | "manage"; through: "direct" | "group" | "role" | "folder" | "owner" }
+export interface Share {
+  subject: { kind: "person" | "group" | "role" | "agent" | "actor" | "service" | "link"; id: string };
+  level: "view" | "use" | "edit" | "manage";
+  through: "direct" | "group" | "role" | "folder" | "owner";
+}
 
 /** "Intake", "Intake and Research", "Intake, Research and 1 more". */
 export function fmtList(names: readonly string[]): string {
@@ -169,17 +256,30 @@ export function shortName(kind: Share["subject"]["kind"], name: string): string 
  * The sentence under the name, from the real grants: "Intake, Research and 1 more can use it · Omar can see it · Maya can change it · Shared › Marketing". You and the owner are left
  * out (you know your own access); with no one else it is the plain line from accessLine.
  */
-export function whoLine(it: Item, folder: Folder | undefined, shares: readonly Share[], meId: string, nameOf: (s: Share["subject"]) => string): string {
+export function whoLine(
+  it: Item,
+  folder: Folder | undefined,
+  shares: readonly Share[],
+  meId: string,
+  nameOf: (s: Share["subject"]) => string,
+): string {
   const pick = (levels: readonly Share["level"][]): string[] => {
     const out: string[] = [];
     for (const sh of shares) {
-      if (sh.through === "owner" || (sh.subject.kind === "person" && sh.subject.id === meId) || !levels.includes(sh.level)) continue;
+      if (
+        sh.through === "owner" ||
+        (sh.subject.kind === "person" && sh.subject.id === meId) ||
+        !levels.includes(sh.level)
+      )
+        continue;
       out.push(shortName(sh.subject.kind, nameOf(sh.subject)));
     }
     return out;
   };
   const parts: string[] = [];
-  const use = pick(["use"]), see = pick(["view"]), change = pick(["edit", "manage"]);
+  const use = pick(["use"]),
+    see = pick(["view"]),
+    change = pick(["edit", "manage"]);
   if (use.length) parts.push(`${fmtList(use)} can use it`);
   if (see.length) parts.push(`${fmtList(see)} can see it`);
   if (change.length) parts.push(`${fmtList(change)} can change it`);
@@ -190,7 +290,13 @@ export function whoLine(it: Item, folder: Folder | undefined, shares: readonly S
 
 /** A handle for an item: "#Northwind_GoHighLevel". Words are joined with underscores, anything else is dropped. */
 export function handleFor(space: string, name: string): string {
-  const w = (s: string): string => s.replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean).join("_");
+  const w = (s: string): string =>
+    s
+      .replace(/[^A-Za-z0-9]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .join("_");
   const n = w(name);
   return n ? `#${w(space) || "Vault"}_${n}` : "";
 }
@@ -219,12 +325,15 @@ export const EXPIRY_CHOICES: ReadonlyArray<{ key: Expiry; label: string; sentenc
 ];
 export const expiryLabel = (e: Expiry): string => EXPIRY_CHOICES.find((c) => c.key === e)?.label ?? e;
 
-
 // ---- the three places an item comes from (owner, 4 Nov: everything in my Vault, in clear sections)
 
 /** Where an item comes from for the person looking: their own Mine, kept for them alone; the Space's, in shared folders they can change; or shared with them to use or view. */
 export type Origin = "mine" | "space" | "with-me";
-export const ORIGIN_TITLE: Readonly<Record<Origin, string>> = { mine: "Mine", "with-me": "Shared with me", space: "Space" };
+export const ORIGIN_TITLE: Readonly<Record<Origin, string>> = {
+  mine: "Mine",
+  "with-me": "Shared with me",
+  space: "Space",
+};
 const ORIGIN_ORDER: readonly Origin[] = ["mine", "with-me", "space"];
 
 export function originOf(it: Pick<Item, "scope" | "yourLevel">): Origin {

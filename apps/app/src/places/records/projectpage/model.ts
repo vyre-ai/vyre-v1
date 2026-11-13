@@ -9,12 +9,30 @@ export type PlanOut = CapMap["projects.plan"]["out"];
 export type PlanRow = PlanOut["tasks"][number];
 export type Member = CapMap["projects.members.list"]["out"]["members"][number];
 
-export const TABS = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }] as const;
+export const TABS = [
+  { key: "overview", title: "Overview" },
+  { key: "plan", title: "Plan" },
+  { key: "files", title: "Files" },
+  { key: "chat", title: "Chat" },
+  { key: "teammates", title: "Teammates" },
+] as const;
 export type TabKey = (typeof TABS)[number]["key"];
-export const TAB_SPECS: readonly { key: string; title: string }[] = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }];
+export const TAB_SPECS: readonly { key: string; title: string }[] = [
+  { key: "overview", title: "Overview" },
+  { key: "plan", title: "Plan" },
+  { key: "files", title: "Files" },
+  { key: "chat", title: "Chat" },
+  { key: "teammates", title: "Teammates" },
+];
 
 /** The health a lead sets, in the words the prototype uses. */
-export const HEALTH_LABEL: Readonly<Record<"on" | "risk" | "off" | "hold" | "done", string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
+export const HEALTH_LABEL: Readonly<Record<"on" | "risk" | "off" | "hold" | "done", string>> = {
+  on: "On track",
+  risk: "At risk",
+  off: "Off track",
+  hold: "On hold",
+  done: "Done",
+};
 export const HEALTH_ORDER: readonly ("on" | "risk" | "off" | "hold" | "done")[] = ["on", "risk", "off", "hold", "done"];
 
 const DAY = 86_400_000;
@@ -22,14 +40,31 @@ const DAY = 86_400_000;
 export const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 export const fromIso = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
 
-const STATUS: Readonly<Record<PlanRow["status"], PlanStatus>> = { todo: "todo", doing: "doing", in_review: "review", awaiting_approval: "approval", done: "done", canceled: "todo" };
-const BACK: Readonly<Record<PlanStatus, PlanRow["status"]>> = { todo: "todo", doing: "doing", blocked: "doing", review: "in_review", approval: "awaiting_approval", done: "done" };
+const STATUS: Readonly<Record<PlanRow["status"], PlanStatus>> = {
+  todo: "todo",
+  doing: "doing",
+  in_review: "review",
+  awaiting_approval: "approval",
+  done: "done",
+  canceled: "todo",
+};
+const BACK: Readonly<Record<PlanStatus, PlanRow["status"]>> = {
+  todo: "todo",
+  doing: "doing",
+  blocked: "doing",
+  review: "in_review",
+  approval: "awaiting_approval",
+  done: "done",
+};
 export const statusBack = (s: PlanStatus): PlanRow["status"] => BACK[s];
 
 /** People are principals; an id starting agt_ is an agent, grp_ a group, rol_ a role, anything else a person. */
 export function whoOf(id: string | undefined, name: (id: string) => string): PlanWho | null {
   if (!id) return null;
-  return { name: name(id), kind: id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person" };
+  return {
+    name: name(id),
+    kind: id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person",
+  };
 }
 
 export function planTasks(plan: PlanOut, name: (id: string) => string): PlanTask[] {
@@ -39,8 +74,17 @@ export function planTasks(plan: PlanOut, name: (id: string) => string): PlanTask
   for (const t of plan.tasks) {
     const start = t.start ?? t.due ?? plan.today;
     out.push({
-      id: t.taskId, stage: t.stage ?? plan.stages[0]?.key ?? "", kind: t.milestone ? "milestone" : "task", title: t.title, start: isoDay(start), ...(t.milestone ? {} : { end: isoDay(t.due ?? start) }),
-      assigned: whoOf(t.assigned, name), reviewer: whoOf(t.reviewer, name), approver: whoOf(t.approver, name), status: STATUS[t.status], deps: waits.get(t.taskId) ?? [],
+      id: t.taskId,
+      stage: t.stage ?? plan.stages[0]?.key ?? "",
+      kind: t.milestone ? "milestone" : "task",
+      title: t.title,
+      start: isoDay(start),
+      ...(t.milestone ? {} : { end: isoDay(t.due ?? start) }),
+      assigned: whoOf(t.assigned, name),
+      reviewer: whoOf(t.reviewer, name),
+      approver: whoOf(t.approver, name),
+      status: STATUS[t.status],
+      deps: waits.get(t.taskId) ?? [],
     });
   }
   return out;
@@ -48,7 +92,13 @@ export function planTasks(plan: PlanOut, name: (id: string) => string): PlanTask
 export const planStages = (plan: PlanOut): PlanStage[] => plan.stages.map((s) => ({ id: s.key, name: s.title }));
 
 /** What an edit on the Plan changed, task by task: the dates, the stage or the status. */
-export interface TaskEdit { taskId: string; start?: number; due?: number; stage?: string; status?: PlanRow["status"] }
+export interface TaskEdit {
+  taskId: string;
+  start?: number;
+  due?: number;
+  stage?: string;
+  status?: PlanRow["status"];
+}
 export function editsBetween(before: readonly PlanTask[], after: readonly PlanTask[]): TaskEdit[] {
   const was = new Map(before.map((t) => [t.id, t]));
   const out: TaskEdit[] = [];
@@ -71,20 +121,43 @@ export const plural = (n: number, one: string, many = `${one}s`): string => `${n
 export function dueWords(due: number | undefined, now: number, zone?: string): string {
   if (due === undefined) return "No due date";
   // in the Space's zone the day is the Space's day; without one, the UTC day as before
-  const d = zone ? dayIn(due, zone) - dayIn(now, zone) : Math.round((Date.parse(`${isoDay(due)}T00:00:00Z`) - Date.parse(`${isoDay(now)}T00:00:00Z`)) / DAY);
+  const d = zone
+    ? dayIn(due, zone) - dayIn(now, zone)
+    : Math.round((Date.parse(`${isoDay(due)}T00:00:00Z`) - Date.parse(`${isoDay(now)}T00:00:00Z`)) / DAY);
   return d === 0 ? "Due today" : d > 0 ? `Due in ${plural(d, "day")}` : `${plural(-d, "day")} late`;
 }
 
-export const dateWords = (ms: number | undefined, zone?: string): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone ?? "UTC" }));
+export const dateWords = (ms: number | undefined, zone?: string): string =>
+  ms === undefined
+    ? ""
+    : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone ?? "UTC" });
 
 export function ago(at: number, now: number): string {
   const min = Math.max(0, Math.floor((now - at) / 60_000));
-  return min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.floor(min / 60)} h ago` : `${Math.floor(min / 1440)} d ago`;
+  return min < 1
+    ? "just now"
+    : min < 60
+      ? `${min} min ago`
+      : min < 1440
+        ? `${Math.floor(min / 60)} h ago`
+        : `${Math.floor(min / 1440)} d ago`;
 }
 
-export const ROLE_WORDS: Readonly<Record<Member["role"], string>> = { lead: "Lead", member: "Member", reviewer: "Reviewer", guest: "Guest" };
+export const ROLE_WORDS: Readonly<Record<Member["role"], string>> = {
+  lead: "Lead",
+  member: "Member",
+  reviewer: "Reviewer",
+  guest: "Guest",
+};
 
 /** The words a cascade proposal gets from the server: "3 later tasks move, the Tuesday consult still holds". */
-export function cascadeWords(c: { moves: readonly unknown[]; holds: readonly { reason: string }[]; summary: string }): string {
-  return c.summary || `${plural(c.moves.length, "later task")} move${c.moves.length === 1 ? "s" : ""}${c.holds.length ? `, ${c.holds.length} still hold${c.holds.length === 1 ? "s" : ""}` : ""}`;
+export function cascadeWords(c: {
+  moves: readonly unknown[];
+  holds: readonly { reason: string }[];
+  summary: string;
+}): string {
+  return (
+    c.summary ||
+    `${plural(c.moves.length, "later task")} move${c.moves.length === 1 ? "s" : ""}${c.holds.length ? `, ${c.holds.length} still hold${c.holds.length === 1 ? "s" : ""}` : ""}`
+  );
 }

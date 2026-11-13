@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 
 const WAT = fileURLToPath(new URL("./kernel.wat", import.meta.url));
 
-interface Wabt { parseWat(name: string, src: string, features: Record<string, boolean>): { toBinary(o: Record<string, unknown>): { buffer: Uint8Array }; destroy(): void } }
+interface Wabt {
+  parseWat(
+    name: string,
+    src: string,
+    features: Record<string, boolean>,
+  ): { toBinary(o: Record<string, unknown>): { buffer: Uint8Array }; destroy(): void };
+}
 
 export async function assembleKernel(): Promise<Uint8Array> {
   const mod = (await import("wabt")) as unknown as { default: () => Promise<Wabt> };

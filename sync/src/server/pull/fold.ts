@@ -9,7 +9,13 @@ import type { StoredEvent } from "../../../../kernel/src/log/types.ts";
 
 export const SEALED_FIELD = "$sealed";
 
-export interface Cell { v: unknown; hlc: string; actor: string; seq: number; enc?: { key: string; nonce: string } }
+export interface Cell {
+  v: unknown;
+  hlc: string;
+  actor: string;
+  seq: number;
+  enc?: { key: string; nonce: string };
+}
 export type Cells = Record<string, Cell>;
 export type RowOp = "upsert" | "patch" | "delete" | "rescan";
 
@@ -35,7 +41,13 @@ const at = (p: Record<string, unknown>, e: StoredEvent): number => (typeof p["at
 
 function sealed(e: StoredEvent): RowChange | null {
   if (!e.entity || !e.entity_id) return null;
-  return { entity: e.entity, id: e.entity_id, op: "upsert", fields: { [SEALED_FIELD]: Buffer.from(e.payload).toString("base64") }, at: e.at };
+  return {
+    entity: e.entity,
+    id: e.entity_id,
+    op: "upsert",
+    fields: { [SEALED_FIELD]: Buffer.from(e.payload).toString("base64") },
+    at: e.at,
+  };
 }
 
 /** Read one event as a row change; null when the sync lane has nothing to say about it. */
@@ -44,13 +56,15 @@ export function mapEvent(e: StoredEvent): RowChange | null {
   switch (e.type) {
     case "record.created": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const type = str(p["type"]), id = str(p["id"]);
+      const type = str(p["type"]),
+        id = str(p["id"]);
       if (!type || !id || !isObj(p["data"])) return null;
       return { entity: type, id, op: "upsert", fields: p["data"], at: at(p, e) };
     }
     case "record.updated": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const type = str(p["type"]), id = str(p["id"]);
+      const type = str(p["type"]),
+        id = str(p["id"]);
       if (!type || !id || !isObj(p["data"])) return null;
       const before = isObj(p["before"]) ? p["before"] : {};
       const fields: Record<string, unknown> = {};
@@ -60,33 +74,53 @@ export function mapEvent(e: StoredEvent): RowChange | null {
     }
     case "record.removed": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const type = str(p["type"]), id = str(p["id"]);
+      const type = str(p["type"]),
+        id = str(p["id"]);
       return type && id ? { entity: type, id, op: "delete", fields: {}, at: at(p, e) } : null;
     }
     case "record.restored": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const type = str(p["type"]), id = str(p["id"]);
+      const type = str(p["type"]),
+        id = str(p["id"]);
       return type && id ? { entity: type, id, op: "upsert", fields: {}, restore: true, at: at(p, e) } : null;
     }
     case "sync.row": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const entity = str(p["entity"]), id = str(p["id"]), op = p["op"];
+      const entity = str(p["entity"]),
+        id = str(p["id"]),
+        op = p["op"];
       if (!entity || !id || (op !== "upsert" && op !== "patch" && op !== "delete")) return null;
       const owner = p["owner"] === null ? null : str(p["owner"]);
-      return { entity, id, op, fields: isObj(p["fields"]) ? p["fields"] : {}, ...(owner !== null || p["owner"] === null ? { owner } : {}), at: at(p, e) };
+      return {
+        entity,
+        id,
+        op,
+        fields: isObj(p["fields"]) ? p["fields"] : {},
+        ...(owner !== null || p["owner"] === null ? { owner } : {}),
+        at: at(p, e),
+      };
     }
     case "sync.row_rescan": {
       const p = payloadOf<Record<string, unknown>>(e);
-      const entity = str(p["entity"]), id = str(p["id"]);
+      const entity = str(p["entity"]),
+        id = str(p["id"]);
       return entity && id ? { entity, id, op: "rescan", fields: {}, at: e.at } : null;
     }
-    default: return null;
+    default:
+      return null;
   }
 }
 
-interface RowRec { owner_id: string | null; label: number; deleted: number; enc: number; fields: string }
+interface RowRec {
+  owner_id: string | null;
+  label: number;
+  deleted: number;
+  enc: number;
+  fields: string;
+}
 
-const INSERT_CHANGE = "INSERT INTO sync_changes (seq, entity, id, op, fields, hlc, actor, vis, label, enc, trace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+const INSERT_CHANGE =
+  "INSERT INTO sync_changes (seq, entity, id, op, fields, hlc, actor, vis, label, enc, trace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 const UPSERT_ROW = `INSERT INTO sync_rows (entity, id, owner_id, label, holds, deleted, enc, vis, seq, updated_at, fields) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(entity, id) DO UPDATE SET owner_id = excluded.owner_id, label = excluded.label, deleted = excluded.deleted, enc = excluded.enc, vis = excluded.vis, seq = excluded.seq, updated_at = excluded.updated_at, fields = excluded.fields`;
 
@@ -96,14 +130,40 @@ const wire = (c: Cell): Omit<Cell, "seq"> => ({ v: c.v, hlc: c.hlc, actor: c.act
 export function foldEvent(tx: Tx, e: StoredEvent, ownerFieldOf: OwnerFieldOf): void {
   const m = mapEvent(e);
   if (!m) return;
-  const row = tx.get<RowRec>("SELECT owner_id, label, deleted, enc, fields FROM sync_rows WHERE entity = ? AND id = ?", m.entity, m.id);
+  const row = tx.get<RowRec>(
+    "SELECT owner_id, label, deleted, enc, fields FROM sync_rows WHERE entity = ? AND id = ?",
+    m.entity,
+    m.id,
+  );
   const change = (op: RowOp, fields: Record<string, Omit<Cell, "seq">>): void => {
-    tx.run(INSERT_CHANGE, e.seq, m.entity, m.id, op, JSON.stringify(fields), e.hlc, e.actor, e.vis, e.label, e.enc, e.trace_id);
+    tx.run(
+      INSERT_CHANGE,
+      e.seq,
+      m.entity,
+      m.id,
+      op,
+      JSON.stringify(fields),
+      e.hlc,
+      e.actor,
+      e.vis,
+      e.label,
+      e.enc,
+      e.trace_id,
+    );
   };
-  if (m.op === "rescan") { if (row) change("rescan", {}); return; }
+  if (m.op === "rescan") {
+    if (row) change("rescan", {});
+    return;
+  }
   if (m.op === "delete") {
     if (!row) return;
-    tx.run("UPDATE sync_rows SET deleted = 1, seq = ?, updated_at = ? WHERE entity = ? AND id = ?", e.seq, m.at, m.entity, m.id);
+    tx.run(
+      "UPDATE sync_rows SET deleted = 1, seq = ?, updated_at = ? WHERE entity = ? AND id = ?",
+      e.seq,
+      m.at,
+      m.entity,
+      m.id,
+    );
     change("delete", {});
     return;
   }
@@ -119,7 +179,8 @@ export function foldEvent(tx: Tx, e: StoredEvent, ownerFieldOf: OwnerFieldOf): v
   const ownerField = ownerFieldOf(m.entity);
   let owner: string | null = row?.owner_id ?? null;
   if (m.owner !== undefined) owner = m.owner;
-  else if (ownerField && ownerField in m.fields) owner = typeof m.fields[ownerField] === "string" ? (m.fields[ownerField] as string) : null;
+  else if (ownerField && ownerField in m.fields)
+    owner = typeof m.fields[ownerField] === "string" ? (m.fields[ownerField] as string) : null;
   else if (!row && e.enc === 2) owner = e.actor;
   tx.run(UPSERT_ROW, m.entity, m.id, owner, e.label, 0, e.enc, e.vis, e.seq, m.at, JSON.stringify(cells));
   change(m.restore ? "upsert" : m.op, changed);

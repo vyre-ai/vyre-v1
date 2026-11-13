@@ -14,7 +14,12 @@ export interface ReadRequest {
 
 export type ReadOffer =
   | { kind: "catalog"; cap: "steps.test"; input: { key: string; input: Record<string, unknown> }; say: string }
-  | { kind: "preview"; cap: "connectors.run"; input: { key: string; action: string; connectionId: string; input: Record<string, unknown>; dryRun: true }; say: string }
+  | {
+      kind: "preview";
+      cap: "connectors.run";
+      input: { key: string; action: string; connectionId: string; input: Record<string, unknown>; dryRun: true };
+      say: string;
+    }
   | { kind: "hold"; say: string };
 
 const HOLD = "An outward call waits until you run it.";
@@ -75,13 +80,22 @@ export function readOffer(req: ReadRequest): ReadOffer {
   if (kind === "outward") return { kind: "hold", say: HOLD };
   if (kind !== "read") return { kind: "hold", say: NOT_READ };
   if (!connectionId) return { kind: "hold", say: NEED };
-  return { kind: "catalog", cap: "steps.test", input: { key: stepKey, input: cleanInput(req.input, connectionId) }, say: TRY };
+  return {
+    kind: "catalog",
+    cap: "steps.test",
+    input: { key: stepKey, input: cleanInput(req.input, connectionId) },
+    say: TRY,
+  };
 }
 
 /** One line for the Ask tab. Secret shapes are removed. */
 export function publicResult(out: unknown): string {
   let text = "";
-  try { text = JSON.stringify(out) ?? ""; } catch { text = ""; }
+  try {
+    text = JSON.stringify(out) ?? "";
+  } catch {
+    text = "";
+  }
   if (text.length > 800) text = text.slice(0, 800);
   const safe = (scrubAskContext({ message: text }).message ?? "").replaceAll("undefined", "").trim();
   if (!safe) return "The read finished. No details were kept.";

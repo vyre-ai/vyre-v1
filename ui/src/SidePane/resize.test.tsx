@@ -51,7 +51,9 @@ test("the handle changes the width inside the floor and the cap and remembers it
     const Probe2 = probe("left", "t-resize-a", again);
     await mount(createRoot, <Probe2 />);
     assert.equal(again.r!.width, 412, "a new mount reads it back");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("arrow keys resize, and double-click (reset) goes back to the default and forgets the width", async () => {
@@ -72,11 +74,17 @@ test("arrow keys resize, and double-click (reset) goes back to the default and f
     await flush();
     assert.equal(out.r!.width, 340);
     assert.equal(paneWidths.get("t-resize-keys"), null);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a ResizableColumn draws a labelled separator handle and never pins a width past its container", () => {
-  const html = renderToStaticMarkup(<ResizableColumn paneKey="t-col" defaultWidth={300} grow="left" testID="col"><span>body</span></ResizableColumn>);
+  const html = renderToStaticMarkup(
+    <ResizableColumn paneKey="t-col" defaultWidth={300} grow="left" testID="col">
+      <span>body</span>
+    </ResizableColumn>,
+  );
   assert.match(html, /role="separator"/);
   assert.match(html, /aria-orientation="vertical"/);
   assert.match(html, /max-width:100%/);

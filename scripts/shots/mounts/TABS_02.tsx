@@ -10,27 +10,53 @@ import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spac
 
 export const title = "Tabs in the shell";
 
-interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
+interface RootLike {
+  setAttribute(name: string, value: string): void;
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}
 
 export default function Mount(): ReactNode {
-  const skin = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("skin") ?? "paper";
+  const skin =
+    new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("skin") ??
+    "paper";
   const made = useMemo(() => {
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
-    const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const themeRoot: ThemeRoot = {
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
+    };
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ theme });
     hub.go("files");
     hub.go("chats");
-    hub.go("chats");                                           // Chats again: still one Chats tab
+    hub.go("chats"); // Chats again: still one Chats tab
     hub.go("chats", "subject=thread:thr_1");
     hub.retitle("chats:subject=thread:thr_1", "Renewal letter for the Rivera account");
     hub.go("chats", "subject=thread:thr_2");
     hub.retitle("chats:subject=thread:thr_2", "Intake call notes");
     hub.go("chats", "subject=thread:thr_3");
     hub.retitle("chats:subject=thread:thr_3", "New chat", true);
-    hub.newTab();                                              // New chat while a blank chat is open: it goes to that tab, no second one
+    hub.newTab(); // New chat while a blank chat is open: it goes to that tab, no second one
     hub.go("records");
     return { hub, theme };
   }, [skin]);
-  return <View style={StyleSheet.absoluteFill}><Shell hub={made.hub} theme={made.theme} renderPlace={samplePlace} /></View>;
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Shell hub={made.hub} theme={made.theme} renderPlace={samplePlace} />
+    </View>
+  );
 }

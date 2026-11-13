@@ -6,11 +6,37 @@ import { webOnly } from "../canvas/parts.tsx";
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
-export function Overlay({ children, onClose, label, testID }: { children: ReactNode; onClose(): void; label: string; testID?: string }): ReactElement {
+export function Overlay({
+  children,
+  onClose,
+  label,
+  testID,
+}: {
+  children: ReactNode;
+  onClose(): void;
+  label: string;
+  testID?: string;
+}): ReactElement {
   return (
-    <View testID={testID ?? "overlay"} accessibilityLabel={label} style={o.layer} {...webOnly({ role: "dialog", "aria-modal": true, onKeyDown: (e: { key: string; stopPropagation?: () => void }) => { if (e.key === "Escape") { e.stopPropagation?.(); onClose(); } } })}>
+    <View
+      testID={testID ?? "overlay"}
+      accessibilityLabel={label}
+      style={o.layer}
+      {...webOnly({
+        role: "dialog",
+        "aria-modal": true,
+        onKeyDown: (e: { key: string; stopPropagation?: () => void }) => {
+          if (e.key === "Escape") {
+            e.stopPropagation?.();
+            onClose();
+          }
+        },
+      })}
+    >
       <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={o.backdrop} />
-      <View style={o.center} pointerEvents="box-none">{children}</View>
+      <View style={o.center} pointerEvents="box-none">
+        {children}
+      </View>
     </View>
   );
 }

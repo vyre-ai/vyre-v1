@@ -13,15 +13,40 @@ const TOKEN = "vys_token_test_0123456789abcdef";
 function mcpServer(answer: (args: Record<string, unknown>) => { isError?: boolean; text: string }) {
   const seen: Array<{ auth: string | undefined; body: Record<string, unknown> }> = [];
   const server = http.createServer((q, r) => {
-    let b = ""; q.on("data", (d) => (b += d));
+    let b = "";
+    q.on("data", (d) => (b += d));
     q.on("end", () => {
-      const body = JSON.parse(b) as { id?: number; method: string; params?: { name?: string; arguments?: Record<string, unknown> } };
+      const body = JSON.parse(b) as {
+        id?: number;
+        method: string;
+        params?: { name?: string; arguments?: Record<string, unknown> };
+      };
       seen.push({ auth: q.headers["authorization"], body });
       r.setHeader("content-type", "application/json");
-      if (body.method === "initialize") { r.setHeader("mcp-session-id", "mcp_1"); r.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "stand-in", version: "0" } } })); return; }
-      if (body.id === undefined) { r.statusCode = 202; r.end(); return; }
+      if (body.method === "initialize") {
+        r.setHeader("mcp-session-id", "mcp_1");
+        r.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "stand-in", version: "0" } },
+          }),
+        );
+        return;
+      }
+      if (body.id === undefined) {
+        r.statusCode = 202;
+        r.end();
+        return;
+      }
       const a = answer(body.params?.arguments ?? {});
-      r.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { content: [{ type: "text", text: a.text }], ...(a.isError ? { isError: true } : {}) } }));
+      r.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: { content: [{ type: "text", text: a.text }], ...(a.isError ? { isError: true } : {}) },
+        }),
+      );
     });
   });
   return { server, seen };
@@ -29,37 +54,62 @@ function mcpServer(answer: (args: Record<string, unknown>) => { isError?: boolea
 
 /** Run one persistent fake CLI with the prompts and return each reply in order. */
 async function askMany(prompts: readonly string[], mcpConfig: unknown): Promise<string[]> {
-  const child = spawn(process.execPath, [FAKE, "claude", "-p", "--mcp-config", JSON.stringify(mcpConfig)], { env: { ...process.env, VYRE_MCP_TOKEN: TOKEN }, stdio: ["pipe", "pipe", "inherit"] });
-  for (const prompt of prompts) child.stdin.write(`${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } })}\n`);
+  const child = spawn(process.execPath, [FAKE, "claude", "-p", "--mcp-config", JSON.stringify(mcpConfig)], {
+    env: { ...process.env, VYRE_MCP_TOKEN: TOKEN },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  for (const prompt of prompts)
+    child.stdin.write(
+      `${JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } })}\n`,
+    );
   let out = "";
   child.stdout.setEncoding("utf8");
   const done = new Promise<void>((ok) => {
     child.stdout.on("data", (d: string) => {
       out += d;
-      if (out.split("\n").filter((l) => l.includes('"type":"result"')).length >= prompts.length) { child.stdin.end(); ok(); }
+      if (out.split("\n").filter((l) => l.includes('"type":"result"')).length >= prompts.length) {
+        child.stdin.end();
+        ok();
+      }
     });
     child.on("exit", () => ok());
   });
   await done;
   child.kill();
-  return out.split("\n").filter((l) => l.includes('"type":"result"')).map((l) => (JSON.parse(l) as { result: string }).result);
+  return out
+    .split("\n")
+    .filter((l) => l.includes('"type":"result"'))
+    .map((l) => (JSON.parse(l) as { result: string }).result);
 }
 
-const ask = async (prompt: string, mcpConfig: unknown): Promise<string> => (await askMany([prompt], mcpConfig))[0] ?? "";
+const ask = async (prompt: string, mcpConfig: unknown): Promise<string> =>
+  (await askMany([prompt], mcpConfig))[0] ?? "";
 
 test("send over a loopback URL calls mail_send with the address and the bearer token, and reports the answer", async () => {
-  const { server, seen } = mcpServer((a) => ({ text: `queued for ${(a["to"] as Array<{ address: string }>)[0]!.address}` }));
+  const { server, seen } = mcpServer((a) => ({
+    text: `queued for ${(a["to"] as Array<{ address: string }>)[0]!.address}`,
+  }));
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/mcp`;
   try {
-    const reply = await ask("send pat@acme.test mbx_one", { mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${VYRE_MCP_TOKEN}" } } } });
+    const reply = await ask("send pat@acme.test mbx_one", {
+      mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${VYRE_MCP_TOKEN}" } } },
+    });
     assert.equal(reply, "mail_send answered: queued for pat@acme.test");
-    assert.deepEqual(seen.map((s) => s.body["method"]), ["initialize", "notifications/initialized", "tools/call"]);
-    assert.ok(seen.every((s) => s.auth === `Bearer ${TOKEN}`), "every request carries the session token");
+    assert.deepEqual(
+      seen.map((s) => s.body["method"]),
+      ["initialize", "notifications/initialized", "tools/call"],
+    );
+    assert.ok(
+      seen.every((s) => s.auth === `Bearer ${TOKEN}`),
+      "every request carries the session token",
+    );
     const call = seen[2]!.body["params"] as { name: string; arguments: Record<string, unknown> };
     assert.equal(call.name, "mail_send");
     assert.deepEqual([call.arguments["mailboxId"], call.arguments["to"]], ["mbx_one", [{ address: "pat@acme.test" }]]);
-  } finally { await new Promise<void>((ok) => server.close(() => ok())); }
+  } finally {
+    await new Promise<void>((ok) => server.close(() => ok()));
+  }
 });
 
 test("a refused or held call is reported as refused with the tool's own words, and an MCP failure as an mcp error", async () => {
@@ -67,8 +117,13 @@ test("a refused or held call is reported as refused with the tool's own words, a
   await new Promise<void>((ok) => held.server.listen(0, "127.0.0.1", ok));
   try {
     const url = `http://127.0.0.1:${(held.server.address() as { port: number }).port}/mcp`;
-    assert.equal(await ask("send pat@acme.test", { mcpServers: { vyre: { type: "http", url, headers: {} } } }), "mail_send refused: held for approval (tsk_gate1)");
-  } finally { await new Promise<void>((ok) => held.server.close(() => ok())); }
+    assert.equal(
+      await ask("send pat@acme.test", { mcpServers: { vyre: { type: "http", url, headers: {} } } }),
+      "mail_send refused: held for approval (tsk_gate1)",
+    );
+  } finally {
+    await new Promise<void>((ok) => held.server.close(() => ok()));
+  }
   assert.match(await ask("send pat@acme.test", { mcpServers: {} }), /^mcp error: there is no vyre MCP server/);
   assert.equal(await ask("send", { mcpServers: {} }), "mcp error: say who to send to");
 });
@@ -78,11 +133,17 @@ test("two identical send turns use distinct idempotency keys", async () => {
   await new Promise<void>((ok) => held.server.listen(0, "127.0.0.1", ok));
   try {
     const url = `http://127.0.0.1:${(held.server.address() as { port: number }).port}/mcp`;
-    await askMany(["send pat@acme.test mbx_one", "send pat@acme.test mbx_one"], { mcpServers: { vyre: { type: "http", url, headers: {} } } });
-    const keys = held.seen.filter((s) => s.body["method"] === "tools/call").map((s) => ((s.body["params"] as { arguments: Record<string, unknown> }).arguments["idempotencyKey"]));
+    await askMany(["send pat@acme.test mbx_one", "send pat@acme.test mbx_one"], {
+      mcpServers: { vyre: { type: "http", url, headers: {} } },
+    });
+    const keys = held.seen
+      .filter((s) => s.body["method"] === "tools/call")
+      .map((s) => (s.body["params"] as { arguments: Record<string, unknown> }).arguments["idempotencyKey"]);
     assert.equal(keys.length, 2);
     assert.notEqual(keys[0], keys[1]);
-  } finally { await new Promise<void>((ok) => held.server.close(() => ok())); }
+  } finally {
+    await new Promise<void>((ok) => held.server.close(() => ok()));
+  }
 });
 
 test("the hello scenario is unchanged", async () => {

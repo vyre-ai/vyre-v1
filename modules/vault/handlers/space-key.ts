@@ -6,7 +6,19 @@
 // REFRESH_MS when someone reads it, so a picker opening does not reach the provider each time.
 import { readFileSync } from "node:fs";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, denied, first, newId, num, parseJson, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
+import {
+  bad,
+  denied,
+  first,
+  newId,
+  num,
+  parseJson,
+  patchMeta,
+  record,
+  rowsOf,
+  statements,
+  str,
+} from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { live, openFields } from "./items.ts";
 import { ensureProviders, entry } from "./providers.ts";
@@ -24,11 +36,20 @@ const ready = new WeakSet<object>();
 function ensureSpaceKey(ctx: VaultCtx): void {
   ensureProviders(ctx);
   if (ready.has(ctx.db)) return;
-  try { ctx.db.all(`SELECT "id" FROM vault_space_key WHERE "id" = ?`, "probe"); } catch { for (const s of statements(sql)) ctx.db.run(s); }
+  try {
+    ctx.db.all(`SELECT "id" FROM vault_space_key WHERE "id" = ?`, "probe");
+  } catch {
+    for (const s of statements(sql)) ctx.db.run(s);
+  }
   ready.add(ctx.db);
 }
 
-interface Current { rec: Row; provider: Row; item: Row; def: CatalogEntry | undefined }
+interface Current {
+  rec: Row;
+  provider: Row;
+  item: Row;
+  def: CatalogEntry | undefined;
+}
 
 /** The Space AI key as it stands: its record, its provider row and its item, all live. Null when none is set or what it named is gone. */
 function current(ctx: VaultCtx): Current | null {
@@ -36,7 +57,11 @@ function current(ctx: VaultCtx): Current | null {
   const rec = first(ctx.db.all(`SELECT * FROM vault_space_key WHERE "id" = ?`, ROW));
   if (!rec) return null;
   let provider: Row | null = null;
-  try { provider = first(ctx.db.all(`SELECT * FROM vault_provider WHERE "id" = ?`, str(rec, "providerId"))); } catch { return null; }
+  try {
+    provider = first(ctx.db.all(`SELECT * FROM vault_provider WHERE "id" = ?`, str(rec, "providerId")));
+  } catch {
+    return null;
+  }
   if (!provider || !live(provider)) return null;
   const item = first(ctx.db.all(`SELECT * FROM vault_meta WHERE "id" = ?`, str(provider, "itemId")));
   if (!item || !live(item)) return null;
@@ -45,7 +70,13 @@ function current(ctx: VaultCtx): Current | null {
 
 /** The provider row id of the Space AI key, for providers.list (every member lists it) and the engine's account rows. */
 export function spaceKeyProviderId(ctx: VaultCtx): string | null {
-  try { return current(ctx) ? str(first(ctx.db.all(`SELECT "providerId" FROM vault_space_key WHERE "id" = ?`, ROW)), "providerId") : null; } catch { return null; }
+  try {
+    return current(ctx)
+      ? str(first(ctx.db.all(`SELECT "providerId" FROM vault_space_key WHERE "id" = ?`, ROW)), "providerId")
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The models the Space AI key unlocks, as last kept (providers.list shows them on its row). */
@@ -55,14 +86,23 @@ export function spaceKeyModels(ctx: VaultCtx): string[] {
 }
 
 const me = (ctx: VaultCtx): string => ctx.actingFor ?? ctx.principal.id;
-const mayManage = (ctx: VaultCtx): boolean => ctx.principal.kind === "person" && ctx.authorize({ perm: "policy.manage", level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+const mayManage = (ctx: VaultCtx): boolean =>
+  ctx.principal.kind === "person" &&
+  ctx.authorize({ perm: "policy.manage", level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
 
 function out(ctx: VaultCtx, s: Current | null): Record<string, unknown> {
   if (!s) return { set: false, models: [], mayManage: mayManage(ctx) };
   return {
-    set: true, providerKey: str(s.provider, "providerKey"), name: s.def?.name ?? str(s.provider, "providerKey"), providerId: str(s.provider, "id"),
-    models: parseJson<string[]>(s.rec["models"], []), state: str(s.rec, "state") === "failing" ? "failing" : "ok",
-    setBy: str(s.rec, "setBy"), setAt: num(s.rec, "setAt"), checkedAt: num(s.rec, "checkedAt"), mayManage: mayManage(ctx),
+    set: true,
+    providerKey: str(s.provider, "providerKey"),
+    name: s.def?.name ?? str(s.provider, "providerKey"),
+    providerId: str(s.provider, "id"),
+    models: parseJson<string[]>(s.rec["models"], []),
+    state: str(s.rec, "state") === "failing" ? "failing" : "ok",
+    setBy: str(s.rec, "setBy"),
+    setAt: num(s.rec, "setAt"),
+    checkedAt: num(s.rec, "checkedAt"),
+    mayManage: mayManage(ctx),
   };
 }
 
@@ -73,7 +113,14 @@ async function probe(ctx: VaultCtx, def: CatalogEntry, apiKey: string): Promise<
   const run = hostOf()?.probe;
   if (!run) return null;
   try {
-    return await run({ providerKey: def.key, connection: "api_key", caller: me(ctx), apiKey, ...(def.custom && def.base ? { address: def.base } : {}), engine: def.engine });
+    return await run({
+      providerKey: def.key,
+      connection: "api_key",
+      caller: me(ctx),
+      apiKey,
+      ...(def.custom && def.base ? { address: def.base } : {}),
+      engine: def.engine,
+    });
   } catch {
     return { ok: false, models: [], detail: "The provider could not be reached." };
   }
@@ -89,8 +136,16 @@ async function refresh(ctx: VaultCtx, s: Current): Promise<Current> {
   if (!value) return s;
   const r = await probe(ctx, s.def, value);
   if (r === null) return s;
-  if (r.ok) ctx.db.run(`UPDATE vault_space_key SET "models" = ?, "state" = ?, "checkedAt" = ? WHERE "id" = ?`, JSON.stringify(r.models), "ok", ctx.now(), ROW);
-  else if (refusedKey(r)) ctx.db.run(`UPDATE vault_space_key SET "state" = ?, "checkedAt" = ? WHERE "id" = ?`, "failing", ctx.now(), ROW);
+  if (r.ok)
+    ctx.db.run(
+      `UPDATE vault_space_key SET "models" = ?, "state" = ?, "checkedAt" = ? WHERE "id" = ?`,
+      JSON.stringify(r.models),
+      "ok",
+      ctx.now(),
+      ROW,
+    );
+  else if (refusedKey(r))
+    ctx.db.run(`UPDATE vault_space_key SET "state" = ?, "checkedAt" = ? WHERE "id" = ?`, "failing", ctx.now(), ROW);
   else ctx.db.run(`UPDATE vault_space_key SET "checkedAt" = ? WHERE "id" = ?`, ctx.now(), ROW);
   return current(ctx) ?? s;
 }
@@ -99,7 +154,8 @@ async function refresh(ctx: VaultCtx, s: Current): Promise<Current> {
 
 export async function get(ctx: VaultCtx, input: { refresh?: boolean }) {
   let s = current(ctx);
-  if (s && ((input.refresh === true && mayManage(ctx)) || ctx.now() - num(s.rec, "checkedAt") > REFRESH_MS)) s = await refresh(ctx, s);
+  if (s && ((input.refresh === true && mayManage(ctx)) || ctx.now() - num(s.rec, "checkedAt") > REFRESH_MS))
+    s = await refresh(ctx, s);
   return out(ctx, s);
 }
 
@@ -118,7 +174,8 @@ function dropProvider(ctx: VaultCtx, providerId: string): void {
   ctx.emit("provider.removed", `entity/${providerId}`, { providerId }, { vis: "participants" });
 }
 
-const label = (ctx: VaultCtx, type: "vault_folder" | "vault_item", id: string): Promise<unknown> => ctx.call("access.labels.set", { resource: { type, id }, label: "restricted" });
+const label = (ctx: VaultCtx, type: "vault_folder" | "vault_item", id: string): Promise<unknown> =>
+  ctx.call("access.labels.set", { resource: { type, id }, label: "restricted" });
 
 /**
  * The Restricted Shared folder the key lives in: the one it was kept in before, else a new one, made through the host so it is a resource at once and can be labelled. The label is set before the
@@ -127,9 +184,21 @@ const label = (ctx: VaultCtx, type: "vault_folder" | "vault_item", id: string): 
 async function folderFor(ctx: VaultCtx, idem: string): Promise<string> {
   const was = first(ctx.db.all(`SELECT "folderId" FROM vault_space_key WHERE "id" = ?`, ROW));
   const kept = was ? first(ctx.db.all(`SELECT * FROM vault_folder WHERE "id" = ?`, str(was, "folderId"))) : null;
-  const named = rowsOf(ctx.db.all(`SELECT * FROM vault_folder WHERE "name" = ?`, FOLDER)).find((f) => live(f) && str(f, "scope") === "shared");
+  const named = rowsOf(ctx.db.all(`SELECT * FROM vault_folder WHERE "name" = ?`, FOLDER)).find(
+    (f) => live(f) && str(f, "scope") === "shared",
+  );
   const have = kept && live(kept) ? kept : named;
-  const id = have ? str(have, "id") : String(((await ctx.call("vault.folders.create", { name: FOLDER, scope: "shared", idempotencyKey: `${idem}:folder` })) as { folder: { id: string } }).folder.id);
+  const id = have
+    ? str(have, "id")
+    : String(
+        (
+          (await ctx.call("vault.folders.create", {
+            name: FOLDER,
+            scope: "shared",
+            idempotencyKey: `${idem}:folder`,
+          })) as { folder: { id: string } }
+        ).folder.id,
+      );
   await label(ctx, "vault_folder", id);
   return id;
 }
@@ -138,15 +207,24 @@ export async function set(ctx: VaultCtx, input: { providerKey: string; apiKey: s
   ensureSpaceKey(ctx);
   if (ctx.principal.kind !== "person") return denied(ctx, "A person sets the Space AI key, never an agent.");
   const def = entry(ctx, input.providerKey);
-  if (!def || !def.connections.includes("api_key") || def.keyless) return bad(ctx, "Choose a provider that takes an API key.");
+  if (!def || !def.connections.includes("api_key") || def.keyless)
+    return bad(ctx, "Choose a provider that takes an API key.");
   const value = typeof input.apiKey === "string" ? input.apiKey.trim() : "";
   if (value === "") return bad(ctx, "Paste the key.");
   // checked first: nothing is written for a key the provider refuses
   const r = await probe(ctx, def, value);
-  if (r === null) throw fail("provider.unavailable", ctx.trace.traceId, { message: `This server cannot reach ${def.name} to check the key yet.` });
+  if (r === null)
+    throw fail("provider.unavailable", ctx.trace.traceId, {
+      message: `This server cannot reach ${def.name} to check the key yet.`,
+    });
   if (!r.ok) {
-    if (refusedKey(r)) throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${def.name} did not accept that key. Check it and try again.` });
-    throw fail("provider.unavailable", ctx.trace.traceId, { message: `${def.name} did not answer. Try again in a moment.` });
+    if (refusedKey(r))
+      throw fail("provider.auth_failed", ctx.trace.traceId, {
+        message: `${def.name} did not accept that key. Check it and try again.`,
+      });
+    throw fail("provider.unavailable", ctx.trace.traceId, {
+      message: `${def.name} did not answer. Try again in a moment.`,
+    });
   }
   const was = current(ctx);
   const folderId = await folderFor(ctx, input.idempotencyKey);
@@ -154,21 +232,52 @@ export async function set(ctx: VaultCtx, input: { providerKey: string; apiKey: s
   if (was) dropItem(ctx, str(was.item, "id"));
   // put through the host, as Talk's Space key is, so the item is a resource at once and takes its own Restricted label (a label on the folder alone does not keep a member's role out of it)
   const put = (await ctx.call("vault.item.put", {
-    folderId, name: `${def.name} for everyone`, kind: "api_key", fields: [{ key: "api_key", value, secret: true }], spaceOnly: true, idempotencyKey: `${input.idempotencyKey}:item`,
+    folderId,
+    name: `${def.name} for everyone`,
+    kind: "api_key",
+    fields: [{ key: "api_key", value, secret: true }],
+    spaceOnly: true,
+    idempotencyKey: `${input.idempotencyKey}:item`,
   })) as { item: { id: string } };
   const itemId = String(put.item.id);
   await label(ctx, "vault_item", itemId);
   const providerId = newId("prv", ctx.now());
-  ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    providerId, def.key, "api_key", "shared", ctx.principal.id, itemId, 1, "ok", ctx.now(), null);
-  if (def.custom && def.base) ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, providerId, def.base);
+  ctx.db.run(
+    `INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    providerId,
+    def.key,
+    "api_key",
+    "shared",
+    ctx.principal.id,
+    itemId,
+    1,
+    "ok",
+    ctx.now(),
+    null,
+  );
+  if (def.custom && def.base)
+    ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, providerId, def.base);
   if (was) dropProvider(ctx, str(was.provider, "id"));
   ctx.db.run(`DELETE FROM vault_space_key WHERE "id" = ?`, ROW);
-  ctx.db.run(`INSERT INTO vault_space_key ("id", "providerId", "folderId", "setBy", "setAt", "checkedAt", "models", "state") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ROW, providerId, folderId, ctx.principal.id, ctx.now(), ctx.now(), JSON.stringify(r.models), "ok");
+  ctx.db.run(
+    `INSERT INTO vault_space_key ("id", "providerId", "folderId", "setBy", "setAt", "checkedAt", "models", "state") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ROW,
+    providerId,
+    folderId,
+    ctx.principal.id,
+    ctx.now(),
+    ctx.now(),
+    JSON.stringify(r.models),
+    "ok",
+  );
   // a Space account with every use on (owner ruling 9; admins narrow it with providers.uses.set)
   keepSpaceKey(ctx, providerId, r.models);
-  ctx.emit("provider.added", `entity/${providerId}`, { providerId, providerKey: def.key, connection: "api_key", scope: "shared" }, { vis: "participants" });
+  ctx.emit(
+    "provider.added",
+    `entity/${providerId}`,
+    { providerId, providerKey: def.key, connection: "api_key", scope: "shared" },
+    { vis: "participants" },
+  );
   return out(ctx, current(ctx));
 }
 
@@ -203,4 +312,3 @@ export async function use(ctx: VaultCtx, input: { handle: string }) {
   touch(ctx, s.item, { purpose: `Space AI key, a turn for ${me(ctx)}` });
   return { handle: str(s.item, "handle"), itemId: str(s.item, "id") };
 }
-

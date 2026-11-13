@@ -28,11 +28,19 @@ export interface CompCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  authorize(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
-export function raise(ctx: Pick<CompCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<CompCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -48,9 +56,25 @@ export type HostKind = "server" | "vm";
 
 // ---- the machine the containers run on -------------------------------------------------------------------------------------------------------------------
 
-export interface Probe { running: boolean; busy: boolean; tabs: number; caption?: string; lastFrameAt?: number; diskBytes?: number }
-export interface SessionInfo { site: string; signedInAs?: string; since: number; lastSeen: number }
-export interface RecordResult { events?: string; har?: string; durationMs?: number }
+export interface Probe {
+  running: boolean;
+  busy: boolean;
+  tabs: number;
+  caption?: string;
+  lastFrameAt?: number;
+  diskBytes?: number;
+}
+export interface SessionInfo {
+  site: string;
+  signedInAs?: string;
+  since: number;
+  lastSeen: number;
+}
+export interface RecordResult {
+  events?: string;
+  har?: string;
+  durationMs?: number;
+}
 
 /**
  * What the machine that runs agent computers does (ARCH 6.6, 7.2: one container `vyre-comp-<agent>` per agent, `agentd` inside). The module never starts a process or opens a socket itself;
@@ -59,11 +83,20 @@ export interface RecordResult { events?: string; har?: string; durationMs?: numb
 export interface ComputerHost {
   readonly kind: HostKind;
   /** Create the container (stopped) and its profile disk. */
-  create(a: { computerId: string; agentId: string; tabLimit: number; idleSleepMinutes: number }): Promise<{ diskBytes?: number }>;
+  create(a: {
+    computerId: string;
+    agentId: string;
+    tabLimit: number;
+    idleSleepMinutes: number;
+  }): Promise<{ diskBytes?: number }>;
   /** Unseal the profile disk and start the container; resolves when agentd answers. */
   start(a: { computerId: string; tabLimit: number; agentId?: string }): Promise<void>;
   /** Seal the profile disk and stop the container. Returns the signed-in sites it saw, for the list that must be there while the computer sleeps, and whether the last home sync finished (a machine that keeps a working copy wipes it only then). */
-  stop(a: { computerId: string; reason: "idle" | "requested" | "remove"; agentId?: string }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number; homeSynced?: boolean }>;
+  stop(a: {
+    computerId: string;
+    reason: "idle" | "requested" | "remove";
+    agentId?: string;
+  }): Promise<{ sessions?: SessionInfo[]; diskBytes?: number; homeSynced?: boolean }>;
   /** Remove the container and its profile disk. */
   remove(computerId: string): Promise<void>;
   probe(computerId: string): Promise<Probe>;
@@ -74,10 +107,19 @@ export interface ComputerHost {
   giveBack(computerId: string): Promise<void>;
   screenshot(computerId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view is served from, for a ticket the viewer will present. `ws` is agentd's own WebSocket address on the machine that runs the container; it is for that machine's node relay and never goes to a viewer. */
-  stream(a: { computerId: string; ticket: string }): Promise<{ transport: "webrtc" | "mjpeg"; url: string; ws?: string }>;
+  stream(a: {
+    computerId: string;
+    ticket: string;
+  }): Promise<{ transport: "webrtc" | "mjpeg"; url: string; ws?: string }>;
   record(a: { computerId: string; recordingId: string; action: "start" | "stop" }): Promise<RecordResult>;
   /** Write the masked events and network log beside the video agentd saved, in the recording's folder under the agent's Files folder. */
-  saveRecording(a: { computerId: string; recordingId: string; folderPath: string; events: string; har: string }): Promise<void>;
+  saveRecording(a: {
+    computerId: string;
+    recordingId: string;
+    folderPath: string;
+    events: string;
+    har: string;
+  }): Promise<void>;
   removeRecording(a: { computerId: string; recordingId: string; folderPath: string }): Promise<void>;
   sessions(computerId: string): Promise<SessionInfo[]>;
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
@@ -94,23 +136,40 @@ export interface ComputerHost {
 
 /** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */
 export interface FillBinding {
-  issue(h: { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean; ttlMs?: number }): Promise<{ fillToken: string; revoke(): void; extend?(): void; pause?(): void; resume?(): void }>;
+  issue(h: {
+    computerId: string;
+    agentId: string;
+    asker: string;
+    nodeId?: string;
+    turn?: boolean;
+    ttlMs?: number;
+  }): Promise<{ fillToken: string; revoke(): void; extend?(): void; pause?(): void; resume?(): void }>;
   url(): string;
   /** Is this server's link to the Space private? A server's computers get a Vault channel only if it is. Absent: no server's computer does. */
   nodeSecure?(nodeId: string): boolean;
 }
 let fill: FillBinding | null = null;
-export function bindFill(b: FillBinding | null): void { fill = b; }
+export function bindFill(b: FillBinding | null): void {
+  fill = b;
+}
 export const boundFill = (): FillBinding | null => fill;
 /** The live grant per computer, so sleep and remove can end it. */
 const fillGrants = new Map<string, { revoke(): void }>();
-export function holdFill(computerId: string, g: { revoke(): void }): void { fillGrants.get(computerId)?.revoke(); fillGrants.set(computerId, g); }
-export function dropFill(computerId: string): void { fillGrants.get(computerId)?.revoke(); fillGrants.delete(computerId); }
+export function holdFill(computerId: string, g: { revoke(): void }): void {
+  fillGrants.get(computerId)?.revoke();
+  fillGrants.set(computerId, g);
+}
+export function dropFill(computerId: string): void {
+  fillGrants.get(computerId)?.revoke();
+  fillGrants.delete(computerId);
+}
 
 /** Builds the host for a computer that lives on a node (remote.ts registers it when it loads). */
 type RemoteFactory = (db: Db, now: () => number, nodeId: string) => ComputerHost;
 let remoteFactory: RemoteFactory | null = null;
-export function bindRemote(f: RemoteFactory | null): void { remoteFactory = f; }
+export function bindRemote(f: RemoteFactory | null): void {
+  remoteFactory = f;
+}
 /** The node a computer lives on, or null for the Space's own server. */
 export function nodeOf(db: Db, computerId: string): string | null {
   const r = rowsOf(db, "SELECT node_id FROM computers_computers WHERE computer_id = ?", computerId)[0];
@@ -127,13 +186,19 @@ export { bindPersonalChrome, personalChrome } from "../../lib/personal-chrome.ts
 export type { PersonalChrome } from "../../lib/personal-chrome.ts";
 
 let hostPort: ComputerHost | null = null;
-export function bindHost(h: ComputerHost | null): void { hostPort = h; }
+export function bindHost(h: ComputerHost | null): void {
+  hostPort = h;
+}
 export const boundHost = (): ComputerHost | null => hostPort;
-export function hostOf(ctx: Pick<CompCtx, "trace"> & Partial<Pick<CompCtx, "db" | "now">>, computerId?: string): ComputerHost {
+export function hostOf(
+  ctx: Pick<CompCtx, "trace"> & Partial<Pick<CompCtx, "db" | "now">>,
+  computerId?: string,
+): ComputerHost {
   if (computerId !== undefined && ctx.db && ctx.now) {
     const node = nodeOf(ctx.db, computerId);
     if (node !== null) {
-      if (!remoteFactory) raise(ctx, "provider.unavailable", "Agent computers on a joined computer are not available on this host.");
+      if (!remoteFactory)
+        raise(ctx, "provider.unavailable", "Agent computers on a joined computer are not available on this host.");
       return remoteFactory(ctx.db, ctx.now, node);
     }
   }
@@ -143,16 +208,27 @@ export function hostOf(ctx: Pick<CompCtx, "trace"> & Partial<Pick<CompCtx, "db" 
 
 /** Is this a Team Space? Only the labels ask (the Space server is "the Space" in a Team Space and "this computer" in a Personal one); the host binds the answer, unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
-export function bindTeam(f: ((space: string) => boolean) | null): void { teamSpace = f ?? (() => true); }
+export function bindTeam(f: ((space: string) => boolean) | null): void {
+  teamSpace = f ?? (() => true);
+}
 export const isTeam = (space: string): boolean => teamSpace(space);
 /** Agent computers are no longer a Team Space feature: a Personal Space runs them on a capable host (a server it added, or this computer with Docker). With no host, provision says so (hostOf) and the UI never offers it. Kept so callers need no change. */
-export function needTeam(_ctx: Pick<CompCtx, "space" | "trace">): void { /* availability is a capable host, not the Space kind */ }
+export function needTeam(_ctx: Pick<CompCtx, "space" | "trace">): void {
+  /* availability is a capable host, not the Space kind */
+}
 
 // ---- schema --------------------------------------------------------------------------------------------------------------------------------------------
 
-const statements = (files: string[]): string[] => files.map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const statements = (files: string[]): string[] =>
+  files
+    .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
+    .join("\n")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 const SCHEMA = statements(["0001_init.sql", "0002_nodes.sql"]);
 /** Added after the first Spaces existed: every statement is IF NOT EXISTS, so a database that already has the first two gets it on its next use. */
 const CLAIMS = statements(["0003_claims.sql"]);
@@ -162,10 +238,26 @@ const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT site FROM computers_sessions WHERE computer_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
-  try { db.all("SELECT claim_key FROM computers_claim WHERE claim_key = ?", "probe"); } catch { for (const stmt of CLAIMS) db.run(stmt); }
-  try { db.all("SELECT computer_id FROM computers_migration WHERE computer_id = ?", "probe"); } catch { for (const stmt of MIGRATION) db.run(stmt); }
-  try { db.all("SELECT profile_id FROM computers_browser_gone WHERE profile_id = ?", "probe"); } catch { for (const stmt of HOLD) db.run(stmt); }
+  try {
+    db.all("SELECT site FROM computers_sessions WHERE computer_id = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) db.run(stmt);
+  }
+  try {
+    db.all("SELECT claim_key FROM computers_claim WHERE claim_key = ?", "probe");
+  } catch {
+    for (const stmt of CLAIMS) db.run(stmt);
+  }
+  try {
+    db.all("SELECT computer_id FROM computers_migration WHERE computer_id = ?", "probe");
+  } catch {
+    for (const stmt of MIGRATION) db.run(stmt);
+  }
+  try {
+    db.all("SELECT profile_id FROM computers_browser_gone WHERE profile_id = ?", "probe");
+  } catch {
+    for (const stmt of HOLD) db.run(stmt);
+  }
   ready.add(db);
 }
 
@@ -177,8 +269,10 @@ const opt = (v: unknown): string | undefined => (v === null || v === undefined ?
 const optNum = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
 
 /** Contract ids are `<prefix>_<lowercase alphanumerics>`. */
-export const mintId = (prefix: string, now: number = Date.now()): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
-const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+export const mintId = (prefix: string, now: number = Date.now()): string =>
+  `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
+const hex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export async function sha256(text: string): Promise<string> {
   const d = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
@@ -188,26 +282,60 @@ export async function sha256(text: string): Promise<string> {
 // ---- computers ---------------------------------------------------------------------------------------------------------------------------------------
 
 export interface ComputerRow {
-  nodeId?: string; computerId: string; agentId: string; state: CompState; caption?: string; tabs: number; tabLimit: number; idleSleepMinutes: number; host: HostKind; diskBytes?: number;
-  lastFrameAt?: number; lastFrameFile?: string; lastActiveAt?: number; takeoverBy?: string; takeoverStep?: string; takeoverAt?: number; recordingId?: string; error?: string; createdAt: number;
+  nodeId?: string;
+  computerId: string;
+  agentId: string;
+  state: CompState;
+  caption?: string;
+  tabs: number;
+  tabLimit: number;
+  idleSleepMinutes: number;
+  host: HostKind;
+  diskBytes?: number;
+  lastFrameAt?: number;
+  lastFrameFile?: string;
+  lastActiveAt?: number;
+  takeoverBy?: string;
+  takeoverStep?: string;
+  takeoverAt?: number;
+  recordingId?: string;
+  error?: string;
+  createdAt: number;
 }
 
 export function computerOf(r: Row): ComputerRow {
   const out: ComputerRow = {
-    computerId: str(r["computer_id"]), agentId: str(r["agent_id"]), state: str(r["state"]) as CompState, tabs: num(r["tabs"]), tabLimit: num(r["tab_limit"]),
-    idleSleepMinutes: num(r["idle_sleep_minutes"]), host: str(r["host"]) as HostKind, createdAt: num(r["created_at"]),
+    computerId: str(r["computer_id"]),
+    agentId: str(r["agent_id"]),
+    state: str(r["state"]) as CompState,
+    tabs: num(r["tabs"]),
+    tabLimit: num(r["tab_limit"]),
+    idleSleepMinutes: num(r["idle_sleep_minutes"]),
+    host: str(r["host"]) as HostKind,
+    createdAt: num(r["created_at"]),
   };
-  const node = opt(r["node_id"]); if (node !== undefined) out.nodeId = node;
-  const caption = opt(r["caption"]); if (caption !== undefined) out.caption = caption;
-  const disk = optNum(r["disk_bytes"]); if (disk !== undefined) out.diskBytes = disk;
-  const frame = optNum(r["last_frame_at"]); if (frame !== undefined) out.lastFrameAt = frame;
-  const frameFile = opt(r["last_frame_file"]); if (frameFile !== undefined) out.lastFrameFile = frameFile;
-  const active = optNum(r["last_active_at"]); if (active !== undefined) out.lastActiveAt = active;
-  const by = opt(r["takeover_by"]); if (by !== undefined) out.takeoverBy = by;
-  const step = opt(r["takeover_step"]); if (step !== undefined) out.takeoverStep = step;
-  const at = optNum(r["takeover_at"]); if (at !== undefined) out.takeoverAt = at;
-  const rec = opt(r["recording_id"]); if (rec !== undefined) out.recordingId = rec;
-  const err = opt(r["error"]); if (err !== undefined) out.error = err;
+  const node = opt(r["node_id"]);
+  if (node !== undefined) out.nodeId = node;
+  const caption = opt(r["caption"]);
+  if (caption !== undefined) out.caption = caption;
+  const disk = optNum(r["disk_bytes"]);
+  if (disk !== undefined) out.diskBytes = disk;
+  const frame = optNum(r["last_frame_at"]);
+  if (frame !== undefined) out.lastFrameAt = frame;
+  const frameFile = opt(r["last_frame_file"]);
+  if (frameFile !== undefined) out.lastFrameFile = frameFile;
+  const active = optNum(r["last_active_at"]);
+  if (active !== undefined) out.lastActiveAt = active;
+  const by = opt(r["takeover_by"]);
+  if (by !== undefined) out.takeoverBy = by;
+  const step = opt(r["takeover_step"]);
+  if (step !== undefined) out.takeoverStep = step;
+  const at = optNum(r["takeover_at"]);
+  if (at !== undefined) out.takeoverAt = at;
+  const rec = opt(r["recording_id"]);
+  if (rec !== undefined) out.recordingId = rec;
+  const err = opt(r["error"]);
+  if (err !== undefined) out.error = err;
   return out;
 }
 
@@ -219,9 +347,20 @@ export function computerBy(db: Db, computerId: string): ComputerRow | null {
 /** The contract's computer row. */
 export function computerOut(c: ComputerRow) {
   return {
-    computerId: c.computerId, agentId: c.agentId, state: c.state, ...(c.nodeId !== undefined ? { nodeId: c.nodeId } : {}), ...(c.caption !== undefined ? { caption: c.caption } : {}), tabs: c.tabs, tabLimit: c.tabLimit, host: c.host,
-    ...(c.diskBytes !== undefined ? { diskBytes: c.diskBytes } : {}), ...(c.lastFrameAt !== undefined ? { lastFrameAt: c.lastFrameAt } : {}),
-    ...(c.lastActiveAt !== undefined ? { lastActiveAt: c.lastActiveAt } : {}), ...(c.takeoverBy !== undefined ? { takeoverBy: c.takeoverBy } : {}), recording: c.recordingId !== undefined, ...(c.error !== undefined && c.state === "error" ? { error: c.error } : {}),
+    computerId: c.computerId,
+    agentId: c.agentId,
+    state: c.state,
+    ...(c.nodeId !== undefined ? { nodeId: c.nodeId } : {}),
+    ...(c.caption !== undefined ? { caption: c.caption } : {}),
+    tabs: c.tabs,
+    tabLimit: c.tabLimit,
+    host: c.host,
+    ...(c.diskBytes !== undefined ? { diskBytes: c.diskBytes } : {}),
+    ...(c.lastFrameAt !== undefined ? { lastFrameAt: c.lastFrameAt } : {}),
+    ...(c.lastActiveAt !== undefined ? { lastActiveAt: c.lastActiveAt } : {}),
+    ...(c.takeoverBy !== undefined ? { takeoverBy: c.takeoverBy } : {}),
+    recording: c.recordingId !== undefined,
+    ...(c.error !== undefined && c.state === "error" ? { error: c.error } : {}),
   };
 }
 
@@ -235,35 +374,96 @@ export function needComputer(ctx: Pick<CompCtx, "db" | "trace">, computerId: str
 export function setComputer(db: Db, computerId: string, cols: Record<string, string | number | null>): void {
   const keys = Object.keys(cols);
   if (keys.length === 0) return;
-  db.run(`UPDATE computers_computers SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE computer_id = ?`, ...keys.map((k) => cols[k] as string | number | null), computerId);
+  db.run(
+    `UPDATE computers_computers SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE computer_id = ?`,
+    ...keys.map((k) => cols[k] as string | number | null),
+    computerId,
+  );
 }
 
 // ---- timeline -----------------------------------------------------------------------------------------------------------------------------------------
 
-export interface StepRow { stepId: string; idx: number; at: number; by: "agent" | "person"; caption: string; tool: string; frameFileId?: string; runId?: string; threadId?: string }
+export interface StepRow {
+  stepId: string;
+  idx: number;
+  at: number;
+  by: "agent" | "person";
+  caption: string;
+  tool: string;
+  frameFileId?: string;
+  runId?: string;
+  threadId?: string;
+}
 
 export function stepOf(r: Row): StepRow {
-  const out: StepRow = { stepId: str(r["step_id"]), idx: num(r["idx"]), at: num(r["at"]), by: str(r["by_who"]) as "agent" | "person", caption: str(r["caption"]), tool: str(r["tool"]) };
-  const f = opt(r["frame_file_id"]); if (f !== undefined) out.frameFileId = f;
-  const run = opt(r["run_id"]); if (run !== undefined) out.runId = run;
-  const th = opt(r["thread_id"]); if (th !== undefined) out.threadId = th;
+  const out: StepRow = {
+    stepId: str(r["step_id"]),
+    idx: num(r["idx"]),
+    at: num(r["at"]),
+    by: str(r["by_who"]) as "agent" | "person",
+    caption: str(r["caption"]),
+    tool: str(r["tool"]),
+  };
+  const f = opt(r["frame_file_id"]);
+  if (f !== undefined) out.frameFileId = f;
+  const run = opt(r["run_id"]);
+  if (run !== undefined) out.runId = run;
+  const th = opt(r["thread_id"]);
+  if (th !== undefined) out.threadId = th;
   return out;
 }
 
 /** The contract's timeline step. */
 export const stepOut = (s: StepRow) => ({
-  stepId: s.stepId, idx: s.idx, at: s.at, caption: s.caption, tool: s.tool, ...(s.frameFileId ? { frameFileId: s.frameFileId } : {}), by: s.by, ...(s.runId ? { runId: s.runId } : {}),
+  stepId: s.stepId,
+  idx: s.idx,
+  at: s.at,
+  caption: s.caption,
+  tool: s.tool,
+  ...(s.frameFileId ? { frameFileId: s.frameFileId } : {}),
+  by: s.by,
+  ...(s.runId ? { runId: s.runId } : {}),
 });
 
 /** Add one step to a computer's timeline (the next index). The tool handlers of the other computers packets call this too. */
-export function addStep(db: Db, computerId: string, at: number, s: { by: "agent" | "person"; caption: string; tool: string; frameFileId?: string; runId?: string; threadId?: string }): StepRow {
-  const idx = num(rowsOf(db, "SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM computers_timeline WHERE computer_id = ?", computerId)[0]?.["next"]);
+export function addStep(
+  db: Db,
+  computerId: string,
+  at: number,
+  s: { by: "agent" | "person"; caption: string; tool: string; frameFileId?: string; runId?: string; threadId?: string },
+): StepRow {
+  const idx = num(
+    rowsOf(
+      db,
+      "SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM computers_timeline WHERE computer_id = ?",
+      computerId,
+    )[0]?.["next"],
+  );
   const stepId = mintId("stp", at);
   db.run(
     "INSERT INTO computers_timeline (step_id, computer_id, idx, at, by_who, caption, tool, frame_file_id, run_id, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    stepId, computerId, idx, at, s.by, s.caption, s.tool, s.frameFileId ?? null, s.runId ?? null, s.threadId ?? null,
+    stepId,
+    computerId,
+    idx,
+    at,
+    s.by,
+    s.caption,
+    s.tool,
+    s.frameFileId ?? null,
+    s.runId ?? null,
+    s.threadId ?? null,
   );
-  return { stepId, idx, at, by: s.by, caption: s.caption, tool: s.tool, ...(s.frameFileId ? { frameFileId: s.frameFileId } : {}), ...(s.runId ? { runId: s.runId } : {}), ...(s.threadId ? { threadId: s.threadId } : {}) };
+  return {
+    stepId,
+    idx,
+    at,
+    by: s.by,
+    caption: s.caption,
+    tool: s.tool,
+    ...(s.frameFileId ? { frameFileId: s.frameFileId } : {}),
+    ...(s.runId ? { runId: s.runId } : {}),
+    ...(s.threadId ? { threadId: s.threadId } : {}),
+  };
 }
 
 export function setStepCaption(db: Db, stepId: string, caption: string): void {
@@ -273,20 +473,43 @@ export function setStepCaption(db: Db, stepId: string, caption: string): void {
 // ---- recordings ---------------------------------------------------------------------------------------------------------------------------------------
 
 export interface RecordingRow {
-  recordingId: string; computerId: string; agentId: string; startedAt: number; endedAt?: number; durationMs?: number; folderPath: string; state: "recording" | "saved" | "processed";
-  intents: string[]; byPerson: string; taskId?: string;
+  recordingId: string;
+  computerId: string;
+  agentId: string;
+  startedAt: number;
+  endedAt?: number;
+  durationMs?: number;
+  folderPath: string;
+  state: "recording" | "saved" | "processed";
+  intents: string[];
+  byPerson: string;
+  taskId?: string;
 }
 
 export function recordingOf(r: Row): RecordingRow {
   let intents: string[] = [];
-  try { const a = JSON.parse(str(r["intents"])) as unknown; if (Array.isArray(a)) intents = a.filter((x): x is string => typeof x === "string"); } catch { intents = []; }
+  try {
+    const a = JSON.parse(str(r["intents"])) as unknown;
+    if (Array.isArray(a)) intents = a.filter((x): x is string => typeof x === "string");
+  } catch {
+    intents = [];
+  }
   const out: RecordingRow = {
-    recordingId: str(r["recording_id"]), computerId: str(r["computer_id"]), agentId: str(r["agent_id"]), startedAt: num(r["started_at"]), folderPath: str(r["folder_path"]),
-    state: str(r["state"]) as RecordingRow["state"], intents, byPerson: str(r["by_person"]),
+    recordingId: str(r["recording_id"]),
+    computerId: str(r["computer_id"]),
+    agentId: str(r["agent_id"]),
+    startedAt: num(r["started_at"]),
+    folderPath: str(r["folder_path"]),
+    state: str(r["state"]) as RecordingRow["state"],
+    intents,
+    byPerson: str(r["by_person"]),
   };
-  const e = optNum(r["ended_at"]); if (e !== undefined) out.endedAt = e;
-  const d = optNum(r["duration_ms"]); if (d !== undefined) out.durationMs = d;
-  const t = opt(r["task_id"]); if (t !== undefined) out.taskId = t;
+  const e = optNum(r["ended_at"]);
+  if (e !== undefined) out.endedAt = e;
+  const d = optNum(r["duration_ms"]);
+  if (d !== undefined) out.durationMs = d;
+  const t = opt(r["task_id"]);
+  if (t !== undefined) out.taskId = t;
   return out;
 }
 
@@ -297,30 +520,60 @@ export function recordingBy(db: Db, recordingId: string): RecordingRow | null {
 
 /** The contract's recording row. */
 export const recordingOut = (r: RecordingRow) => ({
-  recordingId: r.recordingId, computerId: r.computerId, agentId: r.agentId, startedAt: r.startedAt, ...(r.endedAt !== undefined ? { endedAt: r.endedAt } : {}),
-  ...(r.durationMs !== undefined ? { durationMs: r.durationMs } : {}), folderPath: r.folderPath, state: r.state, intents: r.intents,
+  recordingId: r.recordingId,
+  computerId: r.computerId,
+  agentId: r.agentId,
+  startedAt: r.startedAt,
+  ...(r.endedAt !== undefined ? { endedAt: r.endedAt } : {}),
+  ...(r.durationMs !== undefined ? { durationMs: r.durationMs } : {}),
+  folderPath: r.folderPath,
+  state: r.state,
+  intents: r.intents,
 });
 
-export const recordingFiles = (folderPath: string) => ({ eventsPath: `${folderPath}/events.jsonl`, harPath: `${folderPath}/network.har`, videoPath: `${folderPath}/video.mp4` });
+export const recordingFiles = (folderPath: string) => ({
+  eventsPath: `${folderPath}/events.jsonl`,
+  harPath: `${folderPath}/network.har`,
+  videoPath: `${folderPath}/video.mp4`,
+});
 
 // ---- tickets -------------------------------------------------------------------------------------------------------------------------------------------
 
 /** A one-use secret for a viewer's connection (kind "takeover" or "stream"). Only its hash is stored. */
-export async function mintTicket(db: Db, kind: "takeover" | "stream", computerId: string, personId: string, now: number): Promise<{ ticket: string; expiresAt: number }> {
+export async function mintTicket(
+  db: Db,
+  kind: "takeover" | "stream",
+  computerId: string,
+  personId: string,
+  now: number,
+): Promise<{ ticket: string; expiresAt: number }> {
   const ticket = `cpt_${hex(24)}`;
   const expiresAt = now + TICKET_MS;
-  db.run("INSERT INTO computers_tickets (ticket_hash, kind, computer_id, person_id, expires_at, used_at) VALUES (?, ?, ?, ?, ?, NULL)", await sha256(ticket), kind, computerId, personId, expiresAt);
+  db.run(
+    "INSERT INTO computers_tickets (ticket_hash, kind, computer_id, person_id, expires_at, used_at) VALUES (?, ?, ?, ?, ?, NULL)",
+    await sha256(ticket),
+    kind,
+    computerId,
+    personId,
+    expiresAt,
+  );
   return { ticket, expiresAt };
 }
 
 /** The relay spends a ticket once. Returns who it was issued to and for which computer, or null (unknown, spent or expired). */
-export async function redeemTicket(db: Db, ticket: string, now: number): Promise<{ kind: string; computerId: string; personId: string } | null> {
+export async function redeemTicket(
+  db: Db,
+  ticket: string,
+  now: number,
+): Promise<{ kind: string; computerId: string; personId: string } | null> {
   ensure(db);
   const hash = await sha256(ticket);
   const r = rowsOf(db, "SELECT * FROM computers_tickets WHERE ticket_hash = ?", hash)[0];
   if (!r || (r["used_at"] !== null && r["used_at"] !== undefined) || num(r["expires_at"]) <= now) return null;
   const spent = db.run("UPDATE computers_tickets SET used_at = ? WHERE ticket_hash = ? AND used_at IS NULL", now, hash);
-  return spent.changes === 1 ? { kind: str(r["kind"]), computerId: str(r["computer_id"]), personId: str(r["person_id"]) } : null;
+  return spent.changes === 1
+    ? { kind: str(r["kind"]), computerId: str(r["computer_id"]), personId: str(r["person_id"]) }
+    : null;
 }
 
 // ---- the agent's folder ----------------------------------------------------------------------------------------------------------------------------
@@ -330,7 +583,9 @@ export async function agentFolder(ctx: CompCtx, agentId: string): Promise<string
   try {
     const out = (await ctx.call("agents.get", { agentId })) as { agent?: { folderId?: string } };
     return out.agent?.folderId ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ---- secrets used on a computer -------------------------------------------------------------------------------------------------------------------------
@@ -338,12 +593,22 @@ export async function agentFolder(ctx: CompCtx, agentId: string): Promise<string
 // The scrubber is lib/vault-use's (ARCH 6.11), the same one the engine and the terminal use, bound from the start: a daemon wires nothing for it, so a real Space scrubs (12 Nov: it was bound only
 // in the test harness, and every browser answer went out as it came). Every value handed to a computer or a browser profile is remembered here, per computer, in memory only: the ones a tool typed
 // (agentd and browserd report them as `used`) and the ones the Vault channel handed out for Vyre for Chrome to fill (handlers/fill.ts). A test may bind a stand-in; null puts the real one back.
-export interface Secret { handle: string; itemId: string; value: string }
-export interface ScrubberLike { scrub(text: string): string }
-export interface ScrubKit { createScrubber(secrets: readonly Secret[]): ScrubberLike }
+export interface Secret {
+  handle: string;
+  itemId: string;
+  value: string;
+}
+export interface ScrubberLike {
+  scrub(text: string): string;
+}
+export interface ScrubKit {
+  createScrubber(secrets: readonly Secret[]): ScrubberLike;
+}
 const REAL_SCRUB: ScrubKit = { createScrubber };
 let scrubKit: ScrubKit = REAL_SCRUB;
-export function bindKit(k: ScrubKit | null): void { scrubKit = k ?? REAL_SCRUB; }
+export function bindKit(k: ScrubKit | null): void {
+  scrubKit = k ?? REAL_SCRUB;
+}
 const secretsByComputer = new Map<string, Secret[]>();
 /** Every value the Vault channel handed to each computer or profile, in order: a call reads which were handed out while it ran (a value it typed itself, or one Vyre for Chrome filled on its own). */
 const handedOut = new Map<string, string[]>();
@@ -360,14 +625,28 @@ export function rememberSecrets(computerId: string, secrets: readonly Secret[], 
   const cur = secretsByComputer.get(computerId) ?? [];
   for (const x of keep) if (!cur.some((c) => c.handle === x.handle && c.value === x.value)) cur.push(x);
   secretsByComputer.set(computerId, cur);
-  if (o.handedOut !== false) { const h = handedOut.get(computerId) ?? []; h.push(...keep.map((x) => x.value)); handedOut.set(computerId, h); }
+  if (o.handedOut !== false) {
+    const h = handedOut.get(computerId) ?? [];
+    h.push(...keep.map((x) => x.value));
+    handedOut.set(computerId, h);
+  }
 }
-export function forgetSecrets(computerId: string): void { secretsByComputer.delete(computerId); handedOut.delete(computerId); filledTabs.delete(computerId); }
+export function forgetSecrets(computerId: string): void {
+  secretsByComputer.delete(computerId);
+  handedOut.delete(computerId);
+  filledTabs.delete(computerId);
+}
 /** A mark of where the hand-outs of a computer stand now: what came after it is what a call was given while it ran. */
 export const givenCount = (computerId: string): number => handedOut.get(computerId)?.length ?? 0;
-export const handedSince = (computerId: string, mark: number): readonly string[] => (handedOut.get(computerId) ?? []).slice(mark);
-export function markFilledTab(computerId: string, tabId: string): void { const s = filledTabs.get(computerId) ?? new Set<string>(); s.add(tabId); filledTabs.set(computerId, s); }
-export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledTabs.get(computerId) ?? new Set<string>();
+export const handedSince = (computerId: string, mark: number): readonly string[] =>
+  (handedOut.get(computerId) ?? []).slice(mark);
+export function markFilledTab(computerId: string, tabId: string): void {
+  const s = filledTabs.get(computerId) ?? new Set<string>();
+  s.add(tabId);
+  filledTabs.set(computerId, s);
+}
+export const filledTabsOf = (computerId: string): ReadonlySet<string> =>
+  filledTabs.get(computerId) ?? new Set<string>();
 /**
  * The tabs open now: a filled tab that is not among them was closed. A "*" (a fill whose tab could not be told) becomes a mark on every tab open now, which holds every tab that was open at the time
  * of the fill and is still open (and perhaps a newer one too: that is the safe side), so it ends like any mark, when those tabs are closed (second look, a).
@@ -375,7 +654,10 @@ export const filledTabsOf = (computerId: string): ReadonlySet<string> => filledT
 export function tabsOpen(computerId: string, open: readonly string[]): void {
   const s = filledTabs.get(computerId);
   if (!s) return;
-  if (s.has("*") && open.length > 0) { s.delete("*"); for (const t of open) s.add(t); }
+  if (s.has("*") && open.length > 0) {
+    s.delete("*");
+    for (const t of open) s.add(t);
+  }
   for (const t of [...s]) if (t !== "*" && !open.includes(t)) s.delete(t);
   if (s.size === 0) filledTabs.delete(computerId);
 }

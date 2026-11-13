@@ -10,7 +10,13 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("a member's held call leaves gate.requested in the log, in the held call's trace, without the input", async () => {
   const core = bootCore();
@@ -21,7 +27,9 @@ test("a member's held call leaves gate.requested in the log, in the held call's 
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "gate-requested", free: 80e9,
+      os: "linux",
+      hostname: "gate-requested",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -29,14 +37,23 @@ test("a member's held call leaves gate.requested in the log, in the held call's 
       },
     }),
     fetch: caddyFetch,
-    session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === "tok-usr_noah" ? { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "gate-requested" } : null),
+    session: (h) =>
+      /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === "tok-usr_noah"
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "gate-requested" }
+        : null,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
     const traceId = "9d".repeat(16);
     // exporting one's own Mine items is behind the secret_export Gate act, which holds a person's own call too
     const r = await fetch(`${d.url}/v1/vault/items/export_mine`, {
-      method: "POST", headers: { "content-type": "application/json", authorization: "Bearer tok-usr_noah", "x-vyre-trace": `${traceId}-${"ef".repeat(8)}` }, body: JSON.stringify({ expiresIn: "1h", idempotencyKey: "gate-requested-export" }),
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer tok-usr_noah",
+        "x-vyre-trace": `${traceId}-${"ef".repeat(8)}`,
+      },
+      body: JSON.stringify({ expiresIn: "1h", idempotencyKey: "gate-requested-export" }),
     });
     const body = (await r.json()) as { data?: { status?: string; taskId?: string }; error?: { code?: string } };
     assert.equal(body.data?.status, "held", `the call is held: ${JSON.stringify(body)}`);
@@ -49,5 +66,7 @@ test("a member's held call leaves gate.requested in the log, in the held call's 
     assert.ok(typeof payload["holdId"] === "string");
     const values = Object.values(payload).flat();
     assert.ok(!("expiresIn" in payload) && !values.includes("1h"), "and it carries no input value");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

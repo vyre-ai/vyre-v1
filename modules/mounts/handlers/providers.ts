@@ -57,16 +57,31 @@ export interface RemoteItem {
   modifiedAt?: number;
 }
 
-export interface Person { name?: string; email?: string }
+export interface Person {
+  name?: string;
+  email?: string;
+}
 
 /** One entry of the provider's history of a file. */
-export interface Revision { id: string; at?: number; size?: number; by?: Person }
+export interface Revision {
+  id: string;
+  at?: number;
+  size?: number;
+  by?: Person;
+}
 
 /** A push channel the provider holds for a mount: `id` is what a notice names, `resource` what is needed to close it. */
-export interface Watch { id: string; resource?: string; expiresAt: number }
+export interface Watch {
+  id: string;
+  resource?: string;
+  expiresAt: number;
+}
 
 /** The version a write was based on. Drive checks `revision`, Graph sends it as If-Match. */
-export interface IfMatch { version?: string; revision?: string }
+export interface IfMatch {
+  version?: string;
+  revision?: string;
+}
 
 export interface PullBatch {
   items: RemoteItem[];
@@ -94,15 +109,29 @@ export interface Uploaded {
   stale?: boolean;
 }
 
-export interface BrowseItem { ref: string; name: string; isFolder: boolean; path?: string; shared?: boolean }
+export interface BrowseItem {
+  ref: string;
+  name: string;
+  isFolder: boolean;
+  path?: string;
+  shared?: boolean;
+}
 
 export interface Provider {
   label: string;
   /** Vyre writes go out to the provider (false: pull only, or the device does it) */
   pushes: boolean;
   pull?(ctx: Ctx, m: MountRec): Promise<PullBatch>;
-  download?(ctx: Ctx, m: MountRec, item: { remoteId: string; name: string; mime?: string; native?: boolean }): Promise<Downloaded>;
-  upload?(ctx: Ctx, m: MountRec, a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch }): Promise<Uploaded>;
+  download?(
+    ctx: Ctx,
+    m: MountRec,
+    item: { remoteId: string; name: string; mime?: string; native?: boolean },
+  ): Promise<Downloaded>;
+  upload?(
+    ctx: Ctx,
+    m: MountRec,
+    a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch },
+  ): Promise<Uploaded>;
   createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string }): Promise<Uploaded>;
   remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean): Promise<void>;
   /** The item as the provider holds it now (undefined: gone). Opening a file compares this with what is cached. */
@@ -116,7 +145,10 @@ export interface Provider {
   revisionBlob?(ctx: Ctx, m: MountRec, a: { remoteId: string; revisionId: string }): Promise<Downloaded>;
   /** The URL path the provider's notices come in on, appended to the Space's public address. */
   hookPath?: string;
-  browse(ctx: Ctx, input: { connectionId?: string; parent?: string; q?: string; cursor?: string; limit?: number }): Promise<{ items: BrowseItem[]; next?: string }>;
+  browse(
+    ctx: Ctx,
+    input: { connectionId?: string; parent?: string; q?: string; cursor?: string; limit?: number },
+  ): Promise<{ items: BrowseItem[]; next?: string }>;
 }
 
 // ---- small readers for provider answers ---------------------------------------------------------------------
@@ -138,7 +170,10 @@ function whole(v: unknown): number | undefined {
 }
 
 /** The connection and the person the call is for: Drive and Graph calls act as the mount's own account, never as whoever happens to run the pass. */
-const withConnection = (m: { connectionId?: string; account?: string }): Row => ({ ...(m.connectionId !== undefined ? { connectionId: m.connectionId } : {}), ...(m.account !== undefined ? { as: m.account } : {}) });
+const withConnection = (m: { connectionId?: string; account?: string }): Row => ({
+  ...(m.connectionId !== undefined ? { connectionId: m.connectionId } : {}),
+  ...(m.account !== undefined ? { as: m.account } : {}),
+});
 
 /** Most pages one pass reads, so a runaway feed cannot hold the pass forever. */
 export const MAX_PAGES = 200;
@@ -165,19 +200,29 @@ export function exportMimeFor(native: string): string | undefined {
 export function googleAppOf(native: string | undefined): string {
   const kind = (native ?? "").slice((native ?? "").lastIndexOf(".") + 1);
   const app: Record<string, string> = {
-    document: "Google Docs", spreadsheet: "Google Sheets", presentation: "Google Slides", drawing: "Google Drawings", form: "Google Forms", site: "Google Sites",
-    jam: "Jamboard", map: "Google My Maps", script: "Apps Script",
+    document: "Google Docs",
+    spreadsheet: "Google Sheets",
+    presentation: "Google Slides",
+    drawing: "Google Drawings",
+    form: "Google Forms",
+    site: "Google Sites",
+    jam: "Jamboard",
+    map: "Google My Maps",
+    script: "Apps Script",
   };
-  return (native ?? "").startsWith(DRIVE_NATIVE) ? app[kind] ?? "Google Drive" : "Google Drive";
+  return (native ?? "").startsWith(DRIVE_NATIVE) ? (app[kind] ?? "Google Drive") : "Google Drive";
 }
 
 /** Whether there is content to fetch for an item: any file with bytes, and a Google-native file with an export. */
-export const fetchable = (item: { mime?: string; native?: boolean }): boolean => item.native !== true || (item.mime !== undefined && exportMimeFor(item.mime) !== undefined);
+export const fetchable = (item: { mime?: string; native?: boolean }): boolean =>
+  item.native !== true || (item.mime !== undefined && exportMimeFor(item.mime) !== undefined);
 
 const personOf = (u: Row, nameKey: string, mailKey: string): Person | undefined => {
   const name = text(u[nameKey]);
   const email = text(u[mailKey]);
-  return name !== undefined || email !== undefined ? { ...(name !== undefined ? { name } : {}), ...(email !== undefined ? { email } : {}) } : undefined;
+  return name !== undefined || email !== undefined
+    ? { ...(name !== undefined ? { name } : {}), ...(email !== undefined ? { email } : {}) }
+    : undefined;
 };
 
 const stamp = (v: unknown): number | undefined => {
@@ -219,19 +264,36 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
   if (root === undefined) return { items: [], removed: [], full: true };
   let rootId: string | undefined;
   if (root === DRIVE_ROOT_ALIAS) {
-    try { rootId = text(obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: root }))["file"])["id"]); } catch { /* the alias still lists; the next scan tries again */ }
+    try {
+      rootId = text(
+        obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: root }))["file"])["id"],
+      );
+    } catch {
+      /* the alias still lists; the next scan tries again */
+    }
     if (rootId !== undefined) root = rootId;
   }
   // The feed's start token is taken before the listing, so a change made while the listing runs is read by the next pass. Without one the mount rescans every time.
   let cursor: string | undefined;
-  try { cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]); } catch { /* no token: the next pass scans again */ }
+  try {
+    cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]);
+  } catch {
+    /* no token: the next pass scans again */
+  }
   const items: RemoteItem[] = [];
   const queue: string[] = [root];
   let pages = 0;
   for (let folder = queue.shift(); folder !== undefined; folder = queue.shift()) {
     let pageToken: string | undefined;
     do {
-      const res = obj(await ctx.call("google.drive.list_files", { ...withConnection(m), parentId: folder, pageSize: 1000, ...(pageToken !== undefined ? { pageToken } : {}) }));
+      const res = obj(
+        await ctx.call("google.drive.list_files", {
+          ...withConnection(m),
+          parentId: folder,
+          pageSize: 1000,
+          ...(pageToken !== undefined ? { pageToken } : {}),
+        }),
+      );
       for (const f of list(res["files"])) {
         const it = driveItem(obj(f), folder);
         if (!it) continue;
@@ -242,7 +304,13 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
       pages += 1;
     } while (pageToken !== undefined && pages < MAX_PAGES);
   }
-  return { items, removed: [], full: true, ...(cursor !== undefined ? { cursor } : {}), ...(rootId !== undefined ? { rootId } : {}) };
+  return {
+    items,
+    removed: [],
+    full: true,
+    ...(cursor !== undefined ? { cursor } : {}),
+    ...(rootId !== undefined ? { rootId } : {}),
+  };
 }
 
 async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBatch> {
@@ -277,27 +345,53 @@ const google: Provider = {
     if (item.native === true) {
       // a Google-native file has no bytes: it is exported, never downloaded (Drive refuses alt=media for one)
       const mime = item.mime !== undefined ? exportMimeFor(item.mime) : undefined;
-      if (mime === undefined) throw new VyreErr({ code: "validation.unsupported", message: `A ${googleAppOf(item.mime)} file has no export Vyre can show. Open it in ${googleAppOf(item.mime)}.`, retryable: false, traceId: ctx.trace.traceId, next: [] });
+      if (mime === undefined)
+        throw new VyreErr({
+          code: "validation.unsupported",
+          message: `A ${googleAppOf(item.mime)} file has no export Vyre can show. Open it in ${googleAppOf(item.mime)}.`,
+          retryable: false,
+          traceId: ctx.trace.traceId,
+          next: [],
+        });
       const exported = async (as: string): Promise<Downloaded> => {
-        const res = obj(await ctx.call("google.drive.export_file", { ...withConnection(m), fileId: item.remoteId, mimeType: as }));
+        const res = obj(
+          await ctx.call("google.drive.export_file", { ...withConnection(m), fileId: item.remoteId, mimeType: as }),
+        );
         return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, mime: as };
       };
       if (mime !== "text/markdown") return exported(mime);
       // Markdown is the newer export of a Doc; where Drive does not offer it, plain text still reads as the document
-      try { return await exported(mime); } catch (e) {
-        if (e instanceof VyreErr && (e.error.code.startsWith("provider.auth") || e.error.code === "provider.rate_limited" || e.error.code.startsWith("permission."))) throw e;
+      try {
+        return await exported(mime);
+      } catch (e) {
+        if (
+          e instanceof VyreErr &&
+          (e.error.code.startsWith("provider.auth") ||
+            e.error.code === "provider.rate_limited" ||
+            e.error.code.startsWith("permission."))
+        )
+          throw e;
         return exported("text/plain");
       }
     }
     const res = obj(await ctx.call("google.drive.download_file", { ...withConnection(m), fileId: item.remoteId }));
-    return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}) };
+    return {
+      blobId: text(res["blobId"]) ?? "",
+      size: whole(res["size"]) ?? 0,
+      ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}),
+    };
   },
   async upload(ctx, m, a) {
-    const res = obj(await ctx.call("google.drive.upload_file", {
-      ...withConnection(m), name: a.name, parentId: a.parentRemote, fileId: a.fileId,
-      ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
-      ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifRevision: a.ifMatch.revision } : {}),
-    }));
+    const res = obj(
+      await ctx.call("google.drive.upload_file", {
+        ...withConnection(m),
+        name: a.name,
+        parentId: a.parentRemote,
+        fileId: a.fileId,
+        ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
+        ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifRevision: a.ifMatch.revision } : {}),
+      }),
+    );
     const it = driveItem(obj(res["file"]));
     return {
       remoteId: it?.id ?? a.remoteId ?? "",
@@ -309,17 +403,31 @@ const google: Provider = {
   },
   hookPath: "/hooks/google/drive",
   async stat(ctx, m, remoteId) {
-    return driveItem(obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: remoteId }))["file"]));
+    return driveItem(
+      obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: remoteId }))["file"]),
+    );
   },
   async watch(ctx, m, a) {
     // a channel starts from the change token the mount already holds; before the first pass there is none and the mount is scanned
     if (m.cursor === undefined) return undefined;
-    const res = obj(await ctx.call("google.drive.watch_changes", { ...withConnection(m), pageToken: m.cursor, channelId: a.channelId, address: a.address }));
+    const res = obj(
+      await ctx.call("google.drive.watch_changes", {
+        ...withConnection(m),
+        pageToken: m.cursor,
+        channelId: a.channelId,
+        address: a.address,
+      }),
+    );
     const resource = text(res["resourceId"]);
-    return { id: a.channelId, ...(resource !== undefined ? { resource } : {}), expiresAt: whole(res["expiration"]) ?? 0 };
+    return {
+      id: a.channelId,
+      ...(resource !== undefined ? { resource } : {}),
+      expiresAt: whole(res["expiration"]) ?? 0,
+    };
   },
   async unwatch(ctx, m, w) {
-    if (w.resource !== undefined) await ctx.call("google.drive.stop_watch", { ...withConnection(m), channelId: w.id, resourceId: w.resource });
+    if (w.resource !== undefined)
+      await ctx.call("google.drive.stop_watch", { ...withConnection(m), channelId: w.id, resourceId: w.resource });
   },
   async revisions(ctx, m, remoteId) {
     const res = obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: remoteId }));
@@ -328,28 +436,49 @@ const google: Provider = {
       const at = stamp(o["modifiedTime"]);
       const size = whole(o["size"]);
       const by = personOf(obj(o["lastModifyingUser"]), "name", "email");
-      return { id: text(o["id"]) ?? "", ...(at !== undefined ? { at } : {}), ...(size !== undefined ? { size } : {}), ...(by !== undefined ? { by } : {}) };
+      return {
+        id: text(o["id"]) ?? "",
+        ...(at !== undefined ? { at } : {}),
+        ...(size !== undefined ? { size } : {}),
+        ...(by !== undefined ? { by } : {}),
+      };
     });
   },
   async revisionBlob(ctx, m, a) {
-    const res = obj(await ctx.call("google.drive.download_revision", { ...withConnection(m), fileId: a.remoteId, revisionId: a.revisionId }));
-    return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}) };
+    const res = obj(
+      await ctx.call("google.drive.download_revision", {
+        ...withConnection(m),
+        fileId: a.remoteId,
+        revisionId: a.revisionId,
+      }),
+    );
+    return {
+      blobId: text(res["blobId"]) ?? "",
+      size: whole(res["size"]) ?? 0,
+      ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}),
+    };
   },
   async createFolder(ctx, m, a) {
-    const res = obj(await ctx.call("google.drive.create_folder", { ...withConnection(m), name: a.name, parentId: a.parentRemote }));
+    const res = obj(
+      await ctx.call("google.drive.create_folder", { ...withConnection(m), name: a.name, parentId: a.parentRemote }),
+    );
     return { remoteId: text(obj(res["file"])["id"]) ?? "" };
   },
   async remove(ctx, m, remoteId) {
     await ctx.call("google.drive.trash_file", { ...withConnection(m), fileId: remoteId });
   },
   async browse(ctx, input) {
-    const res = obj(await ctx.call("google.drive.list_files", {
-      ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
-      ...(input.parent !== undefined ? { parentId: input.parent } : {}),
-      ...(input.q !== undefined ? { q: `name contains '${input.q.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'` } : {}),
-      ...(input.cursor !== undefined ? { pageToken: input.cursor } : {}),
-      ...(input.limit !== undefined ? { pageSize: input.limit } : {}),
-    }));
+    const res = obj(
+      await ctx.call("google.drive.list_files", {
+        ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
+        ...(input.parent !== undefined ? { parentId: input.parent } : {}),
+        ...(input.q !== undefined
+          ? { q: `name contains '${input.q.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'` }
+          : {}),
+        ...(input.cursor !== undefined ? { pageToken: input.cursor } : {}),
+        ...(input.limit !== undefined ? { pageSize: input.limit } : {}),
+      }),
+    );
     const items: BrowseItem[] = [];
     for (const f of list(res["files"])) {
       const it = driveItem(obj(f));
@@ -395,7 +524,13 @@ const graph: Provider = {
     const items: RemoteItem[] = [];
     const removed: string[] = [];
     let rootId: string | undefined = m.path;
-    const res = obj(await ctx.call("ms.drive.delta", { ...withConnection(m), ...driveOf(m), ...(m.cursor !== undefined ? { deltaLink: m.cursor } : {}) }));
+    const res = obj(
+      await ctx.call("ms.drive.delta", {
+        ...withConnection(m),
+        ...driveOf(m),
+        ...(m.cursor !== undefined ? { deltaLink: m.cursor } : {}),
+      }),
+    );
     for (const c of list(res["changed"])) {
       const it = graphItem(obj(c));
       if (!it) continue;
@@ -408,18 +543,32 @@ const graph: Provider = {
       if (id !== undefined) removed.push(id);
     }
     const cursor = text(res["deltaLink"]);
-    return { items, removed, full: m.cursor === undefined, ...(cursor !== undefined ? { cursor } : {}), ...(rootId !== undefined ? { rootId } : {}) };
+    return {
+      items,
+      removed,
+      full: m.cursor === undefined,
+      ...(cursor !== undefined ? { cursor } : {}),
+      ...(rootId !== undefined ? { rootId } : {}),
+    };
   },
   async download(ctx, m, item) {
-    const res = obj(await ctx.call("ms.drive.download_item", { ...withConnection(m), ...driveOf(m), itemId: item.remoteId }));
+    const res = obj(
+      await ctx.call("ms.drive.download_item", { ...withConnection(m), ...driveOf(m), itemId: item.remoteId }),
+    );
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0 };
   },
   async upload(ctx, m, a) {
-    const res = obj(await ctx.call("ms.drive.upload_item", {
-      ...withConnection(m), ...driveOf(m), folderId: a.parentRemote, name: a.name, fileId: a.fileId,
-      ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
-      ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
-    }));
+    const res = obj(
+      await ctx.call("ms.drive.upload_item", {
+        ...withConnection(m),
+        ...driveOf(m),
+        folderId: a.parentRemote,
+        name: a.name,
+        fileId: a.fileId,
+        ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
+        ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+      }),
+    );
     const it = graphItem(obj(res["item"]));
     return {
       remoteId: it?.id ?? a.remoteId ?? "",
@@ -432,10 +581,14 @@ const graph: Provider = {
   hookPath: "/hooks/microsoft",
   watchRenewsItself: true,
   async stat(ctx, m, remoteId) {
-    return graphItem(obj(obj(await ctx.call("ms.drive.get_item", { ...withConnection(m), ...driveOf(m), itemId: remoteId }))["item"]));
+    return graphItem(
+      obj(obj(await ctx.call("ms.drive.get_item", { ...withConnection(m), ...driveOf(m), itemId: remoteId }))["item"]),
+    );
   },
   async watch(ctx, m, a) {
-    const res = obj(await ctx.call("ms.drive.subscribe", { ...withConnection(m), ...driveOf(m), notificationUrl: a.address }));
+    const res = obj(
+      await ctx.call("ms.drive.subscribe", { ...withConnection(m), ...driveOf(m), notificationUrl: a.address }),
+    );
     const id = text(res["subscriptionId"]);
     return id !== undefined ? { id, expiresAt: whole(res["expiresAt"]) ?? 0 } : undefined;
   },
@@ -443,21 +596,42 @@ const graph: Provider = {
     await ctx.call("ms.drive.unsubscribe", { ...withConnection(m), subscriptionId: w.id });
   },
   async revisions(ctx, m, remoteId) {
-    const res = obj(await ctx.call("ms.drive.list_versions", { ...withConnection(m), ...driveOf(m), itemId: remoteId }));
+    const res = obj(
+      await ctx.call("ms.drive.list_versions", { ...withConnection(m), ...driveOf(m), itemId: remoteId }),
+    );
     return list(res["versions"]).map((r) => {
       const o = obj(r);
       const at = stamp(o["lastModifiedDateTime"]);
       const size = whole(o["size"]);
       const by = personOf(obj(o["lastModifiedBy"]), "name", "email");
-      return { id: text(o["id"]) ?? "", ...(at !== undefined ? { at } : {}), ...(size !== undefined ? { size } : {}), ...(by !== undefined ? { by } : {}) };
+      return {
+        id: text(o["id"]) ?? "",
+        ...(at !== undefined ? { at } : {}),
+        ...(size !== undefined ? { size } : {}),
+        ...(by !== undefined ? { by } : {}),
+      };
     });
   },
   async revisionBlob(ctx, m, a) {
-    const res = obj(await ctx.call("ms.drive.download_version", { ...withConnection(m), ...driveOf(m), itemId: a.remoteId, versionId: a.revisionId }));
+    const res = obj(
+      await ctx.call("ms.drive.download_version", {
+        ...withConnection(m),
+        ...driveOf(m),
+        itemId: a.remoteId,
+        versionId: a.revisionId,
+      }),
+    );
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0 };
   },
   async createFolder(ctx, m, a) {
-    const res = obj(await ctx.call("ms.drive.create_folder", { ...withConnection(m), ...driveOf(m), parentId: a.parentRemote, name: a.name }));
+    const res = obj(
+      await ctx.call("ms.drive.create_folder", {
+        ...withConnection(m),
+        ...driveOf(m),
+        parentId: a.parentRemote,
+        name: a.name,
+      }),
+    );
     return { remoteId: text(obj(res["item"])["id"]) ?? "" };
   },
   async remove(ctx, m, remoteId) {
@@ -466,12 +640,14 @@ const graph: Provider = {
   /** `parent` is "<driveId>" for a drive's top or "<driveId>:<itemId>" inside it; no parent lists the caller's own OneDrive. */
   async browse(ctx, input) {
     const [driveId, folderId] = (input.parent ?? "").split(":", 2);
-    const res = obj(await ctx.call("ms.drive.list_items", {
-      ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
-      ...(driveId ? { driveId } : {}),
-      ...(folderId ? { folderId } : {}),
-      ...(input.cursor !== undefined ? { skipToken: input.cursor } : {}),
-    }));
+    const res = obj(
+      await ctx.call("ms.drive.list_items", {
+        ...(input.connectionId !== undefined ? { connectionId: input.connectionId } : {}),
+        ...(driveId ? { driveId } : {}),
+        ...(folderId ? { folderId } : {}),
+        ...(input.cursor !== undefined ? { skipToken: input.cursor } : {}),
+      }),
+    );
     const q = input.q?.toLowerCase();
     const items: BrowseItem[] = [];
     for (const f of list(res["items"])) {
@@ -501,16 +677,25 @@ const github: Provider = {
   label: "GitHub",
   pushes: false,
   async browse(ctx, input) {
-    const res = obj(await ctx.call("github.repos.list", {
-      ...(input.q !== undefined ? { query: input.q } : {}),
-      ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
-      ...(input.limit !== undefined ? { limit: input.limit } : {}),
-    }));
+    const res = obj(
+      await ctx.call("github.repos.list", {
+        ...(input.q !== undefined ? { query: input.q } : {}),
+        ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
+        ...(input.limit !== undefined ? { limit: input.limit } : {}),
+      }),
+    );
     const items: BrowseItem[] = [];
     for (const r of list(res["repos"])) {
       const repo = obj(r);
       const name = text(repo["repo"]);
-      if (name !== undefined) items.push({ ref: name, name, isFolder: true, path: text(repo["url"]) ?? `https://github.com/${name}`, shared: repo["private"] === true ? false : true });
+      if (name !== undefined)
+        items.push({
+          ref: name,
+          name,
+          isFolder: true,
+          path: text(repo["url"]) ?? `https://github.com/${name}`,
+          shared: repo["private"] === true ? false : true,
+        });
     }
     const next = text(res["next"]);
     return { items, ...(next !== undefined ? { next } : {}) };
@@ -519,12 +704,18 @@ const github: Provider = {
 
 export function providerOf(kind: MountKind): Provider {
   switch (kind) {
-    case "google_drive": return google;
-    case "sharepoint": return graph;
-    case "onedrive": return { ...graph, label: "OneDrive" };
-    case "dropbox": return dropbox;
-    case "local": return local;
-    case "github": return github;
+    case "google_drive":
+      return google;
+    case "sharepoint":
+      return graph;
+    case "onedrive":
+      return { ...graph, label: "OneDrive" };
+    case "dropbox":
+      return dropbox;
+    case "local":
+      return local;
+    case "github":
+      return github;
   }
 }
 
@@ -537,4 +728,5 @@ export const PROVIDER_LABEL: Record<MountKind, string> = {
   github: "GitHub",
 };
 
-export const isCloud = (kind: MountKind): boolean => kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox";
+export const isCloud = (kind: MountKind): boolean =>
+  kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox";

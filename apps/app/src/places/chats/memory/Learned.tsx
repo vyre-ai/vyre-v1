@@ -18,7 +18,13 @@ export function LearnedLines({ messageId }: { messageId: string }): ReactElement
   if (!thread) return null;
   const rows = thread.learnedFrom(messageId);
   if (rows.length === 0) return null;
-  return <View testID={`learned-${messageId}`}>{each(rows, (r) => <LearnedLine key={r.factId} row={r} />)}</View>;
+  return (
+    <View testID={`learned-${messageId}`}>
+      {each(rows, (r) => (
+        <LearnedLine key={r.factId} row={r} />
+      ))}
+    </View>
+  );
 }
 
 function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): ReactElement | null {
@@ -29,14 +35,26 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
   const [draft, setDraft] = useState(row.text);
   const [err, setErr] = useState<string | null>(null);
 
-  const undo = (): void => { setErr(null); void undoLearned(memory, row.factId).then(setErr); };
-  const restore = (): void => { setErr(null); void restoreLearned(memory, row.factId).then(setErr); };
+  const undo = (): void => {
+    setErr(null);
+    void undoLearned(memory, row.factId).then(setErr);
+  };
+  const restore = (): void => {
+    setErr(null);
+    void restoreLearned(memory, row.factId).then(setErr);
+  };
   const save = (): void => {
     const text = draft.trim();
-    if (text === "" || text === row.text) { setEditing(false); return; }
+    if (text === "" || text === row.text) {
+      setEditing(false);
+      return;
+    }
     setErr(null);
     void correctFact(memory, row.factId, text).then((r) => {
-      if (r.ok) { thread.supersede(row.factId, { ...row, factId: r.fact.factId, text: r.fact.text }); setEditing(false); } else setErr(r.error);
+      if (r.ok) {
+        thread.supersede(row.factId, { ...row, factId: r.fact.factId, text: r.fact.text });
+        setEditing(false);
+      } else setErr(r.error);
     });
   };
 
@@ -45,8 +63,17 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
       <View testID={`learned-off-${row.factId}`} style={st.line}>
         <View style={[st.dot, st.dotOff]} />
         <Text style={[st.text, st.off]}>Moved to Trash.</Text>
-        <LinkButton label="Restore" testID={`learned-restore-${row.factId}`} a11y={`Restore: ${row.text}`} onPress={restore} />
-        {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+        <LinkButton
+          label="Restore"
+          testID={`learned-restore-${row.factId}`}
+          a11y={`Restore: ${row.text}`}
+          onPress={restore}
+        />
+        {err ? (
+          <Text accessibilityRole="alert" style={st.err}>
+            {err}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -55,43 +82,118 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
       <View testID={`learned-edit-${row.factId}`} style={st.line}>
         <View style={st.dot} />
         <TextInput
-          autoFocus selectTextOnFocus accessibilityLabel="Edit what was learned" testID={`learned-input-${row.factId}`} value={draft} onChangeText={setDraft} style={st.input}
+          autoFocus
+          selectTextOnFocus
+          accessibilityLabel="Edit what was learned"
+          testID={`learned-input-${row.factId}`}
+          value={draft}
+          onChangeText={setDraft}
+          style={st.input}
           onKeyPress={(e) => {
             const k = (e as unknown as { nativeEvent: { key: string } }).nativeEvent.key;
-            if (k === "Escape") { setEditing(false); setDraft(row.text); }
-            else if (k === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); save(); }
+            if (k === "Escape") {
+              setEditing(false);
+              setDraft(row.text);
+            } else if (k === "Enter") {
+              (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+              save();
+            }
           }}
         />
         <LinkButton label="Save" testID={`learned-save-${row.factId}`} onPress={save} />
-        <LinkButton label="Cancel" quiet testID={`learned-cancel-${row.factId}`} onPress={() => { setEditing(false); setDraft(row.text); }} />
-        {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+        <LinkButton
+          label="Cancel"
+          quiet
+          testID={`learned-cancel-${row.factId}`}
+          onPress={() => {
+            setEditing(false);
+            setDraft(row.text);
+          }}
+        />
+        {err ? (
+          <Text accessibilityRole="alert" style={st.err}>
+            {err}
+          </Text>
+        ) : null}
       </View>
     );
   }
   const lesson = row.lesson;
   // every line says who can read it: a lesson its own scope, any other fact its layer
   const scopeWords = lesson ? SCOPE_TEXT[lesson.scope] : row.layer ? LAYER_SCOPE[row.layer] : undefined;
-  const items = (x: number, y: number): void => menu.show([
-    ...(lesson && memory.showKnows ? [{ label: "See in Knows", onSelect: () => memory.showKnows?.() } as MenuEntry] : []),
-    { label: "Edit", onSelect: () => { setDraft(row.text); setEditing(true); } },
-    ...(row.pageId ? [{ label: "Open Page", onSelect: () => memory.nav.openPage(row.pageId!) } as MenuEntry] : []),
-    { separator: true },
-    { label: "Undo", danger: true, onSelect: undo },
-  ], x, y, "context", { label: "What was learned" });
+  const items = (x: number, y: number): void =>
+    menu.show(
+      [
+        ...(lesson && memory.showKnows
+          ? [{ label: "See in Knows", onSelect: () => memory.showKnows?.() } as MenuEntry]
+          : []),
+        {
+          label: "Edit",
+          onSelect: () => {
+            setDraft(row.text);
+            setEditing(true);
+          },
+        },
+        ...(row.pageId ? [{ label: "Open Page", onSelect: () => memory.nav.openPage(row.pageId!) } as MenuEntry] : []),
+        { separator: true },
+        { label: "Undo", danger: true, onSelect: undo },
+      ],
+      x,
+      y,
+      "context",
+      { label: "What was learned" },
+    );
   return (
-    <View testID={`learned-line-${row.factId}`} accessibilityLabel={`Learned: ${row.text}`} {...webProps({ tabIndex: 0 })} {...ownMenu(items)} style={st.line}>
+    <View
+      testID={`learned-line-${row.factId}`}
+      accessibilityLabel={`Learned: ${row.text}`}
+      {...webProps({ tabIndex: 0 })}
+      {...ownMenu(items)}
+      style={st.line}
+    >
       <View style={st.dot} />
-      <Text style={st.text}><Text style={st.bold}>Learned:</Text>{` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}</Text>
-      {scopeWords ? <><Text style={st.sep}>·</Text><Text testID={`learned-${lesson ? "scope" : "reach"}-${row.factId}`} style={st.scope}>{scopeWords}</Text></> : null}
+      <Text style={st.text}>
+        <Text style={st.bold}>Learned:</Text>
+        {` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}
+      </Text>
+      {scopeWords ? (
+        <>
+          <Text style={st.sep}>·</Text>
+          <Text testID={`learned-${lesson ? "scope" : "reach"}-${row.factId}`} style={st.scope}>
+            {scopeWords}
+          </Text>
+        </>
+      ) : null}
       <Text style={st.sep}>·</Text>
-      <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>{learnedWhen(row.at, memory.now())}</Text>
+      <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>
+        {learnedWhen(row.at, memory.now())}
+      </Text>
       <Text style={st.sep}>·</Text>
       <LinkButton label="Undo" testID={`learned-undo-${row.factId}`} a11y={`Undo: ${row.text}`} onPress={undo} />
       <Text style={st.sep}>·</Text>
-      {lesson && memory.showKnows
-        ? <LinkButton label="See" testID={`learned-see-${row.factId}`} a11y={`See what the agent has learned: ${row.text}`} onPress={() => memory.showKnows?.()} />
-        : <LinkButton label="Edit" testID={`learned-edit-btn-${row.factId}`} a11y={`Edit: ${row.text}`} onPress={() => { setDraft(row.text); setEditing(true); }} />}
-      {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
+      {lesson && memory.showKnows ? (
+        <LinkButton
+          label="See"
+          testID={`learned-see-${row.factId}`}
+          a11y={`See what the agent has learned: ${row.text}`}
+          onPress={() => memory.showKnows?.()}
+        />
+      ) : (
+        <LinkButton
+          label="Edit"
+          testID={`learned-edit-btn-${row.factId}`}
+          a11y={`Edit: ${row.text}`}
+          onPress={() => {
+            setDraft(row.text);
+            setEditing(true);
+          }}
+        />
+      )}
+      {err ? (
+        <Text accessibilityRole="alert" style={st.err}>
+          {err}
+        </Text>
+      ) : null}
       {menu.element}
     </View>
   );
@@ -106,6 +208,18 @@ const st = StyleSheet.create({
   off: { color: "var(--ink-4)" as string },
   scope: { fontSize: 12, color: "var(--ink-4)" as string },
   sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
-  input: { flexGrow: 1, flexBasis: 220, maxWidth: 360, height: 28, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
+  input: {
+    flexGrow: 1,
+    flexBasis: 220,
+    maxWidth: 360,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+    backgroundColor: "var(--field)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+    boxShadow: "inset 0 0 0 1px var(--line-2)",
+    outlineStyle: "none",
+  } as object,
   err: { width: "100%", fontSize: 12, color: "var(--danger)" as string },
 });

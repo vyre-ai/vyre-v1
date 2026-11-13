@@ -12,7 +12,21 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 
 const T0 = Date.UTC(2026, 10, 3, 4, 0);
 const note = (id: string, o: Partial<Note> = {}): Note => ({
-  noteId: id, owner: "usr_me", title: "", body: "", color: "", pinned: false, labels: [], hasImage: false, linked: [], share: { people: [], space: "off" }, mine: true, canEdit: true, createdAt: T0, updatedAt: T0, ...o,
+  noteId: id,
+  owner: "usr_me",
+  title: "",
+  body: "",
+  color: "",
+  pinned: false,
+  labels: [],
+  hasImage: false,
+  linked: [],
+  share: { people: [], space: "off" },
+  mine: true,
+  canEdit: true,
+  createdAt: T0,
+  updatedAt: T0,
+  ...o,
 });
 
 function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<string, unknown> }[] } {
@@ -25,20 +39,42 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     const i = input as Record<string, unknown> & { noteId: string };
     calls.push({ cap, input: i });
-    if (cap === "notes.list") return { notes: rows, labels: [{ name: "Lab 8", count: 1 }, { name: "Clients", count: 1 }, { name: "Sales", count: 1 }] };
-    if (cap === "notes.pin") { rows = rows.map((n) => (n.noteId === i.noteId ? { ...n, pinned: i["pinned"] === true } : n)); return { note: rows.find((n) => n.noteId === i.noteId) }; }
+    if (cap === "notes.list")
+      return {
+        notes: rows,
+        labels: [
+          { name: "Lab 8", count: 1 },
+          { name: "Clients", count: 1 },
+          { name: "Sales", count: 1 },
+        ],
+      };
+    if (cap === "notes.pin") {
+      rows = rows.map((n) => (n.noteId === i.noteId ? { ...n, pinned: i["pinned"] === true } : n));
+      return { note: rows.find((n) => n.noteId === i.noteId) };
+    }
     if (cap === "notes.delete") return { deleted: true, undo: { noteId: i.noteId } };
     if (cap === "notes.restore") return { note: rows.find((n) => n.noteId === i.noteId) };
-    if (cap === "agents.list") return { agents: [{ agentId: "agt_assistant", ownerId: "usr_me", kind: "assistant", name: "Assistant" }] };
+    if (cap === "agents.list")
+      return { agents: [{ agentId: "agt_assistant", ownerId: "usr_me", kind: "assistant", name: "Assistant" }] };
     // the thread never answers here: the test reads what was asked for, and the conversation itself has its own tests
     if (cap === "chat.start") return new Promise(() => undefined);
-    if (cap === "notes.create") { const made = note("n9", { title: String(i["title"] ?? ""), body: String(i["body"] ?? "") }); rows = [made, ...rows]; return { note: made }; }
+    if (cap === "notes.create") {
+      const made = note("n9", { title: String(i["title"] ?? ""), body: String(i["body"] ?? "") });
+      rows = [made, ...rows];
+      return { note: made };
+    }
     throw new Error(`no answer for ${cap}`);
   };
   const people = { status: "ready" as const, data: [{ id: "usr_me", name: "Irfad Imtiaz", kind: "person" as const }] };
   const rt = {
-    call, me: { id: "usr_me", name: "Irfad Imtiaz" }, space: { id: "mla", kind: "team", name: "My Legal Academy" }, assistant: { id: "agt_assistant", name: "Assistant" },
-    principals: { subscribe: () => () => undefined, getSnapshot: () => people }, clock: () => ({ now: T0 + 60_000, offsetMin: 300 }), open: () => undefined, openUrl: () => undefined,
+    call,
+    me: { id: "usr_me", name: "Irfad Imtiaz" },
+    space: { id: "mla", kind: "team", name: "My Legal Academy" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    principals: { subscribe: () => () => undefined, getSnapshot: () => people },
+    clock: () => ({ now: T0 + 60_000, offsetMin: 300 }),
+    open: () => undefined,
+    openUrl: () => undefined,
   } as unknown as ShellRuntime;
   return { rt, calls };
 }
@@ -50,13 +86,23 @@ const ids = (n: Node | string, prefix: string, out: string[] = []): string[] => 
   for (const c of n.children ?? []) ids(c, prefix, out);
   return out;
 };
-const cardsIn = (root: Node, section: string): string[] => { const s = find(root, section); return s ? ids(s, "note-").filter((t) => /^note-n\d+$/.test(t)) : []; };
+const cardsIn = (root: Node, section: string): string[] => {
+  const s = find(root, section);
+  return s ? ids(s, "note-").filter((t) => /^note-n\d+$/.test(t)) : [];
+};
 
 test("the grid: Pinned above Others, a pin and a delete with Undo reach the notes capabilities", async () => {
   installDom();
   const { rt, calls } = scripted();
-  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
-  const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => (id === "usr_me" ? "Irfad Imtiaz" : id)} store={store} />);
+  const store = createNotesStore(
+    (c, i) => rt.call(c, i),
+    () => undefined,
+    () => T0,
+  );
+  const root = await mount(
+    createRoot,
+    <NotesPage rt={rt} nameOf={(id) => (id === "usr_me" ? "Irfad Imtiaz" : id)} store={store} />,
+  );
   await flush();
   assert.deepEqual(cardsIn(root, "notes-pinned"), ["note-n1"]);
   assert.deepEqual(cardsIn(root, "notes-others"), ["note-n2", "note-n3"]);
@@ -64,7 +110,10 @@ test("the grid: Pinned above Others, a pin and a delete with Undo reach the note
 
   await press(find(root, "note-pin-n2"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "notes.pin").map((c) => c.input), [{ noteId: "n2", pinned: true }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "notes.pin").map((c) => c.input),
+    [{ noteId: "n2", pinned: true }],
+  );
   assert.deepEqual(cardsIn(root, "notes-pinned"), ["note-n1", "note-n2"], "a pinned note moves up at once");
 
   await press(find(root, "note-more-n3"));
@@ -83,7 +132,11 @@ test("the grid: Pinned above Others, a pin and a delete with Undo reach the note
 test("Take a note saves what was typed; an empty one is dropped; the search narrows the grid", async () => {
   installDom();
   const { rt, calls } = scripted();
-  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const store = createNotesStore(
+    (c, i) => rt.call(c, i),
+    () => undefined,
+    () => T0,
+  );
   const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} />);
   await flush();
   await press(find(root, "take-closed"));
@@ -119,8 +172,15 @@ test("Take a note saves what was typed; an empty one is dropped; the search narr
 test("an opened note offers Ask about this note, Turn into task and Turn into record", async () => {
   installDom();
   const { rt } = scripted();
-  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
-  const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} initial={{ open: "n2" }} />);
+  const store = createNotesStore(
+    (c, i) => rt.call(c, i),
+    () => undefined,
+    () => T0,
+  );
+  const root = await mount(
+    createRoot,
+    <NotesPage rt={rt} nameOf={(id) => id} store={store} initial={{ open: "n2" }} />,
+  );
   await flush();
   const dialog = find(root, "note-dialog");
   assert.ok(dialog);
@@ -133,7 +193,11 @@ test("an opened note offers Ask about this note, Turn into task and Turn into re
 test("Ask about this note opens the person's own Ask thread scoped to that note, with the note on top and the privacy line at the foot", async () => {
   installDom();
   const { rt, calls } = scripted();
-  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const store = createNotesStore(
+    (c, i) => rt.call(c, i),
+    () => undefined,
+    () => T0,
+  );
   const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} initial={{ ask: "n2" }} />);
   await flush();
   await flush();
@@ -143,7 +207,11 @@ test("Ask about this note opens the person's own Ask thread scoped to that note,
   assert.deepEqual(start!.input["agentIds"], ["agt_assistant"]);
   assert.equal(start!.input["scopeType"], "note");
   assert.equal(start!.input["scopeId"], "n2");
-  assert.equal(start!.input["idempotencyKey"], "note-ask-usr_me-n2", "one thread per person and note, so asking again returns to it");
+  assert.equal(
+    start!.input["idempotencyKey"],
+    "note-ask-usr_me-n2",
+    "one thread per person and note, so asking again returns to it",
+  );
   const order = ids(root, "notes-ask-").filter((t) => t === "notes-ask-about" || t === "notes-ask-vis");
   assert.deepEqual(order, ["notes-ask-about", "notes-ask-vis"], "the note on top, the privacy line at the foot");
   assert.match(textOf(find(root, "notes-ask-vis")), /Your own chat, so Vyre can read this private note here/);
@@ -153,22 +221,50 @@ import { fromLine } from "./model.ts";
 test("the opened note says where it was saved from, with a way to the message; a chat its owner can no longer read keeps only the time", () => {
   const now = Date.UTC(2026, 10, 3, 12, 0);
   const at = Date.UTC(2026, 10, 3, 9, 12);
-  assert.deepEqual(fromLine({ from: { threadId: "thr_1", messageId: "msg_1", title: "Weinberger Law prep", at, readable: true } }, now), { text: "From: Weinberger Law prep, 9:12", open: { threadId: "thr_1", messageId: "msg_1" } });
-  assert.deepEqual(fromLine({ from: { at, readable: false } }, now), { text: "From a chat you can no longer read, 9:12", open: null });
+  assert.deepEqual(
+    fromLine(
+      { from: { threadId: "thr_1", messageId: "msg_1", title: "Weinberger Law prep", at, readable: true } },
+      now,
+    ),
+    { text: "From: Weinberger Law prep, 9:12", open: { threadId: "thr_1", messageId: "msg_1" } },
+  );
+  assert.deepEqual(fromLine({ from: { at, readable: false } }, now), {
+    text: "From a chat you can no longer read, 9:12",
+    open: null,
+  });
   assert.equal(fromLine({}, now), null);
 });
 
 test("a note's menu lists what fits it with the keys that work, and Pin reaches notes.pin", async () => {
   installDom();
   const { rt, calls } = scripted();
-  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const store = createNotesStore(
+    (c, i) => rt.call(c, i),
+    () => undefined,
+    () => T0,
+  );
   const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} />);
   await flush();
   await press(find(root, "note-more-n2"));
   await flush();
   const labels = ids(root, "menu-item-").map((t) => t.slice("menu-item-".length));
-  assert.deepEqual(labels, ["Open", "Pin", "Colour", "Labels", "Share", "Ask about this note", "Turn into task", "Turn into record", "Copy link", "Make a copy", "Delete"]);
+  assert.deepEqual(labels, [
+    "Open",
+    "Pin",
+    "Colour",
+    "Labels",
+    "Share",
+    "Ask about this note",
+    "Turn into task",
+    "Turn into record",
+    "Copy link",
+    "Make a copy",
+    "Delete",
+  ]);
   await press(find(root, "menu-item-Pin"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "notes.pin").map((c) => c.input), [{ noteId: "n2", pinned: true }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "notes.pin").map((c) => c.input),
+    [{ noteId: "n2", pinned: true }],
+  );
 });

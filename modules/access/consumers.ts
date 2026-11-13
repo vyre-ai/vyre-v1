@@ -8,21 +8,64 @@ import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { rawDbOf } from "../../host/src/ctx/db.ts";
-import { AccessStore, CURSOR_KEY, agentLevel, asKeptWriter, EVERYONE, changed, kernelResource, labelOf, loadStore, rowOfResource, sealSnapshot, sealStore, setPrivate, setReadView, storeOf } from "./projections.ts";
-import type { AccessCtx, Cond, Db, GrantRec, Label, Level, PKind, Ref, ResourceRec, Status, SubjectKind } from "./projections.ts";
+import {
+  AccessStore,
+  CURSOR_KEY,
+  agentLevel,
+  asKeptWriter,
+  EVERYONE,
+  changed,
+  kernelResource,
+  labelOf,
+  loadStore,
+  rowOfResource,
+  sealSnapshot,
+  sealStore,
+  setPrivate,
+  setReadView,
+  storeOf,
+} from "./projections.ts";
+import type {
+  AccessCtx,
+  Cond,
+  Db,
+  GrantRec,
+  Label,
+  Level,
+  PKind,
+  Ref,
+  ResourceRec,
+  Status,
+  SubjectKind,
+} from "./projections.ts";
 
-export interface LogEvent { seq: number; type: string; payload: unknown }
+export interface LogEvent {
+  seq: number;
+  type: string;
+  payload: unknown;
+}
 
 /** fieldLabels key without a dot: the snapshot skips it, so it carries the cursor without becoming a field label */
 const CURSOR = CURSOR_KEY;
 
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
-  "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred", "agent.privacy_set",
+  "role.defined",
+  "principal.created",
+  "principal.role_set",
+  "group.member_added",
+  "resource.created",
+  "grant.created",
+  "grant.revoked",
+  "principal.suspended",
+  "principal.reactivated",
+  "member.removed",
+  "space.ownership_transferred",
+  "agent.privacy_set",
 ] as const;
 
-const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
+const rec = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 
 function pkind(k: unknown): PKind {
@@ -41,23 +84,32 @@ function setStatus(store: AccessStore, id: string | undefined, status: Status): 
 
 /** Seeded grant rows name an `actor`, `group` or `role`; the module keeps the same words. */
 function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number): GrantRec | null {
-  const id = str(p["id"]), subjectId = str(p["subject_id"]), type = str(p["resource_type"]);
+  const id = str(p["id"]),
+    subjectId = str(p["subject_id"]),
+    type = str(p["resource_type"]);
   const sk = p["subject_kind"];
   if (!id || !subjectId || !type || (sk !== "actor" && sk !== "group" && sk !== "role")) return null;
   const c = rec(p["conditions"]);
   const conditions: Cond = {};
   if (c["rowFilter"] !== undefined) conditions.rowFilter = c["rowFilter"];
-  if (Array.isArray(c["hiddenFields"])) conditions.hiddenFields = c["hiddenFields"].filter((x): x is string => typeof x === "string");
-  if (typeof c["notBefore"] === "number" && typeof c["notAfter"] === "number") conditions.window = { from: c["notBefore"], to: c["notAfter"] };
+  if (Array.isArray(c["hiddenFields"]))
+    conditions.hiddenFields = c["hiddenFields"].filter((x): x is string => typeof x === "string");
+  if (typeof c["notBefore"] === "number" && typeof c["notAfter"] === "number")
+    conditions.window = { from: c["notBefore"], to: c["notAfter"] };
   if (typeof p["expires_at"] === "number") conditions.expiresAt = p["expires_at"];
   const level = agentLevel(type, p["level"] as Level);
   // Gateway events use the historical `actor` wire kind for all non-person
   // principals. Resolve that alias against the principal projection so agent
   // home grants authorize the agent itself, while outside actors remain actors.
-  const kind = sk === "actor" ? (store.principals.get(subjectId)?.kind ?? "actor") : sk as SubjectKind;
+  const kind = sk === "actor" ? (store.principals.get(subjectId)?.kind ?? "actor") : (sk as SubjectKind);
   return {
-    id, subject: { kind, id: subjectId }, resource: { type, id: str(p["resource_id"]) ?? "*" }, level, conditions,
-    by: str(p["by"]) ?? "svc_host", createdAt: at,
+    id,
+    subject: { kind, id: subjectId },
+    resource: { type, id: str(p["resource_id"]) ?? "*" },
+    level,
+    conditions,
+    by: str(p["by"]) ?? "svc_host",
+    createdAt: at,
   };
 }
 
@@ -72,7 +124,14 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const id = str(p["id"]);
       if (!id) return false;
       const perms = Array.isArray(p["perms"]) ? p["perms"].filter((x): x is string => typeof x === "string") : [];
-      store.roles.set(id, { id, name: str(p["name"]) ?? id, builtIn: false, clearance: labelOf(Number(p["clearance"]) || 0), assignableToAgents: true, permissions: perms });
+      store.roles.set(id, {
+        id,
+        name: str(p["name"]) ?? id,
+        builtIn: false,
+        clearance: labelOf(Number(p["clearance"]) || 0),
+        assignableToAgents: true,
+        permissions: perms,
+      });
       return true;
     }
     case "principal.created": {
@@ -82,14 +141,27 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const have = store.principals.get(id);
       // identity and access announce an account the module already holds: keep what it has
       if (have && !seeded) {
-        const name=str(p["name"])?.trim();
-        const placeholder=have.name===id||(have.name==="Owner"&&[...store.resources.values()].some(resource=>resource.type==="space"&&resource.ownerId===id));
-        if(name&&placeholder&&have.kind===pkind(p["kind"])&&name!==have.name){store.principals.set(id,{...have,name});return true;}
+        const name = str(p["name"])?.trim();
+        const placeholder =
+          have.name === id ||
+          (have.name === "Owner" &&
+            [...store.resources.values()].some((resource) => resource.type === "space" && resource.ownerId === id));
+        if (name && placeholder && have.kind === pkind(p["kind"]) && name !== have.name) {
+          store.principals.set(id, { ...have, name });
+          return true;
+        }
         return false;
       }
       const given = p["status"];
       const status: Status = given === "suspended" || given === "removed" ? given : "active";
-      const next = { id, kind: pkind(p["kind"]), name: str(p["name"]) ?? have?.name ?? id, status, createdAt: have?.createdAt ?? at, ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}) };
+      const next = {
+        id,
+        kind: pkind(p["kind"]),
+        name: str(p["name"]) ?? have?.name ?? id,
+        status,
+        createdAt: have?.createdAt ?? at,
+        ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}),
+      };
       store.principals.set(id, next);
       return true;
     }
@@ -100,7 +172,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       return setPrivate(store, id, p["private"] === true, p["assistant"] === true);
     }
     case "principal.role_set": {
-      const holder = str(p["holder"]), given = str(p["role"]);
+      const holder = str(p["holder"]),
+        given = str(p["role"]);
       if (!holder || !given) return false;
       // older events name the built-in role ("member"); every later call (unassign, removal) wants the role id
       const role = LEGACY_ROLE[given] ?? given;
@@ -110,34 +183,69 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       return true;
     }
     case "group.member_added": {
-      const gid = str(p["group"]), mid = str(p["member"]);
+      const gid = str(p["group"]),
+        mid = str(p["member"]);
       if (!gid || !mid) return false;
-      const g = store.groups.get(gid) ?? { id: gid, name: gid === EVERYONE ? "Everyone" : gid, builtIn: gid === EVERYONE, members: [] as Ref[], managers: [] as Ref[] };
+      const g = store.groups.get(gid) ?? {
+        id: gid,
+        name: gid === EVERYONE ? "Everyone" : gid,
+        builtIn: gid === EVERYONE,
+        members: [] as Ref[],
+        managers: [] as Ref[],
+      };
       if (g.members.some((m) => m.id === mid)) return false;
-      store.groups.set(gid, { ...g, members: [...g.members, { kind: store.principals.get(mid)?.kind ?? "person", id: mid }] });
+      store.groups.set(gid, {
+        ...g,
+        members: [...g.members, { kind: store.principals.get(mid)?.kind ?? "person", id: mid }],
+      });
       return true;
     }
     case "space.ownership_transferred": {
-      const from=str(p['from']),to=str(p['to']);if(!from||!to||from===to||(store.principals.get(to)?.status!=='active'||store.principals.get(to)?.kind!=='person'))return false;
-      const spaces=[...store.resources.values()].filter(row=>row.type==='space'&&row.ownerId===from);if(spaces.length!==1)return false;
-      const row=spaces[0]!;store.resources.set(row.id,{...row,ownerId:to});
+      const from = str(p["from"]),
+        to = str(p["to"]);
+      if (
+        !from ||
+        !to ||
+        from === to ||
+        store.principals.get(to)?.status !== "active" ||
+        store.principals.get(to)?.kind !== "person"
+      )
+        return false;
+      const spaces = [...store.resources.values()].filter((row) => row.type === "space" && row.ownerId === from);
+      if (spaces.length !== 1) return false;
+      const row = spaces[0]!;
+      store.resources.set(row.id, { ...row, ownerId: to });
       // what the host registered in the Space owner's name (marked spaceOwned) follows the Space's owner, so a former owner keeps no Manage on it by ownership; what a person made, or was
       // given by a per-resource transfer, carries no mark and stays theirs (review 2 C, review 3 N1 and N3)
-      for (const t of [...store.resources.values()]) if (t.row?.["spaceOwned"] === true && t.ownerId === from) store.resources.set(t.id, { ...t, ownerId: to });
-      const isOwner=(id:string):boolean=>id==='owner'||id==='rol_owner'||store.roles.get(id)?.name.toLowerCase()==='owner';
-      for (const [holder, roles] of store.assignments) store.setRoles(holder, roles.filter(id => !isOwner(id)));
-      store.assignments.set(from,[...new Set([...store.rolesOf(from),'rol_admin'])]);
-      store.assignments.set(to,[...new Set([...store.rolesOf(to),'rol_owner'])]);return true;
+      for (const t of [...store.resources.values()])
+        if (t.row?.["spaceOwned"] === true && t.ownerId === from) store.resources.set(t.id, { ...t, ownerId: to });
+      const isOwner = (id: string): boolean =>
+        id === "owner" || id === "rol_owner" || store.roles.get(id)?.name.toLowerCase() === "owner";
+      for (const [holder, roles] of store.assignments)
+        store.setRoles(
+          holder,
+          roles.filter((id) => !isOwner(id)),
+        );
+      store.assignments.set(from, [...new Set([...store.rolesOf(from), "rol_admin"])]);
+      store.assignments.set(to, [...new Set([...store.rolesOf(to), "rol_owner"])]);
+      return true;
     }
     case "resource.created": {
-      const id = str(p["id"]), type = str(p["type"]);
+      const id = str(p["id"]),
+        type = str(p["type"]);
       if (!id || !type) return false;
       const have = store.resources.get(id);
       // the host's mark (host/src/daemon/access.ts spaceOwned) is as the latest registration says: a re-registration without it (a Personal root made private) drops it
       const row: Record<string, unknown> = { ...(have?.row ?? {}) };
-      if (p["space_owned"] === true) row["spaceOwned"] = true; else delete row["spaceOwned"];
+      if (p["space_owned"] === true) row["spaceOwned"] = true;
+      else delete row["spaceOwned"];
       store.resources.set(id, {
-        id, type, parentId: str(p["parent_id"]) ?? null, label: labelOf(Number(p["label"]) || 0), ownerId: str(p["owner_id"]) ?? null, holds: Number(p["holds"]) || 0,
+        id,
+        type,
+        parentId: str(p["parent_id"]) ?? null,
+        label: labelOf(Number(p["label"]) || 0),
+        ownerId: str(p["owner_id"]) ?? null,
+        holds: Number(p["holds"]) || 0,
         ...(Object.keys(row).length ? { row } : {}),
       });
       return true;
@@ -155,14 +263,20 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       if (!id || !store.grants.delete(id)) return false;
       return true;
     }
-    case "principal.suspended": return setStatus(store, str(p["principalId"]), "suspended");
-    case "principal.reactivated": return setStatus(store, str(p["principalId"]), "active");
-    case "member.removed": return setStatus(store, str(p["personId"]), "removed");
-    default: return false;
+    case "principal.suspended":
+      return setStatus(store, str(p["principalId"]), "suspended");
+    case "principal.reactivated":
+      return setStatus(store, str(p["principalId"]), "active");
+    case "member.removed":
+      return setStatus(store, str(p["personId"]), "removed");
+    default:
+      return false;
   }
 }
 
-function cursorOf(store: AccessStore): number { return store.fieldLabels.get(CURSOR) ?? 0; }
+function cursorOf(store: AccessStore): number {
+  return store.fieldLabels.get(CURSOR) ?? 0;
+}
 
 /**
  * Fold events the store has not seen, in the order given. An event with a negative `seq` did not come from the log (the host's own boot-time resources): it is always applied and
@@ -170,29 +284,49 @@ function cursorOf(store: AccessStore): number { return store.fieldLabels.get(CUR
  * tables and asks for the snapshot to be built again (`rebuild`).
  */
 /** `grantAt`: the time a folded grant is stamped with. The kept store passes 1, what the tables give back (`version`), so it holds exactly what a store read from them holds. */
-function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent[], grantAt: number = at): { touched: Set<string>; rebuild: boolean } {
-  let cursor = cursorOf(store), changed = false, onlyResources = true;
+function apply(
+  db: Db,
+  at: number,
+  store: AccessStore,
+  events: readonly LogEvent[],
+  grantAt: number = at,
+): { touched: Set<string>; rebuild: boolean } {
+  let cursor = cursorOf(store),
+    changed = false,
+    onlyResources = true;
   const touched = new Set<string>();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
     // audience are whatever was set since, and the same event at every start reset them (review finding 5)
     if (e.seq < 0 && e.type === "resource.created") {
-      const id = str(rec(e.payload)["id"]) ?? "", have = store.resources.get(id);
+      const id = str(rec(e.payload)["id"]) ?? "",
+        have = store.resources.get(id);
       // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
       if (rec(e.payload)["mark_only"] === true) {
-        if (have && have.row?.["spaceOwned"] !== true) { store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } }); changed = true; touched.add(id); }
+        if (have && have.row?.["spaceOwned"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });
+          changed = true;
+          touched.add(id);
+        }
         continue;
       }
       if (have) {
         // an existing resource keeps everything; only a missing mark is set (a record type registered before the mark)
-        if (rec(e.payload)["space_owned"] === true && have.row?.["spaceOwned"] !== true) { store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } }); changed = true; touched.add(id); }
+        if (rec(e.payload)["space_owned"] === true && have.row?.["spaceOwned"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });
+          changed = true;
+          touched.add(id);
+        }
         continue;
       }
     }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
-      if (e.type === "resource.created") { const id = str(rec(e.payload)["id"]); if (id) touched.add(id); } else onlyResources = false;
+      if (e.type === "resource.created") {
+        const id = str(rec(e.payload)["id"]);
+        if (id) touched.add(id);
+      } else onlyResources = false;
     }
     if (e.seq >= 0) cursor = e.seq;
   }
@@ -200,7 +334,10 @@ function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent
   if (moved) store.fieldLabels.set(CURSOR, cursor);
   if (!changed && !moved) return { touched, rebuild: false };
   store.bump();
-  if (changed && !onlyResources) { store.persist(db); return { touched, rebuild: true }; }
+  if (changed && !onlyResources) {
+    store.persist(db);
+    return { touched, rebuild: true };
+  }
   store.persistResources(db, touched, moved);
   return { touched, rebuild: false };
 }
@@ -210,17 +347,39 @@ function apply(db: Db, at: number, store: AccessStore, events: readonly LogEvent
  * reads, and where the tables' write counter (migrations/0006_local_stamp.sql) stood after its own last write. Keyed on the database itself (host/src/ctx/db.ts rawDbOf), not the Space:
  * two daemons of one Space in one process, or two copies of one file, each have their own.
  */
-interface Synced { store: AccessStore; snap: AccessSnapshot; rows: Map<string, ResourceRec>; stamp: number; plain: AccessSnapshot | null }
+interface Synced {
+  store: AccessStore;
+  snap: AccessSnapshot;
+  rows: Map<string, ResourceRec>;
+  stamp: number;
+  plain: AccessSnapshot | null;
+}
 const SYNCED = new WeakMap<object, Synced>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
 export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
 
 /** The tables migration 0006 gives a counter trigger. The sync counts its own writes against the counter, so a write to any other table would count a change no trigger saw. */
-export const TRIGGERED: ReadonlySet<string> = new Set(["access_meta", "access_roles", "access_role_changes", "access_groups", "access_principals", "access_assignments", "access_grants", "access_resources", "access_policies", "access_actors", "access_fields", "access_local_cursor"]);
+export const TRIGGERED: ReadonlySet<string> = new Set([
+  "access_meta",
+  "access_roles",
+  "access_role_changes",
+  "access_groups",
+  "access_principals",
+  "access_assignments",
+  "access_grants",
+  "access_resources",
+  "access_policies",
+  "access_actors",
+  "access_fields",
+  "access_local_cursor",
+]);
 /** Refuse a statement of the sync that is not one row change on a triggered table (review finding 2). */
 export function mustBeTriggered(sql: string): void {
-  const m = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|UPDATE(?:\s+OR\s+\w+)?)\s+"?([A-Za-z0-9_]+)"?/i.exec(sql);
-  if (!m || !TRIGGERED.has(m[1]!)) throw new Error(`access.sync may write only the tables the write counter watches: ${sql.slice(0, 80)}`);
+  const m = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM|UPDATE(?:\s+OR\s+\w+)?)\s+"?([A-Za-z0-9_]+)"?/i.exec(
+    sql,
+  );
+  if (!m || !TRIGGERED.has(m[1]!))
+    throw new Error(`access.sync may write only the tables the write counter watches: ${sql.slice(0, 80)}`);
 }
 
 /** The tables' write counter, or null where migration 0006 has not run (no counter: nothing is kept). */
@@ -228,7 +387,9 @@ function stampOf(db: Db): number | null {
   try {
     const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
     return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** The authorize snapshot of a store, with the row source reading a copy of the resources taken now, so a reader still holding it never sees rows a later sync wrote. */
@@ -250,21 +411,32 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     let writes = 0;
     const db: Db = {
       all: (sql, ...args) => ctx.db.all(sql, ...args),
-      run: (sql, ...args) => { mustBeTriggered(sql); const r = ctx.db.run(sql, ...args); writes += r.changes; return r; },
+      run: (sql, ...args) => {
+        mustBeTriggered(sql);
+        const r = ctx.db.run(sql, ...args);
+        writes += r.changes;
+        return r;
+      },
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);
     if (kept && kept.stamp !== before) kept = undefined;
-    SYNCED.delete(key);   // put back only once this call has written everything and checked the counter
+    SYNCED.delete(key); // put back only once this call has written everything and checked the counter
     let complete = true;
-    const store = kept?.store ?? sealStore(loadStore(db, (ok) => { complete = ok; }));
+    const store =
+      kept?.store ??
+      sealStore(
+        loadStore(db, (ok) => {
+          complete = ok;
+        }),
+      );
     if (!kept) syncCounts.hydrated++;
     const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
     let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
     let plain = kept?.plain ?? null;
     if (!kept || rebuild) {
       out = build(store, ctx.space);
-      store.invalidate();   // the snapshot readers get through store.snapshot() has no role grants (as a handler's own store never had): it is built apart, when a reader first asks
+      store.invalidate(); // the snapshot readers get through store.snapshot() has no role grants (as a handler's own store never had): it is built apart, when a reader first asks
       plain = null;
       if (kept) syncCounts.rebuilt++;
     } else {
@@ -282,7 +454,8 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
     const after = stampOf(ctx.db);
     // a seed whose write failed holds what the tables do not (review finding 3): answered once, never kept
-    if (complete && before !== null && after !== null && after === before + writes) SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
+    if (complete && before !== null && after !== null && after === before + writes)
+      SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
     return out.snap;
   });
 }
@@ -295,9 +468,16 @@ export function readViewOf(ctx: AccessCtx): AccessStore | null {
   const key = rawDbOf(ctx.db);
   if (!key) return null;
   let kept = SYNCED.get(key);
-  if (!kept || stampOf(ctx.db) !== kept.stamp) { syncKept(ctx, key, []); kept = SYNCED.get(key); if (!kept) return null; }
+  if (!kept || stampOf(ctx.db) !== kept.stamp) {
+    syncKept(ctx, key, []);
+    kept = SYNCED.get(key);
+    if (!kept) return null;
+  }
   const k = kept;
-  if (!k.plain) asKeptWriter(() => { k.plain = sealSnapshot(k.store.snapshot()); });
+  if (!k.plain)
+    asKeptWriter(() => {
+      k.plain = sealSnapshot(k.store.snapshot());
+    });
   readCounts.views++;
   return k.store;
 }
@@ -317,9 +497,19 @@ const GRANTED = new WeakSet<AccessSnapshot>();
  * The rol_* role an older event names by its old built-in name, for the roles a person can be removed from. Not "owner": the Space owner is never removed, and a Space seeded with the old
  * names keeps the owner's grants under "owner".
  */
-const LEGACY_ROLE: Readonly<Record<string, string>> = { admin: "rol_admin", manager: "rol_developer", member: "rol_member", temp: "rol_guest" };
+const LEGACY_ROLE: Readonly<Record<string, string>> = {
+  admin: "rol_admin",
+  manager: "rol_developer",
+  member: "rol_member",
+  temp: "rol_guest",
+};
 /** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
-const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = { rol_owner: "manage", rol_admin: "manage", rol_developer: "edit", rol_member: "edit" };
+const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = {
+  rol_owner: "manage",
+  rol_admin: "manage",
+  rol_developer: "edit",
+  rol_member: "edit",
+};
 
 /**
  * A role carries permissions; the Space-level grant is what lets them act. A role the Space was seeded with (owner, admin, manager, member, temp) arrives with its grants and keeps exactly
@@ -330,7 +520,8 @@ function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string)
   if (GRANTED.has(snap)) return snap;
   GRANTED.add(snap);
   const have = new Set<string>();
-  for (const g of store.grants.values()) if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
+  for (const g of store.grants.values())
+    if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
   for (const r of store.roles.values()) {
     if (have.has(r.id) || !r.id.startsWith("rol_")) continue;
     let level = BUILT_IN_LEVEL[r.id];
@@ -338,18 +529,31 @@ function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string)
       if (r.builtIn || r.permissions.length === 0) continue;
       level = isElevatedRole(r.id, r.name) || r.permissions.includes("access.manage") ? "manage" : "edit";
     }
-    snap.putGrant({ id: `gr_role_${r.id}`, subject_kind: "role", subject_id: r.id, resource_type: "space", resource_id: space, level, by: "svc_host" });
+    snap.putGrant({
+      id: `gr_role_${r.id}`,
+      subject_kind: "role",
+      subject_id: r.id,
+      resource_type: "space",
+      resource_id: space,
+      level,
+      by: "svc_host",
+    });
   }
   return snap;
 }
 
 export const hostCalls = {
   /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */
-  "access.actor_by_credential": async (ctx: Ctx, input: { credential: string }): Promise<{ actorId: string } | null> => {
+  "access.actor_by_credential": async (
+    ctx: Ctx,
+    input: { credential: string },
+  ): Promise<{ actorId: string } | null> => {
     // asked on every request an outside tool makes with its credential: the kept store of access.sync when the tables have not moved since (this reads, and changes nothing)
     const store = keptStore(ctx as unknown as AccessCtx) ?? storeOf(ctx as unknown as AccessCtx);
     const bytes = new TextEncoder().encode(input.credential);
-    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+      .map((x) => x.toString(16).padStart(2, "0"))
+      .join("");
     const actor = [...store.actors.values()].find((a) => a.credHash === digest && a.status === "active");
     return actor ? { actorId: actor.id } : null;
   },
@@ -365,7 +569,8 @@ export const hostCalls = {
   },
   /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */
   "access.set_resource_label": (ctx: Ctx, input: { resource: { type: string; id: string }; label: Label }): boolean => {
-    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
+    if (ctx.origin !== "hook" || ctx.depth !== 0)
+      throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
     const actx = ctx as unknown as AccessCtx;
     const store = storeOf(actx);
     const resource = store.resources.get(input.resource.id);
@@ -376,36 +581,60 @@ export const hostCalls = {
     return true;
   },
   /** Ruling 88: a resource changes owner (an agent's folder follows its owner). The previous owner keeps nothing on it: their direct grants on the resource go too. Answers whether anything moved. */
-  "access.transfer_ownership": (ctx: Ctx, input: { resource: { type: string; id: string }; from: string; to: string }): boolean => {
+  "access.transfer_ownership": (
+    ctx: Ctx,
+    input: { resource: { type: string; id: string }; from: string; to: string },
+  ): boolean => {
     // host only: it moves ownership and drops grants. The host runs it at depth 0 with origin "hook"; a module reaching it through ctx.call arrives deeper, and the gateway has no route to it.
-    if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
+    if (ctx.origin !== "hook" || ctx.depth !== 0)
+      throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server itself may do that." });
     const actx = ctx as unknown as AccessCtx;
     const store = storeOf(actx);
     const r = store.resources.get(input.resource.id);
     if (!r || r.type !== input.resource.type) return false;
-    const heldBy = (who: string) => [...store.grants.entries()].filter(([, g]) => g.resource.type === r.type && g.resource.id === r.id && (g.subject.kind === "person" || (g.subject.kind === "actor" && who.startsWith("usr_"))) && g.subject.id === who);
+    const heldBy = (who: string) =>
+      [...store.grants.entries()].filter(
+        ([, g]) =>
+          g.resource.type === r.type &&
+          g.resource.id === r.id &&
+          (g.subject.kind === "person" || (g.subject.kind === "actor" && who.startsWith("usr_"))) &&
+          g.subject.id === who,
+      );
     const held = heldBy(input.from);
     if (r.ownerId === input.from) {
       // an agent handed over: the access engine's own record of who owns it moves in the same change, first, so nothing reads the previous owner as the agent's person (whose authority a turn
       // nobody asked for used to borrow, and whose owner's rights on the agent stayed) while the new owner lacks them (lead 12 Nov)
-      if (r.type === "agent") { const p = store.principals.get(r.id); if (p && p.kind === "agent" && p.owner === input.from) p.owner = input.to; }
+      if (r.type === "agent") {
+        const p = store.principals.get(r.id);
+        if (p && p.kind === "agent" && p.owner === input.from) p.owner = input.to;
+      }
       // theirs: the resource changes owner and their direct grants on it go. Given to a person, it is theirs and no longer the Space's (the host's mark goes, so a Space transfer leaves it)
       r.ownerId = input.to;
-      if (r.row?.["spaceOwned"] === true) { const { spaceOwned: _m, ...rest } = r.row; void _m; if (Object.keys(rest).length) r.row = rest; else delete r.row; }
+      if (r.row?.["spaceOwned"] === true) {
+        const { spaceOwned: _m, ...rest } = r.row;
+        void _m;
+        if (Object.keys(rest).length) r.row = rest;
+        else delete r.row;
+      }
       for (const [id] of held) store.grants.delete(id);
     } else if (held.length > 0) {
       // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
       const mine = heldBy(input.to);
       for (const [id, g] of held) {
         const dup = mine.some(([, m]) => m.source === g.source && m.level === g.level);
-        if (dup) store.grants.delete(id); else g.subject = { kind: "person", id: input.to };
+        if (dup) store.grants.delete(id);
+        else g.subject = { kind: "person", id: input.to };
       }
-    } else return false;   // the previous owner has nothing here: nothing moves
+    } else return false; // the previous owner has nothing here: nothing moves
     changed(actx, store, "assignment");
     return true;
   },
   /** The authorize snapshot as the tables hold it now (a share, a revoke or a role change made by a capability is already there). */
-  "access.snapshot": (ctx: Ctx): AccessSnapshot => { const a = ctx as unknown as AccessCtx; const store = storeOf(a); return withRoleGrants(store.snapshot(), store, a.space); },
+  "access.snapshot": (ctx: Ctx): AccessSnapshot => {
+    const a = ctx as unknown as AccessCtx;
+    const store = storeOf(a);
+    return withRoleGrants(store.snapshot(), store, a.space);
+  },
 };
 
 export const consumers = {};

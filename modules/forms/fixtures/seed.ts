@@ -24,7 +24,11 @@ export async function code(p: Promise<unknown>): Promise<string> {
   return "none";
 }
 
-export interface OpenForm { formId: string; slug: string; public: Ctx }
+export interface OpenForm {
+  formId: string;
+  slug: string;
+  public: Ctx;
+}
 
 export interface FormOpts {
   kind?: "public" | "one_use" | "survey";
@@ -40,9 +44,20 @@ export interface FormOpts {
 
 /** Create a form, set its fields and settings, and publish it. Returns the public ctx: the same world as svc_form_<id>. */
 export async function openForm(w: World, o: FormOpts = {}): Promise<OpenForm> {
-  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "forms.create", { name: o.name ?? "Intake", recordType: o.recordType ?? "contact", kind: o.kind ?? "public" });
+  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "forms.create", {
+    name: o.name ?? "Intake",
+    recordType: o.recordType ?? "contact",
+    kind: o.kind ?? "public",
+  });
   const formId = made.form.formId;
-  await run(w.ctx, "forms.fields_set", { formId, fields: o.fields ?? [{ field: "email", mode: "ask" }, { field: "name", mode: "ask" }, { field: "phone", mode: "ask" }] });
+  await run(w.ctx, "forms.fields_set", {
+    formId,
+    fields: o.fields ?? [
+      { field: "email", mode: "ask" },
+      { field: "name", mode: "ask" },
+      { field: "phone", mode: "ask" },
+    ],
+  });
   const settings: Record<string, unknown> = { formId };
   if (o.consentText !== undefined) settings.consentText = o.consentText;
   if (o.captcha !== undefined) settings.captcha = o.captcha;

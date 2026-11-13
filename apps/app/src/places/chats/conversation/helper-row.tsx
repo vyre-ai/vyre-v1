@@ -7,36 +7,99 @@ import { Glyph } from "./parts.tsx";
 import { helperTag } from "../../../../../../ui/src/blocks/impl-b/logic.ts";
 import type { MessageBlock } from "./model.ts";
 
-export function helperRowOf(b: Pick<MessageBlock, "data" | "state">): { title: string; threadId: string; status: "running" | "done" | "failed"; found: string; startedAt: number | null } {
+export function helperRowOf(b: Pick<MessageBlock, "data" | "state">): {
+  title: string;
+  threadId: string;
+  status: "running" | "done" | "failed";
+  found: string;
+  startedAt: number | null;
+} {
   const d = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
   const s = (k: string): string => (typeof d[k] === "string" ? (d[k] as string) : "");
-  const status = d["status"] === "done" || b.state === "done" ? "done" : d["status"] === "failed" || b.state === "error" ? "failed" : "running";
-  return { title: s("title") || "Helper", threadId: s("threadId") || s("helperThreadId"), status, found: s("found"), startedAt: typeof d["startedAt"] === "number" ? (d["startedAt"] as number) : null };
+  const status =
+    d["status"] === "done" || b.state === "done"
+      ? "done"
+      : d["status"] === "failed" || b.state === "error"
+        ? "failed"
+        : "running";
+  return {
+    title: s("title") || "Helper",
+    threadId: s("threadId") || s("helperThreadId"),
+    status,
+    found: s("found"),
+    startedAt: typeof d["startedAt"] === "number" ? (d["startedAt"] as number) : null,
+  };
 }
 
-export function HelperRow({ block, onOpen, waiting }: { block: Pick<MessageBlock, "id" | "data" | "state">; onOpen: (threadId: string) => void; /** the helper waits for a person: what for, from the live crew read ("Needs your OK to open harborquotes.com") */ waiting?: string | undefined }): ReactElement {
+export function HelperRow({
+  block,
+  onOpen,
+  waiting,
+}: {
+  block: Pick<MessageBlock, "id" | "data" | "state">;
+  onOpen: (threadId: string) => void;
+  /** the helper waits for a person: what for, from the live crew read ("Needs your OK to open harborquotes.com") */ waiting?:
+    | string
+    | undefined;
+}): ReactElement {
   const r = helperRowOf(block);
   const [now, setNow] = useState(() => Date.now());
   const live = r.status === "running" && r.startedAt !== null;
-  useEffect(() => { if (!live) return undefined; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [live]);
+  useEffect(() => {
+    if (!live) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [live]);
   // a helper parked on a person's yes is not working: its row says what it waits for, and the approval card is its message in this chat
   const tag = waiting !== undefined && r.status === "running" ? "Needs you" : helperTag(r.status, r.startedAt, now);
   return (
     <View testID={`helper-row-${block.id}`} accessibilityRole="summary" style={st.row}>
       <View style={st.head}>
         <Glyph name="helper" size={13} />
-        <Text numberOfLines={1} style={st.title}>{r.title}</Text>
-        <Text testID={`helper-row-${block.id}-state`} style={[st.tag, r.status === "done" && st.ok, r.status === "failed" && st.bad]}>{tag}</Text>
-        <Pressable accessibilityRole="link" accessibilityLabel={`Open ${r.title}`} testID={`helper-row-${block.id}-open`} disabled={r.threadId === ""} onPress={() => onOpen(r.threadId)} style={st.open}><Text style={st.openText}>Open</Text></Pressable>
+        <Text numberOfLines={1} style={st.title}>
+          {r.title}
+        </Text>
+        <Text
+          testID={`helper-row-${block.id}-state`}
+          style={[st.tag, r.status === "done" && st.ok, r.status === "failed" && st.bad]}
+        >
+          {tag}
+        </Text>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${r.title}`}
+          testID={`helper-row-${block.id}-open`}
+          disabled={r.threadId === ""}
+          onPress={() => onOpen(r.threadId)}
+          style={st.open}
+        >
+          <Text style={st.openText}>Open</Text>
+        </Pressable>
       </View>
-      {waiting !== undefined && r.status === "running" ? <Text numberOfLines={2} testID={`helper-row-${block.id}-waiting`} style={st.found}>{waiting}</Text> : null}
-      {r.found !== "" ? <Text numberOfLines={2} testID={`helper-row-${block.id}-found`} style={st.found}>{r.found}</Text> : null}
+      {waiting !== undefined && r.status === "running" ? (
+        <Text numberOfLines={2} testID={`helper-row-${block.id}-waiting`} style={st.found}>
+          {waiting}
+        </Text>
+      ) : null}
+      {r.found !== "" ? (
+        <Text numberOfLines={2} testID={`helper-row-${block.id}-found`} style={st.found}>
+          {r.found}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  row: { marginVertical: 3, maxWidth: 520, gap: 4, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
+  row: {
+    marginVertical: 3,
+    maxWidth: 520,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    boxShadow: "inset 0 0 0 1px var(--line-2)",
+  } as object,
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   tag: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },

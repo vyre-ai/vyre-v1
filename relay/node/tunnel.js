@@ -24,7 +24,7 @@ export function validHost(h) {
   if (net.isIP(h)) return false;
   const labels = h.split(".");
   if (labels.length < 2) return false;
-  return labels.every(l => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(l) && !/^xn--.*[^a-z0-9-]/.test(l));
+  return labels.every((l) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(l) && !/^xn--.*[^a-z0-9-]/.test(l));
 }
 
 /**
@@ -59,9 +59,11 @@ export function parseClientHello(buf) {
   const extEnd = p + 2 + ((buf[p] << 8) | buf[p + 1]);
   if (extEnd > end) return no("short");
   p += 2;
-  let host = null, seen = 0;
+  let host = null,
+    seen = 0;
   while (p + 4 <= extEnd) {
-    const type = (buf[p] << 8) | buf[p + 1], len = (buf[p + 2] << 8) | buf[p + 3];
+    const type = (buf[p] << 8) | buf[p + 1],
+      len = (buf[p + 2] << 8) | buf[p + 3];
     p += 4;
     if (p + len > extEnd) return no("short");
     if (type === 0) {
@@ -70,7 +72,8 @@ export function parseClientHello(buf) {
       const listLen = (buf[p] << 8) | buf[p + 1];
       if (listLen + 2 !== len) return no("bad_name");
       let q = p + 2;
-      const nt = buf[q], nl = (buf[q + 1] << 8) | buf[q + 2];
+      const nt = buf[q],
+        nl = (buf[q + 1] << 8) | buf[q + 2];
       q += 3;
       if (nt !== 0 || q + nl !== p + len) return no("bad_name");
       host = Buffer.from(buf.subarray(q, q + nl)).toString("latin1");
@@ -88,7 +91,10 @@ function windowLimit(max, windowMs, now) {
   return (/** @type {string} */ key) => {
     const t = now();
     let h = hits.get(key);
-    if (!h || h.resetAt <= t) { h = { n: 0, resetAt: t + windowMs }; hits.set(key, h); }
+    if (!h || h.resetAt <= t) {
+      h = { n: 0, resetAt: t + windowMs };
+      hits.set(key, h);
+    }
     h.n++;
     if (hits.size > 10_000) for (const [k, v] of hits) if (v.resetAt <= t) hits.delete(k);
     return h.n <= max;
@@ -108,22 +114,44 @@ function windowLimit(max, windowMs, now) {
 export function createTunnelFront(o) {
   const log = o.log || (() => {});
   const now = o.now || Date.now;
-  const L = { perIp: 64, perIpPerMin: 300, perRoute: 512, total: 4096, idleMs: 120_000, lifeMs: 3_600_000, bytes: 2 * 1024 ** 3, openMs: 8000, ttlMs: 60_000, recheckMs: 30_000, ...(o.limits || {}) };
+  const L = {
+    perIp: 64,
+    perIpPerMin: 300,
+    perRoute: 512,
+    total: 4096,
+    idleMs: 120_000,
+    lifeMs: 3_600_000,
+    bytes: 2 * 1024 ** 3,
+    openMs: 8000,
+    ttlMs: 60_000,
+    recheckMs: 30_000,
+    ...(o.limits || {}),
+  };
   const rate = windowLimit(L.perIpPerMin, 60_000, now);
   /** @type {Map<string, number>} */ const byIp = new Map();
   /** @type {Map<string, number>} */ const byRoute = new Map();
   /** @type {Set<{ route: string, host: string, end: (why: string) => void }>} */ const live = new Set();
   /** @type {Map<string, { at: number, v: Resolved | null }>} */ const cache = new Map();
   const stats = { accepted: 0, refused: /** @type {Record<string, number>} */ ({}), closedByRecheck: 0 };
-  const refused = (/** @type {string} */ why) => { stats.refused[why] = (stats.refused[why] || 0) + 1; };
-  const bump = (/** @type {Map<string, number>} */ m, /** @type {string} */ k, /** @type {number} */ d) => { const n = (m.get(k) || 0) + d; if (n <= 0) m.delete(k); else m.set(k, n); };
+  const refused = (/** @type {string} */ why) => {
+    stats.refused[why] = (stats.refused[why] || 0) + 1;
+  };
+  const bump = (/** @type {Map<string, number>} */ m, /** @type {string} */ k, /** @type {number} */ d) => {
+    const n = (m.get(k) || 0) + d;
+    if (n <= 0) m.delete(k);
+    else m.set(k, n);
+  };
 
   /** The directory's answer for a name, kept for ttlMs; a failed lookup is no answer (the name is refused), never a stale yes. @param {string} host @param {boolean} [fresh] */
   async function lookup(host, fresh = false) {
     const c = cache.get(host);
     if (!fresh && c && now() - c.at < L.ttlMs) return c.v;
     /** @type {Resolved | null} */ let v = null;
-    try { v = await o.resolve(host); } catch { v = null; }
+    try {
+      v = await o.resolve(host);
+    } catch {
+      v = null;
+    }
     if (cache.size > 5000) cache.clear();
     cache.set(host, { at: now(), v });
     return v;
@@ -134,23 +162,42 @@ export function createTunnelFront(o) {
     const ip = String(s.remoteAddress || "").replace(/^::ffff:/, "");
     const port = s.remotePort || 0;
     s.setNoDelay(true);
-    const drop = (/** @type {string} */ why) => { refused(why); s.destroy(); };
+    const drop = (/** @type {string} */ why) => {
+      refused(why);
+      s.destroy();
+    };
     s.on("error", () => {});
     if (live.size >= L.total) return drop("busy");
     if (!rate(ip)) return drop("rate");
     if ((byIp.get(ip) || 0) >= L.perIp) return drop("per_ip");
     bump(byIp, ip, 1);
     let counted = true;
-    const uncount = () => { if (counted) { counted = false; bump(byIp, ip, -1); } };
+    const uncount = () => {
+      if (counted) {
+        counted = false;
+        bump(byIp, ip, -1);
+      }
+    };
     s.on("close", uncount);
     /** @type {Buffer[]} */ let held = [];
-    let heldLen = 0, done = false;
-    const hello = setTimeout(() => { if (!done) { done = true; drop("no_hello"); } }, HELLO_MS);
+    let heldLen = 0,
+      done = false;
+    const hello = setTimeout(() => {
+      if (!done) {
+        done = true;
+        drop("no_hello");
+      }
+    }, HELLO_MS);
     hello.unref?.();
     const onData = async (/** @type {Buffer} */ chunk) => {
       if (done) return;
-      held.push(chunk); heldLen += chunk.length;
-      if (heldLen > HELLO_MAX) { done = true; clearTimeout(hello); return drop("too_big"); }
+      held.push(chunk);
+      heldLen += chunk.length;
+      if (heldLen > HELLO_MAX) {
+        done = true;
+        clearTimeout(hello);
+        return drop("too_big");
+      }
       const r = parseClientHello(Buffer.concat(held, heldLen));
       if (r.host === null && r.incomplete) return;
       done = true;
@@ -167,33 +214,89 @@ export function createTunnelFront(o) {
       bump(byRoute, route, 1);
       let ended = false;
       /** @type {BoxEnd | null} */ let box = null;
-      /** @type {any} */ let idle = null, life = null;
-      let up = 0, down = 0;
+      /** @type {any} */ let idle = null,
+        life = null;
+      let up = 0,
+        down = 0;
       const entry = { route, host: r.host, end: (/** @type {string} */ why) => end(why) };
       live.add(entry);
       const end = (/** @type {string} */ why) => {
-        if (ended) return; ended = true;
-        clearTimeout(idle); clearTimeout(life);
-        live.delete(entry); bump(byRoute, route, -1);
-        try { box && box.close(); } catch { /* gone */ }
+        if (ended) return;
+        ended = true;
+        clearTimeout(idle);
+        clearTimeout(life);
+        live.delete(entry);
+        bump(byRoute, route, -1);
+        try {
+          box && box.close();
+        } catch {
+          /* gone */
+        }
         s.destroy();
         log("tunnel.closed", { route, host: r.host, why, up, down });
       };
-      const touch = () => { clearTimeout(idle); idle = setTimeout(() => end("idle"), L.idleMs); idle.unref?.(); };
-      life = setTimeout(() => end("lifetime"), L.lifeMs); life.unref?.();
+      const touch = () => {
+        clearTimeout(idle);
+        idle = setTimeout(() => end("idle"), L.idleMs);
+        idle.unref?.();
+      };
+      life = setTimeout(() => end("lifetime"), L.lifeMs);
+      life.unref?.();
       touch();
       s.on("close", () => end("visitor_closed"));
       // What the transport calls: bytes from the box, the box ending, and room again in its buffer after a write said false.
       const sink = {
-        data: (/** @type {Buffer} */ b) => { if (ended) return true; touch(); down += b.length; if (down > L.bytes) { end("bytes"); return true; } return s.write(b); },
+        data: (/** @type {Buffer} */ b) => {
+          if (ended) return true;
+          touch();
+          down += b.length;
+          if (down > L.bytes) {
+            end("bytes");
+            return true;
+          }
+          return s.write(b);
+        },
         end: () => end("box_closed"),
-        resume: () => { if (!ended) s.resume(); },
-        whenDrained: (/** @type {() => void} */ f) => { s.once("drain", f); },
+        resume: () => {
+          if (!ended) s.resume();
+        },
+        whenDrained: (/** @type {() => void} */ f) => {
+          s.once("drain", f);
+        },
       };
-      try { box = await Promise.race([o.open(route, { host: r.host, ip, port }, sink), new Promise(res => { const t = setTimeout(() => res(null), L.openMs); t.unref?.(); })]); } catch { box = null; }
-      if (!box || ended) { if (!ended) { refused("box_unreachable"); end("box_unreachable"); } else { try { box && box.close(); } catch { /* gone */ } } return; }
+      try {
+        box = await Promise.race([
+          o.open(route, { host: r.host, ip, port }, sink),
+          new Promise((res) => {
+            const t = setTimeout(() => res(null), L.openMs);
+            t.unref?.();
+          }),
+        ]);
+      } catch {
+        box = null;
+      }
+      if (!box || ended) {
+        if (!ended) {
+          refused("box_unreachable");
+          end("box_unreachable");
+        } else {
+          try {
+            box && box.close();
+          } catch {
+            /* gone */
+          }
+        }
+        return;
+      }
       stats.accepted++;
-      const push = (/** @type {Buffer} */ b) => { touch(); up += b.length; if (up > L.bytes) return end("bytes"); if (box && box.write(b) === false) { s.pause(); } };
+      const push = (/** @type {Buffer} */ b) => {
+        touch();
+        up += b.length;
+        if (up > L.bytes) return end("bytes");
+        if (box && box.write(b) === false) {
+          s.pause();
+        }
+      };
       push(first);
       s.on("data", push);
       s.resume();
@@ -206,16 +309,24 @@ export function createTunnelFront(o) {
     s.on("error", () => {});
     s.setTimeout(5000, () => s.destroy());
     let buf = "";
-    s.on("data", chunk => {
+    s.on("data", (chunk) => {
       buf += chunk.toString("latin1");
-      if (buf.length > 4096) { s.destroy(); return; }
+      if (buf.length > 4096) {
+        s.destroy();
+        return;
+      }
       const end = buf.indexOf("\r\n\r\n");
       if (end < 0) return;
       s.removeAllListeners("data");
       const m = /^host:[ \t]*([^\r\n:]+)(?::\d+)?[ \t]*$/im.exec(buf.slice(0, end));
       const host = m ? m[1].trim().toLowerCase() : "";
-      if (!validHost(host)) { s.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n"); return; }
-      s.end(`HTTP/1.1 308 Permanent Redirect\r\nlocation: https://${host}/\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
+      if (!validHost(host)) {
+        s.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n");
+        return;
+      }
+      s.end(
+        `HTTP/1.1 308 Permanent Redirect\r\nlocation: https://${host}/\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`,
+      );
     });
   }
 
@@ -226,11 +337,26 @@ export function createTunnelFront(o) {
     for (const host of names.keys()) names.set(host, await lookup(host, true));
     for (const e of [...live]) {
       const v = names.get(e.host);
-      if (!v || v.route !== e.route) { stats.closedByRecheck++; e.end("claim_gone"); }
+      if (!v || v.route !== e.route) {
+        stats.closedByRecheck++;
+        e.end("claim_gone");
+      }
     }
   }
-  const timer = setInterval(() => { recheck().catch(() => {}); }, L.recheckMs);
+  const timer = setInterval(() => {
+    recheck().catch(() => {});
+  }, L.recheckMs);
   timer.unref?.();
 
-  return { tls, http, recheck, stats, open: () => live.size, close() { clearInterval(timer); for (const e of [...live]) e.end("stopping"); } };
+  return {
+    tls,
+    http,
+    recheck,
+    stats,
+    open: () => live.size,
+    close() {
+      clearInterval(timer);
+      for (const e of [...live]) e.end("stopping");
+    },
+  };
 }

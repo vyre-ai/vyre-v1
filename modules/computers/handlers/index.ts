@@ -1,9 +1,35 @@
 // Handler table of the computers module for the capabilities this module implements so far: lifecycle, recording, screenshot and live view, timeline and sessions (P-L2_16).
 // The 35 Chrome, Screen and Files tools (P-L2_16b) are in ./tools and spread in at the end.
-import { configure, get, giveBack, health, hosts, list, provision, remove, sessionSignOut, sessionsList, sleep, takeOver, wake } from "./lifecycle.ts";
+import {
+  configure,
+  get,
+  giveBack,
+  health,
+  hosts,
+  list,
+  provision,
+  remove,
+  sessionSignOut,
+  sessionsList,
+  sleep,
+  takeOver,
+  wake,
+} from "./lifecycle.ts";
 import { toolHandlers } from "./tools/index.ts";
 import { sbrowserHandlers } from "../sbrowser/handlers.ts";
-import { recordingDelete, recordingGet, recordingProcess, recordingsList, recordStart, recordStop, screenshot, skillFromStep, stream, timeline, timelineStep } from "./record.ts";
+import {
+  recordingDelete,
+  recordingGet,
+  recordingProcess,
+  recordingsList,
+  recordStart,
+  recordStop,
+  screenshot,
+  skillFromStep,
+  stream,
+  timeline,
+  timelineStep,
+} from "./record.ts";
 
 export const handlers = {
   "computers.list": list,

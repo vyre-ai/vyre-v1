@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { hostOnly, internalOnly } from "../src/ctx/host-only.ts";
 
 const trace = { traceId: "ab".repeat(16) };
-const refused = (fn: () => void): void => assert.throws(fn, (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant");
+const refused = (fn: () => void): void =>
+  assert.throws(fn, (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant");
 
 test("internalOnly: the webhook route, a queued poll and another module's call pass", () => {
   internalOnly({ origin: "hook", depth: 0, trace }, "x.receive");
@@ -20,7 +21,8 @@ test("internalOnly: a person at the gateway is refused", () => {
 
 test("internalOnly: a forwarded call is refused whatever its depth or origin, even when the origin is schedule or hook", () => {
   for (const origin of ["user", "schedule", "hook", "gate", "module"]) {
-    for (const depth of [0, 1, 2, 5]) refused(() => internalOnly({ origin, depth, forwarded: true, trace }, "x.receive"));
+    for (const depth of [0, 1, 2, 5])
+      refused(() => internalOnly({ origin, depth, forwarded: true, trace }, "x.receive"));
   }
 });
 

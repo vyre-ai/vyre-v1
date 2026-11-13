@@ -61,13 +61,45 @@ export interface FlowState {
   refused: string;
 }
 
-export const RUN_STEPS = (space: string): string[] => ["Securing your keys", `Joining ${space}`, "Syncing your projects", "Waking your assistant"];
+export const RUN_STEPS = (space: string): string[] => [
+  "Securing your keys",
+  `Joining ${space}`,
+  "Syncing your projects",
+  "Waking your assistant",
+];
 
 export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}): FlowState {
   return {
-    stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
-    device: invite.deviceName ?? deviceNameOf(), rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
-    aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", refused: "", ...over,
+    stage: "accept",
+    step: 0,
+    first: invite.names?.first ?? "",
+    last: invite.names?.last ?? "",
+    photo: "",
+    user: "",
+    pw: "",
+    pw2: "",
+    device: invite.deviceName ?? deviceNameOf(),
+    rec: false,
+    code: "",
+    saved: false,
+    sheet: false,
+    ai: invite.adminKey ? "admin" : "sub",
+    key: "",
+    aiProvider: "openrouter",
+    note: "",
+    si: "pw",
+    siUser: "",
+    siPw: "",
+    siCode: "",
+    spaceAddress: "",
+    spaceIntent: "signin",
+    spaceResolving: false,
+    spaceError: "",
+    run: 0,
+    dir: 1,
+    error: "",
+    refused: "",
+    ...over,
   };
 }
 
@@ -94,8 +126,26 @@ export const cleanUsername = (raw: string): string => raw.toLowerCase().replace(
 const SPACE_ZONE = "vyre.run";
 /** The name this device starts with, from what the browser says it is, so nobody has to invent one to go on. */
 export function deviceNameOf(ua: string = globalThis.navigator?.userAgent ?? ""): string {
-  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
-  const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /Firefox\//.test(ua)
+      ? "Firefox"
+      : /Chrome\//.test(ua)
+        ? "Chrome"
+        : /Safari\//.test(ua)
+          ? "Safari"
+          : "";
+  const os = /iPhone|iPad/.test(ua)
+    ? "iPhone"
+    : /Android/.test(ua)
+      ? "Android"
+      : /Macintosh/.test(ua)
+        ? "Mac"
+        : /Windows/.test(ua)
+          ? "Windows"
+          : /Linux/.test(ua)
+            ? "Linux"
+            : "";
   return browser && os ? `${browser} on ${os}` : "This device";
 }
 
@@ -103,7 +153,10 @@ export function deviceNameOf(ua: string = globalThis.navigator?.userAgent ?? "")
  * The device every sign-in, join, owner claim, reset and recovery registers, one answer for all of them: the desktop app is "Vyre desktop" (a computer that runs terminals and chats), a browser is
  * named from what it says it is ("Chrome on Mac"), or "Web browser" when it says nothing useful.
  */
-export function deviceFor(deviceClass: "desktop" | "web", ua?: string): { deviceName: string; deviceClass: "desktop" | "web" } {
+export function deviceFor(
+  deviceClass: "desktop" | "web",
+  ua?: string,
+): { deviceName: string; deviceClass: "desktop" | "web" } {
   if (deviceClass === "desktop") return { deviceName: "Vyre desktop", deviceClass };
   const named = deviceNameOf(ua);
   return { deviceName: named === "This device" ? "Web browser" : named, deviceClass };
@@ -113,7 +166,10 @@ export function deviceFor(deviceClass: "desktop" | "web", ua?: string): { device
 export function normalizeSpaceAddress(raw: string): string | null {
   const typed = raw.trim();
   if (!typed) return null;
-  const value = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/i.test(typed) && typed.toLowerCase() !== "localhost" ? `${typed.toLowerCase()}.${SPACE_ZONE}` : typed;
+  const value =
+    /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/i.test(typed) && typed.toLowerCase() !== "localhost"
+      ? `${typed.toLowerCase()}.${SPACE_ZONE}`
+      : typed;
   if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return null;
   const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`;
   try {
@@ -128,7 +184,10 @@ export function normalizeSpaceAddress(raw: string): string | null {
 }
 
 /** Resolving is the boundary between a typed address and a verified Space identity. */
-export async function resolveSpaceInvite(address: string, resolve: (normalizedAddress: string) => Promise<JoinInvite>): Promise<JoinInvite> {
+export async function resolveSpaceInvite(
+  address: string,
+  resolve: (normalizedAddress: string) => Promise<JoinInvite>,
+): Promise<JoinInvite> {
   const normalized = normalizeSpaceAddress(address);
   if (!normalized) throw new Error("Enter a valid HTTPS Space address, or a local development address.");
   return resolve(normalized);
@@ -146,29 +205,45 @@ export function createSpaceResolutionGate(): SpaceResolutionGate {
   let mounted = true;
   return {
     begin: () => ++latest,
-    invalidate: () => { latest++; },
+    invalidate: () => {
+      latest++;
+    },
     isCurrent: (request) => mounted && request === latest,
-    dispose: () => { mounted = false; },
+    dispose: () => {
+      mounted = false;
+    },
   };
 }
 
 export function suggestions(first: string, last: string, current: string, ok: (u: string) => boolean): string[] {
-  const f = first.trim().toLowerCase().replace(/[^a-z]/g, "");
-  const l = last.trim().toLowerCase().replace(/[^a-z]/g, "");
+  const f = first
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  const l = last
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
   const all = [f && l ? `${f}.${l}` : "", f && l ? `${f}${l[0]}` : "", f ? `${f}-ops` : ""];
   return all.filter((x) => x && x !== current && usernameOk(x) && ok(x)).slice(0, 3);
 }
 
 export const fullName = (s: Pick<FlowState, "first" | "last">): string => `${s.first.trim()} ${s.last.trim()}`.trim();
-export const initials = (s: Pick<FlowState, "first" | "last">): string => (((s.first.trim()[0] ?? "") + (s.last.trim()[0] ?? "")) || "?").toUpperCase();
+export const initials = (s: Pick<FlowState, "first" | "last">): string =>
+  ((s.first.trim()[0] ?? "") + (s.last.trim()[0] ?? "") || "?").toUpperCase();
 
-export interface Rules { isTaken: (username: string) => boolean }
+export interface Rules {
+  isTaken: (username: string) => boolean;
+}
 
 /** Whether Continue is enabled on the current step. */
 export function valid(s: FlowState, r: Rules): boolean {
   if (s.stage !== "steps") return false;
   if (s.step === 0) return !!s.first.trim() && !!s.last.trim();
-  if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && s.user !== s.refused && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw;
+  if (s.step === 1)
+    return (
+      usernameOk(s.user) && !r.isTaken(s.user) && s.user !== s.refused && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw
+    );
   if (s.step === 2) return !!s.device.trim() && (!s.rec || s.saved);
   return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || s.ai === "sub";
 }
@@ -181,21 +256,33 @@ export function signInValid(s: FlowState): boolean {
 
 export type Action =
   | { t: "set"; patch: Partial<FlowState> }
-  | { t: "web" } | { t: "signin" } | { t: "back" } | { t: "next" }
-  | { t: "recovery_open"; code: string } | { t: "recovery_close" } | { t: "recovery_done" }
+  | { t: "web" }
+  | { t: "signin" }
+  | { t: "back" }
+  | { t: "next" }
+  | { t: "recovery_open"; code: string }
+  | { t: "recovery_close" }
+  | { t: "recovery_done" }
   | { t: "pick_ai"; ai: AiChoice }
-  | { t: "space_resolving"; intent: ConnectIntent } | { t: "space_resolved" } | { t: "space_failed"; message: string }
-  | { t: "run_tick"; total: number } | { t: "run_done" }
+  | { t: "space_resolving"; intent: ConnectIntent }
+  | { t: "space_resolved" }
+  | { t: "space_failed"; message: string }
+  | { t: "run_tick"; total: number }
+  | { t: "run_done" }
   | { t: "failed"; message: string; step?: FlowState["step"] };
 
 /** The one transition function. `next` on the last step starts the run; on sign-in it moves to the second factor or finishes. */
 export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
   switch (a.t) {
-    case "set": return { ...s, ...a.patch };
-    case "web": return { ...s, stage: "steps", step: 0, dir: 1 };
-    case "signin": return { ...s, stage: "signin", si: "pw", dir: 1 };
+    case "set":
+      return { ...s, ...a.patch };
+    case "web":
+      return { ...s, stage: "steps", step: 0, dir: 1 };
+    case "signin":
+      return { ...s, stage: "signin", si: "pw", dir: 1 };
     case "back": {
-      if (s.stage === "signin") return s.si === "totp" ? { ...s, si: "pw", dir: -1 } : { ...s, stage: "accept", dir: -1 };
+      if (s.stage === "signin")
+        return s.si === "totp" ? { ...s, si: "pw", dir: -1 } : { ...s, stage: "accept", dir: -1 };
       if (s.stage !== "steps") return s;
       if (s.step === 0) return { ...s, stage: "accept", dir: -1 };
       return { ...s, step: (s.step - 1) as FlowState["step"], dir: -1, error: "" };
@@ -209,16 +296,46 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
       if (s.step === 3) return { ...s, stage: "run", run: 0, dir: 1, error: "" };
       return { ...s, step: (s.step + 1) as FlowState["step"], dir: 1, error: "" };
     }
-    case "recovery_open": return { ...s, sheet: true, rec: s.rec || "new", code: s.code || a.code };
-    case "recovery_close": return s.rec === "new" ? { ...s, sheet: false, rec: false, saved: false, code: "" } : { ...s, sheet: false };
-    case "recovery_done": return s.saved ? { ...s, sheet: false, rec: true } : s;
-    case "pick_ai": return { ...s, ai: a.ai };
-    case "space_resolving": return s.stage === "connect" ? { ...s, spaceIntent: a.intent, spaceResolving: true, spaceError: "" } : s;
-    case "space_resolved": return s.stage === "connect" ? { ...s, stage: s.spaceIntent === "signin" ? "signin" : "accept", si: "pw", siUser: "", siPw: "", siCode: "", spaceResolving: false, spaceError: "", error: "" } : s;
-    case "space_failed": return s.stage === "connect" ? { ...s, spaceResolving: false, spaceError: a.message } : s;
-    case "run_tick": return s.stage === "run" ? { ...s, run: Math.min(a.total, s.run + 1) } : s;
-    case "run_done": return s.stage === "run" ? { ...s, stage: "done", dir: 1 } : s;
-    case "failed": return { ...s, stage: "steps", step: a.step ?? 3, error: a.message, refused: a.step === 1 ? s.user : s.refused, run: 0, dir: -1 };
+    case "recovery_open":
+      return { ...s, sheet: true, rec: s.rec || "new", code: s.code || a.code };
+    case "recovery_close":
+      return s.rec === "new" ? { ...s, sheet: false, rec: false, saved: false, code: "" } : { ...s, sheet: false };
+    case "recovery_done":
+      return s.saved ? { ...s, sheet: false, rec: true } : s;
+    case "pick_ai":
+      return { ...s, ai: a.ai };
+    case "space_resolving":
+      return s.stage === "connect" ? { ...s, spaceIntent: a.intent, spaceResolving: true, spaceError: "" } : s;
+    case "space_resolved":
+      return s.stage === "connect"
+        ? {
+            ...s,
+            stage: s.spaceIntent === "signin" ? "signin" : "accept",
+            si: "pw",
+            siUser: "",
+            siPw: "",
+            siCode: "",
+            spaceResolving: false,
+            spaceError: "",
+            error: "",
+          }
+        : s;
+    case "space_failed":
+      return s.stage === "connect" ? { ...s, spaceResolving: false, spaceError: a.message } : s;
+    case "run_tick":
+      return s.stage === "run" ? { ...s, run: Math.min(a.total, s.run + 1) } : s;
+    case "run_done":
+      return s.stage === "run" ? { ...s, stage: "done", dir: 1 } : s;
+    case "failed":
+      return {
+        ...s,
+        stage: "steps",
+        step: a.step ?? 3,
+        error: a.message,
+        refused: a.step === 1 ? s.user : s.refused,
+        run: 0,
+        dir: -1,
+      };
   }
 }
 

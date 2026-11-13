@@ -22,6 +22,13 @@ test("the module gives the host an idle job, and one run puts a desktop that has
   assert.ok(job, "the module offers no periodic job named computers.idle, so nothing ever calls sleepIdle");
   assert.ok(job.everyMs <= 5 * MIN, "the pass runs at least every five minutes");
   await job.run(h.ctx as never);
-  assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "asleep", "a desktop nobody used for a day sleeps");
-  assert.deepEqual(h.named("computer.slept").map((e) => e.payload["reason"]), ["idle"]);
+  assert.equal(
+    h.rows("SELECT state FROM computers_computers")[0]?.["state"],
+    "asleep",
+    "a desktop nobody used for a day sleeps",
+  );
+  assert.deepEqual(
+    h.named("computer.slept").map((e) => e.payload["reason"]),
+    ["idle"],
+  );
 });

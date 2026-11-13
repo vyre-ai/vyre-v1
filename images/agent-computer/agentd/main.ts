@@ -38,14 +38,25 @@ const FPS = Number(env["VYRE_STREAM_FPS"] ?? 10);
 const PORT = Number(env["VYRE_STREAM_PORT"] ?? 7001);
 const MAX_LINE = 12 * 1024 * 1024;
 
-const log = (m: string): void => { process.stderr.write(`agentd: ${m}\n`); };
+const log = (m: string): void => {
+  process.stderr.write(`agentd: ${m}\n`);
+};
 
-const state: ChromeState & { takeover: { personId: string; since: number } | null; busy: number; caption: string | undefined } = {
-  stopped: false, tabLimit: Number(env["VYRE_TAB_LIMIT"] ?? 10) || 10, takeover: null, busy: 0, caption: undefined,
+const state: ChromeState & {
+  takeover: { personId: string; since: number } | null;
+  busy: number;
+  caption: string | undefined;
+} = {
+  stopped: false,
+  tabLimit: Number(env["VYRE_TAB_LIMIT"] ?? 10) || 10,
+  takeover: null,
+  busy: 0,
+  caption: undefined,
 };
 
 const address = (): string => {
-  for (const list of Object.values(networkInterfaces())) for (const a of list ?? []) if (a.family === "IPv4" && !a.internal) return a.address;
+  for (const list of Object.values(networkInterfaces()))
+    for (const a of list ?? []) if (a.family === "IPv4" && !a.internal) return a.address;
   return "127.0.0.1";
 };
 
@@ -57,8 +68,20 @@ const injector = createInjector(screen, log);
 const hub = createFrameHub({ display: screen.display, size: screen.size, fps: FPS, log });
 const screenApi = screenTools(screen, injector, (e) => recorder.note({ by: "agent", ...e }));
 const filesApi = fileTools(FILES);
-const chrome = launchChrome(screen, `${PROFILE}/chrome`, existsSync("/opt/vyre-chrome") ? "/opt/vyre-chrome" : null, log);
-const stream = startStreamServer({ port: PORT, hub, input: injector, takenOver: () => state.takeover !== null, address, onInput: (e) => recorder.note(e) });
+const chrome = launchChrome(
+  screen,
+  `${PROFILE}/chrome`,
+  existsSync("/opt/vyre-chrome") ? "/opt/vyre-chrome" : null,
+  log,
+);
+const stream = startStreamServer({
+  port: PORT,
+  hub,
+  input: injector,
+  takenOver: () => state.takeover !== null,
+  address,
+  onInput: (e) => recorder.note(e),
+});
 
 // ---- the actions ------------------------------------------------------------------------------------------------------------------------------------
 
@@ -66,7 +89,9 @@ function du(dir: string): Promise<number> {
   return new Promise((resolve) => {
     const p = spawn("du", ["-sb", dir], { stdio: ["ignore", "pipe", "ignore"] });
     let out = "";
-    p.stdout!.on("data", (c: Buffer) => { out += c.toString("utf8"); });
+    p.stdout!.on("data", (c: Buffer) => {
+      out += c.toString("utf8");
+    });
     p.on("close", () => resolve(Number(out.split(/\s+/)[0]) || 0));
     p.on("error", () => resolve(0));
   });
@@ -78,26 +103,44 @@ const text = (a: Args, k: string): string => (typeof a[k] === "string" ? (a[k] a
 async function sessions(): Promise<Args> {
   const c = await chrome.page();
   try {
-    const r = await c.send<{ cookies?: Array<{ domain: string; name: string; expires: number }> }>("Network.getAllCookies");
+    const r = await c.send<{ cookies?: Array<{ domain: string; name: string; expires: number }> }>(
+      "Network.getAllCookies",
+    );
     const bySite = new Map<string, number>();
-    for (const k of r.cookies ?? []) bySite.set(k.domain.replace(/^\./, ""), Math.max(bySite.get(k.domain.replace(/^\./, "")) ?? 0, k.expires > 0 ? k.expires * 1000 : 0));
+    for (const k of r.cookies ?? [])
+      bySite.set(
+        k.domain.replace(/^\./, ""),
+        Math.max(bySite.get(k.domain.replace(/^\./, "")) ?? 0, k.expires > 0 ? k.expires * 1000 : 0),
+      );
     const now = Date.now();
     return { sessions: [...bySite.keys()].sort().map((site) => ({ site, since: now, lastSeen: now })) };
-  } finally { c.close(); }
+  } finally {
+    c.close();
+  }
 }
 
 async function signOut(site: string): Promise<Args> {
   if (!/^[a-z0-9.-]{1,253}$/i.test(site)) throw badInput("Name the site as its host name, such as app.example.com.");
   const c = await chrome.page();
   try {
-    const r = await c.send<{ cookies?: Array<{ domain: string; name: string; path: string }> }>("Network.getAllCookies");
+    const r = await c.send<{ cookies?: Array<{ domain: string; name: string; path: string }> }>(
+      "Network.getAllCookies",
+    );
     for (const k of r.cookies ?? []) {
       const d = k.domain.replace(/^\./, "");
-      if (d === site || d.endsWith(`.${site}`) || site.endsWith(`.${d}`)) await c.send("Network.deleteCookies", { name: k.name, domain: k.domain, path: k.path });
+      if (d === site || d.endsWith(`.${site}`) || site.endsWith(`.${d}`))
+        await c.send("Network.deleteCookies", { name: k.name, domain: k.domain, path: k.path });
     }
-    await c.send("Storage.clearDataForOrigin", { origin: `https://${site}`, storageTypes: "local_storage,session_storage,indexeddb,cache_storage" }).catch(() => undefined);
+    await c
+      .send("Storage.clearDataForOrigin", {
+        origin: `https://${site}`,
+        storageTypes: "local_storage,session_storage,indexeddb,cache_storage",
+      })
+      .catch(() => undefined);
     return { ok: true };
-  } finally { c.close(); }
+  } finally {
+    c.close();
+  }
 }
 
 async function runTool(args: Args): Promise<Args> {
@@ -111,7 +154,8 @@ async function runTool(args: Args): Promise<Args> {
   // A person at the controls: the agent's tools wait, except the two that only look. The person's own click or key through the live view is not the agent's tool: the host says so (by: "person",
   // only after checking they hold the controls) and it goes through.
   const byPerson = args["by"] === "person" && state.takeover !== null;
-  if (state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop") throw paused("A person has the controls. The tools wait until they give them back.");
+  if (state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop")
+    throw paused("A person has the controls. The tools wait until they give them back.");
   // Only the tools that type or fill take #Handle.field: a CSS selector such as #main.content in a script is not one.
   const typing = name === "screen_type" || name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
   const filled = typing ? await fillArgs(a) : { args: a, used: [] };
@@ -126,11 +170,23 @@ async function runTool(args: Args): Promise<Args> {
     state.caption = name.replace(/_/g, " ");
     recorder.note({ by: byPerson ? "person" : "agent", type: "tool", tool: name });
     // The picture after the step is the timeline's frame. A look at the screen is its own picture.
-    if (name !== "screen_screenshot" && name !== "chrome_screenshot" && !isFiles && name !== "chrome_status" && name !== "screen_wait") {
-      try { return { ...out, frame: (await screenshotPng(screen)).toString("base64") }; } catch { return out; }
+    if (
+      name !== "screen_screenshot" &&
+      name !== "chrome_screenshot" &&
+      !isFiles &&
+      name !== "chrome_status" &&
+      name !== "screen_wait"
+    ) {
+      try {
+        return { ...out, frame: (await screenshotPng(screen)).toString("base64") };
+      } catch {
+        return out;
+      }
     }
     return out;
-  } finally { state.busy -= 1; }
+  } finally {
+    state.busy -= 1;
+  }
 }
 
 async function dispatch(action: string, a: Args): Promise<Args> {
@@ -138,13 +194,21 @@ async function dispatch(action: string, a: Args): Promise<Args> {
     case "status": {
       const tabs = await chrome.tabs();
       const last = hub.lastFrameAt();
-      return { tabs: tabs.length, busy: state.busy > 0, ...(state.caption ? { caption: state.caption } : {}), ...(last ? { lastFrameAt: last } : {}), diskBytes: await du(PROFILE), extension: await chrome.extension() };
+      return {
+        tabs: tabs.length,
+        busy: state.busy > 0,
+        ...(state.caption ? { caption: state.caption } : {}),
+        ...(last ? { lastFrameAt: last } : {}),
+        diskBytes: await du(PROFILE),
+        extension: await chrome.extension(),
+      };
     }
     case "configure": {
       const n = a["tabLimit"];
       if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 200) state.tabLimit = n;
       // The host's channel for Vault fill: held in memory only, set again on every start.
-      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string") setFiller(a["fillUrl"], a["fillToken"], env["VYRE_COMPUTER_ID"] ?? "");
+      if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string")
+        setFiller(a["fillUrl"], a["fillToken"], env["VYRE_COMPUTER_ID"] ?? "");
       return {};
     }
     case "takeover": {
@@ -173,9 +237,12 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       const r = await recorder.stop(text(a, "recordingId"));
       return { events: r.events, har: r.har, durationMs: r.durationMs, bytes: r.bytes };
     }
-    case "sessions": return sessions();
-    case "sign_out": return signOut(text(a, "site"));
-    case "tool": return runTool(a);
+    case "sessions":
+      return sessions();
+    case "sign_out":
+      return signOut(text(a, "site"));
+    case "tool":
+      return runTool(a);
     default:
       throw badInput(`agentd has no action ${action}.`);
   }
@@ -189,13 +256,21 @@ function serve(c: Socket): void {
   c.on("error", () => undefined);
   c.on("data", (d: string) => {
     buf += d;
-    if (buf.length > MAX_LINE) { c.destroy(); return; }
+    if (buf.length > MAX_LINE) {
+      c.destroy();
+      return;
+    }
     const at = buf.indexOf("\n");
     if (at < 0) return;
     const line = buf.slice(0, at);
     buf = "";
     let req: { action?: unknown; args?: unknown };
-    try { req = JSON.parse(line); } catch { c.end(JSON.stringify({ ok: false, code: "bad_input", message: "not JSON" }) + "\n"); return; }
+    try {
+      req = JSON.parse(line);
+    } catch {
+      c.end(JSON.stringify({ ok: false, code: "bad_input", message: "not JSON" }) + "\n");
+      return;
+    }
     const args = (typeof req.args === "object" && req.args !== null ? req.args : {}) as Args;
     dispatch(String(req.action ?? ""), args).then(
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
@@ -211,7 +286,10 @@ async function main(): Promise<void> {
   rmSync(SOCKET, { force: true });
   // The control socket comes up first: the host asks `configure` until agentd answers, long before the browser is ready.
   const control = createNetServer(serve);
-  await new Promise<void>((resolve, reject) => { control.once("error", reject); control.listen(SOCKET, () => resolve()); });
+  await new Promise<void>((resolve, reject) => {
+    control.once("error", reject);
+    control.listen(SOCKET, () => resolve());
+  });
   chmodSync(SOCKET, 0o600);
   log(`control socket ${SOCKET}`);
   const xvfb = await startXvfb(screen, log);
@@ -219,7 +297,10 @@ async function main(): Promise<void> {
   const desktop = startDesktop(screen, HOME, `${PROFILE}/chrome`, log);
   // The input helper takes a moment to start; the first input a person sends should not pay for it.
   injector.call({ op: "pointer" }).catch(() => undefined);
-  chrome.ready().then(() => log("browser ready"), (e: unknown) => log(`browser failed: ${e instanceof Error ? e.message : "unknown"}`));
+  chrome.ready().then(
+    () => log("browser ready"),
+    (e: unknown) => log(`browser failed: ${e instanceof Error ? e.message : "unknown"}`),
+  );
   // Sleeping a desktop stops its container: Chrome is asked to close the way a person closes it (Browser.close, then a bounded wait) so its cookies and local storage reach the profile folder before the
   // container goes. Killed with the container, a sign-in made seconds before would be lost (Chrome flushes cookies about every 30 seconds). docker stop gives 10 seconds; this takes at most about 8.
   let leaving = false;
@@ -228,17 +309,23 @@ async function main(): Promise<void> {
     leaving = true;
     stream.close();
     injector.stop();
-    void chrome.shutdown().catch(() => undefined).then(() => {
-      chrome.stop();
-      desktop.stop();
-      xvfb.kill("SIGTERM");
-      control.close();
-      setTimeout(() => process.exit(0), 300).unref();
-    });
+    void chrome
+      .shutdown()
+      .catch(() => undefined)
+      .then(() => {
+        chrome.stop();
+        desktop.stop();
+        xvfb.kill("SIGTERM");
+        control.close();
+        setTimeout(() => process.exit(0), 300).unref();
+      });
     setTimeout(() => process.exit(0), 9000).unref();
   };
   process.on("SIGTERM", bye);
   process.on("SIGINT", bye);
 }
 
-main().catch((e: unknown) => { log(`fatal: ${e instanceof Error ? e.message : String(e)}`); process.exit(1); });
+main().catch((e: unknown) => {
+  log(`fatal: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+});

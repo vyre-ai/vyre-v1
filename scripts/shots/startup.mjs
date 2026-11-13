@@ -30,7 +30,10 @@ export function chunkSizes(dist) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (/\.js$/.test(e.name)) { const buf = fs.readFileSync(p); out.push({ file: path.relative(dist, p), raw: buf.length, gzip: zlib.gzipSync(buf).length }); }
+      else if (/\.js$/.test(e.name)) {
+        const buf = fs.readFileSync(p);
+        out.push({ file: path.relative(dist, p), raw: buf.length, gzip: zlib.gzipSync(buf).length });
+      }
     }
   };
   walk(dist);
@@ -46,18 +49,29 @@ export function entryScripts(dist) {
 /** Source weight per package of the entry bundle, from its source map (sourcesContent length: the unminified size, so relative weight, not bytes shipped). */
 export function weights(dist) {
   const maps = [];
-  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.js\.map$/.test(e.name)) maps.push(p); } };
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.js\.map$/.test(e.name)) maps.push(p);
+    }
+  };
   walk(dist);
   const by = new Map();
   for (const m of maps) {
     const top = JSON.parse(fs.readFileSync(m, "utf8"));
     // an indexed map (Metro) keeps its sources in sections
-    for (const map of top.sections ? top.sections.map((x) => x.map) : [top]) (map.sources || []).forEach((src, i) => {
-      const len = (map.sourcesContent && map.sourcesContent[i] ? map.sourcesContent[i].length : 0);
-      const nm = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(src);
-      const key = nm ? nm[1] : (/^(?:\.\.\/)*(?:[^/]*\/)?((?:apps|ui|client|lib|kernel|host|agent|generated|contracts|manifest)\/[^/]+(?:\/[^/]+)?)/.exec(src)?.[1] ?? "other");
-      by.set(key, (by.get(key) || 0) + len);
-    });
+    for (const map of top.sections ? top.sections.map((x) => x.map) : [top])
+      (map.sources || []).forEach((src, i) => {
+        const len = map.sourcesContent && map.sourcesContent[i] ? map.sourcesContent[i].length : 0;
+        const nm = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(src);
+        const key = nm
+          ? nm[1]
+          : (/^(?:\.\.\/)*(?:[^/]*\/)?((?:apps|ui|client|lib|kernel|host|agent|generated|contracts|manifest)\/[^/]+(?:\/[^/]+)?)/.exec(
+              src,
+            )?.[1] ?? "other");
+        by.set(key, (by.get(key) || 0) + len);
+      });
   }
   return [...by.entries()].sort((a, b) => b[1] - a[1]).map(([name, bytes]) => ({ name, bytes }));
 }
@@ -67,7 +81,9 @@ export function cpuSteal() {
   try {
     const f = fs.readFileSync("/proc/stat", "utf8").split("\n")[0].trim().split(/\s+/).slice(1).map(Number);
     return { steal: f[7] ?? 0, total: f.reduce((a, b) => a + b, 0) };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** Steal between two cpuSteal() readings, in percent of the host's CPU time; null without /proc/stat. */
@@ -97,88 +113,177 @@ export async function measureQuiet(measure, budget, onReject = () => {}, max = S
   return { accepted: null, attempts };
 }
 
-export const median = (a) => { const s = a.filter((x) => x !== null).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+export const median = (a) => {
+  const s = a.filter((x) => x !== null).sort((x, y) => x - y);
+  return s.length ? s[Math.floor(s.length / 2)] : null;
+};
 const kb = (n) => (n / 1024).toFixed(1).padStart(8);
 
 export function report(dist) {
-  const chunks = chunkSizes(dist), entry = new Set(entryScripts(dist));
-  const total = chunks.reduce((s, c) => s + c.raw, 0), totalGz = chunks.reduce((s, c) => s + c.gzip, 0);
+  const chunks = chunkSizes(dist),
+    entry = new Set(entryScripts(dist));
+  const total = chunks.reduce((s, c) => s + c.raw, 0),
+    totalGz = chunks.reduce((s, c) => s + c.gzip, 0);
   const lines = ["| chunk | raw KB | gzip KB | loaded first |", "|---|---:|---:|:---:|"];
-  for (const c of chunks.slice(0, 40)) lines.push(`| ${c.file} | ${kb(c.raw)} | ${kb(c.gzip)} | ${entry.has(c.file) ? "yes" : ""} |`);
+  for (const c of chunks.slice(0, 40))
+    lines.push(`| ${c.file} | ${kb(c.raw)} | ${kb(c.gzip)} | ${entry.has(c.file) ? "yes" : ""} |`);
   const first = chunks.filter((c) => entry.has(c.file));
-  lines.push(`\n${chunks.length} chunks, ${(total / 1024).toFixed(0)} KB raw, ${(totalGz / 1024).toFixed(0)} KB gzip; the entry loads ${first.length} script(s): ${(first.reduce((s, c) => s + c.raw, 0) / 1024).toFixed(0)} KB raw, ${(first.reduce((s, c) => s + c.gzip, 0) / 1024).toFixed(0)} KB gzip`);
-  return { chunks, total, totalGz, entryRaw: first.reduce((s, c) => s + c.raw, 0), entryGz: first.reduce((s, c) => s + c.gzip, 0), text: lines.join("\n") };
+  lines.push(
+    `\n${chunks.length} chunks, ${(total / 1024).toFixed(0)} KB raw, ${(totalGz / 1024).toFixed(0)} KB gzip; the entry loads ${first.length} script(s): ${(first.reduce((s, c) => s + c.raw, 0) / 1024).toFixed(0)} KB raw, ${(first.reduce((s, c) => s + c.gzip, 0) / 1024).toFixed(0)} KB gzip`,
+  );
+  return {
+    chunks,
+    total,
+    totalGz,
+    entryRaw: first.reduce((s, c) => s + c.raw, 0),
+    entryGz: first.reduce((s, c) => s + c.gzip, 0),
+    text: lines.join("\n"),
+  };
 }
 
 export async function main(argv) {
-  const HERE = path.dirname(fileURLToPath(import.meta.url)), REPO = path.resolve(HERE, "../..");
+  const HERE = path.dirname(fileURLToPath(import.meta.url)),
+    REPO = path.resolve(HERE, "../..");
   const args = parseArgs(argv);
-  const appDir = path.join(REPO, "apps/app"), dist = path.join(appDir, "dist");
+  const appDir = path.join(REPO, "apps/app"),
+    dist = path.join(appDir, "dist");
   await ensureDeps(REPO);
   ensureChromium(REPO);
   if (!args["skip-export"]) {
     fs.rmSync(dist, { recursive: true, force: true });
-    execSync("npx expo export --platform web --output-dir dist --source-maps", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+    execSync("npx expo export --platform web --output-dir dist --source-maps", {
+      cwd: appDir,
+      stdio: "inherit",
+      env: exportEnv(),
+    });
   }
   const rep = report(dist);
   console.log(rep.text);
   const w = weights(dist);
-  if (w.length) console.log("\n| source weight (unminified) | KB |\n|---|---:|\n" + w.slice(0, 40).map((x) => `| ${x.name} | ${(x.bytes / 1024).toFixed(0)} |`).join("\n"));
-  console.log(`METRIC ${JSON.stringify({ name: "bundle_bytes", raw: rep.total, gzip: rep.totalGz, entry_raw: rep.entryRaw, entry_gzip: rep.entryGz, chunks: rep.chunks.length })}`);
+  if (w.length)
+    console.log(
+      "\n| source weight (unminified) | KB |\n|---|---:|\n" +
+        w
+          .slice(0, 40)
+          .map((x) => `| ${x.name} | ${(x.bytes / 1024).toFixed(0)} |`)
+          .join("\n"),
+    );
+  console.log(
+    `METRIC ${JSON.stringify({ name: "bundle_bytes", raw: rep.total, gzip: rep.totalGz, entry_raw: rep.entryRaw, entry_gzip: rep.entryGz, chunks: rep.chunks.length })}`,
+  );
   const server = await serve(dist, { spa: true });
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   // seven runs a size: three left the phone median to one or two outliers (1626 to 2210 ms within one job on the dedicated host); same budget, more samples
-  const runs = Number(args.runs || 7), rows = [];
+  const runs = Number(args.runs || 7),
+    rows = [];
   try {
-    for (const [size, vp] of [["desktop", { width: 1280, height: 800 }], ["phone", { width: 390, height: 844 }]]) {
+    for (const [size, vp] of [
+      ["desktop", { width: 1280, height: 800 }],
+      ["phone", { width: 390, height: 844 }],
+    ]) {
       const measure = async () => {
-      const cold = [], warm = [], sizes = [], phases = [];
-      const steal0 = cpuSteal();
-      for (let i = 0; i < runs; i++) {
-        const ctx = await browser.newContext({ viewport: vp });
-        const page = await ctx.newPage();
-        const cdp = await ctx.newCDPSession(page);
-        await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU[size] });
-        // the bytes come from the page's resource timing after the load, not by fetching every response body over CDP while the measured load is running
-        for (const kind of ["cold", "warm"]) {
-          await page.goto(server.origin + (args.route || "/chat"), { waitUntil: "load" });
-          await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 }).catch(() => {});
-          const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, startTime: m.startTime })));
-          const a = marks.find((m) => m.name === "app.start"), b = marks.find((m) => m.name === "app.usable");
-          (kind === "cold" ? cold : warm).push(a && b ? b.startTime - a.startTime : null);
-          if (kind === "cold") {
-            // where a cold start goes, from app.start: the scripts arrive, run (DOMContentLoaded waits for the deferred bundles), the first paint, and React until app.usable
-            phases.push(await page.evaluate(() => {
-              const t0 = performance.getEntriesByName("app.start")[0]?.startTime ?? 0;
-              const nav = performance.getEntriesByType("navigation")[0];
-              const scripts = performance.getEntriesByType("resource").filter((r) => r.initiatorType === "script" && r.startTime < (nav?.domContentLoadedEventStart ?? Infinity));
-              const at = (x) => (x === undefined ? null : Math.round(x - t0));
-              return { scripts_in: at(Math.max(0, ...scripts.map((r) => r.responseEnd))), dcl: at(nav?.domContentLoadedEventEnd), load: at(nav?.loadEventEnd), fcp: at(performance.getEntriesByName("first-contentful-paint")[0]?.startTime), usable: at(performance.getEntriesByName("app.usable")[0]?.startTime) };
-            }));
-            sizes.push(await page.evaluate(() => performance.getEntriesByType("resource").reduce((n, r) => n + (r.decodedBodySize || 0), 0) + (performance.getEntriesByType("navigation")[0]?.decodedBodySize || 0)));
-            await page.waitForTimeout(1200);
+        const cold = [],
+          warm = [],
+          sizes = [],
+          phases = [];
+        const steal0 = cpuSteal();
+        for (let i = 0; i < runs; i++) {
+          const ctx = await browser.newContext({ viewport: vp });
+          const page = await ctx.newPage();
+          const cdp = await ctx.newCDPSession(page);
+          await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU[size] });
+          // the bytes come from the page's resource timing after the load, not by fetching every response body over CDP while the measured load is running
+          for (const kind of ["cold", "warm"]) {
+            await page.goto(server.origin + (args.route || "/chat"), { waitUntil: "load" });
+            await page
+              .waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 })
+              .catch(() => {});
+            const marks = await page.evaluate(() =>
+              performance.getEntriesByType("mark").map((m) => ({ name: m.name, startTime: m.startTime })),
+            );
+            const a = marks.find((m) => m.name === "app.start"),
+              b = marks.find((m) => m.name === "app.usable");
+            (kind === "cold" ? cold : warm).push(a && b ? b.startTime - a.startTime : null);
+            if (kind === "cold") {
+              // where a cold start goes, from app.start: the scripts arrive, run (DOMContentLoaded waits for the deferred bundles), the first paint, and React until app.usable
+              phases.push(
+                await page.evaluate(() => {
+                  const t0 = performance.getEntriesByName("app.start")[0]?.startTime ?? 0;
+                  const nav = performance.getEntriesByType("navigation")[0];
+                  const scripts = performance
+                    .getEntriesByType("resource")
+                    .filter(
+                      (r) =>
+                        r.initiatorType === "script" && r.startTime < (nav?.domContentLoadedEventStart ?? Infinity),
+                    );
+                  const at = (x) => (x === undefined ? null : Math.round(x - t0));
+                  return {
+                    scripts_in: at(Math.max(0, ...scripts.map((r) => r.responseEnd))),
+                    dcl: at(nav?.domContentLoadedEventEnd),
+                    load: at(nav?.loadEventEnd),
+                    fcp: at(performance.getEntriesByName("first-contentful-paint")[0]?.startTime),
+                    usable: at(performance.getEntriesByName("app.usable")[0]?.startTime),
+                  };
+                }),
+              );
+              sizes.push(
+                await page.evaluate(
+                  () =>
+                    performance.getEntriesByType("resource").reduce((n, r) => n + (r.decodedBodySize || 0), 0) +
+                    (performance.getEntriesByType("navigation")[0]?.decodedBodySize || 0),
+                ),
+              );
+              await page.waitForTimeout(1200);
+            }
           }
+          await ctx.close();
         }
-        await ctx.close();
-      }
-      return { cold, warm, sizes, phases, steal: stealPct(steal0, cpuSteal()) };
+        return { cold, warm, sizes, phases, steal: stealPct(steal0, cpuSteal()) };
       };
-      const got = await measureQuiet(measure, BUDGET_MS[size], (r) => console.log(`startup ${size}: over budget on a busy host (cpu steal ${r.steal}%, limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`));
+      const got = await measureQuiet(measure, BUDGET_MS[size], (r) =>
+        console.log(
+          `startup ${size}: over budget on a busy host (cpu steal ${r.steal}%, limit ${MAX_STEAL_PCT}%), measuring again; rejected cold runs ${JSON.stringify(r.cold)}`,
+        ),
+      );
       const { cold, warm, sizes, phases, steal: steal_pct } = got.accepted ?? got.attempts[got.attempts.length - 1];
-      const rejected = got.attempts.filter((r) => r !== got.accepted).map((r) => ({ cpu_steal_pct: r.steal, cold_median_ms: median(r.cold), runs: r.cold }));
-      for (const [kind, v] of [["cold", cold], ["warm", warm]]) {
+      const rejected = got.attempts
+        .filter((r) => r !== got.accepted)
+        .map((r) => ({ cpu_steal_pct: r.steal, cold_median_ms: median(r.cold), runs: r.cold }));
+      for (const [kind, v] of [
+        ["cold", cold],
+        ["warm", warm],
+      ]) {
         // a size never measured on a quiet host has no figure: it fails as unmeasurable, never passes
         const ms = got.accepted ? median(v) : null;
-        rows.push({ size, kind, ms, budget: BUDGET_MS[size], cpu: CPU[size], ...(got.accepted ? {} : { unmeasurable: true }) });
-        console.log(`METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(got.accepted ? {} : { unmeasurable: true }), ...(rejected.length ? { rejected_attempts: rejected } : {}), ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`);
+        rows.push({
+          size,
+          kind,
+          ms,
+          budget: BUDGET_MS[size],
+          cpu: CPU[size],
+          ...(got.accepted ? {} : { unmeasurable: true }),
+        });
+        console.log(
+          `METRIC ${JSON.stringify({ name: "startup_prod", size, kind, cpu_rate: CPU[size], ms, samples: v.length, runs: v, budget_ms: BUDGET_MS[size], transferred_bytes: median(sizes), cpu_steal_pct: steal_pct, ...(got.accepted ? {} : { unmeasurable: true }), ...(rejected.length ? { rejected_attempts: rejected } : {}), ...(kind === "cold" ? { phases_median_ms: Object.fromEntries(["scripts_in", "dcl", "load", "fcp", "usable"].map((k) => [k, median(phases.map((p) => p[k]))])) } : {}) })}`,
+        );
       }
     }
-  } finally { await browser.close(); server.close(); }
+  } finally {
+    await browser.close();
+    server.close();
+  }
   console.log("\n| size | cpu | cold ms | warm ms | budget |\n|---|---:|---:|---:|---:|");
-  for (const size of ["desktop", "phone"]) console.log(`| ${size} | ${CPU[size]}x | ${rows.find((r) => r.size === size && r.kind === "cold")?.ms?.toFixed(0)} | ${rows.find((r) => r.size === size && r.kind === "warm")?.ms?.toFixed(0)} | ${BUDGET_MS[size]} |`);
+  for (const size of ["desktop", "phone"])
+    console.log(
+      `| ${size} | ${CPU[size]}x | ${rows.find((r) => r.size === size && r.kind === "cold")?.ms?.toFixed(0)} | ${rows.find((r) => r.size === size && r.kind === "warm")?.ms?.toFixed(0)} | ${BUDGET_MS[size]} |`,
+    );
   const bad = rows.filter((r) => r.kind === "cold" && (r.ms === null || !Number.isFinite(r.ms) || r.ms > r.budget));
-  if (bad.length) { console.error(`startup over budget or marks missing: ${JSON.stringify(bad)}`); if (args.enforce) enforceStartupBudget(rows); }
+  if (bad.length) {
+    console.error(`startup over budget or marks missing: ${JSON.stringify(bad)}`);
+    if (args.enforce) enforceStartupBudget(rows);
+  }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  await main(process.argv.slice(2));

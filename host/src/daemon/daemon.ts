@@ -3,9 +3,9 @@ import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
-import {syncEndpointOrigin} from "./sync-endpoint.ts";
-import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
-import {createOwnerArchives} from './owner-archives.ts';
+import { syncEndpointOrigin } from "./sync-endpoint.ts";
+import { collectSpaceExport, SpaceExportError } from "../seams/space-export.ts";
+import { createOwnerArchives } from "./owner-archives.ts";
 // vyred (ARCH 1.2): the one binary. `startDaemon` boots a host in one or both roles.
 //   space   events.db (kernel, single writer) -> access snapshot -> module loader (modules.json + registry) -> invoke pipeline -> gateway and live socket on one HTTP server,
 //           modules.db for every module's tables, the log sink, the supervisor and scheduler, host probes and the two command queues the Console writes.
@@ -45,7 +45,13 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
-import { agentCaller, agentSubnetsOf, clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
+import {
+  agentCaller,
+  agentSubnetsOf,
+  clientOnNetwork,
+  createSiteHostRoute,
+  createSiteSigninPage,
+} from "../routes/site-host.ts";
 import { createArtifactHostRoute } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
@@ -64,30 +70,81 @@ import { nodePlatform } from "../platform/index.ts";
 
 /** The chat capabilities that end a membership: their access.unshare of a chat: grant runs as the host (see the handler wrapper). */
 /** The channel calls a project's role changes make on its own channel, and the read that tells whether it is gone; they run as the host (see the projects wrapper). */
-const CHANNEL_FOLLOWS = new Set(["channels.members.add", "channels.members.remove", "channels.agents.add", "channels.agents.remove", "channels.get"]);
-const CHAT_LEAVES = new Set(["threads.members.remove", "channels.members.remove", "channels.leave", "channels.agents.remove", "threads.remove_agent", "threads.outside_agent.remove"]);
+const CHANNEL_FOLLOWS = new Set([
+  "channels.members.add",
+  "channels.members.remove",
+  "channels.agents.add",
+  "channels.agents.remove",
+  "channels.get",
+]);
+const CHAT_LEAVES = new Set([
+  "threads.members.remove",
+  "channels.members.remove",
+  "channels.leave",
+  "channels.agents.remove",
+  "threads.remove_agent",
+  "threads.outside_agent.remove",
+]);
 /**
  * The chat calls that change who reads a chat, or make an agent in one: what the chat gives its readers (grants tagged chat:<thread> on the chat's own agents and their files folders) is written
  * as the host, because the person adding someone, or making the agent, may not manage the agent's folder. Access lets the host write chat: grants only on a chat's own agents and their folders
  * (modules/access/handlers/share.ts hostWritesChatGrant), and set who a folder is open to only for a folder (audience_set). The calls themselves were authorized as the caller.
  */
-const CHAT_GIVES = new Set(["threads.agent.create", "threads.members.add", "channels.members.add", "channels.join", "channels.update"]);
+const CHAT_GIVES = new Set([
+  "threads.agent.create",
+  "threads.members.add",
+  "channels.members.add",
+  "channels.join",
+  "channels.update",
+]);
 // making an agent raises only the folder's audience: its first grants to the chat's readers are the maker's own act (the agent carries no grant of the chat yet for the host to follow)
 const chatHostCall = (name: string, input: unknown, leaves: boolean, cap = ""): boolean => {
   const i = (input ?? {}) as { source?: unknown; resource?: { type?: unknown } };
-  if (String(i.source ?? "").startsWith("chat:")) return name === "access.unshare" || (!leaves && (name === "access.grants.list" || (name === "access.share" && cap !== "threads.agent.create")));
+  if (String(i.source ?? "").startsWith("chat:"))
+    return (
+      name === "access.unshare" ||
+      (!leaves && (name === "access.grants.list" || (name === "access.share" && cap !== "threads.agent.create")))
+    );
   return !leaves && name === "access.audience_set" && (i.resource?.type === "folder" || i.resource?.type === "agent");
 };
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
 
-export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; call: (agentId: string, cap: string, input: unknown) => Promise<unknown>; log: (msg: string, attrs?: Record<string, unknown>) => void }) {
-  return async (m: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }): Promise<boolean> => {
-    const t = a.db.all("SELECT thread_id FROM computers_timeline WHERE computer_id = ? AND thread_id IS NOT NULL ORDER BY idx DESC LIMIT 1", m.computerId)[0] as { thread_id?: string } | undefined;
-    if (!t?.thread_id) { a.log("made files with no chat to say it in yet", { computerId: m.computerId, count: m.files.length }); return false; }
-    const shown = m.files.slice(0, 4), more = m.files.length - shown.length;
+export function createMadeFilesAnnouncer(a: {
+  db: { all(sql: string, ...args: unknown[]): unknown[] };
+  call: (agentId: string, cap: string, input: unknown) => Promise<unknown>;
+  log: (msg: string, attrs?: Record<string, unknown>) => void;
+}) {
+  return async (m: {
+    agentId: string;
+    computerId: string;
+    files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }>;
+  }): Promise<boolean> => {
+    const t = a.db.all(
+      "SELECT thread_id FROM computers_timeline WHERE computer_id = ? AND thread_id IS NOT NULL ORDER BY idx DESC LIMIT 1",
+      m.computerId,
+    )[0] as { thread_id?: string } | undefined;
+    if (!t?.thread_id) {
+      a.log("made files with no chat to say it in yet", { computerId: m.computerId, count: m.files.length });
+      return false;
+    }
+    const shown = m.files.slice(0, 4),
+      more = m.files.length - shown.length;
     await a.call(m.agentId, "chat.post", {
-      threadId: t.thread_id, body: more > 0 ? `and ${more} more in Files` : "", mentions: [],
-      blocks: shown.map((f) => ({ type: "file", v: 1, data: { fileId: f.fileId, name: f.name, kind: f.kind, size: f.size, version: f.version, thumb: f.kind === "image" } })),
+      threadId: t.thread_id,
+      body: more > 0 ? `and ${more} more in Files` : "",
+      mentions: [],
+      blocks: shown.map((f) => ({
+        type: "file",
+        v: 1,
+        data: {
+          fileId: f.fileId,
+          name: f.name,
+          kind: f.kind,
+          size: f.size,
+          version: f.version,
+          thumb: f.kind === "image",
+        },
+      })),
       idempotencyKey: `made:${m.computerId}:${shown.map((f) => `${f.fileId}.${f.version}`).join(",")}`,
     });
     return true;
@@ -95,13 +152,30 @@ export function createMadeFilesAnnouncer(a: { db: { all(sql: string, ...args: un
 }
 
 /** An agent's own reports on its own task: what an outside-started Automation Run may do in Ask first without a card (ownTaskReport). */
-const OWN_TASK_REPORTS: ReadonlySet<string> = new Set(["tasks.submit", "tasks.ask", "tasks.block", "tasks.working_notes.set", "chat.post"]);
+const OWN_TASK_REPORTS: ReadonlySet<string> = new Set([
+  "tasks.submit",
+  "tasks.ask",
+  "tasks.block",
+  "tasks.working_notes.set",
+  "chat.post",
+]);
 
-export function createAgentHomeCaller(a: { db: { all(sql: string, ...args: unknown[]): unknown[] }; spaceId: string; invoke: Invoke }) {
+export function createAgentHomeCaller(a: {
+  db: { all(sql: string, ...args: unknown[]): unknown[] };
+  spaceId: string;
+  invoke: Invoke;
+}) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
-    const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as { ownerId?: string } | undefined;
+    const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as
+      | { ownerId?: string }
+      | undefined;
     if (!owner?.ownerId) throw new Error("agent has no active owner");
-    const r = await a.invoke(cap, input, { space: a.spaceId, principal: { kind: "agent", id: agentId }, actingFor: owner.ownerId, origin: "computers" });
+    const r = await a.invoke(cap, input, {
+      space: a.spaceId,
+      principal: { kind: "agent", id: agentId },
+      actingFor: owner.ownerId,
+      origin: "computers",
+    });
     if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
     return r.output;
   };
@@ -131,13 +205,24 @@ import { findDockerSocket } from "../seams/docker-socket.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
-import { applyPendingRestore, clearRestoredTombstones, createBackupHost, readRestoredTombstones } from "../seams/backup.ts";
+import {
+  applyPendingRestore,
+  clearRestoredTombstones,
+  createBackupHost,
+  readRestoredTombstones,
+} from "../seams/backup.ts";
 import { createModelFiles } from "../seams/memory-meaning.ts";
 import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
 import { createRelayHooksCheck } from "../seams/relay-hooks.ts";
-import { adoptPersonBindings, handleOfItem, keyHostListed, resolveKeyRef, syncSpecHostAllowed } from "../seams/key-ref.ts";
+import {
+  adoptPersonBindings,
+  handleOfItem,
+  keyHostListed,
+  resolveKeyRef,
+  syncSpecHostAllowed,
+} from "../seams/key-ref.ts";
 import type { KeyHostCheck } from "../seams/connectors.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import type { DocumentFetch } from "../seams/document-pin.ts";
@@ -192,8 +277,14 @@ import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createGithubConnectRoute } from "../routes/github-connect.ts";
 import { createGithubTickets } from "../seams/github-tickets.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
-import {createRecoveryCommit} from "../seams/recovery.ts";
+import {
+  createPeopleExtras,
+  githubOAuthFromEnv,
+  linkSso,
+  matchProvenAddress,
+  ssoProvidersIn,
+} from "../seams/people.ts";
+import { createRecoveryCommit } from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
@@ -210,10 +301,27 @@ import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, W
 import { createLiveHub } from "../ws.ts";
 import type { LiveHub, SyncHubPort } from "../ws.ts";
 import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
-import { createAccess, createAccessRun, createLogReader, hostOwned, hostOwnedMarks, isAccessEvent, spaceOwned, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
+import {
+  createAccess,
+  createAccessRun,
+  createLogReader,
+  hostOwned,
+  hostOwnedMarks,
+  isAccessEvent,
+  spaceOwned,
+  isMemberOrGuest,
+  toAccessEvent,
+  touchesAccess,
+} from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
+import {
+  createPrincipalRegistrar,
+  lowAgentUpgradeEvents,
+  missingAgentHomeEvents,
+  missingAgentPrincipalEvents,
+  ownPlaceGrant,
+} from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -267,18 +375,87 @@ const PROBE_REFRESH_MS = 60_000;
 
 const repairPayload = (payload: unknown): unknown => {
   if (!(payload instanceof Uint8Array)) return payload;
-  try { return JSON.parse(new TextDecoder().decode(payload)); } catch { return undefined; }
+  try {
+    return JSON.parse(new TextDecoder().decode(payload));
+  } catch {
+    return undefined;
+  }
 };
-const stableJson = (value: unknown): string => JSON.stringify(value, (_key, item) =>
-  item !== null && typeof item === "object" && !Array.isArray(item)
-    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
-    : item,
-);
-export const repairEventMatches = (stored: { id: string; type: string; sv: number; trace_id: string; span_id?: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth: number; fields?: readonly string[]; label: number; enc: number; key_id?: string; nonce?: string; payload: unknown }, intended: { id?: string; type: string; sv: number; trace_id: string; span_id?: string; actor: string; vis: string; entity?: string; entity_id?: string; on_behalf?: string; device?: string; run_id?: string; cause?: string; origin?: string; depth?: number; fields?: readonly string[]; label?: number; enc?: number; key_id?: string; nonce?: string; payload: unknown }): boolean =>
-  stored.id === intended.id && stored.type === intended.type && stored.sv === intended.sv && stored.trace_id === intended.trace_id && stored.span_id === intended.span_id && stored.actor === intended.actor && stored.vis === intended.vis &&
-  stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
-  stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
-  stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
+const stableJson = (value: unknown): string =>
+  JSON.stringify(value, (_key, item) =>
+    item !== null && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+      : item,
+  );
+export const repairEventMatches = (
+  stored: {
+    id: string;
+    type: string;
+    sv: number;
+    trace_id: string;
+    span_id?: string;
+    actor: string;
+    vis: string;
+    entity?: string;
+    entity_id?: string;
+    on_behalf?: string;
+    device?: string;
+    run_id?: string;
+    cause?: string;
+    origin?: string;
+    depth: number;
+    fields?: readonly string[];
+    label: number;
+    enc: number;
+    key_id?: string;
+    nonce?: string;
+    payload: unknown;
+  },
+  intended: {
+    id?: string;
+    type: string;
+    sv: number;
+    trace_id: string;
+    span_id?: string;
+    actor: string;
+    vis: string;
+    entity?: string;
+    entity_id?: string;
+    on_behalf?: string;
+    device?: string;
+    run_id?: string;
+    cause?: string;
+    origin?: string;
+    depth?: number;
+    fields?: readonly string[];
+    label?: number;
+    enc?: number;
+    key_id?: string;
+    nonce?: string;
+    payload: unknown;
+  },
+): boolean =>
+  stored.id === intended.id &&
+  stored.type === intended.type &&
+  stored.sv === intended.sv &&
+  stored.trace_id === intended.trace_id &&
+  stored.span_id === intended.span_id &&
+  stored.actor === intended.actor &&
+  stored.vis === intended.vis &&
+  stored.entity === intended.entity &&
+  stored.entity_id === intended.entity_id &&
+  stored.on_behalf === intended.on_behalf &&
+  stored.device === intended.device &&
+  stored.run_id === intended.run_id &&
+  stored.cause === intended.cause &&
+  stored.origin === intended.origin &&
+  stored.depth === (intended.depth ?? 0) &&
+  stableJson(stored.fields) === stableJson(intended.fields) &&
+  stored.label === (intended.label ?? 0) &&
+  stored.enc === (intended.enc ?? 0) &&
+  stored.key_id === intended.key_id &&
+  stored.nonce === intended.nonce &&
+  stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -289,15 +466,23 @@ const refusingVault: VaultPort = {
 /** identity.whoami also lists the capabilities this server defers (ruling 60): the one bootstrap a signed-in client already makes, so the app can hide a deferred place. */
 function whoamiWithDeferred(cap: string, h: Handler | undefined): Handler | undefined {
   if (!h || cap !== "identity.whoami") return h;
-  return (async (ctx, input) => ({ ...((await h(ctx, input)) as object), deferred: deferredCaps(), deferredModules: deferredModules(registry.capabilities) })) as Handler;
+  return (async (ctx, input) => ({
+    ...((await h(ctx, input)) as object),
+    deferred: deferredCaps(),
+    deferredModules: deferredModules(registry.capabilities),
+  })) as Handler;
 }
 
 function sealKeyFile(file: string): string {
   try {
     const t = fs.readFileSync(file, "utf8").trim();
     if (t.length >= 32) return t;
-  } catch { /* first start */ }
-  const t = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    /* first start */
+  }
+  const t = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
   fs.writeFileSync(file, `${t}\n`, { mode: 0o600 });
   return t;
 }
@@ -308,7 +493,7 @@ export interface DaemonOptions {
   /** Tests: how long a push waits for the person's OK; ten minutes when absent. */
   gitParkMs?: number;
   /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
-  onStopped?:()=>void;
+  onStopped?: () => void;
   /** Tests: how often the computers of a Personal Space sync (host/src/peers/sync.ts); 5 s when absent. */
   peerRoundMs?: number;
   /** Tests: how long the scheduled-work lease lasts (host/src/peers/runner.ts); 90 s when absent. */
@@ -355,7 +540,10 @@ export interface DaemonOptions {
     relayWebSocket?: typeof WebSocket;
     postFetch?: PostFetch;
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
-    vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
+    vaultSinks?: Record<
+      string,
+      (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void
+    >;
   } & Partial<Omit<SeamDeps, "vault" | "drivers" | "owners">>;
   /** Tests: the fetch Report a problem reaches reports.vyre.run with (default: the platform's). */
   reportsFetch?: FetchLike;
@@ -393,7 +581,15 @@ export interface DaemonOptions {
   machineReport?: (r: Report) => Report;
   /** Replace the computer the machine probe reads (tests). */
   machineDeps?: SampleDeps;
-  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes; /** how often the computer reports its load (tests); default 30 s */ reportMs?: number };
+  deviceLink?: {
+    launcher?: import("../compute/node.ts").NodeLauncher;
+    engines?: readonly string[];
+    name?: string;
+    socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket;
+    retryMs?: number;
+    homes?: import("../compute/device-link.ts").OwnHomes;
+    /** how often the computer reports its load (tests); default 30 s */ reportMs?: number;
+  };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -417,7 +613,18 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { machines?: number; machineProbe?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
+  intervals?: {
+    machines?: number;
+    machineProbe?: number;
+    tick?: number;
+    commands?: number;
+    fast?: number;
+    slow?: number;
+    encryption?: number;
+    hooks?: number;
+    sweep?: number;
+    sitesPush?: number;
+  };
 }
 
 export interface Daemon {
@@ -458,7 +665,12 @@ export interface Daemon {
   /** The person's own Chrome as a place work can run, as this daemon serves it: its own extension first, then a person's computer over their device link. */
   personalChrome: import("../../../lib/personal-chrome.ts").PersonalChrome;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
-  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean; devices: ComputeStream["devices"] };
+  nodeRelay: {
+    spawnProc: ComputeStream["spawnProc"];
+    connected(nodeId: string): boolean;
+    secure(nodeId: string): boolean;
+    devices: ComputeStream["devices"];
+  };
   /** A device-role daemon: the Team Spaces it links to for its person's turns (POST /local/chrome/spaces). */
   teamLinks: () => string[];
   /** The git address CLI sessions push and fetch through (git-proxy.ts); tests mint a session with it. */
@@ -481,7 +693,8 @@ const bearer = (h: string | undefined): string | null => {
   return m ? m[1]! : null;
 };
 
-const loopback = (address: string | undefined): boolean => address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+const loopback = (address: string | undefined): boolean =>
+  address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
 
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const cfg = o.config;
@@ -490,7 +703,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gitCredentials = new Map<string, string>();
   // a GitHub token for a CLI engine's process is delivered once into this slot and read back at once by the engine (modules/engine/github-session.ts); it is never kept
   const processEnv = new Map<string, string>();
-  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, git_clone: (ref, value) => { cloneTokens.set(ref, value); }, process_env: (ref, value) => { processEnv.set(ref, value); } }, now);
+  const filler =
+    o.seams?.filler ??
+    createFiller(
+      {
+        git_credential: (ref, value) => {
+          gitCredentials.set(ref, value);
+        },
+        git_clone: (ref, value) => {
+          cloneTokens.set(ref, value);
+        },
+        process_env: (ref, value) => {
+          processEnv.set(ref, value);
+        },
+      },
+      now,
+    );
   const githubFill = (handle: string): string | null => {
     const ref = `pe_${Math.random().toString(36).slice(2)}${now()}`;
     if (!filler.fill(handle, { kind: "process_env", ref }, now())) return null;
@@ -504,31 +732,73 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const paths = pathsFor(cfg.dataDir);
   ensureDirs(paths);
 
-  applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
+  applyPendingRestore(paths.root); // a restore staged by backup.restore is moved into place before any database is opened
   // a server added to a Personal Space with a one-time code (VYRE_PEER_JOIN): at its first start it copies the Space from the computer that made the code, through the relay (host/src/peers)
   if (cfg.peers && hasSpace && cfg.peerJoin) {
-    await joinWithCode({ root: paths.root, code: cfg.peerJoin, name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60), platform: platform.os, now, log: (m, a) => process.stdout.write(`vyred: ${m} ${JSON.stringify(a ?? {})}\n`), ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}) });
+    await joinWithCode({
+      root: paths.root,
+      code: cfg.peerJoin,
+      name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60),
+      platform: platform.os,
+      now,
+      log: (m, a) => process.stdout.write(`vyred: ${m} ${JSON.stringify(a ?? {})}\n`),
+      ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+    });
   }
   // a computer that asked to use a Personal Space from another computer and was allowed: the copy it staged replaces the fresh Space it made on its first run (host/src/peers/join.ts)
   const joined = cfg.peers && hasSpace ? applyPeerJoin(paths.root, now) : null;
   const existing = readInfo(paths);
-  if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
+  if (existing && existing.pid !== process.pid && alive(existing.pid))
+    throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
   const token = ensureAdminToken(paths);
   const sink = openLogSink(paths.logs, now, token);
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
   // Vyre for Chrome's requests (lib/chrome-app.ts) run as the person signed in to the Vyre app on this computer, with their own session for the Space they picked (handed over by the shell,
   // teamLinks below), through that Space's gateway. Never as the owner, never with this daemon's admin token; with nobody signed in they are refused.
-  let chromeApp: { invoke(cap: string, input: Record<string, unknown>): Promise<unknown>; op(op: string, input: Record<string, unknown>): Promise<unknown> } | null = null;
-  const chromeNotReady = (): Promise<never> => Promise.reject(Object.assign(new Error("The Vyre app cannot answer that yet."), { code: "not_available" }));
+  let chromeApp: {
+    invoke(cap: string, input: Record<string, unknown>): Promise<unknown>;
+    op(op: string, input: Record<string, unknown>): Promise<unknown>;
+  } | null = null;
+  const chromeNotReady = (): Promise<never> =>
+    Promise.reject(Object.assign(new Error("The Vyre app cannot answer that yet."), { code: "not_available" }));
   const chromeEventListeners = new Set<(e: import("../bridge/chrome.ts").AgentEvent) => void>();
-  let chromePortEvents: (e: import("../bridge/chrome.ts").AgentEvent) => void = (e) => { for (const f of chromeEventListeners) { try { f(e); } catch { /* a listener never stops the bridge */ } } };
-  const chromeBridge = createChromeBridge({ token, invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()), op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()), onEvent: (e) => { chromePortEvents(e); sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }); } });
-  closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
+  let chromePortEvents: (e: import("../bridge/chrome.ts").AgentEvent) => void = (e) => {
+    for (const f of chromeEventListeners) {
+      try {
+        f(e);
+      } catch {
+        /* a listener never stops the bridge */
+      }
+    }
+  };
+  const chromeBridge = createChromeBridge({
+    token,
+    invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()),
+    op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()),
+    onEvent: (e) => {
+      chromePortEvents(e);
+      sink.log({
+        space: "-",
+        level: 20,
+        msg: "chrome.agent_event",
+        place: "chrome-bridge",
+        attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" },
+      });
+    },
+  });
+  closers.push(() => {
+    chromeBridge.failAll();
+    chromeBridge.closeStreams();
+  });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
   // a computer of a Personal Space on several computers is the Space its copy says, whatever id its first start was given (a server's install picks one before it joins)
-  let space: string | null = joined?.space ?? (cfg.peers && hasSpace ? readLogMeta(paths.events, "space") : null) ?? cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
+  let space: string | null =
+    joined?.space ??
+    (cfg.peers && hasSpace ? readLogMeta(paths.events, "space") : null) ??
+    cfg.space ??
+    (hasSpace ? readLogMeta(paths.events, "space") : null);
   let db: HostDb | null = null;
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
@@ -541,14 +811,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const u = new URL(url, "http://vyred");
     const m = /^\/spaces\/([^/]+)\/blobs\/(blb_[a-f0-9]{32})$/.exec(u.pathname);
     const slot = u.searchParams.get("token");
-    if (!m || !slot || decodeURIComponent(m[1] as string) !== space) throw new Error("that is not an upload slot of this Space");
+    if (!m || !slot || decodeURIComponent(m[1] as string) !== space)
+      throw new Error("that is not an upload slot of this Space");
     await hooks!.call("files.put_upload", { blobId: m[2], token: slot, base64: Buffer.from(bytes).toString("base64") });
   };
   let projections: ProjectionRunner | null = null;
   let log: LogClient | null = null;
   // the logs module's mirror of logs.db in modules.db, kept to its caps once a minute (seams/telemetry.ts)
   let capTelemetry: (() => Promise<number>) | null = null;
-  let guardExportNetworkCommands: (run: () => Promise<number>) => Promise<number> = run => run();
+  let guardExportNetworkCommands: (run: () => Promise<number>) => Promise<number> = (run) => run();
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
   let chainBroken = false;
@@ -559,11 +830,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const liveTicketRoute = createLiveTicketRoute({ tickets: liveTickets, known: (t) => knownToken(t), bearer });
   let engineSeam: { forgetReaders?: () => void } | null = null;
   // sign-in files a CLI refreshed during a turn: the engine hands them here, the Vault module's host call takes them by ticket (seams/signin-refresh.ts); the engine's close at shutdown is waited for
-  const signinRefresh = createSigninRefresh({ call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("The Space is not ready."))), log: (msg, attrs) => sink.log({ space: "-", level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }) });
+  const signinRefresh = createSigninRefresh({
+    call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("The Space is not ready."))),
+    log: (msg, attrs) => sink.log({ space: "-", level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }),
+  });
   let engineClosing: Promise<void> | null = null;
   let hubFactory: (() => LiveHub) | null = null;
   // the sync module's live hub: it registers a lazy factory through its seam, and the socket asks for the hub only when a device connects, after every module is loaded
-  const syncLive = createSyncLiveBridge((msg, attrs) => sink.log({ space: "-", level: 40, msg, place: "sync", ...(attrs ? { attrs } : {}) }));
+  const syncLive = createSyncLiveBridge((msg, attrs) =>
+    sink.log({ space: "-", level: 40, msg, place: "sync", ...(attrs ? { attrs } : {}) }),
+  );
   let routeIndex: ((method: string, path: string) => RouteRec | undefined) | null = null;
   let capIndex: ReturnType<typeof indexCapabilities> | null = null;
   let boundPort = cfg.port;
@@ -571,8 +847,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // The Space's git address (host/src/seams/git-proxy.ts): made once the invoke pipeline is, handed to CLI engines through this port, which waits for it
   let gitProxy: ReturnType<typeof createGitProxy> | null = null;
   const gitPort: GitProxyPort = {
-    mint: (a) => { if (!gitProxy) throw new Error("the git address is not ready"); return gitProxy.port.mint(a); },
-    revoke: (t) => { gitProxy?.port.revoke(t); },
+    mint: (a) => {
+      if (!gitProxy) throw new Error("the git address is not ready");
+      return gitProxy.port.mint(a);
+    },
+    revoke: (t) => {
+      gitProxy?.port.revoke(t);
+    },
     base: () => gitProxy?.port.base() ?? "",
     serve: (req, res) => gitProxy?.port.serve(req, res) ?? false,
   };
@@ -599,24 +880,42 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return openInviteHashes(db, now(), INVITE_TRIES);
   };
   const phoneClaimed = (): boolean => {
-    try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
+    try {
+      return (
+        (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state ===
+        "claimed"
+      );
+    } catch {
+      return false;
+    }
   };
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const relayCarriesHooks = createRelayHooksCheck(fetchFn);
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
-    try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
+    try {
+      claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed;
+    } catch {
+      /* the table comes with the network module */
+    }
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
   };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
-  let sitesServing: Partial<PublicPathDeps> & { artifactSession?: (siteId: string, token: string) => Promise<ServedSite | null>; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
+  let sitesServing: Partial<PublicPathDeps> & {
+    artifactSession?: (siteId: string, token: string) => Promise<ServedSite | null>;
+    artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null>;
+  } = {};
   // the host artifacts are served from, apart from the app's origin (artifact-host.ts); none until one is set up (VYRE_ARTIFACT_HOST), and artifacts then open at their keyed address as before
   // explicit setting first (the option or VYRE_ARTIFACT_HOST; "off" turns it off), else derived from the Space's address: <name>-a.vyre.run for a relay name, a.<domain> for an own domain
   const artifactHostOf = (): string | null => {
     const set = o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
     if (set !== null) return set === "off" ? null : set;
     let claimed: { name?: string; state?: string } | undefined;
-    try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
+    try {
+      claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed;
+    } catch {
+      /* the table comes with the network module */
+    }
     const derived = deriveArtifactHost(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
     if (derived || cfg.address || claimed?.state === "claimed") return derived;
     // a Space on this computer alone: browsers send *.localhost to loopback, so a.localhost:<port> is a separate origin with the same cookie flow
@@ -628,30 +927,61 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let siteGuard: (localAddress: string | undefined, remoteAddress: string | undefined) => boolean = () => false;
   let computerSubnetsOf: () => string[] = () => [];
   // the runner's socket and token, shared by sites and agent computers; the token is new at each runner start, so it is read again on every call
-  const computersRunnerSocket = (): string | undefined => o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
-  const computersRunnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(computersRunnerSocket() as string), "token"), "utf8").trim(); } catch { return ""; } };
+  const computersRunnerSocket = (): string | undefined =>
+    o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
+  const computersRunnerToken = (): string => {
+    try {
+      return fs
+        .readFileSync(
+          process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ??
+            path.join(path.dirname(computersRunnerSocket() as string), "token"),
+          "utf8",
+        )
+        .trim();
+    } catch {
+      return "";
+    }
+  };
   // the container vyred runs in (compose sets it as vyre.ingress): it joins each computer's network, so agentd can post to the Vault channel
   /** The container runtime agent workspaces use: a socket named for the Space, the runner beside a Team server's vyred, or the one the person's own computer has (Docker Desktop, Colima, OrbStack ...). Null: none, and the agent's commands go where its turn runs. */
   const workspaceRuntime = (): { socketPath: string } | { runner: { socket: string; token(): string } } | null => {
     if (o.workspaceRuntimeOff === true) return null;
     if (o.computersSocketPath !== undefined) return { socketPath: o.computersSocketPath };
-    if (cfg.spaceKind !== "personal" && computersRunnerSocket()) return { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } };
+    if (cfg.spaceKind !== "personal" && computersRunnerSocket())
+      return { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } };
     const found = findDockerSocket();
     return found ? { socketPath: found.path } : null;
   };
-  const ingressContainer = (): string | undefined => process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
+  const ingressContainer = (): string | undefined =>
+    process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
   const siteHostRoute = createSiteHostRoute({
-    own: (h) => siteHosts?.own(h) ?? true, site: (h) => siteHosts?.site(h) ?? null, ticket: (id, t) => siteHosts?.ticket(id, t) ?? Promise.resolve(null), may: (p, x) => siteHosts?.may(p, x) ?? false,
-    checkPassword: (g, h) => siteHosts?.checkPassword(g, h) ?? Promise.resolve(false), newSession: (id, p) => siteHosts ? siteHosts.newSession(id, p) : Promise.reject(new Error("not ready")),
-    address: (c) => siteHosts?.address(c) ?? Promise.resolve(null), origin: () => publicOrigin()?.origin ?? null,
+    own: (h) => siteHosts?.own(h) ?? true,
+    site: (h) => siteHosts?.site(h) ?? null,
+    ticket: (id, t) => siteHosts?.ticket(id, t) ?? Promise.resolve(null),
+    may: (p, x) => siteHosts?.may(p, x) ?? false,
+    checkPassword: (g, h) => siteHosts?.checkPassword(g, h) ?? Promise.resolve(false),
+    newSession: (id, p) => (siteHosts ? siteHosts.newSession(id, p) : Promise.reject(new Error("not ready"))),
+    address: (c) => siteHosts?.address(c) ?? Promise.resolve(null),
+    origin: () => publicOrigin()?.origin ?? null,
   });
   const siteSigninPage = createSiteSigninPage();
   const artifactHostRoute = createArtifactHostRoute({
-    host: artifactHostOf, appOrigin: () => publicOrigin()?.origin ?? null,
-    appOrigins: () => [publicOrigin()?.origin ?? "", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"].filter((x) => x !== ""),
-    exchange: (code) => sitesServing.artifactExchange?.(code) ?? Promise.resolve(null), artifact: (id, token) => sitesServing.artifactSession?.(id, token) ?? Promise.resolve(null),
-    serving: { forms: () => null, origin: () => publicOrigin()?.origin ?? null, fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null) },
+    host: artifactHostOf,
+    appOrigin: () => publicOrigin()?.origin ?? null,
+    appOrigins: () =>
+      [publicOrigin()?.origin ?? "", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"].filter(
+        (x) => x !== "",
+      ),
+    exchange: (code) => sitesServing.artifactExchange?.(code) ?? Promise.resolve(null),
+    artifact: (id, token) => sitesServing.artifactSession?.(id, token) ?? Promise.resolve(null),
+    serving: {
+      forms: () => null,
+      origin: () => publicOrigin()?.origin ?? null,
+      fetch: (t, r, sink) =>
+        sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")),
+      file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
+    },
   });
   // a value the Vault filled for a deploy (sites, kind container_env): held for one deploy, never logged, gone after ten minutes whether taken or not
   const siteSecrets = new Map<string, { value: string; at: number }>();
@@ -663,36 +993,99 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return got?.value;
   };
   const publicPath = createPublicPathRoute({
-    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
+    forms: () => formsPageRoute,
+    unsubscribe: () => unsubscribeRoute,
+    share: () => shareRoute,
+    origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null,
-    fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
+    fetch: (t, r, sink) =>
+      sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")),
+    file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
-  let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
+  let pullVaultExport: (exportId: string, token: string) => string = () => {
+    throw new Error("the Vault is not live on this server");
+  };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
   // POST /hooks/<connector> (P-L5_17): a provider's signed webhook; the connector module's host call `<connector>.accept_webhook` verifies the signature and records the event once
-  let webhooks: { has(c: string): boolean; accept(c: string, a: WebhookAccept): Promise<unknown>; automation(a: { automationId: string; secret: string; payload: unknown; idempotencyKey?: string }): Promise<unknown> } = { has: () => false, accept: () => Promise.reject(new Error("webhooks are not ready")), automation: () => Promise.resolve(null) };
+  let webhooks: {
+    has(c: string): boolean;
+    accept(c: string, a: WebhookAccept): Promise<unknown>;
+    automation(a: {
+      automationId: string;
+      secret: string;
+      payload: unknown;
+      idempotencyKey?: string;
+    }): Promise<unknown>;
+  } = {
+    has: () => false,
+    accept: () => Promise.reject(new Error("webhooks are not ready")),
+    automation: () => Promise.resolve(null),
+  };
   // POST /compute/poll: a computer that joined the Space reports in with its credential; the network module's host call decides (it knows only the credential's hash)
-  let computePoll: (credential: string, report: { docker?: boolean; version?: string }) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
+  let computePoll: (
+    credential: string,
+    report: { docker?: boolean; version?: string },
+  ) => Promise<{ serverId: string; owner?: string } | null> = () => Promise.resolve(null);
   let computeJobs: (nodeId: string, running: string[]) => Promise<unknown[]> = () => Promise.resolve([]);
-  let computeResult: (nodeId: string, a: { jobId: string; ok: boolean; result?: unknown; error?: string }) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
-  let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
-  let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
+  let computeResult: (
+    nodeId: string,
+    a: { jobId: string; ok: boolean; result?: unknown; error?: string },
+  ) => Promise<{ status: string }> = () => Promise.resolve({ status: "unknown" });
+  let computeHome: (
+    nodeId: string,
+    a: { token: string; computerId: string; cap: string; input: unknown },
+  ) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
+  let computeStreamOpen: (
+    ticket: string,
+    computerId: string,
+  ) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // the live view of an agent's browser in the Space browser, relayed (host/src/routes/browser-stream.ts); the computers module spends the ticket
-  let browserOpen: (ticket: string, agentId: string) => Promise<{ url: string; ws: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
+  let browserOpen: (
+    ticket: string,
+    agentId: string,
+  ) => Promise<{ url: string; ws: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let browserInput: (agentId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
-  const browserStream = createBrowserStream({ open: (t, a) => browserOpen(t, a), mayInput: (a, p) => browserInput(a, p) });
+  const browserStream = createBrowserStream({
+    open: (t, a) => browserOpen(t, a),
+    mayInput: (a, p) => browserInput(a, p),
+  });
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
   let idleSessions: (person?: string) => number = () => 0;
   let machinesSync: () => void = () => undefined;
-  let machinesIngest: (from: { nodeId: string; serverId?: string; owner?: string; device?: { deviceId: string; person: string; name?: string }; latencyMs?: number }, report: unknown) => void = () => undefined;
+  let machinesIngest: (
+    from: {
+      nodeId: string;
+      serverId?: string;
+      owner?: string;
+      device?: { deviceId: string; person: string; name?: string };
+      latencyMs?: number;
+    },
+    report: unknown,
+  ) => void = () => undefined;
   let deviceReporter: ReturnType<typeof createReporter> | undefined;
-  let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string; sessionId?: string } | null> = () => Promise.resolve(null);
-  let streamRef: { devices(p?: string): { nodeId: string; person: string }[]; ask(n: string, k: string, i: unknown, t?: number): Promise<unknown> } | null = null;
+  let deviceOfToken: (
+    token: string,
+  ) => Promise<{ person: string; device: string; name?: string; sessionId?: string } | null> = () =>
+    Promise.resolve(null);
+  let streamRef: {
+    devices(p?: string): { nodeId: string; person: string }[];
+    ask(n: string, k: string, i: unknown, t?: number): Promise<unknown>;
+  } | null = null;
   let remoteChrome: ReturnType<typeof createRemotePort>;
-  const computeStream = createComputeStream({ procsChanged: () => machinesSync(), chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => machinesIngest(from, r), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  const computeStream = createComputeStream({
+    procsChanged: () => machinesSync(),
+    chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e),
+    poll: (c) => computePoll(c, {}),
+    device: (t) => deviceOfToken(t),
+    report: (from, r) => machinesIngest(from, r),
+    open: (t, c) => computeStreamOpen(t, c),
+    mayInput: (c, p) => computeStreamInput(c, p),
+    ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}),
+    ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}),
+  });
   streamRef = computeStream;
   // the sessions this daemon has seen end (newest kept): an ended session never comes back, so a socket that still holds one is cut off from memory, without a database read per publish
   const endedSessions = new Set<string>();
@@ -703,12 +1096,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
    * ticket. A view is not tied to one session, so ending any session of the person closes their views; they open again with a new ticket.
    */
   const endLive = (m: { sessionId?: string; person?: string }, everyone: boolean): void => {
-    if (m.sessionId) { endedSessions.add(m.sessionId); if (endedSessions.size > ENDED_KEPT) endedSessions.delete(endedSessions.values().next().value!); }
-    if (o.liveCloseOnEnd !== false) hub?.endSessions?.(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) });
-    computeStream.endSessions(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) }, m.person);
+    if (m.sessionId) {
+      endedSessions.add(m.sessionId);
+      if (endedSessions.size > ENDED_KEPT) endedSessions.delete(endedSessions.values().next().value!);
+    }
+    if (o.liveCloseOnEnd !== false)
+      hub?.endSessions?.(everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) });
+    computeStream.endSessions(
+      everyone ? { person: m.person! } : { ...(m.sessionId ? { sessionId: m.sessionId } : {}) },
+      m.person,
+    );
     if (m.person) browserStream.endPerson(m.person);
     // the cookie sessions of artifacts and sites a person opened (sites_ticket rows of theirs) hold no session id: they end with any session end of the person, as the live views do
-    if (m.person) { try { db?.run("DELETE FROM sites_ticket WHERE principal = ?", m.person); } catch { /* no sites tables in this Space */ } }
+    if (m.person) {
+      try {
+        db?.run("DELETE FROM sites_ticket WHERE principal = ?", m.person);
+      } catch {
+        /* no sites tables in this Space */
+      }
+    }
   };
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
@@ -716,58 +1122,145 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
     const { runDeviceLink } = await import("../compute/device-link.ts");
     const { platformSocket } = await import("../compute/node.ts");
-    type EngineLauncher = import("../compute/node.ts").NodeLauncher & { workFolder(person: string, proc: string): string };
-    type EngineExports = { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => EngineLauncher; nodeCliReport?: () => { sandbox: { ok: boolean } } };
-    const engine = o.deviceLink?.launcher && o.deviceLink.engines ? undefined : ((await fileExportsImporter(codeRoot)("engine")) as EngineExports | undefined);
+    type EngineLauncher = import("../compute/node.ts").NodeLauncher & {
+      workFolder(person: string, proc: string): string;
+    };
+    type EngineExports = {
+      nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => EngineLauncher;
+      nodeCliReport?: () => { sandbox: { ok: boolean } };
+    };
+    const engine =
+      o.deviceLink?.launcher && o.deviceLink.engines
+        ? undefined
+        : ((await fileExportsImporter(codeRoot)("engine")) as EngineExports | undefined);
     let made: EngineLauncher | undefined;
     const launcher: import("../compute/node.ts").NodeLauncher = o.deviceLink?.launcher ?? {
       spawn: (spec) => {
-        if (!engine?.nodeCliLauncher) return Promise.reject(Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }));
+        if (!engine?.nodeCliLauncher)
+          return Promise.reject(
+            Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }),
+          );
         made ??= engine.nodeCliLauncher(paths.root, { install: o.engineInstall === true });
         return made.spawn(spec);
       },
       // the engine module's folder layout (short hashed folders on Windows), which its own sandbox accepts
-      ...(engine?.nodeCliLauncher ? { workFolder: (person: string, proc: string) => { made ??= engine.nodeCliLauncher!(paths.root, { install: o.engineInstall === true }); return made.workFolder(person, proc); } } : {}),
+      ...(engine?.nodeCliLauncher
+        ? {
+            workFolder: (person: string, proc: string) => {
+              made ??= engine.nodeCliLauncher!(paths.root, { install: o.engineInstall === true });
+              return made.workFolder(person, proc);
+            },
+          }
+        : {}),
     };
     // the CLI engines: Vyre installs a missing one the first time a turn needs it, so what decides is whether this computer can sandbox an engine at all (Windows waits for lane l-winengine)
-    const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
+    const engines =
+      o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
     await runDeviceLink({
-      server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
+      server: l.address,
+      token: l.token,
+      dataDir: paths.root,
+      name: o.deviceLink?.name ?? platform.hostname,
+      engines,
+      launcher,
       chrome: {
         // the Space's questions about this computer's Chrome, answered with the same port a local turn uses (the person signed in to the extension, the Space they picked, opened to agents)
         answer: async (kind, input) => {
           const i = (input ?? {}) as Record<string, any>;
           switch (kind) {
-            case "chrome.available": return chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) });
+            case "chrome.available":
+              return chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) });
             case "chrome.call":
-              if (!(await chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) }))) throw new Error("This Chrome is not open to agents for you here.");
-              return chromePort.port.call({ tool: String(i["tool"]), args: (i["args"] ?? {}) as Record<string, unknown>, agent: i["agent"] as { id: string; name: string }, space: String(i["space"]), ...(i["thread"] ? { thread: String(i["thread"]) } : {}), timeoutMs: Number(i["timeoutMs"]) || 30_000 });
-            case "chrome.drop": chromePort.port.drop(String(i["heldId"])); return true;
-            case "chrome.takeover": chromePort.port.takeOver(String(i["agentId"])); return true;
-            case "chrome.watch": chromePort.port.watch(String(i["agentId"])); return true;
-            default: throw new Error("Not a Chrome question.");
+              if (!(await chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) })))
+                throw new Error("This Chrome is not open to agents for you here.");
+              return chromePort.port.call({
+                tool: String(i["tool"]),
+                args: (i["args"] ?? {}) as Record<string, unknown>,
+                agent: i["agent"] as { id: string; name: string },
+                space: String(i["space"]),
+                ...(i["thread"] ? { thread: String(i["thread"]) } : {}),
+                timeoutMs: Number(i["timeoutMs"]) || 30_000,
+              });
+            case "chrome.drop":
+              chromePort.port.drop(String(i["heldId"]));
+              return true;
+            case "chrome.takeover":
+              chromePort.port.takeOver(String(i["agentId"]));
+              return true;
+            case "chrome.watch":
+              chromePort.port.watch(String(i["agentId"]));
+              return true;
+            default:
+              throw new Error("Not a Chrome question.");
           }
         },
-        onEvent: (f) => { chromeEventListeners.add(f as never); return () => { chromeEventListeners.delete(f as never); }; },
+        onEvent: (f) => {
+          chromeEventListeners.add(f as never);
+          return () => {
+            chromeEventListeners.delete(f as never);
+          };
+        },
       },
-      fix: (fix, service) => (isFix(fix) ? runFix(fix, service, { dataDir: paths.root, now }) : Promise.reject(new Error("unknown fix"))), ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}), report: (now) => (o.machineReport ?? ((r: Report) => r))((deviceReporter ??= createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => engines, chrome: () => chromeBridge.connected > 0 })).report({ turns: now.turns })),
-      socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
-      sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+      fix: (fix, service) =>
+        isFix(fix) ? runFix(fix, service, { dataDir: paths.root, now }) : Promise.reject(new Error("unknown fix")),
+      ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}),
+      report: (now) =>
+        (o.machineReport ?? ((r: Report) => r))(
+          (deviceReporter ??= createReporter({
+            dataDir: paths.root,
+            version: cfg.version,
+            runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }),
+            engines: () => engines,
+            chrome: () => chromeBridge.connected > 0,
+          })).report({ turns: now.turns }),
+        ),
+      socket: o.deviceLink?.socket ?? platformSocket,
+      signal,
+      ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}),
+      ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
+      sleep: (ms, sig) =>
+        new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, ms);
+          t.unref?.();
+          sig.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(t);
+              reject(new Error("stopped"));
+            },
+            { once: true },
+          );
+        }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
     });
   };
   const teamLinks = createTeamLinksRoute({
-    token, sameToken, log: (msg, attrs) => sink.log({ space: "-", level: 20, msg, place: "device-link", attrs }),
+    token,
+    sameToken,
+    log: (msg, attrs) => sink.log({ space: "-", level: 20, msg, place: "device-link", attrs }),
     start: (l) => {
       if (hasSpace || !cfg.roles.includes("device")) return () => undefined;
       const abort = new AbortController();
-      const running = linkDevice(l, abort.signal).catch((e: unknown) => sink.log({ space: l.id, level: 40, msg: "team.link_failed", place: "device-link", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      const running = linkDevice(l, abort.signal).catch((e: unknown) =>
+        sink.log({
+          space: l.id,
+          level: 40,
+          msg: "team.link_failed",
+          place: "device-link",
+          attrs: { error: e instanceof Error ? e.message : String(e) },
+        }),
+      );
       // stopping waits for the link to end and its engines to exit: an engine still running holds its work folder (Windows will not remove a folder a process works in)
       // bounded, so a socket that never reports its close cannot hold the daemon's stop
       return () => {
         abort.abort();
         let t: ReturnType<typeof setTimeout> | undefined;
-        const late = new Promise<void>((r) => { t = setTimeout(() => { sink.log({ space: l.id, level: 40, msg: "team.link_stop_slow", place: "device-link" }); r(); }, 15_000); });
+        const late = new Promise<void>((r) => {
+          t = setTimeout(() => {
+            sink.log({ space: l.id, level: 40, msg: "team.link_stop_slow", place: "device-link" });
+            r();
+          }, 15_000);
+        });
         return Promise.race([running, late]).finally(() => clearTimeout(t));
       };
     },
@@ -776,43 +1269,88 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   chromeApp = createChromeApp({
     sessions: () => teamLinks.sessions(),
     call: (s, cap, input) => gatewayCall(s, cap, input),
-    push: (m) => { chromeBridge.push(m); },
+    push: (m) => {
+      chromeBridge.push(m);
+    },
     appVersion: cfg.version,
   });
   // The person's own Chrome as a place the Chrome tools can run: only for an agent working for the person signed in to it, in the Space they picked, once they opened Chrome to agents (POST /local/chrome/agents).
   // a Team Space server reaches the person's Chrome over their device link (their computer's daemon owns the bridge)
-  remoteChrome = createRemotePort({ devices: (p) => streamRef?.devices(p) ?? [], ask: (n, k, i, t) => (streamRef ? streamRef.ask(n, k, i, t) : Promise.reject(new Error("no link"))) });
+  remoteChrome = createRemotePort({
+    devices: (p) => streamRef?.devices(p) ?? [],
+    ask: (n, k, i, t) => (streamRef ? streamRef.ask(n, k, i, t) : Promise.reject(new Error("no link"))),
+  });
   const agentNames = new Map<string, string>();
   const chromePort = createBridgePort({
     bridge: chromeBridge,
-    whoami: async () => (chromeApp ? ((await chromeApp.op("whoami", {})) as { person?: string; spaceId?: string }) : {}),
+    whoami: async () =>
+      chromeApp ? ((await chromeApp.op("whoami", {})) as { person?: string; spaceId?: string }) : {},
     agentName: async (id) => {
-      if (chromeApp && !agentNames.has(id)) { try { for (const a of ((await chromeApp.op("agents.list", {})) as { agents?: { id: string; name: string }[] }).agents ?? []) agentNames.set(a.id, a.name); } catch { /* the id will do */ } }
+      if (chromeApp && !agentNames.has(id)) {
+        try {
+          for (const a of ((await chromeApp.op("agents.list", {})) as { agents?: { id: string; name: string }[] })
+            .agents ?? [])
+            agentNames.set(a.id, a.name);
+        } catch {
+          /* the id will do */
+        }
+      }
       return agentNames.get(id) ?? id;
     },
   });
   chromeEventListeners.add(chromePort.onEvent);
   // the hash a held call's approval is bound to, handed to the Gate module so editing a held message can bind the approval to the new words (modules/gate/handlers/revise.ts)
-  bindPayloadHash((capName, capVersion, input, principal, actingFor) => payloadHash({ name: capName, v: capVersion }, input, { principal: principal as { kind: "person" | "agent" | "actor" | "service"; id: string }, ...(actingFor !== undefined ? { actingFor } : {}) }));
+  bindPayloadHash((capName, capVersion, input, principal, actingFor) =>
+    payloadHash({ name: capName, v: capVersion }, input, {
+      principal: principal as { kind: "person" | "agent" | "actor" | "service"; id: string },
+      ...(actingFor !== undefined ? { actingFor } : {}),
+    }),
+  );
   closers.push(() => bindPayloadHash(null));
   const composedChrome = composePorts(chromePort.port, remoteChrome.port);
   bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));
-  const chromeAgentsRoute = createChromeAgentsRoute({ token, optIn: (spaces) => chromeBridge.optIn(spaces, "personal"), opened: () => chromeBridge.opened?.spaces ?? [], sameToken });
-  let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
+  const chromeAgentsRoute = createChromeAgentsRoute({
+    token,
+    optIn: (spaces) => chromeBridge.optIn(spaces, "personal"),
+    opened: () => chromeBridge.opened?.spaces ?? [],
+    sameToken,
+  });
+  let computeRecording: (
+    nodeId: string,
+    a: { token: string; computerId: string; url: string; bytes: Buffer },
+  ) => Promise<boolean> = () => Promise.resolve(false);
   // GET /local/daemon/busy and POST /local/daemon/drain: what runs on this computer now, asked by the desktop shell before it stops this daemon to update the app (routes/local-work.ts).
   // The engine module reports its running turns through its seam (turns below); a link that runs a person's Team Space turns here adds itself as a source that hands over on drain.
   const localWork = createLocalWork();
   let engineTurns = 0;
-  const engineSource: import("../routes/local-work.ts").LocalWorkSource = { name: "engine", running: () => engineTurns };
+  const engineSource: import("../routes/local-work.ts").LocalWorkSource = {
+    name: "engine",
+    running: () => engineTurns,
+  };
   localWork.add(engineSource);
   const localWorkRoute = createLocalWorkRoute({ token, work: localWork, sameToken });
-  const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const computeRoute = createComputeRoute({
+    poll: (c, r) => computePoll(c, r),
+    jobs: (n, r) => computeJobs(n, r),
+    result: (n, a) => computeResult(n, a),
+    home: (n, a) => computeHome(n, a),
+    recording: (n, a) => computeRecording(n, a),
+  });
+  const webhookRoute = createWebhookRoute({
+    has: (c) => webhooks.has(c),
+    accept: (c, a) => webhooks.accept(c, a),
+    automation: (a) => webhooks.automation(a),
+    publicBase: () => {
+      const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
+      return /^https?:\/\//.test(a) ? a : `https://${a}`;
+    },
+  });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
-  let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
+  let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () =>
+    Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   // a key goes only to a host a person approved for it: the connector port asks this before every request a call makes after a Vault fill (the read as a person is wired once invoke exists)
   let keyHostCallAs: ((cap: string, input: unknown, person: string) => Promise<unknown>) | null = null;
@@ -826,77 +1364,154 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
    * that sync_specs.apply made, going to exactly its own spec's app.domain. Nothing is recorded. Every other connector and host keeps the rule. The approval card for a key's first use on
    * a new host in the CRM flow is rc.27 (BACKLOG: "Key card for the CRM flow"); remove this then.
    */
-  const syncSpecOwnHost = (k: { connector: string; connectionId: string }, host: string): boolean => syncSpecHostAllowed(connectorTables, k, host);
+  const syncSpecOwnHost = (k: { connector: string; connectionId: string }, host: string): boolean =>
+    syncSpecHostAllowed(connectorTables, k, host);
   const keyHostCheck: KeyHostCheck = async (keys, host, caller) => {
     const h = db;
     if (!h) return "The Vault is not open, so the request was not sent.";
-    const person = caller.actingFor?.startsWith("usr_") ? caller.actingFor : caller.principal.kind === "person" ? caller.principal.id : undefined;
+    const person = caller.actingFor?.startsWith("usr_")
+      ? caller.actingFor
+      : caller.principal.kind === "person"
+        ? caller.principal.id
+        : undefined;
     for (const k of keys) {
       const id = k.itemId;
       if (keyHostListed(h, id, host)) continue;
       if (syncSpecOwnHost(k, host)) continue;
-      if (person && keyHostCallAs && await ownAddress(keyHostCallAs, person, id, host)) continue;
+      if (person && keyHostCallAs && (await ownAddress(keyHostCallAs, person, id, host))) continue;
       return `${handleOfItem(h, id)} is not allowed to go to ${host}. Allow it on the key's page, or change this step.`;
     }
     return null;
   };
-  const connectorPort=createConnectorsHost({keyHost:(ids,host,caller,domains)=>keyHostCheck(ids,host,caller,domains),publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
+  const connectorPort = createConnectorsHost({
+    keyHost: (ids, host, caller, domains) => keyHostCheck(ids, host, caller, domains),
+    publicBase: () => {
+      const address = cfg.address ?? `http://${cfg.host}:${boundPort}`;
+      return /^https?:\/\//.test(address) ? address : `https://${address}`;
+    },
+    own: (caller) => ownNode(caller.actingFor ?? caller.principal.id),
+    ...(o.connectorNetwork ? { network: o.connectorNetwork } : {}),
+  });
   // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
   // after a restart or a deploy, a person still signed in through Google, Microsoft or GitHub gets their key back from the server's wrap with nothing to type (key-wraps.ts); bound once the wraps exist
   let reopenWrap: (p: string, since?: number) => { key: Uint8Array; sessions: string[] } | null = () => null;
-  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p, since) => reopenWrap(p, since) });
+  const keyring = createKeyring({
+    allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
+    live: sessionAlive,
+    reopen: (p, since) => reopenWrap(p, since),
+  });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
   let spaceGithub: GithubOAuth | null = null;
   let reloadSpaceGithub: () => Promise<void> = async () => undefined;
-  const githubNow = (): GithubOAuth | null => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
+  const githubNow = (): GithubOAuth | null =>
+    (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
   const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
   const githubConnectRoute = createGithubConnectRoute();
-  const githubTickets = createGithubTickets();   // what connecting GitHub and signing in with GitHub hand each other
+  const githubTickets = createGithubTickets(); // what connecting GitHub and signing in with GitHub hand each other
   // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
   const ssoTickets = createSsoTickets();
   // a proven address is matched to its person by the company connection, through the module's host call (bound once the hook runner exists)
-  let matchProven: (key: string, who: { email: string; link: { tenant: string; subject: string } }, person: string) => void = () => undefined;
-  let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
+  let matchProven: (
+    key: string,
+    who: { email: string; link: { tenant: string; subject: string } },
+    person: string,
+  ) => void = () => undefined;
+  let ssoSecret: (handle: string) => Promise<string> = () =>
+    Promise.reject(new Error("The Vault is not live on this server."));
   const ssoSignInRoute = createSsoSignInRoute({
-    providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
-    bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
+    providers: async () => (db ? ssoProvidersIn(db) : []),
+    secret: (h) => ssoSecret(h),
+    fetch: o.seams?.fetch ?? defaultFetch,
+    tickets: ssoTickets,
+    bind: (key, who, person) => {
+      const bound = db ? linkSso(db, key, who, person) : false;
+      if (bound) matchProven(key, who, person);
+      return bound;
+    },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
   // A Space server keeps a wrap of a member's key that opens after their Google, Microsoft or GitHub sign-in (host/src/seams/key-wraps.ts), unless an owner turned the policy off. Never on a person's own computer.
   const wrapsOn = (): boolean => {
     try {
-      const r = db?.all(`SELECT value FROM access_policies WHERE key = ? AND scope = 'space'`, WRAP_POLICY)[0] as { value?: string } | undefined;
+      const r = db?.all(`SELECT value FROM access_policies WHERE key = ? AND scope = 'space'`, WRAP_POLICY)[0] as
+        | { value?: string }
+        | undefined;
       return r?.value === undefined || JSON.parse(r.value) !== false;
-    } catch { return true; }
+    } catch {
+      return true;
+    }
   };
-  const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
+  const keyWraps = cfg.roles.includes("device")
+    ? null
+    : createKeyWraps({
+        db: () => db,
+        space: () => space ?? "-",
+        secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"),
+        enabled: wrapsOn,
+      });
   // a person's live sessions that a provider proved (SSO or GitHub sign-in): the ones the wrap may open for, as at a fresh provider sign-in (modules/identity/projections.ts)
   const provenSessions = (p: string, since = 0): string[] => {
     try {
       // a session's age never ends it (identity_sessions.expires_at is enforced nowhere): every live proven session counts
-      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND created_at > ?`, p, since) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
-    } catch { return []; }
+      return (
+        (db?.all(
+          `SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND created_at > ?`,
+          p,
+          since,
+        ) as Array<{ id: string }>) ?? []
+      )
+        .map((r) => r.id)
+        .filter(sessionAlive);
+    } catch {
+      return [];
+    }
   };
   let auditReopen: (p: string, sessions: string[]) => void = () => undefined;
-  if (keyWraps) reopenWrap = (p, since) => {
-    if (ownNode(p)) return null;
-    const sessions = provenSessions(p, since);
-    if (sessions.length === 0) return null;
-    const key = keyWraps.open(p);
-    if (!key) return null;
-    sink.log({ space: space ?? "-", level: 30, msg: "vault.key_reopened", place: "vault", attrs: { person: p, sessions: sessions.length } });
-    auditReopen(p, sessions);
-    return { key, sessions };
-  };
-  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
+  if (keyWraps)
+    reopenWrap = (p, since) => {
+      if (ownNode(p)) return null;
+      const sessions = provenSessions(p, since);
+      if (sessions.length === 0) return null;
+      const key = keyWraps.open(p);
+      if (!key) return null;
+      sink.log({
+        space: space ?? "-",
+        level: 30,
+        msg: "vault.key_reopened",
+        place: "vault",
+        attrs: { person: p, sessions: sessions.length },
+      });
+      auditReopen(p, sessions);
+      return { key, sessions };
+    };
+  const localKeyRoute = createLocalKeyRoute({
+    caller: (h) => callerOf(h),
+    keyring,
+    allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
     log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }),
-    ...(keyWraps ? { handed: (p: string, key: Uint8Array) => { if (keyWraps.make(p, key)) sink.log({ space: space ?? "-", level: 30, msg: "vault.wrap_made", place: "vault", attrs: { person: p } }); }, wraps: keyWraps } : {}) });
+    ...(keyWraps
+      ? {
+          handed: (p: string, key: Uint8Array) => {
+            if (keyWraps.make(p, key))
+              sink.log({
+                space: space ?? "-",
+                level: 30,
+                msg: "vault.wrap_made",
+                place: "vault",
+                attrs: { person: p },
+              });
+          },
+          wraps: keyWraps,
+        }
+      : {}),
+  });
   let headSeq = 0;
-  let sawSpace = false, hostMadeSpace = false;
+  let sawSpace = false,
+    hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
   /** Ruling 86: every person has one local Personal calendar, made through calendar.create_calendar in the pipeline as that person so the calendar resource registers in the same commit. Set once the pipeline exists; a no-op before. */
   let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
@@ -910,34 +1525,77 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
-  let accessStale = false, kicking = false, noAccessModule = false;
+  let accessStale = false,
+    kicking = false,
+    noAccessModule = false;
   /** Agents born Guest (their maker was not yet active in the snapshot) become Member agents once the maker may edit the Space (see lowAgentUpgradeEvents). Runs after each access sync and at boot. */
   let healing = false;
   let healAgents: () => Promise<void> = async () => {};
-  const startHealing = (appendResult: (e: Parameters<LogClient["appendResult"]>[0]) => ReturnType<LogClient["appendResult"]>, spaceId: string): void => {
+  const startHealing = (
+    appendResult: (e: Parameters<LogClient["appendResult"]>[0]) => ReturnType<LogClient["appendResult"]>,
+    spaceId: string,
+  ): void => {
     healAgents = async () => {
       if (healing) return;
       healing = true;
       try {
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
-          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          const may = (level: "edit" | "view"): boolean =>
+            authorize(access.snap, {
+              principal: person,
+              action: { perm: null, level },
+              resource: { type: "space", id: scope },
+            }).effect === "allow";
           return may("edit") ? "edit" : may("view") ? "view" : "none";
         };
-        const agents = [...access.snap.allPrincipals()].filter((p) => p.kind === "agent" && p.owner).map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
+        const agents = [...access.snap.allPrincipals()]
+          .filter((p) => p.kind === "agent" && p.owner)
+          .map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
         let changed = false;
         for (const e of lowAgentUpgradeEvents({ space: spaceId, agents, levelOf })) {
-          const r = await appendResult({ id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
-          if (r.ok && !r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); changed = true; sink.log({ space: spaceId, level: 20, msg: "access.agent_grown", place: "boot", entity: "agent", entity_id: e.id }); }
+          const r = await appendResult({
+            id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`,
+            type: e.type,
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: e.entity,
+            entity_id: e.id,
+            payload: e.payload,
+          });
+          if (r.ok && !r.duplicate) {
+            access.fold(r.event);
+            accessPending.push(toAccessEvent(r.event));
+            changed = true;
+            sink.log({
+              space: spaceId,
+              level: 20,
+              msg: "access.agent_grown",
+              place: "boot",
+              entity: "agent",
+              entity_id: e.id,
+            });
+          }
         }
         if (changed) await syncAccess(true);
-      } finally { healing = false; }
+      } finally {
+        healing = false;
+      }
     };
   };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
   const staleFor = (principal: string): boolean => {
     if (!accessStale) return false;
     // the owner is answered from the last snapshot, but a stale one never heals by itself, so the owner's calls kick the retry too (rc.22 bug 15: a chat made while a sync failed stayed "not found" to its owner)
-    if (!kicking) { kicking = true; void syncAccess(true).catch(() => {}).finally(() => { kicking = false; }); }
+    if (!kicking) {
+      kicking = true;
+      void syncAccess(true)
+        .catch(() => {})
+        .finally(() => {
+          kicking = false;
+        });
+    }
     return principal !== (access.owner() ?? cfg.owner);
   };
 
@@ -945,12 +1603,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const probeWritten = new Map<ProbeName, { state: string; detail: string | undefined; at: number }>();
   const writeProbe = (name: ProbeName, r: ProbeResult, force = true): void => {
     probeState.set(name, r);
-    const last = probeWritten.get(name), t = now();
+    const last = probeWritten.get(name),
+      t = now();
     if (!force && last && last.state === r.state && last.detail === r.detail && t - last.at < PROBE_REFRESH_MS) return;
     probeWritten.set(name, { state: r.state, detail: r.detail, at: t });
     db?.run(
       "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
-      name, r.state, r.detail ?? null, r.latencyMs ?? null, r.values ? JSON.stringify(r.values) : null, now(),
+      name,
+      r.state,
+      r.detail ?? null,
+      r.latencyMs ?? null,
+      r.values ? JSON.stringify(r.values) : null,
+      now(),
     );
   };
 
@@ -961,17 +1625,33 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     report: (s) => {
       db?.run(
         "INSERT INTO health_service (name, state, started_at, restarts) VALUES (?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, started_at = excluded.started_at, restarts = excluded.restarts",
-        s.name, s.state, s.startedAt, s.restarts,
+        s.name,
+        s.state,
+        s.startedAt,
+        s.restarts,
       );
-      sink.log({ space: space ?? "-", level: s.state === "down" ? 30 : 20, msg: "service.state", place: "supervisor", entity: "service", entity_id: s.name, attrs: { state: s.state, phase: s.phase, restarts: s.restarts } });
+      sink.log({
+        space: space ?? "-",
+        level: s.state === "down" ? 30 : 20,
+        msg: "service.state",
+        place: "supervisor",
+        entity: "service",
+        entity_id: s.name,
+        attrs: { state: s.state, phase: s.phase, restarts: s.restarts },
+      });
     },
   });
   const scheduler = new Scheduler({
-    now, tickMs: o.intervals?.tick ?? 1000, log: sink.logger({ space: space ?? "-", place: "scheduler" }),
+    now,
+    tickMs: o.intervals?.tick ?? 1000,
+    log: sink.logger({ space: space ?? "-", place: "scheduler" }),
     onRun: jobRanLog(sink, () => space ?? "-"),
   });
   // the event-loop lag guard: a block over 200 ms is warned with the jobs in flight, and the worst lag rides in the machines report
-  loopLag({ running: () => scheduler.runningNames(), warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }) });
+  loopLag({
+    running: () => scheduler.runningNames(),
+    warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }),
+  });
 
   /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
   let workspacesReady: (() => Promise<void>) | null = null;
@@ -985,18 +1665,37 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       log = await LogClient.open({ path: paths.events, space });
       closers.push(() => log?.close());
       const first = await log.verify();
-      if (first.ok) verified = { seq: first.seq, hash: first.head }; else chainBroken = true;
-      sink.log({ space, level: first.ok ? 20 : 40, msg: "events.verified", place: "boot", result: first.ok ? "ok" : "broken", attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why } });
+      if (first.ok) verified = { seq: first.seq, hash: first.head };
+      else chainBroken = true;
+      sink.log({
+        space,
+        level: first.ok ? 20 : 40,
+        msg: "events.verified",
+        place: "boot",
+        result: first.ok ? "ok" : "broken",
+        attrs: first.ok ? { seq: first.seq } : { at: first.at, why: first.why },
+      });
       const agentAccessEvents: { type: string; payload: unknown }[] = [];
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
-      for (let after = 0; ;) {
+      for (let after = 0; ; ) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
-          if (e.type === "resource.created" || e.type === "principal.created" || e.type === "principal.role_set" || e.type === "grant.created" || e.type === "grant.revoked" || e.type.startsWith("agent.")) agentAccessEvents.push(e);
+          if (
+            e.type === "resource.created" ||
+            e.type === "principal.created" ||
+            e.type === "principal.role_set" ||
+            e.type === "grant.created" ||
+            e.type === "grant.revoked" ||
+            e.type.startsWith("agent.")
+          )
+            agentAccessEvents.push(e);
           access.fold(e);
           if (isAccessEvent(e.type)) accessPending.push(toAccessEvent(e));
           if (e.type === "resource.created" || e.type === "space.ownership_transferred") ownedScan.push(e);
-          if (e.type === "space.created") { sawSpace = true; if (e.id.startsWith("evt_boot_")) hostMadeSpace = true; }
+          if (e.type === "space.created") {
+            sawSpace = true;
+            if (e.id.startsWith("evt_boot_")) hostMadeSpace = true;
+          }
         }
         if (page.length > 0) accessFedTo = page[page.length - 1]!.seq;
         if (page.length < 5000) break;
@@ -1004,13 +1703,32 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
       // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
       // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
-      const marks = hostOwnedMarks(ownedScan, space).filter((m) => { if (m.type !== "vault_folder") return true; try { return (db!.all("SELECT owner FROM vault_folder WHERE id = ?", m.id)[0] as { owner?: unknown } | undefined)?.owner == null; } catch { return false; } }).map((m) => m.id);
+      const marks = hostOwnedMarks(ownedScan, space)
+        .filter((m) => {
+          if (m.type !== "vault_folder") return true;
+          try {
+            return (
+              (db!.all("SELECT owner FROM vault_folder WHERE id = ?", m.id)[0] as { owner?: unknown } | undefined)
+                ?.owner == null
+            );
+          } catch {
+            return false;
+          }
+        })
+        .map((m) => m.id);
       access.mark(marks);
-      for (const id of marks) accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
+      for (const id of marks)
+        accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
-        if (made) { hostMadeSpace = true; for (const e of made.events) { access.fold(e); accessPending.push(toAccessEvent(e)); } }
+        if (made) {
+          hostMadeSpace = true;
+          for (const e of made.events) {
+            access.fold(e);
+            accessPending.push(toAccessEvent(e));
+          }
+        }
       }
       // Before the generic registrar existed, imported and prototype logs could have a valid
       // agent.created without its access resource. Repair only from that birth event, never
@@ -1018,22 +1736,47 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (!chainBroken) {
         const appendRepair = async (event: Parameters<LogClient["appendResult"]>[0]) => {
           const repaired = await log.appendResult(event);
-          if (!repaired.ok) throw new Error(`could not reconcile agent access ${event.entity_id ?? event.id ?? "event"}: ${repaired.message}`);
-          if (repaired.duplicate && !repairEventMatches(repaired.event, event)) throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
+          if (!repaired.ok)
+            throw new Error(
+              `could not reconcile agent access ${event.entity_id ?? event.id ?? "event"}: ${repaired.message}`,
+            );
+          if (repaired.duplicate && !repairEventMatches(repaired.event, event))
+            throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
           return repaired;
         };
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
           const repaired = await appendRepair({
-            id: `evt_res_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: row,
+            id: `evt_res_${row.id}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: row.id,
+            payload: row,
           });
           if (!repaired.duplicate) {
             access.fold(repaired.event);
             accessPending.push(toAccessEvent(repaired.event));
-            sink.log({ space, level: 20, msg: "access.agent_resource_reconciled", place: "boot", entity: "agent", entity_id: row.id, attrs: { owner: row.owner_id } });
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.agent_resource_reconciled",
+              place: "boot",
+              entity: "agent",
+              entity_id: row.id,
+              attrs: { owner: row.owner_id },
+            });
           }
         }
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
-          const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: scope } }).effect === "allow";
+          const may = (level: "edit" | "view"): boolean =>
+            authorize(access.snap, {
+              principal: person,
+              action: { perm: null, level },
+              resource: { type: "space", id: scope },
+            }).effect === "allow";
           return may("edit") ? "edit" : may("view") ? "view" : "none";
         };
         // Prototype/import logs predate both registrars.  The immutable agent.created
@@ -1041,12 +1784,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
           const repaired = await appendRepair({
             id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
-            type: repairedEvent.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: repairedEvent.entity, entity_id: repairedEvent.id, payload: repairedEvent.payload,
+            type: repairedEvent.type,
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: repairedEvent.entity,
+            entity_id: repairedEvent.id,
+            payload: repairedEvent.payload,
           });
           if (!repaired.duplicate) {
             access.fold(repaired.event);
             accessPending.push(toAccessEvent(repaired.event));
-            sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.agent_principal_reconciled",
+              place: "boot",
+              entity: "agent",
+              entity_id: repairedEvent.id,
+            });
           }
         }
         // Ruling 99 home grants an agent never got at birth (see missingAgentHomeEvents). The host writes them once per boot, granted by the agent's owner; the agents module's 15 s
@@ -1054,14 +1811,43 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // A Personal Space has no sharing, so nothing to write.
         if (cfg.spaceKind !== "personal") {
           let rows: { id: string; ownerId: string; folderId: string | null }[] = [];
-          try { rows = db!.all(`SELECT "id", "ownerId", "folderId" FROM agents_agent WHERE "deletedAt" IS NULL`) as typeof rows; } catch { /* no agents table yet: nothing to repair */ }
-          const known = rows.filter((r) => access.snap.info(r.id) !== null && access.snap.info(r.ownerId) !== null && r.folderId !== null && access.snap.resource(r.folderId) !== undefined);
+          try {
+            rows = db!.all(
+              `SELECT "id", "ownerId", "folderId" FROM agents_agent WHERE "deletedAt" IS NULL`,
+            ) as typeof rows;
+          } catch {
+            /* no agents table yet: nothing to repair */
+          }
+          const known = rows.filter(
+            (r) =>
+              access.snap.info(r.id) !== null &&
+              access.snap.info(r.ownerId) !== null &&
+              r.folderId !== null &&
+              access.snap.resource(r.folderId) !== undefined,
+          );
           for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
-            const repaired = await appendRepair({ id: `evt_agent_home_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+            const repaired = await appendRepair({
+              id: `evt_agent_home_${e.id}`,
+              type: e.type,
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: e.entity,
+              entity_id: e.id,
+              payload: e.payload,
+            });
             if (!repaired.duplicate) {
               access.fold(repaired.event);
               accessPending.push(toAccessEvent(repaired.event));
-              sink.log({ space, level: 20, msg: "access.agent_home_reconciled", place: "boot", entity: "agent", entity_id: String(e.payload["subject_id"]) });
+              sink.log({
+                space,
+                level: 20,
+                msg: "access.agent_home_reconciled",
+                place: "boot",
+                entity: "agent",
+                entity_id: String(e.payload["subject_id"]),
+              });
             }
           }
         }
@@ -1070,111 +1856,320 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
-      const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
-      workspacesReady = (): Promise<void> => (loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined)?.workspacesReady?.() ?? Promise.resolve();
-      const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
-      if (telemetry) { sink.setObserver(telemetry.write, telemetry.position(sink.sourceId)); capTelemetry = () => telemetry.cap(); }
-      closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
+      const loaded = await loadHost({
+        registry: reg,
+        modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")),
+        routes,
+        importer: fileImporter(codeRoot),
+        seamImporter: fileSeamImporter(codeRoot),
+        exportsImporter: fileExportsImporter(codeRoot),
+        db,
+        ...(o.http ? { fetch: o.http } : {}),
+      });
+      workspacesReady = (): Promise<void> =>
+        (
+          loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined
+        )?.workspacesReady?.() ?? Promise.resolve();
+      const telemetry = createTelemetryRecorder({
+        space,
+        db,
+        module: loaded.moduleExports.get("logs"),
+        now,
+        secrets: () => [token],
+        capabilities: registry.capabilities.map((cap) => cap.name),
+      });
+      if (telemetry) {
+        sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
+        capTelemetry = () => telemetry.cap();
+      }
+      closers.push(() => {
+        try {
+          sink.flush();
+        } catch {
+          /* The committed native source replays on the next boot. */
+        } finally {
+          sink.setObserver(undefined);
+        }
+      });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       const readCaps = new Set<string>(registryCaps.filter((c) => c.effects === "read").map((c) => c.name));
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
-      const vaultPort: VaultPort = { secret: (h, sp, asker) => (vaultImpl ?? refusingVault).secret(h, sp, asker), signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d) };
+      const vaultPort: VaultPort = {
+        secret: (h, sp, asker) => (vaultImpl ?? refusingVault).secret(h, sp, asker),
+        signRs256: (h, sp, d) => (vaultImpl ?? refusingVault).signRs256(h, sp, d),
+      };
       ssoSecret = (handle) => vaultPort.secret(handle, spaceId);
-      let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null;   // set once the hook runner exists
+      let peopleExtras: ReturnType<typeof createPeopleExtras> | null = null; // set once the hook runner exists
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
       /** The task a thread is about, when an Automation's Run made it: its automation, the trigger kind, and whether a stranger could have started it (email, form, webhook). */
-      const automationTaskOfThread = async (threadId: string): Promise<{ taskId: string; automationId: string; trigger: string; outside: boolean } | null> => {
+      const automationTaskOfThread = async (
+        threadId: string,
+      ): Promise<{ taskId: string; automationId: string; trigger: string; outside: boolean } | null> => {
         try {
           // read as the server itself (capabilities, not host calls)
           const read = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
-            const r = await invokeRef(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            const r = await invokeRef(cap, input, {
+              space: spaceId,
+              principal: { ...SYSTEM_PRINCIPAL },
+              preAuth: true,
+              origin: "seam",
+            });
             return r.status === "ok" ? r.output : null;
           };
-          const th = ((await read("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+          const th = (
+            (await read("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null
+          )?.thread;
           if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return null;
-          const t = ((await read("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
-          const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
-          if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t?.createdBy !== `svc_${automationId.slice(4)}`) return null;
+          const t = (
+            (await read("tasks.get", { taskId: th.scopeId })) as {
+              task?: { createdBy?: string; workingNotes?: Record<string, string> };
+            } | null
+          )?.task;
+          const automationId = t?.workingNotes?.["automation.id"],
+            trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+          if (
+            typeof automationId !== "string" ||
+            !/^aut_[a-z0-9]+$/.test(automationId) ||
+            t?.createdBy !== `svc_${automationId.slice(4)}`
+          )
+            return null;
           return { taskId: th.scopeId, automationId, trigger, outside: isOutsideTrigger(trigger) };
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       };
       const hookRunner = createHookRunner({
-        space, now, db,
+        space,
+        now,
+        db,
         // a hooks override stands in for the module hooks, except the access module's: authorize reads its snapshot (ruling 70), so its host calls are never replaced
-        hooks: o.hooks ? [...o.hooks, ...[...loaded.moduleExports].filter(([id]) => id === "access").map(([id, ns]) => collectHooks(id, ns))] : [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
+        hooks: o.hooks
+          ? [
+              ...o.hooks,
+              ...[...loaded.moduleExports].filter(([id]) => id === "access").map(([id, ns]) => collectHooks(id, ns)),
+            ]
+          : [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
         log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
-        emitsOf: (m) => [...new Set(registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]))],
+        emitsOf: (m) => [
+          ...new Set(
+            registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]),
+          ),
+        ],
         // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
-        capOf: (m) => { if (!firstCapOf.has(m)) firstCapOf.set(m, registryCaps.find((c) => (c as { module?: string }).module === m)); return firstCapOf.get(m); },
+        capOf: (m) => {
+          if (!firstCapOf.has(m))
+            firstCapOf.set(
+              m,
+              registryCaps.find((c) => (c as { module?: string }).module === m),
+            );
+          return firstCapOf.get(m);
+        },
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
         info: (msg, attrs) => sink.log({ space: space!, level: 20, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
       // each reopen of a person's key from the server's wrap is an audit row for them, as a fresh provider sign-in's is
-      auditReopen = (p, sessions) => { void invokeRef("audit.append", { action: "vault.key_reopened_after_restart", class: "sign_in", onBehalfOf: { kind: "person", id: p }, detail: { sessions: sessions.length } }, { space: space!, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); };
-      const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
+      auditReopen = (p, sessions) => {
+        void invokeRef(
+          "audit.append",
+          {
+            action: "vault.key_reopened_after_restart",
+            class: "sign_in",
+            onBehalfOf: { kind: "person", id: p },
+            detail: { sessions: sessions.length },
+          },
+          { space: space!, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" },
+        ).catch(() => undefined);
+      };
+      const runsHost = createRunsHost({
+        call: (n, i, as) => hookRunner.call(n, i, as),
+        log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }),
+      });
       closers.push(() => runsHost.settle(5_000));
-      const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));
-      webhooks = { has: (c) => acceptors.has(c), accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a), automation: (a) => hookRunner.call("automations.accept_hook", a) };
-      computePoll = (credential, report) => hookRunner.call("network.node_poll", { credential, report }) as Promise<{ serverId: string; owner?: string } | null>;
+      const acceptors = new Set(
+        [...loaded.moduleExports].flatMap(([id, ns]) =>
+          ns["hostCalls"] &&
+          typeof ns["hostCalls"] === "object" &&
+          `${id}.accept_webhook` in (ns["hostCalls"] as object)
+            ? [id]
+            : [],
+        ),
+      );
+      webhooks = {
+        has: (c) => acceptors.has(c),
+        accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a),
+        automation: (a) => hookRunner.call("automations.accept_hook", a),
+      };
+      computePoll = (credential, report) =>
+        hookRunner.call("network.node_poll", { credential, report }) as Promise<{
+          serverId: string;
+          owner?: string;
+        } | null>;
       // what a computer that joined is asked to do (the computers module's jobs), what it answers, and the one door it has into an agent's home: a job's token, as that agent, for the home calls only
-      computeJobs = async (nodeId, running) => ((await hookRunner.call("computers.node_jobs", { nodeId, running, ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}) })) as { jobs?: unknown[] } | null)?.jobs ?? [];
-      computeResult = async (nodeId, a) => (await hookRunner.call("computers.node_result", { nodeId, ...a })) as { status: string };
+      computeJobs = async (nodeId, running) =>
+        (
+          (await hookRunner.call("computers.node_jobs", {
+            nodeId,
+            running,
+            ...(o.computeLeaseMs !== undefined ? { leaseMs: o.computeLeaseMs } : {}),
+          })) as { jobs?: unknown[] } | null
+        )?.jobs ?? [];
+      computeResult = async (nodeId, a) =>
+        (await hookRunner.call("computers.node_result", { nodeId, ...a })) as { status: string };
       computeRecording = async (nodeId, a) => {
-        if (!(await hookRunner.call("computers.node_recording_check", { nodeId, token: a.token, computerId: a.computerId })) ) return false;
+        if (
+          !(await hookRunner.call("computers.node_recording_check", {
+            nodeId,
+            token: a.token,
+            computerId: a.computerId,
+          }))
+        )
+          return false;
         await putToSlot(a.url, a.bytes);
         return true;
       };
-      browserOpen = async (ticket, agentId) => (await hookRunner.call("computers.browser_stream_open", { ticket, agentId })) as { url: string; ws: string; personId: string; input: boolean } | null;
-      browserInput = async (agentId, personId) => (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
-      computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
-      const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
+      browserOpen = async (ticket, agentId) =>
+        (await hookRunner.call("computers.browser_stream_open", { ticket, agentId })) as {
+          url: string;
+          ws: string;
+          personId: string;
+          input: boolean;
+        } | null;
+      browserInput = async (agentId, personId) =>
+        (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
+      computeStreamOpen = async (ticket, computerId) =>
+        (await hookRunner.call("computers.stream_open", { ticket, computerId })) as {
+          nodeId: string;
+          personId: string;
+          input: boolean;
+        } | null;
+      const pool = ():
+        | { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number }
+        | undefined =>
+        (
+          loaded.moduleExports.get("engine") as
+            | {
+                openerOf?: () => {
+                  pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number };
+                } | null;
+              }
+            | undefined
+        )?.openerOf?.()?.pool;
       closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
       idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // the Space kind for terminal and computers (unbound they assume a Team Space) and how a person's sessions here stop when they turn subscription sharing off (modules/engine extra/config.ts)
       const portDeps = {
         team: cfg.spaceKind !== "personal",
-        stopSandbox: async (person: string) => { const p = pool(); if (!p?.closeIdle) return false; await p.closeIdle(person); return true; },
+        stopSandbox: async (person: string) => {
+          const p = pool();
+          if (!p?.closeIdle) return false;
+          await p.closeIdle(person);
+          return true;
+        },
       };
       boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
       closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
-      machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
+      machinesSync = () => {
+        void hookRunner.call("machines.sync", {}).catch(() => undefined);
+      };
       machinesIngest = (from, r) => {
         const body = r && typeof r === "object" ? (r as { runs?: Record<string, unknown> }) : null;
         const machineId = from.device ? `device:${from.device.deviceId}` : from.serverId;
         if (!body || !machineId) return;
         // the Space started the engine processes on this machine, so it knows exactly how many turns run there; the machine's own report is up to 30 s old and counts none the Space placed
-        void hookRunner.call("machines.ingest", { machineId, kind: from.device ? "computer" : "server", name: from.device?.name ?? "Server", ...(from.device ? { ownerId: from.device.person } : from.owner ? { ownerId: from.owner } : {}), ...(from.latencyMs !== undefined ? { latencyMs: from.latencyMs } : {}), report: { ...body, runs: { ...(body.runs ?? {}), turns: computeStream.running(from.nodeId) } } }).catch(() => undefined);
+        void hookRunner
+          .call("machines.ingest", {
+            machineId,
+            kind: from.device ? "computer" : "server",
+            name: from.device?.name ?? "Server",
+            ...(from.device ? { ownerId: from.device.person } : from.owner ? { ownerId: from.owner } : {}),
+            ...(from.latencyMs !== undefined ? { latencyMs: from.latencyMs } : {}),
+            report: { ...body, runs: { ...(body.runs ?? {}), turns: computeStream.running(from.nodeId) } },
+          })
+          .catch(() => undefined);
       };
       {
-        const reporter = createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: Math.max(0, engineTurns - computeStream.running()), agentComputers: 0, sites: 0, automations: 0 }), engines: () => ["claude_code", "codex"], chrome: () => chromeBridge.connected > 0 });
+        const reporter = createReporter({
+          dataDir: paths.root,
+          version: cfg.version,
+          runs: () => ({
+            turns: Math.max(0, engineTurns - computeStream.running()),
+            agentComputers: 0,
+            sites: 0,
+            automations: 0,
+          }),
+          engines: () => ["claude_code", "codex"],
+          chrome: () => chromeBridge.connected > 0,
+        });
         (loaded.moduleExports.get("machines") as { bindMachines?: (h: unknown) => void } | undefined)?.bindMachines?.({
-          turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
-          own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
+          turns: (id: string) =>
+            id === "space"
+              ? Math.max(0, engineTurns - computeStream.running())
+              : computeStream.connected(id)
+                ? computeStream.running(id)
+                : undefined,
+          own: async () => ({
+            name: reporter.name(),
+            report: (o.machineReport ?? ((r: Report) => r))(reporter.report()),
+          }),
           idle: (_id: string, person?: string) => idleSessions(person),
           findings: async () => [
-            ...(await runDoctor({ dataDir: paths.root, role: "space", ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}), ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}) })).findings,
+            ...(
+              await runDoctor({
+                dataDir: paths.root,
+                role: "space",
+                ...(cfg.diskChoice ? { diskChoice: cfg.diskChoice } : {}),
+                ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}),
+              })
+            ).findings,
             // how many networks this server's Docker has left (each site takes one): the terminal module counts them, behind the runner too
-            ...(await ((loaded.moduleExports.get("terminal") as { networkRoomFindings?: (ok: string) => Promise<Array<{ key: string; state: "healthy" | "degraded"; detail: string; next: string }>> } | undefined)?.networkRoomFindings?.("No action needed.") ?? Promise.resolve([])).catch(() => [])),
+            ...(await (
+              (
+                loaded.moduleExports.get("terminal") as
+                  | {
+                      networkRoomFindings?: (
+                        ok: string,
+                      ) => Promise<Array<{ key: string; state: "healthy" | "degraded"; detail: string; next: string }>>;
+                    }
+                  | undefined
+              )?.networkRoomFindings?.("No action needed.") ?? Promise.resolve([])
+            ).catch(() => [])),
           ],
           fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
             // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
-            if (fix === "stop_idle" && id !== "space" && person) return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(person) });
-            if (id === "space") return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
+            if (fix === "stop_idle" && id !== "space" && person)
+              return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(person) });
+            if (id === "space")
+              return runFix(fix, service, {
+                dataDir: paths.root,
+                now,
+                closeIdle: () => closeIdleSessions(),
+                restart: async (svc) => {
+                  if (!supervisor.has(svc)) return false;
+                  await supervisor.restart(svc);
+                  return true;
+                },
+              });
             return String(await computeStream.ask(id, "fix", { fix, ...(service ? { service } : {}) }));
           },
         });
       }
-      computeStreamInput = async (computerId, personId) => (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
+      computeStreamInput = async (computerId, personId) =>
+        (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
       computeHome = async (nodeId, a) => {
-        const check = (await hookRunner.call("computers.node_home_check", { nodeId, token: a.token, computerId: a.computerId, cap: a.cap })) as { agentId: string } | null;
+        const check = (await hookRunner.call("computers.node_home_check", {
+          nodeId,
+          token: a.token,
+          computerId: a.computerId,
+          cap: a.cap,
+        })) as { agentId: string } | null;
         if (!check) return null;
         // a computer that joined is less trusted than this server: whatever it names must be the agent's own home folder or inside it, checked here against the Files tables
         if (a.cap !== "put_upload") {
@@ -1184,13 +2179,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (a.cap === "made_files") {
           // the node names files; what the card shows (name, kind, size) is read here, from Files, never taken from the node. The computer is the verified one of the job's token.
           const asAgent = createAgentHomeCaller({ db: db!, spaceId, invoke });
-          const ids = ((a.input as { files: Array<{ fileId: string }> }).files).map((f) => f.fileId);
+          const ids = (a.input as { files: Array<{ fileId: string }> }).files.map((f) => f.fileId);
           const files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> = [];
           for (const fileId of ids) {
-            const row = ((await asAgent(check.agentId, "files.get", { fileId })) as { file: { name: string; kind: string; size: number; version: number } }).file;
+            const row = (
+              (await asAgent(check.agentId, "files.get", { fileId })) as {
+                file: { name: string; kind: string; size: number; version: number };
+              }
+            ).file;
             files.push({ fileId, name: row.name, kind: row.kind, size: row.size, version: row.version });
           }
-          const said = await createMadeFilesAnnouncer({ db: db!, call: asAgent, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) })({ agentId: check.agentId, computerId: a.computerId, files });
+          const said = await createMadeFilesAnnouncer({
+            db: db!,
+            call: asAgent,
+            log: (msg, attrs) =>
+              sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
+          })({ agentId: check.agentId, computerId: a.computerId, files });
           return { ok: true, output: { said } };
         }
         if (a.cap === "put_upload") {
@@ -1198,7 +2202,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           await putToSlot(String(put.url ?? ""), Buffer.from(String(put.base64 ?? ""), "base64"));
           return { ok: true, output: {} };
         }
-        return { ok: true, output: await createAgentHomeCaller({ db: db!, spaceId, invoke })(check.agentId, a.cap, a.input) };
+        return {
+          ok: true,
+          output: await createAgentHomeCaller({ db: db!, spaceId, invoke })(check.agentId, a.cap, a.input),
+        };
       };
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
@@ -1207,30 +2214,74 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const artifactStore = {
         async folder(siteId: string, title: string): Promise<string> {
           const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
-          const roots = ((await call("files.tree", {})) as { roots?: { key?: string; folderId?: string }[] }).roots ?? [];
+          const roots =
+            ((await call("files.tree", {})) as { roots?: { key?: string; folderId?: string }[] }).roots ?? [];
           const parent = roots.find((r) => r.key === "deployments")?.folderId;
           if (!parent) throw new Error("There is no Deployments folder.");
-          const kept = (db!.all("SELECT id FROM files_folder WHERE parent_id = ? AND name = 'Artifacts' AND deleted_at IS NULL", parent)[0] as { id?: string } | undefined)?.id
-            ?? ((await call("files.folder.create", { parentId: parent, name: "Artifacts", idempotencyKey: "artifacts-root" })) as { folder: { folderId: string } }).folder.folderId;
-          return ((await call("files.folder.create", { parentId: kept, name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`, idempotencyKey: `artifact-folder-${siteId}` })) as { folder: { folderId: string } }).folder.folderId;
+          const kept =
+            (
+              db!.all(
+                "SELECT id FROM files_folder WHERE parent_id = ? AND name = 'Artifacts' AND deleted_at IS NULL",
+                parent,
+              )[0] as { id?: string } | undefined
+            )?.id ??
+            (
+              (await call("files.folder.create", {
+                parentId: parent,
+                name: "Artifacts",
+                idempotencyKey: "artifacts-root",
+              })) as { folder: { folderId: string } }
+            ).folder.folderId;
+          return (
+            (await call("files.folder.create", {
+              parentId: kept,
+              name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`,
+              idempotencyKey: `artifact-folder-${siteId}`,
+            })) as { folder: { folderId: string } }
+          ).folder.folderId;
         },
         async put(folderId: string, name: string, base64: string, mime: string): Promise<void> {
           const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
-          const had = (db!.all("SELECT id FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folderId, name)[0] as { id?: string } | undefined)?.id;
+          const had = (
+            db!.all(
+              "SELECT id FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL",
+              folderId,
+              name,
+            )[0] as { id?: string } | undefined
+          )?.id;
           if (had) await call("files.write", { fileId: had, content: { base64 } });
-          else await call("files.create", { folderId, name, mime, content: { base64 }, idempotencyKey: `artifact-${folderId}-${name}` });
+          else
+            await call("files.create", {
+              folderId,
+              name,
+              mime,
+              content: { base64 },
+              idempotencyKey: `artifact-${folderId}-${name}`,
+            });
         },
       };
       // one file of a folder a site or an artifact serves from: the caller already decided the visitor may see it, so this reads as the server. A folder published from disk keeps its paths flat, a/b as a__b
-      const readFolderFile = async (folderId: string, rel: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
+      const readFolderFile = async (
+        folderId: string,
+        rel: string,
+      ): Promise<{ bytes: Uint8Array; mime: string } | null> => {
         const parts = rel.split("/").filter((p) => p !== "");
         if (!dispatchSystem || parts.length === 0 || parts.some((p) => p === "." || p === "..")) return null;
-        const fileIn = (folder: string, name: string): { id: string; name: string } | undefined => db!.all("SELECT id, name FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folder, name)[0] as { id: string; name: string } | undefined;
+        const fileIn = (folder: string, name: string): { id: string; name: string } | undefined =>
+          db!.all(
+            "SELECT id, name FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL",
+            folder,
+            name,
+          )[0] as { id: string; name: string } | undefined;
         let at = folderId;
         let hit = fileIn(at, parts.join("__"));
         if (!hit) {
           for (const dir of parts.slice(0, -1)) {
-            const next = db!.all("SELECT id FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL", at, dir)[0] as { id: string } | undefined;
+            const next = db!.all(
+              "SELECT id FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL",
+              at,
+              dir,
+            )[0] as { id: string } | undefined;
             if (!next) return null;
             at = next.id;
           }
@@ -1238,54 +2289,119 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         if (!hit) return null;
         const found = { fileId: hit.id, name: hit.name };
-        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as { base64?: string; mime?: string };
-        return typeof f.base64 === "string" ? { bytes: new Uint8Array(Buffer.from(f.base64, "base64")), mime: f.mime ?? mimeOf(found.name) } : null;
+        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as {
+          base64?: string;
+          mime?: string;
+        };
+        return typeof f.base64 === "string"
+          ? { bytes: new Uint8Array(Buffer.from(f.base64, "base64")), mime: f.mime ?? mimeOf(found.name) }
+          : null;
       };
-      const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as ((ctx: { db: unknown }, now: number, limit?: number) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[]) | undefined;
+      const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as
+        | ((
+            ctx: { db: unknown },
+            now: number,
+            limit?: number,
+          ) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[])
+        | undefined;
       const WEBHOOK_RECOVER_MS = 30_000;
       const projectionRunner = createProjectionRunner({
-        now, db,
-        ...(dueDeliveries ? { recover: [{
-          name: "events.webhooks_out", windowMs: WEBHOOK_RECOVER_MS,
-          run: async (t: number) => {
-            if (!dispatchSystem) return 0;
-            let n = 0;
-            for (const r of dueDeliveries({ db: db! }, t, 100)) {
-              if (r.state !== "pending" || r.attempts !== 0 || r.at > t - WEBHOOK_RECOVER_MS) continue;
-              await dispatchSystem("webhooks.send_delivery", { webhookId: r.webhook_id, eventId: r.event_id, attempt: 1, idempotencyKey: `${r.webhook_id}:${r.event_id}:1` });
-              n++;
+        now,
+        db,
+        ...(dueDeliveries
+          ? {
+              recover: [
+                {
+                  name: "events.webhooks_out",
+                  windowMs: WEBHOOK_RECOVER_MS,
+                  run: async (t: number) => {
+                    if (!dispatchSystem) return 0;
+                    let n = 0;
+                    for (const r of dueDeliveries({ db: db! }, t, 100)) {
+                      if (r.state !== "pending" || r.attempts !== 0 || r.at > t - WEBHOOK_RECOVER_MS) continue;
+                      await dispatchSystem("webhooks.send_delivery", {
+                        webhookId: r.webhook_id,
+                        eventId: r.event_id,
+                        attempt: 1,
+                        idempotencyKey: `${r.webhook_id}:${r.event_id}:1`,
+                      });
+                      n++;
+                    }
+                    return n;
+                  },
+                },
+              ],
             }
-            return n;
-          },
-        }] } : {}), log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+          : {}),
+        log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
         projections: [...loaded.moduleExports.values()].flatMap((ns) => collectProjections(ns)),
-        warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "projections", ...(attrs ? { attrs } : {}) }),
+        warn: (msg, attrs) =>
+          sink.log({ space: space!, level: 30, msg, place: "projections", ...(attrs ? { attrs } : {}) }),
       });
       projections = projectionRunner;
       const caps = [...registryCaps, ...(o.extra?.caps ?? []), ...hookRunner.caps];
       const extraCaps = new Set([...(o.extra?.caps ?? []), ...hookRunner.caps].map((c) => c.name));
-      const extraEvents = new Set([...(o.extra?.events ?? []), ...(o.extra?.caps ?? []).flatMap((c) => c.emits as string[])]);
+      const extraEvents = new Set([
+        ...(o.extra?.events ?? []),
+        ...(o.extra?.caps ?? []).flatMap((c) => c.emits as string[]),
+      ]);
       const idem = log.idempotency();
       // a fast read, or the host's own periodic work and calls, is counted rather than stored per call (a client polling a dozen reads a second wrote a span each), and so is a read failing the same way again
-      const invokeLog = invokeLogs(sink, space, { routine: (cap) => readCaps.has(cap) || cap.startsWith("host.hook.periodic.") || cap.startsWith("host.hook.call."), read: (cap) => readCaps.has(cap) });
+      const invokeLog = invokeLogs(sink, space, {
+        routine: (cap) =>
+          readCaps.has(cap) || cap.startsWith("host.hook.periodic.") || cap.startsWith("host.hook.call."),
+        read: (cap) => readCaps.has(cap),
+      });
       const sinkLog = invokeLog.log;
       const spaceId = space;
       // Preserve the operational log and write the audit module’s hash chain from declared pipeline metadata.
-      const appendAudit = createAuditRecorder({ space: spaceId, db: db!, module: loaded.moduleExports.get("audit"), principal: (id) => access.snap.principal(id) });
+      const appendAudit = createAuditRecorder({
+        space: spaceId,
+        db: db!,
+        module: loaded.moduleExports.get("audit"),
+        principal: (id) => access.snap.principal(id),
+      });
       const recordAudit = (r: AuditRow): void => {
-        sink.log({ space: spaceId, level: 20, msg: "audit", trace_id: r.traceId, span_id: r.spanId, cap: r.cap, actor: r.principal, ...(r.actingFor ? { on_behalf: r.actingFor } : {}), result: r.class, attrs: { decisionId: r.decisionId, reason: r.reason } });
+        sink.log({
+          space: spaceId,
+          level: 20,
+          msg: "audit",
+          trace_id: r.traceId,
+          span_id: r.spanId,
+          cap: r.cap,
+          actor: r.principal,
+          ...(r.actingFor ? { on_behalf: r.actingFor } : {}),
+          result: r.class,
+          attrs: { decisionId: r.decisionId, reason: r.reason },
+        });
         appendAudit(r);
       };
 
       // ctx.schedule: jobs live in modules.db, so a restart keeps them; each runs through the invoke pipeline as the principal that scheduled it (invokeRunner)
-      let runScheduled: (call: ScheduledCall) => Promise<void> = () => Promise.reject(new Error("the invoke pipeline is not ready"));
+      let runScheduled: (call: ScheduledCall) => Promise<void> = () =>
+        Promise.reject(new Error("the invoke pipeline is not ready"));
       const scheduleQueue = new ScheduleQueue({
-        db, now, run: (c) => runScheduled(c),
+        db,
+        now,
+        run: (c) => runScheduled(c),
         onError: (c, e, final) => {
-          sinkLog.warn("schedule.failed", { cap: c.cap, id: c.id, tries: c.tries + 1, final, error: e instanceof Error ? e.message : String(e) });
+          sinkLog.warn("schedule.failed", {
+            cap: c.cap,
+            id: c.id,
+            tries: c.tries + 1,
+            final,
+            error: e instanceof Error ? e.message : String(e),
+          });
           // a dead job that drove a Run ends that Run failed, so its owner is told (dead-jobs.ts)
           const end = final ? endOfDeadJob(c, e) : null;
-          if (end) void runScheduled(end).catch((err: unknown) => sinkLog.error("schedule.dead_run_not_ended", { cap: c.cap, id: c.id, error: err instanceof Error ? err.message : String(err) }));
+          if (end)
+            void runScheduled(end).catch((err: unknown) =>
+              sinkLog.error("schedule.dead_run_not_ended", {
+                cap: c.cap,
+                id: c.id,
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            );
         },
       });
       queue = scheduleQueue;
@@ -1293,43 +2409,136 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const seal = createCtxSeal(sealKey);
       const blobs = createBlobStore({ dir: path.join(paths.root, "blobs", "ctx"), key: sealKey.key, now });
 
-      const registerExport=async(resource:{id:string;ownerId:string},execution:Parameters<ReturnType<typeof createOwnedExports>['forExecution']>[1]):Promise<void>=>{
-        const row={id:resource.id,type:'file',parent_id:null,label:0,owner_id:resource.ownerId,holds:0};
-        const result=await spaceLog.appendResult({id:`evt_res_${resource.id}`,type:'resource.created',sv:1,trace_id:execution.trace.traceId,actor:execution.principal.id,...(execution.actingFor?{on_behalf:execution.actingFor}:{}),vis:'private',entity:'file',entity_id:resource.id,payload:row});
-        if(!result.ok)throw new Error('Could not register the private export.');if(!result.duplicate){access.fold(result.event);accessPending.push(toAccessEvent(result.event));headSeq=Math.max(headSeq,result.event.seq);await syncAccess();}
+      const registerExport = async (
+        resource: { id: string; ownerId: string },
+        execution: Parameters<ReturnType<typeof createOwnedExports>["forExecution"]>[1],
+      ): Promise<void> => {
+        const row = { id: resource.id, type: "file", parent_id: null, label: 0, owner_id: resource.ownerId, holds: 0 };
+        const result = await spaceLog.appendResult({
+          id: `evt_res_${resource.id}`,
+          type: "resource.created",
+          sv: 1,
+          trace_id: execution.trace.traceId,
+          actor: execution.principal.id,
+          ...(execution.actingFor ? { on_behalf: execution.actingFor } : {}),
+          vis: "private",
+          entity: "file",
+          entity_id: resource.id,
+          payload: row,
+        });
+        if (!result.ok) throw new Error("Could not register the private export.");
+        if (!result.duplicate) {
+          access.fold(result.event);
+          accessPending.push(toAccessEvent(result.event));
+          headSeq = Math.max(headSeq, result.event.seq);
+          await syncAccess();
+        }
       };
-      const ownedExports=createOwnedExports({db:db!,blobs,space:spaceId,now,register:registerExport});
-      let exportMutationRevision=0,exportMutationsInFlight=0;const exportSnapshots=new WeakMap<object,number>();const publicExportCaps=new Map<string,string>(registryCaps.map(cap=>[cap.name,cap.effects] as const));
+      const ownedExports = createOwnedExports({ db: db!, blobs, space: spaceId, now, register: registerExport });
+      let exportMutationRevision = 0,
+        exportMutationsInFlight = 0;
+      const exportSnapshots = new WeakMap<object, number>();
+      const publicExportCaps = new Map<string, string>(registryCaps.map((cap) => [cap.name, cap.effects] as const));
       // Host commands can change the observed Space profile outside invoke's
       // handler wrapper. Keep the same snapshot boundary until all I/O completes.
-      guardExportNetworkCommands = async run => {
-        exportMutationRevision++; exportMutationsInFlight++;
-        try { return await run(); }
-        finally { exportMutationsInFlight--; exportMutationRevision++; }
+      guardExportNetworkCommands = async (run) => {
+        exportMutationRevision++;
+        exportMutationsInFlight++;
+        try {
+          return await run();
+        } finally {
+          exportMutationsInFlight--;
+          exportMutationRevision++;
+        }
       };
-      const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
-        if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
-        // a save in progress is waited for (up to twenty seconds) and the export then starts by itself; only a Space that never goes quiet answers "retry"
-        if(!(await waitForQuiet(()=>exportMutationsInFlight)))throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
-        const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>{assertOwner();if(exportMutationsInFlight!==0)throw new SpaceExportError('A shared Space write is still in progress. Retry after it finishes.');},read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
-          const scope=row.scope??row.visibility;
-          if(['private','personal','invite'].includes(scope)||row.private===true)return 'private';
-          let resource=access.snap.resource(String(row.id));if(!resource)return 'unknown';const seen=new Set<string>();
-          while(resource){if(resource.id===spaceId&&resource.type==='space')return 'shared';if(seen.has(resource.id))return 'unknown';seen.add(resource.id);if(!resource.parent_id)return resource.owner_id?'private':'unknown';resource=access.snap.resource(resource.parent_id);}
-          return 'unknown';
-        }});if(exportMutationsInFlight!==0||exportMutationRevision!==mutationBefore)throw new SpaceExportError('Shared Space data changed during collection. Retry the snapshot.');exportSnapshots.set(ctx,mutationBefore);return result.entries;}catch(error){if(error instanceof SpaceExportError)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:error.message});throw error;}
-      }});
+      const ownerArchives = createOwnerArchives({
+        db: db!,
+        blobs,
+        space: spaceId,
+        now,
+        owner: () => access.owner() ?? null,
+        register: (id, ctx) => registerExport({ id, ownerId: ctx.principal.id }, ctx),
+        assertSnapshot: (ctx) => {
+          if (exportMutationsInFlight !== 0 || exportSnapshots.get(ctx) !== exportMutationRevision)
+            throw fail("validation.precondition_failed", ctx.trace.traceId, {
+              message: "Shared Space data changed during export persistence. Retry the snapshot.",
+            });
+        },
+        collect: async (ctx, assertOwner) => {
+          if (!ctx.call) throw new Error("Canonical Space export reads are unavailable.");
+          // a save in progress is waited for (up to twenty seconds) and the export then starts by itself; only a Space that never goes quiet answers "retry"
+          if (!(await waitForQuiet(() => exportMutationsInFlight)))
+            throw fail("validation.precondition_failed", ctx.trace.traceId, {
+              message: "A shared Space write is still in progress. Retry after it finishes.",
+            });
+          const mutationBefore = exportMutationRevision;
+          try {
+            const result = await collectSpaceExport({
+              revision: () => exportMutationRevision,
+              space: spaceId,
+              requester: ctx.principal.id,
+              now,
+              secrets: [token],
+              head: async () => (await spaceLog.currentHead()).seq,
+              assertOwner: async () => {
+                assertOwner();
+                if (exportMutationsInFlight !== 0)
+                  throw new SpaceExportError("A shared Space write is still in progress. Retry after it finishes.");
+              },
+              read: (cap, input) => ctx.call!(cap as never, input),
+              recordScope: async (_type, row) => {
+                const scope = row.scope ?? row.visibility;
+                if (["private", "personal", "invite"].includes(scope) || row.private === true) return "private";
+                let resource = access.snap.resource(String(row.id));
+                if (!resource) return "unknown";
+                const seen = new Set<string>();
+                while (resource) {
+                  if (resource.id === spaceId && resource.type === "space") return "shared";
+                  if (seen.has(resource.id)) return "unknown";
+                  seen.add(resource.id);
+                  if (!resource.parent_id) return resource.owner_id ? "private" : "unknown";
+                  resource = access.snap.resource(resource.parent_id);
+                }
+                return "unknown";
+              },
+            });
+            if (exportMutationsInFlight !== 0 || exportMutationRevision !== mutationBefore)
+              throw new SpaceExportError("Shared Space data changed during collection. Retry the snapshot.");
+            exportSnapshots.set(ctx, mutationBefore);
+            return result.entries;
+          } catch (error) {
+            if (error instanceof SpaceExportError)
+              throw fail("validation.precondition_failed", ctx.trace.traceId, { message: error.message });
+            throw error;
+          }
+        },
+      });
       await ownerArchives.cleanup();
       await ownedExports.cleanup();
-      const exportCleanup=setInterval(()=>{void Promise.all([ownedExports.cleanup(),ownerArchives.cleanup()]).catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
+      const exportCleanup = setInterval(() => {
+        void Promise.all([ownedExports.cleanup(), ownerArchives.cleanup()]).catch(() =>
+          sink.log({ space: spaceId, level: 40, msg: "exports.cleanup_failed", place: "owned-exports" }),
+        );
+      }, 60000);
+      exportCleanup.unref();
+      closers.push(() => clearInterval(exportCleanup));
 
       const threadChain = (id: string): string[] => {
         const chain = [id];
         for (let cur = id, i = 0; i < 8; i++) {
           let up: string | null | undefined;
-          try { up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId; } catch { break; }   // no chat tables here: the thread alone
+          try {
+            up = (
+              db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as
+                | { parentThreadId?: string | null }
+                | undefined
+            )?.parentThreadId;
+          } catch {
+            break;
+          } // no chat tables here: the thread alone
           if (!up || chain.includes(up)) break;
-          chain.push(up); cur = up;
+          chain.push(up);
+          cur = up;
         }
         return chain;
       };
@@ -1338,100 +2547,306 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const h = db;
         if (!h) return;
         const flag = "automations.connector_hosts_adopted";
-        try { if (h.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", flag).length > 0) return; } catch { return; }
+        try {
+          if (h.all("SELECT 1 AS x FROM automations_policy WHERE policy_key = ?", flag).length > 0) return;
+        } catch {
+          return;
+        }
         const asPerson = async (cap: string, input: unknown, person: string): Promise<unknown> => {
-          const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
+          const r = await invoke(cap, input, {
+            space: spaceId,
+            principal: { kind: "person", id: person },
+            origin: "gate",
+          });
           if (r.status !== "ok") throw new Error(`${cap} did not answer`);
           return r.output;
         };
         try {
           // every binding, read from the connectors module's own table in the Space store (its list does not carry the handles)
           // a Space whose connectors module has not made its tables yet (a fresh one) has no connections to adopt: that is zero, not a failure
-          const hasTable = (spaceStore.open().tx.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'cn_connections'") as unknown[]).length > 0;
-          const conns = (hasTable ? spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as { connection_id: string; connector: string; secrets: string }[] : []).map((r) => {
+          const hasTable =
+            (
+              spaceStore
+                .open()
+                .tx.all(
+                  "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'cn_connections'",
+                ) as unknown[]
+            ).length > 0;
+          const conns = (
+            hasTable
+              ? (spaceStore.open().tx.all("SELECT connection_id, connector, secrets FROM cn_connections") as {
+                  connection_id: string;
+                  connector: string;
+                  secrets: string;
+                }[])
+              : []
+          ).map((r) => {
             let handles: string[] = [];
-            try { handles = Object.values(JSON.parse(r.secrets) as Record<string, unknown>).filter((v): v is string => typeof v === "string"); } catch { handles = []; }
+            try {
+              handles = Object.values(JSON.parse(r.secrets) as Record<string, unknown>).filter(
+                (v): v is string => typeof v === "string",
+              );
+            } catch {
+              handles = [];
+            }
             return { connectionId: r.connection_id, connector: r.connector, handles };
           });
-          const adopted = await adoptPersonBindings({ db: h, log, connections: conns, domainsOf: async (key) => ((await system("connectors.get", { key })) as { connector?: { domains?: unknown } } | null)?.connector?.domains, isBuiltin: (key) => { try { return (spaceStore.open().tx.all("SELECT builtin FROM cn_connectors WHERE key = ?", key)[0] as { builtin?: number } | undefined)?.builtin === 1; } catch { return false; } }, liveVersion: (key) => { try { return (spaceStore.open().tx.all("SELECT version FROM cn_connectors WHERE key = ? AND state = 'live'", key)[0] as { version?: string } | undefined)?.version ?? null; } catch { return null; } }, usableBy: async (person) => ((await asPerson("vault.items.list", { limit: 500 }, person)) as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? [], now: now() });
+          const adopted = await adoptPersonBindings({
+            db: h,
+            log,
+            connections: conns,
+            domainsOf: async (key) =>
+              ((await system("connectors.get", { key })) as { connector?: { domains?: unknown } } | null)?.connector
+                ?.domains,
+            isBuiltin: (key) => {
+              try {
+                return (
+                  (
+                    spaceStore.open().tx.all("SELECT builtin FROM cn_connectors WHERE key = ?", key)[0] as
+                      | { builtin?: number }
+                      | undefined
+                  )?.builtin === 1
+                );
+              } catch {
+                return false;
+              }
+            },
+            liveVersion: (key) => {
+              try {
+                return (
+                  (
+                    spaceStore
+                      .open()
+                      .tx.all("SELECT version FROM cn_connectors WHERE key = ? AND state = 'live'", key)[0] as
+                      | { version?: string }
+                      | undefined
+                  )?.version ?? null
+                );
+              } catch {
+                return null;
+              }
+            },
+            usableBy: async (person) =>
+              (
+                (await asPerson("vault.items.list", { limit: 500 }, person)) as {
+                  items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[];
+                } | null
+              )?.items ?? [],
+            now: now(),
+          });
           h.run("INSERT OR REPLACE INTO automations_policy (policy_key, policy_value) VALUES (?, ?)", flag, "true");
-          sink.log({ space: spaceId, level: 30, msg: "automations.connector_hosts_adopted", place: "boot", attrs: { adopted } });
-        } catch (e) { sink.log({ space: spaceId, level: 40, msg: "automations.connector_hosts_adopt_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); }
+          sink.log({
+            space: spaceId,
+            level: 30,
+            msg: "automations.connector_hosts_adopted",
+            place: "boot",
+            attrs: { adopted },
+          });
+        } catch (e) {
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "automations.connector_hosts_adopt_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          });
+        }
       };
-      const gate = loaded.serving.get("gate") === "live"
-        ? withGateNesting(createGateHook({
-          call: async (cap, input, trace) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, origin: "gate", ...(trace ? { trace } : {}) });
-            if (r.status === "held") throw fail("internal.unavailable", r.traceId, { message: "Approvals are not available right now." });
-            return r.output;
-          },
-          unseal: (s) => seal.unseal(s), now,
-          evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input), keyHostCallAs = async (cap, input, person) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
-            if (r.status !== "ok") throw new Error(`${cap} did not answer`);
-            return r.output;
-          }, (connectionId) => {
-            try {
-              const row = spaceStore.open().tx.all("SELECT connector, secrets FROM cn_connections WHERE connection_id = ?", connectionId)[0] as { connector?: string; secrets?: string } | undefined;
-              if (!row?.connector) return null;
-              return { connector: row.connector, handles: Object.values(JSON.parse(row.secrets ?? "{}") as Record<string, unknown>).filter((v): v is string => typeof v === "string") };
-            } catch { return null; }
-          }),
-          outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
-          threads: threadChain,
-          // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
-          madeSince: (threadId, at) => {
-            try { const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as { c?: number } | undefined; return typeof r?.c === "number" && r.c >= at; } catch { return false; }
-          },
-          automationMarked: async (ids) => {
-            if (ids.length === 0) return null;
-            try { return (db!.all(`SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`, ...ids)[0] as { source?: string } | undefined)?.source ?? null; }
-            catch { for (const id of ids) { const at = await automationTaskOfThread(id); if (at?.outside) return `automation:${at.automationId}:${at.trigger}:`; } return null; }
-          },
-          mode: (id) => {
-            // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
-            try {
-              const rows = threadChain(id).map((t) => (db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as { modePlan?: number | null } | undefined));
-              if (rows[0] === undefined) return undefined;
-              const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
-              return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
-            } catch { return undefined; }
-          },
-          hold: (id) => {
-            const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
-              { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
-            return r ? { state: r.state, principalKind: r.principal_kind, principalId: r.principal_id, actingFor: r.acting_for ?? undefined, run: r.run_id ?? undefined, thread: r.thread_id ?? undefined, payloadHash: r.payload_hash } : null;
-          },
-        }))
-        : undefined;
+      const gate =
+        loaded.serving.get("gate") === "live"
+          ? withGateNesting(
+              createGateHook({
+                call: async (cap, input, trace) => {
+                  const r = await invoke(cap, input, {
+                    space: spaceId,
+                    principal: { kind: "person", id: owner() },
+                    origin: "gate",
+                    ...(trace ? { trace } : {}),
+                  });
+                  if (r.status === "held")
+                    throw fail("internal.unavailable", r.traceId, {
+                      message: "Approvals are not available right now.",
+                    });
+                  return r.output;
+                },
+                unseal: (s) => seal.unseal(s),
+                now,
+                evaluators: moduleWhens(
+                  loaded.moduleExports,
+                  () => db,
+                  (cap, input) => system(cap, input),
+                  (keyHostCallAs = async (cap, input, person) => {
+                    const r = await invoke(cap, input, {
+                      space: spaceId,
+                      principal: { kind: "person", id: person },
+                      origin: "gate",
+                    });
+                    if (r.status !== "ok") throw new Error(`${cap} did not answer`);
+                    return r.output;
+                  }),
+                  (connectionId) => {
+                    try {
+                      const row = spaceStore
+                        .open()
+                        .tx.all(
+                          "SELECT connector, secrets FROM cn_connections WHERE connection_id = ?",
+                          connectionId,
+                        )[0] as { connector?: string; secrets?: string } | undefined;
+                      if (!row?.connector) return null;
+                      return {
+                        connector: row.connector,
+                        handles: Object.values(JSON.parse(row.secrets ?? "{}") as Record<string, unknown>).filter(
+                          (v): v is string => typeof v === "string",
+                        ),
+                      };
+                    } catch {
+                      return null;
+                    }
+                  },
+                ),
+                outward: moduleOutward(loaded.moduleExports),
+                fetches: moduleFetches(loaded.moduleExports),
+                threads: threadChain,
+                // an uncleared Automation mark on the thread or one above it; when the table cannot be read, held only for a thread that belongs to an Automation's outside-started Run
+                madeSince: (threadId, at) => {
+                  try {
+                    const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as
+                      | { c?: number }
+                      | undefined;
+                    return typeof r?.c === "number" && r.c >= at;
+                  } catch {
+                    return false;
+                  }
+                },
+                automationMarked: async (ids) => {
+                  if (ids.length === 0) return null;
+                  try {
+                    return (
+                      (
+                        db!.all(
+                          `SELECT source FROM gate_taint WHERE thread_id IN (${ids.map(() => "?").join(", ")}) AND cleared_at IS NULL AND source LIKE 'automation:%' LIMIT 1`,
+                          ...ids,
+                        )[0] as { source?: string } | undefined
+                      )?.source ?? null
+                    );
+                  } catch {
+                    for (const id of ids) {
+                      const at = await automationTaskOfThread(id);
+                      if (at?.outside) return `automation:${at.automationId}:${at.trigger}:`;
+                    }
+                    return null;
+                  }
+                },
+                mode: (id) => {
+                  // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
+                  try {
+                    const rows = threadChain(id).map(
+                      (t) =>
+                        db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as
+                          | { modePlan?: number | null }
+                          | undefined,
+                    );
+                    if (rows[0] === undefined) return undefined;
+                    const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
+                    return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
+                  } catch {
+                    return undefined;
+                  }
+                },
+                hold: (id) => {
+                  const r = db?.all(
+                    "SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?",
+                    id,
+                  )[0] as
+                    | {
+                        state: string;
+                        principal_kind: string;
+                        principal_id: string;
+                        acting_for: string | null;
+                        run_id: string | null;
+                        thread_id: string | null;
+                        payload_hash: string;
+                      }
+                    | undefined;
+                  return r
+                    ? {
+                        state: r.state,
+                        principalKind: r.principal_kind,
+                        principalId: r.principal_id,
+                        actingFor: r.acting_for ?? undefined,
+                        run: r.run_id ?? undefined,
+                        thread: r.thread_id ?? undefined,
+                        payloadHash: r.payload_hash,
+                      }
+                    : null;
+                },
+              }),
+            )
+          : undefined;
 
       // the Personal Space gate (P-H_19): a test or boot may pass one; otherwise the matrix over the registry's teamOnly rows, which refuses while cfg.spaceKind is "personal"
-      const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }>, owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false) });
+      const personal =
+        o.personal ??
+        personalMatrix({
+          kind: () => cfg.spaceKind ?? "team",
+          caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }>,
+          owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false),
+        });
       const invoke = createInvoke({
         scheduledHere: () => scheduledHere(),
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
         authorize: (r) => {
-          if (staleFor(r.principal)) throw fail("internal.unavailable", ZERO_TRACE, { message: "Access is being re-checked on this server. Try again in a moment." });
+          if (staleFor(r.principal))
+            throw fail("internal.unavailable", ZERO_TRACE, {
+              message: "Access is being re-checked on this server. Try again in a moment.",
+            });
           return authorize(access.snap, r);
         },
-        membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        membership: (principal, actingFor) =>
+          isMemberOrGuest(access.snap, principal) &&
+          (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
         // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
         hidden: (resource, principal, actingFor) => {
           if (resource.type !== "agent" || resource.id === null) return false;
           const row = access.snap.chain(resource.id)?.[0] as { home?: string } | undefined;
           if (row?.home === undefined) return false;
-          return authorize(access.snap, { principal, actingFor, action: { perm: null, level: "view" }, resource: { type: "agent", id: resource.id } }).effect !== "allow";
+          return (
+            authorize(access.snap, {
+              principal,
+              actingFor,
+              action: { perm: null, level: "view" },
+              resource: { type: "agent", id: resource.id },
+            }).effect !== "allow"
+          );
         },
         // the read gate (Redaction for AI): every call an agent is behind hands back the redacted rendition of a file, or a refusal
-        agentGate: createAgentGate({ call: (n, i) => hookRunner.call(n, i), warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }) }),
-        sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
-        recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true),warn:(info)=>sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } })}),
-        preview: { read: (token, cap, input, trace) => {
-          if (!previews) throw fail("permission.no_grant", trace);
-          return previews.read(token, cap, input, trace);
-        } },
+        agentGate: createAgentGate({
+          call: (n, i) => hookRunner.call(n, i),
+          warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }),
+        }),
+        sourceGuard: createSourceGuard({
+          db: { all: (sql, ...args) => db!.all(sql, ...args) },
+          connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) },
+          authorize: (r) => authorize(access.snap, r),
+          space: spaceId,
+        }),
+        recordAccess: createRecordAccess({
+          store: () => spaceStore.open().store,
+          snapshot: () => access.snap,
+          now,
+          fresh: () => !accessStale,
+          refresh: () => syncAccess(true),
+          warn: (info) =>
+            sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } }),
+        }),
+        preview: {
+          read: (token, cap, input, trace) => {
+            if (!previews) throw fail("permission.no_grant", trace);
+            return previews.read(token, cap, input, trace);
+          },
+        },
         resolveItem: (type, kind, value, person) => resolveVaultItem(db!, type, kind, value, person),
         // a Vault item this person cannot see: another person's Mine item (hidden even from an admin, as the Vault hides it), or one they may not use
         // an agent's own report on the task it holds, in a task thread an Automation's outside-started Run made (submit, ask, block, its notes, a post in that thread): it acts on nothing
@@ -1445,118 +2860,330 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         vaultHidden: (itemId, person) => {
           try {
-            const r = db!.all(`SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`, itemId)[0] as { scope?: string; owner?: string } | undefined;
+            const r = db!.all(
+              `SELECT "scope", "owner" FROM vault_meta WHERE "id" = ? AND "deleted_at" IS NULL`,
+              itemId,
+            )[0] as { scope?: string; owner?: string } | undefined;
             if (!r) return "other";
             if (r.scope === "mine") return r.owner !== person ? "mine" : false;
-            return authorize(access.snap, { principal: person, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, now: now() }).effect !== "allow" ? "other" : false;
-          } catch { return "other"; }
+            return authorize(access.snap, {
+              principal: person,
+              action: { perm: null, level: "use" },
+              resource: { type: "vault_item", id: itemId },
+              now: now(),
+            }).effect !== "allow"
+              ? "other"
+              : false;
+          } catch {
+            return "other";
+          }
         },
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
-          if (r.type === "thread" && r.id !== null) { await ensureThreadInChannel(r.id); return; }
-          const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
+          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) {
+            await ensureRow(r.type, r.id);
+            return;
+          }
+          if (r.type === "thread" && r.id !== null) {
+            await ensureThreadInChannel(r.id);
+            return;
+          }
+          const key =
+            r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? (r.parent ?? null) : null;
           if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
         },
-        handler: (cap, v) => whoamiWithDeferred(cap, (() => {
-          const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
-          // Count a public content/access mutation before its handler writes, including the interval before its log commit.
-          const mutation = !isExportItself(cap)&&publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(cap);
-          const h:Handler|undefined=original&&mutation?((async(ctx,input)=>{exportMutationRevision++;exportMutationsInFlight++;try{return await original(ctx,input);}finally{exportMutationsInFlight--;exportMutationRevision++;}})):original;
-          if (h && cap === "access.view_as") return ((ctx, input) => h({ ...ctx, preview: { issue: (person: string) => {
-            const sid = (ctx as typeof ctx & { sessionId?: string }).sessionId;
-            if (!previews || ctx.principal.kind !== "person" || ctx.actingFor || !sid || !ctx.device) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Sign in on a device to open a shared record preview." });
-            return previews.issue({ person: ctx.principal.id, sessionId: sid, device: ctx.device }, person, ctx.trace.traceId);
-          } } } as typeof ctx, input)) as Handler;
-          if(h&&["logs.query","logs.trace","logs.spans","logs.export"].includes(cap))return ((ctx,input)=>{sink.flush();return cap==="logs.export"?h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input):h(ctx,input);}) as Handler;
-          if(h&&['logs.export','health.support_bundle','audit.export'].includes(cap))return ((ctx,input)=>h({...ctx,exports:ownedExports.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
-          if(h&&['backup.export_start','backup.export_status'].includes(cap))return ((ctx,input)=>h({...ctx,ownerArchive:ownerArchives.forExecution(cap,ctx)} as typeof ctx,input)) as Handler;
-          if(h&&(cap==='files.get'||cap==='files.read'))return (async(ctx,input)=>ownedExports.has(String((input as {fileId?:unknown})?.fileId??''))?ownedExports.read(cap,ctx,input):ownerArchives.has(String((input as {fileId?:unknown})?.fileId??''))?ownerArchives.read(cap,ctx,input):h(ctx,input)) as Handler;
-          // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
-          // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
-          const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
-          // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
-          if (h && mod === "identity") return ((ctx, input) => h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown, opts?: unknown) => (name === "devices.register" ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
-          // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
-          if (h && cap === "members.accept") return (async (ctx, input) => {
-            const out = await h({ ...ctx, ...peopleExtras?.(mod, ctx), call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace) } as typeof ctx, input);
-            // ruling 86: everyone has one local Personal calendar from the day they join
-            const person = (out as { personId?: unknown } | null)?.personId;
-            if (typeof person === "string") await ensurePersonalCalendar(person);
-            return out;
-          }) as Handler;
-          // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
-          // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
-          if (h && cap === "agents.set_owner") return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (name === "access.transfer_ownership" ? hookRunner.call(name, callInput) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler;
-          // changing a project's roles (a Lead, or a Space owner or admin who holds no grant on the project's things): the call was authorized by projects, which checked the right. The grants it writes or takes back
-          // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
-          // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
-          // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
-          // projects.teammates.create keeps its shares as the caller (who must manage the project, checked first): as the host, a share on a resource that carries no project grant yet is a
-          // delegation the host cannot make. Only its calls on the project's OWN channel run as the host, so a teammate made by the owner's Assistant (Manage on the project through its person,
-          // which does not reach the channel) is in the project's channel
-          // projects.create the same: its first members go into the channel it just made, as the host, while its shares stay the caller's
-          const sharesAsHost = cap !== "projects.teammates.create" && cap !== "projects.create";
-          if (h && (cap === "projects.members.set" || cap === "projects.members.remove" || cap === "projects.teammates.remove" || cap === "projects.teammates.create" || cap === "projects.create")) return ((ctx, input) => {
-            const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
-            const source = `project:${projectId}`;
-            const own = (): string | null => { try { return (db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as { channelId?: string | null } | undefined)?.channelId ?? null; } catch { return null; } };
-            // projects.create has no project id yet: its own channel is the one this very call makes (channels.create, answered to it)
-            const made = new Set<string>();
-            const raised = (name: string, callInput: unknown): boolean => {
-              const i = (callInput ?? {}) as { source?: unknown; channelId?: unknown };
-              if (sharesAsHost && (name === "access.share" || name === "access.unshare") && i.source === source) return true;
-              return CHANNEL_FOLLOWS.has(name) && typeof i.channelId === "string" && (made.has(i.channelId) || (projectId !== "" && i.channelId === own()));
-            };
-            const pass = ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>;
-            return h({ ...ctx, call: async (name: string, callInput: unknown, opts?: unknown) => {
-              if (raised(name, callInput)) return system(name, callInput, ctx.trace);
-              const out = await pass(name, callInput, opts);
-              if (cap === "projects.create" && name === "channels.create") { const id = (out as { channel?: { channelId?: unknown } } | null)?.channel?.channelId; if (typeof id === "string") made.add(id); }
-              return out;
-            } } as typeof ctx, input);
-          }) as Handler;
-          // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
-          // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
-          if (h && (CHAT_LEAVES.has(cap) || CHAT_GIVES.has(cap))) { const leaves = CHAT_LEAVES.has(cap); return ((ctx, input) => h({ ...ctx, call: (name: string, callInput: unknown, opts?: unknown) => (chatHostCall(name, callInput, leaves, cap) ? system(name, callInput, ctx.trace) : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(name, callInput, opts)) } as typeof ctx, input)) as Handler; }
-          if (h && peopleExtras?.(mod, {})) return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
-          if (!h || !cap.startsWith("devices.")) return h;
-          const wrapped: Handler = (ctx, input) => h({ ...ctx, call: (name, callInput, opts) => (name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts)) } as typeof ctx, input);
-          return wrapped;
-        })()),
+        handler: (cap, v) =>
+          whoamiWithDeferred(
+            cap,
+            (() => {
+              const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
+              // Count a public content/access mutation before its handler writes, including the interval before its log commit.
+              const mutation =
+                !isExportItself(cap) &&
+                publicExportCaps.has(cap) &&
+                publicExportCaps.get(cap) !== "read" &&
+                /^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(
+                  cap,
+                );
+              const h: Handler | undefined =
+                original && mutation
+                  ? async (ctx, input) => {
+                      exportMutationRevision++;
+                      exportMutationsInFlight++;
+                      try {
+                        return await original(ctx, input);
+                      } finally {
+                        exportMutationsInFlight--;
+                        exportMutationRevision++;
+                      }
+                    }
+                  : original;
+              if (h && cap === "access.view_as")
+                return ((ctx, input) =>
+                  h(
+                    {
+                      ...ctx,
+                      preview: {
+                        issue: (person: string) => {
+                          const sid = (ctx as typeof ctx & { sessionId?: string }).sessionId;
+                          if (!previews || ctx.principal.kind !== "person" || ctx.actingFor || !sid || !ctx.device)
+                            throw fail("permission.no_grant", ctx.trace.traceId, {
+                              message: "Sign in on a device to open a shared record preview.",
+                            });
+                          return previews.issue(
+                            { person: ctx.principal.id, sessionId: sid, device: ctx.device },
+                            person,
+                            ctx.trace.traceId,
+                          );
+                        },
+                      },
+                    } as typeof ctx,
+                    input,
+                  )) as Handler;
+              if (h && ["logs.query", "logs.trace", "logs.spans", "logs.export"].includes(cap))
+                return ((ctx, input) => {
+                  sink.flush();
+                  return cap === "logs.export"
+                    ? h({ ...ctx, exports: ownedExports.forExecution(cap, ctx) } as typeof ctx, input)
+                    : h(ctx, input);
+                }) as Handler;
+              if (h && ["logs.export", "health.support_bundle", "audit.export"].includes(cap))
+                return ((ctx, input) =>
+                  h({ ...ctx, exports: ownedExports.forExecution(cap, ctx) } as typeof ctx, input)) as Handler;
+              if (h && ["backup.export_start", "backup.export_status"].includes(cap))
+                return ((ctx, input) =>
+                  h({ ...ctx, ownerArchive: ownerArchives.forExecution(cap, ctx) } as typeof ctx, input)) as Handler;
+              if (h && (cap === "files.get" || cap === "files.read"))
+                return (async (ctx, input) =>
+                  ownedExports.has(String((input as { fileId?: unknown })?.fileId ?? ""))
+                    ? ownedExports.read(cap, ctx, input)
+                    : ownerArchives.has(String((input as { fileId?: unknown })?.fileId ?? ""))
+                      ? ownerArchives.read(cap, ctx, input)
+                      : h(ctx, input)) as Handler;
+              // The one internal call a module may make with the host's own authority: devices -> sync.epoch.bump (a device was revoked, its replica must purge). The person revoking their own
+              // device holds no sync grant, and a revoke that cannot purge would leave the copy on the device. Nothing else is widened: every other ctx.call keeps the caller's authority.
+              const mod = h ? (capIndex?.get(cap)?.module ?? "") : "";
+              // identity opens a device session at sign-in by calling devices.register, which only the server itself may do (P-SEC_08): that one call, from identity, runs as the host. Nothing else is widened.
+              if (h && mod === "identity")
+                return ((ctx, input) =>
+                  h(
+                    {
+                      ...ctx,
+                      ...peopleExtras?.(mod, ctx),
+                      call: (name: string, callInput: unknown, opts?: unknown) =>
+                        name === "devices.register"
+                          ? system(name, callInput, ctx.trace)
+                          : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(
+                              name,
+                              callInput,
+                              opts,
+                            ),
+                    } as typeof ctx,
+                    input,
+                  )) as Handler;
+              // accepting an invite: the person proved the code, and the invite's role, groups and starting places were the inviter's to give. Those join effects run as the host, not as the signed-out caller.
+              if (h && cap === "members.accept")
+                return (async (ctx, input) => {
+                  const out = await h(
+                    {
+                      ...ctx,
+                      ...peopleExtras?.(mod, ctx),
+                      call: (name: string, callInput: unknown) => system(name, callInput, ctx.trace),
+                    } as typeof ctx,
+                    input,
+                  );
+                  // ruling 86: everyone has one local Personal calendar from the day they join
+                  const person = (out as { personId?: unknown } | null)?.personId;
+                  if (typeof person === "string") await ensurePersonalCalendar(person);
+                  return out;
+                }) as Handler;
+              // handing an agent to another person: ownership of the agent and its folder moves with the host's authority (ruling 88). The call itself was authorized (manage on the agent, and the Gate for a non-person);
+              // only this one call from this one capability is widened, and it is the host-only access.transfer_ownership
+              if (h && cap === "agents.set_owner")
+                return ((ctx, input) =>
+                  h(
+                    {
+                      ...ctx,
+                      call: (name: string, callInput: unknown, opts?: unknown) =>
+                        name === "access.transfer_ownership"
+                          ? hookRunner.call(name, callInput)
+                          : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(
+                              name,
+                              callInput,
+                              opts,
+                            ),
+                    } as typeof ctx,
+                    input,
+                  )) as Handler;
+              // changing a project's roles (a Lead, or a Space owner or admin who holds no grant on the project's things): the call was authorized by projects, which checked the right. The grants it writes or takes back
+              // run as the host, and only a grant that carries this project's own source (project:<id>); the access module then lets the host write it only on the project or on a resource already carrying that source.
+              // The project's own channel follows its roles the same way: putting a person or an agent in it, or taking them out, runs as the host, and only for this project's own channel (read from
+              // the projects table, never from the input), so a project remove takes away everything the project gave whoever presses it, provided they may change the project's roles.
+              // projects.teammates.create keeps its shares as the caller (who must manage the project, checked first): as the host, a share on a resource that carries no project grant yet is a
+              // delegation the host cannot make. Only its calls on the project's OWN channel run as the host, so a teammate made by the owner's Assistant (Manage on the project through its person,
+              // which does not reach the channel) is in the project's channel
+              // projects.create the same: its first members go into the channel it just made, as the host, while its shares stay the caller's
+              const sharesAsHost = cap !== "projects.teammates.create" && cap !== "projects.create";
+              if (
+                h &&
+                (cap === "projects.members.set" ||
+                  cap === "projects.members.remove" ||
+                  cap === "projects.teammates.remove" ||
+                  cap === "projects.teammates.create" ||
+                  cap === "projects.create")
+              )
+                return ((ctx, input) => {
+                  const projectId = String((input as { projectId?: unknown } | null)?.projectId ?? "");
+                  const source = `project:${projectId}`;
+                  const own = (): string | null => {
+                    try {
+                      return (
+                        (
+                          db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as
+                            | { channelId?: string | null }
+                            | undefined
+                        )?.channelId ?? null
+                      );
+                    } catch {
+                      return null;
+                    }
+                  };
+                  // projects.create has no project id yet: its own channel is the one this very call makes (channels.create, answered to it)
+                  const made = new Set<string>();
+                  const raised = (name: string, callInput: unknown): boolean => {
+                    const i = (callInput ?? {}) as { source?: unknown; channelId?: unknown };
+                    if (sharesAsHost && (name === "access.share" || name === "access.unshare") && i.source === source)
+                      return true;
+                    return (
+                      CHANNEL_FOLLOWS.has(name) &&
+                      typeof i.channelId === "string" &&
+                      (made.has(i.channelId) || (projectId !== "" && i.channelId === own()))
+                    );
+                  };
+                  const pass = ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>;
+                  return h(
+                    {
+                      ...ctx,
+                      call: async (name: string, callInput: unknown, opts?: unknown) => {
+                        if (raised(name, callInput)) return system(name, callInput, ctx.trace);
+                        const out = await pass(name, callInput, opts);
+                        if (cap === "projects.create" && name === "channels.create") {
+                          const id = (out as { channel?: { channelId?: unknown } } | null)?.channel?.channelId;
+                          if (typeof id === "string") made.add(id);
+                        }
+                        return out;
+                      },
+                    } as typeof ctx,
+                    input,
+                  );
+                }) as Handler;
+              // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
+              // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
+              if (h && (CHAT_LEAVES.has(cap) || CHAT_GIVES.has(cap))) {
+                const leaves = CHAT_LEAVES.has(cap);
+                return ((ctx, input) =>
+                  h(
+                    {
+                      ...ctx,
+                      call: (name: string, callInput: unknown, opts?: unknown) =>
+                        chatHostCall(name, callInput, leaves, cap)
+                          ? system(name, callInput, ctx.trace)
+                          : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(
+                              name,
+                              callInput,
+                              opts,
+                            ),
+                    } as typeof ctx,
+                    input,
+                  )) as Handler;
+              }
+              if (h && peopleExtras?.(mod, {}))
+                return ((ctx, input) => h({ ...ctx, ...peopleExtras!(mod, ctx) } as typeof ctx, input)) as Handler;
+              if (!h || !cap.startsWith("devices.")) return h;
+              const wrapped: Handler = (ctx, input) =>
+                h(
+                  {
+                    ...ctx,
+                    call: (name, callInput, opts) =>
+                      name === "sync.epoch.bump" ? system(name, callInput, ctx.trace) : ctx.call(name, callInput, opts),
+                  } as typeof ctx,
+                  input,
+                );
+              return wrapped;
+            })(),
+          ),
         services: hostServices({
-          base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)), seal, queue: scheduleQueue, blobs,
-          vault: (seed) => createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed, { fill: (h, into, at) => filler.fill(h, into, at), now }),
+          base: (seed, cap) => loaded.services(seed, hookRunner.serviceCap(cap)),
+          seal,
+          queue: scheduleQueue,
+          blobs,
+          vault: (seed) =>
+            createVaultService((c, i, sd) => invokeRef(c, i, sd), spaceId, seed, {
+              fill: (h, into, at) => filler.fill(h, into, at),
+              now,
+            }),
         }),
-        idem, rate: createRateLimiter(), now, log: sinkLog,
+        idem,
+        rate: createRateLimiter(),
+        now,
+        log: sinkLog,
         ...(gate ? { gate } : {}),
         personal,
         // P-H_16: an object a call creates is a resource in the same commit, so it is authorizable at once
-        resources: createResourceRegistrar({ events: registry.events, exists: (id) => access.snap.resource(id) !== undefined, resource: (id) => access.snap.resource(id), agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null }),
+        resources: createResourceRegistrar({
+          events: registry.events,
+          exists: (id) => access.snap.resource(id) !== undefined,
+          resource: (id) => access.snap.resource(id),
+          agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
+        }),
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {
-            const may = (level: "edit" | "view"): boolean => authorize(access.snap, { principal: person, action: { perm: null, level }, resource: { type: "space", id: space } }).effect === "allow";
+            const may = (level: "edit" | "view"): boolean =>
+              authorize(access.snap, {
+                principal: person,
+                action: { perm: null, level },
+                resource: { type: "space", id: space },
+              }).effect === "allow";
             return may("edit") ? "edit" : may("view") ? "view" : "none";
           },
         }),
         commit: withEventIds(async (b) => {
           const trace = b.events[0]?.traceId ?? ZERO_TRACE;
-          if (chainBroken) throw fail("internal.unavailable", trace, { message: "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor." });
+          if (chainBroken)
+            throw fail("internal.unavailable", trace, {
+              message:
+                "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor.",
+            });
           const stored = await Promise.all(b.events.map((e) => log!.append(toNew(e))));
           const out = stored.map((s, i) => fromStored(s, b.events[i]!));
-          for (const s of stored) { access.fold(s); if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s)); }
+          for (const s of stored) {
+            access.fold(s);
+            if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s));
+          }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
-          for (const e of b.events) if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
+          for (const e of b.events)
+            if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
           if (b.audit) recordAudit(b.audit);
           return out;
         }),
         audit: (r) => recordAudit(r),
         publish: (events) => {
           // the owner claimed the Space (their keys were stored): the link is spent, so the file that held it goes too
-          if (claim && events.some((e) => e.type === "keys.stored" && (e.payload as { personId?: string } | undefined)?.personId === access.owner())) {
+          if (
+            claim &&
+            events.some(
+              (e) =>
+                e.type === "keys.stored" &&
+                (e.payload as { personId?: string } | undefined)?.personId === access.owner(),
+            )
+          ) {
             claim = null;
-            try { fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true }); } catch { /* already gone */ }
+            try {
+              fs.rmSync(path.join(paths.logDir, "claim-link.txt"), { force: true });
+            } catch {
+              /* already gone */
+            }
             // ruling 86: the claim also makes sure the owner has their Personal calendar (covers a start where the calendar module was not ready). It reads first, so nothing is duplicated.
             void ensurePersonalCalendar(access.owner() ?? "");
           }
@@ -1567,39 +3194,91 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           for (const e of events) {
             const p = (e.payload ?? {}) as { sessionId?: unknown; principalId?: unknown; personId?: unknown };
             const pp = p as { person?: unknown };
-            if (e.type === "session.revoked" && typeof p.sessionId === "string") endLive({ sessionId: p.sessionId, ...(typeof pp.person === "string" ? { person: pp.person } : {}) }, false);
-            else if (e.type === "principal.suspended" && typeof p.principalId === "string") endLive({ person: p.principalId }, true);
-            else if (e.type === "member.removed" && typeof p.personId === "string") endLive({ person: p.personId }, true);
+            if (e.type === "session.revoked" && typeof p.sessionId === "string")
+              endLive(
+                { sessionId: p.sessionId, ...(typeof pp.person === "string" ? { person: pp.person } : {}) },
+                false,
+              );
+            else if (e.type === "principal.suspended" && typeof p.principalId === "string")
+              endLive({ person: p.principalId }, true);
+            else if (e.type === "member.removed" && typeof p.personId === "string")
+              endLive({ person: p.personId }, true);
           }
           // someone left a chat or lost a grant: whoever was watching a reply being written is asked about again before the next piece reaches them
           if (events.some((e) => READER_LOSS.test(e.type))) engineSeam?.forgetReaders?.();
           // a computer removed from the Space loses its live-view socket this instant
-          for (const e of events) if (e.type === "network.server_removed") { const id = (e.payload as { serverId?: unknown } | undefined)?.serverId; if (typeof id === "string") computeStream.closeNode(id); }
-          if (consumersReady) void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
-          void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+          for (const e of events)
+            if (e.type === "network.server_removed") {
+              const id = (e.payload as { serverId?: unknown } | undefined)?.serverId;
+              if (typeof id === "string") computeStream.closeNode(id);
+            }
+          if (consumersReady)
+            void hookRunner.pump().catch((e: unknown) =>
+              sink.log({
+                space: spaceId,
+                level: 30,
+                msg: "hooks.pump_failed",
+                place: "hooks",
+                attrs: { error: e instanceof Error ? e.message : String(e) },
+              }),
+            );
+          void projectionRunner.pump().catch((e: unknown) =>
+            sink.log({
+              space: spaceId,
+              level: 30,
+              msg: "projections.pump_failed",
+              place: "projections",
+              attrs: { error: e instanceof Error ? e.message : String(e) },
+            }),
+          );
         },
         onSpan: invokeLog.onSpan,
       });
 
       // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
       const runAsScheduled = invokeRunner(invoke);
-      runScheduled = (call) => (call.principal.id === SYSTEM_PRINCIPAL.id
-        ? invoke(call.cap, call.input, { space: call.space, principal: call.principal, preAuth: true, origin: "schedule", ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}) }).then(() => undefined)
-        : runAsScheduled(call));
+      runScheduled = (call) =>
+        call.principal.id === SYSTEM_PRINCIPAL.id
+          ? invoke(call.cap, call.input, {
+              space: call.space,
+              principal: call.principal,
+              preAuth: true,
+              origin: "schedule",
+              ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}),
+            }).then(() => undefined)
+          : runAsScheduled(call);
       invokeRef = invoke;
       gitProxy = createGitProxy({
         spoolDir: path.join(paths.root, "git-spool"),
-        space: spaceId, now, invoke: (cap, input, seed) => invokeRef(cap, input, seed), fill: githubFill,
+        space: spaceId,
+        now,
+        invoke: (cap, input, seed) => invokeRef(cap, input, seed),
+        fill: githubFill,
         ...(o.gitUpstream ? { upstream: o.gitUpstream } : {}),
         ...(o.gitParkMs ? { parkMs: o.gitParkMs } : {}),
         base: () => publicOrigin()?.origin ?? `http://127.0.0.1:${boundPort}`,
         log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "git", ...(attrs ? { attrs } : {}) }),
         gate: {
           head: async () => (log ? (await log.currentHead()).seq : 0),
-          since: async (seq) => (log ? (await log.read({ type: "gate.*", after: seq, limit: 200 })).map((e) => ({ seq: e.seq, name: e.type, payload: (() => { try { return JSON.parse(new TextDecoder().decode(e.payload)) as Record<string, unknown>; } catch { return {}; } })() })) : []),
+          since: async (seq) =>
+            log
+              ? (await log.read({ type: "gate.*", after: seq, limit: 200 })).map((e) => ({
+                  seq: e.seq,
+                  name: e.type,
+                  payload: (() => {
+                    try {
+                      return JSON.parse(new TextDecoder().decode(e.payload)) as Record<string, unknown>;
+                    } catch {
+                      return {};
+                    }
+                  })(),
+                }))
+              : [],
         },
       });
-      closers.push(() => { gitProxy = null; });
+      closers.push(() => {
+        gitProxy = null;
+      });
       const mcpExports = loaded.moduleExports.get("mcp");
       const makeMcp = mcpExports?.["createMcpRuntime"];
       if (typeof makeMcp === "function") {
@@ -1614,12 +3293,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           stopMcpRuntime?.();
           const local = `http://127.0.0.1:${port}/mcp`;
           mcpRuntime = (makeMcp as (o: Record<string, unknown>) => McpRuntime)({
-            db, space: spaceId, invoke: invokeRef, now,
+            db,
+            space: spaceId,
+            invoke: invokeRef,
+            now,
             // the address outside tools use: the Space's public one, which a claimed phone name can change while the daemon runs, else this computer
-            endpoint: () => ({ url: `${publicOrigin()?.origin ?? `http://127.0.0.1:${port}`}/mcp`, loopbackUrl: local }),
-            active: (agentId: string, person: string) => access.snap.principal(agentId)?.status === "active" && access.snap.principal(person)?.status === "active",
-            spaceName: async () => ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ?? cfg.spaceName ?? "this Space",
-            system: (cap: string, input: unknown) => (dispatchSystem ? dispatchSystem(cap, input) : Promise.reject(new Error("the server is starting"))),
+            endpoint: () => ({
+              url: `${publicOrigin()?.origin ?? `http://127.0.0.1:${port}`}/mcp`,
+              loopbackUrl: local,
+            }),
+            active: (agentId: string, person: string) =>
+              access.snap.principal(agentId)?.status === "active" && access.snap.principal(person)?.status === "active",
+            spaceName: async () =>
+              ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ??
+              cfg.spaceName ??
+              "this Space",
+            system: (cap: string, input: unknown) =>
+              dispatchSystem ? dispatchSystem(cap, input) : Promise.reject(new Error("the server is starting")),
             ...(process.env["VYRE_WEB_APP"] ? { webApp: process.env["VYRE_WEB_APP"] } : {}),
           });
         };
@@ -1636,73 +3326,174 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let healTimer: ReturnType<typeof setTimeout> | null = null;
       const healLater = (): void => {
         if (healTimer !== null) return;
-        healTimer = setTimeout(() => { healTimer = null; void syncOnce(true).then(() => { if (accessStale) healLater(); }, () => healLater()); }, 500);
+        healTimer = setTimeout(() => {
+          healTimer = null;
+          void syncOnce(true).then(
+            () => {
+              if (accessStale) healLater();
+            },
+            () => healLater(),
+          );
+        }, 500);
         healTimer.unref?.();
       };
-      closers.push(() => { if (healTimer !== null) { clearTimeout(healTimer); healTimer = null; } });
+      closers.push(() => {
+        if (healTimer !== null) {
+          clearTimeout(healTimer);
+          healTimer = null;
+        }
+      });
       // Fail closed (ruling 70) when a sync fails twice: the last snapshot may still let a revoked or removed person through, so everyone but the owner is refused until a sync succeeds.
       // what a commit made is committed before its append returns, and a new read transaction on another connection sees every commit (WAL), so this reads the log as the worker wrote it
       // a short wait on this connection: it reads on the main thread (review 3, N2)
-      const accessLog = createLogReader(() => { const r = openDb(paths.events, { readOnly: true }); r.exec("PRAGMA busy_timeout = 250"); return r; });
+      const accessLog = createLogReader(() => {
+        const r = openDb(paths.events, { readOnly: true });
+        r.exec("PRAGMA busy_timeout = 250");
+        return r;
+      });
       const accessLogRead = (after: number, limit: number) => accessLog.read(after, limit);
       closers.push(() => accessLog.close());
       const runSync = createAccessRun({
-        take: () => { const held = accessPending; accessPending = []; return held; },
-        putBack: (es) => { accessPending = [...es, ...accessPending]; },
+        take: () => {
+          const held = accessPending;
+          accessPending = [];
+          return held;
+        },
+        putBack: (es) => {
+          accessPending = [...es, ...accessPending];
+        },
         pending: () => accessPending.length,
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
         call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
-        adopt: (s) => access.adopt(s), adopted: () => access.adopted(),
-        stale: { get: () => accessStale, set: (v) => { accessStale = v; } },
-        fedTo: { get: () => accessFedTo, set: (n) => { accessFedTo = n; } },
+        adopt: (s) => access.adopt(s),
+        adopted: () => access.adopted(),
+        stale: {
+          get: () => accessStale,
+          set: (v) => {
+            accessStale = v;
+          },
+        },
+        fedTo: {
+          get: () => accessFedTo,
+          set: (n) => {
+            accessFedTo = n;
+          },
+        },
         // the seed-shaped fold answers only when the access module is not loaded at all; with access live, a missing access.sync is a failure and fails closed
-        noModule: (e) => { const gone = e instanceof Error && e.message.startsWith("no host call named access.sync") && loaded.serving.get("access") !== "live"; if (gone) noAccessModule = true; return gone; },
-        failed: (error, adopted) => sink.log({ space: spaceId, level: 50, msg: "access.sync_failed", place: "boot", attrs: { error, stale: adopted } }),
+        noModule: (e) => {
+          const gone =
+            e instanceof Error &&
+            e.message.startsWith("no host call named access.sync") &&
+            loaded.serving.get("access") !== "live";
+          if (gone) noAccessModule = true;
+          return gone;
+        },
+        failed: (error, adopted) =>
+          sink.log({
+            space: spaceId,
+            level: 50,
+            msg: "access.sync_failed",
+            place: "boot",
+            attrs: { error, stale: adopted },
+          }),
         healLater: () => healLater(),
       });
-      const syncOnce = (force?: boolean): Promise<void> => { const run = syncChain.then(() => runSync(force), () => runSync(force)); syncChain = run.then(() => undefined, () => undefined); return run; };
+      const syncOnce = (force?: boolean): Promise<void> => {
+        const run = syncChain.then(
+          () => runSync(force),
+          () => runSync(force),
+        );
+        syncChain = run.then(
+          () => undefined,
+          () => undefined,
+        );
+        return run;
+      };
       // after every sync an agent born while its person was not yet active in the snapshot is brought up to a Member agent (it heals itself and, on a changed Space, syncs once more)
       if (log) startHealing((event) => log!.appendResult(event), spaceId);
-      syncAccess = async (force) => { await syncOnce(force); void healAgents().catch(() => undefined); };
+      syncAccess = async (force) => {
+        await syncOnce(force);
+        void healAgents().catch(() => undefined);
+      };
       await syncAccess();
       await healAgents();
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
         const running = personalRuns.get(person);
-        if (running) return running;   // the same person twice at once (a join and a start) makes one calendar
-        const as = { space: spaceId, principal: { kind: "person" as const, id: person }, preAuth: true, origin: "hook" as const };
+        if (running) return running; // the same person twice at once (a join and a start) makes one calendar
+        const as = {
+          space: spaceId,
+          principal: { kind: "person" as const, id: person },
+          preAuth: true,
+          origin: "hook" as const,
+        };
         const run = (async (): Promise<void> => {
           try {
             const mine = await invoke("calendar.list_calendars", { scope: "mine" }, as);
-            const calendars = (mine.status === "ok" ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars : undefined) ?? [];
+            const calendars =
+              (mine.status === "ok"
+                ? (mine.output as { calendars?: { personal?: boolean }[] }).calendars
+                : undefined) ?? [];
             if (calendars.some((c) => c.personal === true)) return;
             // made once is enough: a Personal calendar the person deleted on purpose stays deleted (the calendar module soft-deletes, so its row still says one was made)
-            try { if ((db?.all(`SELECT 1 AS x FROM calendar_list WHERE "ownerId" = ? AND personal = 1 LIMIT 1`, person) ?? []).length > 0) return; } catch { /* no calendar table yet: none was made */ }
-            await invoke("calendar.create_calendar", { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}:${now()}` }, as);
+            try {
+              if (
+                (db?.all(`SELECT 1 AS x FROM calendar_list WHERE "ownerId" = ? AND personal = 1 LIMIT 1`, person) ?? [])
+                  .length > 0
+              )
+                return;
+            } catch {
+              /* no calendar table yet: none was made */
+            }
+            await invoke(
+              "calendar.create_calendar",
+              { title: "Personal", personal: true, idempotencyKey: `personal-calendar:${person}:${now()}` },
+              as,
+            );
           } catch (e) {
-            sink.log({ space: spaceId, level: 40, msg: "calendar.personal_failed", place: "boot", attrs: { person, error: e instanceof Error ? e.message : String(e) } });
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "calendar.personal_failed",
+              place: "boot",
+              attrs: { person, error: e instanceof Error ? e.message : String(e) },
+            });
           }
-        })().finally(() => { personalRuns.delete(person); });
+        })().finally(() => {
+          personalRuns.delete(person);
+        });
         personalRuns.set(person, run);
         return run;
       };
       // people who were here before this rule (the owner of a Space this host made, members who joined on an older version) get theirs once the daemon serves, a few at a time, so a Space with many people
       // starts at once: the read-first check makes it a no-op for anyone who has one, and no migration of user data is needed
-      let personalSweep: Promise<void> = Promise.resolve(), personalStopped = false;
+      let personalSweep: Promise<void> = Promise.resolve(),
+        personalStopped = false;
       startPersonalCalendars = () => {
-        const queue = [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
-        const worker = async (): Promise<void> => { for (let id = queue.shift(); id !== undefined && !personalStopped; id = queue.shift()) await ensurePersonalCalendar(id); };
+        const queue = [...access.snap.allPrincipals()]
+          .filter((p) => p.kind === "person" && p.status === "active")
+          .map((p) => p.id);
+        const worker = async (): Promise<void> => {
+          for (let id = queue.shift(); id !== undefined && !personalStopped; id = queue.shift())
+            await ensurePersonalCalendar(id);
+        };
         personalSweep = Promise.all([worker(), worker(), worker(), worker()]).then(() => undefined);
       };
       startupWork = () => personalSweep;
-      closers.push(() => { personalStopped = true; return personalSweep; });
+      closers.push(() => {
+        personalStopped = true;
+        return personalSweep;
+      });
       // the owner of a Space this host made has not claimed it until identity holds an account for them: a fresh one-time link at every start until they do
       claimIssue = async () => {
         const owner = access.owner();
         if (!hostMadeSpace || !owner || loaded.serving.get("identity") !== "live") return null;
-        return (await hookRunner.call("identity.claim_issue", { personId: owner })) as { code: string; expiresAt: number } | null;
+        return (await hookRunner.call("identity.claim_issue", { personId: owner })) as {
+          code: string;
+          expiresAt: number;
+        } | null;
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
@@ -1718,67 +3509,200 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               cursor = e.seq;
               if (!PEER_ACCESS.has(e.type) || e.enc !== 0) continue;
               let payload: unknown;
-              try { payload = JSON.parse(new TextDecoder().decode(e.payload)); } catch { continue; }
-              out.push({ seq: e.seq, id: e.id, type: e.type, sv: e.sv, actor: e.actor, vis: e.vis, trace_id: e.trace_id, ...(e.entity ? { entity: e.entity } : {}), ...(e.entity_id ? { entity_id: e.entity_id } : {}), payload });
+              try {
+                payload = JSON.parse(new TextDecoder().decode(e.payload));
+              } catch {
+                continue;
+              }
+              out.push({
+                seq: e.seq,
+                id: e.id,
+                type: e.type,
+                sv: e.sv,
+                actor: e.actor,
+                vis: e.vis,
+                trace_id: e.trace_id,
+                ...(e.entity ? { entity: e.entity } : {}),
+                ...(e.entity_id ? { entity_id: e.entity_id } : {}),
+                payload,
+              });
               if (out.length >= limit) return { events: out, next: cursor, more: true };
             }
             if (page.length < 2000) return { events: out, next: cursor, more: false };
           }
         },
         async fold(events) {
-          let folded = 0, refused = 0;
+          let folded = 0,
+            refused = 0;
           for (const e of events) {
             const why = accessCheck(e, spaceId);
-            if (why) { refused++; sink.log({ space: spaceId, level: 40, msg: "peers.access_refused", place: "peers", attrs: { id: String(e.id).slice(0, 80), type: String(e.type), why } }); continue; }
-            const r = await spaceLog.appendResult({ id: e.id, type: e.type, sv: e.sv, trace_id: e.trace_id, actor: e.actor, vis: e.vis as "space", ...(e.entity ? { entity: e.entity } : {}), ...(e.entity_id ? { entity_id: e.entity_id } : {}), payload: e.payload });
-            if (!r.ok) { refused++; continue; }
+            if (why) {
+              refused++;
+              sink.log({
+                space: spaceId,
+                level: 40,
+                msg: "peers.access_refused",
+                place: "peers",
+                attrs: { id: String(e.id).slice(0, 80), type: String(e.type), why },
+              });
+              continue;
+            }
+            const r = await spaceLog.appendResult({
+              id: e.id,
+              type: e.type,
+              sv: e.sv,
+              trace_id: e.trace_id,
+              actor: e.actor,
+              vis: e.vis as "space",
+              ...(e.entity ? { entity: e.entity } : {}),
+              ...(e.entity_id ? { entity_id: e.entity_id } : {}),
+              payload: e.payload,
+            });
+            if (!r.ok) {
+              refused++;
+              continue;
+            }
             if (r.duplicate) {
               // the same id again: folded once already. The same id with other content is refused, never folded
               let stored: unknown = null;
-              try { stored = JSON.parse(new TextDecoder().decode(r.event.payload)); } catch { /* unreadable */ }
-              if (r.event.type !== e.type || !sameContent(stored, e.payload)) { refused++; sink.log({ space: spaceId, level: 40, msg: "peers.access_refused", place: "peers", attrs: { id: e.id.slice(0, 80), type: e.type, why: "an id already used for other content" } }); }
+              try {
+                stored = JSON.parse(new TextDecoder().decode(r.event.payload));
+              } catch {
+                /* unreadable */
+              }
+              if (r.event.type !== e.type || !sameContent(stored, e.payload)) {
+                refused++;
+                sink.log({
+                  space: spaceId,
+                  level: 40,
+                  msg: "peers.access_refused",
+                  place: "peers",
+                  attrs: { id: e.id.slice(0, 80), type: e.type, why: "an id already used for other content" },
+                });
+              }
               continue;
             }
-            access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); folded++;
+            access.fold(r.event);
+            accessPending.push(toAccessEvent(r.event));
+            headSeq = Math.max(headSeq, r.event.seq);
+            folded++;
           }
           if (folded) await syncAccess(true);
           return { folded, refused };
         },
       };
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
-      peopleExtras = createPeopleExtras({ githubTickets, access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, ...(keyWraps ? { wraps: keyWraps } : {}), sso: { tickets: ssoTickets }, github: githubNow,
+      peopleExtras = createPeopleExtras({
+        githubTickets,
+        access: () => access.snap,
+        stale: (id) => staleFor(id),
+        db: db!,
+        recoveryCommit: createRecoveryCommit({ db: db!, now }),
+        call: (n, i, as) => hookRunner.call(n, i, as),
+        keyring,
+        ...(keyWraps ? { wraps: keyWraps } : {}),
+        sso: { tickets: ssoTickets },
+        github: githubNow,
         // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
-        phoneInvite: { keyFor: async (codeHash) => (phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null) },
+        phoneInvite: {
+          keyFor: async (codeHash) =>
+            phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null,
+        },
         githubApp: {
-          envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
-          callbackUrl: () => `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
+          envClientId: () =>
+            (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
+          callbackUrl: () =>
+            `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
           // the secret is filed in the Vault as a Space item by the admin doing this (their own Vault rights apply); only its handle comes back
           storeSecret: async (secret, as) => {
             const seed = { space: spaceId, principal: as, origin: "module" } as const;
-            const ask = async (cap: string, input: unknown): Promise<any> => { const r = await invokeRef(cap, input, seed); if (r.status !== "ok") throw new Error("The Vault needs approval first."); return r.output; };
-            const NAME = "GitHub sign-in client secret", FOLDER = "Sign-in", field = { key: "client_secret", value: secret, secret: true };
+            const ask = async (cap: string, input: unknown): Promise<any> => {
+              const r = await invokeRef(cap, input, seed);
+              if (r.status !== "ok") throw new Error("The Vault needs approval first.");
+              return r.output;
+            };
+            const NAME = "GitHub sign-in client secret",
+              FOLDER = "Sign-in",
+              field = { key: "client_secret", value: secret, secret: true };
             // Owner and Admin only: a Member's role carries Edit over the whole Space, so the folder and the item are labelled Restricted (above a Member's, a Developer's and every agent's clearance) before and after the value goes in
-            const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> => ask("access.labels.set", { resource: { type, id }, label: "restricted" });
-            const have = ((await ask("vault.items.list", { q: NAME })).items as { id: string; name: string; scope: string; handle: string; folderId?: string }[]).find((i) => i.name === NAME && i.scope === "shared");
-            if (have) { await restrict("vault_item", have.id); if (have.folderId) await restrict("vault_folder", have.folderId); await ask("vault.item.update", { itemId: have.id, fieldsSet: [field] }); return have.handle; }
-            const folders = (await ask("vault.folders.list", { scope: "shared" })).folders as { id: string; name: string }[];
-            const folderId = folders.find((f) => f.name === FOLDER)?.id ?? (await ask("vault.folders.create", { name: FOLDER, scope: "shared", idempotencyKey: `gh-signin-folder-${spaceId}` })).folder.id;
+            const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> =>
+              ask("access.labels.set", { resource: { type, id }, label: "restricted" });
+            const have = (
+              (await ask("vault.items.list", { q: NAME })).items as {
+                id: string;
+                name: string;
+                scope: string;
+                handle: string;
+                folderId?: string;
+              }[]
+            ).find((i) => i.name === NAME && i.scope === "shared");
+            if (have) {
+              await restrict("vault_item", have.id);
+              if (have.folderId) await restrict("vault_folder", have.folderId);
+              await ask("vault.item.update", { itemId: have.id, fieldsSet: [field] });
+              return have.handle;
+            }
+            const folders = (await ask("vault.folders.list", { scope: "shared" })).folders as {
+              id: string;
+              name: string;
+            }[];
+            const folderId =
+              folders.find((f) => f.name === FOLDER)?.id ??
+              (
+                await ask("vault.folders.create", {
+                  name: FOLDER,
+                  scope: "shared",
+                  idempotencyKey: `gh-signin-folder-${spaceId}`,
+                })
+              ).folder.id;
             await restrict("vault_folder", folderId);
-            const put = (await ask("vault.item.put", { folderId, name: NAME, kind: "api_key", fields: [field], spaceOnly: true, idempotencyKey: `gh-signin-secret-${Date.now()}` })).item as { id: string; handle: string };
+            const put = (
+              await ask("vault.item.put", {
+                folderId,
+                name: NAME,
+                kind: "api_key",
+                fields: [field],
+                spaceOnly: true,
+                idempotencyKey: `gh-signin-secret-${Date.now()}`,
+              })
+            ).item as { id: string; handle: string };
             await restrict("vault_item", put.id);
             return put.handle;
           },
           reload: () => reloadSpaceGithub(),
-        } });
+        },
+      });
       reloadSpaceGithub = async () => {
-        const row = (() => { try { return db!.all("SELECT value FROM members_policy WHERE key = ?", "github_app")[0] as { value: string } | undefined; } catch { return undefined; } })();
+        const row = (() => {
+          try {
+            return db!.all("SELECT value FROM members_policy WHERE key = ?", "github_app")[0] as
+              | { value: string }
+              | undefined;
+          } catch {
+            return undefined;
+          }
+        })();
         if (!row) spaceGithub = null;
-        else { const saved = JSON.parse(row.value) as { clientId: string; secretHandle: string }; spaceGithub = { clientId: saved.clientId, clientSecret: await vaultPort.secret(saved.secretHandle, spaceId), ...(o.githubEndpoints ?? {}) }; }
-        if (loaded.serving.get("identity") === "live") await hookRunner.call("identity.set_github", { on: githubNow() !== null }).catch(() => undefined);
+        else {
+          const saved = JSON.parse(row.value) as { clientId: string; secretHandle: string };
+          spaceGithub = {
+            clientId: saved.clientId,
+            clientSecret: await vaultPort.secret(saved.secretHandle, spaceId),
+            ...(o.githubEndpoints ?? {}),
+          };
+        }
+        if (loaded.serving.get("identity") === "live")
+          await hookRunner.call("identity.set_github", { on: githubNow() !== null }).catch(() => undefined);
       };
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
-        invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+        invoke(cap, input, {
+          space: spaceId,
+          principal: { ...SYSTEM_PRINCIPAL },
+          preAuth: true,
+          origin: "hook",
+          ...(trace ? { trace } : {}),
+        }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // The desktop shell updating the app asks which chats the running turns are in (it tells the person which reply it waits for) and, when the wait runs out or the person says so, to end them
       // cleanly (routes/local-work.ts). The engine names what works now (engine.now) and stops a chat's agents (engine.stop_all), the same ends a person's Stop reaches.
       engineSource.chats = async () => {
@@ -1788,29 +3712,80 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (seen.has(t.threadId)) continue;
           // the title is read as the person whose turn it is: their own chat, on their own computer
           let title = "a chat";
-          try { title = ((await invoke("threads.get", { threadId: t.threadId }, { space: spaceId, principal: { kind: "person", id: t.asker }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : null))) as { thread?: { title?: string } } | null)?.thread?.title || "a chat"; } catch { /* a chat that cannot be read is "a chat" */ }
+          try {
+            title =
+              (
+                (await invoke(
+                  "threads.get",
+                  { threadId: t.threadId },
+                  { space: spaceId, principal: { kind: "person", id: t.asker }, origin: "seam" },
+                ).then((r) => (r.status === "ok" ? r.output : null))) as { thread?: { title?: string } } | null
+              )?.thread?.title || "a chat";
+          } catch {
+            /* a chat that cannot be read is "a chat" */
+          }
           seen.set(t.threadId, title);
         }
         return [...seen].map(([id, title]) => ({ id, title }));
       };
       engineSource.stopTurns = async () => {
-        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; agentId: string; asker: string; turnId?: string }> };
+        const out = (await system("engine.running_here", {})) as {
+          turns?: Array<{ threadId: string; agentId: string; asker: string; turnId?: string }>;
+        };
         let stopped = 0;
         const said = new Set<string>();
         for (const t of out.turns ?? []) {
           // each chat gets one quiet line, so the person who comes back knows why the reply stopped and that nothing was lost; the agent speaks for the person whose turn it was, as the engine's own posts do
           if (said.has(t.threadId) || !t.asker.startsWith("usr_")) continue;
           said.add(t.threadId);
-          try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "stopped_for_update", text: "Stopped for an update. Your message is kept.", ...(t.turnId ? { turnId: t.turnId } : {}) } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
+          try {
+            await invoke(
+              "chat.post",
+              {
+                threadId: t.threadId,
+                body: "",
+                mentions: [],
+                clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`,
+                idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`,
+                blocks: [
+                  {
+                    type: "turn_status",
+                    v: 1,
+                    data: {
+                      state: "stopped_for_update",
+                      text: "Stopped for an update. Your message is kept.",
+                      ...(t.turnId ? { turnId: t.turnId } : {}),
+                    },
+                  },
+                ],
+              },
+              { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" },
+            );
+          } catch {
+            /* the line is a courtesy: the stop goes on */
+          }
         }
         for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
           // reason update: the terminal leaves what these turns run in the agents' workspaces running (they outlive the app; the kept message runs again after)
-          try { stopped += ((await system("engine.stop_all", { threadId: id, reason: "update" })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
+          try {
+            stopped +=
+              ((await system("engine.stop_all", { threadId: id, reason: "update" })) as { stopped?: number }).stopped ??
+              0;
+          } catch {
+            /* that chat ends by itself or at the stop */
+          }
         }
         return stopped;
       };
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
-      const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId, ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; } });
+      const spaceStore = createSpaceStore({
+        path: spaceStorePath(paths.root),
+        space: spaceId,
+        ours: (x: unknown) => {
+          const r = rawDbOf(x);
+          return r === null || r === db;
+        },
+      });
       connectorTables = { all: (sql: string, ...a: unknown[]) => spaceStore.open().tx.all(sql, ...a) };
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
@@ -1818,7 +3793,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // authorizes against its connector, and without this every built-in connector answered "not found" to everyone. A connector someone writes becomes a resource when it is created
       // (connector.created). A built-in one is registered the first time a call names it, with an id made from its key, so a restart repeats the same event and a new Space still
       // starts with exactly its bootstrap events (ruling 71).
-      const builtinConnectors = new Set(((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key));
+      const builtinConnectors = new Set(
+        ((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
+      );
       const ensuringConnector = new Map<string, Promise<void>>();
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
@@ -1831,14 +3808,39 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!p) {
           p = (async () => {
             let found = false;
-            try { found = (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[]).length > 0; } catch { return; }
+            try {
+              found =
+                (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
+                  .length > 0;
+            } catch {
+              return;
+            }
             if (!found) return;
             const r = await spaceLog.appendResult({
-              id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
-              payload: spaceOwned({ id, type, parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
+              id: `evt_res_${id}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: id,
+              payload: spaceOwned({
+                id,
+                type,
+                parent_id: spaceId,
+                label: 0,
+                owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                holds: 0,
+              }),
             });
             if (!r.ok) throw new Error(`could not register the ${type} ${id}: ${r.message}`);
-            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+            if (!r.duplicate) {
+              access.fold(r.event);
+              accessPending.push(toAccessEvent(r.event));
+              headSeq = Math.max(headSeq, r.event.seq);
+              await syncAccess();
+            }
           })().finally(() => ensuringRow.delete(id));
           ensuringRow.set(id, p);
         }
@@ -1850,25 +3852,55 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ensureThreadInChannel = async (id: string): Promise<void> => {
         const have = access.snap.resource(id);
         if (!have || have.type !== "thread") return;
-        let row: { kind?: string | null; title?: string | null; channelId?: string | null; parentThreadId?: string | null; parentMessageId?: string | null } | undefined;
-        try { row = db!.all(`SELECT kind, title, channelId, parentThreadId, parentMessageId FROM chat_thread WHERE id = ? AND deleted_at IS NULL`, id)[0] as typeof row; } catch { return; }
+        let row:
+          | {
+              kind?: string | null;
+              title?: string | null;
+              channelId?: string | null;
+              parentThreadId?: string | null;
+              parentMessageId?: string | null;
+            }
+          | undefined;
+        try {
+          row = db!.all(
+            `SELECT kind, title, channelId, parentThreadId, parentMessageId FROM chat_thread WHERE id = ? AND deleted_at IS NULL`,
+            id,
+          )[0] as typeof row;
+        } catch {
+          return;
+        }
         if (!row) return;
         // a reply thread is a titled-by-nobody thread under a message (a teammate's handoff thread always carries its note as its title)
         const reply = row.kind === "thread" && !row.title && !!row.parentMessageId;
         // a reply thread follows the thread it replies in, so that one is moved first
         if (reply && row.parentThreadId) await ensureThreadInChannel(row.parentThreadId);
-        const home = threadHome({ kind: row.kind, channelId: row.channelId, parentThreadId: row.parentThreadId, replyThread: reply }, (t) => underChannelOf((x) => access.snap.resource(x), t));
+        const home = threadHome(
+          { kind: row.kind, channelId: row.channelId, parentThreadId: row.parentThreadId, replyThread: reply },
+          (t) => underChannelOf((x) => access.snap.resource(x), t),
+        );
         const moved = threadMoveInto(have, home, home !== null && access.snap.resource(home) !== undefined);
         if (moved === null) return;
         let p = movingThread.get(id);
         if (!p) {
           p = (async () => {
             const r = await spaceLog.appendResult({
-              id: `evt_thread_home_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+              id: `evt_thread_home_${id}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: id,
               payload: moved as unknown as Record<string, unknown>,
             });
             if (!r.ok) throw new Error(`could not move the thread ${id} into its channel: ${r.message}`);
-            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+            if (!r.duplicate) {
+              access.fold(r.event);
+              accessPending.push(toAccessEvent(r.event));
+              headSeq = Math.max(headSeq, r.event.seq);
+              await syncAccess();
+            }
           })().finally(() => movingThread.delete(id));
           movingThread.set(id, p);
         }
@@ -1880,11 +3912,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           p = (async () => {
             if (access.snap.resource(key)) return;
             const r = await spaceLog.appendResult({
-              id: `evt_res_connector_${key}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: key,
-              payload: spaceOwned({ id: key, type: "connector", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
+              id: `evt_res_connector_${key}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: key,
+              payload: spaceOwned({
+                id: key,
+                type: "connector",
+                parent_id: spaceId,
+                label: 0,
+                owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                holds: 0,
+              }),
             });
             if (!r.ok) throw new Error(`could not register the connector ${key}: ${r.message}`);
-            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+            if (!r.duplicate) {
+              access.fold(r.event);
+              accessPending.push(toAccessEvent(r.event));
+              headSeq = Math.max(headSeq, r.event.seq);
+              await syncAccess();
+            }
           })().finally(() => ensuringConnector.delete(key));
           ensuringConnector.set(key, p);
         }
@@ -1892,66 +3943,176 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // Local changes just happen: the agents a person holds get Edit on that person's Personal root, see ownPlaceGrant. It runs when a root first appears, when an agent is made, and on every boot for the agents made before this.
       grantOwnPlaces = async (owner) => {
-        const root = (db!.all("SELECT id FROM files_folder WHERE root_key = ? AND deleted_at IS NULL", `personal:${owner}`)[0] as { id: string } | undefined)?.id;
+        const root = (
+          db!.all("SELECT id FROM files_folder WHERE root_key = ? AND deleted_at IS NULL", `personal:${owner}`)[0] as
+            | { id: string }
+            | undefined
+        )?.id;
         if (!root) return;
-        for (const agent of db!.all(`SELECT "id", "kind", "runtime" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, owner) as { id: string; kind: string; runtime: string | null }[]) {
-          const grant = ownPlaceGrant({ agentId: agent.id, ownerId: owner, agentKind: agent.runtime === "outside" ? "outside" : agent.kind, spaceKind: cfg.spaceKind ?? "team", rootId: root });
+        for (const agent of db!.all(
+          `SELECT "id", "kind", "runtime" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`,
+          owner,
+        ) as { id: string; kind: string; runtime: string | null }[]) {
+          const grant = ownPlaceGrant({
+            agentId: agent.id,
+            ownerId: owner,
+            agentKind: agent.runtime === "outside" ? "outside" : agent.kind,
+            spaceKind: cfg.spaceKind ?? "team",
+            rootId: root,
+          });
           if (!grant) continue;
-          const made = await spaceLog.appendResult({ id: grant.eventId, type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "grant", entity_id: grant.grantId, payload: grant.payload });
-          if (!made.ok) { sink.log({ space: spaceId, level: 40, msg: "access.own_place_failed", place: "access", entity: "agent", entity_id: agent.id, attrs: { error: made.message } }); continue; }   // the next boot tries again; Files stays up
-          if (!made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+          const made = await spaceLog.appendResult({
+            id: grant.eventId,
+            type: "grant.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "grant",
+            entity_id: grant.grantId,
+            payload: grant.payload,
+          });
+          if (!made.ok) {
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "access.own_place_failed",
+              place: "access",
+              entity: "agent",
+              entity_id: agent.id,
+              attrs: { error: made.message },
+            });
+            continue;
+          } // the next boot tries again; Files stays up
+          if (!made.duplicate) {
+            access.fold(made.event);
+            accessPending.push(toAccessEvent(made.event));
+            headSeq = Math.max(headSeq, made.event.seq);
+            await syncAccess();
+          }
         }
       };
-      const ensureFileRoot = async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void> => {
+      const ensureFileRoot = async (f: {
+        id: string;
+        type: "folder";
+        parentId: string | null;
+        ownerId?: string;
+        privateRoot?: boolean;
+      }): Promise<void> => {
         const old = access.snap.resource(f.id);
         let privateOwner: string | undefined;
         if (f.privateRoot) {
-          const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as { root_key: string; owner: string; parent_id: string | null } | undefined;
-          if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null) throw new Error("Only a canonical Personal root may stop Space inheritance.");
+          const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as
+            | { root_key: string; owner: string; parent_id: string | null }
+            | undefined;
+          if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null)
+            throw new Error("Only a canonical Personal root may stop Space inheritance.");
           privateOwner = row.owner;
-          if (old?.parent_id === null) { await grantOwnPlaces?.(privateOwner); return; }
+          if (old?.parent_id === null) {
+            await grantOwnPlaces?.(privateOwner);
+            return;
+          }
         }
         if (!privateOwner && old) return;
         const result = await spaceLog.appendResult({
-          id: privateOwner ? `evt_private_root_${f.id}_${headSeq}` : `evt_res_${f.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: f.id,
-          payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, { id: f.id, type: f.type, parent_id: privateOwner ? null : f.parentId ?? spaceId, label: old?.label ?? 0, owner_id: old ? old.owner_id : privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 }),
+          id: privateOwner ? `evt_private_root_${f.id}_${headSeq}` : `evt_res_${f.id}`,
+          type: "resource.created",
+          sv: 1,
+          trace_id: "c0".repeat(16),
+          actor: "svc_host",
+          vis: "space",
+          entity: "resource",
+          entity_id: f.id,
+          payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, {
+            id: f.id,
+            type: f.type,
+            parent_id: privateOwner ? null : (f.parentId ?? spaceId),
+            label: old?.label ?? 0,
+            owner_id: old ? old.owner_id : (privateOwner ?? f.ownerId ?? access.owner() ?? cfg.owner ?? "usr_owner"),
+            holds: old?.holds ?? 0,
+          }),
         });
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
-        if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
+        if (!result.duplicate) {
+          access.fold(result.event);
+          accessPending.push(toAccessEvent(result.event));
+          headSeq = Math.max(headSeq, result.event.seq);
+          await syncAccess();
+        }
         if (privateOwner) await grantOwnPlaces?.(privateOwner);
       };
       // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
-      const registerVaultFolder = async (id: string, owner: string | null, mine = false, spaceFolder = owner === null): Promise<void> => {
+      const registerVaultFolder = async (
+        id: string,
+        owner: string | null,
+        mine = false,
+        spaceFolder = owner === null,
+      ): Promise<void> => {
         const old = access.snap.resource(id);
         // a Mine folder is a private root: one registered under the Space before this is moved out once, with its own event id, so the repair is not repeated
         if (old && !(mine && old.parent_id !== null && owner)) return;
         const made = await spaceLog.appendResult({
-          id: old ? `evt_private_vault_${id}` : `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
-          payload: hostOwned(!mine && !old && spaceFolder, { id, type: "vault_folder", parent_id: mine && owner ? null : spaceId, label: old?.label ?? 0, owner_id: (mine ? owner : null) ?? old?.owner_id ?? owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 }),
+          id: old ? `evt_private_vault_${id}` : `evt_res_${id}`,
+          type: "resource.created",
+          sv: 1,
+          trace_id: "c0".repeat(16),
+          actor: "svc_host",
+          vis: "space",
+          entity: "resource",
+          entity_id: id,
+          payload: hostOwned(!mine && !old && spaceFolder, {
+            id,
+            type: "vault_folder",
+            parent_id: mine && owner ? null : spaceId,
+            label: old?.label ?? 0,
+            owner_id: (mine ? owner : null) ?? old?.owner_id ?? owner ?? access.owner() ?? cfg.owner ?? "usr_owner",
+            holds: old?.holds ?? 0,
+          }),
         });
-        if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+        if (made.ok && !made.duplicate) {
+          access.fold(made.event);
+          accessPending.push(toAccessEvent(made.event));
+          headSeq = Math.max(headSeq, made.event.seq);
+          await syncAccess();
+        }
       };
       let sealed: ReturnType<typeof createRecordsVaultHost> | null = null;
-      const sealedVault = (): ReturnType<typeof createRecordsVaultHost> => (sealed ??= createRecordsVaultHost({
-        system: (cap, input) => system(cap, input),
-        as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-        registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
-        scrub: (type, field) => scrubSealedField(type, field),
-      }));
+      const sealedVault = (): ReturnType<typeof createRecordsVaultHost> =>
+        (sealed ??= createRecordsVaultHost({
+          system: (cap, input) => system(cap, input),
+          as: (person, cap, input) =>
+            invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then(
+              (r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))),
+            ),
+          registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
+          scrub: (type, field) => scrubSealedField(type, field),
+        }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
       const scrubSealedField = async (type: string, field: string): Promise<void> => {
         const dec = new TextDecoder();
         const seqs: number[] = [];
         const ids = new Set<string>();
-        const plain = (v: unknown): boolean => v !== undefined && v !== null && !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
-        for (let after = 0; ;) {
+        const plain = (v: unknown): boolean =>
+          v !== undefined &&
+          v !== null &&
+          !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
+        for (let after = 0; ; ) {
           const page = await spaceLog.read({ after, limit: 2000 });
           for (const e of page) {
             if (!e.type.startsWith("record.") || isErased(e)) continue;
             let p: Record<string, unknown>;
-            try { p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>; } catch { continue; }
+            try {
+              p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>;
+            } catch {
+              continue;
+            }
             if (p["type"] !== type) continue;
-            if (["fields", "prev", "data", "before"].some((k) => { const part = p[k]; return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]); })) {
+            if (
+              ["fields", "prev", "data", "before"].some((k) => {
+                const part = p[k];
+                return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]);
+              })
+            ) {
               seqs.push(e.seq);
               if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
             }
@@ -1966,62 +4127,185 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           try {
             mine.exec("PRAGMA secure_delete = ON");
             for (const id of ids) {
-              mine.run("DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)", `record:${type}`, id);
+              mine.run(
+                "DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)",
+                `record:${type}`,
+                id,
+              );
               mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
             }
             mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
             mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
             mine.exec("VACUUM");
-          } catch { /* a Space without the search index has nothing to clear */ }
+          } catch {
+            /* a Space without the search index has nothing to clear */
+          }
         }
         // the records are read again by search: the touch is an ordinary record.updated, with no values in it
         for (const id of ids) {
-          await spaceLog.appendResult({ id: `evt_seal_${type}_${field}_${id}`.slice(0, 120), type: "record.updated", sv: 1, trace_id: "5e".repeat(16), actor: "svc_host", vis: "space", entity: "record", entity_id: id, payload: { recordId: id, type, fields: {}, prev: {}, version: 0 } });
+          await spaceLog.appendResult({
+            id: `evt_seal_${type}_${field}_${id}`.slice(0, 120),
+            type: "record.updated",
+            sv: 1,
+            trace_id: "5e".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "record",
+            entity_id: id,
+            payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
+          });
         }
       };
       // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own
       // resolution at this moment (start and end, expiry, ceiling, hidden fields, filter), for the field the handle names; whatever cannot be read is a refusal.
       const vaultRow = (where: string, ...args: unknown[]): TeamItem | null => {
         try {
-          const r = db!.all(`SELECT "id", "scope", "fieldKeys" FROM vault_meta WHERE ${where} AND "deleted_at" IS NULL`, ...args)[0] as { id?: string; scope?: string; fieldKeys?: string } | undefined;
+          const r = db!.all(
+            `SELECT "id", "scope", "fieldKeys" FROM vault_meta WHERE ${where} AND "deleted_at" IS NULL`,
+            ...args,
+          )[0] as { id?: string; scope?: string; fieldKeys?: string } | undefined;
           if (!r?.id) return null;
           let keys: string[] = [];
-          try { const k = JSON.parse(String(r.fieldKeys ?? "[]")) as unknown; if (Array.isArray(k)) keys = k.map(String); } catch { /* none known: a handle with no field is then refused (team-vault.ts decide) */ }
+          try {
+            const k = JSON.parse(String(r.fieldKeys ?? "[]")) as unknown;
+            if (Array.isArray(k)) keys = k.map(String);
+          } catch {
+            /* none known: a handle with no field is then refused (team-vault.ts decide) */
+          }
           return { itemId: r.id, scope: String(r.scope ?? ""), fieldKeys: keys };
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       };
-      const teamVault = <S extends LookupSource>(src: S): S => gateTeamAgents(src, {
-        team: cfg.spaceKind !== "personal",
-        agentOf: (agentId) => { try { const r = db!.all(`SELECT "kind", "ownerId" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`, agentId)[0] as { kind?: string; ownerId?: string } | undefined; return r ? { kind: String(r.kind ?? ""), ownerId: String(r.ownerId ?? "") } : null; } catch { return null; } },
-        // the item as the Vault resolves a handle for this asker (vault.use's itemBy): their own Mine item first, else a shared one
-        resolve: (handle, asker) => {
-          const name = (/^#([^.]+)/.exec(handle)?.[1] ?? "").toLowerCase();
-          if (name === "") return null;
-          const mine = vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'mine' AND "owner" = ?`, name, asker);
-          if (mine) return mine;
-          // a shared item counts only when the asker may see it, as the Vault's own lookup sees it: one they cannot see is not judged (and so never named back to them)
-          try {
-            const ids = (db!.all(`SELECT "id" FROM vault_meta WHERE lower(ltrim("handle", '#')) = ? AND "scope" = 'shared' AND "deleted_at" IS NULL ORDER BY rowid`, name) as Array<{ id?: string }>).map((r) => String(r.id ?? ""));
-            const seen = ids.find((id) => { try { return authorize(access.snap, { principal: asker, action: { perm: null, level: "use" }, resource: { type: "vault_item", id }, now: now() }).effect === "allow"; } catch { return false; } });
-            return seen ? vaultRow(`"id" = ?`, seen) : null;
-          } catch { return null; }
-        },
-        itemById: (itemId) => vaultRow(`"id" = ?`, itemId),
-        sharedWithAgent: (agentId, itemId, fields) => { try { return sharedThrough(access.snap, { principal: agentId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, fields, now: now() }, ["vault_item", "vault_folder"]); } catch { return false; } },
-        // who may ask an agent: every person who may see it, which is what lets a person address it (a share at "use", the "view" a chat gives its readers, the Space's own access to a Space agent,
-        // its owner); the same rule agents.get uses to show it. Read from the current snapshot each time.
-        askersOf: (agentId) => {
-          try {
-            const out: string[] = [];
-            for (const p of access.snap.allPrincipals()) if (p.kind === "person" && p.status === "active" && authorize(access.snap, { principal: p.id, action: { perm: null, level: "view" }, resource: { type: "agent", id: agentId }, now: now() }).effect === "allow") out.push(p.id);
-            return out;
-          } catch { return null; }
-        },
-        personMayUse: (personId, itemId, fields) => { try { return authorize(access.snap, { principal: personId, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId }, fields, now: now() }).effect === "allow"; } catch { return false; } },
-        // a device is a person's own computer only when this daemon is that computer (the desktop app's daemon): its row names the person
-        deviceOwner: (deviceId) => { if (!cfg.roles.includes("device")) return null; try { const r = db!.all(`SELECT "person" FROM devices_device WHERE "id" = ? AND "revokedAt" IS NULL AND "deleted_at" IS NULL`, deviceId)[0] as { person?: string } | undefined; return r?.person ?? null; } catch { return null; } },
-        refused: (r) => { void invoke("audit.append", { action: "vault.use_refused", class: "deny", onBehalfOf: { kind: "person", id: r.asker }, ...(r.itemId ? { resource: { type: "vault_item", id: r.itemId } } : {}), detail: { agentId: r.agentId, handle: r.handle, reason: r.reason } }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); },
-      });
+      const teamVault = <S extends LookupSource>(src: S): S =>
+        gateTeamAgents(src, {
+          team: cfg.spaceKind !== "personal",
+          agentOf: (agentId) => {
+            try {
+              const r = db!.all(
+                `SELECT "kind", "ownerId" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`,
+                agentId,
+              )[0] as { kind?: string; ownerId?: string } | undefined;
+              return r ? { kind: String(r.kind ?? ""), ownerId: String(r.ownerId ?? "") } : null;
+            } catch {
+              return null;
+            }
+          },
+          // the item as the Vault resolves a handle for this asker (vault.use's itemBy): their own Mine item first, else a shared one
+          resolve: (handle, asker) => {
+            const name = (/^#([^.]+)/.exec(handle)?.[1] ?? "").toLowerCase();
+            if (name === "") return null;
+            const mine = vaultRow(`lower(ltrim("handle", '#')) = ? AND "scope" = 'mine' AND "owner" = ?`, name, asker);
+            if (mine) return mine;
+            // a shared item counts only when the asker may see it, as the Vault's own lookup sees it: one they cannot see is not judged (and so never named back to them)
+            try {
+              const ids = (
+                db!.all(
+                  `SELECT "id" FROM vault_meta WHERE lower(ltrim("handle", '#')) = ? AND "scope" = 'shared' AND "deleted_at" IS NULL ORDER BY rowid`,
+                  name,
+                ) as Array<{ id?: string }>
+              ).map((r) => String(r.id ?? ""));
+              const seen = ids.find((id) => {
+                try {
+                  return (
+                    authorize(access.snap, {
+                      principal: asker,
+                      action: { perm: null, level: "use" },
+                      resource: { type: "vault_item", id },
+                      now: now(),
+                    }).effect === "allow"
+                  );
+                } catch {
+                  return false;
+                }
+              });
+              return seen ? vaultRow(`"id" = ?`, seen) : null;
+            } catch {
+              return null;
+            }
+          },
+          itemById: (itemId) => vaultRow(`"id" = ?`, itemId),
+          sharedWithAgent: (agentId, itemId, fields) => {
+            try {
+              return sharedThrough(
+                access.snap,
+                {
+                  principal: agentId,
+                  action: { perm: null, level: "use" },
+                  resource: { type: "vault_item", id: itemId },
+                  fields,
+                  now: now(),
+                },
+                ["vault_item", "vault_folder"],
+              );
+            } catch {
+              return false;
+            }
+          },
+          // who may ask an agent: every person who may see it, which is what lets a person address it (a share at "use", the "view" a chat gives its readers, the Space's own access to a Space agent,
+          // its owner); the same rule agents.get uses to show it. Read from the current snapshot each time.
+          askersOf: (agentId) => {
+            try {
+              const out: string[] = [];
+              for (const p of access.snap.allPrincipals())
+                if (
+                  p.kind === "person" &&
+                  p.status === "active" &&
+                  authorize(access.snap, {
+                    principal: p.id,
+                    action: { perm: null, level: "view" },
+                    resource: { type: "agent", id: agentId },
+                    now: now(),
+                  }).effect === "allow"
+                )
+                  out.push(p.id);
+              return out;
+            } catch {
+              return null;
+            }
+          },
+          personMayUse: (personId, itemId, fields) => {
+            try {
+              return (
+                authorize(access.snap, {
+                  principal: personId,
+                  action: { perm: null, level: "use" },
+                  resource: { type: "vault_item", id: itemId },
+                  fields,
+                  now: now(),
+                }).effect === "allow"
+              );
+            } catch {
+              return false;
+            }
+          },
+          // a device is a person's own computer only when this daemon is that computer (the desktop app's daemon): its row names the person
+          deviceOwner: (deviceId) => {
+            if (!cfg.roles.includes("device")) return null;
+            try {
+              const r = db!.all(
+                `SELECT "person" FROM devices_device WHERE "id" = ? AND "revokedAt" IS NULL AND "deleted_at" IS NULL`,
+                deviceId,
+              )[0] as { person?: string } | undefined;
+              return r?.person ?? null;
+            } catch {
+              return null;
+            }
+          },
+          refused: (r) => {
+            void invoke(
+              "audit.append",
+              {
+                action: "vault.use_refused",
+                class: "deny",
+                onBehalfOf: { kind: "person", id: r.asker },
+                ...(r.itemId ? { resource: { type: "vault_item", id: r.itemId } } : {}),
+                detail: { agentId: r.agentId, handle: r.handle, reason: r.reason },
+              },
+              { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" },
+            ).catch(() => undefined);
+          },
+        });
       // the notifications module's email through the Space's own mail (seams/notify-mail.ts); the members' addresses come from the space ports wired below
       const membersPortRef: { ports: ReturnType<typeof createSpacePorts> | null } = { ports: null };
       const notifyMailer = createNotifyMailer({
@@ -2031,8 +4315,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         emails: async () => (o.seams?.members ?? membersPortRef.ports?.members)?.emails(spaceId) ?? [],
         // the Space's own https address (the one portal links use); none on a Space only this computer reaches
         address: () => publicOrigin()?.origin ?? null,
-        spaceName: async () => String((db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? ""),
-        warn: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
+        spaceName: async () =>
+          String(
+            (db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)
+              ?.name ??
+              cfg.spaceName ??
+              "",
+          ),
+        warn: (msg, attrs) =>
+          sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
       });
       const hostDrivers: Record<string, SeamDriver> = {
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
@@ -2041,78 +4332,205 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setSchemaVault: () => sealedVault(),
         // the notifications module's email goes out through the Space's own mail (seams/notify-mail.ts): the service mailbox with a verified domain, or nothing and a health line; a test or a
         // host that passes its own email transport keeps it
-        setPushPort: () => createPushPort({ ...(o.seams?.push ?? {}), ...(o.seams?.push?.email ? {} : { email: (m: NoticeEmail) => notifyMailer.email(m), gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m) }) }),
+        setPushPort: () =>
+          createPushPort({
+            ...(o.seams?.push ?? {}),
+            ...(o.seams?.push?.email
+              ? {}
+              : {
+                  email: (m: NoticeEmail) => notifyMailer.email(m),
+                  gaveUp: (m: { to: string; kind: string }) => notifyMailer.gaveUp(m),
+                }),
+          }),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
-          // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
-          const outside = publicOrigin();
-          if (!outside) throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
-          if (outside.relay && !cfg.address) throw new Error("A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.");
-          return outside.origin;
-        }, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
+        configurePortal: (d) =>
+          createPortalHost({
+            invoke: (cap, input, seed) => invoke(cap, input, seed),
+            space: spaceId,
+            publicUrl: o.seams?.publicUrl
+              ? d.publicUrl
+              : async () => {
+                  // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
+                  const outside = publicOrigin();
+                  if (!outside)
+                    throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
+                  if (outside.relay && !cfg.address)
+                    throw new Error(
+                      "A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.",
+                    );
+                  return outside.origin;
+                },
+            owner: () => access.owner() ?? cfg.owner ?? null,
+            warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }),
+          }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost({ version: cfg.version }),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
         // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
-        setKitsHost: () => createKitsHost({
-          root: codeRoot,
-          resources: {
-            ensure: async (kitId) => {
-              const r = await spaceLog.appendResult({
-                id: `evt_res_${kitId}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: kitId,
-                payload: spaceOwned({ id: kitId, type: "kit", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
-              });
-              if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
-              if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+        setKitsHost: () =>
+          createKitsHost({
+            root: codeRoot,
+            resources: {
+              ensure: async (kitId) => {
+                const r = await spaceLog.appendResult({
+                  id: `evt_res_${kitId}`,
+                  type: "resource.created",
+                  sv: 1,
+                  trace_id: "c0".repeat(16),
+                  actor: "svc_host",
+                  vis: "space",
+                  entity: "resource",
+                  entity_id: kitId,
+                  payload: spaceOwned({
+                    id: kitId,
+                    type: "kit",
+                    parent_id: spaceId,
+                    label: 0,
+                    owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                    holds: 0,
+                  }),
+                });
+                if (!r.ok) throw new Error(`could not register the Kit: ${r.message}`);
+                if (!r.duplicate) {
+                  access.fold(r.event);
+                  accessPending.push(toAccessEvent(r.event));
+                  headSeq = Math.max(headSeq, r.event.seq);
+                  await syncAccess();
+                }
+              },
             },
-          },
-        }),
+          }),
         // the files module's root folders are folders in the access projection (ruling 65): one resource.created each, with an id made from the folder's own, so a reboot repeats the same event
         setFilesHost: () => ({
           resources: {
             ensure: ensureFileRoot,
-            setLabel: async (f: { id: string; type: "folder"; label: "public" | "internal" | "confidential" | "restricted" }) => {
-              const changed = await hookRunner.call("access.set_resource_label", { resource: { type: f.type, id: f.id }, label: f.label });
-              if (changed !== true && access.snap.resource(f.id)?.label !== f.label) throw new Error(`could not update the folder label: ${f.id}`);
+            setLabel: async (f: {
+              id: string;
+              type: "folder";
+              label: "public" | "internal" | "confidential" | "restricted";
+            }) => {
+              const changed = await hookRunner.call("access.set_resource_label", {
+                resource: { type: f.type, id: f.id },
+                label: f.label,
+              });
+              if (changed !== true && access.snap.resource(f.id)?.label !== f.label)
+                throw new Error(`could not update the folder label: ${f.id}`);
               await syncAccess();
             },
           },
         }),
         // forms build their public links from the address people reach this Space at; unset, the links stay relative
-        setFormsHost: () => ({ choiceSource: createChoiceSource({
-          as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-          people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
-        }), get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; }, schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
-          return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
-        } }),
+        setFormsHost: () => ({
+          choiceSource: createChoiceSource({
+            as: (person, cap, input) =>
+              invoke(cap, input, {
+                space: spaceId,
+                principal: { kind: "person", id: person },
+                origin: "forms-public",
+              }).then((r) =>
+                r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)),
+              ),
+            people: () =>
+              [...access.snap.allPrincipals()]
+                .filter((p) => p.kind === "person" && p.status === "active")
+                .map((p) => ({ id: p.id, name: p.name ?? p.id })),
+          }),
+          get publicBase() {
+            return publicOrigin()?.origin;
+          },
+          get publicPath() {
+            return publicOrigin()?.relay;
+          },
+          schemaFields: async (type: string) => {
+            const out = (await system("schema.types.get", { type })) as { type: { fields: readonly unknown[] } };
+            return out.type.fields;
+          },
+          canUpload: (publisherId: string, formId: string, folderId: string) => {
+            return formUploadAllowed(access.snap, {
+              publisherId,
+              formId,
+              folderId,
+              stale: staleFor(publisherId),
+              liveLocalFolder: !!db!.all(
+                "SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",
+                folderId,
+              )[0],
+              now: now(),
+            });
+          },
+        }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
-        setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
+        setMemoryMeaningHost: () => ({
+          files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }),
+          now,
+          log: (msg: string, attrs?: Record<string, unknown>) =>
+            sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }),
+        }),
         // a person's own memory (owner ruling 3 Nov 2026): the keyring's copy of their person key while a session of theirs that handed it over is alive, and an overwrite of what a re-seal frees
         setMemoryKeyPort: () => ({
           personKey: (personId: string) => keyring.get(personId),
           wipe: <T>(fn: () => T): T => {
             db!.exec("PRAGMA secure_delete = ON");
-            try { return fn(); } finally { try { db!.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* a reader holds the log: the next checkpoint takes it */ } }
+            try {
+              return fn();
+            } finally {
+              try {
+                db!.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+              } catch {
+                /* a reader holds the log: the next checkpoint takes it */
+              }
+            }
           },
         }),
         // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
-        setMailLinksHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
-        // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
-        setBackupHost: (d) => createBackupHost({
-          root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
-          blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id }, secrets: () => [token],
+        setMailLinksHost: () => ({
+          get publicBase() {
+            return publicOrigin()?.origin;
+          },
+          get publicPath() {
+            return publicOrigin()?.relay;
+          },
         }),
+        // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
+        setBackupHost: (d) =>
+          createBackupHost({
+            root: paths.root,
+            space: spaceId,
+            log: spaceLog,
+            owner: () => access.owner() ?? cfg.owner ?? null,
+            system,
+            vault: d.vault,
+            fetch: d.fetch,
+            blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id },
+            secrets: () => [token],
+          }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
         setRunsHost: () => runsHost,
         setEventsDispatch: () => system,
         // erase reaches the append-only log (P-CC_41): governance asks the log worker to tombstone payloads, and a restore replays the seqs it kept
         setEventsCompact: () => {
           // the sync tables keep field values of their own (sync_changes, sync_rows): blank them too, keeping the rows so device cursors and deletes still work
-          const blank = loaded.moduleExports.get("sync")?.["blankErased"] as ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void) | undefined;
-          const scrub = (scope: { ids?: readonly string[]; seqs?: readonly number[] }): void => { try { if (db) blank?.(db, scope); } catch { /* sync is not live here, so there are no sync tables */ } };
+          const blank = loaded.moduleExports.get("sync")?.["blankErased"] as
+            | ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void)
+            | undefined;
+          const scrub = (scope: { ids?: readonly string[]; seqs?: readonly number[] }): void => {
+            try {
+              if (db) blank?.(db, scope);
+            } catch {
+              /* sync is not live here, so there are no sync tables */
+            }
+          };
           return {
-            compact: async (subject: Parameters<typeof spaceLog.compact>[0]) => { const out = await spaceLog.compact(subject); scrub({ ids: (subject.entities ?? []).map((e) => e.id), seqs: out.erased }); return out; },
-            compactSeqs: async (seqs: readonly number[]) => { const out = await spaceLog.compactSeqs(seqs); scrub({ seqs: out.erased }); return out; },
+            compact: async (subject: Parameters<typeof spaceLog.compact>[0]) => {
+              const out = await spaceLog.compact(subject);
+              scrub({ ids: (subject.entities ?? []).map((e) => e.id), seqs: out.erased });
+              return out;
+            },
+            compactSeqs: async (seqs: readonly number[]) => {
+              const out = await spaceLog.compactSeqs(seqs);
+              scrub({ seqs: out.erased });
+              return out;
+            },
           };
         },
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
@@ -2120,34 +4538,93 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => {
             db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId);
-            const row = db!.all("SELECT person FROM devices_session WHERE id = ?", sessionId)[0] as { person?: string } | undefined;
+            const row = db!.all("SELECT person FROM devices_session WHERE id = ?", sessionId)[0] as
+              | { person?: string }
+              | undefined;
             endLive({ sessionId, ...(row?.person ? { person: row.person } : {}) }, false);
           },
         }),
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
-          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
-          const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null>; routeByArtifactSession?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null>; exchangeArtifactCode?(c: { db: unknown }, code: string, now: number): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } | undefined;
+          const computers = loaded.moduleExports.get("computers") as
+            | {
+                localComputerAddress?: (id: string) => Promise<string | null>;
+                localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]>;
+              }
+            | undefined;
+          const sitesMod = loaded.moduleExports.get("sites") as
+            | {
+                routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null;
+                routeByTicket?(
+                  c: { db: unknown },
+                  id: string,
+                  token: string,
+                  now: number,
+                ): Promise<{ route: ServedSite; principal: string; owner: string } | null>;
+                routeByArtifactSession?(
+                  c: { db: unknown },
+                  id: string,
+                  token: string,
+                  now: number,
+                ): Promise<{ route: ServedSite; principal: string; owner: string } | null>;
+                exchangeArtifactCode?(
+                  c: { db: unknown },
+                  code: string,
+                  now: number,
+                ): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null>;
+              }
+            | undefined;
           const sitesExports = loaded.moduleExports.get("sites") as Record<string, unknown> | undefined;
           // Vyre builds and runs sites through the sites runner beside it (compose service sites-runner), which alone holds the Docker socket and refuses anything a site does not need.
           // Its token is new each time it starts and sits next to its socket, so it is read again on every call.
           const runnerSocket = o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
-          const runnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(runnerSocket as string), "token"), "utf8").trim(); } catch { return ""; } };
+          const runnerToken = (): string => {
+            try {
+              return fs
+                .readFileSync(
+                  process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ??
+                    path.join(path.dirname(runnerSocket as string), "token"),
+                  "utf8",
+                )
+                .trim();
+            } catch {
+              return "";
+            }
+          };
           const runnerLink = runnerSocket ? { socketPath: runnerSocket, token: runnerToken } : undefined;
-          const sitesCaddy = cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null;
+          const sitesCaddy = cfg.caddyAdmin
+            ? new CaddyRouter({
+                admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }),
+                space: spaceId,
+                base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
+              })
+            : null;
           // sites get <slug>.<this>: VYRE_SITES_DOMAIN, or the Space's own domain once a wildcard name under it points at this server (checked now and then, never assumed)
           let wildcard: { host: string; ok: boolean; at: number } | null = null;
           const checkWildcard = async (): Promise<void> => {
-            const a = cfg.address ? new URL(/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`).hostname : null;
-            if (!a || !/\./.test(a) || /^\d+\.\d+\.\d+\.\d+$/.test(a)) { wildcard = null; return; }
+            const a = cfg.address
+              ? new URL(/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`).hostname
+              : null;
+            if (!a || !/\./.test(a) || /^\d+\.\d+\.\d+\.\d+$/.test(a)) {
+              wildcard = null;
+              return;
+            }
             if (wildcard && wildcard.host === a && Date.now() - wildcard.at < 10 * 60_000) return;
             const probe = `vyre-sites-${Math.random().toString(36).slice(2, 10)}.${a}`;
             wildcard = { host: a, ok: await dnsPointsAt(probe, { hostname: a }).catch(() => false), at: Date.now() };
           };
-          const sitesDomain = (): string | null => process.env["VYRE_SITES_DOMAIN"]?.trim().toLowerCase() || (wildcard?.ok ? wildcard.host : null);
+          const sitesDomain = (): string | null =>
+            process.env["VYRE_SITES_DOMAIN"]?.trim().toLowerCase() || (wildcard?.ok ? wildcard.host : null);
           type Hosted = { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number };
-          const hostsOf = (siteId?: string): Hosted[] => (sitesExports?.["deployedHosts"] as ((c: { db: unknown }, d: string | null, id?: string) => Hosted[]) | undefined)?.({ db: db! }, sitesDomain(), siteId) ?? [];
-          const containerAddress = (c: string): Promise<string | null> => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null);
+          const hostsOf = (siteId?: string): Hosted[] =>
+            (
+              sitesExports?.["deployedHosts"] as
+                | ((c: { db: unknown }, d: string | null, id?: string) => Hosted[])
+                | undefined
+            )?.({ db: db! }, sitesDomain(), siteId) ?? [];
+          const containerAddress = (c: string): Promise<string | null> =>
+            (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ??
+            Promise.resolve(null);
           // what each site name points at in Caddy now: auth at this daemon, then the container itself (WebSockets go through); written again when a container's address changes
           const written = new Map<string, string>();
           const writeHost = async (x: Hosted): Promise<void> => {
@@ -2158,14 +4635,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               const want = app ?? "vyred";
               if (written.get(h) === want) continue;
               // a site with nothing running yet still answers at its name: this daemon says what is wrong
-              if (app) await sitesCaddy.setDeployedSite(h, `127.0.0.1:${boundPort}`, app); else await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`);
+              if (app) await sitesCaddy.setDeployedSite(h, `127.0.0.1:${boundPort}`, app);
+              else await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`);
               written.set(h, want);
             }
           };
           const hostRoute = async (siteId: string, up: boolean): Promise<void> => {
             if (!sitesCaddy) return;
             for (const x of hostsOf(siteId)) {
-              if (up) await writeHost(x); else for (const h of x.hosts) { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
+              if (up) await writeHost(x);
+              else
+                for (const h of x.hosts) {
+                  await sitesCaddy.removeRoute(h).catch(() => undefined);
+                  written.delete(h);
+                }
             }
           };
           // every module that runs agents' containers adds its networks (agentSubnets), the computers module (the Space browser, agent computers) and the terminal module (workspaces) among them
@@ -2173,46 +4656,164 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
           let subnets: { at: number; list: string[] } = { at: 0, list: [] };
           siteGuard = (address, remote) => {
-            if (Date.now() - subnets.at > 10_000) subnets = { at: Date.now(), list: (sitesExports?.["siteSubnets"] as ((c: { db: unknown }) => string[]) | undefined)?.({ db: db! }) ?? [] };
+            if (Date.now() - subnets.at > 10_000)
+              subnets = {
+                at: Date.now(),
+                list:
+                  (sitesExports?.["siteSubnets"] as ((c: { db: unknown }) => string[]) | undefined)?.({ db: db! }) ??
+                  [],
+              };
             return clientOnNetwork(address, remote, subnets.list);
           };
           const ownHosts = (): Set<string> => {
             const out = new Set(["localhost", "127.0.0.1", "[::1]"]);
-            const o2 = publicOrigin()?.origin; if (o2) out.add(new URL(o2).hostname.toLowerCase());
-            if (cfg.address) { try { out.add(new URL(/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`).hostname.toLowerCase()); } catch { /* not an address */ } }
+            const o2 = publicOrigin()?.origin;
+            if (o2) out.add(new URL(o2).hostname.toLowerCase());
+            if (cfg.address) {
+              try {
+                out.add(
+                  new URL(
+                    /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`,
+                  ).hostname.toLowerCase(),
+                );
+              } catch {
+                /* not an address */
+              }
+            }
             return out;
           };
-          type HostRow = { siteId: string; name: string; access: string; live: boolean; blocked: boolean; owner: string; passwordHash: string | null; target: { container?: string; port?: number } };
+          type HostRow = {
+            siteId: string;
+            name: string;
+            access: string;
+            live: boolean;
+            blocked: boolean;
+            owner: string;
+            passwordHash: string | null;
+            target: { container?: string; port?: number };
+          };
           siteHosts = {
             own: (h) => ownHosts().has(h) || /^\d+\.\d+\.\d+\.\d+$/.test(h),
-            site: (h) => (sitesExports?.["routeByHost"] as ((c: { db: unknown }, h: string, d: string | null) => HostRow | null) | undefined)?.({ db: db! }, h, sitesDomain()) ?? null,
-            ticket: async (id, t) => (await (sitesExports?.["routeByTicket"] as ((c: { db: unknown }, id: string, t: string, n: number) => Promise<{ principal: string } | null>) | undefined)?.({ db: db! }, id, t, now()))?.principal ?? null,
+            site: (h) =>
+              (
+                sitesExports?.["routeByHost"] as
+                  | ((c: { db: unknown }, h: string, d: string | null) => HostRow | null)
+                  | undefined
+              )?.({ db: db! }, h, sitesDomain()) ?? null,
+            ticket: async (id, t) =>
+              (
+                await (
+                  sitesExports?.["routeByTicket"] as
+                    | ((c: { db: unknown }, id: string, t: string, n: number) => Promise<{ principal: string } | null>)
+                    | undefined
+                )?.({ db: db! }, id, t, now())
+              )?.principal ?? null,
             // the same rule as an artifact's address: the owner, an active member for a Space site, or a grant on the site for a private one; asked on every request
-            may: (p, x) => (p === x.owner && access.snap.principal(p)?.status === "active") || (x.access !== "private" && access.snap.principal(p)?.status === "active") || (!staleFor(p) && authorize(access.snap, { principal: p, action: { perm: null, level: "view" }, resource: { type: "site", id: x.siteId } }).effect === "allow"),
-            checkPassword: (g, h) => (sitesExports?.["checkPassword"] as (g: string, h: string) => Promise<boolean>)(g, h),
-            newSession: (id, p) => (sitesExports?.["newTicket"] as (db: unknown, id: string, p: string, ms: number, n: number) => Promise<string>)(db!, id, p, sitesExports?.["SESSION_MS"] as number, now()),
-            address: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
+            may: (p, x) =>
+              (p === x.owner && access.snap.principal(p)?.status === "active") ||
+              (x.access !== "private" && access.snap.principal(p)?.status === "active") ||
+              (!staleFor(p) &&
+                authorize(access.snap, {
+                  principal: p,
+                  action: { perm: null, level: "view" },
+                  resource: { type: "site", id: x.siteId },
+                }).effect === "allow"),
+            checkPassword: (g, h) =>
+              (sitesExports?.["checkPassword"] as (g: string, h: string) => Promise<boolean>)(g, h),
+            newSession: (id, p) =>
+              (
+                sitesExports?.["newTicket"] as (
+                  db: unknown,
+                  id: string,
+                  p: string,
+                  ms: number,
+                  n: number,
+                ) => Promise<string>
+              )(db!, id, p, sitesExports?.["SESSION_MS"] as number, now()),
+            address: (c) =>
+              (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ??
+              Promise.resolve(null),
             origin: () => publicOrigin()?.origin ?? null,
           };
           // the slow tick: the wildcard check, every deployed site's address back in Caddy, and a deploy for each site whose branch moved (run as whoever deployed it last, so the Vault checks their access)
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
-            if (sitesCaddy) for (const x of hostsOf()) { try { await writeHost(x); } catch (e) { sink.log({ space: spaceId, level: 40, msg: "sites.host_route_pending", place: "sites", attrs: { site: x.siteId, why: e instanceof Error ? e.message.slice(0, 160) : "" } }); } }
-            const autos = (sitesExports?.["autoDeploySites"] as ((c: { db: unknown }) => { siteId: string; as: string }[]) | undefined)?.({ db: db! }) ?? [];
+            if (sitesCaddy)
+              for (const x of hostsOf()) {
+                try {
+                  await writeHost(x);
+                } catch (e) {
+                  sink.log({
+                    space: spaceId,
+                    level: 40,
+                    msg: "sites.host_route_pending",
+                    place: "sites",
+                    attrs: { site: x.siteId, why: e instanceof Error ? e.message.slice(0, 160) : "" },
+                  });
+                }
+              }
+            const autos =
+              (
+                sitesExports?.["autoDeploySites"] as
+                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }) ?? [];
             for (const a of autos) {
-              const r = await invoke("sites.deploy", { siteId: a.siteId, onlyIfChanged: true }, { space: spaceId, principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as }, origin: "sites-push" }).catch((e: unknown) => ({ status: "error", e }));
-              if ((r as { status?: string }).status !== "ok") sink.log({ space: spaceId, level: 30, msg: "sites.push_check_skipped", place: "sites", attrs: { site: a.siteId } });
+              const r = await invoke(
+                "sites.deploy",
+                { siteId: a.siteId, onlyIfChanged: true },
+                {
+                  space: spaceId,
+                  principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
+                  origin: "sites-push",
+                },
+              ).catch((e: unknown) => ({ status: "error", e }));
+              if ((r as { status?: string }).status !== "ok")
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.push_check_skipped",
+                  place: "sites",
+                  attrs: { site: a.siteId },
+                });
             }
           };
           const made = createSitesHost({
-            containerAddress: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
-            deploy: { ...(runnerLink ? { runnerLink } : {}), take: takeSiteSecret, tmp: path.join(paths.root, "site-builds"), sitesDomain, domainOf: (id) => (db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as { domain?: string } | undefined)?.domain ?? null, hostRoute },
-            artifacts: artifactStore, origin: publicOrigin, artifactHost: artifactHostOf, contained: fs.existsSync("/.dockerenv"),
-            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
+            containerAddress: (c) =>
+              (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ??
+              Promise.resolve(null),
+            deploy: {
+              ...(runnerLink ? { runnerLink } : {}),
+              take: takeSiteSecret,
+              tmp: path.join(paths.root, "site-builds"),
+              sitesDomain,
+              domainOf: (id) =>
+                (
+                  db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as
+                    | { domain?: string }
+                    | undefined
+                )?.domain ?? null,
+              hostRoute,
+            },
+            artifacts: artifactStore,
+            origin: publicOrigin,
+            artifactHost: artifactHostOf,
+            contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) =>
+              (
+                db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as
+                  | { node_id?: string | null }
+                  | undefined
+              )?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
-            localLogs: (computerId, slug, lines) => computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
-            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+            localLogs: (computerId, slug, lines) =>
+              computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
+            stream: {
+              portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink),
+              ask: (n, k, i) => computeStream.ask(n, k, i),
+              connected: (n) => computeStream.connected(n),
+            },
           });
           sitesServing = {
             site: (slug) => sitesMod?.routeBySlug?.({ db: db! }, slug) ?? null,
@@ -2220,172 +4821,526 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               const got = await sitesMod?.routeByArtifactSession?.({ db: db! }, id, token, now());
               if (!got) return null;
               // access is asked on every request, so ending a share ends the session
-              const may = (got.principal === got.owner && access.snap.principal(got.principal)?.status === "active") || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
+              const may =
+                (got.principal === got.owner && access.snap.principal(got.principal)?.status === "active") ||
+                (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") ||
+                (!staleFor(got.principal) &&
+                  authorize(access.snap, {
+                    principal: got.principal,
+                    action: { perm: null, level: "view" },
+                    resource: { type: "site", id },
+                  }).effect === "allow");
               return may ? got.route : null;
             },
-            artifactExchange: async (code) => (await sitesMod?.exchangeArtifactCode?.({ db: db! }, code, now())) ?? null,
+            artifactExchange: async (code) =>
+              (await sitesMod?.exchangeArtifactCode?.({ db: db! }, code, now())) ?? null,
             fetch: (t, r, sink) => made.fetchTarget(t, r, sink),
             file: (folderId, rel) => readFolderFile(folderId, rel),
           };
           return made.host;
         },
         configureDomainEdge: () => {
-          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null> } | undefined;
-          const refresh = loaded.moduleExports.get("sites")?.["refreshDomainRoutes"] as ((c: { db: unknown }, warn: (m: string, a: Record<string, unknown>) => void) => Promise<number>) | undefined;
+          const computers = loaded.moduleExports.get("computers") as
+            | { localComputerAddress?: (id: string) => Promise<string | null> }
+            | undefined;
+          const refresh = loaded.moduleExports.get("sites")?.["refreshDomainRoutes"] as
+            | ((c: { db: unknown }, warn: (m: string, a: Record<string, unknown>) => void) => Promise<number>)
+            | undefined;
           // a computer that restarted has a new address, so the routes are written again on the slow timer
-          refreshDomains = async () => { if (refresh && db) await refresh({ db }, (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "sites", attrs })); };
+          refreshDomains = async () => {
+            if (refresh && db)
+              await refresh({ db }, (msg, attrs) =>
+                sink.log({ space: spaceId, level: 40, msg, place: "sites", attrs }),
+              );
+          };
           return createDomainEdge({
-            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
-            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
-            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null), localLogs: () => Promise.resolve([]),
-            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+            origin: publicOrigin,
+            contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) =>
+              (
+                db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as
+                  | { node_id?: string | null }
+                  | undefined
+              )?.node_id ?? null,
+            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
+            localLogs: () => Promise.resolve([]),
+            stream: {
+              portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink),
+              ask: (n, k, i) => computeStream.ask(n, k, i),
+              connected: (n) => computeStream.connected(n),
+            },
             peerAddress: (n) => computeStream.peerAddress(n),
-            router: cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null,
+            router: cfg.caddyAdmin
+              ? new CaddyRouter({
+                  admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }),
+                  space: spaceId,
+                  base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
+                })
+              : null,
           });
         },
-        setComputerHost: () => createComputersHost({
-          dataDir: paths.root,
-          version: cfg.version,
-          ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
-          // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
-          ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
-          // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
-          callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
-          announce: createMadeFilesAnnouncer({ db: db!, call: createAgentHomeCaller({ db: db!, spaceId, invoke }), log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) }),
-          // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
-          putBytes: (url, bytes) => putToSlot(url, bytes),
-          log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
-          ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
-          ...(o.computersCapacity ? { capacity: async () => o.computersCapacity as NonNullable<typeof o.computersCapacity> } : {}),
-        }),
+        setComputerHost: () =>
+          createComputersHost({
+            dataDir: paths.root,
+            version: cfg.version,
+            ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
+            // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
+            ...(o.computersSocketPath === undefined && computersRunnerSocket()
+              ? {
+                  runner: {
+                    socket: computersRunnerSocket() as string,
+                    token: computersRunnerToken,
+                    ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}),
+                  },
+                }
+              : {}),
+            // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
+            callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
+            announce: createMadeFilesAnnouncer({
+              db: db!,
+              call: createAgentHomeCaller({ db: db!, spaceId, invoke }),
+              log: (msg, attrs) =>
+                sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
+            }),
+            // large files go to the Files module in process: the slot's one-time token from files.upload_url is the only authority, and no session or bearer is involved
+            putBytes: (url, bytes) => putToSlot(url, bytes),
+            log: (level, msg, attrs) =>
+              sink.log({
+                space: spaceId,
+                level: level === "warn" ? 40 : 30,
+                msg,
+                place: "computers",
+                ...(attrs ? { attrs } : {}),
+              }),
+            ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+            ...(o.computersCapacity
+              ? { capacity: async () => o.computersCapacity as NonNullable<typeof o.computersCapacity> }
+              : {}),
+          }),
         // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
-        setTerminalHost: (d) => createTerminalHostSeam({
-          roles: cfg.roles, team: cfg.spaceKind !== "personal", dataDir: paths.root,
-          // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
-          ...(d.vault ? { values: teamVault(createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source) } : {}),
-          readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
-          computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
-          // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
-          // A Personal Space has them too when the person's computer has a container runtime (Docker Desktop, Colima, OrbStack ...): the socket is found, and the image is the release's own from the registry.
-          // With no runtime of its own the Space still has workspaces: they go on a server of the agent's owner that joined, is connected and has Docker (the Docker questions travel over that server's live socket).
-          ...({
-            workspaces: {
-              ...((workspaceRuntime() ?? {}) as object),
-              nodes: {
-                ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) => computeStream.ask(nodeId, kind, input, timeoutMs),
-                // a Vault value goes to a workspace on a server only over a private link: the same rule, and the same answer, as an agent computer's Vault channel (setComputersFill nodeSecure)
-                secure: (nodeId: string) => computeStream.secure(nodeId),
-                place: async (agentId: string): Promise<string | null> => {
-                  const owner = ((await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", { agentId })) as { agent?: { ownerId?: string } } | null)?.agent?.ownerId;
-                  if (!owner) return null;
-                  const r = await invoke("network.my_computers", {}, { space: spaceId, principal: { kind: "person", id: owner }, origin: "terminal" });
-                  const mine = r.status === "ok" ? ((r.output as { computers?: Array<{ serverId: string; enrollment: string; facts?: { docker?: boolean } }> }).computers ?? []) : [];
-                  return mine.find((c) => c.enrollment === "approved" && c.facts?.docker === true && computeStream.connected(c.serverId))?.serverId ?? null;
+        setTerminalHost: (d) =>
+          createTerminalHostSeam({
+            roles: cfg.roles,
+            team: cfg.spaceKind !== "personal",
+            dataDir: paths.root,
+            // a #Handle.field in a command is filled from the Vault: vault.use as the agent for the person (access, the label rule, the audit row), then the value, as the engine and the agent computers do
+            ...(d.vault
+              ? { values: teamVault(createEngineSessionHost({ invoke, vault: d.vault, space: spaceId }).source) }
+              : {}),
+            readAs: async (person, cap, input) => {
+              const r = await invoke(cap, input, {
+                space: spaceId,
+                principal: { kind: "person", id: person },
+                origin: "terminal",
+              });
+              return r.status === "ok" ? r.output : null;
+            },
+            computerOf: (person) =>
+              (
+                db!.all(
+                  "SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1",
+                  person,
+                )[0] as { id?: string } | undefined
+              )?.id,
+            // agent workspaces (6 Nov): a Team server that has a container runtime (the runner beside vyred, or a Docker socket) gives every agent a workspace, made on first use; the same engine as agent computers
+            // A Personal Space has them too when the person's computer has a container runtime (Docker Desktop, Colima, OrbStack ...): the socket is found, and the image is the release's own from the registry.
+            // With no runtime of its own the Space still has workspaces: they go on a server of the agent's owner that joined, is connected and has Docker (the Docker questions travel over that server's live socket).
+            ...{
+              workspaces: {
+                ...((workspaceRuntime() ?? {}) as object),
+                nodes: {
+                  ask: (nodeId: string, kind: string, input: unknown, timeoutMs?: number) =>
+                    computeStream.ask(nodeId, kind, input, timeoutMs),
+                  // a Vault value goes to a workspace on a server only over a private link: the same rule, and the same answer, as an agent computer's Vault channel (setComputersFill nodeSecure)
+                  secure: (nodeId: string) => computeStream.secure(nodeId),
+                  place: async (agentId: string): Promise<string | null> => {
+                    const owner = (
+                      (await createAgentHomeCaller({ db: db!, spaceId, invoke })(agentId, "agents.get", {
+                        agentId,
+                      })) as { agent?: { ownerId?: string } } | null
+                    )?.agent?.ownerId;
+                    if (!owner) return null;
+                    const r = await invoke(
+                      "network.my_computers",
+                      {},
+                      { space: spaceId, principal: { kind: "person", id: owner }, origin: "terminal" },
+                    );
+                    const mine =
+                      r.status === "ok"
+                        ? ((
+                            r.output as {
+                              computers?: Array<{ serverId: string; enrollment: string; facts?: { docker?: boolean } }>;
+                            }
+                          ).computers ?? [])
+                        : [];
+                    return (
+                      mine.find(
+                        (c) =>
+                          c.enrollment === "approved" &&
+                          c.facts?.docker === true &&
+                          computeStream.connected(c.serverId),
+                      )?.serverId ?? null
+                    );
+                  },
                 },
-              },
-              // the setting when it names an image, else this release's own image on ghcr.io/vyre-ai (seams/release-images.ts): never a bare vyre/... name, which Docker would look for on Docker Hub
-              image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
-              ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
-              projectsOf: (agentId: string) => (db!.all("SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'", agentId) as Array<{ projectId?: string }>).map((r) => String(r.projectId)),
-              // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
-              owner: spaceId,
-              ownsAgent: (agentId: string) => { try { return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0; } catch { return false; } },
-              // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
-              inTurn: (agentId: string) => workspaceInTurn(db!, agentId, Date.now()),
-              // where the Files mirrors are rooted, read from the tables (one indexed read each): a Files change brings forward only the workspaces whose folder it is in (lead, 12 Nov)
-              folders: {
-                agentRoot: (agentId: string) => { try { return (db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
-                projectRoot: (projectId: string) => { try { return (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", projectId)[0] as { folderId?: string | null } | undefined)?.folderId ?? null; } catch { return null; } },
-                ancestors: (folderId: string) => {
+                // the setting when it names an image, else this release's own image on ghcr.io/vyre-ai (seams/release-images.ts): never a bare vyre/... name, which Docker would look for on Docker Hub
+                image: releaseImage("agent-workspace", cfg.version, process.env["VYRE_WORKSPACE_IMAGE"]),
+                ...(o.workspaceIdleMs !== undefined ? { idleMs: o.workspaceIdleMs } : {}),
+                projectsOf: (agentId: string) =>
+                  (
+                    db!.all(
+                      "SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'",
+                      agentId,
+                    ) as Array<{ projectId?: string }>
+                  ).map((r) => String(r.projectId)),
+                // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
+                owner: spaceId,
+                ownsAgent: (agentId: string) => {
                   try {
-                    const out: string[] = [];
-                    let at: string | null = folderId;
-                    while (at !== null && out.length < 64 && !out.includes(at)) {
-                      const row = db!.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as { parent_id?: string | null } | undefined;
-                      if (row === undefined) return out.length === 0 ? null : out;
-                      out.push(at);
-                      at = row.parent_id ?? null;
-                    }
-                    return out;
-                  } catch { return null; }
+                    return db!.all("SELECT 1 FROM agents_agent WHERE id = ?", agentId).length > 0;
+                  } catch {
+                    return false;
+                  }
                 },
-                ofFile: (fileId: string) => { try { return (db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as { folder_id?: string | null } | undefined)?.folder_id ?? null; } catch { return null; } },
+                // a turn of this agent running now (started in the last 12 hours, so a row a crash left does not hold a workspace awake forever): making room passes its workspace over (lead, 12 Nov)
+                inTurn: (agentId: string) => workspaceInTurn(db!, agentId, Date.now()),
+                // where the Files mirrors are rooted, read from the tables (one indexed read each): a Files change brings forward only the workspaces whose folder it is in (lead, 12 Nov)
+                folders: {
+                  agentRoot: (agentId: string) => {
+                    try {
+                      return (
+                        (
+                          db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as
+                            | { folderId?: string | null }
+                            | undefined
+                        )?.folderId ?? null
+                      );
+                    } catch {
+                      return null;
+                    }
+                  },
+                  projectRoot: (projectId: string) => {
+                    try {
+                      return (
+                        (
+                          db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", projectId)[0] as
+                            | { folderId?: string | null }
+                            | undefined
+                        )?.folderId ?? null
+                      );
+                    } catch {
+                      return null;
+                    }
+                  },
+                  ancestors: (folderId: string) => {
+                    try {
+                      const out: string[] = [];
+                      let at: string | null = folderId;
+                      while (at !== null && out.length < 64 && !out.includes(at)) {
+                        const row = db!.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as
+                          | { parent_id?: string | null }
+                          | undefined;
+                        if (row === undefined) return out.length === 0 ? null : out;
+                        out.push(at);
+                        at = row.parent_id ?? null;
+                      }
+                      return out;
+                    } catch {
+                      return null;
+                    }
+                  },
+                  ofFile: (fileId: string) => {
+                    try {
+                      return (
+                        (
+                          db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as
+                            | { folder_id?: string | null }
+                            | undefined
+                        )?.folder_id ?? null
+                      );
+                    } catch {
+                      return null;
+                    }
+                  },
+                },
+                // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
+                inTrash: (agentId: string) => {
+                  try {
+                    const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as
+                      | { deletedAt?: unknown }
+                      | undefined;
+                    return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined);
+                  } catch {
+                    return undefined;
+                  }
+                },
+                // an agent in Trash has no workspace: nothing makes, wakes or claims room for one (review 12 Nov, 2). Asked before every make or wake.
+                admit: ({ agentId }: { agentId: string }) => {
+                  let row: { deletedAt?: unknown } | undefined;
+                  try {
+                    row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as
+                      | { deletedAt?: unknown }
+                      | undefined;
+                  } catch {
+                    row = undefined;
+                  }
+                  // the same words as the terminal module's AGENT_GONE_LINE (modules/terminal/workspace.ts), which a host file cannot import
+                  if (row !== undefined && row.deletedAt !== null && row.deletedAt !== undefined)
+                    throw Object.assign(
+                      new Error(
+                        "That agent is in Trash, so it has no workspace. Restore it to use its terminal again.",
+                      ),
+                      { code: "unavailable", workspace: true },
+                    );
+                },
+                // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
+                // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
+                // to the new model gets its workspace made (stopped) by the idle pass.
+                ...((): Record<string, unknown> => {
+                  const comp = loaded.moduleExports.get("computers") as
+                    | {
+                        bindWorkspaceStart?: (f: ((agentId: string) => Promise<void>) | null) => void;
+                        bindMigrationPort?: (
+                          k: "ensureWorkspace",
+                          f: (
+                            ctx: unknown,
+                            a: { agentId: string; computerId: string },
+                          ) => Promise<{ workspaceId: string }>,
+                        ) => void;
+                      }
+                    | undefined;
+                  const term = loaded.moduleExports.get("terminal") as
+                    | {
+                        boundWorkspaces?: () => {
+                          ensure(a: string): Promise<unknown>;
+                          provision(a: string): Promise<{ workspaceId: string }>;
+                        } | null;
+                      }
+                    | undefined;
+                  if (!comp || !term) return {};
+                  const call = (name: string, input: unknown): Promise<unknown> =>
+                    hooks ? hooks.call(name, input) : Promise.reject(new Error("The Space is not ready."));
+                  comp.bindWorkspaceStart?.(async (agentId) => {
+                    await term.boundWorkspaces?.()?.ensure(agentId);
+                  });
+                  comp.bindMigrationPort?.("ensureWorkspace", async (_ctx, a) => {
+                    const m = term.boundWorkspaces?.();
+                    if (!m) throw new Error("This Space has no agent workspaces.");
+                    return m.provision(a.agentId);
+                  });
+                  return {
+                    capacity: {
+                      claim: async (agentId: string, nodeId?: string) =>
+                        (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as {
+                          state: "running" | "waiting";
+                          line?: string;
+                        },
+                      release: async (agentId: string, nodeId?: string) => {
+                        await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) });
+                      },
+                      waiting: async (agentId: string) =>
+                        ((await call("computers.workspace_waiting", { agentId })) as { line?: string | null }).line ??
+                        null,
+                    },
+                  };
+                })(),
+                ...((): Record<string, unknown> => {
+                  const comp = loaded.moduleExports.get("computers") as
+                    | {
+                        createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> };
+                        readTar?: (t: Uint8Array) => unknown;
+                      }
+                    | undefined;
+                  if (!comp?.createHomeSync || !comp.readTar) return {};
+                  const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
+                  const deps = {
+                    callAs,
+                    putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes),
+                    now: Date.now,
+                    log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) =>
+                      sink.log({
+                        space: spaceId,
+                        level: level === "warn" ? 40 : 30,
+                        msg,
+                        place: "workspaces",
+                        ...(attrs ? { attrs } : {}),
+                      }),
+                  };
+                  // a project's shared folder is mirrored with the project's folder in Files; every call is made as the agent that last worked in it, so the file's history says who changed what
+                  const syncProject = (x: {
+                    projectId: string;
+                    agentId: string;
+                    fs: unknown;
+                    manifest: string;
+                  }): { pass(): Promise<{ failed: number }> } | null => {
+                    const folder = (
+                      db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as
+                        | { folderId?: string | null }
+                        | undefined
+                    )?.folderId;
+                    if (!folder) return null;
+                    return comp.createHomeSync!(
+                      {
+                        agentId: x.agentId,
+                        computerId: `prj_${x.projectId}`,
+                        fs: x.fs,
+                        manifest: x.manifest,
+                        rootFolder: folder,
+                        plain: true,
+                        reason: "edited in a workspace",
+                      },
+                      deps,
+                    );
+                  };
+                  return {
+                    home: {
+                      sync: (x: unknown) => comp.createHomeSync!(x, deps),
+                      readTar: comp.readTar,
+                      syncProject,
+                      projectManifest: (id: string) =>
+                        path.join(paths.root, "workspaces", "projects", id, "home-manifest.json"),
+                      manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"),
+                      ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}),
+                    },
+                  };
+                })(),
+                log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) =>
+                  sink.log({
+                    space: spaceId,
+                    level: level === "warn" ? 40 : 30,
+                    msg,
+                    place: "workspaces",
+                    ...(attrs ? { attrs } : {}),
+                  }),
               },
-              // in Trash now: a row with deletedAt, or no row (purged from Trash); undefined when the table cannot be read (third look T2)
-              inTrash: (agentId: string) => {
-                try { const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined); } catch { return undefined; }
-              },
-              // an agent in Trash has no workspace: nothing makes, wakes or claims room for one (review 12 Nov, 2). Asked before every make or wake.
-              admit: ({ agentId }: { agentId: string }) => {
-                let row: { deletedAt?: unknown } | undefined;
-                try { row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as { deletedAt?: unknown } | undefined; } catch { row = undefined; }
-                // the same words as the terminal module's AGENT_GONE_LINE (modules/terminal/workspace.ts), which a host file cannot import
-                if (row !== undefined && row.deletedAt !== null && row.deletedAt !== undefined) throw Object.assign(new Error("That agent is in Trash, so it has no workspace. Restore it to use its terminal again."), { code: "unavailable", workspace: true });
-              },
-              // ~/Vyre in the workspace mirrors the agent's folder in Files: the computers module's home sync, run as the agent principal like any other writer (access, review rules and the scrubber apply)
-              // room on the host: the computers module's capacity, over host calls (this module cannot import that one). A waiting workspace starts by itself when room opens, and a computer that is moved
-              // to the new model gets its workspace made (stopped) by the idle pass.
-              ...((): Record<string, unknown> => {
-                const comp = loaded.moduleExports.get("computers") as { bindWorkspaceStart?: (f: ((agentId: string) => Promise<void>) | null) => void; bindMigrationPort?: (k: "ensureWorkspace", f: (ctx: unknown, a: { agentId: string; computerId: string }) => Promise<{ workspaceId: string }>) => void } | undefined;
-                const term = loaded.moduleExports.get("terminal") as { boundWorkspaces?: () => { ensure(a: string): Promise<unknown>; provision(a: string): Promise<{ workspaceId: string }> } | null } | undefined;
-                if (!comp || !term) return {};
-                const call = (name: string, input: unknown): Promise<unknown> => (hooks ? hooks.call(name, input) : Promise.reject(new Error("The Space is not ready.")));
-                comp.bindWorkspaceStart?.(async (agentId) => { await term.boundWorkspaces?.()?.ensure(agentId); });
-                comp.bindMigrationPort?.("ensureWorkspace", async (_ctx, a) => {
-                  const m = term.boundWorkspaces?.();
-                  if (!m) throw new Error("This Space has no agent workspaces.");
-                  return m.provision(a.agentId);
-                });
-                return { capacity: {
-                  claim: async (agentId: string, nodeId?: string) => (await call("computers.workspace_claim", { agentId, ...(nodeId ? { nodeId } : {}) })) as { state: "running" | "waiting"; line?: string },
-                  release: async (agentId: string, nodeId?: string) => { await call("computers.workspace_release", { agentId, ...(nodeId ? { nodeId } : {}) }); },
-                  waiting: async (agentId: string) => ((await call("computers.workspace_waiting", { agentId })) as { line?: string | null }).line ?? null,
-                } };
-              })(),
-              ...((): Record<string, unknown> => {
-                const comp = loaded.moduleExports.get("computers") as { createHomeSync?: (o: unknown, d: unknown) => { pass(): Promise<{ failed: number }> }; readTar?: (t: Uint8Array) => unknown } | undefined;
-                if (!comp?.createHomeSync || !comp.readTar) return {};
-                const callAs = createAgentHomeCaller({ db: db!, spaceId, invoke });
-                const deps = { callAs, putBytes: (url: string, bytes: Uint8Array) => putToSlot(url, bytes), now: Date.now, log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }) };
-                // a project's shared folder is mirrored with the project's folder in Files; every call is made as the agent that last worked in it, so the file's history says who changed what
-                const syncProject = (x: { projectId: string; agentId: string; fs: unknown; manifest: string }): { pass(): Promise<{ failed: number }> } | null => {
-                  const folder = (db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as { folderId?: string | null } | undefined)?.folderId;
-                  if (!folder) return null;
-                  return comp.createHomeSync!({ agentId: x.agentId, computerId: `prj_${x.projectId}`, fs: x.fs, manifest: x.manifest, rootFolder: folder, plain: true, reason: "edited in a workspace" }, deps);
-                };
-                return { home: { sync: (x: unknown) => comp.createHomeSync!(x, deps), readTar: comp.readTar, syncProject, projectManifest: (id: string) => path.join(paths.root, "workspaces", "projects", id, "home-manifest.json"), manifest: (a: string) => path.join(paths.root, "workspaces", a, "home-manifest.json"), ...(o.computersHomeIntervalMs !== undefined ? { intervalMs: o.computersHomeIntervalMs } : {}) } };
-              })(),
-              log: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "workspaces", ...(attrs ? { attrs } : {}) }),
             },
           }),
-        }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
-        setComputersFill: (d) => d.vault ? createComputersFillHost({
-          space: spaceId, invoke, vault: d.vault, now, gate: teamVault,
-          baseUrl: () => o.computersBaseUrl ?? (computersRunnerSocket() && ingressContainer() ? `http://vyre-host:${boundPort}` : `http://host.docker.internal:${boundPort}`),
-          nodeSecure: (n) => computeStream.secure(n),
-          mount: (h) => fillRoute.mount(h),
-          log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
-        }) : null,
+        setComputersFill: (d) =>
+          d.vault
+            ? createComputersFillHost({
+                space: spaceId,
+                invoke,
+                vault: d.vault,
+                now,
+                gate: teamVault,
+                baseUrl: () =>
+                  o.computersBaseUrl ??
+                  (computersRunnerSocket() && ingressContainer()
+                    ? `http://vyre-host:${boundPort}`
+                    : `http://host.docker.internal:${boundPort}`),
+                nodeSecure: (n) => computeStream.secure(n),
+                mount: (h) => fillRoute.mount(h),
+                log: (u) =>
+                  sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
+              })
+            : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, keyHeld: (p) => { const k = keyring.get(p); k?.fill(0); return k !== null; }, rehand: async (p) => { const k = keyring.get(p); k?.fill(0); return k !== null; }, putToSlot, gitProxy: gitPort,
-          // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
-          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, keyOpen: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; }, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
+        setEngineHost: (d) =>
+          (engineSeam = createEngineHost({
+            space: spaceId,
+            invoke,
+            now,
+            keyHeld: (p) => {
+              const k = keyring.get(p);
+              k?.fill(0);
+              return k !== null;
+            },
+            rehand: async (p) => {
+              const k = keyring.get(p);
+              k?.fill(0);
+              return k !== null;
+            },
+            putToSlot,
+            gitProxy: gitPort,
+            // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
+            mayAll: (people, action, resource) =>
+              people.every((p) => {
+                try {
+                  return (
+                    !staleFor(p) &&
+                    authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"
+                  );
+                } catch {
+                  return false;
+                }
+              }),
+            publishTurn: () => (hub?.publishTurn ? hub.publishTurn.bind(hub) : null),
+            log: (msg, attrs) =>
+              sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }),
+            ...(d.vault ? { vault: d.vault } : {}),
+            dataDir: paths.root,
+            own: ownNode,
+            keyOpen: (p: string) => {
+              const k = keyring.get(p);
+              k?.fill(0);
+              return k !== null;
+            },
+            ...(cfg.roles.includes("device")
+              ? {}
+              : {
+                  keyHeld: (p: string) => {
+                    const k = keyring.get(p);
+                    k?.fill(0);
+                    return k !== null;
+                  },
+                }),
+            ours: (x: unknown) => {
+              const r = rawDbOf(x);
+              return r === null || r === db;
+            },
+            nodes: {
+              spawn: (n, s) => computeStream.spawnProc(n, s),
+              connected: (n) => computeStream.connected(n),
+              secure: (n) => computeStream.secure(n),
+              devices: (p) => computeStream.devices(p),
+              onDevice: (f) => computeStream.onDevice(f),
+            },
+            ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}),
+            ...(o.engineInstall ? { engineInstall: true } : {}),
+            ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}),
+            ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}),
+            ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}),
+            ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}),
+            saveSignin: (r) => signinRefresh.save(r),
+            closing: (done) => {
+              engineClosing = done;
+            },
+            turns: (n) => {
+              engineTurns = n;
+              machinesSync();
+            },
+          })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
-        configureReports: () => createReportsHost({
-          space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
-          logs: { all: (sql, ...args) => { sink.flush(); return sink.db.prepare(sql).all(...(args as never[])) as Array<Record<string, unknown>>; } },
-          sealKey: typeof sealKey.key === "string" ? new TextEncoder().encode(sealKey.key) : sealKey.key,
-          address: cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : null,
-          versions: { server: cfg.version, device: process.platform },
-        }),
+        configureReports: () =>
+          createReportsHost({
+            space: spaceId,
+            now,
+            fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
+            logs: {
+              all: (sql, ...args) => {
+                sink.flush();
+                return sink.db.prepare(sql).all(...(args as never[])) as Array<Record<string, unknown>>;
+              },
+            },
+            sealKey: typeof sealKey.key === "string" ? new TextEncoder().encode(sealKey.key) : sealKey.key,
+            address: cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : null,
+            versions: { server: cfg.version, device: process.platform },
+          }),
         // Ask Vyre in the email builder is one real agent turn in a private Ask pane, run as the asker: their agent, model, account, spend limits and access (host/src/seams/email-ask.ts)
         configureEmailBuilder: () => ({
           ask: createEmailAskDriver({
-            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "email-builder", ...(attrs ? { attrs } : {}) }),
+            now,
+            log: (msg, attrs) =>
+              sink.log({ space: spaceId, level: 30, msg, place: "email-builder", ...(attrs ? { attrs } : {}) }),
             call: async (cap, input, who) => {
               // exactly the principal that asked, and whom it acts for: an agent is never turned into a person
-              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "email-ask" });
+              const r = await invoke(cap, input, {
+                space: spaceId,
+                principal: who.principal,
+                ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+                origin: "email-ask",
+              });
               if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
               return r.output;
             },
@@ -2394,92 +5349,267 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // Ask Vyre on a form's source is the same agent turn, as the asker, about a form (host/src/seams/email-ask.ts)
         configureFormsAsk: () => ({
           ask: createFormAskDriver({
-            now, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "forms", ...(attrs ? { attrs } : {}) }),
+            now,
+            log: (msg, attrs) =>
+              sink.log({ space: spaceId, level: 30, msg, place: "forms", ...(attrs ? { attrs } : {}) }),
             call: async (cap, input, who) => {
-              const r = await invoke(cap, input, { space: spaceId, principal: who.principal, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: "forms-ask" });
+              const r = await invoke(cap, input, {
+                space: spaceId,
+                principal: who.principal,
+                ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+                origin: "forms-ask",
+              });
               if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
               return r.output;
             },
           }),
         }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
-        setImportHost: (d) => ({ secret: (_ctx: unknown, handle: string) => d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space) }),
-        setEventsHost: () => createEventsHost({
-          reader: { source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq }, access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? null, now },
-          post: { allow: o.seams?.webhookAllow ?? (() => []), now, ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}) },
+        setImportHost: (d) => ({
+          secret: (_ctx: unknown, handle: string) =>
+            d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space),
         }),
+        setEventsHost: () =>
+          createEventsHost({
+            reader: {
+              source: { read: (q) => spaceLog.read(q), head: async () => (await spaceLog.currentHead()).seq },
+              access: () => access.snap,
+              owner: () => access.owner() ?? cfg.owner ?? null,
+              now,
+            },
+            post: {
+              allow: o.seams?.webhookAllow ?? (() => []),
+              now,
+              ...(o.seams?.postFetch ? { fetch: o.seams.postFetch } : {}),
+            },
+          }),
         // the git module: working trees under the data directory; a GitHub token arrives only through ctx.vault.fill (git_credential), which waits on the Vault module (w12a, P-L7_LIVE)
-        setGitHost: () => ({ treesDir: path.join(paths.root, "trees"), ...(o.gitEnv ? { env: o.gitEnv } : {}), takeCredential: (ref: string) => { const v = gitCredentials.get(ref); gitCredentials.delete(ref); return v; } }),
-        ...spaceStoreDrivers(spaceStore),
-        configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
-          address: () => {
-            const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
-            // a relay Space's own row holds this computer's loopback address: what people outside reach, an invite above all, is its phone name
-            const outside = publicOrigin();
-            if (outside?.relay && value?.mode === "relay") return { mode: "relay", host: new URL(outside.origin).host };
-            if(!value?.address)return undefined;
-            try{const url=new URL(value.address.includes('://')?value.address:`https://${value.address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return undefined;return{mode:value.mode==='relay'?'relay':'own_domain',host:url.host};}catch{return undefined;}
-          },
-          changeAddress: async (mode, host) => {
-            const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as {relay_address?:string}|undefined;
-            const address = mode === 'own_domain' ? host : config?.relay_address;
-            if (!address) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'No address is configured for this mode.'});
-            if (mode === 'own_domain') {
-              const dns = await network.checkDns(address, config?.relay_address ?? null);
-              if (!dns.ok) throw fail('validation.precondition_failed', ZERO_TRACE, {message:'DNS is not verified for this Space. Configure the domain in Network first.'});
-            }
-            await network.applyAddress({mode, address});
-            db!.run("UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1", address, mode, mode, address, now());
+        setGitHost: () => ({
+          treesDir: path.join(paths.root, "trees"),
+          ...(o.gitEnv ? { env: o.gitEnv } : {}),
+          takeCredential: (ref: string) => {
+            const v = gitCredentials.get(ref);
+            gitCredentials.delete(ref);
+            return v;
           },
         }),
-        configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
+        ...spaceStoreDrivers(spaceStore),
+        configureSpaceAdmin: () =>
+          createSpaceAdmin({
+            access: () => access.snap,
+            owner: () => access.owner() ?? cfg.owner ?? "usr_owner",
+            space: spaceId,
+            db: db!,
+            system,
+            headSeq: () => headSeq,
+            address: () => {
+              const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as
+                | { mode?: string; address?: string }
+                | undefined;
+              // a relay Space's own row holds this computer's loopback address: what people outside reach, an invite above all, is its phone name
+              const outside = publicOrigin();
+              if (outside?.relay && value?.mode === "relay")
+                return { mode: "relay", host: new URL(outside.origin).host };
+              if (!value?.address) return undefined;
+              try {
+                const url = new URL(value.address.includes("://") ? value.address : `https://${value.address}`);
+                if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return undefined;
+                return { mode: value.mode === "relay" ? "relay" : "own_domain", host: url.host };
+              } catch {
+                return undefined;
+              }
+            },
+            changeAddress: async (mode, host) => {
+              const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as
+                | { relay_address?: string }
+                | undefined;
+              const address = mode === "own_domain" ? host : config?.relay_address;
+              if (!address)
+                throw fail("validation.precondition_failed", ZERO_TRACE, {
+                  message: "No address is configured for this mode.",
+                });
+              if (mode === "own_domain") {
+                const dns = await network.checkDns(address, config?.relay_address ?? null);
+                if (!dns.ok)
+                  throw fail("validation.precondition_failed", ZERO_TRACE, {
+                    message: "DNS is not verified for this Space. Configure the domain in Network first.",
+                  });
+              }
+              await network.applyAddress({ mode, address });
+              db!.run(
+                "UPDATE network_config SET address = ?, mode = ?, domain = CASE WHEN ? = 'own_domain' THEN ? ELSE domain END, reported_at = ? WHERE id = 1",
+                address,
+                mode,
+                mode,
+                address,
+                now(),
+              );
+            },
+          }),
+        configureSync: () =>
+          createSyncSeam({
+            store: spaceStore,
+            ...(loaded.serving.get("conflicts") === "live"
+              ? {
+                  conflicts: {
+                    open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>,
+                    history: async (e) => {
+                      await hookRunner.call("conflicts.record_history", e);
+                    },
+                  },
+                }
+              : {}),
+            access: () => access.snap,
+            space: spaceId,
+            now,
+            registryHash,
+            liveHub: syncLive.seam,
+            invoke: (c, i, seed) => invoke(c, i, seed),
+            keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key",
+            ...(cfg.address
+              ? {
+                  endpoints: () => {
+                    const url = syncEndpointOrigin(cfg.address!);
+                    return url ? [{ kind: "direct" as const, url }] : [];
+                  },
+                }
+              : {}),
+          }),
         setVaultKeyPort: () => ({
           personKey: async (personId: string) => keyring.get(personId),
           // a Mine item saved while the person's key is not here is sealed to their public key; it opens with their private key once their own client has handed the person key over (enc=3)
           publicKey: async (personId: string) => publicKeyOf(db, personId),
-          privateKey: async (personId: string) => { const k = keyring.get(personId); if (!k) return null; try { return privateKeyOf(db, personId, k); } finally { k.fill(0); } },
+          privateKey: async (personId: string) => {
+            const k = keyring.get(personId);
+            if (!k) return null;
+            try {
+              return privateKeyOf(db, personId, k);
+            } finally {
+              k.fill(0);
+            }
+          },
         }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { container_env: (f: { value: string; ref: string }) => { siteSecrets.set(f.ref, { value: f.value, at: Date.now() }); }, ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: (d) => ({
+          signin: createProviderSignin({
+            fetch: d.fetch,
+            ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}),
+          }),
+          refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) },
+          sinks: {
+            container_env: (f: { value: string; ref: string }) => {
+              siteSecrets.set(f.ref, { value: f.value, at: Date.now() });
+            },
+            ...o.seams?.vaultSinks,
+            http_header: (
+              filled: Parameters<typeof connectorPort.sink>[0],
+              execution?: Parameters<typeof connectorPort.sink>[1],
+            ) => {
+              if (connectorPort.accepts(filled.ref)) return connectorPort.sink(filled, execution);
+              const existing = o.seams?.vaultSinks?.["http_header"];
+              if (existing) return existing(filled);
+              throw new Error("This HTTP fill reference is unavailable.");
+            },
+          },
+          db: db!,
+          probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }),
+          refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)),
+          origin: () => {
+            const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
+            return /^https?:\/\//.test(a) ? a : `https://${a}`;
+          },
+          provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => {
+            vaultImpl = p;
+            if (p.pullExport) pullVaultExport = p.pullExport;
+          },
+        }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => o.documentNetwork ?? documentPin(),
-        setConnectorReadSender: (d) => connectorReadSender(d, (ref, asker) => resolveKeyRef(db!, ref, asker),
-          // at send time the asker must still be able to use the item (a Shared item read for no one: the Space's own items only, which the Vault reader allows)
-          (itemId, asker) => !asker || authorize(access.snap, { principal: asker, action: { perm: null, level: "use" }, resource: { type: "vault_item", id: itemId } }).effect === "allow"),
+        setConnectorReadSender: (d) =>
+          connectorReadSender(
+            d,
+            (ref, asker) => resolveKeyRef(db!, ref, asker),
+            // at send time the asker must still be able to use the item (a Shared item read for no one: the Space's own items only, which the Vault reader allows)
+            (itemId, asker) =>
+              !asker ||
+              authorize(access.snap, {
+                principal: asker,
+                action: { perm: null, level: "use" },
+                resource: { type: "vault_item", id: itemId },
+              }).effect === "allow",
+          ),
         // the same reading of a key reference for the module (the held test read's card names the item a person approves)
         setKeyRefResolver: () => (ref: unknown, asker?: string) => resolveKeyRef(db!, ref, asker),
         setKeyUsableBy: () => async (person: string) => {
           const ids = new Map<string, string>();
-          const r = await invoke("vault.items.list", { limit: 500 }, { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" });
-          const items = r.status === "ok" ? ((r.output as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ?? []) : [];
-          for (const i of items) if (typeof i.handle === "string" && typeof i.id === "string" && (i.yourLevel === "use" || i.yourLevel === "edit" || i.yourLevel === "manage")) ids.set(i.handle.toLowerCase(), i.id);
+          const r = await invoke(
+            "vault.items.list",
+            { limit: 500 },
+            { space: spaceId, principal: { kind: "person", id: person }, origin: "gate" },
+          );
+          const items =
+            r.status === "ok"
+              ? ((r.output as { items?: { id?: unknown; handle?: unknown; yourLevel?: unknown }[] } | null)?.items ??
+                [])
+              : [];
+          for (const i of items)
+            if (
+              typeof i.handle === "string" &&
+              typeof i.id === "string" &&
+              (i.yourLevel === "use" || i.yourLevel === "edit" || i.yourLevel === "manage")
+            )
+              ids.set(i.handle.toLowerCase(), i.id);
           return ids;
         },
         // the web request trigger's address: the Space's own public address. A relay (vyre.run) name is not given: the relay carries only /p/* (forms and sites), never /hooks/
         // the Space's own address carries web requests; a vyre.run name does only once the relay says it does (asked, cached)
-        setPublicBase: () => () => { const p = publicOrigin(); return p && (!p.relay || relayCarriesHooks(p.origin)) ? p.origin : null; },
+        setPublicBase: () => () => {
+          const p = publicOrigin();
+          return p && (!p.relay || relayCarriesHooks(p.origin)) ? p.origin : null;
+        },
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon
         setCodeHost: () => ({ dataDir: paths.root }),
-        setHttpStepHost: () => ({ fill: (ctx: unknown, handle: string) => connectorPort.fillItem(ctx as Parameters<typeof connectorPort.fill>[0], { connector: "http_request", connectionId: "step", slot: "auth", handle }) }),
+        setHttpStepHost: () => ({
+          fill: (ctx: unknown, handle: string) =>
+            connectorPort.fillItem(ctx as Parameters<typeof connectorPort.fill>[0], {
+              connector: "http_request",
+              connectionId: "step",
+              slot: "auth",
+              handle,
+            }),
+        }),
         // the connectors sync engine: modules/sources is the library, the Space store is one side, a connection is the other (P-H_09)
-        setSyncEngine: () => createSyncEngine({ core: coreOf(loaded.moduleExports.get("sources")), local: { open: () => spaceStore.open(), space: spaceStore.space }, now }),
+        setSyncEngine: () =>
+          createSyncEngine({
+            core: coreOf(loaded.moduleExports.get("sources")),
+            local: { open: () => spaceStore.open(), space: spaceStore.space },
+            now,
+          }),
         ...(o.seams?.drivers ?? {}),
       };
       const setters = o.seams?.setters ?? loaded.hostSeams;
       if (Object.keys(setters).length) {
         // who the members are by work email, Space files by id, and where downloaded bytes go: built from the Space's own database and the Files module
-        const spacePorts = membersPortRef.ports = createSpacePorts({
-          db: db!, active: (id) => access.snap.principal(id)?.status === "active", putToSlot,
+        const spacePorts = (membersPortRef.ports = createSpacePorts({
+          db: db!,
+          active: (id) => access.snap.principal(id)?.status === "active",
+          putToSlot,
           // the Files calls run as the server itself, through the pipeline, so the scrubber and the audit still see them
           call: async (cap, input) => {
-            const r = await invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" });
+            const r = await invoke(cap, input, {
+              space: spaceId,
+              principal: { ...SYSTEM_PRINCIPAL },
+              preAuth: true,
+              origin: "seam",
+            });
             if (r.status !== "ok") throw new Error(`${cap} was held for approval`);
             return r.output;
           },
-        });
+        }));
         seams = wireSeams(setters, {
-          vault: o.vault ?? vaultPort, space: spaceId,
+          vault: o.vault ?? vaultPort,
+          space: spaceId,
           files: o.seams?.files ?? spacePorts.files,
           blobs: o.seams?.blobs ?? spacePorts.blobs,
           members: o.seams?.members ?? spacePorts.members,
@@ -2489,8 +5619,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           defaultGithubApp: () => githubOAuthFromEnv(process.env),
           githubTickets,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
-          publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
-          drivers: hostDrivers, owners: loaded.seamOwners,
+          publicUrl:
+            o.seams?.publicUrl ??
+            (async () => {
+              const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
+              return /^https?:\/\//.test(a) ? a : `https://${a}`;
+            }),
+          drivers: hostDrivers,
+          owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
         // runs before unwire (closers run last first): the engine ends its CLI sessions and saves the sign-ins they refreshed while the Vault, the hooks and the databases are still there; unwire
@@ -2498,76 +5634,203 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         closers.push(async () => {
           if (!seams?.wired.includes("setEngineHost") || !seams.owns("setEngineHost")) return;
           (setters as Record<string, ((d: unknown) => void) | undefined>)["setEngineHost"]?.(null);
-          if (engineClosing) await Promise.race([engineClosing, new Promise<void>((r) => { setTimeout(r, 10_000).unref(); })]);
+          if (engineClosing)
+            await Promise.race([
+              engineClosing,
+              new Promise<void>((r) => {
+                setTimeout(r, 10_000).unref();
+              }),
+            ]);
         });
         const gaps = seams.missing;
-        for (const m of gaps) sink.log({ space: spaceId, level: 30, msg: "seam.no_driver", place: "boot", attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason } });
+        for (const m of gaps)
+          sink.log({
+            space: spaceId,
+            level: 30,
+            msg: "seam.no_driver",
+            place: "boot",
+            attrs: { setter: m.setter, ...(m.module ? { module: m.module } : {}), reason: m.reason },
+          });
         // health lists only what is missing: a Space with every driver set has no row, so the eight host probes stay the eight
         if (gaps.length) {
           const detail = `Not set up: ${gaps.map((m) => `${m.module ?? "a module"} (${m.setter})`).join(", ")}.`;
           db!.run(
             "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
-            "module_drivers", "degraded", detail, null, JSON.stringify({ missing: gaps.length, wired: seams.wired.length }), now(),
+            "module_drivers",
+            "degraded",
+            detail,
+            null,
+            JSON.stringify({ missing: gaps.length, wired: seams.wired.length }),
+            now(),
           );
         } else db!.run("DELETE FROM health_probe WHERE name = ?", "module_drivers");
       }
 
-      consumersReady = true;   // the seams are wired: the consumers may run now (the end of boot pumps what committed meanwhile)
+      consumersReady = true; // the seams are wired: the consumers may run now (the end of boot pumps what committed meanwhile)
 
       // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
-      for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
+      for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[])
+        await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
 
       // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
       // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
       try {
-        for (const row of db!.all("SELECT id, owner, scope FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null; scope: string | null }[]) await registerVaultFolder(row.id, row.owner, row.scope === "mine");
+        for (const row of db!.all("SELECT id, owner, scope FROM vault_folder WHERE deleted_at IS NULL") as {
+          id: string;
+          owner: string | null;
+          scope: string | null;
+        }[])
+          await registerVaultFolder(row.id, row.owner, row.scope === "mine");
         // a Vault item registered under the Space before items lived in their folder moves into its folder once, so a Mine folder's privacy covers it
-        for (const row of db!.all(`SELECT "id", "folderId" FROM vault_meta WHERE "folderId" IS NOT NULL`) as { id: string; folderId: string }[]) {
+        for (const row of db!.all(`SELECT "id", "folderId" FROM vault_meta WHERE "folderId" IS NOT NULL`) as {
+          id: string;
+          folderId: string;
+        }[]) {
           const r = access.snap.resource(row.id);
           if (!r || r.parent_id === row.folderId || !access.snap.resource(row.folderId)) continue;
-          const moved = await spaceLog.appendResult({ id: `evt_vault_item_home_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: { ...r, parent_id: row.folderId } });
-          if (moved.ok && !moved.duplicate) { access.fold(moved.event); accessPending.push(toAccessEvent(moved.event)); headSeq = Math.max(headSeq, moved.event.seq); await syncAccess(); }
+          const moved = await spaceLog.appendResult({
+            id: `evt_vault_item_home_${row.id}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: row.id,
+            payload: { ...r, parent_id: row.folderId },
+          });
+          if (moved.ok && !moved.duplicate) {
+            access.fold(moved.event);
+            accessPending.push(toAccessEvent(moved.event));
+            headSeq = Math.max(headSeq, moved.event.seq);
+            await syncAccess();
+          }
         }
-      } catch { /* a Space without a Vault has no table to repair */ }
+      } catch {
+        /* a Space without a Vault has no table to repair */
+      }
 
       // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.
-      try { for (const row of db!.all("SELECT id FROM inbox_conversation WHERE deleted_at IS NULL") as { id: string }[]) await ensureRow("conversation", row.id); } catch { /* a Space without an Inbox has no table to repair */ }
+      try {
+        for (const row of db!.all("SELECT id FROM inbox_conversation WHERE deleted_at IS NULL") as { id: string }[])
+          await ensureRow("conversation", row.id);
+      } catch {
+        /* a Space without an Inbox has no table to repair */
+      }
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
-        const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        const recovering = runsHost.recover().catch((e: unknown) =>
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "runs.recover_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          }),
+        );
         closers.push(() => recovering);
       }
 
       // the Space\'s profile row, once: its name from the event that made the Space, and where people reach it
-      await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      await reloadSpaceGithub().catch((e: unknown) =>
+        sink.log({
+          space: spaceId,
+          level: 40,
+          msg: "github.signin_reload_failed",
+          place: "boot",
+          attrs: { error: e instanceof Error ? e.message : String(e) },
+        }),
+      );
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
         // the name as it is now (the spaces profile, after any rename), else the one the Space was made with; sign-in options show it before anyone signs in, so it is never left an id
         let current = "";
-        try { current = String((db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)?.name ?? "").trim(); } catch { /* the profile table is made by the spaces module */ }
-        const name = current || (made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId);
-        await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        try {
+          current = String(
+            (db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)
+              ?.name ?? "",
+          ).trim();
+        } catch {
+          /* the profile table is made by the spaces module */
+        }
+        const name =
+          current ||
+          (made
+            ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId)
+            : spaceId);
+        await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) =>
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "identity.space_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          }),
+        );
       }
       if (loaded.serving.get("spaces") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
-        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
-        await hookRunner.call("spaces.ensure_profile", { name, kind: cfg.spaceKind ?? "team", address: cfg.address }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "spaces.profile_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+        const name = made
+          ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId)
+          : spaceId;
+        await hookRunner
+          .call("spaces.ensure_profile", { name, kind: cfg.spaceKind ?? "team", address: cfg.address })
+          .catch((e: unknown) =>
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "spaces.profile_failed",
+              place: "boot",
+              attrs: { error: e instanceof Error ? e.message : String(e) },
+            }),
+          );
       }
-      await projectionRunner.start();   // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
+      await projectionRunner.start(); // after the seams: the events module needs its dispatcher and host ports before the first event reaches webhooks_out
 
       // The schema module seeds the record types the manifests declare once, as a write of its own, so no read has to (P-L3_17). Each declared type is also a resource in the access
       // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
       // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
-      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as (() => Promise<string[] | void>) | undefined;
+      const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as
+        | (() => Promise<string[] | void>)
+        | undefined;
       if (startSchema) {
         // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
-        const seeding = startSchema().then((pruned) => { if (pruned && pruned.length) sink.log({ space: spaceId, level: 30, msg: "records.types_pruned", place: "boot", attrs: { types: pruned } }); }).catch((e: unknown) => { sink.log({ space: spaceId, level: 50, msg: "schema.seed_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }); });
+        const seeding = startSchema()
+          .then((pruned) => {
+            if (pruned && pruned.length)
+              sink.log({
+                space: spaceId,
+                level: 30,
+                msg: "records.types_pruned",
+                place: "boot",
+                attrs: { types: pruned },
+              });
+          })
+          .catch((e: unknown) => {
+            sink.log({
+              space: spaceId,
+              level: 50,
+              msg: "schema.seed_failed",
+              place: "boot",
+              attrs: { error: e instanceof Error ? e.message : String(e) },
+            });
+          });
         closers.push(() => seeding);
         for (const rt of registry.recordTypes) {
-          const created = { type: "resource.created", payload: spaceOwned({ id: rt.key, type: "record_type", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }) };
+          const created = {
+            type: "resource.created",
+            payload: spaceOwned({
+              id: rt.key,
+              type: "record_type",
+              parent_id: spaceId,
+              label: 0,
+              owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+              holds: 0,
+            }),
+          };
           access.fold(created);
-          accessPending.push({ seq: -1, ...created });   // not a log event: the module applies it at every start
+          accessPending.push({ seq: -1, ...created }); // not a log event: the module applies it at every start
         }
         await syncAccess();
       }
@@ -2577,60 +5840,146 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;
       if (kept) {
-        const replayed = (await system("governance.tombstones.reapply", { tombstones: kept.tombstones }, kept.traceId ? { traceId: kept.traceId, spanId: "0".repeat(16) } : undefined).catch((e: unknown) => {
+        const replayed = (await system(
+          "governance.tombstones.reapply",
+          { tombstones: kept.tombstones },
+          kept.traceId ? { traceId: kept.traceId, spanId: "0".repeat(16) } : undefined,
+        ).catch((e: unknown) => {
           // the Space does not open with an erased person still in it; say why, with the host's own log of the failing call
           const traceId = (e as { error?: { traceId?: string } } | null)?.error?.traceId;
           let why = "";
-          try { sink.flush(); why = traceId ? sink.trace(traceId).logs.filter((l) => l.level >= 40).map((l) => JSON.stringify(l.attrs ?? l.msg)).join(" | ").slice(0, 1500) : ""; } catch { /* the log is a help */ }
-          throw new Error(`replaying the tombstones after a restore failed: ${e instanceof Error ? e.message : String(e)} ${why}`);
+          try {
+            sink.flush();
+            why = traceId
+              ? sink
+                  .trace(traceId)
+                  .logs.filter((l) => l.level >= 40)
+                  .map((l) => JSON.stringify(l.attrs ?? l.msg))
+                  .join(" | ")
+                  .slice(0, 1500)
+              : "";
+          } catch {
+            /* the log is a help */
+          }
+          throw new Error(
+            `replaying the tombstones after a restore failed: ${e instanceof Error ? e.message : String(e)} ${why}`,
+          );
         })) as { count?: number };
-        sink.log({ space: spaceId, level: 20, msg: "restore.tombstones_reapplied", place: "boot", attrs: { count: replayed?.count ?? 0 } });
+        sink.log({
+          space: spaceId,
+          level: 20,
+          msg: "restore.tombstones_reapplied",
+          place: "boot",
+          attrs: { count: replayed?.count ?? 0 },
+        });
         clearRestoredTombstones(paths.root);
       }
       // Identity comes from the bearer token alone (host/src/daemon/session.ts): a device session row gives the person and the device; the x-vyre-device header and ?device= are ignored.
       // The single admin token is the owner bootstrap path only (ensureAdminToken): it acts as the owner on the fixed device `local-admin`.
       const sessions = createSessionResolver({ db: db!, space: spaceId });
-      previews = createViewAs({ space: spaceId, snapshot: () => access.snap, store: () => spaceStore.open().store, now,
-        sourceLive: source => {
+      previews = createViewAs({
+        space: spaceId,
+        snapshot: () => access.snap,
+        store: () => spaceStore.open().store,
+        now,
+        sourceLive: (source) => {
           if (!db || accessStale || access.snap.principal(source.person)?.status !== "active") return false;
-          try { return db.all(`SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`, source.sessionId, source.person, source.device).length === 1; } catch { return false; }
+          try {
+            return (
+              db.all(
+                `SELECT 1 AS ok FROM identity_sessions i JOIN devices_session s ON s.id=i.id JOIN devices_device d ON d.id=s.device_id WHERE i.id=? AND i.person_id=? AND i.device_id=? AND i.revoked_at IS NULL AND s.kind='device' AND s.person=i.person_id AND s.device_id=i.device_id AND s.revoked_at IS NULL AND d.person=i.person_id AND d.revokedAt IS NULL AND d.deleted_at IS NULL`,
+                source.sessionId,
+                source.person,
+                source.device,
+              ).length === 1
+            );
+          } catch {
+            return false;
+          }
         },
       });
       const identify = (t: string | null): (SessionInfo & { device: string }) | null => {
         if (!t) return null;
-        if (sameToken(t, token)) return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
+        if (sameToken(t, token))
+          return { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE };
         const s = sessions.resolve(t);
         // a session is only as good as the membership behind it: a suspended, removed or unknown person's live token stops working at once, and a fresh sign-in is needed after reactivation (suspend ends the person's devices)
         if (!s || access.snap.principal(s.person)?.status !== "active") return null;
-        return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device, sessionId: s.sessionId };
+        return {
+          space: s.space,
+          principal: { kind: "person", id: s.person },
+          device: s.device,
+          sessionId: s.sessionId,
+        };
       };
       knownToken = (t) => identify(t) !== null;
-      const session: GatewayDeps["session"] = o.session ?? ((headers) => {
-        const token = bearer(headers["authorization"]);
-        if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
-        const known = identify(token);
-        if (known || !token) return known;
-        // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
-        return (async (): Promise<(SessionInfo & { device: string }) | null> => {
-          const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
-          const actor = found ? access.snap.principal(found.actorId) : undefined;
-          if (!found || actor?.status !== "active") return null;
-          // the person who made the actor is its ceiling on this door too: a call runs as the actor for that person, and an actor whose person has gone does not get in
-          const owner = actor.owner ? access.snap.principal(actor.owner) : undefined;
-          if (!owner || owner.kind !== "person" || owner.status !== "active") return null;
-          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, actingFor: owner.id, device: "outside-actor" };
-        })();
-      });
+      const session: GatewayDeps["session"] =
+        o.session ??
+        ((headers) => {
+          const token = bearer(headers["authorization"]);
+          if (token?.startsWith("vas_")) {
+            const preview = previews?.resolve(token);
+            return preview
+              ? {
+                  space: preview.space,
+                  principal: { kind: "person", id: preview.requester },
+                  actingFor: preview.target,
+                  device: preview.device,
+                  sessionId: preview.sessionId,
+                  previewToken: token,
+                }
+              : null;
+          }
+          const known = identify(token);
+          if (known || !token) return known;
+          // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
+          return (async (): Promise<(SessionInfo & { device: string }) | null> => {
+            const found = (await hookRunner
+              .call("access.actor_by_credential", { credential: token })
+              .catch(() => null)) as { actorId: string } | null;
+            const actor = found ? access.snap.principal(found.actorId) : undefined;
+            if (!found || actor?.status !== "active") return null;
+            // the person who made the actor is its ceiling on this door too: a call runs as the actor for that person, and an actor whose person has gone does not get in
+            const owner = actor.owner ? access.snap.principal(actor.owner) : undefined;
+            if (!owner || owner.kind !== "person" || owner.status !== "active") return null;
+            return {
+              space: spaceId,
+              principal: { kind: "actor", id: found.actorId },
+              actingFor: owner.id,
+              device: "outside-actor",
+            };
+          })();
+        });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
       deviceOfToken = async (t) => {
-        if (t.startsWith("vas_") || sameToken(t, token)) return null;   // a preview, or the admin token: neither is a person's computer
+        if (t.startsWith("vas_") || sameToken(t, token)) return null; // a preview, or the admin token: neither is a person's computer
         const who = await session({ authorization: `Bearer ${t}` });
-        if (!who || who.principal.kind !== "person" || who.previewToken !== undefined || !who.device || who.device === ADMIN_DEVICE) return null;
+        if (
+          !who ||
+          who.principal.kind !== "person" ||
+          who.previewToken !== undefined ||
+          !who.device ||
+          who.device === ADMIN_DEVICE
+        )
+          return null;
         // a phone, a browser tab or an extension runs no engine: only a desktop app or a daemon links as a computer
         let row: { class?: string; name?: string } | undefined;
-        try { row = db!.all("SELECT class, name FROM devices_device WHERE id = ? AND person = ?", who.device, who.principal.id)[0] as typeof row; } catch { row = undefined; }
+        try {
+          row = db!.all(
+            "SELECT class, name FROM devices_device WHERE id = ? AND person = ?",
+            who.device,
+            who.principal.id,
+          )[0] as typeof row;
+        } catch {
+          row = undefined;
+        }
         if (row?.class !== undefined && row.class !== "desktop" && row.class !== "daemon") return null;
-        return { person: who.principal.id, device: who.device, ...(row?.name ? { name: row.name } : {}), ...(who.sessionId ? { sessionId: who.sessionId } : {}) };
+        return {
+          person: who.principal.id,
+          device: who.device,
+          ...(row?.name ? { name: row.name } : {}),
+          ...(who.sessionId ? { sessionId: who.sessionId } : {}),
+        };
       };
       callerOf = async (h) => {
         if (bearer(h["authorization"])?.startsWith("vas_")) return null;
@@ -2643,64 +5992,165 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // Ruling 73: portal invitations work without Sites. The Space's default portal is the site "sit_default". The host registers it as a resource the first time a portal call names it, not at
       // boot (ruling 71: a new Space starts with exactly six events); the event id is fixed, so the log refuses a second one.
       let defaultPortal: Promise<void> | null = null;
-      const ensureDefaultPortal = (): Promise<void> => (defaultPortal ??= (async () => {
-        const r = await spaceLog.appendResult({
-          id: "evt_res_sit_default", type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: "sit_default",
-          payload: spaceOwned({ id: "sit_default", type: "site", parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 }),
-        });
-        if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
-        if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
-      })().catch((e: unknown) => { defaultPortal = null; throw e; }));
+      const ensureDefaultPortal = (): Promise<void> =>
+        (defaultPortal ??= (async () => {
+          const r = await spaceLog.appendResult({
+            id: "evt_res_sit_default",
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: "sit_default",
+            payload: spaceOwned({
+              id: "sit_default",
+              type: "site",
+              parent_id: spaceId,
+              label: 0,
+              owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+              holds: 0,
+            }),
+          });
+          if (!r.ok) throw new Error(`could not register the default portal: ${r.message}`);
+          if (!r.duplicate) {
+            access.fold(r.event);
+            accessPending.push(toAccessEvent(r.event));
+            headSeq = Math.max(headSeq, r.event.seq);
+            await syncAccess();
+          }
+        })().catch((e: unknown) => {
+          defaultPortal = null;
+          throw e;
+        }));
       const invokeWithPortal: Invoke = async (cap, input, seed) => {
-        if (cap.startsWith("portal.") && (input as { siteId?: unknown } | null)?.siteId === "sit_default" && loaded.moduleExports.has("portal")) await ensureDefaultPortal();
+        if (
+          cap.startsWith("portal.") &&
+          (input as { siteId?: unknown } | null)?.siteId === "sit_default" &&
+          loaded.moduleExports.has("portal")
+        )
+          await ensureDefaultPortal();
         return invoke(cap, input, seed);
       };
-      gateway = createGateway({ invoke: invokeWithPortal, caps: indexCapabilities(caps), routes: [...routes, ...(o.extra?.routes ?? [])], session,
+      gateway = createGateway({
+        invoke: invokeWithPortal,
+        caps: indexCapabilities(caps),
+        routes: [...routes, ...(o.extra?.routes ?? [])],
+        session,
         // callers before sign-in (the anonymous and pending capabilities): a no-one service principal named by source address, so a handler that needs a person (me()) refuses and rate limits are per address
-        preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers) });
+        preAuth: (caller, headers) => preAuthSession(spaceId, caller, headers),
+      });
       // GET /spaces/<space>/blobs/<id> (ruling 50): a blob is served to a caller who may read the resource its module stored it for
       blobRoute = createBlobRoute({
-        space: spaceId, store: blobs,
-        session: async (h) => { if (bearer(h["authorization"])?.startsWith("vas_")) return null; const s = await session(h); return s ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) } : null; },
-        allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
+        space: spaceId,
+        store: blobs,
+        session: async (h) => {
+          if (bearer(h["authorization"])?.startsWith("vas_")) return null;
+          const s = await session(h);
+          return s
+            ? { space: s.space, principal: s.principal, ...(s.actingFor ? { actingFor: s.actingFor } : {}) }
+            : null;
+        },
+        allow: (c, r) =>
+          !staleFor(c.principal.id) &&
+          authorize(access.snap, {
+            principal: c.principal.id,
+            ...(c.actingFor ? { actingFor: c.actingFor } : {}),
+            action: { perm: null, level: "view" },
+            resource: { type: r.type, id: r.id },
+          }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
-        put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
+        put: async (a) =>
+          (await hookRunner.call("files.put_upload", {
+            blobId: a.blobId,
+            token: a.token,
+            base64: Buffer.from(a.bytes).toString("base64"),
+          })) as { hash: string; size: number },
         // a picture of a file an agent asks for goes through the read gate like the file itself (Redaction for AI)
-        agentRead: async (c, r) => { const g = (await hookRunner.call("files.agent_gate", { phase: "after", cap: "previews.get", input: { fileId: r.id }, output: {}, who: { principal: c.principal, ...(c.actingFor ? { actingFor: c.actingFor } : {}) } })) as { refuse?: unknown } | null; return !(g && g.refuse); },
-      });
-      // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
-      const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
-      if (peekLink) portalLinkRoute = createPortalLinkRoute({
-        peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never,
-        // the client is not signed in: the call is made as the host, through the pipeline, and the module's own throttling and one-use token rules decide
-        signIn: async (a) => {
-          const r = await invoke("portal.sign_in", a, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "portal" });
-          if (r.status !== "ok") throw new Error("held");
-          return r.output as { session: string };
+        agentRead: async (c, r) => {
+          const g = (await hookRunner.call("files.agent_gate", {
+            phase: "after",
+            cap: "previews.get",
+            input: { fileId: r.id },
+            output: {},
+            who: { principal: c.principal, ...(c.actingFor ? { actingFor: c.actingFor } : {}) },
+          })) as { refuse?: unknown } | null;
+          return !(g && g.refuse);
         },
       });
+      // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
+      const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as
+        | ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>)
+        | undefined;
+      if (peekLink)
+        portalLinkRoute = createPortalLinkRoute({
+          peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never,
+          // the client is not signed in: the call is made as the host, through the pipeline, and the module's own throttling and one-use token rules decide
+          signIn: async (a) => {
+            const r = await invoke("portal.sign_in", a, {
+              space: spaceId,
+              principal: { ...SYSTEM_PRINCIPAL },
+              preAuth: true,
+              origin: "portal",
+            });
+            if (r.status !== "ok") throw new Error("held");
+            return r.output as { session: string };
+          },
+        });
       // GET /share/project/<token>: the read-only link a client opens without signing in; the projects module decides whether the token still works (P-SEC_10)
       shareRoute = createShareRoute({
         view: async (token) => {
           if (!dispatchSystem) return null;
-          try { return (await dispatchSystem("projects.shared_view", { token })) as SharedView; } catch { return null; }
+          try {
+            return (await dispatchSystem("projects.shared_view", { token })) as SharedView;
+          } catch {
+            return null;
+          }
         },
       });
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {
         const formsNs = loaded.moduleExports.get("forms");
-        const viewOf = (formsNs?.["publicFormViewTyped"] ?? formsNs?.["publicFormView"]) as ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView | Promise<PublicFormView>) | undefined;
-        const linkOf = formsNs?.["linkView"] as ((ctx: unknown, slug: string, token: string) => Promise<{ fields: { field: string; step?: number }[]; partial?: { answers: Record<string, unknown>; step?: number } }>) | undefined;
-        const reserveUpload = formsNs?.["reserveUpload"] as ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
-        const recordUpload = formsNs?.["recordUpload"] as ((ctx: unknown, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }) => Promise<string>) | undefined;
+        const viewOf = (formsNs?.["publicFormViewTyped"] ?? formsNs?.["publicFormView"]) as
+          | ((ctx: unknown, slug: string, page: "form" | "booking") => PublicFormView | Promise<PublicFormView>)
+          | undefined;
+        const linkOf = formsNs?.["linkView"] as
+          | ((
+              ctx: unknown,
+              slug: string,
+              token: string,
+            ) => Promise<{
+              fields: { field: string; step?: number }[];
+              partial?: { answers: Record<string, unknown>; step?: number };
+            }>)
+          | undefined;
+        const reserveUpload = formsNs?.["reserveUpload"] as
+          | ((ctx: unknown, slug: string) => { formId: string; folderId: string })
+          | undefined;
+        const recordUpload = formsNs?.["recordUpload"] as
+          | ((
+              ctx: unknown,
+              f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined },
+            ) => Promise<string>)
+          | undefined;
         const formCtx = (principal: { kind: string; id: string }): unknown => ({
-          space: spaceId, principal, origin: "api", depth: 0, now, db: scopedDb("forms", db!, "0".repeat(32)),
-          trace: { traceId: "0".repeat(32), spanId: "0".repeat(16) }, log: { debug() {}, info() {}, warn() {}, error() {} },
+          space: spaceId,
+          principal,
+          origin: "api",
+          depth: 0,
+          now,
+          db: scopedDb("forms", db!, "0".repeat(32)),
+          trace: { traceId: "0".repeat(32), spanId: "0".repeat(16) },
+          log: { debug() {}, info() {}, warn() {}, error() {} },
         });
         if (viewOf) {
           // the visitor has no session to authorize and the token is all they hold, so the host runs this as itself
           leaveMailing = async (token) => {
-            const r = await invoke("mail.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
+            const r = await invoke(
+              "mail.unsubscribe",
+              { token },
+              { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" },
+            ).catch((e: unknown) => {
               if ((e as { error?: { code?: string } }).error?.code === "auth.invalid_code") return null;
               throw e;
             });
@@ -2710,41 +6160,105 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           };
           formsPageRoute = createFormsPageRoute({
             // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
-            call: (cap, input, _caller, trace) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
-            read: async (slug, page, caller) => { try { return await viewOf(formCtx(caller), slug, page); } catch { return null; } },
-            ...(linkOf ? { link: async (slug, token, caller) => { try { return await linkOf(formCtx(caller), slug, token); } catch { return null; } } } : {}),
+            call: (cap, input, _caller, trace) =>
+              invoke(cap, input, {
+                space: spaceId,
+                principal: { ...SYSTEM_PRINCIPAL },
+                preAuth: true,
+                origin: "hook",
+                ...(trace ? { trace } : {}),
+              }).then((r) =>
+                r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)),
+              ),
+            read: async (slug, page, caller) => {
+              try {
+                return await viewOf(formCtx(caller), slug, page);
+              } catch {
+                return null;
+              }
+            },
+            ...(linkOf
+              ? {
+                  link: async (slug, token, caller) => {
+                    try {
+                      return await linkOf(formCtx(caller), slug, token);
+                    } catch {
+                      return null;
+                    }
+                  },
+                }
+              : {}),
             // the file is stored as the host (system), never as the visitor or the forms module; the forms module keeps the binding of the upload to this form and this visitor and issues the id the page gets back
-            ...(reserveUpload && recordUpload ? { upload: async (slug: string, file: { name: string; type: string; bytes: Uint8Array; folderId: string }, caller: { kind: string; id: string }, token?: string) => {
-              const ctx = formCtx(caller);
-              reserveUpload(ctx, slug);
-              const uploadKey = sha256b64(Buffer.from(JSON.stringify([slug, file.folderId, caller.id, token ?? "", file.name, sha256b64(file.bytes)])));
-              const out = await system("files.create", { idempotencyKey: `forms-upload:${uploadKey}`, folderId: file.folderId, name: `${uploadKey.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 12)}-${file.name}`, mime: file.type, content: { base64: Buffer.from(file.bytes).toString("base64") } }) as { file: { fileId: string } };
-              return recordUpload(ctx, { slug, fileId: out.file.fileId, name: file.name, mime: file.type, size: file.bytes.length, token });
-            } } : {}),
+            ...(reserveUpload && recordUpload
+              ? {
+                  upload: async (
+                    slug: string,
+                    file: { name: string; type: string; bytes: Uint8Array; folderId: string },
+                    caller: { kind: string; id: string },
+                    token?: string,
+                  ) => {
+                    const ctx = formCtx(caller);
+                    reserveUpload(ctx, slug);
+                    const uploadKey = sha256b64(
+                      Buffer.from(
+                        JSON.stringify([slug, file.folderId, caller.id, token ?? "", file.name, sha256b64(file.bytes)]),
+                      ),
+                    );
+                    const out = (await system("files.create", {
+                      idempotencyKey: `forms-upload:${uploadKey}`,
+                      folderId: file.folderId,
+                      name: `${uploadKey.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 12)}-${file.name}`,
+                      mime: file.type,
+                      content: { base64: Buffer.from(file.bytes).toString("base64") },
+                    })) as { file: { fileId: string } };
+                    return recordUpload(ctx, {
+                      slug,
+                      fileId: out.file.fileId,
+                      name: file.name,
+                      mime: file.type,
+                      size: file.bytes.length,
+                      token,
+                    });
+                  },
+                }
+              : {}),
             now,
           });
         }
       }
-      routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]);   // a duplicate route is a boot error, not a first-request error
+      routeIndex = indexRoutes([...routes, ...(o.extra?.routes ?? [])]); // a duplicate route is a boot error, not a first-request error
       capIndex = indexCapabilities(caps);
 
-      const mkHub = (): LiveHub => createLiveHub({
-        claims: (req) => computeStream.claims(req) || browserStream.claims(req),
-        // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
-        session: (h, url) => {
-          const ticket = url.searchParams.get("ticket");
-          return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
-        },
-        // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
-        live: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : !endedSessions.has(s.sessionId) && sessionLive(db!, s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
-        // what the Space sends on its own: from memory only. Every way a session ends reaches endLive, which notes it here; suspend and remove show in the snapshot's status
-        liveFast: (s) => s.principal.kind !== "person" || (s.sessionId === undefined ? s.device === ADMIN_DEVICE : !endedSessions.has(s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
-        invoke, sink,
-        eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
-        head: () => headSeq,
-        // an explicit hub (a test) wins; otherwise the sync module's own hub, when it offered one. Neither: the legacy socket, which never claims replication.
-        ...(o.liveSync ? { sync: o.liveSync.hub } : syncLive.provided() ? { sync: syncLive.port } : {}),
-      });
+      const mkHub = (): LiveHub =>
+        createLiveHub({
+          claims: (req) => computeStream.claims(req) || browserStream.claims(req),
+          // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
+          session: (h, url) => {
+            const ticket = url.searchParams.get("ticket");
+            return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
+          },
+          // the same test identify makes for every HTTP request, made again for every call on an open socket: the session row and its device, and the person still active in the snapshot
+          live: (s) =>
+            s.principal.kind !== "person" ||
+            (s.sessionId === undefined
+              ? s.device === ADMIN_DEVICE
+              : !endedSessions.has(s.sessionId) &&
+                sessionLive(db!, s.sessionId) &&
+                access.snap.principal(s.principal.id)?.status === "active"),
+          // what the Space sends on its own: from memory only. Every way a session ends reaches endLive, which notes it here; suspend and remove show in the snapshot's status
+          liveFast: (s) =>
+            s.principal.kind !== "person" ||
+            (s.sessionId === undefined
+              ? s.device === ADMIN_DEVICE
+              : !endedSessions.has(s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
+          invoke,
+          sink,
+          eventsSince: (_s, cursor) =>
+            recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : [],
+          head: () => headSeq,
+          // an explicit hub (a test) wins; otherwise the sync module's own hub, when it offered one. Neither: the legacy socket, which never claims replication.
+          ...(o.liveSync ? { sync: o.liveSync.hub } : syncLive.provided() ? { sync: syncLive.port } : {}),
+        });
       hubFactory = mkHub;
     } else {
       sink.log({ space: "-", level: 20, msg: "boot.device", place: "boot" });
@@ -2759,7 +6273,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (!log) return { state: "healthy", detail: "No event log in this role." };
     const t0 = now();
     const v = await log.verify(verified.seq > 0 ? { from: verified.seq, prev: verified.hash } : {});
-    if (v.ok) { verified = { seq: v.seq, hash: v.head }; chainBroken = false; return probes.eventsDb({ ok: true, seq: v.seq, latencyMs: now() - t0 }); }
+    if (v.ok) {
+      verified = { seq: v.seq, hash: v.head };
+      chainBroken = false;
+      return probes.eventsDb({ ok: true, seq: v.seq, latencyMs: now() - t0 });
+    }
     chainBroken = true;
     return probes.eventsDb({ ok: false, seq: verified.seq, why: `${v.why} at event ${v.at}`, latencyMs: now() - t0 });
   };
@@ -2767,25 +6285,49 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const unusedRuntime = (r: ProbeResult): ProbeResult => {
     if (r.state !== "down") return r;
     let used = true;
-    try { used = Number((db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0) > 0; } catch { used = false; }
-    return used ? r : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
+    try {
+      used =
+        Number(
+          (db?.all("SELECT COUNT(*) AS n FROM computers_computers") as { n?: unknown }[] | undefined)?.[0]?.n ?? 0,
+        ) > 0;
+    } catch {
+      used = false;
+    }
+    return used
+      ? r
+      : { ...r, state: "healthy", detail: `${r.detail ?? "Not running."} Agent computers need it; none exist yet.` };
   };
   const probeFns: Record<ProbeName, () => Promise<ProbeResult> | ProbeResult> = {
-    disk_encrypted: () => (o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice)),
+    disk_encrypted: () =>
+      o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
     scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
     docker: async () => unusedRuntime(await probes.docker(platform)),
-    caddy: async () => unusedRuntime(fetchFn ? await probes.caddy(fetchFn, cfg.caddyAdmin, now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }),
+    caddy: async () =>
+      unusedRuntime(
+        fetchFn
+          ? await probes.caddy(fetchFn, cfg.caddyAdmin, now)
+          : { state: "down", detail: "No HTTP client to reach the Caddy admin API." },
+      ),
     disk_space: () => probes.diskSpace(platform, paths.root),
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };
-  const relevant: readonly ProbeName[] = hasSpace ? probes.PROBE_NAMES : ["disk_encrypted", "scheduler", "disk_space", "time_skew"];
-  const runProbes = async (names: readonly ProbeName[] = relevant, force = true): Promise<Partial<Record<ProbeName, ProbeResult>>> => {
+  const relevant: readonly ProbeName[] = hasSpace
+    ? probes.PROBE_NAMES
+    : ["disk_encrypted", "scheduler", "disk_space", "time_skew"];
+  const runProbes = async (
+    names: readonly ProbeName[] = relevant,
+    force = true,
+  ): Promise<Partial<Record<ProbeName, ProbeResult>>> => {
     const out: Partial<Record<ProbeName, ProbeResult>> = {};
     for (const name of names) {
       let r: ProbeResult;
-      try { r = await probeFns[name](); } catch (e) { r = { state: "down", detail: `The probe failed: ${e instanceof Error ? e.message : String(e)}` }; }
+      try {
+        r = await probeFns[name]();
+      } catch (e) {
+        r = { state: "down", detail: `The probe failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
       writeProbe(name, r, force);
       out[name] = r;
     }
@@ -2805,14 +6347,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The installer changed how this server is reached (a new address or relay, VYRE_NETWORK_REV): apply it once. Without this the row made at the first start keeps the old way and a new domain never gets its site.
       // The row is updated, not replaced: the relay address and the domain the installer is not changing stay, so the Console's own mode switch still works afterwards, and the endpoint of the old address is marked down.
       if (cfg.networkRev) {
-        const seen = (d.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value?: string } | undefined)?.value;
+        const seen = (
+          d.all("SELECT value FROM network_info WHERE key = 'network_rev'")[0] as { value?: string } | undefined
+        )?.value;
         if (seen !== cfg.networkRev) {
           if (d.all("SELECT id FROM network_config WHERE id = 1").length) {
             d.run(
               "UPDATE network_config SET address = ?, mode = ?, domain = COALESCE(?, domain), relay_address = COALESCE(?, relay_address), public_ingress = ?, ingress_detail = ?, reported_at = ? WHERE id = 1",
-              address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
+              address,
+              cfg.relayUrl && !cfg.address ? "relay" : "own_domain",
+              cfg.address,
+              relayHost,
+              cfg.address || cfg.relayUrl ? 1 : 0,
+              cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.",
+              t,
             );
-            d.run("UPDATE network_endpoint SET state = 'down' WHERE kind = 'direct' AND url != ?", /^https?:\/\//.test(address) ? address : `https://${address}`);
+            d.run(
+              "UPDATE network_endpoint SET state = 'down' WHERE kind = 'direct' AND url != ?",
+              /^https?:\/\//.test(address) ? address : `https://${address}`,
+            );
           }
           storeInfo(d, "network_rev", cfg.networkRev, t);
         }
@@ -2820,68 +6373,148 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
-        address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
+        address,
+        cfg.relayUrl && !cfg.address ? "relay" : "own_domain",
+        cfg.address,
+        relayHost,
+        cfg.address || cfg.relayUrl ? 1 : 0,
+        cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.",
+        t,
       );
       d.run(
         "INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_local', ?, 'space', ?, ?) ON CONFLICT(server_id) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at, name = excluded.name",
-        platform.hostname, chainBroken ? "degraded" : "healthy", t,
+        platform.hostname,
+        chainBroken ? "degraded" : "healthy",
+        t,
       );
       d.run(
         "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('direct', ?, 'healthy', NULL, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at",
-        /^https?:\/\//.test(address) ? address : `https://${address}`, t,
+        /^https?:\/\//.test(address) ? address : `https://${address}`,
+        t,
       );
     });
   };
 
-  const network = o.network ?? managedNetworkPort({
-    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
-    ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
-    relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
-      const url = (raw as {url?:string}).url;
-      if (!url) return false;
-      try { return new URL(url).host === address; } catch { return false; }
-    }),
-  });
+  const network =
+    o.network ??
+    managedNetworkPort({
+      adminUrl: cfg.caddyAdmin,
+      space: space ?? "-",
+      upstream: () => `127.0.0.1:${boundPort}`,
+      base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
+      ingressHost: () =>
+        (
+          db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as
+            | { address?: string }
+            | undefined
+        )?.address ?? null,
+      relayReady: (address) =>
+        !!db
+          ?.all(
+            "SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?",
+            now() - 60_000,
+          )
+          .some((raw) => {
+            const url = (raw as { url?: string }).url;
+            if (!url) return false;
+            try {
+              return new URL(url).host === address;
+            } catch {
+              return false;
+            }
+          }),
+    });
   // The relay link (--relay, or the public relay once a phone address is claimed) and the phone address on it. Both are set where the daemon starts it, after boot.
   let relayBox: RelayBox | null = null;
   let startPhoneRelay: (() => RelayBox) | null = null;
   // One Personal Space on several computers (host/src/peers): asks by name, new computers, copies. Only a Personal Space started with --peers.
   // the cell engine lives in sync/ (sync/src/peers/cells.ts), which host may not import: the sync module hands it over
-  const peerCells = cfg.peers && hasSpace ? ((await fileExportsImporter(codeRoot)("sync"))?.["createPeerCells"] as CreateCells | undefined) ?? null : null;
-  const peerService: PeerService | null = cfg.peers && hasSpace ? createPeerService({
-    root: paths.root, db: () => db, space: () => space, enabled: true,
-    name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60), platform: platform.os,
-    relayUrl: cfg.relayUrl ?? cfg.phoneRelayUrl,
-    ensureBox: () => relayBox ?? startPhoneRelay?.() ?? null,
-    now, log: (msg, attrs) => sink.log({ space: space ?? "-", level: 20, msg, place: "peers", ...(attrs ? { attrs } : {}) }),
-    restart: () => requestStop(),
-    ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
-    createCells: () => peerCells,
-    access: () => peerAccess,
-    ...(cfg.peerKind ? { kind: cfg.peerKind } : {}),
-    changed: () => { if (space) hub?.poke?.(space); },
-    ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}), ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),
-  }) : null;
+  const peerCells =
+    cfg.peers && hasSpace
+      ? (((await fileExportsImporter(codeRoot)("sync"))?.["createPeerCells"] as CreateCells | undefined) ?? null)
+      : null;
+  const peerService: PeerService | null =
+    cfg.peers && hasSpace
+      ? createPeerService({
+          root: paths.root,
+          db: () => db,
+          space: () => space,
+          enabled: true,
+          name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60),
+          platform: platform.os,
+          relayUrl: cfg.relayUrl ?? cfg.phoneRelayUrl,
+          ensureBox: () => relayBox ?? startPhoneRelay?.() ?? null,
+          now,
+          log: (msg, attrs) =>
+            sink.log({ space: space ?? "-", level: 20, msg, place: "peers", ...(attrs ? { attrs } : {}) }),
+          restart: () => requestStop(),
+          ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+          createCells: () => peerCells,
+          access: () => peerAccess,
+          ...(cfg.peerKind ? { kind: cfg.peerKind } : {}),
+          changed: () => {
+            if (space) hub?.poke?.(space);
+          },
+          ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}),
+          ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),
+        })
+      : null;
   if (peerService) closers.push(() => peerService.stop());
   if (peerService) scheduledHere = () => peerService.sync.isRunner();
-  const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
+  const phone: PhonePort = createPhonePort({
+    current: () => relayBox,
+    start: () => startPhoneRelay?.() ?? null,
+    dropped: () => {
+      relayBox = null;
+    },
+    configured: Boolean(cfg.relayUrl),
+  });
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
-    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
-    if (!log) throw new Error('The event log is unavailable.');
-    const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
-    headSeq = Math.max(headSeq, stored.seq);
-  } });
+    const run = () =>
+      pollCommands({
+        db: db!,
+        supervisor,
+        network,
+        phone,
+        now,
+        log: sink.logger({ space: space ?? "-", place: "commands" }),
+        observed: async (event) => {
+          if (!log) throw new Error("The event log is unavailable.");
+          const stored = await log.append({
+            id: event.id,
+            type: event.type,
+            sv: 1,
+            trace_id: ZERO_TRACE,
+            actor: event.actor,
+            entity: "entity",
+            entity_id: event.target,
+            vis: "space",
+            payload: event.payload,
+          });
+          headSeq = Math.max(headSeq, stored.seq);
+        },
+      });
     // Quiet polls do not change the shared export snapshot.
-    return db.all("SELECT id FROM network_command WHERE done_at IS NULL LIMIT 1").length ? guardExportNetworkCommands(run) : run();
+    return db.all("SELECT id FROM network_command WHERE done_at IS NULL LIMIT 1").length
+      ? guardExportNetworkCommands(run)
+      : run();
   };
 
   const refreshNetworkCertificate = async (): Promise<void> => {
     if (!db || !network.certificate) return;
-    const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as {address?:string;mode?:string}|undefined;
-    if (!row?.address || row.mode !== 'own_domain' || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
+    const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as
+      | { address?: string; mode?: string }
+      | undefined;
+    if (!row?.address || row.mode !== "own_domain" || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
     const result = await network.certificate(row.address);
-    db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
+    db.run(
+      "INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at",
+      row.address,
+      result.expiresAt,
+      result.reason ?? null,
+      now(),
+    );
   };
   // The Space's own-domain route in Caddy. A Space started with an address (install.sh --domain) must answer at it without anyone opening Console, so the route is written at boot
   // and put back on the slow timer when it is missing. Only a missing route is written then: every write reloads Caddy. Caddy that is not up yet (it starts after vyred) is
@@ -2894,61 +6527,179 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let host: string | null = null;
       try {
         if (!hasSpace || !db || !network.ensureIngress) return;
-        const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as { address?: string; mode?: string } | undefined;
+        const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as
+          | { address?: string; mode?: string }
+          | undefined;
         host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
         if (!host) return;
         const wrote = await network.ensureIngress(host, { replace });
         // artifacts are served from a.<domain>, its own origin: the same upstream, its own certificate
         const art = artifactHostOf();
         if (art && art !== host && art.endsWith(`.${host}`)) await network.ensureIngress(art, { replace });
-        if (wrote) sink.log({ space: space ?? "-", level: 30, msg: "network.ingress_written", place: "network", attrs: { host, at: replace ? "boot" : "missing" } });
+        if (wrote)
+          sink.log({
+            space: space ?? "-",
+            level: 30,
+            msg: "network.ingress_written",
+            place: "network",
+            attrs: { host, at: replace ? "boot" : "missing" },
+          });
         ingressFailing = null;
       } catch (e) {
         const why = (e instanceof Error ? e.message : String(e)).slice(0, 200);
         // said once per cause, not every minute; Caddy not answering yet is expected for a moment after a start, Caddy refusing the route is not
-        if (why !== ingressFailing) { try { sink.log({ space: space ?? "-", level: e instanceof CaddyError && e.status === 0 ? 30 : 40, msg: "network.ingress_pending", place: "network", attrs: { host, why } }); } catch { /* stopping */ } }
+        if (why !== ingressFailing) {
+          try {
+            sink.log({
+              space: space ?? "-",
+              level: e instanceof CaddyError && e.status === 0 ? 30 : 40,
+              msg: "network.ingress_pending",
+              place: "network",
+              attrs: { host, why },
+            });
+          } catch {
+            /* stopping */
+          }
+        }
         ingressFailing = why;
       }
     };
-    const p = run().finally(() => { ingressRun = null; });
+    const p = run().finally(() => {
+      ingressRun = null;
+    });
     ingressRun = p;
     return p;
   };
-  const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
+  const fast = o.intervals?.fast ?? 15_000,
+    slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
-  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => {
-    keyring.sweep();
-    // an owner turned "Members' AI sign-ins open after Google or GitHub sign-in" off: every wrap goes
-    const n = keyWraps?.enforce() ?? 0;
-    if (n > 0) sink.log({ space: space ?? "-", level: 30, msg: "vault.wraps_dropped", place: "vault", attrs: { count: n } });
-  } });
-  scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
+  scheduler.add({
+    name: "keyring.sweep",
+    schedule: { everyMs: o.intervals?.sweep ?? 30_000 },
+    run: () => {
+      keyring.sweep();
+      // an owner turned "Members' AI sign-ins open after Google or GitHub sign-in" off: every wrap goes
+      const n = keyWraps?.enforce() ?? 0;
+      if (n > 0)
+        sink.log({ space: space ?? "-", level: 30, msg: "vault.wraps_dropped", place: "vault", attrs: { count: n } });
+    },
+  });
+  scheduler.add({
+    name: "probes.fast",
+    schedule: { everyMs: fast },
+    run: async () => {
+      await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false);
+    },
+  });
+  scheduler.add({
+    name: "probes.slow",
+    schedule: { everyMs: slow },
+    run: async () => {
+      await runProbes(group(["docker", "caddy", "time_skew"]), false);
+      reportNetwork();
+      await ensureIngress(false);
+      await refreshNetworkCertificate();
+    },
+  });
   // CPU, memory and disk for the Console's Infrastructure page: the health_probe row named machine, read by the one sampler the machine report uses, once a minute and once at start
   const machineSampler = createSampler(o.machineDeps ?? realDeps({ dataDir: paths.root, can: () => [] }));
-  machineSampler.load();   // primes the CPU reading: the first call has no earlier sample to compare with
-  const sampleMachine = (): void => { if (db) writeMachineProbe(db, now(), machineProbe(machineSampler)); };
-  scheduler.add({ name: "probes.machine", schedule: { everyMs: o.intervals?.machineProbe ?? 60_000 }, run: () => { sampleMachine(); } });
-  scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
+  machineSampler.load(); // primes the CPU reading: the first call has no earlier sample to compare with
+  const sampleMachine = (): void => {
+    if (db) writeMachineProbe(db, now(), machineProbe(machineSampler));
+  };
+  scheduler.add({
+    name: "probes.machine",
+    schedule: { everyMs: o.intervals?.machineProbe ?? 60_000 },
+    run: () => {
+      sampleMachine();
+    },
+  });
+  scheduler.add({
+    name: "probes.encryption",
+    schedule: { everyMs: o.intervals?.encryption ?? 300_000 },
+    run: async () => {
+      await runProbes(group(["disk_encrypted"]), false);
+    },
+  });
   if (hasSpace) {
-    scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
-    scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
-    scheduler.add({ name: "sites.domain_routes", schedule: { everyMs: o.intervals?.slow ?? 60_000 }, run: async () => { await refreshDomains(); } });
-    scheduler.add({ name: "sites.deployed", schedule: { everyMs: o.intervals?.sitesPush ?? 60_000 }, run: async () => { await sitesTick(); } });
-    scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
-    scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
+    scheduler.add({
+      name: "commands.poll",
+      schedule: { everyMs: o.intervals?.commands ?? 1000 },
+      run: async () => {
+        await runCommands();
+      },
+    });
+    scheduler.add({
+      name: "schedule.tick",
+      schedule: { everyMs: o.intervals?.tick ?? 1000 },
+      run: async () => {
+        await queue?.tick();
+      },
+    });
+    scheduler.add({
+      name: "sites.domain_routes",
+      schedule: { everyMs: o.intervals?.slow ?? 60_000 },
+      run: async () => {
+        await refreshDomains();
+      },
+    });
+    scheduler.add({
+      name: "sites.deployed",
+      schedule: { everyMs: o.intervals?.sitesPush ?? 60_000 },
+      run: async () => {
+        await sitesTick();
+      },
+    });
+    scheduler.add({
+      name: "projections.pump",
+      schedule: { everyMs: o.intervals?.hooks ?? 5000 },
+      run: async () => {
+        await projections?.pump();
+      },
+    });
+    scheduler.add({
+      name: "hooks.pump",
+      schedule: { everyMs: o.intervals?.hooks ?? 5000 },
+      run: async () => {
+        await hooks?.pump();
+      },
+    }); // the backstop for a consumer that failed, and for events committed by another process
     // A Personal Space on several computers runs its scheduled work on one of them at a time (host/src/peers/runner.ts); the jobs that look after this computer's own state run on each.
-    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { if (peerService && !peerService.mayRun(p.name)) return; await hooks?.runPeriodic(p.name); } });
-    scheduler.add({ name: "logs.cap", schedule: { everyMs: 60_000 }, run: async () => { await capTelemetry?.(); } });
-    scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
+    for (const p of hooks?.periodic ?? [])
+      scheduler.add({
+        name: `hook.${p.name}`,
+        schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) },
+        run: async () => {
+          if (peerService && !peerService.mayRun(p.name)) return;
+          await hooks?.runPeriodic(p.name);
+        },
+      });
+    scheduler.add({
+      name: "logs.cap",
+      schedule: { everyMs: 60_000 },
+      run: async () => {
+        await capTelemetry?.();
+      },
+    });
+    scheduler.add({
+      name: "idempotency.purge",
+      schedule: { daily: { hour: 4, minute: 0 } },
+      run: async () => {
+        await log?.purgeIdempotency();
+      },
+    });
   }
 
   // ---- services
   const startedAt = now();
   const health = (): unknown => ({
     ok: !chainBroken,
-    version: cfg.version, roles: cfg.roles, space, head: headSeq, startedAt,
+    version: cfg.version,
+    roles: cfg.roles,
+    space,
+    head: headSeq,
+    startedAt,
     services: supervisor.status().map((s) => ({ name: s.name, state: s.state, restarts: s.restarts })),
     probes: Object.fromEntries([...probeState].map(([k, v]) => [k, v.state])),
     drivers: { wired: seams?.wired ?? [], missing: seams?.missing ?? [] },
@@ -2957,7 +6708,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const coerce = (method: string, p: string, query: Record<string, string>): Record<string, unknown> => {
     const route = routeIndex?.(method, p);
     const cap = route ? capIndex?.get(route.cap, route.v) : undefined;
-    return coerceQuery(query, (cap as unknown as { input?: { properties?: Record<string, PropSchema> } } | undefined)?.input?.properties);
+    return coerceQuery(
+      query,
+      (cap as unknown as { input?: { properties?: Record<string, PropSchema> } } | undefined)?.input?.properties,
+    );
   };
 
   const gatewayUnit = async (): Promise<RunningUnit> => {
@@ -2966,37 +6720,74 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     o.liveSync?.onHub?.(h);
     syncLive.setHost(h);
     const server = h.server;
-    if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head); });
+    if (hubFactory)
+      server.on("upgrade", (req, socket, head) => {
+        if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
+        else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+      });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
-    server.on("connection", (sock) => { if (siteGuard(sock.localAddress, sock.remoteAddress)) sock.destroy(); });
+    server.on("connection", (sock) => {
+      if (siteGuard(sock.localAddress, sock.remoteAddress)) sock.destroy();
+    });
     const listener = requestListener({
-      health, coerce,
-      gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
+      health,
+      coerce,
+      gateway:
+        gateway ??
+        (() =>
+          Promise.resolve({
+            status: 404,
+            headers: {},
+            body: {
+              error: makeError("validation.unknown_capability", ZERO_TRACE, {
+                message: "This daemon runs the device role only; it has no Space API.",
+              }),
+            },
+          })),
     });
     // The address a request reached. A token is bound to it, so it never comes from the Host header alone: only a connection from this computer that names this computer is the loopback address; everything else, the relay included, is the public one.
     const mcpOrigin = (req: http.IncomingMessage): string | null => {
       const host = String(req.headers.host ?? "").toLowerCase();
-      if (req.headers["x-vyre-via"] !== "relay" && loopback(req.socket.remoteAddress) && /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return `http://${host}`;
+      if (
+        req.headers["x-vyre-via"] !== "relay" &&
+        loopback(req.socket.remoteAddress) &&
+        /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)
+      )
+        return `http://${host}`;
       return publicOrigin()?.origin ?? null;
     };
     const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
     // rc.17: another Space's web page bringing the account ("I already have a Vyre account"): a carry token, never a session, and CORS for those few calls only (routes/carry-door.ts)
-    const carryDoor = createCarryDoor({ ownOrigin: () => publicOrigin()?.origin ?? null, call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("no Space here"))) });
+    const carryDoor = createCarryDoor({
+      ownOrigin: () => publicOrigin()?.origin ?? null,
+      call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("no Space here"))),
+    });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
-    const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
+    const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
     server.on("request", (req, res) => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
       // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
       const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
-      if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) { res.writeHead(403, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." })); return; }
+      if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) {
+        res.writeHead(403, { "content-type": "application/json" });
+        res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." }));
+        return;
+      }
       if (carryDoor.handle(req, res)) return;
-      if(desktopCors(req,res))return;
+      if (desktopCors(req, res)) return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
         // Do not hand a preview to public share/forms, MCP, sync, uploads,
         // exports or local credential routes, including one-time upload slots.
         if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
-        else { res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." } })); }
+        else {
+          res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" });
+          res.end(
+            JSON.stringify({
+              error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." },
+            }),
+          );
+        }
         return;
       }
       const stop = req.method === "POST" && req.url === "/local/daemon/stop";
@@ -3008,27 +6799,67 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         res.end(JSON.stringify({ data: { stopping: true } }));
-        res.once("finish", () => { setImmediate(requestStop); });
+        res.once("finish", () => {
+          setImmediate(requestStop);
+        });
         return;
       }
       if (artifactHostRoute.handle(req, res)) return;
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || browserStream.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || (gitProxy?.handle(req, res) ?? false) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || githubConnectRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (
+        liveTicketRoute.handle(req, res) ||
+        browserStream.handle(req, res) ||
+        publicPath.handle(req, res) ||
+        siteSigninPage.handle(req, res) ||
+        mcpRoute.handle(req, res) ||
+        (gitProxy?.handle(req, res) ?? false) ||
+        chromeBridge.handle(req, res) ||
+        chromeAgentsRoute.handle(req, res) ||
+        githubSignInRoute.handle(req, res) ||
+        githubConnectRoute.handle(req, res) ||
+        ssoSignInRoute.handle(req, res) ||
+        blobRoute?.handle(req, res) ||
+        formsPageRoute?.handle(req, res) ||
+        unsubscribeRoute.handle(req, res) ||
+        shareRoute?.handle(req, res) ||
+        portalLinkRoute?.handle(req, res) ||
+        exportRoute.handle(req, res) ||
+        webhookRoute.handle(req, res) ||
+        computeRoute.handle(req, res) ||
+        computeStream.handle(req, res) ||
+        localWorkRoute.handle(req, res) ||
+        teamLinks.handle(req, res) ||
+        fillRoute.handle(req, res) ||
+        localKeyRoute.handle(req, res) ||
+        appFiles.handle(req, res)
+      )
+        return;
       listener(req, res);
     });
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep
-    await Promise.race([workspacesReady?.() ?? Promise.resolve(), new Promise<void>((r) => setTimeout(r, 5000).unref?.())]).catch(() => undefined);
+    await Promise.race([
+      workspacesReady?.() ?? Promise.resolve(),
+      new Promise<void>((r) => setTimeout(r, 5000).unref?.()),
+    ]).catch(() => undefined);
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
-      server.listen(boundPort, cfg.host, () => { server.off("error", onError); resolve(); });
+      server.listen(boundPort, cfg.host, () => {
+        server.off("error", onError);
+        resolve();
+      });
     });
     boundPort = (server.address() as { port: number }).port;
     // A step after the listen that throws (the MCP runtime reads its tool table here) must close the listener it leaves behind, or every restart of this unit meets EADDRINUSE on its own port and the
     // supervisor ends up reporting that instead of the real cause.
-    try { startMcpRuntime?.(boundPort); } catch (e) { await h.close().catch(() => {}); throw e; }
+    try {
+      startMcpRuntime?.(boundPort);
+    } catch (e) {
+      await h.close().catch(() => {});
+      throw e;
+    }
     const exited = new Promise<UnitExit>((resolve) => {
       server.once("close", () => resolve({ code: 0 }));
       server.on("error", (err) => resolve({ error: err.message }));
@@ -3048,8 +6879,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   closers.push(() => supervisor.stopAll());
 
   try {
-    await supervisor.startAll({ once: ["gateway"] });   // a gateway that cannot listen is a boot that cannot go on: no backoff, the cause comes straight out
-    if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
+    await supervisor.startAll({ once: ["gateway"] }); // a gateway that cannot listen is a boot that cannot go on: no backoff, the cause comes straight out
+    if (supervisor.status("gateway")[0]?.phase !== "running") {
+      const g = supervisor.status("gateway")[0];
+      throw new Error(
+        `the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`,
+      );
+    }
     await runProbes();
     sampleMachine();
     reportNetwork();
@@ -3057,7 +6893,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     void ensureIngress(true);
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
     // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
-    if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
+    if (hasSpace) {
+      await hooks?.pump();
+      await projections?.pump();
+    }
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
     if (hasSpace && db) {
@@ -3066,20 +6905,32 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the relay says its version on /health; read it on the link, about every five minutes, beside this Space server's own
         const watchRelay = relayVersionWatch({ relay: url, fetch: fetchFn, db: relayDb, now });
         const box = startRelayBox({
-          relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
+          relayUrl: url,
+          dataDir: paths.root,
+          localPort: () => boundPort,
+          invites: openInvites,
           onSigninAsk: (loc, s) => peerService?.onAsk(loc, s),
-          log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
+          log: (m) =>
+            sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {
             if (st.state === "healthy") watchRelay();
-            void box.ready.then((r) => {
-              try {
-                relayDb.run(
-                  "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
-                  r.deviceUrl, st.state, st.rttMs ?? null, st.at,
-                );
-              } catch { /* the database closed while the daemon was stopping */ }
-            }, () => {});
+            void box.ready.then(
+              (r) => {
+                try {
+                  relayDb.run(
+                    "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
+                    r.deviceUrl,
+                    st.state,
+                    st.rttMs ?? null,
+                    st.at,
+                  );
+                } catch {
+                  /* the database closed while the daemon was stopping */
+                }
+              },
+              () => {},
+            );
           },
         });
         closers.push(() => box.stop());
@@ -3087,25 +6938,66 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       if (cfg.relayUrl) relayBox = relayAt(cfg.relayUrl);
       // A computer that claimed a phone address keeps the link up across restarts, to the public relay unless a relay is configured.
-      else if ((relayDb.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed") relayBox = relayAt(cfg.phoneRelayUrl);
+      else if (
+        (relayDb.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state ===
+        "claimed"
+      )
+        relayBox = relayAt(cfg.phoneRelayUrl);
       startPhoneRelay = () => (relayBox ??= relayAt(cfg.phoneRelayUrl));
     }
     if (peerService) void peerService.tick().catch(() => {});
     if (hasSpace) {
       const issued = await claimIssue();
       if (issued) {
-        const base = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`;
-        const fp = String((db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as { fingerprint?: string } | undefined)?.fingerprint ?? "").replace(/\s/g, "");
+        const base = cfg.address
+          ? /^https?:\/\//.test(cfg.address)
+            ? cfg.address
+            : `https://${cfg.address}`
+          : `http://${cfg.host}:${boundPort}`;
+        const fp = String(
+          (
+            db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as
+              | { fingerprint?: string }
+              | undefined
+          )?.fingerprint ?? "",
+        ).replace(/\s/g, "");
         // the Space's name, so the claim page can say what is being set up before anyone has signed in (not a credential; the link is still private). A Space named only by its id sends no name: the page says "Set up your Space" rather than show an id
-        const name = String((db?.all("SELECT name FROM identity_space WHERE id = ?", space)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? "");
-        claim = { url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}${name && name !== space ? `&n=${encodeURIComponent(name)}` : ""}`, expiresAt: issued.expiresAt };
+        const name = String(
+          (db?.all("SELECT name FROM identity_space WHERE id = ?", space)[0] as { name?: string } | undefined)?.name ??
+            cfg.spaceName ??
+            "",
+        );
+        claim = {
+          url: `${base.replace(/\/$/, "")}/claim/${issued.code}#${fp ? `fp=${fp}&` : ""}s=${encodeURIComponent(space ?? "")}${name && name !== space ? `&n=${encodeURIComponent(name)}` : ""}`,
+          expiresAt: issued.expiresAt,
+        };
         fs.writeFileSync(path.join(paths.logDir, "claim-link.txt"), `${claim.url}\n`, { mode: 0o600 });
         // the link is a credential: it goes to the console and the 0600 file only, never to the shared log stream, the log export or the support bundle
-        sink.log({ space: space ?? "-", level: 20, msg: "claim link issued, see logs/claim-link.txt", place: "boot", attrs: { expiresAt: issued.expiresAt } });
+        sink.log({
+          space: space ?? "-",
+          level: 20,
+          msg: "claim link issued, see logs/claim-link.txt",
+          place: "boot",
+          attrs: { expiresAt: issued.expiresAt },
+        });
       }
     }
-    writeInfo(paths, { pid: process.pid, url: `http://${cfg.host}:${boundPort}`, port: boundPort, roles: cfg.roles, space, version: cfg.version, startedAt });
-    sink.log({ space: space ?? "-", level: 20, msg: "daemon.started", place: "boot", attrs: { roles: cfg.roles, port: boundPort, version: cfg.version } });
+    writeInfo(paths, {
+      pid: process.pid,
+      url: `http://${cfg.host}:${boundPort}`,
+      port: boundPort,
+      roles: cfg.roles,
+      space,
+      version: cfg.version,
+      startedAt,
+    });
+    sink.log({
+      space: space ?? "-",
+      level: 20,
+      msg: "daemon.started",
+      place: "boot",
+      attrs: { roles: cfg.roles, port: boundPort, version: cfg.version },
+    });
     startPersonalCalendars();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
@@ -3123,17 +7015,50 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // again on the same event), and nothing waits for it after that, so one slow consumer never holds an update. Its earlier writes stay and its later ones are refused once the databases
       // close; its events are lost (consumers.ts close).
       if (hooks) await hooks.close(HOOKS_STOP_MS).catch(() => undefined);
-      for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
+      for (const c of closers.reverse())
+        await Promise.resolve()
+          .then(c)
+          .catch(() => {});
       clearInfo(paths);
       o.onStopped?.();
     })();
     return stopping;
   };
-  requestStop = () => { void stop(); };
+  requestStop = () => {
+    void stop();
+  };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, gitPort, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, boundPorts, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
-    runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
+    url: `http://${cfg.host}:${boundPort}`,
+    gitPort,
+    claim,
+    port: boundPort,
+    token,
+    roles: cfg.roles,
+    space,
+    paths,
+    supervisor,
+    scheduler,
+    db,
+    schedule: queue,
+    seams,
+    hooks,
+    boundPorts,
+    projections,
+    sink,
+    log,
+    chromeBridge,
+    personalChrome: composedChrome,
+    nodeRelay: {
+      spawnProc: (n, s) => computeStream.spawnProc(n, s),
+      connected: (n) => computeStream.connected(n),
+      secure: (n) => computeStream.secure(n),
+      devices: (p) => computeStream.devices(p),
+    },
+    teamLinks: () => teamLinks.ids(),
+    runProbes: (names) => runProbes(names),
+    pollCommands: runCommands,
+    ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),
     stop,
@@ -3150,17 +7075,34 @@ export function openLogSink(file: string, now: () => number, token: string): Log
   const moveAside = (): void => {
     if (moved) return;
     fs.renameSync(file, aside);
-    for (const ext of ["-wal", "-shm", "-journal"]) { try { fs.renameSync(file + ext, aside + ext); } catch { /* not there */ } }
+    for (const ext of ["-wal", "-shm", "-journal"]) {
+      try {
+        fs.renameSync(file + ext, aside + ext);
+      } catch {
+        /* not there */
+      }
+    }
     moved = true;
   };
-  try { return LogSink.openFile({ path: file, now, secrets: () => [token] }, moveAside); }
-  catch (first) {
-    try { moveAside(); } catch { /* nothing to move, or no right to: fall through to memory */ }
+  try {
+    return LogSink.openFile({ path: file, now, secrets: () => [token] }, moveAside);
+  } catch (first) {
+    try {
+      moveAside();
+    } catch {
+      /* nothing to move, or no right to: fall through to memory */
+    }
     const why = first instanceof Error ? first.message.slice(0, 160) : "unknown";
     try {
       if (!moved) throw first;
       const sink = new LogSink({ path: file, now, secrets: () => [token] });
-      sink.log({ space: "-", level: 40, msg: "logs.reset", place: "daemon", attrs: { aside: path.basename(aside), why } });
+      sink.log({
+        space: "-",
+        level: 40,
+        msg: "logs.reset",
+        place: "daemon",
+        attrs: { aside: path.basename(aside), why },
+      });
       return sink;
     } catch {
       const sink = new LogSink({ now, secrets: () => [token] });

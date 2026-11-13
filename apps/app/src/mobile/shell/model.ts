@@ -27,7 +27,11 @@ export interface NavState {
   history: readonly Entry[];
 }
 
-const rootOf = (tab: TabId): Entry => ({ tab, screen: tab, title: MOBILE_TABS.find((t) => t.id === tab)?.label ?? tab });
+const rootOf = (tab: TabId): Entry => ({
+  tab,
+  screen: tab,
+  title: MOBILE_TABS.find((t) => t.id === tab)?.label ?? tab,
+});
 
 export function initialNav(tab: TabId = "chats"): NavState {
   return { history: [rootOf(tab)] };

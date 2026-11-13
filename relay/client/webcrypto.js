@@ -18,9 +18,10 @@ const PKCS8 = fromHex("302e020100300506032b656e04220420");
 export function webCrypto(o = {}) {
   const subtle = o.subtle || globalThis.crypto?.subtle;
   if (!subtle) throw new Error("no WebCrypto here: inject a provider (see noble.js)");
-  const rand = o.getRandomValues || (a => globalThis.crypto.getRandomValues(a));
-  const raw = async key => new Uint8Array(await subtle.exportKey("raw", key));
-  const aes = k => k instanceof Uint8Array ? subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]) : k;
+  const rand = o.getRandomValues || ((a) => globalThis.crypto.getRandomValues(a));
+  const raw = async (key) => new Uint8Array(await subtle.exportKey("raw", key));
+  const aes = (k) =>
+    k instanceof Uint8Array ? subtle.importKey("raw", k, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]) : k;
   return {
     async generateKeyPair() {
       const kp = /** @type {CryptoKeyPair} */ (await subtle.generateKey(X, false, ["deriveBits"]));
@@ -30,19 +31,25 @@ export function webCrypto(o = {}) {
       const pub = await subtle.importKey("raw", peerPub, X, true, []);
       return new Uint8Array(await subtle.deriveBits({ name: "X25519", public: pub }, privateKey, 256));
     },
-    async sha256(bytes) { return new Uint8Array(await subtle.digest("SHA-256", bytes)); },
+    async sha256(bytes) {
+      return new Uint8Array(await subtle.digest("SHA-256", bytes));
+    },
     async hmacSha256(key, bytes) {
       const k = await subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
       return new Uint8Array(await subtle.sign("HMAC", k, bytes));
     },
-    aesKey: raw => subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]),
+    aesKey: (raw) => subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]),
     async aesGcmEncrypt(key, nonce, ad, pt) {
-      return new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: ad, tagLength: 128 }, await aes(key), pt));
+      return new Uint8Array(
+        await subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: ad, tagLength: 128 }, await aes(key), pt),
+      );
     },
     async aesGcmDecrypt(key, nonce, ad, ct) {
-      return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: nonce, additionalData: ad, tagLength: 128 }, await aes(key), ct));
+      return new Uint8Array(
+        await subtle.decrypt({ name: "AES-GCM", iv: nonce, additionalData: ad, tagLength: 128 }, await aes(key), ct),
+      );
     },
-    randomBytes: n => rand(new Uint8Array(n)),
+    randomBytes: (n) => rand(new Uint8Array(n)),
     /**
      * A key pair from a raw private key. Only for test vectors and for moving a key made
      * elsewhere: a key that was ever raw bytes was readable once. The result is non-extractable.
@@ -69,7 +76,14 @@ export const createDeviceKey = (provider = webCrypto()) => provider.generateKeyP
 export function memoryKeyStore() {
   /** @type {any} */
   let v = null;
-  return { async get() { return v; }, async set(k) { v = k; } };
+  return {
+    async get() {
+      return v;
+    },
+    async set(k) {
+      v = k;
+    },
+  };
 }
 
 /**
@@ -80,16 +94,28 @@ export function memoryKeyStore() {
  */
 export function indexedDbKeyStore(o = {}) {
   const idb = o.indexedDB || globalThis.indexedDB;
-  const dbName = o.db || "vyre-relay", store = o.store || "keys", id = o.key || "device";
+  const dbName = o.db || "vyre-relay",
+    store = o.store || "keys",
+    id = o.key || "device";
   /** @type {Promise<IDBDatabase> | null} */
   let opening = null;
-  const open = () => opening || (opening = new Promise((resolve, reject) => {
-    if (!idb) { reject(new Error("no IndexedDB here")); return; }
-    const req = idb.open(dbName, 1);
-    req.onupgradeneeded = () => { req.result.createObjectStore(store); };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => { opening = null; reject(req.error); };
-  }));
+  const open = () =>
+    opening ||
+    (opening = new Promise((resolve, reject) => {
+      if (!idb) {
+        reject(new Error("no IndexedDB here"));
+        return;
+      }
+      const req = idb.open(dbName, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(store);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => {
+        opening = null;
+        reject(req.error);
+      };
+    }));
   const run = async (mode, fn) => {
     const db = await open();
     return new Promise((resolve, reject) => {
@@ -102,9 +128,11 @@ export function indexedDbKeyStore(o = {}) {
   };
   return {
     async get() {
-      const v = await run("readonly", s => s.get(id));
+      const v = await run("readonly", (s) => s.get(id));
       return v && v.privateKey ? { privateKey: v.privateKey, publicKey: fromBase64url(v.publicKey) } : null;
     },
-    async set(k) { await run("readwrite", s => s.put({ privateKey: k.privateKey, publicKey: base64url(k.publicKey) }, id)); },
+    async set(k) {
+      await run("readwrite", (s) => s.put({ privateKey: k.privateKey, publicKey: base64url(k.publicKey) }, id));
+    },
   };
 }

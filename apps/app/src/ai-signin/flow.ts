@@ -2,7 +2,13 @@
 // Claude shows a code on its page that is pasted back; ChatGPT and Grok show a code to type there and finish on their own, which the app finds by asking every few seconds. The credential never comes to the app.
 import { ownAiRefusal } from "./own-ai.ts";
 import type { AiHome } from "./own-ai.ts";
-export interface Flow { flowId: string; instruction: string; url?: string; userCode?: string; needsCode: boolean }
+export interface Flow {
+  flowId: string;
+  instruction: string;
+  url?: string;
+  userCode?: string;
+  needsCode: boolean;
+}
 export type Check = { state: "waiting" } | { state: "done"; provider: { id: string } & Record<string, unknown> };
 export type Call = (cap: string, input?: unknown) => Promise<unknown>;
 
@@ -36,7 +42,11 @@ export const LOCAL_SIGNINS: readonly { key: string; button: string }[] = [
 export const KEYCHAIN_NOTE = "Your Mac will ask once; choose Always Allow.";
 
 /** This browser or app runs on a Mac (a Personal Space's server is this same computer). */
-export function onMacDevice(nav: { platform?: string; userAgent?: string } | undefined = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator): boolean {
+export function onMacDevice(
+  nav: { platform?: string; userAgent?: string } | undefined = (
+    globalThis as { navigator?: { platform?: string; userAgent?: string } }
+  ).navigator,
+): boolean {
   return /mac/i.test(nav?.platform ?? "") || /Macintosh|Mac OS X/.test(nav?.userAgent ?? "");
 }
 
@@ -46,25 +56,53 @@ export function localNote(providerKey: string, mac: boolean): string | null {
 }
 
 /** Use the sign-in already on this computer: the server reads it and saves it in one go, so the account comes back at once. Rejects with the server's plain line (none there, or not a Personal Space). */
-export async function takeLocalSignin(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<{ id: string } & Record<string, unknown>> {
+export async function takeLocalSignin(
+  call: Call,
+  providerKey: string,
+  idempotencyKey: string,
+  home: AiHome = "here",
+): Promise<{ id: string } & Record<string, unknown>> {
   const flow = await startFlow(call, providerKey, idempotencyKey, home, true);
   const done = await checkFlow(call, flow.flowId, undefined, home);
   if (done.state !== "done") throw new Error("The sign-in on this computer could not be saved. Sign in instead.");
   return done.provider;
 }
 
-export async function startFlow(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here", local = false): Promise<Flow> {
+export async function startFlow(
+  call: Call,
+  providerKey: string,
+  idempotencyKey: string,
+  home: AiHome = "here",
+  local = false,
+): Promise<Flow> {
   try {
-    const out = await call("providers.subscription_start", { providerKey, idempotencyKey, ...(local ? { local: true } : {}) }) as { flowId: string; instruction: string; url?: string; userCode?: string; needsCode?: boolean };
-    return { flowId: out.flowId, instruction: out.instruction, ...(out.url ? { url: out.url } : {}), ...(out.userCode ? { userCode: out.userCode } : {}), needsCode: out.needsCode === true };
-  } catch (e) { throw new Error(ownAiRefusal(e, home) ?? words(e, "The sign-in could not start. Check the connection and try again.")); }
+    const out = (await call("providers.subscription_start", {
+      providerKey,
+      idempotencyKey,
+      ...(local ? { local: true } : {}),
+    })) as { flowId: string; instruction: string; url?: string; userCode?: string; needsCode?: boolean };
+    return {
+      flowId: out.flowId,
+      instruction: out.instruction,
+      ...(out.url ? { url: out.url } : {}),
+      ...(out.userCode ? { userCode: out.userCode } : {}),
+      needsCode: out.needsCode === true,
+    };
+  } catch (e) {
+    throw new Error(
+      ownAiRefusal(e, home) ?? words(e, "The sign-in could not start. Check the connection and try again."),
+    );
+  }
 }
 
 /** One look at the sign-in. A code the person pasted goes with it. Rejects with a plain line when the provider refused or the sign-in is over. `home` says where the person's own key
  * can be kept from here (own-ai.ts), so a refusal says "locked" only where it can be unlocked. */
 export async function checkFlow(call: Call, flowId: string, code?: string, home: AiHome = "here"): Promise<Check> {
   try {
-    const out = await call("providers.subscription_complete", { flowId, ...(code ? { code } : {}) }) as { provider?: { id: string } & Record<string, unknown>; waiting?: boolean };
+    const out = (await call("providers.subscription_complete", { flowId, ...(code ? { code } : {}) })) as {
+      provider?: { id: string } & Record<string, unknown>;
+      waiting?: boolean;
+    };
     return out.provider ? { state: "done", provider: out.provider } : { state: "waiting" };
   } catch (e) {
     const c = (e as { code?: string }).code;
@@ -83,7 +121,12 @@ export function pastedCode(text: string): string | null {
 
 /** Only an https address is opened. */
 export function safeLink(url: string | undefined): string | null {
-  try { const u = new URL(url ?? ""); return u.protocol === "https:" && u.username === "" && u.password === "" ? u.href : null; } catch { return null; }
+  try {
+    const u = new URL(url ?? "");
+    return u.protocol === "https:" && u.username === "" && u.password === "" ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The line that tells the person what to do next for this flow. */

@@ -12,17 +12,35 @@ const engines = [
 
 test("a CLI sign-in that cannot run here says what it needs", () => {
   assert.equal(needsWords({ engine: "claude-code", connection: "subscription" }, engines), NEEDS);
-  assert.equal(needsWords({ engine: "codex", connection: "subscription" }, engines), null, "a CLI that can run keeps its state");
-  assert.equal(needsWords({ engine: "anthropic", connection: "api_key" }, engines), null, "an API key is not a CLI engine, and a policy reason is not a need");
+  assert.equal(
+    needsWords({ engine: "codex", connection: "subscription" }, engines),
+    null,
+    "a CLI that can run keeps its state",
+  );
+  assert.equal(
+    needsWords({ engine: "anthropic", connection: "api_key" }, engines),
+    null,
+    "an API key is not a CLI engine, and a policy reason is not a need",
+  );
   assert.equal(cliDriverOf({ engine: "grok", connection: "subscription" }), "grok");
   assert.equal(cliDriverOf({ engine: "anthropic", connection: "api_key" }), null);
 });
 
 test("This computer on the Windows desktop app says how the AI runs there; elsewhere nothing", async () => {
   const { PERSONAL_WINDOWS_LINE, engineLine } = await import("../../settings/computers-model.ts");
-  assert.equal(engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/131.0" }), PERSONAL_WINDOWS_LINE);
-  assert.equal(PERSONAL_WINDOWS_LINE, "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.");
-  assert.equal(engineLine({ desktop: false, userAgent: "Mozilla/5.0 (Windows NT 10.0)" }), "", "a browser on Windows is not this computer's engine");
+  assert.equal(
+    engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/131.0" }),
+    PERSONAL_WINDOWS_LINE,
+  );
+  assert.equal(
+    PERSONAL_WINDOWS_LINE,
+    "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.",
+  );
+  assert.equal(
+    engineLine({ desktop: false, userAgent: "Mozilla/5.0 (Windows NT 10.0)" }),
+    "",
+    "a browser on Windows is not this computer's engine",
+  );
   assert.equal(engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)" }), "");
 });
 
@@ -38,8 +56,14 @@ test("Windows: the one-time 'Set up the Windows sandbox for team chats' shows on
 
 import { rightNow } from "./model.ts";
 test("an AI account's Right now line: a failing key never says it works, a working key a chat cannot use says why, a sign-in a computer cannot run says what it needs", () => {
-  assert.deepEqual(rightNow("failing", undefined, null, "This account is not working. Open it in the Vault to test it."), { text: "Failing, check the key", tone: "failing" });
-  assert.deepEqual(rightNow("ok", undefined, null, "The Space has no room"), { text: "Works, but not in chats: The Space has no room", tone: "needs_sign_in" });
+  assert.deepEqual(
+    rightNow("failing", undefined, null, "This account is not working. Open it in the Vault to test it."),
+    { text: "Failing, check the key", tone: "failing" },
+  );
+  assert.deepEqual(rightNow("ok", undefined, null, "The Space has no room"), {
+    text: "Works, but not in chats: The Space has no room",
+    tone: "needs_sign_in",
+  });
   assert.deepEqual(rightNow("ok", undefined, null, null), { text: "Working", tone: "ok" });
   assert.deepEqual(rightNow("ok", undefined, "Needs Docker", "x"), { text: "Needs Docker", tone: "needs_sign_in" });
 });

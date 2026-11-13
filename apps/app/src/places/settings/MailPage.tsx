@@ -17,8 +17,20 @@ type MailboxesOut = CapMap["mail.mailbox.list"]["out"];
 type CalendarsOut = CapMap["calendar.list_calendars"]["out"];
 type NumbersOut = CapMap["telephony.number.list"]["out"];
 
-const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Receive only", local: "On Vyre" };
-const STATE: Record<string, string> = { pending: "Connecting", syncing: "Syncing", paused: "Paused", error: "Needs attention", disconnected: "Disconnected" };
+const PROVIDER: Record<string, string> = {
+  google: "Google",
+  microsoft: "Microsoft",
+  imap: "IMAP",
+  inbound_only: "Receive only",
+  local: "On Vyre",
+};
+const STATE: Record<string, string> = {
+  pending: "Connecting",
+  syncing: "Syncing",
+  paused: "Paused",
+  error: "Needs attention",
+  disconnected: "Disconnected",
+};
 const [MAIL, CALENDARS, NUMBERS] = INBOX_SOURCE_QUERIES;
 /** A person connects mail here; a calendar comes with the Google or Microsoft sign-in. */
 const MAIL_TILES = ["gmail", "outlook", "imap"] as const;
@@ -35,54 +47,159 @@ export function MailPage(): ReactElement {
   const nums = useScreenQuery<NumbersOut>(NUMBERS[0], NUMBERS[1], {});
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes.filter((m) => m.state !== "disconnected") : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
-  const numbers = nums.status === "ready" ? nums.data.numbers.filter((n) => n.state !== "released" && n.assigneeKind === "person" && n.assigneeId === me) : [];
+  const numbers =
+    nums.status === "ready"
+      ? nums.data.numbers.filter((n) => n.state !== "released" && n.assigneeKind === "person" && n.assigneeId === me)
+      : [];
   const tiles = <ConnectChannel inline only={MAIL_TILES} connect={() => data.nav.connect("mailbox")} />;
 
   const remove = (cap: string, input: Record<string, unknown>): void => {
-    void data.call(cap, input).then(() => saved.saved("Removed")).catch(() => saved.failed("That did not remove."));
+    void data
+      .call(cap, input)
+      .then(() => saved.saved("Removed"))
+      .catch(() => saved.failed("That did not remove."));
   };
 
   // what the admin connected for this person through Google Workspace or Microsoft 365
-  const suites = suiteSections(mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })), calendars.map((c) => ({ id: c.id, title: c.title, provider: c.provider, state: c.state })));
+  const suites = suiteSections(
+    mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })),
+    calendars.map((c) => ({ id: c.id, title: c.title, provider: c.provider, state: c.state })),
+  );
   const firmRows: ReactElement[] = [];
-  suites.forEach((suite, si) => firmRows.push(
-    <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
-  ));
+  suites.forEach((suite, si) =>
+    firmRows.push(
+      <SettingsRow
+        key={suite.key}
+        id={`suite.${suite.key}`}
+        label={suite.title}
+        sub={throughFirm(suite)}
+        first={si === 0}
+        lead={<Glyph name="link" size={15} />}
+        control={
+          <Value
+            text={suite.rows
+              .map((r) => r.service)
+              .filter((v, i, a) => a.indexOf(v) === i)
+              .join(" and ")}
+          />
+        }
+      />,
+    ),
+  );
   const firm = personal || suites.length === 0 ? null : <Section title="Through your Space">{firmRows}</Section>;
 
   const mailRows: ReactElement[] = [];
-  mailboxes.forEach((m, i) => mailRows.push(
-    <SettingsRow
-      key={m.id} id={`mailbox.${m.id}`} label={m.address} first={i === 0} lead={<Glyph name="mail" size={15} />}
-      sub={`${PROVIDER[m.provider] ?? m.provider}, ${m.privacy === "private" ? "private to you" : m.privacy === "space" ? "visible to the Space" : "shared with chosen people"}`}
-      control={
-        <>
-          <Value text={STATE[m.state] ?? m.state} accent={m.state === "error"} />
-          {m.state === "error" && (m.provider === "google" || m.provider === "microsoft") && openConnect
-            ? <SmallButton label="Sign in again" primary testID={`mailbox-fix-${m.id}`} onPress={() => void openConnect({ kind: "mailbox", provider: m.provider as "google" | "microsoft" })} />
-            : null}
-          {m.state === "paused"
-            ? <SmallButton label="Resume" onPress={() => void data.call("mail.mailbox.resume", { mailboxId: m.id }).then(() => saved.saved("Resumed")).catch(() => saved.failed("That did not resume."))} />
-            : <SmallButton label="Pause" onPress={() => void data.call("mail.mailbox.pause", { mailboxId: m.id }).then(() => saved.saved("Paused", async () => { await data.call("mail.mailbox.resume", { mailboxId: m.id }); })).catch(() => saved.failed("That did not pause."))} />}
-          {m.ownerId === me ? <SmallButton label="Remove" testID={`mailbox-remove-${m.id}`} onPress={() => remove("mail.mailbox.disconnect", { mailboxId: m.id })} /> : null}
-        </>
-      }
-    />,
-  ));
+  mailboxes.forEach((m, i) =>
+    mailRows.push(
+      <SettingsRow
+        key={m.id}
+        id={`mailbox.${m.id}`}
+        label={m.address}
+        first={i === 0}
+        lead={<Glyph name="mail" size={15} />}
+        sub={`${PROVIDER[m.provider] ?? m.provider}, ${m.privacy === "private" ? "private to you" : m.privacy === "space" ? "visible to the Space" : "shared with chosen people"}`}
+        control={
+          <>
+            <Value text={STATE[m.state] ?? m.state} accent={m.state === "error"} />
+            {m.state === "error" && (m.provider === "google" || m.provider === "microsoft") && openConnect ? (
+              <SmallButton
+                label="Sign in again"
+                primary
+                testID={`mailbox-fix-${m.id}`}
+                onPress={() => void openConnect({ kind: "mailbox", provider: m.provider as "google" | "microsoft" })}
+              />
+            ) : null}
+            {m.state === "paused" ? (
+              <SmallButton
+                label="Resume"
+                onPress={() =>
+                  void data
+                    .call("mail.mailbox.resume", { mailboxId: m.id })
+                    .then(() => saved.saved("Resumed"))
+                    .catch(() => saved.failed("That did not resume."))
+                }
+              />
+            ) : (
+              <SmallButton
+                label="Pause"
+                onPress={() =>
+                  void data
+                    .call("mail.mailbox.pause", { mailboxId: m.id })
+                    .then(() =>
+                      saved.saved("Paused", async () => {
+                        await data.call("mail.mailbox.resume", { mailboxId: m.id });
+                      }),
+                    )
+                    .catch(() => saved.failed("That did not pause."))
+                }
+              />
+            )}
+            {m.ownerId === me ? (
+              <SmallButton
+                label="Remove"
+                testID={`mailbox-remove-${m.id}`}
+                onPress={() => remove("mail.mailbox.disconnect", { mailboxId: m.id })}
+              />
+            ) : null}
+          </>
+        }
+      />,
+    ),
+  );
   const calRows: ReactElement[] = [];
-  calendars.forEach((c, i) => calRows.push(
-    <SettingsRow
-      key={c.id} id={`calendar.${c.id}`} label={c.title} first={i === 0} sub={PROVIDER[c.provider] ?? c.provider} lead={<View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: c.color }} />}
-      control={c.ownerId === me ? <SmallButton label="Remove" testID={`calendar-remove-${c.id}`} onPress={() => remove("calendar.delete_calendar", { calendarId: c.id })} /> : <Value text={STATE[c.state] ?? c.state} />}
-    />,
-  ));
+  calendars.forEach((c, i) =>
+    calRows.push(
+      <SettingsRow
+        key={c.id}
+        id={`calendar.${c.id}`}
+        label={c.title}
+        first={i === 0}
+        sub={PROVIDER[c.provider] ?? c.provider}
+        lead={<View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: c.color }} />}
+        control={
+          c.ownerId === me ? (
+            <SmallButton
+              label="Remove"
+              testID={`calendar-remove-${c.id}`}
+              onPress={() => remove("calendar.delete_calendar", { calendarId: c.id })}
+            />
+          ) : (
+            <Value text={STATE[c.state] ?? c.state} />
+          )
+        }
+      />,
+    ),
+  );
   const numRows: ReactElement[] = [];
-  numbers.forEach((n, i) => numRows.push(
-    <SettingsRow key={n.id} id={`number.${n.id}`} label={n.displayName ?? n.title} first={i === 0} sub={n.e164} lead={<Glyph name="phone" size={15} />} />,
-  ));
+  numbers.forEach((n, i) =>
+    numRows.push(
+      <SettingsRow
+        key={n.id}
+        id={`number.${n.id}`}
+        label={n.displayName ?? n.title}
+        first={i === 0}
+        sub={n.e164}
+        lead={<Glyph name="phone" size={15} />}
+      />,
+    ),
+  );
 
-  if (has === null) return <>{firm}<Text style={ui.sTitle} accessibilityRole="progressbar">Loading</Text></>;
-  if (has === false) return <View testID="mail-empty">{firm}<View style={ui.section}>{tiles}</View></View>;
+  if (has === null)
+    return (
+      <>
+        {firm}
+        <Text style={ui.sTitle} accessibilityRole="progressbar">
+          Loading
+        </Text>
+      </>
+    );
+  if (has === false)
+    return (
+      <View testID="mail-empty">
+        {firm}
+        <View style={ui.section}>{tiles}</View>
+      </View>
+    );
 
   return (
     <View testID="mail-sources">
@@ -91,7 +208,9 @@ export function MailPage(): ReactElement {
       {calRows.length > 0 ? <Section title="Calendars">{calRows}</Section> : null}
       {numRows.length > 0 ? <Section title="Numbers assigned to you">{numRows}</Section> : null}
       <View style={ui.section} testID="mail-add">
-        <Text accessibilityRole="header" style={ui.sTitle}>Add</Text>
+        <Text accessibilityRole="header" style={ui.sTitle}>
+          Add
+        </Text>
         {tiles}
       </View>
     </View>

@@ -15,7 +15,11 @@ const db = { all: () => rows };
 test("a shared handle resolves to the asker's own Mine item first, then a shared item, before anyone else's", () => {
   assert.equal(resolveVaultItem(db, "vault_item", "handle", "#Api.key", "usr_noah"), "vit_noah");
   assert.equal(resolveVaultItem(db, "vault_item", "handle", "#Api.key", "usr_olivia"), "vit_olivia");
-  assert.equal(resolveVaultItem(db, "vault_item", "handle", "#Deploy.key", "usr_noah"), "vit_team", "a shared item before another person's Mine item");
+  assert.equal(
+    resolveVaultItem(db, "vault_item", "handle", "#Deploy.key", "usr_noah"),
+    "vit_team",
+    "a shared item before another person's Mine item",
+  );
   assert.equal(resolveVaultItem(db, "vault_item", "handle", "#Deploy.key", "usr_tess"), "vit_tess");
   assert.equal(resolveVaultItem(db, "vault_item", "handle", "#Nothing.key", "usr_noah"), null);
   assert.equal(resolveVaultItem(db, "vault_item", "name", "Deploy", "usr_noah"), "vit_team");

@@ -13,8 +13,14 @@ test("a direct call from a member who does not manage policy is refused and remo
   const h = harness();
   h.addFile("fil_old00001", { deletedAt: 1 });
   direct(h, false);
-  await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }), (e: unknown) => { assert.equal((e as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission"); return true; });
-  assert.deepEqual(h.emitted.filter((e) => e.name === "retention.purged"), []);
+  await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }), (e: unknown) => {
+    assert.equal((e as { error?: { code?: string } }).error?.code, "permission.role_lacks_permission");
+    return true;
+  });
+  assert.deepEqual(
+    h.emitted.filter((e) => e.name === "retention.purged"),
+    [],
+  );
   assert.deepEqual(h.calls("files.purge"), []);
   assert.ok(h.world.files.has("fil_old00001"), "the old Trash file is still there");
 });
@@ -22,7 +28,10 @@ test("a direct call from a member who does not manage policy is refused and remo
 test("a direct call with no authorizer at all is refused (it fails closed)", async () => {
   const h = harness();
   delete (h.ctx as { authorize?: unknown }).authorize;
-  for (const depth of [0, 1]) { h.ctx.depth = depth; await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" })); }
+  for (const depth of [0, 1]) {
+    h.ctx.depth = depth;
+    await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }));
+  }
 });
 
 test("a nested call made for a member who does not manage policy is refused too", async () => {
@@ -30,7 +39,10 @@ test("a nested call made for a member who does not manage policy is refused too"
   h.addFile("fil_old00001", { deletedAt: 1 });
   h.ctx.depth = 1;
   h.ctx.authorize = () => ({ effect: "deny" });
-  await assert.rejects(g.jobsTick(h.ctx, { kind: "trash" }), (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.role_lacks_permission");
+  await assert.rejects(
+    g.jobsTick(h.ctx, { kind: "trash" }),
+    (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.role_lacks_permission",
+  );
   assert.ok(h.world.files.has("fil_old00001"));
 });
 

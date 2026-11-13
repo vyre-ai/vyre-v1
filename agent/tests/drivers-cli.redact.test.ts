@@ -6,7 +6,7 @@ import { CLI_ADAPTERS, createCliDriver } from "../src/drivers/cli/index.ts";
 import { forgetSecrets, holdSecret, redact } from "../src/drivers/cli/redact.ts";
 import { collect, driverDeps, newSpy, specOf, turnOf } from "../fixtures/golden-streams/rig.ts";
 
-const SECRET = "ghs_walkTOKEN0123456789abcdefABCDEF";   // secret-scan: fake
+const SECRET = "ghs_walkTOKEN0123456789abcdefABCDEF"; // secret-scan: fake
 
 test("redact: held secrets are replaced whole, only while they live, and short strings are never held", () => {
   forgetSecrets();
@@ -23,13 +23,19 @@ for (const id of ["claude_code", "codex", "grok"] as const) {
     forgetSecrets();
     holdSecret(SECRET, Date.now() + 60_000);
     const spy = newSpy();
-    const session = await createCliDriver(CLI_ADAPTERS[id], driverDeps(spy, { env: () => ({ GH_TOKEN: SECRET, GITHUB_TOKEN: SECRET }) })).open(specOf());
+    const session = await createCliDriver(
+      CLI_ADAPTERS[id],
+      driverDeps(spy, { env: () => ({ GH_TOKEN: SECRET, GITHUB_TOKEN: SECRET }) }),
+    ).open(specOf());
     try {
       const events = await collect(session.send(turnOf("echoenv")));
       const all = JSON.stringify(events);
       assert.equal(all.includes(SECRET), false, "the token is in no event");
       assert.match(all, /\[token\]/);
       assert.equal(JSON.stringify(spy.envs).includes(SECRET), true, "the process itself did get it");
-    } finally { await session.close(); forgetSecrets(); }
+    } finally {
+      await session.close();
+      forgetSecrets();
+    }
   });
 }

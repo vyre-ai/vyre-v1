@@ -19,7 +19,13 @@ import { Responder, loadRelayKeys } from "../host/src/seams/relay.ts";
 
 const OWNER = "tok-usr_olivia";
 const MEMBER = "tok-usr_noah";
-const caddyFetch = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const utf8 = (s) => new TextEncoder().encode(s);
 const fromB64u = (s) => new Uint8Array(Buffer.from(s, "base64url"));
 
@@ -36,7 +42,9 @@ function boot(dir, relay) {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", ...(relay ? ["--relay", relay] : [])], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "relay-box", free: 80e9,
+      os: "linux",
+      hostname: "relay-box",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -54,12 +62,16 @@ function boot(dir, relay) {
 }
 
 const direct = (d, token, p, body = {}) =>
-  fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ idempotencyKey: `rb-${Math.random()}`, ...body }) });
+  fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ idempotencyKey: `rb-${Math.random()}`, ...body }),
+  });
 
 async function relayEndpoint(d, want) {
   for (let i = 0; i < 100; i++) {
     const r = await direct(d, OWNER, "/v1/network/endpoints");
-    const eps = ((await r.json()).data?.endpoints ?? []);
+    const eps = (await r.json()).data?.endpoints ?? [];
     const e = eps.find((x) => x.kind === "relay");
     if (e && (want === undefined || e.health === want)) return { e, all: eps };
     await new Promise((res) => setTimeout(res, 100));
@@ -70,12 +82,27 @@ async function relayEndpoint(d, want) {
 const viaRelay = async (base, route, box, token, p, body = {}) => {
   const crypto = webCrypto();
   const keys = await crypto.generateKeyPair();
-  const { channel } = await openChannel({ relay: base, route, box, keys, crypto, WebSocket: globalThis.WebSocket, hello: { v: 1, name: "a phone" }, timeout: 10_000 });
+  const { channel } = await openChannel({
+    relay: base,
+    route,
+    box,
+    keys,
+    crypto,
+    WebSocket: globalThis.WebSocket,
+    hello: { v: 1, name: "a phone" },
+    timeout: 10_000,
+  });
   try {
     const headers = { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) };
-    const res = await request(channel, { method: "POST", path: p, headers }, utf8(JSON.stringify({ idempotencyKey: `rb-${Math.random()}`, ...body })));
+    const res = await request(
+      channel,
+      { method: "POST", path: p, headers },
+      utf8(JSON.stringify({ idempotencyKey: `rb-${Math.random()}`, ...body })),
+    );
     return { status: res.status, body: JSON.parse(await res.text()) };
-  } finally { channel.close(1000, "done"); }
+  } finally {
+    channel.close(1000, "done");
+  }
 };
 
 test("a daemon with no relay configured lists no relay endpoint", async () => {
@@ -83,8 +110,13 @@ test("a daemon with no relay configured lists no relay endpoint", async () => {
   try {
     const r = await direct(d, OWNER, "/v1/network/endpoints");
     const eps = (await r.json()).data.endpoints;
-    assert.equal(eps.some((e) => e.kind === "relay"), false);
-  } finally { await d.stop(); }
+    assert.equal(
+      eps.some((e) => e.kind === "relay"),
+      false,
+    );
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a phone reaches the Space through the relay, the gateway checks its token, and the endpoint follows the link", async () => {
@@ -106,7 +138,10 @@ test("a phone reaches the Space through the relay, the gateway checks its token,
 
     const ok = await viaRelay(base, route, fromB64u(boxKey), OWNER, "/v1/network/endpoints");
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
-    assert.ok(ok.body.data.endpoints.some((x) => x.kind === "relay"), "the answer is the gateway's own");
+    assert.ok(
+      ok.body.data.endpoints.some((x) => x.kind === "relay"),
+      "the answer is the gateway's own",
+    );
 
     const noToken = await viaRelay(base, route, fromB64u(boxKey), null, "/v1/network/endpoints");
     assert.equal(noToken.status, 401, "a request with no token is refused by the gateway, not let in by the relay");
@@ -119,7 +154,10 @@ test("a phone reaches the Space through the relay, the gateway checks its token,
 
     await relay.close();
     await relayEndpoint(d, "down");
-  } finally { await d.stop(); await relay.close().catch(() => {}); }
+  } finally {
+    await d.stop();
+    await relay.close().catch(() => {});
+  }
 });
 
 // The box side of Noise_IK_25519_AESGCM_SHA256 is written in the host (B3 keeps node:crypto out of it). The device side is relay/client/noise.js, which has its own vector tests, so
@@ -147,14 +185,20 @@ test("the host's Noise responder interoperates with the relay client's initiator
     const down = await resp.send.encrypt(new Uint8Array(0), utf8(`answer ${i}`));
     assert.equal(new TextDecoder().decode(await init.recv.decrypt(new Uint8Array(0), down)), `answer ${i}`);
   }
-  await init.send.rekey(); await resp.recv.rekey();
-  await resp.send.rekey(); await init.recv.rekey();
+  await init.send.rekey();
+  await resp.recv.rekey();
+  await resp.send.rekey();
+  await init.recv.rekey();
   const after = await init.send.encrypt(new Uint8Array(0), utf8("after the rekey"));
   assert.equal(new TextDecoder().decode(await resp.recv.decrypt(new Uint8Array(0), after)), "after the rekey");
 
   // another route's prologue, or one flipped bit in the first message, never completes
-  const other = new Responder({ priv: keys.boxPriv, pub: keys.boxPub }, utf8("vyre-relay-v1\nzyxwvutsrqponmlkjihgfedcba"));
+  const other = new Responder(
+    { priv: keys.boxPriv, pub: keys.boxPub },
+    utf8("vyre-relay-v1\nzyxwvutsrqponmlkjihgfedcba"),
+  );
   await assert.rejects(() => other.readMessage(m1));
-  const bad = m1.slice(); bad[bad.length - 1] ^= 1;
+  const bad = m1.slice();
+  bad[bad.length - 1] ^= 1;
   await assert.rejects(() => new Responder({ priv: keys.boxPriv, pub: keys.boxPub }, prologue).readMessage(bad));
 });

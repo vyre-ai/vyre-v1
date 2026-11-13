@@ -24,7 +24,10 @@ export function checkRepo(repo: string, options: { runGen: boolean }): RepoCheck
 
   const adrDir = join(repo, "docs/adr");
   if (!existsSync(join(adrDir, "README.md"))) errors.push("adr: docs/adr/README.md is missing");
-  else errors.push(...checkAdrIndex({ files: readdirSync(adrDir), index: readFileSync(join(adrDir, "README.md"), "utf8") }));
+  else
+    errors.push(
+      ...checkAdrIndex({ files: readdirSync(adrDir), index: readFileSync(join(adrDir, "README.md"), "utf8") }),
+    );
 
   const gen = join(repo, "tools/gen/src/cli.ts");
   if (options.runGen && existsSync(gen)) {

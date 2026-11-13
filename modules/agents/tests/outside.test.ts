@@ -7,13 +7,16 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 const nested = (hn: Harness, ctx: Harness["ctx"] = hn.ctx): Harness["ctx"] => ({ ...ctx, depth: 1 });
-const connect = async (hn: Harness, clientName = "Claude Code"): Promise<{ agentId: string; name: string }> => h["agents.outside.connect"]!(nested(hn), { clientName });
+const connect = async (hn: Harness, clientName = "Claude Code"): Promise<{ agentId: string; name: string }> =>
+  h["agents.outside.connect"]!(nested(hn), { clientName });
 const SAM = "usr_sam";
 
 test("only the sign-in makes one: a direct call is refused, an agent's too", async () => {
   const hn = harness();
   await assert.rejects(() => h["agents.outside.connect"]!(hn.ctx, { clientName: "x" }));
-  await assert.rejects(() => h["agents.outside.connect"]!(nested(hn, hn.as({ kind: "agent", id: "agt_x" }, DANA)), { clientName: "x" }));
+  await assert.rejects(() =>
+    h["agents.outside.connect"]!(nested(hn, hn.as({ kind: "agent", id: "agt_x" }, DANA)), { clientName: "x" }),
+  );
 });
 
 test("it is a normal agent: an owner, a folder, a face from the library, runtime outside", async () => {
@@ -43,21 +46,50 @@ test("owner only: a teammate does not see it, cannot read it, and cannot give it
   const { agentId } = await connect(hn);
   const sam = hn.as({ kind: "person", id: SAM });
   await assert.rejects(() => h["agents.get"]!(sam, { agentId }));
-  assert.equal((await h["agents.list"]!(sam, {})).agents.some((a: { agentId: string }) => a.agentId === agentId), false);
+  assert.equal(
+    (await h["agents.list"]!(sam, {})).agents.some((a: { agentId: string }) => a.agentId === agentId),
+    false,
+  );
   assert.deepEqual(await h["agents.outside.usable"]!(sam, { agentId }), { usable: false });
   assert.deepEqual(await h["agents.outside.usable"]!(hn.ctx, { agentId }), { usable: true });
   const other = (await h["agents.create"]!(hn.ctx, { name: "Plain", idempotencyKey: "p" })).agent.agentId;
-  assert.deepEqual(await h["agents.outside.usable"]!(sam, { agentId: other }), { usable: true }, "every other agent is as it was");
-  assert.deepEqual(await h["agents.outside.enqueue"]!(nested(hn), { agentId, kind: "mention", threadId: "thr_a", messageId: "msg_b", asker: SAM, text: "do this" }), { queued: false });
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(sam, { agentId: other }),
+    { usable: true },
+    "every other agent is as it was",
+  );
+  assert.deepEqual(
+    await h["agents.outside.enqueue"]!(nested(hn), {
+      agentId,
+      kind: "mention",
+      threadId: "thr_a",
+      messageId: "msg_b",
+      asker: SAM,
+      text: "do this",
+    }),
+    { queued: false },
+  );
 });
 
 test("the queue: one job per message, oldest first, only for the agent itself, and only the server fills it", async () => {
   const hn = harness();
   const { agentId } = await connect(hn);
   const me = hn.as({ kind: "agent", id: agentId }, DANA);
-  await assert.rejects(async () => h["agents.outside.enqueue"]!(hn.ctx, { agentId, kind: "mention", asker: DANA }), "a person's own call does not reach it");
+  await assert.rejects(
+    async () => h["agents.outside.enqueue"]!(hn.ctx, { agentId, kind: "mention", asker: DANA }),
+    "a person's own call does not reach it",
+  );
   assert.deepEqual(await h["agents.next"]!(me, {}), { job: null, waiting: 0 });
-  const put = (messageId: string) => h["agents.outside.enqueue"]!(nested(hn), { agentId, kind: "mention", threadId: "thr_a", messageId, asker: DANA, title: "T", text: messageId });
+  const put = (messageId: string) =>
+    h["agents.outside.enqueue"]!(nested(hn), {
+      agentId,
+      kind: "mention",
+      threadId: "thr_a",
+      messageId,
+      asker: DANA,
+      title: "T",
+      text: messageId,
+    });
   assert.deepEqual(await put("msg_1"), { queued: true });
   hn.advance(10);
   assert.deepEqual(await put("msg_2"), { queued: true });
@@ -69,7 +101,10 @@ test("the queue: one job per message, oldest first, only for the agent itself, a
   assert.equal((await h["agents.next"]!(me, {})).job, null);
   await assert.rejects(async () => h["agents.next"]!(hn.ctx, {}), "a person has no queue");
   const vyreAgent = (await h["agents.create"]!(hn.ctx, { name: "Plain", idempotencyKey: "p" })).agent.agentId;
-  await assert.rejects(async () => h["agents.next"]!(hn.as({ kind: "agent", id: vyreAgent }, DANA), {}), "nor does a Vyre agent");
+  await assert.rejects(
+    async () => h["agents.next"]!(hn.as({ kind: "agent", id: vyreAgent }, DANA), {}),
+    "nor does a Vyre agent",
+  );
 });
 
 test("status: Working for a minute after a call, Awake for two, then asleep, which the app says as Offline", async () => {

@@ -19,7 +19,10 @@ export function QueueIndicator({ online, waiting, conflicts = 0, onOpen }: Queue
       accessibilityRole="button"
       accessibilityLabel={line.text}
       onPress={onOpen}
-      style={({ hovered }: { hovered?: boolean }) => [styles.box, hovered === true ? { backgroundColor: "var(--hover)" } : null]}
+      style={({ hovered }: { hovered?: boolean }) => [
+        styles.box,
+        hovered === true ? { backgroundColor: "var(--hover)" } : null,
+      ]}
     >
       <Text style={[styles.text, line.tone === "attention" ? { color: "var(--warn)" } : null]}>{line.text}</Text>
     </Pressable>

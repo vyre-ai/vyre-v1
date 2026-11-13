@@ -51,8 +51,10 @@ function payloadOf(payload: Uint8Array): Row {
   }
 }
 
-const itemOfFile = (tx: ProjTx, fileId: string): Row | undefined => (tx.all("SELECT * FROM mounts_item WHERE file_id = ?", fileId) as Row[])[0];
-const folderItem = (tx: ProjTx, folderId: string): Row | undefined => (tx.all("SELECT * FROM mounts_item WHERE folder_id = ? AND is_folder = ?", folderId, 1) as Row[])[0];
+const itemOfFile = (tx: ProjTx, fileId: string): Row | undefined =>
+  (tx.all("SELECT * FROM mounts_item WHERE file_id = ?", fileId) as Row[])[0];
+const folderItem = (tx: ProjTx, folderId: string): Row | undefined =>
+  (tx.all("SELECT * FROM mounts_item WHERE folder_id = ? AND is_folder = ?", folderId, 1) as Row[])[0];
 
 function liveMount(tx: ProjTx, id: string): Row | undefined {
   const m = (tx.all("SELECT * FROM mounts_mount WHERE id = ?", id) as Row[])[0];
@@ -60,7 +62,11 @@ function liveMount(tx: ProjTx, id: string): Row | undefined {
 }
 
 /** Only a provider Vyre writes to takes moves from here (Drive, SharePoint, OneDrive, Dropbox); a local folder and a GitHub mount do their own. */
-const goesOut = (mount: Row): boolean => mount["kind"] === "google_drive" || mount["kind"] === "sharepoint" || mount["kind"] === "onedrive" || mount["kind"] === "dropbox";
+const goesOut = (mount: Row): boolean =>
+  mount["kind"] === "google_drive" ||
+  mount["kind"] === "sharepoint" ||
+  mount["kind"] === "onedrive" ||
+  mount["kind"] === "dropbox";
 
 /** The folder item a moved thing landed in, when that folder is in a live mount that takes moves. */
 function destination(tx: ProjTx, folderId: string): { parent: Row; mount: Row } | undefined {
@@ -91,15 +97,38 @@ function queueDelete(tx: ProjTx, row: Row, at: number): void {
     tx.run("DELETE FROM mounts_item WHERE mount_id = ? AND item_key = ?", row["mount_id"], row["item_key"]);
     return;
   }
-  tx.run("UPDATE mounts_item SET deleted = ?, dirty = ? WHERE mount_id = ? AND item_key = ?", 1, 1, row["mount_id"], row["item_key"]);
+  tx.run(
+    "UPDATE mounts_item SET deleted = ?, dirty = ? WHERE mount_id = ? AND item_key = ?",
+    1,
+    1,
+    row["mount_id"],
+    row["item_key"],
+  );
   if (mount) startClock(tx, mount, at);
 }
 
-function adopt(tx: ProjTx, into: { parent: Row; mount: Row }, a: { fileId?: string; folderId?: string; name: string; at: number }): void {
+function adopt(
+  tx: ProjTx,
+  into: { parent: Row; mount: Row },
+  a: { fileId?: string; folderId?: string; name: string; at: number },
+): void {
   tx.run(
     "INSERT INTO mounts_item (mount_id, item_key, remote_id, parent_key, file_id, folder_id, name, is_folder, native, remote_version, synced_version, local_version, dirty, deleted, conflict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    into.mount["id"], `itm_${mintUuid(a.at).replaceAll("-", "")}`, null, into.parent["item_key"], a.fileId ?? null, a.folderId ?? null, a.name,
-    a.folderId !== undefined ? 1 : 0, 0, null, a.fileId !== undefined ? 0 : null, a.fileId !== undefined ? 1 : null, 1, 0, 0,
+    into.mount["id"],
+    `itm_${mintUuid(a.at).replaceAll("-", "")}`,
+    null,
+    into.parent["item_key"],
+    a.fileId ?? null,
+    a.folderId ?? null,
+    a.name,
+    a.folderId !== undefined ? 1 : 0,
+    0,
+    null,
+    a.fileId !== undefined ? 0 : null,
+    a.fileId !== undefined ? 1 : null,
+    1,
+    0,
+    0,
   );
   startClock(tx, into.mount, a.at);
 }
@@ -108,8 +137,20 @@ function adopt(tx: ProjTx, into: { parent: Row; mount: Row }, a: { fileId?: stri
 function follow(tx: ProjTx, row: Row, at: number, change: { name?: string; parentKey?: unknown }): void {
   if (flag(row["deleted"])) return;
   if (isNull(row["remote_id"])) {
-    if (change.name !== undefined) tx.run("UPDATE mounts_item SET name = ? WHERE mount_id = ? AND item_key = ?", change.name, row["mount_id"], row["item_key"]);
-    if (change.parentKey !== undefined) tx.run("UPDATE mounts_item SET parent_key = ? WHERE mount_id = ? AND item_key = ?", change.parentKey, row["mount_id"], row["item_key"]);
+    if (change.name !== undefined)
+      tx.run(
+        "UPDATE mounts_item SET name = ? WHERE mount_id = ? AND item_key = ?",
+        change.name,
+        row["mount_id"],
+        row["item_key"],
+      );
+    if (change.parentKey !== undefined)
+      tx.run(
+        "UPDATE mounts_item SET parent_key = ? WHERE mount_id = ? AND item_key = ?",
+        change.parentKey,
+        row["mount_id"],
+        row["item_key"],
+      );
     return;
   }
   markDirty(tx, row, at);
@@ -178,21 +219,33 @@ export interface MovesPushed {
 
 type Patch = (row: Row, fields: Row) => void;
 
-interface Here { name: string; folderId: string }
+interface Here {
+  name: string;
+  folderId: string;
+}
 
 /** What Vyre calls the item now and the folder it sits in; undefined when the files module no longer has it. */
 async function lookHere(ctx: Ctx, row: Row): Promise<Here | undefined> {
   try {
     if (flag(row["is_folder"])) {
-      const got = (await ctx.call("files.folder.get", { folderId: str(row["folder_id"]) })) as { folder?: { name?: unknown; parentId?: unknown } };
+      const got = (await ctx.call("files.folder.get", { folderId: str(row["folder_id"]) })) as {
+        folder?: { name?: unknown; parentId?: unknown };
+      };
       const f = got.folder;
-      return typeof f?.name === "string" && typeof f.parentId === "string" ? { name: f.name, folderId: f.parentId } : undefined;
+      return typeof f?.name === "string" && typeof f.parentId === "string"
+        ? { name: f.name, folderId: f.parentId }
+        : undefined;
     }
-    const got = (await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file?: { name?: unknown; folderId?: unknown; deletedAt?: unknown } };
+    const got = (await ctx.call("files.get", { fileId: str(row["file_id"]) })) as {
+      file?: { name?: unknown; folderId?: unknown; deletedAt?: unknown };
+    };
     const f = got.file;
-    return typeof f?.name === "string" && typeof f.folderId === "string" && isNull(f.deletedAt) ? { name: f.name, folderId: f.folderId } : undefined;
+    return typeof f?.name === "string" && typeof f.folderId === "string" && isNull(f.deletedAt)
+      ? { name: f.name, folderId: f.folderId }
+      : undefined;
   } catch (e) {
-    if (e instanceof VyreErr && (e.error.code === "validation.not_found" || e.error.code === "permission.not_found")) return undefined;
+    if (e instanceof VyreErr && (e.error.code === "validation.not_found" || e.error.code === "permission.not_found"))
+      return undefined;
     throw e;
   }
 }
@@ -209,17 +262,25 @@ function subtreeOf(rows: readonly Row[], top: Row): Row[] {
 
 function depthOf(rows: readonly Row[], row: Row): number {
   let d = 0;
-  for (let at: Row | undefined = row; at && !isNull(at["parent_key"]) && d < 64; d++) at = rows.find((r) => r["item_key"] === at?.["parent_key"]);
+  for (let at: Row | undefined = row; at && !isNull(at["parent_key"]) && d < 64; d++)
+    at = rows.find((r) => r["item_key"] === at?.["parent_key"]);
   return d;
 }
 
-const messageOf = (e: unknown): string => (e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The move failed.");
+const messageOf = (e: unknown): string =>
+  e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The move failed.";
 
 /**
  * Send the renames and moves that wait. `rows` are the mount's items (the engine's list, patched in place by `patch`).
  * Folders go first, parents before children, then files, each group in the order of the rows, so a folder is where it should be before what moved into it is sent.
  */
-export async function pushMoves(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], patch: Patch): Promise<MovesPushed> {
+export async function pushMoves(
+  ctx: Ctx,
+  m: MountRec,
+  provider: Provider,
+  rows: Row[],
+  patch: Patch,
+): Promise<MovesPushed> {
   const res: MovesPushed = { moved: 0, held: 0, errors: [] };
   if (!provider.pushes || m.pullOnly) return res;
   const settle = (e: unknown): void => {
@@ -227,15 +288,31 @@ export async function pushMoves(ctx: Ctx, m: MountRec, provider: Provider, rows:
     else res.errors.push(messageOf(e));
   };
   const candidates = rows
-    .filter((r) => flag(r["dirty"]) && !flag(r["deleted"]) && !flag(r["conflict"]) && !flag(r["native"]) && !isNull(r["parent_key"]) && (!isNull(r["file_id"]) || !isNull(r["folder_id"])))
+    .filter(
+      (r) =>
+        flag(r["dirty"]) &&
+        !flag(r["deleted"]) &&
+        !flag(r["conflict"]) &&
+        !flag(r["native"]) &&
+        !isNull(r["parent_key"]) &&
+        (!isNull(r["file_id"]) || !isNull(r["folder_id"])),
+    )
     .filter((r) => !isNull(r["remote_id"]) || str(r["name"]) === "")
-    .sort((a, b) => (flag(b["is_folder"]) ? 1 : 0) - (flag(a["is_folder"]) ? 1 : 0) || depthOf(rows, a) - depthOf(rows, b));
+    .sort(
+      (a, b) => (flag(b["is_folder"]) ? 1 : 0) - (flag(a["is_folder"]) ? 1 : 0) || depthOf(rows, a) - depthOf(rows, b),
+    );
 
   for (const row of candidates) {
     try {
       const here = await lookHere(ctx, row);
       if (!here) continue;
-      const target = rows.find((r) => flag(r["is_folder"]) && r["folder_id"] === here.folderId && r["mount_id"] === row["mount_id"] && !flag(r["deleted"]));
+      const target = rows.find(
+        (r) =>
+          flag(r["is_folder"]) &&
+          r["folder_id"] === here.folderId &&
+          r["mount_id"] === row["mount_id"] &&
+          !flag(r["deleted"]),
+      );
       if (!target) {
         // it is not in this mounted folder any more: the delete step removes it at the provider
         patch(row, { deleted: 1 });
@@ -262,7 +339,14 @@ export async function pushMoves(ctx: Ctx, m: MountRec, provider: Provider, rows:
       } else {
         if (!provider.upload || !provider.remove) continue;
         const up = await provider.upload(ctx, m, { fileId: str(row["file_id"]), name: here.name, parentRemote });
-        patch(row, { name: here.name, parent_key: target["item_key"], remote_id: up.remoteId, remote_version: up.version ?? null, synced_version: row["local_version"] ?? null, dirty: 0 });
+        patch(row, {
+          name: here.name,
+          parent_key: target["item_key"],
+          remote_id: up.remoteId,
+          remote_version: up.version ?? null,
+          synced_version: row["local_version"] ?? null,
+          dirty: 0,
+        });
         res.moved += 1;
         await provider.remove(ctx, m, oldRemote, false);
       }

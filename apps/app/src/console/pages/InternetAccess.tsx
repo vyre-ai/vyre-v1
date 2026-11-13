@@ -28,24 +28,84 @@ function InternetEditor({ saved, refresh }: { saved: InternetPolicy; refresh(): 
   const draft = (): InternetPolicy | null => {
     if (mode !== "list") return { mode, hosts: saved.hosts };
     const parsed = parseHosts(text);
-    if (parsed.bad.length > 0) { setError(`Not a host name: ${parsed.bad.slice(0, 3).join(", ")}`); return null; }
+    if (parsed.bad.length > 0) {
+      setError(`Not a host name: ${parsed.bad.slice(0, 3).join(", ")}`);
+      return null;
+    }
     return { mode, hosts: parsed.hosts };
   };
-  return <>
-    <Section title="What AI tools can reach on the internet"><Group>
-      <Help>Applies to Claude Code, Codex and Grok when they start, on this Space's servers and on members' computers working for this Space. Files stay confined either way.</Help>
-      <Help>{WINDOWS_NOTE}</Help>
-      <Choice label="Internet access" value={mode} options={INTERNET_CHOICES} onChange={(value) => { setMode(value as InternetMode); setReview(null); setError(""); }} />
-      {mode === "list" ? <Field label="Hosts AI tools may reach (one per line, *.example.com for every name under it)" value={text} multiline testID="internet-hosts" onChange={(value) => { setText(value); setReview(null); setError(""); }} /> : null}
-    </Group></Section>
-    {error ? <Note>{error}</Note> : null}
-    {review ? <Section title="Review change"><Group>
-      <Row title={INTERNET_CHOICES.find((c) => c.key === review.mode)?.title ?? review.mode} note={internetSummary(review)} />
-      <Actions>
-        <Button label="Back to editing" onPress={() => setReview(null)} />
-        <Button label="Apply" testID="internet-apply" disabled={action.busy} onPress={() => void action.run("settings.set_space", { key: KEY, value: review }, "Internet access saved").then((out) => { if (out) setReview(null); })} />
-      </Actions>
-    </Group></Section> : <Actions><Button label="Review change" testID="internet-review" onPress={() => { const d = draft(); if (d) setReview(d); }} /></Actions>}
-    {action.note ? <Note>{action.note}</Note> : null}
-  </>;
+  return (
+    <>
+      <Section title="What AI tools can reach on the internet">
+        <Group>
+          <Help>
+            Applies to Claude Code, Codex and Grok when they start, on this Space's servers and on members' computers
+            working for this Space. Files stay confined either way.
+          </Help>
+          <Help>{WINDOWS_NOTE}</Help>
+          <Choice
+            label="Internet access"
+            value={mode}
+            options={INTERNET_CHOICES}
+            onChange={(value) => {
+              setMode(value as InternetMode);
+              setReview(null);
+              setError("");
+            }}
+          />
+          {mode === "list" ? (
+            <Field
+              label="Hosts AI tools may reach (one per line, *.example.com for every name under it)"
+              value={text}
+              multiline
+              testID="internet-hosts"
+              onChange={(value) => {
+                setText(value);
+                setReview(null);
+                setError("");
+              }}
+            />
+          ) : null}
+        </Group>
+      </Section>
+      {error ? <Note>{error}</Note> : null}
+      {review ? (
+        <Section title="Review change">
+          <Group>
+            <Row
+              title={INTERNET_CHOICES.find((c) => c.key === review.mode)?.title ?? review.mode}
+              note={internetSummary(review)}
+            />
+            <Actions>
+              <Button label="Back to editing" onPress={() => setReview(null)} />
+              <Button
+                label="Apply"
+                testID="internet-apply"
+                disabled={action.busy}
+                onPress={() =>
+                  void action
+                    .run("settings.set_space", { key: KEY, value: review }, "Internet access saved")
+                    .then((out) => {
+                      if (out) setReview(null);
+                    })
+                }
+              />
+            </Actions>
+          </Group>
+        </Section>
+      ) : (
+        <Actions>
+          <Button
+            label="Review change"
+            testID="internet-review"
+            onPress={() => {
+              const d = draft();
+              if (d) setReview(d);
+            }}
+          />
+        </Actions>
+      )}
+      {action.note ? <Note>{action.note}</Note> : null}
+    </>
+  );
 }

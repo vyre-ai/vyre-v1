@@ -1,4 +1,66 @@
-import test from 'node:test';import assert from 'node:assert/strict';import{renderToStaticMarkup}from'react-dom/server';import{ApiKeysPage}from'../pages/ApiKeys.tsx';import{ConsoleDataProvider}from'../shell/data.tsx';import{createSampleConsole}from'../shell/sample.ts';
-const now=1800000000000;function draw(initialSessionId?:string){const base=createSampleConsole().data;const rows:Record<string,unknown>={'mcp.sessions.list':{sessions:[{sessionId:'ses_example',kind:'outside',principal:'usr_irfad',name:'Release review tool',startedAt:now-5000,closedAt:now-1000,calls:3}]}};return renderToStaticMarkup(<ConsoleDataProvider value={{...base,clock:()=>({now}),screens:{...base.screens,capQuery:(cap:string)=>{const state={status:'ready',data:rows[cap]};return{subscribe:()=>()=>undefined,getSnapshot:()=>state};}}as never}}><ApiKeysPage {...(initialSessionId?{initialSessionId}:{})}/></ConsoleDataProvider>);}
-test('connecting a tool shows the link and the Claude Code line, with no key, no scope list and nothing to type',async()=>{const{openSheet}=await import('./sheet-helper.tsx');const{createRoot}=await import('test-renderer');const link={url:'https://northwind.vyre.run/mcp',claudeCode:'claude mcp add --transport http vyre https://northwind.vyre.run/mcp'};const out=await openSheet(createRoot,<ApiKeysPage/>,{'mcp.sessions.list':{sessions:[]}},'key-new',{clock:()=>({now}),call:async(cap:string)=>{assert.equal(cap,'mcp.connected.link');return link;}});assert.ok(!out.before.includes(link.url),'the sheet is not open on the page');for(const label of [link.url,link.claudeCode,'Copy the link'])assert.ok(out.text.includes(label),label);assert.doesNotMatch(out.text,/one-time|scope/i);});
-test('a closed recent session stays inspectable but never offers a misleading close action or open status',()=>{const html=draw('ses_example');assert.ok(html.includes('Closed'));assert.ok(html.includes('Release review tool'));assert.doesNotMatch(html,/Close session|>Open</);});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ApiKeysPage } from "../pages/ApiKeys.tsx";
+import { ConsoleDataProvider } from "../shell/data.tsx";
+import { createSampleConsole } from "../shell/sample.ts";
+const now = 1800000000000;
+function draw(initialSessionId?: string) {
+  const base = createSampleConsole().data;
+  const rows: Record<string, unknown> = {
+    "mcp.sessions.list": {
+      sessions: [
+        {
+          sessionId: "ses_example",
+          kind: "outside",
+          principal: "usr_irfad",
+          name: "Release review tool",
+          startedAt: now - 5000,
+          closedAt: now - 1000,
+          calls: 3,
+        },
+      ],
+    },
+  };
+  return renderToStaticMarkup(
+    <ConsoleDataProvider
+      value={{
+        ...base,
+        clock: () => ({ now }),
+        screens: {
+          ...base.screens,
+          capQuery: (cap: string) => {
+            const state = { status: "ready", data: rows[cap] };
+            return { subscribe: () => () => undefined, getSnapshot: () => state };
+          },
+        } as never,
+      }}
+    >
+      <ApiKeysPage {...(initialSessionId ? { initialSessionId } : {})} />
+    </ConsoleDataProvider>,
+  );
+}
+test("connecting a tool shows the link and the Claude Code line, with no key, no scope list and nothing to type", async () => {
+  const { openSheet } = await import("./sheet-helper.tsx");
+  const { createRoot } = await import("test-renderer");
+  const link = {
+    url: "https://northwind.vyre.run/mcp",
+    claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp",
+  };
+  const out = await openSheet(createRoot, <ApiKeysPage />, { "mcp.sessions.list": { sessions: [] } }, "key-new", {
+    clock: () => ({ now }),
+    call: async (cap: string) => {
+      assert.equal(cap, "mcp.connected.link");
+      return link;
+    },
+  });
+  assert.ok(!out.before.includes(link.url), "the sheet is not open on the page");
+  for (const label of [link.url, link.claudeCode, "Copy the link"]) assert.ok(out.text.includes(label), label);
+  assert.doesNotMatch(out.text, /one-time|scope/i);
+});
+test("a closed recent session stays inspectable but never offers a misleading close action or open status", () => {
+  const html = draw("ses_example");
+  assert.ok(html.includes("Closed"));
+  assert.ok(html.includes("Release review tool"));
+  assert.doesNotMatch(html, /Close session|>Open</);
+});

@@ -10,7 +10,13 @@ export interface PageDeps {
 }
 
 async function attempt(d: PageDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch { d.note(`Could not ${what}. Try again.`); return false; }
+  try {
+    await fn();
+    return true;
+  } catch {
+    d.note(`Could not ${what}. Try again.`);
+    return false;
+  }
 }
 
 let seq = 0;
@@ -19,12 +25,21 @@ const key = (what: string, id: string): string => `ap-${what}-${id}-${++seq}`;
 /** Enter on the role line: saves to `description` in agent.toml (agents.role_line.set), and the line below offers Undo, which restores the version the save returned. */
 export function saveRoleLine(d: PageDeps, agentId: string, description: string, previous: string): Promise<boolean> {
   return attempt(d, "save the role line", async () => {
-    const out = (await d.call("agents.role_line.set", { agentId, description } satisfies CapMap["agents.role_line.set"]["in"])) as CapMap["agents.role_line.set"]["out"];
+    const out = (await d.call("agents.role_line.set", {
+      agentId,
+      description,
+    } satisfies CapMap["agents.role_line.set"]["in"])) as CapMap["agents.role_line.set"]["out"];
     d.note("Role line saved.", async () => {
       try {
-        await d.call("agents.restore_version", { agentId, file: "agent.toml", versionId: out.undoVersionId } satisfies CapMap["agents.restore_version"]["in"]);
+        await d.call("agents.restore_version", {
+          agentId,
+          file: "agent.toml",
+          versionId: out.undoVersionId,
+        } satisfies CapMap["agents.restore_version"]["in"]);
         d.note(previous === "" ? "Role line removed." : `Role line is back to "${previous}".`);
-      } catch { d.note("Could not undo the role line. Try again."); }
+      } catch {
+        d.note("Could not undo the role line. Try again.");
+      }
     });
   });
 }
@@ -34,7 +49,12 @@ export function saveFace(d: PageDeps, agentId: string, face: string, previous: s
   return attempt(d, "save the face", async () => {
     await d.call("agents.update", { agentId, patch: { face } } satisfies CapMap["agents.update"]["in"]);
     d.note("Face changed.", async () => {
-      try { await d.call("agents.update", { agentId, patch: { face: previous } } satisfies CapMap["agents.update"]["in"]); d.note("Face is back."); } catch { d.note("Could not undo the face. Try again."); }
+      try {
+        await d.call("agents.update", { agentId, patch: { face: previous } } satisfies CapMap["agents.update"]["in"]);
+        d.note("Face is back.");
+      } catch {
+        d.note("Could not undo the face. Try again.");
+      }
     });
   });
 }
@@ -42,9 +62,16 @@ export function saveFace(d: PageDeps, agentId: string, face: string, previous: s
 /** The Chat button: a new chat with this agent, opened in place. */
 export async function startChat(d: PageDeps, agentId: string, name: string): Promise<string | null> {
   try {
-    const out = (await d.call("chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: key("chat", agentId) } satisfies CapMap["chat.start"]["in"])) as CapMap["chat.start"]["out"];
+    const out = (await d.call("chat.start", {
+      kind: "chat",
+      agentIds: [agentId],
+      idempotencyKey: key("chat", agentId),
+    } satisfies CapMap["chat.start"]["in"])) as CapMap["chat.start"]["out"];
     return out.thread.threadId;
-  } catch { d.note(`Could not start a chat with ${name}. Try again.`); return null; }
+  } catch {
+    d.note(`Could not start a chat with ${name}. Try again.`);
+    return null;
+  }
 }
 
 /** Remove an outside agent: its sign-in ends at once, a call in flight fails, and it goes to Trash. Nothing to undo: connecting again is one press. */
@@ -59,7 +86,10 @@ export function removeOutside(d: PageDeps, agentId: string, name: string, done: 
 export function pause(d: PageDeps, agentId: string, name: string, reason: string): Promise<boolean> {
   return attempt(d, `pause ${name}`, async () => {
     await d.call("agents.pause", { agentId, reason } satisfies CapMap["agents.pause"]["in"]);
-    d.note(`${name} is paused. Its routines wait until you resume it.`, async () => { await d.call("agents.resume", { agentId } satisfies CapMap["agents.resume"]["in"]); d.note(`${name} is running again.`); });
+    d.note(`${name} is paused. Its routines wait until you resume it.`, async () => {
+      await d.call("agents.resume", { agentId } satisfies CapMap["agents.resume"]["in"]);
+      d.note(`${name} is running again.`);
+    });
   });
 }
 
@@ -70,25 +100,64 @@ export function resume(d: PageDeps, agentId: string, name: string): Promise<bool
   });
 }
 
-export function setRoutine(d: PageDeps, agentId: string, r: { routineId: string; title: string; cron?: string; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string }; prompt: string; channelId?: string }, enabled: boolean): Promise<boolean> {
+export function setRoutine(
+  d: PageDeps,
+  agentId: string,
+  r: {
+    routineId: string;
+    title: string;
+    cron?: string;
+    kind?: "schedule" | "watch";
+    watch?: { on: "message"; channelId: string };
+    prompt: string;
+    channelId?: string;
+  },
+  enabled: boolean,
+): Promise<boolean> {
   return attempt(d, `${enabled ? "turn on" : "pause"} the routine`, async () => {
-    await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}), prompt: r.prompt, enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
+    await d.call("agents.routine.save", {
+      agentId,
+      routineId: r.routineId,
+      idempotencyKey: key("routine", r.routineId),
+      title: r.title,
+      ...(r.cron !== undefined ? { cron: r.cron } : {}),
+      ...(r.kind !== undefined ? { kind: r.kind } : {}),
+      ...(r.watch !== undefined ? { watch: r.watch } : {}),
+      prompt: r.prompt,
+      enabled,
+      ...(r.channelId ? { channelId: r.channelId } : {}),
+    } satisfies CapMap["agents.routine.save"]["in"]);
     d.note(enabled ? `${r.title} is on.` : `${r.title} is paused.`, async () => {
-      await d.call("agents.routine.save", { agentId, routineId: r.routineId, idempotencyKey: key("routine", r.routineId), title: r.title, ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}), prompt: r.prompt, enabled: !enabled, ...(r.channelId ? { channelId: r.channelId } : {}) } satisfies CapMap["agents.routine.save"]["in"]);
+      await d.call("agents.routine.save", {
+        agentId,
+        routineId: r.routineId,
+        idempotencyKey: key("routine", r.routineId),
+        title: r.title,
+        ...(r.cron !== undefined ? { cron: r.cron } : {}),
+        ...(r.kind !== undefined ? { kind: r.kind } : {}),
+        ...(r.watch !== undefined ? { watch: r.watch } : {}),
+        prompt: r.prompt,
+        enabled: !enabled,
+        ...(r.channelId ? { channelId: r.channelId } : {}),
+      } satisfies CapMap["agents.routine.save"]["in"]);
     });
   });
 }
 
 export function acceptSuggestion(d: PageDeps, s: Suggestion): Promise<boolean> {
   return attempt(d, "accept the change", async () => {
-    await d.call("agents.suggestion.accept", { suggestionId: s.suggestionId } satisfies CapMap["agents.suggestion.accept"]["in"]);
+    await d.call("agents.suggestion.accept", {
+      suggestionId: s.suggestionId,
+    } satisfies CapMap["agents.suggestion.accept"]["in"]);
     d.note(`Accepted. ${s.file} has the change.`);
   });
 }
 
 export function dismissSuggestion(d: PageDeps, s: Suggestion): Promise<boolean> {
   return attempt(d, "dismiss the change", async () => {
-    await d.call("agents.suggestion.dismiss", { suggestionId: s.suggestionId } satisfies CapMap["agents.suggestion.dismiss"]["in"]);
+    await d.call("agents.suggestion.dismiss", {
+      suggestionId: s.suggestionId,
+    } satisfies CapMap["agents.suggestion.dismiss"]["in"]);
     d.note("Dismissed.");
   });
 }
@@ -102,38 +171,83 @@ export function moveToTrash(d: PageDeps, agentId: string, name: string): Promise
 
 export async function copyText(d: PageDeps, text: string): Promise<boolean> {
   const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator;
-  try { await nav?.clipboard?.writeText?.(text); d.note("Copied."); return true; } catch { d.note("Could not copy. Try again."); return false; }
+  try {
+    await nav?.clipboard?.writeText?.(text);
+    d.note("Copied.");
+    return true;
+  } catch {
+    d.note("Could not copy. Try again.");
+    return false;
+  }
 }
 
 /** The accounts of an agent as agents.update takes them. */
-export interface AccountPatch { accountPolicy?: "asker" | "key"; accountKey?: string | null; accountFallback?: string[]; memoryKey?: string | null; workKey?: string | null }
+export interface AccountPatch {
+  accountPolicy?: "asker" | "key";
+  accountKey?: string | null;
+  accountFallback?: string[];
+  memoryKey?: string | null;
+  workKey?: string | null;
+}
 
 /**
  * Save the chat key, the ordered fallback list or the memory key. The line below says what changed and offers Undo, which writes the values from before. A refusal (an account that
  * is not a Vault name, a key policy without a key) is one quiet line and the page keeps what it showed.
  */
-export function setAccounts(d: PageDeps, agentId: string, patch: AccountPatch, before: AccountPatch, said: string): Promise<boolean> {
+export function setAccounts(
+  d: PageDeps,
+  agentId: string,
+  patch: AccountPatch,
+  before: AccountPatch,
+  said: string,
+): Promise<boolean> {
   return attempt(d, "save the accounts", async () => {
     await d.call("agents.update", { agentId, patch, idempotencyKey: key("accounts", agentId) });
     d.note(said, async () => {
-      try { await d.call("agents.update", { agentId, patch: before, idempotencyKey: key("accounts-undo", agentId) }); d.note("Back to what it was."); } catch { d.note("Could not undo that. Try again."); }
+      try {
+        await d.call("agents.update", { agentId, patch: before, idempotencyKey: key("accounts-undo", agentId) });
+        d.note("Back to what it was.");
+      } catch {
+        d.note("Could not undo that. Try again.");
+      }
     });
   });
 }
 
 export type HelperModels = "same_provider" | "any" | "ask";
 export const HELPER_MODEL_WORDS: Record<HelperModels, { title: string; note: string }> = {
-  same_provider: { title: "Pick for me (same provider)", note: "Helpers use a cheap or a strong model from the same provider, whichever the job needs." },
+  same_provider: {
+    title: "Pick for me (same provider)",
+    note: "Helpers use a cheap or a strong model from the same provider, whichever the job needs.",
+  },
   any: { title: "Any provider when I ask", note: "Helpers stay in this provider unless you ask for another." },
   ask: { title: "Always ask me first", note: "Before a helper starts, the agent asks which model to use." },
 };
 
 /** Where helpers get their models: the one setting on the agent, with Undo. */
-export function setHelperModels(d: PageDeps, agentId: string, value: HelperModels, before: HelperModels): Promise<boolean> {
+export function setHelperModels(
+  d: PageDeps,
+  agentId: string,
+  value: HelperModels,
+  before: HelperModels,
+): Promise<boolean> {
   return attempt(d, "save the helper models", async () => {
-    await d.call("agents.update", { agentId, patch: { helperModels: value }, idempotencyKey: key("helper-models", agentId) });
+    await d.call("agents.update", {
+      agentId,
+      patch: { helperModels: value },
+      idempotencyKey: key("helper-models", agentId),
+    });
     d.note(`Helper models: ${HELPER_MODEL_WORDS[value].title}.`, async () => {
-      try { await d.call("agents.update", { agentId, patch: { helperModels: before }, idempotencyKey: key("helper-models-undo", agentId) }); d.note("Back to what it was."); } catch { d.note("Could not undo that. Try again."); }
+      try {
+        await d.call("agents.update", {
+          agentId,
+          patch: { helperModels: before },
+          idempotencyKey: key("helper-models-undo", agentId),
+        });
+        d.note("Back to what it was.");
+      } catch {
+        d.note("Could not undo that. Try again.");
+      }
     });
   });
 }

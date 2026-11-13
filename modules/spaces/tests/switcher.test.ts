@@ -11,7 +11,8 @@ import { MAYA, OMAR } from "../fixtures/seed.ts";
 test("every spaces capability has a handler and the migration tables exist", () => {
   assert.equal(Object.keys(handlers).length, 24);
   const sql = readFileSync(new URL("../migrations/0001_spaces.sql", import.meta.url), "utf8");
-  for (const t of ["spaces_profile", "spaces_star", "spaces_follow", "spaces_onboarding", "spaces_onboarding_state"]) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
+  for (const t of ["spaces_profile", "spaces_star", "spaces_follow", "spaces_onboarding", "spaces_onboarding_state"])
+    assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
 });
 
 test("the tile shows name, kind, role, and the counts that drive the red dot", async () => {
@@ -19,7 +20,11 @@ test("the tile shows name, kind, role, and the counts that drive the red dot", a
   const quiet = await handlers["spaces.switcher"](h.as(MAYA), {});
   assert.deepEqual(quiet, { name: "Northwind", kind: "team", role: "member", needsYou: 0, unread: 0 });
 
-  const waiting = { ...h.as(MAYA), attention: { of: () => ({ needsYou: 2, unread: 5 }) }, directory: { roleName: () => "Admin" } };
+  const waiting = {
+    ...h.as(MAYA),
+    attention: { of: () => ({ needsYou: 2, unread: 5 }) },
+    directory: { roleName: () => "Admin" },
+  };
   const tile = await handlers["spaces.switcher"](waiting, {});
   assert.equal(tile.needsYou, 2);
   assert.equal(tile.unread, 5);
@@ -41,7 +46,10 @@ test("a dot shows for the other Space that needs you, while you work in this one
   ]);
   const dots = tiles.map((t) => t.needsYou > 0);
   assert.deepEqual(dots, [false, true, false]);
-  assert.deepEqual(tiles.map((t) => t.kind), ["team", "team", "personal"]);
+  assert.deepEqual(
+    tiles.map((t) => t.kind),
+    ["team", "team", "personal"],
+  );
   // unread alone never makes a dot: only waiting-on-you does, and a Space answers only for itself
   assert.equal(tiles[0]!.unread, 3);
   assert.equal(tiles[0]!.needsYou, 0);
@@ -58,15 +66,24 @@ test("the checklist lists five steps, completes them once, and dismisses per per
   const h = harness();
   const fresh = await handlers["spaces.onboarding.get"](h.as(MAYA), {});
   assert.equal(fresh.dismissed, false);
-  assert.deepEqual(fresh.steps.map((s) => s.key), ["photo_title", "connect_mailbox", "meet_assistant", "first_project", "import"]);
+  assert.deepEqual(
+    fresh.steps.map((s) => s.key),
+    ["photo_title", "connect_mailbox", "meet_assistant", "first_project", "import"],
+  );
   assert.ok(fresh.steps.every((s) => !s.done && s.title.length > 0));
 
   await handlers["spaces.onboarding.complete"](h.as(MAYA), { step: "meet_assistant" });
   await handlers["spaces.onboarding.complete"](h.as(MAYA), { step: "meet_assistant" });
   assert.equal(h.events.filter((e) => e.name === "onboarding.step_completed").length, 1);
   const after = await handlers["spaces.onboarding.get"](h.as(MAYA), {});
-  assert.deepEqual(after.steps.filter((s) => s.done).map((s) => s.key), ["meet_assistant"]);
-  await assert.rejects(handlers["spaces.onboarding.complete"](h.as(MAYA), { step: "nonsense" as never }), (e) => codeOf(e) === "validation.bad_input");
+  assert.deepEqual(
+    after.steps.filter((s) => s.done).map((s) => s.key),
+    ["meet_assistant"],
+  );
+  await assert.rejects(
+    handlers["spaces.onboarding.complete"](h.as(MAYA), { step: "nonsense" as never }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 
   await handlers["spaces.onboarding.dismiss"](h.as(MAYA), {});
   await handlers["spaces.onboarding.dismiss"](h.as(MAYA), {});
@@ -79,7 +96,11 @@ test("the checklist lists five steps, completes them once, and dismisses per per
 
 test("steps finish by themselves when their event happens", async () => {
   const h = harness();
-  assert.deepEqual(STEP_EVENTS, { "mailbox.connected": "connect_mailbox", "project.created": "first_project", "import.completed": "import" });
+  assert.deepEqual(STEP_EVENTS, {
+    "mailbox.connected": "connect_mailbox",
+    "project.created": "first_project",
+    "import.completed": "import",
+  });
   assert.equal(autoComplete(h.as(MAYA), MAYA, STEP_EVENTS["mailbox.connected"]!), true);
   assert.equal(autoComplete(h.as(MAYA), MAYA, "connect_mailbox"), false);
   const steps = (await handlers["spaces.onboarding.get"](h.as(MAYA), {})).steps;
@@ -88,7 +109,16 @@ test("steps finish by themselves when their event happens", async () => {
 
 test("the eight administration capabilities are real in the module's handler map: none answers not implemented any more", async () => {
   const h = harness();
-  for (const cap of ["spaces.get", "spaces.update", "spaces.matrix", "spaces.export", "spaces.leave", "spaces.delete", "spaces.transfer_ownership", "spaces.switch_address"] as const) {
+  for (const cap of [
+    "spaces.get",
+    "spaces.update",
+    "spaces.matrix",
+    "spaces.export",
+    "spaces.leave",
+    "spaces.delete",
+    "spaces.transfer_ownership",
+    "spaces.switch_address",
+  ] as const) {
     // without the host's drivers they refuse as unavailable (a server that has not given them), never as a later packet
     await assert.rejects(handlers[cap](h.as(MAYA), {} as never), (e) => codeOf(e) !== "internal.not_implemented", cap);
   }
@@ -96,7 +126,10 @@ test("the eight administration capabilities are real in the module's handler map
 
 test("the tile takes its counts from an attention source that answers later", async () => {
   const h = harness();
-  const tile = await handlers["spaces.switcher"]({ ...h.as(MAYA), attention: { of: async () => ({ needsYou: 2, unread: 5 }) } }, {});
+  const tile = await handlers["spaces.switcher"](
+    { ...h.as(MAYA), attention: { of: async () => ({ needsYou: 2, unread: 5 }) } },
+    {},
+  );
   assert.deepEqual([tile.needsYou, tile.unread], [2, 5]);
 });
 
@@ -109,10 +142,30 @@ test("the onboarding screen keeps each flow's steps per person: done, put off, o
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "done" });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "ai", state: "open" });
   await handlers["spaces.onboarding.seen"](h.as(MAYA), { flow: "personal" });
-  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" }), { seen: true, steps: [{ key: "interview", state: "done" }] });
-  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "member" }), { seen: false, steps: [] }, "flows are separate");
-  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(OMAR), { flow: "personal" }), { seen: false, steps: [] }, "people are separate");
-  await assert.rejects(handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "nope" as never, step: "ai", state: "done" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "team", step: "Bad Step!", state: "done" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["spaces.onboarding.flow"](h.anon, { flow: "team" }), (e) => codeOf(e) === "auth.unauthenticated");
+  assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" }), {
+    seen: true,
+    steps: [{ key: "interview", state: "done" }],
+  });
+  assert.deepEqual(
+    await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "member" }),
+    { seen: false, steps: [] },
+    "flows are separate",
+  );
+  assert.deepEqual(
+    await handlers["spaces.onboarding.flow"](h.as(OMAR), { flow: "personal" }),
+    { seen: false, steps: [] },
+    "people are separate",
+  );
+  await assert.rejects(
+    handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "nope" as never, step: "ai", state: "done" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "team", step: "Bad Step!", state: "done" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["spaces.onboarding.flow"](h.anon, { flow: "team" }),
+    (e) => codeOf(e) === "auth.unauthenticated",
+  );
 });

@@ -15,7 +15,22 @@ import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from ".
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
 import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
-import { versionRows, boxesOf, nodeFor, docCommentsOf, docsMarkdown, isEditable, isOffice, kindLabel, officeBlocks, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
+import {
+  versionRows,
+  boxesOf,
+  nodeFor,
+  docCommentsOf,
+  docsMarkdown,
+  isEditable,
+  isOffice,
+  kindLabel,
+  officeBlocks,
+  parseCsv,
+  strokesOf,
+  subtitleOf,
+  textToBlocks,
+  viewerKindOf,
+} from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
 import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
@@ -36,7 +51,10 @@ export interface FileViewerProps {
 }
 
 type Graph = CapMap["memory.graph"]["out"];
-type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
+type Load =
+  | { status: "loading" }
+  | { status: "gone" }
+  | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
   const d = useFilesViewerData();
@@ -52,7 +70,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const layer = useLayer(d, fileId, load.status === "ready" ? load.data.file.name : undefined);
   const [panel, setPanel] = useState<"redact" | "activity" | null>(null);
   const accessMenu = useMenu();
-  useEffect(() => { if (layer.said) { setNote(layer.said); layer.setSaid(null); } }, [layer]);
+  useEffect(() => {
+    if (layer.said) {
+      setNote(layer.said);
+      layer.setSaid(null);
+    }
+  }, [layer]);
 
   useEffect(() => {
     let live = true;
@@ -61,14 +84,23 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       try {
         const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
         const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
-        const markup = data.file.kind === "image" ? ((await d.call("files.markup.get", { fileId })) as Markup) : { strokes: [] };
+        const markup =
+          data.file.kind === "image" ? ((await d.call("files.markup.get", { fileId })) as Markup) : { strokes: [] };
         // the note's place in the memory graph gives its Links to and Linked from; a file with no node has none, and a failed read draws none
-        const graph = data.file.kind === "markdown" || data.file.kind === "text" ? ((await d.call("memory.graph", { scope: "space" }).catch(() => null)) as Graph | null) : null;
+        const graph =
+          data.file.kind === "markdown" || data.file.kind === "text"
+            ? ((await d.call("memory.graph", { scope: "space" }).catch(() => null)) as Graph | null)
+            : null;
         version.current = data.file.version;
         if (live) setLoad({ status: "ready", data, comments, markup, graph });
-      } catch { if (live) setLoad({ status: "gone" }); }
+      } catch {
+        if (live) setLoad({ status: "gone" });
+      }
     })();
-    return () => { live = false; if (timer.current) clearTimeout(timer.current); };
+    return () => {
+      live = false;
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, [d, fileId]);
 
   const mounted = load.status === "ready" && load.data.file.source !== undefined;
@@ -76,8 +108,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     setLink(null);
     if (!mounted || !d.openUrl) return undefined;
     let live = true;
-    void fileLink(d.call, fileId).then((l) => { if (live) setLink(l); });
-    return () => { live = false; };
+    void fileLink(d.call, fileId).then((l) => {
+      if (live) setLink(l);
+    });
+    return () => {
+      live = false;
+    };
   }, [d, fileId, mounted, rev]);
 
   useEffect(() => {
@@ -90,7 +126,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     try {
       const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
       setLoad((cur) => (cur.status === "ready" ? { ...cur, comments } : cur));
-    } catch (e) { say(e); }
+    } catch (e) {
+      say(e);
+    }
   }, [d, fileId, say]);
 
   const ready = load.status === "ready" ? load : null;
@@ -99,32 +137,72 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const app = ready ? googleAppOf(ready.data.file) : null;
   // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
   const [liveText, setLiveText] = useState<string | null>(null);
-  useEffect(() => { setLiveText(null); }, [fileId]);
+  useEffect(() => {
+    setLiveText(null);
+  }, [fileId]);
   const rawText = liveText ?? ready?.data.text ?? "";
   const text = app === "gdocs" ? docsMarkdown(rawText) : rawText;
-  const fileLinks = useFileLinks(d, ready && app === null ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
+  const fileLinks = useFileLinks(
+    d,
+    ready && app === null ? { folderId: ready.data.file.folderId } : null,
+    kind === "document" ? text : "",
+  );
   // a Word file or a deck is read from its Markdown: headings, lists, tables, pictures, and a deck's slides with their notes
   const office = ready !== null && isOffice(ready.data.file.kind);
-  const blocks = useMemo(() => (ready && kind === "document" ? (office ? officeBlocks(text) : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)) : []), [ready, kind, text, app, office]);
+  const blocks = useMemo(
+    () =>
+      ready && kind === "document"
+        ? office
+          ? officeBlocks(text)
+          : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
+        : [],
+    [ready, kind, text, app, office],
+  );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
 
-  if (load.status === "loading") return <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file"><View style={s.skHead} /><View style={s.skBody} /></View>;
-  if (load.status === "gone" || !ready) return <View testID="file-viewer-gone" style={s.frame} accessibilityLabel="That file is not here, or you may not open it."><States kind="empty" title="File not available" icon="doc" /></View>;
+  if (load.status === "loading")
+    return (
+      <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file">
+        <View style={s.skHead} />
+        <View style={s.skBody} />
+      </View>
+    );
+  if (load.status === "gone" || !ready)
+    return (
+      <View
+        testID="file-viewer-gone"
+        style={s.frame}
+        accessibilityLabel="That file is not here, or you may not open it."
+      >
+        <States kind="empty" title="File not available" icon="doc" />
+      </View>
+    );
 
   const file = ready.data.file;
   const now = d.clock().now;
   const addBox = (next: readonly MarkupBox[]): void => {
     const known = new Set(boxes.map((b) => b.id));
     const fresh = next.find((b) => !known.has(b.id));
-    if (!fresh) { void reload(); return; }
+    if (!fresh) {
+      void reload();
+      return;
+    }
     void pinArea(d, fileId, fresh, fresh.text).then(reload).catch(say);
   };
-  const saveStrokes = (next: readonly Stroke[]): void => { void saveMarkup(d, fileId, next).catch(say); };
+  const saveStrokes = (next: readonly Stroke[]): void => {
+    void saveMarkup(d, fileId, next).catch(say);
+  };
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => { void saveText(d, fileId, next, file.kind, version.current).then((v) => { version.current = v; }).catch(say); }, SAVE_DELAY_MS);
+    timer.current = setTimeout(() => {
+      void saveText(d, fileId, next, file.kind, version.current)
+        .then((v) => {
+          version.current = v;
+        })
+        .catch(say);
+    }, SAVE_DELAY_MS);
   };
 
   // a Markdown file is edited in the one Markdown editor, which saves it as new versions by itself
@@ -132,81 +210,240 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
   // Preview as agent: the words an agent reads, as blocks of the same kind
   const shownBlocks = layer.preview && layer.view?.text ? textToBlocks(layer.view.text, file.kind) : blocks;
-  const done = (): void => { void layer.run("files.review", { fileId }, "Reviewed. Agents can read the redacted version"); };
-  const setAccess = (value: Access | null): void => { void layer.run("files.agent_access.set", { target: { type: "file", id: fileId }, value }, value === null ? "Follows the folder again" : "Agent access changed"); };
+  const done = (): void => {
+    void layer.run("files.review", { fileId }, "Reviewed. Agents can read the redacted version");
+  };
+  const setAccess = (value: Access | null): void => {
+    void layer.run(
+      "files.agent_access.set",
+      { target: { type: "file", id: fileId }, value },
+      value === null ? "Follows the folder again" : "Agent access changed",
+    );
+  };
   const openAccess = (x: number, y: number): void => {
     const cur = layer.list?.access;
-    accessMenu.show([
-      { label: "Available", checked: cur?.value === "on" && cur.own, onSelect: () => setAccess("on") },
-      { label: "Redacted", checked: cur?.value === "redact" && cur.own, onSelect: () => setAccess("redact") },
-      { label: "Not available", checked: cur?.value === "off" && cur.own, onSelect: () => setAccess("off") },
-      { separator: true },
-      { label: `Same as the folder (${cur?.inherited === "redact" ? "Redacted" : cur?.inherited === "off" ? "Not available" : "Available"})`, checked: cur?.own === false, onSelect: () => setAccess(null) },
-    ], x, y, "other");
+    accessMenu.show(
+      [
+        { label: "Available", checked: cur?.value === "on" && cur.own, onSelect: () => setAccess("on") },
+        { label: "Redacted", checked: cur?.value === "redact" && cur.own, onSelect: () => setAccess("redact") },
+        { label: "Not available", checked: cur?.value === "off" && cur.own, onSelect: () => setAccess("off") },
+        { separator: true },
+        {
+          label: `Same as the folder (${cur?.inherited === "redact" ? "Redacted" : cur?.inherited === "off" ? "Not available" : "Available"})`,
+          checked: cur?.own === false,
+          onSelect: () => setAccess(null),
+        },
+      ],
+      x,
+      y,
+      "other",
+    );
   };
   // History: the versions of the file, each one restorable (files.versions, files.restore_version); More: the file's link and name
   const openHistory = (x: number, y: number): void => {
     void d.call("files.versions", { fileId }).then((out) => {
-      const rows = versionRows((out as { versions: { versionId: string; n: number; by: string; at: number; reason?: string }[] }).versions, d.name);
+      const rows = versionRows(
+        (out as { versions: { versionId: string; n: number; by: string; at: number; reason?: string }[] }).versions,
+        d.name,
+      );
       accessMenu.show(
-        rows.length === 0 ? [{ head: "No earlier versions yet." }]
-          : [{ head: "Versions. Pick one to restore it." }, ...rows.map((r): MenuEntry => ({ label: r.label, ...(r.versionId === null ? {} : { onSelect: () => void d.call("files.restore_version", { fileId, versionId: r.versionId }).then(() => { setNote(`Restored v${r.n}.`); setRev((x) => x + 1); }, say) }) }))],
-        x, y, "other", { label: "History" },
+        rows.length === 0
+          ? [{ head: "No earlier versions yet." }]
+          : [
+              { head: "Versions. Pick one to restore it." },
+              ...rows.map(
+                (r): MenuEntry => ({
+                  label: r.label,
+                  ...(r.versionId === null
+                    ? {}
+                    : {
+                        onSelect: () =>
+                          void d.call("files.restore_version", { fileId, versionId: r.versionId }).then(() => {
+                            setNote(`Restored v${r.n}.`);
+                            setRev((x) => x + 1);
+                          }, say),
+                      }),
+                }),
+              ),
+            ],
+        x,
+        y,
+        "other",
+        { label: "History" },
       );
     }, say);
   };
-  const copyText = (text: string, done: string): void => { void Promise.resolve((globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard?.writeText(text)).then(() => setNote(done), () => setNote("Could not copy here.")); };
+  const copyText = (text: string, done: string): void => {
+    void Promise.resolve(
+      (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard?.writeText(
+        text,
+      ),
+    ).then(
+      () => setNote(done),
+      () => setNote("Could not copy here."),
+    );
+  };
   const openMore = (x: number, y: number): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
-    accessMenu.show([
-      ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
-      { label: "Copy Link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
-      { label: "Copy name", onSelect: () => copyText(name, "Name copied.") },
-    ], x, y, "other", { label: "More" });
+    accessMenu.show(
+      [
+        ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
+        { label: "Copy Link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
+        { label: "Copy name", onSelect: () => copyText(name, "Name copied.") },
+      ],
+      x,
+      y,
+      "other",
+      { label: "More" },
+    );
   };
   const toggle = (k: "redact" | "activity"): void => setPanel((p) => (p === k ? null : k));
-  const side = panel === "redact"
-    ? <RedactPanel layer={layer} name={d.name} now={now} fileName={file.name} path={(d.pathOf?.(file.folderId) ?? "").replace(/ \/ /g, " / ")} onDone={done} onAccess={openAccess} onJump={jumpToMark} />
-    : panel === "activity" ? <ActivityPanel rows={layer.activity} now={now} onOpen={(r) => { if (r.markId) jumpToMark(r.markId); }} /> : undefined;
+  const side =
+    panel === "redact" ? (
+      <RedactPanel
+        layer={layer}
+        name={d.name}
+        now={now}
+        fileName={file.name}
+        path={(d.pathOf?.(file.folderId) ?? "").replace(/ \/ /g, " / ")}
+        onDone={done}
+        onAccess={openAccess}
+        onJump={jumpToMark}
+      />
+    ) : panel === "activity" ? (
+      <ActivityPanel
+        rows={layer.activity}
+        now={now}
+        onOpen={(r) => {
+          if (r.markId) jumpToMark(r.markId);
+        }}
+      />
+    ) : undefined;
   const siblings = file.kind === "image" ? d.siblings?.(file.folderId) : undefined;
   // Word, Excel and PowerPoint files wear the list's own type tile (DOCX, XLSX, PPTX), with the provider's mark when they come from SharePoint or OneDrive
   const label = office ? tileLabel(file.name, file.kind) : null;
   // the list's tile keeps a 10 px gap after itself; here the header spaces it, so the provider's mark sits on the tile's corner
-  const tile = label !== null ? <View style={s.typeTile}><TypeTile label={label} icon="doc" folder={false} /></View> : <View style={s.tile}><Text style={s.tileText}>{kindLabel(file.name)}</Text></View>;
-  const mark = app !== null ? <GoogleTile app={app} size={28} /> : file.source ? <WithProviderMark provider={file.source.provider} size={12}>{tile}</WithProviderMark> : label !== null ? tile : undefined;
+  const tile =
+    label !== null ? (
+      <View style={s.typeTile}>
+        <TypeTile label={label} icon="doc" folder={false} />
+      </View>
+    ) : (
+      <View style={s.tile}>
+        <Text style={s.tileText}>{kindLabel(file.name)}</Text>
+      </View>
+    );
+  const mark =
+    app !== null ? (
+      <GoogleTile app={app} size={28} />
+    ) : file.source ? (
+      <WithProviderMark provider={file.source.provider} size={12}>
+        {tile}
+      </WithProviderMark>
+    ) : label !== null ? (
+      tile
+    ) : undefined;
   const path = d.pathOf?.(file.folderId);
   return (
     <View testID="file-viewer" accessibilityLabel={`Viewer, ${file.name}`} style={s.frame}>
       <Viewer
         key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
-        fileId={fileId} title={file.name} kind={kind} pane={pane}
-        kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
-        {...(mark !== undefined ? { kindMark: mark } : {})} {...(app !== null || office || file.kind === "pdf" ? { readOnly: true } : {})}
-        {...(office ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." } : {})}
+        fileId={fileId}
+        title={file.name}
+        kind={kind}
+        pane={pane}
+        kindLabel={kindLabel(file.name)}
+        subtitle={subtitleOf(ready.data, now, path)}
+        {...(mark !== undefined ? { kindMark: mark } : {})}
+        {...(app !== null || office || file.kind === "pdf" ? { readOnly: true } : {})}
+        {...(office
+          ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." }
+          : {})}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
-        boxes={boxes} strokes={strokes} blocks={shownBlocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
+        boxes={boxes}
+        strokes={strokes}
+        blocks={shownBlocks}
+        {...(fileLinks ? { fileLinks } : {})}
+        {...(sheet ? { sheet } : {})}
         comments={layer.preview ? [] : docCommentsOf(ready.comments, d.name, now)}
-        ask={{ place: "files", context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" }, agents: d.agents, testID: "file-ask", onAsk: (agent, mode, about) => d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }) }}
+        ask={{
+          place: "files",
+          context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" },
+          agents: d.agents,
+          testID: "file-ask",
+          onAsk: (agent, mode, about) =>
+            d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }),
+        }}
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
-        {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
+        {...(ready.graph && node
+          ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) }
+          : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
-        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})} {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text) ? { markdown: rawText } : {})} {...(mdEditor ? { docEditor: <FileMarkdownEditor call={d.call} fileId={fileId} name={file.name} text={rawText} version={version.current} onText={setLiveText} /> } : {})}
-        {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
+        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})}
+        {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})}
+        {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text)
+          ? { markdown: rawText }
+          : {})}
+        {...(mdEditor
+          ? {
+              docEditor: (
+                <FileMarkdownEditor
+                  call={d.call}
+                  fileId={fileId}
+                  name={file.name}
+                  text={rawText}
+                  version={version.current}
+                  onText={setLiveText}
+                />
+              ),
+            }
+          : {})}
+        {...(link && d.openUrl
+          ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } }
+          : {})}
         layer={{ marks: viewerMarks(layer.list, d.name, now), preview: layer.preview }}
         onLayer={layer.mark}
         onUnmark={(markId) => void layer.run("files.marks.remove", { markId }, "Agents can read it again")}
         onMarkActivity={() => setPanel("activity")}
-        onHistory={openHistory} onMore={openMore}
+        onHistory={openHistory}
+        onMore={openMore}
         tools={<LayerTools open={panel} onToggle={toggle} />}
-        banner={<LayerBanner layer={layer} name={d.name} onOpen={() => setPanel("redact")} onDone={done} panelOpen={panel === "redact"} />}
+        banner={
+          <LayerBanner
+            layer={layer}
+            name={d.name}
+            onOpen={() => setPanel("redact")}
+            onDone={done}
+            panelOpen={panel === "redact"}
+          />
+        }
         {...(side !== undefined ? { side } : {})}
-        {...(d.ask ? { onAskQuote: (quote: string) => d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "chat", { kind: "file", id: fileId, title: `“${quote.slice(0, 60)}” in ${file.name}` }) } : {})}
+        {...(d.ask
+          ? {
+              onAskQuote: (quote: string) =>
+                d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "chat", {
+                  kind: "file",
+                  id: fileId,
+                  title: `“${quote.slice(0, 60)}” in ${file.name}`,
+                }),
+            }
+          : {})}
         onComment={(quote, textIn) => void commentOnQuote(d, fileId, quote, textIn).then(reload).catch(say)}
         onResolve={(id) => void resolveComment(d, id).then(reload).catch(say)}
-        onAskMarkup={(marked) => d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "do", { kind: "file_markup", id: fileId, title: `${marked.length} marks on ${file.name}` })}
+        onAskMarkup={(marked) =>
+          d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "do", {
+            kind: "file_markup",
+            id: fileId,
+            title: `${marked.length} marks on ${file.name}`,
+          })
+        }
       />
       {accessMenu.element}
-      {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">{note}</Text> : null}
+      {note ? (
+        <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">
+          {note}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -215,8 +452,25 @@ const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   skHead: { height: 48, margin: 14, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   skBody: { flex: 1, margin: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  tile: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "var(--sunk)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   typeTile: { marginRight: -10 },
-  note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  note: {
+    position: "absolute",
+    left: 16,
+    bottom: 14,
+    fontSize: 12.5,
+    color: "var(--ink-2)" as string,
+    backgroundColor: "var(--raised)" as string,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
 });

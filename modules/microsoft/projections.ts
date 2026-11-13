@@ -27,14 +27,25 @@ export interface MsCtx {
   run?: string;
   now(): number;
   db: MsDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
   schedule(at: number | string, cap: string, input: unknown): Promise<string>;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
 }
@@ -51,20 +62,42 @@ export interface MsHost {
   /** The non-secret identity of the app registration stored under a Vault handle. */
   appRegistration(ctx: MsCtx, handle: string): Promise<{ clientId: string; tenantId: string }>;
   /** Proves the app under a handle signs in to its tenant, with no person involved. Answers what is wrong in words an admin can act on. */
-  checkApp(ctx: MsCtx, handle: string): Promise<{ ok: boolean; clientId?: string; tenantId?: string; credential?: "certificate" | "secret"; problem?: string }>;
+  checkApp(
+    ctx: MsCtx,
+    handle: string,
+  ): Promise<{
+    ok: boolean;
+    clientId?: string;
+    tenantId?: string;
+    credential?: "certificate" | "secret";
+    problem?: string;
+  }>;
   /** A Space file's name, type and bytes (for mail attachments). */
   fileBytes(ctx: MsCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   /** Store bytes as a blob and return its id. */
   putBlob(ctx: MsCtx, bytes: Uint8Array, mime: string): Promise<string>;
   /** GET a Graph content address with the token (following Graph's redirect) and store the bytes as a blob. */
-  download(ctx: MsCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
+  download(
+    ctx: MsCtx,
+    a: { url: string; token: string; mime?: string },
+  ): Promise<{ blobId: string; size: number; mime: string }>;
   /** PUT a Space file to a Graph content address and return Graph's JSON answer. */
   upload(ctx: MsCtx, a: { url: string; token: string; fileId: string; ifMatch?: string }): Promise<unknown>;
   /** A person's own sign-in (handlers/personal.ts): the OAuth client of a Vault item, the address people come back to, the code traded for tokens, an access token from a refresh token. */
   userApp(ctx: MsCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean; tenant?: string }>;
   userPublicUrl(ctx: MsCtx): Promise<string>;
-  userExchange(ctx: MsCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
-  userRefresh(ctx: MsCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number; /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string }>;
+  userExchange(
+    ctx: MsCtx,
+    a: { appHandle: string; code: string; verifier: string; redirectUri: string },
+  ): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
+  userRefresh(
+    ctx: MsCtx,
+    a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean },
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string;
+  }>;
 }
 
 let host: MsHost | null = null;
@@ -73,7 +106,8 @@ export function setMsHost(h: MsHost | null): void {
   tokens.clear();
 }
 export function needHost(ctx: Pick<MsCtx, "trace">): MsHost {
-  if (!host) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Microsoft 365 is not set up on this server." });
+  if (!host)
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: "Microsoft 365 is not set up on this server." });
   return host;
 }
 
@@ -82,16 +116,41 @@ export function needHost(ctx: Pick<MsCtx, "trace">): MsHost {
 export const GRAPH = "https://graph.microsoft.com/v1.0";
 export const CONFIG_ID = "microsoft";
 /** What the app is consented for in Entra. Mail and Calendars are deliberately not here: consent there reaches every mailbox, and Exchange's scope cannot narrow it. They are the Exchange roles below. */
-export const PERMISSIONS = ["Files.ReadWrite.All", "User.Read.All", "OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"];
-export const DATA_PERMISSIONS = { calendar: ["OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"], files: ["Files.ReadWrite.All"] } as const;
+export const PERMISSIONS = [
+  "Files.ReadWrite.All",
+  "User.Read.All",
+  "OnlineMeetingRecording.Read.All",
+  "OnlineMeetingTranscript.Read.All",
+];
+export const DATA_PERMISSIONS = {
+  calendar: ["OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"],
+  files: ["Files.ReadWrite.All"],
+} as const;
 /** RBAC for Applications in Exchange: these are assigned against a management scope, so the mailboxes outside it stay out of reach at Microsoft. */
-export const EXCHANGE_ROLES = { mail: ["Application Mail.ReadWrite", "Application Mail.Send"], calendar: ["Application Calendars.ReadWrite"] } as const;
+export const EXCHANGE_ROLES = {
+  mail: ["Application Mail.ReadWrite", "Application Mail.Send"],
+  calendar: ["Application Calendars.ReadWrite"],
+} as const;
 /** Consented in Entra, one of these makes the Exchange scope mean nothing, because the two grants add up. */
 export const UNSCOPED = ["Mail.Read", "Mail.ReadWrite", "Mail.Send", "Calendars.Read", "Calendars.ReadWrite"];
 export type DataChoice = { mail: boolean; calendar: boolean; files: boolean };
-export const dataOf = (cfg: Row | null): DataChoice => ({ mail: !cfg || num(cfg, "dataMail") === 1, calendar: !cfg || num(cfg, "dataCalendar") === 1, files: !cfg || num(cfg, "dataFiles") === 1 });
-export const permissionsFor = (d: DataChoice): string[] => { const want = new Set<string>(["User.Read.All", ...(d.calendar ? DATA_PERMISSIONS.calendar : []), ...(d.files ? DATA_PERMISSIONS.files : [])]); return PERMISSIONS.filter((p) => want.has(p)); };
-export const rolesFor = (d: DataChoice): string[] => [...(d.mail ? EXCHANGE_ROLES.mail : []), ...(d.calendar ? EXCHANGE_ROLES.calendar : [])];
+export const dataOf = (cfg: Row | null): DataChoice => ({
+  mail: !cfg || num(cfg, "dataMail") === 1,
+  calendar: !cfg || num(cfg, "dataCalendar") === 1,
+  files: !cfg || num(cfg, "dataFiles") === 1,
+});
+export const permissionsFor = (d: DataChoice): string[] => {
+  const want = new Set<string>([
+    "User.Read.All",
+    ...(d.calendar ? DATA_PERMISSIONS.calendar : []),
+    ...(d.files ? DATA_PERMISSIONS.files : []),
+  ]);
+  return PERMISSIONS.filter((p) => want.has(p));
+};
+export const rolesFor = (d: DataChoice): string[] => [
+  ...(d.mail ? EXCHANGE_ROLES.mail : []),
+  ...(d.calendar ? EXCHANGE_ROLES.calendar : []),
+];
 
 // ---- ids and rows
 
@@ -124,7 +183,15 @@ export function bad(ctx: Pick<MsCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_microsoft_core.sql", "0002_microsoft_teams.sql", "0003_microsoft_calendar.sql", "0004_microsoft_user.sql", "0005_microsoft_company.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = [
+  "0001_microsoft_core.sql",
+  "0002_microsoft_teams.sql",
+  "0003_microsoft_calendar.sql",
+  "0004_microsoft_user.sql",
+  "0005_microsoft_company.sql",
+]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -186,7 +253,13 @@ export interface Call {
   tenant?: boolean;
 }
 
-export interface Answer { status: number; json: Record<string, unknown>; text: string; sub: string; token: string }
+export interface Answer {
+  status: number;
+  json: Record<string, unknown>;
+  text: string;
+  sub: string;
+  token: string;
+}
 
 const tokens = new Map<string, { token: string; expiresAt: number }>();
 export const forgetTokens = (): void => tokens.clear();
@@ -208,8 +281,22 @@ export const isUserConnection = (connectionId: string): boolean => connectionId.
 /** A person's own token reaches their own mailbox as Graph's /me (a personal Microsoft account has no /users/{id}); the subject names it so. */
 export const ME = "me";
 
-export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string; mailboxId: string | null; fixTaskId: string | null }
-const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
+export interface UserAccount {
+  accountId: string;
+  ownerId: string;
+  email: string;
+  refreshSealed: string;
+  mailboxId: string | null;
+  fixTaskId: string | null;
+}
+const accountOfRow = (r: Row): UserAccount => ({
+  accountId: str(r, "accountId"),
+  ownerId: str(r, "ownerId"),
+  email: str(r, "email"),
+  refreshSealed: str(r, "refreshSealed"),
+  mailboxId: strOrNull(r, "mailboxId"),
+  fixTaskId: strOrNull(r, "fixTaskId"),
+});
 
 /** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
 function userUsable(ctx: MsCtx, a: UserAccount): boolean {
@@ -220,20 +307,31 @@ export function userAccount(ctx: MsCtx, accountId: string): UserAccount {
   ensure(ctx);
   const r = first(ctx.db.all(`SELECT * FROM microsoft_user_account WHERE "accountId" = ?`, accountId));
   const a = r ? accountOfRow(r) : null;
-  if (!a || !userUsable(ctx, a)) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Microsoft sign-in." });
+  if (!a || !userUsable(ctx, a))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Microsoft sign-in." });
   return a;
 }
 
 /** The signed-in account behind a mailbox address, for the pull. */
 export function userAccountByEmail(ctx: MsCtx, email: string): UserAccount | null {
   ensure(ctx);
-  return rowsOf(ctx.db.all(`SELECT * FROM microsoft_user_account WHERE email = ?`, email)).map(accountOfRow).sort((a, b) => a.accountId.localeCompare(b.accountId))[0] ?? null;
+  return (
+    rowsOf(ctx.db.all(`SELECT * FROM microsoft_user_account WHERE email = ?`, email))
+      .map(accountOfRow)
+      .sort((a, b) => a.accountId.localeCompare(b.accountId))[0] ?? null
+  );
 }
 
 export function userAppHandle(ctx: MsCtx): string {
   ensure(ctx);
-  const handle = strOrNull(first(ctx.db.all(`SELECT "vaultItem" FROM microsoft_user_app WHERE id = ?`, CONFIG_ID)), "vaultItem");
-  if (!handle) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft sign-in is not set up. Add a Microsoft OAuth app first." });
+  const handle = strOrNull(
+    first(ctx.db.all(`SELECT "vaultItem" FROM microsoft_user_app WHERE id = ?`, CONFIG_ID)),
+    "vaultItem",
+  );
+  if (!handle)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "Microsoft sign-in is not set up. Add a Microsoft OAuth app first.",
+    });
   return handle;
 }
 
@@ -241,9 +339,19 @@ export function userAppHandle(ctx: MsCtx): string {
 async function userToken(ctx: MsCtx, accountId: string, fresh: boolean): Promise<string> {
   const a = userAccount(ctx, accountId);
   const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
-  const got = await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) });
+  const got = await needHost(ctx).userRefresh(ctx, {
+    appHandle: userAppHandle(ctx),
+    refreshToken,
+    cacheKey: accountId,
+    ...(fresh ? { fresh: true } : {}),
+  });
   // a rotated refresh token replaces the old one, sealed as before, so the sign-in does not lapse when the old one expires
-  if (got.refreshToken) ctx.db.run(`UPDATE microsoft_user_account SET "refreshSealed" = ? WHERE "accountId" = ?`, JSON.stringify(ctx.seal.seal(new TextEncoder().encode(got.refreshToken), "microsoft.user.refresh")), accountId);
+  if (got.refreshToken)
+    ctx.db.run(
+      `UPDATE microsoft_user_account SET "refreshSealed" = ? WHERE "accountId" = ?`,
+      JSON.stringify(ctx.seal.seal(new TextEncoder().encode(got.refreshToken), "microsoft.user.refresh")),
+      accountId,
+    );
   return got.token;
 }
 
@@ -252,21 +360,39 @@ export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "op
   if (isUserConnection(c.connectionId)) {
     // a person's own sign-in is one mailbox: theirs, and nobody else's
     const a = userAccount(ctx, c.connectionId);
-    if (c.as && normalizeEmail(c.as) !== a.email) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
+    if (c.as && normalizeEmail(c.as) !== a.email)
+      throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
     return ME;
   }
   const cfg = config(ctx);
   const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
-  const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
+  const own = person
+    ? strOrNull(
+        first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)),
+        "email",
+      )
+    : null;
   const target = c.as ? normalizeEmail(c.as) : own;
-  if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Microsoft 365 user." });
+  if (!target)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "You are not mapped to a Microsoft 365 user.",
+    });
   if (c.as && target !== own && !isTrustedService(ctx.principal) && !c.open) {
-    throw fail("permission.no_grant", ctx.trace.traceId, { message: "Vyre reaches a person's mail, calendar and files only for that person." });
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "Vyre reaches a person's mail, calendar and files only for that person.",
+    });
   }
-  if (!cfg || num(cfg, "configured") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
+  if (!cfg || num(cfg, "configured") !== 1)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
   const member = first(ctx.db.all(`SELECT excluded, mapped FROM microsoft_member WHERE email = ?`, target));
-  if (!member || num(member, "mapped") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is not a mapped Microsoft 365 user." });
-  if (num(member, "excluded") === 1) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That member is excluded from the Microsoft connection." });
+  if (!member || num(member, "mapped") !== 1)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "That address is not a mapped Microsoft 365 user.",
+    });
+  if (num(member, "excluded") === 1)
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "That member is excluded from the Microsoft connection.",
+    });
   return target;
 }
 
@@ -287,12 +413,19 @@ async function tokenFor(ctx: MsCtx, connectionId: string, fresh: boolean): Promi
 function logCall(ctx: MsCtx, subject: string, cap: string, bulk: boolean): void {
   ctx.db.run(
     `INSERT INTO microsoft_read_log (id, subject, actor, "onBehalf", cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    newId("mrl", ctx.now()), subject, ctx.principal.id, ctx.actingFor ?? null, cap, bulk ? 1 : 0, ctx.now(),
+    newId("mrl", ctx.now()),
+    subject,
+    ctx.principal.id,
+    ctx.actingFor ?? null,
+    cap,
+    bulk ? 1 : 0,
+    ctx.now(),
   );
 }
 
 /** `/users/{member}` for a path under it. */
-export const userUrl = (sub: string, path = ""): string => (sub === ME ? `${GRAPH}/me${path}` : `${GRAPH}/users/${enc(sub)}${path}`);
+export const userUrl = (sub: string, path = ""): string =>
+  sub === ME ? `${GRAPH}/me${path}` : `${GRAPH}/users/${enc(sub)}${path}`;
 
 const full = (url: string): string => (url.startsWith("https://") ? url : GRAPH + url);
 
@@ -303,7 +436,10 @@ export function resolveSubject(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" |
 }
 
 /** The member a call acts as and an application token, for transfers the host performs itself. Writes the same read log row as a call. */
-export async function bearer(ctx: MsCtx, c: Pick<Call, "cap" | "connectionId" | "as" | "open" | "bulk">): Promise<{ sub: string; token: string }> {
+export async function bearer(
+  ctx: MsCtx,
+  c: Pick<Call, "cap" | "connectionId" | "as" | "open" | "bulk">,
+): Promise<{ sub: string; token: string }> {
   ensure(ctx);
   const sub = subjectFor(ctx, c);
   logCall(ctx, sub, c.cap, c.bulk === true);
@@ -318,13 +454,20 @@ export async function apiRaw(ctx: MsCtx, c: Call): Promise<Answer> {
   const url = full(c.url) + query(c.query);
   for (let attempt = 0; ; attempt++) {
     const token = await tokenFor(ctx, c.connectionId, attempt > 0);
-    const headers: Record<string, string> = { authorization: `Bearer ${token}`, accept: c.text ? "text/plain, text/vtt, */*" : "application/json" };
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${token}`,
+      accept: c.text ? "text/plain, text/vtt, */*" : "application/json",
+    };
     if (c.body !== undefined) headers["content-type"] = "application/json";
     let res: { status: number; text(): Promise<string> };
     try {
-      res = await ctx.http(url, { method: c.method ?? "GET", headers, ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}) });
+      res = await ctx.http(url, {
+        method: c.method ?? "GET",
+        headers,
+        ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}),
+      });
     } catch (e) {
-      if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+      if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
       throw fail("provider.network", ctx.trace.traceId, { message: "Microsoft could not be reached." });
     }
     if (res.status === 401 && attempt === 0) continue;
@@ -335,7 +478,10 @@ export async function apiRaw(ctx: MsCtx, c: Call): Promise<Answer> {
         const parsed = text ? (JSON.parse(text) as unknown) : {};
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Record<string, unknown>;
       } catch {
-        if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Microsoft answered something unreadable." });
+        if (res.status < 300)
+          throw fail("provider.bad_response", ctx.trace.traceId, {
+            message: "Microsoft answered something unreadable.",
+          });
       }
     }
     return { status: res.status, json, text, sub, token };
@@ -349,7 +495,13 @@ export async function api(ctx: MsCtx, c: Call): Promise<Record<string, unknown>>
   throw refusal(ctx, a.status, a.json);
 }
 
-const AUTH = new Set(["Authorization_RequestDenied", "InsufficientPrivileges", "InvalidAuthenticationToken", "Authentication_ExpiredToken", "AuthenticationError"]);
+const AUTH = new Set([
+  "Authorization_RequestDenied",
+  "InsufficientPrivileges",
+  "InvalidAuthenticationToken",
+  "Authentication_ExpiredToken",
+  "AuthenticationError",
+]);
 const GONE = new Set(["syncStateNotFound", "resyncRequired", "SyncStateNotFound"]);
 
 /** Map a Graph error status and code. Graph's own message is not passed on: it can echo what the person typed. */
@@ -358,18 +510,34 @@ export function refusal(ctx: Pick<MsCtx, "trace">, status: number, json: Record<
   const code = String(err.code ?? "");
   const details = { status, ...(code ? { code } : {}) };
   const t = ctx.trace.traceId;
-  if (status === 429 || code === "ApplicationThrottled" || code === "ErrorTooManyRequests") return fail("provider.rate_limited", t, { message: "Microsoft asked us to slow down.", details });
-  if (status === 401 || AUTH.has(code)) return fail("provider.auth_failed", t, { message: "Microsoft did not accept the app sign-in. Check the consent and the app permissions.", details });
-  if (status === 403) return fail("permission.no_grant", t, { message: "Microsoft would not let the app reach that. Check the Exchange application access policy.", details });
+  if (status === 429 || code === "ApplicationThrottled" || code === "ErrorTooManyRequests")
+    return fail("provider.rate_limited", t, { message: "Microsoft asked us to slow down.", details });
+  if (status === 401 || AUTH.has(code))
+    return fail("provider.auth_failed", t, {
+      message: "Microsoft did not accept the app sign-in. Check the consent and the app permissions.",
+      details,
+    });
+  if (status === 403)
+    return fail("permission.no_grant", t, {
+      message: "Microsoft would not let the app reach that. Check the Exchange application access policy.",
+      details,
+    });
   if (status === 404) return fail("validation.not_found", t, { message: "Microsoft has no such item.", details });
-  if (status === 410 || GONE.has(code)) return fail("validation.precondition_failed", t, { message: "That Microsoft sync position has expired.", details });
-  if (status === 400) return fail("validation.bad_input", t, { message: "Microsoft could not use that request.", details });
-  if (status === 409 || status === 412) return fail("validation.precondition_failed", t, { message: "Microsoft refused because the item changed.", details });
-  if (status >= 500) return fail("provider.unavailable", t, { message: "Microsoft is not answering right now.", details });
+  if (status === 410 || GONE.has(code))
+    return fail("validation.precondition_failed", t, { message: "That Microsoft sync position has expired.", details });
+  if (status === 400)
+    return fail("validation.bad_input", t, { message: "Microsoft could not use that request.", details });
+  if (status === 409 || status === 412)
+    return fail("validation.precondition_failed", t, {
+      message: "Microsoft refused because the item changed.",
+      details,
+    });
+  if (status >= 500)
+    return fail("provider.unavailable", t, { message: "Microsoft is not answering right now.", details });
   return fail("provider.bad_response", t, { message: "Microsoft answered something unexpected.", details });
 }
 
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 /** A Graph next link carries its page position as $skiptoken (or $skip); the contract hands the position back as a plain token. */
 export function skipTokenOf(nextLink: unknown): string | undefined {
@@ -384,7 +552,8 @@ export function skipTokenOf(nextLink: unknown): string | undefined {
 
 // ---- small readers shared by the handlers
 
-export const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+export const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 export const int = (v: unknown): number | undefined => {

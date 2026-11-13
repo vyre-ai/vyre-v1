@@ -6,10 +6,19 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../clien
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { AskAbout } from "../askpane/model.ts";
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 /** The capabilities the table reads live. */
-export type LiveCap = "records.query" | "records.counts" | "schema.describe" | "access.record_marks" | "access.shares_of" | "stars.list";
+export type LiveCap =
+  | "records.query"
+  | "records.counts"
+  | "schema.describe"
+  | "access.record_marks"
+  | "access.shares_of"
+  | "stars.list";
 
 /** What the Share sheet opens for: a record type (all its records) or one record. */
 export interface ShareTarget {
@@ -82,10 +91,21 @@ const waitingState: QueryState<never> = { status: "loading" };
 const waitingQuery: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => waitingState };
 
 /** A live screen query. Disabled queries hold a stable loading snapshot without sending an incomplete request. */
-export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}, enabled = true): QueryState<T> {
+export function useScreenQuery<T>(
+  screenId: string,
+  name: string,
+  state: Record<string, unknown> = {},
+  enabled = true,
+): QueryState<T> {
   const { screens } = useRecordsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => enabled ? screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T> : waitingQuery, [screens, screenId, name, key, enabled]);
+  const q = useMemo(
+    () =>
+      enabled
+        ? (screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>)
+        : waitingQuery,
+    [screens, screenId, name, key, enabled],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

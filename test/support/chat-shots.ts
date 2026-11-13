@@ -7,14 +7,24 @@ import { SCHEMES, SIZES, setScheme } from "./mail-browser.ts";
 type Page = import("playwright-core").Page;
 let n = 0;
 
-export async function shoot(p: Page, dir: string, step: string, o: { phone?: boolean; only?: "desktop" | "phone"; restore?: () => Promise<void> } = {}): Promise<string[]> {
+export async function shoot(
+  p: Page,
+  dir: string,
+  step: string,
+  o: { phone?: boolean; only?: "desktop" | "phone"; restore?: () => Promise<void> } = {},
+): Promise<string[]> {
   const out: string[] = [];
   const k = String(++n).padStart(2, "0");
   fs.mkdirSync(dir, { recursive: true });
-  for (const [size, vp] of Object.entries(SIZES).filter(([size]) => (o.only !== undefined ? size === o.only : o.phone !== false || size === "desktop"))) {
+  for (const [size, vp] of Object.entries(SIZES).filter(([size]) =>
+    o.only !== undefined ? size === o.only : o.phone !== false || size === "desktop",
+  )) {
     for (const scheme of SCHEMES) {
       await setScheme(p, scheme);
-      if (p.viewportSize()?.width !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(500); }
+      if (p.viewportSize()?.width !== vp.width) {
+        await p.setViewportSize(vp);
+        await p.waitForTimeout(500);
+      }
       await p.waitForTimeout(250);
       const file = path.join(dir, `${k}-${step}-${scheme}-${size}.png`);
       await p.screenshot({ path: file, animations: "disabled" });

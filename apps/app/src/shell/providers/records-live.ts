@@ -14,7 +14,7 @@ const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot:
 /** A live query of a capability over the Space. Inputs are compared by value inside the hooks, so asking again for the same input gives the same query. */
 export function capLive<T>(rt: ShellRuntime, cap: string, input: Record<string, unknown> = {}): LiveQuery<T> {
   const q = (rt.screens as { capQuery?: CapQuery }).capQuery;
-  return q ? q.call(rt.screens, cap, input) as LiveQuery<T> : NEVER;
+  return q ? (q.call(rt.screens, cap, input) as LiveQuery<T>) : NEVER;
 }
 
 /** The name of a person, agent or group by id; the id itself when nobody is known by it. */

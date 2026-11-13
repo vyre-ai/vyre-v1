@@ -6,7 +6,10 @@
 /** @param {string} s @param {number} seed */
 function fnv(s, seed) {
   let h = seed >>> 0;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(16).padStart(8, "0");
 }
 /** @param {string} s */
@@ -25,7 +28,18 @@ const hash = (s) => fnv(s, 0x811c9dc5) + fnv(s, 0x9747b28c);
 export function signature(snap) {
   const parts = [snap.title || "", snap.url || "", hash(snap.text || "")];
   for (const c of snap.controls || []) {
-    parts.push([c.path, c.role, c.name || "", c.enabled === false ? "0" : "1", c.focused ? "f" : "", c.checked === undefined ? "" : c.checked ? "c" : "u", c.value == null ? "" : String(c.value), c.length == null ? "" : String(c.length)].join("\u0001"));
+    parts.push(
+      [
+        c.path,
+        c.role,
+        c.name || "",
+        c.enabled === false ? "0" : "1",
+        c.focused ? "f" : "",
+        c.checked === undefined ? "" : c.checked ? "c" : "u",
+        c.value == null ? "" : String(c.value),
+        c.length == null ? "" : String(c.length),
+      ].join("\u0001"),
+    );
   }
   return hash(parts.join("\u0002"));
 }
@@ -45,7 +59,14 @@ export function diff(before, after) {
   const was = new Map((before.controls || []).map((c) => [key(c), c]));
   const now = new Map((after.controls || []).map((c) => [key(c), c]));
   /** @type {{ appeared: string[], vanished: string[], altered: string[], title: null | { from: string, to: string }, url: null | { from: string, to: string }, text: boolean }} */
-  const out = { appeared: [], vanished: [], altered: [], title: null, url: null, text: (before.text || "") !== (after.text || "") };
+  const out = {
+    appeared: [],
+    vanished: [],
+    altered: [],
+    title: null,
+    url: null,
+    text: (before.text || "") !== (after.text || ""),
+  };
   if ((before.title || "") !== (after.title || "")) out.title = { from: before.title || "", to: after.title || "" };
   if ((before.url || "") !== (after.url || "")) out.url = { from: before.url || "", to: after.url || "" };
   for (const [k, c] of now) if (!was.has(k)) out.appeared.push(c.name || c.role);
@@ -53,7 +74,14 @@ export function diff(before, after) {
   for (const [k, c] of now) {
     const p = was.get(k);
     if (!p) continue;
-    if (p.enabled !== c.enabled || p.checked !== c.checked || String(p.value ?? "") !== String(c.value ?? "") || p.length !== c.length || p.name !== c.name) out.altered.push(c.name || c.role);
+    if (
+      p.enabled !== c.enabled ||
+      p.checked !== c.checked ||
+      String(p.value ?? "") !== String(c.value ?? "") ||
+      p.length !== c.length ||
+      p.name !== c.name
+    )
+      out.altered.push(c.name || c.role);
   }
   return out;
 }

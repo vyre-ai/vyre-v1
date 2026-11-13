@@ -23,25 +23,65 @@ export function installMotion(doc: Parameters<typeof injectCss>[0]): void {
   injectCss(doc, "vyre-ui-motion", MOTION_CSS);
 }
 
-interface El { cloneNode(deep: boolean): El; querySelectorAll(q: string): ArrayLike<{ scrollTop: number; scrollLeft: number }>; setAttribute(k: string, v: string): void; removeAttribute(k: string): void; remove(): void; style: { opacity: string }; appendChild(n: El): unknown; addEventListener?(t: string, f: () => void, o?: unknown): void; scrollTop: number; scrollLeft: number; offsetParent?: unknown; getBoundingClientRect?(): { width: number } }
+interface El {
+  cloneNode(deep: boolean): El;
+  querySelectorAll(q: string): ArrayLike<{ scrollTop: number; scrollLeft: number }>;
+  setAttribute(k: string, v: string): void;
+  removeAttribute(k: string): void;
+  remove(): void;
+  style: { opacity: string };
+  appendChild(n: El): unknown;
+  addEventListener?(t: string, f: () => void, o?: unknown): void;
+  scrollTop: number;
+  scrollLeft: number;
+  offsetParent?: unknown;
+  getBoundingClientRect?(): { width: number };
+}
 /** What the page keeps while the next view gets ready: a still copy of what was on screen, scroll positions kept, drawn over the live view. */
-export interface Swap { fade(): void; drop(): void }
+export interface Swap {
+  fade(): void;
+  drop(): void;
+}
 
 /** Puts a still copy of `el` over it. The live view changes under it; `fade` lets it go in one 140 ms fade, so there is never a blank frame and never a slide. Null when there is nothing to copy. */
 export function holdView(el: unknown, host: unknown): Swap | null {
-  const from = el as El | null, on = host as El | null;
+  const from = el as El | null,
+    on = host as El | null;
   if (!from || !on || typeof from.cloneNode !== "function") return null;
   const copy = from.cloneNode(true);
-  const a = from.querySelectorAll("*"), b = copy.querySelectorAll("*");
-  for (let i = 0; i < a.length && i < b.length; i++) { const x = a[i]!, y = b[i]!; if (x.scrollTop !== 0 || x.scrollLeft !== 0) { y.scrollTop = x.scrollTop; y.scrollLeft = x.scrollLeft; } }
+  const a = from.querySelectorAll("*"),
+    b = copy.querySelectorAll("*");
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    const x = a[i]!,
+      y = b[i]!;
+    if (x.scrollTop !== 0 || x.scrollLeft !== 0) {
+      y.scrollTop = x.scrollTop;
+      y.scrollLeft = x.scrollLeft;
+    }
+  }
   copy.removeAttribute("data-testid");
-  for (const n of Array.from(copy.querySelectorAll("[data-testid]") as unknown as ArrayLike<{ removeAttribute(k: string): void }>)) n.removeAttribute("data-testid");
+  for (const n of Array.from(
+    copy.querySelectorAll("[data-testid]") as unknown as ArrayLike<{ removeAttribute(k: string): void }>,
+  ))
+    n.removeAttribute("data-testid");
   copy.setAttribute("data-swap", "1");
   copy.setAttribute("aria-hidden", "true");
   on.appendChild(copy);
-  for (let i = 0; i < a.length && i < b.length; i++) { const x = a[i]!, y = b[i]!; if (x.scrollTop !== 0 || x.scrollLeft !== 0) { y.scrollTop = x.scrollTop; y.scrollLeft = x.scrollLeft; } }
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    const x = a[i]!,
+      y = b[i]!;
+    if (x.scrollTop !== 0 || x.scrollLeft !== 0) {
+      y.scrollTop = x.scrollTop;
+      y.scrollLeft = x.scrollLeft;
+    }
+  }
   let gone = false;
-  const drop = (): void => { if (!gone) { gone = true; copy.remove(); } };
+  const drop = (): void => {
+    if (!gone) {
+      gone = true;
+      copy.remove();
+    }
+  };
   return {
     drop,
     fade: () => {

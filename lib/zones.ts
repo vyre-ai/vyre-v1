@@ -2,7 +2,8 @@
 // It uses Intl for the zone rules (daylight saving included) and nothing else, so the same math runs in the app, the server and the tests. A name that Intl does not know is not a zone.
 // DECISION: a time is formatted as "9:00 AM" (12 hour), the way the owner wrote the example, and a day word ("Tomorrow", "Thu") is added only when the day is not today in that zone.
 
-const MIN = 60_000, DAY = 86_400_000;
+const MIN = 60_000,
+  DAY = 86_400_000;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -10,7 +11,16 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 function fmtOf(zone: string): Intl.DateTimeFormat {
   let f = formatters.get(zone);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
     formatters.set(zone, f);
   }
   return f;
@@ -19,15 +29,33 @@ function fmtOf(zone: string): Intl.DateTimeFormat {
 /** Is this an IANA zone the runtime knows? "UTC" counts. */
 export function validZone(zone: unknown): zone is string {
   if (typeof zone !== "string" || zone.trim() === "" || zone.length > 64) return false;
-  try { fmtOf(zone); return true; } catch { return false; }
+  try {
+    fmtOf(zone);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The zone this computer is set to, or UTC where it cannot say. */
 export function deviceZone(): string {
-  try { const z = new Intl.DateTimeFormat().resolvedOptions().timeZone; return validZone(z) ? z : "UTC"; } catch { return "UTC"; }
+  try {
+    const z = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return validZone(z) ? z : "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
-export interface Parts { year: number; month: number; day: number; hour: number; minute: number; second: number; dow: number }
+export interface Parts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  dow: number;
+}
 
 /** The wall clock in a zone at an instant. */
 export function partsIn(at: number, zone: string): Parts {
@@ -35,7 +63,15 @@ export function partsIn(at: number, zone: string): Parts {
   for (const p of fmtOf(zone).formatToParts(new Date(at))) if (p.type !== "literal") out[p.type] = Number(p.value);
   const hour = out["hour"] === 24 ? 0 : out["hour"]!;
   const dow = new Date(Date.UTC(out["year"]!, out["month"]! - 1, out["day"]!)).getUTCDay();
-  return { year: out["year"]!, month: out["month"]!, day: out["day"]!, hour, minute: out["minute"]!, second: out["second"]!, dow };
+  return {
+    year: out["year"]!,
+    month: out["month"]!,
+    day: out["day"]!,
+    hour,
+    minute: out["minute"]!,
+    second: out["second"]!,
+    dow,
+  };
 }
 
 /** Minutes the zone is ahead of UTC at that instant (negative west of it). Daylight saving is in it. */
@@ -76,10 +112,18 @@ export function dayWord(at: number, now: number, zone: string): string {
 /** "Pacific Time", from the zone's long name with Standard and Daylight left out (the clock says which it is). Falls back to the city. */
 export function zoneName(zone: string, at: number = Date.now()): string {
   try {
-    const long = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "long" }).formatToParts(new Date(at)).find((p) => p.type === "timeZoneName")?.value ?? "";
-    const plain = long.replace(/\s+(Standard|Daylight|Summer)\s+/i, " ").replace(/\s+/g, " ").trim();
+    const long =
+      new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "long" })
+        .formatToParts(new Date(at))
+        .find((p) => p.type === "timeZoneName")?.value ?? "";
+    const plain = long
+      .replace(/\s+(Standard|Daylight|Summer)\s+/i, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (plain !== "" && !/^GMT[+-]/.test(plain)) return plain;
-  } catch { /* an unknown zone */ }
+  } catch {
+    /* an unknown zone */
+  }
   return zoneCity(zone);
 }
 
@@ -98,7 +142,10 @@ export function offsetLabel(at: number, zone: string): string {
 }
 
 /** The two zones every shared time is read in. `space` is the Space's; `viewer` is the person looking. */
-export interface Zones { space: string; viewer: string }
+export interface Zones {
+  space: string;
+  viewer: string;
+}
 
 export interface When {
   /** The time in the Space zone: "9:00 AM", "Tomorrow 9:00 AM", "Thu 9:00 AM", "7 Nov". */
@@ -113,7 +160,14 @@ function relativeText(at: number, now: number, zone: string, withTime: boolean):
   const d = dayIn(at, zone) - dayIn(now, zone);
   const time = clockIn(at, zone);
   if (d === 0) return time;
-  const day = d === 1 ? "Tomorrow" : d === -1 ? "Yesterday" : Math.abs(d) < 7 ? DAYS[partsIn(at, zone).dow]! : dateIn(at, zone, now);
+  const day =
+    d === 1
+      ? "Tomorrow"
+      : d === -1
+        ? "Yesterday"
+        : Math.abs(d) < 7
+          ? DAYS[partsIn(at, zone).dow]!
+          : dateIn(at, zone, now);
   return withTime || Math.abs(d) < 7 ? `${day} ${time}` : day;
 }
 
@@ -124,7 +178,9 @@ export function whenIn(at: number, now: number, z: Zones): When {
   let mine: string | undefined;
   if (differs) {
     // the viewer's reading says its day only when it is not the Space's day at that moment
-    const sameDay = dayIn(at, z.viewer) - dayIn(now, z.viewer) === dayIn(at, z.space) - dayIn(now, z.space) && partsIn(at, z.viewer).day === partsIn(at, z.space).day;
+    const sameDay =
+      dayIn(at, z.viewer) - dayIn(now, z.viewer) === dayIn(at, z.space) - dayIn(now, z.space) &&
+      partsIn(at, z.viewer).day === partsIn(at, z.space).day;
     mine = sameDay ? clockIn(at, z.viewer) : relativeText(at, now, z.viewer, false);
   }
   return { text, ...(mine ? { mine } : {}), title: titleOf(at, z) };
@@ -167,21 +223,53 @@ export function localInput(at: number, zone: string): string {
 }
 
 /** The zones a picker offers, with city and the time there now. Intl knows the list where the runtime has supportedValuesOf. */
-export function zoneChoices(now: number = Date.now()): { zone: string; city: string; name: string; offset: string; time: string; label: string }[] {
+export function zoneChoices(
+  now: number = Date.now(),
+): { zone: string; city: string; name: string; offset: string; time: string; label: string }[] {
   let names: string[] = [];
-  try { names = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? []; } catch { names = []; }
+  try {
+    names = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? [];
+  } catch {
+    names = [];
+  }
   if (names.length === 0) names = FALLBACK_ZONES;
   if (!names.includes("UTC")) names = [...names, "UTC"];
-  return names.filter(validZone).map((zone) => {
-    const city = zoneCity(zone), name = zoneName(zone, now), time = clockIn(now, zone);
-    return { zone, city, name, offset: offsetLabel(now, zone), time, label: `${name}, ${city}, ${time}` };
-  }).sort((a, b) => offsetMinAt(now, a.zone) - offsetMinAt(now, b.zone) || a.city.localeCompare(b.city));
+  return names
+    .filter(validZone)
+    .map((zone) => {
+      const city = zoneCity(zone),
+        name = zoneName(zone, now),
+        time = clockIn(now, zone);
+      return { zone, city, name, offset: offsetLabel(now, zone), time, label: `${name}, ${city}, ${time}` };
+    })
+    .sort((a, b) => offsetMinAt(now, a.zone) - offsetMinAt(now, b.zone) || a.city.localeCompare(b.city));
 }
 
 const FALLBACK_ZONES = [
-  "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York", "America/Sao_Paulo", "Atlantic/Reykjavik", "Europe/London",
-  "Europe/Paris", "Europe/Athens", "Africa/Cairo", "Europe/Moscow", "Asia/Dubai", "Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Bangkok", "Asia/Kuala_Lumpur", "Asia/Singapore",
-  "Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney", "Pacific/Auckland",
+  "Pacific/Honolulu",
+  "America/Anchorage",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Chicago",
+  "America/New_York",
+  "America/Sao_Paulo",
+  "Atlantic/Reykjavik",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Athens",
+  "Africa/Cairo",
+  "Europe/Moscow",
+  "Asia/Dubai",
+  "Asia/Karachi",
+  "Asia/Kolkata",
+  "Asia/Dhaka",
+  "Asia/Bangkok",
+  "Asia/Kuala_Lumpur",
+  "Asia/Singapore",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Pacific/Auckland",
 ];
 
 /** The words that find a zone in a picker: its city, its name and its zone id. */
@@ -215,7 +303,10 @@ export function zoneExample(at: number, from: string, to: string): string {
 /** The hover card's three lines: the full date, the time in the Space zone, and yours when it reads differently. Names, not abbreviations. */
 export function titleParts(at: number, z: Zones): { date: string; space: string; mine?: string } {
   const p = partsIn(at, z.space);
-  const out: { date: string; space: string; mine?: string } = { date: `${DAYS[p.dow]} ${p.day} ${MONTHS[p.month - 1]} ${p.year}`, space: `${clockIn(at, z.space)} ${zoneName(z.space, at)}` };
+  const out: { date: string; space: string; mine?: string } = {
+    date: `${DAYS[p.dow]} ${p.day} ${MONTHS[p.month - 1]} ${p.year}`,
+    space: `${clockIn(at, z.space)} ${zoneName(z.space, at)}`,
+  };
   if (offsetMinAt(at, z.space) !== offsetMinAt(at, z.viewer)) {
     const q = partsIn(at, z.viewer);
     out.mine = `${DAYS[q.dow]} ${q.day} ${MONTHS[q.month - 1]}, ${clockIn(at, z.viewer)} ${zoneName(z.viewer, at)}`;
@@ -233,7 +324,9 @@ export function deadlineExample(now: number, from: string, to: string): { before
 
 let current: Zones | null = null;
 /** The zones of the person looking, kept where plain-string formatters (a table cell, a file's modified time) can read them without a component. The shell sets them (ZonesHost); without them it is this computer's zone. */
-export function setCurrentZones(z: Zones | null): void { current = z; }
+export function setCurrentZones(z: Zones | null): void {
+  current = z;
+}
 export function currentZones(): Zones {
   if (current) return current;
   const here = deviceZone();

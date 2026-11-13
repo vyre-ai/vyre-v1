@@ -14,7 +14,13 @@ import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import type { Handler } from "../../../host/src/invoke.ts";
 
 const PEOPLE: Record<string, string> = { "tok-noah": "usr_noah", "tok-adam": "usr_adam", "tok-olivia": "usr_olivia" };
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("sync.epoch.bump guard: a member's direct call is 403 and bumps nothing; an admin and the owner are allowed; no token is 401", async () => {
   const core = bootCore();
@@ -26,7 +32,9 @@ test("sync.epoch.bump guard: a member's direct call is 403 and bumps nothing; an
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "epoch-guard", free: 80e9,
+      os: "linux",
+      hostname: "epoch-guard",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -36,16 +44,27 @@ test("sync.epoch.bump guard: a member's direct call is 403 and bumps nothing; an
     fetch: caddyFetch,
     session: (h) => {
       const who = PEOPLE[/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] ?? ""];
-      return who ? ({ space: "spc_core", principal: { kind: "person", id: who }, device: `dev_${who}` } as never) : null;
+      return who
+        ? ({ space: "spc_core", principal: { kind: "person", id: who }, device: `dev_${who}` } as never)
+        : null;
     },
-    extra: { handlers: { "sync.epoch.bump": ((_c: unknown, input: unknown) => { bumps.push(input); return { epoch: bumps.length }; }) as Handler } },
+    extra: {
+      handlers: {
+        "sync.epoch.bump": ((_c: unknown, input: unknown) => {
+          bumps.push(input);
+          return { epoch: bumps.length };
+        }) as Handler,
+      },
+    },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   try {
-    const bump = (token: string | null) => fetch(`${d.url}/v1/sync/epoch/bump`, {
-      method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ personId: "usr_olivia", reason: "suspended" }),
-    });
+    const bump = (token: string | null) =>
+      fetch(`${d.url}/v1/sync/epoch/bump`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ personId: "usr_olivia", reason: "suspended" }),
+      });
     const noah = await bump("tok-noah");
     assert.equal(noah.status, 403, "a member cannot purge another person's devices");
     assert.equal(bumps.length, 0, "and nothing was bumped");
@@ -54,5 +73,7 @@ test("sync.epoch.bump guard: a member's direct call is 403 and bumps nothing; an
     assert.equal(adam.status, 200, JSON.stringify(await adam.clone().json()));
     assert.equal((await bump("tok-olivia")).status, 200);
     assert.equal(bumps.length, 2);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

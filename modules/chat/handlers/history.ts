@@ -17,9 +17,81 @@ const SCAN_CAP = 12_000;
 const BATCH = 1_500;
 const MAX_TEXT = 2_000;
 const STOP = new Set([
-  "the", "and", "for", "are", "but", "not", "you", "all", "any", "can", "had", "her", "was", "one", "our", "out", "has", "have", "him", "his", "how", "its", "may", "new", "now", "old", "see", "two",
-  "who", "did", "get", "got", "let", "put", "say", "she", "too", "use", "what", "when", "where", "which", "while", "with", "would", "could", "should", "about", "there", "their", "them", "then",
-  "this", "that", "these", "those", "from", "into", "than", "were", "will", "been", "being", "does", "doing", "said", "tell", "told", "remind", "please", "just", "also", "very", "some", "such",
+  "the",
+  "and",
+  "for",
+  "are",
+  "but",
+  "not",
+  "you",
+  "all",
+  "any",
+  "can",
+  "had",
+  "her",
+  "was",
+  "one",
+  "our",
+  "out",
+  "has",
+  "have",
+  "him",
+  "his",
+  "how",
+  "its",
+  "may",
+  "new",
+  "now",
+  "old",
+  "see",
+  "two",
+  "who",
+  "did",
+  "get",
+  "got",
+  "let",
+  "put",
+  "say",
+  "she",
+  "too",
+  "use",
+  "what",
+  "when",
+  "where",
+  "which",
+  "while",
+  "with",
+  "would",
+  "could",
+  "should",
+  "about",
+  "there",
+  "their",
+  "them",
+  "then",
+  "this",
+  "that",
+  "these",
+  "those",
+  "from",
+  "into",
+  "than",
+  "were",
+  "will",
+  "been",
+  "being",
+  "does",
+  "doing",
+  "said",
+  "tell",
+  "told",
+  "remind",
+  "please",
+  "just",
+  "also",
+  "very",
+  "some",
+  "such",
 ]);
 
 export interface HistoryHit {
@@ -43,7 +115,14 @@ export interface HistoryHit {
 
 /** The words that carry a question: lower-cased, three letters or more (two when it is all there is), no filler. */
 export function termsOf(q: string): string[] {
-  const all = [...new Set(q.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 2))];
+  const all = [
+    ...new Set(
+      q
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}_]+/u)
+        .filter((w) => w.length >= 2),
+    ),
+  ];
   const keep = all.filter((w) => w.length >= 3 && !STOP.has(w));
   return (keep.length > 0 ? keep : all).slice(0, 12);
 }
@@ -62,7 +141,11 @@ const like = (w: string): string => `%${w.replaceAll("\\", "\\\\").replaceAll("%
 function jsonText(raw: unknown): string {
   if (raw === null || raw === undefined) return "";
   let v: unknown = raw;
-  try { v = JSON.parse(String(raw)); } catch { return String(raw); }
+  try {
+    v = JSON.parse(String(raw));
+  } catch {
+    return String(raw);
+  }
   if (typeof v === "string") return v;
   if (v !== null && typeof v === "object" && typeof (v as Row)["text"] === "string") return String((v as Row)["text"]);
   return JSON.stringify(v);
@@ -83,7 +166,14 @@ function scoreOf(text: string, terms: readonly string[], phrase: string): number
   return terms.length === 0 ? 0 : found / terms.length + (phrase.length >= 6 && low.includes(phrase) ? 0.5 : 0);
 }
 
-export interface HistoryInput { q?: string; ref?: string; threadId?: string; excludeThreadId?: string; limit?: number; minCoverage?: number }
+export interface HistoryInput {
+  q?: string;
+  ref?: string;
+  threadId?: string;
+  excludeThreadId?: string;
+  limit?: number;
+  minCoverage?: number;
+}
 
 export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<{ hits: HistoryHit[] }> {
   ensure(ctx.db);
@@ -92,7 +182,11 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
   const may = new Map<string, ThreadRec | null>();
   const open = (id: string): ThreadRec | null => {
     let t = may.get(id);
-    if (t === undefined) { const th = threadBy(ctx.db, id); t = th && mayRecall(ctx, th) ? th : null; may.set(id, t); }
+    if (t === undefined) {
+      const th = threadBy(ctx.db, id);
+      t = th && mayRecall(ctx, th) ? th : null;
+      may.set(id, t);
+    }
     return t;
   };
   if (input.ref !== undefined) return { hits: byRef(ctx, input.ref, open) };
@@ -109,7 +203,10 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
   for (let off = 0; off < SCAN_CAP; off += BATCH) {
     const rows = ctx.db.all(
       `SELECT m.* FROM chat_message m WHERE m.deleted_at IS NULL AND m.kind IN ('text', 'agent') AND m.body NOT LIKE 'enc2.%' AND (${where})${input.threadId ? " AND m.thread = ?" : ""} ORDER BY m.createdAt DESC LIMIT ? OFFSET ?`,
-      ...args, ...(input.threadId ? [input.threadId] : []), BATCH, off,
+      ...args,
+      ...(input.threadId ? [input.threadId] : []),
+      BATCH,
+      off,
     ) as Row[];
     for (const r of rows) {
       const thread = String(r["thread"]);
@@ -123,9 +220,20 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
       if (s < need) continue;
       const w = excerpt(body, terms);
       hits.push({
-        source: "message", ref: String(r["id"]), messageId: String(r["id"]), threadId: thread, ...(t.title ? { threadTitle: t.title } : {}), threadKind: t.kind, seq: Number(r["threadSeq"] ?? 0),
-        role: String(r["kind"]) === "agent" ? "agent" : "person", author: refOf(String(r["author"])), text: w.text, ...(w.truncated ? { truncated: true } : {}), at: Number(r["createdAt"] ?? 0),
-        link: linkOf(thread, { m: String(r["id"]) }), score: s,
+        source: "message",
+        ref: String(r["id"]),
+        messageId: String(r["id"]),
+        threadId: thread,
+        ...(t.title ? { threadTitle: t.title } : {}),
+        threadKind: t.kind,
+        seq: Number(r["threadSeq"] ?? 0),
+        role: String(r["kind"]) === "agent" ? "agent" : "person",
+        author: refOf(String(r["author"])),
+        text: w.text,
+        ...(w.truncated ? { truncated: true } : {}),
+        at: Number(r["createdAt"] ?? 0),
+        link: linkOf(thread, { m: String(r["id"]) }),
+        score: s,
       });
     }
     if (rows.length < BATCH) break;
@@ -138,7 +246,11 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
   for (let off = 0; off < SCAN_CAP; off += BATCH) {
     const rows = ctx.db.all(
       `SELECT r.* FROM chat_transcript_row r WHERE (${twhere}) AND ${own.sql}${input.threadId ? " AND r.thread = ?" : ""} ORDER BY r.at DESC, r.idx DESC LIMIT ? OFFSET ?`,
-      ...args, ...own.args, ...(input.threadId ? [input.threadId] : []), BATCH, off,
+      ...args,
+      ...own.args,
+      ...(input.threadId ? [input.threadId] : []),
+      BATCH,
+      off,
     ) as Row[];
     for (const r of rows) {
       const thread = String(r["thread"]);
@@ -155,14 +267,31 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
       // what a memory tool answered is memory's own output, not something anyone said: it would only repeat the lines it was built from
       if (/^memory_/.test(String(r["toolName"] ?? ""))) continue;
       const isStep = role === "tool" || kind === "tool_call" || kind === "tool_result";
-      const dup = !isStep && hits.some((h) => h.source === "message" && h.threadId === thread && h.text.replace(/\s+/g, " ").trim() === text.replace(/\s+/g, " ").trim());
+      const dup =
+        !isStep &&
+        hits.some(
+          (h) =>
+            h.source === "message" &&
+            h.threadId === thread &&
+            h.text.replace(/\s+/g, " ").trim() === text.replace(/\s+/g, " ").trim(),
+        );
       if (dup) continue;
       const w = excerpt(text, terms);
       const idx = Number(r["idx"]);
       hits.push({
-        source: isStep ? "step" : "message", ref: `${thread}#${idx}`, threadId: thread, ...(t.title ? { threadTitle: t.title } : {}), threadKind: t.kind, seq: idx,
-        role: isStep ? `tool${r["toolName"] ? `:${String(r["toolName"])}` : ""}` : role === "user" ? "person" : "agent", author: refOf(String(r["author"] ?? "")), text: w.text, ...(w.truncated ? { truncated: true } : {}),
-        at: Number(r["at"] ?? 0), link: linkOf(thread, { step: String(idx) }), score: s,
+        source: isStep ? "step" : "message",
+        ref: `${thread}#${idx}`,
+        threadId: thread,
+        ...(t.title ? { threadTitle: t.title } : {}),
+        threadKind: t.kind,
+        seq: idx,
+        role: isStep ? `tool${r["toolName"] ? `:${String(r["toolName"])}` : ""}` : role === "user" ? "person" : "agent",
+        author: refOf(String(r["author"] ?? "")),
+        text: w.text,
+        ...(w.truncated ? { truncated: true } : {}),
+        at: Number(r["at"] ?? 0),
+        link: linkOf(thread, { step: String(idx) }),
+        score: s,
       });
     }
     if (rows.length < BATCH) break;
@@ -185,27 +314,62 @@ function byRef(ctx: ChatCtx, ref: string, open: (id: string) => ThreadRec | null
   const step = /^(thr_[a-z0-9]+)#(\d+)$/.exec(ref);
   if (step) {
     const own = seenRows(ctx);
-    const r = (ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx = ? AND ${own.sql}`, step[1], Number(step[2]), ...own.args) as Row[])[0];
+    const r = (
+      ctx.db.all(
+        `SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx = ? AND ${own.sql}`,
+        step[1],
+        Number(step[2]),
+        ...own.args,
+      ) as Row[]
+    )[0];
     const t = r ? open(String(r["thread"])) : null;
     if (!r || !t || Number(r["at"] ?? 0) < readFloor(ctx, t)) return [];
     const text = jsonText(r["content"]);
     const kind = String(r["kind"]);
     const isStep = String(r["role"]) === "tool" || kind === "tool_call" || kind === "tool_result";
-    return [{
-      source: isStep ? "step" : "message", ref, threadId: t.id, ...(t.title ? { threadTitle: t.title } : {}), threadKind: t.kind, seq: Number(r["idx"]), role: isStep ? "tool" : String(r["role"]) === "user" ? "person" : "agent",
-      author: refOf(String(r["author"] ?? "")), text: text.slice(0, 20_000), ...(text.length > 20_000 ? { truncated: true } : {}), at: Number(r["at"] ?? 0), link: linkOf(t.id, { step: String(r["idx"]) }), score: 1,
-    }];
+    return [
+      {
+        source: isStep ? "step" : "message",
+        ref,
+        threadId: t.id,
+        ...(t.title ? { threadTitle: t.title } : {}),
+        threadKind: t.kind,
+        seq: Number(r["idx"]),
+        role: isStep ? "tool" : String(r["role"]) === "user" ? "person" : "agent",
+        author: refOf(String(r["author"] ?? "")),
+        text: text.slice(0, 20_000),
+        ...(text.length > 20_000 ? { truncated: true } : {}),
+        at: Number(r["at"] ?? 0),
+        link: linkOf(t.id, { step: String(r["idx"]) }),
+        score: 1,
+      },
+    ];
   }
   const m = (ctx.db.all("SELECT * FROM chat_message WHERE id = ? AND deleted_at IS NULL", ref) as Row[])[0];
   const t = m ? open(String(m["thread"])) : null;
   if (!m || !t || Number(m["createdAt"] ?? 0) < readFloor(ctx, t)) return [];
   const body = String(m["body"] ?? "");
   if (/^enc2\./.test(body)) return [];
-  return [{
-    source: "message", ref, messageId: ref, threadId: t.id, ...(t.title ? { threadTitle: t.title } : {}), threadKind: t.kind, seq: Number(m["threadSeq"] ?? 0), role: String(m["kind"]) === "agent" ? "agent" : "person",
-    author: refOf(String(m["author"])), text: body.slice(0, 20_000), ...(body.length > 20_000 ? { truncated: true } : {}), at: Number(m["createdAt"] ?? 0), link: linkOf(t.id, { m: ref }), score: 1,
-  }];
+  return [
+    {
+      source: "message",
+      ref,
+      messageId: ref,
+      threadId: t.id,
+      ...(t.title ? { threadTitle: t.title } : {}),
+      threadKind: t.kind,
+      seq: Number(m["threadSeq"] ?? 0),
+      role: String(m["kind"]) === "agent" ? "agent" : "person",
+      author: refOf(String(m["author"])),
+      text: body.slice(0, 20_000),
+      ...(body.length > 20_000 ? { truncated: true } : {}),
+      at: Number(m["createdAt"] ?? 0),
+      link: linkOf(t.id, { m: ref }),
+      score: 1,
+    },
+  ];
 }
 
 /** vyre://thread/<id>?m=<messageId> opens the chat scrolled to that message; ?step=<n> to that transcript row. */
-export const linkOf = (threadId: string, q: Record<string, string>): string => `vyre://thread/${threadId}?${new URLSearchParams(q).toString()}`;
+export const linkOf = (threadId: string, q: Record<string, string>): string =>
+  `vyre://thread/${threadId}?${new URLSearchParams(q).toString()}`;

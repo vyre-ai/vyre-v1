@@ -3,7 +3,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  closeMatchTask, hasProjectReason, matchClosingTask, matchNewClosingTask, projectContacts, projectReach, recipientsSearchWithMembers,
+  closeMatchTask,
+  hasProjectReason,
+  matchClosingTask,
+  matchNewClosingTask,
+  projectContacts,
+  projectReach,
+  recipientsSearchWithMembers,
 } from "../handlers/recipients-members.ts";
 import { linkMessage } from "../handlers/index.ts";
 import { codeOf, contractErrors, DANA, harness, LEE, link, NOW } from "../fixtures/harness.ts";
@@ -11,8 +17,19 @@ import type { Harness } from "../fixtures/harness.ts";
 import type { InboxCtx } from "../projections.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 
-interface Person { id: string; kind: "person" | "agent"; name: string; status?: "active" | "removed" | "suspended"; email?: string }
-interface Project { id: string; recordId: string; members: string[]; linked: string[] }
+interface Person {
+  id: string;
+  kind: "person" | "agent";
+  name: string;
+  status?: "active" | "removed" | "suspended";
+  email?: string;
+}
+interface Project {
+  id: string;
+  recordId: string;
+  members: string[];
+  linked: string[];
+}
 
 const PEOPLE: Person[] = [
   { id: "usr_maya01", kind: "person", name: "Maya Quinn", email: "maya@vyre.test" },
@@ -22,9 +39,16 @@ const PEOPLE: Person[] = [
   { id: "agt_omarbot", kind: "agent", name: "Omar Bot" },
 ];
 
-interface Down { principals?: boolean; projects?: boolean; mailboxes?: boolean; tasks?: "down" | "closed" | "missing" }
+interface Down {
+  principals?: boolean;
+  projects?: boolean;
+  mailboxes?: boolean;
+  tasks?: "down" | "closed" | "missing";
+}
 
-function setup(opts: { people?: Person[]; projects?: Project[]; down?: Down; contacts?: Parameters<typeof harness>[0] } = {}) {
+function setup(
+  opts: { people?: Person[]; projects?: Project[]; down?: Down; contacts?: Parameters<typeof harness>[0] } = {},
+) {
   const h: Harness = harness({ contacts: [{ ...LEE }, { ...DANA }], ...(opts.contacts ?? {}) });
   const people = opts.people ?? PEOPLE;
   const projects = opts.projects ?? [];
@@ -39,7 +63,16 @@ function setup(opts: { people?: Person[]; projects?: Project[]; down?: Down; con
     async call(cap: string, input: unknown): Promise<unknown> {
       const body = input as Record<string, unknown>;
       const trace = h.ctx.trace.traceId;
-      const misfit = ["access.principals.list", "mail.mailbox.list", "projects.list", "projects.members.list", "projects.overview", "tasks.transition"].includes(cap) ? contractErrors(cap, "in", body) : [];
+      const misfit = [
+        "access.principals.list",
+        "mail.mailbox.list",
+        "projects.list",
+        "projects.members.list",
+        "projects.overview",
+        "tasks.transition",
+      ].includes(cap)
+        ? contractErrors(cap, "in", body)
+        : [];
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       switch (cap) {
         case "access.principals.list": {
@@ -47,17 +80,39 @@ function setup(opts: { people?: Person[]; projects?: Project[]; down?: Down; con
           if (down.principals) throw fail("internal.unavailable", trace);
           const q = String(body.q ?? "").toLowerCase();
           const rows = people
-            .filter((p) => (!body.kind || p.kind === body.kind) && (!body.status || (p.status ?? "active") === body.status) && p.name.toLowerCase().includes(q))
-            .map((p) => ({ id: p.id, kind: p.kind, name: p.name, status: p.status ?? "active", roles: [], groups: [], createdAt: NOW }));
+            .filter(
+              (p) =>
+                (!body.kind || p.kind === body.kind) &&
+                (!body.status || (p.status ?? "active") === body.status) &&
+                p.name.toLowerCase().includes(q),
+            )
+            .map((p) => ({
+              id: p.id,
+              kind: p.kind,
+              name: p.name,
+              status: p.status ?? "active",
+              roles: [],
+              groups: [],
+              createdAt: NOW,
+            }));
           return checked(cap, { principals: rows });
         }
         case "mail.mailbox.list": {
-          if (body.kind !== "personal") return h.ctx.call(cap, input);      // the base search lists every inbox; only the member lookup asks for personal ones
+          if (body.kind !== "personal") return h.ctx.call(cap, input); // the base search lists every inbox; only the member lookup asks for personal ones
           calls.push({ cap, input: body });
           if (down.mailboxes) throw fail("internal.unavailable", trace);
-          const own = people.filter((p) => p.email && p.kind === "person").map((p) => ({
-            id: `mbx_${p.id.slice(4)}`, kind: "personal", address: p.email, title: p.name, ownerId: p.id, provider: "google", privacy: "private", state: "syncing",
-          }));
+          const own = people
+            .filter((p) => p.email && p.kind === "person")
+            .map((p) => ({
+              id: `mbx_${p.id.slice(4)}`,
+              kind: "personal",
+              address: p.email,
+              title: p.name,
+              ownerId: p.id,
+              provider: "google",
+              privacy: "private",
+              state: "syncing",
+            }));
           return checked(cap, { mailboxes: own });
         }
         case "projects.list": {
@@ -65,20 +120,34 @@ function setup(opts: { people?: Person[]; projects?: Project[]; down?: Down; con
           if (down.projects) throw fail("internal.unavailable", trace);
           return checked(cap, {
             projects: projects.map((p) => ({
-              projectId: p.id, recordId: p.recordId, type: "project", title: p.id, status: "active", channelId: "chn_x1", folderId: "fld_x1", memberCount: p.members.length, openTasks: 0, lateTasks: 0,
+              projectId: p.id,
+              recordId: p.recordId,
+              type: "project",
+              title: p.id,
+              status: "active",
+              channelId: "chn_x1",
+              folderId: "fld_x1",
+              memberCount: p.members.length,
+              openTasks: 0,
+              lateTasks: 0,
             })),
           });
         }
         case "projects.members.list": {
           calls.push({ cap, input: body });
           const p = projects.find((x) => x.id === body.projectId);
-          return checked(cap, { members: (p?.members ?? []).map((m) => ({ principal: m, role: "member", kind: "person", since: NOW })) });
+          return checked(cap, {
+            members: (p?.members ?? []).map((m) => ({ principal: m, role: "member", kind: "person", since: NOW })),
+          });
         }
         case "projects.overview": {
           calls.push({ cap, input: body });
           const p = projects.find((x) => x.id === body.projectId);
           // only the part of the overview this module reads; the full shape is the projects module's own contract
-          return { linked: (p?.linked ?? []).map((recordId) => ({ type: "contact", recordId, title: recordId })), people: [] };
+          return {
+            linked: (p?.linked ?? []).map((recordId) => ({ type: "contact", recordId, title: recordId })),
+            people: [],
+          };
         }
         case "tasks.transition": {
           calls.push({ cap, input: body });
@@ -87,7 +156,8 @@ function setup(opts: { people?: Person[]; projects?: Project[]; down?: Down; con
           if (down.tasks === "missing") throw fail("validation.not_found", trace);
           return { task: { id: body.taskId, state: body.to } };
         }
-        default: return h.ctx.call(cap, input);
+        default:
+          return h.ctx.call(cap, input);
       }
     },
   });
@@ -109,9 +179,19 @@ test("recipients search returns active people from the Space beside records, wit
   const { ctx, calls } = setup();
   const out = await recipientsSearchWithMembers(ctx, { q: "oma" });
   assert.deepEqual(contractErrors("inbox.recipients_search", "out", out), []);
-  assert.deepEqual(out.results.map((r) => [r.kind, r.id]), [["member", "usr_omar01"], ["member", "usr_omari2"]]);
+  assert.deepEqual(
+    out.results.map((r) => [r.kind, r.id]),
+    [
+      ["member", "usr_omar01"],
+      ["member", "usr_omari2"],
+    ],
+  );
   assert.equal(out.results[0]!.address, "omar@vyre.test");
-  assert.equal(out.results[1]!.address, undefined, "a member with no mailbox the caller can see is offered without an address");
+  assert.equal(
+    out.results[1]!.address,
+    undefined,
+    "a member with no mailbox the caller can see is offered without an address",
+  );
   const asked = calls.find((c) => c.cap === "access.principals.list")!;
   assert.deepEqual([asked.input.kind, asked.input.status, asked.input.q], ["person", "active", "oma"]);
   const maya = await recipientsSearchWithMembers(ctx, { q: "maya" });
@@ -119,32 +199,78 @@ test("recipients search returns active people from the Space beside records, wit
 });
 
 test("records and members are ranked together by score, then name", async () => {
-  const { ctx } = setup({ contacts: { contacts: [{ ...LEE, name: "Omar Haddock", emails: ["haddock@acme.test"] }, { ...DANA, id: "rec_oma001", name: "Oma Reyes", emails: ["oma@reyes.test"] }] } });
+  const { ctx } = setup({
+    contacts: {
+      contacts: [
+        { ...LEE, name: "Omar Haddock", emails: ["haddock@acme.test"] },
+        { ...DANA, id: "rec_oma001", name: "Oma Reyes", emails: ["oma@reyes.test"] },
+      ],
+    },
+  });
   const out = await recipientsSearchWithMembers(ctx, { q: "omar" });
-  assert.deepEqual(out.results.map((r) => [r.kind, r.label, r.score]), [["member", "Omar Haddad", 0.9], ["contact", "Omar Haddock", 0.9], ["member", "Omari Lane", 0.9]]);
+  assert.deepEqual(
+    out.results.map((r) => [r.kind, r.label, r.score]),
+    [
+      ["member", "Omar Haddad", 0.9],
+      ["contact", "Omar Haddock", 0.9],
+      ["member", "Omari Lane", 0.9],
+    ],
+  );
   const oma = await recipientsSearchWithMembers(ctx, { q: "oma" });
-  assert.deepEqual(oma.results.map((r) => r.label), ["Oma Reyes", "Omar Haddad", "Omar Haddock", "Omari Lane"]);
+  assert.deepEqual(
+    oma.results.map((r) => r.label),
+    ["Oma Reyes", "Omar Haddad", "Omar Haddock", "Omari Lane"],
+  );
 });
 
 test("one person who is both a record and a member appears once: a tie goes to the member, a better record score wins", async () => {
-  const tie = setup({ contacts: { contacts: [{ ...DANA, id: "rec_omar01", name: "Omar Haddad", emails: ["Omar@Vyre.test"] }] } });
+  const tie = setup({
+    contacts: { contacts: [{ ...DANA, id: "rec_omar01", name: "Omar Haddad", emails: ["Omar@Vyre.test"] }] },
+  });
   const a = await recipientsSearchWithMembers(tie.ctx, { q: "omar had" });
-  assert.deepEqual(a.results.map((r) => [r.kind, r.id]), [["member", "usr_omar01"]], "same address, same score: the member, not the card");
-  const better = setup({ contacts: { contacts: [{ ...DANA, id: "rec_omar01", name: "Omar", emails: ["omar@vyre.test"] }] } });
+  assert.deepEqual(
+    a.results.map((r) => [r.kind, r.id]),
+    [["member", "usr_omar01"]],
+    "same address, same score: the member, not the card",
+  );
+  const better = setup({
+    contacts: { contacts: [{ ...DANA, id: "rec_omar01", name: "Omar", emails: ["omar@vyre.test"] }] },
+  });
   const b = await recipientsSearchWithMembers(better.ctx, { q: "omar" });
-  assert.deepEqual(b.results.filter((r) => r.address === "omar@vyre.test").map((r) => [r.kind, r.score]), [["contact", 1]], "an exact record outranks a prefix match on the same address");
+  assert.deepEqual(
+    b.results.filter((r) => r.address === "omar@vyre.test").map((r) => [r.kind, r.score]),
+    [["contact", 1]],
+    "an exact record outranks a prefix match on the same address",
+  );
   assert.equal(b.results.filter((r) => r.address?.toLowerCase() === "omar@vyre.test").length, 1);
 });
 
 test("a person you share a project with ranks a little higher; a project you are not a member of gives nothing", async () => {
-  const mine: Project = { id: "prj_shared1", recordId: "rec_prjrec1", members: ["usr_maya01", "usr_omari2"], linked: [] };
+  const mine: Project = {
+    id: "prj_shared1",
+    recordId: "rec_prjrec1",
+    members: ["usr_maya01", "usr_omari2"],
+    linked: [],
+  };
   const s = setup({ projects: [mine] });
   const out = await recipientsSearchWithMembers(s.ctx, { q: "oma" });
-  assert.deepEqual(out.results.map((r) => [r.id, r.score]), [["usr_omari2", 0.95], ["usr_omar01", 0.9]]);
+  assert.deepEqual(
+    out.results.map((r) => [r.id, r.score]),
+    [
+      ["usr_omari2", 0.95],
+      ["usr_omar01", 0.9],
+    ],
+  );
   const notMine: Project = { id: "prj_other01", recordId: "rec_prjrec2", members: ["usr_omari2"], linked: [] };
   const t = setup({ projects: [notMine] });
   const out2 = await recipientsSearchWithMembers(t.ctx, { q: "oma" });
-  assert.deepEqual(out2.results.map((r) => [r.id, r.score]), [["usr_omar01", 0.9], ["usr_omari2", 0.9]]);
+  assert.deepEqual(
+    out2.results.map((r) => [r.id, r.score]),
+    [
+      ["usr_omar01", 0.9],
+      ["usr_omari2", 0.9],
+    ],
+  );
 });
 
 test("kinds and limit are honored and a bad limit is refused like the base search", async () => {
@@ -153,7 +279,11 @@ test("kinds and limit are honored and a bad limit is refused like the base searc
   assert.ok(only.results.every((r) => r.kind === "member") && only.results.length === 2);
   const noMembers = await recipientsSearchWithMembers(s.ctx, { q: "oma", kinds: ["contact"] });
   assert.deepEqual(noMembers.results, []);
-  assert.equal(s.count("access.principals.list"), 1, "members are not read when the caller did not ask for them (only the one call above)");
+  assert.equal(
+    s.count("access.principals.list"),
+    1,
+    "members are not read when the caller did not ask for them (only the one call above)",
+  );
   const one = await recipientsSearchWithMembers(s.ctx, { q: "oma", limit: 1 });
   assert.equal(one.results.length, 1);
   await refused(recipientsSearchWithMembers(s.ctx, { q: "oma", limit: 0 }), "validation.bad_input");
@@ -168,7 +298,13 @@ test("records, inboxes and groups still answer when the access module is down", 
   assert.deepEqual(labels(out), ["Omega team"]);
   const noBoxes = setup({ down: { mailboxes: true } });
   const out2 = await recipientsSearchWithMembers(noBoxes.ctx, { q: "omar" });
-  assert.deepEqual(out2.results.map((r) => [r.id, r.address]), [["usr_omar01", undefined], ["usr_omari2", undefined]]);
+  assert.deepEqual(
+    out2.results.map((r) => [r.id, r.address]),
+    [
+      ["usr_omar01", undefined],
+      ["usr_omari2", undefined],
+    ],
+  );
   const noProjects = setup({ down: { projects: true } });
   assert.equal((await recipientsSearchWithMembers(noProjects.ctx, { q: "omar" })).results.length, 2);
 });
@@ -176,10 +312,12 @@ test("records, inboxes and groups still answer when the access module is down", 
 // ---- the project reason
 
 test("a contact reaches you by project when its record is linked to a project you are a member of, read from projects.members.list", async () => {
-  const s = setup({ projects: [
-    { id: "prj_mine0001", recordId: "rec_prjrec1", members: ["usr_maya01", "usr_omar01"], linked: [LEE.id] },
-    { id: "prj_theirs01", recordId: "rec_prjrec2", members: ["usr_omar01"], linked: [DANA.id] },
-  ] });
+  const s = setup({
+    projects: [
+      { id: "prj_mine0001", recordId: "rec_prjrec1", members: ["usr_maya01", "usr_omar01"], linked: [LEE.id] },
+      { id: "prj_theirs01", recordId: "rec_prjrec2", members: ["usr_omar01"], linked: [DANA.id] },
+    ],
+  });
   const reach = await projectReach(s.ctx);
   assert.deepEqual([...reach.linked.keys()], ["prj_mine0001"]);
   assert.deepEqual([...reach.peers], ["usr_omar01"]);
@@ -201,7 +339,13 @@ test("the project record itself counts as linked, and a projects module that is 
 // ---- closing the Needs you task
 
 async function unsure(s: ReturnType<typeof setup>): Promise<{ conversationId: string; taskId: string }> {
-  s.h.mail.set("eml_sam1", { id: "eml_sam1", threadId: "thr_sam", subject: "Quick question", from: "sam@fox.test", to: ["maya@vyre.test"] });
+  s.h.mail.set("eml_sam1", {
+    id: "eml_sam1",
+    threadId: "thr_sam",
+    subject: "Quick question",
+    from: "sam@fox.test",
+    to: ["maya@vyre.test"],
+  });
   const res = await linkMessage(s.ctx, link({ address: "sam@fox.test", id: "eml_sam1", at: NOW + 1000 }));
   assert.equal(res.linked, "unsure");
   assert.ok(res.taskId, "an unsure sender raises Needs a match");
@@ -223,7 +367,10 @@ test("creating a record for the sender closes the task too", async () => {
   const { conversationId, taskId } = await unsure(s);
   const out = await matchNewClosingTask(s.ctx, { conversationId, type: "contact", name: "Sam Fox" });
   assert.ok(out.recordId.startsWith("rec_"));
-  assert.deepEqual(s.calls.filter((c) => c.cap === "tasks.transition").map((c) => c.input.taskId), [taskId]);
+  assert.deepEqual(
+    s.calls.filter((c) => c.cap === "tasks.transition").map((c) => c.input.taskId),
+    [taskId],
+  );
 });
 
 test("a task that is already closed or gone, or a task module that is down, never fails the match", async () => {

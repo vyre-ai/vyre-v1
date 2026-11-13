@@ -4,7 +4,12 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type NeedsItem = CapMap["tasks.needs_you"]["out"]["items"][number];
 
 export const KIND_LABEL: Record<NeedsItem["task"]["kind"], string> = {
-  approve: "Approve", review: "Review", answer: "Answer", unblock: "Blocked", signature: "Sign", work: "Work",
+  approve: "Approve",
+  review: "Review",
+  answer: "Answer",
+  unblock: "Blocked",
+  signature: "Sign",
+  work: "Work",
 };
 
 export interface NeedsRow {
@@ -29,10 +34,15 @@ export function needsRow(item: NeedsItem, nameOf: (id: string) => string): Needs
   const handled = item.handledBy ? ` · Handled by ${nameOf(item.handledBy)}` : "";
   const sub = t.summary ?? "";
   return {
-    id: t.id, title: t.title, kind, tone: t.kind === "unblock" || t.blocked ? "warn" : "accent",
+    id: t.id,
+    title: t.title,
+    kind,
+    tone: t.kind === "unblock" || t.blocked ? "warn" : "accent",
     sub: `${sub}${handled}`,
-    actionKey: first?.key ?? "open", actionLabel: first?.label ?? (t.kind === "unblock" ? "Unblock" : kind),
+    actionKey: first?.key ?? "open",
+    actionLabel: first?.label ?? (t.kind === "unblock" ? "Unblock" : kind),
     inline: t.kind === "approve" && first !== undefined && first.note !== "required",
-    requester: t.createdBy, reason: item.reason,
+    requester: t.createdBy,
+    reason: item.reason,
   };
 }

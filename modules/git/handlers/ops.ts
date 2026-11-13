@@ -56,7 +56,11 @@ export function configureGit(drivers: GitDrivers | null): void {
 
 function drivers(): GitDrivers {
   if (configured) return configured;
-  return { exec: processExec(), treesDir: path.join(process.env["VYRE_DATA_DIR"] ?? "data", "trees"), takeCredential: () => undefined };
+  return {
+    exec: processExec(),
+    treesDir: path.join(process.env["VYRE_DATA_DIR"] ?? "data", "trees"),
+    takeCredential: () => undefined,
+  };
 }
 
 /** Runs a command without a shell. A timeout kills the process and returns code 124. */
@@ -68,20 +72,38 @@ export function processExec(): Exec {
         resolve({ code: 127, stdout: "", stderr: "no command" });
         return;
       }
-      const child = spawn(cmd, rest, { cwd: opts.cwd, env: { ...process.env, ...(opts.env ?? {}) }, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(cmd, rest, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env ?? {}) },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
-      const timer = opts.timeoutMs === undefined ? null : setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, opts.timeoutMs);
-      child.stdout.on("data", (d: Buffer) => { stdout += d.toString("utf8"); });
-      child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
+      const timer =
+        opts.timeoutMs === undefined
+          ? null
+          : setTimeout(() => {
+              timedOut = true;
+              child.kill("SIGKILL");
+            }, opts.timeoutMs);
+      child.stdout.on("data", (d: Buffer) => {
+        stdout += d.toString("utf8");
+      });
+      child.stderr.on("data", (d: Buffer) => {
+        stderr += d.toString("utf8");
+      });
       child.on("error", (e) => {
         if (timer) clearTimeout(timer);
         resolve({ code: 127, stdout, stderr: stderr + e.message });
       });
       child.on("close", (code) => {
         if (timer) clearTimeout(timer);
-        resolve({ code: timedOut ? 124 : (code ?? 1), stdout, stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr });
+        resolve({
+          code: timedOut ? 124 : (code ?? 1),
+          stdout,
+          stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr,
+        });
       });
     });
 }
@@ -116,7 +138,8 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 function record(ctx: Ctx, input: unknown): Row {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Row;
 }
 
@@ -139,14 +162,22 @@ function folderIdOf(ctx: Ctx, o: Row): string {
 
 /** A ref (branch, tag, commit, "origin/main") that cannot be read as an option or carry control characters. */
 function refOf(ctx: Ctx, v: string, what: string): string {
-  if (v.startsWith("-") || /[\u0000- \u007f~^:?*[\\]/.test(v) || v.includes("..") || v.includes("@{")) fail(ctx, "validation.bad_input", `${what} is not a valid name.`);
+  if (v.startsWith("-") || /[\u0000- \u007f~^:?*[\\]/.test(v) || v.includes("..") || v.includes("@{"))
+    fail(ctx, "validation.bad_input", `${what} is not a valid name.`);
   return v;
 }
 
 /** A path inside the working tree: relative, no "..", no leading dash. */
 function pathOf(ctx: Ctx, v: string): string {
   const norm = v.replace(/\\/g, "/");
-  if (norm.length === 0 || norm.startsWith("/") || norm.startsWith("-") || norm.split("/").includes("..") || norm.includes("\u0000")) fail(ctx, "validation.bad_input", "A path must stay inside the folder.");
+  if (
+    norm.length === 0 ||
+    norm.startsWith("/") ||
+    norm.startsWith("-") ||
+    norm.split("/").includes("..") ||
+    norm.includes("\u0000")
+  )
+    fail(ctx, "validation.bad_input", "A path must stay inside the folder.");
   return norm;
 }
 
@@ -206,7 +237,8 @@ function isRepo(r: Repo): boolean {
 }
 
 function needRepo(ctx: Ctx, r: Repo): void {
-  if (!isRepo(r)) fail(ctx, "validation.precondition_failed", "This folder is not a git repository yet. Start history first.");
+  if (!isRepo(r))
+    fail(ctx, "validation.precondition_failed", "This folder is not a git repository yet. Start history first.");
 }
 
 function scrub(text: string, secrets: readonly string[]): string {
@@ -215,40 +247,80 @@ function scrub(text: string, secrets: readonly string[]): string {
   return out;
 }
 
-async function git(r: Repo, args: string[], o: { env?: Record<string, string>; timeoutMs?: number; secrets?: readonly string[] } = {}): Promise<ExecResult> {
-  const res = await r.d.exec(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=off", "-c", "commit.gpgsign=false", ...args], {
-    cwd: r.dir,
-    env: { ...baseEnv(r.d), ...(o.env ?? {}) },
-    timeoutMs: o.timeoutMs ?? LOCAL_MS,
-  });
+async function git(
+  r: Repo,
+  args: string[],
+  o: { env?: Record<string, string>; timeoutMs?: number; secrets?: readonly string[] } = {},
+): Promise<ExecResult> {
+  const res = await r.d.exec(
+    ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=off", "-c", "commit.gpgsign=false", ...args],
+    {
+      cwd: r.dir,
+      env: { ...baseEnv(r.d), ...(o.env ?? {}) },
+      timeoutMs: o.timeoutMs ?? LOCAL_MS,
+    },
+  );
   const secrets = o.secrets ?? [];
-  return secrets.length === 0 ? res : { ...res, stdout: scrub(res.stdout, secrets), stderr: scrub(res.stderr, secrets) };
+  return secrets.length === 0
+    ? res
+    : { ...res, stdout: scrub(res.stdout, secrets), stderr: scrub(res.stderr, secrets) };
 }
 
 function firstLine(text: string): string {
-  const line = text.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+  const line =
+    text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l.length > 0) ?? "";
   return line.length > 300 ? `${line.slice(0, 300)}...` : line;
 }
 
-async function must(ctx: Ctx, r: Repo, args: string[], o: { env?: Record<string, string>; timeoutMs?: number; secrets?: readonly string[] } = {}): Promise<ExecResult> {
+async function must(
+  ctx: Ctx,
+  r: Repo,
+  args: string[],
+  o: { env?: Record<string, string>; timeoutMs?: number; secrets?: readonly string[] } = {},
+): Promise<ExecResult> {
   const res = await git(r, args, o);
-  if (res.code !== 0) fail(ctx, "validation.precondition_failed", firstLine(res.stderr) || firstLine(res.stdout) || `git ${args[0] ?? ""} failed`);
+  if (res.code !== 0)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      firstLine(res.stderr) || firstLine(res.stdout) || `git ${args[0] ?? ""} failed`,
+    );
   return res;
 }
 
 /** What went wrong talking to a remote, in the catalogue's terms. */
 function remoteFail(ctx: Ctx, res: ExecResult): never {
   const text = `${res.stderr}\n${res.stdout}`;
-  if (/authentication failed|invalid username or password|could not read (username|password)|terminal prompts disabled|permission denied|requested url returned error: (401|403)|repository not found|access denied/i.test(text)) {
+  if (
+    /authentication failed|invalid username or password|could not read (username|password)|terminal prompts disabled|permission denied|requested url returned error: (401|403)|repository not found|access denied/i.test(
+      text,
+    )
+  ) {
     return fail(ctx, "provider.auth_failed", "The remote refused the sign-in. Reconnect GitHub and try again.");
   }
-  if (res.code === 124 || /could not resolve host|unable to access|timed out|connection (refused|reset|timed)|network is unreachable|early eof|ssl|unexpected disconnect/i.test(text)) {
+  if (
+    res.code === 124 ||
+    /could not resolve host|unable to access|timed out|connection (refused|reset|timed)|network is unreachable|early eof|ssl|unexpected disconnect/i.test(
+      text,
+    )
+  ) {
     return fail(ctx, "provider.unavailable", "The remote could not be reached. Try again in a moment.");
   }
   if (/non-fast-forward|fetch first|\(behind\)|updates were rejected/i.test(text)) {
-    return fail(ctx, "validation.precondition_failed", "The remote has changes you do not have yet. Pull first, then push.");
+    return fail(
+      ctx,
+      "validation.precondition_failed",
+      "The remote has changes you do not have yet. Pull first, then push.",
+    );
   }
-  return fail(ctx, "validation.precondition_failed", firstLine(res.stderr) || firstLine(res.stdout) || "The remote refused the request.");
+  return fail(
+    ctx,
+    "validation.precondition_failed",
+    firstLine(res.stderr) || firstLine(res.stdout) || "The remote refused the request.",
+  );
 }
 
 async function validBranch(ctx: Ctx, r: Repo, name: string): Promise<string> {
@@ -294,7 +366,9 @@ async function protectedList(ctx: Pick<Ctx, "db" | "call">, folderId: string): P
     }
   }
   try {
-    const res = (await ctx.call("settings.get", { key: "git.protected_branches" })) as { row?: { value?: unknown } } | null;
+    const res = (await ctx.call("settings.get", { key: "git.protected_branches" })) as {
+      row?: { value?: unknown };
+    } | null;
     return stringList(res?.row?.value) ?? DEFAULT_PROTECTED;
   } catch {
     return DEFAULT_PROTECTED;
@@ -303,7 +377,10 @@ async function protectedList(ctx: Pick<Ctx, "db" | "call">, folderId: string): P
 
 /** The branch name matches a protected entry exactly (a remote-tracking name "origin/main" is judged by the part after the remote). */
 function listed(list: readonly string[], branch: string, remote?: string): boolean {
-  return list.includes(branch) || (remote !== undefined && branch.startsWith(`${remote}/`) && list.includes(branch.slice(remote.length + 1)));
+  return (
+    list.includes(branch) ||
+    (remote !== undefined && branch.startsWith(`${remote}/`) && list.includes(branch.slice(remote.length + 1)))
+  );
 }
 
 /**
@@ -328,10 +405,30 @@ export async function isProtectedCall(ctx: Pick<Ctx, "db" | "call">, input: unkn
 // ---- parsing ------------------------------------------------------------------------------------------------
 
 type FileStatus = "added" | "modified" | "deleted" | "renamed" | "untracked" | "conflicted";
-interface FileChange { path: string; status: FileStatus; added: number; removed: number; staged: boolean }
-interface Hunk { hunkId: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: { op: "ctx" | "add" | "del"; text: string }[] }
+interface FileChange {
+  path: string;
+  status: FileStatus;
+  added: number;
+  removed: number;
+  staged: boolean;
+}
+interface Hunk {
+  hunkId: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: { op: "ctx" | "add" | "del"; text: string }[];
+}
 type AuthorKind = "person" | "agent" | "actor" | "external";
-interface CommitRow { sha: string; message: string; author: { name: string; kind: AuthorKind; id?: string }; at: number; files: number; parents: string[] }
+interface CommitRow {
+  sha: string;
+  message: string;
+  author: { name: string; kind: AuthorKind; id?: string };
+  at: number;
+  files: number;
+  parents: string[];
+}
 
 /** The first n space-separated tokens and the rest of the line (a path may hold spaces). */
 function splitN(line: string, n: number): string[] {
@@ -428,9 +525,17 @@ function parseHunks(diff: string): Hunk[] {
     }
     const c = line[0];
     if (c === "\\") continue;
-    if (c === "+") { cur.lines.push({ op: "add", text: line.slice(1) }); newLeft--; }
-    else if (c === "-") { cur.lines.push({ op: "del", text: line.slice(1) }); oldLeft--; }
-    else if (c === " " || line === "") { cur.lines.push({ op: "ctx", text: line.slice(1) }); oldLeft--; newLeft--; }
+    if (c === "+") {
+      cur.lines.push({ op: "add", text: line.slice(1) });
+      newLeft--;
+    } else if (c === "-") {
+      cur.lines.push({ op: "del", text: line.slice(1) });
+      oldLeft--;
+    } else if (c === " " || line === "") {
+      cur.lines.push({ op: "ctx", text: line.slice(1) });
+      oldLeft--;
+      newLeft--;
+    }
   }
   return hunks;
 }
@@ -442,7 +547,15 @@ function authorOf(name: string, email: string): CommitRow["author"] {
 }
 
 async function commitRows(ctx: Ctx, r: Repo, rev: string[], limit: number): Promise<CommitRow[]> {
-  const res = await git(r, ["log", "--no-color", "-n", String(limit), "--shortstat", "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%B%x1d", ...rev]);
+  const res = await git(r, [
+    "log",
+    "--no-color",
+    "-n",
+    String(limit),
+    "--shortstat",
+    "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%B%x1d",
+    ...rev,
+  ]);
   if (res.code !== 0) {
     if (!(await hasHead(r))) return [];
     fail(ctx, "validation.precondition_failed", firstLine(res.stderr) || "That history could not be read.");
@@ -510,9 +623,12 @@ function identityEnv(ctx: Ctx, author: Row | undefined): Record<string, string> 
   const authorKind = author?.["kind"];
   const rawId = typeof authorId === "string" && authorId.length > 0 ? authorId : ctx.principal.id;
   const id = rawId.replace(/[^A-Za-z0-9._-]/g, "_");
-  const kind: AuthorKind = authorKind === "person" || authorKind === "agent" || authorKind === "actor" || authorKind === "external"
-    ? authorKind
-    : ctx.principal.kind === "service" ? "external" : ctx.principal.kind;
+  const kind: AuthorKind =
+    authorKind === "person" || authorKind === "agent" || authorKind === "actor" || authorKind === "external"
+      ? authorKind
+      : ctx.principal.kind === "service"
+        ? "external"
+        : ctx.principal.kind;
   const name = typeof authorName === "string" && authorName.length > 0 ? authorName : ctx.principal.id;
   const email = `${id}@${kind}.vyre.local`;
   return { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_COMMITTER_NAME: name, GIT_COMMITTER_EMAIL: email };
@@ -523,22 +639,38 @@ function identityEnv(ctx: Ctx, author: Row | undefined): Record<string, string> 
 let refCounter = 0;
 
 /** The environment for one remote call: the installation token as an HTTP header (child environment only) for a github.com remote, nothing for any other. */
-async function remoteAuth(ctx: Ctx, r: Repo, remote: string): Promise<{ env: Record<string, string>; secrets: string[] }> {
+async function remoteAuth(
+  ctx: Ctx,
+  r: Repo,
+  remote: string,
+): Promise<{ env: Record<string, string>; secrets: string[] }> {
   const url = (await git(r, ["config", "--get", `remote.${remote}.url`])).stdout.trim();
-  if (url === "") fail(ctx, "validation.precondition_failed", `This folder has no remote named ${remote}. Add one first.`);
+  if (url === "")
+    fail(ctx, "validation.precondition_failed", `This folder has no remote named ${remote}. Add one first.`);
   const m = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(url);
   if (!m) return { env: {}, secrets: [] };
-  const minted = (await ctx.call("github.installation_token", { repo: `${m[1]}/${m[2]}` })) as { handle?: unknown } | null;
+  const minted = (await ctx.call("github.installation_token", { repo: `${m[1]}/${m[2]}` })) as {
+    handle?: unknown;
+  } | null;
   const handle = minted && typeof minted.handle === "string" ? minted.handle : "";
-  if (handle === "") fail(ctx, "provider.auth_failed", "GitHub did not give a token for this repository. Reconnect GitHub and try again.");
+  if (handle === "")
+    fail(
+      ctx,
+      "provider.auth_failed",
+      "GitHub did not give a token for this repository. Reconnect GitHub and try again.",
+    );
   ctx.vault.use(handle);
   refCounter += 1;
   const ref = `git:${r.folderId}:${ctx.now()}:${refCounter}`;
   await ctx.vault.fill(handle, { kind: "git_credential", ref });
   const token = r.d.takeCredential(ref);
-  if (token === undefined || token === "") fail(ctx, "provider.auth_failed", "The GitHub token could not be filled. Reconnect GitHub and try again.");
+  if (token === undefined || token === "")
+    fail(ctx, "provider.auth_failed", "The GitHub token could not be filled. Reconnect GitHub and try again.");
   const encoded = btoa(`x-access-token:${token}`);
-  return { env: withConfig(baseEnv(r.d), "http.https://github.com/.extraheader", `AUTHORIZATION: basic ${encoded}`), secrets: [token, encoded] };
+  return {
+    env: withConfig(baseEnv(r.d), "http.https://github.com/.extraheader", `AUTHORIZATION: basic ${encoded}`),
+    secrets: [token, encoded],
+  };
 }
 
 // ---- handlers -----------------------------------------------------------------------------------------------
@@ -570,7 +702,8 @@ async function status(ctx: Ctx, input: unknown): Promise<Row> {
   const o = record(ctx, input);
   const folderId = folderIdOf(ctx, o);
   const r = repoOf(ctx, folderId);
-  if (!isRepo(r)) return { isRepo: false, ahead: 0, behind: 0, clean: true, changes: [], remotes: [], protected: false };
+  if (!isRepo(r))
+    return { isRepo: false, ahead: 0, behind: 0, clean: true, changes: [], remotes: [], protected: false };
   const res = await must(ctx, r, ["status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"]);
   let branch: string | undefined;
   let upstream: string | undefined;
@@ -582,12 +715,26 @@ async function status(ctx: Ctx, input: unknown): Promise<Row> {
   for (let i = 0; i < parts.length; i++) {
     const rec = parts[i] ?? "";
     if (rec === "") continue;
-    if (rec.startsWith("# branch.oid ")) { const v = rec.slice(13); if (SHA.test(v)) head = v; continue; }
-    if (rec.startsWith("# branch.head ")) { const v = rec.slice(14); if (v !== "(detached)") branch = v; continue; }
-    if (rec.startsWith("# branch.upstream ")) { upstream = rec.slice(18); continue; }
+    if (rec.startsWith("# branch.oid ")) {
+      const v = rec.slice(13);
+      if (SHA.test(v)) head = v;
+      continue;
+    }
+    if (rec.startsWith("# branch.head ")) {
+      const v = rec.slice(14);
+      if (v !== "(detached)") branch = v;
+      continue;
+    }
+    if (rec.startsWith("# branch.upstream ")) {
+      upstream = rec.slice(18);
+      continue;
+    }
     if (rec.startsWith("# branch.ab ")) {
       const m = /\+(\d+) -(\d+)/.exec(rec);
-      if (m) { ahead = Number(m[1]); behind = Number(m[2]); }
+      if (m) {
+        ahead = Number(m[1]);
+        behind = Number(m[2]);
+      }
       continue;
     }
     if (rec.startsWith("#")) continue;
@@ -595,7 +742,13 @@ async function status(ctx: Ctx, input: unknown): Promise<Row> {
     if (kind === "1") {
       const f = splitN(rec, 8);
       const xy = f[1] ?? "..";
-      changes.push({ path: f[8] ?? "", status: kindOfXY(xy), added: 0, removed: 0, staged: (xy[0] ?? ".") !== "." && kindOfXY(xy) !== "conflicted" });
+      changes.push({
+        path: f[8] ?? "",
+        status: kindOfXY(xy),
+        added: 0,
+        removed: 0,
+        staged: (xy[0] ?? ".") !== "." && kindOfXY(xy) !== "conflicted",
+      });
     } else if (kind === "2") {
       const f = splitN(rec, 9);
       const xy = f[1] ?? "..";
@@ -609,12 +762,17 @@ async function status(ctx: Ctx, input: unknown): Promise<Row> {
     }
   }
   if (changes.length > 0) {
-    const counts = parseNumstat((await git(r, ["diff", "--numstat", "-z", "-M", head === undefined ? EMPTY_TREE : "HEAD"])).stdout);
+    const counts = parseNumstat(
+      (await git(r, ["diff", "--numstat", "-z", "-M", head === undefined ? EMPTY_TREE : "HEAD"])).stdout,
+    );
     for (const c of changes) {
       if (c.status === "untracked") c.added = lineCount(path.join(r.dir, c.path));
       else {
         const n = counts.get(c.path);
-        if (n) { c.added = n[0]; c.removed = n[1]; }
+        if (n) {
+          c.added = n[0];
+          c.removed = n[1];
+        }
       }
     }
   }
@@ -645,7 +803,7 @@ async function log(ctx: Ctx, input: unknown): Promise<{ commits: CommitRow[]; ne
   const branch = optStr(o, "branch");
   if (branch !== undefined) refOf(ctx, branch, "The branch name");
   const file = optStr(o, "path");
-  const rev: string[] = [before !== undefined ? `${before}^` : branch ?? "HEAD"];
+  const rev: string[] = [before !== undefined ? `${before}^` : (branch ?? "HEAD")];
   if (file !== undefined) rev.push("--", pathOf(ctx, file));
   const rows = await commitRows(ctx, r, rev, limit + 1);
   const page = rows.slice(0, limit);
@@ -696,7 +854,10 @@ async function listBranches(ctx: Ctx, input: unknown): Promise<Row> {
   const r = repoOf(ctx, folderId);
   needRepo(ctx, r);
   const res = await must(ctx, r, [
-    "for-each-ref", "--format=%(refname)%1f%(objectname)%1f%(upstream:track,nobracket)", "refs/heads", "refs/remotes",
+    "for-each-ref",
+    "--format=%(refname)%1f%(objectname)%1f%(upstream:track,nobracket)",
+    "refs/heads",
+    "refs/remotes",
   ]);
   const list = await protectedList(ctx, folderId);
   const branches: Row[] = [];
@@ -708,7 +869,12 @@ async function listBranches(ctx: Ctx, input: unknown): Promise<Row> {
     const isRemote = ref.startsWith("refs/remotes/");
     const name = ref.replace(/^refs\/(heads|remotes)\//, "");
     if (name === "" || name.endsWith("/HEAD")) continue;
-    const row: Row = { name, remote: isRemote, sha, protected: listed(list, name, isRemote ? name.split("/")[0] : undefined) };
+    const row: Row = {
+      name,
+      remote: isRemote,
+      sha,
+      protected: listed(list, name, isRemote ? name.split("/")[0] : undefined),
+    };
     const track = f[2] ?? "";
     if (!isRemote && track !== "") {
       row["ahead"] = Number(/ahead (\d+)/.exec(track)?.[1] ?? "0");
@@ -729,20 +895,43 @@ async function commit(ctx: Ctx, input: unknown): Promise<{ sha: string; files: n
   const pathsIn = o["paths"];
   const paths = Array.isArray(pathsIn) ? pathsIn.map((p) => pathOf(ctx, String(p))) : undefined;
   const authorIn = o["author"];
-  const author = authorIn !== null && typeof authorIn === "object" && !Array.isArray(authorIn) ? (authorIn as Row) : undefined;
+  const author =
+    authorIn !== null && typeof authorIn === "object" && !Array.isArray(authorIn) ? (authorIn as Row) : undefined;
   return exclusive(folderId, async () => {
     const branch = await currentBranch(r);
     if (branch === undefined) fail(ctx, "validation.precondition_failed", "Switch to a branch before committing.");
-    if (paths !== undefined && paths.length === 0) fail(ctx, "validation.precondition_failed", "No files were chosen to commit.");
+    if (paths !== undefined && paths.length === 0)
+      fail(ctx, "validation.precondition_failed", "No files were chosen to commit.");
     await must(ctx, r, ["add", "-A", "--", ...(paths ?? ["."])]);
     const staged = await git(r, ["diff", "--cached", "--quiet", ...(paths !== undefined ? ["--", ...paths] : [])]);
     if (staged.code === 0) fail(ctx, "validation.precondition_failed", "There is nothing to commit.");
     const env = identityEnv(ctx, author);
-    await must(ctx, r, ["commit", "--no-verify", "--no-gpg-sign", "-m", message, ...(paths !== undefined ? ["--only", "--", ...paths] : [])], { env });
+    await must(
+      ctx,
+      r,
+      [
+        "commit",
+        "--no-verify",
+        "--no-gpg-sign",
+        "-m",
+        message,
+        ...(paths !== undefined ? ["--only", "--", ...paths] : []),
+      ],
+      { env },
+    );
     const sha = await headSha(r);
     if (sha === undefined) return fail(ctx, "internal.unexpected", "The commit was made but its id could not be read.");
-    const count = (await must(ctx, r, ["diff-tree", "--root", "-r", "--no-commit-id", "--name-only", "-z", sha])).stdout.split("\u0000").filter((p) => p !== "").length;
-    ctx.emit("git.committed", subject(folderId), { folderId, sha, branch, by: env["GIT_AUTHOR_EMAIL"]?.split("@")[0] ?? ctx.principal.id, files: count, message });
+    const count = (await must(ctx, r, ["diff-tree", "--root", "-r", "--no-commit-id", "--name-only", "-z", sha])).stdout
+      .split("\u0000")
+      .filter((p) => p !== "").length;
+    ctx.emit("git.committed", subject(folderId), {
+      folderId,
+      sha,
+      branch,
+      by: env["GIT_AUTHOR_EMAIL"]?.split("@")[0] ?? ctx.principal.id,
+      files: count,
+      message,
+    });
     return { sha, files: count };
   });
 }
@@ -753,7 +942,8 @@ async function branchOp(ctx: Ctx, input: unknown): Promise<{ branch: string }> {
   const r = repoOf(ctx, folderId);
   needRepo(ctx, r);
   const action = reqStr(ctx, o, "action");
-  if (action !== "create" && action !== "switch" && action !== "delete") fail(ctx, "validation.bad_input", "action must be create, switch or delete.");
+  if (action !== "create" && action !== "switch" && action !== "delete")
+    fail(ctx, "validation.bad_input", "action must be create, switch or delete.");
   const name = await validBranch(ctx, r, reqStr(ctx, o, "name"));
   const from = optStr(o, "from");
   if (from !== undefined) refOf(ctx, from, "from");
@@ -767,8 +957,14 @@ async function branchOp(ctx: Ctx, input: unknown): Promise<{ branch: string }> {
       await must(ctx, r, ["switch", "--quiet", name]);
     } else {
       if (!exists) fail(ctx, "validation.precondition_failed", "That branch does not exist.");
-      if ((await currentBranch(r)) === name) fail(ctx, "validation.precondition_failed", "Switch to another branch before deleting this one.");
-      if (listed(await protectedList(ctx, folderId), name)) fail(ctx, "validation.precondition_failed", "A protected branch cannot be deleted. Remove its protection first.");
+      if ((await currentBranch(r)) === name)
+        fail(ctx, "validation.precondition_failed", "Switch to another branch before deleting this one.");
+      if (listed(await protectedList(ctx, folderId), name))
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          "A protected branch cannot be deleted. Remove its protection first.",
+        );
       await must(ctx, r, ["branch", "-D", name]);
     }
     ctx.emit("git.branch_changed", subject(folderId), { folderId, branch: name, action });
@@ -776,7 +972,11 @@ async function branchOp(ctx: Ctx, input: unknown): Promise<{ branch: string }> {
   });
 }
 
-interface PullResult { updated: boolean; sha?: string; conflicts: string[] }
+interface PullResult {
+  updated: boolean;
+  sha?: string;
+  conflicts: string[];
+}
 
 async function conflictedFiles(r: Repo): Promise<string[]> {
   const res = await git(r, ["diff", "--name-only", "--diff-filter=U", "-z"]);
@@ -786,35 +986,61 @@ async function conflictedFiles(r: Repo): Promise<string[]> {
 async function pullInside(ctx: Ctx, r: Repo, o: Row): Promise<PullResult> {
   const remote = refOf(ctx, optStr(o, "remote") ?? "origin", "The remote name");
   const strategy = optStr(o, "strategy") ?? "merge";
-  if (strategy !== "merge" && strategy !== "rebase" && strategy !== "ff_only") fail(ctx, "validation.bad_input", "strategy must be merge, rebase or ff_only.");
+  if (strategy !== "merge" && strategy !== "rebase" && strategy !== "ff_only")
+    fail(ctx, "validation.bad_input", "strategy must be merge, rebase or ff_only.");
   const branch = optStr(o, "branch") ?? (await currentBranch(r));
   if (branch === undefined) return fail(ctx, "validation.precondition_failed", "Switch to a branch before pulling.");
   refOf(ctx, branch, "The branch name");
   const before = await headSha(r);
   const auth = await remoteAuth(ctx, r, remote);
-  const fetched = await git(r, ["fetch", "--quiet", remote, branch], { env: auth.env, secrets: auth.secrets, timeoutMs: NETWORK_MS });
+  const fetched = await git(r, ["fetch", "--quiet", remote, branch], {
+    env: auth.env,
+    secrets: auth.secrets,
+    timeoutMs: NETWORK_MS,
+  });
   if (fetched.code !== 0) remoteFail(ctx, fetched);
   const env = identityEnv(ctx, undefined);
   let conflicts: string[] = [];
   if (strategy === "ff_only") {
     const res = await git(r, ["merge", "--ff-only", "--quiet", "FETCH_HEAD"], { env });
-    if (res.code !== 0) fail(ctx, "validation.precondition_failed", "Your branch and the remote have both moved on, so this cannot be a fast-forward. Pull with merge or rebase.");
+    if (res.code !== 0)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "Your branch and the remote have both moved on, so this cannot be a fast-forward. Pull with merge or rebase.",
+      );
   } else if (strategy === "merge") {
     const res = await git(r, ["merge", "--no-edit", "--quiet", "FETCH_HEAD"], { env });
     if (res.code !== 0) {
       conflicts = await conflictedFiles(r);
-      if (conflicts.length === 0) fail(ctx, "validation.precondition_failed", firstLine(res.stderr) || firstLine(res.stdout) || "The merge failed.");
+      if (conflicts.length === 0)
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          firstLine(res.stderr) || firstLine(res.stdout) || "The merge failed.",
+        );
     }
   } else {
     const res = await git(r, ["rebase", "--quiet", "FETCH_HEAD"], { env });
     if (res.code !== 0) {
       conflicts = await conflictedFiles(r);
       await git(r, ["rebase", "--abort"]);
-      if (conflicts.length === 0) fail(ctx, "validation.precondition_failed", firstLine(res.stderr) || firstLine(res.stdout) || "The rebase failed.");
+      if (conflicts.length === 0)
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          firstLine(res.stderr) || firstLine(res.stdout) || "The rebase failed.",
+        );
     }
   }
   const after = await headSha(r);
-  ctx.emit("git.pulled", subject(r.folderId), { folderId: r.folderId, branch, ...(before !== undefined ? { from: before } : {}), to: after ?? before ?? "0000000", conflicts: conflicts.length });
+  ctx.emit("git.pulled", subject(r.folderId), {
+    folderId: r.folderId,
+    branch,
+    ...(before !== undefined ? { from: before } : {}),
+    to: after ?? before ?? "0000000",
+    conflicts: conflicts.length,
+  });
   return { updated: after !== before, ...(after !== undefined ? { sha: after } : {}), conflicts };
 }
 
@@ -834,12 +1060,23 @@ async function pushInside(ctx: Ctx, r: Repo, o: Row): Promise<{ pushed: boolean;
   const exists = (await git(r, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`])).code === 0;
   if (!exists) fail(ctx, "validation.precondition_failed", `There is no branch ${branch} to push.`);
   const auth = await remoteAuth(ctx, r, remote);
-  const res = await git(r, ["push", "--quiet", "--set-upstream", remote, `refs/heads/${branch}:refs/heads/${branch}`], { env: auth.env, secrets: auth.secrets, timeoutMs: NETWORK_MS });
+  const res = await git(r, ["push", "--quiet", "--set-upstream", remote, `refs/heads/${branch}:refs/heads/${branch}`], {
+    env: auth.env,
+    secrets: auth.secrets,
+    timeoutMs: NETWORK_MS,
+  });
   if (res.code !== 0) remoteFail(ctx, res);
   const tip = (await git(r, ["rev-parse", "--verify", "-q", `refs/heads/${branch}`])).stdout.trim();
   const pushedSha = SHA.test(tip) ? tip : undefined;
-  if (pushedSha === undefined) return fail(ctx, "internal.unexpected", "The push worked but its commit could not be read.");
-  ctx.emit("git.pushed", subject(r.folderId), { folderId: r.folderId, branch, remote, sha: pushedSha, protectedBranch: listed(await protectedList(ctx, r.folderId), branch) });
+  if (pushedSha === undefined)
+    return fail(ctx, "internal.unexpected", "The push worked but its commit could not be read.");
+  ctx.emit("git.pushed", subject(r.folderId), {
+    folderId: r.folderId,
+    branch,
+    remote,
+    sha: pushedSha,
+    protectedBranch: listed(await protectedList(ctx, r.folderId), branch),
+  });
   return { pushed: true, sha: pushedSha };
 }
 
@@ -851,16 +1088,30 @@ async function push(ctx: Ctx, input: unknown): Promise<{ pushed: boolean; sha?: 
   return exclusive(folderId, () => pushInside(ctx, r, o));
 }
 
-async function sync(ctx: Ctx, input: unknown): Promise<{ pulled: boolean; pushed: boolean; conflicts: string[]; sha?: string }> {
+async function sync(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ pulled: boolean; pushed: boolean; conflicts: string[]; sha?: string }> {
   const o = record(ctx, input);
   const folderId = folderIdOf(ctx, o);
   const r = repoOf(ctx, folderId);
   needRepo(ctx, r);
   return exclusive(folderId, async () => {
     const pulled = await pullInside(ctx, r, o);
-    if (pulled.conflicts.length > 0) return { pulled: true, pushed: false, conflicts: pulled.conflicts, ...(pulled.sha !== undefined ? { sha: pulled.sha } : {}) };
+    if (pulled.conflicts.length > 0)
+      return {
+        pulled: true,
+        pushed: false,
+        conflicts: pulled.conflicts,
+        ...(pulled.sha !== undefined ? { sha: pulled.sha } : {}),
+      };
     const pushed = await pushInside(ctx, r, o);
-    return { pulled: true, pushed: pushed.pushed, conflicts: [], ...(pushed.sha !== undefined ? { sha: pushed.sha } : {}) };
+    return {
+      pulled: true,
+      pushed: pushed.pushed,
+      conflicts: [],
+      ...(pushed.sha !== undefined ? { sha: pushed.sha } : {}),
+    };
   });
 }
 
@@ -869,8 +1120,10 @@ async function remoteAdd(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   const folderId = folderIdOf(ctx, o);
   const name = reqStr(ctx, o, "name");
   const url = reqStr(ctx, o, "url");
-  if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith("-")) fail(ctx, "validation.bad_input", "The remote name is not valid.");
-  if (!/^https:\/\/[^@\s]+$/.test(url)) fail(ctx, "validation.bad_input", "A remote must be an https address without a sign-in in it.");
+  if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith("-"))
+    fail(ctx, "validation.bad_input", "The remote name is not valid.");
+  if (!/^https:\/\/[^@\s]+$/.test(url))
+    fail(ctx, "validation.bad_input", "A remote must be an https address without a sign-in in it.");
   const r = repoOf(ctx, folderId);
   needRepo(ctx, r);
   return exclusive(folderId, async () => {
@@ -886,7 +1139,8 @@ async function remoteRemove(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   const o = record(ctx, input);
   const folderId = folderIdOf(ctx, o);
   const name = reqStr(ctx, o, "name");
-  if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith("-")) fail(ctx, "validation.bad_input", "The remote name is not valid.");
+  if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith("-"))
+    fail(ctx, "validation.bad_input", "The remote name is not valid.");
   const r = repoOf(ctx, folderId);
   needRepo(ctx, r);
   return exclusive(folderId, async () => {
@@ -908,7 +1162,12 @@ async function protect(ctx: Ctx, input: unknown): Promise<{ branches: string[] }
     const name = refOf(ctx, n, "A branch name");
     if (!names.includes(name)) names.push(name);
   }
-  ctx.db.run("INSERT OR REPLACE INTO git_protection (folder_id, branches, updated_at) VALUES (?, ?, ?)", folderId, JSON.stringify(names), ctx.now());
+  ctx.db.run(
+    "INSERT OR REPLACE INTO git_protection (folder_id, branches, updated_at) VALUES (?, ?, ?)",
+    folderId,
+    JSON.stringify(names),
+    ctx.now(),
+  );
   ctx.emit("git.protection_changed", subject(folderId), { folderId, branches: names });
   return { branches: names };
 }
@@ -922,7 +1181,12 @@ async function health(_ctx: Ctx, _input: unknown): Promise<Row> {
   const m = /git version (\d+)\.(\d+)(?:\.(\d+))?/.exec(res.stdout);
   const version = m ? `${m[1]}.${m[2]}${m[3] !== undefined ? `.${m[3]}` : ""}` : res.stdout.trim();
   if (m && (Number(m[1]) < 2 || (Number(m[1]) === 2 && Number(m[2]) < 25))) {
-    return { state: "degraded", detail: `git ${version} is older than 2.25; update it on the server`, latencyMs, version };
+    return {
+      state: "degraded",
+      detail: `git ${version} is older than 2.25; update it on the server`,
+      latencyMs,
+      version,
+    };
   }
   return { state: "healthy", latencyMs, version };
 }
@@ -954,14 +1218,19 @@ const CHANGES_TREE = new Set(["git.pull", "git.sync", "git.branch"]);
 function bridged(name: string, h: OpHandler): OpHandler {
   return async (ctx, input) => {
     const o = input !== null && typeof input === "object" && !Array.isArray(input) ? (input as Row) : {};
-    const folderId = typeof o["folderId"] === "string" && /^fld_[a-z0-9]+$/.test(o["folderId"]) ? o["folderId"] : undefined;
+    const folderId =
+      typeof o["folderId"] === "string" && /^fld_[a-z0-9]+$/.test(o["folderId"]) ? o["folderId"] : undefined;
     if (folderId === undefined) return h(ctx, input);
     const r = repoOf(ctx, folderId);
-    if (READS_TREE.has(name) && (name === "git.init" || isRepo(r))) await exclusive(folderId, () => toTree(ctx, r.d.treesDir, r.dir, folderId));
+    if (READS_TREE.has(name) && (name === "git.init" || isRepo(r)))
+      await exclusive(folderId, () => toTree(ctx, r.d.treesDir, r.dir, folderId));
     const out = await h(ctx, input);
-    if (CHANGES_TREE.has(name) && isRepo(r)) await exclusive(folderId, () => fromTree(ctx, r.d.treesDir, r.dir, folderId));
+    if (CHANGES_TREE.has(name) && isRepo(r))
+      await exclusive(folderId, () => fromTree(ctx, r.d.treesDir, r.dir, folderId));
     return out;
   };
 }
 
-export const opsHandlers = Object.fromEntries(Object.entries(rawHandlers).map(([name, h]) => [name, bridged(name, h as OpHandler)])) as typeof rawHandlers;
+export const opsHandlers = Object.fromEntries(
+  Object.entries(rawHandlers).map(([name, h]) => [name, bridged(name, h as OpHandler)]),
+) as typeof rawHandlers;

@@ -13,17 +13,53 @@ export type FaceSpec =
   | { fam: "img"; url: string };
 
 export const FAMILIES: readonly { key: Family | "emoji" | "upload"; label: string }[] = [
-  { key: "faces", label: "Faces" }, { key: "friends", label: "Friends" }, { key: "blobs", label: "Blobs" }, { key: "glass", label: "Glass" }, { key: "emoji", label: "Emoji" }, { key: "upload", label: "Upload" },
+  { key: "faces", label: "Faces" },
+  { key: "friends", label: "Friends" },
+  { key: "blobs", label: "Blobs" },
+  { key: "glass", label: "Glass" },
+  { key: "emoji", label: "Emoji" },
+  { key: "upload", label: "Upload" },
 ];
 export const DRAWN: readonly Family[] = ["faces", "friends", "blobs", "glass"];
 /** How many curated faces each drawn family offers. */
 export const PER_FAMILY = 24;
 /** The tints a face can sit on: soft, and good on paper and graphite alike. */
 export const TINTS: readonly { name: string; hex: string }[] = [
-  { name: "Violet", hex: "#E9E3FF" }, { name: "Coral", hex: "#FFE3D6" }, { name: "Mint", hex: "#D9F2E5" }, { name: "Sun", hex: "#FFF0C7" },
-  { name: "Sky", hex: "#D9E9FF" }, { name: "Rose", hex: "#FFDDEB" }, { name: "Stone", hex: "#E4E1EA" }, { name: "Teal", hex: "#D3EFEF" },
+  { name: "Violet", hex: "#E9E3FF" },
+  { name: "Coral", hex: "#FFE3D6" },
+  { name: "Mint", hex: "#D9F2E5" },
+  { name: "Sun", hex: "#FFF0C7" },
+  { name: "Sky", hex: "#D9E9FF" },
+  { name: "Rose", hex: "#FFDDEB" },
+  { name: "Stone", hex: "#E4E1EA" },
+  { name: "Teal", hex: "#D3EFEF" },
 ];
-export const EMOJI: readonly string[] = ["🦊", "🐙", "🦉", "🐝", "🐳", "🦄", "🐱", "🐼", "🦋", "🐸", "🌵", "🍄", "🐧", "🦔", "🐨", "🦁", "🐯", "🐰", "🌻", "🍋", "🪐", "⚡", "🔭", "🧭"];
+export const EMOJI: readonly string[] = [
+  "🦊",
+  "🐙",
+  "🦉",
+  "🐝",
+  "🐳",
+  "🦄",
+  "🐱",
+  "🐼",
+  "🦋",
+  "🐸",
+  "🌵",
+  "🍄",
+  "🐧",
+  "🦔",
+  "🐨",
+  "🦁",
+  "🐯",
+  "🐰",
+  "🌻",
+  "🍋",
+  "🪐",
+  "⚡",
+  "🔭",
+  "🧭",
+];
 /** An uploaded picture is a square of 192 px, at most about 24 KB. It is kept as a file in the agent's folder (face stores av1:file:<fileId>); IMG_MAX_CHARS also bounds a draft held inline until the agent exists. */
 export const IMG_MAX_CHARS = 32_000;
 
@@ -42,10 +78,15 @@ export function formatFace(s: FaceSpec): string {
 export function parseFace(text: string | undefined | null): FaceSpec | null {
   if (typeof text !== "string" || !text.startsWith(PREFIX)) return null;
   const rest = text.slice(PREFIX.length);
-  if (rest.startsWith("file:")) { const id = rest.slice(5); return /^[A-Za-z0-9_-]{3,80}$/.test(id) ? { fam: "file", id } : null; }
+  if (rest.startsWith("file:")) {
+    const id = rest.slice(5);
+    return /^[A-Za-z0-9_-]{3,80}$/.test(id) ? { fam: "file", id } : null;
+  }
   if (rest.startsWith("img:")) {
     const url = rest.slice(4);
-    return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url) && url.length <= IMG_MAX_CHARS ? { fam: "img", url } : null;
+    return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url) && url.length <= IMG_MAX_CHARS
+      ? { fam: "img", url }
+      : null;
   }
   const [fam, a, b] = rest.split(":");
   const tint = Number(b);
@@ -61,15 +102,20 @@ export function parseFace(text: string | undefined | null): FaceSpec | null {
 export const isFace = (text: string | undefined | null): boolean => parseFace(text) !== null;
 
 /** The key a face is told apart by when looking for one nobody wears yet (the tint does not make a face different). */
-export const faceKeyOf = (s: FaceSpec): string => (s.fam === "img" || s.fam === "file" ? "upload" : s.fam === "emoji" ? `emoji:${s.e}` : `${s.fam}:${s.i}`);
+export const faceKeyOf = (s: FaceSpec): string =>
+  s.fam === "img" || s.fam === "file" ? "upload" : s.fam === "emoji" ? `emoji:${s.e}` : `${s.fam}:${s.i}`;
 
 /** A face no one in the Space wears yet, from the drawn families first. `taken` is every stored face text in the Space. Same inputs and `random` give the same answer. */
 export function suggestFace(taken: Iterable<string | undefined>, random: () => number = Math.random): FaceSpec {
   const used = new Set<string>();
-  for (const t of taken) { const p = parseFace(t); if (p) used.add(faceKeyOf(p)); }
+  for (const t of taken) {
+    const p = parseFace(t);
+    if (p) used.add(faceKeyOf(p));
+  }
   const tint = Math.floor(random() * TINTS.length) % TINTS.length;
   const open: FaceSpec[] = [];
-  for (const fam of DRAWN) for (let i = 0; i < PER_FAMILY; i++) if (!used.has(`${fam}:${i}`)) open.push({ fam, i, tint });
+  for (const fam of DRAWN)
+    for (let i = 0; i < PER_FAMILY; i++) if (!used.has(`${fam}:${i}`)) open.push({ fam, i, tint });
   if (open.length > 0) return open[Math.floor(random() * open.length) % open.length]!;
   for (const e of EMOJI) if (!used.has(`emoji:${e}`)) return { fam: "emoji", e, tint };
   return { fam: "faces", i: Math.floor(random() * PER_FAMILY) % PER_FAMILY, tint };
@@ -83,7 +129,8 @@ export function shuffleFace(fam: Family | "emoji", random: () => number = Math.r
 }
 
 /** The tint a face sits on, as a colour. */
-export const tintHex = (s: FaceSpec): string => (s.fam === "img" || s.fam === "file" ? "transparent" : TINTS[s.tint]!.hex);
+export const tintHex = (s: FaceSpec): string =>
+  s.fam === "img" || s.fam === "file" ? "transparent" : TINTS[s.tint]!.hex;
 
 /** What a face does for a state: an agent that works looks focused, one that finished smiles, one that sleeps has closed eyes (Faces, Friends and Blobs only; the others do not change). */
 export const hasExpressions = (s: FaceSpec): boolean => s.fam === "faces" || s.fam === "friends" || s.fam === "blobs";

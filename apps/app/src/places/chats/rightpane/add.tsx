@@ -14,9 +14,19 @@ export function usePaneAdd(deps: PaneDeps): { add: AddSheetApi; row: Entry } {
   const data = usePaneData();
   const me = data.me?.id ?? "me";
   const add = useAddSheet({
-    call: deps.call, me: { id: me, name: data.nameOf?.(me) ?? "You" }, nameOf: data.nameOf ?? ((id) => id),
-    newKey: () => `rp-add-${data.threadId}-${++seq}`, toast: (text) => deps.note(text),
+    call: deps.call,
+    me: { id: me, name: data.nameOf?.(me) ?? "You" },
+    nameOf: data.nameOf ?? ((id) => id),
+    newKey: () => `rp-add-${data.threadId}-${++seq}`,
+    toast: (text) => deps.note(text),
   });
-  const row: Entry = { key: "add-people", type: "row", title: "Add people and agents", leading: <LeadIcon name="plus" />, onPress: () => add.open({ threadId: data.threadId }), testID: "pane-add-people" };
+  const row: Entry = {
+    key: "add-people",
+    type: "row",
+    title: "Add people and agents",
+    leading: <LeadIcon name="plus" />,
+    onPress: () => add.open({ threadId: data.threadId }),
+    testID: "pane-add-people",
+  };
   return { add, row };
 }

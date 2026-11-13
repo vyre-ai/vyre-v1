@@ -23,15 +23,26 @@ type Row = Record<string, unknown>;
 export type Cell = string | number | boolean;
 
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   if (details) error.details = details;
@@ -39,29 +50,38 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 const isNull = (v: unknown): boolean => v === null || v === undefined;
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v !== "" && Number.isFinite(Number(v)) ? Number(v) : 0);
+const num = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v)
+    ? v
+    : typeof v === "string" && v !== "" && Number.isFinite(Number(v))
+      ? Number(v)
+      : 0;
 const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined => (ctx.db.all(sql, ...args) as Row[])[0];
 
 function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Record<string, unknown>;
 }
 
 function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
 function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
 function recordOf(ctx: Ctx, value: unknown, field: string): Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) fail(ctx, "validation.bad_input", "The input is not valid.", { field });
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field });
   return value as Record<string, unknown>;
 }
 
@@ -69,7 +89,10 @@ function recordOf(ctx: Ctx, value: unknown, field: string): Record<string, unkno
 
 export interface SheetsDrivers {
   /** The Google spreadsheet id of a mounted Google Sheet, or undefined when the file is not one. */
-  googleSpreadsheetId(ctx: Ctx, file: { fileId: string; mountId: string }): string | undefined | Promise<string | undefined>;
+  googleSpreadsheetId(
+    ctx: Ctx,
+    file: { fileId: string; mountId: string },
+  ): string | undefined | Promise<string | undefined>;
 }
 
 let configured: SheetsDrivers | null = null;
@@ -84,7 +107,10 @@ export const sheetsHooks: { afterRead?: () => Promise<void> } = {};
 
 // ---- the table model ----
 
-interface Grid { columns: string[]; rows: Cell[][] }
+interface Grid {
+  columns: string[];
+  rows: Cell[][];
+}
 
 interface Book {
   names(): string[];
@@ -98,7 +124,14 @@ interface Book {
   encode(): Promise<Uint8Array>;
 }
 
-const cellText = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v));
+const cellText = (v: unknown): string =>
+  v === null || v === undefined
+    ? ""
+    : typeof v === "string"
+      ? v
+      : typeof v === "number" || typeof v === "boolean"
+        ? String(v)
+        : JSON.stringify(v);
 
 // ---- CSV ----
 
@@ -112,13 +145,19 @@ export function parseCsv(text: string): string[][] {
     const ch = text[i] as string;
     if (quoted) {
       if (ch === '"') {
-        if (text[i + 1] === '"') { cell += '"'; i += 1; } else quoted = false;
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else quoted = false;
       } else cell += ch;
     } else if (ch === '"') quoted = true;
-    else if (ch === ",") { row.push(cell); cell = ""; }
-    else if (ch === "\n" || ch === "\r") {
+    else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && text[i + 1] === "\n") i += 1;
-      row.push(cell); cell = "";
+      row.push(cell);
+      cell = "";
       if (!(row.length === 1 && row[0] === "")) rows.push(row);
       row = [];
     } else cell += ch;
@@ -153,8 +192,12 @@ class CsvBook implements Book {
     for (let i = this.columns.length; i < width; i++) this.columns.push(`Column ${i + 1}`);
     this.rows = parsed.slice(1).map((r) => this.columns.map((_, i) => r[i] ?? ""));
   }
-  names(): string[] { return [this.sheet]; }
-  grid(): Grid { return { columns: [...this.columns], rows: this.rows.map((r) => [...r]) }; }
+  names(): string[] {
+    return [this.sheet];
+  }
+  grid(): Grid {
+    return { columns: [...this.columns], rows: this.rows.map((r) => [...r]) };
+  }
   ensureColumns(_name: string, wanted: string[]): string[] {
     for (const w of wanted) {
       if (this.columns.includes(w)) continue;
@@ -163,18 +206,41 @@ class CsvBook implements Book {
     }
     return [...this.columns];
   }
-  appendRow(_name: string, cells: Cell[]): void { this.rows.push(this.columns.map((_, i) => cellText(cells[i]))); }
-  setRow(_name: string, index: number, cells: Cell[]): void { this.rows[index] = this.columns.map((_, i) => cellText(cells[i])); }
-  removeRow(_name: string, index: number): void { this.rows.splice(index, 1); }
-  addSheet(): void { throw new Error("csv has one sheet"); }
-  async encode(): Promise<Uint8Array> { return new TextEncoder().encode(writeCsv(this.columns, this.rows)); }
+  appendRow(_name: string, cells: Cell[]): void {
+    this.rows.push(this.columns.map((_, i) => cellText(cells[i])));
+  }
+  setRow(_name: string, index: number, cells: Cell[]): void {
+    this.rows[index] = this.columns.map((_, i) => cellText(cells[i]));
+  }
+  removeRow(_name: string, index: number): void {
+    this.rows.splice(index, 1);
+  }
+  addSheet(): void {
+    throw new Error("csv has one sheet");
+  }
+  async encode(): Promise<Uint8Array> {
+    return new TextEncoder().encode(writeCsv(this.columns, this.rows));
+  }
 }
 
 // ---- XLSX (exceljs, loaded when the first workbook is opened) ----
 
-interface XCell { value: unknown }
-interface XRow { getCell(col: number): XCell; cellCount: number; actualCellCount: number }
-interface XSheet { name: string; rowCount: number; columnCount: number; getRow(n: number): XRow; addRow(values: unknown[]): unknown; spliceRows(start: number, count: number): void }
+interface XCell {
+  value: unknown;
+}
+interface XRow {
+  getCell(col: number): XCell;
+  cellCount: number;
+  actualCellCount: number;
+}
+interface XSheet {
+  name: string;
+  rowCount: number;
+  columnCount: number;
+  getRow(n: number): XRow;
+  addRow(values: unknown[]): unknown;
+  spliceRows(start: number, count: number): void;
+}
 interface XBook {
   worksheets: XSheet[];
   addWorksheet(name: string): XSheet;
@@ -240,11 +306,15 @@ class XlsxBook implements Book {
     }
     return rows;
   }
-  names(): string[] { return this.wb.worksheets.map((s) => s.name); }
+  names(): string[] {
+    return this.wb.worksheets.map((s) => s.name);
+  }
   grid(name: string): Grid {
     const ws = this.sheet(name);
     const columns = this.header(ws);
-    const rows = this.dataRows(ws, columns.length).map((r) => columns.map((_, i) => plainCell(ws.getRow(r).getCell(i + 1).value)));
+    const rows = this.dataRows(ws, columns.length).map((r) =>
+      columns.map((_, i) => plainCell(ws.getRow(r).getCell(i + 1).value)),
+    );
     return { columns, rows };
   }
   ensureColumns(name: string, wanted: string[]): string[] {
@@ -257,14 +327,18 @@ class XlsxBook implements Book {
     }
     return columns;
   }
-  appendRow(name: string, cells: Cell[]): void { this.sheet(name).addRow(cells.map((c) => c)); }
+  appendRow(name: string, cells: Cell[]): void {
+    this.sheet(name).addRow(cells.map((c) => c));
+  }
   setRow(name: string, index: number, cells: Cell[]): void {
     const ws = this.sheet(name);
     const columns = this.header(ws);
     const at = this.dataRows(ws, columns.length)[index];
     if (at === undefined) throw new Error("row is gone");
     const row = ws.getRow(at);
-    columns.forEach((_, i) => { row.getCell(i + 1).value = cells[i] ?? ""; });
+    columns.forEach((_, i) => {
+      row.getCell(i + 1).value = cells[i] ?? "";
+    });
   }
   removeRow(name: string, index: number): void {
     const ws = this.sheet(name);
@@ -301,7 +375,9 @@ function formatOf(ctx: Ctx, file: Row): Format {
   const ext = extOf(name);
   if (ext === "csv") return "csv";
   if (ext === "xlsx") return "xlsx";
-  return fail(ctx, "validation.unsupported", "This is not a table file. Sheets work on CSV, XLSX and Google Sheets.", { name });
+  return fail(ctx, "validation.unsupported", "This is not a table file. Sheets work on CSV, XLSX and Google Sheets.", {
+    name,
+  });
 }
 
 function sheetNameOfCsv(file: Row): string {
@@ -312,7 +388,8 @@ function sheetNameOfCsv(file: Row): string {
 
 function liveFile(ctx: Ctx, fileId: string): Row {
   const row = one(ctx, "SELECT * FROM files_file WHERE id = ?", fileId);
-  if (!row || !isNull(row.deleted_at)) return fail(ctx, "validation.not_found", "That file does not exist.", { fileId });
+  if (!row || !isNull(row.deleted_at))
+    return fail(ctx, "validation.not_found", "That file does not exist.", { fileId });
   return row;
 }
 
@@ -343,13 +420,20 @@ function pickSheet(ctx: Ctx, book: Book, wanted: string | undefined): string {
     if (first === undefined) return fail(ctx, "validation.precondition_failed", "The workbook has no sheet.");
     return first;
   }
-  if (!names.includes(wanted)) return fail(ctx, "validation.precondition_failed", `There is no sheet named ${wanted}.`, { sheet: wanted, sheets: names });
+  if (!names.includes(wanted))
+    return fail(ctx, "validation.precondition_failed", `There is no sheet named ${wanted}.`, {
+      sheet: wanted,
+      sheets: names,
+    });
   return wanted;
 }
 
 // ---- row ids ----
 
-interface IdSet { ids: string[]; next: number }
+interface IdSet {
+  ids: string[];
+  next: number;
+}
 
 function idsFor(ctx: Ctx, fileId: string, version: number, sheet: string, count: number): IdSet {
   const row = one(ctx, "SELECT * FROM files_sheet_ids WHERE file_id = ? AND sheet = ?", fileId, sheet);
@@ -357,7 +441,8 @@ function idsFor(ctx: Ctx, fileId: string, version: number, sheet: string, count:
   if (row && num(row.version) === version) {
     try {
       const parsed: unknown = JSON.parse(String(row.ids));
-      if (Array.isArray(parsed) && parsed.length === count && parsed.every((x) => typeof x === "string")) return { ids: parsed as string[], next };
+      if (Array.isArray(parsed) && parsed.length === count && parsed.every((x) => typeof x === "string"))
+        return { ids: parsed as string[], next };
     } catch {
       // damaged sidecar: derive below
     }
@@ -368,8 +453,24 @@ function idsFor(ctx: Ctx, fileId: string, version: number, sheet: string, count:
 function saveIds(ctx: Ctx, fileId: string, sheet: string, version: number, set: IdSet): void {
   const json = JSON.stringify(set.ids);
   const row = one(ctx, "SELECT * FROM files_sheet_ids WHERE file_id = ? AND sheet = ?", fileId, sheet);
-  if (row) ctx.db.run("UPDATE files_sheet_ids SET version = ?, next_id = ?, ids = ? WHERE file_id = ? AND sheet = ?", version, set.next, json, fileId, sheet);
-  else ctx.db.run("INSERT INTO files_sheet_ids (file_id, sheet, version, next_id, ids) VALUES (?, ?, ?, ?, ?)", fileId, sheet, version, set.next, json);
+  if (row)
+    ctx.db.run(
+      "UPDATE files_sheet_ids SET version = ?, next_id = ?, ids = ? WHERE file_id = ? AND sheet = ?",
+      version,
+      set.next,
+      json,
+      fileId,
+      sheet,
+    );
+  else
+    ctx.db.run(
+      "INSERT INTO files_sheet_ids (file_id, sheet, version, next_id, ids) VALUES (?, ?, ?, ?, ?)",
+      fileId,
+      sheet,
+      version,
+      set.next,
+      json,
+    );
 }
 
 /** A new row id: r_<n> from the sheet's own counter, which never goes back, so a deleted row's id is never given to another row. */
@@ -385,7 +486,10 @@ const tails = new Map<string, Promise<unknown>>();
 async function queued<T>(key: string, run: () => Promise<T>): Promise<T> {
   const prev = tails.get(key) ?? Promise.resolve();
   const next = prev.then(run);
-  const tail = next.then(() => undefined, () => undefined);
+  const tail = next.then(
+    () => undefined,
+    () => undefined,
+  );
   tails.set(key, tail);
   try {
     return await next;
@@ -415,17 +519,30 @@ interface EditEnv {
   ids: IdSet;
 }
 
-interface Edited<T> { out: T; events: { name: "sheet.row_appended" | "sheet.row_updated" | "sheet.row_deleted"; rowId: string; columns?: string[] }[] }
+interface Edited<T> {
+  out: T;
+  events: {
+    name: "sheet.row_appended" | "sheet.row_updated" | "sheet.row_deleted";
+    rowId: string;
+    columns?: string[];
+  }[];
+}
 
 /** Read the newest version, apply one row operation, write with baseVersion; read again when a save from outside got in between. */
 async function edit<T>(
-  ctx: Ctx, fileId: string, sheetWanted: string | undefined, label: string | undefined, op: (env: EditEnv) => Edited<T>, forceSheet = true,
+  ctx: Ctx,
+  fileId: string,
+  sheetWanted: string | undefined,
+  label: string | undefined,
+  op: (env: EditEnv) => Edited<T>,
+  forceSheet = true,
 ): Promise<T & { versionId?: string }> {
   return queued(`${ctx.space}:${fileId}`, async () => {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       const file = liveFile(ctx, fileId);
       const format = formatOf(ctx, file);
-      if (format === "google") return fail(ctx, "internal.unexpected", "Google sheets are edited through the provider.");
+      if (format === "google")
+        return fail(ctx, "internal.unexpected", "Google sheets are edited through the provider.");
       const version = num(file.version);
       const book = await openBook(ctx, file, format);
       const sets = new Map<string, IdSet>();
@@ -440,7 +557,12 @@ async function edit<T>(
       let wrote: Awaited<ReturnType<(typeof treeHandlers)["files.write"]>>;
       try {
         // the tree handler, not the versions one: a table is never "newest save wins", an outside save in between is a version_conflict and the row operation is read again
-        wrote = await treeHandlers["files.write"](ctx, { fileId, content: { base64: Buffer.from(bytes).toString("base64") }, baseVersion: version, reason: labelOf(ctx, label) });
+        wrote = await treeHandlers["files.write"](ctx, {
+          fileId,
+          content: { base64: Buffer.from(bytes).toString("base64") },
+          baseVersion: version,
+          reason: labelOf(ctx, label),
+        });
       } catch (e) {
         if (e instanceof VyreErr && e.error.code === "validation.version_conflict") continue;
         throw e;
@@ -460,7 +582,9 @@ async function edit<T>(
       if (wrote.versionId !== undefined) out.versionId = wrote.versionId;
       return out;
     }
-    return fail(ctx, "validation.version_conflict", "The file kept changing while the row was written. Try again.", { fileId });
+    return fail(ctx, "validation.version_conflict", "The file kept changing while the row was written. Try again.", {
+      fileId,
+    });
   });
 }
 
@@ -475,7 +599,9 @@ function toCell(v: unknown, format: Format): Cell {
 
 function asRecord(columns: string[], cells: Cell[]): Record<string, Cell> {
   const out: Record<string, Cell> = {};
-  columns.forEach((c, i) => { out[c] = cells[i] ?? ""; });
+  columns.forEach((c, i) => {
+    out[c] = cells[i] ?? "";
+  });
   return out;
 }
 
@@ -492,16 +618,26 @@ function holds(cell: Cell, cond: unknown): boolean {
   if (cond !== null && typeof cond === "object" && !Array.isArray(cond)) {
     return Object.entries(cond as Record<string, unknown>).every(([op, arg]) => {
       switch (op) {
-        case "eq": return String(cell) === cellText(arg);
-        case "ne": return String(cell) !== cellText(arg);
-        case "gt": return compare(cell, arg) > 0;
-        case "gte": return compare(cell, arg) >= 0;
-        case "lt": return compare(cell, arg) < 0;
-        case "lte": return compare(cell, arg) <= 0;
-        case "contains": return String(cell).toLowerCase().includes(cellText(arg).toLowerCase());
-        case "in": return Array.isArray(arg) && arg.some((a) => String(cell) === cellText(a));
-        case "empty": return (String(cell) === "") === (arg !== false);
-        default: return false;
+        case "eq":
+          return String(cell) === cellText(arg);
+        case "ne":
+          return String(cell) !== cellText(arg);
+        case "gt":
+          return compare(cell, arg) > 0;
+        case "gte":
+          return compare(cell, arg) >= 0;
+        case "lt":
+          return compare(cell, arg) < 0;
+        case "lte":
+          return compare(cell, arg) <= 0;
+        case "contains":
+          return String(cell).toLowerCase().includes(cellText(arg).toLowerCase());
+        case "in":
+          return Array.isArray(arg) && arg.some((a) => String(cell) === cellText(a));
+        case "empty":
+          return (String(cell) === "") === (arg !== false);
+        default:
+          return false;
       }
     });
   }
@@ -512,8 +648,11 @@ function holds(cell: Cell, cond: unknown): boolean {
 /** `where` is {column: value | [values] | {eq, ne, gt, gte, lt, lte, contains, in, empty}}, all columns together. A column the sheet does not have never matches. */
 export function matchesWhere(ctx: Ctx, where: unknown, row: Record<string, Cell>): boolean {
   if (where === undefined || where === null) return true;
-  if (typeof where !== "object" || Array.isArray(where)) return fail(ctx, "validation.bad_input", "The input is not valid.", { field: "where" });
-  return Object.entries(where as Record<string, unknown>).every(([col, cond]) => (col in row ? holds(row[col] as Cell, cond) : false));
+  if (typeof where !== "object" || Array.isArray(where))
+    return fail(ctx, "validation.bad_input", "The input is not valid.", { field: "where" });
+  return Object.entries(where as Record<string, unknown>).every(([col, cond]) =>
+    col in row ? holds(row[col] as Cell, cond) : false,
+  );
 }
 
 const KEY_COLUMNS = ["id", "key", "email"];
@@ -527,10 +666,12 @@ function keyColumnOf(columns: string[]): string | undefined {
 }
 
 function checkColumns(ctx: Ctx, columns: unknown, field: string): string[] {
-  if (!Array.isArray(columns) || columns.length === 0) return fail(ctx, "validation.bad_input", "The input is not valid.", { field });
+  if (!Array.isArray(columns) || columns.length === 0)
+    return fail(ctx, "validation.bad_input", "The input is not valid.", { field });
   const out: string[] = [];
   for (const c of columns) {
-    if (typeof c !== "string" || c.trim().length === 0) return fail(ctx, "validation.bad_input", "A column name cannot be empty.", { field });
+    if (typeof c !== "string" || c.trim().length === 0)
+      return fail(ctx, "validation.bad_input", "A column name cannot be empty.", { field });
     const name = c.trim();
     if (out.includes(name)) return fail(ctx, "validation.duplicate", `The column ${name} is listed twice.`, { field });
     out.push(name);
@@ -546,25 +687,43 @@ function findRow(ctx: Ctx, grid: Grid, ids: IdSet, o: Record<string, unknown>): 
   const rowId = optStr(ctx, o, "rowId");
   if (rowId !== undefined) {
     const at = ids.ids.indexOf(rowId);
-    if (at < 0) return fail(ctx, "validation.precondition_failed", "That row is gone or the sheet changed since it was read. Read the rows again.", { rowId });
+    if (at < 0)
+      return fail(
+        ctx,
+        "validation.precondition_failed",
+        "That row is gone or the sheet changed since it was read. Read the rows again.",
+        { rowId },
+      );
     return at;
   }
   const key = o.key;
-  if (key === undefined || key === null) return fail(ctx, "validation.bad_input", "Send a rowId or a key.", { field: "rowId" });
+  if (key === undefined || key === null)
+    return fail(ctx, "validation.bad_input", "Send a rowId or a key.", { field: "rowId" });
   const k = recordOf(ctx, key, "key");
   const column = reqStr(ctx, k, "column");
   const col = grid.columns.indexOf(column);
   if (col < 0) return fail(ctx, "validation.precondition_failed", `There is no column named ${column}.`, { column });
   const hits: number[] = [];
-  grid.rows.forEach((r, i) => { if (String(r[col] ?? "") === cellText(k.value)) hits.push(i); });
+  grid.rows.forEach((r, i) => {
+    if (String(r[col] ?? "") === cellText(k.value)) hits.push(i);
+  });
   if (hits.length === 0) return fail(ctx, "validation.precondition_failed", "No row has that key value.", { column });
-  if (hits.length > 1) return fail(ctx, "validation.precondition_failed", "More than one row has that key value; use a row id.", { column, rows: hits.length });
+  if (hits.length > 1)
+    return fail(ctx, "validation.precondition_failed", "More than one row has that key value; use a row id.", {
+      column,
+      rows: hits.length,
+    });
   return hits[0] as number;
 }
 
 // ---- the capabilities on tree files (CSV, XLSX) ----
 
-interface SheetInfo { name: string; rows: number; columns: string[]; keyColumn?: string }
+interface SheetInfo {
+  name: string;
+  rows: number;
+  columns: string[];
+  keyColumn?: string;
+}
 
 function infoOf(book: Book): SheetInfo[] {
   return book.names().map((name) => {
@@ -583,11 +742,18 @@ async function tableFile(ctx: Ctx, fileId: string): Promise<{ file: Row; format:
   return { file, format, book: await openBook(ctx, file, format) };
 }
 
-async function readRowsLocal(ctx: Ctx, o: Record<string, unknown>, book: Book, file: Row): Promise<{ rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number }> {
+async function readRowsLocal(
+  ctx: Ctx,
+  o: Record<string, unknown>,
+  book: Book,
+  file: Row,
+): Promise<{ rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number }> {
   const sheet = pickSheet(ctx, book, optStr(ctx, o, "sheet"));
   const grid = book.grid(sheet);
   const { ids } = idsFor(ctx, String(file.id), num(file.version), sheet, grid.rows.length);
-  const wantCols = Array.isArray(o.columns) ? (o.columns as unknown[]).filter((c): c is string => typeof c === "string") : undefined;
+  const wantCols = Array.isArray(o.columns)
+    ? (o.columns as unknown[]).filter((c): c is string => typeof c === "string")
+    : undefined;
   const hits: { rowId: string; values: Record<string, unknown> }[] = [];
   grid.rows.forEach((cells, i) => {
     const full = asRecord(grid.columns, cells);
@@ -599,26 +765,52 @@ async function readRowsLocal(ctx: Ctx, o: Record<string, unknown>, book: Book, f
   const limit = typeof o.limit === "number" ? o.limit : 100;
   if (limit < 1 || limit > 500) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   const cursor = optStr(ctx, o, "cursor");
-  if (cursor !== undefined && !/^[0-9]+$/.test(cursor)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "cursor" });
+  if (cursor !== undefined && !/^[0-9]+$/.test(cursor))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "cursor" });
   const offset = cursor === undefined ? 0 : Number(cursor);
-  const out: { rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number } = { rows: hits.slice(offset, offset + limit), total: hits.length };
+  const out: { rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number } = {
+    rows: hits.slice(offset, offset + limit),
+    total: hits.length,
+  };
   if (offset + limit < hits.length) out.next = String(offset + limit);
   return out;
 }
 
 // ---- Google Sheets (through the Sheets API; rows are addressed g<row number>) ----
 
-interface GoogleSheet { sheetId: number; title: string; rows?: number; columns?: number }
+interface GoogleSheet {
+  sheetId: number;
+  title: string;
+  rows?: number;
+  columns?: number;
+}
 
 async function googleTarget(ctx: Ctx, file: Row): Promise<string> {
-  const id = configured ? await configured.googleSpreadsheetId(ctx, { fileId: String(file.id), mountId: String(file.source_mount ?? "") }) : undefined;
-  if (id === undefined) return fail(ctx, "validation.unsupported", "This Google Sheet is edited in Google Sheets. Open it there; the mount has not told Vyre which spreadsheet it is.", { fileId: String(file.id) });
+  const id = configured
+    ? await configured.googleSpreadsheetId(ctx, { fileId: String(file.id), mountId: String(file.source_mount ?? "") })
+    : undefined;
+  if (id === undefined)
+    return fail(
+      ctx,
+      "validation.unsupported",
+      "This Google Sheet is edited in Google Sheets. Open it there; the mount has not told Vyre which spreadsheet it is.",
+      { fileId: String(file.id) },
+    );
   return id;
 }
 
 const quoted = (title: string): string => `'${title.replace(/'/g, "''")}'`;
 
-async function gCall<T>(ctx: Ctx, cap: "google.sheets.get_spreadsheet" | "google.sheets.get_values" | "google.sheets.update_values" | "google.sheets.append_values" | "google.sheets.batch_update", input: Record<string, unknown>): Promise<T> {
+async function gCall<T>(
+  ctx: Ctx,
+  cap:
+    | "google.sheets.get_spreadsheet"
+    | "google.sheets.get_values"
+    | "google.sheets.update_values"
+    | "google.sheets.append_values"
+    | "google.sheets.batch_update",
+  input: Record<string, unknown>,
+): Promise<T> {
   return (await ctx.call(cap, input)) as T;
 }
 
@@ -630,12 +822,21 @@ async function gSheets(ctx: Ctx, spreadsheetId: string): Promise<GoogleSheet[]> 
 async function gSheet(ctx: Ctx, spreadsheetId: string, wanted: string | undefined): Promise<GoogleSheet> {
   const sheets = await gSheets(ctx, spreadsheetId);
   const hit = wanted === undefined ? sheets[0] : sheets.find((s) => s.title === wanted);
-  if (!hit) return fail(ctx, "validation.precondition_failed", wanted === undefined ? "The spreadsheet has no sheet." : `There is no sheet named ${wanted}.`, { sheet: wanted });
+  if (!hit)
+    return fail(
+      ctx,
+      "validation.precondition_failed",
+      wanted === undefined ? "The spreadsheet has no sheet." : `There is no sheet named ${wanted}.`,
+      { sheet: wanted },
+    );
   return hit;
 }
 
 async function gGrid(ctx: Ctx, spreadsheetId: string, title: string): Promise<Grid> {
-  const out = await gCall<{ values?: string[][] }>(ctx, "google.sheets.get_values", { spreadsheetId, range: `${quoted(title)}!A1:ZZ` });
+  const out = await gCall<{ values?: string[][] }>(ctx, "google.sheets.get_values", {
+    spreadsheetId,
+    range: `${quoted(title)}!A1:ZZ`,
+  });
   const all = out.values ?? [];
   const columns = (all[0] ?? []).map((c, i) => (String(c).trim() === "" ? `Column ${i + 1}` : String(c).trim()));
   return { columns, rows: all.slice(1).map((r) => columns.map((_, i) => String(r[i] ?? ""))) };
@@ -654,19 +855,37 @@ function gRowNumber(ctx: Ctx, rowId: string): number {
   return n;
 }
 
-function gEmit(ctx: Ctx, fileId: string, name: "sheet.row_appended" | "sheet.row_updated" | "sheet.row_deleted", sheet: string, rowId: string, columns?: string[]): void {
+function gEmit(
+  ctx: Ctx,
+  fileId: string,
+  name: "sheet.row_appended" | "sheet.row_updated" | "sheet.row_deleted",
+  sheet: string,
+  rowId: string,
+  columns?: string[],
+): void {
   const payload: Record<string, unknown> = { fileId, sheet, rowId };
   if (columns) payload.columns = columns;
   if (ctx.run !== undefined) payload.runId = ctx.run;
   ctx.emit(name, `file/${fileId}`, payload);
 }
 
-async function gEnsureHeader(ctx: Ctx, spreadsheetId: string, title: string, grid: Grid, wanted: string[]): Promise<string[]> {
+async function gEnsureHeader(
+  ctx: Ctx,
+  spreadsheetId: string,
+  title: string,
+  grid: Grid,
+  wanted: string[],
+): Promise<string[]> {
   const columns = [...grid.columns];
   const before = columns.length;
   for (const w of wanted) if (!columns.includes(w)) columns.push(w);
   if (columns.length !== before) {
-    await gCall(ctx, "google.sheets.update_values", { spreadsheetId, range: `${quoted(title)}!A1:${columnLetter(columns.length)}1`, values: [columns], valueInputOption: "RAW" });
+    await gCall(ctx, "google.sheets.update_values", {
+      spreadsheetId,
+      range: `${quoted(title)}!A1:${columnLetter(columns.length)}1`,
+      values: [columns],
+      valueInputOption: "RAW",
+    });
   }
   return columns;
 }
@@ -690,10 +909,20 @@ async function googleHandle(ctx: Ctx, cap: string, o: Record<string, unknown>, f
   if (cap === "sheets.add_sheet") {
     const title = reqStr(ctx, o, "sheet");
     const sheets = await gSheets(ctx, spreadsheetId);
-    if (sheets.some((s) => s.title === title)) return fail(ctx, "validation.duplicate", `There is already a sheet named ${title}.`);
+    if (sheets.some((s) => s.title === title))
+      return fail(ctx, "validation.duplicate", `There is already a sheet named ${title}.`);
     const columns = Array.isArray(o.columns) ? checkColumns(ctx, o.columns, "columns") : [];
-    await gCall(ctx, "google.sheets.batch_update", { spreadsheetId, requests: [{ addSheet: { properties: { title } } }] });
-    if (columns.length > 0) await gCall(ctx, "google.sheets.update_values", { spreadsheetId, range: `${quoted(title)}!A1:${columnLetter(columns.length)}1`, values: [columns], valueInputOption: "RAW" });
+    await gCall(ctx, "google.sheets.batch_update", {
+      spreadsheetId,
+      requests: [{ addSheet: { properties: { title } } }],
+    });
+    if (columns.length > 0)
+      await gCall(ctx, "google.sheets.update_values", {
+        spreadsheetId,
+        range: `${quoted(title)}!A1:${columnLetter(columns.length)}1`,
+        values: [columns],
+        valueInputOption: "RAW",
+      });
     return { ok: true };
   }
   const sheet = await gSheet(ctx, spreadsheetId, wanted);
@@ -703,17 +932,25 @@ async function googleHandle(ctx: Ctx, cap: string, o: Record<string, unknown>, f
     const ids = grid.rows.map((_, i) => `g${i + 2}`);
     const faux: Row = { id: fileId, version: 0 };
     const book: Book = {
-      names: () => [sheet.title], grid: () => grid, ensureColumns: () => grid.columns, appendRow: () => undefined, setRow: () => undefined, removeRow: () => undefined,
-      addSheet: () => undefined, encode: async () => new Uint8Array(),
+      names: () => [sheet.title],
+      grid: () => grid,
+      ensureColumns: () => grid.columns,
+      appendRow: () => undefined,
+      setRow: () => undefined,
+      removeRow: () => undefined,
+      addSheet: () => undefined,
+      encode: async () => new Uint8Array(),
     };
     const out = await readRowsLocal(ctx, o, book, faux);
     // readRowsLocal numbers rows r0_n; Google rows are addressed by their row number
-    const idOf = (r: { rowId: string }): string => ids[Number(r.rowId.slice(r.rowId.lastIndexOf("_") + 1)) - 1] as string;
+    const idOf = (r: { rowId: string }): string =>
+      ids[Number(r.rowId.slice(r.rowId.lastIndexOf("_") + 1)) - 1] as string;
     return { ...out, rows: out.rows.map((r) => ({ rowId: idOf(r), values: r.values })) };
   }
   if (cap === "sheets.append_rows") {
     const rows = o.rows;
-    if (!Array.isArray(rows) || rows.length === 0) return fail(ctx, "validation.bad_input", "The input is not valid.", { field: "rows" });
+    if (!Array.isArray(rows) || rows.length === 0)
+      return fail(ctx, "validation.bad_input", "The input is not valid.", { field: "rows" });
     const objs = rows.map((r) => recordOf(ctx, r, "rows"));
     const wantedCols: string[] = [];
     for (const r of objs) for (const k of Object.keys(r)) if (!wantedCols.includes(k)) wantedCols.push(k);
@@ -729,7 +966,8 @@ async function googleHandle(ctx: Ctx, cap: string, o: Record<string, unknown>, f
   const find = (): number => {
     if (typeof o.rowId === "string") {
       const n = gRowNumber(ctx, o.rowId);
-      if (n - 2 >= grid.rows.length) return fail(ctx, "validation.precondition_failed", "That row is gone.", { rowId: o.rowId });
+      if (n - 2 >= grid.rows.length)
+        return fail(ctx, "validation.precondition_failed", "That row is gone.", { rowId: o.rowId });
       return n - 2;
     }
     return findRow(ctx, grid, { ids: grid.rows.map((_, i) => `g${i + 2}`), next: 0 }, o);
@@ -742,26 +980,42 @@ async function googleHandle(ctx: Ctx, cap: string, o: Record<string, unknown>, f
       const match = checkColumns(ctx, o.match, "match");
       const wantRow: Record<string, Cell> = {};
       for (const m of match) wantRow[m] = toCell(values[m], "csv");
-      at = grid.rows.findIndex((cells) => match.every((m) => String(cells[grid.columns.indexOf(m)] ?? "") === String(wantRow[m])));
+      at = grid.rows.findIndex((cells) =>
+        match.every((m) => String(cells[grid.columns.indexOf(m)] ?? "") === String(wantRow[m])),
+      );
     }
     const columns = await gEnsureHeader(ctx, spreadsheetId, sheet.title, grid, Object.keys(values));
     if (at < 0) {
       const line = columns.map((c) => (c in values ? asText(values[c]) : ""));
-      await gCall(ctx, "google.sheets.append_values", { spreadsheetId, range: `${quoted(sheet.title)}!A:A`, values: [line] });
+      await gCall(ctx, "google.sheets.append_values", {
+        spreadsheetId,
+        range: `${quoted(sheet.title)}!A:A`,
+        values: [line],
+      });
       const rowId = `g${grid.rows.length + 2}`;
       gEmit(ctx, fileId, "sheet.row_appended", sheet.title, rowId);
       return { rowId, created: true };
     }
     const n = at + 2;
     const merged = columns.map((c, i) => (c in values ? asText(values[c]) : String(grid.rows[at]?.[i] ?? "")));
-    await gCall(ctx, "google.sheets.update_values", { spreadsheetId, range: `${quoted(sheet.title)}!A${n}:${columnLetter(columns.length)}${n}`, values: [merged], valueInputOption: "RAW" });
+    await gCall(ctx, "google.sheets.update_values", {
+      spreadsheetId,
+      range: `${quoted(sheet.title)}!A${n}:${columnLetter(columns.length)}${n}`,
+      values: [merged],
+      valueInputOption: "RAW",
+    });
     const rowId = `g${n}`;
     gEmit(ctx, fileId, "sheet.row_updated", sheet.title, rowId, Object.keys(values));
     return cap === "sheets.update_row" ? { rowId } : { rowId, created: false };
   }
   if (cap === "sheets.delete_row") {
     const n = find() + 2;
-    await gCall(ctx, "google.sheets.batch_update", { spreadsheetId, requests: [{ deleteDimension: { range: { sheetId: sheet.sheetId, dimension: "ROWS", startIndex: n - 1, endIndex: n } } }] });
+    await gCall(ctx, "google.sheets.batch_update", {
+      spreadsheetId,
+      requests: [
+        { deleteDimension: { range: { sheetId: sheet.sheetId, dimension: "ROWS", startIndex: n - 1, endIndex: n } } },
+      ],
+    });
     gEmit(ctx, fileId, "sheet.row_deleted", sheet.title, `g${n}`);
     return { deleted: true };
   }
@@ -777,21 +1031,34 @@ async function sheetsInfo(ctx: Ctx, input: unknown): Promise<{ sheets: SheetInfo
   return { sheets: infoOf(t.book) };
 }
 
-async function sheetsReadRows(ctx: Ctx, input: unknown): Promise<{ rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number }> {
+async function sheetsReadRows(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number }> {
   const o = rec(ctx, input);
   const t = await tableFile(ctx, reqStr(ctx, o, "fileId"));
-  if (!t.book) return (await googleHandle(ctx, "sheets.read_rows", o, t.file)) as { rows: { rowId: string; values: Record<string, unknown> }[]; next?: string; total: number };
+  if (!t.book)
+    return (await googleHandle(ctx, "sheets.read_rows", o, t.file)) as {
+      rows: { rowId: string; values: Record<string, unknown> }[];
+      next?: string;
+      total: number;
+    };
   return readRowsLocal(ctx, o, t.book, t.file);
 }
 
-async function sheetsAppendRows(ctx: Ctx, input: unknown): Promise<{ appended: number; rowIds: string[]; versionId?: string }> {
+async function sheetsAppendRows(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ appended: number; rowIds: string[]; versionId?: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const rows = o.rows;
-  if (!Array.isArray(rows) || rows.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "rows" });
+  if (!Array.isArray(rows) || rows.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "rows" });
   const objs = (rows as unknown[]).map((r) => recordOf(ctx, r, "rows"));
   const file = liveFile(ctx, fileId);
-  if (formatOf(ctx, file) === "google") return (await googleHandle(ctx, "sheets.append_rows", o, file)) as { appended: number; rowIds: string[] };
+  if (formatOf(ctx, file) === "google")
+    return (await googleHandle(ctx, "sheets.append_rows", o, file)) as { appended: number; rowIds: string[] };
   const label = optStr(ctx, o, "label");
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), label, ({ book, sheet, ids, file: f }) => {
     const format = formatOf(ctx, f);
@@ -805,7 +1072,10 @@ async function sheetsAppendRows(ctx: Ctx, input: unknown): Promise<{ appended: n
       ids.ids.push(id);
       rowIds.push(id);
     }
-    return { out: { appended: objs.length, rowIds }, events: rowIds.map((rowId) => ({ name: "sheet.row_appended" as const, rowId })) };
+    return {
+      out: { appended: objs.length, rowIds },
+      events: rowIds.map((rowId) => ({ name: "sheet.row_appended" as const, rowId })),
+    };
   });
 }
 
@@ -814,7 +1084,8 @@ async function sheetsUpdateRow(ctx: Ctx, input: unknown): Promise<{ rowId: strin
   const fileId = reqStr(ctx, o, "fileId");
   const values = recordOf(ctx, o.values, "values");
   const file = liveFile(ctx, fileId);
-  if (formatOf(ctx, file) === "google") return (await googleHandle(ctx, "sheets.update_row", o, file)) as { rowId: string };
+  if (formatOf(ctx, file) === "google")
+    return (await googleHandle(ctx, "sheets.update_row", o, file)) as { rowId: string };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids, file: f }) => {
     const grid = book.grid(sheet);
     const at = findRow(ctx, grid, ids, o);
@@ -826,21 +1097,28 @@ async function sheetsUpdateRow(ctx: Ctx, input: unknown): Promise<{ rowId: strin
   });
 }
 
-async function sheetsUpsertRow(ctx: Ctx, input: unknown): Promise<{ rowId: string; created: boolean; versionId?: string }> {
+async function sheetsUpsertRow(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ rowId: string; created: boolean; versionId?: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const values = recordOf(ctx, o.values, "values");
   const match = checkColumns(ctx, o.match, "match");
-  for (const m of match) if (!(m in values)) fail(ctx, "validation.bad_input", `values has no ${m} to match on.`, { field: "match" });
+  for (const m of match)
+    if (!(m in values)) fail(ctx, "validation.bad_input", `values has no ${m} to match on.`, { field: "match" });
   const file = liveFile(ctx, fileId);
-  if (formatOf(ctx, file) === "google") return (await googleHandle(ctx, "sheets.upsert_row", o, file)) as { rowId: string; created: boolean };
+  if (formatOf(ctx, file) === "google")
+    return (await googleHandle(ctx, "sheets.upsert_row", o, file)) as { rowId: string; created: boolean };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids, file: f }) => {
     const format = formatOf(ctx, f);
     const grid = book.grid(sheet);
-    const at = grid.rows.findIndex((cells) => match.every((m) => {
-      const col = grid.columns.indexOf(m);
-      return col >= 0 && String(cells[col] ?? "") === cellText(toCell(values[m], format));
-    }));
+    const at = grid.rows.findIndex((cells) =>
+      match.every((m) => {
+        const col = grid.columns.indexOf(m);
+        return col >= 0 && String(cells[col] ?? "") === cellText(toCell(values[m], format));
+      }),
+    );
     const columns = book.ensureColumns(sheet, Object.keys(values));
     if (at < 0) {
       book.appendRow(sheet, rowCells(columns, values, format));
@@ -851,7 +1129,10 @@ async function sheetsUpsertRow(ctx: Ctx, input: unknown): Promise<{ rowId: strin
     const fresh = book.grid(sheet);
     book.setRow(sheet, at, rowCells(columns, values, format, fresh.rows[at]));
     const rowId = ids.ids[at] as string;
-    return { out: { rowId, created: false }, events: [{ name: "sheet.row_updated" as const, rowId, columns: Object.keys(values) }] };
+    return {
+      out: { rowId, created: false },
+      events: [{ name: "sheet.row_updated" as const, rowId, columns: Object.keys(values) }],
+    };
   });
 }
 
@@ -860,7 +1141,8 @@ async function sheetsDeleteRow(ctx: Ctx, input: unknown): Promise<{ deleted: boo
   const fileId = reqStr(ctx, o, "fileId");
   reqStr(ctx, o, "rowId");
   const file = liveFile(ctx, fileId);
-  if (formatOf(ctx, file) === "google") return (await googleHandle(ctx, "sheets.delete_row", o, file)) as { deleted: boolean };
+  if (formatOf(ctx, file) === "google")
+    return (await googleHandle(ctx, "sheets.delete_row", o, file)) as { deleted: boolean };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids }) => {
     const at = findRow(ctx, book.grid(sheet), ids, o);
     const rowId = ids.ids[at] as string;
@@ -878,13 +1160,25 @@ async function sheetsAddSheet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }
   const file = liveFile(ctx, fileId);
   const format = formatOf(ctx, file);
   if (format === "google") return (await googleHandle(ctx, "sheets.add_sheet", o, file)) as { ok: boolean };
-  if (format === "csv") return fail(ctx, "validation.unsupported", "A CSV file has one sheet. Use an XLSX workbook for more.");
-  if (title.length === 0 || title.length > 31 || /[\\/?*[\]:]/.test(title)) return fail(ctx, "validation.bad_input", "A sheet name is 1 to 31 characters without \\ / ? * [ ] :", { field: "sheet" });
-  await edit(ctx, fileId, undefined, optStr(ctx, o, "label") ?? `Added sheet ${title}`, ({ book }) => {
-    if (book.names().some((n) => n.toLowerCase() === title.toLowerCase())) return fail(ctx, "validation.duplicate", `There is already a sheet named ${title}.`);
-    book.addSheet(title, columns);
-    return { out: {}, events: [] };
-  }, false);
+  if (format === "csv")
+    return fail(ctx, "validation.unsupported", "A CSV file has one sheet. Use an XLSX workbook for more.");
+  if (title.length === 0 || title.length > 31 || /[\\/?*[\]:]/.test(title))
+    return fail(ctx, "validation.bad_input", "A sheet name is 1 to 31 characters without \\ / ? * [ ] :", {
+      field: "sheet",
+    });
+  await edit(
+    ctx,
+    fileId,
+    undefined,
+    optStr(ctx, o, "label") ?? `Added sheet ${title}`,
+    ({ book }) => {
+      if (book.names().some((n) => n.toLowerCase() === title.toLowerCase()))
+        return fail(ctx, "validation.duplicate", `There is already a sheet named ${title}.`);
+      book.addSheet(title, columns);
+      return { out: {}, events: [] };
+    },
+    false,
+  );
   return { ok: true };
 }
 
@@ -892,7 +1186,8 @@ async function sheetsCreate(ctx: Ctx, input: unknown): Promise<{ file: unknown }
   const o = rec(ctx, input);
   const folderId = reqStr(ctx, o, "folderId");
   const format = reqStr(ctx, o, "format");
-  if (format !== "csv" && format !== "xlsx") fail(ctx, "validation.bad_input", "The format is csv or xlsx.", { field: "format" });
+  if (format !== "csv" && format !== "xlsx")
+    fail(ctx, "validation.bad_input", "The format is csv or xlsx.", { field: "format" });
   const columns = checkColumns(ctx, o.columns, "columns");
   let name = reqStr(ctx, o, "name").trim();
   if (extOf(name) !== format) name = `${name}.${format}`;

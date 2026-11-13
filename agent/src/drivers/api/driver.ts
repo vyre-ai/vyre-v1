@@ -4,14 +4,37 @@ import { anthropic } from "./anthropic.ts";
 import { classify } from "./errors.ts";
 import { reportWindow } from "../../transcript/windows.ts";
 import { google } from "./google.ts";
-import { custom, local, opencodeHeaders, withV1, openai, openaiCompatible, openrouter, opencodeGo, xai } from "./openai.ts";
+import {
+  custom,
+  local,
+  opencodeHeaders,
+  withV1,
+  openai,
+  openaiCompatible,
+  openrouter,
+  opencodeGo,
+  xai,
+} from "./openai.ts";
 import type { ApiSession, SessionDeps } from "./session.ts";
 import { createApiSession } from "./session.ts";
 import type { SessionSpec } from "../../turn-engine/types.ts";
-import type { AccountRef, Authorizer, Clock, Fetch, FetchResponse, ModelInfo, ProviderAdapter, ApiId } from "./types.ts";
+import type {
+  AccountRef,
+  Authorizer,
+  Clock,
+  Fetch,
+  FetchResponse,
+  ModelInfo,
+  ProviderAdapter,
+  ApiId,
+} from "./types.ts";
 import { PROVIDER_IDS } from "./types.ts";
 
-export interface ProbeOutcome { ok: boolean; models?: number; error?: { code: string; message: string } }
+export interface ProbeOutcome {
+  ok: boolean;
+  models?: number;
+  error?: { code: string; message: string };
+}
 
 /** The driver as the pool and the engine see it. */
 export interface ApiDriver {
@@ -26,7 +49,11 @@ export interface ApiDriver {
 
 export class DriverError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = "DriverError"; this.code = code; }
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "DriverError";
+    this.code = code;
+  }
 }
 
 export interface ApiDriverDeps {
@@ -49,19 +76,33 @@ export interface ApiDriverDeps {
 export function okBase(u: string, keyless = false): boolean {
   try {
     const x = new URL(u);
-    if (keyless && (x.protocol === "http:" || x.protocol === "https:")) return true;   // no key to leak; the network guard decides which hosts a request may reach
-    return x.protocol === "https:" || (x.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(x.hostname));
-  } catch { return false; }
+    if (keyless && (x.protocol === "http:" || x.protocol === "https:")) return true; // no key to leak; the network guard decides which hosts a request may reach
+    return (
+      x.protocol === "https:" || (x.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(x.hostname))
+    );
+  } catch {
+    return false;
+  }
 }
 
 const realClock: Clock = {
   now: () => Date.now(),
-  sleep: (ms, signal) => new Promise<void>((resolve) => {
-    if (signal?.aborted) { resolve(); return; }
-    const t = setTimeout(() => { signal?.removeEventListener("abort", done); resolve(); }, ms);
-    const done = (): void => { clearTimeout(t); resolve(); };
-    signal?.addEventListener("abort", done, { once: true });
-  }),
+  sleep: (ms, signal) =>
+    new Promise<void>((resolve) => {
+      if (signal?.aborted) {
+        resolve();
+        return;
+      }
+      const t = setTimeout(() => {
+        signal?.removeEventListener("abort", done);
+        resolve();
+      }, ms);
+      const done = (): void => {
+        clearTimeout(t);
+        resolve();
+      };
+      signal?.addEventListener("abort", done, { once: true });
+    }),
 };
 
 export const realFetch: Fetch = async (url, init) => {
@@ -76,7 +117,16 @@ export const realFetch: Fetch = async (url, init) => {
   } satisfies FetchResponse;
 };
 
-export const ADAPTERS: Readonly<Record<ApiId, ProviderAdapter>> = Object.freeze({ anthropic, openai, openrouter, google, xai, opencode_go: opencodeGo, local, custom });
+export const ADAPTERS: Readonly<Record<ApiId, ProviderAdapter>> = Object.freeze({
+  anthropic,
+  openai,
+  openrouter,
+  google,
+  xai,
+  opencode_go: opencodeGo,
+  local,
+  custom,
+});
 
 export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): ApiDriver {
   const doFetch = deps.fetch ?? realFetch;
@@ -84,9 +134,11 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
   const accountOf = deps.accountOf ?? ((spec: SessionSpec): AccountRef => ({ ref: spec.agent.accountRef ?? "" }));
 
   const baseOf = (acct: AccountRef): string => {
-    if (adapter.id === "custom" && !acct.base) throw new DriverError("provider.bad_address", "This endpoint has no address.");
-    const base = adapter.id === "local" && acct.base ? withV1(acct.base) : acct.base ?? adapter.defaultBase;
-    if (!okBase(base, acct.keyless === true)) throw new DriverError("provider.bad_address", "That address is not a place a key may be sent.");
+    if (adapter.id === "custom" && !acct.base)
+      throw new DriverError("provider.bad_address", "This endpoint has no address.");
+    const base = adapter.id === "local" && acct.base ? withV1(acct.base) : (acct.base ?? adapter.defaultBase);
+    if (!okBase(base, acct.keyless === true))
+      throw new DriverError("provider.bad_address", "That address is not a place a key may be sent.");
     return base;
   };
 
@@ -95,22 +147,36 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
     const wire = adapter.modelsRequest();
     const target = wire.url ?? `${base.replace(/\/+$/, "")}${wire.path}`;
     let auth: Record<string, string>;
-    try { auth = await deps.authorize(acct, adapter.id); } catch { throw new DriverError("provider.auth_failed", "No usable key for this account."); }
+    try {
+      auth = await deps.authorize(acct, adapter.id);
+    } catch {
+      throw new DriverError("provider.auth_failed", "No usable key for this account.");
+    }
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 15_000);
     try {
       let res: FetchResponse;
-      try { res = await doFetch(target, { method: "GET", headers: { ...wire.headers, ...opencodeHeaders(target), ...auth }, signal: ac.signal }); }
-      catch { throw new DriverError("provider.network", "Could not reach the provider."); }
+      try {
+        res = await doFetch(target, {
+          method: "GET",
+          headers: { ...wire.headers, ...opencodeHeaders(target), ...auth },
+          signal: ac.signal,
+        });
+      } catch {
+        throw new DriverError("provider.network", "Could not reach the provider.");
+      }
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 200);
         throw new DriverError(classify(res.status, text).code, `The provider answered ${res.status}.`);
       }
       const rows = adapter.parseModels(await res.json().catch(() => null));
       // the provider's own list is the source of truth for a window: kept per provider and model for the meter, rollover and compaction
-      for (const r of rows) if (r.contextTokens !== undefined) reportWindow(adapter.modelName(r.id), r.contextTokens, adapter.id);
+      for (const r of rows)
+        if (r.contextTokens !== undefined) reportWindow(adapter.modelName(r.id), r.contextTokens, adapter.id);
       return rows;
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   return {
@@ -123,22 +189,34 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
         return { ok: true, models: models.length };
       } catch (e) {
         const code = e instanceof DriverError ? e.code : "provider.network";
-        return { ok: false, error: { code, message: e instanceof DriverError ? e.message : "Could not reach the provider." } };
+        return {
+          ok: false,
+          error: { code, message: e instanceof DriverError ? e.message : "Could not reach the provider." },
+        };
       }
     },
     async open(spec) {
       const account = accountOf(spec);
       const base = baseOf(account);
-      return createApiSession({
-        adapter, account, base, fetch: doFetch, authorize: deps.authorize, clock, context: deps.context,
-        ...(deps.summarize ? { summarize: deps.summarize } : {}),
-        ...(deps.retry ? { retry: deps.retry } : {}),
-        ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
-        ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
-        ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
-        ...(deps.maxSteps !== undefined ? { maxSteps: deps.maxSteps } : {}),
-        ...(deps.random ? { random: deps.random } : {}),
-      }, spec);
+      return createApiSession(
+        {
+          adapter,
+          account,
+          base,
+          fetch: doFetch,
+          authorize: deps.authorize,
+          clock,
+          context: deps.context,
+          ...(deps.summarize ? { summarize: deps.summarize } : {}),
+          ...(deps.retry ? { retry: deps.retry } : {}),
+          ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
+          ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+          ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
+          ...(deps.maxSteps !== undefined ? { maxSteps: deps.maxSteps } : {}),
+          ...(deps.random ? { random: deps.random } : {}),
+        },
+        spec,
+      );
     },
   };
 }

@@ -26,11 +26,18 @@ export function isMissingCap(e: unknown): boolean {
   const err = e as { code?: string; status?: number; message?: string; error?: { code?: string } } | null;
   const code = err?.code ?? err?.error?.code ?? "";
   if (code === "validation.unknown_capability") return true;
-  return /unknown_capability|no such capability|There is no such|no write for|has no HTTP route/i.test(err?.message ?? "");
+  return /unknown_capability|no such capability|There is no such|no write for|has no HTTP route/i.test(
+    err?.message ?? "",
+  );
 }
 
 /** Calls `cap`; when the server has no such capability, runs `fallback` instead (and remembers, so the next call goes straight there). */
-export async function callOr<T>(data: Pick<ConversationData, "call">, cap: string, input: unknown, fallback: () => Promise<T>): Promise<T> {
+export async function callOr<T>(
+  data: Pick<ConversationData, "call">,
+  cap: string,
+  input: unknown,
+  fallback: () => Promise<T>,
+): Promise<T> {
   if (missing.has(cap)) return fallback();
   try {
     return (await data.call(cap, input)) as T;
@@ -42,7 +49,9 @@ export async function callOr<T>(data: Pick<ConversationData, "call">, cap: strin
 }
 
 /** For tests: forget which capabilities were missing. */
-export function resetMissing(): void { missing.clear(); }
+export function resetMissing(): void {
+  missing.clear();
+}
 
 /** The account as the notice names it: never an email address (a sign-in without a given name is called by its address), so the line says "that account" instead. */
 export function plainAccountName(name: string | undefined): string {
@@ -59,7 +68,10 @@ export function modeOf(thread: Thread): ChatMode {
 }
 
 /** Sets the chat's mode. Today's backend keeps only plan mode, so Auto and Ask first both turn it off there. */
-export async function setChatMode(data: Pick<ConversationData, "call" | "threadId">, mode: ChatMode): Promise<"mode" | "plan_mode"> {
+export async function setChatMode(
+  data: Pick<ConversationData, "call" | "threadId">,
+  mode: ChatMode,
+): Promise<"mode" | "plan_mode"> {
   return callOr(data, "threads.set_mode", { threadId: data.threadId, mode }, async () => {
     await data.call("threads.set_plan_mode", { threadId: data.threadId, planMode: mode === "plan" });
     return "plan_mode" as const;
@@ -68,21 +80,43 @@ export async function setChatMode(data: Pick<ConversationData, "call" | "threadI
 
 /* ---------- an agent's model, effort and account ---------- */
 
-export interface AgentChoice { model?: string; provider?: string; effort?: Effort; accountRef?: string }
+export interface AgentChoice {
+  model?: string;
+  provider?: string;
+  effort?: Effort;
+  accountRef?: string;
+}
 
 /** Sets what an agent runs on, for this chat or as the agent's default. Falls back to engine.set_model (this chat) and agents.update (the agent's own default model). */
-export async function configureAgent(data: Pick<ConversationData, "call" | "threadId">, agentId: string, choice: AgentChoice, scope: PanelScope): Promise<void> {
+export async function configureAgent(
+  data: Pick<ConversationData, "call" | "threadId">,
+  agentId: string,
+  choice: AgentChoice,
+  scope: PanelScope,
+): Promise<void> {
   await callOr(data, "threads.agent.configure", { threadId: data.threadId, agentId, ...choice, scope }, async () => {
     const cur = { threadId: data.threadId, agentId, ...choice };
     await data.call("engine.set_model", cur);
-    if (scope === "agent" && choice.model !== undefined) await data.call("agents.update", { agentId, patch: { model: choice.model } });
+    if (scope === "agent" && choice.model !== undefined)
+      await data.call("agents.update", { agentId, patch: { model: choice.model } });
     return null;
   });
 }
 
 /* ---------- reading ---------- */
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string; mine?: boolean }
+interface AccountRow {
+  ref: string;
+  driver: string;
+  kind: string;
+  title: string;
+  name?: string;
+  status: string;
+  aliases?: string[];
+  usable?: boolean;
+  why?: string;
+  mine?: boolean;
+}
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
   context: { used: number; window: number; approximate?: boolean } | null;
@@ -97,8 +131,16 @@ const frac = (pct: number): number => Math.max(0, Math.min(1, pct / 100));
 
 export function panelUsage(out: UsageOut | null): PanelUsage | null {
   if (!out) return null;
-  const meter = (m: { pct: number; resetsAt?: number } | null): PanelUsage["session"] => (m && Number.isFinite(m.pct) ? { pct: frac(m.pct), ...(m.resetsAt !== undefined ? { resetsAt: m.resetsAt } : {}) } : null);
-  return { context: out.context && out.context.window > 0 ? out.context : null, session: meter(out.session), week: meter(out.week), ...(out.keepEvery ? { keepEvery: out.keepEvery } : {}) };
+  const meter = (m: { pct: number; resetsAt?: number } | null): PanelUsage["session"] =>
+    m && Number.isFinite(m.pct)
+      ? { pct: frac(m.pct), ...(m.resetsAt !== undefined ? { resetsAt: m.resetsAt } : {}) }
+      : null;
+  return {
+    context: out.context && out.context.window > 0 ? out.context : null,
+    session: meter(out.session),
+    week: meter(out.week),
+    ...(out.keepEvery ? { keepEvery: out.keepEvery } : {}),
+  };
 }
 
 // what greys a model, in the panel's words, lives with the live list's helpers (a .ts file the unit tests load)
@@ -108,11 +150,20 @@ export { modelReason, outOfUsage } from "./live-models.ts";
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
   // the person's own accounts come before any account the Space provides (owner, 6 Nov): the first one is what a chat shows and pins when nothing was chosen. The order inside each group is kept.
   const ok = rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false);
-  return [...ok.filter((r) => r.mine === true), ...ok.filter((r) => r.mine !== true)].map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
+  return [...ok.filter((r) => r.mine === true), ...ok.filter((r) => r.mine !== true)].map((r) => ({
+    ref: r.ref,
+    name: r.name ?? r.title,
+    provider: r.driver,
+    ...(r.kind === "api_key" ? { plan: "API key" } : {}),
+    ...(r.aliases?.length ? { aliases: r.aliases } : {}),
+  }));
 }
 
 /** The account a pinned ref shows as: itself, or the account it was folded into or listed under. */
-export function entryOf(accounts: readonly PanelAccount[] | null | undefined, ref: string | null | undefined): PanelAccount | undefined {
+export function entryOf(
+  accounts: readonly PanelAccount[] | null | undefined,
+  ref: string | null | undefined,
+): PanelAccount | undefined {
   if (!ref || !accounts) return undefined;
   return accounts.find((a) => a.ref === ref) ?? accounts.find((a) => a.aliases?.includes(ref) === true);
 }
@@ -126,18 +177,28 @@ export function prettyModel(model: string | undefined, titles?: ReadonlyMap<stri
   const words: string[] = [];
   const nums: string[] = [];
   for (const p of parts) (/^\d+$/.test(p) ? nums : words).push(p);
-  const name = words.map((w) => (/^(gpt|glm|oss|llm)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+  const name = words
+    .map((w) => (/^(gpt|glm|oss|llm)$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
   return [name, nums.join(".")].filter(Boolean).join(" ") || model;
 }
 
 /** The strip's view of each agent in the thread: provider, model, effort, the account's name when two accounts of one provider are connected, and the context the engine reported. */
-export function stripAgents(thread: Thread, nameOf: (id: string) => string, accounts: readonly PanelAccount[], contexts: ReadonlyMap<string, { used: number; window: number } | null>, unavailable: ReadonlySet<string> = new Set()): ComposerAgent[] {
+export function stripAgents(
+  thread: Thread,
+  nameOf: (id: string) => string,
+  accounts: readonly PanelAccount[],
+  contexts: ReadonlyMap<string, { used: number; window: number } | null>,
+  unavailable: ReadonlySet<string> = new Set(),
+): ComposerAgent[] {
   return thread.agents.map((a: ThreadAgent) => {
     const acct = entryOf(accounts, a.accountRef);
     const sameProvider = acct ? accounts.filter((x) => brandOf(x.provider) === brandOf(acct.provider)).length : 0;
     const ctx = contexts.get(a.agentId);
     return {
-      id: a.agentId, name: nameOf(a.agentId), kind: isAssistantId(a.agentId) ? "assistant" : "agent",
+      id: a.agentId,
+      name: nameOf(a.agentId),
+      kind: isAssistantId(a.agentId) ? "assistant" : "agent",
       ...(a.provider || acct ? { provider: a.provider ?? acct?.provider ?? "" } : {}),
       ...(a.model ? { modelTitle: prettyModel(a.model) } : {}),
       ...(a.effort ? { effort: a.effort } : {}),
@@ -153,22 +214,52 @@ export function useAccounts(data: { call(cap: string, input: unknown): unknown }
   const [rows, setRows] = useState<PanelAccount[] | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("engine.accounts.list", { place: "chat" })).then((out) => { if (live) setRows(connectedAccounts((out as { accounts?: AccountRow[] } | undefined)?.accounts ?? [])); }, () => { if (live) setRows([]); });
-    return () => { live = false; };
+    void Promise.resolve(data.call("engine.accounts.list", { place: "chat" })).then(
+      (out) => {
+        if (live) setRows(connectedAccounts((out as { accounts?: AccountRow[] } | undefined)?.accounts ?? []));
+      },
+      () => {
+        if (live) setRows([]);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [data, version]);
   return rows;
 }
 
 /** Usage for one agent and account in this chat; null when the engine has none (or no such capability yet). Asked again when `tick` changes (a turn ended). */
-export function useUsage(data: Pick<ConversationData, "call" | "threadId">, agentId: string | null, accountRef: string | null | undefined, tick = 0): PanelUsage | null | "loading" {
+export function useUsage(
+  data: Pick<ConversationData, "call" | "threadId">,
+  agentId: string | null,
+  accountRef: string | null | undefined,
+  tick = 0,
+): PanelUsage | null | "loading" {
   const [u, setU] = useState<PanelUsage | null | "loading">("loading");
   useEffect(() => {
-    if (agentId === null) { setU(null); return undefined; }
+    if (agentId === null) {
+      setU(null);
+      return undefined;
+    }
     let live = true;
     setU((cur) => (cur === null ? "loading" : cur));
-    void callOr<UsageOut | null>(data, "engine.usage.get", { threadId: data.threadId, agentId, ...(accountRef ? { accountRef } : {}) }, async () => null)
-      .then((out) => { if (live) setU(panelUsage(out)); }, () => { if (live) setU(null); });
-    return () => { live = false; };
+    void callOr<UsageOut | null>(
+      data,
+      "engine.usage.get",
+      { threadId: data.threadId, agentId, ...(accountRef ? { accountRef } : {}) },
+      async () => null,
+    ).then(
+      (out) => {
+        if (live) setU(panelUsage(out));
+      },
+      () => {
+        if (live) setU(null);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [data, agentId, accountRef ?? "", tick]);
   return u;
 }
@@ -177,16 +268,31 @@ export function useUsage(data: Pick<ConversationData, "call" | "threadId">, agen
  * True when the model this chat's lead starts with (the person's remembered pick) cannot run here, so the strip can say "Not available here". It reads the saved list (no vendor is asked) for the
  * lead's account, once per pick. A list that fails to load says nothing.
  */
-export function usePickUnavailable(data: Pick<ConversationData, "call" | "threadId">, model: string | undefined, accountRef: string | null | undefined): boolean {
+export function usePickUnavailable(
+  data: Pick<ConversationData, "call" | "threadId">,
+  model: string | undefined,
+  accountRef: string | null | undefined,
+): boolean {
   const [off, setOff] = useState(false);
   useEffect(() => {
-    if (!model) { setOff(false); return undefined; }
+    if (!model) {
+      setOff(false);
+      return undefined;
+    }
     let live = true;
-    void Promise.resolve(data.call("engine.models.list", { threadId: data.threadId, probe: false, ...(accountRef ? { accountRef } : {}) })).then(
-      (out) => { if (live) setOff(pickUnavailable(out as ModelsOut | undefined, model)); },
-      () => { if (live) setOff(false); },
+    void Promise.resolve(
+      data.call("engine.models.list", { threadId: data.threadId, probe: false, ...(accountRef ? { accountRef } : {}) }),
+    ).then(
+      (out) => {
+        if (live) setOff(pickUnavailable(out as ModelsOut | undefined, model));
+      },
+      () => {
+        if (live) setOff(false);
+      },
     );
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [data, model ?? "", accountRef ?? ""]);
   return off;
 }
@@ -222,7 +328,12 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   const openConnect = useOpenConnect();
   const accounts = p.accounts;
   // with no account chosen on the agent yet, the first connected account of its provider (else the first) is shown as the one in use
-  const shownRef = entryOf(accounts, accountRef)?.ref ?? accountRef ?? (accounts ?? []).find((a) => brandOf(a.provider) === brandOf(member?.provider))?.ref ?? accounts?.[0]?.ref ?? null;
+  const shownRef =
+    entryOf(accounts, accountRef)?.ref ??
+    accountRef ??
+    (accounts ?? []).find((a) => brandOf(a.provider) === brandOf(member?.provider))?.ref ??
+    accounts?.[0]?.ref ??
+    null;
   const usage = useUsage(data, p.agent.id, shownRef);
 
   // the saved list at once, then the fresh one the vendor's engine gave (a refresh starts as the menu opens); never waits on the network
@@ -230,15 +341,33 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
     let live = true;
     setModels(null);
     setModelsLine(undefined);
-    void loadMenuModels(data.call, { threadId: data.threadId, ...(shownRef ? { accountRef: shownRef } : {}) }, (list, line) => { setModels(list); setModelsLine(line); }, () => live);
-    return () => { live = false; };
+    void loadMenuModels(
+      data.call,
+      { threadId: data.threadId, ...(shownRef ? { accountRef: shownRef } : {}) },
+      (list, line) => {
+        setModels(list);
+        setModelsLine(line);
+      },
+      () => live,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, shownRef]);
 
   useEffect(() => {
     let live = true;
     // the agent's own "switch to the next usable account when this one runs out" (on unless false)
-    void Promise.resolve(data.call("agents.get", { agentId: p.agent.id })).then((out) => { if (live) setFallback((out as { agent?: { switchOnLimit?: boolean } } | undefined)?.agent?.switchOnLimit !== false); }, () => undefined);
-    return () => { live = false; };
+    void Promise.resolve(data.call("agents.get", { agentId: p.agent.id })).then(
+      (out) => {
+        if (live)
+          setFallback((out as { agent?: { switchOnLimit?: boolean } } | undefined)?.agent?.switchOnLimit !== false);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, p.agent.id]);
 
   // each account's session, for the mini bars in the account list and the running-low suggestion
@@ -246,18 +375,37 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   useEffect(() => {
     let live = true;
     for (const a of accounts ?? []) {
-      void callOr<UsageOut | null>(data, "engine.usage.get", { threadId: data.threadId, agentId: p.agent.id, accountRef: a.ref }, async () => null)
-        .then((out) => { if (live) setPerAccount((m) => ({ ...m, [a.ref]: panelUsage(out)?.session?.pct ?? null })); }, () => undefined);
+      void callOr<UsageOut | null>(
+        data,
+        "engine.usage.get",
+        { threadId: data.threadId, agentId: p.agent.id, accountRef: a.ref },
+        async () => null,
+      ).then(
+        (out) => {
+          if (live) setPerAccount((m) => ({ ...m, [a.ref]: panelUsage(out)?.session?.pct ?? null }));
+        },
+        () => undefined,
+      );
     }
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [data, refs, p.agent.id]);
 
-  const withSession = useMemo(() => accounts === null ? null : accounts.map((a) => ({ ...a, session: perAccount[a.ref] ?? null })), [accounts, perAccount]);
+  const withSession = useMemo(
+    () => (accounts === null ? null : accounts.map((a) => ({ ...a, session: perAccount[a.ref] ?? null }))),
+    [accounts, perAccount],
+  );
   const providerOf = (ref: string | null): string | undefined => (accounts ?? []).find((a) => a.ref === ref)?.provider;
   const busy = useRef(0);
   const write = (choice: AgentChoice, done: string, only?: PanelScope): void => {
     const n = ++busy.current;
-    void configureAgent(data, p.agent.id, choice, only ?? scope).then(() => { if (n === busy.current) p.say(done); }, () => p.say("Could not change that. Try again."));
+    void configureAgent(data, p.agent.id, choice, only ?? scope).then(
+      () => {
+        if (n === busy.current) p.say(done);
+      },
+      () => p.say("Could not change that. Try again."),
+    );
   };
   const where = scope === "chat" ? "in this chat" : "by default";
 
@@ -277,7 +425,10 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
         const keep = provider !== undefined && brandOf(provider) === brandOf(providerOf(shownRef)) ? model : null;
         setModel(keep);
         const name = plainAccountName((accounts ?? []).find((a) => a.ref === ref)?.name);
-        write({ accountRef: ref, ...(provider ? { provider } : {}), ...(keep ? { model: keep } : {}) }, `${p.agent.name} now runs on ${name} ${where}`);
+        write(
+          { accountRef: ref, ...(provider ? { provider } : {}), ...(keep ? { model: keep } : {}) },
+          `${p.agent.name} now runs on ${name} ${where}`,
+        );
       }}
       models={models}
       model={pickedRow(models, model)}
@@ -286,26 +437,49 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
         setModel(id);
         const title = models?.find((m) => m.id === id)?.title ?? id;
         const provider = providerOf(shownRef);
-        write({ model: id, ...(provider ? { provider } : {}), ...(shownRef ? { accountRef: shownRef } : {}) }, `${p.agent.name} now answers with ${title} ${where}`);
+        write(
+          { model: id, ...(provider ? { provider } : {}), ...(shownRef ? { accountRef: shownRef } : {}) },
+          `${p.agent.name} now answers with ${title} ${where}`,
+        );
       }}
       effort={effort}
       // an agent has no default effort: effort is always this chat's
-      onEffort={(e) => { setEffort(e); write({ effort: e }, `${p.agent.name} thinks with ${e} effort in this chat`, "chat"); }}
+      onEffort={(e) => {
+        setEffort(e);
+        write({ effort: e }, `${p.agent.name} thinks with ${e} effort in this chat`, "chat");
+      }}
       {...(scope === "agent" ? { effortNote: "This chat only" } : {})}
       usage={usage}
       mode={p.mode}
       onMode={p.onMode}
-      {...(fallback === undefined ? {} : {
-        fallback,
-        onFallback: (on: boolean) => {
-          setFallback(on);
-          void Promise.resolve(data.call("agents.update", { agentId: p.agent.id, patch: { switchOnLimit: on } })).then(
-            () => p.say(on ? "When limits run out, the next account takes over" : "Stays on this account when limits run out"),
-            () => { setFallback(!on); p.say("Could not change that. Try again."); },
-          );
-        },
-      })}
-      onAddProvider={() => { p.close(); if (openConnect) void openConnect({ kind: "ai" }); else if (data.nav.openAiSetup) data.nav.openAiSetup(); else p.say("Open the Vault and add an AI provider."); }}
+      {...(fallback === undefined
+        ? {}
+        : {
+            fallback,
+            onFallback: (on: boolean) => {
+              setFallback(on);
+              void Promise.resolve(
+                data.call("agents.update", { agentId: p.agent.id, patch: { switchOnLimit: on } }),
+              ).then(
+                () =>
+                  p.say(
+                    on
+                      ? "When limits run out, the next account takes over"
+                      : "Stays on this account when limits run out",
+                  ),
+                () => {
+                  setFallback(!on);
+                  p.say("Could not change that. Try again.");
+                },
+              );
+            },
+          })}
+      onAddProvider={() => {
+        p.close();
+        if (openConnect) void openConnect({ kind: "ai" });
+        else if (data.nav.openAiSetup) data.nav.openAiSetup();
+        else p.say("Open the Vault and add an AI provider.");
+      }}
       onClose={p.close}
       narrow={p.narrow}
       {...(p.runs ? { runs: p.runs } : {})}
@@ -320,25 +494,57 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
  * Compacts this chat (engine.compact), keeping what the person named; `always` keeps the words for every compaction of the chat. The chat shows the server's one line; the answer is that line, or
  * null from a server without the capability, where the chat gets the command itself as before.
  */
-export async function compactChat(data: Pick<ConversationData, "call" | "threadId" | "newKey">, keep: string, always: boolean, agentId?: string): Promise<string | null> {
-  const out = await callOr<{ line?: string } | null>(data, "engine.compact", { threadId: data.threadId, ...(agentId ? { agentId } : {}), ...(keep ? { keep } : {}), always, idempotencyKey: data.newKey() }, async () => {
-    await data.call("chat.post", { threadId: data.threadId, body: keep ? `/compact ${keep}` : "/compact", idempotencyKey: data.newKey() });
-    return null;
-  });
+export async function compactChat(
+  data: Pick<ConversationData, "call" | "threadId" | "newKey">,
+  keep: string,
+  always: boolean,
+  agentId?: string,
+): Promise<string | null> {
+  const out = await callOr<{ line?: string } | null>(
+    data,
+    "engine.compact",
+    {
+      threadId: data.threadId,
+      ...(agentId ? { agentId } : {}),
+      ...(keep ? { keep } : {}),
+      always,
+      idempotencyKey: data.newKey(),
+    },
+    async () => {
+      await data.call("chat.post", {
+        threadId: data.threadId,
+        body: keep ? `/compact ${keep}` : "/compact",
+        idempotencyKey: data.newKey(),
+      });
+      return null;
+    },
+  );
   return typeof out?.line === "string" ? out.line : null;
 }
 
 /* ---------- the model a person picked last ---------- */
 
-export interface LastPick { model?: string; provider?: string; effort?: Effort }
+export interface LastPick {
+  model?: string;
+  provider?: string;
+  effort?: Effort;
+}
 
 /** What this person picked last, anywhere (engine.last_pick.get): a chat with no pick of its own shows it before its first turn, the way a new chat starts on it. Null until it is read, and when there is none. */
 export function useLastPick(data: { call(cap: string, input: unknown): unknown }): LastPick | null {
   const [pick, setPick] = useState<LastPick | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("engine.last_pick.get", {})).then((out) => { const o = out as LastPick | null | undefined; if (live && o?.model) setPick(o); }, () => undefined);
-    return () => { live = false; };
+    void Promise.resolve(data.call("engine.last_pick.get", {})).then(
+      (out) => {
+        const o = out as LastPick | null | undefined;
+        if (live && o?.model) setPick(o);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data]);
   return pick;
 }
@@ -346,5 +552,17 @@ export function useLastPick(data: { call(cap: string, input: unknown): unknown }
 /** The thread as the composer shows it: an agent with no model of its own wears the last pick. The server applies the same pick at its first turn. */
 export function withLastPick(thread: Thread, pick: LastPick | null): Thread {
   if (!pick?.model) return thread;
-  return { ...thread, agents: thread.agents.map((a) => (a.model ? a : { ...a, model: pick.model!, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort && !a.effort ? { effort: pick.effort } : {}) })) };
+  return {
+    ...thread,
+    agents: thread.agents.map((a) =>
+      a.model
+        ? a
+        : {
+            ...a,
+            model: pick.model!,
+            ...(pick.provider ? { provider: pick.provider } : {}),
+            ...(pick.effort && !a.effort ? { effort: pick.effort } : {}),
+          },
+    ),
+  };
 }

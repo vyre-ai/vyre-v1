@@ -5,24 +5,69 @@ import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, GateHook, InvokeDeps } from "../src/invoke.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const cap = { name: "files.write", v: 1, effects: "write", level: "use", permission: null, emits: [], risk: "low", audit: "none", idempotency: "none", resource: { type: "space" } } as unknown as CapabilityDef;
+const cap = {
+  name: "files.write",
+  v: 1,
+  effects: "write",
+  level: "use",
+  permission: null,
+  emits: [],
+  risk: "low",
+  audit: "none",
+  idempotency: "none",
+  resource: { type: "space" },
+} as unknown as CapabilityDef;
 
 function rig(o: { mode: "auto" | "ask" | "plan"; allowed?: boolean }) {
   const ran: string[] = [];
   const parked: string[] = [];
   const gate: GateHook = {
-    applies: () => null, verify: () => false,
-    park: async (a) => { parked.push(a.act); return { taskId: "tsk_1" }; },
-    mode: () => o.mode, allowed: async () => o.allowed === true,
+    applies: () => null,
+    verify: () => false,
+    park: async (a) => {
+      parked.push(a.act);
+      return { taskId: "tsk_1" };
+    },
+    mode: () => o.mode,
+    allowed: async () => o.allowed === true,
   };
   const deps = {
-    caps: indexCapabilities([cap]), validateInput: () => [], authorize: () => ({ effect: "allow", reason: "ok", steps: [], scope: undefined, obligations: [], decisionId: "dec_1" }),
-    handler: () => async () => { ran.push("ran"); return { ok: true }; }, commit: async (b: { events: unknown[] }) => b.events, gate,
-    log: { debug() {}, info() {}, warn() {}, error(m: string, a: unknown) { console.error(m, a); } },
+    caps: indexCapabilities([cap]),
+    validateInput: () => [],
+    authorize: () => ({
+      effect: "allow",
+      reason: "ok",
+      steps: [],
+      scope: undefined,
+      obligations: [],
+      decisionId: "dec_1",
+    }),
+    handler: () => async () => {
+      ran.push("ran");
+      return { ok: true };
+    },
+    commit: async (b: { events: unknown[] }) => b.events,
+    gate,
+    log: {
+      debug() {},
+      info() {},
+      warn() {},
+      error(m: string, a: unknown) {
+        console.error(m, a);
+      },
+    },
   } as unknown as InvokeDeps;
   return { invoke: createInvoke(deps), ran, parked };
 }
-const seed = (over: Partial<CtxSeed> = {}): CtxSeed => ({ space: "spc_1", principal: { kind: "agent", id: "agt_a" }, actingFor: "usr_a", thread: "thr_1", chatMode: "auto", askable: true, ...over });
+const seed = (over: Partial<CtxSeed> = {}): CtxSeed => ({
+  space: "spc_1",
+  principal: { kind: "agent", id: "agt_a" },
+  actingFor: "usr_a",
+  thread: "thr_1",
+  chatMode: "auto",
+  askable: true,
+  ...over,
+});
 
 test("a chat switched to Ask first during a turn parks the next change", async () => {
   const r = rig({ mode: "ask" });
@@ -32,7 +77,10 @@ test("a chat switched to Ask first during a turn parks the next change", async (
 
 test("a chat switched to Plan during a turn refuses the next change", async () => {
   const r = rig({ mode: "plan" });
-  await assert.rejects(r.invoke("files.write", {}, seed()), (e: { error?: { code?: string } }) => e.error?.code === "permission.plan_mode");
+  await assert.rejects(
+    r.invoke("files.write", {}, seed()),
+    (e: { error?: { code?: string } }) => e.error?.code === "permission.plan_mode",
+  );
   assert.deepEqual(r.ran, []);
 });
 

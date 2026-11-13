@@ -13,7 +13,15 @@ test("pressing the empty state's New client shows the new-record row and takes t
   try {
     const s = createSampleRecords({ ...harbor, counts: { clients: 0, projects: 0 } });
     const r = createRoot();
-    await act(async () => { r.render(<RecordsDataProvider value={s.data}><RecordsStateProvider initial={{}}><TableView /></RecordsStateProvider></RecordsDataProvider>); });
+    await act(async () => {
+      r.render(
+        <RecordsDataProvider value={s.data}>
+          <RecordsStateProvider initial={{}}>
+            <TableView />
+          </RecordsStateProvider>
+        </RecordsDataProvider>,
+      );
+    });
     await flush();
     const root = r.container as unknown as Parameters<typeof find>[0];
     assert.ok(find(root, "state-empty"), "an empty type shows the empty state");
@@ -23,7 +31,11 @@ test("pressing the empty state's New client shows the new-record row and takes t
     assert.ok(find(root, "records-adding"), "the new-record row is open");
     assert.equal(find(root, "state-empty"), null, "the empty message gives way to it");
     // the table's idle timers die with it: nothing is left to fire into a torn-down document
-    await act(async () => { (r as unknown as { unmount?: () => void }).unmount?.(); });
-    await new Promise((done) => setTimeout(done, 250));   // past the idle timer: it must not fire into the stand-in document
-  } finally { restore(); }
+    await act(async () => {
+      (r as unknown as { unmount?: () => void }).unmount?.();
+    });
+    await new Promise((done) => setTimeout(done, 250)); // past the idle timer: it must not fire into the stand-in document
+  } finally {
+    restore();
+  }
 });

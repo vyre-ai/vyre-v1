@@ -18,9 +18,22 @@ function tagOf(html: string, testid: string): string {
   return html.slice(start, html.indexOf(">", at) + 1);
 }
 const hidden = (html: string, testid: string): boolean => tagOf(html, testid).includes('aria-hidden="true"');
-const draw = (compact: boolean, bodyOpen: boolean): string => renderToStaticMarkup(
-  <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}>{compact ? <Stage><Text>The open file</Text></Stage> : <Sheets tabs={null}><Stage><Text>The open file</Text></Stage></Sheets>}</SidebarSlotProvider>,
-);
+const draw = (compact: boolean, bodyOpen: boolean): string =>
+  renderToStaticMarkup(
+    <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}>
+      {compact ? (
+        <Stage>
+          <Text>The open file</Text>
+        </Stage>
+      ) : (
+        <Sheets tabs={null}>
+          <Stage>
+            <Text>The open file</Text>
+          </Stage>
+        </Sheets>
+      )}
+    </SidebarSlotProvider>,
+  );
 
 test("phone 390 px, nothing open: the sidebar list shows, the body is hidden, no Back", () => {
   const html = draw(true, false);
@@ -40,7 +53,10 @@ test("phone 390 px, an item open: the sidebar is hidden, the body shows with a B
 test("a computer shows the sidebar and the body together as sheets, with no Back", () => {
   for (const open of [false, true]) {
     const html = draw(false, open);
-    assert.ok(html.indexOf('data-testid="place-sidebar"') < html.indexOf('data-testid="sheet-main"'), "the sidebar is a sheet of its own, beside the main sheet");
+    assert.ok(
+      html.indexOf('data-testid="place-sidebar"') < html.indexOf('data-testid="sheet-main"'),
+      "the sidebar is a sheet of its own, beside the main sheet",
+    );
     assert.equal(hidden(html, "place-sidebar"), false, `sidebar, open=${open}`);
     assert.equal(hidden(html, "place-body"), false, `body, open=${open}`);
     assert.ok(!html.includes('data-testid="sidebar-back"'));
@@ -56,10 +72,27 @@ test("Escape goes back only when nothing else took it", () => {
 
 test("a hidden sidebar's Show button sits at the left of the tab strip, and the stage keeps its place", async () => {
   const { collapseKey, writeCollapsed } = await import("../sidebar/index.ts");
-  const store = { getItem: (k: string) => (k === collapseKey("d1", "p1") ? writeCollapsed(true) : null), setItem: () => undefined };
-  const hidden = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}><Sheets tabs={<Text>tabs</Text>}><Stage><Text>The open file</Text></Stage></Sheets></SidebarSlotProvider>);
-  assert.ok(hidden.indexOf('data-testid="sidebar-expand"') < hidden.indexOf(">tabs<"), "Show comes first in the strip's row");
-  assert.ok(hidden.indexOf('data-testid="sheet-main"') < hidden.indexOf('data-testid="sidebar-expand"'), "inside the main sheet");
+  const store = {
+    getItem: (k: string) => (k === collapseKey("d1", "p1") ? writeCollapsed(true) : null),
+    setItem: () => undefined,
+  };
+  const hidden = renderToStaticMarkup(
+    <SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}>
+      <Sheets tabs={<Text>tabs</Text>}>
+        <Stage>
+          <Text>The open file</Text>
+        </Stage>
+      </Sheets>
+    </SidebarSlotProvider>,
+  );
+  assert.ok(
+    hidden.indexOf('data-testid="sidebar-expand"') < hidden.indexOf(">tabs<"),
+    "Show comes first in the strip's row",
+  );
+  assert.ok(
+    hidden.indexOf('data-testid="sheet-main"') < hidden.indexOf('data-testid="sidebar-expand"'),
+    "inside the main sheet",
+  );
   assert.ok(tagOf(hidden, "sheet-left-wrap").includes('aria-hidden="true"'));
   const shown = draw(false, false);
   assert.ok(!shown.includes('data-testid="sidebar-expand"'));

@@ -15,16 +15,20 @@ export interface Cleaned {
   signature: string;
 }
 
-const WROTE = /^>?\s*(On|Le|Am|El|Il|Op|Em)\s.{4,240}(wrote|a écrit|schrieb|escribió|ha scritto|schreef|escreveu)\s*:\s*$/i;
+const WROTE =
+  /^>?\s*(On|Le|Am|El|Il|Op|Em)\s.{4,240}(wrote|a écrit|schrieb|escribió|ha scritto|schreef|escreveu)\s*:\s*$/i;
 const WROTE_START = /^>?\s*(On|Le|Am|El|Il|Op|Em)\s/i;
 const WROTE_END = /(wrote|a écrit|schrieb|escribió|ha scritto|schreef|escreveu)\s*:\s*$/i;
 const ORIGINAL = /^-{2,}\s*(Original Message|Ursprüngliche Nachricht|Message d'origine|Mensaje original)\s*-{2,}\s*$/i;
 const RULE = /^_{10,}\s*$/;
-const FORWARD = /^(-{2,}\s*Forwarded message\s*-{2,}|Begin forwarded message:|-{2,}\s*Weitergeleitete Nachricht\s*-{2,})\s*$/i;
+const FORWARD =
+  /^(-{2,}\s*Forwarded message\s*-{2,}|Begin forwarded message:|-{2,}\s*Weitergeleitete Nachricht\s*-{2,})\s*$/i;
 const HEADER_FROM = /^\*?(From|De|Von|Van|Da)\*?:\s*\S/i;
 const HEADER_NEXT = /^\*?(Sent|Date|Envoyé|Gesendet|Enviado|Verzonden|Data|To|Subject|Objet|Betreff|Asunto)\*?:\s*/i;
-const MOBILE = /^(Sent from my \S|Sent from Mail for Windows|Sent from Yahoo Mail|Sent from Outlook|Get Outlook for (iOS|Android)|Sent via )/i;
-const NOTICE = /^(CONFIDENTIALITY NOTICE|CONFIDENTIAL(ITY)?:|DISCLAIMER|PRIVILEGED (AND|&) CONFIDENTIAL|This (e-?mail|message|communication) (and any attachments? )?(is|are|may|contains?)|The information (contained )?in this (e-?mail|message))/i;
+const MOBILE =
+  /^(Sent from my \S|Sent from Mail for Windows|Sent from Yahoo Mail|Sent from Outlook|Get Outlook for (iOS|Android)|Sent via )/i;
+const NOTICE =
+  /^(CONFIDENTIALITY NOTICE|CONFIDENTIAL(ITY)?:|DISCLAIMER|PRIVILEGED (AND|&) CONFIDENTIAL|This (e-?mail|message|communication) (and any attachments? )?(is|are|may|contains?)|The information (contained )?in this (e-?mail|message))/i;
 
 const norm = (s: string): string => s.replace(/\r\n?/g, "\n");
 
@@ -34,7 +38,7 @@ function quoteStart(lines: string[]): number {
   for (let i = 0; i < lines.length; i++) {
     const x = at(i);
     if (!x) continue;
-    if (FORWARD.test(x)) return -1;   // what follows a forward marker is the content
+    if (FORWARD.test(x)) return -1; // what follows a forward marker is the content
     if (WROTE.test(x)) return i;
     // Gmail wraps a long attribution: "On Tue, Oct 20, 2026 at 4:12 PM Josh Cohen <" then "josh@example.com> wrote:"
     if (WROTE_START.test(x) && !WROTE_END.test(x)) {
@@ -53,7 +57,7 @@ function quoteStart(lines: string[]): number {
 function signatureStart(lines: string[], sender?: string): number {
   const who = (sender ?? "").trim().toLowerCase();
   const name = who.includes("@") ? "" : who;
-  const local = who.includes("@") ? (who.split("@")[0] ?? "").split(/[._+-]/)[0] ?? "" : "";
+  const local = who.includes("@") ? ((who.split("@")[0] ?? "").split(/[._+-]/)[0] ?? "") : "";
   const blank = (i: number): boolean => !(lines[i] ?? "").trim();
   const goesOn = (i: number): boolean => lines.length - i <= 16 && lines.slice(i + 1).some((l) => l.trim());
   for (let i = 1; i < lines.length; i++) {
@@ -69,19 +73,35 @@ function signatureStart(lines: string[], sender?: string): number {
       let top = k;
       while (top > 0 && !blank(top - 1)) top--;
       const block = lines.slice(top, k + 1).map((l) => l.trim());
-      return top > 0 && block.length >= 2 && block.length <= 8 && block.every((l) => l.length <= 70 && !/[.?!]$/.test(l)) ? top : i;
+      return top > 0 &&
+        block.length >= 2 &&
+        block.length <= 8 &&
+        block.every((l) => l.length <= 70 && !/[.?!]$/.test(l))
+        ? top
+        : i;
     }
     // A block that starts with the sender's full name and goes on (title, firm, phone) is a signature; the name alone is a sign-off and stays.
     if (name && name.includes(" ") && low === name && goesOn(i)) return i;
     if (!name && local.length > 1 && blank(i - 1) && goesOn(i)) {
       const words = x.split(/\s+/);
-      if (words.length >= 2 && words.length <= 4 && words[0]?.toLowerCase() === local && words.every((w) => /^[A-Z]/.test(w))) return i;
+      if (
+        words.length >= 2 &&
+        words.length <= 4 &&
+        words[0]?.toLowerCase() === local &&
+        words.every((w) => /^[A-Z]/.test(w))
+      )
+        return i;
     }
   }
   return -1;
 }
 
-const tidy = (lines: string[]): string => lines.join("\n").replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+const tidy = (lines: string[]): string =>
+  lines
+    .join("\n")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
 /** Split a plain-text body into what was written, the quoted history and the signature. Nothing is cut. */
 export function cleanText(text: string, sender?: string): Cleaned {
@@ -93,7 +113,8 @@ export function cleanText(text: string, sender?: string): Cleaned {
   const body = tidy(s < 0 ? top : top.slice(0, s));
   const signature = s < 0 ? "" : tidy(top.slice(s));
   // A message that is only a signature or only a quote keeps its text as the body, so nothing disappears.
-  if (!body) return { body: tidy(top) || quoted, quoted: tidy(top) ? quoted : "", signature: tidy(top) ? "" : signature };
+  if (!body)
+    return { body: tidy(top) || quoted, quoted: tidy(top) ? quoted : "", signature: tidy(top) ? "" : signature };
   return { body, quoted, signature };
 }
 
@@ -110,7 +131,11 @@ export function previewOf(text: string, max = 160): string {
 }
 
 /** The preview a list row shows: the first words the sender wrote this time, past a greeting. */
-export function previewOfMessage(m: { text?: string | null; html?: string | null; subject?: string }, sender?: string, max = 160): string {
+export function previewOfMessage(
+  m: { text?: string | null; html?: string | null; subject?: string },
+  sender?: string,
+  max = 160,
+): string {
   const source = m.text && m.text.trim() ? m.text : m.html ? htmlToText(m.html) : "";
   const body = cleanText(source, sender).body.replace(/^\s*(hi|hello|hey|dear)\b[^\n]{0,40}\n+/i, "");
   return previewOf(body || m.subject || "", max);
@@ -125,7 +150,11 @@ const REACTED = /^\s*(\S{1,16}?)\s+(.{1,120}?)\s+reacted via Gmail\b/u;
  * A Gmail emoji reaction, or null. Gmail sends a reaction as an email with a text/vnd.google.email-reaction+json part ({"version":1,"emoji":"❤️"}) and a
  * text part "❤️ Name reacted via Gmail <link>". Sync passes the JSON part's emoji as the x-vyre-reaction header; older mail is known by its text.
  */
-export function reactionOf(m: { text?: string | null; html?: string | null; headers?: Record<string, string> | null }): { emoji: string; name?: string } | null {
+export function reactionOf(m: {
+  text?: string | null;
+  html?: string | null;
+  headers?: Record<string, string> | null;
+}): { emoji: string; name?: string } | null {
   const h = m.headers ?? {};
   const fromHeader = h["x-vyre-reaction"];
   const t = REACTED.exec(m.text ?? "") ?? REACTED.exec(m.html ? htmlToText(m.html) : "");
@@ -158,7 +187,11 @@ function qpBytes(s: string): Uint8Array {
   for (let i = 0; i < soft.length; i++) {
     const c = soft[i] ?? "";
     const hex = soft.slice(i + 1, i + 3);
-    if (c === "=" && /^[0-9A-Fa-f]{2}$/.test(hex)) { out.push(parseInt(hex, 16)); i += 2; continue; }
+    if (c === "=" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      out.push(parseInt(hex, 16));
+      i += 2;
+      continue;
+    }
     const code = c.charCodeAt(0);
     if (code < 0x80) out.push(code);
     else for (const b of Buffer.from(c, "utf8")) out.push(b);
@@ -180,7 +213,10 @@ export function decodeBytes(bytes: Uint8Array, charset?: string): string {
  * One MIME part body as text. `data` is what the provider gave: Gmail's base64url (transfer encoding already removed), or the raw part with its
  * Content-Transfer-Encoding (base64, quoted-printable, 7bit, 8bit, binary). The charset comes from the part's Content-Type.
  */
-export function decodePart(data: string, o: { encoding?: string | null; charset?: string | null; base64url?: boolean } = {}): string {
+export function decodePart(
+  data: string,
+  o: { encoding?: string | null; charset?: string | null; base64url?: boolean } = {},
+): string {
   const enc = (o.encoding ?? "").toLowerCase().trim();
   let bytes: Uint8Array;
   if (o.base64url) bytes = Buffer.from(data, "base64url");
@@ -192,7 +228,29 @@ export function decodePart(data: string, o: { encoding?: string | null; charset?
 
 // ---- HTML
 
-const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: String.fromCharCode(0x2014), hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", copy: "©", reg: "®", trade: "™", bull: "•", middot: "·", zwnj: "", zwj: "", shy: "" };
+const NAMED: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  ndash: "–",
+  mdash: String.fromCharCode(0x2014),
+  hellip: "…",
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  bull: "•",
+  middot: "·",
+  zwnj: "",
+  zwj: "",
+  shy: "",
+};
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);?/gi, (all, k: string) => {
@@ -205,11 +263,23 @@ export function decodeEntities(s: string): string {
   });
 }
 
-const escText = (s: string): string => s.replace(/&(?!(#x[0-9a-f]+|#\d+|[a-z]+);)/gi, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const escAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escText = (s: string): string =>
+  s
+    .replace(/&(?!(#x[0-9a-f]+|#\d+|[a-z]+);)/gi, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+const escAttr = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-interface Tok { kind: "text" | "open" | "close" | "comment"; name: string; attrs: Record<string, string>; text: string; self: boolean }
-const TAG = /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\?[^>]*>|<\/?([a-zA-Z][a-zA-Z0-9:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/g;
+interface Tok {
+  kind: "text" | "open" | "close" | "comment";
+  name: string;
+  attrs: Record<string, string>;
+  text: string;
+  self: boolean;
+}
+const TAG =
+  /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\?[^>]*>|<\/?([a-zA-Z][a-zA-Z0-9:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/g;
 const ATTR = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 
 function tokens(html: string): Tok[] {
@@ -220,7 +290,10 @@ function tokens(html: string): Tok[] {
     if (m.index > last) out.push({ kind: "text", name: "", attrs: {}, text: html.slice(last, m.index), self: false });
     last = TAG.lastIndex;
     const name = (m[1] ?? "").toLowerCase();
-    if (!name) { out.push({ kind: "comment", name: "", attrs: {}, text: "", self: false }); continue; }
+    if (!name) {
+      out.push({ kind: "comment", name: "", attrs: {}, text: "", self: false });
+      continue;
+    }
     const attrs: Record<string, string> = {};
     ATTR.lastIndex = 0;
     for (let a = ATTR.exec(m[2] ?? ""); a; a = ATTR.exec(m[2] ?? "")) {
@@ -234,35 +307,156 @@ function tokens(html: string): Tok[] {
 }
 
 /** Elements whose content never shows. */
-const DROP = new Set(["script", "style", "head", "title", "template", "noscript", "iframe", "object", "embed", "applet", "svg", "math", "select", "textarea", "button", "form", "frameset", "frame", "xml", "video", "audio", "canvas"]);
-const VOID = new Set(["br", "hr", "img", "wbr", "input", "meta", "link", "base", "col", "area", "source", "track", "param"]);
-const KEEP = new Set(["p", "br", "div", "span", "b", "strong", "i", "em", "u", "s", "a", "ul", "ol", "li", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "img", "hr", "small", "sub", "sup"]);
-const BLOCK = new Set(["p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "table", "ul", "ol", "hr", "section", "article", "header", "footer"]);
+const DROP = new Set([
+  "script",
+  "style",
+  "head",
+  "title",
+  "template",
+  "noscript",
+  "iframe",
+  "object",
+  "embed",
+  "applet",
+  "svg",
+  "math",
+  "select",
+  "textarea",
+  "button",
+  "form",
+  "frameset",
+  "frame",
+  "xml",
+  "video",
+  "audio",
+  "canvas",
+]);
+const VOID = new Set([
+  "br",
+  "hr",
+  "img",
+  "wbr",
+  "input",
+  "meta",
+  "link",
+  "base",
+  "col",
+  "area",
+  "source",
+  "track",
+  "param",
+]);
+const KEEP = new Set([
+  "p",
+  "br",
+  "div",
+  "span",
+  "b",
+  "strong",
+  "i",
+  "em",
+  "u",
+  "s",
+  "a",
+  "ul",
+  "ol",
+  "li",
+  "table",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "td",
+  "th",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "pre",
+  "code",
+  "img",
+  "hr",
+  "small",
+  "sub",
+  "sup",
+]);
+const BLOCK = new Set([
+  "p",
+  "div",
+  "li",
+  "tr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "pre",
+  "table",
+  "ul",
+  "ol",
+  "hr",
+  "section",
+  "article",
+  "header",
+  "footer",
+]);
 
 const classes = (t: Tok): string[] => (t.attrs.class ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-const isQuoteEl = (t: Tok): boolean => classes(t).includes("gmail_quote") || classes(t).includes("yahoo_quoted") || (t.name === "blockquote" && (t.attrs.type ?? "").toLowerCase() === "cite") || t.attrs.id === "divRplyFwdMsg";
-const isSigEl = (t: Tok): boolean => classes(t).includes("gmail_signature") || t.attrs["data-smartmail"] === "gmail_signature" || /^signature$/i.test(t.attrs.id ?? "") || classes(t).includes("moz-signature");
+const isQuoteEl = (t: Tok): boolean =>
+  classes(t).includes("gmail_quote") ||
+  classes(t).includes("yahoo_quoted") ||
+  (t.name === "blockquote" && (t.attrs.type ?? "").toLowerCase() === "cite") ||
+  t.attrs.id === "divRplyFwdMsg";
+const isSigEl = (t: Tok): boolean =>
+  classes(t).includes("gmail_signature") ||
+  t.attrs["data-smartmail"] === "gmail_signature" ||
+  /^signature$/i.test(t.attrs.id ?? "") ||
+  classes(t).includes("moz-signature");
 /** Outlook puts the reply header, then the whole history, after these as siblings, so everything from here on is quoted. */
-const startsTail = (t: Tok): boolean => t.attrs.id === "divRplyFwdMsg" || t.attrs.id === "appendonsend" || t.attrs.id === "mail-editor-reference-message-container";
+const startsTail = (t: Tok): boolean =>
+  t.attrs.id === "divRplyFwdMsg" ||
+  t.attrs.id === "appendonsend" ||
+  t.attrs.id === "mail-editor-reference-message-container";
 
 /** The text of an HTML body: blocks and breaks become line breaks, list items get "- ", nothing that never shows (scripts, styles). */
 export function htmlToText(html: string): string {
   let out = "";
   let drop = 0;
   // a block boundary is one line break however many tags meet there; <br> is always one; a paragraph ends with a blank line
-  const soft = (): void => { if (out && !out.endsWith("\n")) out += "\n"; };
+  const soft = (): void => {
+    if (out && !out.endsWith("\n")) out += "\n";
+  };
   for (const t of tokens(html ?? "")) {
     if (t.kind === "comment") continue;
-    if (DROP.has(t.name)) { if (t.kind === "open" && !t.self && !VOID.has(t.name)) drop++; else if (t.kind === "close") drop = Math.max(0, drop - 1); continue; }
+    if (DROP.has(t.name)) {
+      if (t.kind === "open" && !t.self && !VOID.has(t.name)) drop++;
+      else if (t.kind === "close") drop = Math.max(0, drop - 1);
+      continue;
+    }
     if (drop) continue;
-    if (t.kind === "text") { const x = decodeEntities(t.text.replace(/\s+/g, " ")); if (x.trim() || !out.endsWith("\n")) out += x; }
-    else if (t.name === "br") out = out.replace(/[ \t]+$/, "") + "\n";
-    else if (t.name === "li" && t.kind === "open") { soft(); out += "- "; }
-    else if (t.name === "td" && t.kind === "close") out += " ";
-    else if (t.name === "p" && t.kind === "close") { soft(); if (!out.endsWith("\n\n")) out += "\n"; }
-    else if (BLOCK.has(t.name)) soft();
+    if (t.kind === "text") {
+      const x = decodeEntities(t.text.replace(/\s+/g, " "));
+      if (x.trim() || !out.endsWith("\n")) out += x;
+    } else if (t.name === "br") out = out.replace(/[ \t]+$/, "") + "\n";
+    else if (t.name === "li" && t.kind === "open") {
+      soft();
+      out += "- ";
+    } else if (t.name === "td" && t.kind === "close") out += " ";
+    else if (t.name === "p" && t.kind === "close") {
+      soft();
+      if (!out.endsWith("\n\n")) out += "\n";
+    } else if (BLOCK.has(t.name)) soft();
   }
-  return out.replace(/[ \t]*\n[ \t]*/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+  return out
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 export interface SafeHtml {
@@ -280,12 +474,18 @@ export interface SafeHtml {
 
 function hostOf(href: string): string {
   if (/^mailto:/i.test(href)) return href.slice(7).split("?")[0] ?? "";
-  try { return new URL(href).host; } catch { return ""; }
+  try {
+    return new URL(href).host;
+  } catch {
+    return "";
+  }
 }
 
 function safeHref(raw: string): string | null {
   // control characters and spaces inside a scheme are an old trick ("java\nscript:"); decode, strip them, then allow only web and mail links
-  const v = decodeEntities(raw).replace(/[\u0000- \u007f]+/g, "").trim();
+  const v = decodeEntities(raw)
+    .replace(/[\u0000- \u007f]+/g, "")
+    .trim();
   return /^(https?:|mailto:)/i.test(v) ? v : null;
 }
 
@@ -305,7 +505,8 @@ export function sanitizeHtml(html: string, o: { images?: boolean } = {}): SafeHt
   let tailBuf = "";
   const quoted: string[] = [];
   const signature: string[] = [];
-  let imagesHeld = 0, pixels = 0;
+  let imagesHeld = 0,
+    pixels = 0;
   const link: { host: string; text: string }[] = [];
 
   const emit = (s: string): void => {
@@ -316,7 +517,11 @@ export function sanitizeHtml(html: string, o: { images?: boolean } = {}): SafeHt
 
   for (const t of toks) {
     if (t.kind === "comment") continue;
-    if (DROP.has(t.name)) { if (t.kind === "open" && !t.self && !VOID.has(t.name)) drop++; else if (t.kind === "close") drop = Math.max(0, drop - 1); continue; }
+    if (DROP.has(t.name)) {
+      if (t.kind === "open" && !t.self && !VOID.has(t.name)) drop++;
+      else if (t.kind === "close") drop = Math.max(0, drop - 1);
+      continue;
+    }
     if (drop) continue;
     if (t.kind === "open" && !tail && startsTail(t)) tail = true;
     if (t.kind === "open" && !tail && !cap && (isQuoteEl(t) || isSigEl(t)) && !VOID.has(t.name)) {
@@ -332,26 +537,39 @@ export function sanitizeHtml(html: string, o: { images?: boolean } = {}): SafeHt
         continue;
       }
     }
-    if (cap || tail) { emit(t.kind === "text" ? t.text : t.kind === "open" ? `<${t.name}>` : `</${t.name}>`); continue; }
+    if (cap || tail) {
+      emit(t.kind === "text" ? t.text : t.kind === "open" ? `<${t.name}>` : `</${t.name}>`);
+      continue;
+    }
 
     if (t.kind === "text") {
       out += escText(t.text);
       for (const l of link) l.text += decodeEntities(t.text);
       continue;
     }
-    if (!KEEP.has(t.name)) continue;   // unknown element: its tags go, its text stays
+    if (!KEEP.has(t.name)) continue; // unknown element: its tags go, its text stays
     if (t.kind === "open") {
       if (t.name === "img") {
         const src = (t.attrs.src ?? "").trim();
-        if (t.attrs.width === "1" || t.attrs.height === "1" || /^(0|1)px$/i.test(t.attrs.width ?? "")) { pixels++; continue; }
+        if (t.attrs.width === "1" || t.attrs.height === "1" || /^(0|1)px$/i.test(t.attrs.width ?? "")) {
+          pixels++;
+          continue;
+        }
         const alt = t.attrs.alt ? ` alt="${escAttr(t.attrs.alt)}"` : "";
         if (/^https?:/i.test(src)) {
-          if (!o.images) { imagesHeld++; continue; }
+          if (!o.images) {
+            imagesHeld++;
+            continue;
+          }
           out += `<img src="${escAttr(src)}"${alt}>`;
-        } else if (/^data:image\/(png|gif|jpeg|webp);/i.test(src) || /^cid:/i.test(src)) out += `<img src="${escAttr(src)}"${alt}>`;
+        } else if (/^data:image\/(png|gif|jpeg|webp);/i.test(src) || /^cid:/i.test(src))
+          out += `<img src="${escAttr(src)}"${alt}>`;
         continue;
       }
-      if (VOID.has(t.name)) { out += `<${t.name}>`; continue; }
+      if (VOID.has(t.name)) {
+        out += `<${t.name}>`;
+        continue;
+      }
       if (t.name === "a") {
         const href = safeHref(t.attrs.href ?? "");
         out += href ? `<a href="${escAttr(href)}" target="_blank" rel="noopener noreferrer nofollow">` : "<a>";
@@ -368,7 +586,8 @@ export function sanitizeHtml(html: string, o: { images?: boolean } = {}): SafeHt
       out += `</${name}>`;
       if (name === "a") {
         const l = link.pop();
-        if (l?.host && !l.text.toLowerCase().includes(l.host.toLowerCase())) out += ` <span class="vy-link-host">(${escText(l.host)})</span>`;
+        if (l?.host && !l.text.toLowerCase().includes(l.host.toLowerCase()))
+          out += ` <span class="vy-link-host">(${escText(l.host)})</span>`;
       }
     }
   }
@@ -387,7 +606,11 @@ export function sanitizeHtml(html: string, o: { images?: boolean } = {}): SafeHt
 }
 
 /** A message's readable parts, from its text, else its HTML. The sender's display name helps find the signature. */
-export function cleanMessage(m: { text?: string | null; html?: string | null }, sender?: string, o: { images?: boolean } = {}): Cleaned & { html?: string; imagesHeld?: number } {
+export function cleanMessage(
+  m: { text?: string | null; html?: string | null },
+  sender?: string,
+  o: { images?: boolean } = {},
+): Cleaned & { html?: string; imagesHeld?: number } {
   if (m.html && m.html.trim()) {
     const h = sanitizeHtml(m.html, o);
     // the HTML's own quote and signature blocks, then the text rules on what is left (an HTML reply may still carry "On … wrote:" as plain lines)
@@ -419,9 +642,12 @@ export function gmailBodies(payload: unknown): { text?: string; html?: string; r
   const walk = (p: Json): void => {
     const mime = (asStr(p.mimeType) ?? "").toLowerCase();
     const data = asStr(asObj(p.body).data);
-    const kind = mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
+    const kind =
+      mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
     if (kind && out[kind] === undefined && data !== undefined && !asStr(p.filename)) {
-      const ct = (Array.isArray(p.headers) ? p.headers : []).map(asObj).find((h) => asStr(h.name)?.toLowerCase() === "content-type");
+      const ct = (Array.isArray(p.headers) ? p.headers : [])
+        .map(asObj)
+        .find((h) => asStr(h.name)?.toLowerCase() === "content-type");
       out[kind] = decodePart(data, { base64url: true, charset: charsetOf(asStr(ct?.value)) ?? null });
     }
     for (const c of Array.isArray(p.parts) ? p.parts : []) walk(asObj(c));

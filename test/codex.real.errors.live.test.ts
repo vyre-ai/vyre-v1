@@ -17,11 +17,16 @@ test("(e) cancelling mid-turn stops the process quickly and the next turn still 
     const r = await it.next();
     if (r.done) break;
     seen.push(r.value);
-    if (r.value.type === "block" && r.value.kind === "tool_call") { void s.cancel(); }
+    if (r.value.type === "block" && r.value.kind === "tool_call") {
+      void s.cancel();
+    }
   }
   assert.ok(Date.now() - t0 < 60_000, "the cancel ended the turn");
   assert.ok(toolNames(seen).length > 0, "it had started the command");
-  assert.equal(seen.some((e) => e.type === "done"), false);
+  assert.equal(
+    seen.some((e) => e.type === "done"),
+    false,
+  );
   const next = await collect(s.send(say("Reply with the single word pong.", "m2")));
   assert.deepEqual(errors(next), []);
   assert.match(answer(next), /pong/i);
@@ -38,18 +43,24 @@ test("(g) signed out: a plain sign-in message with the auth code, never a crash"
     assert.equal(e[0]!.code, "provider.auth_failed", e[0]!.message);
     assert.doesNotMatch(e[0]!.message, /Bearer|stack|at .*\(/);
     await s.close();
-  } finally { fs.rmSync(empty, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(empty, { recursive: true, force: true });
+  }
 });
 
-test("(i) a model the account does not have is a model_unavailable error in plain words, not the vendor's JSON", opts, async () => {
-  const s = await open("gpt-0-not-a-model");
-  const ev = await collect(s.send(say("hello")));
-  const e = errors(ev);
-  assert.equal(e.length, 1, JSON.stringify(ev));
-  assert.equal(e[0]!.code, "engine.model_unavailable");
-  assert.doesNotMatch(e[0]!.message, /^\s*\{/);
-  await s.close();
-});
+test(
+  "(i) a model the account does not have is a model_unavailable error in plain words, not the vendor's JSON",
+  opts,
+  async () => {
+    const s = await open("gpt-0-not-a-model");
+    const ev = await collect(s.send(say("hello")));
+    const e = errors(ev);
+    assert.equal(e.length, 1, JSON.stringify(ev));
+    assert.equal(e[0]!.code, "engine.model_unavailable");
+    assert.doesNotMatch(e[0]!.message, /^\s*\{/);
+    await s.close();
+  },
+);
 
 test("(j) a session id Codex does not have starts a new session and says so, once", opts, async () => {
   const s = await open("", { resume: () => "01a1ae88-0000-7000-8000-000000000000" });
@@ -60,11 +71,19 @@ test("(j) a session id Codex does not have starts a new session and says so, onc
   await s.close();
 });
 
-test("(k) in Ask first the work folder is read-only: Codex cannot write a file, and the turn still ends with an answer", opts, async () => {
-  const s = await open("", {}, "ask");
-  const ev = await collect(s.send(say("Create a file named forbidden.txt in the current folder containing x, then tell me whether it worked.")));
-  assert.deepEqual(errors(ev), []);
-  assert.equal(fs.existsSync(path.join(work, "forbidden.txt")), false, "read-only: nothing was written");
-  assert.equal(ev.at(-1)?.type, "done");
-  await s.close();
-});
+test(
+  "(k) in Ask first the work folder is read-only: Codex cannot write a file, and the turn still ends with an answer",
+  opts,
+  async () => {
+    const s = await open("", {}, "ask");
+    const ev = await collect(
+      s.send(
+        say("Create a file named forbidden.txt in the current folder containing x, then tell me whether it worked."),
+      ),
+    );
+    assert.deepEqual(errors(ev), []);
+    assert.equal(fs.existsSync(path.join(work, "forbidden.txt")), false, "read-only: nothing was written");
+    assert.equal(ev.at(-1)?.type, "done");
+    await s.close();
+  },
+);

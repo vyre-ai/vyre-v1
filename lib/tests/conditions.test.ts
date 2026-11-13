@@ -13,7 +13,10 @@ const DEF = {
     { name: "stage", kind: "stage", options: ["Intake", "Treating", "Drafting"] },
   ],
   stages: [{ name: "Intake" }],
-  stage_sets: [{ name: "pi", when: 'area == "PI"', stages: [{ name: "Intake" }, { name: "Treating" }] }, { name: "ep", when: 'area == "EP"', stages: [{ name: "Intake" }, { name: "Drafting" }] }],
+  stage_sets: [
+    { name: "pi", when: 'area == "PI"', stages: [{ name: "Intake" }, { name: "Treating" }] },
+    { name: "ep", when: 'area == "EP"', stages: [{ name: "Intake" }, { name: "Drafting" }] },
+  ],
 };
 
 test("isEmpty: null, empty text and an empty list hold nothing; zero and false do", () => {
@@ -22,8 +25,8 @@ test("isEmpty: null, empty text and an empty list hold nothing; zero and false d
 });
 
 test("holds: true only when the expression is true; one that cannot be read is false", () => {
-  assert.equal(holds('a == 1', { a: 1 }), true);
-  assert.equal(holds('a == 1', { a: 2 }), false);
+  assert.equal(holds("a == 1", { a: 1 }), true);
+  assert.equal(holds("a == 1", { a: 2 }), false);
   assert.equal(holds("(", {}), false);
   assert.equal(holds("a == 1", undefined), false);
 });
@@ -35,7 +38,10 @@ test("fieldState: visible and required follow the record's other fields; a hidde
   assert.deepEqual(fieldState(f, {}), { visible: false, required: false });
   assert.deepEqual(fieldState(DEF.fields[2], {}), { visible: true, required: true }, "required: true is always");
   assert.deepEqual(fieldState(DEF.fields[3], {}), { visible: true, required: false });
-  assert.deepEqual(Object.keys(fieldStates(DEF, { area: "PI" })), DEF.fields.map((x) => x.name));
+  assert.deepEqual(
+    Object.keys(fieldStates(DEF, { area: "PI" })),
+    DEF.fields.map((x) => x.name),
+  );
 });
 
 test("stage sets: the first set that holds gives the stages, else the default; the names are the union", () => {

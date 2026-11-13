@@ -16,15 +16,29 @@ export function spawnGroup(cmd, args, opts) {
 
 /** True while any process of the group led by pid is still there. */
 export function groupAlive(pid) {
-  if (WIN) { const r = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/NH"], { encoding: "utf8" }); return (r.stdout ?? "").includes(String(pid)); }
-  try { process.kill(-pid, 0); return true; } catch (e) { return e.code === "EPERM"; }
+  if (WIN) {
+    const r = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/NH"], { encoding: "utf8" });
+    return (r.stdout ?? "").includes(String(pid));
+  }
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
 }
 
 /** End the child's whole group (SIGKILL; on Windows taskkill /T /F) and wait, up to waitMs, until none of it is left. Returns true when it is gone. */
 export async function killGroup(p, waitMs = 5000) {
   if (!p.pid) return true;
   if (WIN) spawnSync("taskkill", ["/PID", String(p.pid), "/T", "/F"], { stdio: "ignore" });
-  else { try { process.kill(-p.pid, "SIGKILL"); } catch { /* the group is gone already */ } }
+  else {
+    try {
+      process.kill(-p.pid, "SIGKILL");
+    } catch {
+      /* the group is gone already */
+    }
+  }
   const until = Date.now() + waitMs;
   while (groupAlive(p.pid)) {
     if (Date.now() > until) return false;
@@ -38,7 +52,22 @@ let wired = false;
 export function endGroupsOnExit() {
   if (wired) return;
   wired = true;
-  const endAll = () => { for (const p of live) { if (WIN) spawnSync("taskkill", ["/PID", String(p.pid), "/T", "/F"], { stdio: "ignore" }); else { try { process.kill(-p.pid, "SIGKILL"); } catch { /* gone */ } } } };
+  const endAll = () => {
+    for (const p of live) {
+      if (WIN) spawnSync("taskkill", ["/PID", String(p.pid), "/T", "/F"], { stdio: "ignore" });
+      else {
+        try {
+          process.kill(-p.pid, "SIGKILL");
+        } catch {
+          /* gone */
+        }
+      }
+    }
+  };
   process.once("exit", endAll);
-  for (const s of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(s, () => { endAll(); process.exit(s === "SIGINT" ? 130 : 143); });
+  for (const s of ["SIGINT", "SIGTERM", "SIGHUP"])
+    process.once(s, () => {
+      endAll();
+      process.exit(s === "SIGINT" ? 130 : 143);
+    });
 }

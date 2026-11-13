@@ -9,5 +9,7 @@ export async function fetchWhatsNew(f: Fetch | undefined = (globalThis as { fetc
   try {
     const r = await f(WHATS_NEW_PATH, { cache: "no-store" });
     return r.ok ? await r.json() : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }

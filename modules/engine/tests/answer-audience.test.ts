@@ -6,31 +6,62 @@ import { PRIVATELY, screenAnswer } from "../answer-audience.ts";
 import type { AnswerAudienceDeps } from "../answer-audience.ts";
 import { hasReads, noteRead, takeReads } from "../../../host/src/seams/answer-reads.ts";
 
-const DANA = "usr_dana", MAYA = "usr_maya", GUS = "usr_gus", AGENT = "agt_x";
+const DANA = "usr_dana",
+  MAYA = "usr_maya",
+  GUS = "usr_gus",
+  AGENT = "agt_x";
 const person = (id: string) => ({ kind: "person", id });
 
-function deps(o: { members: string[]; channel?: "invite" | "public"; closedTo?: Record<string, string[]>; space?: string[]; noMayAll?: boolean; postFails?: boolean; agentClass?: string }) {
+function deps(o: {
+  members: string[];
+  channel?: "invite" | "public";
+  closedTo?: Record<string, string[]>;
+  space?: string[];
+  noMayAll?: boolean;
+  postFails?: boolean;
+  agentClass?: string;
+}) {
   const posts: Array<{ agentId: string; threadId: string; body: string; actingFor?: string }> = [];
   const asked: string[] = [];
   let n = 0;
   const d: AnswerAudienceDeps = {
     async call(cap, input, as) {
       asked.push(`${cap}:${as ?? ""}`);
-      if (cap === "threads.get") return { thread: o.channel ? { kind: "channel", channelId: "chn_1", members: [] } : { kind: "chat", starter: o.members[0], members: o.members.map(person) } };
+      if (cap === "threads.get")
+        return {
+          thread: o.channel
+            ? { kind: "channel", channelId: "chn_1", members: [] }
+            : { kind: "chat", starter: o.members[0], members: o.members.map(person) },
+        };
       if (cap === "channels.get") return { channel: { visibility: o.channel, members: o.members.map(person) } };
       if (cap === "access.principals.list") return { principals: (o.space ?? o.members).map((id) => ({ id })) };
       if (cap === "chat.start") return { thread: { threadId: "thr_private" } };
-      if (cap === "agents.share_class") { if (!o.agentClass) throw new Error("no such agent"); return { class: o.agentClass, ownerId: DANA, people: [] }; }
+      if (cap === "agents.share_class") {
+        if (!o.agentClass) throw new Error("no such agent");
+        return { class: o.agentClass, ownerId: DANA, people: [] };
+      }
       throw new Error(`unexpected ${cap}`);
     },
-    ...(o.noMayAll ? {} : { mayAll: (people, _a, r) => people.every((p) => !(o.closedTo?.[p] ?? []).includes(`${r.type}:${r.id}`)) }),
-    postAs: async (agentId, post) => { if (o.postFails) throw new Error("down"); posts.push({ agentId, threadId: post.threadId, body: post.body, ...(post.actingFor ? { actingFor: post.actingFor } : {}) }); return {}; },
+    ...(o.noMayAll
+      ? {}
+      : { mayAll: (people, _a, r) => people.every((p) => !(o.closedTo?.[p] ?? []).includes(`${r.type}:${r.id}`)) }),
+    postAs: async (agentId, post) => {
+      if (o.postFails) throw new Error("down");
+      posts.push({
+        agentId,
+        threadId: post.threadId,
+        body: post.body,
+        ...(post.actingFor ? { actingFor: post.actingFor } : {}),
+      });
+      return {};
+    },
     newId: () => `msg_brg${++n}`,
   };
   return { d, posts, asked };
 }
 const reply = "The Henderson file says the walk-away number is 310k.";
-const read = (thread: string, type: string, id: string) => noteRead({ thread, agent: AGENT, asker: DANA, resource: { type, id } });
+const read = (thread: string, type: string, id: string) =>
+  noteRead({ thread, agent: AGENT, asker: DANA, resource: { type, id } });
 
 test("an answer built on a record Gus may not open goes to Dana privately; the chat gets one line", async () => {
   const w = deps({ members: [DANA, MAYA, GUS], channel: "invite", closedTo: { [GUS]: ["record:rec_h"] } });
@@ -40,7 +71,11 @@ test("an answer built on a record Gus may not open goes to Dana privately; the c
   assert.equal(s.withheld, true);
   assert.equal(s.body, PRIVATELY);
   assert.deepEqual(s.closed, [{ type: "record", id: "rec_h" }]);
-  assert.deepEqual(w.posts, [{ agentId: AGENT, threadId: "thr_private", body: reply, actingFor: DANA }], "the whole answer, in Dana's own chat with the agent");
+  assert.deepEqual(
+    w.posts,
+    [{ agentId: AGENT, threadId: "thr_private", body: reply, actingFor: DANA }],
+    "the whole answer, in Dana's own chat with the agent",
+  );
   assert.ok(w.asked.includes(`chat.start:${DANA}`), "the private chat is Dana's");
   assert.equal(hasReads("thr_a", AGENT, DANA), false, "the turn's reads were taken");
 });
@@ -58,11 +93,19 @@ test("a turn that read nothing, and a chat only Dana reads, are posted as they a
   assert.equal((await screenAnswer(w.d, { threadId: "thr_c", agentId: AGENT, asker: DANA, reply })).withheld, false);
   const alone = deps({ members: [DANA], closedTo: { [GUS]: ["record:rec_h"] } });
   read("thr_d", "record", "rec_h");
-  assert.equal((await screenAnswer(alone.d, { threadId: "thr_d", agentId: AGENT, asker: DANA, reply })).withheld, false);
+  assert.equal(
+    (await screenAnswer(alone.d, { threadId: "thr_d", agentId: AGENT, asker: DANA, reply })).withheld,
+    false,
+  );
 });
 
 test("a public channel is read by the whole Space: everyone in it is checked, not only those present", async () => {
-  const w = deps({ members: [DANA, MAYA], channel: "public", space: [DANA, MAYA, GUS], closedTo: { [GUS]: ["file:fil_1"] } });
+  const w = deps({
+    members: [DANA, MAYA],
+    channel: "public",
+    space: [DANA, MAYA, GUS],
+    closedTo: { [GUS]: ["file:fil_1"] },
+  });
   read("thr_e", "file", "fil_1");
   const s = await screenAnswer(w.d, { threadId: "thr_e", agentId: AGENT, asker: DANA, reply });
   assert.equal(s.withheld, true);
@@ -75,16 +118,22 @@ test("a check that cannot be made shares nothing: no per-person answer, or no pr
   assert.equal((await screenAnswer(w.d, { threadId: "thr_f", agentId: AGENT, asker: DANA, reply })).body, PRIVATELY);
   const down = deps({ members: [DANA, MAYA], closedTo: { [MAYA]: ["record:rec_h"] }, postFails: true });
   read("thr_g", "record", "rec_h");
-  await assert.rejects(screenAnswer(down.d, { threadId: "thr_g", agentId: AGENT, asker: DANA, reply }), "the engine then posts ANSWER_HELD, never the answer");
+  await assert.rejects(
+    screenAnswer(down.d, { threadId: "thr_g", agentId: AGENT, asker: DANA, reply }),
+    "the engine then posts ANSWER_HELD, never the answer",
+  );
   assert.deepEqual(takeReads("thr_g", AGENT, DANA), []);
 });
-
 
 // ---- review S1 (12 Nov): what an agent read with no computer named is judged by what it really was
 
 test("a channel answer after the agent read the person's own Chrome (inMyChrome) goes to the asker privately: nobody else may open that computer", async () => {
   // the kernel answers "no" for every person on the computer "my-chrome": it is no resource of the Space; here the stand-in says the same
-  const w = deps({ members: [DANA, MAYA, GUS], channel: "public", closedTo: { [MAYA]: ["computer:my-chrome"], [GUS]: ["computer:my-chrome"] } });
+  const w = deps({
+    members: [DANA, MAYA, GUS],
+    channel: "public",
+    closedTo: { [MAYA]: ["computer:my-chrome"], [GUS]: ["computer:my-chrome"] },
+  });
   read("thr_s1", "computer", "my-chrome");
   const s = await screenAnswer(w.d, { threadId: "thr_s1", agentId: AGENT, asker: DANA, reply });
   assert.equal(s.withheld, true);
@@ -94,9 +143,18 @@ test("a channel answer after the agent read the person's own Chrome (inMyChrome)
 test("a team agent browses and answers in a channel: shared when every reader may ask it, private when one may not (lead, 12 Nov)", async () => {
   const open = deps({ members: [DANA, MAYA, GUS], channel: "invite", agentClass: "space" });
   read("thr_s2", "browser_profile", AGENT);
-  assert.equal((await screenAnswer(open.d, { threadId: "thr_s2", agentId: AGENT, asker: DANA, reply })).withheld, false, "everyone there may ask the agent: shared");
+  assert.equal(
+    (await screenAnswer(open.d, { threadId: "thr_s2", agentId: AGENT, asker: DANA, reply })).withheld,
+    false,
+    "everyone there may ask the agent: shared",
+  );
   assert.ok(!open.asked.some((a) => a.startsWith("computers.browser.profiles")), "no call per reader: one kernel pass");
-  const closed = deps({ members: [DANA, MAYA, GUS], channel: "invite", agentClass: "shared", closedTo: { [GUS]: [`agent:${AGENT}`] } });
+  const closed = deps({
+    members: [DANA, MAYA, GUS],
+    channel: "invite",
+    agentClass: "shared",
+    closedTo: { [GUS]: [`agent:${AGENT}`] },
+  });
   read("thr_s3", "browser_profile", AGENT);
   const s = await screenAnswer(closed.d, { threadId: "thr_s3", agentId: AGENT, asker: DANA, reply });
   assert.equal(s.withheld, true, "Gus may not ask it: private to the asker");
@@ -107,7 +165,11 @@ test("an Assistant's or a private agent's browser read in a channel stays privat
   for (const agentClass of ["personal", "private", undefined]) {
     const w = deps({ members: [DANA, MAYA], channel: "public", ...(agentClass ? { agentClass } : {}) });
     read("thr_s5", "browser_profile", AGENT);
-    assert.equal((await screenAnswer(w.d, { threadId: "thr_s5", agentId: AGENT, asker: DANA, reply })).withheld, true, String(agentClass));
+    assert.equal(
+      (await screenAnswer(w.d, { threadId: "thr_s5", agentId: AGENT, asker: DANA, reply })).withheld,
+      true,
+      String(agentClass),
+    );
   }
 });
 

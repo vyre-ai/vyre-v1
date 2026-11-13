@@ -3,7 +3,12 @@
 import type { Report } from "../../host/src/machines/report.ts";
 import type { MachinesCtx } from "./projections.ts";
 
-export interface DoctorFinding { key: string; state: "healthy" | "degraded" | "down"; detail: string; next: string }
+export interface DoctorFinding {
+  key: string;
+  state: "healthy" | "degraded" | "down";
+  detail: string;
+  next: string;
+}
 export interface HostSeams {
   /** Turns running on a machine right now, when the host holds its socket (exact), else undefined. */
   turns(machineId: string): number | undefined;
@@ -17,7 +22,13 @@ export interface HostSeams {
   idle(machineId: string, person?: string): number;
 }
 
-export const hostSeams: HostSeams = { turns: () => undefined, own: () => Promise.resolve(null), findings: () => Promise.resolve([]), fix: () => Promise.reject(new Error("this host runs no fixes")), idle: () => 0 };
+export const hostSeams: HostSeams = {
+  turns: () => undefined,
+  own: () => Promise.resolve(null),
+  findings: () => Promise.resolve([]),
+  fix: () => Promise.reject(new Error("this host runs no fixes")),
+  idle: () => 0,
+};
 
 /** Bind (or, with null, unbind) what the host knows. */
 export function bindMachines(h: Partial<HostSeams> | null): void {
@@ -34,5 +45,7 @@ export async function latestVersion(ctx: MachinesCtx): Promise<string | null> {
   try {
     const s = (await ctx.call("updates.status", {})) as { current?: string; available?: string };
     return s.available ?? s.current ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }

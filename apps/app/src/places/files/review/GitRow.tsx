@@ -15,7 +15,9 @@ import { aheadBehind, branchChoices, changesWords } from "./model.ts";
 import type { GateView } from "./model.ts";
 import { Btn, IconBtn, Note, Skeleton, anchorOf } from "./parts.tsx";
 
-export interface GitRowProps { folderId: string }
+export interface GitRowProps {
+  folderId: string;
+}
 
 type Line = { text: string; kind: "ok" | "error" | "warn" };
 
@@ -36,12 +38,18 @@ export function GitRow({ folderId }: GitRowProps): ReactElement {
     setBusy(false);
     setLine(r.ok ? { kind: "ok", text: what } : { kind: "error", text: r.error });
   };
-  const keyed = (): string => { attempt.current ??= data.key(); return attempt.current; };
+  const keyed = (): string => {
+    attempt.current ??= data.key();
+    return attempt.current;
+  };
   const run = (what: string, go: () => Promise<Result<unknown>>): void => {
     if (busy) return;
     setBusy(true);
     setLine(null);
-    void go().then((r) => { if (r.ok) attempt.current = null; done(what, r); });
+    void go().then((r) => {
+      if (r.ok) attempt.current = null;
+      done(what, r);
+    });
   };
 
   if (!status.isRepo) {
@@ -51,7 +59,15 @@ export function GitRow({ folderId }: GitRowProps): ReactElement {
           id="git"
           title="Not a git folder"
           leading={<Glyph name="branch" size={14} />}
-          trailing={<Btn label="Start a repository" small disabled={busy} onPress={() => run("Started a repository.", () => initRepo(data.call, folderId))} testID="git-init" />}
+          trailing={
+            <Btn
+              label="Start a repository"
+              small
+              disabled={busy}
+              onPress={() => run("Started a repository.", () => initRepo(data.call, folderId))}
+              testID="git-init"
+            />
+          }
         />
         {line ? <Note text={line.text} kind={line.kind} /> : null}
       </View>
@@ -65,7 +81,10 @@ export function GitRow({ folderId }: GitRowProps): ReactElement {
   const pushNow = (): void => run(`Pushed ${branch}.`, () => pushBranch(data.call, folderId, keyed(), status.branch));
   const push = (): void => {
     if (busy) return;
-    if (status.protected && status.branch) { setGate({ branch: status.branch, state: "waiting" }); return; }
+    if (status.protected && status.branch) {
+      setGate({ branch: status.branch, state: "waiting" });
+      return;
+    }
     pushNow();
   };
 
@@ -73,11 +92,15 @@ export function GitRow({ folderId }: GitRowProps): ReactElement {
     const at = anchorOf(e);
     const choices = br.status === "ready" ? branchChoices(br.data) : [];
     const items: MenuEntry[] = choices.length
-      ? choices.map((c): MenuEntry => ({
-        label: c.protected ? `${c.name} (protected)` : c.name,
-        checked: c.current,
-        onSelect: () => { if (!c.current) run(`Switched to ${c.name}.`, () => switchBranch(data.call, folderId, c.name)); },
-      }))
+      ? choices.map(
+          (c): MenuEntry => ({
+            label: c.protected ? `${c.name} (protected)` : c.name,
+            checked: c.current,
+            onSelect: () => {
+              if (!c.current) run(`Switched to ${c.name}.`, () => switchBranch(data.call, folderId, c.name));
+            },
+          }),
+        )
       : [{ label: "No other branches" }];
     show(items, at.x, at.y, "other");
   };
@@ -91,18 +114,41 @@ export function GitRow({ folderId }: GitRowProps): ReactElement {
         leading={<Glyph name="branch" size={14} color="var(--ink-2)" />}
         trailing={
           <View style={s.acts}>
-            <Text style={s.changes} testID="git-changes">{changesWords(status)}</Text>
-            <IconBtn label="Switch branch" onPress={openBranches} menu testID="git-branches"><Glyph name="chevd" size={12} /></IconBtn>
-            <IconBtn label="Pull" disabled={busy || !hasRemote} onPress={() => run("Pulled the latest.", () => pullBranch(data.call, folderId))} testID="git-pull"><Glyph name="pull" size={14} color="var(--ink-2)" /></IconBtn>
-            <IconBtn label="Push" disabled={busy || !hasRemote} onPress={push} testID="git-push"><Glyph name="push" size={14} color="var(--ink-2)" /></IconBtn>
-            <IconBtn label="Sync" disabled={busy || !hasRemote} onPress={() => run("Synced with the remote.", () => syncFolder(data.call, folderId, keyed()))} testID="git-sync"><Glyph name="sync" size={14} color="var(--ink-2)" /></IconBtn>
+            <Text style={s.changes} testID="git-changes">
+              {changesWords(status)}
+            </Text>
+            <IconBtn label="Switch branch" onPress={openBranches} menu testID="git-branches">
+              <Glyph name="chevd" size={12} />
+            </IconBtn>
+            <IconBtn
+              label="Pull"
+              disabled={busy || !hasRemote}
+              onPress={() => run("Pulled the latest.", () => pullBranch(data.call, folderId))}
+              testID="git-pull"
+            >
+              <Glyph name="pull" size={14} color="var(--ink-2)" />
+            </IconBtn>
+            <IconBtn label="Push" disabled={busy || !hasRemote} onPress={push} testID="git-push">
+              <Glyph name="push" size={14} color="var(--ink-2)" />
+            </IconBtn>
+            <IconBtn
+              label="Sync"
+              disabled={busy || !hasRemote}
+              onPress={() => run("Synced with the remote.", () => syncFolder(data.call, folderId, keyed()))}
+              testID="git-sync"
+            >
+              <Glyph name="sync" size={14} color="var(--ink-2)" />
+            </IconBtn>
           </View>
         }
       />
       {gate ? (
         <GateRow
           gate={gate}
-          onApprove={() => { setGate({ ...gate, state: "cleared" }); pushNow(); }}
+          onApprove={() => {
+            setGate({ ...gate, state: "cleared" });
+            pushNow();
+          }}
           onCancel={() => setGate(null)}
         />
       ) : null}

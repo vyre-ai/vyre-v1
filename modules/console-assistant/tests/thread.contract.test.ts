@@ -11,13 +11,33 @@ import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import type { AssistCtx } from "../projections.ts";
 
-interface RegCap { name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[]; examples: { name: string; input: unknown; output: unknown }[] }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+interface RegCap {
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
+  examples: { name: string; input: unknown; output: unknown }[];
+}
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "console-assistant");
-const eventSchemas = new Map(registry.events.filter((e) => e.module === "console-assistant").map((e) => [e.name, e.payload]));
+const eventSchemas = new Map(
+  registry.events.filter((e) => e.module === "console-assistant").map((e) => [e.name, e.payload]),
+);
 
 const PERSON = "usr_a1b2c3";
 const AGENT = "agt_a1b2c3";
@@ -30,14 +50,27 @@ async function populated(withCard: boolean): Promise<{ h: Harness; ctx: AssistCt
     "threads.update": { threadId: "thr_a1b2c3" },
     "settings.set_space": { key: "ui.density" },
     "audit.append": { auditId: "aud_a1b2c3" },
-    "access.check": { decision: { effect: "allow", reason: "owner", decisionId: "dec_1", steps: [{ ok: true, text: "Owner holds every permission" }] } },
+    "access.check": {
+      decision: {
+        effect: "allow",
+        reason: "owner",
+        decisionId: "dec_1",
+        steps: [{ ok: true, text: "Owner holds every permission" }],
+      },
+    },
   });
   const ctx = h.as(PERSON);
   await handlers["console.assistant_open"](ctx, { page: "console.overview", idempotencyKey: "idem_seed" });
   if (withCard) {
     await handlers["console.diff_propose"](h.as(AGENT, "agent", PERSON), {
-      threadId: "thr_a1b2c3", idempotencyKey: "idem_seed",
-      diff: { diffId: "dif_a1b2c3", kind: "setting", title: "Use compact rows", changes: [{ path: "ui.density", before: "roomy", after: "compact" }] },
+      threadId: "thr_a1b2c3",
+      idempotencyKey: "idem_seed",
+      diff: {
+        diffId: "dif_a1b2c3",
+        kind: "setting",
+        title: "Use compact rows",
+        changes: [{ path: "ui.density", before: "roomy", after: "compact" }],
+      },
     });
   }
   h.events.length = 0;

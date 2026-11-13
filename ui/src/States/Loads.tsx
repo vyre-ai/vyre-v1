@@ -11,10 +11,28 @@ import { retryLoads } from "./retry.ts";
 import type { LoadFailure } from "./retry.ts";
 
 /** The error a place draws where its content would be: "Couldn't load <what>", the reason, Retry, and the trace id behind Details. */
-export function LoadFailed({ what, failure, onRetry = retryLoads, testID = "load-failed" }: { what: string; failure: LoadFailure; onRetry?: () => void; testID?: string }): ReactElement {
+export function LoadFailed({
+  what,
+  failure,
+  onRetry = retryLoads,
+  testID = "load-failed",
+}: {
+  what: string;
+  failure: LoadFailure;
+  onRetry?: () => void;
+  testID?: string;
+}): ReactElement {
   return (
     <View testID={testID} style={st.fill}>
-      <States kind="error" message={`Couldn't load ${what}`} cause={failure.message} {...(failure.code ? { code: failure.code } : {})} {...(failure.traceId ? { traceId: failure.traceId } : {})} retryable onRetry={onRetry} />
+      <States
+        kind="error"
+        message={`Couldn't load ${what}`}
+        cause={failure.message}
+        {...(failure.code ? { code: failure.code } : {})}
+        {...(failure.traceId ? { traceId: failure.traceId } : {})}
+        retryable
+        onRetry={onRetry}
+      />
     </View>
   );
 }

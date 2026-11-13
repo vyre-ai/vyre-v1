@@ -10,11 +10,15 @@ let h: Hour;
 let admin: Person, aina: Person, cara: Person;
 let projectId = "";
 
-before(async () => { h = await bootHour("projroles"); });
-after(async () => { await h?.stop(); });
+before(async () => {
+  h = await bootHour("projroles");
+});
+after(async () => {
+  await h?.stop();
+});
 
 async function levelOn(who: Person, type: string, id: string): Promise<string | undefined> {
-  const got = await who.attempt("access.shares_of", { resource: { type, id } });   // refused when the person has no view on it: no grant
+  const got = await who.attempt("access.shares_of", { resource: { type, id } }); // refused when the person has no view on it: no grant
   return got.ok ? ((got.data as { mine?: string }).mine ?? "view") : undefined;
 }
 
@@ -26,31 +30,68 @@ test("the owner makes a project; an admin and two members join", async () => {
   await join(h, admin, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
   await join(h, aina, await invite(h, aina.email), { device: "web" });
   await join(h, cara, await invite(h, cara.email), { device: "web" });
-  projectId = (await h.owner.call("projects.create", { type: "project", title: "Client portal launch", idempotencyKey: "pr-1" })).projectId as string;
+  projectId = (
+    await h.owner.call("projects.create", { type: "project", title: "Client portal launch", idempotencyKey: "pr-1" })
+  ).projectId as string;
   await h.owner.call("projects.members.set", { projectId, principal: aina.personId, role: "lead" });
   assert.equal(await levelOn(admin, "project", projectId), undefined, "the admin holds no grant on the project");
 });
 
 test("an admin with no Manage on the project sets a role and the grants land; removing it takes them back", async () => {
-  const set = await admin.call("projects.members.set", { projectId, principal: cara.personId, role: "member", idempotencyKey: "pr-set" });
+  const set = await admin.call("projects.members.set", {
+    projectId,
+    principal: cara.personId,
+    role: "member",
+    idempotencyKey: "pr-set",
+  });
   assert.equal((set.member as { role: string }).role, "member");
-  const project = (await h.owner.call("projects.members.list", { projectId })).members as Array<{ principal: string; role: string }>;
+  const project = (await h.owner.call("projects.members.list", { projectId })).members as Array<{
+    principal: string;
+    role: string;
+  }>;
   assert.equal(project.find((m) => m.principal === cara.personId)?.role, "member", "the role is kept");
   assert.ok(await levelOn(cara, "project", projectId), "Cara holds a grant on the project itself");
-  const shares = (await h.owner.call("access.shares_of", { resource: { type: "project", id: projectId } })).shares as Array<{ grant: { subject: { id: string }; source?: string } }>;
-  assert.equal(shares.find((s) => s.grant.subject.id === cara.personId)?.grant.source, `project:${projectId}`, "the grant carries the project as its source");
+  const shares = (await h.owner.call("access.shares_of", { resource: { type: "project", id: projectId } }))
+    .shares as Array<{ grant: { subject: { id: string }; source?: string } }>;
+  assert.equal(
+    shares.find((s) => s.grant.subject.id === cara.personId)?.grant.source,
+    `project:${projectId}`,
+    "the grant carries the project as its source",
+  );
   const gone = await admin.call("projects.members.remove", { projectId, principal: cara.personId });
   assert.equal(gone.removed, true);
   assert.equal(await levelOn(cara, "project", projectId), undefined, "the grant is taken back");
 });
 
 test("the admin cannot use the project's role path to give anyone more than a project role, and a plain member still cannot change any role", async () => {
-  await aina.call("projects.members.set", { projectId, principal: cara.personId, role: "member", idempotencyKey: "pr-lead-set" });   // the Lead manages the project: allowed
+  await aina.call("projects.members.set", {
+    projectId,
+    principal: cara.personId,
+    role: "member",
+    idempotencyKey: "pr-lead-set",
+  }); // the Lead manages the project: allowed
   const bystander = h.person("Dev", "dev", "dev@firm.test", "dev horse battery staple 9");
   await join(h, bystander, await invite(h, bystander.email), { device: "web" });
-  await bystander.refused("projects.members.set", { projectId, principal: bystander.personId, role: "lead", idempotencyKey: "pr-self" }, /^permission\./, "a plain member cannot make themselves Lead");
-  await bystander.refused("projects.members.remove", { projectId, principal: cara.personId }, /^permission\./, "a plain member cannot remove a role");
-  const members = (await h.owner.call("projects.members.list", { projectId })).members as Array<{ principal: string; role: string }>;
-  assert.equal(members.find((m) => m.principal === bystander.personId), undefined, "nothing was written");
+  await bystander.refused(
+    "projects.members.set",
+    { projectId, principal: bystander.personId, role: "lead", idempotencyKey: "pr-self" },
+    /^permission\./,
+    "a plain member cannot make themselves Lead",
+  );
+  await bystander.refused(
+    "projects.members.remove",
+    { projectId, principal: cara.personId },
+    /^permission\./,
+    "a plain member cannot remove a role",
+  );
+  const members = (await h.owner.call("projects.members.list", { projectId })).members as Array<{
+    principal: string;
+    role: string;
+  }>;
+  assert.equal(
+    members.find((m) => m.principal === bystander.personId),
+    undefined,
+    "nothing was written",
+  );
   assert.equal(members.find((m) => m.principal === cara.personId)?.role, "member");
 });

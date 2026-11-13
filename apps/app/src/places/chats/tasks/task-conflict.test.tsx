@@ -11,24 +11,68 @@ import { CapError } from "../../../../../../client/src/gateway/index.ts";
 import { createSample } from "../conversation/sample.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { TaskDetail } from "./TaskDetail.tsx";
-import { clashFrom, keptPatch, leftOut, mergeClash, mergeList, setAll, setPick, shortDiff, wordsOf } from "./conflict.ts";
+import {
+  clashFrom,
+  keptPatch,
+  leftOut,
+  mergeClash,
+  mergeList,
+  setAll,
+  setPick,
+  shortDiff,
+  wordsOf,
+} from "./conflict.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 9);
 const DAY = 86_400_000;
-const stale = (current: Record<string, unknown>, by = "usr_sara"): CapError => new CapError({ code: "validation.precondition_failed", message: "This task changed while you were editing it.", traceId: "t", status: 409, details: { reason: "stale_version", version: 5, updatedAt: NOW, current, by } });
+const stale = (current: Record<string, unknown>, by = "usr_sara"): CapError =>
+  new CapError({
+    code: "validation.precondition_failed",
+    message: "This task changed while you were editing it.",
+    traceId: "t",
+    status: 409,
+    details: { reason: "stale_version", version: 5, updatedAt: NOW, current, by },
+  });
 
 test("a refused save becomes one row per field that really differs; a field the other person left alone, or set to the same, is not a conflict", () => {
-  const c = clashFrom(stale({ title: "Their title", due: NOW + 2 * DAY, effort: 30 }), { title: "My title", due: NOW + DAY, effort: 30, expectedVersion: 4 });
+  const c = clashFrom(stale({ title: "Their title", due: NOW + 2 * DAY, effort: 30 }), {
+    title: "My title",
+    due: NOW + DAY,
+    effort: 30,
+    expectedVersion: 4,
+  });
   assert.ok(c);
-  assert.deepEqual(c.rows.map((r) => [r.key, r.label, r.pick]), [["title", "Title", "mine"], ["due", "Due", "mine"]]);
+  assert.deepEqual(
+    c.rows.map((r) => [r.key, r.label, r.pick]),
+    [
+      ["title", "Title", "mine"],
+      ["due", "Due", "mine"],
+    ],
+  );
   assert.equal(c.version, 5);
   assert.equal(c.by, "usr_sara");
   assert.equal(clashFrom(new Error("no"), { title: "x" }), null);
-  assert.equal(clashFrom(new CapError({ code: "validation.precondition_failed", message: "m", traceId: "t", status: 409, details: { reason: "closed" } }), { title: "x" }), null);
+  assert.equal(
+    clashFrom(
+      new CapError({
+        code: "validation.precondition_failed",
+        message: "m",
+        traceId: "t",
+        status: 409,
+        details: { reason: "closed" },
+      }),
+      { title: "x" },
+    ),
+    null,
+  );
 });
 
 test("picks are per field; Save carries only what is kept as theirs; what is left out is said", () => {
-  let c = clashFrom(stale({ title: "Their title", priority: "high", effort: 90 }), { title: "My title", priority: "urgent", effort: 60 })!;
+  let c = clashFrom(stale({ title: "Their title", priority: "high", effort: 90 }), {
+    title: "My title",
+    priority: "urgent",
+    effort: 60,
+  })!;
   c = setPick(c, "priority", "current");
   assert.deepEqual(keptPatch(c), { title: "My title", effort: 60 });
   assert.equal(leftOut(c, NOW, 0), "Not kept from you: priority Urgent.");
@@ -41,15 +85,42 @@ test("a second refused save adds its rows to the open card and keeps the picks a
   const a = setPick(clashFrom(stale({ title: "Theirs" }), { title: "Mine" })!, "title", "current");
   const b = clashFrom(stale({ priority: "high" }), { priority: "urgent" })!;
   const m = mergeClash(a, b);
-  assert.deepEqual(m.rows.map((r) => [r.key, r.pick]), [["title", "current"], ["priority", "mine"]]);
+  assert.deepEqual(
+    m.rows.map((r) => [r.key, r.pick]),
+    [
+      ["title", "current"],
+      ["priority", "mine"],
+    ],
+  );
   const again = mergeClash(m, clashFrom(stale({ title: "Theirs" }), { title: "Mine again" })!);
-  assert.deepEqual(again.rows.map((r) => [r.key, r.mine, r.pick]), [["title", "Mine again", "current"], ["priority", "urgent", "mine"]]);
-  const newer = clashFrom(new CapError({ code: "validation.precondition_failed", message: "m", traceId: "t", status: 409, details: { reason: "stale_version", version: 9, current: { due: NOW } } }), { due: NOW + DAY })!;
-  assert.deepEqual(mergeClash(m, newer).rows.map((r) => r.key), ["due"]);
+  assert.deepEqual(
+    again.rows.map((r) => [r.key, r.mine, r.pick]),
+    [
+      ["title", "Mine again", "current"],
+      ["priority", "urgent", "mine"],
+    ],
+  );
+  const newer = clashFrom(
+    new CapError({
+      code: "validation.precondition_failed",
+      message: "m",
+      traceId: "t",
+      status: 409,
+      details: { reason: "stale_version", version: 9, current: { due: NOW } },
+    }),
+    { due: NOW + DAY },
+  )!;
+  assert.deepEqual(
+    mergeClash(m, newer).rows.map((r) => r.key),
+    ["due"],
+  );
 });
 
 test("a long text is cut to the part that differs, with context; short ones and non-text are not cut", () => {
-  const body = "The renewal term runs twelve months from signing and covers the retainer, the filing fees and the two court dates listed below. ".repeat(3);
+  const body =
+    "The renewal term runs twelve months from signing and covers the retainer, the filing fees and the two court dates listed below. ".repeat(
+      3,
+    );
   const d = shortDiff(`${body}Pricing stays out.`, `${body}Pricing is in.`)!;
   assert.ok(d[0].length < 90 && d[1].length < 90, "both sides short");
   assert.match(d[0], /Pricing stays out\./);
@@ -68,16 +139,48 @@ test("values read the way the page shows them", () => {
 
 type Call = { cap: string; input: Record<string, unknown> };
 const TASK = {
-  id: "tsk_1", key: "VY-1", kind: "work", title: "Review the lease", state: "todo", blocked: false, assigned: { kind: "person", id: "usr_irfad" }, createdBy: "usr_irfad", version: 4,
-  blocks: [], actions: [], fileIds: [], dependsOn: [], followers: [], workingNotes: { brief: "Check the renewal terms." }, labels: [], fields: {}, reviewLoops: 0, createdAt: NOW, updatedAt: NOW,
+  id: "tsk_1",
+  key: "VY-1",
+  kind: "work",
+  title: "Review the lease",
+  state: "todo",
+  blocked: false,
+  assigned: { kind: "person", id: "usr_irfad" },
+  createdBy: "usr_irfad",
+  version: 4,
+  blocks: [],
+  actions: [],
+  fileIds: [],
+  dependsOn: [],
+  followers: [],
+  workingNotes: { brief: "Check the renewal terms." },
+  labels: [],
+  fields: {},
+  reviewLoops: 0,
+  createdAt: NOW,
+  updatedAt: NOW,
 };
-const fixed = (snap: unknown): LiveQuery<unknown> => ({ subscribe: () => () => undefined, getSnapshot: () => snap as never });
-const PEOPLE = { status: "ready", data: [{ id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_sara", name: "Sara Lund", kind: "person" }] } as const;
+const fixed = (snap: unknown): LiveQuery<unknown> => ({
+  subscribe: () => () => undefined,
+  getSnapshot: () => snap as never,
+});
+const PEOPLE = {
+  status: "ready",
+  data: [
+    { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    { id: "usr_sara", name: "Sara Lund", kind: "person" },
+  ],
+} as const;
 
 function runtime(): { rt: ShellRuntime; calls: Call[] } {
   const conv = createSample("idle");
   const calls: Call[] = [];
-  const screens: ScreenHooks = { query: (_id, name) => fixed(name === "task" ? { status: "ready", data: { task: TASK } } : { status: "ready", data: { entries: [] } }) as never };
+  const screens: ScreenHooks = {
+    query: (_id, name) =>
+      fixed(
+        name === "task" ? { status: "ready", data: { task: TASK } } : { status: "ready", data: { entries: [] } },
+      ) as never,
+  };
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (cap === "tasks.index") return { rev: "1", unchanged: false, rows: [], doneThisWeek: 0, total: 0 };
@@ -96,21 +199,58 @@ function runtime(): { rt: ShellRuntime; calls: Call[] } {
     return {};
   };
   const rt = {
-    screens, call, connection: conv.data.connection, principals: { subscribe: () => () => undefined, getSnapshot: () => PEOPLE }, recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, clock: conv.data.clock, space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" },
-    aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: false, open: () => undefined, openUrl: () => undefined,
+    screens,
+    call,
+    connection: conv.data.connection,
+    principals: { subscribe: () => () => undefined, getSnapshot: () => PEOPLE },
+    recordTitle: () => undefined,
+    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    clock: conv.data.clock,
+    space: { id: "northwind", kind: "team", name: "Northwind" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    aiConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
+    calendarConnected: false,
+    open: () => undefined,
+    openUrl: () => undefined,
   } as unknown as ShellRuntime;
   return { rt, calls };
 }
 const NOTES: Record<string, string> = {};
-const wait = async (until: () => boolean): Promise<void> => { for (let i = 0; i < 20 && !until(); i++) await flush(); };
-const page = (rt: ShellRuntime) => <TaskDetail rt={rt} taskId="tsk_1" rail={false} conversationFor={() => { throw new Error("no thread in this test"); }} openTask={() => undefined} openAgent={() => undefined} openChat={() => undefined} />;
+const wait = async (until: () => boolean): Promise<void> => {
+  for (let i = 0; i < 20 && !until(); i++) await flush();
+};
+const page = (rt: ShellRuntime) => (
+  <TaskDetail
+    rt={rt}
+    taskId="tsk_1"
+    rail={false}
+    conversationFor={() => {
+      throw new Error("no thread in this test");
+    }}
+    openTask={() => undefined}
+    openAgent={() => undefined}
+    openChat={() => undefined}
+  />
+);
 const fire = async (n: Node | null, name: string): Promise<void> => {
   if (!n) throw new Error("node not found");
-  await act(async () => { (n.props[name] as (e: unknown) => void)({ target: { value: "Review the lease today" }, nativeEvent: {}, currentTarget: {} }); });
+  await act(async () => {
+    (n.props[name] as (e: unknown) => void)({
+      target: { value: "Review the lease today" },
+      nativeEvent: {},
+      currentTarget: {},
+    });
+  });
   await flush();
 };
-const edit = async (root: Node): Promise<void> => { const title = find(root, "task-title"); await fire(title, "onFocus"); await typeInto(title, "Review the lease today"); await fire(title, "onBlur"); };
+const edit = async (root: Node): Promise<void> => {
+  const title = find(root, "task-title");
+  await fire(title, "onFocus");
+  await typeInto(title, "Review the lease today");
+  await fire(title, "onBlur");
+};
 
 test("the page shows both sides, names who changed it, and saves what is kept on the version just seen", async () => {
   const off = installDom();
@@ -135,7 +275,9 @@ test("the page shows both sides, names who changed it, and saves what is kept on
     const saved = calls.filter((c) => c.cap === "tasks.update").at(-1)!;
     assert.deepEqual(saved.input, { taskId: "tsk_1", title: "Review the lease today", expectedVersion: 5 });
     assert.equal(find(root, "task-conflict"), null);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("taking the current value for every field saves nothing and says what was not kept", async () => {
@@ -151,14 +293,16 @@ test("taking the current value for every field saves nothing and says what was n
     await wait(() => find(root, "task-conflict") === null);
     assert.equal(calls.filter((c) => c.cap === "tasks.update").length, writes);
     assert.match(textOf(find(root, "task-conflict-left")), /Not kept from you: title "Review the lease today"/);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("the description is saved against the note it started from: two saves race, the second gets the card, and Save writes on what the note holds now", async () => {
   const off = installDom();
   try {
     const { rt, calls } = runtime();
-    NOTES["brief"] = "Alice's brief";   // Sara saved first; this page still shows "Check the renewal terms."
+    NOTES["brief"] = "Alice's brief"; // Sara saved first; this page still shows "Check the renewal terms."
     const root = await mount(createRoot, page(rt));
     await press(find(root, "task-brief"));
     // the description is the shared Markdown editor: its Markdown view is the field a test can type into, and Done saves what was typed
@@ -175,9 +319,14 @@ test("the description is saved against the note it started from: two saves race,
     await press(find(root, "task-conflict-save"));
     await wait(() => find(root, "task-conflict") === null);
     assert.equal(NOTES["brief"], "Irfad's brief");
-    assert.equal(calls.filter((c) => c.cap === "tasks.working_notes.set").at(-1)!.input["expectedFrom"], "Alice's brief");
+    assert.equal(
+      calls.filter((c) => c.cap === "tasks.working_notes.set").at(-1)!.input["expectedFrom"],
+      "Alice's brief",
+    );
     delete NOTES["brief"];
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("list notes (Done means, the ticks) are merged, not refused: both people's changes stay", () => {
@@ -194,10 +343,22 @@ test("adding to Done means while someone else added too keeps both, with no card
     NOTES["done_means"] = '["theirs"]';
     const root = await mount(createRoot, page(rt));
     await typeInto(find(root, "task-add-means"), "mine");
-    await act(async () => { (find(root, "task-add-means")!.props["onKeyDown"] as (e: unknown) => void)({ key: "Enter", shiftKey: false, nativeEvent: { isComposing: false }, target: { value: "mine", blur() {} }, stopPropagation() {}, preventDefault() {}, isDefaultPrevented: () => false }); });
+    await act(async () => {
+      (find(root, "task-add-means")!.props["onKeyDown"] as (e: unknown) => void)({
+        key: "Enter",
+        shiftKey: false,
+        nativeEvent: { isComposing: false },
+        target: { value: "mine", blur() {} },
+        stopPropagation() {},
+        preventDefault() {},
+        isDefaultPrevented: () => false,
+      });
+    });
     await wait(() => calls.filter((c) => c.cap === "tasks.working_notes.set").length >= 2);
     assert.equal(find(root, "task-conflict"), null);
     assert.equal(NOTES["done_means"], '["theirs","mine"]');
     delete NOTES["done_means"];
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });

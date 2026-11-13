@@ -24,20 +24,37 @@ const CLI_DIR = process.env["VYRE_MAC_CLI_DIR"];
 const PERSON = "usr_01HZ0000000000000000000000";
 
 // A data folder deep enough that the MCP socket path would not fit in a unix socket, as ~/Library/Application Support/<app>/personal/scratch/<person> does.
-const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-mac-hv-with-a-long-name-like-application-support-")));
+const data = fs.realpathSync(
+  fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-mac-hv-with-a-long-name-like-application-support-")),
+);
 const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-mac-outside-")));
 let dflt: DefaultSandbox | undefined;
-after(async () => { await dflt?.close(); fs.rmSync(data, { recursive: true, force: true }); fs.rmSync(outside, { recursive: true, force: true }); });
+after(async () => {
+  await dflt?.close();
+  fs.rmSync(data, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+});
 
 async function plan(): Promise<DefaultSandbox> {
-  dflt ??= await defaultSandbox({ dataDir: data, programRead: [path.dirname(FAKE_CLI), ...(CLI_DIR ? [CLI_DIR] : [])] });
+  dflt ??= await defaultSandbox({
+    dataDir: data,
+    programRead: [path.dirname(FAKE_CLI), ...(CLI_DIR ? [CLI_DIR] : [])],
+  });
   assert.equal(dflt.plan.sandbox.kind, "seatbelt", "the default plan on a Mac is Seatbelt");
   return dflt;
 }
 
-async function run(argv: string[], env: Record<string, string> = {}, stdin?: string, thread = "thr_1"): Promise<{ out: string; err: string; code: number | null; signal: NodeJS.Signals | null }> {
+async function run(
+  argv: string[],
+  env: Record<string, string> = {},
+  stdin?: string,
+  thread = "thr_1",
+): Promise<{ out: string; err: string; code: number | null; signal: NodeJS.Signals | null }> {
   const cwd = workFolder(data, PERSON, thread);
-  const launcher = createLocalLauncher({ wrap: sandboxWrap((await plan()).plan), baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" } });
+  const launcher = createLocalLauncher({
+    wrap: sandboxWrap((await plan()).plan),
+    baseEnv: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" },
+  });
   const p = await launcher.spawn({ argv, cwd, env });
   if (stdin !== undefined) await p.write(stdin);
   p.endInput();
@@ -54,14 +71,17 @@ test("node starts under the exact profile and does not abort", { skip }, async (
   assert.match(r.out, /^up v\d+/);
 });
 
-test("confinement holds: a write in the work folder works; a write outside it, a read of the home and a connection to a non-proxy port are refused", { skip }, async () => {
-  const home = path.join(os.homedir(), `.vyre-mac-hv-${process.pid}`);
-  fs.writeFileSync(home, "private");
-  const listener = net.createServer((s) => s.end("open")).listen(0, "127.0.0.1");
-  await new Promise<void>((ok) => listener.once("listening", ok));
-  const port = (listener.address() as net.AddressInfo).port;
-  try {
-    const script = `
+test(
+  "confinement holds: a write in the work folder works; a write outside it, a read of the home and a connection to a non-proxy port are refused",
+  { skip },
+  async () => {
+    const home = path.join(os.homedir(), `.vyre-mac-hv-${process.pid}`);
+    fs.writeFileSync(home, "private");
+    const listener = net.createServer((s) => s.end("open")).listen(0, "127.0.0.1");
+    await new Promise<void>((ok) => listener.once("listening", ok));
+    const port = (listener.address() as net.AddressInfo).port;
+    try {
+      const script = `
       const fs = require("node:fs"), net = require("node:net");
       const tried = (f) => { try { f(); return "allowed"; } catch (e) { return e.code; } };
       const res = {
@@ -73,45 +93,71 @@ test("confinement holds: a write in the work folder works; a write outside it, a
       const c = net.connect(${port}, "127.0.0.1");
       c.on("connect", () => { res.net = "allowed"; console.log(JSON.stringify(res)); process.exit(0); });
       c.on("error", (e) => { res.net = e.code; console.log(JSON.stringify(res)); process.exit(0); });`;
-    const r = await run([process.execPath, "-e", script]);
-    assert.equal(r.signal, null, r.err);
-    const got = JSON.parse(r.out.trim()) as Record<string, string>;
-    assert.equal(got["inside"], "allowed");
-    assert.equal(got["outside"], "EPERM", "a write outside the work folder is denied");
-    assert.equal(got["home"], "EPERM", "the person's home is not readable");
-    assert.equal(got["homeDir"], "EPERM", "the person's home is not listable");
-    assert.notEqual(got["net"], "allowed", "only the egress proxy is reachable");
-    assert.ok(fs.existsSync(path.join(data, "work", PERSON, "thr_1", "inside.txt")));
-    assert.ok(!fs.existsSync(path.join(outside, "no.txt")));
-  } finally {
-    listener.close();
-    fs.rmSync(home, { force: true });
-  }
-});
+      const r = await run([process.execPath, "-e", script]);
+      assert.equal(r.signal, null, r.err);
+      const got = JSON.parse(r.out.trim()) as Record<string, string>;
+      assert.equal(got["inside"], "allowed");
+      assert.equal(got["outside"], "EPERM", "a write outside the work folder is denied");
+      assert.equal(got["home"], "EPERM", "the person's home is not readable");
+      assert.equal(got["homeDir"], "EPERM", "the person's home is not listable");
+      assert.notEqual(got["net"], "allowed", "only the egress proxy is reachable");
+      assert.ok(fs.existsSync(path.join(data, "work", PERSON, "thr_1", "inside.txt")));
+      assert.ok(!fs.existsSync(path.join(outside, "no.txt")));
+    } finally {
+      listener.close();
+      fs.rmSync(home, { force: true });
+    }
+  },
+);
 
-test("the CLI keeps its home, temp and config folders in the person's scratch folder, not in the real home", { skip }, async () => {
-  const r = await run([process.execPath, "-e", "console.log(JSON.stringify({ home: process.env.HOME, tmp: process.env.TMPDIR, claude: process.env.CLAUDE_CONFIG_DIR, codex: process.env.CODEX_HOME }))"]);
-  const got = JSON.parse(r.out.trim()) as Record<string, string>;
-  const scratch = scratchFolder(data, PERSON);
-  for (const v of Object.values(got)) assert.ok(v.startsWith(`${scratch}${path.sep}`), `${v} is under ${scratch}`);
-  const w = await run([process.execPath, "-e", `const fs = require("node:fs"); fs.mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true }); fs.writeFileSync(process.env.CLAUDE_CONFIG_DIR + "/state.json", "{}"); fs.writeFileSync(process.env.TMPDIR + "/t", "x"); console.log("ok")`]);
-  assert.equal(w.out.trim(), "ok", w.err);
-});
+test(
+  "the CLI keeps its home, temp and config folders in the person's scratch folder, not in the real home",
+  { skip },
+  async () => {
+    const r = await run([
+      process.execPath,
+      "-e",
+      "console.log(JSON.stringify({ home: process.env.HOME, tmp: process.env.TMPDIR, claude: process.env.CLAUDE_CONFIG_DIR, codex: process.env.CODEX_HOME }))",
+    ]);
+    const got = JSON.parse(r.out.trim()) as Record<string, string>;
+    const scratch = scratchFolder(data, PERSON);
+    for (const v of Object.values(got)) assert.ok(v.startsWith(`${scratch}${path.sep}`), `${v} is under ${scratch}`);
+    const w = await run([
+      process.execPath,
+      "-e",
+      `const fs = require("node:fs"); fs.mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true }); fs.writeFileSync(process.env.CLAUDE_CONFIG_DIR + "/state.json", "{}"); fs.writeFileSync(process.env.TMPDIR + "/t", "x"); console.log("ok")`,
+    ]);
+    assert.equal(w.out.trim(), "ok", w.err);
+  },
+);
 
 test("the MCP shim reaches the bridge over a socket whose path would not fit in a unix socket", { skip }, async () => {
   const scratch = scratchFolder(data, PERSON);
-  assert.ok(Buffer.byteLength(path.join(scratch, "mcp-000000000000.sock")) > 100, "the test folder is deep enough to need the short link");
-  const fake = (async () => ({ headers: { get: () => "application/json" }, text: async () => '{"jsonrpc":"2.0","id":1,"result":"pong"}' })) as never;
+  assert.ok(
+    Buffer.byteLength(path.join(scratch, "mcp-000000000000.sock")) > 100,
+    "the test folder is deep enough to need the short link",
+  );
+  const fake = (async () => ({
+    headers: { get: () => "application/json" },
+    text: async () => '{"jsonrpc":"2.0","id":1,"result":"pong"}',
+  })) as never;
   const bridge = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch, fetch: fake });
   try {
     assert.ok(Buffer.byteLength(bridge.socket) <= 100, bridge.socket);
-    const r = await run([bridge.stdio.command, ...bridge.stdio.args], { VYRE_MCP_TOKEN: "tok" }, '{"jsonrpc":"2.0","id":1,"method":"ping"}\n');
+    const r = await run(
+      [bridge.stdio.command, ...bridge.stdio.args],
+      { VYRE_MCP_TOKEN: "tok" },
+      '{"jsonrpc":"2.0","id":1,"method":"ping"}\n',
+    );
     assert.equal(r.signal, null, r.err);
     assert.match(r.out, /pong/, r.err);
   } finally {
     await bridge.close();
   }
-  assert.ok(!fs.existsSync(path.dirname(path.dirname(bridge.socket))) || !bridge.socket.startsWith(scratch), "the short link folder is removed on close");
+  assert.ok(
+    !fs.existsSync(path.dirname(path.dirname(bridge.socket))) || !bridge.socket.startsWith(scratch),
+    "the short link folder is removed on close",
+  );
 });
 
 // ---- the real CLIs, installed on the runner only (the desktop job: npm install --prefix "$VYRE_MAC_CLI_DIR" @anthropic-ai/claude-code @openai/codex)
@@ -120,7 +166,8 @@ for (const [name, bin, key, args] of [
   ["Claude Code", "claude", "ANTHROPIC_API_KEY", ["-p", "say ok"]],
   ["Codex", "codex", "CODEX_API_KEY", ["exec", "--skip-git-repo-check", "say ok"]],
 ] as const) {
-  const skipCli: string | false = skip || (CLI_DIR ? false : "needs VYRE_MAC_CLI_DIR (the CLIs installed on the runner)");
+  const skipCli: string | false =
+    skip || (CLI_DIR ? false : "needs VYRE_MAC_CLI_DIR (the CLIs installed on the runner)");
   test(`${name}: --version starts under the profile`, { skip: skipCli }, async () => {
     const exe = path.join(CLI_DIR as string, "node_modules", ".bin", bin);
     assert.ok(fs.existsSync(exe), `${exe} is installed`);
@@ -129,80 +176,144 @@ for (const [name, bin, key, args] of [
     assert.equal(r.code, 0, `${name} --version exited ${String(r.code)}: ${r.err}`);
     assert.match(r.out.trim(), /\d+\.\d+/);
   });
-  test(`${name}: a turn starts under the profile and ends without a crash (a fake key, so the vendor refuses it)`, { skip: skipCli }, async () => {
-    const exe = path.join(CLI_DIR as string, "node_modules", ".bin", bin);
-    // The vendor answers 401 through the allowlisted proxy, or the proxy is unreachable from the runner: either way the CLI must exit by itself, never on a signal.
-    const r = await run([exe, ...args], { [key]: "sk-fake-not-a-real-key-0123456789" });   // secret-scan: fake
-    assert.equal(r.signal, null, `${name} died on ${String(r.signal)}: ${r.err}`);
-    assert.doesNotMatch(r.err, /sandbox|Operation not permitted|EPERM|SIGABRT/i, `${name} hit the sandbox: ${r.err.slice(-600)}`);
-  });
+  test(
+    `${name}: a turn starts under the profile and ends without a crash (a fake key, so the vendor refuses it)`,
+    { skip: skipCli },
+    async () => {
+      const exe = path.join(CLI_DIR as string, "node_modules", ".bin", bin);
+      // The vendor answers 401 through the allowlisted proxy, or the proxy is unreachable from the runner: either way the CLI must exit by itself, never on a signal.
+      const r = await run([exe, ...args], { [key]: "sk-fake-not-a-real-key-0123456789" }); // secret-scan: fake
+      assert.equal(r.signal, null, `${name} died on ${String(r.signal)}: ${r.err}`);
+      assert.doesNotMatch(
+        r.err,
+        /sandbox|Operation not permitted|EPERM|SIGABRT/i,
+        `${name} hit the sandbox: ${r.err.slice(-600)}`,
+      );
+    },
+  );
 }
 
-test("git works under the profile: a crew teammate can init, add and commit in its work folder (Apple's git shim needs the developer folders open)", { skip }, async () => {
-  const r = await run(["/bin/sh", "-c", "git init -q . && echo hi > a.txt && git add a.txt && git -c user.name=t -c user.email=t@t commit -q -m first && git log --oneline"], { PATH: "/usr/bin:/bin" }, undefined, "thr_git");
-  assert.equal(r.signal, null, r.err);
-  assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /first/);
-});
+test(
+  "git works under the profile: a crew teammate can init, add and commit in its work folder (Apple's git shim needs the developer folders open)",
+  { skip },
+  async () => {
+    const r = await run(
+      [
+        "/bin/sh",
+        "-c",
+        "git init -q . && echo hi > a.txt && git add a.txt && git -c user.name=t -c user.email=t@t commit -q -m first && git log --oneline",
+      ],
+      { PATH: "/usr/bin:/bin" },
+      undefined,
+      "thr_git",
+    );
+    assert.equal(r.signal, null, r.err);
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /first/);
+  },
+);
 
 // ---- open web (owner ruling 3 Nov): the same rules as bwrap, under Seatbelt, through spawnCli and a wall of the process's own
 
-test("open web under Seatbelt: a public host through the proxy, inside addresses refused, no way around the proxy, and the providers-only rule blocks the public host again", { skip }, async () => {
-  const { createEgressProxy, RULE_ENV } = await import("../../../sandbox/src/index.ts");
-  const { spawnCli } = await import("../session.ts");
-  const { wallEgress } = await import("../sandbox-default.ts");
-  const http = await import("node:http");
-  const up = http.createServer((_q, r) => { r.writeHead(200); r.end("hello-public\n"); });
-  await new Promise<void>((ok) => up.listen(0, "127.0.0.1", ok));
-  const upPort = (up.address() as net.AddressInfo).port;
-  const base = (await plan()).plan;
-  const proxies: Array<{ close(): Promise<void> }> = [];
-  const p = {
-    ...base,
-    openWall: async (e: { allow: string[]; rule: never }) => {
-      const px = createEgressProxy({ ...e, lookup: async (h: string) => (h === "pkg.example.com" ? ["203.0.113.10"] : h === "api.anthropic.com" ? ["203.0.113.12"] : []), connect: async () => net.connect(upPort, "127.0.0.1") });
-      proxies.push(px);
-      const l = await px.listen();
-      return { sandbox: { kind: "seatbelt" as const, proxyPort: l.port, ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead ? { programRead: base.sandbox.programRead } : {}) }, close: () => px.close() };
-    },
-  };
-  const go = async (rule: unknown, script: string): Promise<string> => {
-    const cwd = workFolder(data, PERSON, "thr_web");
-    const proc = await spawnCli(p, { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify(rule) } }, ["/bin/sh", "-c", script]);
+test(
+  "open web under Seatbelt: a public host through the proxy, inside addresses refused, no way around the proxy, and the providers-only rule blocks the public host again",
+  { skip },
+  async () => {
+    const { createEgressProxy, RULE_ENV } = await import("../../../sandbox/src/index.ts");
+    const { spawnCli } = await import("../session.ts");
+    const { wallEgress } = await import("../sandbox-default.ts");
+    const http = await import("node:http");
+    const up = http.createServer((_q, r) => {
+      r.writeHead(200);
+      r.end("hello-public\n");
+    });
+    await new Promise<void>((ok) => up.listen(0, "127.0.0.1", ok));
+    const upPort = (up.address() as net.AddressInfo).port;
+    const base = (await plan()).plan;
+    const proxies: Array<{ close(): Promise<void> }> = [];
+    const p = {
+      ...base,
+      openWall: async (e: { allow: string[]; rule: never }) => {
+        const px = createEgressProxy({
+          ...e,
+          lookup: async (h: string) =>
+            h === "pkg.example.com" ? ["203.0.113.10"] : h === "api.anthropic.com" ? ["203.0.113.12"] : [],
+          connect: async () => net.connect(upPort, "127.0.0.1"),
+        });
+        proxies.push(px);
+        const l = await px.listen();
+        return {
+          sandbox: {
+            kind: "seatbelt" as const,
+            proxyPort: l.port,
+            ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead
+              ? { programRead: base.sandbox.programRead }
+              : {}),
+          },
+          close: () => px.close(),
+        };
+      },
+    };
+    const go = async (rule: unknown, script: string): Promise<string> => {
+      const cwd = workFolder(data, PERSON, "thr_web");
+      const proc = await spawnCli(
+        p,
+        { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify(rule) } },
+        ["/bin/sh", "-c", script],
+      );
+      let out = "";
+      for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+      await proc.exited;
+      return out;
+    };
+    try {
+      const out = await go(
+        { egress: "public" },
+        [
+          'echo "fetch=$(/usr/bin/curl -s --max-time 10 http://pkg.example.com/hello)"',
+          'echo "tunnel=$(/usr/bin/curl -s -p --max-time 10 http://pkg.example.com:8443/hello)"',
+          "echo \"meta=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://169.254.169.254/)\"",
+          "echo \"loop=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://127.0.0.1:8420/)\"",
+          "/usr/bin/curl -s --noproxy '*' --max-time 10 http://1.1.1.1/ >/dev/null 2>&1; echo \"direct=$?\"",
+        ].join("\n"),
+      );
+      assert.match(out, /fetch=hello-public/);
+      assert.match(out, /tunnel=hello-public/);
+      assert.match(out, /meta=403/);
+      assert.match(out, /loop=403/);
+      assert.doesNotMatch(out, /direct=0/, "Seatbelt lets the process reach only its proxy");
+      const tight = await go(
+        wallEgress({ mode: "providers", hosts: [] }).rule,
+        "echo \"fetch=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://pkg.example.com/hello)\"",
+      );
+      assert.match(tight, /fetch=403/);
+    } finally {
+      for (const px of proxies) await px.close().catch(() => undefined);
+      await new Promise((ok) => up.close(ok));
+    }
+  },
+);
+
+test(
+  "open web under Seatbelt, live: curl and git clone over HTTPS reach github.com through the default plan",
+  { skip: ON && process.env["VYRE_LIVE_NET"] !== "0" ? false : "needs a Mac and VYRE_HEAVY_MAC=1" },
+  async () => {
+    const { spawnCli } = await import("../session.ts");
+    const cwd = workFolder(data, PERSON, "thr_live");
+    const script =
+      'echo "code=$(/usr/bin/curl -s -o /dev/null -w \'%{http_code}\' --max-time 20 https://github.com/)"; git clone -q --depth 1 https://github.com/octocat/Hello-World.git hw 2>&1; echo "clone=$?"';
+    const proc = await spawnCli((await plan()).plan, { argv: ["/bin/sh", "-c", script], cwd, env: {} }, [
+      "/bin/sh",
+      "-c",
+      script,
+    ]);
     let out = "";
     for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
     await proc.exited;
-    return out;
-  };
-  try {
-    const out = await go({ egress: "public" }, [
-      'echo "fetch=$(/usr/bin/curl -s --max-time 10 http://pkg.example.com/hello)"',
-      'echo "tunnel=$(/usr/bin/curl -s -p --max-time 10 http://pkg.example.com:8443/hello)"',
-      "echo \"meta=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://169.254.169.254/)\"",
-      "echo \"loop=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://127.0.0.1:8420/)\"",
-      "/usr/bin/curl -s --noproxy '*' --max-time 10 http://1.1.1.1/ >/dev/null 2>&1; echo \"direct=$?\"",
-    ].join("\n"));
-    assert.match(out, /fetch=hello-public/);
-    assert.match(out, /tunnel=hello-public/);
-    assert.match(out, /meta=403/);
-    assert.match(out, /loop=403/);
-    assert.doesNotMatch(out, /direct=0/, "Seatbelt lets the process reach only its proxy");
-    const tight = await go(wallEgress({ mode: "providers", hosts: [] }).rule, "echo \"fetch=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://pkg.example.com/hello)\"");
-    assert.match(tight, /fetch=403/);
-  } finally { for (const px of proxies) await px.close().catch(() => undefined); await new Promise((ok) => up.close(ok)); }
-});
-
-test("open web under Seatbelt, live: curl and git clone over HTTPS reach github.com through the default plan", { skip: ON && process.env["VYRE_LIVE_NET"] !== "0" ? false : "needs a Mac and VYRE_HEAVY_MAC=1" }, async () => {
-  const { spawnCli } = await import("../session.ts");
-  const cwd = workFolder(data, PERSON, "thr_live");
-  const script = "echo \"code=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://github.com/)\"; git clone -q --depth 1 https://github.com/octocat/Hello-World.git hw 2>&1; echo \"clone=$?\"";
-  const proc = await spawnCli((await plan()).plan, { argv: ["/bin/sh", "-c", script], cwd, env: {} }, ["/bin/sh", "-c", script]);
-  let out = "";
-  for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
-  await proc.exited;
-  assert.match(out, /code=200/);
-  assert.match(out, /clone=0/);
-});
+    assert.match(out, /code=200/);
+    assert.match(out, /clone=0/);
+  },
+);
 
 // ---- files and installs on the person's own computer (owner rulings 3 Nov), under the exact Seatbelt profile, through spawnCli
 
@@ -213,63 +324,109 @@ async function ownRun(dataDir: string, script: string, folders: string[], thread
   try {
     const cwd = workFolder(dataDir, PERSON, thread);
     scratchFolder(dataDir, PERSON);
-    const proc = await spawnCli(own.plan, { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify({ egress: "public" }), [ACCESS_ENV]: JSON.stringify({ where: "own", folders }) } }, ["/bin/sh", "-c", script]);
+    const proc = await spawnCli(
+      own.plan,
+      {
+        argv: ["/bin/sh", "-c", script],
+        cwd,
+        env: {
+          [RULE_ENV]: JSON.stringify({ egress: "public" }),
+          [ACCESS_ENV]: JSON.stringify({ where: "own", folders }),
+        },
+      },
+      ["/bin/sh", "-c", script],
+    );
     let out = "";
     for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
     await proc.exited;
     return out + proc.stderrTail();
-  } finally { await own.close(); }
+  } finally {
+    await own.close();
+  }
 }
 
-test("own computer under Seatbelt: an added folder reads and writes; Vyre's data folder and a private key inside it stay closed; known_hosts and .gitconfig read; sudo says how to ask", { skip }, async () => {
-  // a home of its own under the real home (/Users/runner), with Vyre's data folder inside it, as on a desktop
-  const fake = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-")));
-  const savedHome = process.env["HOME"];
-  try {
-    const dataDir = path.join(fake, "Library", "Application Support", "ai.vyre.desktop", "personal");
-    fs.mkdirSync(path.join(fake, "code", "proj"), { recursive: true });
-    fs.mkdirSync(path.join(fake, ".ssh"), { recursive: true });
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(path.join(fake, "code", "proj", "notes.txt"), "added-folder-notes\n");
-    fs.writeFileSync(path.join(dataDir, "vault.sqlite"), "VAULT-SECRET\n");
-    fs.writeFileSync(path.join(fake, ".ssh", "id_ed25519"), "FAKE-KEY-FILE-MARKER\n");
-    fs.writeFileSync(path.join(fake, ".ssh", "known_hosts"), "# known\n");
-    fs.writeFileSync(path.join(fake, ".gitconfig"), "[user]\n\tname = Dana Wall\n");
-    process.env["HOME"] = fake;
-    const out = await ownRun(dataDir, [
-      `echo "added=$(cat ${fake}/code/proj/notes.txt)"`,
-      `echo w > ${fake}/code/proj/new.txt && echo "write=ok"`,
-      `echo "vault=$(cat '${dataDir}/vault.sqlite' 2>&1)"`,
-      `echo "key=$(cat ${fake}/.ssh/id_ed25519 2>&1)"`,
-      `echo "known=$(cat ${fake}/.ssh/known_hosts 2>&1)"`,
-      'echo "gituser=$(git config --global user.name 2>&1)"',
-      'echo "work=$(echo here > w.txt && cat w.txt)"',
-      "sudo true; echo \"sudo=$?\"",
-    ].join("\n"), [fake], "thr_own");
-    assert.match(out, /added=added-folder-notes/, out);
-    assert.match(out, /write=ok/, out);
-    assert.doesNotMatch(out, /VAULT-SECRET/, out);
-    assert.doesNotMatch(out, /FAKE-KEY-FILE-MARKER/, out);
-    assert.match(out, /known=# known/, out);
-    assert.match(out, /gituser=Dana Wall/, out);
-    assert.match(out, /work=here/, out);
-    assert.match(out, /sudo=126/, out);
-  } finally { if (savedHome === undefined) delete process.env["HOME"]; else process.env["HOME"] = savedHome; fs.rmSync(fake, { recursive: true, force: true }); }
-});
+test(
+  "own computer under Seatbelt: an added folder reads and writes; Vyre's data folder and a private key inside it stay closed; known_hosts and .gitconfig read; sudo says how to ask",
+  { skip },
+  async () => {
+    // a home of its own under the real home (/Users/runner), with Vyre's data folder inside it, as on a desktop
+    const fake = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-")));
+    const savedHome = process.env["HOME"];
+    try {
+      const dataDir = path.join(fake, "Library", "Application Support", "ai.vyre.desktop", "personal");
+      fs.mkdirSync(path.join(fake, "code", "proj"), { recursive: true });
+      fs.mkdirSync(path.join(fake, ".ssh"), { recursive: true });
+      fs.mkdirSync(dataDir, { recursive: true });
+      fs.writeFileSync(path.join(fake, "code", "proj", "notes.txt"), "added-folder-notes\n");
+      fs.writeFileSync(path.join(dataDir, "vault.sqlite"), "VAULT-SECRET\n");
+      fs.writeFileSync(path.join(fake, ".ssh", "id_ed25519"), "FAKE-KEY-FILE-MARKER\n");
+      fs.writeFileSync(path.join(fake, ".ssh", "known_hosts"), "# known\n");
+      fs.writeFileSync(path.join(fake, ".gitconfig"), "[user]\n\tname = Dana Wall\n");
+      process.env["HOME"] = fake;
+      const out = await ownRun(
+        dataDir,
+        [
+          `echo "added=$(cat ${fake}/code/proj/notes.txt)"`,
+          `echo w > ${fake}/code/proj/new.txt && echo "write=ok"`,
+          `echo "vault=$(cat '${dataDir}/vault.sqlite' 2>&1)"`,
+          `echo "key=$(cat ${fake}/.ssh/id_ed25519 2>&1)"`,
+          `echo "known=$(cat ${fake}/.ssh/known_hosts 2>&1)"`,
+          'echo "gituser=$(git config --global user.name 2>&1)"',
+          'echo "work=$(echo here > w.txt && cat w.txt)"',
+          'sudo true; echo "sudo=$?"',
+        ].join("\n"),
+        [fake],
+        "thr_own",
+      );
+      assert.match(out, /added=added-folder-notes/, out);
+      assert.match(out, /write=ok/, out);
+      assert.doesNotMatch(out, /VAULT-SECRET/, out);
+      assert.doesNotMatch(out, /FAKE-KEY-FILE-MARKER/, out);
+      assert.match(out, /known=# known/, out);
+      assert.match(out, /gituser=Dana Wall/, out);
+      assert.match(out, /work=here/, out);
+      assert.match(out, /sudo=126/, out);
+    } finally {
+      if (savedHome === undefined) delete process.env["HOME"];
+      else process.env["HOME"] = savedHome;
+      fs.rmSync(fake, { recursive: true, force: true });
+    }
+  },
+);
 
-test("own computer under Seatbelt: brew install and pip install --user work and are there the next turn", { skip: ON && fs.existsSync("/opt/homebrew/bin/brew") ? false : "needs a Mac with Homebrew and VYRE_HEAVY_MAC=1" }, async () => {
-  const dataDir = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-data-")));
-  try {
-    const brew = "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1";
-    const first = await ownRun(dataDir, [
-      // what brew said goes into the work folder and is printed when it fails, so a refusal names itself (lane l-runson's diagnosis)
-      `${brew} /opt/homebrew/bin/brew install --quiet hello >brew.log 2>&1; r=$?; echo "brew=$r"; [ "$r" = 0 ] || tail -40 brew.log`,
-      "python3 -m pip install --user --quiet --break-system-packages six >/dev/null 2>&1 || python3 -m pip install --user --quiet six >/dev/null 2>&1; echo \"pip=$?\"",
-    ].join("\n"), [], "thr_inst1");
-    assert.match(first, /brew=0/, first);
-    assert.match(first, /pip=0/, first);
-    const next = await ownRun(dataDir, ['echo "hello=$(/opt/homebrew/bin/hello)"', "echo \"six=$(python3 -c 'import six; print(six.__name__)' 2>&1)\""].join("\n"), [], "thr_inst2");
-    assert.match(next, /hello=Hello, world!/, next);
-    assert.match(next, /six=six/, next);
-  } finally { fs.rmSync(dataDir, { recursive: true, force: true }); }
-});
+test(
+  "own computer under Seatbelt: brew install and pip install --user work and are there the next turn",
+  { skip: ON && fs.existsSync("/opt/homebrew/bin/brew") ? false : "needs a Mac with Homebrew and VYRE_HEAVY_MAC=1" },
+  async () => {
+    const dataDir = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-data-")));
+    try {
+      const brew =
+        "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1";
+      const first = await ownRun(
+        dataDir,
+        [
+          // what brew said goes into the work folder and is printed when it fails, so a refusal names itself (lane l-runson's diagnosis)
+          `${brew} /opt/homebrew/bin/brew install --quiet hello >brew.log 2>&1; r=$?; echo "brew=$r"; [ "$r" = 0 ] || tail -40 brew.log`,
+          'python3 -m pip install --user --quiet --break-system-packages six >/dev/null 2>&1 || python3 -m pip install --user --quiet six >/dev/null 2>&1; echo "pip=$?"',
+        ].join("\n"),
+        [],
+        "thr_inst1",
+      );
+      assert.match(first, /brew=0/, first);
+      assert.match(first, /pip=0/, first);
+      const next = await ownRun(
+        dataDir,
+        [
+          'echo "hello=$(/opt/homebrew/bin/hello)"',
+          "echo \"six=$(python3 -c 'import six; print(six.__name__)' 2>&1)\"",
+        ].join("\n"),
+        [],
+        "thr_inst2",
+      );
+      assert.match(next, /hello=Hello, world!/, next);
+      assert.match(next, /six=six/, next);
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  },
+);

@@ -30,12 +30,31 @@ export interface ToolDef {
 }
 
 /** The slices of generated/registry.json and generated/mcp-tools.json this module reads. */
-export interface RegistryCapRow { name: string; v: number; level: Level; effects: Effects; gate?: unknown; resource?: { type: string; id?: string } | null }
-export interface McpToolRow {
-  name: string; cap: string | null; v: number; toolset: string; description: string; inputSchema: unknown;
-  effects: Effects; planMode: PlanModeRule; deferred: boolean; blocks?: readonly string[]; local?: string;
+export interface RegistryCapRow {
+  name: string;
+  v: number;
+  level: Level;
+  effects: Effects;
+  gate?: unknown;
+  resource?: { type: string; id?: string } | null;
 }
-export interface AgentToolRow { name: string; local?: string }
+export interface McpToolRow {
+  name: string;
+  cap: string | null;
+  v: number;
+  toolset: string;
+  description: string;
+  inputSchema: unknown;
+  effects: Effects;
+  planMode: PlanModeRule;
+  deferred: boolean;
+  blocks?: readonly string[];
+  local?: string;
+}
+export interface AgentToolRow {
+  name: string;
+  local?: string;
+}
 
 export interface Catalog {
   all: readonly ToolDef[];
@@ -80,7 +99,10 @@ export interface ToolCtx {
   said?: string;
 }
 
-export interface ToolResult { ok: boolean; content: unknown }
+export interface ToolResult {
+  ok: boolean;
+  content: unknown;
+}
 
 export interface ToolSet {
   /** Asker's level on the Ask scope; "manage" outside Ask threads (the invoke pipeline still intersects); null = no access to the scope. */

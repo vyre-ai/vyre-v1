@@ -12,7 +12,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 
 function seededDir(): string {
@@ -24,32 +30,51 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-  ...extra,
-});
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+    ...extra,
+  });
 
-interface Reply { status: number; data: Record<string, unknown>; text: string; json: Record<string, unknown> }
+interface Reply {
+  status: number;
+  data: Record<string, unknown>;
+  text: string;
+  json: Record<string, unknown>;
+}
 
 const call = async (d: Daemon, p: string, body: unknown): Promise<Reply> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
   let json: Record<string, unknown> = {};
-  try { json = JSON.parse(text) as Record<string, unknown>; } catch { /* the body is not JSON */ }
+  try {
+    json = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* the body is not JSON */
+  }
   return { status: r.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text, json };
 };
 const ok = async (d: Daemon, p: string, body: unknown): Promise<Record<string, unknown>> => {
@@ -94,11 +119,17 @@ test("a live rerun needs confirmation and a sandbox replay does not write the no
   try {
     const title = "Made by a live rerun";
     const made = await ok(d, "/v1/automations/create", {
-      idempotencyKey: "rerun-note", name: "rerun-note",
-      definition: { triggers: [{ key: "manual" }], nodes: [{ id: "note", key: "records.create", input: { type: "note_board", fields: { title } } }] },
+      idempotencyKey: "rerun-note",
+      name: "rerun-note",
+      definition: {
+        triggers: [{ key: "manual" }],
+        nodes: [{ id: "note", key: "records.create", input: { type: "note_board", fields: { title } } }],
+      },
     });
     const id = idOf(made);
-    const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "rerun-1" }))["runId"]);
+    const runId = String(
+      (await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "rerun-1" }))["runId"],
+    );
     await untilStatus(d, runId, "succeeded", 12_000);
     assert.equal(await noteCount(d, title), 1);
 
@@ -127,5 +158,7 @@ test("a live rerun needs confirmation and a sandbox replay does not write the no
       await new Promise((r) => setTimeout(r, 150));
     }
     assert.equal(await noteCount(d, title), afterLive, "a sandbox replay does not write another note");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

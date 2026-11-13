@@ -9,8 +9,21 @@ export const bot = { kind: "agent" as const, id: "agt_bot" };
 export const bot2 = { kind: "agent" as const, id: "agt_bot2" };
 export const svc = { kind: "service" as const, id: "svc_host" };
 
-export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; actingFor?: string; device?: string; run?: string; /** how deep in a call chain: 0 is a person or an agent calling notifications.send itself, 1 another module's code */ depth?: number; origin?: string; forwarded?: boolean }
-export const as = (p: { kind: "person" | "agent" | "service"; id: string }, extra: Partial<Caller> = {}): Caller => ({ id: p.id, kind: p.kind, ...extra });
+export interface Caller {
+  id: string;
+  kind?: "person" | "agent" | "actor" | "service";
+  actingFor?: string;
+  device?: string;
+  run?: string;
+  /** how deep in a call chain: 0 is a person or an agent calling notifications.send itself, 1 another module's code */ depth?: number;
+  origin?: string;
+  forwarded?: boolean;
+}
+export const as = (p: { kind: "person" | "agent" | "service"; id: string }, extra: Partial<Caller> = {}): Caller => ({
+  id: p.id,
+  kind: p.kind,
+  ...extra,
+});
 
 /** A notifications.send input for a person; override any field. */
 export function sendInput(over: Record<string, unknown> = {}): Record<string, unknown> {

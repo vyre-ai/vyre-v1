@@ -24,48 +24,106 @@ function Navigate({ type, id }: { type: string; id: string }): ReactNode {
   const sample = useMemo(() => createSamplePage(northwind), []);
   useEffect(() => {
     // settle first: the shell is up and idle, as it is when a person clicks a row; then the row offers itself to the runner, which clicks it for real (target "click")
-    let a = 0, b = 0, c = 0;
-    a = requestAnimationFrame(() => { b = requestAnimationFrame(() => { c = window.setTimeout(() => setSettled(true), 400); }); });
-    return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); clearTimeout(c); };
+    let a = 0,
+      b = 0,
+      c = 0;
+    a = requestAnimationFrame(() => {
+      b = requestAnimationFrame(() => {
+        c = window.setTimeout(() => setSettled(true), 400);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(a);
+      cancelAnimationFrame(b);
+      clearTimeout(c);
+    };
   }, []);
   // the row's press is a click, a discrete input event, as in the app; the measure starts in its handler
-  const openRow = (): void => { performance.mark("nav-start"); setOpen(true); };
+  const openRow = (): void => {
+    performance.mark("nav-start");
+    setOpen(true);
+  };
   useEffect(() => {
     if (!open) return;
-    let a = 0, b = 0;
+    let a = 0,
+      b = 0;
     let shift = 0;
-    const po = typeof PerformanceObserver === "function" ? new PerformanceObserver((l) => { for (const e of l.getEntries()) { const ls = e as unknown as { hadRecentInput: boolean; value: number }; if (!ls.hadRecentInput) shift += ls.value; } }) : null;
-    try { po?.observe({ type: "layout-shift", buffered: false }); } catch { /* unsupported */ }
-    a = requestAnimationFrame(() => { b = requestAnimationFrame(() => {
-      performance.mark("nav-end");
-      const m = performance.measure("navigate", "nav-start", "nav-end");
-      const v = Math.round(m.duration * 10) / 10;
-      const g = globalThis as { __probes?: Record<string, unknown> };
-      g.__probes = { navigate: v };
-      console.log(`METRIC ${JSON.stringify({ name: "navigate", screen: "records.page", where: "in-app", ms: v, budget_ms: BUDGET_MS, ok: v < BUDGET_MS })}`);
-      setMs(v);
-      // the layout shift of the whole open, including what joins after the first paint (the sections, the ring, the header buttons and the pane); ready once it has settled
-      setTimeout(() => {
-        po?.disconnect();
-        g.__probes = { navigate: v, layout_shift: Math.round(shift * 1000) / 1000, ready: true };
-        console.log(`METRIC ${JSON.stringify({ name: "layout_shift", screen: "records.page", where: "in-app", score: shift })}`);
-      }, 600);
-    }); });
-    return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
+    const po =
+      typeof PerformanceObserver === "function"
+        ? new PerformanceObserver((l) => {
+            for (const e of l.getEntries()) {
+              const ls = e as unknown as { hadRecentInput: boolean; value: number };
+              if (!ls.hadRecentInput) shift += ls.value;
+            }
+          })
+        : null;
+    try {
+      po?.observe({ type: "layout-shift", buffered: false });
+    } catch {
+      /* unsupported */
+    }
+    a = requestAnimationFrame(() => {
+      b = requestAnimationFrame(() => {
+        performance.mark("nav-end");
+        const m = performance.measure("navigate", "nav-start", "nav-end");
+        const v = Math.round(m.duration * 10) / 10;
+        const g = globalThis as { __probes?: Record<string, unknown> };
+        g.__probes = { navigate: v };
+        console.log(
+          `METRIC ${JSON.stringify({ name: "navigate", screen: "records.page", where: "in-app", ms: v, budget_ms: BUDGET_MS, ok: v < BUDGET_MS })}`,
+        );
+        setMs(v);
+        // the layout shift of the whole open, including what joins after the first paint (the sections, the ring, the header buttons and the pane); ready once it has settled
+        setTimeout(() => {
+          po?.disconnect();
+          g.__probes = { navigate: v, layout_shift: Math.round(shift * 1000) / 1000, ready: true };
+          console.log(
+            `METRIC ${JSON.stringify({ name: "layout_shift", screen: "records.page", where: "in-app", score: shift })}`,
+          );
+        }, 600);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(a);
+      cancelAnimationFrame(b);
+    };
   }, [open]);
   return (
     <RecordPageDataProvider value={sample.data}>
       <View style={{ flex: 1, minHeight: 0 }}>
-        {open ? <RecordPage type={type} recordId={id} /> : (
+        {open ? (
+          <RecordPage type={type} recordId={id} />
+        ) : (
           <View testID="navigate-list" style={{ padding: 24 }}>
             <Text style={{ fontSize: 14, color: "#555" }}>Clients</Text>
             {/* a row as the Records table draws one on the web: a plain element with a click handler (TableView RowFrozen), not a React Native Pressable */}
-            {createElement("div", { role: "button", "data-testid": settled ? "navigate-row" : "navigate-row-settling", onClick: openRow, style: { marginTop: 8, padding: "6px 0", fontSize: 14, color: "#000", cursor: "pointer" } }, "Elena Rivera")}
+            {createElement(
+              "div",
+              {
+                role: "button",
+                "data-testid": settled ? "navigate-row" : "navigate-row-settling",
+                onClick: openRow,
+                style: { marginTop: 8, padding: "6px 0", fontSize: 14, color: "#000", cursor: "pointer" },
+              },
+              "Elena Rivera",
+            )}
           </View>
         )}
         {ms !== null ? (
-          <View testID="navigate-probe" style={{ position: "absolute", left: 12, bottom: 12, padding: 8, backgroundColor: "rgba(255,255,255,0.94)" as string, zIndex: 99999 }}>
-            <Text style={{ fontSize: 12, color: "#000" }}>{`navigate (in-app): ${ms.toFixed(1)} ms, budget ${BUDGET_MS} ms, ${ms < BUDGET_MS ? "inside" : "OVER"}`}</Text>
+          <View
+            testID="navigate-probe"
+            style={{
+              position: "absolute",
+              left: 12,
+              bottom: 12,
+              padding: 8,
+              backgroundColor: "rgba(255,255,255,0.94)" as string,
+              zIndex: 99999,
+            }}
+          >
+            <Text
+              style={{ fontSize: 12, color: "#000" }}
+            >{`navigate (in-app): ${ms.toFixed(1)} ms, budget ${BUDGET_MS} ms, ${ms < BUDGET_MS ? "inside" : "OVER"}`}</Text>
           </View>
         ) : null}
       </View>
@@ -76,20 +134,30 @@ function Navigate({ type, id }: { type: string; id: string }): ReactNode {
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSamplePage(space), [space]);
-  const start = useMemo<RecordPageStart>(() => ({
-    ...(q.get("map") === "1" ? { map: true } : {}), ...(q.get("pane") === "0" ? { pane: false } : q.get("pane") === "1" ? { pane: true } : {}), tab: (q.get("tab") ?? "activity") as PaneKey,
-    ...(q.get("all") === "1" ? { all: true } : {}), ...(q.get("edit") ? { edit: { key: q.get("edit") as string, text: q.get("text") ?? "" } } : {}),
-  }), [q]);
+  const start = useMemo<RecordPageStart>(
+    () => ({
+      ...(q.get("map") === "1" ? { map: true } : {}),
+      ...(q.get("pane") === "0" ? { pane: false } : q.get("pane") === "1" ? { pane: true } : {}),
+      tab: (q.get("tab") ?? "activity") as PaneKey,
+      ...(q.get("all") === "1" ? { all: true } : {}),
+      ...(q.get("edit") ? { edit: { key: q.get("edit") as string, text: q.get("text") ?? "" } } : {}),
+    }),
+    [q],
+  );
   if (q.get("probe") === "navigate") return <Navigate type={q.get("type") ?? "clients"} id={q.get("id") ?? "cl_0"} />;
   return (
     <RecordPageDataProvider value={sample.data}>
-      <View style={{ flex: 1, minHeight: 0 }}><RecordPage type={q.get("type") ?? "clients"} recordId={q.get("id") ?? "cl_0"} start={start} /></View>
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <RecordPage type={q.get("type") ?? "clients"} recordId={q.get("id") ?? "cl_0"} start={start} />
+      </View>
     </RecordPageDataProvider>
   );
 }
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

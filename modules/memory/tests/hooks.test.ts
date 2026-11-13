@@ -13,14 +13,17 @@ function chat(mode: string | null): Parameters<typeof harness>[0] {
   return {
     principal: { kind: "service", id: "svc_host" },
     respond: {
-      "threads.get": () => ({ thread: { kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" }] } }),
+      "threads.get": () => ({
+        thread: { kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" }] },
+      }),
       "chat.messages.list": () => ({ messages: [{ messageId: "msg_1", author: person, body: SPEECH }] }),
       "memory.capture": () => ({ proposed: 0, merged: 0 }),
       ...(mode ? { "agents.get": () => ({ agent: { captureMode: mode } }) } : {}),
     },
   };
 }
-const statuses = (h: Harness): string[] => h.rows("SELECT kind, status FROM memory_facts ORDER BY kind").map((r) => `${r["kind"]}:${r["status"]}`);
+const statuses = (h: Harness): string[] =>
+  h.rows("SELECT kind, status FROM memory_facts ORDER BY kind").map((r) => `${r["kind"]}:${r["status"]}`);
 
 test("captureMode off keeps nothing and says nothing happened", async () => {
   const h = harness(chat("off"));
@@ -42,7 +45,14 @@ test("captureMode auto_low_risk merges the low-risk kind and proposes the rest",
 });
 
 test("the nightly job runs maintain once in the small hours, or when a host was off for a day and a half", async () => {
-  const h = harness({ ...chat("propose"), respond: { ...chat("propose").respond, "memory.maintain": () => ({ merged: 0, closed: 0, maps: 0 }), "memory.archive_sweep": () => ({ archived: 0, days: 60 }) } });
+  const h = harness({
+    ...chat("propose"),
+    respond: {
+      ...chat("propose").respond,
+      "memory.maintain": () => ({ merged: 0, closed: 0, maps: 0 }),
+      "memory.archive_sweep": () => ({ archived: 0, days: 60 }),
+    },
+  });
   const at = (hour: number) => () => hour;
   assert.deepEqual(await nightly(h.ctx as never, at(14)), ["nightly"], "never run: it runs");
   assert.deepEqual(await nightly(h.ctx as never, at(3)), [], "ran just now");

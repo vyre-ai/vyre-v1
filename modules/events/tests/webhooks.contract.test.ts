@@ -11,10 +11,28 @@ import type { Harness } from "../fixtures/harness.ts";
 import { handlers } from "../impl.ts";
 import type { EventsCtx } from "../handlers/index.ts";
 
-interface RegCap { name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[]; examples: { name: string; input: unknown; output: unknown }[] }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+interface RegCap {
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
+  examples: { name: string; input: unknown; output: unknown }[];
+}
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "events");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "events").map((e) => [e.name, e.payload]));
@@ -70,11 +88,16 @@ for (const cap of caps) {
 }
 
 test("the capabilities that must emit do: create, update, delete and rotate each emit their one event", async () => {
-  const want: Record<string, string> = { "webhooks.create": "webhook.created", "webhooks.update": "webhook.updated", "webhooks.delete": "webhook.deleted", "webhooks.rotate_secret": "webhook.secret_rotated" };
+  const want: Record<string, string> = {
+    "webhooks.create": "webhook.created",
+    "webhooks.update": "webhook.updated",
+    "webhooks.delete": "webhook.deleted",
+    "webhooks.rotate_secret": "webhook.secret_rotated",
+  };
   for (const [capName, evName] of Object.entries(want)) {
     const cap = caps.find((c) => c.name === capName)!;
     const input = sample(cap.input, 0, defs) as Record<string, unknown>;
-    if (capName === "webhooks.update") input["name"] = "Renamed";   // the sample may repeat the stored values; a rename is a change
+    if (capName === "webhooks.update") input["name"] = "Renamed"; // the sample may repeat the stored values; a rename is a change
     const { h, ctx } = worldFor(capName);
     await run(capName, ctx, input);
     assert.deepEqual([...new Set(h.emitted.map((e) => e.name))], [evName], capName);

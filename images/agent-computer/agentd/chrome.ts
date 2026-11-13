@@ -15,7 +15,8 @@ import { browserBounds } from "./desktop.ts";
 import type { Screen } from "./x11.ts";
 
 const DEFAULT_PORT = 9222;
-const OUTWARD = "\\b(send|post|publish|submit order|pay|purchase|buy now|place order|checkout|confirm payment|delete|remove account|transfer|donate)\\b";
+const OUTWARD =
+  "\\b(send|post|publish|submit order|pay|purchase|buy now|place order|checkout|confirm payment|delete|remove account|transfer|donate)\\b";
 const HOLD_TTL_MS = 15 * 60_000;
 
 export interface ChromeState {
@@ -24,8 +25,18 @@ export interface ChromeState {
   tabLimit: number;
 }
 
-interface Target { id: string; type: string; url: string; title: string; webSocketDebuggerUrl?: string }
-interface Held { run: () => Promise<void>; what: string; at: number }
+interface Target {
+  id: string;
+  type: string;
+  url: string;
+  title: string;
+  webSocketDebuggerUrl?: string;
+}
+interface Held {
+  run: () => Promise<void>;
+  what: string;
+  at: number;
+}
 
 export interface Chrome {
   ready(): Promise<void>;
@@ -54,7 +65,11 @@ async function fetchJson<T>(base: string, path: string, method = "GET"): Promise
   if (!r.ok) throw unavailable(`the browser answered ${r.status} to ${path}`);
   const text = await r.text();
   // /json/activate and /json/close answer a plain sentence ("Target activated", "Target is closing"), not JSON
-  try { return (text ? JSON.parse(text) : {}) as T; } catch { return {} as T; }
+  try {
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    return {} as T;
+  }
 }
 
 /** How the browser is started. The agent computer uses the defaults (a window on its Xvfb screen, port 9222). The Space browser (images/space-browser) runs one headless Chromium per profile, each on its own port. */
@@ -76,7 +91,13 @@ export interface ChromeOptions {
   pipe?: boolean;
 }
 
-export function launchChrome(screen: Screen | null, profileDir: string, extensionDir: string | null, log: (m: string) => void, opts: ChromeOptions = {}): Chrome {
+export function launchChrome(
+  screen: Screen | null,
+  profileDir: string,
+  extensionDir: string | null,
+  log: (m: string) => void,
+  opts: ChromeOptions = {},
+): Chrome {
   const PIPE = opts.pipe === true;
   const PORT = opts.port ?? DEFAULT_PORT;
   const BASE = `http://127.0.0.1:${PORT}`;
@@ -84,8 +105,15 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
   let pipe: CdpPipe | null = null;
   // over the pipe there is no /json/list, which lists the front tab first: the order is kept here, the newest tab and the one last brought forward first, as Chrome does
   const order: string[] = [];
-  const toFront = (id: string): void => { const i = order.indexOf(id); if (i >= 0) order.splice(i, 1); order.unshift(id); };
-  const needPipe = (): CdpPipe => { if (!pipe || pipe.closed()) throw unavailable("the browser is not running"); return pipe; };
+  const toFront = (id: string): void => {
+    const i = order.indexOf(id);
+    if (i >= 0) order.splice(i, 1);
+    order.unshift(id);
+  };
+  const needPipe = (): CdpPipe => {
+    if (!pipe || pipe.closed()) throw unavailable("the browser is not running");
+    return pipe;
+  };
   let proc: ChildProcess | null = null;
   let up: Promise<void> | null = null;
   let active: string | null = null;
@@ -95,46 +123,107 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
   const start = (): Promise<void> => {
     if (up) return up;
     up = (async () => {
-      for (const f of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) { try { rmSync(join(profileDir, f), { force: true }); } catch { /* not there */ } }
+      for (const f of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+        try {
+          rmSync(join(profileDir, f), { force: true });
+        } catch {
+          /* not there */
+        }
+      }
       const headless = opts.headless === true || screen === null;
-      const bounds = headless ? { x: 0, y: 0, width: opts.size?.width ?? 1280, height: opts.size?.height ?? 800 } : browserBounds(screen);
+      const bounds = headless
+        ? { x: 0, y: 0, width: opts.size?.width ?? 1280, height: opts.size?.height ?? 800 }
+        : browserBounds(screen);
       const args = [
         ...(headless ? ["--headless=new"] : []),
-        "--disable-dev-shm-usage", "--disable-gpu", `--user-data-dir=${profileDir}`, ...(PIPE ? ["--remote-debugging-pipe"] : [`--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1"]),
-        `--window-position=${bounds.x},${bounds.y}`, `--window-size=${bounds.width},${bounds.height}`, ...(opts.flags ?? []), "--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-features=Translate,MediaRouter,Vulkan",
-        ...(extensionDir && existsSync(join(extensionDir, "manifest.json")) ? [`--load-extension=${extensionDir}`] : []),
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        `--user-data-dir=${profileDir}`,
+        ...(PIPE
+          ? ["--remote-debugging-pipe"]
+          : [`--remote-debugging-port=${PORT}`, "--remote-debugging-address=127.0.0.1"]),
+        `--window-position=${bounds.x},${bounds.y}`,
+        `--window-size=${bounds.width},${bounds.height}`,
+        ...(opts.flags ?? []),
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--password-store=basic",
+        "--disable-features=Translate,MediaRouter,Vulkan",
+        ...(extensionDir && existsSync(join(extensionDir, "manifest.json"))
+          ? [`--load-extension=${extensionDir}`]
+          : []),
         "about:blank",
       ];
-      const p = spawn("chromium", args, { env: { ...process.env, ...(screen && !headless ? { DISPLAY: screen.display } : {}), ...(opts.env ?? {}) }, stdio: PIPE ? ["ignore", "ignore", "pipe", "pipe", "pipe"] : ["ignore", "ignore", "pipe"] });
+      const p = spawn("chromium", args, {
+        env: { ...process.env, ...(screen && !headless ? { DISPLAY: screen.display } : {}), ...(opts.env ?? {}) },
+        stdio: PIPE ? ["ignore", "ignore", "pipe", "pipe", "pipe"] : ["ignore", "ignore", "pipe"],
+      });
       proc = p;
-      p.stderr!.on("data", (c: Buffer) => { const t = c.toString("utf8").trim(); if (/error|fatal/i.test(t)) log(`chromium: ${t.slice(0, 300)}`); });
-      p.on("exit", () => { if (proc === p) { proc = null; pipe = null; order.length = 0; } up = null; });
+      p.stderr!.on("data", (c: Buffer) => {
+        const t = c.toString("utf8").trim();
+        if (/error|fatal/i.test(t)) log(`chromium: ${t.slice(0, 300)}`);
+      });
+      p.on("exit", () => {
+        if (proc === p) {
+          proc = null;
+          pipe = null;
+          order.length = 0;
+        }
+        up = null;
+      });
       // a process that could not be made (EAGAIN: the container's process cap is reached) is this start's failure, never an unhandled error that ends the program holding every other browser
       let spawnError: Error | null = null;
-      p.on("error", (e) => { spawnError = e; if (proc === p) { proc = null; pipe = null; } up = null; log(`chromium: ${e.message.slice(0, 200)}`); });
+      p.on("error", (e) => {
+        spawnError = e;
+        if (proc === p) {
+          proc = null;
+          pipe = null;
+        }
+        up = null;
+        log(`chromium: ${e.message.slice(0, 200)}`);
+      });
       if (PIPE) {
         // fd 3 is what the browser reads, fd 4 what it writes
         const conn = connectPipe(p.stdio[3] as NodeJS.WritableStream, p.stdio[4] as NodeJS.ReadableStream);
         pipe = conn;
-        conn.onBrowser("Target.targetCreated", (e) => { const t = e["targetInfo"] as { targetId?: string; type?: string } | undefined; if (t?.type === "page" && t.targetId) toFront(t.targetId); });
-        conn.onBrowser("Target.targetDestroyed", (e) => { const i = order.indexOf(String(e["targetId"])); if (i >= 0) order.splice(i, 1); });
+        conn.onBrowser("Target.targetCreated", (e) => {
+          const t = e["targetInfo"] as { targetId?: string; type?: string } | undefined;
+          if (t?.type === "page" && t.targetId) toFront(t.targetId);
+        });
+        conn.onBrowser("Target.targetDestroyed", (e) => {
+          const i = order.indexOf(String(e["targetId"]));
+          if (i >= 0) order.splice(i, 1);
+        });
       }
       for (let i = 0; i < 300; i++) {
-        if (spawnError) throw unavailable(`the browser could not be started: ${(spawnError as Error).message.slice(0, 120)}`);
+        if (spawnError)
+          throw unavailable(`the browser could not be started: ${(spawnError as Error).message.slice(0, 120)}`);
         if (p.exitCode !== null) throw unavailable("the browser exited while starting");
         try {
-          if (PIPE) { await needPipe().browser.send("Target.setDiscoverTargets", { discover: true }, 1000); return; }
-          await getJson("/json/version"); return;
-        } catch { await sleep(100); }
+          if (PIPE) {
+            await needPipe().browser.send("Target.setDiscoverTargets", { discover: true }, 1000);
+            return;
+          }
+          await getJson("/json/version");
+          return;
+        } catch {
+          await sleep(100);
+        }
       }
       throw unavailable("the browser did not start in 30 seconds");
     })();
-    up.catch(() => { up = null; });
+    up.catch(() => {
+      up = null;
+    });
     return up;
   };
 
   // What a tab logged, from the first time a tool touched it: console messages and network requests. Kept small; the oldest go first.
-  interface Log { console: Array<{ level: string; text: string; at: number }>; net: Array<{ id: string; url: string; method: string; status?: number; type?: string; at: number }>; conn: Cdp }
+  interface Log {
+    console: Array<{ level: string; text: string; at: number }>;
+    net: Array<{ id: string; url: string; method: string; status?: number; type?: string; at: number }>;
+    conn: Cdp;
+  }
   const logs = new Map<string, Log>();
   const watch = async (t: Target): Promise<Log> => {
     const have = logs.get(t.id);
@@ -144,12 +233,25 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     logs.set(t.id, log);
     conn.on("Runtime.consoleAPICalled", (p) => {
       const args = (p["args"] as Array<{ value?: unknown; description?: string }> | undefined) ?? [];
-      log.console.push({ level: String(p["type"]), text: args.map((a) => (a.value !== undefined ? String(a.value) : a.description ?? "")).join(" ").slice(0, 2000), at: Date.now() });
+      log.console.push({
+        level: String(p["type"]),
+        text: args
+          .map((a) => (a.value !== undefined ? String(a.value) : (a.description ?? "")))
+          .join(" ")
+          .slice(0, 2000),
+        at: Date.now(),
+      });
       if (log.console.length > 500) log.console.shift();
     });
     conn.on("Network.requestWillBeSent", (p) => {
       const r = p["request"] as { url: string; method: string };
-      log.net.push({ id: String(p["requestId"]), url: r.url.slice(0, 2000), method: r.method, type: String(p["type"] ?? ""), at: Date.now() });
+      log.net.push({
+        id: String(p["requestId"]),
+        url: r.url.slice(0, 2000),
+        method: r.method,
+        type: String(p["type"] ?? ""),
+        at: Date.now(),
+      });
       if (log.net.length > 500) log.net.shift();
     });
     conn.on("Network.responseReceived", (p) => {
@@ -163,9 +265,14 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
 
   const allTargets = async (): Promise<Target[]> => {
     if (!PIPE) return getJson<Target[]>("/json/list");
-    const r = await needPipe().browser.send<{ targetInfos?: Array<{ targetId: string; type: string; url: string; title: string }> }>("Target.getTargets");
+    const r = await needPipe().browser.send<{
+      targetInfos?: Array<{ targetId: string; type: string; url: string; title: string }>;
+    }>("Target.getTargets");
     const rows = (r.targetInfos ?? []).map((t) => ({ id: t.targetId, type: t.type, url: t.url, title: t.title }));
-    const rank = (id: string): number => { const i = order.indexOf(id); return i < 0 ? order.length : i; };
+    const rank = (id: string): number => {
+      const i = order.indexOf(id);
+      return i < 0 ? order.length : i;
+    };
     return rows.sort((a, b) => rank(a.id) - rank(b.id));
   };
   const targets = async (): Promise<Target[]> => (await allTargets()).filter((t) => t.type === "page");
@@ -177,12 +284,18 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     return { id: r.targetId, type: "page", url, title: "" };
   };
   const activate = async (id: string): Promise<void> => {
-    if (!PIPE) { await getJson(`/json/activate/${id}`); return; }
+    if (!PIPE) {
+      await getJson(`/json/activate/${id}`);
+      return;
+    }
     await needPipe().browser.send("Target.activateTarget", { targetId: id });
     toFront(id);
   };
   const closeTab = async (id: string): Promise<void> => {
-    if (!PIPE) { await getJson(`/json/close/${id}`); return; }
+    if (!PIPE) {
+      await getJson(`/json/close/${id}`);
+      return;
+    }
     await needPipe().browser.send("Target.closeTarget", { targetId: id });
   };
   const browserConn = async (): Promise<Cdp> => {
@@ -193,9 +306,10 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
   };
   const pick = async (tabId: unknown): Promise<Target> => {
     const all = await targets();
-    const id = typeof tabId === "string" && tabId !== "" ? tabId : active ?? all[0]?.id;
+    const id = typeof tabId === "string" && tabId !== "" ? tabId : (active ?? all[0]?.id);
     const t = all.find((x) => x.id === id) ?? (typeof tabId === "string" && tabId !== "" ? undefined : all[0]);
-    if (!t) throw notFound(typeof tabId === "string" && tabId !== "" ? `There is no tab ${tabId}.` : "There is no open tab.");
+    if (!t)
+      throw notFound(typeof tabId === "string" && tabId !== "" ? `There is no tab ${tabId}.` : "There is no open tab.");
     return t;
   };
   const connect = async (t: Target): Promise<Cdp> => {
@@ -209,36 +323,63 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     let t = await pick(tabId);
     let c: Cdp;
     // the front tab can close between the list and the attach (a browser that brought back its tabs closes its blank first one): the next one is taken, unless the call named that tab
-    try { c = await connect(t); } catch (e) {
-      if (!(typeof tabId !== "string" || tabId === "") || !/No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
+    try {
+      c = await connect(t);
+    } catch (e) {
+      if (
+        !(typeof tabId !== "string" || tabId === "") ||
+        !/No target with given id/i.test(e instanceof Error ? e.message : "")
+      )
+        throw e;
       if (active === t.id) active = null;
       await sleep(100);
       t = await pick(undefined);
       c = await connect(t);
     }
     await watch(t).catch(() => undefined);
-    try { return await f(c, t); } catch (e) {
+    try {
+      return await f(c, t);
+    } catch (e) {
       // the front tab went while the step worked on it (a browser that just started brings back its tabs and closes its blank one): a read, or going to an address, that named no tab is done once more on
       // the tab in front now; an act is not (it may have happened before the tab went), and its error says what failed
-      if (!again || (typeof tabId === "string" && tabId !== "") || !/Session with given id not found|No target with given id/i.test(e instanceof Error ? e.message : "")) throw e;
+      if (
+        !again ||
+        (typeof tabId === "string" && tabId !== "") ||
+        !/Session with given id not found|No target with given id/i.test(e instanceof Error ? e.message : "")
+      )
+        throw e;
       c.close();
       await sleep(150);
       if (active === t.id) active = null;
       const t2 = await pick(undefined);
       const c2 = await connect(t2);
-      try { return await f(c2, t2); } finally { c2.close(); }
-    } finally { c.close(); }
+      try {
+        return await f(c2, t2);
+      } finally {
+        c2.close();
+      }
+    } finally {
+      c.close();
+    }
   };
 
   const evalIn = async <T>(c: Cdp, expression: string): Promise<T> => {
-    const r = await c.send<{ result?: { value?: T }; exceptionDetails?: { text?: string; exception?: { description?: string } } }>("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
-    if (r.exceptionDetails) throw badInput(`the page raised: ${(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "an error").slice(0, 300)}`);
+    const r = await c.send<{
+      result?: { value?: T };
+      exceptionDetails?: { text?: string; exception?: { description?: string } };
+    }>("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails)
+      throw badInput(
+        `the page raised: ${(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "an error").slice(0, 300)}`,
+      );
     return r.result?.value as T;
   };
 
   /** The element of a ref, scrolled into view, with where its middle is, and whether acting on it would send something out. */
   const locate = async (c: Cdp, ref: string): Promise<{ x: number; y: number; outward: boolean; label: string }> => {
-    const r = await evalIn<{ x: number; y: number; outward: boolean; label: string } | null>(c, `(() => {
+    const r = await evalIn<{ x: number; y: number; outward: boolean; label: string } | null>(
+      c,
+      `(() => {
       const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]');
       if (!el) return null;
       el.scrollIntoView({ block: "center", inline: "center" });
@@ -247,7 +388,8 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       const form = el.closest("form");
       const text = label + " " + (el.getAttribute("type") || "") + " " + (el.getAttribute("name") || "") + " " + (form ? (form.getAttribute("aria-label") || "") : "");
       return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label };
-    })()`);
+    })()`,
+    );
     if (!r) throw notFound(`There is no element ${ref} on this page. Take a new snapshot.`);
     return r;
   };
@@ -259,14 +401,32 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
   };
   const key = async (c: Cdp, name: string): Promise<void> => {
     const KEYS: Record<string, { key: string; code: string; vk: number; text?: string }> = {
-      Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" }, Tab: { key: "Tab", code: "Tab", vk: 9 }, Escape: { key: "Escape", code: "Escape", vk: 27 },
-      Backspace: { key: "Backspace", code: "Backspace", vk: 8 }, ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 }, ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
-      ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 }, ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 }, Delete: { key: "Delete", code: "Delete", vk: 46 },
+      Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" },
+      Tab: { key: "Tab", code: "Tab", vk: 9 },
+      Escape: { key: "Escape", code: "Escape", vk: 27 },
+      Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
+      ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 },
+      ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
+      ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 },
+      ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
+      Delete: { key: "Delete", code: "Delete", vk: 46 },
     };
     const k = KEYS[name];
-    if (!k) { if (name.length === 1) { await c.send("Input.insertText", { text: name }); return; } throw badInput(`I do not know the key ${name}. Use Enter, Tab, Escape, Backspace, Delete, an arrow key or one character.`); }
+    if (!k) {
+      if (name.length === 1) {
+        await c.send("Input.insertText", { text: name });
+        return;
+      }
+      throw badInput(
+        `I do not know the key ${name}. Use Enter, Tab, Escape, Backspace, Delete, an arrow key or one character.`,
+      );
+    }
     const base = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk };
-    await c.send("Input.dispatchKeyEvent", { type: k.text ? "keyDown" : "rawKeyDown", ...base, ...(k.text ? { text: k.text } : {}) });
+    await c.send("Input.dispatchKeyEvent", {
+      type: k.text ? "keyDown" : "rawKeyDown",
+      ...base,
+      ...(k.text ? { text: k.text } : {}),
+    });
     await c.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
   };
 
@@ -303,25 +463,53 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
 
   const waitFor = async (c: Cdp, until: string, value: string | undefined, timeoutMs: number): Promise<number> => {
     const t0 = Date.now();
-    if (until === "time") { await sleep(Number(value)); return Date.now() - t0; }
+    if (until === "time") {
+      await sleep(Number(value));
+      return Date.now() - t0;
+    }
     for (;;) {
       let ok = false;
-      if (until === "load" || until === "network_idle") ok = (await evalIn<string>(c, "document.readyState")) === "complete";
-      else if (until === "text") ok = await evalIn<boolean>(c, `(document.body && document.body.innerText || "").includes(${JSON.stringify(value ?? "")})`);
-      else if (until === "selector") ok = await evalIn<boolean>(c, `!!document.querySelector(${JSON.stringify(value ?? "")})`);
+      if (until === "load" || until === "network_idle")
+        ok = (await evalIn<string>(c, "document.readyState")) === "complete";
+      else if (until === "text")
+        ok = await evalIn<boolean>(
+          c,
+          `(document.body && document.body.innerText || "").includes(${JSON.stringify(value ?? "")})`,
+        );
+      else if (until === "selector")
+        ok = await evalIn<boolean>(c, `!!document.querySelector(${JSON.stringify(value ?? "")})`);
       else throw badInput(`I cannot wait for ${until}.`);
-      if (ok) { if (until === "network_idle") await sleep(500); return Date.now() - t0; }
-      if (Date.now() - t0 > timeoutMs) throw new AgentError("timeout", `Waited ${Math.round(timeoutMs / 1000)} seconds for ${until}.`);
+      if (ok) {
+        if (until === "network_idle") await sleep(500);
+        return Date.now() - t0;
+      }
+      if (Date.now() - t0 > timeoutMs)
+        throw new AgentError("timeout", `Waited ${Math.round(timeoutMs / 1000)} seconds for ${until}.`);
       await sleep(150);
     }
   };
 
-  const pngSize = (b: Buffer): { width: number; height: number } => ({ width: b.readUInt32BE(16), height: b.readUInt32BE(20) });
+  const pngSize = (b: Buffer): { width: number; height: number } => ({
+    width: b.readUInt32BE(16),
+    height: b.readUInt32BE(20),
+  });
 
-  async function tool(name: string, args: Record<string, unknown>, state: ChromeState): Promise<Record<string, unknown>> {
-        if (name === "chrome_status") return { connected: proc !== null && proc.exitCode === null, paused: state.stopped, held: [...held.keys()] };
-    if (name === "chrome_stop") { state.stopped = true; return { stopped: true }; }
-    if (name === "chrome_resume") { const was = state.stopped; state.stopped = false; return { resumed: was }; }
+  async function tool(
+    name: string,
+    args: Record<string, unknown>,
+    state: ChromeState,
+  ): Promise<Record<string, unknown>> {
+    if (name === "chrome_status")
+      return { connected: proc !== null && proc.exitCode === null, paused: state.stopped, held: [...held.keys()] };
+    if (name === "chrome_stop") {
+      state.stopped = true;
+      return { stopped: true };
+    }
+    if (name === "chrome_resume") {
+      const was = state.stopped;
+      state.stopped = false;
+      return { resumed: was };
+    }
     if (state.stopped) throw paused("The browser is stopped. Resume it first.");
     if (name === "chrome_plan") return { ok: true };
     await start();
@@ -333,76 +521,156 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         const url = s("url") ?? "";
         const all = await targets();
         const wantNew = args["newTab"] === true || all.length === 0;
-        if (wantNew && all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
+        if (wantNew && all.length >= state.tabLimit)
+          throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
         if (wantNew) {
           const t = await newTab(url);
           active = t.id;
-          const out = await withTab(t.id, async (c) => { await waitFor(c, "load", undefined, 30_000).catch(() => 0); return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") }; });
+          const out = await withTab(t.id, async (c) => {
+            await waitFor(c, "load", undefined, 30_000).catch(() => 0);
+            return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") };
+          });
           return { tabId: t.id, ...out };
         }
-        return withTab(tabId, async (c, t) => {
-          active = t.id;
-          if (PIPE) toFront(t.id);
-          await c.send("Page.enable");
-          await c.send("Page.navigate", { url });
-          await sleep(100);
-          await waitFor(c, "load", undefined, 30_000).catch(() => 0);
-          return { tabId: t.id, url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title") };
-        }, true);
+        return withTab(
+          tabId,
+          async (c, t) => {
+            active = t.id;
+            if (PIPE) toFront(t.id);
+            await c.send("Page.enable");
+            await c.send("Page.navigate", { url });
+            await sleep(100);
+            await waitFor(c, "load", undefined, 30_000).catch(() => 0);
+            return {
+              tabId: t.id,
+              url: await evalIn<string>(c, "location.href"),
+              title: await evalIn<string>(c, "document.title"),
+            };
+          },
+          true,
+        );
       }
       case "chrome_tabs": {
         const action = s("action") ?? "list";
-        if (action === "use") { const t = await pick(tabId); await activate(t.id); active = t.id; }
-        else if (action === "close") { const t = await pick(tabId); await closeTab(t.id); if (active === t.id) active = null; }
-        else if (action === "new") {
+        if (action === "use") {
+          const t = await pick(tabId);
+          await activate(t.id);
+          active = t.id;
+        } else if (action === "close") {
+          const t = await pick(tabId);
+          await closeTab(t.id);
+          if (active === t.id) active = null;
+        } else if (action === "new") {
           const all = await targets();
-          if (all.length >= state.tabLimit) throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
+          if (all.length >= state.tabLimit)
+            throw badInput(`This computer has ${all.length} tabs open, which is its limit. Close one first.`);
           const t = await newTab(s("url") ?? "about:blank");
           active = t.id;
         } else if (action === "find") {
           // the tabs this computer already has open for a site (the same words as in the person's Chrome)
-          const host = (s("site") ?? "").trim().toLowerCase().replace(/^[a-z]+:\/\//, "").split(/[/?#]/)[0]!.replace(/:\d+$/, "").replace(/^www\./, "");
+          const host = (s("site") ?? "")
+            .trim()
+            .toLowerCase()
+            .replace(/^[a-z]+:\/\//, "")
+            .split(/[/?#]/)[0]!
+            .replace(/:\d+$/, "")
+            .replace(/^www\./, "");
           if (host === "") throw badInput("Name the site to find a tab for.");
           const all = await targets();
-          const own = (u: string): boolean => { try { const h = new URL(u).hostname.toLowerCase().replace(/^www\./, ""); return h === host || h.endsWith(`.${host}`); } catch { return false; } };
-          return { tabs: all.filter((t) => own(t.url)).slice(0, 10).map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })) };
+          const own = (u: string): boolean => {
+            try {
+              const h = new URL(u).hostname.toLowerCase().replace(/^www\./, "");
+              return h === host || h.endsWith(`.${host}`);
+            } catch {
+              return false;
+            }
+          };
+          return {
+            tabs: all
+              .filter((t) => own(t.url))
+              .slice(0, 10)
+              .map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })),
+          };
         } else if (action !== "list") throw badInput(`I cannot ${action} tabs.`);
         await sleep(action === "list" ? 0 : 150);
         const all = await targets();
-        return { tabs: all.map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })) };
+        return {
+          tabs: all.map((t) => ({ tabId: t.id, url: t.url, title: t.title, active: t.id === (active ?? all[0]?.id) })),
+        };
       }
       case "chrome_state":
-        return withTab(tabId, async (c) => ({ url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title"), loading: (await evalIn<string>(c, "document.readyState")) !== "complete" }), true);
+        return withTab(
+          tabId,
+          async (c) => ({
+            url: await evalIn<string>(c, "location.href"),
+            title: await evalIn<string>(c, "document.title"),
+            loading: (await evalIn<string>(c, "document.readyState")) !== "complete",
+          }),
+          true,
+        );
       case "chrome_snapshot": {
         const tree = (s("format") ?? "tree") === "tree";
-        return withTab(tabId, async (c) => {
-          const r = await evalIn<{ text: string; truncated: boolean }>(c, SNAPSHOT(s("selector") ?? "body", tree));
-          return { url: await evalIn<string>(c, "location.href"), title: await evalIn<string>(c, "document.title"), tree: r.text, truncated: r.truncated };
-        }, true);
+        return withTab(
+          tabId,
+          async (c) => {
+            const r = await evalIn<{ text: string; truncated: boolean }>(c, SNAPSHOT(s("selector") ?? "body", tree));
+            return {
+              url: await evalIn<string>(c, "location.href"),
+              title: await evalIn<string>(c, "document.title"),
+              tree: r.text,
+              truncated: r.truncated,
+            };
+          },
+          true,
+        );
       }
       case "chrome_screenshot":
-        return withTab(tabId, async (c) => {
-          const params: Record<string, unknown> = { format: "png" };
-          if (typeof args["ref"] === "string") {
-            const r = await evalIn<{ x: number; y: number; width: number; height: number } | null>(c, `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(args["ref"])}]'); if (!el) return null; el.scrollIntoView({block:"center"}); const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height }; })()`);
-            if (!r) throw notFound(`There is no element ${String(args["ref"])} on this page.`);
-            params["clip"] = { ...r, scale: 1 };
-            params["captureBeyondViewport"] = true;
-          } else if (args["fullPage"] === true) {
-            const m = await c.send<{ cssContentSize?: { width: number; height: number } }>("Page.getLayoutMetrics");
-            if (m.cssContentSize) { params["clip"] = { x: 0, y: 0, width: m.cssContentSize.width, height: Math.min(m.cssContentSize.height, 16_000), scale: 1 }; params["captureBeyondViewport"] = true; }
-          }
-          const shot = await c.send<{ data: string }>("Page.captureScreenshot", params);
-          const png = Buffer.from(shot.data, "base64");
-          return { png: shot.data, ...pngSize(png) };
-        }, true);
+        return withTab(
+          tabId,
+          async (c) => {
+            const params: Record<string, unknown> = { format: "png" };
+            if (typeof args["ref"] === "string") {
+              const r = await evalIn<{ x: number; y: number; width: number; height: number } | null>(
+                c,
+                `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(args["ref"])}]'); if (!el) return null; el.scrollIntoView({block:"center"}); const b = el.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height }; })()`,
+              );
+              if (!r) throw notFound(`There is no element ${String(args["ref"])} on this page.`);
+              params["clip"] = { ...r, scale: 1 };
+              params["captureBeyondViewport"] = true;
+            } else if (args["fullPage"] === true) {
+              const m = await c.send<{ cssContentSize?: { width: number; height: number } }>("Page.getLayoutMetrics");
+              if (m.cssContentSize) {
+                params["clip"] = {
+                  x: 0,
+                  y: 0,
+                  width: m.cssContentSize.width,
+                  height: Math.min(m.cssContentSize.height, 16_000),
+                  scale: 1,
+                };
+                params["captureBeyondViewport"] = true;
+              }
+            }
+            const shot = await c.send<{ data: string }>("Page.captureScreenshot", params);
+            const png = Buffer.from(shot.data, "base64");
+            return { png: shot.data, ...pngSize(png) };
+          },
+          true,
+        );
       case "chrome_eval":
         return withTab(tabId, async (c) => {
           const v = await evalIn<unknown>(c, s("expression") ?? "");
           return { result: v === undefined ? null : v };
         });
       case "chrome_wait":
-        return withTab(tabId, async (c) => ({ ok: true, waitedMs: await waitFor(c, s("until") ?? "load", s("value"), typeof args["timeoutMs"] === "number" ? args["timeoutMs"] : 30_000) }));
+        return withTab(tabId, async (c) => ({
+          ok: true,
+          waitedMs: await waitFor(
+            c,
+            s("until") ?? "load",
+            s("value"),
+            typeof args["timeoutMs"] === "number" ? args["timeoutMs"] : 30_000,
+          ),
+        }));
       case "chrome_click":
         return withTab(tabId, async (c) => {
           const button = s("button") === "right" ? "right" : s("button") === "middle" ? "middle" : "left";
@@ -410,19 +678,33 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
           let y = Number(args["y"]);
           let outward = false;
           let label = "";
-          if (typeof args["ref"] === "string") { const l = await locate(c, args["ref"]); ({ x, y, outward, label } = l); }
-          if (outward) return { ok: true, heldId: hold(`Click "${label}"`, async () => withTab(tabId, async (c2) => mouse(c2, x, y, button))) };
+          if (typeof args["ref"] === "string") {
+            const l = await locate(c, args["ref"]);
+            ({ x, y, outward, label } = l);
+          }
+          if (outward)
+            return {
+              ok: true,
+              heldId: hold(`Click "${label}"`, async () => withTab(tabId, async (c2) => mouse(c2, x, y, button))),
+            };
           await mouse(c, x, y, button);
           return { ok: true };
         });
       case "chrome_type": {
         return withTab(tabId, async (c) => {
-          if (typeof args["ref"] === "string") { const l = await locate(c, args["ref"]); await mouse(c, l.x, l.y); }
+          if (typeof args["ref"] === "string") {
+            const l = await locate(c, args["ref"]);
+            await mouse(c, l.x, l.y);
+          }
           await c.send("Input.insertText", { text: s("text") ?? "" });
           if (args["submit"] === true) {
             const doIt = async (cc: Cdp): Promise<void> => key(cc, "Enter");
             const risky = typeof args["ref"] === "string" && (await locate(c, args["ref"])).outward;
-            if (risky) return { ok: true, heldId: hold("Press Enter in a field that sends something", async () => withTab(tabId, doIt)) };
+            if (risky)
+              return {
+                ok: true,
+                heldId: hold("Press Enter in a field that sends something", async () => withTab(tabId, doIt)),
+              };
             await doIt(c);
           }
           return { ok: true };
@@ -435,7 +717,10 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
           for (const f of fields) {
             const l = await locate(c, f.ref);
             await mouse(c, l.x, l.y);
-            await evalIn(c, `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(f.ref)}]'); if (el && el.select) el.select(); })()`);
+            await evalIn(
+              c,
+              `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(f.ref)}]'); if (el && el.select) el.select(); })()`,
+            );
             await c.send("Input.insertText", { text: f.value });
             n += 1;
           }
@@ -448,14 +733,28 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
           const ref = s("ref");
           const l = ref ? await locate(c, ref) : null;
           const outward = l?.outward === true && (action === "click" || action === "double_click");
-          if (outward && l) return { ok: true, heldId: hold(`Click "${l.label}"`, async () => withTab(tabId, async (c2) => mouse(c2, l.x, l.y))) };
+          if (outward && l)
+            return {
+              ok: true,
+              heldId: hold(`Click "${l.label}"`, async () => withTab(tabId, async (c2) => mouse(c2, l.x, l.y))),
+            };
           if (action === "click" && l) await mouse(c, l.x, l.y);
           else if (action === "double_click" && l) await mouse(c, l.x, l.y, "left", 2);
-          else if (action === "hover" && l) await c.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: l.x, y: l.y });
-          else if (action === "focus" && ref) await evalIn(c, `document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]').focus()`);
+          else if (action === "hover" && l)
+            await c.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: l.x, y: l.y });
+          else if (action === "focus" && ref)
+            await evalIn(c, `document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]').focus()`);
           else if (action === "press") await key(c, s("value") ?? "");
-          else if ((action === "check" || action === "uncheck") && ref) await evalIn(c, `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]'); if (el.checked !== ${action === "check"}) el.click(); })()`);
-          else if (action === "select" && ref) await evalIn(c, `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]'); el.value = ${JSON.stringify(s("value") ?? "")}; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+          else if ((action === "check" || action === "uncheck") && ref)
+            await evalIn(
+              c,
+              `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]'); if (el.checked !== ${action === "check"}) el.click(); })()`,
+            );
+          else if (action === "select" && ref)
+            await evalIn(
+              c,
+              `(() => { const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]'); el.value = ${JSON.stringify(s("value") ?? "")}; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); })()`,
+            );
           else if (action === "scroll") await evalIn(c, `window.scrollBy(0, ${Number(s("value")) || 600})`);
           else throw badInput(`I cannot ${action}${ref ? "" : " without an element"}.`);
           return { ok: true };
@@ -476,9 +775,24 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         const rows = log.net.filter((r) => !filter || r.url.includes(filter)).slice(-limit);
         const requests = [];
         for (const r of rows) {
-          const row: Record<string, unknown> = { url: r.url, method: r.method, ...(r.status !== undefined ? { status: r.status } : {}), type: r.type, at: r.at };
+          const row: Record<string, unknown> = {
+            url: r.url,
+            method: r.method,
+            ...(r.status !== undefined ? { status: r.status } : {}),
+            type: r.type,
+            at: r.at,
+          };
           if (args["bodies"] === true && r.status !== undefined) {
-            try { const b = await log.conn.send<{ body: string; base64Encoded: boolean }>("Network.getResponseBody", { requestId: r.id }, 5000); if (!b.base64Encoded) row["body"] = b.body.slice(0, 20_000); } catch { /* gone from the browser's cache */ }
+            try {
+              const b = await log.conn.send<{ body: string; base64Encoded: boolean }>(
+                "Network.getResponseBody",
+                { requestId: r.id },
+                5000,
+              );
+              if (!b.base64Encoded) row["body"] = b.body.slice(0, 20_000);
+            } catch {
+              /* gone from the browser's cache */
+            }
           }
           requests.push(row);
         }
@@ -486,27 +800,40 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
       }
       case "chrome_inspect":
         return withTab(tabId, async (c) => {
-          const r = await evalIn<Record<string, unknown> | null>(c, `(() => {
+          const r = await evalIn<Record<string, unknown> | null>(
+            c,
+            `(() => {
             const el = document.querySelector('[data-vyre-ref=${JSON.stringify(s("ref") ?? "")}]');
             if (!el) return null;
             const b = el.getBoundingClientRect(); const cs = getComputedStyle(el);
             const attrs = {}; for (const a of el.attributes) if (a.name !== "data-vyre-ref" && a.name !== "value" || el.type !== "password") attrs[a.name] = el.type === "password" && a.name === "value" ? "" : a.value.slice(0, 300);
             return { tag: el.tagName.toLowerCase(), id: el.id, classes: [...el.classList], text: (el.innerText || "").slice(0, 500), attributes: attrs, rect: { x: b.left, y: b.top, width: b.width, height: b.height },
               visible: b.width > 0 && b.height > 0 && cs.visibility !== "hidden" && cs.display !== "none", styles: { color: cs.color, background: cs.backgroundColor, display: cs.display, position: cs.position, fontSize: cs.fontSize } };
-          })()`);
+          })()`,
+          );
           if (!r) throw notFound(`There is no element ${s("ref") ?? ""} on this page. Take a new snapshot.`);
           return { element: r };
         });
       case "chrome_sources": {
         const t = await pick(tabId);
         const log = await watch(t);
-        const scripts = await withTab(tabId, (c) => evalIn<string[]>(c, "[...document.scripts].map((x) => x.src).filter(Boolean)"));
-        const endpoints = [...new Set(log.net.filter((r) => r.type === "XHR" || r.type === "Fetch").map((r) => `${r.method} ${r.url.split("?")[0]}`))].slice(0, 200);
+        const scripts = await withTab(tabId, (c) =>
+          evalIn<string[]>(c, "[...document.scripts].map((x) => x.src).filter(Boolean)"),
+        );
+        const endpoints = [
+          ...new Set(
+            log.net
+              .filter((r) => r.type === "XHR" || r.type === "Fetch")
+              .map((r) => `${r.method} ${r.url.split("?")[0]}`),
+          ),
+        ].slice(0, 200);
         return { scripts, endpoints };
       }
       case "chrome_api":
         return withTab(tabId, async (c) => {
-          const r = await evalIn<{ status: number; headers: Record<string, string>; body: unknown }>(c, `(async () => {
+          const r = await evalIn<{ status: number; headers: Record<string, string>; body: unknown }>(
+            c,
+            `(async () => {
             const init = { method: ${JSON.stringify(s("method") ?? "GET")}, credentials: "include", headers: ${JSON.stringify(args["headers"] ?? {})} };
             const body = ${JSON.stringify(args["body"] ?? null)};
             if (body !== null) { init.body = typeof body === "string" ? body : JSON.stringify(body); if (typeof body !== "string" && !Object.keys(init.headers).some((k) => k.toLowerCase() === "content-type")) init.headers["content-type"] = "application/json"; }
@@ -514,7 +841,8 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
             const text = await res.text(); let parsed = text; try { parsed = JSON.parse(text); } catch {}
             const headers = {}; res.headers.forEach((v, k) => { headers[k] = v; });
             return { status: res.status, headers, body: typeof parsed === "string" ? parsed.slice(0, 200000) : parsed };
-          })()`);
+          })()`,
+          );
           return { status: r.status, headers: r.headers, body: r.body };
         });
       case "chrome_send": {
@@ -534,18 +862,45 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
     port: PIPE ? null : PORT,
     ready: start,
     alive: () => proc !== null && proc.exitCode === null,
-    tabs: async () => { try { return await targets(); } catch { return []; } },
-    browser: async () => { await start(); return browserConn(); },
-    attach: async (targetId) => { await start(); return connect({ id: targetId, type: "page", url: "", title: "", ...(PIPE ? {} : { webSocketDebuggerUrl: `ws://127.0.0.1:${PORT}/devtools/page/${targetId}` }) }); },
+    tabs: async () => {
+      try {
+        return await targets();
+      } catch {
+        return [];
+      }
+    },
+    browser: async () => {
+      await start();
+      return browserConn();
+    },
+    attach: async (targetId) => {
+      await start();
+      return connect({
+        id: targetId,
+        type: "page",
+        url: "",
+        title: "",
+        ...(PIPE ? {} : { webSocketDebuggerUrl: `ws://127.0.0.1:${PORT}/devtools/page/${targetId}` }),
+      });
+    },
     tool,
-    page: async () => { await start(); return connect(await pick(undefined)); },
+    page: async () => {
+      await start();
+      return connect(await pick(undefined));
+    },
     heldIds: () => [...held.keys()],
     extension: async () => {
       let workers = 0;
-      try { workers = (await allTargets()).filter((t) => t.url.startsWith("chrome-extension://")).length; } catch { /* the browser is not up */ }
+      try {
+        workers = (await allTargets()).filter((t) => t.url.startsWith("chrome-extension://")).length;
+      } catch {
+        /* the browser is not up */
+      }
       return extensionStatus(extensionDir !== null && existsSync(join(extensionDir, "manifest.json")), workers);
     },
-    stop() { proc?.kill("SIGTERM"); },
+    stop() {
+      proc?.kill("SIGTERM");
+    },
     async shutdown() {
       const p = proc;
       if (!p || p.exitCode !== null) return;
@@ -553,7 +908,9 @@ export function launchChrome(screen: Screen | null, profileDir: string, extensio
         const c = await browserConn();
         await c.send("Browser.close", {}, 3000).catch(() => undefined);
         c.close();
-      } catch { /* not answering: it is stopped below */ }
+      } catch {
+        /* not answering: it is stopped below */
+      }
       for (let i = 0; i < 50 && p.exitCode === null; i++) await sleep(100);
       if (p.exitCode === null) p.kill("SIGTERM");
     },

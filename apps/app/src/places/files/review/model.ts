@@ -49,7 +49,8 @@ export function baseLine(cs: Pick<Changeset, "baseVersion">): string {
 }
 
 /** The three-way merge, said once, on hover and for a screen reader. */
-export const BASE_HELP = "If a file changed since, Vyre merges both edits in three parts (base, theirs, yours) and asks only where the same lines changed.";
+export const BASE_HELP =
+  "If a file changed since, Vyre merges both edits in three parts (base, theirs, yours) and asks only where the same lines changed.";
 
 export const APPROVE_LABEL = "Approve and commit";
 
@@ -62,7 +63,10 @@ export function requestLabel(unsent: number): string {
 
 export type GateState = "waiting" | "cleared" | "cancelled";
 
-export interface GateView { branch: string; state: GateState }
+export interface GateView {
+  branch: string;
+  state: GateState;
+}
 
 /** A protected branch is not pushed to without the Gate: the row shows while the folder is a repository on a protected branch. */
 export function needsGate(status: Pick<StatusOut, "isRepo" | "protected"> | undefined): boolean {
@@ -82,7 +86,9 @@ export function approveBlocked(gate: GateView | null): boolean {
 
 export function blockedReason(gate: GateView | null): string {
   if (gate === null || gate.state === "cleared") return "";
-  return gate.state === "cancelled" ? `Approve the push to ${gate.branch} first, or commit without pushing` : `Waiting for the Gate on ${gate.branch}`;
+  return gate.state === "cancelled"
+    ? `Approve the push to ${gate.branch} first, or commit without pushing`
+    : `Waiting for the Gate on ${gate.branch}`;
 }
 
 /* ---------- the git row ---------- */
@@ -100,10 +106,17 @@ export function changesWords(s: Pick<StatusOut, "changes" | "clean">): string {
 }
 
 /** The branches to switch to: local ones first, the current one marked. */
-export function branchChoices(b: BranchesOut): readonly { name: string; current: boolean; protected: boolean; remote: boolean }[] {
+export function branchChoices(
+  b: BranchesOut,
+): readonly { name: string; current: boolean; protected: boolean; remote: boolean }[] {
   const local = b.branches.filter((x) => !x.remote);
   const remote = b.branches.filter((x) => x.remote && !local.some((l) => l.name === x.name));
-  return [...local, ...remote].map((x) => ({ name: x.name, current: x.name === b.current, protected: x.protected, remote: x.remote }));
+  return [...local, ...remote].map((x) => ({
+    name: x.name,
+    current: x.name === b.current,
+    protected: x.protected,
+    remote: x.remote,
+  }));
 }
 
 /* ---------- diffs ---------- */
@@ -131,14 +144,31 @@ export function hunksFrom(h: RawHunk, joiner = "\n"): DiffHunk[] {
   const flush = (): void => {
     if (!del.length && !add.length) return;
     const before = text(ctx);
-    out.push({ id: out.length === 0 ? h.hunkId : `${h.hunkId}.${out.length + 1}`, context: `Line ${startAt}`, removed: text(del), added: text(add), ...(before ? { before } : {}) });
+    out.push({
+      id: out.length === 0 ? h.hunkId : `${h.hunkId}.${out.length + 1}`,
+      context: `Line ${startAt}`,
+      removed: text(del),
+      added: text(add),
+      ...(before ? { before } : {}),
+    });
     ctx = [];
     del = [];
     add = [];
   };
   for (const l of lines) {
-    if (l.op === "ctx") { if (del.length || add.length) flush(); if (!ctx.length) startAt = newLine; ctx.push(l); newLine++; }
-    else { if (!del.length && !add.length && !ctx.length) startAt = newLine; if (l.op === "del") del.push(l); else { add.push(l); newLine++; } }
+    if (l.op === "ctx") {
+      if (del.length || add.length) flush();
+      if (!ctx.length) startAt = newLine;
+      ctx.push(l);
+      newLine++;
+    } else {
+      if (!del.length && !add.length && !ctx.length) startAt = newLine;
+      if (l.op === "del") del.push(l);
+      else {
+        add.push(l);
+        newLine++;
+      }
+    }
   }
   flush();
   const after = text(ctx);
@@ -153,22 +183,39 @@ export function hunkOf(h: RawHunk, joiner = "\n"): DiffHunk {
 }
 
 /** One file's diff out of files.diff, changesets.diff or git.show. An image has no lines: its two addresses ride in the one hunk, removed (before) and added (after). */
-export function diffFileOf(path: string, out: Pick<DiffOut, "kind" | "added" | "removed" | "hunks"> & { images?: DiffOut["images"] }): DiffFile {
+export function diffFileOf(
+  path: string,
+  out: Pick<DiffOut, "kind" | "added" | "removed" | "hunks"> & { images?: DiffOut["images"] },
+): DiffFile {
   const body = bodyOf(out.kind, path);
-  const hunks: DiffHunk[] = body === "image" && out.images
-    ? [{ id: `${path}:image`, context: "Image", removed: out.images.left ?? "", added: out.images.right ?? "" }]
-    : out.hunks.flatMap((h) => hunksFrom(h, body === "paragraph" ? "\n\n" : "\n"));
+  const hunks: DiffHunk[] =
+    body === "image" && out.images
+      ? [{ id: `${path}:image`, context: "Image", removed: out.images.left ?? "", added: out.images.right ?? "" }]
+      : out.hunks.flatMap((h) => hunksFrom(h, body === "paragraph" ? "\n\n" : "\n"));
   return { path, added: out.added, removed: out.removed, body, hunks };
 }
 
 /** The files of a commit (git.show gives one list of hunks for the whole commit, so they go to the file they belong to when there is one file, else to the first). */
 export function commitFiles(show: CapMap["git.show"]["out"], onlyPath?: string): DiffFile[] {
   const files = onlyPath ? show.files.filter((f) => f.path === onlyPath) : show.files;
-  return files.map((f, i): DiffFile => ({ path: f.path, added: f.added, removed: f.removed, body: "text", hunks: i === 0 ? show.hunks.flatMap((h) => hunksFrom(h)) : [] }));
+  return files.map(
+    (f, i): DiffFile => ({
+      path: f.path,
+      added: f.added,
+      removed: f.removed,
+      body: "text",
+      hunks: i === 0 ? show.hunks.flatMap((h) => hunksFrom(h)) : [],
+    }),
+  );
 }
 
 /** The comments of a changeset placed on a hunk: the one whose text holds the quote, else the file's first change. */
-export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile[], nameOf: (id: string) => string, now?: number): DiffComment[] {
+export function commentsOf(
+  rows: readonly CommentRow[],
+  files: readonly DiffFile[],
+  nameOf: (id: string) => string,
+  now?: number,
+): DiffComment[] {
   const out: DiffComment[] = [];
   for (const c of rows) {
     const file = files.find((f) => f.path === c.anchor.path) ?? files[0];
@@ -177,7 +224,13 @@ export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile
     const hit = quote ? file.hunks.find((h) => h.added.includes(quote) || h.removed.includes(quote)) : undefined;
     const hunk = hit ?? file.hunks[0];
     if (!hunk) continue;
-    out.push({ id: c.commentId, hunkId: hunk.id, author: now === undefined ? nameOf(c.by) : `${nameOf(c.by)} \u00b7 ${stamp(c.at, now)}`, body: c.text, mentions: c.mentions.map(nameOf) });
+    out.push({
+      id: c.commentId,
+      hunkId: hunk.id,
+      author: now === undefined ? nameOf(c.by) : `${nameOf(c.by)} \u00b7 ${stamp(c.at, now)}`,
+      body: c.text,
+      mentions: c.mentions.map(nameOf),
+    });
   }
   return out;
 }
@@ -187,26 +240,55 @@ export function commentsOf(rows: readonly CommentRow[], files: readonly DiffFile
 /** The versions of a file as ui/HistoryTab rows. A version is undoable only while it is the current one. */
 export function historyVersions(rows: readonly VersionRow[], nameOf: (id: string) => string): HistoryVersion[] {
   const top = rows.reduce((n, r) => Math.max(n, r.n), 0);
-  return rows.map((r): HistoryVersion => ({
-    id: r.versionId, n: r.n, who: nameOf(r.by), why: r.name ?? r.reason ?? "", at: new Date(r.at).toISOString(), runId: null, undoable: r.n === top,
-  }));
+  return rows.map(
+    (r): HistoryVersion => ({
+      id: r.versionId,
+      n: r.n,
+      who: nameOf(r.by),
+      why: r.name ?? r.reason ?? "",
+      at: new Date(r.at).toISOString(),
+      runId: null,
+      undoable: r.n === top,
+    }),
+  );
 }
 
 /** Naming a version: an empty name clears it. */
-export function nameInput(fileId: string, versionId: string, name: string): { fileId: string; versionId: string; name: string } {
+export function nameInput(
+  fileId: string,
+  versionId: string,
+  name: string,
+): { fileId: string; versionId: string; name: string } {
   return { fileId, versionId, name: name.trim() };
 }
 
 /* ---------- the lint bar ---------- */
 
 export type Sev = "ok" | "warn" | "err" | "info";
-export interface LintPlace { line: number; msg: string }
-export interface LintItem { k: string; sev: Sev; label: string; tip: string; line: number; list: readonly LintPlace[] }
+export interface LintPlace {
+  line: number;
+  msg: string;
+}
+export interface LintItem {
+  k: string;
+  sev: Sev;
+  label: string;
+  tip: string;
+  line: number;
+  list: readonly LintPlace[];
+}
 
 /** The words the Space's check accepts as "this agent follows VYRE.md" (modules/files/handlers/lint.ts INHERITS; the app does not import modules, so the same words are here). */
-export const INHERITS_LINE = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
+export const INHERITS_LINE =
+  /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
 
-export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = { vyre_md: 120, agent_md: 150, agent_toml: null, routine_prompt: 150, other: null };
+export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = {
+  vyre_md: 120,
+  agent_md: 150,
+  agent_toml: null,
+  routine_prompt: 150,
+  other: null,
+};
 
 /** What the bar shows: lines against the limit, Inherits VYRE.md, Override: lines, a secret scan, and any other problem the check found. */
 export function lintItems(out: LintOut, text?: string): LintItem[] {
@@ -215,29 +297,76 @@ export function lintItems(out: LintOut, text?: string): LintItem[] {
   const limit = LINE_LIMITS[out.file];
   if (limit !== null) {
     const sev: Sev = out.lines > 200 ? "err" : out.lines > limit ? "warn" : "ok";
-    items.push({ k: "len", sev, label: `${out.lines} / ${limit} lines`, line: Math.min(out.lines, limit + 1), list: [], tip: out.lines > 200 ? "Over 200 lines is an error" : out.lines > limit ? `Over ${limit} lines: move steps into a skill or knowledge/` : `Limit ${limit} lines` });
+    items.push({
+      k: "len",
+      sev,
+      label: `${out.lines} / ${limit} lines`,
+      line: Math.min(out.lines, limit + 1),
+      list: [],
+      tip:
+        out.lines > 200
+          ? "Over 200 lines is an error"
+          : out.lines > limit
+            ? `Over ${limit} lines: move steps into a skill or knowledge/`
+            : `Limit ${limit} lines`,
+    });
   } else items.push({ k: "len", sev: "ok", label: plural(out.lines, "line", "lines"), line: 1, list: [], tip: "" });
   if (out.file === "agent_md") {
     // the chip jumps to the line that says it (the check answers yes or no; the line is found here, with the same words the check accepts)
     const at = text === undefined ? -1 : text.split("\n").findIndex((l) => INHERITS_LINE.test(l));
-    items.push({ k: "inherits", sev: out.inherits ? "ok" : "warn", label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md", line: out.inherits ? (at >= 0 ? at + 1 : 1) : 3, list: [], tip: "Say 'Follows VYRE.md' or 'Inherits: VYRE.md' near the top" });
+    items.push({
+      k: "inherits",
+      sev: out.inherits ? "ok" : "warn",
+      label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md",
+      line: out.inherits ? (at >= 0 ? at + 1 : 1) : 3,
+      list: [],
+      tip: "Say 'Follows VYRE.md' or 'Inherits: VYRE.md' near the top",
+    });
   }
   if (out.file === "agent_md" || out.file === "vyre_md") {
     const list = out.overrides.map((o): LintPlace => ({ line: o.line, msg: o.text }));
-    items.push({ k: "overrides", sev: list.length ? "info" : "ok", label: list.length ? plural(list.length, "override", "overrides") : "No overrides", line: list[0]?.line ?? 1, list, tip: "Only an Override: line may loosen a VYRE.md rule" });
+    items.push({
+      k: "overrides",
+      sev: list.length ? "info" : "ok",
+      label: list.length ? plural(list.length, "override", "overrides") : "No overrides",
+      line: list[0]?.line ?? 1,
+      list,
+      tip: "Only an Override: line may loosen a VYRE.md rule",
+    });
   }
   if (out.file === "agent_md") {
     const dups = out.problems.filter((p) => p.rule === "duplicates" || p.rule === "dups");
-    items.push({ k: "dups", sev: dups.length ? "warn" : "ok", label: dups.length ? `${dups.length} also in agent.toml` : "Nothing repeated from agent.toml", line: dups[0]?.line ?? 1, list: dups.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message })), tip: "Model names, limits, tools and vault keys live in agent.toml only" });
+    items.push({
+      k: "dups",
+      sev: dups.length ? "warn" : "ok",
+      label: dups.length ? `${dups.length} also in agent.toml` : "Nothing repeated from agent.toml",
+      line: dups[0]?.line ?? 1,
+      list: dups.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message })),
+      tip: "Model names, limits, tools and vault keys live in agent.toml only",
+    });
   }
   const secrets = out.secrets.map((s): LintPlace => ({ line: s.line, msg: `Possible ${s.kind}` }));
-  items.push({ k: "secrets", sev: secrets.length ? "err" : "ok", label: secrets.length ? plural(secrets.length, "possible secret", "possible secrets") : "No secrets", line: secrets[0]?.line ?? 1, list: secrets, tip: "Never put a secret in a file; use the vault key name" });
+  items.push({
+    k: "secrets",
+    sev: secrets.length ? "err" : "ok",
+    label: secrets.length ? plural(secrets.length, "possible secret", "possible secrets") : "No secrets",
+    line: secrets[0]?.line ?? 1,
+    list: secrets,
+    tip: "Never put a secret in a file; use the vault key name",
+  });
   const problems = out.problems.filter((p) => p.rule !== "duplicates" && p.rule !== "dups");
   const list = problems.map((p): LintPlace => ({ line: p.line ?? 1, msg: p.message }));
   const errs = problems.filter((p) => p.severity === "error").length;
   const warns = problems.filter((p) => p.severity === "warn").length;
   if (problems.length) {
-    items.push({ k: "problems", sev: errs ? "err" : warns ? "warn" : "info", label: plural(problems.length, "problem", "problems"), line: list[0]?.line ?? 1, list, tip: "" });
+    items.push({
+      k: "problems",
+      sev: errs ? "err" : warns ? "warn" : "info",
+      label: plural(problems.length, "problem", "problems"),
+      line: list[0]?.line ?? 1,
+      list,
+      tip: "",
+    });
   }
   return items;
 }
@@ -260,31 +389,64 @@ function tomlLintItems(out: LintOut, text: string | undefined): LintItem[] {
   const warns = schema.filter((p) => p.severity === "warn");
   const sList = [...errs, ...warns].map(place);
   const found = text === undefined ? [] : parseToml(text);
-  const blocks = text === undefined ? 0 : text.split("\n").filter((l) => /^\s*\[\[(routines|watchers)\]\]/.test(l)).length;
+  const blocks =
+    text === undefined ? 0 : text.split("\n").filter((l) => /^\s*\[\[(routines|watchers)\]\]/.test(l)).length;
   const lineOf = (section: string): number => found.find((e) => e.section === section)?.line ?? 1;
   const items: LintItem[] = [];
   items.push({
-    k: "schema", sev: errs.length ? "err" : warns.length ? "warn" : "ok", line: sList[0]?.line ?? 1, list: sList, tip: "Unknown keys warn, they never crash",
-    label: errs.length ? plural(errs.length, "schema error", "schema errors") : warns.length ? `Schema valid, ${plural(warns.length, "warning", "warnings")}` : "Schema valid",
+    k: "schema",
+    sev: errs.length ? "err" : warns.length ? "warn" : "ok",
+    line: sList[0]?.line ?? 1,
+    list: sList,
+    tip: "Unknown keys warn, they never crash",
+    label: errs.length
+      ? plural(errs.length, "schema error", "schema errors")
+      : warns.length
+        ? `Schema valid, ${plural(warns.length, "warning", "warnings")}`
+        : "Schema valid",
   });
   const rList = routine.map(place);
   items.push({
-    k: "routines", sev: routine.length ? "err" : "ok", line: rList[0]?.line ?? lineOf("routines[]"), list: rList, tip: "Each routine and watcher names a prompt file that exists next to agent.toml",
-    label: routine.length ? `${routine.length} routine ${routine.length === 1 ? "prompt" : "prompts"} missing` : blocks > 0 ? `Routine prompts exist (${blocks} of ${blocks})` : text === undefined ? "Routine prompts exist" : "No routines",
+    k: "routines",
+    sev: routine.length ? "err" : "ok",
+    line: rList[0]?.line ?? lineOf("routines[]"),
+    list: rList,
+    tip: "Each routine and watcher names a prompt file that exists next to agent.toml",
+    label: routine.length
+      ? `${routine.length} routine ${routine.length === 1 ? "prompt" : "prompts"} missing`
+      : blocks > 0
+        ? `Routine prompts exist (${blocks} of ${blocks})`
+        : text === undefined
+          ? "Routine prompts exist"
+          : "No routines",
   });
   const hList = handoff.map(place);
   items.push({
-    k: "handoff", sev: handoff.length ? "warn" : "ok", line: hList[0]?.line ?? lineOf("handoff"), list: hList, tip: "Every name in the handoff lists is an agent or person of this Space",
-    label: handoff.length ? `${handoff.length} unknown ${handoff.length === 1 ? "name" : "names"}` : "Handoff names exist",
+    k: "handoff",
+    sev: handoff.length ? "warn" : "ok",
+    line: hList[0]?.line ?? lineOf("handoff"),
+    list: hList,
+    tip: "Every name in the handoff lists is an agent or person of this Space",
+    label: handoff.length
+      ? `${handoff.length} unknown ${handoff.length === 1 ? "name" : "names"}`
+      : "Handoff names exist",
   });
   const dList = dups.map(place);
   items.push({
-    k: "dups", sev: dups.length ? "warn" : "ok", line: dList[0]?.line ?? 1, list: dList, tip: "A rule lives in agent.toml or in AGENT.md, not both",
+    k: "dups",
+    sev: dups.length ? "warn" : "ok",
+    line: dList[0]?.line ?? 1,
+    list: dList,
+    tip: "A rule lives in agent.toml or in AGENT.md, not both",
     label: dups.length ? `${dups.length} also in AGENT.md` : "Nothing repeated in AGENT.md",
   });
   const secrets = out.secrets.map((x): LintPlace => ({ line: x.line, msg: `Possible ${x.kind}` }));
   items.push({
-    k: "secrets", sev: secrets.length ? "err" : "ok", line: secrets[0]?.line ?? 1, list: secrets, tip: "Never put a secret in a file; use the vault key name",
+    k: "secrets",
+    sev: secrets.length ? "err" : "ok",
+    line: secrets[0]?.line ?? 1,
+    list: secrets,
+    tip: "Never put a secret in a file; use the vault key name",
     label: secrets.length ? plural(secrets.length, "possible secret", "possible secrets") : "No secrets",
   });
   return items;
@@ -343,13 +505,19 @@ export function parseToml(text: string): TomlEntry[] {
     const l = (lines[i] ?? "").trim();
     if (!l || l.startsWith("#")) continue;
     const head = /^\[\[?([^\]]+)\]\]?\s*(#.*)?$/.exec(l);
-    if (head) { section = (head[1] ?? "").trim() + (l.startsWith("[[") ? "[]" : ""); continue; }
+    if (head) {
+      section = (head[1] ?? "").trim() + (l.startsWith("[[") ? "[]" : "");
+      continue;
+    }
     const kv = /^([A-Za-z0-9_.-]+|"[^"]*")\s*=\s*(.*)$/.exec(l);
     if (!kv) continue;
     let raw = (kv[2] ?? "").replace(/\s+#[^"]*$/, "").trim();
     let end = i + 1;
     if (raw.startsWith("[") && depth(raw) > 0) {
-      while (depth(raw) > 0 && end < lines.length) { raw += ` ${(lines[end] ?? "").trim()}`; end++; }
+      while (depth(raw) > 0 && end < lines.length) {
+        raw += ` ${(lines[end] ?? "").trim()}`;
+        end++;
+      }
     }
     out.push({ line: i + 1, end, section, key: (kv[1] ?? "").replaceAll('"', ""), raw });
     i = end - 1;
@@ -362,7 +530,8 @@ export function tomlGroups(entries: readonly TomlEntry[]): { section: string; en
   const groups: { section: string; entries: TomlEntry[] }[] = [];
   for (const e of entries) {
     const g = groups.find((x) => x.section === e.section);
-    if (g) g.entries.push(e); else groups.push({ section: e.section, entries: [e] });
+    if (g) g.entries.push(e);
+    else groups.push({ section: e.section, entries: [e] });
   }
   return groups;
 }
@@ -404,14 +573,20 @@ export function diffLines(a: readonly string[], b: readonly string[]): DiffOp[] 
   while (s < a.length && s < b.length && a[s] === b[s]) s++;
   let ea = a.length;
   let eb = b.length;
-  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) {
+    ea--;
+    eb--;
+  }
   const head: DiffOp[] = a.slice(0, s).map((text) => ({ op: "ctx", text }));
   const tail: DiffOp[] = a.slice(ea).map((text) => ({ op: "ctx", text }));
   const A = a.slice(s, ea);
   const B = b.slice(s, eb);
   const n = A.length;
   const m = B.length;
-  const replaced = (): DiffOp[] => [...A.map((text): DiffOp => ({ op: "del", text })), ...B.map((text): DiffOp => ({ op: "add", text }))];
+  const replaced = (): DiffOp[] => [
+    ...A.map((text): DiffOp => ({ op: "del", text })),
+    ...B.map((text): DiffOp => ({ op: "add", text })),
+  ];
   if (n === 0 || m === 0) return [...head, ...replaced(), ...tail];
   const cap = Math.min(n + m, MAX_EDITS);
   const off = cap + 1;
@@ -420,11 +595,20 @@ export function diffLines(a: readonly string[], b: readonly string[]): DiffOp[] 
   let found = -1;
   for (let d = 0; d <= cap && found < 0; d++) {
     for (let k = -d; k <= d; k += 2) {
-      let x = k === -d || (k !== d && (v[k - 1 + off] ?? 0) < (v[k + 1 + off] ?? 0)) ? (v[k + 1 + off] ?? 0) : (v[k - 1 + off] ?? 0) + 1;
+      let x =
+        k === -d || (k !== d && (v[k - 1 + off] ?? 0) < (v[k + 1 + off] ?? 0))
+          ? (v[k + 1 + off] ?? 0)
+          : (v[k - 1 + off] ?? 0) + 1;
       let y = x - k;
-      while (x < n && y < m && A[x] === B[y]) { x++; y++; }
+      while (x < n && y < m && A[x] === B[y]) {
+        x++;
+        y++;
+      }
       v[k + off] = x;
-      if (x >= n && y >= m) { found = d; break; }
+      if (x >= n && y >= m) {
+        found = d;
+        break;
+      }
     }
     trace.push(v.slice(off - d - 1, off + d + 2));
   }
@@ -442,10 +626,24 @@ export function diffLines(a: readonly string[], b: readonly string[]): DiffOp[] 
     const py = px - pk;
     const sx = down ? px : px + 1;
     const sy = down ? py + 1 : py;
-    while (x > sx && y > sy) { rev.push({ op: "ctx", text: A[x - 1] ?? "" }); x--; y--; }
-    if (down) { rev.push({ op: "add", text: B[y - 1] ?? "" }); y--; } else { rev.push({ op: "del", text: A[x - 1] ?? "" }); x--; }
+    while (x > sx && y > sy) {
+      rev.push({ op: "ctx", text: A[x - 1] ?? "" });
+      x--;
+      y--;
+    }
+    if (down) {
+      rev.push({ op: "add", text: B[y - 1] ?? "" });
+      y--;
+    } else {
+      rev.push({ op: "del", text: A[x - 1] ?? "" });
+      x--;
+    }
   }
-  while (x > 0 && y > 0) { rev.push({ op: "ctx", text: A[x - 1] ?? "" }); x--; y--; }
+  while (x > 0 && y > 0) {
+    rev.push({ op: "ctx", text: A[x - 1] ?? "" });
+    x--;
+    y--;
+  }
   return [...head, ...rev.reverse(), ...tail];
 }
 
@@ -462,10 +660,12 @@ export function diffNote(saved: string, draft: string): string | null {
   const x = eolOf(saved);
   const y = eolOf(draft);
   const notes: string[] = [];
-  if (x !== y && x !== "none" && y !== "none") notes.push(`Line endings changed from ${x} to ${y}. The lines below are compared without them.`);
+  if (x !== y && x !== "none" && y !== "none")
+    notes.push(`Line endings changed from ${x} to ${y}. The lines below are compared without them.`);
   const endA = lf(saved).endsWith("\n");
   const endB = lf(draft).endsWith("\n");
-  if (saved !== "" && draft !== "" && endA !== endB) notes.push(endB ? "A final newline was added." : "The final newline was removed.");
+  if (saved !== "" && draft !== "" && endA !== endB)
+    notes.push(endB ? "A final newline was added." : "The final newline was removed.");
   return notes.length > 0 ? notes.join(" ") : null;
 }
 
@@ -483,9 +683,15 @@ export function lineHunks(saved: string, draft: string): DiffHunk[] {
   let at = 0;
   let newLine = 1;
   const newLineAt: number[] = [];
-  for (const o of ops) { newLineAt.push(newLine); if (o.op !== "del") newLine++; }
+  for (const o of ops) {
+    newLineAt.push(newLine);
+    if (o.op !== "del") newLine++;
+  }
   while (at < ops.length) {
-    if (ops[at]?.op === "ctx") { at++; continue; }
+    if (ops[at]?.op === "ctx") {
+      at++;
+      continue;
+    }
     let end = at;
     while (end < ops.length && ops[end]?.op !== "ctx") end++;
     const lead = ops.slice(Math.max(0, at - CONTEXT), at).filter((o) => o.op === "ctx");
@@ -495,9 +701,12 @@ export function lineHunks(saved: string, draft: string): DiffHunk[] {
     const before = text(lead);
     const after = text(trail);
     hunks.push({
-      id: `h${hunks.length + 1}`, context: `Line ${newLineAt[at] ?? 1}`,
-      removed: text(mid.filter((o) => o.op === "del")), added: text(mid.filter((o) => o.op === "add")),
-      ...(before ? { before } : {}), ...(after ? { after } : {}),
+      id: `h${hunks.length + 1}`,
+      context: `Line ${newLineAt[at] ?? 1}`,
+      removed: text(mid.filter((o) => o.op === "del")),
+      added: text(mid.filter((o) => o.op === "add")),
+      ...(before ? { before } : {}),
+      ...(after ? { after } : {}),
     });
     at = end;
   }
@@ -507,7 +716,13 @@ export function lineHunks(saved: string, draft: string): DiffHunk[] {
 export function draftDiff(path: string, saved: string, draft: string): DiffFile {
   const hunks = lineHunks(saved, draft);
   const count = (s: string): number => (s ? s.split("\n").length : 0);
-  return { path, added: hunks.reduce((n, h) => n + count(h.added), 0), removed: hunks.reduce((n, h) => n + count(h.removed), 0), body: "text", hunks };
+  return {
+    path,
+    added: hunks.reduce((n, h) => n + count(h.added), 0),
+    removed: hunks.reduce((n, h) => n + count(h.removed), 0),
+    body: "text",
+    hunks,
+  };
 }
 
 /* ---------- words for a failed press ---------- */
@@ -526,19 +741,51 @@ export function errorWords(e: unknown, what: string): string {
 /** A suggestion's unified diff as hunks: each "@@" starts one; " " lines are context, "-" removed, "+" added. */
 export function suggestionHunks(diff: string): DiffHunk[] {
   const hunks: DiffHunk[] = [];
-  let cur: { id: string; context: string; before: string[]; removed: string[]; added: string[]; after: string[]; seen: boolean } | null = null;
+  let cur: {
+    id: string;
+    context: string;
+    before: string[];
+    removed: string[];
+    added: string[];
+    after: string[];
+    seen: boolean;
+  } | null = null;
   const flush = (): void => {
     if (!cur) return;
     const before = cur.before.join("\n");
     const after = cur.after.join("\n");
-    hunks.push({ id: cur.id, context: cur.context, removed: cur.removed.join("\n"), added: cur.added.join("\n"), ...(before ? { before } : {}), ...(after ? { after } : {}) });
+    hunks.push({
+      id: cur.id,
+      context: cur.context,
+      removed: cur.removed.join("\n"),
+      added: cur.added.join("\n"),
+      ...(before ? { before } : {}),
+      ...(after ? { after } : {}),
+    });
   };
   for (const l of diff.split("\n")) {
-    if (l.startsWith("@@")) { flush(); const m = /\+(\d+)/.exec(l); cur = { id: `s${hunks.length + 1}`, context: `Line ${m?.[1] ?? "1"}`, before: [], removed: [], added: [], after: [], seen: false }; continue; }
+    if (l.startsWith("@@")) {
+      flush();
+      const m = /\+(\d+)/.exec(l);
+      cur = {
+        id: `s${hunks.length + 1}`,
+        context: `Line ${m?.[1] ?? "1"}`,
+        before: [],
+        removed: [],
+        added: [],
+        after: [],
+        seen: false,
+      };
+      continue;
+    }
     if (!cur) continue;
-    if (l.startsWith("-")) { cur.removed.push(l.slice(1)); cur.seen = true; }
-    else if (l.startsWith("+")) { cur.added.push(l.slice(1)); cur.seen = true; }
-    else if (l.startsWith(" ")) (cur.seen ? cur.after : cur.before).push(l.slice(1));
+    if (l.startsWith("-")) {
+      cur.removed.push(l.slice(1));
+      cur.seen = true;
+    } else if (l.startsWith("+")) {
+      cur.added.push(l.slice(1));
+      cur.seen = true;
+    } else if (l.startsWith(" ")) (cur.seen ? cur.after : cur.before).push(l.slice(1));
   }
   flush();
   return hunks;
@@ -585,7 +832,10 @@ function applyHunks(text: string, diff: string, strict: boolean): string | null 
     const old = [...before, ...removed, ...after];
     let at = -1;
     for (let i = 0; i + old.length <= lines.length && at < 0; i++) if (old.every((l, k) => lines[i + k] === l)) at = i;
-    if (at < 0) { if (strict) return null; continue; }
+    if (at < 0) {
+      if (strict) return null;
+      continue;
+    }
     lines = [...lines.slice(0, at), ...before, ...split(h.added), ...after, ...lines.slice(at + old.length)];
   }
   return lines.join("\n");
@@ -597,18 +847,32 @@ export function humanKey(key: string): string {
   return w ? w.charAt(0).toUpperCase() + w.slice(1) : key;
 }
 
-export interface Choice { id: string; label: string }
+export interface Choice {
+  id: string;
+  label: string;
+}
 
 export const MODEL_CHOICES: readonly Choice[] = [
-  { id: "claude-opus-4-7", label: "Claude Opus 4.7" }, { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" }, { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
-  { id: "gpt-5", label: "GPT-5" }, { id: "kimi-k2", label: "Kimi K2" },
+  { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  { id: "gpt-5", label: "GPT-5" },
+  { id: "kimi-k2", label: "Kimi K2" },
 ];
 
 /** Keys of agent.toml that are a pick from a short list, not free text. A list key (fallback) is a list of one pick. */
 export const TOML_CHOICES: Readonly<Record<string, readonly Choice[]>> = {
-  primary: MODEL_CHOICES, fallback: MODEL_CHOICES,
-  effort: [{ id: "light", label: "Light" }, { id: "balanced", label: "Balanced" }, { id: "deep", label: "Deep" }],
-  mode: [{ id: "asker", label: "Whoever asks" }, { id: "owner", label: "The owner" }],
+  primary: MODEL_CHOICES,
+  fallback: MODEL_CHOICES,
+  effort: [
+    { id: "light", label: "Light" },
+    { id: "balanced", label: "Balanced" },
+    { id: "deep", label: "Deep" },
+  ],
+  mode: [
+    { id: "asker", label: "Whoever asks" },
+    { id: "owner", label: "The owner" },
+  ],
 };
 
 /** The choice a key currently holds, as its id (a one-item list gives its item). Null when the key is not a pick or holds something else. */
@@ -627,7 +891,11 @@ export function choiceRaw(id: string, list: boolean): string {
 export function stamp(at: number, now: number): string {
   const d = new Date(at);
   const n = new Date(now);
-  if (d.getUTCFullYear() === n.getUTCFullYear() && d.getUTCMonth() === n.getUTCMonth() && d.getUTCDate() === n.getUTCDate()) {
+  if (
+    d.getUTCFullYear() === n.getUTCFullYear() &&
+    d.getUTCMonth() === n.getUTCMonth() &&
+    d.getUTCDate() === n.getUTCDate()
+  ) {
     const h = d.getUTCHours();
     return `Today ${h % 12 === 0 ? 12 : h % 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
   }
@@ -638,7 +906,11 @@ export function stamp(at: number, now: number): string {
 
 /** A text as its paragraphs. */
 export function paragraphsOfText(text: string): string[] {
-  return text.replace(/\r\n/g, "\n").split(/\n{2,}/).map((p) => p.trim()).filter((p) => p.length > 0);
+  return text
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
 }
 
 /**
@@ -648,15 +920,26 @@ export function paragraphsOfText(text: string): string[] {
 export function wholeDocument(a: readonly string[], b: readonly string[]): DiffHunk[] {
   const w = b.length + 1;
   const t = new Uint32Array((a.length + 1) * w);
-  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) t[i * w + j] = a[i] === b[j] ? (t[(i + 1) * w + j + 1] ?? 0) + 1 : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = b.length - 1; j >= 0; j--)
+      t[i * w + j] =
+        a[i] === b[j] ? (t[(i + 1) * w + j + 1] ?? 0) + 1 : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
   type Op = { op: "ctx" | "del" | "add"; text: string };
   const ops: Op[] = [];
   let i = 0;
   let j = 0;
   while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { ops.push({ op: "ctx", text: a[i] ?? "" }); i++; j++; }
-    else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) { ops.push({ op: "del", text: a[i] ?? "" }); i++; }
-    else { ops.push({ op: "add", text: b[j] ?? "" }); j++; }
+    if (a[i] === b[j]) {
+      ops.push({ op: "ctx", text: a[i] ?? "" });
+      i++;
+      j++;
+    } else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) {
+      ops.push({ op: "del", text: a[i] ?? "" });
+      i++;
+    } else {
+      ops.push({ op: "add", text: b[j] ?? "" });
+      j++;
+    }
   }
   while (i < a.length) ops.push({ op: "del", text: a[i++] ?? "" });
   while (j < b.length) ops.push({ op: "add", text: b[j++] ?? "" });
@@ -668,13 +951,27 @@ export function wholeDocument(a: readonly string[], b: readonly string[]): DiffH
   const flush = (): void => {
     if (!removed.length && !added.length) return;
     const before = ctx.join("\n\n");
-    hunks.push({ id: `w${hunks.length + 1}`, context: `Paragraph ${at + 1}`, removed: removed.join("\n\n"), added: added.join("\n\n"), ...(before ? { before } : {}) });
+    hunks.push({
+      id: `w${hunks.length + 1}`,
+      context: `Paragraph ${at + 1}`,
+      removed: removed.join("\n\n"),
+      added: added.join("\n\n"),
+      ...(before ? { before } : {}),
+    });
     ctx = [];
     removed = [];
     added = [];
   };
   ops.forEach((o) => {
-    if (o.op === "ctx") { flush(); ctx.push(o.text); at++; } else { if (!removed.length && !added.length) at = hunks.length + ctx.length; if (o.op === "del") removed.push(o.text); else added.push(o.text); }
+    if (o.op === "ctx") {
+      flush();
+      ctx.push(o.text);
+      at++;
+    } else {
+      if (!removed.length && !added.length) at = hunks.length + ctx.length;
+      if (o.op === "del") removed.push(o.text);
+      else added.push(o.text);
+    }
   });
   flush();
   const last = hunks[hunks.length - 1];

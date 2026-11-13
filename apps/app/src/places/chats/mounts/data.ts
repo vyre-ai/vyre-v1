@@ -34,14 +34,17 @@ import type { HelperChatData } from "../helper/data.tsx";
 import type { NeedsYouData } from "../needsyou/data.tsx";
 import type { PaneAgent } from "../rightpane/data.tsx";
 import type { TerminalData } from "../terminal/data.ts";
-import { computersTarget, machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
+import { computersTarget, machinesTarget } from "../../../console/shell/route.ts"; // the one way into Console > Computers with a machine selected (l-consolidate)
 
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
 type ComputersOut = CapMap["computers.list"]["out"];
 
 /** The button beside a line the place shows. */
-export interface LineAction { label: string; run(): void }
+export interface LineAction {
+  label: string;
+  run(): void;
+}
 
 let keySeq = 0;
 /** A fresh idempotency key for one write. */
@@ -105,9 +108,19 @@ export function titleFrom(rt: ShellRuntime, kind: string, id: string): string | 
   return undefined;
 }
 
-export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill }): AgentPageData {
+export function agentPageData(
+  rt: ShellRuntime,
+  go: Go,
+  o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill },
+): AgentPageData {
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, agent: o.agent, me: { id: rt.me.id, name: rt.me.name }, nameOf: o.nameOf, canEdit: o.canEdit,
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    agent: o.agent,
+    me: { id: rt.me.id, name: rt.me.name },
+    nameOf: o.nameOf,
+    canEdit: o.canEdit,
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     ...workData(rt),
     nav: {
@@ -117,7 +130,10 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openTerminal: (computerId) => go.terminalOfComputer(computerId),
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
       // from the agent's page the text waits for the chat that opens next, with this agent
-      fillComposer: (text) => { o.fill?.set(text); go.agentChat(o.agent.agentId); },
+      fillComposer: (text) => {
+        o.fill?.set(text);
+        go.agentChat(o.agent.agentId);
+      },
       openSource: (kind, ref) => rt.open({ subject: { type: kind, id: ref } }),
       openAgentPage: (agentId) => go.agent(agentId),
       openRoutineFile: (agentId) => go.agent(agentId, "settings"),
@@ -126,7 +142,14 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
       // a server runs work for the whole Space: only those who may add one (owners and admins; anyone in a Personal Space) are offered it, the Space menu's rule (review F4)
-      ...(allows(rt, GATE.provisionComputer) ? { openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); } } : {}),
+      ...(allows(rt, GATE.provisionComputer)
+        ? {
+            openAddServer: () => {
+              requestAddServer();
+              rt.open({ screen: "settings.page", args: { page: "computer" } });
+            },
+          }
+        : {}),
       // the agent page's Computer tab sends an owner to Console > Computers the way the chat pane does (owner walk, 12 Nov)
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
@@ -138,15 +161,35 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
 }
 
 export function helperData(rt: ShellRuntime, go: Go, threadId: string, nameOf: (id: string) => string): HelperChatData {
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, threadId, nameOf, me: { id: rt.me.id }, nav: { openThread: (id) => go.thread(id), ...(go.message ? { openMessage: (t: string, m: string) => go.message(t, m) } : {}) }, clock: rt.clock };
+  return {
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    threadId,
+    nameOf,
+    me: { id: rt.me.id },
+    nav: {
+      openThread: (id) => go.thread(id),
+      ...(go.message ? { openMessage: (t: string, m: string) => go.message(t, m) } : {}),
+    },
+    clock: rt.clock,
+  };
 }
 
 export function needsData(rt: ShellRuntime, go: Go, nameOf: (id: string) => string): NeedsYouData {
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, me: rt.me.id, space: { name: rt.space.name }, nameOf,
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    me: rt.me.id,
+    space: { name: rt.space.name },
+    nameOf,
     sourceTitle: (kind, id) => titleFrom(rt, kind, id),
     nav: {
-      openSource: (kind, id) => { if (kind === "chat" || kind === "thread" || kind === "channel") go.thread(id); else rt.open({ subject: { type: kind, id } }); },
+      openSource: (kind, id) => {
+        if (kind === "chat" || kind === "thread" || kind === "channel") go.thread(id);
+        else rt.open({ subject: { type: kind, id } });
+      },
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
       openComputer: (agentId) => go.computerOfAgent(agentId),
       openSignIn: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
@@ -156,14 +199,27 @@ export function needsData(rt: ShellRuntime, go: Go, nameOf: (id: string) => stri
 }
 
 /** The counters under the screen while a recording runs. The stream carries no counters in this version, so the store counts what the person does: every click they send to the screen. */
-export interface CaptureCounter { store: CaptureStore; click(): void; reset(): void }
+export interface CaptureCounter {
+  store: CaptureStore;
+  click(): void;
+  reset(): void;
+}
 
 export function createCapture(): CaptureCounter {
   let cap: Capture = NO_CAPTURE;
   const ls = new Set<() => void>();
-  const set = (next: Capture): void => { cap = next; for (const l of [...ls]) l(); };
+  const set = (next: Capture): void => {
+    cap = next;
+    for (const l of [...ls]) l();
+  };
   return {
-    store: { get: () => cap, subscribe: (l) => { ls.add(l); return () => void ls.delete(l); } },
+    store: {
+      get: () => cap,
+      subscribe: (l) => {
+        ls.add(l);
+        return () => void ls.delete(l);
+      },
+    },
     click: () => set({ ...cap, clicks: cap.clicks + 1 }),
     reset: () => set(NO_CAPTURE),
   };
@@ -178,19 +234,60 @@ export function countingCall(call: ShellRuntime["call"], counter: CaptureCounter
   };
 }
 
-export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; agent: { agentId: string; name: string }; counter: CaptureCounter; renderChat?: ComputerPopupData["renderChat"]; reach?: ComputerPopupData["reach"] }): ComputerPopupData {
+export function popupData(
+  rt: ShellRuntime,
+  go: Go,
+  o: {
+    computerId: string;
+    agent: { agentId: string; name: string };
+    counter: CaptureCounter;
+    renderChat?: ComputerPopupData["renderChat"];
+    reach?: ComputerPopupData["reach"];
+  },
+): ComputerPopupData {
   return {
-    screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
-    ...(o.renderChat ? { renderChat: o.renderChat } : {}), ...(o.reach ? { reach: o.reach } : {}), nav: { close: () => go.closeLayer() }, clock: rt.clock,
+    screens: rt.screens,
+    call: countingCall(rt.call, o.counter),
+    connection: rt.connection,
+    computerId: o.computerId,
+    agent: o.agent,
+    capture: o.counter.store,
+    ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
+    ...(o.renderChat ? { renderChat: o.renderChat } : {}),
+    ...(o.reach ? { reach: o.reach } : {}),
+    nav: { close: () => go.closeLayer() },
+    clock: rt.clock,
   };
 }
 
-export function terminalData(rt: ShellRuntime, go: Go, o: { agent?: { agentId: string; name: string; computerId?: string }; owner?: string; nameOf?: (id: string) => string; newKey: () => string }): TerminalData {
+export function terminalData(
+  rt: ShellRuntime,
+  go: Go,
+  o: {
+    agent?: { agentId: string; name: string; computerId?: string };
+    owner?: string;
+    nameOf?: (id: string) => string;
+    newKey: () => string;
+  },
+): TerminalData {
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, space: { id: rt.space.id, name: rt.space.name }, ...(o.owner ? { owner: o.owner } : {}), ...(o.agent ? { agent: o.agent } : {}),
-    team: rt.space.kind !== "personal", ...(o.nameOf ? { nameOf: o.nameOf } : {}),
-    newKey: o.newKey, clock: rt.clock,
-    nav: { openTerminal: (id) => go.terminal(id), closeTab: () => go.closeTerminal(), openList: () => go.terminals(), openRules: () => go.rules(), openAgent: (id) => go.agent(id) },
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    space: { id: rt.space.id, name: rt.space.name },
+    ...(o.owner ? { owner: o.owner } : {}),
+    ...(o.agent ? { agent: o.agent } : {}),
+    team: rt.space.kind !== "personal",
+    ...(o.nameOf ? { nameOf: o.nameOf } : {}),
+    newKey: o.newKey,
+    clock: rt.clock,
+    nav: {
+      openTerminal: (id) => go.terminal(id),
+      closeTab: () => go.closeTerminal(),
+      openList: () => go.terminals(),
+      openRules: () => go.rules(),
+      openAgent: (id) => go.agent(id),
+    },
   };
 }
 
@@ -216,11 +313,21 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
 }
 
 /** A chat with an agent that opens with the person's own first message. The same message to the same agent comes back to the same chat, so a reload does not start a twin. Null when it could not start. */
-export async function chatOpening(rt: Pick<ShellRuntime, "call">, agentId: string, first: string): Promise<string | null> {
+export async function chatOpening(
+  rt: Pick<ShellRuntime, "call">,
+  agentId: string,
+  first: string,
+): Promise<string | null> {
   let h = 0;
   for (const ch of first) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   try {
-    const out = (await rt.call("chat.start", { kind: "chat", agentIds: [agentId], first, ...(openingTitle(first) ? { title: openingTitle(first) } : {}), idempotencyKey: `open_chat_${agentId}_${h.toString(36)}` })) as { thread?: { threadId?: string } } | null;
+    const out = (await rt.call("chat.start", {
+      kind: "chat",
+      agentIds: [agentId],
+      first,
+      ...(openingTitle(first) ? { title: openingTitle(first) } : {}),
+      idempotencyKey: `open_chat_${agentId}_${h.toString(36)}`,
+    })) as { thread?: { threadId?: string } } | null;
     return out?.thread?.threadId ?? null;
   } catch {
     return null;
@@ -231,18 +338,37 @@ export async function chatOpening(rt: Pick<ShellRuntime, "call">, agentId: strin
  * The Ask thread to open for an agent about an object (Ask Vyre): the person's newest Ask thread on it with that agent, else a new one. "Bring this conversation": a new one starts with the person's own
  * first message carrying a summary of the chat they were in, so switching agent does not start from nothing. Null when neither could be had.
  */
-export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, scopeType: string, scopeId: string, bringFrom: string | null, opening?: string): Promise<string | null> {
+export async function askWith(
+  rt: Pick<ShellRuntime, "call">,
+  agentId: string,
+  scopeType: string,
+  scopeId: string,
+  bringFrom: string | null,
+  opening?: string,
+): Promise<string | null> {
   // An opening message starts its own session on the object (a connector build from the Vault): the same object and message come back to the same thread, never a twin.
   if (opening) {
     try {
-      const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, first: opening, ...(openingTitle(opening) ? { title: openingTitle(opening) } : {}), idempotencyKey: `open_${scopeType}_${scopeId}_${agentId}` })) as { thread?: { threadId?: string } } | null;
+      const out = (await rt.call("chat.start", {
+        kind: "ask",
+        agentIds: [agentId],
+        scopeType,
+        scopeId,
+        first: opening,
+        ...(openingTitle(opening) ? { title: openingTitle(opening) } : {}),
+        idempotencyKey: `open_${scopeType}_${scopeId}_${agentId}`,
+      })) as { thread?: { threadId?: string } } | null;
       return out?.thread?.threadId ?? null;
     } catch {
       return null;
     }
   }
   try {
-    const out = (await rt.call("chat.asks_of", { resourceType: scopeType, resourceId: scopeId, limit: 20 })) as CapMap["chat.asks_of"]["out"];
+    const out = (await rt.call("chat.asks_of", {
+      resourceType: scopeType,
+      resourceId: scopeId,
+      limit: 20,
+    })) as CapMap["chat.asks_of"]["out"];
     const mine = out.threads.filter((t) => t.closedAt === undefined && t.agents.some((a) => a.agentId === agentId))[0];
     if (mine) return mine.threadId;
   } catch {
@@ -250,7 +376,14 @@ export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, s
   }
   const first = bringFrom ? await broughtSummary(rt, bringFrom) : null;
   try {
-    const out = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType, scopeId, ...(first ? { first } : {}), idempotencyKey: newKey() })) as { thread?: { threadId?: string } } | null;
+    const out = (await rt.call("chat.start", {
+      kind: "ask",
+      agentIds: [agentId],
+      scopeType,
+      scopeId,
+      ...(first ? { first } : {}),
+      idempotencyKey: newKey(),
+    })) as { thread?: { threadId?: string } } | null;
     return out?.thread?.threadId ?? null;
   } catch {
     return null;
@@ -258,7 +391,12 @@ export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, s
 }
 
 /** The place's doors over `act`. A thread that is a helper opens as the helper chat; a computer is found from its agent; a terminal on a computer is the open one or a new one. */
-export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string, action?: LineAction) => void): Go {
+export function createGo(
+  rt: ShellRuntime,
+  act: (a: Act) => void,
+  nameOf: (id: string) => string,
+  say: (text: string, action?: LineAction) => void,
+): Go {
   return {
     chat: (threadId) => act({ t: "chat", threadId }),
     message: (threadId, messageId) => act({ t: "chat", threadId, focus: messageId }),
@@ -271,7 +409,12 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
           const t = (out as ThreadOut).thread;
           const where = threadDoor(t);
           if (where.t === "task") rt.open({ subject: { type: "task", id: where.taskId } });
-          else act(where.t === "side" ? { t: "chat", threadId: where.parent, focus: where.messageId, side: threadId } : { t: where.t, threadId });
+          else
+            act(
+              where.t === "side"
+                ? { t: "chat", threadId: where.parent, focus: where.messageId, side: threadId }
+                : { t: where.t, threadId },
+            );
         },
         () => act({ t: "chat", threadId }),
       );
@@ -283,20 +426,29 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     task: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
     imported: (conversationId) => act({ t: "imported", conversationId }),
     agentChat: (agentId) => {
-      void chatWith(rt, agentId).then((id) => { if (id) act({ t: "chat", threadId: id, pane: true }); else say("Could not start the chat. Try again."); });
+      void chatWith(rt, agentId).then((id) => {
+        if (id) act({ t: "chat", threadId: id, pane: true });
+        else say("Could not start the chat. Try again.");
+      });
     },
     computer: (computerId, chat = false) => act({ t: "layer", layer: { kind: "computer", computerId, chat } }),
     // there is one Computer tab: Terminal and Browser, on the agent's page (owner ruling 6 Nov 2026). Every door to "its computer" opens it, with or without a host to run it: the tab says so in a line when there is none.
     computerOfAgent: (agentId) => act({ t: "agent", agentId, tab: "computer" }),
     terminal: (terminalId) => act({ t: "terminal", terminalId }),
     terminalOfComputer: (computerId) => {
-      void rt.call("terminal.list", { host: "agent_computer", state: ["running", "idle"] }).then(
-        (out) => {
+      void rt
+        .call("terminal.list", { host: "agent_computer", state: ["running", "idle"] })
+        .then((out) => {
           const have = (out as CapMap["terminal.list"]["out"]).terminals.find((t) => t.computerId === computerId);
-          if (have) { act({ t: "terminal", terminalId: have.terminalId }); return undefined; }
-          return openSession({ call: rt.call, newKey }, "agent", { computerId }).then((t) => act({ t: "terminal", terminalId: t.terminalId }));
-        },
-      ).catch(() => say("Could not open a terminal on that computer."));
+          if (have) {
+            act({ t: "terminal", terminalId: have.terminalId });
+            return undefined;
+          }
+          return openSession({ call: rt.call, newKey }, "agent", { computerId }).then((t) =>
+            act({ t: "terminal", terminalId: t.terminalId }),
+          );
+        })
+        .catch(() => say("Could not open a terminal on that computer."));
     },
     terminals: () => act({ t: "layer", layer: { kind: "terminals", ...anchorOfFocus() } }),
     rules: () => act({ t: "layer", layer: { kind: "rules" } }),
@@ -312,22 +464,55 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
 }
 
 /** What the sidebar and the chat ask the place for. */
-export const chatsActions = (go: Go, fill?: ComposerFill): ChatsActions => ({ openThread: go.chat, togglePane: go.togglePane, openPane: go.openPane, openAgentChat: go.agentChat, fillComposer: (text) => fill?.set(text) });
+export const chatsActions = (go: Go, fill?: ComposerFill): ChatsActions => ({
+  openThread: go.chat,
+  togglePane: go.togglePane,
+  openPane: go.openPane,
+  openAgentChat: go.agentChat,
+  fillComposer: (text) => fill?.set(text),
+});
 
 /** The sidebar: its rows open in this place; Needs you and All agents are this place's own pages. */
 export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void): ChatsSidebarData {
   const base = sidebarData(rt, chatsActions(go));
-  return { ...base, nav: { ...base.nav, openNeedsYou: (taskId?: string) => go.needs(taskId), openAllAgents: () => go.allAgents(), openSearch: () => go.search(), openImported: (id: string) => go.imported(id), ...(toggleSidebar ? { toggleSidebar } : {}) } };
+  return {
+    ...base,
+    nav: {
+      ...base.nav,
+      openNeedsYou: (taskId?: string) => go.needs(taskId),
+      openAllAgents: () => go.allAgents(),
+      openSearch: () => go.search(),
+      openImported: (id: string) => go.imported(id),
+      ...(toggleSidebar ? { toggleSidebar } : {}),
+    },
+  };
 }
 
 /** A face or a name opens by what it is: a person's profile, an agent's page (the assistant too). A helper is routed by the conversation, which knows its helpers' threads. */
-export function openFace(rt: Pick<ShellRuntime, "open">, go: Pick<Go, "agent">, list: readonly Principal[], id: string): void {
+export function openFace(
+  rt: Pick<ShellRuntime, "open">,
+  go: Pick<Go, "agent">,
+  list: readonly Principal[],
+  id: string,
+): void {
   if (list.find((p) => p.id === id)?.kind === "person") rt.open({ subject: { type: "contact", id } });
   else go.agent(id);
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string; focusN?: number }): ConversationData {
+export function wireConversation(
+  rt: ShellRuntime,
+  go: Go,
+  o: {
+    threadId: string;
+    list: readonly Principal[];
+    nameOf: (id: string) => string;
+    leadId: string;
+    fill?: ComposerFill;
+    focus?: string;
+    focusN?: number;
+  },
+): ConversationData {
   const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
   return {
     ...base,
@@ -335,31 +520,61 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
     ...(o.focusN ? { focusN: o.focusN } : {}),
     nav: {
       // a face opens by what it is: a person's profile, an agent's page (the assistant too); a helper is routed by the conversation before it gets here
-      ...base.nav, openAgent: (id: string) => openFace(rt, go, o.list, id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
-      openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),
+      ...base.nav,
+      openAgent: (id: string) => openFace(rt, go, o.list, id),
+      openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)),
+      openSearch: (q: string) => go.search(q),
+      togglePane: () => go.togglePane(),
+      openBeside: (kind: string, id: string) =>
+        kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id),
       openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
     },
     toast: (text: string) => go.say(text),
     ...(o.focus ? { focus: o.focus } : {}),
     terminal: true,
-    mountSheet: (p) => createElement(MountSheets, { rt, request: { kind: "mount", into: null, source: p.source as SourceId }, onClose: p.onClose, onChanged: () => undefined, onMounted: p.onMounted }),
-    waitingLine: createElement(WaitingLine, { screens: rt.screens, call: rt.call, threadId: o.threadId, agent: o.nameOf(o.leadId) }),
+    mountSheet: (p) =>
+      createElement(MountSheets, {
+        rt,
+        request: { kind: "mount", into: null, source: p.source as SourceId },
+        onClose: p.onClose,
+        onChanged: () => undefined,
+        onMounted: p.onMounted,
+      }),
+    waitingLine: createElement(WaitingLine, {
+      screens: rt.screens,
+      call: rt.call,
+      threadId: o.threadId,
+      agent: o.nameOf(o.leadId),
+    }),
   };
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
 
-export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData, nameOf?: (id: string) => string): ChatRightPaneData {
+export function wirePane(
+  rt: ShellRuntime,
+  go: Go,
+  threadId: string,
+  agent: PaneAgent,
+  fill?: ComposerFill,
+  terminal?: TerminalData,
+  nameOf?: (id: string) => string,
+): ChatRightPaneData {
   const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
     ...base,
     agent,
     ...(nameOf ? { nameOf } : {}),
     ...(terminal ? { terminal } : {}),
-    renderShare: (resource, onClose) => createElement(FolderShareSheet, { rt, folderId: resource.id, resource, onClose }),
+    renderShare: (resource, onClose) =>
+      createElement(FolderShareSheet, { rt, folderId: resource.id, resource, onClose }),
     nav: {
-      ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
-      openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
+      ...base.nav,
+      openThread: (id: string) => go.thread(id),
+      openHelper: (id: string) => go.thread(id),
+      openComputer: (id: string) => go.computer(id),
+      openTerminal: (id: string) => go.terminalOfComputer(id),
+      openAgentPage: (id: string) => go.agent(id),
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
       openComputerInConsole: (computerId: string) => rt.open(computersTarget(computerId)),
     },
@@ -370,13 +585,24 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
 export const isChannelId = (id: string): boolean => id.startsWith("chn_");
 
 /** The main thread of a channel, or why it cannot be had (in the words a load failure shows). Never throws. */
-export async function channelThread(call: (cap: string, input: unknown) => Promise<unknown>, channelId: string): Promise<{ threadId: string } | { failure: { message: string; code?: string; traceId?: string } }> {
+export async function channelThread(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  channelId: string,
+): Promise<{ threadId: string } | { failure: { message: string; code?: string; traceId?: string } }> {
   try {
     const out = (await call("channels.get", { channelId })) as { channel?: { mainThreadId?: unknown } } | null;
     const main = out?.channel?.mainThreadId;
-    return typeof main === "string" && main !== "" ? { threadId: main } : { failure: { message: "That channel has no conversation yet." } };
+    return typeof main === "string" && main !== ""
+      ? { threadId: main }
+      : { failure: { message: "That channel has no conversation yet." } };
   } catch (e) {
     const err = (e ?? {}) as { message?: unknown; code?: unknown; traceId?: unknown };
-    return { failure: { message: typeof err.message === "string" && err.message !== "" ? err.message : "The channel could not be read.", ...(typeof err.code === "string" ? { code: err.code } : {}), ...(typeof err.traceId === "string" ? { traceId: err.traceId } : {}) } };
+    return {
+      failure: {
+        message: typeof err.message === "string" && err.message !== "" ? err.message : "The channel could not be read.",
+        ...(typeof err.code === "string" ? { code: err.code } : {}),
+        ...(typeof err.traceId === "string" ? { traceId: err.traceId } : {}),
+      },
+    };
   }
 }

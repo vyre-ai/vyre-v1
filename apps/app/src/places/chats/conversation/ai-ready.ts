@@ -7,15 +7,24 @@ export const NO_AI_LINE = "No AI account for this chat yet.";
 export const CONNECT_YOURS = "Connect yours";
 export const SET_SPACE_KEY = "set a Space AI key";
 
-export interface AiReady { ready: boolean; admin: boolean }
+export interface AiReady {
+  ready: boolean;
+  admin: boolean;
+}
 
 /** Would the caller's next message to this agent here find an account? `admin`: they may set the Space AI key (asked only when not ready). */
 export async function aiReady(call: Call, threadId: string, agentId: string): Promise<AiReady> {
   try {
-    const r = (await call("engine.account.resolve", { threadId, agentId, dry: true })) as { allowed?: boolean; why?: string };
+    const r = (await call("engine.account.resolve", { threadId, agentId, dry: true })) as {
+      allowed?: boolean;
+      why?: string;
+    };
     if (r.allowed !== false) return { ready: true, admin: false };
     // Company accounts only, with none set: the person cannot fix it by connecting their own
-    const admin = await (call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then((k) => k.mayManage === true, () => false);
+    const admin = await (call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then(
+      (k) => k.mayManage === true,
+      () => false,
+    );
     return { ready: false, admin };
   } catch {
     return { ready: true, admin: false };

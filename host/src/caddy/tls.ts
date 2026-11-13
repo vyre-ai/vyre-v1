@@ -23,12 +23,17 @@ export interface CertInfo {
 }
 
 function names(c: PeerCert): string[] {
-  const san = (c.subjectaltname ?? "").split(",").map((x) => x.trim()).filter((x) => x.startsWith("DNS:")).map((x) => x.slice(4).toLowerCase());
+  const san = (c.subjectaltname ?? "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.startsWith("DNS:"))
+    .map((x) => x.slice(4).toLowerCase());
   return san.length ? san : c.subject?.CN ? [c.subject.CN.toLowerCase()] : [];
 }
 
 const covers = (pattern: string, host: string): boolean =>
-  pattern === host || (pattern.startsWith("*.") && host.endsWith(pattern.slice(1)) && host.split(".").length === pattern.split(".").length);
+  pattern === host ||
+  (pattern.startsWith("*.") && host.endsWith(pattern.slice(1)) && host.split(".").length === pattern.split(".").length);
 
 /** Is this the certificate for `host`: names it, in date, and not a self-signed placeholder? */
 export function judgeCert(c: PeerCert | null, host: string, now: number): CertInfo {
@@ -41,7 +46,8 @@ export function judgeCert(c: PeerCert | null, host: string, now: number): CertIn
   if (expiresAt <= now) return { issued: false, expiresAt, why: "the certificate has expired" };
   if (Number.isFinite(from) && from > now + 300_000) return { issued: false, why: "the certificate is not valid yet" };
   const issuer = c.issuer?.O ?? c.issuer?.CN;
-  if (c.issuer?.CN && c.subject?.CN && c.issuer.CN === c.subject.CN) return { issued: false, expiresAt, ...(issuer ? { issuer } : {}), why: "the certificate is self-signed" };
+  if (c.issuer?.CN && c.subject?.CN && c.issuer.CN === c.subject.CN)
+    return { issued: false, expiresAt, ...(issuer ? { issuer } : {}), why: "the certificate is self-signed" };
   return { issued: true, expiresAt, ...(issuer ? { issuer } : {}) };
 }
 
@@ -49,11 +55,20 @@ export function judgeCert(c: PeerCert | null, host: string, now: number): CertIn
 export const connectPeer: PeerFn = (host, port, servername, timeoutMs) =>
   new Promise<PeerCert | null>((resolve) => {
     let done = false;
-    const finish = (v: PeerCert | null): void => { if (!done) { done = true; socket.destroy(); resolve(v); } };
-    const socket = tls.connect({ host, port, servername, rejectUnauthorized: false, ALPNProtocols: ["http/1.1"] }, () => {
-      const c = socket.getPeerCertificate();
-      finish(c && Object.keys(c).length ? (c as unknown as PeerCert) : null);
-    });
+    const finish = (v: PeerCert | null): void => {
+      if (!done) {
+        done = true;
+        socket.destroy();
+        resolve(v);
+      }
+    };
+    const socket = tls.connect(
+      { host, port, servername, rejectUnauthorized: false, ALPNProtocols: ["http/1.1"] },
+      () => {
+        const c = socket.getPeerCertificate();
+        finish(c && Object.keys(c).length ? (c as unknown as PeerCert) : null);
+      },
+    );
     socket.setTimeout(timeoutMs, () => finish(null));
     socket.on("error", () => finish(null));
   });

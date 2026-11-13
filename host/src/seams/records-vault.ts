@@ -29,11 +29,24 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
   let folder: Promise<string> | null = null;
   const folderId = (): Promise<string> => {
     folder ??= (async () => {
-      const have = ((await d.system("vault.folders.list", { scope: "shared" })) as { folders: { id: string; name: string }[] }).folders.find((f) => f.name === SEALED_FOLDER);
-      const id = have?.id ?? ((await d.system("vault.folders.create", { name: SEALED_FOLDER, scope: "shared", idempotencyKey: "sealed-fields-folder" })) as { folder: { id: string } }).folder.id;
+      const have = (
+        (await d.system("vault.folders.list", { scope: "shared" })) as { folders: { id: string; name: string }[] }
+      ).folders.find((f) => f.name === SEALED_FOLDER);
+      const id =
+        have?.id ??
+        (
+          (await d.system("vault.folders.create", {
+            name: SEALED_FOLDER,
+            scope: "shared",
+            idempotencyKey: "sealed-fields-folder",
+          })) as { folder: { id: string } }
+        ).folder.id;
       await d.registerFolder(id);
       return id;
-    })().catch((e: unknown) => { folder = null; throw e; });
+    })().catch((e: unknown) => {
+      folder = null;
+      throw e;
+    });
     return folder;
   };
   return {
@@ -44,13 +57,21 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
         return o.ref;
       }
       const out = (await d.system("vault.item.put", {
-        folderId: await folderId(), name: `${o.type}.${o.field}.${o.recordId}`, kind: "other", fields, idempotencyKey: `sealed-${o.type}-${o.field}-${o.recordId}`,
+        folderId: await folderId(),
+        name: `${o.type}.${o.field}.${o.recordId}`,
+        kind: "other",
+        fields,
+        idempotencyKey: `sealed-${o.type}-${o.field}-${o.recordId}`,
       })) as { item: { id: string } };
       return out.item.id;
     },
     scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {
-      const out = (await d.as(person, "vault.item.reveal", { itemId: ref, fields: [SEALED_KEY], reason: "Revealed from a record" })) as { fields: { key: string; value: string }[] };
+      const out = (await d.as(person, "vault.item.reveal", {
+        itemId: ref,
+        fields: [SEALED_KEY],
+        reason: "Revealed from a record",
+      })) as { fields: { key: string; value: string }[] };
       const v = out.fields.find((f) => f.key === SEALED_KEY)?.value;
       if (v === undefined) throw new Error("The sealed value is missing from the Vault.");
       return v;

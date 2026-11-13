@@ -30,7 +30,16 @@
     const fields = [];
     refs.clear();
     for (const role of want.roles) {
-      const el = role === "username" ? found.username : role === "password" ? found.password : role === "otp" ? found.otp : role.startsWith("cc-") ? (card || (card = ns.finder.findCardFields(g.document)))[role.slice(3)] ?? null : null;
+      const el =
+        role === "username"
+          ? found.username
+          : role === "password"
+            ? found.password
+            : role === "otp"
+              ? found.otp
+              : role.startsWith("cc-")
+                ? ((card || (card = ns.finder.findCardFields(g.document)))[role.slice(3)] ?? null)
+                : null;
       if (!el) continue;
       const ref = makeRef(++counter);
       refs.set(ref, el);
@@ -51,7 +60,8 @@
       if (typeof el.focus === "function") el.focus();
       const proto = Object.getPrototypeOf(el);
       const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-      if (setter) setter.call(el, value); else el.value = value;
+      if (setter) setter.call(el, value);
+      else el.value = value;
       const Ev = g.Event;
       el.dispatchEvent(new Ev("input", { bubbles: true, composed: true }));
       el.dispatchEvent(new Ev("change", { bubbles: true }));
@@ -66,9 +76,16 @@
     const found = ns.finder.findLoginFields(g.document);
     const target = found.password ?? found.otp ?? found.username;
     const form = target && target.form;
-    if (form && typeof form.requestSubmit === "function") { form.requestSubmit(); return true; }
-    const button = form && form.querySelector && form.querySelector("button[type=submit], input[type=submit], button:not([type])");
-    if (button && typeof button.click === "function") { button.click(); return true; }
+    if (form && typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+      return true;
+    }
+    const button =
+      form && form.querySelector && form.querySelector("button[type=submit], input[type=submit], button:not([type])");
+    if (button && typeof button.click === "function") {
+      button.click();
+      return true;
+    }
     if (target && typeof target.dispatchEvent === "function") {
       const Ke = g.KeyboardEvent;
       target.dispatchEvent(new Ke("keydown", { key: "Enter", code: "Enter", bubbles: true }));
@@ -78,7 +95,9 @@
   }
 
   /** Forget every ref (the worker calls this when a fill finishes or is abandoned). */
-  function forget() { refs.clear(); }
+  function forget() {
+    refs.clear();
+  }
 
   ns.autofill = { prepare, apply, submit, forget };
 })();

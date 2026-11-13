@@ -28,7 +28,11 @@ export interface ComposerSender {
   why?: string;
 }
 
-export interface SenderGroup { via: string; provider?: string; items: ComposerSender[] }
+export interface SenderGroup {
+  via: string;
+  provider?: string;
+  items: ComposerSender[];
+}
 
 /** Senders of one channel grouped by service, in the order the services first appear. */
 export function groupSenders(senders: readonly ComposerSender[], channel: OutChannel): SenderGroup[] {
@@ -36,7 +40,10 @@ export function groupSenders(senders: readonly ComposerSender[], channel: OutCha
   for (const x of senders) {
     if (x.channel !== channel) continue;
     let g = out.find((y) => y.via === x.via);
-    if (!g) { g = { via: x.via, ...(x.provider ? { provider: x.provider } : {}), items: [] }; out.push(g); }
+    if (!g) {
+      g = { via: x.via, ...(x.provider ? { provider: x.provider } : {}), items: [] };
+      out.push(g);
+    }
     g.items.push(x);
   }
   return out;
@@ -67,7 +74,11 @@ export interface OutgoingProps {
 export function OutgoingHeader(p: OutgoingProps): ReactElement {
   const [open, setOpen] = useState(false);
   const box = useRef<unknown>(null);
-  useDismiss(open, () => setOpen(false), () => [box.current as never]);
+  useDismiss(
+    open,
+    () => setOpen(false),
+    () => [box.current as never],
+  );
   const list = p.senders.filter((x) => x.channel === p.channel);
   const from = list.find((x) => x.id === p.senderId) ?? null;
   const groups = groupSenders(p.senders, p.channel);
@@ -81,7 +92,17 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
           <View style={o.seg} accessibilityRole="tablist" testID="out-channel">
             {/* ui-rows-lint: not a list (the Email and Text segmented switch) */}
             {(["email", "text"] as const).map((c) => (
-              <Pressable key={c} accessibilityRole="tab" accessibilityState={{ selected: c === p.channel, disabled: !p.channels.includes(c) }} aria-selected={c === p.channel} disabled={!p.channels.includes(c)} accessibilityLabel={c === "email" ? "Email" : "Text"} testID={`chan-${c}`} onPress={() => p.onChannel(c)} style={[o.segBtn, c === p.channel && o.segOn, !p.channels.includes(c) && o.dim]}>
+              <Pressable
+                key={c}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: c === p.channel, disabled: !p.channels.includes(c) }}
+                aria-selected={c === p.channel}
+                disabled={!p.channels.includes(c)}
+                accessibilityLabel={c === "email" ? "Email" : "Text"}
+                testID={`chan-${c}`}
+                onPress={() => p.onChannel(c)}
+                style={[o.segBtn, c === p.channel && o.segOn, !p.channels.includes(c) && o.dim]}
+              >
                 <Text style={[o.segText, c === p.channel && o.segTextOn]}>{c === "email" ? "Email" : "Text"}</Text>
               </Pressable>
             ))}
@@ -90,17 +111,37 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
       </View>
       <View style={o.line}>
         <Text style={o.k}>From</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={mail ? "Send from" : "Text from"} testID="from-pick" onPress={() => setOpen((x) => !x)} style={({ hovered }: { hovered?: boolean }) => [o.from, (hovered === true || open) && o.hover]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mail ? "Send from" : "Text from"}
+          testID="from-pick"
+          onPress={() => setOpen((x) => !x)}
+          style={({ hovered }: { hovered?: boolean }) => [o.from, (hovered === true || open) && o.hover]}
+        >
           {from ? <LogoTile provider={from.provider ?? from.via} name={from.via} size={20} /> : null}
-          <Text numberOfLines={1} style={o.fromName} testID="from-name">{from ? from.name : mail ? "No mailbox can send" : "No number can send"}</Text>
-          {from ? <Text numberOfLines={1} style={o.fromAddr}>{from.address}</Text> : null}
+          <Text numberOfLines={1} style={o.fromName} testID="from-name">
+            {from ? from.name : mail ? "No mailbox can send" : "No number can send"}
+          </Text>
+          {from ? (
+            <Text numberOfLines={1} style={o.fromAddr}>
+              {from.address}
+            </Text>
+          ) : null}
           <Glyph icon={I.chev} native="▾" size={12} color="var(--ink-3)" />
         </Pressable>
       </View>
       {mail && p.onSubject ? (
         <View style={o.line}>
           <Text style={o.k}>Subject</Text>
-          <TextInput accessibilityLabel="Subject" placeholder="Subject" placeholderTextColor="var(--ink-4)" value={p.subject ?? ""} onChangeText={p.onSubject} testID="contact-subject" style={[o.subject, FIELD]} />
+          <TextInput
+            accessibilityLabel="Subject"
+            placeholder="Subject"
+            placeholderTextColor="var(--ink-4)"
+            value={p.subject ?? ""}
+            onChangeText={p.onSubject}
+            testID="contact-subject"
+            style={[o.subject, FIELD]}
+          />
         </View>
       ) : null}
       <View style={o.sep} />
@@ -115,10 +156,26 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
                   const on = x.id === p.senderId;
                   const ok = x.usable !== false;
                   return (
-                    <Row key={x.id} id={`from-${x.id}`} title={x.name} note={ok ? x.address : `${x.address} · ${x.why ?? "Cannot send now"}`} selected={on}
-                      leading={<View style={o.lead}><LogoTile provider={x.provider ?? x.via} name={x.via} size={24} /></View>}
+                    <Row
+                      key={x.id}
+                      id={`from-${x.id}`}
+                      title={x.name}
+                      note={ok ? x.address : `${x.address} · ${x.why ?? "Cannot send now"}`}
+                      selected={on}
+                      leading={
+                        <View style={o.lead}>
+                          <LogoTile provider={x.provider ?? x.via} name={x.via} size={24} />
+                        </View>
+                      }
                       {...(on ? { trailing: <Glyph icon={I.check} native="✓" size={14} color="var(--accent)" /> } : {})}
-                      {...(ok ? { onPress: () => { p.onSender(x.id); setOpen(false); } } : {})}
+                      {...(ok
+                        ? {
+                            onPress: () => {
+                              p.onSender(x.id);
+                              setOpen(false);
+                            },
+                          }
+                        : {})}
                       domProps={{ style: { minHeight: 40, opacity: ok ? 1 : 0.5 } }}
                     />
                   );
@@ -128,7 +185,21 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
             {p.onConnect ? (
               <View>
                 <GroupHead label="Add" />
-                <Row id="from-connect" title={CONNECT_LABEL[p.channel].title} note={CONNECT_LABEL[p.channel].note} leading={<View style={o.lead}><IconTile icon={I.plus} size={24} /></View>} onPress={() => { setOpen(false); p.onConnect?.(p.channel); }} domProps={{ style: { minHeight: 40 } }} />
+                <Row
+                  id="from-connect"
+                  title={CONNECT_LABEL[p.channel].title}
+                  note={CONNECT_LABEL[p.channel].note}
+                  leading={
+                    <View style={o.lead}>
+                      <IconTile icon={I.plus} size={24} />
+                    </View>
+                  }
+                  onPress={() => {
+                    setOpen(false);
+                    p.onConnect?.(p.channel);
+                  }}
+                  domProps={{ style: { minHeight: 40 } }}
+                />
               </View>
             ) : null}
           </View>
@@ -138,20 +209,42 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
   );
 }
 
-const FIELD = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent", borderWidth: 0 } as unknown as TextStyle;
+const FIELD = {
+  outlineStyle: "none",
+  outlineWidth: 0,
+  backgroundColor: "transparent",
+  borderWidth: 0,
+} as unknown as TextStyle;
 
 const o = StyleSheet.create({
   out: { position: "relative", zIndex: 5, paddingTop: 2, gap: 6 },
   line: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 },
   k: { width: 52, fontSize: 13, color: "var(--ink-3)" as string },
   v: { flex: 1, minWidth: 0 },
-  seg: { flexDirection: "row", padding: 2, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  seg: {
+    flexDirection: "row",
+    padding: 2,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   segBtn: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: RADIUS },
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
   segText: { fontSize: 12, color: "var(--ink-3)" as string },
   dim: { opacity: 0.4 },
   segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
-  from: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3, paddingLeft: 4, paddingRight: 8, borderRadius: RADIUS, minWidth: 0, flexShrink: 1 },
+  from: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 3,
+    paddingLeft: 4,
+    paddingRight: 8,
+    borderRadius: RADIUS,
+    minWidth: 0,
+    flexShrink: 1,
+  },
   hover: { backgroundColor: "var(--hover)" as string },
   fromName: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   fromAddr: { fontSize: 13, color: "var(--ink-3)" as string, flexShrink: 1 },

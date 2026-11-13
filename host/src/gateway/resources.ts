@@ -13,22 +13,57 @@ import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import { pointer } from "../routes/resource.ts";
 
 /** The part of a registry event the registrar reads. */
-export interface SubjectDef { name: string; subject: { type: string; id: string } }
+export interface SubjectDef {
+  name: string;
+  subject: { type: string; id: string };
+}
 
 /** Id shape per resource type; null = any non-empty id without spaces (record types are keys, connectors are names). */
 const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
-  space: /^spc_[a-z0-9]+$/, record: /^rec_[a-z0-9]+$/, record_type: /^[a-z][a-z0-9_]*$/, project: /^prj_[a-z0-9]+$/, folder: /^fld_[a-z0-9]+$/, file: /^fil_[a-z0-9]+$/,
-  channel: /^chn_[a-z0-9]+$/, thread: /^thr_[a-z0-9]+$/, mailbox: /^mbx_[a-z0-9]+$/, vault_folder: /^vfd_[a-z0-9]+$/, vault_item: /^vit_[a-z0-9]+$/, automation: /^aut_[a-z0-9]+$/,
-  agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
-  terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
-  skill: /^sko_[a-z0-9]+$/, conversation: /^cnv_[a-z0-9]+$/, mail_message: /^eml_[a-z0-9]+$/, inbox: null, automation_group: null, connector: null, calendar: null,
+  space: /^spc_[a-z0-9]+$/,
+  record: /^rec_[a-z0-9]+$/,
+  record_type: /^[a-z][a-z0-9_]*$/,
+  project: /^prj_[a-z0-9]+$/,
+  folder: /^fld_[a-z0-9]+$/,
+  file: /^fil_[a-z0-9]+$/,
+  channel: /^chn_[a-z0-9]+$/,
+  thread: /^thr_[a-z0-9]+$/,
+  mailbox: /^mbx_[a-z0-9]+$/,
+  vault_folder: /^vfd_[a-z0-9]+$/,
+  vault_item: /^vit_[a-z0-9]+$/,
+  automation: /^aut_[a-z0-9]+$/,
+  agent: /^agt_[a-z0-9]+$/,
+  connection: /^con_[a-z0-9]+$/,
+  site: /^sit_[a-z0-9]+$/,
+  form: /^frm_[a-z0-9]+$/,
+  kit: /^kit_[a-z0-9]+$/,
+  terminal: /^trm_[a-z0-9]+$/,
+  computer: /^cmt_[a-z0-9]+$/,
+  task: /^tsk_[a-z0-9]+$/,
+  run: /^run_[a-z0-9]+$/,
+  number: /^num_[a-z0-9]+$/,
+  domain: /^dom_[a-z0-9]+$/,
+  note: /^not_[a-z0-9]+$/,
+  email: /^eml_[a-z0-9]+$/,
+  skill: /^sko_[a-z0-9]+$/,
+  conversation: /^cnv_[a-z0-9]+$/,
+  mail_message: /^eml_[a-z0-9]+$/,
+  inbox: null,
+  automation_group: null,
+  connector: null,
+  calendar: null,
 });
 /**
  * Resource types whose birth event may name the owner, and the payload pointer it does it in. Opt-in per type: the capability that creates one of these decides who may assign an owner
  * other than the caller (agents.create refuses a caller who is not an owner or admin; connecting a member's Google or Outlook calendar and mail takes connectors.manage), so the
  * registrar only records what that capability allowed.
  */
-const OWNER_NAMED: ReadonlyMap<string, string> = new Map([["agent", "/ownerId"], ["calendar", "/ownerId"], ["mailbox", "/memberId"], ["skill", "/ownerId"]]);
+const OWNER_NAMED: ReadonlyMap<string, string> = new Map([
+  ["agent", "/ownerId"],
+  ["calendar", "/ownerId"],
+  ["mailbox", "/memberId"],
+  ["skill", "/ownerId"],
+]);
 /** Every resource type the registrar checks ids for. */
 export const KNOWN_TYPES: readonly string[] = Object.freeze(Object.keys(ID_SHAPE));
 const ANY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
@@ -72,9 +107,13 @@ export interface RegistrarDeps {
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {
   if (value instanceof Uint8Array) {
-    try { return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>; } catch { return {}; }
+    try {
+      return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
   }
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 };
 
 /**
@@ -153,11 +192,26 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       for (const ev of a.events) {
         const move = MOVES.get(ev.type);
         if (move && deps.resource) {
-          const id = pointer(ev.payload, move.id), to = pointer(ev.payload, move.to);
+          const id = pointer(ev.payload, move.id),
+            to = pointer(ev.payload, move.to);
           const cur = typeof id === "string" ? deps.resource(id) : undefined;
           // a private root (a Mine folder, a person's own Files) has no parent and is never moved under another folder here
-          if (cur && typeof to === "string" && to !== cur.id && cur.parent_id !== null && cur.parent_id !== to && (deps.exists(to) || seen.has(to))) {
-            out.push({ id: cur.id, type: cur.type, parent_id: to, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+          if (
+            cur &&
+            typeof to === "string" &&
+            to !== cur.id &&
+            cur.parent_id !== null &&
+            cur.parent_id !== to &&
+            (deps.exists(to) || seen.has(to))
+          ) {
+            out.push({
+              id: cur.id,
+              type: cur.type,
+              parent_id: to,
+              label: cur.label,
+              owner_id: cur.owner_id,
+              holds: cur.holds,
+            });
           }
           continue;
         }
@@ -181,19 +235,52 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         // a Vault item lives in its folder (so a Mine folder's privacy covers what is in it), whatever the call's own input names
         // and a Vault folder made inside another lives in that one, so the outer folder's label and grants cover it as Files folders do
         // a channel's chat (its main thread) and the reply threads under its messages live in the channel, so what the channel is shared with (a guest invited to it) reaches them. Nothing else that hangs off a channel does: threadHome
-        const inFolder = s.type === "vault_item" ? pointer(ev.payload, "/folderId") : s.type === "vault_folder" ? pointer(a.input, "/parentId") : s.type === "thread" ? threadHome({ kind: pointer(ev.payload, "/kind"), channelId: pointer(ev.payload, "/channelId"), parentThreadId: pointer(ev.payload, "/parentThreadId"), replyThread: a.cap.name === "chat.thread" }, (t) => underChannel(deps, t)) : undefined;
+        const inFolder =
+          s.type === "vault_item"
+            ? pointer(ev.payload, "/folderId")
+            : s.type === "vault_folder"
+              ? pointer(a.input, "/parentId")
+              : s.type === "thread"
+                ? threadHome(
+                    {
+                      kind: pointer(ev.payload, "/kind"),
+                      channelId: pointer(ev.payload, "/channelId"),
+                      parentThreadId: pointer(ev.payload, "/parentThreadId"),
+                      replyThread: a.cap.name === "chat.thread",
+                    },
+                    (t) => underChannel(deps, t),
+                  )
+                : undefined;
         const holder = typeof inFolder === "string" && (deps.exists(inFolder) || seen.has(inFolder)) ? inFolder : given;
-        const container = typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
+        const container =
+          typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
         const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
         // a calendar, mailbox or site that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar, an artifact) does not inherit the Space's access: the owner has it, and anyone they share it with
         // a Vault folder that is someone's Mine is theirs alone: it never passes the Space's access, or any agent's grant on the Space, to what is in it
-        const privateRoot = ((s.type === "calendar" || s.type === "mailbox" || s.type === "site") && pointer(ev.payload, "/private") === true) || (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine");
+        const privateRoot =
+          ((s.type === "calendar" || s.type === "mailbox" || s.type === "site") &&
+            pointer(ev.payload, "/private") === true) ||
+          (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine");
         // a file or folder an agent makes in its own home folder (or below it) is the agent's: its manager manages it through the folder, and a person the agent worked for keeps it only while
         // they may read the folder (review, 12 Nov 2026: a reader who left a closed chat kept Manage on the agent's notes they had asked for)
-        const home = a.principal?.kind === "agent" && (s.type === "file" || s.type === "folder") ? deps.agentHome?.(a.principal.id) ?? null : null;
+        const home =
+          a.principal?.kind === "agent" && (s.type === "file" || s.type === "folder")
+            ? (deps.agentHome?.(a.principal.id) ?? null)
+            : null;
         const agentsOwn = home !== null && insideOf(deps, container, home);
-        out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: agentsOwn ? a.principal!.id : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
+        out.push({
+          id,
+          type: s.type,
+          parent_id: s.type === "space" || privateRoot ? null : container,
+          label: 0,
+          owner_id: agentsOwn
+            ? a.principal!.id
+            : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
+              ? named
+              : a.owner,
+          holds: 0,
+        });
       }
       return out;
     },
@@ -209,7 +296,8 @@ export function underChannelOf(resource: ((id: string) => ResourceRow | undefine
   }
   return false;
 }
-const underChannel = (deps: Pick<RegistrarDeps, "resource">, from: string): boolean => underChannelOf(deps.resource, from);
+const underChannel = (deps: Pick<RegistrarDeps, "resource">, from: string): boolean =>
+  underChannelOf(deps.resource, from);
 
 /**
  * Where a chat thread lives for access, so a grant on a channel reaches the right threads and no others. Exactly two kinds of thread belong to a channel:
@@ -218,9 +306,20 @@ const underChannel = (deps: Pick<RegistrarDeps, "resource">, from: string): bool
  * Every other thread keeps the Space as its parent, so a channel's grant does not reach it: a person's one-to-one, an aside, a private Assistant chat, an agent's own chats, a task's or goal's chat, a Run's chat, and the
  * helper and teammate (handoff) threads an agent starts from a message. Returns the parent's id, or null (the Space).
  */
-export function threadHome(t: { kind: unknown; channelId: unknown; parentThreadId: unknown; replyThread: boolean }, inChannel: (parent: string) => boolean): string | null {
-  if (t.kind === "channel" && typeof t.channelId === "string" && ID_SHAPE["channel"]!.test(t.channelId)) return t.channelId;
-  if (t.replyThread && t.kind === "thread" && typeof t.parentThreadId === "string" && ID_SHAPE["thread"]!.test(t.parentThreadId) && inChannel(t.parentThreadId)) return t.parentThreadId;
+export function threadHome(
+  t: { kind: unknown; channelId: unknown; parentThreadId: unknown; replyThread: boolean },
+  inChannel: (parent: string) => boolean,
+): string | null {
+  if (t.kind === "channel" && typeof t.channelId === "string" && ID_SHAPE["channel"]!.test(t.channelId))
+    return t.channelId;
+  if (
+    t.replyThread &&
+    t.kind === "thread" &&
+    typeof t.parentThreadId === "string" &&
+    ID_SHAPE["thread"]!.test(t.parentThreadId) &&
+    inChannel(t.parentThreadId)
+  )
+    return t.parentThreadId;
   return null;
 }
 
@@ -228,7 +327,11 @@ export function threadHome(t: { kind: unknown; channelId: unknown; parentThreadI
  * The registration that moves a thread made before channel threads lived in their channel: the same row with its home as its parent, or null when there is nothing to move (not one of the two kinds that belong to
  * a channel, the home is not a known resource, or it is already there).
  */
-export function threadMoveInto(have: ResourceRow | undefined, home: string | null | undefined, homeKnown: boolean): ResourceRow | null {
+export function threadMoveInto(
+  have: ResourceRow | undefined,
+  home: string | null | undefined,
+  homeKnown: boolean,
+): ResourceRow | null {
   if (!have || have.type !== "thread" || !home || !homeKnown || have.parent_id === home) return null;
   return { ...have, parent_id: home };
 }

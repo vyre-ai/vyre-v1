@@ -18,12 +18,31 @@ async function page() {
   const s = createSampleSettings(northwind);
   const opened: string[] = [];
   s.data.nav.openLink = (l: string) => void opened.push(l);
-  const root = await mount(createRoot, <SavedProvider><SettingsDataProvider value={s.data}><AboutYou /><SavedBar /></SettingsDataProvider></SavedProvider>);
+  const root = await mount(
+    createRoot,
+    <SavedProvider>
+      <SettingsDataProvider value={s.data}>
+        <AboutYou />
+        <SavedBar />
+      </SettingsDataProvider>
+    </SavedProvider>,
+  );
   await flush();
   return { s, root, opened };
 }
 const partText = (root: Node, place: "public" | "private"): string => textOf(find(root, `about-${place}`));
-const key = async (n: Node | null, k: string): Promise<void> => { await act(async () => { (n!.props.onKeyDown as ((e: unknown) => void) | undefined)?.({ key: k, nativeEvent: { key: k }, preventDefault() {}, stopPropagation() {}, isDefaultPrevented: () => false, isPropagationStopped: () => false }); }); };
+const key = async (n: Node | null, k: string): Promise<void> => {
+  await act(async () => {
+    (n!.props.onKeyDown as ((e: unknown) => void) | undefined)?.({
+      key: k,
+      nativeEvent: { key: k },
+      preventDefault() {},
+      stopPropagation() {},
+      isDefaultPrevented: () => false,
+      isPropagationStopped: () => false,
+    });
+  });
+};
 async function menuItem(root: Node, factId: string, label: string): Promise<void> {
   await press(find(root, `about-more-${factId}`));
   await flush();
@@ -41,9 +60,23 @@ test("two parts, each saying who can use it; the basics from Profile are public;
   assert.match(partText(root, "private"), /Picks up the kids/);
   assert.doesNotMatch(partText(root, "public"), /Picks up the kids/);
   assert.doesNotMatch(textOf(root), /—/, "no em dashes");
-  const f = { factId: "f", text: "t", place: "private", agentId: "agt_intake", sourceKind: "chat", sourceRef: "thr", learnedAt: Date.UTC(2026, 10, 1) } as ProfileFact;
-  assert.equal(sourceText(f, () => "Intake"), "Learned by Intake, 1 Nov");
-  assert.equal(sourceText({ ...f, sourceKind: "manual" }, () => "Intake"), "You added this, 1 Nov");
+  const f = {
+    factId: "f",
+    text: "t",
+    place: "private",
+    agentId: "agt_intake",
+    sourceKind: "chat",
+    sourceRef: "thr",
+    learnedAt: Date.UTC(2026, 10, 1),
+  } as ProfileFact;
+  assert.equal(
+    sourceText(f, () => "Intake"),
+    "Learned by Intake, 1 Nov",
+  );
+  assert.equal(
+    sourceText({ ...f, sourceKind: "manual" }, () => "Intake"),
+    "You added this, 1 Nov",
+  );
 });
 
 test("an agent's suggestion waits with Add to public and Keep private; Add to public moves it, with Undo", async () => {
@@ -52,7 +85,13 @@ test("an agent's suggestion waits with Add to public and Keep private; Add to pu
   await press(find(root, "about-accept-fct_sug"));
   await flush();
   assert.match(partText(root, "public"), /Out of office every second Friday/);
-  assert.ok(s.calls.some((c) => c.cap === "memory.profile.move" && JSON.stringify(c.input) === JSON.stringify({ factId: "fct_sug", to: "public" })));
+  assert.ok(
+    s.calls.some(
+      (c) =>
+        c.cap === "memory.profile.move" &&
+        JSON.stringify(c.input) === JSON.stringify({ factId: "fct_sug", to: "public" }),
+    ),
+  );
   assert.match(textOf(root), /Added to your public profile\./);
 });
 
@@ -110,7 +149,9 @@ test("Erase completely asks first, in the row: Cancel keeps it, Erase removes it
   await menuItem(root, "fct_priv2", "Erase completely");
   await press(find(root, "about-erase-fct_priv2"));
   await flush();
-  assert.ok(s.calls.some((c) => c.cap === "memory.erase" && (c.input as { factIds: string[] }).factIds[0] === "fct_priv2"));
+  assert.ok(
+    s.calls.some((c) => c.cap === "memory.erase" && (c.input as { factIds: string[] }).factIds[0] === "fct_priv2"),
+  );
   assert.doesNotMatch(partText(root, "private"), /Saving for a house/);
 });
 
@@ -124,7 +165,14 @@ test("adding a fact by hand to either part, with Enter", async () => {
 
 test("Who pays for memory: nothing to pick for your own memory, the plain line and today's use", async () => {
   const s = createSampleSettings(northwind);
-  const root = await mount(createRoot, <SavedProvider><SettingsDataProvider value={s.data}><MemoryPage /></SettingsDataProvider></SavedProvider>);
+  const root = await mount(
+    createRoot,
+    <SavedProvider>
+      <SettingsDataProvider value={s.data}>
+        <MemoryPage />
+      </SettingsDataProvider>
+    </SavedProvider>,
+  );
   await flush();
   const text = textOf(root);
   assert.match(text, /Learning uses the AI account you chat with, on its cheapest model, up to your daily limit\./);
@@ -150,5 +198,9 @@ test("a stacked control lines up with its label (no extra left padding or margin
   assert.equal(st.marginLeft, undefined);
   assert.equal(st.paddingRight, 16, "the right edge stays");
   assert.equal(st.flexDirection, "column");
-  assert.equal((s.stackedRow as { flexDirection: string }).flexDirection, "row", "the look: the icon beside the button");
+  assert.equal(
+    (s.stackedRow as { flexDirection: string }).flexDirection,
+    "row",
+    "the look: the icon beside the button",
+  );
 });

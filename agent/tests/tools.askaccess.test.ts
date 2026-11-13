@@ -34,15 +34,23 @@ test("view-only: only read tools at view, plus access.propose_change", () => {
 test("property: a view-only Ask pane never invokes above view, whatever the model asks for", async () => {
   const { session, calls, loaded } = makeSession({ levels: levels("view"), engineer: true });
   const c = askCtx();
-  let offered = 0, refused = 0;
+  let offered = 0,
+    refused = 0;
   for (const t of loaded.catalog.all) {
     const ok = allowedAtLevel("view", t);
-    if (ok && !loaded.defaults.has(t.name)) { session.search(c, t.name); assert.ok(session.loaded(c.thread.threadId).has(t.name), `${t.name} found by search`); }
+    if (ok && !loaded.defaults.has(t.name)) {
+      session.search(c, t.name);
+      assert.ok(session.loaded(c.thread.threadId).has(t.name), `${t.name} found by search`);
+    }
     const before = calls.length;
     const out = await session.call(c, t.name, {});
     if (ok) {
       offered++;
-      assert.notEqual(out.kind === "error" && out.error.code === "permission.role_lacks_permission", true, `${t.name} was refused at view`);
+      assert.notEqual(
+        out.kind === "error" && out.error.code === "permission.role_lacks_permission",
+        true,
+        `${t.name} was refused at view`,
+      );
     } else {
       refused++;
       assert.equal(out.kind, "error", t.name);
@@ -55,7 +63,7 @@ test("property: a view-only Ask pane never invokes above view, whatever the mode
   for (const call of calls) {
     const cap = loaded.caps.get(call.cap);
     assert.ok(cap, call.cap);
-    assert.ok(cap.level === "view" || cap.level === "member", `${call.cap} is above view`);   // member: membership only, below view
+    assert.ok(cap.level === "view" || cap.level === "member", `${call.cap} is above view`); // member: membership only, below view
     assert.ok(cap.effects === "read" || call.cap === "access.propose_change", `${call.cap} writes at view`);
     assert.equal(call.principal, "agt_intake");
     assert.equal(call.actingFor, "per_dana", "the call is the intersection with the asker");
@@ -68,13 +76,17 @@ test("use adds use-level tools but nothing at edit or manage", async () => {
   const set = session.toolsFor(c);
   assert.equal(set.level, "use");
   const offered = [...set.listed, ...set.searchable];
-  assert.ok(offered.some((t) => t.level === "use"), "use-level tools appear");
+  assert.ok(
+    offered.some((t) => t.level === "use"),
+    "use-level tools appear",
+  );
   assert.ok(offered.every((t) => LEVEL_RANK[t.level] <= LEVEL_RANK.use));
   assert.ok(set.listed.some((t) => t.name === "ask_question"));
-  for (const t of loaded.catalog.all) if (LEVEL_RANK[t.level] > LEVEL_RANK.use) {
-    const out = await session.call(c, t.name, {});
-    assert.equal(out.kind, "error", t.name);
-  }
+  for (const t of loaded.catalog.all)
+    if (LEVEL_RANK[t.level] > LEVEL_RANK.use) {
+      const out = await session.call(c, t.name, {});
+      assert.equal(out.kind, "error", t.name);
+    }
   assert.equal(calls.length, 0, "nothing above use reached invoke");
 });
 
@@ -130,15 +142,27 @@ test("preload lists deferred tools in a thread without a tool_search, and only t
 test("an Ask on one object changes that object and nothing else, at the person's real level", async () => {
   const { session, calls } = makeSession({ levels: levels("edit") });
   const c = askCtx();
-  const same = await session.call(c, "records_update", { type: "contact", recordId: "rec_1", fields: { name: "Dana" } });
+  const same = await session.call(c, "records_update", {
+    type: "contact",
+    recordId: "rec_1",
+    fields: { name: "Dana" },
+  });
   assert.notEqual(same.kind, "error", "the object it is about");
   const before = calls.length;
-  const other = await session.call(c, "records_update", { type: "contact", recordId: "rec_2", fields: { name: "Dana" } });
+  const other = await session.call(c, "records_update", {
+    type: "contact",
+    recordId: "rec_2",
+    fields: { name: "Dana" },
+  });
   assert.equal(other.kind, "error");
   if (other.kind === "error") assert.equal(other.error.details?.["reason"], "ask_scope");
   assert.equal(calls.length, before, "the other record is never reached");
   const read = await session.call(c, "records_get", { type: "contact", recordId: "rec_2" });
-  assert.notEqual(read.kind === "error" ? read.error.details?.["reason"] : "", "ask_scope", "reading anything the person can read is fine");
+  assert.notEqual(
+    read.kind === "error" ? read.error.details?.["reason"] : "",
+    "ask_scope",
+    "reading anything the person can read is fine",
+  );
 });
 
 test("an Ask on a folder or a place is bounded by the level alone: it holds many things", async () => {

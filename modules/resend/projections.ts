@@ -17,10 +17,21 @@ export interface ResendCtx {
   trace: { traceId: string };
   now(): number;
   db: ResendDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -60,7 +71,7 @@ export const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.i
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<ResendCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -118,16 +129,29 @@ export interface Answer {
 }
 
 /** One call to the Resend API with the Space key. Never throws for an HTTP status; a network failure is provider.network. */
-export async function raw(ctx: ResendCtx, c: { method?: string; path: string; query?: Record<string, string>; body?: unknown; headers?: Record<string, string> }): Promise<Answer> {
+export async function raw(
+  ctx: ResendCtx,
+  c: {
+    method?: string;
+    path: string;
+    query?: Record<string, string>;
+    body?: unknown;
+    headers?: Record<string, string>;
+  },
+): Promise<Answer> {
   const key = await needHost(ctx).secret(ctx, KEY_HANDLE);
   const qs = c.query ? `?${new URLSearchParams(c.query).toString()}` : "";
   const headers: Record<string, string> = { authorization: `Bearer ${key}`, accept: "application/json", ...c.headers };
   if (c.body !== undefined) headers["content-type"] = "application/json";
   let res: { status: number; text(): Promise<string> };
   try {
-    res = await ctx.http(`${API}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}) });
+    res = await ctx.http(`${API}${c.path}${qs}`, {
+      method: c.method ?? "GET",
+      headers,
+      ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}),
+    });
   } catch (e) {
-    if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+    if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
     throw fail("provider.network", ctx.trace.traceId, { message: "Resend could not be reached." });
   }
   const body = await res.text();
@@ -136,7 +160,8 @@ export async function raw(ctx: ResendCtx, c: { method?: string; path: string; qu
     const parsed = body ? (JSON.parse(body) as unknown) : {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Json;
   } catch {
-    if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Resend answered something unreadable." });
+    if (res.status < 300)
+      throw fail("provider.bad_response", ctx.trace.traceId, { message: "Resend answered something unreadable." });
   }
   return { status: res.status, json };
 }
@@ -153,11 +178,20 @@ export function refusal(ctx: Pick<ResendCtx, "trace">, status: number, json: Jso
   const t = ctx.trace.traceId;
   const details = { status, ...(typeof json.name === "string" ? { reason: json.name } : {}) };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Resend asked us to slow down.", details });
-  if (status === 401 || status === 403) return fail("provider.auth_failed", t, { message: "Resend did not accept the API key, or the key may not do this. Check Resend_Key in the Vault.", details });
+  if (status === 401 || status === 403)
+    return fail("provider.auth_failed", t, {
+      message: "Resend did not accept the API key, or the key may not do this. Check Resend_Key in the Vault.",
+      details,
+    });
   if (status === 404) return fail("validation.not_found", t, { message: "Resend has no such item.", details });
   if (status >= 500) return fail("provider.unavailable", t, { message: "Resend is not answering right now.", details });
   if (status === 400 || status === 422 || status === 409) {
-    return send ? fail("provider.bad_response", t, { message: "Resend could not use that email. Check the sender domain is verified.", details }) : fail("validation.bad_input", t, { message: "Resend could not use that request.", details });
+    return send
+      ? fail("provider.bad_response", t, {
+          message: "Resend could not use that email. Check the sender domain is verified.",
+          details,
+        })
+      : fail("validation.bad_input", t, { message: "Resend could not use that request.", details });
   }
   return fail("provider.bad_response", t, { message: "Resend answered something unexpected.", details });
 }

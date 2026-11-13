@@ -14,14 +14,25 @@ export function tierOf(model: string): Tier {
   return "standard";
 }
 
-export const modelCaps = (model: string): { tools: boolean; vision: boolean } => ({ tools: !/(embed|whisper|tts|image-gen)/i.test(model), vision: VISION.test(model) });
+export const modelCaps = (model: string): { tools: boolean; vision: boolean } => ({
+  tools: !/(embed|whisper|tts|image-gen)/i.test(model),
+  vision: VISION.test(model),
+});
 
 /** The tier a job wants: reading, searching and checking are cheap; reasoning, code and writing are strong. */
 export const tierFor = (job: Job): Tier => (job === "read" ? "cheap" : "strong");
 
 /** The model of a tier within one account's list: the first of that tier, else the nearest tier up, else down. */
 export function pick(models: readonly string[], tier: Tier): string | undefined {
-  const order: Tier[] = tier === "cheap" ? ["cheap", "standard", "strong"] : tier === "strong" ? ["strong", "standard", "cheap"] : ["standard", "cheap", "strong"];
-  for (const t of order) { const m = models.find((x) => tierOf(x) === t); if (m) return m; }
+  const order: Tier[] =
+    tier === "cheap"
+      ? ["cheap", "standard", "strong"]
+      : tier === "strong"
+        ? ["strong", "standard", "cheap"]
+        : ["standard", "cheap", "strong"];
+  for (const t of order) {
+    const m = models.find((x) => tierOf(x) === t);
+    if (m) return m;
+  }
   return models[0];
 }

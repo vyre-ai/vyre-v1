@@ -17,8 +17,17 @@ export const RELEASE_PUBLIC_KEY_HEX = "a21dbf67e93e65718d45529896455e13a4cb296b7
 export const RELEASE_REPO = "vyre-ai/vyre-v1";
 
 export type UpdateChannel = "stable" | "beta" | "nightly";
-export interface SignedManifest { manifest: string; signature: string }
-export interface ReleaseInfo { version: string; tarball: string; sha256: string; notes?: string; security?: boolean }
+export interface SignedManifest {
+  manifest: string;
+  signature: string;
+}
+export interface ReleaseInfo {
+  version: string;
+  tarball: string;
+  sha256: string;
+  notes?: string;
+  security?: boolean;
+}
 
 /** The shape the updates module takes in configureUpdates (modules/updates/handlers/channels.ts UpdateDrivers). */
 export interface UpdatesDrivers {
@@ -56,7 +65,9 @@ export interface UpdatesHostDeps {
 
 /** `vyre-server`'s base address for a channel, as scripts/release/feed.ts (feedBase) writes it. */
 export function githubFeedBase(channel: UpdateChannel, repo: string = RELEASE_REPO): string {
-  return channel === "stable" ? `https://github.com/${repo}/releases/latest/download/` : `https://github.com/${repo}/releases/download/channel-${channel}/`;
+  return channel === "stable"
+    ? `https://github.com/${repo}/releases/latest/download/`
+    : `https://github.com/${repo}/releases/download/channel-${channel}/`;
 }
 
 const defaultFetch: FeedFetch = async (url) => {
@@ -65,16 +76,40 @@ const defaultFetch: FeedFetch = async (url) => {
   return { status: r.status, text: () => r.text() };
 };
 
-const defaultRun: RunCommand = (argv) => new Promise((resolve) => {
-  const [cmd, ...args] = argv;
-  execFile(cmd ?? "vyre-server", args, { timeout: 30 * 60_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
-    resolve({ code: err === null ? 0 : typeof (err as { code?: unknown }).code === "number" ? (err as { code: number }).code : (err as { code?: unknown }).code === "ENOENT" ? 127 : 1, stdout: String(stdout), stderr: String(stderr) });
+const defaultRun: RunCommand = (argv) =>
+  new Promise((resolve) => {
+    const [cmd, ...args] = argv;
+    execFile(
+      cmd ?? "vyre-server",
+      args,
+      { timeout: 30 * 60_000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        resolve({
+          code:
+            err === null
+              ? 0
+              : typeof (err as { code?: unknown }).code === "number"
+                ? (err as { code: number }).code
+                : (err as { code?: unknown }).code === "ENOENT"
+                  ? 127
+                  : 1,
+          stdout: String(stdout),
+          stderr: String(stderr),
+        });
+      },
+    );
   });
-});
 
-const defaultRead = (file: string): string | null => { try { return fs.readFileSync(file, "utf8"); } catch { return null; } };
+const defaultRead = (file: string): string | null => {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+};
 
-const hexToBytes = (hex: string): Uint8Array | null => (/^[0-9a-f]{64}$/i.test(hex) ? new Uint8Array(Buffer.from(hex, "hex")) : null);
+const hexToBytes = (hex: string): Uint8Array | null =>
+  /^[0-9a-f]{64}$/i.test(hex) ? new Uint8Array(Buffer.from(hex, "hex")) : null;
 
 export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
   const key = hexToBytes(d.releaseKeyHex ?? RELEASE_PUBLIC_KEY_HEX);
@@ -90,7 +125,8 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
     releaseKey: key ?? new Uint8Array(32),
     feed: {
       async fetch(channel) {
-        if (key === null) throw new Error("this build has no release key compiled in, so it cannot read a release feed");
+        if (key === null)
+          throw new Error("this build has no release key compiled in, so it cannot read a release feed");
         const root = base(channel).replace(/\/?$/, "/");
         const [m, s] = await Promise.all([doFetch(`${root}${channel}.json`), doFetch(`${root}${channel}.json.sig`)]);
         if (m.status !== 200) throw new Error(`the ${channel} manifest answered ${m.status}`);
@@ -102,18 +138,31 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
       running: () => d.version,
       async current() {
         const r = await server("version");
-        if (r.code === 127) throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
-        if (r.code !== 0 || r.stdout.trim() === "") throw new Error("vyre-server could not say which version is running");
+        if (r.code === 127)
+          throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
+        if (r.code !== 0 || r.stdout.trim() === "")
+          throw new Error("vyre-server could not say which version is running");
         return r.stdout.trim();
       },
       // vyre-server keeps one earlier release to go back to: the `previous` link in the install folder.
       async previous() {
         const text = read(path.join(dir, "previous"));
-        const v = text === null ? null : /^releases\/(\S+)/m.exec(text)?.[1] ?? null;
+        const v = text === null ? null : (/^releases\/(\S+)/m.exec(text)?.[1] ?? null);
         return v === null ? [] : [v];
       },
-      async install(release, channel = 'stable') {
-        const r = await server("update", "--yes", "--channel", channel, "--version", release.version, "--sha256", release.sha256, "--feed-base", base(channel));
+      async install(release, channel = "stable") {
+        const r = await server(
+          "update",
+          "--yes",
+          "--channel",
+          channel,
+          "--version",
+          release.version,
+          "--sha256",
+          release.sha256,
+          "--feed-base",
+          base(channel),
+        );
         if (r.code === 75) throw new UpdateOperationBusy();
         if (r.code !== 0) throw new Error(firstLine(r.stderr) || `vyre-server update failed (${r.code})`);
         const now = await this.current();
@@ -136,8 +185,10 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
 }
 
 class UpdateOperationBusy extends Error {
-  readonly code = 'update.operation_busy';
-  constructor() { super('Another server update or rollback is running.'); }
+  readonly code = "update.operation_busy";
+  constructor() {
+    super("Another server update or rollback is running.");
+  }
 }
 
 const firstLine = (s: string): string => s.trim().split("\n")[0]?.slice(0, 300) ?? "";

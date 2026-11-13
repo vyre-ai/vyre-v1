@@ -6,8 +6,16 @@ import { thisDeviceId } from "./hosts.ts";
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Row = CapMap["terminal.list"]["out"]["terminals"][number];
 
-export interface RunDeps { call: Call; newKey(): string; sleep?: (ms: number) => Promise<void> }
-export interface RunTarget { host?: "agent_computer" | "space_server" | "device"; agentId?: string; /** This computer, when the caller already knows it. */ deviceId?: string }
+export interface RunDeps {
+  call: Call;
+  newKey(): string;
+  sleep?: (ms: number) => Promise<void>;
+}
+export interface RunTarget {
+  host?: "agent_computer" | "space_server" | "device";
+  agentId?: string;
+  /** This computer, when the caller already knows it. */ deviceId?: string;
+}
 
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -15,14 +23,27 @@ const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r
 export async function sessionFor(d: RunDeps, t: RunTarget): Promise<string> {
   const host = t.host ?? "device";
   const list = ((await d.call("terminal.list", {})) as CapMap["terminal.list"]["out"]).terminals as Row[];
-  const hit = list.filter((r) => r.state !== "exited" && r.host === host && (host !== "agent_computer" || t.agentId === undefined || r.agentId === t.agentId)).sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
+  const hit = list
+    .filter(
+      (r) =>
+        r.state !== "exited" &&
+        r.host === host &&
+        (host !== "agent_computer" || t.agentId === undefined || r.agentId === t.agentId),
+    )
+    .sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
   if (hit) return hit.terminalId;
   const key = d.newKey();
   // a terminal on a computer names the computer: this one
-  const deviceId = host === "device" ? t.deviceId ?? await thisDeviceId(d.call) : undefined;
-  const opened = host === "space_server"
-    ? ((await d.call("terminal.open_server", { idempotencyKey: key })) as { terminal: { terminalId: string } })
-    : ((await d.call("terminal.open", { host, ...(host === "agent_computer" && t.agentId ? { agentId: t.agentId } : {}), ...(deviceId ? { deviceId } : {}), idempotencyKey: key })) as { terminal: { terminalId: string } });
+  const deviceId = host === "device" ? (t.deviceId ?? (await thisDeviceId(d.call))) : undefined;
+  const opened =
+    host === "space_server"
+      ? ((await d.call("terminal.open_server", { idempotencyKey: key })) as { terminal: { terminalId: string } })
+      : ((await d.call("terminal.open", {
+          host,
+          ...(host === "agent_computer" && t.agentId ? { agentId: t.agentId } : {}),
+          ...(deviceId ? { deviceId } : {}),
+          idempotencyKey: key,
+        })) as { terminal: { terminalId: string } });
   return opened.terminal.terminalId;
 }
 
@@ -33,10 +54,18 @@ export async function typeCommand(d: RunDeps, terminalId: string, command: strin
   return { cursor: at.next };
 }
 
-export interface Waited { state: "done" | "exited" | "timeout"; output: string }
+export interface Waited {
+  state: "done" | "exited" | "timeout";
+  output: string;
+}
 
 /** Watch the session: Enter makes it running, and running then idle is the command done. Gives up after `timeoutMs`; the output is whatever was printed since the command was typed. */
-export async function waitForRun(d: RunDeps, terminalId: string, cursor: number, o: { everyMs?: number; timeoutMs?: number; startMs?: number } = {}): Promise<Waited> {
+export async function waitForRun(
+  d: RunDeps,
+  terminalId: string,
+  cursor: number,
+  o: { everyMs?: number; timeoutMs?: number; startMs?: number } = {},
+): Promise<Waited> {
   const sleep = d.sleep ?? realSleep;
   const every = o.everyMs ?? 1000;
   const limit = o.timeoutMs ?? 600_000;
@@ -44,15 +73,27 @@ export async function waitForRun(d: RunDeps, terminalId: string, cursor: number,
   let sawRunning = false;
   let state: Waited["state"] = "timeout";
   while (waited <= limit) {
-    const rows = ((await d.call("terminal.status", { terminalIds: [terminalId] }).catch(() => ({ rows: [] }))) as { rows: Array<{ state: string }> }).rows;
+    const rows = (
+      (await d.call("terminal.status", { terminalIds: [terminalId] }).catch(() => ({ rows: [] }))) as {
+        rows: Array<{ state: string }>;
+      }
+    ).rows;
     const s = rows[0]?.state;
-    if (s === "exited") { state = "exited"; break; }
+    if (s === "exited") {
+      state = "exited";
+      break;
+    }
     if (s === "running") sawRunning = true;
-    else if (s === "idle" && sawRunning) { state = "done"; break; }
+    else if (s === "idle" && sawRunning) {
+      state = "done";
+      break;
+    }
     await sleep(every);
     waited += every;
   }
-  const read = (await d.call("terminal.read", { terminalId, since: cursor }).catch(() => ({ text: "" }))) as { text: string };
+  const read = (await d.call("terminal.read", { terminalId, since: cursor }).catch(() => ({ text: "" }))) as {
+    text: string;
+  };
   return { state, output: read.text };
 }
 
@@ -62,8 +103,16 @@ const TAIL = 4000;
 export function answerOf(w: Waited, command: string): { other: string } {
   // the read starts on the line the command was typed on (the screen sends the line being typed on again until it ends): that line is the command, said once below
   const lines = w.output.split("\n");
-  const body = lines.length > 1 && command.trim() !== "" && (lines[0] ?? "").trimEnd().endsWith(command.trim()) ? lines.slice(1).join("\n") : w.output;
+  const body =
+    lines.length > 1 && command.trim() !== "" && (lines[0] ?? "").trimEnd().endsWith(command.trim())
+      ? lines.slice(1).join("\n")
+      : w.output;
   const tail = body.length > TAIL ? `…${body.slice(-TAIL)}` : body;
-  const lead = w.state === "done" ? "Ran in my terminal." : w.state === "exited" ? "The terminal closed before it finished." : "I typed it but it was still running when I stopped waiting.";
+  const lead =
+    w.state === "done"
+      ? "Ran in my terminal."
+      : w.state === "exited"
+        ? "The terminal closed before it finished."
+        : "I typed it but it was still running when I stopped waiting.";
   return { other: `${lead}\n$ ${command}\n${tail}`.trim() };
 }

@@ -9,16 +9,43 @@ import { ColumnHeader, RowCells, chunk, gridLayout } from "../FileList.tsx";
 import { createSampleFiles, harbor, northwind } from "../list/sample.ts";
 import type { SampleFiles, SampleSpace } from "../list/sample.ts";
 import {
-  FilesDataProvider, FilesStateProvider, FilesTree, INITIAL_STATE, TreeLoading, arrowSelect, clickSelect, contextSelect, createSpring, crumbs, dragPayload, dropMoves, fileLine, kindLabel, parsePayload,
-  reduce, selectAll, sizeText, sortLines, sourceOf, updatedText,
+  FilesDataProvider,
+  FilesStateProvider,
+  FilesTree,
+  INITIAL_STATE,
+  TreeLoading,
+  arrowSelect,
+  clickSelect,
+  contextSelect,
+  createSpring,
+  crumbs,
+  dragPayload,
+  dropMoves,
+  fileLine,
+  kindLabel,
+  parsePayload,
+  reduce,
+  selectAll,
+  sizeText,
+  sortLines,
+  sourceOf,
+  updatedText,
 } from "../tree/index.ts";
 import type { FileRow, FilesState, Line } from "../tree/index.ts";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 
 const wrap = (s: SampleFiles, initial: Partial<FilesState>, child: ReactElement): string =>
-  renderToStaticMarkup(<FilesDataProvider value={s.data}><FilesStateProvider initial={initial}>{child}</FilesStateProvider></FilesDataProvider>).replaceAll("<!-- -->", "");
-const list = (initial: Partial<FilesState> = {}, space: SampleSpace = northwind, o: { online?: boolean } = {}): string => wrap(createSampleFiles(space, o), initial, <FilesList />);
+  renderToStaticMarkup(
+    <FilesDataProvider value={s.data}>
+      <FilesStateProvider initial={initial}>{child}</FilesStateProvider>
+    </FilesDataProvider>,
+  ).replaceAll("<!-- -->", "");
+const list = (
+  initial: Partial<FilesState> = {},
+  space: SampleSpace = northwind,
+  o: { online?: boolean } = {},
+): string => wrap(createSampleFiles(space, o), initial, <FilesList />);
 const tree = (initial: Partial<FilesState> = {}): string => wrap(createSampleFiles(), initial, <FilesTree />);
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const at = (s: string, needle: string): number => {
@@ -26,10 +53,28 @@ const at = (s: string, needle: string): number => {
   assert.ok(i >= 0, `expected ${needle}`);
   return i;
 };
-const lines = (out: string): string[] => [...out.matchAll(/data-testid="row-line:((?:file|folder):[^"]+)"/g)].map((m) => m[1]!).filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing"));
+const lines = (out: string): string[] =>
+  [...out.matchAll(/data-testid="row-line:((?:file|folder):[^"]+)"/g)]
+    .map((m) => m[1]!)
+    .filter((k) => !k.endsWith("-leading") && !k.endsWith("-trailing"));
 const items = (entries: readonly MenuEntry[]): MenuItem[] => entries.filter(isItem);
 const folder = (id: string): Partial<FilesState> => ({ where: { kind: "folder", id } });
-const row = (id: string, folderId = "fld_x"): FileRow => ({ fileId: id, folderId, name: id, kind: "pdf", mime: "", size: 1, version: 1, label: 1, ownerId: "u", createdAt: 0, updatedAt: 0, updatedBy: "u", thumb: false, holds: 0 });
+const row = (id: string, folderId = "fld_x"): FileRow => ({
+  fileId: id,
+  folderId,
+  name: id,
+  kind: "pdf",
+  mime: "",
+  size: 1,
+  version: 1,
+  label: 1,
+  ownerId: "u",
+  createdAt: 0,
+  updatedAt: 0,
+  updatedBy: "u",
+  thumb: false,
+  holds: 0,
+});
 
 test("10,000-row sample thumbnail reads reuse one versioned files snapshot", () => {
   const sample = createSampleFiles(northwind, { bulk: 10000 });
@@ -49,12 +94,31 @@ test("10,000-row sample thumbnail reads reuse one versioned files snapshot", () 
 test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowledge, then Space with its folders (the Trash is in the more menu)", () => {
   const out = tree();
   const order = ["Recent", "Starred", "Shared with me", "Knowledge", "Space"].map((t) => at(out, `>${t}<`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "the virtual rows, Knowledge (only the rows that hold something), then Space");
-  assert.ok(!has(out, ">Graph<") && !has(out, ">Archive<") && !has(out, ">People<"), "empty Knowledge rows are not listed");
-  assert.ok(has(out, 'data-testid="row-nav:know"') && !has(out, 'data-testid="row-nav:trash"') && !has(out, ">Personal<"), "Knowledge is one quiet entry while its rows are empty, and there is no Personal section any more");
-  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"]) assert.ok(!has(out, `>${label.replace("'", "&#x27;")}<`), `${label} is not a Space root, so it is not listed under Space (it is in the All files list)`);
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    "the virtual rows, Knowledge (only the rows that hold something), then Space",
+  );
+  assert.ok(
+    !has(out, ">Graph<") && !has(out, ">Archive<") && !has(out, ">People<"),
+    "empty Knowledge rows are not listed",
+  );
+  assert.ok(
+    has(out, 'data-testid="row-nav:know"') && !has(out, 'data-testid="row-nav:trash"') && !has(out, ">Personal<"),
+    "Knowledge is one quiet entry while its rows are empty, and there is no Personal section any more",
+  );
+  for (const label of ["Daily", "Money", "Maya's reports", "Sales", "Billing", "Intake"])
+    assert.ok(
+      !has(out, `>${label.replace("'", "&#x27;")}<`),
+      `${label} is not a Space root, so it is not listed under Space (it is in the All files list)`,
+    );
   assert.ok(!has(out, ">Proposals<"), "a closed folder keeps its children out of the list");
-  assert.ok(has(out, 'data-testid="row-nav:recent"') && has(out, 'data-testid="row-nav:recent-trailing"') && has(out, 'data-testid="row-folder-all"'), "every row is a ui/Row with slots");
+  assert.ok(
+    has(out, 'data-testid="row-nav:recent"') &&
+      has(out, 'data-testid="row-nav:recent-trailing"') &&
+      has(out, 'data-testid="row-folder-all"'),
+    "every row is a ui/Row with slots",
+  );
   assert.ok(has(out, 'data-testid="count-recent"') && has(out, ">14<"), "Recent counts the live files");
   assert.ok(has(out, 'data-testid="count-shared"'), "Shared with me counts what was granted");
   assert.ok(!has(out, 'data-testid="count-trash"'), "an empty Trash shows no count");
@@ -63,17 +127,34 @@ test("screen: the sidebar lists Recent, Starred and Shared with me, then Knowled
 
 test("the tree selects what the list shows", () => {
   assert.ok(has(tree({ where: { kind: "recent" } }), "background-color:var(--sel)"));
-  assert.ok(has(wrap(createSampleFiles(undefined, { subjects: true }), folder("fld_ag_docs"), <FilesTree />), "background-color:var(--sel)"));
+  assert.ok(
+    has(
+      wrap(createSampleFiles(undefined, { subjects: true }), folder("fld_ag_docs"), <FilesTree />),
+      "background-color:var(--sel)",
+    ),
+  );
   assert.equal(tree().split("background-color:var(--sel)").length - 1, 1, "at the root only All files is selected");
   assert.deepEqual(reduce(INITIAL_STATE, { type: "go", where: { kind: "shared" } }).where, { kind: "shared" });
-  assert.deepEqual(crumbs([{ id: "a", name: "A", parentId: null }, { id: "b", name: "B", parentId: "a" }], "b").map((c) => c.name), ["A", "B"]);
+  assert.deepEqual(
+    crumbs(
+      [
+        { id: "a", name: "A", parentId: null },
+        { id: "b", name: "B", parentId: "a" },
+      ],
+      "b",
+    ).map((c) => c.name),
+    ["A", "B"],
+  );
 });
 
 test("screen: a folder lists its folders first, then its files by name, each a ui/Row with an icon and a date", () => {
   const out = list(folder("fld_sales"));
   assert.deepEqual(lines(out), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"]);
   assert.ok(has(out, ">Sales<") && has(out, "4 items"));
-  const cell = (key: string, id: string): string => new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>([^<]*)<`).exec(out)?.[1] ?? "";
+  const cell = (key: string, id: string): string =>
+    new RegExp(`data-testid="row-line:${key}-trailing"[\\s\\S]*?data-testid="cell-${id}"[^>]*>([^<]*)<`).exec(
+      out,
+    )?.[1] ?? "";
   assert.equal(cell("file:fil_deck", "kind"), "Presentation");
   assert.equal(cell("file:fil_deck", "size"), "8.9 MB");
   assert.equal(cell("file:fil_pricing", "size"), "62 KB");
@@ -81,17 +162,39 @@ test("screen: a folder lists its folders first, then its files by name, each a u
   assert.equal(cell("file:fil_logo", "size"), "210 KB");
   assert.equal(cell("folder:fld_proposals", "size"), "2 items");
   assert.equal(cell("folder:fld_proposals", "kind"), "Folder");
-  assert.ok(has(out, "8:00 AM") && has(out, "Yesterday") && has(out, "Oct 15"), "today as a clock time, then Yesterday, then the date");
-  assert.ok(has(out, 'data-testid="row-line:file:fil_deck-leading"') && has(out, 'data-testid="row-line:file:fil_deck-trailing"'));
+  assert.ok(
+    has(out, "8:00 AM") && has(out, "Yesterday") && has(out, "Oct 15"),
+    "today as a clock time, then Yesterday, then the date",
+  );
+  assert.ok(
+    has(out, 'data-testid="row-line:file:fil_deck-leading"') &&
+      has(out, 'data-testid="row-line:file:fil_deck-trailing"'),
+  );
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
 test("screen: the root lists the top folders and a nested folder names its path", () => {
-  assert.deepEqual(lines(list()), ["folder:fld_billing", "folder:fld_daily", "folder:fld_intake", "folder:fld_knowledge", "folder:fld_maya", "folder:fld_money", "folder:fld_sales"]);
+  assert.deepEqual(lines(list()), [
+    "folder:fld_billing",
+    "folder:fld_daily",
+    "folder:fld_intake",
+    "folder:fld_knowledge",
+    "folder:fld_maya",
+    "folder:fld_money",
+    "folder:fld_sales",
+  ]);
   const nested = list(folder("fld_proposals"));
-  assert.ok(has(nested, ">Proposals<") && has(nested, 'data-testid="files-path"') && has(nested, 'data-testid="files-crumb-fld_sales"') && has(nested, 'data-testid="files-crumb-root"'));
+  assert.ok(
+    has(nested, ">Proposals<") &&
+      has(nested, 'data-testid="files-path"') &&
+      has(nested, 'data-testid="files-crumb-fld_sales"') &&
+      has(nested, 'data-testid="files-crumb-root"'),
+  );
   assert.deepEqual(lines(nested), ["file:fil_harlow", "file:fil_rivera"]);
-  assert.ok(has(nested, ">Spreadsheet · Google Drive<") && has(nested, ">77 KB<"), "a mounted file names where it came from");
+  assert.ok(
+    has(nested, ">Spreadsheet · Google Drive<") && has(nested, ">77 KB<"),
+    "a mounted file names where it came from",
+  );
 });
 
 test("Shared with me lists what was granted", () => {
@@ -102,7 +205,12 @@ test("Shared with me lists what was granted", () => {
 
 test("Recent lists the newest files first and Knowledge lists the notes", () => {
   const recent = list({ where: { kind: "recent" }, sort: "updated", dir: "desc" });
-  assert.deepEqual(lines(recent).slice(0, 4), ["file:fil_notes", "file:fil_deck", "file:fil_rivera", "file:fil_budget"]);
+  assert.deepEqual(lines(recent).slice(0, 4), [
+    "file:fil_notes",
+    "file:fil_deck",
+    "file:fil_rivera",
+    "file:fil_budget",
+  ]);
   const knowledge = list({ where: { kind: "knowledge" } });
   assert.deepEqual(lines(knowledge), ["folder:fld_knowledge", "file:fil_voice", "file:fil_vyre"]);
 });
@@ -113,13 +221,42 @@ test("sort: by name, date modified, size or kind, folders always first, with the
   const bySize = list({ ...folder("fld_sales"), sort: "size", dir: "desc" });
   assert.deepEqual(lines(bySize), ["folder:fld_proposals", "file:fil_deck", "file:fil_logo", "file:fil_pricing"]);
   const picked: string[] = [];
-  const e = items(sortMenuEntries("size", "desc", (k) => void picked.push(k), (d) => void picked.push(d)));
-  assert.deepEqual(e.map((x) => [x.label, x.checked]), [["Name", false], ["Date modified", false], ["Made by", false], ["Size", true], ["Kind", false], ["Ascending", false], ["Descending", true]]);
+  const e = items(
+    sortMenuEntries(
+      "size",
+      "desc",
+      (k) => void picked.push(k),
+      (d) => void picked.push(d),
+    ),
+  );
+  assert.deepEqual(
+    e.map((x) => [x.label, x.checked]),
+    [
+      ["Name", false],
+      ["Date modified", false],
+      ["Made by", false],
+      ["Size", true],
+      ["Kind", false],
+      ["Ascending", false],
+      ["Descending", true],
+    ],
+  );
   for (const it of e) it.onSelect?.();
   assert.deepEqual(picked, ["name", "updated", "by", "size", "kind", "asc", "desc"]);
-  const num = sortLines([{ ...fileLine(row("a")), name: "file 10" }, { ...fileLine(row("b")), name: "file 2" }], "name", "asc").map((l) => l.name);
+  const num = sortLines(
+    [
+      { ...fileLine(row("a")), name: "file 10" },
+      { ...fileLine(row("b")), name: "file 2" },
+    ],
+    "name",
+    "asc",
+  ).map((l) => l.name);
   assert.deepEqual(num, ["file 2", "file 10"], "numbers sort as numbers");
-  assert.equal(reduce(INITIAL_STATE, { type: "sort", key: "name" }).dir, "desc", "choosing the same sort again flips it");
+  assert.equal(
+    reduce(INITIAL_STATE, { type: "sort", key: "name" }).dir,
+    "desc",
+    "choosing the same sort again flips it",
+  );
   assert.equal(reduce(INITIAL_STATE, { type: "sort", key: "updated" }).dir, "desc", "date starts newest first");
 });
 
@@ -132,59 +269,125 @@ test("selection follows the Finder: click, Cmd-click, Shift-click, arrows, Cmd-A
   assert.deepEqual(s.selection, ["b", "d"]);
   s = clickSelect(s, order, "b", { meta: true, shift: false });
   assert.deepEqual(s.selection, ["d"], "Cmd-click on a selected line unselects it");
-  s = clickSelect(clickSelect(INITIAL_STATE, order, "b", { meta: false, shift: false }), order, "e", { meta: false, shift: true });
+  s = clickSelect(clickSelect(INITIAL_STATE, order, "b", { meta: false, shift: false }), order, "e", {
+    meta: false,
+    shift: true,
+  });
   assert.deepEqual(s.selection, ["b", "c", "d", "e"], "Shift-click ranges from the anchor");
   s = clickSelect(s, order, "a", { meta: false, shift: true });
   assert.deepEqual(s.selection, ["a", "b"], "and back up the other way");
   assert.deepEqual(arrowSelect(INITIAL_STATE, order, 1, false).selection, ["a"]);
   assert.deepEqual(arrowSelect(INITIAL_STATE, order, -1, false).selection, ["e"]);
   assert.deepEqual(arrowSelect({ ...INITIAL_STATE, selection: ["c"], anchor: "c" }, order, 1, false).selection, ["d"]);
-  assert.deepEqual(arrowSelect({ ...INITIAL_STATE, selection: ["e"], anchor: "e" }, order, 1, false).selection, ["e"], "stops at the end");
-  assert.deepEqual(arrowSelect({ ...INITIAL_STATE, selection: ["c"], anchor: "c" }, order, 1, true).selection, ["c", "d"], "Shift grows the range");
+  assert.deepEqual(
+    arrowSelect({ ...INITIAL_STATE, selection: ["e"], anchor: "e" }, order, 1, false).selection,
+    ["e"],
+    "stops at the end",
+  );
+  assert.deepEqual(
+    arrowSelect({ ...INITIAL_STATE, selection: ["c"], anchor: "c" }, order, 1, true).selection,
+    ["c", "d"],
+    "Shift grows the range",
+  );
   assert.deepEqual(selectAll(INITIAL_STATE, order).selection, order);
-  assert.deepEqual(contextSelect({ ...INITIAL_STATE, selection: ["a", "b"] }, "b").selection, ["a", "b"], "right-click inside the selection keeps it");
-  assert.deepEqual(contextSelect({ ...INITIAL_STATE, selection: ["a", "b"] }, "d").selection, ["d"], "right-click outside selects that line");
+  assert.deepEqual(
+    contextSelect({ ...INITIAL_STATE, selection: ["a", "b"] }, "b").selection,
+    ["a", "b"],
+    "right-click inside the selection keeps it",
+  );
+  assert.deepEqual(
+    contextSelect({ ...INITIAL_STATE, selection: ["a", "b"] }, "d").selection,
+    ["d"],
+    "right-click outside selects that line",
+  );
   assert.deepEqual(reduce({ ...INITIAL_STATE, selection: ["a"], quickLook: "a" }, { type: "clear" }).selection, []);
-  assert.equal(reduce({ ...INITIAL_STATE, selection: ["a"] }, { type: "go", where: { kind: "recent" } }).selection.length, 0, "going elsewhere clears the selection");
+  assert.equal(
+    reduce({ ...INITIAL_STATE, selection: ["a"] }, { type: "go", where: { kind: "recent" } }).selection.length,
+    0,
+    "going elsewhere clears the selection",
+  );
 });
 
 test("the selected lines are highlighted and counted", () => {
   const out = list({ ...folder("fld_sales"), selection: ["file:fil_deck", "file:fil_logo"] });
-  assert.equal(out.split("background-color:var(--sel)").length - 1, 2, "the quiet selection token on exactly the selected rows");
+  assert.equal(
+    out.split("background-color:var(--sel)").length - 1,
+    2,
+    "the quiet selection token on exactly the selected rows",
+  );
   assert.ok(has(out, "4 items, 2 selected"));
 });
 
 test("drag: the selection travels together, a drop moves each file into the folder, a folder never into itself", () => {
   const sel: FilesState = { ...INITIAL_STATE, selection: ["file:fil_deck", "folder:fld_proposals"] };
   assert.equal(dragPayload(sel, "file:fil_deck"), "file:fil_deck,folder:fld_proposals");
-  assert.equal(dragPayload(sel, "file:fil_logo"), "file:fil_logo", "dragging a line outside the selection drags that line alone");
-  assert.deepEqual(parsePayload("file:fil_deck,folder:fld_proposals,junk"), [{ type: "file", id: "fil_deck" }, { type: "folder", id: "fld_proposals" }]);
+  assert.equal(
+    dragPayload(sel, "file:fil_logo"),
+    "file:fil_logo",
+    "dragging a line outside the selection drags that line alone",
+  );
+  assert.deepEqual(parsePayload("file:fil_deck,folder:fld_proposals,junk"), [
+    { type: "file", id: "fil_deck" },
+    { type: "folder", id: "fld_proposals" },
+  ]);
   const here = (): string | null => "fld_sales";
   assert.deepEqual(dropMoves(parsePayload("file:fil_deck,folder:fld_proposals"), "fld_billing", here), [
-    { cap: "files.move", input: { fileId: "fil_deck", toFolderId: "fld_billing" } }, { cap: "files.folder.move", input: { folderId: "fld_proposals", toParentId: "fld_billing" } },
+    { cap: "files.move", input: { fileId: "fil_deck", toFolderId: "fld_billing" } },
+    { cap: "files.folder.move", input: { folderId: "fld_proposals", toParentId: "fld_billing" } },
   ]);
-  assert.deepEqual(dropMoves(parsePayload("folder:fld_proposals"), "fld_proposals", here), [], "a folder cannot go into itself");
-  assert.deepEqual(dropMoves(parsePayload("folder:fld_proposals"), null, here), [{ cap: "files.folder.move", input: { folderId: "fld_proposals" } }], "dropped on All files: no destination, the top of its own tree");
+  assert.deepEqual(
+    dropMoves(parsePayload("folder:fld_proposals"), "fld_proposals", here),
+    [],
+    "a folder cannot go into itself",
+  );
+  assert.deepEqual(
+    dropMoves(parsePayload("folder:fld_proposals"), null, here),
+    [{ cap: "files.folder.move", input: { folderId: "fld_proposals" } }],
+    "dropped on All files: no destination, the top of its own tree",
+  );
   assert.deepEqual(dropMoves(parsePayload("file:fil_deck"), "fld_sales", here), [], "a file already there stays");
 });
 
 test("drag into a folder moves the file: the next render lists it there and not here", async () => {
   const s = createSampleFiles();
   const html = (id: string): string => wrap(s, folder(id), <FilesList />);
-  assert.ok(lines(html("fld_sales")).includes("file:fil_deck") && !lines(html("fld_billing")).includes("file:fil_deck"));
-  for (const m of dropMoves(parsePayload("file:fil_deck"), "fld_billing", () => "fld_sales")) await s.data.call(m.cap, m.input);
+  assert.ok(
+    lines(html("fld_sales")).includes("file:fil_deck") && !lines(html("fld_billing")).includes("file:fil_deck"),
+  );
+  for (const m of dropMoves(parsePayload("file:fil_deck"), "fld_billing", () => "fld_sales"))
+    await s.data.call(m.cap, m.input);
   assert.ok(!lines(html("fld_sales")).includes("file:fil_deck"));
   assert.ok(lines(html("fld_billing")).includes("file:fil_deck"));
-  for (const m of dropMoves(parsePayload("folder:fld_proposals"), "fld_billing", () => "fld_sales")) await s.data.call(m.cap, m.input);
-  assert.ok(lines(html("fld_billing")).includes("folder:fld_proposals") && !lines(html("fld_sales")).includes("folder:fld_proposals"));
-  assert.deepEqual(s.calls.map((c) => c.cap), ["files.move", "files.folder.move"]);
+  for (const m of dropMoves(parsePayload("folder:fld_proposals"), "fld_billing", () => "fld_sales"))
+    await s.data.call(m.cap, m.input);
+  assert.ok(
+    lines(html("fld_billing")).includes("folder:fld_proposals") &&
+      !lines(html("fld_sales")).includes("folder:fld_proposals"),
+  );
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["files.move", "files.folder.move"],
+  );
 });
 
 test("spring-load: a dragged item resting on a folder opens it after the wait; leaving or moving on cancels", () => {
   const queue: { fn: () => void; ms: number; live: boolean }[] = [];
   const opened: string[] = [];
-  const spring = createSpring((id) => void opened.push(id), 700, (fn, ms) => { const h = { fn, ms, live: true }; queue.push(h); return h; }, (h) => { (h as { live: boolean }).live = false; });
-  const fire = (): void => { for (const h of queue.splice(0)) if (h.live) h.fn(); };
+  const spring = createSpring(
+    (id) => void opened.push(id),
+    700,
+    (fn, ms) => {
+      const h = { fn, ms, live: true };
+      queue.push(h);
+      return h;
+    },
+    (h) => {
+      (h as { live: boolean }).live = false;
+    },
+  );
+  const fire = (): void => {
+    for (const h of queue.splice(0)) if (h.live) h.fn();
+  };
   spring.enter("a");
   assert.equal(queue[0]!.ms, 700);
   spring.leave("a");
@@ -204,8 +407,15 @@ test("spring-load: a dragged item resting on a folder opens it after the wait; l
 
 test("Quick Look shows a line large with its facts, and the menu offers it", () => {
   const out = list({ ...folder("fld_sales"), selection: ["file:fil_deck"], quickLook: "file:fil_deck" });
-  assert.ok(has(out, 'data-testid="quicklook"') && has(out, 'data-testid="quicklook-name"') && has(out, "Pitch deck v4.pptx"));
-  assert.ok(has(out, ">Presentation<") && has(out, ">8.9 MB<") && has(out, ">Omar Haddad<") && has(out, 'data-testid="quicklook-open"'));
+  assert.ok(
+    has(out, 'data-testid="quicklook"') && has(out, 'data-testid="quicklook-name"') && has(out, "Pitch deck v4.pptx"),
+  );
+  assert.ok(
+    has(out, ">Presentation<") &&
+      has(out, ">8.9 MB<") &&
+      has(out, ">Omar Haddad<") &&
+      has(out, 'data-testid="quicklook-open"'),
+  );
   assert.ok(!has(list(folder("fld_sales")), 'data-testid="quicklook"'));
   const folderQl = list({ quickLook: "folder:fld_sales" });
   assert.ok(has(folderQl, ">Contains<") && has(folderQl, "Open folder"));
@@ -214,15 +424,31 @@ test("Quick Look shows a line large with its facts, and the menu offers it", () 
 test("the line's menu: open, Quick Look, share and rename where they apply, the Trash, and Restore in the Trash", () => {
   const did: string[] = [];
   const h = {
-    open: (l: Line) => void did.push(`open:${l.id}`), quickLook: (l: Line) => void did.push(`ql:${l.id}`), share: (l: Line) => void did.push(`share:${l.id}`), rename: (l: Line) => void did.push(`rename:${l.id}`),
-    trash: (ls: readonly Line[]) => void did.push(`trash:${ls.map((l) => l.id).join("+")}`), restore: (ls: readonly Line[]) => void did.push(`restore:${ls.length}`),
+    open: (l: Line) => void did.push(`open:${l.id}`),
+    quickLook: (l: Line) => void did.push(`ql:${l.id}`),
+    share: (l: Line) => void did.push(`share:${l.id}`),
+    rename: (l: Line) => void did.push(`rename:${l.id}`),
+    trash: (ls: readonly Line[]) => void did.push(`trash:${ls.map((l) => l.id).join("+")}`),
+    restore: (ls: readonly Line[]) => void did.push(`restore:${ls.length}`),
   };
   const f = fileLine(row("fil_1"));
   const dir: Line = { ...f, key: "folder:fld_1", type: "folder", id: "fld_1", kind: "folder" };
-  assert.deepEqual(items(lineMenuEntries([f], false, h)).map((x) => x.label), ["Open", "Quick Look", "Rename…", "Move to Trash"]);
-  assert.deepEqual(items(lineMenuEntries([dir], false, h)).map((x) => x.label), ["Open", "Quick Look", "Share…", "Rename…", "Move to Trash"]);
-  assert.deepEqual(items(lineMenuEntries([f, dir], false, h)).map((x) => x.label), ["Move 2 Items to Trash"]);
-  assert.deepEqual(items(lineMenuEntries([f], true, h)).map((x) => x.label), ["Restore"]);
+  assert.deepEqual(
+    items(lineMenuEntries([f], false, h)).map((x) => x.label),
+    ["Open", "Quick Look", "Rename…", "Move to Trash"],
+  );
+  assert.deepEqual(
+    items(lineMenuEntries([dir], false, h)).map((x) => x.label),
+    ["Open", "Quick Look", "Share…", "Rename…", "Move to Trash"],
+  );
+  assert.deepEqual(
+    items(lineMenuEntries([f, dir], false, h)).map((x) => x.label),
+    ["Move 2 Items to Trash"],
+  );
+  assert.deepEqual(
+    items(lineMenuEntries([f], true, h)).map((x) => x.label),
+    ["Restore"],
+  );
   for (const it of items(lineMenuEntries([f], false, h))) it.onSelect?.();
   items(lineMenuEntries([f], true, h))[0]!.onSelect?.();
   assert.deepEqual(did, ["open:fil_1", "ql:fil_1", "rename:fil_1", "trash:fil_1", "restore:1"]);
@@ -232,13 +458,23 @@ test("the line's menu: open, Quick Look, share and rename where they apply, the 
 test("the file menu shows the keys the list answers to, and a file gets Share where the shell can share one", () => {
   const did: string[] = [];
   const h = {
-    open: (l: Line) => void did.push(`open:${l.id}`), quickLook: (l: Line) => void did.push(`ql:${l.id}`), shareFile: (l: Line) => void did.push(`share-file:${l.id}`), rename: (l: Line) => void did.push(`rename:${l.id}`),
-    trash: (ls: readonly Line[]) => void did.push(`trash:${ls.map((l) => l.id).join("+")}`), restore: (ls: readonly Line[]) => void did.push(`restore:${ls.length}`),
+    open: (l: Line) => void did.push(`open:${l.id}`),
+    quickLook: (l: Line) => void did.push(`ql:${l.id}`),
+    shareFile: (l: Line) => void did.push(`share-file:${l.id}`),
+    rename: (l: Line) => void did.push(`rename:${l.id}`),
+    trash: (ls: readonly Line[]) => void did.push(`trash:${ls.map((l) => l.id).join("+")}`),
+    restore: (ls: readonly Line[]) => void did.push(`restore:${ls.length}`),
   };
   const f = fileLine(row("fil_1"));
   const es = items(lineMenuEntries([f], false, h));
-  assert.deepEqual(es.map((x) => x.label), ["Open", "Quick Look", "Share…", "Rename…", "Move to Trash"]);
-  assert.deepEqual(es.map((x) => x.hint), ["Enter", "Space", undefined, "F2", "\u232b"]);
+  assert.deepEqual(
+    es.map((x) => x.label),
+    ["Open", "Quick Look", "Share…", "Rename…", "Move to Trash"],
+  );
+  assert.deepEqual(
+    es.map((x) => x.hint),
+    ["Enter", "Space", undefined, "F2", "\u232b"],
+  );
   es.find((x) => x.label === "Share…")!.onSelect?.();
   assert.deepEqual(did, ["share-file:fil_1"]);
 });
@@ -251,11 +487,33 @@ test("moving to the Trash and restoring change what the Trash and the folder lis
   assert.deepEqual(lines(html({ where: { kind: "trash" } })), ["file:fil_deck"]);
   assert.ok(!lines(html(folder("fld_sales"))).includes("file:fil_deck"));
   const trashRoot = s.data.live("files.tree", {}).getSnapshot();
-  assert.ok(trashRoot.status === "ready" && trashRoot.data.roots.find((r) => r.key === "trash")?.count === 1, "the Trash holds one file");
+  assert.ok(
+    trashRoot.status === "ready" && trashRoot.data.roots.find((r) => r.key === "trash")?.count === 1,
+    "the Trash holds one file",
+  );
   assert.ok(!has(wrap(s, {}, <FilesTree />), 'data-testid="count-trash"'), "the Trash left the sidebar");
-  assert.deepEqual(items(moreMenuEntries({ showHidden: false, trashCount: 1, toggleHidden: () => undefined, selectAll: () => undefined, openTrash: () => undefined })).map((e) => [e.label, e.count]), [["Show Hidden Files", undefined], ["Select All", undefined], ["Trash", 1]], "the more menu has the Trash with its count");
+  assert.deepEqual(
+    items(
+      moreMenuEntries({
+        showHidden: false,
+        trashCount: 1,
+        toggleHidden: () => undefined,
+        selectAll: () => undefined,
+        openTrash: () => undefined,
+      }),
+    ).map((e) => [e.label, e.count]),
+    [
+      ["Show Hidden Files", undefined],
+      ["Select All", undefined],
+      ["Trash", 1],
+    ],
+    "the more menu has the Trash with its count",
+  );
   await s.data.call("files.restore", { fileId: "fil_deck" });
-  assert.ok(lines(html(folder("fld_sales"))).includes("file:fil_deck") && has(html({ where: { kind: "trash" } }), "Trash is empty"));
+  assert.ok(
+    lines(html(folder("fld_sales"))).includes("file:fil_deck") &&
+      has(html({ where: { kind: "trash" } }), "Trash is empty"),
+  );
 });
 
 test("an empty place says so with the shared empty state", () => {
@@ -273,36 +531,62 @@ test("the list opens offline from the kept copy and says so", () => {
 test("before data arrives the tree and the list draw a frame of the right size, never a blank page", () => {
   assert.ok(has(renderToStaticMarkup(<FilesList />), "files-list-loading"));
   assert.ok(has(renderToStaticMarkup(<FilesTree />), "files-tree-loading"));
-  assert.ok(has(renderToStaticMarkup(<ListLoading />), "Files") && has(renderToStaticMarkup(<TreeLoading />), "Loading"));
+  assert.ok(
+    has(renderToStaticMarkup(<ListLoading />), "Files") && has(renderToStaticMarkup(<TreeLoading />), "Loading"),
+  );
 });
 
 test("sizes, kinds, dates and sources read plainly", () => {
-  assert.deepEqual([512, 2_400, 48_000, 1_240_000, 8_900_000, 12_500_000, 2_000_000_000].map(sizeText), ["512 B", "2 KB", "48 KB", "1.2 MB", "8.9 MB", "13 MB", "2 GB"]);
+  assert.deepEqual([512, 2_400, 48_000, 1_240_000, 8_900_000, 12_500_000, 2_000_000_000].map(sizeText), [
+    "512 B",
+    "2 KB",
+    "48 KB",
+    "1.2 MB",
+    "8.9 MB",
+    "13 MB",
+    "2 GB",
+  ]);
   assert.equal(kindLabel("spreadsheet"), "Spreadsheet");
   const now = Date.UTC(2025, 9, 24, 10, 0);
   assert.equal(updatedText(now - 3_600_000, now, 0), "9:00 AM");
   assert.equal(updatedText(now - 30 * 3_600_000, now, 0), "Yesterday");
   assert.equal(updatedText(now - 400 * 86_400_000, now, 0), "Sep 19, 2024");
-  assert.deepEqual([sourceOf({ kind: "recent" }).cap, sourceOf({ kind: "folder", id: null }).input, sourceOf({ kind: "folder", id: "x" }).input], ["files.recent", {}, { folder: "x" }]);
+  assert.deepEqual(
+    [
+      sourceOf({ kind: "recent" }).cap,
+      sourceOf({ kind: "folder", id: null }).input,
+      sourceOf({ kind: "folder", id: "x" }).input,
+    ],
+    ["files.recent", {}, { folder: "x" }],
+  );
 });
 
 test("harbor studio draws its own folders and files", () => {
   const out = list({}, harbor);
   assert.deepEqual(lines(out), ["folder:fld_h_assets", "folder:fld_h_clients"]);
   const clients = list(folder("fld_h_clients"), harbor);
-  assert.ok(has(clients, "Moreno logo round two.png") && has(clients, "Abel homepage copy.docx") && !has(clients, "Pitch deck"));
+  assert.ok(
+    has(clients, "Moreno logo round two.png") && has(clients, "Abel homepage copy.docx") && !has(clients, "Pitch deck"),
+  );
 });
 
 // ---------------------------------------------------------------- P-L9e_01b: columns, breadcrumb, list/grid
 
 const colOrder = (initial: Partial<FilesState>): string[] => lines(list({ ...folder("fld_sales"), ...initial }));
-const names = (id: string): string => (northwind.people[id] ?? id);
+const names = (id: string): string => northwind.people[id] ?? id;
 
-const tag = (out: string, testId: string): string => new RegExp(`<[^<>]*data-testid="${testId}"[^<>]*>`).exec(out)?.[0] ?? "";
+const tag = (out: string, testId: string): string =>
+  new RegExp(`<[^<>]*data-testid="${testId}"[^<>]*>`).exec(out)?.[0] ?? "";
 
 test("columns: the header names Name, Modified, Made by, Size and Kind, each a sort button, the sorted one marked", () => {
   const out = list({ ...folder("fld_sales"), sort: "size", dir: "desc" });
-  const label: Record<string, string> = { name: "Name", updated: "Modified", by: "Made by", size: "Size", kind: "Kind" };
+  const label: Record<string, string> = {
+    name: "Name",
+    updated: "Modified",
+    by: "Made by",
+    size: "Size",
+    kind: "Kind",
+  };
   let prev = -1;
   for (const k of ["name", "updated", "by", "size", "kind"]) {
     const t = tag(out, `files-col-${k}`);
@@ -317,24 +601,73 @@ test("columns: the header names Name, Modified, Made by, Size and Kind, each a s
 
 test("columns: each line carries its Modified, Made by, Size and Kind in the Row's trailing slot", () => {
   const out = list(folder("fld_sales"));
-  const trailing = /data-testid="row-line:file:fil_deck-trailing"([\s\S]*?)data-testid="row-line:file:fil_pricing/.exec(out)?.[1] ?? "";
-  assert.ok(has(trailing, ">8:00 AM<") && has(trailing, `>${names("usr_omar")}<`) && has(trailing, ">8.9 MB<") && has(trailing, ">Presentation<"));
+  const trailing =
+    /data-testid="row-line:file:fil_deck-trailing"([\s\S]*?)data-testid="row-line:file:fil_pricing/.exec(out)?.[1] ??
+    "";
+  assert.ok(
+    has(trailing, ">8:00 AM<") &&
+      has(trailing, `>${names("usr_omar")}<`) &&
+      has(trailing, ">8.9 MB<") &&
+      has(trailing, ">Presentation<"),
+  );
   assert.ok(has(out, ">Yesterday<") && has(out, ">Oct 15<"), "today as a clock time, then Yesterday, then the date");
 });
 
 test("columns: sort by each column orders the lines, folders first, and choosing the same column again flips it", () => {
-  assert.deepEqual(colOrder({ sort: "name", dir: "asc" }), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"]);
-  assert.deepEqual(colOrder({ sort: "updated", dir: "desc" }), ["folder:fld_proposals", "file:fil_deck", "file:fil_pricing", "file:fil_logo"]);
-  assert.deepEqual(colOrder({ sort: "updated", dir: "asc" }), ["folder:fld_proposals", "file:fil_logo", "file:fil_pricing", "file:fil_deck"]);
-  assert.deepEqual(colOrder({ sort: "size", dir: "asc" }), ["folder:fld_proposals", "file:fil_pricing", "file:fil_logo", "file:fil_deck"]);
-  assert.deepEqual(colOrder({ sort: "kind", dir: "asc" }), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"], "image, presentation, spreadsheet");
+  assert.deepEqual(colOrder({ sort: "name", dir: "asc" }), [
+    "folder:fld_proposals",
+    "file:fil_logo",
+    "file:fil_deck",
+    "file:fil_pricing",
+  ]);
+  assert.deepEqual(colOrder({ sort: "updated", dir: "desc" }), [
+    "folder:fld_proposals",
+    "file:fil_deck",
+    "file:fil_pricing",
+    "file:fil_logo",
+  ]);
+  assert.deepEqual(colOrder({ sort: "updated", dir: "asc" }), [
+    "folder:fld_proposals",
+    "file:fil_logo",
+    "file:fil_pricing",
+    "file:fil_deck",
+  ]);
+  assert.deepEqual(colOrder({ sort: "size", dir: "asc" }), [
+    "folder:fld_proposals",
+    "file:fil_pricing",
+    "file:fil_logo",
+    "file:fil_deck",
+  ]);
+  assert.deepEqual(
+    colOrder({ sort: "kind", dir: "asc" }),
+    ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"],
+    "image, presentation, spreadsheet",
+  );
   // Made by sorts by the person's name: Maya Chen (logo) before Omar Haddad (deck, pricing); the name breaks the tie.
-  assert.deepEqual(colOrder({ sort: "by", dir: "asc" }), ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"]);
-  assert.deepEqual(colOrder({ sort: "by", dir: "desc" }), ["folder:fld_proposals", "file:fil_deck", "file:fil_pricing", "file:fil_logo"], "Omar Haddad first, the name breaks the tie");
+  assert.deepEqual(colOrder({ sort: "by", dir: "asc" }), [
+    "folder:fld_proposals",
+    "file:fil_logo",
+    "file:fil_deck",
+    "file:fil_pricing",
+  ]);
+  assert.deepEqual(
+    colOrder({ sort: "by", dir: "desc" }),
+    ["folder:fld_proposals", "file:fil_deck", "file:fil_pricing", "file:fil_logo"],
+    "Omar Haddad first, the name breaks the tie",
+  );
   const nameOf = (id: string): string => ({ u1: "Zed", u2: "Abe" })[id] ?? id;
-  const a = { ...fileLine(row("a")), name: "a", updatedBy: "u1" }, b = { ...fileLine(row("b")), name: "b", updatedBy: "u2" };
-  assert.deepEqual(sortLines([a, b], "by", "asc", nameOf).map((l) => l.name), ["b", "a"], "by the name, not the id");
-  assert.deepEqual(sortLines([a, b], "by", "asc").map((l) => l.name), ["a", "b"], "without a name lookup it falls back to the id");
+  const a = { ...fileLine(row("a")), name: "a", updatedBy: "u1" },
+    b = { ...fileLine(row("b")), name: "b", updatedBy: "u2" };
+  assert.deepEqual(
+    sortLines([a, b], "by", "asc", nameOf).map((l) => l.name),
+    ["b", "a"],
+    "by the name, not the id",
+  );
+  assert.deepEqual(
+    sortLines([a, b], "by", "asc").map((l) => l.name),
+    ["a", "b"],
+    "without a name lookup it falls back to the id",
+  );
   for (const k of ["name", "updated", "by", "size", "kind"] as const) {
     const once = reduce(INITIAL_STATE, { type: "sort", key: k });
     assert.equal(once.sort, k);
@@ -345,14 +678,23 @@ test("columns: sort by each column orders the lines, folders first, and choosing
 
 test("breadcrumb: Files, then each folder down to this one; every crumb but the last opens its folder", () => {
   const out = list(folder("fld_proposals"));
-  assert.ok(at(out, 'data-testid="files-crumb-root"') < at(out, 'data-testid="files-crumb-fld_sales"') && at(out, 'data-testid="files-crumb-fld_sales"') < at(out, 'data-testid="files-title"'));
+  assert.ok(
+    at(out, 'data-testid="files-crumb-root"') < at(out, 'data-testid="files-crumb-fld_sales"') &&
+      at(out, 'data-testid="files-crumb-fld_sales"') < at(out, 'data-testid="files-title"'),
+  );
   assert.ok(/data-testid="files-title"[^>]*>Proposals</.test(out), "the last crumb is the title");
   assert.ok(!has(out, 'data-testid="files-crumb-fld_proposals"'), "you are on the last crumb, it is not a button");
   const root = list();
   assert.ok(has(root, 'data-testid="files-title"') && !has(root, 'data-testid="files-crumb-root"'));
-  assert.ok(has(list({ where: { kind: "trash" } }), ">Trash<") && !has(list({ where: { kind: "trash" } }), 'data-testid="files-crumb-'));
+  assert.ok(
+    has(list({ where: { kind: "trash" } }), ">Trash<") &&
+      !has(list({ where: { kind: "trash" } }), 'data-testid="files-crumb-'),
+  );
   // Opening a crumb is a go action to its folder: the reducer clears the selection and the Quick Look.
-  const there = reduce({ ...INITIAL_STATE, ...folder("fld_proposals"), selection: ["file:fil_rivera"], quickLook: "file:fil_rivera" }, { type: "go", where: { kind: "folder", id: "fld_sales" } });
+  const there = reduce(
+    { ...INITIAL_STATE, ...folder("fld_proposals"), selection: ["file:fil_rivera"], quickLook: "file:fil_rivera" },
+    { type: "go", where: { kind: "folder", id: "fld_sales" } },
+  );
   assert.deepEqual([there.where, there.selection, there.quickLook], [{ kind: "folder", id: "fld_sales" }, [], null]);
 });
 
@@ -360,24 +702,47 @@ test("toggle: list is the default; grid draws the same lines as tiles in rows; t
   const asList = list(folder("fld_sales"));
   assert.ok(has(asList, 'data-testid="files-columns"') && !has(asList, 'data-testid="tile-'));
   const lit = (out: string, v: string): boolean => has(tag(out, `files-view-${v}`), "background-color:var(--raised)");
-  assert.ok(lit(asList, "list") && !lit(asList, "grid") && has(tag(asList, "files-view-grid"), 'role="radio"'), "the list button is lit and the grid button is not");
+  assert.ok(
+    lit(asList, "list") && !lit(asList, "grid") && has(tag(asList, "files-view-grid"), 'role="radio"'),
+    "the list button is lit and the grid button is not",
+  );
   const asGrid = list({ ...folder("fld_sales"), view: "grid" });
   assert.ok(!has(asGrid, 'data-testid="files-columns"') && has(asGrid, 'data-testid="files-view-grid"'));
   assert.ok(lit(asGrid, "grid") && !lit(asGrid, "list"), "the grid button is lit and the list button is not");
   const tiles = [...asGrid.matchAll(/data-testid="tile-((?:file|folder):[^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(tiles, ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"], "the same lines in the same order");
+  assert.deepEqual(
+    tiles,
+    ["folder:fld_proposals", "file:fil_logo", "file:fil_deck", "file:fil_pricing"],
+    "the same lines in the same order",
+  );
   assert.ok(has(asGrid, "Pitch deck v4.pptx") && has(asGrid, "8.9 MB") && has(asGrid, "2 items"));
   assert.equal(reduce(INITIAL_STATE, { type: "view", view: "grid" }).view, "grid");
-  const kept = reduce(reduce(INITIAL_STATE, { type: "view", view: "grid" }), { type: "go", where: { kind: "folder", id: "fld_sales" } });
+  const kept = reduce(reduce(INITIAL_STATE, { type: "view", view: "grid" }), {
+    type: "go",
+    where: { kind: "folder", id: "fld_sales" },
+  });
   assert.equal(kept.view, "grid", "going to another folder keeps the view");
   assert.equal(INITIAL_STATE.view, "list");
 });
 
 test("grid: the selection, the sort and the drop target read the same as in the list", () => {
-  const out = list({ ...folder("fld_sales"), view: "grid", selection: ["file:fil_deck", "file:fil_logo"], sort: "size", dir: "desc" });
+  const out = list({
+    ...folder("fld_sales"),
+    view: "grid",
+    selection: ["file:fil_deck", "file:fil_logo"],
+    sort: "size",
+    dir: "desc",
+  });
   assert.ok(has(out, "2 selected"));
-  assert.deepEqual([...out.matchAll(/data-testid="tile-((?:file|folder):[^"]+)"/g)].map((m) => m[1]), ["folder:fld_proposals", "file:fil_deck", "file:fil_logo", "file:fil_pricing"]);
-  assert.equal(out.split("background-color:var(--accent-wash)").length - 1, 2, "the quiet selection token on exactly the selected tiles");
+  assert.deepEqual(
+    [...out.matchAll(/data-testid="tile-((?:file|folder):[^"]+)"/g)].map((m) => m[1]),
+    ["folder:fld_proposals", "file:fil_deck", "file:fil_logo", "file:fil_pricing"],
+  );
+  assert.equal(
+    out.split("background-color:var(--accent-wash)").length - 1,
+    2,
+    "the quiet selection token on exactly the selected tiles",
+  );
 });
 
 test("grid layout: tiles fill the row from 172 px up, rows chunk the lines, and a phone gets one column", () => {
@@ -396,10 +761,23 @@ test("grid layout: tiles fill the row from 172 px up, rows chunk the lines, and 
 test("columns hide Made by, Size and Kind on a phone and keep Name and Modified", () => {
   const out = list(folder("fld_sales"));
   assert.ok(has(out, 'data-testid="cell-by"'), "wide by default (the page is not measured yet)");
-  const narrow = renderToStaticMarkup(<RowCells wide={false} cells={{ when: "9:00 AM", by: "Maya", size: "1 KB", kind: "PDF" }} />);
-  assert.ok(has(narrow, 'data-testid="cell-modified"') && !has(narrow, 'data-testid="cell-by"') && !has(narrow, 'data-testid="cell-size"') && !has(narrow, 'data-testid="cell-kind"'));
+  const narrow = renderToStaticMarkup(
+    <RowCells wide={false} cells={{ when: "9:00 AM", by: "Maya", size: "1 KB", kind: "PDF" }} />,
+  );
+  assert.ok(
+    has(narrow, 'data-testid="cell-modified"') &&
+      !has(narrow, 'data-testid="cell-by"') &&
+      !has(narrow, 'data-testid="cell-size"') &&
+      !has(narrow, 'data-testid="cell-kind"'),
+  );
   const head = renderToStaticMarkup(<ColumnHeader sort="name" dir="asc" wide={false} onSort={() => undefined} />);
-  assert.ok(has(head, "files-col-name") && has(head, "files-col-updated") && !has(head, "files-col-by") && !has(head, "files-col-size") && !has(head, "files-col-kind"));
+  assert.ok(
+    has(head, "files-col-name") &&
+      has(head, "files-col-updated") &&
+      !has(head, "files-col-by") &&
+      !has(head, "files-col-size") &&
+      !has(head, "files-col-kind"),
+  );
 });
 
 test("the column header sorts: pressing a column asks for that sort", () => {
@@ -408,20 +786,28 @@ test("the column header sorts: pressing a column asks for that sort", () => {
   const found: { testID?: string; onPress?: () => void }[] = [];
   const walk = (n: unknown): void => {
     if (!n || typeof n !== "object") return;
-    if (Array.isArray(n)) { for (const k of n) walk(k); return; }
+    if (Array.isArray(n)) {
+      for (const k of n) walk(k);
+      return;
+    }
     const e = n as { props?: { testID?: string; onPress?: () => void; children?: unknown } };
     if (e.props?.testID?.startsWith("files-col-")) found.push(e.props);
     walk(e.props?.children);
   };
   walk(el);
-  assert.deepEqual(found.map((f) => f.testID), ["files-col-name", "files-col-updated", "files-col-by", "files-col-size", "files-col-kind"]);
+  assert.deepEqual(
+    found.map((f) => f.testID),
+    ["files-col-name", "files-col-updated", "files-col-by", "files-col-size", "files-col-kind"],
+  );
   for (const f of found) f.onPress?.();
   assert.deepEqual(asked, ["name", "updated", "by", "size", "kind"]);
 });
 
 test("the view toggle says which choice is current: the current radio is checked, the other is not", () => {
   const out = list(folder("fld_sales"));
-  assert.ok(has(tag(out, "files-view-list"), 'aria-checked="true"') && has(tag(out, "files-view-grid"), 'aria-checked="false"'));
+  assert.ok(
+    has(tag(out, "files-view-list"), 'aria-checked="true"') && has(tag(out, "files-view-grid"), 'aria-checked="false"'),
+  );
 });
 
 test("a file's modified time reads in the Space's zone, whatever the viewer's offset", async () => {
@@ -432,17 +818,29 @@ test("a file's modified time reads in the Space's zone, whatever the viewer's of
     setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
     assert.equal(updatedText(at, now, 300), "Yesterday", "5:30 PM on the 4th Pacific; now is 1 AM on the 5th Pacific");
     assert.equal(updatedText(now - 3_600_000, now, 300), "12:00 AM", "midnight in the Space, not 1 PM in Karachi");
-  } finally { setCurrentZones(null); }
+  } finally {
+    setCurrentZones(null);
+  }
 });
 
 test("a list that is not a folder (Recent, the top of Files) never asks for agent states with an empty folder id", () => {
   const sample = createSampleFiles(northwind);
   const asked: unknown[] = [];
   const live = sample.data.live.bind(sample.data);
-  sample.data.live = ((cap: string, input: unknown) => { if (cap === "files.agent_states") asked.push(input); return live(cap as never, input as never); }) as typeof sample.data.live;
+  sample.data.live = ((cap: string, input: unknown) => {
+    if (cap === "files.agent_states") asked.push(input);
+    return live(cap as never, input as never);
+  }) as typeof sample.data.live;
   wrap(sample, { where: { kind: "recent" } }, <FilesList />);
   wrap(sample, { where: { kind: "folder", id: null } }, <FilesList />);
-  assert.deepEqual(asked, [], "no folder, no read: the server is never asked with folderId \"\"");
+  assert.deepEqual(asked, [], 'no folder, no read: the server is never asked with folderId ""');
   wrap(sample, folder("fld_daily"), <FilesList />);
-  assert.ok(asked.length > 0 && asked.every((x) => typeof (x as { folderId?: unknown }).folderId === "string" && (x as { folderId: string }).folderId !== ""), "an open folder still reads its states, by its own id");
+  assert.ok(
+    asked.length > 0 &&
+      asked.every(
+        (x) =>
+          typeof (x as { folderId?: unknown }).folderId === "string" && (x as { folderId: string }).folderId !== "",
+      ),
+    "an open folder still reads its states, by its own id",
+  );
 });

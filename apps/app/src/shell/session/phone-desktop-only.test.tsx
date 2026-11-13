@@ -16,7 +16,15 @@ registerShellPlaces();
 registerPlace("chat", async () => ({ default: () => null }));
 
 const html = (place: "automations" | "console" | "chats", hash = ""): string =>
-  renderToStaticMarkup(<PhoneHost session={null} location={{ place, hash }} needsYou={0} registerGo={() => undefined} onSignOut={() => undefined} />).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <PhoneHost
+      session={null}
+      location={{ place, hash }}
+      needsYou={0}
+      registerGo={() => undefined}
+      onSignOut={() => undefined}
+    />,
+  ).replaceAll("<!-- -->", "");
 
 test("a phone deep link to Automations or the Console shows the Chat-about-it screen", () => {
   for (const [place, hash, line] of [

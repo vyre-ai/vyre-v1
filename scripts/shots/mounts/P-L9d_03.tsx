@@ -4,14 +4,23 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../../../apps/app/src/places/records/sidebar/index.ts";
+import {
+  RecordsDataProvider,
+  RecordsSidebar,
+  RecordsStateProvider,
+} from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
 import { EXTRA_KINDS, TodayProvider } from "../../../apps/app/src/places/records/views-b/index.tsx";
 import { TODAY, createBSample, harborRich, northRich } from "../../../apps/app/src/places/records/views-b/sample.ts";
 
 export const title = "Records: Calendar, Timeline, Map and Charts";
 
-const DEFAULT_TYPE: Record<string, string> = { calendar: "projects", timeline: "tasks", map: "locations", charts: "projects" };
+const DEFAULT_TYPE: Record<string, string> = {
+  calendar: "projects",
+  timeline: "tasks",
+  map: "locations",
+  charts: "projects",
+};
 
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const space = q.get("space") === "harbor" ? harborRich : northRich;
@@ -32,7 +41,11 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
       <RecordsDataProvider value={sample.data}>
         <RecordsStateProvider initial={initial}>
           <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-            {phone ? null : <View style={{ width: 240 }}><RecordsSidebar /></View>}
+            {phone ? null : (
+              <View style={{ width: 240 }}>
+                <RecordsSidebar />
+              </View>
+            )}
             <RecordViews kind={kind} extraKinds={EXTRA_KINDS} />
           </View>
         </RecordsStateProvider>
@@ -44,6 +57,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 /** The query is read after the page is live (the static export keeps the markup it was rendered with), so the mount draws once the query is known. */
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

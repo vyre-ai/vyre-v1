@@ -15,14 +15,23 @@ import type { Db } from "./projections.ts";
 
 /** What the daemon offers for processes on computers that joined (host/src/seams/engine.ts EngineNodes), structural so neither side imports the other. */
 export interface NodeRelay {
-  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<CliProcess>;
+  spawn(
+    nodeId: string,
+    spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string },
+  ): Promise<CliProcess>;
   connected(nodeId: string): boolean;
   secure(nodeId: string): boolean;
   /** The person's own computers linked to the Space now. Absent: none ever link (an older host). */
   devices?(person?: string): DeviceLink[];
   onDevice?(fn: (link: DeviceLink, up: boolean) => void): () => void;
 }
-export interface DeviceLink { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] }
+export interface DeviceLink {
+  nodeId: string;
+  deviceId: string;
+  person: string;
+  name?: string;
+  engines: string[];
+}
 
 /** The node id of a person's own computer (host/src/routes/compute-stream.ts deviceNode). */
 export const deviceNode = (deviceId: string): string => `device:${deviceId}`;
@@ -31,15 +40,25 @@ export const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex",
 
 const NOTE = "ALTER TABLE engine_turn_where ADD COLUMN note TEXT";
 const TABLE = "CREATE TABLE IF NOT EXISTS engine_turn_node (turn_id TEXT PRIMARY KEY, node_id TEXT NOT NULL)";
-const WHERE = "CREATE TABLE IF NOT EXISTS engine_turn_where (turn_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL, node_id TEXT, name TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (turn_id, seq))";
-const USING = "CREATE TABLE IF NOT EXISTS engine_thread_device (thread_id TEXT NOT NULL, person TEXT NOT NULL, device_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, person))";
-const ONCE = "CREATE TABLE IF NOT EXISTS engine_thread_once (thread_id TEXT PRIMARY KEY, by_person TEXT NOT NULL, at INTEGER NOT NULL)";
+const WHERE =
+  "CREATE TABLE IF NOT EXISTS engine_turn_where (turn_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL, node_id TEXT, name TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (turn_id, seq))";
+const USING =
+  "CREATE TABLE IF NOT EXISTS engine_thread_device (thread_id TEXT NOT NULL, person TEXT NOT NULL, device_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, person))";
+const ONCE =
+  "CREATE TABLE IF NOT EXISTS engine_thread_once (thread_id TEXT PRIMARY KEY, by_person TEXT NOT NULL, at INTEGER NOT NULL)";
 const ready = new WeakSet<object>();
 function ensureNodeTable(db: Db): void {
   if (ready.has(db)) return;
-  db.run(TABLE); db.run(WHERE); db.run(USING); db.run(ONCE);
+  db.run(TABLE);
+  db.run(WHERE);
+  db.run(USING);
+  db.run(ONCE);
   // a store made before the note column gets it: probed by name, added once
-  try { db.all("SELECT note FROM engine_turn_where LIMIT 1"); } catch { db.run(NOTE); }
+  try {
+    db.all("SELECT note FROM engine_turn_where LIMIT 1");
+  } catch {
+    db.run(NOTE);
+  }
   ready.add(db);
 }
 
@@ -52,36 +71,76 @@ export function setTurnNode(db: Db, turnId: string, nodeId: string): void {
 
 export function nodeOfTurn(db: Db, turnId: string): string | undefined {
   ensureNodeTable(db);
-  const r = (db.all("SELECT node_id FROM engine_turn_node WHERE turn_id = ?", turnId) as Array<{ node_id?: unknown }>)[0];
+  const r = (
+    db.all("SELECT node_id FROM engine_turn_node WHERE turn_id = ?", turnId) as Array<{ node_id?: unknown }>
+  )[0];
   return typeof r?.node_id === "string" ? r.node_id : undefined;
 }
 
 export type WhereKind = "computer" | "server" | "space";
-export interface Ran { kind: WhereKind; name: string; nodeId?: string; /** Why it is here when Automatic moved it off a busy machine: "Moved from Dana's MacBook because it was busy, 4 of 4 turns running". */ note?: string }
+export interface Ran {
+  kind: WhereKind;
+  name: string;
+  nodeId?: string;
+  /** Why it is here when Automatic moved it off a busy machine: "Moved from Dana's MacBook because it was busy, 4 of 4 turns running". */ note?: string;
+}
 
 /** One more place the turn ran on, in order: a turn handed on after its computer slept has two. */
 export function recordWhere(db: Db, turnId: string, ran: Ran, at: number): void {
   if (turnId === "") return;
   ensureNodeTable(db);
-  const n = Number(((db.all("SELECT COUNT(*) AS n FROM engine_turn_where WHERE turn_id = ?", turnId) as Array<{ n?: unknown }>)[0]?.n) ?? 0);
-  db.run("INSERT INTO engine_turn_where (turn_id, seq, kind, node_id, name, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)", turnId, n, ran.kind, ran.nodeId ?? null, ran.name, at, ran.note ?? null);
+  const n = Number(
+    (db.all("SELECT COUNT(*) AS n FROM engine_turn_where WHERE turn_id = ?", turnId) as Array<{ n?: unknown }>)[0]?.n ??
+      0,
+  );
+  db.run(
+    "INSERT INTO engine_turn_where (turn_id, seq, kind, node_id, name, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    turnId,
+    n,
+    ran.kind,
+    ran.nodeId ?? null,
+    ran.name,
+    at,
+    ran.note ?? null,
+  );
 }
 
 /** Where a turn ran, in order (the turn's details). Empty for a turn recorded before this was kept. */
 export function whereOfTurn(db: Db, turnId: string): Ran[] {
   ensureNodeTable(db);
-  return (db.all("SELECT kind, node_id, name, note FROM engine_turn_where WHERE turn_id = ? ORDER BY seq", turnId) as Array<{ kind: string; node_id: string | null; name: string; note: string | null }>)
-    .map((r) => ({ kind: r.kind as WhereKind, name: r.name, ...(r.node_id ? { nodeId: r.node_id } : {}), ...(r.note ? { note: r.note } : {}) }));
+  return (
+    db.all("SELECT kind, node_id, name, note FROM engine_turn_where WHERE turn_id = ? ORDER BY seq", turnId) as Array<{
+      kind: string;
+      node_id: string | null;
+      name: string;
+      note: string | null;
+    }>
+  ).map((r) => ({
+    kind: r.kind as WhereKind,
+    name: r.name,
+    ...(r.node_id ? { nodeId: r.node_id } : {}),
+    ...(r.note ? { note: r.note } : {}),
+  }));
 }
 
 /** The computer a person is using in a chat: the device their last message there came from (step 1 of the order). */
 export function setUsing(db: Db, threadId: string, person: string, deviceId: string, at: number): void {
   ensureNodeTable(db);
-  db.run("INSERT INTO engine_thread_device (thread_id, person, device_id, at) VALUES (?, ?, ?, ?) ON CONFLICT (thread_id, person) DO UPDATE SET device_id = excluded.device_id, at = excluded.at", threadId, person, deviceId, at);
+  db.run(
+    "INSERT INTO engine_thread_device (thread_id, person, device_id, at) VALUES (?, ?, ?, ?) ON CONFLICT (thread_id, person) DO UPDATE SET device_id = excluded.device_id, at = excluded.at",
+    threadId,
+    person,
+    deviceId,
+    at,
+  );
 }
 export function usingIn(db: Db, threadId: string, person: string): string | undefined {
   ensureNodeTable(db);
-  const r = (db.all("SELECT device_id FROM engine_thread_device WHERE thread_id = ? AND person = ?", threadId, person) as Array<{ device_id?: unknown }>)[0];
+  const r = (
+    db.all("SELECT device_id FROM engine_thread_device WHERE thread_id = ? AND person = ?", threadId, person) as Array<{
+      device_id?: unknown;
+    }>
+  )[0];
   return typeof r?.device_id === "string" ? r.device_id : undefined;
 }
 
@@ -104,15 +163,29 @@ function takeOnce(db: Db, threadId: string): boolean {
  * Whether the next turn of this chat waits for a computer (the engine's `place`, synchronous): the chat is pinned to a computer of the person's that is not linked now, and nobody pressed "Run it
  * on the server instead". Pins live in engine_thread_place (place-pref.ts); a computer pin keeps its device id in server_id.
  */
-export function waitsForComputer(db: Db, relay: NodeRelay | undefined, threadId: string): { deviceId: string | null; person: string } | null {
+export function waitsForComputer(
+  db: Db,
+  relay: NodeRelay | undefined,
+  threadId: string,
+): { deviceId: string | null; person: string } | null {
   if (!relay?.devices) return null;
   ensureNodeTable(db);
   let pin: { target?: unknown; server_id?: unknown; by_principal?: unknown } | undefined;
-  try { pin = (db.all("SELECT target, server_id, by_principal FROM engine_thread_place WHERE thread_id = ?", threadId) as Array<typeof pin>)[0]; } catch { return null; }
+  try {
+    pin = (
+      db.all("SELECT target, server_id, by_principal FROM engine_thread_place WHERE thread_id = ?", threadId) as Array<
+        typeof pin
+      >
+    )[0];
+  } catch {
+    return null;
+  }
   if (pin?.target !== "device" || hasOnce(db, threadId)) return null;
   const person = String(pin.by_principal ?? "");
   const deviceId = typeof pin.server_id === "string" && pin.server_id !== "" ? pin.server_id : null;
-  const linked = relay.devices(person).some((l) => (deviceId === null || l.deviceId === deviceId) && l.engines.length > 0);
+  const linked = relay
+    .devices(person)
+    .some((l) => (deviceId === null || l.deviceId === deviceId) && l.engines.length > 0);
   return linked ? null : { deviceId, person };
 }
 
@@ -120,36 +193,82 @@ export function waitsForComputer(db: Db, relay: NodeRelay | undefined, threadId:
 export function remoteLauncher(relay: NodeRelay, nodeId: string, person?: string): Launcher {
   return {
     async spawn(spec): Promise<CliProcess> {
-      try { return await relay.spawn(nodeId, { argv: spec.argv, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: spec.env, ...(person !== undefined ? { person } : {}) }); }
-      catch (e) { throw new LaunchError(typeof (e as { code?: unknown }).code === "string" ? (e as { code: string }).code : "engine.cli_failed", e instanceof Error ? e.message : "The server could not start the engine."); }
+      try {
+        return await relay.spawn(nodeId, {
+          argv: spec.argv,
+          ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}),
+          env: spec.env,
+          ...(person !== undefined ? { person } : {}),
+        });
+      } catch (e) {
+        throw new LaunchError(
+          typeof (e as { code?: unknown }).code === "string" ? (e as { code: string }).code : "engine.cli_failed",
+          e instanceof Error ? e.message : "The server could not start the engine.",
+        );
+      }
     },
   };
 }
 
-interface Decided { placement?: string; reason?: string; nodeId?: string; deviceId?: string; wakeLine?: string; moved?: { from: string; why: string } }
+interface Decided {
+  placement?: string;
+  reason?: string;
+  nodeId?: string;
+  deviceId?: string;
+  wakeLine?: string;
+  moved?: { from: string; why: string };
+}
 /** The words under "Ran on" when Automatic passed over a busy machine. */
-const movedNote = (d: Decided): string | undefined => (d.moved ? `Moved from ${d.moved.from} because ${d.moved.why}` : undefined);
+const movedNote = (d: Decided): string | undefined =>
+  d.moved ? `Moved from ${d.moved.from} because ${d.moved.why}` : undefined;
 
-async function decide(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, spec: SessionSpec): Promise<Decided | undefined> {
-  try { return (await call("engine.placement.decide", { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" }, spec.asker)) as Decided; }
-  catch { return undefined; }   // a thread or agent decide does not know (an automation step): nothing places it
+async function decide(
+  call: (cap: string, input: unknown, as?: string) => Promise<unknown>,
+  spec: SessionSpec,
+): Promise<Decided | undefined> {
+  try {
+    return (await call(
+      "engine.placement.decide",
+      { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" },
+      spec.asker,
+    )) as Decided;
+  } catch {
+    return undefined;
+  } // a thread or agent decide does not know (an automation step): nothing places it
 }
 
-export interface Place { nodeId: string; line?: string; code?: string }
+export interface Place {
+  nodeId: string;
+  line?: string;
+  code?: string;
+}
 
 /** Where this turn is pinned to run, if it is pinned to a server: undefined means "as usual". `line` is set when the server is off. */
-export async function serverFor(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, relay: Pick<NodeRelay, "connected" | "secure">, spec: SessionSpec): Promise<Place | undefined> {
+export async function serverFor(
+  call: (cap: string, input: unknown, as?: string) => Promise<unknown>,
+  relay: Pick<NodeRelay, "connected" | "secure">,
+  spec: SessionSpec,
+): Promise<Place | undefined> {
   const decided = await decide(call, spec);
   if (!decided) return undefined;
   return serverOf(decided, relay);
 }
 
 function serverOf(decided: Decided, relay: Pick<NodeRelay, "connected" | "secure">): Place | undefined {
-  if (decided.reason === "server_off" && decided.nodeId) return { nodeId: decided.nodeId, line: decided.wakeLine ?? "Your server is off" };
+  if (decided.reason === "server_off" && decided.nodeId)
+    return { nodeId: decided.nodeId, line: decided.wakeLine ?? "Your server is off" };
   if ((decided.reason !== "chosen_server" && decided.reason !== "own_server") || !decided.nodeId) return undefined;
-  if (!relay.connected(decided.nodeId)) return decided.reason === "own_server" ? undefined : { nodeId: decided.nodeId, line: "Your server is off" };
+  if (!relay.connected(decided.nodeId))
+    return decided.reason === "own_server" ? undefined : { nodeId: decided.nodeId, line: "Your server is off" };
   // the engine's environment will hold the person's own account key: it is filled only for a server whose link is private (https, or this machine); nothing is read from the Vault before this
-  if (!relay.secure(decided.nodeId)) return decided.reason === "own_server" ? undefined : { nodeId: decided.nodeId, code: "engine.link_insecure", line: "Your server needs a secure link (https) before it can run your chats." };
+  if (!relay.secure(decided.nodeId))
+    return decided.reason === "own_server"
+      ? undefined
+      : {
+          nodeId: decided.nodeId,
+          code: "engine.link_insecure",
+          line: "Your server needs a secure link (https) before it can run your chats.",
+        };
   return { nodeId: decided.nodeId };
 }
 
@@ -178,7 +297,13 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
   const relay = o.relay;
   if (!relay) return inner;
   const now = o.now ?? Date.now;
-  const spaceName = async (): Promise<string> => { try { return (await o.spaceName?.()) ?? "the Space's server"; } catch { return "the Space's server"; } };
+  const spaceName = async (): Promise<string> => {
+    try {
+      return (await o.spaceName?.()) ?? "the Space's server";
+    } catch {
+      return "the Space's server";
+    }
+  };
   const onSpace = async (spec: SessionSpec, note?: string): Promise<{ session: EngineSession; name: string }> => {
     const name = await spaceName();
     if (spec.turnId) recordWhere(o.db, spec.turnId, { kind: "space", name, ...(note ? { note } : {}) }, now());
@@ -198,10 +323,13 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
   /** A one-shot for a person whose chats run on their own computer (memory learning): there is no thread to decide on, so it goes to one of their linked computers that has the engine, over a private link; else it is refused, never run on the Space. */
   const onDevice = async (spec: SessionSpec): Promise<EngineSession> => {
     const driver = spec.account?.driver ?? "";
-    const links = (relay.devices?.(spec.asker) ?? []).filter((l) => l.person === spec.asker && l.engines.includes(driver)).sort((a, b) => (a.deviceId < b.deviceId ? -1 : 1));
+    const links = (relay.devices?.(spec.asker) ?? [])
+      .filter((l) => l.person === spec.asker && l.engines.includes(driver))
+      .sort((a, b) => (a.deviceId < b.deviceId ? -1 : 1));
     const link = links.find((l) => relay.connected(deviceNode(l.deviceId)));
     if (!link) throw new DriverError("engine.device_off", "Your computer is off.");
-    if (!relay.secure(deviceNode(link.deviceId))) throw new DriverError("engine.link_insecure", "Your computer's link to the Space is not private (https).");
+    if (!relay.secure(deviceNode(link.deviceId)))
+      throw new DriverError("engine.link_insecure", "Your computer's link to the Space is not private (https).");
     return o.nodeOpener(deviceNode(link.deviceId), spec.asker)(spec);
   };
   // One turn at a time is placed and started on a machine: the next decides after the first engine process is on its machine, so a limit of 1 holds for two turns started back to back (the Space
@@ -212,20 +340,47 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     if (spec.onDevice === true) return onDevice(spec);
     const before = gate;
     let release: () => void = () => undefined;
-    gate = new Promise<void>((r) => { release = r; });
+    gate = new Promise<void>((r) => {
+      release = r;
+    });
     await before;
-    try { return await placeAndOpen(spec, release); } finally { release(); }
+    try {
+      return await placeAndOpen(spec, release);
+    } finally {
+      release();
+    }
   };
   async function placeAndOpen(spec: SessionSpec, release: () => void): Promise<EngineSession> {
-    if (takeOnce(o.db, spec.threadId)) { release(); return (await onSpace(spec)).session; }   // "Run it on the server instead"
+    if (takeOnce(o.db, spec.threadId)) {
+      release();
+      return (await onSpace(spec)).session;
+    } // "Run it on the server instead"
     const decided = await decide(o.call, spec);
-    if (!decided) { release(); return inner(spec); }
-    if (!((decided.placement === "device" && decided.deviceId) || (decided.placement === "host" && decided.nodeId))) release();
+    if (!decided) {
+      release();
+      return inner(spec);
+    }
+    if (!((decided.placement === "device" && decided.deviceId) || (decided.placement === "host" && decided.nodeId)))
+      release();
     // Automatic passed over a busy machine: the Space-wide Recent moves list (Console, Machines) keeps the line
-    if (decided.moved && spec.turnId) void (async () => {
-      const to = decided.placement === "device" ? relay.devices?.(spec.asker).find((l) => l.deviceId === decided.deviceId)?.name ?? "your computer" : decided.nodeId ? (await o.serverName?.(decided.nodeId, spec.asker).catch(() => undefined)) ?? "your server" : await spaceName();
-      await o.call("machines.move_record", { turnId: spec.turnId, asker: spec.asker, agentId: spec.agent.id, threadId: spec.threadId, from: decided.moved!.from, to, why: decided.moved!.why });
-    })().catch(() => undefined);
+    if (decided.moved && spec.turnId)
+      void (async () => {
+        const to =
+          decided.placement === "device"
+            ? (relay.devices?.(spec.asker).find((l) => l.deviceId === decided.deviceId)?.name ?? "your computer")
+            : decided.nodeId
+              ? ((await o.serverName?.(decided.nodeId, spec.asker).catch(() => undefined)) ?? "your server")
+              : await spaceName();
+        await o.call("machines.move_record", {
+          turnId: spec.turnId,
+          asker: spec.asker,
+          agentId: spec.agent.id,
+          threadId: spec.threadId,
+          from: decided.moved!.from,
+          to,
+          why: decided.moved!.why,
+        });
+      })().catch(() => undefined);
     if (decided.placement === "device" && decided.deviceId) {
       const pinned = decided.reason === "chosen_device";
       const deviceId = decided.deviceId;
@@ -235,34 +390,64 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
       const cli = CLI_DRIVERS.has(spec.account?.driver ?? "");
       // an API engine has no process to move; a computer that went away since the decision, or one on a link that is not private, is passed over (Automatic) or waits (pinned)
       if (!cli || !here || !relay.secure(nodeId)) {
-        if (pinned && cli) throw new DriverError(here ? "engine.link_insecure" : "engine.device_off", here ? "Your computer's link to the Space is not private (https), so it cannot run your chats." : "Your computer is off. This chat runs when it is back.");
+        if (pinned && cli)
+          throw new DriverError(
+            here ? "engine.link_insecure" : "engine.device_off",
+            here
+              ? "Your computer's link to the Space is not private (https), so it cannot run your chats."
+              : "Your computer is off. This chat runs when it is back.",
+          );
         return (await (cli ? next(spec) : onSpace(spec))).session;
       }
       const from = here.name ?? "your computer";
       const open = o.nodeOpener(nodeId, spec.asker);
-      if (spec.turnId) { setTurnNode(o.db, spec.turnId, nodeId); recordWhere(o.db, spec.turnId, { kind: "computer", name: from, nodeId, ...(movedNote(decided) ? { note: movedNote(decided)! } : {}) }, now()); }
+      if (spec.turnId) {
+        setTurnNode(o.db, spec.turnId, nodeId);
+        recordWhere(
+          o.db,
+          spec.turnId,
+          { kind: "computer", name: from, nodeId, ...(movedNote(decided) ? { note: movedNote(decided)! } : {}) },
+          now(),
+        );
+      }
       const first = await open(spec);
       return handoverSession(first, {
-        linkUp: () => relay.connected(nodeId), pinned, from,
+        linkUp: () => relay.connected(nodeId),
+        pinned,
+        from,
         openServer: () => next(spec),
-        reopenDevice: async () => { if (spec.turnId) recordWhere(o.db, spec.turnId, { kind: "computer", name: from, nodeId }, now()); return open(spec); },
-        waitFor: (signal) => new Promise((resolve) => {
-          let off: (() => void) | undefined;
-          const done = (a: "device" | "server" | "cancelled"): void => { off?.(); clearInterval(poll); signal.removeEventListener("abort", stop); resolve(a); };
-          const stop = (): void => done("cancelled");
-          signal.addEventListener("abort", stop, { once: true });
-          off = relay.onDevice?.((l, up) => { if (up && l.deviceId === deviceId && l.person === spec.asker && l.engines.length > 0) done("device"); });
-          // the person pressed "Run it on the server instead" (engine.placement.set once): read here, so the button works on a turn that is already waiting
-          const poll = setInterval(() => { if (takeOnce(o.db, spec.threadId)) done("server"); }, 500);
-          poll.unref?.();
-        }),
+        reopenDevice: async () => {
+          if (spec.turnId) recordWhere(o.db, spec.turnId, { kind: "computer", name: from, nodeId }, now());
+          return open(spec);
+        },
+        waitFor: (signal) =>
+          new Promise((resolve) => {
+            let off: (() => void) | undefined;
+            const done = (a: "device" | "server" | "cancelled"): void => {
+              off?.();
+              clearInterval(poll);
+              signal.removeEventListener("abort", stop);
+              resolve(a);
+            };
+            const stop = (): void => done("cancelled");
+            signal.addEventListener("abort", stop, { once: true });
+            off = relay.onDevice?.((l, up) => {
+              if (up && l.deviceId === deviceId && l.person === spec.asker && l.engines.length > 0) done("device");
+            });
+            // the person pressed "Run it on the server instead" (engine.placement.set once): read here, so the button works on a turn that is already waiting
+            const poll = setInterval(() => {
+              if (takeOnce(o.db, spec.threadId)) done("server");
+            }, 500);
+            poll.unref?.();
+          }),
         note: (text) => o.note?.(spec, text),
         moved: () => undefined,
         live: (phase) => o.live?.(spec, phase),
       });
     }
     if (decided.placement === "wait") {
-      if (decided.reason === "server_off") throw new DriverError("engine.server_off", decided.wakeLine ?? "Your server is off");
+      if (decided.reason === "server_off")
+        throw new DriverError("engine.server_off", decided.wakeLine ?? "Your server is off");
       throw new DriverError("engine.device_off", decided.wakeLine ?? "Your computer is off");
     }
     const place = serverOf(decided, relay);
@@ -270,7 +455,17 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     if (place.line !== undefined) throw new DriverError(place.code ?? "engine.server_off", place.line);
     if (spec.turnId) {
       setTurnNode(o.db, spec.turnId, place.nodeId);
-      recordWhere(o.db, spec.turnId, { kind: "server", name: (await o.serverName?.(place.nodeId, spec.asker).catch(() => undefined)) ?? "your server", nodeId: place.nodeId, ...(movedNote(decided) ? { note: movedNote(decided)! } : {}) }, now());
+      recordWhere(
+        o.db,
+        spec.turnId,
+        {
+          kind: "server",
+          name: (await o.serverName?.(place.nodeId, spec.asker).catch(() => undefined)) ?? "your server",
+          nodeId: place.nodeId,
+          ...(movedNote(decided) ? { note: movedNote(decided)! } : {}),
+        },
+        now(),
+      );
     }
     return o.nodeOpener(place.nodeId)(spec);
   }

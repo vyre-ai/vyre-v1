@@ -5,7 +5,18 @@ import { bootTolerant, expectStatus, short, Trail } from "./02-space.ts";
 import type { Gap } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
 
-export const LIVE_FOR_SITE = ["sites", "gate", "tasks", "files", "vault", "devices", "access", "spaces", "computers", "network"];
+export const LIVE_FOR_SITE = [
+  "sites",
+  "gate",
+  "tasks",
+  "files",
+  "vault",
+  "devices",
+  "access",
+  "spaces",
+  "computers",
+  "network",
+];
 export const GAPS: Gap[] = [];
 
 export async function runSite(live: readonly string[]): Promise<{ events: Observed[]; trail: Trail }> {
@@ -15,49 +26,141 @@ export async function runSite(live: readonly string[]): Promise<{ events: Observ
   try {
     const admin = s.d.token;
     const folder = await trail.step("a folder holds the page", async () => {
-      const roots = expectStatus(await s.call("files.tree", admin, {}), 200, "files.tree").roots as { key: string; folderId?: string }[];
+      const roots = expectStatus(await s.call("files.tree", admin, {}), 200, "files.tree").roots as {
+        key: string;
+        folderId?: string;
+      }[];
       const parent = roots.find((r) => r.key === "deployments")?.folderId;
       assert.ok(parent, `a Deployments root: ${short(roots)}`);
-      const made = expectStatus(await s.call("files.folder.create", admin, { idempotencyKey: "golden-6-folder", parentId: parent, name: "Studio" }), 200, "files.folder.create").folder.folderId as string;
-      expectStatus(await s.call("files.create", admin, { idempotencyKey: "golden-6-file", folderId: made, name: "index.html", mime: "text/html", content: { text: "<h1>Studio</h1>" } }), 200, "files.create");
+      const made = expectStatus(
+        await s.call("files.folder.create", admin, {
+          idempotencyKey: "golden-6-folder",
+          parentId: parent,
+          name: "Studio",
+        }),
+        200,
+        "files.folder.create",
+      ).folder.folderId as string;
+      expectStatus(
+        await s.call("files.create", admin, {
+          idempotencyKey: "golden-6-file",
+          folderId: made,
+          name: "index.html",
+          mime: "text/html",
+          content: { text: "<h1>Studio</h1>" },
+        }),
+        200,
+        "files.create",
+      );
       return made;
     });
-    const site = await trail.step("a site is made, not yet served", async () => {
-      const made = expectStatus(await s.call("sites.create", admin, { idempotencyKey: "golden-6-site", name: "Studio", access: "public", folderId: folder! }), 200, "sites.create").site;
-      assert.equal(made.live, false);
-      assert.equal((await fetch(`${s.d.url}/p/${made.slug}/`)).status, 404, "nothing is served before it is published");
-      return made as { siteId: string; slug: string };
-    }, ["a folder holds the page"]);
-    await trail.step("the person presses Publish, their own yes, and a visitor with no session gets the page in the sandbox", async () => {
-      expectStatus(await s.call("sites.promote", admin, { idempotencyKey: "golden-6-promote", siteId: site!.siteId }), 200, "sites.promote");
-      const got = expectStatus(await s.call("sites.get", admin, { siteId: site!.siteId }), 200, "sites.get").site;
-      assert.equal(got.live, true, short(got));
-      const r = await fetch(`${s.d.url}/p/${site!.slug}/`, { headers: { cookie: "s=1", authorization: `Bearer ${admin}` } });
-      assert.equal(r.status, 200);
-      assert.equal(await r.text(), "<h1>Studio</h1>");
-      assert.match(String(r.headers.get("content-security-policy")), /sandbox allow-scripts/);
-      assert.ok(!String(r.headers.get("content-security-policy")).includes("allow-same-origin"));
-    }, ["a site is made, not yet served"]);
-    await trail.step("stopping it takes it down", async () => {
-      expectStatus(await s.call("sites.stop", admin, { idempotencyKey: "golden-6-stop", siteId: site!.siteId }), 200, "sites.stop");
-      assert.equal((await fetch(`${s.d.url}/p/${site!.slug}/`)).status, 404);
-    }, ["the person presses Publish, their own yes, and a visitor with no session gets the page in the sandbox"]);
-    await trail.step("an artifact is private: its owner opens it, a member it is not shared with cannot", async () => {
-      const pub = expectStatus(await s.call("sites.artifact_publish", admin, { idempotencyKey: "golden-6-art", title: "Numbers", html: "<p>42</p>" }), 200, "sites.artifact_publish");
-      const open = expectStatus(await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open", artifactId: pub.artifactId }), 200, "sites.artifact_open");
-      const r = await openArtifact(s.d.url, open);
-      assert.equal(r.body, "<p>42</p>");
-      assert.match(r.csp, /sandbox allow-scripts/);
-      const other = s.signedIn("usr_noah");
-      const seen = await s.call("sites.artifact_open", other, { idempotencyKey: "golden-6-open-bob", artifactId: pub.artifactId });
-      assert.ok(seen.status === 403 || seen.status === 404, `a member it is not shared with is refused: ${seen.status} ${short(seen.body)}`);
-      const again = expectStatus(await s.call("sites.artifact_publish", admin, { idempotencyKey: "golden-6-art2", title: "Numbers", html: "<p>43</p>" }), 200, "sites.artifact_publish");
-      assert.equal(again.artifactId, pub.artifactId, "the same title updates the same link");
-      const open2 = expectStatus(await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open2", artifactId: pub.artifactId }), 200, "sites.artifact_open");
-      assert.equal((await openArtifact(s.d.url, open2)).body, "<p>43</p>");
-    }, ["a site is made, not yet served"]);
+    const site = await trail.step(
+      "a site is made, not yet served",
+      async () => {
+        const made = expectStatus(
+          await s.call("sites.create", admin, {
+            idempotencyKey: "golden-6-site",
+            name: "Studio",
+            access: "public",
+            folderId: folder!,
+          }),
+          200,
+          "sites.create",
+        ).site;
+        assert.equal(made.live, false);
+        assert.equal(
+          (await fetch(`${s.d.url}/p/${made.slug}/`)).status,
+          404,
+          "nothing is served before it is published",
+        );
+        return made as { siteId: string; slug: string };
+      },
+      ["a folder holds the page"],
+    );
+    await trail.step(
+      "the person presses Publish, their own yes, and a visitor with no session gets the page in the sandbox",
+      async () => {
+        expectStatus(
+          await s.call("sites.promote", admin, { idempotencyKey: "golden-6-promote", siteId: site!.siteId }),
+          200,
+          "sites.promote",
+        );
+        const got = expectStatus(await s.call("sites.get", admin, { siteId: site!.siteId }), 200, "sites.get").site;
+        assert.equal(got.live, true, short(got));
+        const r = await fetch(`${s.d.url}/p/${site!.slug}/`, {
+          headers: { cookie: "s=1", authorization: `Bearer ${admin}` },
+        });
+        assert.equal(r.status, 200);
+        assert.equal(await r.text(), "<h1>Studio</h1>");
+        assert.match(String(r.headers.get("content-security-policy")), /sandbox allow-scripts/);
+        assert.ok(!String(r.headers.get("content-security-policy")).includes("allow-same-origin"));
+      },
+      ["a site is made, not yet served"],
+    );
+    await trail.step(
+      "stopping it takes it down",
+      async () => {
+        expectStatus(
+          await s.call("sites.stop", admin, { idempotencyKey: "golden-6-stop", siteId: site!.siteId }),
+          200,
+          "sites.stop",
+        );
+        assert.equal((await fetch(`${s.d.url}/p/${site!.slug}/`)).status, 404);
+      },
+      ["the person presses Publish, their own yes, and a visitor with no session gets the page in the sandbox"],
+    );
+    await trail.step(
+      "an artifact is private: its owner opens it, a member it is not shared with cannot",
+      async () => {
+        const pub = expectStatus(
+          await s.call("sites.artifact_publish", admin, {
+            idempotencyKey: "golden-6-art",
+            title: "Numbers",
+            html: "<p>42</p>",
+          }),
+          200,
+          "sites.artifact_publish",
+        );
+        const open = expectStatus(
+          await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open", artifactId: pub.artifactId }),
+          200,
+          "sites.artifact_open",
+        );
+        const r = await openArtifact(s.d.url, open);
+        assert.equal(r.body, "<p>42</p>");
+        assert.match(r.csp, /sandbox allow-scripts/);
+        const other = s.signedIn("usr_noah");
+        const seen = await s.call("sites.artifact_open", other, {
+          idempotencyKey: "golden-6-open-bob",
+          artifactId: pub.artifactId,
+        });
+        assert.ok(
+          seen.status === 403 || seen.status === 404,
+          `a member it is not shared with is refused: ${seen.status} ${short(seen.body)}`,
+        );
+        const again = expectStatus(
+          await s.call("sites.artifact_publish", admin, {
+            idempotencyKey: "golden-6-art2",
+            title: "Numbers",
+            html: "<p>43</p>",
+          }),
+          200,
+          "sites.artifact_publish",
+        );
+        assert.equal(again.artifactId, pub.artifactId, "the same title updates the same link");
+        const open2 = expectStatus(
+          await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open2", artifactId: pub.artifactId }),
+          200,
+          "sites.artifact_open",
+        );
+        assert.equal((await openArtifact(s.d.url, open2)).body, "<p>43</p>");
+      },
+      ["a site is made, not yet served"],
+    );
     return { events: await s.events(), trail };
-  } finally { await s.stop(); }
+  } finally {
+    await s.stop();
+  }
 }
 
 export default async function steps(): Promise<Observed[]> {
@@ -67,16 +170,38 @@ export default async function steps(): Promise<Observed[]> {
 }
 
 /** Open an artifact the way a browser does: the one-time code on the artifact host (Host header a.localhost:<port> for a Space on this computer), then the clean address with the cookie it set. Returns the page. */
-export async function openArtifact(base: string, open: { path: string; url?: string }): Promise<{ status: number; body: string; csp: string; code: number }> {
+export async function openArtifact(
+  base: string,
+  open: { path: string; url?: string },
+): Promise<{ status: number; body: string; csp: string; code: number }> {
   const http = await import("node:http");
   const u = new URL(base);
   const host = open.url ? new URL(open.url).host : u.host;
-  const get = (path: string, cookie?: string): Promise<{ status: number; headers: import("node:http").IncomingHttpHeaders; body: string }> => new Promise((resolve, reject) => {
-    const r = http.request({ host: u.hostname, port: u.port, path, method: "GET", headers: { host, ...(cookie ? { cookie } : {}) } }, (res) => { const c: Buffer[] = []; res.on("data", (x: Buffer) => c.push(x)); res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") })); });
-    r.on("error", reject); r.end();
-  });
+  const get = (
+    path: string,
+    cookie?: string,
+  ): Promise<{ status: number; headers: import("node:http").IncomingHttpHeaders; body: string }> =>
+    new Promise((resolve, reject) => {
+      const r = http.request(
+        { host: u.hostname, port: u.port, path, method: "GET", headers: { host, ...(cookie ? { cookie } : {}) } },
+        (res) => {
+          const c: Buffer[] = [];
+          res.on("data", (x: Buffer) => c.push(x));
+          res.on("end", () =>
+            resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") }),
+          );
+        },
+      );
+      r.on("error", reject);
+      r.end();
+    });
   const first = await get(open.path);
   const cookie = /(__vyre_a=[^;]+)/.exec(String(first.headers["set-cookie"]?.[0] ?? ""))?.[1];
   const page = await get(String(first.headers.location ?? "/"), cookie);
-  return { status: page.status, body: page.body, csp: String(page.headers["content-security-policy"] ?? ""), code: first.status };
+  return {
+    status: page.status,
+    body: page.body,
+    csp: String(page.headers["content-security-policy"] ?? ""),
+    code: first.status,
+  };
 }

@@ -12,7 +12,16 @@
 //              (--replay-user-messages), so the turn ends at the engine's own result and is never left waiting for one that will not come. For the others (one-shot engines) the message waits for the turn to end and
 //              becomes the next turn of the same send.
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
-import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
+import type {
+  ChatMode,
+  DriverEvent,
+  Effort,
+  EngineSession,
+  SessionSpec,
+  StoredMessage,
+  ToolResult,
+  TurnInput,
+} from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
 import { redact } from "./redact.ts";
 import { classifyCli, missingProgram, modelGone, plainCli, sessionGone } from "./errors.ts";
@@ -22,7 +31,16 @@ import { hookFiles } from "./hooks-config.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
-import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
+import type {
+  CliAdapter,
+  CliCheckpoint,
+  CliDecoder,
+  CliEvent,
+  CliProcess,
+  Launcher,
+  McpEndpoint,
+  NativePlugins,
+} from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 import { FIRST_TOKEN_CLI_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
 import type { NoFirstTokenLog } from "../first-token.ts";
@@ -67,7 +85,11 @@ export interface CliSessionDeps {
   checkpoint?: (sessionId: string | null) => Promise<void> | void;
 }
 
-export interface CliSessionStats { spawns: number; resumes: number; turns: number }
+export interface CliSessionStats {
+  spawns: number;
+  resumes: number;
+  turns: number;
+}
 
 export interface CliSession extends EngineSession {
   readonly pid: number | undefined;
@@ -81,19 +103,33 @@ export interface CliSession extends EngineSession {
 type Item = CliEvent | { type: "eof" };
 
 /** `resumed`: the engine session id this process was started to continue, or null for a new one. */
-interface Run { proc: CliProcess; chan: Channel<Item>; decoder: CliDecoder; alive: boolean; resumed: string | null }
+interface Run {
+  proc: CliProcess;
+  chan: Channel<Item>;
+  decoder: CliDecoder;
+  alive: boolean;
+  resumed: string | null;
+}
 
 const ENGINE_NAME: Readonly<Record<string, string>> = { claude_code: "Claude Code", codex: "Codex", grok: "Grok" };
 /** The one line a turn says when the engine's own session was gone and it started a new one. */
-export const goneLine = (engine: string): string => `${ENGINE_NAME[engine] ?? engine} no longer had this chat's session, so it started a new one from the chat's summary and recent messages.`;
+export const goneLine = (engine: string): string =>
+  `${ENGINE_NAME[engine] ?? engine} no longer had this chat's session, so it started a new one from the chat's summary and recent messages.`;
 
 const IDLE_MS = 10 * 60_000;
 const GRACE_MS = 1_500;
 
 function pause(ms: number): { done: Promise<false>; stop(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const done = new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), ms); });
-  return { done, stop: () => { if (timer !== undefined) clearTimeout(timer); } };
+  const done = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  return {
+    done,
+    stop: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
 }
 
 export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSession {
@@ -125,14 +161,20 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   function remember(id: string | null): void {
     if (id === saved) return;
     saved = id;
-    try { void Promise.resolve(deps.checkpoint?.(id)).catch(() => undefined); } catch { /* as above */ }
+    try {
+      void Promise.resolve(deps.checkpoint?.(id)).catch(() => undefined);
+    } catch {
+      /* as above */
+    }
   }
   const clean = (text: string): string => redact(scrub(text, secrets()));
 
   async function pump(r: Run): Promise<void> {
     try {
-      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(redact(line))) r.chan.push(ev);   // a held secret never reaches a decoded text, tool detail or error
-    } catch { /* a broken pipe or an over-long line ends the run like an exit */ }
+      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(redact(line))) r.chan.push(ev); // a held secret never reaches a decoded text, tool detail or error
+    } catch {
+      /* a broken pipe or an over-long line ends the run like an exit */
+    }
     for (const ev of r.decoder.finish()) r.chan.push(ev);
     r.alive = false;
     r.chan.push({ type: "eof" });
@@ -140,17 +182,39 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   async function start(): Promise<Run> {
     const argv = a.command({
-      model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.mode !== undefined ? deps.mode === "plan" : deps.planMode?.() ?? false, ...(deps.mode !== undefined ? { mode: deps.mode } : {}), ...(deps.effort !== undefined ? { effort: deps.effort } : {}), ...(deps.noTools ? { noTools: true } : {}),
-      workFolder: deps.workFolder, system: a.systemFlag || deps.lean === true ? deps.system : null, ...(deps.lean ? { lean: true } : {}),
+      model: deps.model,
+      resume: sessionId,
+      mcpUrl: deps.endpoint.url,
+      ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}),
+      ...(deps.plugins ? { plugins: deps.plugins } : {}),
+      planMode: deps.mode !== undefined ? deps.mode === "plan" : (deps.planMode?.() ?? false),
+      ...(deps.mode !== undefined ? { mode: deps.mode } : {}),
+      ...(deps.effort !== undefined ? { effort: deps.effort } : {}),
+      ...(deps.noTools ? { noTools: true } : {}),
+      workFolder: deps.workFolder,
+      system: a.systemFlag || deps.lean === true ? deps.system : null,
+      ...(deps.lean ? { lean: true } : {}),
     });
     // the hooks config of an engine that reads it from files (Grok, Codex): written before it starts, never a reason a turn does not run
     if (deps.endpoint.stdio && deps.workFolder !== null && !deps.lean && !deps.noTools) {
       try {
-        for (const [file, text] of Object.entries(hookFiles(a.id, { workFolder: deps.workFolder, stdio: deps.endpoint.stdio, ...(deps.env["HOME"] ? { home: deps.env["HOME"] } : {}) }))) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); }
-      } catch { /* the hooks of the engine's own tools are missing; Vyre's own tools are still covered */ }
+        for (const [file, text] of Object.entries(
+          hookFiles(a.id, {
+            workFolder: deps.workFolder,
+            stdio: deps.endpoint.stdio,
+            ...(deps.env["HOME"] ? { home: deps.env["HOME"] } : {}),
+          }),
+        )) {
+          mkdirSync(dirname(file), { recursive: true });
+          writeFileSync(file, text);
+        }
+      } catch {
+        /* the hooks of the engine's own tools are missing; Vyre's own tools are still covered */
+      }
     }
     const proc = await deps.launcher.spawn({
-      argv, ...(deps.workFolder !== null ? { cwd: deps.workFolder } : {}),
+      argv,
+      ...(deps.workFolder !== null ? { cwd: deps.workFolder } : {}),
       env: { ...a.env(), ...deps.env, [TOKEN_ENV]: deps.endpoint.token },
     });
     spawns += 1;
@@ -166,27 +230,49 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     if (run === r) run = null;
     const leave = async (ms: number): Promise<boolean> => {
       const t = pause(ms);
-      try { return await Promise.race([r.proc.exited.then(() => true), t.done]); } finally { t.stop(); }
+      try {
+        return await Promise.race([r.proc.exited.then(() => true), t.done]);
+      } finally {
+        t.stop();
+      }
     };
-    if (waitFirst && await leave(graceMs)) { r.alive = false; return; }
+    if (waitFirst && (await leave(graceMs))) {
+      r.alive = false;
+      return;
+    }
     r.proc.kill("SIGTERM");
-    if (await leave(graceMs)) { r.alive = false; return; }
+    if (await leave(graceMs)) {
+      r.alive = false;
+      return;
+    }
     r.proc.kill("SIGKILL");
     await leave(graceMs);
     r.alive = false;
   }
 
-  const label = (m: StoredMessage, asker: string): string => (m.author.kind === "person" && m.author.id === asker ? m.body : `${m.author.id}: ${m.body}`);
+  const label = (m: StoredMessage, asker: string): string =>
+    m.author.kind === "person" && m.author.id === asker ? m.body : `${m.author.id}: ${m.body}`;
 
   /**
    * One engine turn. "gone": the process was started to resume a session the engine says is not there, and nothing was said yet; the caller starts over without it. `compacting`: the prompt is the
    * engine's compact command, and what the engine reports of the compaction is passed on as a `compacted` block.
    */
-  async function* turn(prompt: string, asker: string, signal: AbortSignal, compacting = false): AsyncGenerator<DriverEvent, "done" | "stop" | "gone"> {
+  async function* turn(
+    prompt: string,
+    asker: string,
+    signal: AbortSignal,
+    compacting = false,
+  ): AsyncGenerator<DriverEvent, "done" | "stop" | "gone"> {
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();
-    if (signal.aborted) { await stop(r, false); return "stop"; }
-    const text = !compacting && !a.systemFlag && deps.lean !== true && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
+    if (signal.aborted) {
+      await stop(r, false);
+      return "stop";
+    }
+    const text =
+      !compacting && !a.systemFlag && deps.lean !== true && !systemSent && deps.system !== null && deps.system !== ""
+        ? `${deps.system}\n\n${prompt}`
+        : prompt;
     systemSent = true;
     /** Something reached the person this turn: a gone session is then an error like any other, never a silent start-over. */
     let said = false;
@@ -195,14 +281,20 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     outstanding = 1;
     unread = a.steers ? ["first"] : [];
     try {
-      try { live = r; await r.proc.write(a.encode(text)); }
-      catch {
+      try {
+        live = r;
+        await r.proc.write(a.encode(text));
+      } catch {
         // A persistent process that died since it was last used: replace it once, resuming the engine's session.
         await stop(r, false);
         r = await start();
         live = r;
         // One that ends at once again (a session to resume the CLI no longer has) says why on stderr: that is read below with its end, not thrown from here.
-        try { await r.proc.write(a.encode(text)); } catch { /* read below */ }
+        try {
+          await r.proc.write(a.encode(text));
+        } catch {
+          /* read below */
+        }
       }
       if (!a.persistent) r.proc.endInput();
       const wroteAt = Date.now();
@@ -215,7 +307,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         const item = await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
         if (item === null) return "stop";
         if (item === "idle" && !said && !compacting && toFirstToken) {
-          (deps.onNoFirstToken ?? logNoFirstToken)({ provider: a.id, model: deps.model ?? "", account: deps.account ?? "", waitedMs: Date.now() - wroteAt });
+          (deps.onNoFirstToken ?? logNoFirstToken)({
+            provider: a.id,
+            model: deps.model ?? "",
+            account: deps.account ?? "",
+            waitedMs: Date.now() - wroteAt,
+          });
           yield { type: "error", code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
           await stop(r, false);
           return "stop";
@@ -226,11 +323,28 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           return "stop";
         }
         switch (item.type) {
-          case "session": sessionId = item.id; remember(item.id); break;
-          case "compacted": if (compacting) yield { type: "block", kind: "compacted", payload: { ...(item.before !== undefined ? { before: item.before } : {}), ...(item.after !== undefined ? { after: item.after } : {}) } }; break;
+          case "session":
+            sessionId = item.id;
+            remember(item.id);
+            break;
+          case "compacted":
+            if (compacting)
+              yield {
+                type: "block",
+                kind: "compacted",
+                payload: {
+                  ...(item.before !== undefined ? { before: item.before } : {}),
+                  ...(item.after !== undefined ? { after: item.after } : {}),
+                },
+              };
+            break;
           case "mcp":
             if (item.status === "failed") {
-              yield { type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." };
+              yield {
+                type: "error",
+                code: "engine.mcp_failed",
+                message: "Vyre's tools did not connect to the engine.",
+              };
               await stop(r, false);
               return "stop";
             }
@@ -238,30 +352,63 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "text":
             // the engine's own "issue with the selected model" line is an error told as an answer: it is not shown, and the error that follows moves the turn to another model
             if (item.text.length < 600 && modelGone(item.text)) break;
-            said = true; yield { type: "text", text: item.text }; break;
-          case "thinking": said = true; yield { type: "thinking", text: item.text }; break;
+            said = true;
+            yield { type: "text", text: item.text };
+            break;
+          case "thinking":
+            said = true;
+            yield { type: "thinking", text: item.text };
+            break;
           case "tool":
             said = true;
             yield item.phase === "call"
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
               : item.phase === "input"
                 ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
-                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok, ...(item.output ? { detail: item.output } : {}) } };
+                : {
+                    type: "block",
+                    kind: "tool_result",
+                    payload: { id: item.id, ok: item.ok, ...(item.output ? { detail: item.output } : {}) },
+                  };
             break;
           case "usage":
             yield {
-              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextWindow !== undefined ? { contextWindow: item.contextWindow } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
-              ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}), ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
-              ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}), ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
+              type: "usage",
+              inputTokens: item.inputTokens,
+              outputTokens: item.outputTokens,
+              ...(item.model ? { model: item.model } : {}),
+              ...(item.contextWindow !== undefined ? { contextWindow: item.contextWindow } : {}),
+              ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
+              ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}),
+              ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
+              ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}),
+              ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
             };
             break;
-          case "limits": yield { type: "limits", window: item.window, pct: item.pct, ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}) }; break;
-          case "read": unread.shift(); break;
+          case "limits":
+            yield {
+              type: "limits",
+              window: item.window,
+              pct: item.pct,
+              ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}),
+            };
+            break;
+          case "read":
+            unread.shift();
+            break;
           case "end":
             outstanding -= 1;
             if (item.error) {
-              if (gone(item.error.message)) { await stop(r, false); return "gone"; }
-              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: plainCli(clean(item.error.message)), ...(item.error.resetsAt !== undefined ? { resetsAt: item.error.resetsAt } : {}) };
+              if (gone(item.error.message)) {
+                await stop(r, false);
+                return "gone";
+              }
+              yield {
+                type: "error",
+                code: item.error.code ?? classifyCli(item.error.message),
+                message: plainCli(clean(item.error.message)),
+                ...(item.error.resetsAt !== undefined ? { resetsAt: item.error.resetsAt } : {}),
+              };
               return "stop";
             }
             // A steering engine's result ends the turn every message it has read belongs to. A message it has not read yet is the start of its next turn, which ends with a result of its own: wait for that
@@ -271,12 +418,23 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "eof": {
             // stderr may still be arriving when stdout closes: the process is gone once both are.
             const t = pause(graceMs);
-            try { await Promise.race([r.proc.exited, t.done]); } finally { t.stop(); }
-            const tail = clean(r.proc.stderrTail()).trim();   // stderr is cleaned here, so a secret in it is gone before it is classified or shown
+            try {
+              await Promise.race([r.proc.exited, t.done]);
+            } finally {
+              t.stop();
+            }
+            const tail = clean(r.proc.stderrTail()).trim(); // stderr is cleaned here, so a secret in it is gone before it is classified or shown
             if (gone(tail)) return "gone";
             const absent = missingProgram(tail);
-            if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }
-            yield { type: "error", code: classifyCli(tail), message: tail !== "" ? plainCli(tail) : "The engine ended before it answered." };
+            if (absent !== null) {
+              yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` };
+              return "stop";
+            }
+            yield {
+              type: "error",
+              code: classifyCli(tail),
+              message: tail !== "" ? plainCli(tail) : "The engine ended before it answered.",
+            };
             return "stop";
           }
         }
@@ -290,8 +448,18 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   /** The engine's own compact of the session it holds. Nothing to compact (no session yet) and a session the engine says is gone are errors the caller answers by compacting itself. */
   async function* compact(keep: string, asker: string, signal: AbortSignal): AsyncGenerator<DriverEvent> {
-    if (!a.compactCommand) { yield { type: "error", code: "engine.compact_unsupported", message: `${ENGINE_NAME[a.id] ?? a.id} has no compact Vyre can ask for.` }; return; }
-    if (sessionId === null) { yield { type: "error", code: "engine.nothing_to_compact", message: "There is no engine session to compact yet." }; return; }
+    if (!a.compactCommand) {
+      yield {
+        type: "error",
+        code: "engine.compact_unsupported",
+        message: `${ENGINE_NAME[a.id] ?? a.id} has no compact Vyre can ask for.`,
+      };
+      return;
+    }
+    if (sessionId === null) {
+      yield { type: "error", code: "engine.nothing_to_compact", message: "There is no engine session to compact yet." };
+      return;
+    }
     const outcome = yield* turn(a.compactCommand(keep), asker, signal, true);
     if (outcome === "gone") {
       sessionId = null;
@@ -309,16 +477,28 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   }
 
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
-    if (closed) { yield { type: "error", code: "engine.closed", message: "This session is closed." }; return; }
-    if (running) { yield { type: "error", code: "engine.busy", message: "This session is already answering." }; return; }
+    if (closed) {
+      yield { type: "error", code: "engine.closed", message: "This session is closed." };
+      return;
+    }
+    if (running) {
+      yield { type: "error", code: "engine.busy", message: "This session is already answering." };
+      return;
+    }
     running = true;
     const ac = new AbortController();
     abort = ac;
     turns += 1;
     try {
-      if (input.compact) { yield* compact(input.compact.keep, input.asker, ac.signal); return; }
+      if (input.compact) {
+        yield* compact(input.compact.keep, input.asker, ac.signal);
+        return;
+      }
       let fresh = sessionId === null;
-      const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered, sentContext));
+      const build = (steered: readonly StoredMessage[]): string =>
+        deps.prompt && steered.length === 0
+          ? deps.prompt(input, { fresh })
+          : defaultPrompt(input, fresh, steered, sentContext);
       const first = steer.splice(0, steer.length);
       let prompt = build(first);
       for (;;) {
@@ -337,7 +517,10 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         if (outcome !== "done") return;
         // Steering takes the next turn of this send.
         if (steer.length === 0) break;
-        prompt = steer.splice(0, steer.length).map((m) => label(m, input.asker)).join("\n\n");
+        prompt = steer
+          .splice(0, steer.length)
+          .map((m) => label(m, input.asker))
+          .join("\n\n");
       }
       yield { type: "done" };
     } finally {
@@ -347,10 +530,16 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   }
 
   return {
-    get warm() { return a.persistent ? run !== null && run.alive : sessionId !== null; },
-    get pid() { return run?.proc.pid; },
+    get warm() {
+      return a.persistent ? run !== null && run.alive : sessionId !== null;
+    },
+    get pid() {
+      return run?.proc.pid;
+    },
     send: (input) => send(input),
-    sendToolResult(_callId: string, _result: ToolResult) { /* tools run through MCP, not here */ },
+    sendToolResult(_callId: string, _result: ToolResult) {
+      /* tools run through MCP, not here */
+    },
     // A message that arrives while a turn is running: an engine that steers reads it at its next step (written at once, see the header); any other waits for the turn to end and is then sent as the next
     // turn of this same send.
     inject(msg) {
@@ -358,7 +547,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       if (a.steers && r !== null && r.alive) {
         // Mid-turn: written at once. A write that fails (the process just ended) falls back to the next turn.
         unread.push("steer");
-        void r.proc.write(a.encode(label(msg, spec.asker))).catch(() => { const at = unread.lastIndexOf("steer"); if (at >= 0) unread.splice(at, 1); steer.push(msg); });
+        void r.proc.write(a.encode(label(msg, spec.asker))).catch(() => {
+          const at = unread.lastIndexOf("steer");
+          if (at >= 0) unread.splice(at, 1);
+          steer.push(msg);
+        });
         return;
       }
       steer.push(msg);
@@ -376,8 +569,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       if (r) await stop(r, false);
       await deps.onClose?.();
     },
-    async checkpoint() { return { engine: a.id, sessionId }; },
-    async prewarm() { if (a.persistent && !closed && (run === null || !run.alive)) await start(); },
+    async checkpoint() {
+      return { engine: a.id, sessionId };
+    },
+    async prewarm() {
+      if (a.persistent && !closed && (run === null || !run.alive)) await start();
+    },
     stats: () => ({ spawns, resumes, turns }),
   };
 }

@@ -6,20 +6,37 @@ import type { Principal } from "./runtime-data.ts";
 import { agentForPerson, agentOfName, creditedName, namesItsPerson } from "../../../../../lib/words/agent-name.ts";
 export { agentForPerson };
 
-export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; assistant?: boolean; agentName?: string; roles?: readonly string[]; status?: string }
+export interface PrincipalIn {
+  id: string;
+  name: string;
+  kind: string;
+  owner?: string;
+  private?: boolean;
+  assistant?: boolean;
+  agentName?: string;
+  roles?: readonly string[];
+  status?: string;
+}
 
 /** How someone else's private agent is named: "Maya’s Assistant" for their Assistant, "Maya Lin (Agent)" for an outside agent. The server already answers it so (access.principals.list); this is the same function. */
-export const asAgentOf = (personName: string, assistant = false): string => agentOfName(personName, assistant ? "assistant" : "outside");
+export const asAgentOf = (personName: string, assistant = false): string =>
+  agentOfName(personName, assistant ? "assistant" : "outside");
 
 /** Is this someone else's agent, named as its person's (never offered to @mention or ask)? */
-export const creditedToPerson = (p: { kind: string; name: string; private?: boolean }): boolean => p.kind === "agent" && (p.private === true || / \(Agent\)$/.test(p.name));
+export const creditedToPerson = (p: { kind: string; name: string; private?: boolean }): boolean =>
+  p.kind === "agent" && (p.private === true || / \(Agent\)$/.test(p.name));
 
 /**
  * The shell's directory from access.principals.list and the set agents.list answered (`usable`, null while it loads). The server names someone else's private agent as its person and marks it
  * `private`, with its own name (`agentName`) for owners and admins only. An agent that is not the person's and not in agents.list is not offered either.
  * `own` is this person's assistant, named as the shell names it.
  */
-export function directoryOf(rows: readonly PrincipalIn[], own: { id: string; name: string }, meId: string, usable: ReadonlySet<string> | null): Principal[] {
+export function directoryOf(
+  rows: readonly PrincipalIn[],
+  own: { id: string; name: string },
+  meId: string,
+  usable: ReadonlySet<string> | null,
+): Principal[] {
   const people = new Map<string, string>();
   for (const x of rows) if (x.kind === "person") people.set(x.id, x.name);
   return rows.map((x) => {
@@ -43,7 +60,8 @@ export function directoryOf(rows: readonly PrincipalIn[], own: { id: string; nam
 }
 
 /** May this person be offered this principal (a mention, a Cmd-K hit, a chat to start)? */
-export const offered = (p: object): boolean => (p as { private?: boolean }).private !== true && (p as { hidden?: boolean }).hidden !== true;
+export const offered = (p: object): boolean =>
+  (p as { private?: boolean }).private !== true && (p as { hidden?: boolean }).hidden !== true;
 
 /** Agent id to person id, for the faces of private agents (ui/Avatar setStandIns). */
 export function standInsOf(list: readonly Principal[]): Map<string, string> {
@@ -57,7 +75,10 @@ export function standInsOf(list: readonly Principal[]): Map<string, string> {
  * own person from the directory). A person: "You" or their name. An agent for a person: "You, through Assistant" to that person, "Irfad Imtiaz (Agent)" to everyone else. An agent for nobody:
  * its name. Nothing known: a plain word, never an id.
  */
-export function creditLine(by: { kind: string; id: string }, o: { me: string; nameOf(id: string): string; ownerOf?(id: string): string | undefined; for?: string | undefined }): string {
+export function creditLine(
+  by: { kind: string; id: string },
+  o: { me: string; nameOf(id: string): string; ownerOf?(id: string): string | undefined; for?: string | undefined },
+): string {
   if (by.kind !== "agent") return by.id === o.me ? "You" : o.nameOf(by.id);
   const person = o.for ?? o.ownerOf?.(by.id);
   if (person === undefined || !person.startsWith("usr_")) return o.nameOf(by.id);

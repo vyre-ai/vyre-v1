@@ -32,7 +32,12 @@ export const SOURCES: readonly SourceDef[] = [
   { id: "local", name: "This computer", what: "Folder on your computer", kinds: ["local"] },
 ];
 
-const SUITE: SourceDef = { id: "microsoft", name: "Microsoft 365", what: "SharePoint library or OneDrive folder", kinds: ["sharepoint", "onedrive"] };
+const SUITE: SourceDef = {
+  id: "microsoft",
+  name: "Microsoft 365",
+  what: "SharePoint library or OneDrive folder",
+  kinds: ["sharepoint", "onedrive"],
+};
 
 export function sourceOf(id: SourceId): SourceDef {
   return SOURCES.find((s) => s.id === id) ?? (id === "microsoft" ? SUITE : (SOURCES[0] as SourceDef));
@@ -66,10 +71,17 @@ export interface BrowseItem {
   kind: MountKind;
 }
 
-export interface Crumb { ref: string; name: string; kind: MountKind }
+export interface Crumb {
+  ref: string;
+  name: string;
+  kind: MountKind;
+}
 
 export type Who = { mode: "me" } | { mode: "everyone" } | { mode: "people"; ids: readonly string[] };
-export interface Person { id: string; name: string }
+export interface Person {
+  id: string;
+  name: string;
+}
 
 export interface Draft {
   step: 1 | 2 | 3;
@@ -89,13 +101,41 @@ export interface Draft {
 }
 
 export const emptyDraft = (into: string): Draft => ({
-  step: 1, source: null, path: [], picked: null, q: "", name: null, who: { mode: "me" }, copy: "server_copy", review: null, branch: "main", into,
+  step: 1,
+  source: null,
+  path: [],
+  picked: null,
+  q: "",
+  name: null,
+  who: { mode: "me" },
+  copy: "server_copy",
+  review: null,
+  branch: "main",
+  into,
 });
 
-export const chooseSource = (d: Draft, source: SourceId): Draft => ({ ...d, step: 2, source, path: [], picked: null, q: "", name: null });
-export const walkInto = (d: Draft, item: BrowseItem): Draft => ({ ...d, path: [...d.path, { ref: item.ref, name: item.name, kind: item.kind }], picked: null, q: "" });
+export const chooseSource = (d: Draft, source: SourceId): Draft => ({
+  ...d,
+  step: 2,
+  source,
+  path: [],
+  picked: null,
+  q: "",
+  name: null,
+});
+export const walkInto = (d: Draft, item: BrowseItem): Draft => ({
+  ...d,
+  path: [...d.path, { ref: item.ref, name: item.name, kind: item.kind }],
+  picked: null,
+  q: "",
+});
 /** Crumb index 0 is the source itself; index i keeps the first i folders. */
-export const walkTo = (d: Draft, i: number): Draft => ({ ...d, path: d.path.slice(0, Math.max(0, i)), picked: null, q: "" });
+export const walkTo = (d: Draft, i: number): Draft => ({
+  ...d,
+  path: d.path.slice(0, Math.max(0, i)),
+  picked: null,
+  q: "",
+});
 /** A key for the folders walked into; the list reloads when it changes. */
 export function pathKey(d: Draft): string {
   let key = "";
@@ -227,7 +267,12 @@ export interface ShareInput {
 
 /** The access.share calls that follow a successful mount. Everyone needs the Space's everyone group; without one the choice is not offered. */
 export function shareInputs(w: Who, folderId: string, everyoneGroupId: string | undefined): ShareInput[] {
-  const one = (kind: "person" | "group", id: string): ShareInput => ({ resource: { type: "folder", id: folderId }, subject: { kind, id }, level: "view", idempotencyKey: `mount-share:${folderId}:${id}` });
+  const one = (kind: "person" | "group", id: string): ShareInput => ({
+    resource: { type: "folder", id: folderId },
+    subject: { kind, id },
+    level: "view",
+    idempotencyKey: `mount-share:${folderId}:${id}`,
+  });
   if (w.mode === "me") return [];
   if (w.mode === "everyone") return everyoneGroupId ? [one("group", everyoneGroupId)] : [];
   return w.ids.map((id) => one("person", id));
@@ -235,6 +280,7 @@ export function shareInputs(w: Who, folderId: string, everyoneGroupId: string | 
 
 /** The Unmount sheet's words. */
 export function unmountWords(row: Pick<MountRow, "name" | "kind" | "provider">): { title: string; body: string } {
-  const where = row.kind === "local" ? "their folder on your computer" : row.kind === "github" ? "GitHub" : row.provider;
+  const where =
+    row.kind === "local" ? "their folder on your computer" : row.kind === "github" ? "GitHub" : row.provider;
   return { title: "Unmount " + `“${row.name}”` + "?", body: `The files stay in ${where}.` };
 }

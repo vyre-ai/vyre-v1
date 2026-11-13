@@ -13,11 +13,25 @@ export const folderLine = (name: string, path: string): string => `${name} \u00b
 const added = new Map<string, string>();
 const watchers = new Set<() => void>();
 let version = 0;
-const tell = (): void => { version++; for (const w of watchers) w(); };
+const tell = (): void => {
+  version++;
+  for (const w of watchers) w();
+};
 
 /** The card added a folder (its mount id and its path on this computer), or took one away. */
-export function rememberFolder(mountId: string, path: string): void { if (!mountId) return; added.set(mountId, path); tell(); }
-export function forgetFolder(mountId: string): void { if (added.delete(mountId)) tell(); }
+export function rememberFolder(mountId: string, path: string): void {
+  if (!mountId) return;
+  added.set(mountId, path);
+  tell();
+}
+export function forgetFolder(mountId: string): void {
+  if (added.delete(mountId)) tell();
+}
 export const folderPathOf = (mountId: string): string | undefined => added.get(mountId);
 export const foldersVersion = (): number => version;
-export function watchFolders(fn: () => void): () => void { watchers.add(fn); return () => { watchers.delete(fn); }; }
+export function watchFolders(fn: () => void): () => void {
+  watchers.add(fn);
+  return () => {
+    watchers.delete(fn);
+  };
+}

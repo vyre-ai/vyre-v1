@@ -39,15 +39,33 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
   const seq = useRef(0);
   const input = useRef<TextInput | null>(null);
 
-  const run = useCallback((q: string): void => {
-    const mine = ++seq.current;
-    if (q.trim() === "") { setOut(null); setLoading(false); setFailed(null); return; }
-    setLoading(true);
-    void Promise.resolve(data.call("chat.search", { q, limit: LIMIT })).then(
-      (r) => { if (mine !== seq.current) return; setOut(r as SearchOut); setFailed(null); setLoading(false); setAt(0); },
-      (e) => { if (mine !== seq.current) return; setFailed(e instanceof Error && e.message.length < 140 ? e.message : "The search did not run."); setLoading(false); },
-    );
-  }, [data]);
+  const run = useCallback(
+    (q: string): void => {
+      const mine = ++seq.current;
+      if (q.trim() === "") {
+        setOut(null);
+        setLoading(false);
+        setFailed(null);
+        return;
+      }
+      setLoading(true);
+      void Promise.resolve(data.call("chat.search", { q, limit: LIMIT })).then(
+        (r) => {
+          if (mine !== seq.current) return;
+          setOut(r as SearchOut);
+          setFailed(null);
+          setLoading(false);
+          setAt(0);
+        },
+        (e) => {
+          if (mine !== seq.current) return;
+          setFailed(e instanceof Error && e.message.length < 140 ? e.message : "The search did not run.");
+          setLoading(false);
+        },
+      );
+    },
+    [data],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => run(query), query === data.query ? 0 : DEBOUNCE_MS);
@@ -61,10 +79,22 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
   const onKey = (e: unknown): void => {
     const k = (e as { nativeEvent: { key: string }; preventDefault?: () => void }).nativeEvent.key;
     const stop = (): void => (e as { preventDefault?: () => void }).preventDefault?.();
-    if (k === "ArrowDown") { stop(); setAt((i) => Math.min(rows.length - 1, i + 1)); }
-    else if (k === "ArrowUp") { stop(); setAt((i) => Math.max(0, i - 1)); }
-    else if (k === "Enter") { const h = rows[at]; if (h) { stop(); open(h); } }
-    else if (k === "Escape") { stop(); data.close(); }
+    if (k === "ArrowDown") {
+      stop();
+      setAt((i) => Math.min(rows.length - 1, i + 1));
+    } else if (k === "ArrowUp") {
+      stop();
+      setAt((i) => Math.max(0, i - 1));
+    } else if (k === "Enter") {
+      const h = rows[at];
+      if (h) {
+        stop();
+        open(h);
+      }
+    } else if (k === "Escape") {
+      stop();
+      data.close();
+    }
   };
 
   const status = statusLine(out, loading, query);
@@ -74,12 +104,35 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
         <IconButton icon="back" label="Back to the chat" size={26} testID="search-back" onPress={() => data.close()} />
         <Glyph name="search" size={15} color="var(--ink-3)" />
         <TextInput
-          ref={input} testID="search-input" accessibilityLabel="Search all chats" autoFocus value={query} onChangeText={setQuery} placeholder="Search every chat you are in" placeholderTextColor="var(--ink-4)"
-          onKeyPress={onKey as never} style={st.input}
+          ref={input}
+          testID="search-input"
+          accessibilityLabel="Search all chats"
+          autoFocus
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search every chat you are in"
+          placeholderTextColor="var(--ink-4)"
+          onKeyPress={onKey as never}
+          style={st.input}
         />
-        {query !== "" ? <IconButton icon="x" label="Clear" size={24} testID="search-clear" onPress={() => { setQuery(""); input.current?.focus(); }} /> : null}
+        {query !== "" ? (
+          <IconButton
+            icon="x"
+            label="Clear"
+            size={24}
+            testID="search-clear"
+            onPress={() => {
+              setQuery("");
+              input.current?.focus();
+            }}
+          />
+        ) : null}
       </View>
-      {status !== "" ? <Text testID="search-status" accessibilityLiveRegion="polite" style={st.status}>{status}</Text> : null}
+      {status !== "" ? (
+        <Text testID="search-status" accessibilityLiveRegion="polite" style={st.status}>
+          {status}
+        </Text>
+      ) : null}
       <View style={st.list}>
         {failed ? (
           <States kind="error" message="The search did not run" cause={failed} retryable onRetry={() => run(query)} />
@@ -88,7 +141,20 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
         ) : !loading && out && rows.length === 0 ? (
           <States kind="empty" icon="search" title={`No messages match "${query.trim()}"`} />
         ) : (
-          rows.map((h, i) => <Row key={h.messageId} h={h} i={i} on={i === at} meaning={out?.meaning === true} query={query} data={data} onHover={() => setAt(i)} open={() => open(h)} menu={menu} />)
+          rows.map((h, i) => (
+            <Row
+              key={h.messageId}
+              h={h}
+              i={i}
+              on={i === at}
+              meaning={out?.meaning === true}
+              query={query}
+              data={data}
+              onHover={() => setAt(i)}
+              open={() => open(h)}
+              menu={menu}
+            />
+          ))
         )}
       </View>
       {menu.element}
@@ -96,31 +162,77 @@ export function SearchPage({ data }: { data: SearchData }): ReactElement {
   );
 }
 
-export function Row({ h, i, on, meaning = false, query, data, onHover, open, menu }: { h: Hit; i: number; on: boolean; meaning?: boolean; query: string; data: SearchData; onHover: () => void; open: () => void; menu: ReturnType<typeof useMenu> }): ReactElement {
+export function Row({
+  h,
+  i,
+  on,
+  meaning = false,
+  query,
+  data,
+  onHover,
+  open,
+  menu,
+}: {
+  h: Hit;
+  i: number;
+  on: boolean;
+  meaning?: boolean;
+  query: string;
+  data: SearchData;
+  onHover: () => void;
+  open: () => void;
+  menu: ReturnType<typeof useMenu>;
+}): ReactElement {
   const who = data.nameOf(h.author.id);
   const kind = data.kindOf(h.author.id);
   const title = chatTitle(h, data.nameOf, data.me.id);
   const pieces = highlight(h.snippet, query);
   return (
     <Pressable
-      testID={`hit-${h.messageId}`} accessibilityRole="button" accessibilityLabel={`${who} in ${title}: ${h.snippet}`} onPress={open} onHoverIn={onHover}
-      {...menuTrigger((x, y) => menu.show([
-        { label: "Open at This Message", onSelect: open },
-        { label: "Open the Chat", onSelect: () => data.openThread(h.threadId) },
-        { label: "Copy the Words", onSelect: () => data.copy(h.snippet) },
-      ], x, y, "context", { label: "Result" }))}
+      testID={`hit-${h.messageId}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${who} in ${title}: ${h.snippet}`}
+      onPress={open}
+      onHoverIn={onHover}
+      {...menuTrigger((x, y) =>
+        menu.show(
+          [
+            { label: "Open at This Message", onSelect: open },
+            { label: "Open the Chat", onSelect: () => data.openThread(h.threadId) },
+            { label: "Copy the Words", onSelect: () => data.copy(h.snippet) },
+          ],
+          x,
+          y,
+          "context",
+          { label: "Result" },
+        ),
+      )}
       style={[st.row, on && st.rowOn]}
     >
       <Face name={who} seedId={h.author.id} kind={kind} size={28} />
       <View style={st.body}>
         <View style={st.meta}>
-          <Text numberOfLines={1} style={st.who}>{who}</Text>
+          <Text numberOfLines={1} style={st.who}>
+            {who}
+          </Text>
           <Text numberOfLines={1} style={st.where}>{`in ${title}`}</Text>
           <Text style={st.when}>{whenLine(h.at, data.clock())}</Text>
-          {meaning && h.found === "meaning" ? <Text testID={`similar-${i}`} style={st.similar}>similar</Text> : null}
+          {meaning && h.found === "meaning" ? (
+            <Text testID={`similar-${i}`} style={st.similar}>
+              similar
+            </Text>
+          ) : null}
         </View>
         <Text style={st.snippet}>
-          {pieces.map((p, j) => (p.mark ? <Text key={j} style={st.mark}>{p.text}</Text> : p.text))}
+          {pieces.map((p, j) =>
+            p.mark ? (
+              <Text key={j} style={st.mark}>
+                {p.text}
+              </Text>
+            ) : (
+              p.text
+            ),
+          )}
         </Text>
       </View>
     </Pressable>
@@ -129,8 +241,24 @@ export function Row({ h, i, on, meaning = false, query, data, onHover, open, men
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  head: { height: 52, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  input: { flex: 1, minWidth: 0, height: 32, fontSize: 15, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  head: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    height: 32,
+    fontSize: 15,
+    color: "var(--ink)" as string,
+    outlineStyle: "none",
+    outlineWidth: 0,
+  } as object,
   status: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 4, fontSize: 12.5, color: "var(--ink-3)" as string },
   list: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 6, overflow: "scroll" } as object,
   row: { flexDirection: "row", gap: 12, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 10 },

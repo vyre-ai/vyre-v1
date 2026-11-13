@@ -21,27 +21,58 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-te
 // the same one (VYRE_TEST_ENGINE for Docker's answers, VYRE_TEST_BOOT_ID_FILE for this computer's, test mode only), so the tests do not depend on this computer's /proc:
 // a macOS runner (the desktop workflow's installer-macos job) has none, and there the missing boot id read as "another kernel".
 const SAME_BOOT = "0b0e1d2c-3a4f-4b5c-8d6e-same-kernel-test";
-const BOOT_FILE = ((): string => { const f = path.join(os.tmpdir(), `vyre-test-boot-id-${process.pid}`); fs.writeFileSync(f, `${SAME_BOOT}\n`); return f; })();
+const BOOT_FILE = ((): string => {
+  const f = path.join(os.tmpdir(), `vyre-test-boot-id-${process.pid}`);
+  fs.writeFileSync(f, `${SAME_BOOT}\n`);
+  return f;
+})();
 const SAME_ENGINE = `Ubuntu|${SAME_BOOT}`;
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_ENGINE: SAME_ENGINE, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE, VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_ENGINE: SAME_ENGINE,
+      VYRE_TEST_BOOT_ID_FILE: BOOT_FILE,
+      VYRE_TEST_OS: "Linux",
+      ...env,
+    },
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
-function fakeHost(dir: string, opts: { fs?: string; src?: string; layers?: string[] }): { mounts: string; lsblk: string } {
+function fakeHost(
+  dir: string,
+  opts: { fs?: string; src?: string; layers?: string[] },
+): { mounts: string; lsblk: string } {
   const mounts = path.join(dir, "mounts");
   const lsblk = path.join(dir, "lsblk");
-  fs.writeFileSync(mounts, `/dev/sda1 / ext4 rw 0 0\n${opts.src ?? "/dev/mapper/vyre-data"} ${dir} ${opts.fs ?? "ext4"} rw 0 0\n`);
-  fs.writeFileSync(lsblk, `#!/bin/sh\nprintf '${(opts.layers ?? ["crypt", "disk"]).join("\\n")}\\n'\n`, { mode: 0o755 });
+  fs.writeFileSync(
+    mounts,
+    `/dev/sda1 / ext4 rw 0 0\n${opts.src ?? "/dev/mapper/vyre-data"} ${dir} ${opts.fs ?? "ext4"} rw 0 0\n`,
+  );
+  fs.writeFileSync(lsblk, `#!/bin/sh\nprintf '${(opts.layers ?? ["crypt", "disk"]).join("\\n")}\\n'\n`, {
+    mode: 0o755,
+  });
   return { mounts, lsblk };
 }
-const hostEnv = (h: { mounts: string; lsblk: string }): Record<string, string> => ({ VYRE_TEST_PROC_MOUNTS: h.mounts, VYRE_TEST_LSBLK: h.lsblk });
+const hostEnv = (h: { mounts: string; lsblk: string }): Record<string, string> => ({
+  VYRE_TEST_PROC_MOUNTS: h.mounts,
+  VYRE_TEST_LSBLK: h.lsblk,
+});
 
 /** A directory of fake commands that log their arguments (and whatever they read on stdin, as a length only) to calls.log. */
 function fakeBin(dir: string, names: string[], extra: Record<string, string> = {}): string {
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin, { recursive: true });
-  for (const n of names) fs.writeFileSync(path.join(bin, n), extra[n] ?? `#!/bin/sh\necho "${n} $*" >>"${dir}/calls.log"\ncat >/dev/null 2>&1 || true\nexit 0\n`, { mode: 0o755 });
+  for (const n of names)
+    fs.writeFileSync(
+      path.join(bin, n),
+      extra[n] ?? `#!/bin/sh\necho "${n} $*" >>"${dir}/calls.log"\ncat >/dev/null 2>&1 || true\nexit 0\n`,
+      { mode: 0o755 },
+    );
   return bin;
 }
 const plainHost = (dir: string) => hostEnv(fakeHost(dir, { src: "/dev/sdb1", layers: ["part", "disk"] }));
@@ -52,14 +83,42 @@ function mkSpace(dir: string, marker: string): void {
   fs.mkdirSync(path.join(dir, "data", "caddy"), { recursive: true });
   fs.writeFileSync(path.join(dir, "data", "caddy", "cert.pem"), marker);
   for (const n of ["events.db", "modules.db"]) {
-    const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('"+process.argv[2]+"')");d.close()`, path.join(space, n), marker]);
+    const r = spawnSync("node", [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('"+process.argv[2]+"')");d.close()`,
+      path.join(space, n),
+      marker,
+    ]);
     assert.equal(r.status, 0, String(r.stderr));
   }
 }
-const valueIn = (db: string): string => JSON.parse(spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify(d.prepare("SELECT v FROM t").get().v))`, db], { encoding: "utf8" }).stdout);
+const valueIn = (db: string): string =>
+  JSON.parse(
+    spawnSync(
+      "node",
+      [
+        "--no-warnings",
+        "-e",
+        `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify(d.prepare("SELECT v FROM t").get().v))`,
+        db,
+      ],
+      { encoding: "utf8" },
+    ).stdout,
+  );
 
 const sqliteWith = (file: string, sql: string): void => {
-  const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`, file, sql], { encoding: "utf8" });
+  const r = spawnSync(
+    "node",
+    [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`,
+      file,
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
   assert.equal(r.status, 0, r.stderr);
 };
 
@@ -67,15 +126,25 @@ test("restore refuses to write onto the plain disk when the data folder was set 
   const dir = tmp();
   fs.mkdirSync(path.join(dir, "state"), { recursive: true });
   mkSpace(dir, "OLD");
-  const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+  const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, {
+    VYRE_DIR: dir,
+  });
   const file = mk.stdout.trim().split("\n").pop()!;
   fs.rmSync(path.join(dir, "data"), { recursive: true });
   const plain = plainHost(dir);
-  const restore = (extra = ""): Out => sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; wait_healthy(){ :; }; trap cleanup EXIT; cmd_restore "${file}" --yes ${extra}`, { VYRE_DIR: dir, ...plain });
+  const restore = (extra = ""): Out =>
+    sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; dc(){ :; }; wait_healthy(){ :; }; trap cleanup EXIT; cmd_restore "${file}" --yes ${extra}`,
+      { VYRE_DIR: dir, ...plain },
+    );
   fs.writeFileSync(path.join(dir, "state/encryption"), `kind=detected\nsince=2026-11-01\ndata_dir=${dir}/data\n`);
   const r = restore();
   assert.equal(r.status, 7, r.stderr);
-  assert.match(r.stderr, /was set up on an encrypted volume \(detected\) that does not seem to be mounted now\. Restoring now would write the Space onto this machine's plain disk\. Mount or open the volume, then run the restore again\. To restore onto the plain disk anyway, add --force\. Nothing was changed\./);
+  assert.match(
+    r.stderr,
+    /was set up on an encrypted volume \(detected\) that does not seem to be mounted now\. Restoring now would write the Space onto this machine's plain disk\. Mount or open the volume, then run the restore again\. To restore onto the plain disk anyway, add --force\. Nothing was changed\./,
+  );
   assert.ok(!fs.existsSync(path.join(dir, "data")), "nothing was written, not even the folder");
   fs.writeFileSync(path.join(dir, "state/encryption"), `kind=provider\nsince=2026-11-01\ndata_dir=${dir}/data\n`);
   assert.equal(restore().status, 7, "a provider volume that is not mounted: its folder is not there");
@@ -92,14 +161,25 @@ test("restore refuses to write onto the plain disk when the data folder was set 
 test("a restore hands the Space to the server's user (uid 1000), and a restore into an empty folder that fails its health check keeps the restored copy and says where", () => {
   const dir = tmp();
   mkSpace(dir, "OLD");
-  const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+  const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, {
+    VYRE_DIR: dir,
+  });
   const file = mk.stdout.trim().split("\n").pop()!;
   fs.rmSync(path.join(dir, "data"), { recursive: true });
   const bin = fakeBin(dir, ["chown"]);
-  const run = (healthy: boolean): Out => sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ ${healthy ? "return 0" : "return 1"}; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, { VYRE_DIR: dir, PATH: `${bin}:${process.env.PATH ?? ""}` });
+  const run = (healthy: boolean): Out =>
+    sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ ${healthy ? "return 0" : "return 1"}; }; trap cleanup EXIT; cmd_restore "${file}" --yes`,
+      { VYRE_DIR: dir, PATH: `${bin}:${process.env.PATH ?? ""}` },
+    );
   const ok = run(true);
   assert.equal(ok.status, 0, ok.stderr);
-  assert.match(read(path.join(dir, "calls.log")), new RegExp(`chown -R 1000:1000 ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/data/space`), "the restored Space is given to uid 1000");
+  assert.match(
+    read(path.join(dir, "calls.log")),
+    new RegExp(`chown -R 1000:1000 ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/data/space`),
+    "the restored Space is given to uid 1000",
+  );
   // root-owned 0600 files (a backup taken with the host's sqlite3) are handed over for real when this runs as root
   if (process.getuid?.() === 0) {
     fs.rmSync(path.join(dir, "data"), { recursive: true });
@@ -114,7 +194,10 @@ test("a restore hands the Space to the server's user (uid 1000), and a restore i
   fs.rmSync(path.join(dir, "data"), { recursive: true });
   const bad = run(false);
   assert.notEqual(bad.status, 0);
-  assert.match(bad.stderr, /the server did not pass its health check on the restored data\. The restored data is still in .*\/data\/space \(the server is stopped\)\. Look at it and fix what failed, then start the server: vyre-server start\. It came from /);
+  assert.match(
+    bad.stderr,
+    /the server did not pass its health check on the restored data\. The restored data is still in .*\/data\/space \(the server is stopped\)\. Look at it and fix what failed, then start the server: vyre-server start\. It came from /,
+  );
   assert.equal(valueIn(path.join(dir, "data/space/events.db")), "OLD", "not deleted");
   fs.rmSync(dir, { recursive: true });
 });

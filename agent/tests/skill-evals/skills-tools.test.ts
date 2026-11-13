@@ -6,14 +6,30 @@ import assert from "node:assert/strict";
 import { loadGenerated } from "../../src/tools/harness.ts";
 
 const root = new URL("../../skills/", import.meta.url);
-const dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+const dirs = readdirSync(root, { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .map((d) => d.name);
 const gen = loadGenerated();
 const text = (dir: string): string => readFileSync(new URL(`${dir}/SKILL.md`, root), "utf8");
 /** Words in backticks that look like a tool name (snake_case with an underscore) but are block types or fields. */
 const NOT_TOOLS = new Set(["secret_input", "sources_kind", "diff_card"]);
 
 test("the places each have a focus skill, and the manual, loops and computer skills are there", () => {
-  for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer", "your-chrome", "working-on-tasks"]) assert.ok(dirs.includes(n), n);
+  for (const n of [
+    "working-in-vyre",
+    "focus-records",
+    "focus-files",
+    "focus-automations",
+    "focus-vault",
+    "focus-inbox",
+    "focus-apps",
+    "focus-console",
+    "agent-loops",
+    "agent-computer",
+    "your-chrome",
+    "working-on-tasks",
+  ])
+    assert.ok(dirs.includes(n), n);
 });
 
 test("every skill has the front matter of an open SKILL.md: name equal to its folder, a description, system true", () => {
@@ -35,7 +51,8 @@ test("every tool a skill names in backticks is a real tool", () => {
 
 test("every tool named with a handle or call shape in a skill, such as foo(...) , is also real", () => {
   for (const d of dirs) {
-    for (const m of text(d).matchAll(/\b([a-z]+(?:_[a-z0-9]+)+)\(/g)) assert.ok(gen.catalog.byName(m[1]!), `${d}: ${m[1]}( is not a tool`);
+    for (const m of text(d).matchAll(/\b([a-z]+(?:_[a-z0-9]+)+)\(/g))
+      assert.ok(gen.catalog.byName(m[1]!), `${d}: ${m[1]}( is not a tool`);
   }
 });
 

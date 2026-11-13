@@ -9,7 +9,10 @@ import { Platform } from "react-native";
 
 type KeyLike = { key?: string; defaultPrevented?: boolean; preventDefault?: () => void; stopPropagation?: () => void };
 type Fn = (e: KeyLike) => void;
-type Doc = { addEventListener?: (t: string, f: Fn, capture?: boolean) => void; removeEventListener?: (t: string, f: Fn, capture?: boolean) => void };
+type Doc = {
+  addEventListener?: (t: string, f: Fn, capture?: boolean) => void;
+  removeEventListener?: (t: string, f: Fn, capture?: boolean) => void;
+};
 
 const stack: Array<{ run: () => void; respectHandled: boolean }> = [];
 let installed: { doc: Doc } | null = null;
@@ -32,7 +35,10 @@ function onBubble(e: KeyLike): void {
 }
 
 function install(d: Doc): void {
-  if (installed !== null) { installed.doc.removeEventListener?.("keydown", onCapture, true); installed.doc.removeEventListener?.("keydown", onBubble); }
+  if (installed !== null) {
+    installed.doc.removeEventListener?.("keydown", onCapture, true);
+    installed.doc.removeEventListener?.("keydown", onBubble);
+  }
   d.addEventListener?.("keydown", onCapture, true);
   d.addEventListener?.("keydown", onBubble);
   installed = { doc: d };

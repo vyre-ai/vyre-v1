@@ -13,7 +13,15 @@ export interface PlaceHash {
 const EMPTY: PlaceHash = { target: { args: {} }, opened: () => undefined };
 const Ctx = createContext<PlaceHash>(EMPTY);
 
-export function PlaceHashProvider({ hash, opened, children }: { hash: string; opened: PlaceHash["opened"]; children?: ReactNode }): ReactElement {
+export function PlaceHashProvider({
+  hash,
+  opened,
+  children,
+}: {
+  hash: string;
+  opened: PlaceHash["opened"];
+  children?: ReactNode;
+}): ReactElement {
   const value = useMemo<PlaceHash>(() => ({ target: parseHash(hash), opened }), [hash, opened]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

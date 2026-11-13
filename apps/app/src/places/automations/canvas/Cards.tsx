@@ -14,7 +14,12 @@ import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
 import type { KeyEventLike } from "./parts.tsx";
 
 const RUN_RING: Record<RunState, string | null> = {
-  done: "var(--ok)", failed: "var(--danger)", waiting: "var(--warn)", running: "var(--accent)", skipped: null, pending: null,
+  done: "var(--ok)",
+  failed: "var(--danger)",
+  waiting: "var(--warn)",
+  running: "var(--accent)",
+  skipped: null,
+  pending: null,
 };
 
 export interface CardHandlers {
@@ -29,7 +34,15 @@ export interface CardHandlers {
 
 const DOUBLE_MS = 450;
 
-export function StepCard({ card, selected, hovered, focused = false, handlers, agent, onHover }: {
+export function StepCard({
+  card,
+  selected,
+  hovered,
+  focused = false,
+  handlers,
+  agent,
+  onHover,
+}: {
   card: CardNode;
   selected: boolean;
   hovered: boolean;
@@ -53,29 +66,64 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={cardLabel({ title: card.title, sub: card.sub, issues: card.issues.length, chip: card.chip, state: card.state })}
+      accessibilityLabel={cardLabel({
+        title: card.title,
+        sub: card.sub,
+        issues: card.issues.length,
+        chip: card.chip,
+        state: card.state,
+      })}
       accessibilityState={{ selected }}
       aria-selected={selected}
       testID={`card-${card.id}`}
-      onPress={() => { handlers.onSelect(card.id); const now = Date.now(); if (now - last.current < DOUBLE_MS) { last.current = 0; handlers.onOpen(card.id); } else last.current = now; }}
+      onPress={() => {
+        handlers.onSelect(card.id);
+        const now = Date.now();
+        if (now - last.current < DOUBLE_MS) {
+          last.current = 0;
+          handlers.onOpen(card.id);
+        } else last.current = now;
+      }}
       onHoverIn={() => onHover(card.id)}
       onHoverOut={() => onHover(null)}
-      onFocus={() => { setFocus(true); handlers.onFocusId?.(card.id); }}
+      onFocus={() => {
+        setFocus(true);
+        handlers.onFocusId?.(card.id);
+      }}
       onBlur={() => setFocus(false)}
       {...trig}
-      {...webOnly({ onKeyDown: (e: KeyEventLike) => { handlers.onKey(e, card.id); trigKey?.(e); }, tabIndex: 0, dataSet: { card: card.id, vyreFocus: "1" } })}
+      {...webOnly({
+        onKeyDown: (e: KeyEventLike) => {
+          handlers.onKey(e, card.id);
+          trigKey?.(e);
+        },
+        tabIndex: 0,
+        dataSet: { card: card.id, vyreFocus: "1" },
+      })}
       style={[
-        c.card, { left: card.x, top: card.y, width: card.w, height: card.h }, pointer,
+        c.card,
+        { left: card.x, top: card.y, width: card.w, height: card.h },
+        pointer,
         errors.length > 0 && { borderColor: "var(--danger)" as string },
         ring ? { borderColor: ring as string } : null,
-        selected && c.cardSel, selected && shadow("0 0 0 3px var(--accent-wash)"),
+        selected && c.cardSel,
+        selected && shadow("0 0 0 3px var(--accent-wash)"),
         dim && ring === null && card.state ? { opacity: 0.55 } : null,
       ]}
     >
-      <StepLogo stepKey={card.node?.key ?? ""} {...(card.node ? { input: card.node.input } : {})} icon={card.icon ?? "record"} name={card.title} />
+      <StepLogo
+        stepKey={card.node?.key ?? ""}
+        {...(card.node ? { input: card.node.input } : {})}
+        icon={card.icon ?? "record"}
+        name={card.title}
+      />
       <View style={c.text}>
-        <Text numberOfLines={1} style={c.title}>{card.title}</Text>
-        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>{card.sub}</Text>
+        <Text numberOfLines={1} style={c.title}>
+          {card.title}
+        </Text>
+        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>
+          {card.sub}
+        </Text>
       </View>
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
@@ -83,22 +131,53 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
         </View>
       ) : null}
       {card.chip ? (
-        <View testID={`chip-${card.id}`} style={[c.status, card.chip === "error" && c.statusBad, card.chip === "waiting" && c.statusWait, card.chip === "tested" && c.statusOk]}>
+        <View
+          testID={`chip-${card.id}`}
+          style={[
+            c.status,
+            card.chip === "error" && c.statusBad,
+            card.chip === "waiting" && c.statusWait,
+            card.chip === "tested" && c.statusOk,
+          ]}
+        >
           <Text style={c.statusText}>{card.chip}</Text>
         </View>
       ) : null}
-      {runWord ? <Text testID={`state-${card.id}`} style={c.statusText}>{runWord}</Text> : null}
+      {runWord ? (
+        <Text testID={`state-${card.id}`} style={c.statusText}>
+          {runWord}
+        </Text>
+      ) : null}
       {card.kind === "ai" && agent ? <Face name={agent} kind="agent" size={18} /> : null}
       {tools ? (
         <View style={c.more}>
-          <IconButton icon="more" label={moreLabel(card.title)} size={22} testID={`more-${card.id}`} onPress={() => handlers.onMenu(card.id, -1, -1)} />
+          <IconButton
+            icon="more"
+            label={moreLabel(card.title)}
+            size={22}
+            testID={`more-${card.id}`}
+            onPress={() => handlers.onMenu(card.id, -1, -1)}
+          />
         </View>
       ) : null}
     </Pressable>
   );
 }
 
-export function TriggerCard({ card, triggers, selected, hovered, onHover, handlers, selectedIndex, onSelectTrigger, onOpenTrigger, onAddTrigger, onTriggerMenu, describe }: {
+export function TriggerCard({
+  card,
+  triggers,
+  selected,
+  hovered,
+  onHover,
+  handlers,
+  selectedIndex,
+  onSelectTrigger,
+  onOpenTrigger,
+  onAddTrigger,
+  onTriggerMenu,
+  describe,
+}: {
   card: CardNode;
   triggers: readonly DefTrigger[];
   selected: boolean;
@@ -119,8 +198,16 @@ export function TriggerCard({ card, triggers, selected, hovered, onHover, handle
     const meta = triggerMeta(t.key, t.config);
     rows.push(
       <TriggerRow
-        key={`${t.key}-${i}`} index={i} title={meta.title} sub={describe(t)} icon={meta.icon} selected={selectedIndex === i}
-        onPress={() => onSelectTrigger(i)} onOpen={() => onOpenTrigger(i)} onMenu={(x, y) => onTriggerMenu(i, x, y)} hovered={hovered}
+        key={`${t.key}-${i}`}
+        index={i}
+        title={meta.title}
+        sub={describe(t)}
+        icon={meta.icon}
+        selected={selectedIndex === i}
+        onPress={() => onSelectTrigger(i)}
+        onOpen={() => onOpenTrigger(i)}
+        onMenu={(x, y) => onTriggerMenu(i, x, y)}
+        hovered={hovered}
       />,
     );
   }
@@ -128,27 +215,76 @@ export function TriggerCard({ card, triggers, selected, hovered, onHover, handle
     <View
       testID="card-trigger"
       accessibilityLabel={triggerLabel(triggers.length, selected)}
-      style={[c.trig, { left: card.x, top: card.y, width: card.w, height: card.h }, selected && c.cardSel, selected && shadow("0 0 0 3px var(--accent-wash)"), issues.some((i) => i.severity === "error") && { borderColor: "var(--danger)" as string }]}
-      {...webOnly({ tabIndex: 0, dataSet: { card: "trigger", vyreFocus: "1" }, onKeyDown: (e: KeyEventLike) => handlers.onKey(e, "trigger") })}
+      style={[
+        c.trig,
+        { left: card.x, top: card.y, width: card.w, height: card.h },
+        selected && c.cardSel,
+        selected && shadow("0 0 0 3px var(--accent-wash)"),
+        issues.some((i) => i.severity === "error") && { borderColor: "var(--danger)" as string },
+      ]}
+      {...webOnly({
+        tabIndex: 0,
+        dataSet: { card: "trigger", vyreFocus: "1" },
+        onKeyDown: (e: KeyEventLike) => handlers.onKey(e, "trigger"),
+      })}
     >
       <View style={c.trigHead}>
         <Text style={c.trigLabel}>Trigger</Text>
-        <Text numberOfLines={1} style={c.trigNote}>Any one starts a run</Text>
+        <Text numberOfLines={1} style={c.trigNote}>
+          Any one starts a run
+        </Text>
         <View style={{ flex: 1 }} />
-        <IconButton icon="plus" label="Add a trigger" size={20} testID="add-trigger" onPress={() => onAddTrigger(-1, -1)} />
+        <IconButton
+          icon="plus"
+          label="Add a trigger"
+          size={20}
+          testID="add-trigger"
+          onPress={() => onAddTrigger(-1, -1)}
+        />
       </View>
       {rows}
       {triggers.length === 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Add a trigger" testID="trigger-empty" onPress={() => onAddTrigger(-1, -1)} style={[c.trigRow, pointer]}>
-          <View style={c.tile}><Glyph name="plus" size={16} color="var(--ink-3)" /></View>
-          <View style={c.text}><Text style={c.title}>Add a trigger</Text><Text style={c.sub}>Something has to start this</Text></View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add a trigger"
+          testID="trigger-empty"
+          onPress={() => onAddTrigger(-1, -1)}
+          style={[c.trigRow, pointer]}
+        >
+          <View style={c.tile}>
+            <Glyph name="plus" size={16} color="var(--ink-3)" />
+          </View>
+          <View style={c.text}>
+            <Text style={c.title}>Add a trigger</Text>
+            <Text style={c.sub}>Something has to start this</Text>
+          </View>
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu, hovered }: { index: number; title: string; sub: string; icon: IconKey; selected: boolean; onPress(): void; onOpen(): void; onMenu(x: number, y: number): void; hovered: boolean }): ReactElement {
+function TriggerRow({
+  index,
+  title,
+  sub,
+  icon,
+  selected,
+  onPress,
+  onOpen,
+  onMenu,
+  hovered,
+}: {
+  index: number;
+  title: string;
+  sub: string;
+  icon: IconKey;
+  selected: boolean;
+  onPress(): void;
+  onOpen(): void;
+  onMenu(x: number, y: number): void;
+  hovered: boolean;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const last = useRef(0);
   const trig = menuTrigger(onMenu);
@@ -158,24 +294,53 @@ function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu
       accessibilityLabel={`${title}. ${sub}`}
       accessibilityState={{ selected }}
       testID={`trigger-${index}`}
-      onPress={() => { onPress(); const now = Date.now(); if (now - last.current < DOUBLE_MS) { last.current = 0; onOpen(); } else last.current = now; }}
+      onPress={() => {
+        onPress();
+        const now = Date.now();
+        if (now - last.current < DOUBLE_MS) {
+          last.current = 0;
+          onOpen();
+        } else last.current = now;
+      }}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       {...trig}
-      style={[c.trigRow, (over || selected) && { backgroundColor: selected ? "var(--sel)" as string : "var(--hover)" as string }, pointer]}
+      style={[
+        c.trigRow,
+        (over || selected) && { backgroundColor: selected ? ("var(--sel)" as string) : ("var(--hover)" as string) },
+        pointer,
+      ]}
     >
-      <View style={[c.tile, { backgroundColor: "var(--accent-wash)" as string }]}><Glyph name={icon} size={16} color="var(--accent)" /></View>
-      <View style={c.text}>
-        <Text numberOfLines={1} style={c.title}>{title}</Text>
-        <Text numberOfLines={1} testID={`trigger-sub-${index}`} style={[c.sub, sub === NOT_SET_UP && c.subWarn]}>{sub}</Text>
+      <View style={[c.tile, { backgroundColor: "var(--accent-wash)" as string }]}>
+        <Glyph name={icon} size={16} color="var(--accent)" />
       </View>
-      {over || selected || hovered ? <IconButton icon="more" label={moreLabel(title)} size={22} onPress={() => onMenu(-1, -1)} /> : null}
+      <View style={c.text}>
+        <Text numberOfLines={1} style={c.title}>
+          {title}
+        </Text>
+        <Text numberOfLines={1} testID={`trigger-sub-${index}`} style={[c.sub, sub === NOT_SET_UP && c.subWarn]}>
+          {sub}
+        </Text>
+      </View>
+      {over || selected || hovered ? (
+        <IconButton icon="more" label={moreLabel(title)} size={22} onPress={() => onMenu(-1, -1)} />
+      ) : null}
     </Pressable>
   );
 }
 
 /** The small plus on the line under a card: add a step here. */
-export function AddDot({ x, y, label, onPress }: { x: number; y: number; label: string; onPress(px: number, py: number): void }): ReactElement {
+export function AddDot({
+  x,
+  y,
+  label,
+  onPress,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  onPress(px: number, py: number): void;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -186,7 +351,12 @@ export function AddDot({ x, y, label, onPress }: { x: number; y: number; label: 
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       {...webOnly({ title: label, tabIndex: 0, dataSet: { vyreFocus: "1" } })}
-      style={[c.addDot, { left: x - 9, top: y }, over && { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string }, pointer]}
+      style={[
+        c.addDot,
+        { left: x - 9, top: y },
+        over && { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+        pointer,
+      ]}
     >
       <Glyph name="plus" size={11} color={over ? "var(--accent-ink)" : "var(--ink-3)"} />
     </Pressable>
@@ -199,23 +369,83 @@ export const trigRow = TRIG_ROW;
 export const trigHead = TRIG_HEAD;
 
 export const c = StyleSheet.create({
-  card: { position: "absolute", flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 10, paddingRight: 8, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  card: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 10,
+    paddingRight: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+  },
   cardSel: { borderColor: "var(--accent)" as string },
-  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string, flexShrink: 0 },
+  tile: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--hover)" as string,
+    flexShrink: 0,
+  },
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
   subWarn: { color: "var(--warn)" as string },
-  status: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--hover)" as string },
+  status: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--hover)" as string,
+  },
   statusOk: { borderColor: "var(--ok)" as string },
   statusWait: { borderColor: "var(--warn)" as string },
   statusBad: { borderColor: "var(--danger)" as string },
   statusText: { fontSize: 10, fontWeight: "600", color: "var(--ink-2)" as string },
   more: { position: "absolute", right: 6, top: 4 },
-  trig: { position: "absolute", borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
-  trigHead: { height: TRIG_HEAD, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 12, paddingRight: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  trig: {
+    position: "absolute",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+    overflow: "hidden",
+  },
+  trigHead: {
+    height: TRIG_HEAD,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   trigLabel: { fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
   trigNote: { fontSize: 11, color: "var(--ink-4)" as string },
-  trigRow: { height: TRIG_ROW, flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 10, paddingRight: 8, borderTopWidth: 0 },
-  addDot: { position: "absolute", width: 18, height: 18, borderRadius: 9, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, alignItems: "center", justifyContent: "center" },
+  trigRow: {
+    height: TRIG_ROW,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 10,
+    paddingRight: 8,
+    borderTopWidth: 0,
+  },
+  addDot: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--raised)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

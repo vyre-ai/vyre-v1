@@ -1,6 +1,10 @@
 // A sliding-window limiter by key: at most `limit` hits in the last `windowMs`. The clock is injected so tests do not wait.
 
-export interface Limited { ok: boolean; retryAfterSec: number; remaining: number }
+export interface Limited {
+  ok: boolean;
+  retryAfterSec: number;
+  remaining: number;
+}
 
 export class RateLimit {
   private readonly hits = new Map<string, number[]>();
@@ -33,10 +37,15 @@ export class RateLimit {
     const t = this.now();
     let dropped = 0;
     for (const [k, v] of this.hits) {
-      if (!v.some((x) => t - x < this.windowMs)) { this.hits.delete(k); dropped += 1; }
+      if (!v.some((x) => t - x < this.windowMs)) {
+        this.hits.delete(k);
+        dropped += 1;
+      }
     }
     return dropped;
   }
 
-  get size(): number { return this.hits.size; }
+  get size(): number {
+    return this.hits.size;
+  }
 }

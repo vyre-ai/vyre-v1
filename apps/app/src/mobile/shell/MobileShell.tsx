@@ -37,9 +37,29 @@ export interface MobileShellProps {
   onNav?(state: NavState): void;
 }
 
-export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", initialEntry, onNav, ownsHeader, headerBack, youDot = false, notices }: MobileShellProps): ReactElement {
-  const [nav, setNav] = useState<NavState>(() => initialEntry ? open(initialNav(initialEntry.tab), initialEntry) : initialNav(initialTab));
-  const move = useCallback((f: (s: NavState) => NavState) => setNav((s) => { const n = f(s); if (n !== s) onNav?.(n); return n; }), [onNav]);
+export function MobileShell({
+  renderScreen,
+  needsYou = 0,
+  initialTab = "chats",
+  initialEntry,
+  onNav,
+  ownsHeader,
+  headerBack,
+  youDot = false,
+  notices,
+}: MobileShellProps): ReactElement {
+  const [nav, setNav] = useState<NavState>(() =>
+    initialEntry ? open(initialNav(initialEntry.tab), initialEntry) : initialNav(initialTab),
+  );
+  const move = useCallback(
+    (f: (s: NavState) => NavState) =>
+      setNav((s) => {
+        const n = f(s);
+        if (n !== s) onNav?.(n);
+        return n;
+      }),
+    [onNav],
+  );
   const top = current(nav);
   const from = origin(nav);
   const api: MobileNav = {
@@ -53,11 +73,31 @@ export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", 
   for (const t of MOBILE_TABS) {
     const on = top.tab === t.id;
     tabs.push(
-      <Pressable key={t.id} role="tab" aria-selected={on} aria-label={t.id === "chats" && needsYou > 0 ? `${t.label}, ${needsYou} need you` : t.id === "you" && youDot ? `${t.label}, another Space needs you` : t.label} testID={`tab-${t.id}`} onPress={() => api.selectTab(t.id)} style={st.tab}>
+      <Pressable
+        key={t.id}
+        role="tab"
+        aria-selected={on}
+        aria-label={
+          t.id === "chats" && needsYou > 0
+            ? `${t.label}, ${needsYou} need you`
+            : t.id === "you" && youDot
+              ? `${t.label}, another Space needs you`
+              : t.label
+        }
+        testID={`tab-${t.id}`}
+        onPress={() => api.selectTab(t.id)}
+        style={st.tab}
+      >
         <View>
           <Icon name={t.id} color={on ? "var(--accent)" : "var(--ink-3)"} />
-          {t.id === "chats" && needsYou > 0 ? <View testID="tab-badge" style={st.badge}><Text style={st.badgeText}>{needsYou > 99 ? "99+" : needsYou}</Text></View> : null}
-          {t.id === "you" && youDot ? <View testID="tab-dot" accessibilityLabel="Another Space needs you" style={st.dot} /> : null}
+          {t.id === "chats" && needsYou > 0 ? (
+            <View testID="tab-badge" style={st.badge}>
+              <Text style={st.badgeText}>{needsYou > 99 ? "99+" : needsYou}</Text>
+            </View>
+          ) : null}
+          {t.id === "you" && youDot ? (
+            <View testID="tab-dot" accessibilityLabel="Another Space needs you" style={st.dot} />
+          ) : null}
         </View>
         <Text style={[st.tabText, on && st.tabTextOn]}>{t.label}</Text>
       </Pressable>,
@@ -67,28 +107,75 @@ export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", 
   return (
     <View testID="mobile-shell" style={st.root}>
       {canBack(nav) && !ownsHeader?.(top) && !inHeader ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Back to ${from?.title ?? from?.screen ?? ""}`} onPress={api.back} testID="mobile-back" style={st.backBar}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Back to ${from?.title ?? from?.screen ?? ""}`}
+          onPress={api.back}
+          testID="mobile-back"
+          style={st.backBar}
+        >
           <Icon name="back" size={18} color="var(--accent)" />
-          <Text numberOfLines={1} style={st.backText}>{from?.title ?? "Back"}</Text>
+          <Text numberOfLines={1} style={st.backText}>
+            {from?.title ?? "Back"}
+          </Text>
         </Pressable>
       ) : null}
       {notices ?? null}
-      <View testID={`screen-${top.screen}`} style={st.screen}><MobileBackContext.Provider value={inHeader ? api.back : null}>{renderScreen(top, api)}</MobileBackContext.Provider></View>
-      <View role="tablist" aria-label="Places" testID="mobile-tabs" style={st.tabs}>{tabs}</View>
+      <View testID={`screen-${top.screen}`} style={st.screen}>
+        <MobileBackContext.Provider value={inHeader ? api.back : null}>
+          {renderScreen(top, api)}
+        </MobileBackContext.Provider>
+      </View>
+      <View role="tablist" aria-label="Places" testID="mobile-tabs" style={st.tabs}>
+        {tabs}
+      </View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  backBar: { height: 44, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  backBar: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   backText: { fontSize: 16, color: "var(--accent)" as string, flexShrink: 1 },
   screen: { flex: 1, minHeight: 0 },
-  tabs: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string, paddingBottom: 8 },
+  tabs: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+    paddingBottom: 8,
+  },
   tab: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 2, paddingTop: 6 },
   tabText: { fontSize: 10.5, color: "var(--ink-3)" as string },
   tabTextOn: { color: "var(--accent)" as string, fontWeight: "600" },
-  badge: { position: "absolute", right: -10, top: -4, minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  dot: { position: "absolute", right: -3, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--danger)" as string },
+  badge: {
+    position: "absolute",
+    right: -10,
+    top: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: "var(--accent)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dot: {
+    position: "absolute",
+    right: -3,
+    top: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "var(--danger)" as string,
+  },
   badgeText: { fontSize: 10.5, fontWeight: "600", color: "var(--accent-ink)" as string },
 });

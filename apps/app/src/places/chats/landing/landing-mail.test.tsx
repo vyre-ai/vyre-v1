@@ -16,7 +16,10 @@ import type { ShellRuntime, ShellTarget } from "../../../shell/providers/runtime
 import { Landing } from "./Landing.tsx";
 
 const ME: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
-const ready = (data: unknown): LiveQuery<unknown> => { const snap = { status: "ready" as const, data }; return { subscribe: () => () => undefined, getSnapshot: () => snap }; };
+const ready = (data: unknown): LiveQuery<unknown> => {
+  const snap = { status: "ready" as const, data };
+  return { subscribe: () => () => undefined, getSnapshot: () => snap };
+};
 
 /** A first day (nothing waiting, nothing running) with the source reads answering as asked. */
 function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[] } {
@@ -25,17 +28,43 @@ function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[
   const opened: ShellTarget[] = [];
   const fixed: Record<string, LiveQuery<unknown>> = {
     "tasks.my-work.needs": ready({ items: [], total: 0 }),
-    "chats.sidebar.recent": ready({ starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null }),
+    "chats.sidebar.recent": ready({
+      starred: [],
+      today: [],
+      yesterday: [],
+      earlier: [],
+      archived: [],
+      nextUnread: null,
+    }),
     [INBOX_SOURCE_QUERIES[0].join(".")]: ready({ mailboxes }),
     [INBOX_SOURCE_QUERIES[1].join(".")]: ready({ calendars: [] }),
     [INBOX_SOURCE_QUERIES[2].join(".")]: ready({ numbers: [] }),
   };
-  const screens: ScreenHooks = { query: (id, name, state) => fixed[`${id}.${name}`] ?? (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state) };
-  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [ME] }) };
+  const screens: ScreenHooks = {
+    query: (id, name, state) =>
+      fixed[`${id}.${name}`] ??
+      (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state),
+  };
+  const principals: LiveQuery<Principal[]> = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({ status: "ready", data: [ME] }),
+  };
   const rt: ShellRuntime = {
-    screens, call: conv.data.call, connection: conv.data.connection, principals, recordTitle: () => undefined, me: ME, clock: conv.data.clock,
-    space: { id: "northwind", kind: "personal", name: "Personal" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: false,
-    open: (t) => void opened.push(t), openUrl: () => undefined,
+    screens,
+    call: conv.data.call,
+    connection: conv.data.connection,
+    principals,
+    recordTitle: () => undefined,
+    me: ME,
+    clock: conv.data.clock,
+    space: { id: "northwind", kind: "personal", name: "Personal" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    aiConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
+    calendarConnected: false,
+    open: (t) => void opened.push(t),
+    openUrl: () => undefined,
   };
   return { rt, opened };
 }
@@ -43,10 +72,24 @@ function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[
 const noop = (): void => undefined;
 const screen = (rt: ShellRuntime) => (
   <ResumeContext.Provider value={{ done: 3, total: 8, open: noop, pill: null }}>
-    <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={noop} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={noop} />
+    <Landing
+      rt={rt}
+      nameOf={(id) => id}
+      kindOf={() => "agent"}
+      openChat={noop}
+      openTasks={noop}
+      openNeed={noop}
+      openProfile={noop}
+      fill={noop}
+      newKey={() => "k"}
+      say={noop}
+    />
   </ResumeContext.Provider>
 );
-const FIRST_DAY = { flow: "personal" as const, progress: { ai: "done" as const, interview: "done" as const, sessions: "done" as const } };
+const FIRST_DAY = {
+  flow: "personal" as const,
+  progress: { ai: "done" as const, interview: "done" as const, sessions: "done" as const },
+};
 
 /** The checklist reads the published setup progress after mount, so the screen is mounted (not drawn to a string) with a first day published. */
 async function mounted<T>(mailboxes: unknown[], run: (root: Node, opened: ShellTarget[]) => Promise<T>): Promise<T> {

@@ -9,8 +9,22 @@ export default function Mount() {
   const [v, setV] = useState("");
   return (
     <View style={{ flex: 1, padding: 28 }}>
-      <Text testID="typed" style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 8 }}>{JSON.stringify(v)}</Text>
-      <View style={{ maxWidth: 640 }}><MarkdownEditor testID="early" label="Note" value={v} onChange={setV} placeholder="Take a note" bare density="compact" minHeight={44} autoFocus /></View>
+      <Text testID="typed" style={{ fontSize: 11, color: "var(--ink-3)", marginBottom: 8 }}>
+        {JSON.stringify(v)}
+      </Text>
+      <View style={{ maxWidth: 640 }}>
+        <MarkdownEditor
+          testID="early"
+          label="Note"
+          value={v}
+          onChange={setV}
+          placeholder="Take a note"
+          bare
+          density="compact"
+          minHeight={44}
+          autoFocus
+        />
+      </View>
     </View>
   );
 }

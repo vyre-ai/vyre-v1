@@ -19,7 +19,12 @@ export async function folderChain(call: Call, folderId: string): Promise<Folder[
   const out: Folder[] = [];
   let at: string | undefined = folderId;
   for (let i = 0; i < MAX_UP && at !== undefined; i++) {
-    const f: Folder | undefined = await (call("files.folder.get", { folderId: at }) as Promise<CapMap["files.folder.get"]["out"]>).then((o) => o.folder, () => undefined);
+    const f: Folder | undefined = await (
+      call("files.folder.get", { folderId: at }) as Promise<CapMap["files.folder.get"]["out"]>
+    ).then(
+      (o) => o.folder,
+      () => undefined,
+    );
     if (!f) break;
     out.push(f);
     at = f.parentId;
@@ -32,7 +37,8 @@ export function treePath(folderPath: string, ref: string): string {
   const base = folderPath.split("/").filter((s) => s !== "");
   for (const seg of ref.split("/")) {
     if (seg === "" || seg === ".") continue;
-    if (seg === "..") base.pop(); else base.push(seg);
+    if (seg === "..") base.pop();
+    else base.push(seg);
   }
   return base.join("/");
 }
@@ -43,7 +49,11 @@ const targetOf = (f: Listed, folders: readonly Folder[]): FileLinkTarget => {
 };
 
 /** What each reference points at: the file, or null (a [[link]] or markdown link to nothing). A bare name that is not a file here comes back null too and stays plain words. */
-export async function resolveTargets(call: Call, at: { folderId: string }, refs: readonly FileRef[]): Promise<Map<string, FileLinkTarget | null>> {
+export async function resolveTargets(
+  call: Call,
+  at: { folderId: string },
+  refs: readonly FileRef[],
+): Promise<Map<string, FileLinkTarget | null>> {
   const out = new Map<string, FileLinkTarget | null>();
   const wanted = refs.slice(0, MAX_REFS);
   if (wanted.length === 0) return out;
@@ -52,7 +62,10 @@ export async function resolveTargets(call: Call, at: { folderId: string }, refs:
   const filesIn = async (folderId: string): Promise<Listed[]> => {
     const hit = lists.get(folderId);
     if (hit) return hit;
-    const l = await (call("files.list", { folder: folderId, limit: 500 }) as Promise<CapMap["files.list"]["out"]>).then((o) => o.files, () => [] as Listed[]);
+    const l = await (call("files.list", { folder: folderId, limit: 500 }) as Promise<CapMap["files.list"]["out"]>).then(
+      (o) => o.files,
+      () => [] as Listed[],
+    );
     lists.set(folderId, l);
     return l;
   };
@@ -69,15 +82,26 @@ export async function resolveTargets(call: Call, at: { folderId: string }, refs:
     if (r.ref.includes("/")) {
       const here = chain[0]?.path ?? "";
       for (const path of [treePath(here, r.ref), r.ref]) {
-        const got = await (call("files.resolve", { path }) as Promise<CapMap["files.resolve"]["out"]>).then((o) => o, () => undefined);
-        if (got?.kind === "file" && got.fileId) { found = { id: got.fileId, name, path }; break; }
+        const got = await (call("files.resolve", { path }) as Promise<CapMap["files.resolve"]["out"]>).then(
+          (o) => o,
+          () => undefined,
+        );
+        if (got?.kind === "file" && got.fileId) {
+          found = { id: got.fileId, name, path };
+          break;
+        }
       }
     }
     found ??= await near(name);
     // a [[Name]] is often written without its extension
     if (!found && r.kind === "wiki" && !/\.\w{1,5}$/.test(name)) found = await near(`${name}.md`);
     if (!found && r.kind !== "bare") {
-      const hits = await (call("search.query", { q: name, types: ["file"], limit: 8 }) as Promise<CapMap["search.query"]["out"]>).then((o) => o.hits, () => []);
+      const hits = await (
+        call("search.query", { q: name, types: ["file"], limit: 8 }) as Promise<CapMap["search.query"]["out"]>
+      ).then(
+        (o) => o.hits,
+        () => [],
+      );
       const exact = hits.find((h) => ci(h.title, name) || ci(h.title, `${name}.md`));
       if (exact) found = { id: exact.id, name: exact.title, ...(exact.path ? { path: exact.path } : {}) };
     }
@@ -87,7 +111,10 @@ export async function resolveTargets(call: Call, at: { folderId: string }, refs:
 }
 
 /** The name a missing [[link]] would be created with. */
-export const newFileName = (ref: string): string => { const n = ref.split("/").pop() ?? ref; return /\.\w{1,5}$/.test(n) ? n : `${n}.md`; };
+export const newFileName = (ref: string): string => {
+  const n = ref.split("/").pop() ?? ref;
+  return /\.\w{1,5}$/.test(n) ? n : `${n}.md`;
+};
 
 export interface LinkDeps {
   call: Call;
@@ -97,7 +124,9 @@ export interface LinkDeps {
 
 /** Open a file named in words, such as the Inherits VYRE.md chip: looked up near the file, opened in a tab. False when there is no such file. */
 export async function openByName(d: LinkDeps, folderId: string, name: string, background = false): Promise<boolean> {
-  const got = (await resolveTargets(d.call, { folderId }, [{ start: 0, end: 0, label: name, ref: name, kind: "bare" }])).get(name);
+  const got = (
+    await resolveTargets(d.call, { folderId }, [{ start: 0, end: 0, label: name, ref: name, kind: "bare" }])
+  ).get(name);
   if (!got) return false;
   d.openFileTab?.(got.id, background);
   return true;
@@ -109,18 +138,44 @@ export function useFileLinks(d: LinkDeps, file: { folderId: string } | null, tex
   const [targets, setTargets] = useState<ReadonlyMap<string, FileLinkTarget | null>>(new Map());
   const folderId = file?.folderId;
   useEffect(() => {
-    if (folderId === undefined || refs.length === 0) { setTargets(new Map()); return undefined; }
+    if (folderId === undefined || refs.length === 0) {
+      setTargets(new Map());
+      return undefined;
+    }
     let live = true;
-    void resolveTargets(d.call, { folderId }, refs).then((m) => { if (live) setTargets(m); }, () => undefined);
-    return () => { live = false; };
+    void resolveTargets(d.call, { folderId }, refs).then(
+      (m) => {
+        if (live) setTargets(m);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [d.call, folderId, refs]);
   const open = useCallback((t: FileLinkTarget, background: boolean): void => d.openFileTab?.(t.id, background), [d]);
-  const create = useCallback((ref: string): void => {
-    if (folderId === undefined) return;
-    void (d.call("files.create", { folderId, name: newFileName(ref), content: { text: "" }, idempotencyKey: `filelink:${folderId}:${ref}` }) as Promise<{ file: { fileId: string; name: string } }>).then((o) => {
-      setTargets((cur) => new Map(cur).set(ref, { id: o.file.fileId, name: o.file.name }));
-      d.openFileTab?.(o.file.fileId, false);
-    }, () => undefined);
-  }, [d, folderId]);
-  return useMemo(() => (refs.length === 0 || !d.openFileTab ? undefined : { targets, open, create }), [refs.length, d.openFileTab, targets, open, create]);
+  const create = useCallback(
+    (ref: string): void => {
+      if (folderId === undefined) return;
+      void (
+        d.call("files.create", {
+          folderId,
+          name: newFileName(ref),
+          content: { text: "" },
+          idempotencyKey: `filelink:${folderId}:${ref}`,
+        }) as Promise<{ file: { fileId: string; name: string } }>
+      ).then(
+        (o) => {
+          setTargets((cur) => new Map(cur).set(ref, { id: o.file.fileId, name: o.file.name }));
+          d.openFileTab?.(o.file.fileId, false);
+        },
+        () => undefined,
+      );
+    },
+    [d, folderId],
+  );
+  return useMemo(
+    () => (refs.length === 0 || !d.openFileTab ? undefined : { targets, open, create }),
+    [refs.length, d.openFileTab, targets, open, create],
+  );
 }

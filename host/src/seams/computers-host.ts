@@ -18,11 +18,15 @@ export interface ComputersHostSeam {
   filesRoot(agentId: string): string | null;
   /** The home mirror: every call to Files runs as the agent principal; a pass runs at wake, every few seconds while the computer runs, and at sleep. */
   home?: {
-    callAs(agentId: string, cap: string, input: unknown): Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+    callAs(agentId: string, cap: string, input: unknown): Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     putBytes(url: string, bytes: Uint8Array): Promise<void>;
     intervalMs?: number;
     manifest(agentId: string): string;
-    announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
+    announce?: (a: {
+      agentId: string;
+      computerId: string;
+      files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }>;
+    }) => Promise<boolean | void>;
     log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
   };
   /** What this host says it can hold, instead of reading the machine (a test of room; the real host reads os.totalmem, os.freemem and the disk). */
@@ -47,7 +51,11 @@ export interface ComputersHostDeps {
   /** Send bytes to an upload url that files.upload_url handed out. */
   putBytes?: (url: string, bytes: Uint8Array) => Promise<void>;
   /** Said once when the agent has made files on its computer: the daemon puts a file card in the chat the work was for. */
-  announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
+  announce?: (a: {
+    agentId: string;
+    computerId: string;
+    files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }>;
+  }) => Promise<boolean | void>;
   /** How often a pass runs while a computer is awake. Default 3 s. */
   homeIntervalMs?: number;
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
@@ -63,10 +71,23 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     image: d.image ?? releaseImage("agent-computer", d.version, process.env["VYRE_AGENT_COMPUTER_IMAGE"]),
     browserImage: releaseImage("vyre-browser", d.version, process.env["VYRE_SPACE_BROWSER_IMAGE"]),
     // tests only: a Space browser container (and volume) of their own, never the machine's vyre-sbrowser
-    ...(/^vyre-sbrowser-test-[a-z0-9-]{1,40}$/.test(process.env["VYRE_SPACE_BROWSER_NAME"] ?? "") ? { browser: { name: process.env["VYRE_SPACE_BROWSER_NAME"]! } } : {}),
+    ...(/^vyre-sbrowser-test-[a-z0-9-]{1,40}$/.test(process.env["VYRE_SPACE_BROWSER_NAME"] ?? "")
+      ? { browser: { name: process.env["VYRE_SPACE_BROWSER_NAME"]! } }
+      : {}),
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.capacity ? { capacity: d.capacity } : {}),
-    ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),
+    ...(d.callAs && d.putBytes
+      ? {
+          home: {
+            callAs: d.callAs as never,
+            putBytes: d.putBytes,
+            ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}),
+            manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"),
+            ...(d.announce ? { announce: d.announce } : {}),
+            ...(d.log ? { log: d.log } : {}),
+          },
+        }
+      : {}),
     filesRoot(agentId) {
       if (!AGENT_ID.test(agentId)) return null;
       // the parent stays private to the daemon's user; the folder itself is open to the computer's own user (uid 10001), which only the bind mount can reach

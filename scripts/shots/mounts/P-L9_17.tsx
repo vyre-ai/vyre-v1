@@ -33,27 +33,61 @@ export default function Mount(): ReactNode {
   const link = params.get("link");
   const sidebar = useMemo(() => createSampleSidebar(team), [team]);
   // the conversation sample is made when a chat is opened, not at start (startup draws the tab bar and the first list only)
-  const conversation = useMemo(() => ({ get data() { return createConversationSample("idle").data; } }), []);
+  const conversation = useMemo(
+    () => ({
+      get data() {
+        return createConversationSample("idle").data;
+      },
+    }),
+    [],
+  );
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // ?empty=1 draws nothing but the page: a blank baseline.
-  if (params.get("empty") === "1") return <View testID="mobile-tabs" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
+  if (params.get("empty") === "1")
+    return <View testID="mobile-tabs" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     if (e.screen === "chats") {
       // a tap on a chat, a face or a Needs you row opens the conversation on top
       const open = (id: string, name: string): void => nav.open({ tab: "chats", screen: `chat:${id}`, title: name });
-      const data = { ...sidebar.data, nav: { ...sidebar.data.nav, openChat: (id: string) => open(id, "Chats"), openAgentChat: (id: string) => open(id, "Chats"), openNeedsYou: (id?: string) => open(id ?? "needs", "Chats") } };
+      const data = {
+        ...sidebar.data,
+        nav: {
+          ...sidebar.data.nav,
+          openChat: (id: string) => open(id, "Chats"),
+          openAgentChat: (id: string) => open(id, "Chats"),
+          openNeedsYou: (id?: string) => open(id ?? "needs", "Chats"),
+        },
+      };
       return <ChatsSidebar data={data} {...(params.get("all") === "1" ? { window: { start: 0, end: 500 } } : {})} />;
     }
     if (e.screen.startsWith("chat:")) return <ChatOpen make={() => conversation.data} />;
     const away = desktopOnly(e);
-    if (away) return <DesktopOnly line={desktopLine(away.place)} onChat={() => nav.open({ tab: "chats", screen: "chat:assistant", title: "Assistant" })} />;
-    if (e.screen === "you") return <YouScreen nav={nav} data={{ name: "Irfad Imtiaz", space: team.name, workOpen: 4, starred: 3 }} />;
-    return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-3)" as string, fontSize: 14 }}>{e.title ?? e.screen}</Text></View>;
+    if (away)
+      return (
+        <DesktopOnly
+          line={desktopLine(away.place)}
+          onChat={() => nav.open({ tab: "chats", screen: "chat:assistant", title: "Assistant" })}
+        />
+      );
+    if (e.screen === "you")
+      return <YouScreen nav={nav} data={{ name: "Irfad Imtiaz", space: team.name, workOpen: 4, starred: 3 }} />;
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: "var(--ink-3)" as string, fontSize: 14 }}>{e.title ?? e.screen}</Text>
+      </View>
+    );
   };
   return (
     <View style={{ flex: 1, alignItems: "center", backgroundColor: "var(--win)" as string }}>
       <View style={{ flex: 1, width: "100%", maxWidth: 480 }}>
-        <MobileShell renderScreen={render} needsYou={team.needsTotal} initialTab={tab} {...(link === "automations" || link === "console" ? { initialEntry: entryFor(link, params.get("hash") ?? "") } : {})} />
+        <MobileShell
+          renderScreen={render}
+          needsYou={team.needsTotal}
+          initialTab={tab}
+          {...(link === "automations" || link === "console"
+            ? { initialEntry: entryFor(link, params.get("hash") ?? "") }
+            : {})}
+        />
       </View>
     </View>
   );

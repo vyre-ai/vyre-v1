@@ -17,7 +17,8 @@ export default function Mount(): ReactNode {
   const [search, setSearch] = useState<string | null>(null);
   useEffect(() => setSearch((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
   const params = useMemo(() => new URLSearchParams(search ?? ""), [search]);
-  const variant: Variant = params.get("v") === "asleep" ? "asleep" : params.get("v") === "personal" ? "personal" : "northwind";
+  const variant: Variant =
+    params.get("v") === "asleep" ? "asleep" : params.get("v") === "personal" ? "personal" : "northwind";
   const tabParam = params.get("tab") ?? "";
   const sample = useMemo(() => createSample(variant), [variant]);
   const [open, setOpen] = useState(true);
@@ -25,8 +26,18 @@ export default function Mount(): ReactNode {
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-      {wide ? <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>The conversation lands with P-L9b_04</Text></View> : null}
-      <ChatRightPane data={sample.data} open={open} onToggle={() => setOpen((o) => !o)} initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB} window={{ start: 0, end: 500 }} />
+      {wide ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>The conversation lands with P-L9b_04</Text>
+        </View>
+      ) : null}
+      <ChatRightPane
+        data={sample.data}
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB}
+        window={{ start: 0, end: 500 }}
+      />
     </View>
   );
 }

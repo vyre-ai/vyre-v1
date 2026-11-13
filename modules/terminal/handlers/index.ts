@@ -1,5 +1,25 @@
 // Handler table of the terminal module: all 18 capabilities of manifests/terminal.ts.
-import { attach, close, get, health, input, interrupt, list, open, openServer, read, rename, request, resize, risk, rulesGet, rulesSet, run, status, workspace } from "./sessions.ts";
+import {
+  attach,
+  close,
+  get,
+  health,
+  input,
+  interrupt,
+  list,
+  open,
+  openServer,
+  read,
+  rename,
+  request,
+  resize,
+  risk,
+  rulesGet,
+  rulesSet,
+  run,
+  status,
+  workspace,
+} from "./sessions.ts";
 
 export const handlers = {
   "terminal.list": list,

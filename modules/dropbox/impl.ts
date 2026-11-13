@@ -32,7 +32,10 @@ export const handlers: Record<string, Handler> = {
   "dropbox.files.latest_cursor": (ctx, i) => h.latestCursor(ctx, i),
   "dropbox.files.longpoll": (ctx, i) => h.longpoll(ctx, i),
   "dropbox.health": (ctx) => h.health(ctx),
-  "dropbox.receive_webhook": async (ctx, i) => { hostOnly(ctx, "dropbox.receive_webhook"); return h.receiveWebhook(ctx, i); },
+  "dropbox.receive_webhook": async (ctx, i) => {
+    hostOnly(ctx, "dropbox.receive_webhook");
+    return h.receiveWebhook(ctx, i);
+  },
 };
 
 export const projections = { inline: {}, consumers: {} };
@@ -43,11 +46,14 @@ export const hostSeams: SeamSetters = { setDropboxHost };
 /** /hooks/dropbox: x-dropbox-signature over the raw body with the app secret, checked before anything is recorded. */
 export const hostCalls = {
   "dropbox.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
-    hostOnly(ctx, "dropbox.accept_webhook");   // a host call: the webhook route is the only way in
-    const secret = await h.webhookSecret(ctx as never).catch(() => { throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That request was not signed by Dropbox." }); });
+    hostOnly(ctx, "dropbox.accept_webhook"); // a host call: the webhook route is the only way in
+    const secret = await h.webhookSecret(ctx as never).catch(() => {
+      throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That request was not signed by Dropbox." });
+    });
     const v = await h.verifyWebhook(secret, a.headers, a.body, ctx.now());
     if (!v.ok) {
-      if (v.reason === "bad_body") throw fail("validation.bad_input", ctx.trace.traceId, { message: "That is not a Dropbox change notice." });
+      if (v.reason === "bad_body")
+        throw fail("validation.bad_input", ctx.trace.traceId, { message: "That is not a Dropbox change notice." });
       throw h.refuseUnsigned(ctx.trace.traceId);
     }
     return h.receiveWebhook(ctx as never, v.input);

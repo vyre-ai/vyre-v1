@@ -14,10 +14,28 @@ import type { OpenSession } from "../../../agent/src/turn-engine/types.ts";
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
-export interface ThreadAgentSpec { agentId: string; mode: "lead" | "listen"; model?: string; provider?: string; accountRef?: string }
-export interface ThreadSpec { threadId: string; kind?: string; starter?: string; agents: ThreadAgentSpec[] }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface ThreadAgentSpec {
+  agentId: string;
+  mode: "lead" | "listen";
+  model?: string;
+  provider?: string;
+  accountRef?: string;
+}
+export interface ThreadSpec {
+  threadId: string;
+  kind?: string;
+  starter?: string;
+  agents: ThreadAgentSpec[];
+}
 
 export interface HarnessOptions {
   /** Share one database between two harnesses (two hosts on one Space). */
@@ -69,9 +87,17 @@ export function harness(o: HarnessOptions = {}) {
       if (cap === "threads.get") {
         const t = threads.get(String(body["threadId"]));
         if (!t) throw new Error("no such thread");
-        return { thread: { threadId: t.threadId, ...(t.kind === undefined ? {} : { kind: t.kind }), ...(t.starter === undefined ? {} : { starter: t.starter }), agents: t.agents } };
+        return {
+          thread: {
+            threadId: t.threadId,
+            ...(t.kind === undefined ? {} : { kind: t.kind }),
+            ...(t.starter === undefined ? {} : { starter: t.starter }),
+            agents: t.agents,
+          },
+        };
       }
-      if (cap === "engine.accounts.list" && o.accounts) return { accounts: o.accounts.map((a) => ({ status: "ok", ...a })) };
+      if (cap === "engine.accounts.list" && o.accounts)
+        return { accounts: o.accounts.map((a) => ({ status: "ok", ...a })) };
       if (cap === "engine.models.list" && o.modelRows) return { models: o.modelRows };
       if (cap === "tasks.create") {
         if (tasksFail) throw new Error("tasks is down");
@@ -83,17 +109,42 @@ export function harness(o: HarnessOptions = {}) {
     log: { warn() {} },
   };
   return {
-    ctx, raw, db, emitted, called, clock,
-    advance(ms: number) { clock.t += ms; },
-    setManager(v: boolean) { manager = v; },
-    failTasks(v: boolean) { tasksFail = v; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    raw,
+    db,
+    emitted,
+    called,
+    clock,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    setManager(v: boolean) {
+      manager = v;
+    },
+    failTasks(v: boolean) {
+      tasksFail = v;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
     /** A turn engine on this harness's tables, bound for the handlers. */
-    runtime(opts: { openSession: OpenSession; holder?: string } & Partial<Omit<EngineOptions, "openSession" | "holder">>): TurnEngine {
+    runtime(
+      opts: { openSession: OpenSession; holder?: string } & Partial<Omit<EngineOptions, "openSession" | "holder">>,
+    ): TurnEngine {
       const { openSession, holder, ...rest } = opts;
-      const engine = createEngineRuntime({ db, holder: holder ?? "host:spc_enginetest", openSession, now: () => clock.t, ...rest });
+      const engine = createEngineRuntime({
+        db,
+        holder: holder ?? "host:spc_enginetest",
+        openSession,
+        now: () => clock.t,
+        ...rest,
+      });
       bindEngine(engine);
       return engine;
     },

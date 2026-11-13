@@ -14,7 +14,9 @@ export interface ToolOutcomeLike {
   parkOn?: { blockId: string };
 }
 
-export function toolRunnerFrom(call: (c: { id: string; name: string; input: unknown }, ctx: Parameters<ToolRunner>[1]) => Promise<ToolOutcomeLike>): ToolRunner {
+export function toolRunnerFrom(
+  call: (c: { id: string; name: string; input: unknown }, ctx: Parameters<ToolRunner>[1]) => Promise<ToolOutcomeLike>,
+): ToolRunner {
   return async (c, ctx): Promise<ToolRunResult> => {
     const out = await call(c, ctx);
     if (out.kind === "held" && typeof out.taskId === "string") {

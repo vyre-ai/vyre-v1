@@ -13,12 +13,33 @@ export type Verify = "hmac" | "signature" | "none";
 export type SourceState = "active" | "paused" | "failing";
 export type DeliveryStatus = "accepted" | "duplicate" | "rejected" | "failed" | "linked_pending";
 
-export interface FieldMap { from: string; to: string; transform?: string }
-export interface Mapping { dedupe: string; fields: FieldMap[]; match: string[]; link?: string[] }
+export interface FieldMap {
+  from: string;
+  to: string;
+  transform?: string;
+}
+export interface Mapping {
+  dedupe: string;
+  fields: FieldMap[];
+  match: string[];
+  link?: string[];
+}
 
-export interface ConnectorSourceRow { key: string; path: string; verify: Verify; dedupe?: string; event?: string }
-export interface ConnectorRow { key: string; title: string; sources?: ConnectorSourceRow[] }
-export interface SourcesRegistry { connectors: ConnectorRow[] }
+export interface ConnectorSourceRow {
+  key: string;
+  path: string;
+  verify: Verify;
+  dedupe?: string;
+  event?: string;
+}
+export interface ConnectorRow {
+  key: string;
+  title: string;
+  sources?: ConnectorSourceRow[];
+}
+export interface SourcesRegistry {
+  connectors: ConnectorRow[];
+}
 
 export interface SourcesDeps {
   tx: Tx;
@@ -42,7 +63,12 @@ export interface SourcesCtx {
 export const nowOf = (d: Pick<SourcesDeps, "now">): number => (d.now ?? Date.now)();
 export const mintShort = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 
-export function refuse(ctx: Pick<SourcesCtx, "trace">, code: ErrCode, message: string, details?: Record<string, unknown>): never {
+export function refuse(
+  ctx: Pick<SourcesCtx, "trace">,
+  code: ErrCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -51,7 +77,8 @@ export function ensureTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(readFileSync(new URL("./migrations/0001_sources.sql", import.meta.url), "utf8"));
   // an outbox made before pushes named who asked for them gains the column
-  if (!tx.all<{ name: string }>("PRAGMA table_info(sy_outbox)").some((c) => c.name === "by_actor")) tx.exec("ALTER TABLE sy_outbox ADD COLUMN by_actor TEXT");
+  if (!tx.all<{ name: string }>("PRAGMA table_info(sy_outbox)").some((c) => c.name === "by_actor"))
+    tx.exec("ALTER TABLE sy_outbox ADD COLUMN by_actor TEXT");
   ready.add(tx);
 }
 
@@ -66,7 +93,11 @@ export function hmacSha256Hex(key: string | Uint8Array, message: string | Uint8A
   if (k.length > 64) k = fromHex(sha256Hex(k));
   const ipad = new Uint8Array(64);
   const opad = new Uint8Array(64);
-  for (let i = 0; i < 64; i++) { const b = k[i] ?? 0; ipad[i] = b ^ 0x36; opad[i] = b ^ 0x5c; }
+  for (let i = 0; i < 64; i++) {
+    const b = k[i] ?? 0;
+    ipad[i] = b ^ 0x36;
+    opad[i] = b ^ 0x5c;
+  }
   return sha256Hex(opad, fromHex(sha256Hex(ipad, bytes(message))));
 }
 
@@ -80,13 +111,26 @@ export function safeEqual(a: string, b: string): boolean {
 
 const b64 = (hex: string): string => btoa(String.fromCharCode(...fromHex(hex)));
 /** Headers a plain HMAC signature may arrive in; the value is `<hex>`, `sha256=<hex>` or base64. */
-const HMAC_HEADERS = ["x-hub-signature-256", "x-signature-256", "x-vyre-signature", "x-signature", "x-webhook-signature", "x-hook-signature"];
+const HMAC_HEADERS = [
+  "x-hub-signature-256",
+  "x-signature-256",
+  "x-vyre-signature",
+  "x-signature",
+  "x-webhook-signature",
+  "x-hook-signature",
+];
 const TOLERANCE_S = 300;
 
 export type VerifyResult = { ok: true } | { ok: false; reason: "bad_signature" };
 
 /** `hmac`: the body signed with the secret. `signature`: timestamped (`stripe-signature: t=...,v1=...` or `x-vyre-timestamp` plus `x-vyre-signature`), signed over `<t>.<body>`, refused outside 5 minutes. */
-export function verifyDelivery(scheme: Verify, secret: string, headers: Record<string, string>, body: string, receivedAt: number): VerifyResult {
+export function verifyDelivery(
+  scheme: Verify,
+  secret: string,
+  headers: Record<string, string>,
+  body: string,
+  receivedAt: number,
+): VerifyResult {
   if (scheme === "none") return { ok: true };
   const h: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) h[k.toLowerCase()] = v;
@@ -123,8 +167,10 @@ export function pointerGet(doc: unknown, pointer: string): unknown {
   let cur: unknown = doc;
   for (const raw of pointer.slice(1).split("/")) {
     const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (Array.isArray(cur)) { const i = /^\d+$/.test(key) ? Number(key) : -1; cur = cur[i]; }
-    else if (cur !== null && typeof cur === "object") cur = (cur as Record<string, unknown>)[key];
+    if (Array.isArray(cur)) {
+      const i = /^\d+$/.test(key) ? Number(key) : -1;
+      cur = cur[i];
+    } else if (cur !== null && typeof cur === "object") cur = (cur as Record<string, unknown>)[key];
     else return undefined;
     if (cur === undefined) return undefined;
   }
@@ -144,7 +190,11 @@ export function parseBody(body: string): unknown {
   return out;
 }
 
-export interface Normalised { row: Record<string, unknown>; providerId?: string; missing: string[] }
+export interface Normalised {
+  row: Record<string, unknown>;
+  providerId?: string;
+  missing: string[];
+}
 
 /** The row a mapping makes from a payload: fields without a value in the payload are left out and named in `missing`. Transforms are small expressions over `value`. */
 export function normalise(mapping: Mapping, payload: unknown): Normalised {
@@ -152,13 +202,23 @@ export function normalise(mapping: Mapping, payload: unknown): Normalised {
   const missing: string[] = [];
   for (const f of mapping.fields) {
     let v = pointerGet(payload, f.from);
-    if (v === undefined || v === null) { missing.push(f.to); continue; }
+    if (v === undefined || v === null) {
+      missing.push(f.to);
+      continue;
+    }
     if (f.transform) v = evalExpr(parseExpr(f.transform), { values: { value: v } });
-    if (v === null || v === undefined) { missing.push(f.to); continue; }
+    if (v === null || v === undefined) {
+      missing.push(f.to);
+      continue;
+    }
     row[f.to] = v;
   }
   const id = pointerGet(payload, mapping.dedupe);
-  return { row, ...(id !== undefined && id !== null && id !== "" && typeof id !== "object" ? { providerId: String(id) } : {}), missing };
+  return {
+    row,
+    ...(id !== undefined && id !== null && id !== "" && typeof id !== "object" ? { providerId: String(id) } : {}),
+    missing,
+  };
 }
 
 /** The first problem with a mapping's shape, or null. Fields of the target type are checked by the caller. */
@@ -171,7 +231,13 @@ export function mappingProblem(m: Mapping): string | null {
     if (!/^[a-z][a-z0-9_]*$/.test(f.to)) return `${f.to} is not a field key`;
     if (to.has(f.to)) return `${f.to} is mapped twice`;
     to.add(f.to);
-    if (f.transform) { try { parseExpr(f.transform); } catch (e) { return `the transform for ${f.to} does not parse (${e instanceof Error ? e.message : "error"})`; } }
+    if (f.transform) {
+      try {
+        parseExpr(f.transform);
+      } catch (e) {
+        return `the transform for ${f.to} does not parse (${e instanceof Error ? e.message : "error"})`;
+      }
+    }
   }
   for (const k of m.match) if (!to.has(k)) return `match field ${k} is not mapped`;
   for (const k of m.link ?? []) if (!to.has(k)) return `link field ${k} is not mapped`;
@@ -184,5 +250,9 @@ export const same = (a: unknown, b: unknown): boolean => {
   const x = a === undefined ? null : a;
   const y = b === undefined ? null : b;
   if (x === y) return true;
-  try { return canonical(x) === canonical(y); } catch { return false; }
+  try {
+    return canonical(x) === canonical(y);
+  } catch {
+    return false;
+  }
 };

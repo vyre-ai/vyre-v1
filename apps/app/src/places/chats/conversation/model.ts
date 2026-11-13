@@ -21,7 +21,11 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock { now: number; offsetMin: number; /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones }
+export interface Clock {
+  now: number;
+  offsetMin: number;
+  /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones;
+}
 
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
@@ -66,7 +70,8 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number => (c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY));
+const dayNumber = (ts: number, c: Clock): number =>
+  c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY);
 
 /** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
 export function timeTitle(ts: number, c: Clock): string | undefined {
@@ -75,7 +80,10 @@ export function timeTitle(ts: number, c: Clock): string | undefined {
 
 /** The hour and minute of a moment in the clock the chat reads in, 24-hour, for code that needs the numbers. */
 export function clockParts(ts: number, c: Clock): { hour: number; minute: number } {
-  if (c.zones) { const p = partsIn(ts, c.zones.space); return { hour: p.hour, minute: p.minute }; }
+  if (c.zones) {
+    const p = partsIn(ts, c.zones.space);
+    return { hour: p.hour, minute: p.minute };
+  }
   const d = new Date(local(ts, c));
   return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
 }
@@ -92,7 +100,7 @@ export function dayLabel(ts: number, c: Clock): string {
   if (diff === 1) return "Yesterday";
   if (c.zones) {
     const p = partsIn(ts, c.zones.space);
-    return diff < 7 ? WEEKDAYS[p.dow] ?? "" : `${p.day} ${MONTHS[p.month - 1] ?? ""}`;
+    return diff < 7 ? (WEEKDAYS[p.dow] ?? "") : `${p.day} ${MONTHS[p.month - 1] ?? ""}`;
   }
   const d = new Date(local(ts, c));
   if (diff < 7) return WEEKDAYS[d.getUTCDay()] ?? "";
@@ -113,7 +121,8 @@ const dataOf = (b: MessageBlock): Record<string, unknown> => (isRec(b.data) ? b.
 /** A step of an agent's work (a tool call, a page opened, a record read). They fold into one line. */
 export const isStep = (b: MessageBlock): boolean => b.type === "step";
 /** The steps a turn took, as the host records them on its reply: a call and its result for each, or one summary when there were many. They fold into "Worked for 14s", they are not cards. */
-export const isToolStep = (b: MessageBlock): boolean => b.type === "tool_call" || b.type === "tool_result" || b.type === "tool_steps";
+export const isToolStep = (b: MessageBlock): boolean =>
+  b.type === "tool_call" || b.type === "tool_result" || b.type === "tool_steps";
 /** The shared error shape (V1-SPEC 4.18): what, why, next, trace id. */
 export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
@@ -130,16 +139,68 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; tool?: string; /** The stop was answered, for everyone in the chat: Allow (this time), Always allow or Deny */ resolved?: "allowed" | "always" | "denied"; /** For Always allow: the act and its target in plain words */ resolvedWhat?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
+export interface HookLine {
+  line: string;
+  kind: string;
+  hookId?: string;
+  reason?: string;
+  by?: string;
+  subject?: string;
+  scope?: string;
+  tool?: string;
+  /** The stop was answered, for everyone in the chat: Allow (this time), Always allow or Deny */ resolved?:
+    | "allowed"
+    | "always"
+    | "denied";
+  /** For Always allow: the act and its target in plain words */ resolvedWhat?: string;
+  agentId?: string;
+  /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{
+    label: string;
+    ask: string;
+  }>;
+}
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
-  const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
+  const d = m.blocks.find((x) => x.type === "hook")?.data as
+    | { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown }
+    | null
+    | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...(typeof (d as { tool?: unknown }).tool === "string" ? { tool: (d as { tool: string }).tool } : {}), ...(typeof (d as { resolvedWhat?: unknown }).resolvedWhat === "string" ? { resolvedWhat: (d as { resolvedWhat: string }).resolvedWhat } : {}), ...(["allowed", "always", "denied"].includes(String((d as { resolved?: unknown }).resolved)) ? { resolved: (d as { resolved: "allowed" | "always" | "denied" }).resolved } : {}), ...nextOf((d as { next?: unknown }).next) };
+  return {
+    line: d.line,
+    kind: d.kind,
+    ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}),
+    ...(typeof d.reason === "string" ? { reason: d.reason } : {}),
+    ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}),
+    ...(typeof (d as { subject?: unknown }).subject === "string"
+      ? { subject: (d as { subject: string }).subject }
+      : {}),
+    ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}),
+    ...(typeof (d as { agentId?: unknown }).agentId === "string"
+      ? { agentId: (d as { agentId: string }).agentId }
+      : {}),
+    ...(typeof (d as { tool?: unknown }).tool === "string" ? { tool: (d as { tool: string }).tool } : {}),
+    ...(typeof (d as { resolvedWhat?: unknown }).resolvedWhat === "string"
+      ? { resolvedWhat: (d as { resolvedWhat: string }).resolvedWhat }
+      : {}),
+    ...(["allowed", "always", "denied"].includes(String((d as { resolved?: unknown }).resolved))
+      ? { resolved: (d as { resolved: "allowed" | "always" | "denied" }).resolved }
+      : {}),
+    ...nextOf((d as { next?: unknown }).next),
+  };
 }
 /** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
 function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
   if (!Array.isArray(v)) return {};
-  const next = v.filter((x): x is { label: string; ask: string } => !!x && typeof (x as { label?: unknown }).label === "string" && typeof (x as { ask?: unknown }).ask === "string" && (x as { label: string }).label.length <= 40 && (x as { ask: string }).ask.length <= 200).slice(0, 2);
+  const next = v
+    .filter(
+      (x): x is { label: string; ask: string } =>
+        !!x &&
+        typeof (x as { label?: unknown }).label === "string" &&
+        typeof (x as { ask?: unknown }).ask === "string" &&
+        (x as { label: string }).label.length <= 40 &&
+        (x as { ask: string }).ask.length <= 200,
+    )
+    .slice(0, 2);
   return next.length > 0 ? { next } : {};
 }
 /** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
@@ -150,7 +211,8 @@ export function hookLineText(h: HookLine, nameOf: (id: string) => string): strin
 }
 /** The words that lead a hook line, in ink: "A hook stopped this:" or the name before "added a hook". The rest follows in the quieter colour. */
 export function hookLead(text: string): [string, string] {
-  if (text.startsWith("A hook stopped this:")) return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
+  if (text.startsWith("A hook stopped this:"))
+    return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
   const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
   return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
 }
@@ -162,30 +224,51 @@ export function hookLineActs(h: HookLine, canDecide?: boolean): HookLineAct[] {
   // an answered stop shows how it was answered and Details; nothing more to decide
   if (h.kind === "blocked" && h.resolved !== undefined) return ["details"];
   // until it is known whether this person may decide, only Details is shown, so the line never changes under the pointer
-  if (h.kind === "blocked") return canDecide === undefined ? ["details"] : canDecide ? ["details", "allow", "always", "deny"] : ["details", "ask"];
+  if (h.kind === "blocked")
+    return canDecide === undefined
+      ? ["details"]
+      : canDecide
+        ? ["details", "allow", "always", "deny"]
+        : ["details", "ask"];
   if (h.kind === "failed") return ["details"];
   return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }
 /** A line's side button: a block shows Details (it names the hook that stopped it), a hook that is still there shows Edit. */
-export const hookLineAction = (h: HookLine): { label: string } | null => (h.hookId === undefined || h.kind === "removed" ? null : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" });
+export const hookLineAction = (h: HookLine): { label: string } | null =>
+  h.hookId === undefined || h.kind === "removed"
+    ? null
+    : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" };
 
 /** "Poked by Sara": the quiet line under a reply an agent wrote because a person poked it. */
 export function pokedBy(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
   const d = m.blocks.find((x) => x.type === "poked")?.data as { by?: unknown } | null | undefined;
   return d && typeof d.by === "string" ? `Poked by ${nameOf(d.by)}` : null;
 }
-export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
+export const isCard = (b: MessageBlock): boolean =>
+  !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
 export { isSystemLine, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
-export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
+export interface StepLine {
+  id: string;
+  title: string;
+  sub: string;
+  state: MessageBlock["state"];
+}
 
 export function stepLine(b: MessageBlock): StepLine {
   const d = dataOf(b);
   return { id: b.id, title: str(d.title) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state };
 }
 
-export interface Work { steps: StepLine[]; secs: number; live: boolean; summary: string; now: string; /** Quick work: under 30 s and under 5 steps. It stays out of the way until you hover the message. */ short: boolean }
+export interface Work {
+  steps: StepLine[];
+  secs: number;
+  live: boolean;
+  summary: string;
+  now: string;
+  /** Quick work: under 30 s and under 5 steps. It stays out of the way until you hover the message. */ short: boolean;
+}
 
 /** How long, in words: "14s", "4m", "1h 12m". */
 export function workTime(secs: number): string {
@@ -199,38 +282,83 @@ export function workOf(m: Message): Work | null {
   const tools = m.blocks.filter(isToolStep);
   const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
   if (steps.length === 0) return null;
-  const lines = steps.map((b) => (b.type === "tool_call" ? { id: b.id, title: stepLabel(str(dataOf(b).name), str(dataOf(b).detail) || undefined), sub: "", state: "done" as const } : b.type === "tool_steps" ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const } : stepLine(b)));
-  steps.push(...tools.filter((b) => b.type === "tool_result"));   // their times count, they are not lines of their own
+  const lines = steps.map((b) =>
+    b.type === "tool_call"
+      ? {
+          id: b.id,
+          title: stepLabel(str(dataOf(b).name), str(dataOf(b).detail) || undefined),
+          sub: "",
+          state: "done" as const,
+        }
+      : b.type === "tool_steps"
+        ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const }
+        : stepLine(b),
+  );
+  steps.push(...tools.filter((b) => b.type === "tool_result")); // their times count, they are not lines of their own
   const live = lines.some((l) => l.state === "live");
   // the whole turn when the host said how long it took (thinking and writing too), else the time of the steps
-  const secs = Math.max(steps.reduce((n, b) => n + num(dataOf(b).secs), 0), steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0));
+  const secs = Math.max(
+    steps.reduce((n, b) => n + num(dataOf(b).secs), 0),
+    steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0),
+  );
   const n = lines.length;
   const count = `${n} ${n === 1 ? "step" : "steps"}`;
-  const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked ${workTime(secs)} · ${count}` : `Worked ${count}`;
+  const summary = live
+    ? `Working, ${count} so far`
+    : secs > 0
+      ? `Worked ${workTime(secs)} · ${count}`
+      : `Worked ${count}`;
   const current = [...lines].reverse().find((l) => l.state === "live");
   return { steps: lines, secs, live, summary, now: current ? current.title : "", short: !live && secs < 30 && n < 5 };
 }
 
-export interface CardLine { id: string; type: string; v: number; title: string; sub: string; state: MessageBlock["state"]; data: Record<string, unknown> }
+export interface CardLine {
+  id: string;
+  type: string;
+  v: number;
+  title: string;
+  sub: string;
+  state: MessageBlock["state"];
+  data: Record<string, unknown>;
+}
 
 /** A card's title reads from the registry's fallback for a known type and from its own title for any other (a newer version of a known type too). */
 export function cardLine(b: MessageBlock): CardLine {
   const d = dataOf(b);
   const fromTemplate = isNativeBlockType(b.type) ? applyFallback(BLOCK_FALLBACKS[b.type], b.data) : "";
-  return { id: b.id, type: b.type, v: b.v, title: str(d.title) || fromTemplate || str(d.caption) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state, data: d };
+  return {
+    id: b.id,
+    type: b.type,
+    v: b.v,
+    title: str(d.title) || fromTemplate || str(d.caption) || b.type.replaceAll("_", " "),
+    sub: str(d.sub),
+    state: b.state,
+    data: d,
+  };
 }
 
-export interface QuestionOption { id: string; label: string }
+export interface QuestionOption {
+  id: string;
+  label: string;
+}
 
 /** The options of a question card: single or multi choice, or free text when there are none. */
 export function questionOptions(d: Record<string, unknown>): QuestionOption[] {
   const raw = d.options;
   if (!Array.isArray(raw)) return [];
-  return raw.map((o, i) => (isRec(o) ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) } : { id: String(o), label: String(o) })).filter((o) => o.label !== "");
+  return raw
+    .map((o, i) =>
+      isRec(o)
+        ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) }
+        : { id: String(o), label: String(o) },
+    )
+    .filter((o) => o.label !== "");
 }
 
 /** The terminal card a question carries (terminal.request): the command, its risk and the host, or null for an ordinary question. */
-export function terminalAskOf(d: Record<string, unknown>): { command: string; risk: "read" | "change" | "danger"; host?: "agent_computer" | "space_server" | "device" } | null {
+export function terminalAskOf(
+  d: Record<string, unknown>,
+): { command: string; risk: "read" | "change" | "danger"; host?: "agent_computer" | "space_server" | "device" } | null {
   const c = d.card;
   if (!isRec(c) || c.kind !== "terminal" || typeof c.command !== "string" || c.command === "") return null;
   const risk = c.risk === "read" || c.risk === "change" || c.risk === "danger" ? c.risk : "change";
@@ -238,22 +366,60 @@ export function terminalAskOf(d: Record<string, unknown>): { command: string; ri
   return { command: c.command, risk, ...(host ? { host } : {}) };
 }
 
-export interface PlanStep { id: string; text: string; done: boolean }
+export interface PlanStep {
+  id: string;
+  text: string;
+  done: boolean;
+}
 
 export function planSteps(d: Record<string, unknown>): PlanStep[] {
   const raw = d.steps;
   if (!Array.isArray(raw)) return [];
-  return raw.map((s, i) => (isRec(s) ? { id: str(s.id) || String(i), text: str(s.text), done: s.done === true } : { id: String(i), text: String(s), done: false }));
+  return raw.map((s, i) =>
+    isRec(s)
+      ? { id: str(s.id) || String(i), text: str(s.text), done: s.done === true }
+      : { id: String(i), text: String(s), done: false },
+  );
 }
 
-export interface ErrorRow { code: string; message: string; cause: string; next: { key: string; label: string }[]; retryable: boolean; traceId: string; turnId: string; steps: [string, string][] }
+export interface ErrorRow {
+  code: string;
+  message: string;
+  cause: string;
+  next: { key: string; label: string }[];
+  retryable: boolean;
+  traceId: string;
+  turnId: string;
+  steps: [string, string][];
+}
 
 /** The inline error row: what, why, next, Copy trace id, and "What happened?" (steps, durations, machine, model, key used, denials). */
 export function errorRow(b: MessageBlock): ErrorRow {
   const d = dataOf(b);
-  const next = Array.isArray(d.next) ? d.next.map((n) => (Array.isArray(n) ? { key: str(n[0]), label: str(n[1]) } : isRec(n) ? { key: str(n.key), label: str(n.label) } : { key: "", label: "" })).filter((n) => n.label !== "") : [];
-  const steps = Array.isArray(d.steps) ? d.steps.filter((s): s is unknown[] => Array.isArray(s)).map((s): [string, string] => [str(s[0]), str(s[1])]) : [];
-  return { code: str(d.code), message: str(d.message) || "Something went wrong", cause: str(d.cause), next, retryable: d.retryable === true, traceId: str(d.traceId) || b.traceId, turnId: str(d.turnId), steps };
+  const next = Array.isArray(d.next)
+    ? d.next
+        .map((n) =>
+          Array.isArray(n)
+            ? { key: str(n[0]), label: str(n[1]) }
+            : isRec(n)
+              ? { key: str(n.key), label: str(n.label) }
+              : { key: "", label: "" },
+        )
+        .filter((n) => n.label !== "")
+    : [];
+  const steps = Array.isArray(d.steps)
+    ? d.steps.filter((s): s is unknown[] => Array.isArray(s)).map((s): [string, string] => [str(s[0]), str(s[1])])
+    : [];
+  return {
+    code: str(d.code),
+    message: str(d.message) || "Something went wrong",
+    cause: str(d.cause),
+    next,
+    retryable: d.retryable === true,
+    traceId: str(d.traceId) || b.traceId,
+    turnId: str(d.turnId),
+    steps,
+  };
 }
 
 /** What the report sheet is told about the error row it was opened from: the message and its trace id, so the report reaches the owner with the trace. */
@@ -285,18 +451,26 @@ export function bodyBlocks(messageId: string, body: string): readonly MdBlock[] 
 export type Who = { id: string; name: string; kind: "person" | "agent"; face?: string; forPerson?: string };
 
 /** An agent's message to a teammate for its person (lane l-agentdm): who it speaks for and to whom. Null for any other message. Only the server writes the block. */
-export function onBehalfOf(m: Pick<Message, "author" | "blocks">): { person: string; agentId: string; teammate: string } | null {
+export function onBehalfOf(
+  m: Pick<Message, "author" | "blocks">,
+): { person: string; agentId: string; teammate: string } | null {
   if (m.author.kind !== "agent") return null;
   const b = m.blocks.find((x) => x.type === "on_behalf");
   const d = (b?.data ?? null) as { person?: unknown; agentId?: unknown; teammate?: unknown } | null;
-  return d && typeof d.person === "string" && typeof d.teammate === "string" ? { person: d.person, agentId: typeof d.agentId === "string" ? d.agentId : m.author.id, teammate: d.teammate } : null;
+  return d && typeof d.person === "string" && typeof d.teammate === "string"
+    ? { person: d.person, agentId: typeof d.agentId === "string" ? d.agentId : m.author.id, teammate: d.teammate }
+    : null;
 }
 
 /**
  * Where the one "Mute agent messages from <Person> for today" line goes in a chat (lane l-agentdm): under the newest agent message written for its person to the reader, and only until the reader has
  * seen it (`hidden`), muted that person, or written in the chat after it. Null when no line shows.
  */
-export function muteOfferFor(messages: readonly Pick<Message, "messageId" | "author" | "blocks">[], me: string, hidden: (messageId: string, person: string) => boolean): string | null {
+export function muteOfferFor(
+  messages: readonly Pick<Message, "messageId" | "author" | "blocks">[],
+  me: string,
+  hidden: (messageId: string, person: string) => boolean,
+): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]!;
     if (m.author.kind === "person" && m.author.id === me) return null;
@@ -310,7 +484,14 @@ export function muteOfferFor(messages: readonly Pick<Message, "messageId" | "aut
 export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
   const ob = onBehalfOf(m);
   // one name for an agent writing for its person (lead, 12 Nov): "Maya’s Assistant", or "Maya Lin (Agent)" for an outside agent; the directory names it
-  if (ob) return { id: m.author.id, name: agentForPerson(ob.agentId, ob.person, { nameOf: ctx.nameOf, known: (id) => ctx.kindOf(id) === "agent" }), kind: "agent", face: ob.person, forPerson: ob.person };
+  if (ob)
+    return {
+      id: m.author.id,
+      name: agentForPerson(ob.agentId, ob.person, { nameOf: ctx.nameOf, known: (id) => ctx.kindOf(id) === "agent" }),
+      kind: "agent",
+      face: ob.person,
+      forPerson: ob.person,
+    };
   return { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) };
 }
 
@@ -325,9 +506,31 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string; timeTitle?: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
+  | {
+      kind: "event";
+      key: string;
+      message: Message;
+      text: string;
+      time: string;
+      timeTitle?: string;
+      /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean;
+    }
   | { kind: "me"; key: string; message: Message; time: string; timeTitle?: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; timeTitle?: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
+  | {
+      kind: "other";
+      key: string;
+      message: Message;
+      who: Who;
+      time: string;
+      timeTitle?: string;
+      newgroup: boolean;
+      /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string;
+      /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: {
+        key: string;
+        agentId: string;
+        next: Array<{ label: string; ask: string }>;
+      };
+    };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -344,12 +547,16 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
   let lastDay = "";
   let prev: Message | null = null;
   // a stop that carries steps: the agent's next reply (the first message after the stop that is not an event) is where they sit
-  const stepsFor = new Map<string, { key: string; agentId: string; next: Array<{ label: string; ask: string }>; line: number }>();
+  const stepsFor = new Map<
+    string,
+    { key: string; agentId: string; next: Array<{ label: string; ask: string }>; line: number }
+  >();
   messages.forEach((m, i) => {
     const h = isEvent(m) ? hookLineOf(m) : null;
     if (!h || h.kind !== "blocked" || !h.next || !h.agentId) return;
     const reply = messages.slice(i + 1).find((x) => !isEvent(x));
-    if (reply && reply.author.kind === "agent" && reply.author.id === h.agentId) stepsFor.set(reply.messageId, { key: m.messageId, agentId: h.agentId, next: h.next, line: i });
+    if (reply && reply.author.kind === "agent" && reply.author.id === h.agentId)
+      stepsFor.set(reply.messageId, { key: m.messageId, agentId: h.agentId, next: h.next, line: i });
   });
   const carried = new Set([...stepsFor.values()].map((v) => v.key));
   for (const m of messages) {
@@ -363,13 +570,41 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     const tt = timeTitle(m.createdAt, ctx.clock);
     const titled = tt ? { timeTitle: tt } : {};
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...titled, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
+      out.push({
+        kind: "event",
+        key: m.messageId,
+        message: m,
+        text: m.body,
+        time,
+        ...titled,
+        ...(carried.has(m.messageId) ? { stepsBelow: true } : {}),
+      });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
-    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, ...titled, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, ...titled, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
+    if (m.author.id === ctx.meId && m.author.kind === "person")
+      out.push({ kind: "me", key: m.messageId, message: m, time, ...titled, newgroup });
+    else
+      out.push({
+        kind: "other",
+        key: m.messageId,
+        message: m,
+        who: whoOf(m, ctx),
+        time,
+        ...titled,
+        newgroup,
+        ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}),
+        ...(stepsFor.has(m.messageId)
+          ? {
+              hookSteps: {
+                key: stepsFor.get(m.messageId)!.key,
+                agentId: stepsFor.get(m.messageId)!.agentId,
+                next: stepsFor.get(m.messageId)!.next,
+              },
+            }
+          : {}),
+      });
     prev = m;
   }
   return out;
@@ -381,18 +616,34 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
 export function workingAgents(messages: readonly Message[], writing: ReadonlySet<string> = new Set()): string[] {
   const ids = new Set<string>();
   // a crew teammate's line stays "live" in the chat that started it for as long as the job exists (nothing closes it): the Crew tab and the result card carry that state, so it is not the lead working
-  const liveWork = (b: Message["blocks"][number]): boolean => b.state === "live" && !(b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true);
-  for (const m of messages) if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some(liveWork))) ids.add(m.author.id);
+  const liveWork = (b: Message["blocks"][number]): boolean =>
+    b.state === "live" && !(b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true);
+  for (const m of messages)
+    if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some(liveWork))) ids.add(m.author.id);
   return [...ids];
 }
 
 export const leadOf = (t: Thread): ThreadAgent | undefined => t.agents.find((a) => a.mode === "lead");
 
-export interface Face { agentId: string; name: string; mode: AgentMode; watches: boolean; working: boolean; model: string }
+export interface Face {
+  agentId: string;
+  name: string;
+  mode: AgentMode;
+  watches: boolean;
+  working: boolean;
+  model: string;
+}
 
 /** The faces in the thread header, lead first, each with its mode mark. */
 export function faces(t: Thread, nameOf: (id: string) => string, working: readonly string[]): Face[] {
-  const list = t.agents.map((a) => ({ agentId: a.agentId, name: nameOf(a.agentId), mode: a.mode, watches: a.watches === true, working: working.includes(a.agentId), model: a.model ?? "" }));
+  const list = t.agents.map((a) => ({
+    agentId: a.agentId,
+    name: nameOf(a.agentId),
+    mode: a.mode,
+    watches: a.watches === true,
+    working: working.includes(a.agentId),
+    model: a.model ?? "",
+  }));
   return list.sort((a, b) => (a.mode === b.mode ? 0 : a.mode === "lead" ? -1 : 1));
 }
 
@@ -406,7 +657,10 @@ export function swapNeeded(t: Thread, agentId: string): ThreadAgent | null {
   return lead && lead.agentId !== agentId ? lead : null;
 }
 
-export interface Strip { text: string; tone: "live" | "quiet" }
+export interface Strip {
+  text: string;
+  tone: "live" | "quiet";
+}
 
 /** The title for the header: the thread's own title, else the agent or person you talk with. */
 /** A direct chat: no agents, no channel, and the reader plus exactly one other person. Its person is that other person, the one its title and face name. */
@@ -423,10 +677,15 @@ export function otherPeople(t: Pick<Thread, "members">, meId: string | undefined
 
 /** The one name of a chat (lib/chat-name.ts), the same as the list shows: a direct message is the person, any other chat its title, else who is in it. */
 export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
-  return chatName({
-    title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId),
-    people: [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))],
-  }, nameOf);
+  return chatName(
+    {
+      title: t.title,
+      kind: t.kind,
+      agents: t.agents.map((a) => a.agentId),
+      people: [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))],
+    },
+    nameOf,
+  );
 }
 
 /** The label of the stop control: one agent working, its name; more than one, Stop all. */
@@ -437,14 +696,26 @@ export function stopLabel(working: readonly string[], nameOf: (id: string) => st
 
 /* ---------- sending ---------- */
 
-export interface Candidate { id: string; name: string; kind: "person" | "agent" }
+export interface Candidate {
+  id: string;
+  name: string;
+  kind: "person" | "agent";
+}
 
 /** The people and agents @mentioned in the text, by the first word of their name, as the composer line counts them (askagent.ts, which the server's tests read too). */
 export { mentionsIn } from "./askagent.ts";
 
 /** The agents that will answer a message, from the same function the engine uses (lib/route.ts), so the line under the field never disagrees. */
-export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string, text?: string): string[] {
-  return route({ agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) }, { author: { kind: "person", id: meId }, mentions, ...(text === undefined ? {} : { text }) }).responders;
+export function respondersFor(
+  t: Thread,
+  mentions: readonly { kind: "person" | "agent"; id: string }[],
+  meId: string,
+  text?: string,
+): string[] {
+  return route(
+    { agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) },
+    { author: { kind: "person", id: meId }, mentions, ...(text === undefined ? {} : { text }) },
+  ).responders;
 }
 
 export type SendKind = "queue" | "interrupt";
@@ -474,15 +745,41 @@ export interface Pending {
   alsoToChat?: boolean;
 }
 
-export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
-export interface PendingRef { kind: string; id: string; title: string }
+export interface PendingFile {
+  name: string;
+  file?: unknown;
+  size?: number;
+  mime?: string;
+  fileId?: string;
+}
+export interface PendingRef {
+  kind: string;
+  id: string;
+  title: string;
+}
 
 /** A file id before the file is stored: the chip shows the name the person picked. */
 export const PENDING_FILE = "pending-file:";
 
 export function pendingMessage(p: Pending, meId: string, threadId: string, seq: number): Message {
   return {
-    messageId: `pending:${p.key}`, threadId, threadSeq: seq, author: { kind: "person", id: meId }, kind: "text", body: p.body, blocks: p.refs && p.refs.length > 0 ? [{ id: `pending-refs:${p.key}`, type: "refs", v: 1, state: "done", data: { refs: p.refs } }] as unknown as Message["blocks"] : [], depth: 0, attachments: (p.files ?? []).map((f) => `${PENDING_FILE}${f.name}`), reactions: [], pinned: false, createdAt: p.at,
+    messageId: `pending:${p.key}`,
+    threadId,
+    threadSeq: seq,
+    author: { kind: "person", id: meId },
+    kind: "text",
+    body: p.body,
+    blocks:
+      p.refs && p.refs.length > 0
+        ? ([
+            { id: `pending-refs:${p.key}`, type: "refs", v: 1, state: "done", data: { refs: p.refs } },
+          ] as unknown as Message["blocks"])
+        : [],
+    depth: 0,
+    attachments: (p.files ?? []).map((f) => `${PENDING_FILE}${f.name}`),
+    reactions: [],
+    pinned: false,
+    createdAt: p.at,
   };
 }
 
@@ -490,7 +787,17 @@ export function pendingMessage(p: Pending, meId: string, threadId: string, seq: 
  * The rows for replies that are being written (or just finished and not yet saved). Each is a normal agent message with no words of its own: the words come from its stream. Once the host has said
  * which message the turn became, the row takes that id, so when the saved message arrives it lands on the same key and nothing remounts. A turn whose message is already in the list shows no row.
  */
-export function ghostMessages(turns: readonly { turnId: string; agentId: string; messageId?: string | null | undefined; startedAt: number; triggerId?: string | undefined }[], have: readonly Message[], threadId: string): Message[] {
+export function ghostMessages(
+  turns: readonly {
+    turnId: string;
+    agentId: string;
+    messageId?: string | null | undefined;
+    startedAt: number;
+    triggerId?: string | undefined;
+  }[],
+  have: readonly Message[],
+  threadId: string,
+): Message[] {
   const ids = new Set(have.map((m) => m.messageId));
   const last = have.reduce((n, m) => Math.max(n, m.threadSeq), 0);
   const out: Message[] = [];
@@ -500,7 +807,20 @@ export function ghostMessages(turns: readonly { turnId: string; agentId: string;
     // The reply being written sits after the message that started it and before those sent while it writes (they are queued behind it). The host names the message that started the turn.
     const trigger = t.triggerId === undefined ? undefined : have.find((m) => m.messageId === t.triggerId);
     const seq = trigger !== undefined ? trigger.threadSeq + 0.5 + out.length / 100 : last + 1 + out.length;
-    out.push({ messageId: id, threadId, threadSeq: seq, author: { kind: "agent", id: t.agentId }, kind: "agent", body: "", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t.startedAt } as Message);
+    out.push({
+      messageId: id,
+      threadId,
+      threadSeq: seq,
+      author: { kind: "agent", id: t.agentId },
+      kind: "agent",
+      body: "",
+      blocks: [],
+      depth: 0,
+      attachments: [],
+      reactions: [],
+      pinned: false,
+      createdAt: t.startedAt,
+    } as Message);
   }
   return out;
 }
@@ -538,8 +858,20 @@ export function queuedIds(messages: readonly Message[], meId: string, working: b
 }
 
 /** The post for a send: mentions, a retry-safe key, the composer's folder and links. */
-export function postInput(threadId: string, body: string, mentions: readonly { kind: "person" | "agent"; id: string }[], key: string, replyTo?: string): CapMap["chat.post"]["in"] {
-  return { threadId, body, idempotencyKey: key, ...(mentions.length > 0 ? { mentions: mentions.map((x) => ({ kind: x.kind, id: x.id })) } : {}), ...(replyTo ? { replyTo } : {}) };
+export function postInput(
+  threadId: string,
+  body: string,
+  mentions: readonly { kind: "person" | "agent"; id: string }[],
+  key: string,
+  replyTo?: string,
+): CapMap["chat.post"]["in"] {
+  return {
+    threadId,
+    body,
+    idempotencyKey: key,
+    ...(mentions.length > 0 ? { mentions: mentions.map((x) => ({ kind: x.kind, id: x.id })) } : {}),
+    ...(replyTo ? { replyTo } : {}),
+  };
 }
 
 /** The line under the header while a send waits for the agent's next step. */
@@ -576,18 +908,23 @@ export function modelLabel(model: string): string {
 export function findMatches(messages: readonly Message[], query: string): string[] {
   const q = fold(query.trim());
   if (q === "") return [];
-  return collect(messages.filter((m) => !isEvent(m) && fold(m.body).includes(q)), (m) => m.messageId);
+  return collect(
+    messages.filter((m) => !isEvent(m) && fold(m.body).includes(q)),
+    (m) => m.messageId,
+  );
 }
 
-const fold = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const fold = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 /** "2 of 5" while stepping through matches, "No matches" when there are none. */
 export function matchLine(n: number, at: number, query: string): string {
   if (query.trim() === "") return "";
   return n === 0 ? "No matches" : `${at + 1} of ${n}`;
 }
-
-
 
 /** A thread that has closed takes no messages until it is reopened. */
 export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
@@ -608,14 +945,28 @@ export const CHAT_OPEN_BUDGET_MS = 100;
 /** Runs that count: one warm-up run is discarded before them (ruling 43). */
 export const OPEN_RUNS = 5;
 
-export interface OpenResult { runs: number[]; median: number; worst: number; budget: number; ok: boolean; messages: number }
+export interface OpenResult {
+  runs: number[];
+  median: number;
+  worst: number;
+  budget: number;
+  ok: boolean;
+  messages: number;
+}
 
 /** Median of the counted runs, the worst run, and whether the median is inside the budget with exactly the last 50 messages on the page. */
 export function summarizeOpen(runs: readonly number[], messages: number, budget = CHAT_OPEN_BUDGET_MS): OpenResult {
   const sorted = [...runs].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)] ?? Number.POSITIVE_INFINITY;
   const worst = sorted[sorted.length - 1] ?? Number.POSITIVE_INFINITY;
-  return { runs: [...runs], median, worst, budget, ok: messages === WINDOW && sorted.length >= OPEN_RUNS && median < budget, messages };
+  return {
+    runs: [...runs],
+    median,
+    worst,
+    budget,
+    ok: messages === WINDOW && sorted.length >= OPEN_RUNS && median < budget,
+    messages,
+  };
 }
 
 /** What the probe line says: ok, over the budget, or not the last 50 rows (a wrong count is never reported as a slow open). */
@@ -640,7 +991,10 @@ export function afterFailure(list: readonly Pending[], key: string, e: unknown):
 }
 
 /** The files of a send after their upload: each one that had no stored file gets the id the upload made, in order, so a retry attaches them again instead of uploading again. */
-export function withUploaded(files: readonly PendingFile[] | undefined, ids: readonly string[]): PendingFile[] | undefined {
+export function withUploaded(
+  files: readonly PendingFile[] | undefined,
+  ids: readonly string[],
+): PendingFile[] | undefined {
   if (!files) return files as undefined;
   let i = 0;
   return files.map((f) => (f.fileId === undefined && i < ids.length ? { ...f, fileId: ids[i++]! } : f));
@@ -653,7 +1007,11 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
 }
 
 /** May the @ menu offer this agent? Everyone sees every agent offered to them; a guest only the agents this chat allows (the ones in it). */
-export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
+export function mentionable(
+  item: string | { t: string; ref?: string | undefined },
+  guest: boolean,
+  inThread: ReadonlyMap<string, unknown>,
+): boolean {
   return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
 }
 

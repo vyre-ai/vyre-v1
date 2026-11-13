@@ -11,8 +11,21 @@ import type { Roving } from "./roving.ts";
 const COLS = [["a1", "a2"], ["b1"]];
 
 function fakeKey(key: string, id: string, log: string[]): Parameters<Roving["onKeyDownCapture"]>[0] {
-  const target = { getAttribute: (n: string) => (n === "data-tkcard" ? id : null), getBoundingClientRect: () => ({ left: 10, bottom: 50 }), blur: () => log.push("blur") };
-  return { key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, target, preventDefault: () => log.push("prevent"), stopPropagation: () => log.push("stop") };
+  const target = {
+    getAttribute: (n: string) => (n === "data-tkcard" ? id : null),
+    getBoundingClientRect: () => ({ left: 10, bottom: 50 }),
+    blur: () => log.push("blur"),
+  };
+  return {
+    key,
+    shiftKey: false,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    target,
+    preventDefault: () => log.push("prevent"),
+    stopPropagation: () => log.push("stop"),
+  };
 }
 
 test("one card takes Tab; arrows move the stop; Enter opens; Space asks for status where the card sits; Esc lets go", async () => {
@@ -21,7 +34,12 @@ test("one card takes Tab; arrows move the stop; Enter opens; Space asks for stat
     const log: string[] = [];
     let r!: Roving;
     function Host(): ReactElement | null {
-      r = useRoving({ cols: COLS, step: (at, dir) => gridStep(COLS, at, dir), open: (id) => log.push(`open ${id}`), status: (id, at) => log.push(`status ${id} ${at.x},${at.y}`) });
+      r = useRoving({
+        cols: COLS,
+        step: (at, dir) => gridStep(COLS, at, dir),
+        open: (id) => log.push(`open ${id}`),
+        status: (id, at) => log.push(`status ${id} ${at.x},${at.y}`),
+      });
       return null;
     }
     await mount(createRoot, <Host />);
@@ -50,5 +68,7 @@ test("one card takes Tab; arrows move the stop; Enter opens; Space asks for stat
     log.length = 0;
     r.onKeyDownCapture({ ...fakeKey("Enter", "x", log), target: { getAttribute: () => null } });
     assert.deepEqual(log, [], "a key inside a card's own button is that button's");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

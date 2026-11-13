@@ -7,15 +7,42 @@
 import { readFileSync } from "node:fs";
 import { resolvePick, shippedModels } from "./live-models.ts";
 
-export interface Price { in: number; out: number; cacheRead?: number; cacheWrite?: number; longPrompt?: { over: number; in: number; out: number } }
-export interface CostLine { kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }
-export interface TurnCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat"; micros?: number; lines?: CostLine[]; priceAsOf?: string; missing?: string[] }
+export interface Price {
+  in: number;
+  out: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  longPrompt?: { over: number; in: number; out: number };
+}
+export interface CostLine {
+  kind: "input" | "output" | "cache_read" | "cache_write";
+  tokens: number;
+  perMillion: number;
+  micros: number;
+}
+export interface TurnCost {
+  source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat";
+  micros?: number;
+  lines?: CostLine[];
+  priceAsOf?: string;
+  missing?: string[];
+}
 export interface CostIn {
-  model: string; driver?: string; provider?: string; accountKind?: string;
-  tokensIn: number; tokensOut: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number;
+  model: string;
+  driver?: string;
+  provider?: string;
+  accountKind?: string;
+  tokensIn: number;
+  tokensOut: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  costUsd?: number;
 }
 
-interface PriceFile { asOf: string; providers: Record<string, Record<string, Price>> }
+interface PriceFile {
+  asOf: string;
+  providers: Record<string, Record<string, Price>>;
+}
 let book: PriceFile | null = null;
 function prices(): PriceFile {
   book ??= JSON.parse(readFileSync(new URL("./prices.json", import.meta.url), "utf8")) as PriceFile;
@@ -49,7 +76,12 @@ export function costOf(c: CostIn): TurnCost {
   let source: "catalog" | "estimate" = "catalog";
   if (!found && c.accountKind === "api_key") {
     // the provider gave no figure and has no list price here (OpenCode Go, a gateway): the model's list price at the vendor that makes it stands in, and the turn says it is an estimate
-    for (const table of Object.values(prices().providers)) if (table[c.model]) { found = { price: table[c.model]!, asOf: prices().asOf }; source = "estimate"; break; }
+    for (const table of Object.values(prices().providers))
+      if (table[c.model]) {
+        found = { price: table[c.model]!, asOf: prices().asOf };
+        source = "estimate";
+        break;
+      }
   }
   if (!found) return { source: "unknown" };
   const p = found.price;
@@ -61,12 +93,21 @@ export function costOf(c: CostIn): TurnCost {
   const missing: string[] = [];
   const add = (kind: CostLine["kind"], tokens: number, rate: number | undefined): void => {
     if (tokens <= 0) return;
-    if (rate === undefined) { missing.push(kind); return; }
+    if (rate === undefined) {
+      missing.push(kind);
+      return;
+    }
     lines.push({ kind, tokens, perMillion: rate, micros: micros(tokens, rate) });
   };
   add("input", plain, long ? long.in : p.in);
   add("output", c.tokensOut, long ? long.out : p.out);
   if (c.cacheReadTokens !== undefined) add("cache_read", c.cacheReadTokens, p.cacheRead);
   if (c.cacheWriteTokens !== undefined) add("cache_write", c.cacheWriteTokens, p.cacheWrite);
-  return { source, micros: lines.reduce((a, l) => a + l.micros, 0), lines, priceAsOf: found.asOf, ...(missing.length > 0 ? { missing } : {}) };
+  return {
+    source,
+    micros: lines.reduce((a, l) => a + l.micros, 0),
+    lines,
+    priceAsOf: found.asOf,
+    ...(missing.length > 0 ? { missing } : {}),
+  };
 }

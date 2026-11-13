@@ -9,7 +9,24 @@ import { mintId, rowsOf, sha256 } from "./projections.ts";
 import type { Db, Row } from "./projections.ts";
 
 /** Calls the Space may ask of a node. Anything else in a poll answer is ignored by the node. */
-export const JOB_KINDS = ["create", "start", "stop", "remove", "probe", "configure", "takeover", "giveBack", "screenshot", "sessions", "signOut", "record", "saveRecording", "removeRecording", "tool", "sync"] as const;
+export const JOB_KINDS = [
+  "create",
+  "start",
+  "stop",
+  "remove",
+  "probe",
+  "configure",
+  "takeover",
+  "giveBack",
+  "screenshot",
+  "sessions",
+  "signOut",
+  "record",
+  "saveRecording",
+  "removeRecording",
+  "tool",
+  "sync",
+] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export const LEASE_MS = 45_000;
@@ -18,37 +35,93 @@ const GRACE_MS = 30_000;
 
 const str = (v: unknown): string => String(v ?? "");
 const num = (v: unknown): number => Number(v ?? 0);
-const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const hex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
-export interface JobDelivery { jobId: string; computerId: string; agentId: string; kind: JobKind; input: unknown; token: string; deadline: number }
+export interface JobDelivery {
+  jobId: string;
+  computerId: string;
+  agentId: string;
+  kind: JobKind;
+  input: unknown;
+  token: string;
+  deadline: number;
+}
 
-export function enqueueJob(db: Db, a: { nodeId: string; computerId: string; agentId: string; kind: JobKind; input: unknown; timeoutMs: number; now: number }): string {
+export function enqueueJob(
+  db: Db,
+  a: {
+    nodeId: string;
+    computerId: string;
+    agentId: string;
+    kind: JobKind;
+    input: unknown;
+    timeoutMs: number;
+    now: number;
+  },
+): string {
   const jobId = mintId("job", a.now);
   db.run(
     "INSERT INTO computers_job (job_id, node_id, computer_id, agent_id, kind, input_json, state, attempts, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?)",
-    jobId, a.nodeId, a.computerId, a.agentId, a.kind, JSON.stringify(a.input ?? {}), a.now + a.timeoutMs, a.now,
+    jobId,
+    a.nodeId,
+    a.computerId,
+    a.agentId,
+    a.kind,
+    JSON.stringify(a.input ?? {}),
+    a.now + a.timeoutMs,
+    a.now,
   );
   return jobId;
 }
 
 /** Jobs whose time is up: a lease that ran out is tried once more, then failed; a deadline that passed fails the job. */
 export function sweepJobs(db: Db, now: number): void {
-  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer did not answer in time.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state IN ('queued', 'running') AND deadline < ?", now, now);
-  db.run("UPDATE computers_job SET state = 'failed', error = 'The computer stopped answering.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state = 'running' AND lease_until < ? AND attempts >= ?", now, now, MAX_ATTEMPTS);
+  db.run(
+    "UPDATE computers_job SET state = 'failed', error = 'The computer did not answer in time.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state IN ('queued', 'running') AND deadline < ?",
+    now,
+    now,
+  );
+  db.run(
+    "UPDATE computers_job SET state = 'failed', error = 'The computer stopped answering.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state = 'running' AND lease_until < ? AND attempts >= ?",
+    now,
+    now,
+    MAX_ATTEMPTS,
+  );
   // the token stays until the job is delivered again: the node may only be late
-  db.run("UPDATE computers_job SET state = 'queued', lease_until = NULL WHERE state = 'running' AND lease_until < ? AND attempts < ?", now, MAX_ATTEMPTS);
+  db.run(
+    "UPDATE computers_job SET state = 'queued', lease_until = NULL WHERE state = 'running' AND lease_until < ? AND attempts < ?",
+    now,
+    MAX_ATTEMPTS,
+  );
 }
 
 /** A node that is still working on a job says so with every poll, and the job's lease moves out, even if it ran out and the job waits to be delivered again; a node that died stops saying it, and the lease runs out. */
 export function extendLeases(db: Db, nodeId: string, jobIds: readonly string[], now: number, leaseMs = LEASE_MS): void {
-  for (const id of jobIds.slice(0, 50)) db.run("UPDATE computers_job SET state = 'running', lease_until = ? WHERE job_id = ? AND node_id = ? AND (state = 'running' OR (state = 'queued' AND token_hash IS NOT NULL))", now + leaseMs, id, nodeId);
+  for (const id of jobIds.slice(0, 50))
+    db.run(
+      "UPDATE computers_job SET state = 'running', lease_until = ? WHERE job_id = ? AND node_id = ? AND (state = 'running' OR (state = 'queued' AND token_hash IS NOT NULL))",
+      now + leaseMs,
+      id,
+      nodeId,
+    );
 }
 
 /** What the node asked for, claimed: each job is leased and gets a token that only this delivery knows. */
-export async function claimJobs(db: Db, nodeId: string, now: number, o: { leaseMs?: number; limit?: number; running?: readonly string[] } = {}): Promise<JobDelivery[]> {
+export async function claimJobs(
+  db: Db,
+  nodeId: string,
+  now: number,
+  o: { leaseMs?: number; limit?: number; running?: readonly string[] } = {},
+): Promise<JobDelivery[]> {
   if (o.running?.length) extendLeases(db, nodeId, o.running, now, o.leaseMs);
   sweepJobs(db, now);
-  const rows = rowsOf(db, "SELECT * FROM computers_job WHERE node_id = ? AND state IN ('queued', 'running') ORDER BY created_at, job_id LIMIT ?", nodeId, o.limit ?? 5);
+  const rows = rowsOf(
+    db,
+    "SELECT * FROM computers_job WHERE node_id = ? AND state IN ('queued', 'running') ORDER BY created_at, job_id LIMIT ?",
+    nodeId,
+    o.limit ?? 5,
+  );
   const out: JobDelivery[] = [];
   for (const r of rows) {
     // a running job is handed out again only when its lease ran out (the sweep put it back to queued); one still leased is the node's to finish
@@ -58,12 +131,26 @@ export async function claimJobs(db: Db, nodeId: string, now: number, o: { leaseM
       // The job's input may carry a Vault channel token (a computer's fill token). It goes to the node in this delivery and is removed from the row at once: what is stored afterwards names the
       // channel's address but holds nothing that opens it. A delivery repeated after a lost lease therefore has no token; that computer simply has no Vault channel until it wakes again.
       "UPDATE computers_job SET state = 'running', attempts = attempts + 1, lease_until = ?, token_hash = ?, input_json = json_remove(input_json, '$.fillToken') WHERE job_id = ? AND state = 'queued'",
-      now + (o.leaseMs ?? LEASE_MS), await sha256(token), str(r["job_id"]),
+      now + (o.leaseMs ?? LEASE_MS),
+      await sha256(token),
+      str(r["job_id"]),
     ).changes;
     if (changed !== 1) continue;
     let input: unknown = {};
-    try { input = JSON.parse(str(r["input_json"])); } catch { input = {}; }
-    out.push({ jobId: str(r["job_id"]), computerId: str(r["computer_id"]), agentId: str(r["agent_id"]), kind: str(r["kind"]) as JobKind, input, token, deadline: num(r["deadline"]) });
+    try {
+      input = JSON.parse(str(r["input_json"]));
+    } catch {
+      input = {};
+    }
+    out.push({
+      jobId: str(r["job_id"]),
+      computerId: str(r["computer_id"]),
+      agentId: str(r["agent_id"]),
+      kind: str(r["kind"]) as JobKind,
+      input,
+      token,
+      deadline: num(r["deadline"]),
+    });
   }
   return out;
 }
@@ -71,25 +158,45 @@ export async function claimJobs(db: Db, nodeId: string, now: number, o: { leaseM
 export type JobOutcome = { ok: true; result: unknown } | { ok: false; error: string };
 
 /** The node's answer. The first one wins and is kept; a later one (a retry after a lost reply) changes nothing and gets the stored state back. */
-export function submitJob(db: Db, nodeId: string, jobId: string, outcome: JobOutcome, now: number): "stored" | "already" | "unknown" {
+export function submitJob(
+  db: Db,
+  nodeId: string,
+  jobId: string,
+  outcome: JobOutcome,
+  now: number,
+): "stored" | "already" | "unknown" {
   const r = rowsOf(db, "SELECT state, node_id FROM computers_job WHERE job_id = ?", jobId)[0];
   if (!r || str(r["node_id"]) !== nodeId) return "unknown";
   if (str(r["state"]) === "done" || str(r["state"]) === "failed") return "already";
   db.run(
     "UPDATE computers_job SET state = ?, result_json = ?, error = ?, done_at = ?, token_hash = NULL, lease_until = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE job_id = ? AND state IN ('queued', 'running')",
-    outcome.ok ? "done" : "failed", outcome.ok ? JSON.stringify(outcome.result ?? null) : null, outcome.ok ? null : outcome.error.slice(0, 500), now, jobId,
+    outcome.ok ? "done" : "failed",
+    outcome.ok ? JSON.stringify(outcome.result ?? null) : null,
+    outcome.ok ? null : outcome.error.slice(0, 500),
+    now,
+    jobId,
   );
   return "stored";
 }
 
 /** Wait for the job to end. Throws the node's own words when it failed. */
-export async function awaitJob(db: Db, jobId: string, o: { now(): number; timeoutMs: number; pollMs?: number }): Promise<unknown> {
+export async function awaitJob(
+  db: Db,
+  jobId: string,
+  o: { now(): number; timeoutMs: number; pollMs?: number },
+): Promise<unknown> {
   const stop = Date.now() + o.timeoutMs + GRACE_MS;
   for (;;) {
     sweepJobs(db, o.now());
     const r = rowsOf(db, "SELECT state, result_json, error FROM computers_job WHERE job_id = ?", jobId)[0];
     if (!r) throw new Error("The job is gone.");
-    if (str(r["state"]) === "done") { try { return JSON.parse(str(r["result_json"])); } catch { return null; } }
+    if (str(r["state"]) === "done") {
+      try {
+        return JSON.parse(str(r["result_json"]));
+      } catch {
+        return null;
+      }
+    }
     if (str(r["state"]) === "failed") throw new Error(str(r["error"]) || "The computer could not do that.");
     if (Date.now() > stop) throw new Error("The computer did not answer in time.");
     await new Promise((res) => setTimeout(res, o.pollMs ?? 40));
@@ -97,11 +204,26 @@ export async function awaitJob(db: Db, jobId: string, o: { now(): number; timeou
 }
 
 /** Does this token belong to a live job of this node for this computer? It is the whole of what a token proves. */
-export async function jobForToken(db: Db, nodeId: string, token: string, computerId: string): Promise<{ jobId: string; agentId: string; kind: JobKind } | null> {
+export async function jobForToken(
+  db: Db,
+  nodeId: string,
+  token: string,
+  computerId: string,
+): Promise<{ jobId: string; agentId: string; kind: JobKind } | null> {
   if (!token.startsWith("vcj_")) return null;
-  const r = rowsOf(db, "SELECT job_id, agent_id, kind, computer_id, node_id, state FROM computers_job WHERE token_hash = ?", await sha256(token))[0];
+  const r = rowsOf(
+    db,
+    "SELECT job_id, agent_id, kind, computer_id, node_id, state FROM computers_job WHERE token_hash = ?",
+    await sha256(token),
+  )[0];
   // a job's end clears its token and a new delivery replaces it, so a token found here is the current one of an unfinished job, whatever its lease says
-  if (!r || (str(r["state"]) !== "running" && str(r["state"]) !== "queued") || str(r["node_id"]) !== nodeId || str(r["computer_id"]) !== computerId) return null;
+  if (
+    !r ||
+    (str(r["state"]) !== "running" && str(r["state"]) !== "queued") ||
+    str(r["node_id"]) !== nodeId ||
+    str(r["computer_id"]) !== computerId
+  )
+    return null;
   return { jobId: str(r["job_id"]), agentId: str(r["agent_id"]), kind: str(r["kind"]) as JobKind };
 }
 

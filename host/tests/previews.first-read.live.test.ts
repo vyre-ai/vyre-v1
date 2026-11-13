@@ -12,7 +12,13 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 
 test("the first preview read of a new file answers, for each read that renders inline", async () => {
@@ -24,7 +30,9 @@ test("the first preview read of a new file answers, for each read that renders i
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "preview-first", free: 80e9,
+      os: "linux",
+      hostname: "preview-first",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -32,12 +40,19 @@ test("the first preview read of a new file answers, for each read that renders i
       },
     }),
     fetch: caddyFetch,
-    session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "preview-first" } : null),
+    session: (h) =>
+      /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "preview-first" }
+        : null,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const post = async (p: string, body: unknown): Promise<{ status: number; body: any }> => {
-    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body) });
+    const r = await fetch(`${d.url}${p}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+      body: JSON.stringify(body),
+    });
     const text = await r.text();
     return { status: r.status, body: text ? JSON.parse(text) : {} };
   };
@@ -46,7 +61,12 @@ test("the first preview read of a new file answers, for each read that renders i
     const parent = roots.find((r) => r.folderId)?.folderId;
     assert.ok(parent, "a Space folder to write in");
     const make = async (name: string): Promise<string> => {
-      const r = await post("/v1/files/create", { folderId: parent, name, content: { text: `# ${name}\n\nfirst read\n` }, idempotencyKey: `pf-${name}` });
+      const r = await post("/v1/files/create", {
+        folderId: parent,
+        name,
+        content: { text: `# ${name}\n\nfirst read\n` },
+        idempotencyKey: `pf-${name}`,
+      });
       assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
       return r.body.data.file.fileId as string;
     };

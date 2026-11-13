@@ -2,10 +2,18 @@
 // "n_7f3a") and never reads as words. The step kinds' own titles come from the registry; the caller hands the one for this step's kind in, so this stays free of generated files.
 import { sayWords } from "./audit.ts";
 
-export interface StepNode { id: string; key?: string | undefined; title?: string | undefined; input?: Record<string, unknown> | undefined }
+export interface StepNode {
+  id: string;
+  key?: string | undefined;
+  title?: string | undefined;
+  input?: Record<string, unknown> | undefined;
+}
 
 /** An id a flow editor made: step_1, n_7f3a, node-12. Not a name anyone chose. */
-export const idLike = (s: string): boolean => /^(?:step|node|n|s)[_-]?[0-9a-f]{1,10}$/i.test(s) || /^[a-z]{1,4}_(?=[0-9a-z]*\d)[0-9a-z]{4,}$/i.test(s) || /^[0-9a-f]{8,}$/i.test(s);
+export const idLike = (s: string): boolean =>
+  /^(?:step|node|n|s)[_-]?[0-9a-f]{1,10}$/i.test(s) ||
+  /^[a-z]{1,4}_(?=[0-9a-z]*\d)[0-9a-z]{4,}$/i.test(s) ||
+  /^[0-9a-f]{8,}$/i.test(s);
 
 /** "30m" as "30 minutes", "6h" as "6 hours", "2d" as "2 days", "1w" as "a week". Null for anything else. */
 export function durationWords(d: unknown): string | null {
@@ -19,10 +27,28 @@ export function durationWords(d: unknown): string | null {
 
 /** What each step kind does, in words a person uses (the registry's own titles are for the editor's palette and read like "HTTP request"). */
 const KIND_WORDS: Readonly<Record<string, string>> = {
-  ai: "Ask the AI", approval: "Ask for approval", call_automation: "Run another automation", code: "Run a small script", collect: "Collect the answers", connector_request: "Ask a connected service",
-  create_task: "Create a task", group_by: "Group the items", http_request: "Call a web address", if: "Check a condition", loop: "Repeat for each item", parallel: "Do these at the same time", paths: "Choose a path",
-  post_message: "Post a chat message", send_email: "Send an email", send_sms: "Send a text message", sign: "Send for signature", start_journey: "Start a journey", stop: "Stop here", transform: "Reshape the data",
-  wait: "Wait", wait_stage: "Wait for a journey stage",
+  ai: "Ask the AI",
+  approval: "Ask for approval",
+  call_automation: "Run another automation",
+  code: "Run a small script",
+  collect: "Collect the answers",
+  connector_request: "Ask a connected service",
+  create_task: "Create a task",
+  group_by: "Group the items",
+  http_request: "Call a web address",
+  if: "Check a condition",
+  loop: "Repeat for each item",
+  parallel: "Do these at the same time",
+  paths: "Choose a path",
+  post_message: "Post a chat message",
+  send_email: "Send an email",
+  send_sms: "Send a text message",
+  sign: "Send for signature",
+  start_journey: "Start a journey",
+  stop: "Stop here",
+  transform: "Reshape the data",
+  wait: "Wait",
+  wait_stage: "Wait for a journey stage",
 };
 const PROVIDERS = new Set(["Google", "Microsoft", "GitHub"]);
 

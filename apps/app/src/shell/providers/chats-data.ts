@@ -4,7 +4,12 @@ import { askVaultUnlock } from "../session/vault-gate.ts";
 import { computersAvailableNow } from "../computers-available.ts";
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
-import type { ComposerFill, ConversationData, ConversationNav, PluginCommand } from "../../places/chats/conversation/data.tsx";
+import type {
+  ComposerFill,
+  ConversationData,
+  ConversationNav,
+  PluginCommand,
+} from "../../places/chats/conversation/data.tsx";
 import { othersNeedingYou } from "../spaces/model.ts";
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
@@ -34,7 +39,10 @@ export interface ChatsActions {
 const kindOf = (p: Principal | undefined): "person" | "agent" => (p && p.kind === "agent" ? "agent" : "person");
 
 /** The viewer's own Assistant, as the shell names it. */
-export interface OwnAssistant { id: string; name: string }
+export interface OwnAssistant {
+  id: string;
+  name: string;
+}
 /**
  * An agent someone else's person is credited for ("Irfad Imtiaz (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
  * so; a Space agent never carries that suffix.
@@ -47,7 +55,16 @@ const credited = (p: Principal): boolean => creditedToPerson(p);
  */
 export function candidates(list: readonly Principal[], meId: string, assistant?: OwnAssistant): Candidate[] {
   const out: Candidate[] = assistant ? [{ id: assistant.id, name: assistant.name, kind: "agent" }] : [];
-  for (const p of list) if (p.id !== meId && p.id !== assistant?.id && offered(p) && !credited(p) && p.inactive !== true && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
+  for (const p of list)
+    if (
+      p.id !== meId &&
+      p.id !== assistant?.id &&
+      offered(p) &&
+      !credited(p) &&
+      p.inactive !== true &&
+      (p.kind === "person" || p.kind === "agent")
+    )
+      out.push({ id: p.id, name: p.name, kind: p.kind });
   return out;
 }
 
@@ -68,17 +85,28 @@ const newKey = (): string => `k_${Date.now().toString(36)}_${(keySeq++).toString
 
 /** A file the person keeps: a download in the browser. Other platforms leave `saveFile` out and the text is copied. */
 export function saveFile(name: string, mime: string, content: string): void {
-  const g = globalThis as { document?: { createElement(t: string): { href: string; download: string; click(): void; remove(): void }; body?: { appendChild(n: unknown): unknown } }; URL?: { createObjectURL(b: unknown): string; revokeObjectURL(u: string): void }; Blob?: new (p: string[], o: { type: string }) => unknown };
+  const g = globalThis as {
+    document?: {
+      createElement(t: string): { href: string; download: string; click(): void; remove(): void };
+      body?: { appendChild(n: unknown): unknown };
+    };
+    URL?: { createObjectURL(b: unknown): string; revokeObjectURL(u: string): void };
+    Blob?: new (p: string[], o: { type: string }) => unknown;
+  };
   if (!g.document || !g.URL || !g.Blob) return;
   const url = g.URL.createObjectURL(new g.Blob([content], { type: mime }));
   const a = g.document.createElement("a");
-  a.href = url; a.download = name;
+  a.href = url;
+  a.download = name;
   g.document.body?.appendChild(a);
-  a.click(); a.remove();
+  a.click();
+  a.remove();
   setTimeout(() => g.URL!.revokeObjectURL(url), 10_000);
 }
 
-const canSave = (): boolean => typeof (globalThis as { document?: unknown }).document !== "undefined" && typeof (globalThis as { Blob?: unknown }).Blob !== "undefined";
+const canSave = (): boolean =>
+  typeof (globalThis as { document?: unknown }).document !== "undefined" &&
+  typeof (globalThis as { Blob?: unknown }).Blob !== "undefined";
 
 const copy = (text: string): void => {
   const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard;
@@ -93,7 +121,11 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
     // the agent page opens on a tab: Instructions are the first thing in its Settings tab
-    openAgent: (agentId, section) => rt.open({ screen: "chats.agent-page", args: { agentId, ...(section === "instructions" ? { tab: "settings" } : section ? { tab: section } : {}) } }),
+    openAgent: (agentId, section) =>
+      rt.open({
+        screen: "chats.agent-page",
+        args: { agentId, ...(section === "instructions" ? { tab: "settings" } : section ? { tab: section } : {}) },
+      }),
     openChatTab: (threadId) => rt.open({ subject: { type: "thread", id: threadId }, background: true }),
     openArtifacts: () => rt.open({ screen: "chats.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
@@ -104,9 +136,19 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openNewProject: () => rt.open({ screen: "records.projects", args: { create: true } }),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),
-    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, ...(rt.space.kind === "personal" ? { personal: true } : {}), assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
-    nav, me: { id: rt.me.id }, clock: rt.clock,
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    ...(rt.changes ? { changes: rt.changes } : {}),
+    space: {
+      name: rt.space.name,
+      otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0,
+      ...(rt.space.kind === "personal" ? { personal: true } : {}),
+      assistant: { agentId: rt.assistant.id, name: rt.assistant.name },
+    },
+    nav,
+    me: { id: rt.me.id },
+    clock: rt.clock,
   };
 }
 
@@ -115,13 +157,17 @@ const stores = new WeakMap<ShellRuntime, MemoryStore>();
 /** One memory store per Space runtime: the conversation and the right pane share it, so a Forget in one shows in the other. */
 export function memoryStore(rt: ShellRuntime): MemoryStore {
   let s = stores.get(rt);
-  if (!s) { s = createMemoryStore(rt.call); stores.set(rt, s); }
+  if (!s) {
+    s = createMemoryStore(rt.call);
+    stores.set(rt, s);
+  }
   return s;
 }
 
 /** The memory surfaces of a chat: reads and writes are capabilities as the person; a click on a source, a page or the graph opens Files Knowledge or the chat at that line. */
 export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
-  const know = (route: Parameters<typeof routeToArgs>[0]): void => rt.open({ screen: KNOW_SCREEN, args: routeToArgs(route) });
+  const know = (route: Parameters<typeof routeToArgs>[0]): void =>
+    rt.open({ screen: KNOW_SCREEN, args: routeToArgs(route) });
   return {
     store: memoryStore(rt),
     now: () => rt.clock().now,
@@ -133,7 +179,10 @@ export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
       openPage: (pageId) => know({ v: "page", pageId }),
       openGraph: (pageId) => know({ v: "graph", focus: pageId }),
       openKnowledge: () => know({ v: "learned" }),
-      openSource: (kind, ref, link) => { if (link) rt.openUrl(link); else rt.open({ subject: { type: kind, id: ref } }); },
+      openSource: (kind, ref, link) => {
+        if (link) rt.openUrl(link);
+        else rt.open({ subject: { type: kind, id: ref } });
+      },
     },
     ...(a.openPane ? { showKnows: a.openPane } : {}),
   };
@@ -143,25 +192,47 @@ export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
 const pluginCache = new WeakMap<object, { at: number; list: PluginCommand[]; loading: boolean }>();
 function pluginCommandsOf(rt: ShellRuntime): PluginCommand[] {
   let c = pluginCache.get(rt);
-  if (!c) { c = { at: 0, list: [], loading: false }; pluginCache.set(rt, c); }
+  if (!c) {
+    c = { at: 0, list: [], loading: false };
+    pluginCache.set(rt, c);
+  }
   const entry = c;
   if (!entry.loading && Date.now() - entry.at > 60_000) {
     entry.loading = true;
-    void Promise.resolve(rt.call("plugins.commands.list", {})).then(
-      (out) => {
-        const cmds = (out as { commands?: Array<{ name: string; description?: string; pluginId?: string }> }).commands ?? [];
-        entry.list = cmds.map((x) => ({
-          name: x.name, description: x.description ?? "", ...(x.pluginId ? { pluginId: x.pluginId } : {}),
-          render: async (arg: string) => ((await rt.call("plugins.command.render", { name: x.name, ...(arg ? { args: arg } : {}) })) as { prompt: string }).prompt,
-        }));
-      },
-      () => undefined,
-    ).finally(() => { entry.at = Date.now(); entry.loading = false; });
+    void Promise.resolve(rt.call("plugins.commands.list", {}))
+      .then(
+        (out) => {
+          const cmds =
+            (out as { commands?: Array<{ name: string; description?: string; pluginId?: string }> }).commands ?? [];
+          entry.list = cmds.map((x) => ({
+            name: x.name,
+            description: x.description ?? "",
+            ...(x.pluginId ? { pluginId: x.pluginId } : {}),
+            render: async (arg: string) =>
+              (
+                (await rt.call("plugins.command.render", { name: x.name, ...(arg ? { args: arg } : {}) })) as {
+                  prompt: string;
+                }
+              ).prompt,
+          }));
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        entry.at = Date.now();
+        entry.loading = false;
+      });
   }
   return entry.list;
 }
 
-export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: string, principals: readonly Principal[], fill?: ComposerFill): ConversationData {
+export function conversationData(
+  rt: ShellRuntime,
+  a: ChatsActions,
+  threadId: string,
+  principals: readonly Principal[],
+  fill?: ComposerFill,
+): ConversationData {
   const byId = new Map(principals.map((p) => [p.id, p] as const));
   const nav: ConversationNav = {
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
@@ -176,16 +247,25 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openNote: (noteId) => rt.open({ screen: "chats.notes", args: { noteId } }),
     openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
     openUrl: (url) => rt.openUrl(url),
-    openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
+    openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }), // the same page the Needs you sign-in opens
     openAiAccount: (ref: string) => rt.open({ screen: "settings.page", args: { page: "ai", account: ref } }),
     openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId, me: { id: rt.me.id, name: rt.me.name, ...(byId.get(rt.me.id)?.guest ? { guest: true } : {}) },
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    ...(rt.changes ? { changes: rt.changes } : {}),
+    threadId,
+    me: { id: rt.me.id, name: rt.me.name, ...(byId.get(rt.me.id)?.guest ? { guest: true } : {}) },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
-    nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
+    nav,
+    clock: rt.clock,
+    spaceName: rt.space.name,
+    ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
+    ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),
     memory: chatMemory(rt, a),
     assistantId: rt.assistant.id,
@@ -194,11 +274,28 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     newKey,
     streamOf: (id) => rt.turns?.streamOf(id),
     activityOf: (id) => rt.turns?.activityOf(id),
-    ...(rt.turns ? { live: { turnsOf: (t: string) => rt.turns!.turnsOf(t), subscribe: (l: () => void) => rt.turns!.subscribe(l), settle: (id: string) => rt.turns!.settle(id), seed: (t: string, l: readonly { turnId: string; agentId: string; text: string }[]) => rt.turns!.seed(t, l), onGap: (l: (t: string) => void) => rt.turns!.onGap(l) } } : {}),
+    ...(rt.turns
+      ? {
+          live: {
+            turnsOf: (t: string) => rt.turns!.turnsOf(t),
+            subscribe: (l: () => void) => rt.turns!.subscribe(l),
+            settle: (id: string) => rt.turns!.settle(id),
+            seed: (t: string, l: readonly { turnId: string; agentId: string; text: string }[]) => rt.turns!.seed(t, l),
+            onGap: (l: (t: string) => void) => rt.turns!.onGap(l),
+          },
+        }
+      : {}),
     copy,
     toast: () => undefined,
     ...(rt.callIn && rt.knownSpaces && rt.knownSpaces.some((x) => x.spaceId !== rt.space.id)
-      ? { elsewhere: { spaces: rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ id: x.spaceId, name: x.name })), call: (id: string, cap: string, input: unknown) => rt.callIn!(id, cap, input) } }
+      ? {
+          elsewhere: {
+            spaces: rt.knownSpaces
+              .filter((x) => x.spaceId !== rt.space.id)
+              .map((x) => ({ id: x.spaceId, name: x.name })),
+            call: (id: string, cap: string, input: unknown) => rt.callIn!(id, cap, input),
+          },
+        }
       : {}),
     ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}),
     ...(canSave() ? { saveFile } : {}),
@@ -206,7 +303,12 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
   };
 }
 
-export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, agent: { agentId: string; name: string }): ChatRightPaneData {
+export function paneData(
+  rt: ShellRuntime,
+  a: ChatsActions,
+  threadId: string,
+  agent: { agentId: string; name: string },
+): ChatRightPaneData {
   const nav: RightPaneNav = {
     openThread: (id) => a.openThread(id),
     openHelper: (id) => a.openThread(id),
@@ -220,12 +322,21 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     skillFromStep: (computerId, stepId) => rt.open({ screen: "chats.agent-computer", args: { computerId, stepId } }),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId,
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    ...(rt.changes ? { changes: rt.changes } : {}),
+    threadId,
     agent: { agentId: agent.agentId, name: agent.name },
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
-    nav, clock: rt.clock,
-    me: { id: rt.me.id }, nameOf: nameLookup(rt),
-    ownerOf: (id) => { const p = rt.principals.getSnapshot(); return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined; },
+    nav,
+    clock: rt.clock,
+    me: { id: rt.me.id },
+    nameOf: nameLookup(rt),
+    ownerOf: (id) => {
+      const p = rt.principals.getSnapshot();
+      return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined;
+    },
     memory: chatMemory(rt, a),
     ...workData(rt),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
@@ -234,17 +345,23 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
 
 /** Opens the Inbox conversation an email thread belongs to, by the provider thread id the server stored on its messages. A thread the reader cannot see opens nothing. */
 export function openMailThread(rt: Pick<ShellRuntime, "call" | "open">, threadId: string): void {
-  void Promise.resolve(rt.call("inbox.thread_conversation", { threadId })).then((o) => {
-    const c = (o as { conversationId?: string } | null)?.conversationId;
-    if (c) rt.open({ subject: { type: "conversation", id: c }, args: { threadId } });
-  }, () => undefined);
+  void Promise.resolve(rt.call("inbox.thread_conversation", { threadId })).then(
+    (o) => {
+      const c = (o as { conversationId?: string } | null)?.conversationId;
+      if (c) rt.open({ subject: { type: "conversation", id: c }, args: { threadId } });
+    },
+    () => undefined,
+  );
 }
 
 /** The Computer tab's two halves, one source for every place that shows the tab: the agent's workspace (its terminal sessions, Attach and Wake) and its profile in the Space browser (live view, Take over). */
 export function workData(rt: ShellRuntime): Pick<ChatRightPaneData, "workspace" | "browser"> {
   return {
     workspace: workspaceData({
-      screens: rt.screens, call: rt.call, newKey: () => `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, openTerminal: (terminalId) => rt.open({ screen: "chats.terminal-tab", args: { terminalId } }),
+      screens: rt.screens,
+      call: rt.call,
+      newKey: () => `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      openTerminal: (terminalId) => rt.open({ screen: "chats.terminal-tab", args: { terminalId } }),
     }),
     browser: browserData({ call: rt.call, me: rt.me.id, nameOf: nameLookup(rt), spaceUrl: rt.baseUrl }),
   };

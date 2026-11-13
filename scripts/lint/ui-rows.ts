@@ -27,6 +27,47 @@ function exemptionAbove(source: string, index: number): { reason: string; at: nu
   return m ? { reason: (m[1] ?? "").trim(), at: prevStart + m.index } : null;
 }
 
+/**
+ * The same comment when the formatter put lines between it and the `.map(`: the comment is on the line just above an element or statement, and the list sits inside that element or
+ * statement. The element runs from the line below the comment over every line indented deeper than it, and over the closing lines (`)`, `}`, `</Tag>`, `/>`) at its own indent;
+ * the next line at its indent or less ends it. The comment covers ONE list: the first `.map(` or `renderItem` in that element. A second list, or a list inside the first one's
+ * callback, is not covered; it needs its comment (the old rule covered the one line under the comment and nothing else, and so does this).
+ */
+function exemptionAround(
+  source: string,
+  index: number,
+  listStarts: readonly number[],
+): { reason: string; at: number } | null {
+  const lines = source.split("\n");
+  const lineOf = source.slice(0, index).split("\n").length - 1;
+  const indentOf = (l: string): number => l.length - l.trimStart().length;
+  const lineStarts: number[] = [];
+  for (let at = 0, k = 0; k < lines.length; at += lines[k]!.length + 1, k++) lineStarts.push(at);
+  for (let c = lineOf - 1; c >= 0 && lineOf - c <= 80; c--) {
+    const m = EXEMPT.exec(lines[c]!);
+    if (!m) continue;
+    const first = c + 1;
+    if (first > lineOf || lines[first]!.trim() === "") continue;
+    const base = indentOf(lines[first]!);
+    let last = first;
+    for (let k = first + 1; k < lines.length; k++) {
+      const text = lines[k]!.trim();
+      if (text === "") continue;
+      const indent = indentOf(lines[k]!);
+      if (indent > base || (indent === base && /^(?:[)\]}]|<\/|\/>)/.test(text))) last = k;
+      else break;
+    }
+    if (lineOf > last) continue;
+    const from = lineStarts[first]!;
+    const to = lineStarts[last]! + lines[last]!.length;
+    const covered = listStarts.find((x) => x >= from && x <= to);
+    if (covered === undefined) continue;
+    if (index !== covered) continue;
+    return { reason: (m[1] ?? "").trim(), at: lineStarts[c]! + m.index };
+  }
+  return null;
+}
+
 export function checkUiRows(file: string, source: string): Finding[] {
   const out: Finding[] = [];
   const starts: number[] = [];
@@ -36,7 +77,7 @@ export function checkUiRows(file: string, source: string): Finding[] {
   starts.sort((a, b) => a - b);
   for (const start of starts) {
     // an author's "not a list" note, with a reason, says this .map builds tiles or cards, not list rows
-    const ex = exemptionAbove(source, start);
+    const ex = exemptionAbove(source, start) ?? exemptionAround(source, start, starts);
     if (ex) {
       if (ex.reason) continue;
       out.push(finding(RULE, file, source, ex.at, "ui-rows-lint: not a list needs a reason in parentheses"));
@@ -82,8 +123,10 @@ function returnedJsx(source: string, start: number): { tag: string; index: numbe
   for (let k = 0; k < stop; k++) {
     const c = head[k];
     if (c === "(") depth++;
-    else if (c === ")") { depth--; if (depth < floor) return null; }
-    else if (c === ";") return null;
+    else if (c === ")") {
+      depth--;
+      if (depth < floor) return null;
+    } else if (c === ";") return null;
   }
   let bodyAt: number;
   if (arrowAt >= 0 && (fnAt < 0 || arrowAt < fnAt)) bodyAt = start + arrowAt + 2;
@@ -116,12 +159,31 @@ function jsxReturnIn(source: string, open: number): { tag: string; index: number
       else if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") { quote = c; continue; }
-    if (c === "/" && source[i + 1] === "/") { i = source.indexOf("\n", i); if (i < 0) return null; continue; }
-    if (c === "/" && source[i + 1] === "*") { i = source.indexOf("*/", i + 2); if (i < 0) return null; i++; continue; }
+    if (c === "'" || c === '"' || c === "`") {
+      quote = c;
+      continue;
+    }
+    if (c === "/" && source[i + 1] === "/") {
+      i = source.indexOf("\n", i);
+      if (i < 0) return null;
+      continue;
+    }
+    if (c === "/" && source[i + 1] === "*") {
+      i = source.indexOf("*/", i + 2);
+      if (i < 0) return null;
+      i++;
+      continue;
+    }
     if (c === "{") depth++;
-    else if (c === "}") { depth--; if (depth === 0) return null; }
-    else if (depth === 1 && source.startsWith("return", i) && !/[\w$]/.test(source[i - 1] ?? "") && !/[\w$]/.test(source[i + 6] ?? "")) {
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) return null;
+    } else if (
+      depth === 1 &&
+      source.startsWith("return", i) &&
+      !/[\w$]/.test(source[i - 1] ?? "") &&
+      !/[\w$]/.test(source[i + 6] ?? "")
+    ) {
       let j = i + 6;
       while (j < source.length && /[\s(]/.test(source[j] as string)) j++;
       const hit = jsxAt(source, j);
@@ -146,7 +208,8 @@ function hasHorizontalMargin(text: string): boolean {
 function hasPartialWidth(text: string): boolean {
   for (const hit of text.matchAll(/\bwidth\s*:\s*([^,}\n]+)/g)) {
     const v = hit[1].trim().replace(/;$/, "");
-    if (v === '"100%"' || v === "'100%'" || v === "`100%`" || v === '"full"' || v === "'full'" || v === "`full`") continue;
+    if (v === '"100%"' || v === "'100%'" || v === "`100%`" || v === '"full"' || v === "'full'" || v === "`full`")
+      continue;
     return true;
   }
   const align = /\balignSelf\s*:\s*([^,}\n]+)/.exec(text);
@@ -170,7 +233,7 @@ function openingTagEnd(source: string, start: number): number {
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }
@@ -219,7 +282,7 @@ function nextTag(source: string, tag: string, from: number): { index: number; cl
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }

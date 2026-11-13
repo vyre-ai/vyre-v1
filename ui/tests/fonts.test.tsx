@@ -22,11 +22,20 @@ test("the app root and the document take the skin's sans token", () => {
 });
 
 test("an overlay menu, dialog, tooltip and portal root take the sans token", () => {
-  for (const s of ["[role=menu]", "[role=dialog]", "[role=listbox]", "[role=tooltip]", "[data-overlay-root]", "[data-portal]"]) assert.equal(familyFor(s), SANS_VAR, s);
+  for (const s of [
+    "[role=menu]",
+    "[role=dialog]",
+    "[role=listbox]",
+    "[role=tooltip]",
+    "[data-overlay-root]",
+    "[data-portal]",
+  ])
+    assert.equal(familyFor(s), SANS_VAR, s);
 });
 
 test("a canvas label host (SVG text, label layer and its children) takes the sans token, so map and timeline labels never fall to serif", () => {
-  for (const s of ["svg text", "[data-canvas-labels]", "[data-canvas-labels] *"]) assert.equal(familyFor(s), SANS_VAR, s);
+  for (const s of ["svg text", "[data-canvas-labels]", "[data-canvas-labels] *"])
+    assert.equal(familyFor(s), SANS_VAR, s);
 });
 
 test("form controls inherit, so the Find input matches its screen", () => {
@@ -63,7 +72,11 @@ test("the app document and the shots document both put the root font rule in the
   for (const rel of ["../../apps/app/app/+html.tsx", "../../scripts/shots/app/app/+html.tsx"]) {
     const src = fs.readFileSync(new URL(rel, import.meta.url), "utf8");
     assert.match(src, /import \{ rootFontCss \} from "@vyre\/ui\/src\/theme\/fonts\.ts"/, `${rel} imports the rule`);
-    assert.match(src, /<style id="vyre-root-font" dangerouslySetInnerHTML=\{\{ __html: rootFontCss\(\) \}\} \/>/, `${rel} renders it`);
+    assert.match(
+      src,
+      /<style id="vyre-root-font" dangerouslySetInnerHTML=\{\{ __html: rootFontCss\(\) \}\} \/>/,
+      `${rel} renders it`,
+    );
     assert.ok(src.indexOf("vyre-root-font") < src.indexOf("{headNodes}"), `${rel}: before the bundle's own styles`);
   }
 });

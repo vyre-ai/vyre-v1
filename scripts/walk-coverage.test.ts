@@ -8,25 +8,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workflows = fs.readdirSync(path.join(root, ".github/workflows")).filter((f) => f.endsWith(".yml")).map((f) => fs.readFileSync(path.join(root, ".github/workflows", f), "utf8")).join("\n");
+const workflows = fs
+  .readdirSync(path.join(root, ".github/workflows"))
+  .filter((f) => f.endsWith(".yml"))
+  .map((f) => fs.readFileSync(path.join(root, ".github/workflows", f), "utf8"))
+  .join("\n");
 
 /**
  * Walks no per-push job can run, each with where it runs instead. Take a file off when it is named in a workflow; the test fails while a listed file is already named, or is gone.
  */
 export const PENDING: Readonly<Record<string, string>> = {
-  "test/cut-proof.heavy.test.ts": "needs a running server from compose.server.yml, its claim link and VYRE_HEAVY_DOCKER; run by hand at the cut",
+  "test/cut-proof.heavy.test.ts":
+    "needs a running server from compose.server.yml, its claim link and VYRE_HEAVY_DOCKER; run by hand at the cut",
 };
 
 const SCAN = ["apps/app/tests", "test", "host/tests", "scripts/shots", "scripts/click"];
 
 /** Test files that open a browser on the export: they import playwright-core, or a kit that does. Kits (no test of their own) are not walks. */
 function walks(): string[] {
-  const files = SCAN.flatMap((d) => (fs.existsSync(path.join(root, d)) ? (fs.readdirSync(path.join(root, d), { recursive: true }) as string[]).map((f) => `${d}/${f}`) : []))
-    .filter((f) => /\.test\.(ts|tsx|mjs)$/.test(f));
+  const files = SCAN.flatMap((d) =>
+    fs.existsSync(path.join(root, d))
+      ? (fs.readdirSync(path.join(root, d), { recursive: true }) as string[]).map((f) => `${d}/${f}`)
+      : [],
+  ).filter((f) => /\.test\.(ts|tsx|mjs)$/.test(f));
   const src = new Map(files.map((f) => [f, fs.readFileSync(path.join(root, f), "utf8")]));
   const browser = (s: string): boolean => /playwright-core/.test(s) && /VYRE_APP_DIST/.test(s);
-  const kits = [...src].filter(([, s]) => browser(s) && !/^\s*(?:test|it)(?:\.\w+)?\(/m.test(s)).map(([f]) => path.basename(f).replace(/\.ts$/, ""));
-  return [...src].filter(([, s]) => /^\s*(?:test|it)(?:\.\w+)?\(/m.test(s) && (browser(s) || kits.some((k) => s.includes(`/${k}.ts"`) || s.includes(`./${k}.ts"`)))).map(([f]) => f).sort();
+  const kits = [...src]
+    .filter(([, s]) => browser(s) && !/^\s*(?:test|it)(?:\.\w+)?\(/m.test(s))
+    .map(([f]) => path.basename(f).replace(/\.ts$/, ""));
+  return [...src]
+    .filter(
+      ([, s]) =>
+        /^\s*(?:test|it)(?:\.\w+)?\(/m.test(s) &&
+        (browser(s) || kits.some((k) => s.includes(`/${k}.ts"`) || s.includes(`./${k}.ts"`))),
+    )
+    .map(([f]) => f)
+    .sort();
 }
 
 test("every browser walk is named in a workflow job, or listed as pending with its reason", () => {

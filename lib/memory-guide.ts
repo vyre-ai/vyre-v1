@@ -6,7 +6,8 @@
 export const GUIDE_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 
 /** First line of every guide, so a reader (and the sync) can tell a Vyre guide from a file somebody wrote. */
-export const GUIDE_MARK = "<!-- Written by Vyre memory from MAP.md. Edit MAP.md or the agent's notes, not this file. -->";
+export const GUIDE_MARK =
+  "<!-- Written by Vyre memory from MAP.md. Edit MAP.md or the agent's notes, not this file. -->";
 
 const TOOLS = [
   "memory_search: look up notes and facts you may read",

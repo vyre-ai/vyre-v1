@@ -11,22 +11,51 @@ import { ADA, BO, CY } from "../fixtures/world.ts";
 import { liveRig, settle } from "./live.rig.test.ts";
 import type { LiveRig } from "./live.rig.test.ts";
 
-interface Raw { link: MemoryLink; frames: Frame[]; send(f: unknown): void; ofType<T extends Frame["t"]>(t: T): Extract<Frame, { t: T }>[] }
+interface Raw {
+  link: MemoryLink;
+  frames: Frame[];
+  send(f: unknown): void;
+  ofType<T extends Frame["t"]>(t: T): Extract<Frame, { t: T }>[];
+}
 
 function raw(rig: LiveRig, who: LiveWho): Raw {
   const link = memoryLink();
   const frames: Frame[] = [];
-  link.client.onFrame((f) => { const p = parseFrame(f); assert.ok(p.ok, p.ok ? "" : p.error); if (p.ok) frames.push(p.value); });
+  link.client.onFrame((f) => {
+    const p = parseFrame(f);
+    assert.ok(p.ok, p.ok ? "" : p.error);
+    if (p.ok) frames.push(p.value);
+  });
   rig.hub.accept(link.server, who);
-  return { link, frames, send: (f) => link.client.send(f), ofType: (t) => frames.filter((f): f is Extract<Frame, { t: typeof t }> => f.t === t) as never };
+  return {
+    link,
+    frames,
+    send: (f) => link.client.send(f),
+    ofType: (t) => frames.filter((f): f is Extract<Frame, { t: typeof t }> => f.t === t) as never,
+  };
 }
 const who = (person: string, device = "dev1"): LiveWho => ({ person, device, deviceClass: "desktop" });
-const hello = (over: Record<string, unknown> = {}) => ({ t: "hello", hello: { deviceId: "dev1", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", cursor: 0, epoch: 0, replica: { entities: {} }, ...over } });
+const hello = (over: Record<string, unknown> = {}) => ({
+  t: "hello",
+  hello: {
+    deviceId: "dev1",
+    deviceClass: "desktop",
+    appVersion: "1.0.0",
+    registryHash: "h1",
+    cursor: 0,
+    epoch: 0,
+    replica: { entities: {} },
+    ...over,
+  },
+});
 
 test("hello answers live, and the hub catches the device up from its cursor with filtered batches", async () => {
   const rig = liveRig();
-  rig.row("c1"); rig.row("c2", { region: "us" });
-  const ada = raw(rig, who(ADA)), bo = raw(rig, who(BO, "dev_bo")), cy = raw(rig, who(CY, "dev_cy"));
+  rig.row("c1");
+  rig.row("c2", { region: "us" });
+  const ada = raw(rig, who(ADA)),
+    bo = raw(rig, who(BO, "dev_bo")),
+    cy = raw(rig, who(CY, "dev_cy"));
   for (const c of [ada, bo, cy]) c.send(hello());
   await settle();
   assert.equal(ada.ofType("hello_ok")[0]!.ok.mode, "live");
@@ -47,14 +76,19 @@ test("a device that says hello with its cursor gets only what is after it", asyn
   const c = raw(rig, who(ADA));
   c.send(hello({ cursor: s1 }));
   await settle();
-  assert.deepEqual(c.ofType("ev").flatMap((e) => e.items.map((i) => i.id)), ["c2"]);
+  assert.deepEqual(
+    c.ofType("ev").flatMap((e) => e.items.map((i) => i.id)),
+    ["c2"],
+  );
   rig.hub.close();
 });
 
 test("a commit reaches live sessions in the same tick, numbered, and only those who may see it", async () => {
   const rig = liveRig();
-  const ada = raw(rig, who(ADA)), bo = raw(rig, who(BO, "dev_bo"));
-  ada.send(hello()); bo.send(hello());
+  const ada = raw(rig, who(ADA)),
+    bo = raw(rig, who(BO, "dev_bo"));
+  ada.send(hello());
+  bo.send(hello());
   await settle();
   const before = ada.ofType("ev").length;
   const seq = rig.row("c9", { region: "us" });
@@ -125,20 +159,29 @@ test("hello modes: an older client is read-only, a cursor ahead of the log is a 
   assert.equal(ahead.ofType("hello_ok")[0]!.ok.mode, "resync");
   assert.equal(ahead.ofType("ev").length, 0);
   assert.equal(stale.ofType("hello_ok")[0]!.ok.mode, "purge");
-  assert.deepEqual(stale.ofType("purge").map((p) => p.epoch), [4]);
+  assert.deepEqual(
+    stale.ofType("purge").map((p) => p.epoch),
+    [4],
+  );
   assert.equal(stale.link.isOpen(), false, "a purged device is disconnected");
   rig.hub.close();
 });
 
 test("heartbeat: the hub sends hb every 15 s and answers a client hb with the head; a silent client is closed at 40 s", async () => {
   const rig = liveRig();
-  const quiet = raw(rig, who(ADA, "quiet")), chatty = raw(rig, who(ADA, "chatty"));
-  quiet.send(hello()); chatty.send(hello());
+  const quiet = raw(rig, who(ADA, "quiet")),
+    chatty = raw(rig, who(ADA, "chatty"));
+  quiet.send(hello());
+  chatty.send(hello());
   await settle();
   chatty.send({ t: "hb", seq: 0 });
   await settle();
   assert.equal(chatty.ofType("hb").length, 1, "answered");
-  for (let t = 0; t < HEARTBEAT_DEAD_MS + HEARTBEAT_MS; t += HEARTBEAT_MS) { rig.sched.advance(HEARTBEAT_MS); chatty.send({ t: "hb", seq: 0 }); await settle(); }
+  for (let t = 0; t < HEARTBEAT_DEAD_MS + HEARTBEAT_MS; t += HEARTBEAT_MS) {
+    rig.sched.advance(HEARTBEAT_MS);
+    chatty.send({ t: "hb", seq: 0 });
+    await settle();
+  }
   assert.ok(chatty.ofType("hb").length >= 4);
   assert.equal(quiet.link.isOpen(), false, "no frame for 40 s");
   assert.equal(chatty.link.isOpen(), true);
@@ -157,20 +200,29 @@ test("a link that never says hello, sends a frame before hello, or sends garbage
   assert.equal(early.link.isOpen(), false);
   assert.equal(bad.link.isOpen(), false);
   assert.equal(silent.link.isOpen(), true);
-  rig.sched.advance(10_001); await settle();
+  rig.sched.advance(10_001);
+  await settle();
   assert.equal(silent.link.isOpen(), false, "10 s without a hello");
   rig.hub.close();
 });
 
 test("purge: every connection of the person gets the frame and is closed; other people stay", async () => {
   const rig = liveRig();
-  const a1 = raw(rig, who(ADA, "d1")), a2 = raw(rig, who(ADA, "d2")), b = raw(rig, who(BO, "d3"));
+  const a1 = raw(rig, who(ADA, "d1")),
+    a2 = raw(rig, who(ADA, "d2")),
+    b = raw(rig, who(BO, "d3"));
   for (const c of [a1, a2, b]) c.send(hello());
   await settle();
   assert.equal(rig.hub.purge(ADA, 7), 2);
   await settle();
-  assert.deepEqual(a1.ofType("purge").map((p) => p.epoch), [7]);
-  assert.deepEqual(a2.ofType("purge").map((p) => p.epoch), [7]);
+  assert.deepEqual(
+    a1.ofType("purge").map((p) => p.epoch),
+    [7],
+  );
+  assert.deepEqual(
+    a2.ofType("purge").map((p) => p.epoch),
+    [7],
+  );
   assert.equal(a1.link.isOpen() || a2.link.isOpen(), false);
   assert.equal(b.link.isOpen(), true);
   rig.hub.close();
@@ -179,7 +231,10 @@ test("purge: every connection of the person gets the frame and is closed; other 
 test("a device holds at most two connections: the third closes the oldest", async () => {
   const rig = liveRig();
   const links = [raw(rig, who(ADA)), raw(rig, who(ADA)), raw(rig, who(ADA))];
-  for (const l of links) { l.send(hello()); await settle(); }
+  for (const l of links) {
+    l.send(hello());
+    await settle();
+  }
   assert.equal(rig.hub.sessionsOf(ADA, "dev1"), 2);
   assert.equal(links[0]!.link.isOpen(), false);
   assert.equal(links[2]!.link.isOpen(), true);
@@ -188,7 +243,8 @@ test("a device holds at most two connections: the third closes the oldest", asyn
 
 test("an acked seq moves the session's acked mark; an older ack changes nothing", async () => {
   const rig = liveRig();
-  rig.row("c1"); rig.row("c2");
+  rig.row("c1");
+  rig.row("c2");
   const link = memoryLink();
   const s = rig.hub.accept(link.server, who(ADA));
   link.client.send(hello());

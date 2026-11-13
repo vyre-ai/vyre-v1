@@ -8,8 +8,24 @@ const fragment = "#s=spc_0123456789abcdef0123456789abcdef&n=Personal&fp=604cda66
 const noop = (): void => undefined;
 
 test("a local Personal Space setup hides the fingerprint; a server's claim link shows it", () => {
-  const local = renderToStaticMarkup(<ClaimRoute token="t" address="http://127.0.0.1:1" fragment={fragment} deviceClass="desktop" local onDone={noop} onSignIn={noop} />);
+  const local = renderToStaticMarkup(
+    <ClaimRoute
+      token="t"
+      address="http://127.0.0.1:1"
+      fragment={fragment}
+      deviceClass="desktop"
+      local
+      onDone={noop}
+      onSignIn={noop}
+    />,
+  );
   assert.doesNotMatch(local, /claim-fingerprint|Fingerprint 604c/);
-  const remote = renderToStaticMarkup(<ClaimRoute token="t" address="https://box.example.com" fragment={fragment} onDone={noop} onSignIn={noop} />);
-  assert.match(remote, /Server fingerprint 604c da66 edfb b3cf\. It matches the link your server printed\./, "the fingerprint says what it is and what to compare it with");
+  const remote = renderToStaticMarkup(
+    <ClaimRoute token="t" address="https://box.example.com" fragment={fragment} onDone={noop} onSignIn={noop} />,
+  );
+  assert.match(
+    remote,
+    /Server fingerprint 604c da66 edfb b3cf\. It matches the link your server printed\./,
+    "the fingerprint says what it is and what to compare it with",
+  );
 });

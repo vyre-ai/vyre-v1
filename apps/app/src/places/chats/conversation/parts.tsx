@@ -17,12 +17,26 @@ const PATHS = {
   edit: ["M3 13h2.500L13 5.500 10.500 3 3 10.500z", "M9.500 4l2.500 2.500"],
   retry: ["M3 8a5 5 0 105-5H5.500", "M5.500 1.500L3.500 3.500 5.500 5.500"],
   reply: ["M6.500 3.500L2.500 7.500l4 4", "M2.500 7.500h7a4 4 0 014 4v1"],
-  smile: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M5.700 9.300c.5.9 1.300 1.300 2.300 1.300s1.800-.4 2.300-1.300", "M6.200 6.400v.1", "M9.800 6.400v.1"],
-  pin: ["M9.500 2.500l4 4-2 .8-2.300 2.300.3 3.100L8 11.500 4.700 14.800 4 14.100l3.300-3.300-2.700-2.700 3.100.3 2.300-2.300z"],
+  smile: [
+    "M8 14a6 6 0 100-12 6 6 0 000 12z",
+    "M5.700 9.300c.5.9 1.300 1.300 2.300 1.300s1.800-.4 2.300-1.300",
+    "M6.200 6.400v.1",
+    "M9.800 6.400v.1",
+  ],
+  pin: [
+    "M9.500 2.500l4 4-2 .8-2.300 2.300.3 3.100L8 11.500 4.700 14.800 4 14.100l3.300-3.300-2.700-2.700 3.100.3 2.300-2.300z",
+  ],
   trash: ["M3.500 4.500h9", "M6 4.500V3h4v1.500", "M4.500 4.500l.6 8h5.800l.6-8"],
   lock: ["M4.500 7.500h7v5.500h-7z", "M6 7.500V5.800a2 2 0 014 0v1.700"],
-  memory: ["M8 2.500c-2.500 0-4.500 1.600-4.500 3.800 0 1 .4 1.800 1 2.400V12a1 1 0 001 1h5a1 1 0 001-1V8.700c.6-.6 1-1.400 1-2.400C12.500 4.100 10.500 2.500 8 2.500z", "M6.500 7.500h3M8 6v3"],
-  memoryoff: ["M8 2.500c-2.500 0-4.500 1.600-4.500 3.800 0 1 .4 1.800 1 2.400V12a1 1 0 001 1h5a1 1 0 001-1V8.700c.6-.6 1-1.400 1-2.400C12.500 4.100 10.500 2.500 8 2.500z", "M6.500 7.500h3M8 6v3", "M2.500 13.500l11-11"],
+  memory: [
+    "M8 2.500c-2.500 0-4.500 1.600-4.500 3.800 0 1 .4 1.800 1 2.400V12a1 1 0 001 1h5a1 1 0 001-1V8.700c.6-.6 1-1.400 1-2.400C12.500 4.100 10.500 2.500 8 2.500z",
+    "M6.500 7.500h3M8 6v3",
+  ],
+  memoryoff: [
+    "M8 2.500c-2.500 0-4.500 1.600-4.500 3.800 0 1 .4 1.800 1 2.400V12a1 1 0 001 1h5a1 1 0 001-1V8.700c.6-.6 1-1.400 1-2.400C12.500 4.100 10.500 2.500 8 2.500z",
+    "M6.500 7.500h3M8 6v3",
+    "M2.500 13.500l11-11",
+  ],
   chev: ["M6 4l4 4-4 4"],
   check: ["M3 8.500l3 3 7-7"],
   plug: ["M6 2.500v3", "M10 2.500v3", "M4.500 5.500h7V8a3.500 3.500 0 01-7 0z", "M8 11.500V14"],
@@ -34,15 +48,29 @@ const PATHS = {
   plan: ["M3.500 2.500h9v11h-9z", "M5.500 6h5M5.500 8.500h5M5.500 11h3"],
   x: ["M4 4l8 8M12 4l-8 8"],
   search: ["M7 11.500a4.500 4.500 0 100-9 4.500 4.500 0 000 9z", "M10.300 10.300L13.500 13.500"],
-  people: ["M6 7.500a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z", "M1.800 13c0-2.300 1.900-4 4.200-4s4.200 1.700 4.200 4", "M10.500 3.300a2.100 2.100 0 010 4", "M11.500 9.200c1.600.4 2.700 1.700 2.700 3.800"],
+  people: [
+    "M6 7.500a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z",
+    "M1.800 13c0-2.300 1.900-4 4.200-4s4.200 1.700 4.200 4",
+    "M10.500 3.300a2.100 2.100 0 010 4",
+    "M11.500 9.200c1.600.4 2.700 1.700 2.700 3.800",
+  ],
   monitor: ["M2.500 3h11v7.500h-11z", "M6 13h4", "M8 10.500V13"],
   server: ["M3 3.500h10v4H3z", "M3 8.500h10v4H3z", "M5.500 5.500h.01", "M5.500 10.500h.01"],
   cloud: ["M5 12.500h6.500a2.500 2.500 0 00.3-5 3.500 3.500 0 00-6.800.5A2.300 2.300 0 005 12.500z"],
   chevd: ["M4 6l4 4 4-4"],
   up: ["M8 12.500V3", "M4 7l4-4 4 4"],
   back: ["M10 3.500L5.500 8l4.500 4.500"],
-  link: ["M6.500 9.500a2.500 2.500 0 010-3.500l1.500-1.500a2.500 2.500 0 013.500 3.500L11 8.500", "M9.500 6.500a2.500 2.500 0 010 3.500L8 11.500A2.500 2.500 0 014.500 8L5 7.500"],
-  fork: ["M5 4.600v6.800", "M5 4.600a1.300 1.300 0 100-2.600 1.300 1.300 0 000 2.600z", "M5 14a1.300 1.300 0 100-2.600A1.300 1.300 0 005 14z", "M11.500 6a1.300 1.300 0 100-2.600 1.300 1.300 0 000 2.600z", "M11.500 6c0 3-6.500 2.500-6.500 5.400"],
+  link: [
+    "M6.500 9.500a2.500 2.500 0 010-3.500l1.500-1.500a2.500 2.500 0 013.500 3.500L11 8.500",
+    "M9.500 6.500a2.500 2.500 0 010 3.500L8 11.500A2.500 2.500 0 014.500 8L5 7.500",
+  ],
+  fork: [
+    "M5 4.600v6.800",
+    "M5 4.600a1.300 1.300 0 100-2.600 1.300 1.300 0 000 2.600z",
+    "M5 14a1.300 1.300 0 100-2.600A1.300 1.300 0 005 14z",
+    "M11.500 6a1.300 1.300 0 100-2.600 1.300 1.300 0 000 2.600z",
+    "M11.500 6c0 3-6.500 2.500-6.500 5.400",
+  ],
   task: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M5.500 8.200l1.800 1.800 3.200-3.600"],
   remember: ["M4.500 2.500h7v11l-3.500-2.600-3.500 2.600z"],
   download: ["M8 2.500v8", "M4.500 7.500L8 11l3.500-3.500", "M3 13.500h10"],
@@ -52,14 +80,46 @@ export type GlyphName = keyof typeof PATHS;
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
-export function Glyph({ name, size = 15, color = "var(--ink-3)", width = 1.4 }: { name: GlyphName; size?: number; color?: string; width?: number }): ReactElement | null {
+export function Glyph({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+  width = 1.4,
+}: {
+  name: GlyphName;
+  size?: number;
+  color?: string;
+  width?: number;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
-  for (const d of PATHS[name]) paths.push(createElement("path", { key: d, d, fill: name === "stop" ? "currentColor" : "none" }));
-  return createElement("svg", { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, color, strokeWidth: name === "more" ? 2.4 : width, strokeLinecap: "round", strokeLinejoin: "round" } }, ...paths);
+  for (const d of PATHS[name])
+    paths.push(createElement("path", { key: d, d, fill: name === "stop" ? "currentColor" : "none" }));
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        color,
+        strokeWidth: name === "more" ? 2.4 : width,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
+    ...paths,
+  );
 }
 
-type Box = { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+type Box = {
+  currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+  nativeEvent?: { pageX?: number; pageY?: number };
+};
 
 /** Where a menu opened from a button goes: under the button, for pointer, keyboard and programmatic opens alike (rule 26). */
 export function anchorOf(e: unknown): { x: number; y: number } {
@@ -69,15 +129,40 @@ export function anchorOf(e: unknown): { x: number; y: number } {
 }
 
 /** A quiet icon button in a header or a hover bar. `onPress` gets the point under the button. */
-export function IconButton({ icon, label, onPress, active = false, danger = false, size = 28, testID, badge }: { icon: GlyphName; label: string; onPress: (x: number, y: number) => void; active?: boolean; danger?: boolean; size?: number; testID?: string; badge?: number }): ReactElement {
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  active = false,
+  danger = false,
+  size = 28,
+  testID,
+  badge,
+}: {
+  icon: GlyphName;
+  label: string;
+  onPress: (x: number, y: number) => void;
+  active?: boolean;
+  danger?: boolean;
+  size?: number;
+  testID?: string;
+  badge?: number;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : over || active ? "var(--ink)" : "var(--ink-3)";
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active }} testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      testID={testID}
       {...webProps({ title: label })}
-      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      onPress={(e) => {
+        const p = anchorOf(e);
+        onPress(p.x, p.y);
+      }}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[s.ib, { width: size, height: size }, (over || active) && s.ibOver]}
     >
       <Glyph name={icon} size={15} color={color} />
@@ -87,13 +172,30 @@ export function IconButton({ icon, label, onPress, active = false, danger = fals
 }
 
 /** The quiet people count in a header: a small glyph and the number, no badge. Its press opens the list of who is here (the faces live there). */
-export function PeopleCount({ count, label, onPress, testID }: { count: number; label: string; onPress: (x: number, y: number) => void; testID?: string }): ReactElement {
+export function PeopleCount({
+  count,
+  label,
+  onPress,
+  testID,
+}: {
+  count: number;
+  label: string;
+  onPress: (x: number, y: number) => void;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} testID={testID} {...webProps({ title: label })}
-      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      {...webProps({ title: label })}
+      onPress={(e) => {
+        const p = anchorOf(e);
+        onPress(p.x, p.y);
+      }}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[s.people, over && s.ibOver]}
     >
       <Glyph name="people" size={14} color={over ? "var(--ink)" : "var(--ink-3)"} />
@@ -103,61 +205,196 @@ export function PeopleCount({ count, label, onPress, testID }: { count: number; 
 }
 
 /** A face with its mode mark: a filled dot for the agent that leads, a ring for one that listens. A press opens that agent's mode menu. */
-export function FaceButton({ name, seedId, mode, working, onPress, title, testID, size = 24, label }: { name: string; seedId?: string | undefined; mode: "lead" | "listen"; working: boolean; onPress: (x: number, y: number) => void; title: string; testID: string; size?: number; label?: string }): ReactElement {
+export function FaceButton({
+  name,
+  seedId,
+  mode,
+  working,
+  onPress,
+  title,
+  testID,
+  size = 24,
+  label,
+}: {
+  name: string;
+  seedId?: string | undefined;
+  mode: "lead" | "listen";
+  working: boolean;
+  onPress: (x: number, y: number) => void;
+  title: string;
+  testID: string;
+  size?: number;
+  label?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={`${name}, ${mode === "lead" ? "leads" : "listening"}`} testID={testID} {...webProps({ title })}
-      onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${mode === "lead" ? "leads" : "listening"}`}
+      testID={testID}
+      {...webProps({ title })}
+      onPress={(e) => {
+        const p = anchorOf(e);
+        onPress(p.x, p.y);
+      }}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[s.faceBtn, label !== undefined && s.faceChip, over && s.ibOver]}
     >
       <View style={s.faceBox}>
         <Face name={name} seedId={seedId} size={size} />
-        <View testID={`mark-${mode}`} style={[s.mark, mode === "lead" ? s.markLead : s.markListen, working && s.markWorking]} />
+        <View
+          testID={`mark-${mode}`}
+          style={[s.mark, mode === "lead" ? s.markLead : s.markListen, working && s.markWorking]}
+        />
       </View>
-      {label !== undefined ? <Text numberOfLines={1} style={s.chipText}>{label}</Text> : null}
+      {label !== undefined ? (
+        <Text numberOfLines={1} style={s.chipText}>
+          {label}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
 
 /** The inline title edit: a chat's header, an imported session's row and its page. Enter or leaving the field keeps the new name, Escape drops it. `onDone` is called once, with the
  * trimmed name, or null when it is empty or unchanged. */
-export function RenameField({ value, label, testID, style, onDone }: { value: string; label: string; testID?: string; style?: StyleProp<TextStyle>; onDone: (title: string | null) => void }): ReactElement {
+export function RenameField({
+  value,
+  label,
+  testID,
+  style,
+  onDone,
+}: {
+  value: string;
+  label: string;
+  testID?: string;
+  style?: StyleProp<TextStyle>;
+  onDone: (title: string | null) => void;
+}): ReactElement {
   const [text, setText] = useState(value);
   const done = useRef(false);
-  const finish = (v: string | null): void => { if (done.current) return; done.current = true; onDone(v); };
+  const finish = (v: string | null): void => {
+    if (done.current) return;
+    done.current = true;
+    onDone(v);
+  };
   return (
     <TextInput
-      autoFocus selectTextOnFocus testID={testID} accessibilityLabel={label} value={text} onChangeText={setText} style={style}
-      onBlur={() => { const v = text.trim(); finish(v !== "" && v !== value ? v : null); }}
-      onKeyPress={(e) => { const k = (e as unknown as { nativeEvent: { key: string }; target?: { blur?: () => void } }); if (k.nativeEvent.key === "Enter") k.target?.blur?.(); else if (k.nativeEvent.key === "Escape") finish(null); }}
+      autoFocus
+      selectTextOnFocus
+      testID={testID}
+      accessibilityLabel={label}
+      value={text}
+      onChangeText={setText}
+      style={style}
+      onBlur={() => {
+        const v = text.trim();
+        finish(v !== "" && v !== value ? v : null);
+      }}
+      onKeyPress={(e) => {
+        const k = e as unknown as { nativeEvent: { key: string }; target?: { blur?: () => void } };
+        if (k.nativeEvent.key === "Enter") k.target?.blur?.();
+        else if (k.nativeEvent.key === "Escape") finish(null);
+      }}
     />
   );
 }
 
 /** A text button; `primary` is the one filled action (the accent), `dark` the ink-filled one the cards use, `icon` a glyph before the label. */
-export function TextButton({ label, onPress, primary = false, dark = false, ring = false, link = false, icon, disabled = false, danger = false, testID }: { label: string; onPress: () => void; primary?: boolean; dark?: boolean; ring?: boolean; link?: boolean; icon?: GlyphName; disabled?: boolean; danger?: boolean; testID?: string }): ReactElement {
+export function TextButton({
+  label,
+  onPress,
+  primary = false,
+  dark = false,
+  ring = false,
+  link = false,
+  icon,
+  disabled = false,
+  danger = false,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  dark?: boolean;
+  ring?: boolean;
+  link?: boolean;
+  icon?: GlyphName;
+  disabled?: boolean;
+  danger?: boolean;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const filled = primary || dark;
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, dark ? s.btnDark : primary ? s.btnPrimary : over && s.btnOver, dark && over && { opacity: 0.88 }, ring && s.btnRing, link && { paddingHorizontal: 4 }, disabled && { opacity: 0.5 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      testID={testID}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      style={[
+        s.btn,
+        dark ? s.btnDark : primary ? s.btnPrimary : over && s.btnOver,
+        dark && over && { opacity: 0.88 },
+        ring && s.btnRing,
+        link && { paddingHorizontal: 4 },
+        disabled && { opacity: 0.5 },
+      ]}
     >
-      {icon ? <Glyph name={icon} size={13} color={dark ? "var(--win)" : primary ? "var(--accent-ink)" : "var(--ink-2)"} /> : null}
-      <Text style={[s.btnText, filled && (dark ? s.btnTextDark : s.btnTextPrimary), link && { color: "var(--accent)" as string, fontWeight: "400" }, danger && { color: "var(--danger)" as string }]}>{label}</Text>
+      {icon ? (
+        <Glyph name={icon} size={13} color={dark ? "var(--win)" : primary ? "var(--accent-ink)" : "var(--ink-2)"} />
+      ) : null}
+      <Text
+        style={[
+          s.btnText,
+          filled && (dark ? s.btnTextDark : s.btnTextPrimary),
+          link && { color: "var(--accent)" as string, fontWeight: "400" },
+          danger && { color: "var(--danger)" as string },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
 /** The quiet fold line: a chevron that turns, a label, and what is under it when open. */
-export function Fold({ label, open, onToggle, live, testID, children }: { label: string; open: boolean; onToggle: () => void; live?: boolean; testID: string; children?: ReactNode }): ReactElement {
+export function Fold({
+  label,
+  open,
+  onToggle,
+  live,
+  testID,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  live?: boolean;
+  testID: string;
+  children?: ReactNode;
+}): ReactElement {
   return (
     <View testID={testID} style={s.fold}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={label} onPress={onToggle} style={s.foldHead}>
-        {live ? <View style={s.spin} /> : <View style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}><Glyph name="chev" size={12} color="var(--ink-4)" /></View>}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={label}
+        onPress={onToggle}
+        style={s.foldHead}
+      >
+        {live ? (
+          <View style={s.spin} />
+        ) : (
+          <View style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}>
+            <Glyph name="chev" size={12} color="var(--ink-4)" />
+          </View>
+        )}
         <Text style={s.foldText}>{label}</Text>
       </Pressable>
       {open ? <View style={s.foldBody}>{children}</View> : null}
@@ -166,20 +403,52 @@ export function Fold({ label, open, onToggle, live, testID, children }: { label:
 }
 
 export const s = StyleSheet.create({
-  people: { height: 28, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, borderRadius: RADIUS },
+  people: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    borderRadius: RADIUS,
+  },
   peopleText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   ib: { borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row" },
   ibOver: { backgroundColor: "var(--press)" as string },
   badge: { marginLeft: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-2)" as string },
   faceBtn: { width: 28, height: 28, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
-  faceChip: { width: "auto", minWidth: 28, flexShrink: 1, flexDirection: "row", gap: 6, paddingLeft: 2, paddingRight: 8 } as object,
+  faceChip: {
+    width: "auto",
+    minWidth: 28,
+    flexShrink: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingLeft: 2,
+    paddingRight: 8,
+  } as object,
   faceBox: { position: "relative" },
   chipText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
-  mark: { position: "absolute", right: 1, bottom: 1, width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: "var(--win)" as string },
+  mark: {
+    position: "absolute",
+    right: 1,
+    bottom: 1,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "var(--win)" as string,
+  },
   markLead: { backgroundColor: "var(--accent)" as string },
   markListen: { backgroundColor: "var(--win)" as string, borderColor: "var(--ink-4)" as string },
   markWorking: { backgroundColor: "var(--ok)" as string, borderColor: "var(--win)" as string },
-  btn: { height: 32, paddingHorizontal: 12, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  btn: {
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnRing: { boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
@@ -191,5 +460,12 @@ export const s = StyleSheet.create({
   foldHead: { minHeight: 24, flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" },
   foldText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   foldBody: { gap: 4, paddingLeft: 18, paddingBottom: 4 },
-  spin: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: "var(--ok)" as string, borderTopColor: "transparent" },
+  spin: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "var(--ok)" as string,
+    borderTopColor: "transparent",
+  },
 });

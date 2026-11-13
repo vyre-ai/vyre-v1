@@ -15,25 +15,52 @@ export interface ContextMenuOptions {
 export interface RowMenu {
   element: ReactElement | null;
   /** Props for the row: right-click, Menu key, Shift+F10, long press, and the hint keys. */
-  on(entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, o?: ContextMenuOptions): Record<string, unknown>;
+  on(
+    entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null,
+    o?: ContextMenuOptions,
+  ): Record<string, unknown>;
   /** Show the menu at a point (a row's "..." button). */
-  open(entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, x: number, y: number, o?: ContextMenuOptions): void;
+  open(
+    entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null,
+    x: number,
+    y: number,
+    o?: ContextMenuOptions,
+  ): void;
   hide(): void;
 }
 
-interface KeyLike { key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; target?: { tagName?: string; isContentEditable?: boolean }; preventDefault?: () => void; stopPropagation?: () => void; defaultPrevented?: boolean }
-const typing = (t: KeyLike["target"]): boolean => t !== undefined && (t.isContentEditable === true || /^(input|textarea|select)$/i.test(t.tagName ?? ""));
+interface KeyLike {
+  key?: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  target?: { tagName?: string; isContentEditable?: boolean };
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+  defaultPrevented?: boolean;
+}
+const typing = (t: KeyLike["target"]): boolean =>
+  t !== undefined && (t.isContentEditable === true || /^(input|textarea|select)$/i.test(t.tagName ?? ""));
 
 /** `shared` is the menu a screen already has (its useMenu), so a row's menu and the screen's other menus are one surface; without it the hook has its own. */
 export function useContextMenu(shared?: Pick<ReturnType<typeof useMenu>, "show" | "hide" | "element">): RowMenu {
   const own = useMenu();
   const menu = shared ?? own;
-  const open = (entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, x: number, y: number, o: ContextMenuOptions = {}): void => {
+  const open = (
+    entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null,
+    x: number,
+    y: number,
+    o: ContextMenuOptions = {},
+  ): void => {
     o.before?.();
     const list = entries({ x, y });
     if (list && list.length > 0) menu.show(list, x, y, "context", o.label ? { label: o.label } : {});
   };
-  const on = (entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, o: ContextMenuOptions = {}): Record<string, unknown> => {
+  const on = (
+    entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null,
+    o: ContextMenuOptions = {},
+  ): Record<string, unknown> => {
     const trigger = menuTrigger((x, y) => open(entries, x, y, o));
     const menuKey = trigger["onKeyDown"] as ((e: KeyLike) => void) | undefined;
     return {
@@ -42,7 +69,11 @@ export function useContextMenu(shared?: Pick<ReturnType<typeof useMenu>, "show" 
         menuKey?.(e);
         if (e.defaultPrevented === true || typing(e.target)) return;
         const hit = shortcutFor(entries({ x: 0, y: 0 }) ?? [], e);
-        if (hit) { e.preventDefault?.(); e.stopPropagation?.(); hit.onSelect?.(); }
+        if (hit) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          hit.onSelect?.();
+        }
       },
     };
   };

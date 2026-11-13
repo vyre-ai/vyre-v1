@@ -4,7 +4,12 @@ import { StyleSheet, Text, View } from "react-native";
 import { lineageLines } from "./lineage.ts";
 import type { LineageChild } from "./lineage.ts";
 
-export function RunLineage({ parentRun, steps = [], children = [], testID = "run-lineage" }: {
+export function RunLineage({
+  parentRun,
+  steps = [],
+  children = [],
+  testID = "run-lineage",
+}: {
   parentRun?: string;
   steps?: readonly { attempt?: number }[];
   children?: readonly LineageChild[];
@@ -17,7 +22,11 @@ export function RunLineage({ parentRun, steps = [], children = [], testID = "run
       {lines.parent ? <Text style={s.line}>{lines.parent}</Text> : null}
       {lines.attempt ? <Text style={s.line}>{lines.attempt}</Text> : null}
       {/* ui-rows-lint: not a list (one sentence per child run) */}
-      {lines.children.map((child) => <Text key={child.id} testID={`lineage-child-${child.id}`} style={s.line}>{child.text}</Text>)}
+      {lines.children.map((child) => (
+        <Text key={child.id} testID={`lineage-child-${child.id}`} style={s.line}>
+          {child.text}
+        </Text>
+      ))}
     </View>
   );
 }

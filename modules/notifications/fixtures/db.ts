@@ -16,14 +16,40 @@ import type { Caller } from "./seed.ts";
 // guard, so the fixture asks the runtime for the built-in. Swap this for the testkit's in-memory database when it exports one.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 // the migration carries the entity tables too (same as the generated schema), so the fixture applies it alone
-const migration = ["0001_notifications_state.sql", "0002_settings_effects.sql", "0004_fanout_sent.sql", "0005_fanout_email.sql", "0006_email_record.sql"].map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8")).join("\n");
+const migration = [
+  "0001_notifications_state.sql",
+  "0002_settings_effects.sql",
+  "0004_fanout_sent.sql",
+  "0005_fanout_email.sql",
+  "0006_email_record.sql",
+]
+  .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"))
+  .join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
-export interface CallLog { cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface ScheduleLog { id: string; at: number | string; cap: string; input: any }   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface Emailed { to: string; subject: string; line: string; open: { kind: string; id: string } }
-type Callee = (input: any, who: Caller) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Ev {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  id: string;
+}
+export interface CallLog {
+  cap: string;
+  input: any;
+} // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface ScheduleLog {
+  id: string;
+  at: number | string;
+  cap: string;
+  input: any;
+} // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Emailed {
+  to: string;
+  subject: string;
+  line: string;
+  open: { kind: string; id: string };
+}
+type Callee = (input: any, who: Caller) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface HarnessOptions {
   now?: number;
@@ -53,38 +79,64 @@ export function harness(o: HarnessOptions = {}) {
   const pushes: PushMessage[] = [];
   const emails: Emailed[] = [];
   const callees: Record<string, Callee> = {};
-  const state = { idleMs: o.computerIdleMs, sendResult: o.sendResult ?? "ok", emailHang: null as null | ((m: Emailed) => boolean), emailFail: null as null | ((m: Emailed) => boolean), emailAnswer: undefined as undefined | "no_mailbox" | "no_address" | "suppressed" | "held" };
+  const state = {
+    idleMs: o.computerIdleMs,
+    sendResult: o.sendResult ?? "ok",
+    emailHang: null as null | ((m: Emailed) => boolean),
+    emailFail: null as null | ((m: Emailed) => boolean),
+    emailAnswer: undefined as undefined | "no_mailbox" | "no_address" | "suppressed" | "held",
+  };
   const gaveUp: Array<{ to: string; kind: string }> = [];
   let schSeq = 0;
   const emitsOf = (cap: string): Set<string> => new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
 
   const port: PushPort = {
-    async send(msg) { if (state.sendResult === "throw") throw new Error("apns down"); pushes.push(msg); return state.sendResult === "gone" ? "gone" : "ok"; },
-    async computerIdleMs() { return state.idleMs; },
+    async send(msg) {
+      if (state.sendResult === "throw") throw new Error("apns down");
+      pushes.push(msg);
+      return state.sendResult === "gone" ? "gone" : "ok";
+    },
+    async computerIdleMs() {
+      return state.idleMs;
+    },
     spaceName: () => "Northwind",
     async email(m) {
-      if (state.emailHang?.(m)) return new Promise<void>(() => undefined);   // the send is cut off (a stop let the consumer go, or a crash): it never answers
+      if (state.emailHang?.(m)) return new Promise<void>(() => undefined); // the send is cut off (a stop let the consumer go, or a crash): it never answers
       if (state.emailFail?.(m)) throw new Error("mail down");
-      if (state.emailAnswer) return state.emailAnswer;   // the transport did not send it, and says why (a Space with no sending mailbox, a person with no address)
-      emails.push({ to: m.to, subject: m.subject, line: m.line, open: m.open });   // what the email says; the idempotency key it carries is the transport's
+      if (state.emailAnswer) return state.emailAnswer; // the transport did not send it, and says why (a Space with no sending mailbox, a person with no address)
+      emails.push({ to: m.to, subject: m.subject, line: m.line, open: m.open }); // what the email says; the idempotency key it carries is the transport's
       return "sent";
     },
-    async gaveUp(m) { gaveUp.push(m); },
+    async gaveUp(m) {
+      gaveUp.push(m);
+    },
   };
   setPushPort(o.noPort ? null : port);
 
   function ctxFor(cap: string | null, who: Caller): NotifCtx {
     const allowed = cap ? emitsOf(cap) : null;
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE },
-      ...(who.device ? { device: who.device } : {}), ...(who.run ? { run: who.run } : {}), depth: who.depth ?? 0, ...(who.origin ? { origin: who.origin } : {}), ...(who.forwarded ? { forwarded: true } : {}),
+      space: "spc_test",
+      principal: { kind: who.kind ?? "person", id: who.id },
+      ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      trace: { traceId: TRACE },
+      ...(who.device ? { device: who.device } : {}),
+      ...(who.run ? { run: who.run } : {}),
+      depth: who.depth ?? 0,
+      ...(who.origin ? { origin: who.origin } : {}),
+      ...(who.forwarded ? { forwarded: true } : {}),
       now: () => clock,
       db: scopedDb("notifications", raw, TRACE),
       emit(name, subject, payload) {
         if (allowed && !allowed.has(name)) throw new Error(`${cap} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
         if (bad.length) throw new Error(`${name} payload is invalid: ${bad.join("; ")}`);
-        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, id: makeId("evt", globalThis.crypto.getRandomValues(new Uint8Array(14))) };
+        const ev: Ev = {
+          name,
+          subject,
+          payload: payload as Record<string, unknown>,
+          id: makeId("evt", globalThis.crypto.getRandomValues(new Uint8Array(14))),
+        };
         events.push(ev);
         return { id: ev.id };
       },
@@ -94,18 +146,34 @@ export function harness(o: HarnessOptions = {}) {
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
       },
-      ...(o.noScheduler ? {} : { schedule: async (at: number | string, c: string, input: unknown) => { const id = `sch_${++schSeq}`; schedules.push({ id, at, cap: c, input }); return id; } }),
-      ...(o.noSeal ? {} : {
-        seal: {
-          seal: (v: Uint8Array, scope: string) => ({ keyId: "k1", nonce: "n1", bytes: `${Buffer.from(`${scope}\n`).toString("base64")}.${Buffer.from(v).toString("base64")}` }),
-          unseal: (s: { keyId: string; nonce: string; bytes: string }) => new Uint8Array(Buffer.from(s.bytes.split(".")[1]!, "base64")),
-        },
-      }),
+      ...(o.noScheduler
+        ? {}
+        : {
+            schedule: async (at: number | string, c: string, input: unknown) => {
+              const id = `sch_${++schSeq}`;
+              schedules.push({ id, at, cap: c, input });
+              return id;
+            },
+          }),
+      ...(o.noSeal
+        ? {}
+        : {
+            seal: {
+              seal: (v: Uint8Array, scope: string) => ({
+                keyId: "k1",
+                nonce: "n1",
+                bytes: `${Buffer.from(`${scope}\n`).toString("base64")}.${Buffer.from(v).toString("base64")}`,
+              }),
+              unseal: (s: { keyId: string; nonce: string; bytes: string }) =>
+                new Uint8Array(Buffer.from(s.bytes.split(".")[1]!, "base64")),
+            },
+          }),
       log: { warn: () => undefined },
     };
   }
 
-  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     const bad = validateInput(cap, 1, raw0);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: NotifCtx, input: unknown) => Promise<unknown>>)[cap];
@@ -122,28 +190,58 @@ export function harness(o: HarnessOptions = {}) {
   callees["access.check"] = () => ({ decision: { effect: "deny" } });
 
   return {
-    sqlite, db: raw, call, ctxFor,
-    get events(): Ev[] { return events; },
-    calls, schedules, pushes, emails,
-    callee(cap: string, f: Callee): void { callees[cap] = f; },
+    sqlite,
+    db: raw,
+    call,
+    ctxFor,
+    get events(): Ev[] {
+      return events;
+    },
+    calls,
+    schedules,
+    pushes,
+    emails,
+    callee(cap: string, f: Callee): void {
+      callees[cap] = f;
+    },
     callsTo: (cap: string): CallLog[] => calls.filter((c) => c.cap === cap),
-    setNow(n: number): void { clock = n; },
-    advance(ms: number): void { clock += ms; },
+    setNow(n: number): void {
+      clock = n;
+    },
+    advance(ms: number): void {
+      clock += ms;
+    },
     now: (): number => clock,
-    idle(ms: number | undefined): void { state.idleMs = ms; },
-    sendResult(r: "ok" | "gone" | "throw"): void { state.sendResult = r; },
+    idle(ms: number | undefined): void {
+      state.idleMs = ms;
+    },
+    sendResult(r: "ok" | "gone" | "throw"): void {
+      state.sendResult = r;
+    },
     /** an email to whoever `f` picks never answers (null: none) */
-    emailHang(f: null | ((m: Emailed) => boolean)): void { state.emailHang = f; },
+    emailHang(f: null | ((m: Emailed) => boolean)): void {
+      state.emailHang = f;
+    },
     /** an email to whoever `f` picks fails (null: none) */
-    emailFail(f: null | ((m: Emailed) => boolean)): void { state.emailFail = f; },
+    emailFail(f: null | ((m: Emailed) => boolean)): void {
+      state.emailFail = f;
+    },
     /** the transport answers this instead of sending (undefined: it sends) */
-    emailAnswer(a: undefined | "no_mailbox" | "no_address" | "suppressed" | "held"): void { state.emailAnswer = a; },
+    emailAnswer(a: undefined | "no_mailbox" | "no_address" | "suppressed" | "held"): void {
+      state.emailAnswer = a;
+    },
     gaveUp,
-    close(): void { setPushPort(null); },
+    close(): void {
+      setPushPort(null);
+    },
   };
 }
 export type Harness = ReturnType<typeof harness>;
 
-export function codeOf(e: unknown): string | undefined { return (e as { error?: { code?: string } } | null)?.error?.code; }
-export function reasonOf(e: unknown): unknown { return ((e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details ?? {}).reason; }
+export function codeOf(e: unknown): string | undefined {
+  return (e as { error?: { code?: string } } | null)?.error?.code;
+}
+export function reasonOf(e: unknown): unknown {
+  return ((e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details ?? {}).reason;
+}
 export { NOW };

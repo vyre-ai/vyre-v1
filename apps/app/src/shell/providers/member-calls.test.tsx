@@ -14,11 +14,15 @@ function Probe({ rt, out }: { rt: ShellRuntime; out: { schema?: boolean; sync?: 
   return null;
 }
 
-const runtime = (plainRole: boolean | undefined, calls: string[]): ShellRuntime => ({
-  space: { id: "spc_team", kind: "team", name: "Team" },
-  ...(plainRole !== undefined ? { plainRole } : {}),
-  call: async (cap: string) => { calls.push(cap); return cap === "console.nav" ? { groups: [{ pages: [{ key: "schema" }] }] } : { connectors: [] }; },
-}) as unknown as ShellRuntime;
+const runtime = (plainRole: boolean | undefined, calls: string[]): ShellRuntime =>
+  ({
+    space: { id: "spc_team", kind: "team", name: "Team" },
+    ...(plainRole !== undefined ? { plainRole } : {}),
+    call: async (cap: string) => {
+      calls.push(cap);
+      return cap === "console.nav" ? { groups: [{ pages: [{ key: "schema" }] }] } : { connectors: [] };
+    },
+  }) as unknown as ShellRuntime;
 
 test("a plain member's Records asks neither console.nav nor connectors.list, and gets no schema or sync controls", async () => {
   const restore = installDom();
@@ -29,7 +33,9 @@ test("a plain member's Records asks neither console.nav nor connectors.list, and
     assert.deepEqual(calls, []);
     assert.equal(out.schema, false);
     assert.equal(out.sync, false);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("an owner, or a role the server must answer for, still asks", async () => {
@@ -40,5 +46,7 @@ test("an owner, or a role the server must answer for, still asks", async () => {
       await mount(createRoot, <Probe rt={runtime(plain, calls)} out={{}} />);
       assert.deepEqual(calls.sort(), ["connectors.list", "console.nav"], String(plain));
     }
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

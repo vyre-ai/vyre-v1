@@ -13,10 +13,17 @@ import type { ReportsCtx } from "./submit.ts";
 export type ReplayTarget = { kind: "run"; runId: string } | { kind: "sync_conflict"; conflictId: string };
 
 /** A sealed or Restricted value in the copy. `ref` names where it lives (a row field, a vault item) so it can be replaced in place. */
-export interface ReplayValue { ref: string; kind: "sealed" | "restricted"; value: string }
+export interface ReplayValue {
+  ref: string;
+  kind: "sealed" | "restricted";
+  value: string;
+}
 
 /** One outward capability call (or an event marked replay:'stub') the re-run tried to make. */
-export interface OutwardCall { cap: string; input: unknown }
+export interface OutwardCall {
+  cap: string;
+  input: unknown;
+}
 
 export interface ReplayOutcome {
   /** how the re-run ended: the Run's state or the conflict's resolution */
@@ -66,7 +73,8 @@ export interface ReplayResult {
   sent: 0;
 }
 
-const hasPerm = (ctx: ReportsCtx, perm: string): boolean => ctx.authorize({ perm, level: "view" }, { type: "space", id: null }).effect === "allow";
+const hasPerm = (ctx: ReportsCtx, perm: string): boolean =>
+  ctx.authorize({ perm, level: "view" }, { type: "space", id: null }).effect === "allow";
 
 /** A stand-in for a value that keeps its kind and length class, so the re-run still behaves like the real one (an email still looks like an email). */
 export function synthetic(v: ReplayValue, n: number): string {
@@ -79,18 +87,36 @@ export function synthetic(v: ReplayValue, n: number): string {
 function mapStrings(v: unknown, fn: (s: string) => string): unknown {
   if (typeof v === "string") return fn(v);
   if (Array.isArray(v)) return v.map((x) => mapStrings(x, fn));
-  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapStrings(x, fn)]));
+  if (v && typeof v === "object")
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapStrings(x, fn)]));
   return v;
 }
 
 export async function replayRun(ctx: ReportsCtx, req: ReplayRequest): Promise<ReplayResult> {
-  if (!drivers) return failWith(ctx.trace.traceId, "internal.unavailable", "The replay sandbox is not available on this server yet.", { service: "replay" });
+  if (!drivers)
+    return failWith(
+      ctx.trace.traceId,
+      "internal.unavailable",
+      "The replay sandbox is not available on this server yet.",
+      { service: "replay" },
+    );
   if (!hasPerm(ctx, "server.logs") || !hasPerm(ctx, "console.access")) {
-    return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "Replay needs access to the server logs and to the Console.");
+    return failWith(
+      ctx.trace.traceId,
+      "permission.role_lacks_permission",
+      "Replay needs access to the server logs and to the Console.",
+    );
   }
-  if (!Number.isSafeInteger(req.seq) || req.seq < 0) return failWith(ctx.trace.traceId, "validation.bad_input", "Choose the sequence number to replay from.", { errors: ["seq: not a sequence number"] });
+  if (!Number.isSafeInteger(req.seq) || req.seq < 0)
+    return failWith(ctx.trace.traceId, "validation.bad_input", "Choose the sequence number to replay from.", {
+      errors: ["seq: not a sequence number"],
+    });
   if (req.keepValues === true && !hasPerm(ctx, "records.reveal")) {
-    return failWith(ctx.trace.traceId, "permission.above_clearance", "Keeping the real values in a replay needs permission to reveal them.");
+    return failWith(
+      ctx.trace.traceId,
+      "permission.above_clearance",
+      "Keeping the real values in a replay needs permission to reveal them.",
+    );
   }
   const copy = await drivers.restoreCopy(req.seq);
   try {

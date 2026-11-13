@@ -2,7 +2,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { seededDir, bootDaemon, until, note, parallel, automation, runOf, notes, countOf, succeed } from "./runs-children-rig.ts";
+import {
+  seededDir,
+  bootDaemon,
+  until,
+  note,
+  parallel,
+  automation,
+  runOf,
+  notes,
+  countOf,
+  succeed,
+} from "./runs-children-rig.ts";
 
 test("two parallel lanes write Left note and Right note, then Joined once exists exactly once", async () => {
   const d = await bootDaemon(seededDir(bootCore));
@@ -11,7 +22,15 @@ test("two parallel lanes write Left note and Right note, then Joined once exists
       triggers: [{ key: "manual" }],
       start: ["par"],
       nodes: [
-        parallel("par", "all", [{ label: "Left", to: "a1" }, { label: "Right", to: "b1" }], ["join"]),
+        parallel(
+          "par",
+          "all",
+          [
+            { label: "Left", to: "a1" },
+            { label: "Right", to: "b1" },
+          ],
+          ["join"],
+        ),
         note("a1", "Left note", ["join"]),
         note("b1", "Right note", ["join"]),
         note("join", "Joined once"),
@@ -22,7 +41,9 @@ test("two parallel lanes write Left note and Right note, then Joined once exists
     assert.equal(await countOf(d, "Left note"), 1);
     assert.equal(await countOf(d, "Right note"), 1);
     assert.equal(await countOf(d, "Joined once"), 1);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("waitFor any writes the fast note and leaves the slow note absent when the parent succeeds", async () => {
@@ -32,7 +53,15 @@ test("waitFor any writes the fast note and leaves the slow note absent when the 
       triggers: [{ key: "manual" }],
       start: ["par"],
       nodes: [
-        parallel("par", "any", [{ label: "Slow", to: "pause" }, { label: "Fast", to: "fast" }], ["join"]),
+        parallel(
+          "par",
+          "any",
+          [
+            { label: "Slow", to: "pause" },
+            { label: "Fast", to: "fast" },
+          ],
+          ["join"],
+        ),
         { id: "pause", key: "wait", input: { forDuration: "30s" }, next: ["slow"] },
         note("slow", "Slow note", ["join"]),
         note("fast", "Fast note", ["join"]),
@@ -44,7 +73,9 @@ test("waitFor any writes the fast note and leaves the slow note absent when the 
     assert.equal(await countOf(d, "Fast note"), 1);
     assert.equal(await countOf(d, "Slow note"), 0);
     assert.equal(await countOf(d, "Joined any"), 1);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a loop of three items writes Ada, Bea and Cy, then one note after the loop", async () => {
@@ -55,9 +86,18 @@ test("a loop of three items writes Ada, Bea and Cy, then one note after the loop
       start: ["each"],
       nodes: [
         {
-          id: "each", key: "loop",
-          input: { items: [{ id: "a", name: "Ada" }, { id: "b", name: "Bea" }, { id: "c", name: "Cy" }], concurrency: 2 },
-          branches: [{ label: "body", to: "make" }], next: ["after"],
+          id: "each",
+          key: "loop",
+          input: {
+            items: [
+              { id: "a", name: "Ada" },
+              { id: "b", name: "Bea" },
+              { id: "c", name: "Cy" },
+            ],
+            concurrency: 2,
+          },
+          branches: [{ label: "body", to: "make" }],
+          next: ["after"],
         },
         note("make", "{{ item.name }}"),
         note("after", "After the loop"),
@@ -66,11 +106,17 @@ test("a loop of three items writes Ada, Bea and Cy, then one note after the loop
     const runId = await runOf(d, id, "run-each");
     await succeed(d, runId, 20_000);
     const titles = (await notes(d)).map((r) => r.fields.title);
-    for (const title of ["Ada", "Bea", "Cy", "After the loop"]) assert.equal(titles.filter((t) => t === title).length, 1, titles.join(","));
+    for (const title of ["Ada", "Bea", "Cy", "After the loop"])
+      assert.equal(titles.filter((t) => t === title).length, 1, titles.join(","));
     // records.query orders by created_at, then id. The three iteration titles keep input order in that list.
-    assert.deepEqual(titles.filter((t) => t === "Ada" || t === "Bea" || t === "Cy"), ["Ada", "Bea", "Cy"]);
+    assert.deepEqual(
+      titles.filter((t) => t === "Ada" || t === "Bea" || t === "Cy"),
+      ["Ada", "Bea", "Cy"],
+    );
     assert.ok(titles.indexOf("After the loop") > titles.indexOf("Cy"));
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a wait of 2s inside one parallel lane does not block the other lane's note, then the parent joins once", async () => {
@@ -80,7 +126,15 @@ test("a wait of 2s inside one parallel lane does not block the other lane's note
       triggers: [{ key: "manual" }],
       start: ["par"],
       nodes: [
-        parallel("par", "all", [{ label: "Left", to: "pause" }, { label: "Right", to: "right" }], ["join"]),
+        parallel(
+          "par",
+          "all",
+          [
+            { label: "Left", to: "pause" },
+            { label: "Right", to: "right" },
+          ],
+          ["join"],
+        ),
         { id: "pause", key: "wait", input: { forDuration: "2s" }, next: ["left"] },
         note("left", "Left after the wait", ["join"]),
         note("right", "Right during the wait", ["join"]),
@@ -99,5 +153,7 @@ test("a wait of 2s inside one parallel lane does not block the other lane's note
     assert.equal(await countOf(d, "Left after the wait"), 1);
     assert.equal(await countOf(d, "Right during the wait"), 1);
     assert.equal(await countOf(d, "Joined once"), 1);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

@@ -19,7 +19,11 @@ export const SNAPSHOT_TTL_MS = 10 * 60_000;
 const SEEN_CHUNK = 400;
 const SCAN_BATCH = 1000;
 
-export interface SnapshotBeginRes { asOfSeq: number; plan: { entity: string; estimatedRows: number }[]; expiresAt: number }
+export interface SnapshotBeginRes {
+  asOfSeq: number;
+  plan: { entity: string; estimatedRows: number }[];
+  expiresAt: number;
+}
 export interface SnapshotRow {
   id: string;
   /** Highest seq of any field, so the client can keep the freshest. */
@@ -27,14 +31,24 @@ export interface SnapshotRow {
   label: number;
   fields: Record<string, Cell>;
 }
-export interface SnapshotPage { rows: SnapshotRow[]; last?: string; done: boolean }
+export interface SnapshotPage {
+  rows: SnapshotRow[];
+  last?: string;
+  done: boolean;
+}
 
 /** A revoked device takes no snapshot: it would be handed the Space again. */
 const refuseRevoked = (d: PullDeps, who: Who, traceId: string): void => {
-  if (deviceRevoked(d.db, who.person, who.device)) throw pullError("auth.device_revoked", "This device was revoked. Its copy is removed.", traceId);
+  if (deviceRevoked(d.db, who.person, who.device))
+    throw pullError("auth.device_revoked", "This device was revoked. Its copy is removed.", traceId);
 };
 
-export function snapshotBegin(d: PullDeps, who: Who, req: { entities?: string[]; deviceClass: DeviceClass }, traceId = "0".repeat(32)): SnapshotBeginRes {
+export function snapshotBegin(
+  d: PullDeps,
+  who: Who,
+  req: { entities?: string[]; deviceClass: DeviceClass },
+  traceId = "0".repeat(32),
+): SnapshotBeginRes {
   refuseRevoked(d, who, traceId);
   const db = d.db;
   const cls = req.deviceClass;
@@ -48,24 +62,40 @@ export function snapshotBegin(d: PullDeps, who: Who, req: { entities?: string[];
     const cfg = d.catalog.get(key);
     const mode = cfg.profile[cls];
     if (mode === "none") continue;
-    const n = db.get<{ n: number }>("SELECT count(*) AS n FROM sync_rows WHERE entity = ? AND deleted = 0", key)?.n ?? 0;
+    const n =
+      db.get<{ n: number }>("SELECT count(*) AS n FROM sync_rows WHERE entity = ? AND deleted = 0", key)?.n ?? 0;
     if (n > 0) plan.push({ entity: key, estimatedRows: n, window: mode === "window" });
   }
-  plan.sort((a, b) => Number(a.window) - Number(b.window) || a.estimatedRows - b.estimatedRows || (a.entity < b.entity ? -1 : 1));
+  plan.sort(
+    (a, b) =>
+      Number(a.window) - Number(b.window) || a.estimatedRows - b.estimatedRows || (a.entity < b.entity ? -1 : 1),
+  );
   const asOfSeq = headSeq(db);
   const expiresAt = now + SNAPSHOT_TTL_MS;
   db.exec("BEGIN IMMEDIATE");
   try {
     db.run("DELETE FROM sync_snapshots WHERE expires < ?", now);
     // The device is starting over: it holds nothing the server should assume.
-    if (wanted) for (const e of wanted) db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ? AND entity = ?", who.person, who.device, e);
+    if (wanted)
+      for (const e of wanted)
+        db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ? AND entity = ?", who.person, who.device, e);
     else db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ?", who.person, who.device);
     // the device starts over under today's rules: what it is held back from is recorded, so a later narrowing is told from a first sight
     recordHeldBack(d, who, new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() }));
-    db.run("INSERT INTO sync_snapshots (person, device, as_of, expires) VALUES (?, ?, ?, ?) ON CONFLICT(person, device, as_of) DO UPDATE SET expires = excluded.expires", who.person, who.device, asOfSeq, expiresAt);
+    db.run(
+      "INSERT INTO sync_snapshots (person, device, as_of, expires) VALUES (?, ?, ?, ?) ON CONFLICT(person, device, as_of) DO UPDATE SET expires = excluded.expires",
+      who.person,
+      who.device,
+      asOfSeq,
+      expiresAt,
+    );
     db.exec("COMMIT");
   } catch (e) {
-    try { db.exec("ROLLBACK"); } catch { /* keep the first failure */ }
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* keep the first failure */
+    }
     throw e;
   }
   return { asOfSeq, plan: plan.map(({ entity, estimatedRows }) => ({ entity, estimatedRows })), expiresAt };
@@ -78,16 +108,29 @@ function markSeen(d: PullDeps, who: Who, entity: string, ids: readonly string[],
     for (const id of part) args.push(who.person, who.device, entity, id, 1, 0, asOf);
     d.db.run(
       `INSERT INTO sync_seen_rows (person, device, entity, id, vis, prev_vis, at_seq) VALUES ${part.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")}
-       ON CONFLICT(person, device, entity, id) DO UPDATE SET vis = 1, prev_vis = 0, at_seq = excluded.at_seq`, ...args);
+       ON CONFLICT(person, device, entity, id) DO UPDATE SET vis = 1, prev_vis = 0, at_seq = excluded.at_seq`,
+      ...args,
+    );
   }
 }
 
-export function snapshotPage(d: PullDeps, who: Who, req: { entity: string; after?: string; asOf: number }, traceId: string): SnapshotPage {
+export function snapshotPage(
+  d: PullDeps,
+  who: Who,
+  req: { entity: string; after?: string; asOf: number },
+  traceId: string,
+): SnapshotPage {
   refuseRevoked(d, who, traceId);
   const db = d.db;
   const now = d.now();
-  const session = db.get<{ expires: number }>("SELECT expires FROM sync_snapshots WHERE person = ? AND device = ? AND as_of = ?", who.person, who.device, req.asOf);
-  if (!session) throw pullError("validation.not_found", "That sync was not started or has been replaced. Start it again.", traceId);
+  const session = db.get<{ expires: number }>(
+    "SELECT expires FROM sync_snapshots WHERE person = ? AND device = ? AND as_of = ?",
+    who.person,
+    who.device,
+    req.asOf,
+  );
+  if (!session)
+    throw pullError("validation.not_found", "That sync was not started or has been replaced. Start it again.", traceId);
   if (session.expires < now) throw pullError("timeout.deadline", "That sync took too long. Start it again.", traceId);
   const cfg = d.catalog.get(req.entity);
   const mode = cfg.profile[who.deviceClass];
@@ -103,28 +146,53 @@ export function snapshotPage(d: PullDeps, who: Who, req: { entity: string; after
   for (;;) {
     const batch = db.all<RowRec>(
       "SELECT entity, id, owner_id, label, deleted, enc, vis, seq, updated_at, fields FROM sync_rows WHERE entity = ? AND id > ? AND deleted = 0 AND seq <= ? ORDER BY id LIMIT ?",
-      req.entity, after, req.asOf, SCAN_BATCH);
+      req.entity,
+      after,
+      req.asOf,
+      SCAN_BATCH,
+    );
     let full = false;
     for (const row of batch) {
       scanned++;
       last = row.id;
       const cells = JSON.parse(row.fields) as Cells;
       if (!viewer.visible(sc, row, cells) || !window.holds(cfg, mode, row)) continue;
-      rows.push({ id: row.id, seq: row.seq, label: row.label, fields: viewer.fields(sc, cells, undefined, { row, cells }) });
-      if (rows.length >= MAX_SNAPSHOT_PAGE) { full = true; break; }
+      rows.push({
+        id: row.id,
+        seq: row.seq,
+        label: row.label,
+        fields: viewer.fields(sc, cells, undefined, { row, cells }),
+      });
+      if (rows.length >= MAX_SNAPSHOT_PAGE) {
+        full = true;
+        break;
+      }
     }
     if (full) break;
-    if (batch.length < SCAN_BATCH) { done = true; break; }
+    if (batch.length < SCAN_BATCH) {
+      done = true;
+      break;
+    }
     after = batch[batch.length - 1]!.id;
     // A page of mostly hidden rows ends short rather than scanning the whole table in one call.
     if (scanned >= MAX_SNAPSHOT_PAGE * 4) break;
   }
   db.exec("BEGIN IMMEDIATE");
   try {
-    markSeen(d, who, req.entity, rows.map((r) => r.id), req.asOf);
+    markSeen(
+      d,
+      who,
+      req.entity,
+      rows.map((r) => r.id),
+      req.asOf,
+    );
     db.exec("COMMIT");
   } catch (e) {
-    try { db.exec("ROLLBACK"); } catch { /* keep the first failure */ }
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* keep the first failure */
+    }
     throw e;
   }
   return { rows, ...(last !== undefined ? { last } : {}), done };
@@ -147,7 +215,10 @@ export function decodePage(bytes: Uint8Array): SnapshotPage {
   for (const line of text.split("\n")) {
     if (!line) continue;
     const o = JSON.parse(line) as SnapshotRow & { $page?: { last?: string; done: boolean } };
-    if (o.$page) { last = o.$page.last; done = o.$page.done; } else rows.push(o);
+    if (o.$page) {
+      last = o.$page.last;
+      done = o.$page.done;
+    } else rows.push(o);
   }
   return { rows, ...(last !== undefined ? { last } : {}), done };
 }

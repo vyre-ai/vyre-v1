@@ -6,13 +6,38 @@
 // DECISION: a one-shot (`at`) schedule ends after its fire or its skip: active false, no next time.
 // DECISION: nextAt of a cron is the next wall-clock match in the schedule's zone; a local time that does not exist (clocks forward) is skipped that day, one that happens twice fires at its first pass.
 import {
-  CAP, MINUTE, allSchedules, clean, dueSchedules, emitSched, findSchedule, fireRow, idemFind, idemSave, isService, mayManage, me, missedSince, newId, nextFire, page, parseCron, raise,
-  nextCron, openWaits, readPolicy, saveFire, saveMissed, saveSchedule, scheduleOut, validTimeZone,
+  CAP,
+  MINUTE,
+  allSchedules,
+  clean,
+  dueSchedules,
+  emitSched,
+  findSchedule,
+  fireRow,
+  idemFind,
+  idemSave,
+  isService,
+  mayManage,
+  me,
+  missedSince,
+  newId,
+  nextFire,
+  page,
+  parseCron,
+  raise,
+  nextCron,
+  openWaits,
+  readPolicy,
+  saveFire,
+  saveMissed,
+  saveSchedule,
+  scheduleOut,
+  validTimeZone,
 } from "../projections.ts";
 import type { IfMissed, MissedRow, SchedCtx, Schedule, When } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** A schedule that runs late by more than this is reported as late on its schedule.fired event. */
 const LATE_MS = MINUTE;
@@ -23,9 +48,16 @@ const MAX_MISSED_STEPS = 100_000;
 
 function checkWhen(ctx: SchedCtx, w: In): When {
   if (typeof w.cron === "string") {
-    if (!parseCron(w.cron)) raise(ctx, "validation.bad_input", "That is not a cron the scheduler can read. Use five fields: minute hour day month weekday.", { reason: "bad_cron", cron: w.cron });
+    if (!parseCron(w.cron))
+      raise(
+        ctx,
+        "validation.bad_input",
+        "That is not a cron the scheduler can read. Use five fields: minute hour day month weekday.",
+        { reason: "bad_cron", cron: w.cron },
+      );
     const tz = typeof w.tz === "string" && w.tz ? w.tz : "UTC";
-    if (!validTimeZone(tz)) raise(ctx, "validation.bad_input", "That time zone is not known.", { reason: "bad_tz", tz });
+    if (!validTimeZone(tz))
+      raise(ctx, "validation.bad_input", "That time zone is not known.", { reason: "bad_tz", tz });
     return { cron: w.cron.trim(), tz };
   }
   return { at: w.at as number };
@@ -49,16 +81,27 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
     const row = have ? findSchedule(ctx.db, have) : undefined;
     if (row) return clean({ scheduleId: row.id, nextAt: row.nextAt });
   }
-  if (!CAP.test(input.cap)) raise(ctx, "validation.bad_input", "That is not a capability name.", { reason: "bad_cap", cap: input.cap });
+  if (!CAP.test(input.cap))
+    raise(ctx, "validation.bad_input", "That is not a capability name.", { reason: "bad_cap", cap: input.cap });
   const when = checkWhen(ctx, input.when);
   const principal = (input.principal as string | undefined) ?? me(ctx);
-  if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor) raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
+  if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor)
+    raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
   const now = ctx.now();
   const nextAt = nextFire(when, now, true);
   if (nextAt === undefined) raise(ctx, "validation.bad_input", "That schedule never fires.", { reason: "never_fires" });
   const s: Schedule = {
-    id: newId("sch", now), owner: input.owner, principal, cap: input.cap, input: input.input ?? {}, when, ifMissed: (input.ifMissed as IfMissed | undefined) ?? "run_once", active: true,
-    nextAt, createdBy: ctx.principal.id, createdAt: now,
+    id: newId("sch", now),
+    owner: input.owner,
+    principal,
+    cap: input.cap,
+    input: input.input ?? {},
+    when,
+    ifMissed: (input.ifMissed as IfMissed | undefined) ?? "run_once",
+    active: true,
+    nextAt,
+    createdBy: ctx.principal.id,
+    createdAt: now,
   };
   saveSchedule(ctx.db, s);
   if (key) idemSave(ctx.db, key, s.id);
@@ -72,7 +115,8 @@ export async function reschedule(ctx: SchedCtx, input: In): Promise<unknown> {
     s.when = checkWhen(ctx, input.when);
     if (s.active) {
       const nextAt = nextFire(s.when, ctx.now(), true);
-      if (nextAt === undefined) raise(ctx, "validation.bad_input", "That schedule never fires.", { reason: "never_fires" });
+      if (nextAt === undefined)
+        raise(ctx, "validation.bad_input", "That schedule never fires.", { reason: "never_fires" });
       s.nextAt = nextAt;
     }
   }
@@ -93,7 +137,7 @@ export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
 
 export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
-  if (!s.active && s.pausedReason !== undefined) return { schedule: scheduleOut(s) };   // already paused
+  if (!s.active && s.pausedReason !== undefined) return { schedule: scheduleOut(s) }; // already paused
   s.active = false;
   s.pausedReason = input.reason;
   saveSchedule(ctx.db, s);
@@ -103,12 +147,15 @@ export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
 
 export async function resume(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
-  if (s.pausedReason === undefined) return { schedule: scheduleOut(s) };   // not paused
+  if (s.pausedReason === undefined) return { schedule: scheduleOut(s) }; // not paused
   delete s.pausedReason;
   s.active = true;
   // time that passed while it was paused is not made up: a cron goes on from now, a one-shot keeps its time
   const nextAt = nextFire(s.when, ctx.now(), "at" in s.when);
-  if (nextAt === undefined) { s.active = false; delete s.nextAt; } else s.nextAt = nextAt;
+  if (nextAt === undefined) {
+    s.active = false;
+    delete s.nextAt;
+  } else s.nextAt = nextAt;
   saveSchedule(ctx.db, s);
   emitSched(ctx, "schedule.resumed", s.id, { owner: s.owner });
   return { schedule: scheduleOut(s) };
@@ -129,8 +176,15 @@ export async function get(ctx: SchedCtx, input: In): Promise<unknown> {
 
 export async function nextTimes(ctx: SchedCtx, input: In): Promise<unknown> {
   const spec = parseCron(input.cron);
-  if (!spec) raise(ctx, "validation.bad_input", "That is not a cron the scheduler can read. Use five fields: minute hour day month weekday.", { reason: "bad_cron", cron: input.cron });
-  if (!validTimeZone(input.tz)) raise(ctx, "validation.bad_input", "That time zone is not known.", { reason: "bad_tz", tz: input.tz });
+  if (!spec)
+    raise(
+      ctx,
+      "validation.bad_input",
+      "That is not a cron the scheduler can read. Use five fields: minute hour day month weekday.",
+      { reason: "bad_cron", cron: input.cron },
+    );
+  if (!validTimeZone(input.tz))
+    raise(ctx, "validation.bad_input", "That time zone is not known.", { reason: "bad_tz", tz: input.tz });
   const times: number[] = [];
   let at = ctx.now();
   for (let i = 0; i < (input.count ?? 5); i++) {
@@ -147,10 +201,17 @@ async function callIt(ctx: SchedCtx, s: Schedule, scheduledFor: number, key: str
   if (!ctx.call) raise(ctx, "internal.unavailable", "The scheduler cannot make calls right now.");
   // the pipeline reads the key of a keyed capability from the call's input: the one this firing owns goes there too, so a scheduled call of such a capability is accepted
   const given = s.input ?? {};
-  const body = typeof given === "object" && given !== null && !Array.isArray(given) && !("idempotencyKey" in given) ? { ...(given as Record<string, unknown>), idempotencyKey: key } : given;
+  const body =
+    typeof given === "object" && given !== null && !Array.isArray(given) && !("idempotencyKey" in given)
+      ? { ...(given as Record<string, unknown>), idempotencyKey: key }
+      : given;
   // a schedule a person or an agent made stores a capability they chose: it runs with their own standing (asCaller), never as this module's code. One Vyre itself made is module code.
-  const byVyre = s.createdBy.startsWith("svc_") && isTrustedService({ kind: "service", id: s.createdBy });   // the host or a system service; an automation's own svc_<id> is a tenant service and is not Vyre
-  const out = (await ctx.call(s.cap, body, byVyre ? { idempotencyKey: key } : { idempotencyKey: key, asCaller: true })) as { runId?: unknown } | null;
+  const byVyre = s.createdBy.startsWith("svc_") && isTrustedService({ kind: "service", id: s.createdBy }); // the host or a system service; an automation's own svc_<id> is a tenant service and is not Vyre
+  const out = (await ctx.call(
+    s.cap,
+    body,
+    byVyre ? { idempotencyKey: key } : { idempotencyKey: key, asCaller: true },
+  )) as { runId?: unknown } | null;
   const id = out && typeof out === "object" ? out.runId : undefined;
   return typeof id === "string" && id.startsWith("run_") ? id : undefined;
 }
@@ -159,8 +220,8 @@ export async function fire(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
   const scheduledFor = input.scheduledFor as number;
   const done = fireRow(ctx.db, s.id, scheduledFor);
-  if (done) return clean({ runId: done.runId });   // the same time never fires twice
-  if (!s.active) return {};                         // paused schedules do not fire
+  if (done) return clean({ runId: done.runId }); // the same time never fires twice
+  if (!s.active) return {}; // paused schedules do not fire
   const now = ctx.now();
   const runId = await callIt(ctx, s, scheduledFor, `sch:${s.id}:${scheduledFor}`);
   saveFire(ctx.db, s.id, scheduledFor, runId, now);
@@ -174,15 +235,19 @@ export async function fire(ctx: SchedCtx, input: In): Promise<unknown> {
 /** After a fire of `after`: a cron takes its next match, a one-shot ends. */
 function advance(s: Schedule, after: number): void {
   const next = "at" in s.when ? undefined : nextFire(s.when, after);
-  if (next === undefined) { s.active = false; delete s.nextAt; } else s.nextAt = next;
+  if (next === undefined) {
+    s.active = false;
+    delete s.nextAt;
+  } else s.nextAt = next;
 }
 
 export async function runNow(ctx: SchedCtx, input: In): Promise<unknown> {
   const s = manageSchedule(ctx, input.scheduleId);
   const now = ctx.now();
   const runId = (await callIt(ctx, s, now, `sch-now:${s.id}:${ctx.trace.traceId}`)) ?? ctx.run;
-  if (!runId) raise(ctx, "validation.precondition_failed", "That schedule's call does not start a run.", { reason: "no_run" });
-  s.lastFiredAt = now;   // nextAt stays: the cron is not changed
+  if (!runId)
+    raise(ctx, "validation.precondition_failed", "That schedule's call does not start a run.", { reason: "no_run" });
+  s.lastFiredAt = now; // nextAt stays: the cron is not changed
   saveSchedule(ctx.db, s);
   emitSched(ctx, "schedule.fired", s.id, { owner: s.owner, runId, scheduledFor: now, late: false });
   return { runId };
@@ -196,7 +261,10 @@ function missedTimes(s: Schedule, now: number, since: number): { latest: number;
   let latest: number | undefined;
   let count = 0;
   for (let i = 0; i < MAX_MISSED_STEPS && at !== undefined && at <= now; i++) {
-    if (at > since) { latest = at; count += 1; }
+    if (at > since) {
+      latest = at;
+      count += 1;
+    }
     at = nextFire(s.when, at);
   }
   return latest === undefined ? undefined : { latest, count };
@@ -209,11 +277,33 @@ export async function catchUp(ctx: SchedCtx, input: In): Promise<unknown> {
   let skipped = 0;
   for (const s of dueSchedules(ctx.db, now)) {
     const miss = missedTimes(s, now, input.since as number);
-    const moveOn = (): void => { if ("at" in s.when) { s.active = false; delete s.nextAt; } else { const n = nextFire(s.when, now); if (n === undefined) { s.active = false; delete s.nextAt; } else s.nextAt = n; } };
-    if (!miss) { moveOn(); saveSchedule(ctx.db, s); continue; }
+    const moveOn = (): void => {
+      if ("at" in s.when) {
+        s.active = false;
+        delete s.nextAt;
+      } else {
+        const n = nextFire(s.when, now);
+        if (n === undefined) {
+          s.active = false;
+          delete s.nextAt;
+        } else s.nextAt = n;
+      }
+    };
+    if (!miss) {
+      moveOn();
+      saveSchedule(ctx.db, s);
+      continue;
+    }
     const late = now - miss.latest;
-    const earlier = miss.count > 1 ? ` ${miss.count - 1} earlier time${miss.count === 2 ? "" : "s"} were skipped too.` : "";
-    const row: MissedRow = { scheduleId: s.id, owner: s.owner, scheduledFor: miss.latest, handling: "skipped", handledAt: now };
+    const earlier =
+      miss.count > 1 ? ` ${miss.count - 1} earlier time${miss.count === 2 ? "" : "s"} were skipped too.` : "";
+    const row: MissedRow = {
+      scheduleId: s.id,
+      owner: s.owner,
+      scheduledFor: miss.latest,
+      handling: "skipped",
+      handledAt: now,
+    };
     if (s.ifMissed === "run_once" && late <= window && !fireRow(ctx.db, s.id, miss.latest)) {
       const runId = await callIt(ctx, s, miss.latest, `sch:${s.id}:${miss.latest}`);
       saveFire(ctx.db, s.id, miss.latest, runId, now);
@@ -225,25 +315,48 @@ export async function catchUp(ctx: SchedCtx, input: In): Promise<unknown> {
       moveOn();
       saveSchedule(ctx.db, s);
       saveMissed(ctx.db, row);
-      emitSched(ctx, "schedule.missed", s.id, clean({ owner: s.owner, scheduledFor: miss.latest, handling: "ran_once", note: row.note }));
+      emitSched(
+        ctx,
+        "schedule.missed",
+        s.id,
+        clean({ owner: s.owner, scheduledFor: miss.latest, handling: "ran_once", note: row.note }),
+      );
       emitSched(ctx, "schedule.fired", s.id, { owner: s.owner, runId, scheduledFor: miss.latest, late: true });
     } else {
-      row.note = s.ifMissed === "skip"
-        ? `Skipped by its if-missed rule; it was due ${Math.round(late / MINUTE)} minutes ago.${earlier}`
-        : `Skipped: it was due ${Math.round(late / MINUTE)} minutes ago, longer than the ${Math.round(window / MINUTE)} minute window.${earlier}`;
+      row.note =
+        s.ifMissed === "skip"
+          ? `Skipped by its if-missed rule; it was due ${Math.round(late / MINUTE)} minutes ago.${earlier}`
+          : `Skipped: it was due ${Math.round(late / MINUTE)} minutes ago, longer than the ${Math.round(window / MINUTE)} minute window.${earlier}`;
       skipped += 1;
       moveOn();
       saveSchedule(ctx.db, s);
       saveMissed(ctx.db, row);
-      emitSched(ctx, "schedule.missed", s.id, { owner: s.owner, scheduledFor: miss.latest, handling: "skipped", note: row.note });
+      emitSched(ctx, "schedule.missed", s.id, {
+        owner: s.owner,
+        scheduledFor: miss.latest,
+        handling: "skipped",
+        note: row.note,
+      });
     }
   }
   return { ranOnce, skipped };
 }
 
 export async function missed(ctx: SchedCtx, input: In): Promise<unknown> {
-  const rows = missedSince(ctx.db, input.since).filter((m) => isService(ctx) || m.owner.id === me(ctx) || findSchedule(ctx.db, m.scheduleId)?.principal === me(ctx));
-  return { missed: rows.map((m) => clean({ scheduleId: m.scheduleId, owner: m.owner, scheduledFor: m.scheduledFor, handling: m.handling, runId: m.runId })) };
+  const rows = missedSince(ctx.db, input.since).filter(
+    (m) => isService(ctx) || m.owner.id === me(ctx) || findSchedule(ctx.db, m.scheduleId)?.principal === me(ctx),
+  );
+  return {
+    missed: rows.map((m) =>
+      clean({
+        scheduleId: m.scheduleId,
+        owner: m.owner,
+        scheduledFor: m.scheduledFor,
+        handling: m.handling,
+        runId: m.runId,
+      }),
+    ),
+  };
 }
 
 export async function status(ctx: SchedCtx): Promise<unknown> {
@@ -252,8 +365,13 @@ export async function status(ctx: SchedCtx): Promise<unknown> {
   const lag = due.length ? now - due[0]!.nextAt! : 0;
   const state = lag > DOWN_LAG_MS ? "down" : lag > DEGRADED_LAG_MS ? "degraded" : "healthy";
   return clean({
-    state, tickLagMs: lag, dueNow: due.length, openWaits: openWaits(ctx.db).length,
-    detail: due.length ? `${due.length} schedule${due.length === 1 ? " is" : "s are"} due; the oldest is ${Math.round(lag / 1000)} seconds late.` : undefined,
+    state,
+    tickLagMs: lag,
+    dueNow: due.length,
+    openWaits: openWaits(ctx.db).length,
+    detail: due.length
+      ? `${due.length} schedule${due.length === 1 ? " is" : "s are"} due; the oldest is ${Math.round(lag / 1000)} seconds late.`
+      : undefined,
   });
 }
 
@@ -261,7 +379,9 @@ export async function status(ctx: SchedCtx): Promise<unknown> {
  * The host tick: fire every schedule that is due, oldest first, one by one. A failing call is counted and left for the next tick (the schedule keeps its time);
  * it never stops the others. The daemon calls this as the schedule's principal through scheduler.fire; this form is for a service ctx that may act for all.
  */
-export async function tick(ctx: SchedCtx): Promise<{ fired: string[]; failed: { scheduleId: string; error: string }[] }> {
+export async function tick(
+  ctx: SchedCtx,
+): Promise<{ fired: string[]; failed: { scheduleId: string; error: string }[] }> {
   const out = { fired: [] as string[], failed: [] as { scheduleId: string; error: string }[] };
   for (const s of dueSchedules(ctx.db, ctx.now())) {
     try {

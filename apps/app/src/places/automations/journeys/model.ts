@@ -17,7 +17,11 @@ export type Slot = "assigned" | "reviewer" | "approver";
 export const TASK_STATES = ["To do", "Doing", "In review", "Awaiting approval", "Done", "Canceled"] as const;
 export type TaskState = (typeof TASK_STATES)[number] | "Blocked";
 
-export const SLOTS: readonly { key: Slot; label: string }[] = [{ key: "assigned", label: "Assigned" }, { key: "reviewer", label: "Reviewer" }, { key: "approver", label: "Approver" }];
+export const SLOTS: readonly { key: Slot; label: string }[] = [
+  { key: "assigned", label: "Assigned" },
+  { key: "reviewer", label: "Reviewer" },
+  { key: "approver", label: "Approver" },
+];
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /* ---------- words ---------- */
@@ -30,14 +34,20 @@ export function dueWords(hours: number | undefined): string {
 export const DUE_CHOICES: readonly number[] = [0, 1, 2, 4, 8, 24, 48, 72, 168];
 
 export function exitWords(exit: Stage["exit"]): string {
-  return exit.manualOnly ? "Only when someone moves it" : exit.requireTasks ? "When every required task is done" : "When someone moves it, or tasks are done";
+  return exit.manualOnly
+    ? "Only when someone moves it"
+    : exit.requireTasks
+      ? "When every required task is done"
+      : "When someone moves it, or tasks are done";
 }
 export const requiredCount = (s: Stage): number => s.tasks.filter((t) => t.required).length;
 export const tasksWords = (s: Stage): string => `${s.tasks.length} (${requiredCount(s)} required)`;
 export function limitWords(l: Stage["timeLimit"], name: (id: string) => string): string {
   if (!l) return "None";
   const h = l.hours % 24 === 0 ? plural(l.hours / 24, "day") : plural(l.hours, "hour");
-  return l.escalateTo ? `${h}, then ${l.escalateTo.kind === "role" ? `the ${name(l.escalateTo.id)} role` : name(l.escalateTo.id)} is told` : h;
+  return l.escalateTo
+    ? `${h}, then ${l.escalateTo.kind === "role" ? `the ${name(l.escalateTo.id)} role` : name(l.escalateTo.id)} is told`
+    : h;
 }
 export const LIMIT_CHOICES: readonly number[] = [24, 48, 72, 168, 336];
 
@@ -64,10 +74,21 @@ export function uniqueKey(prefix: string, taken: readonly string[]): string {
 }
 const stageKeys = (stages: readonly Stage[]): string[] => stages.map((s) => s.key);
 const taskKeys = (stages: readonly Stage[]): string[] => stages.flatMap((s) => s.tasks.map((t) => t.key));
-const mapStage = (stages: readonly Stage[], key: string, f: (s: Stage) => Stage): Stage[] => stages.map((s) => (s.key === key ? f(s) : s));
+const mapStage = (stages: readonly Stage[], key: string, f: (s: Stage) => Stage): Stage[] =>
+  stages.map((s) => (s.key === key ? f(s) : s));
 
 export function addStage(stages: readonly Stage[], title: string): Stage[] {
-  return renumber([...stages, { key: uniqueKey("stage", stageKeys(stages)), title, order: stages.length, exit: { requireTasks: true }, tasks: [], automations: [] }]);
+  return renumber([
+    ...stages,
+    {
+      key: uniqueKey("stage", stageKeys(stages)),
+      title,
+      order: stages.length,
+      exit: { requireTasks: true },
+      tasks: [],
+      automations: [],
+    },
+  ]);
 }
 export function renameStage(stages: readonly Stage[], key: string, title: string): Stage[] {
   return mapStage(stages, key, (s) => ({ ...s, title }));
@@ -86,7 +107,10 @@ export function setExit(stages: readonly Stage[], key: string, exit: Stage["exit
   return mapStage(stages, key, (s) => ({ ...s, exit }));
 }
 export function setTimeLimit(stages: readonly Stage[], key: string, limit: Stage["timeLimit"] | null): Stage[] {
-  return mapStage(stages, key, (s) => { const { timeLimit: _drop, ...rest } = s; return limit ? { ...rest, timeLimit: limit } : rest; });
+  return mapStage(stages, key, (s) => {
+    const { timeLimit: _drop, ...rest } = s;
+    return limit ? { ...rest, timeLimit: limit } : rest;
+  });
 }
 
 export function addTask(stages: readonly Stage[], stageKey: string, title: string, assigned: Ref): Stage[] {
@@ -96,17 +120,34 @@ export function addTask(stages: readonly Stage[], stageKey: string, title: strin
 export function removeTask(stages: readonly Stage[], stageKey: string, taskKey: string): Stage[] {
   return mapStage(stages, stageKey, (s) => ({ ...s, tasks: s.tasks.filter((t) => t.key !== taskKey) }));
 }
-export function updateTask(stages: readonly Stage[], stageKey: string, taskKey: string, patch: Partial<Omit<Task, "key">>): Stage[] {
-  return mapStage(stages, stageKey, (s) => ({ ...s, tasks: s.tasks.map((t) => (t.key === taskKey ? { ...t, ...patch } : t)) }));
+export function updateTask(
+  stages: readonly Stage[],
+  stageKey: string,
+  taskKey: string,
+  patch: Partial<Omit<Task, "key">>,
+): Stage[] {
+  return mapStage(stages, stageKey, (s) => ({
+    ...s,
+    tasks: s.tasks.map((t) => (t.key === taskKey ? { ...t, ...patch } : t)),
+  }));
 }
 /** Sets one of the three seats; Assigned always has someone, Reviewer and Approver can be cleared. A key set for an agent goes when no agent holds a seat. */
-export function setSeat(stages: readonly Stage[], stageKey: string, taskKey: string, slot: Slot, who: Ref | null): Stage[] {
+export function setSeat(
+  stages: readonly Stage[],
+  stageKey: string,
+  taskKey: string,
+  slot: Slot,
+  who: Ref | null,
+): Stage[] {
   return mapStage(stages, stageKey, (s) => ({
     ...s,
     tasks: s.tasks.map((t) => {
       if (t.key !== taskKey) return t;
       if (slot === "assigned") return who ? { ...t, assigned: who } : t;
-      if (slot === "reviewer") { const { reviewer: _r, ...rest } = t; return who ? { ...rest, reviewer: who } : rest; }
+      if (slot === "reviewer") {
+        const { reviewer: _r, ...rest } = t;
+        return who ? { ...rest, reviewer: who } : rest;
+      }
       const { approver: _a, ...rest } = t;
       return who ? { ...rest, approver: who } : rest;
     }),
@@ -114,7 +155,8 @@ export function setSeat(stages: readonly Stage[], stageKey: string, taskKey: str
 }
 export function moveTask(stages: readonly Stage[], stageKey: string, taskKey: string, dir: -1 | 1): Stage[] {
   return mapStage(stages, stageKey, (s) => {
-    const i = s.tasks.findIndex((t) => t.key === taskKey), j = i + dir;
+    const i = s.tasks.findIndex((t) => t.key === taskKey),
+      j = i + dir;
     if (i < 0 || j < 0 || j >= s.tasks.length) return s;
     const tasks = [...s.tasks];
     [tasks[i], tasks[j]] = [tasks[j]!, tasks[i]!];
@@ -122,7 +164,9 @@ export function moveTask(stages: readonly Stage[], stageKey: string, taskKey: st
   });
 }
 export function addAutomation(stages: readonly Stage[], stageKey: string, automationId: string): Stage[] {
-  return mapStage(stages, stageKey, (s) => (s.automations.includes(automationId) ? s : { ...s, automations: [...s.automations, automationId] }));
+  return mapStage(stages, stageKey, (s) =>
+    s.automations.includes(automationId) ? s : { ...s, automations: [...s.automations, automationId] },
+  );
 }
 export function removeAutomation(stages: readonly Stage[], stageKey: string, automationId: string): Stage[] {
   return mapStage(stages, stageKey, (s) => ({ ...s, automations: s.automations.filter((a) => a !== automationId) }));
@@ -132,7 +176,10 @@ export function removeAutomation(stages: readonly Stage[], stageKey: string, aut
 export const isAgent = (r: Ref | undefined): boolean => r?.kind === "agent";
 export const agentSeats = (t: Task): { slot: Slot; ref: Ref }[] => {
   const out: { slot: Slot; ref: Ref }[] = [];
-  for (const { key } of SLOTS) { const r = t[key]; if (r && r.kind === "agent") out.push({ slot: key, ref: r }); }
+  for (const { key } of SLOTS) {
+    const r = t[key];
+    if (r && r.kind === "agent") out.push({ slot: key, ref: r });
+  }
   return out;
 };
 
@@ -156,14 +203,22 @@ export function designIssues(stages: readonly Stage[]): string[] {
 
 /* ---------- migration (move in-flight records to a new version) ---------- */
 
-export interface MoveRow { from: string; to: string | null; records: number }
+export interface MoveRow {
+  from: string;
+  to: string | null;
+  records: number;
+}
 export const unmappedMoves = (p: Preview): MoveRow[] => p.moves.filter((m) => m.to === null);
 export function stageMapOf(p: Preview, overrides: Readonly<Record<string, string>>): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const m of p.moves) { const to = overrides[m.from] ?? m.to; if (to) out[m.from] = to; }
+  for (const m of p.moves) {
+    const to = overrides[m.from] ?? m.to;
+    if (to) out[m.from] = to;
+  }
   return out;
 }
-export const canMigrate = (p: Preview, map: Readonly<Record<string, string>>): boolean => p.blockers.length === 0 && p.moves.every((m) => map[m.from] !== undefined);
+export const canMigrate = (p: Preview, map: Readonly<Record<string, string>>): boolean =>
+  p.blockers.length === 0 && p.moves.every((m) => map[m.from] !== undefined);
 export function migrationLine(p: Preview): string {
   if (p.recordsAffected === 0) return "No records are in flight, so nothing moves.";
   return `${plural(p.recordsAffected, "record")} move from version ${p.fromVersion} to version ${p.toVersion}.`;
@@ -174,8 +229,14 @@ export function migrationLine(p: Preview): string {
 export type OptionalTaskField = "keyId" | "backupKeyId" | "dueAfterHours" | "description" | "doneByAutomation";
 
 /** Who does a task: a person, agent, group or role in its seats, or an Automation that does it by running. */
-export const doneByWords = (t: Pick<Task, "doneByAutomation">, name: (id: string) => string): string => (t.doneByAutomation ? name(t.doneByAutomation) : "A person or agent");
-export function clearTaskField(stages: readonly Stage[], stageKey: string, taskKey: string, field: OptionalTaskField): Stage[] {
+export const doneByWords = (t: Pick<Task, "doneByAutomation">, name: (id: string) => string): string =>
+  t.doneByAutomation ? name(t.doneByAutomation) : "A person or agent";
+export function clearTaskField(
+  stages: readonly Stage[],
+  stageKey: string,
+  taskKey: string,
+  field: OptionalTaskField,
+): Stage[] {
   return mapStage(stages, stageKey, (s) => ({
     ...s,
     tasks: s.tasks.map((t) => {
@@ -194,7 +255,11 @@ export const EXIT_RULES: readonly { id: "tasks" | "hand"; label: string; exit: S
 export const exitRuleId = (exit: Stage["exit"]): "tasks" | "hand" => (exit.manualOnly ? "hand" : "tasks");
 
 /** The stage a task sits in and its position, for "Task in Intake". */
-export function findTask(stages: readonly Stage[], stageKey: string, taskKey: string): { stage: Stage; task: Task; index: number } | null {
+export function findTask(
+  stages: readonly Stage[],
+  stageKey: string,
+  taskKey: string,
+): { stage: Stage; task: Task; index: number } | null {
   const stage = stages.find((x) => x.key === stageKey);
   const index = stage ? stage.tasks.findIndex((t) => t.key === taskKey) : -1;
   return stage && index >= 0 ? { stage, task: stage.tasks[index]!, index } : null;
@@ -207,19 +272,28 @@ export function initials(name: string): string {
 
 /** Titles joined for a sentence ("Start, In progress, Done"). */
 export const joinTitles = (items: readonly { title: string }[]): string => items.map((x) => x.title).join(", ");
-export const joinNames = (ids: readonly string[], name: (id: string) => string): string => ids.map((id) => name(id)).join(", ");
+export const joinNames = (ids: readonly string[], name: (id: string) => string): string =>
+  ids.map((id) => name(id)).join(", ");
 /** Every Automation that runs on a stage, with the stage it runs on. */
 export function automationsByStage(stages: readonly Stage[]): { id: string; stage: string }[] {
   return stages.flatMap((g) => g.automations.map((id) => ({ id, stage: g.title })));
 }
-export const agentNames = (t: Task, name: (id: string) => string): string => joinNames(agentSeats(t).map((a) => a.ref.id), name);
+export const agentNames = (t: Task, name: (id: string) => string): string =>
+  joinNames(
+    agentSeats(t).map((a) => a.ref.id),
+    name,
+  );
 
 // ---------------------------------------------------------------- fields of a stage and its gates
 // A stage holds fields of its Journey's record type (they form a group named after it on the record page), and may ask for fields to be filled to enter it and to leave it. These three lists
 // ride on the stage as `fields`, `needToEnter` and `needToLeave`.
 
 export type FieldList = "fields" | "needToEnter" | "needToLeave";
-export type StageX = Stage & { fields?: readonly string[]; needToEnter?: readonly string[]; needToLeave?: readonly string[] };
+export type StageX = Stage & {
+  fields?: readonly string[];
+  needToEnter?: readonly string[];
+  needToLeave?: readonly string[];
+};
 export const FIELD_LISTS: readonly { list: FieldList; label: string; empty: string }[] = [
   { list: "fields", label: "Fields for this stage", empty: "No fields for this stage yet." },
   { list: "needToEnter", label: "Must be filled to move here", empty: "Nothing is required to enter." },
@@ -239,23 +313,51 @@ function withList(s: Stage, list: FieldList, keys: readonly string[]): Stage {
 export function addToList(stages: readonly Stage[], stageKey: string, list: FieldList, field: string): Stage[] {
   return stages.map((s) => {
     if (s.key === stageKey) return listOf(s, list).includes(field) ? s : withList(s, list, [...listOf(s, list), field]);
-    return list === "fields" && listOf(s, "fields").includes(field) ? withList(s, "fields", listOf(s, "fields").filter((k) => k !== field)) : s;
+    return list === "fields" && listOf(s, "fields").includes(field)
+      ? withList(
+          s,
+          "fields",
+          listOf(s, "fields").filter((k) => k !== field),
+        )
+      : s;
   });
 }
 
 export function removeFromList(stages: readonly Stage[], stageKey: string, list: FieldList, field: string): Stage[] {
-  return stages.map((s) => (s.key === stageKey ? withList(s, list, listOf(s, list).filter((k) => k !== field)) : s));
+  return stages.map((s) =>
+    s.key === stageKey
+      ? withList(
+          s,
+          list,
+          listOf(s, list).filter((k) => k !== field),
+        )
+      : s,
+  );
 }
 
-export interface TypeField { key: string; title: string; type: string }
+export interface TypeField {
+  key: string;
+  title: string;
+  type: string;
+}
 /** The field types a stage can add on the spot; the Fields panel in Records has the rest. */
 export const NEW_FIELD_TYPES: readonly { key: string; title: string }[] = [
-  { key: "text", title: "Text" }, { key: "longtext", title: "Long text" }, { key: "number", title: "Number" }, { key: "date", title: "Date" }, { key: "checkbox", title: "Checkbox" },
+  { key: "text", title: "Text" },
+  { key: "longtext", title: "Long text" },
+  { key: "number", title: "Number" },
+  { key: "date", title: "Date" },
+  { key: "checkbox", title: "Checkbox" },
 ];
 
 /** A field key from a title that no field of the type has yet. */
 export function fieldKeyFor(title: string, taken: readonly string[]): string {
-  const slug = title.normalize("NFKD").replace(/[^\x00-\x7F]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+  const slug = title
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
   const base = /^[a-z]/.test(slug) ? slug : slug ? `f_${slug}` : "";
   if (!base) return "";
   if (!taken.includes(base)) return base;
@@ -263,4 +365,5 @@ export function fieldKeyFor(title: string, taken: readonly string[]): string {
 }
 
 /** The fields a stage can pick from a record type: its own, not the base ones every Journey record has. */
-export const pickableFields = (fields: readonly TypeField[]): TypeField[] => fields.filter((f) => !BASE_FIELDS.includes(f.key));
+export const pickableFields = (fields: readonly TypeField[]): TypeField[] =>
+  fields.filter((f) => !BASE_FIELDS.includes(f.key));

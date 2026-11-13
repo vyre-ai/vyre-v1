@@ -6,12 +6,19 @@ import { embedRun } from "../handlers/index.ts";
 import { ACTIONS, actionsList, mergeHits, query, related } from "../handlers/query.ts";
 import { contractErrors, harness, seed } from "../fixtures/harness.ts";
 
-const ids = async (h: ReturnType<typeof harness>, input: Parameters<typeof query>[1]): Promise<string[]> => (await query(h.ctx, input)).hits.map((x) => x.id);
+const ids = async (h: ReturnType<typeof harness>, input: Parameters<typeof query>[1]): Promise<string[]> =>
+  (await query(h.ctx, input)).hits.map((x) => x.id);
 
 function bravo(): ReturnType<typeof harness> {
   const h = harness();
   seed(h, { id: "rec_old", title: "Bravo oldest plan", kind: "record" });
-  for (let i = 0; i < 300; i++) seed(h, { id: `rec_fill${i}`, title: `Filler ${i} note`, body: i % 2 === 0 ? "bright background" : "", kind: "record" });
+  for (let i = 0; i < 300; i++)
+    seed(h, {
+      id: `rec_fill${i}`,
+      title: `Filler ${i} note`,
+      body: i % 2 === 0 ? "bright background" : "",
+      kind: "record",
+    });
   seed(h, { id: "rec_mid", title: "Bravo middle plan", kind: "record" });
   seed(h, { id: "rec_body", title: "Quarterly", body: "bravo only in the body", kind: "record" });
   seed(h, { id: "rec_new", title: "Brave newest plan", kind: "record" });
@@ -24,7 +31,11 @@ test("one or two characters: the newest title match first, then older ones, then
     const got = await ids(h, { q, limit: 6 });
     assert.deepEqual(got.slice(0, 3), ["rec_new", "rec_mid", "rec_old"], `"${q}": ${got.join(", ")}`);
   }
-  assert.equal((await ids(h, { q: "br", limit: 6 })).includes("rec_body"), true, "a body match follows the title matches");
+  assert.equal(
+    (await ids(h, { q: "br", limit: 6 })).includes("rec_body"),
+    true,
+    "a body match follows the title matches",
+  );
   assert.ok((await ids(h, { q: "br n" })).includes("rec_new"), "two short words still answer");
   seed(h, { id: "rec_edit", title: "Bridge edited just now", kind: "record" });
   assert.equal((await ids(h, { q: "b" }))[0], "rec_edit", "an item edited after the others is the newest");
@@ -32,7 +43,12 @@ test("one or two characters: the newest title match first, then older ones, then
 
 test("three characters and up: every match is ranked by BM25, the title worth more than the body", async () => {
   const h = harness();
-  seed(h, { id: "rec_body", title: "Meeting notes", body: "We discussed the harbor lease at length. The harbor lease renews in May.", kind: "record" });
+  seed(h, {
+    id: "rec_body",
+    title: "Meeting notes",
+    body: "We discussed the harbor lease at length. The harbor lease renews in May.",
+    kind: "record",
+  });
   seed(h, { id: "rec_title", title: "Harbor lease", body: "Short", kind: "record" });
   seed(h, { id: "rec_other", title: "Budget", body: "Nothing to see", kind: "record" });
   assert.deepEqual(await ids(h, { q: "harbor lease" }), ["rec_title", "rec_body"]);
@@ -73,21 +89,40 @@ test("types, record type and folder narrow the result, and a page says where the
 
 test("semantic and hybrid modes find a document by meaning shared with the query; keyword mode does not", async () => {
   const h = harness();
-  seed(h, { id: "rec_rent", title: "Warehouse rent schedule", body: "Monthly rent for the harbor warehouse due on the first", kind: "record" });
+  seed(h, {
+    id: "rec_rent",
+    title: "Warehouse rent schedule",
+    body: "Monthly rent for the harbor warehouse due on the first",
+    kind: "record",
+  });
   seed(h, { id: "rec_menu", title: "Lunch menu", body: "Soup salad and bread for the team lunch", kind: "record" });
   assert.deepEqual(await embedRun(h.ctx, {}), { embedded: 2, pending: 0 });
   const sem = await query(h.ctx, { q: "harbor warehouse rent", mode: "semantic" });
   assert.equal(sem.hits[0]?.id, "rec_rent", "the document that shares the words and pairs is nearest");
   assert.ok(sem.hits.every((x) => x.score > 0));
   assert.equal((await query(h.ctx, { q: "harbor warehouse rent", mode: "hybrid" })).hits[0]?.id, "rec_rent");
-  assert.deepEqual((await query(h.ctx, { q: "harbor warehouse rent", mode: "keyword" })).hits.map((x) => x.id), ["rec_rent"], "keyword finds only documents with the words");
+  assert.deepEqual(
+    (await query(h.ctx, { q: "harbor warehouse rent", mode: "keyword" })).hits.map((x) => x.id),
+    ["rec_rent"],
+    "keyword finds only documents with the words",
+  );
   assert.deepEqual(contractErrors("search.query", "out", sem), []);
 });
 
 test("Related: the items that share the most telling words with one item, never itself and never what the asker cannot read", async () => {
   const h = harness();
-  seed(h, { id: "rec_a", title: "Northwind lease renewal", body: "The Northwind lease renews in May. Rent increase of three percent.", kind: "record" });
-  seed(h, { id: "fil_b", title: "Northwind lease draft.md", body: "Draft of the lease renewal for Northwind", kind: "file" });
+  seed(h, {
+    id: "rec_a",
+    title: "Northwind lease renewal",
+    body: "The Northwind lease renews in May. Rent increase of three percent.",
+    kind: "record",
+  });
+  seed(h, {
+    id: "fil_b",
+    title: "Northwind lease draft.md",
+    body: "Draft of the lease renewal for Northwind",
+    kind: "file",
+  });
   seed(h, { id: "tsk_c", title: "Send Northwind the renewal", body: "", kind: "task" });
   seed(h, { id: "rec_x", title: "Lunch order", body: "Soup", kind: "record" });
   seed(h, { id: "fil_hidden", title: "Northwind lease board minutes", body: "lease renewal minutes", kind: "file" });
@@ -102,9 +137,19 @@ test("Related: the items that share the most telling words with one item, never 
 test("the > actions: every typed word must start a word of the title or its keywords", async () => {
   const t = { trace: { traceId: "0".repeat(32) } };
   assert.equal((await actionsList(t, {})).actions.length, ACTIONS.length);
-  assert.deepEqual((await actionsList(t, { q: "new" })).actions.map((a) => a.key), ["task.new"]);
-  assert.deepEqual((await actionsList(t, { q: "sw sk" })).actions.map((a) => a.key), ["skin.switch"]);
-  assert.deepEqual((await actionsList(t, { q: "phone" })).actions.map((a) => a.key), ["call.start"], "keywords count");
+  assert.deepEqual(
+    (await actionsList(t, { q: "new" })).actions.map((a) => a.key),
+    ["task.new"],
+  );
+  assert.deepEqual(
+    (await actionsList(t, { q: "sw sk" })).actions.map((a) => a.key),
+    ["skin.switch"],
+  );
+  assert.deepEqual(
+    (await actionsList(t, { q: "phone" })).actions.map((a) => a.key),
+    ["call.start"],
+    "keywords count",
+  );
   assert.deepEqual((await actionsList(t, { q: "zzz" })).actions, []);
   assert.deepEqual(contractErrors("search.actions.list", "out", await actionsList(t, { q: "o" })), []);
 });
@@ -116,16 +161,40 @@ test("merge: the device's answer first, a thing in both once with what the serve
   ];
   const server = [
     { kind: "record", id: "rec_b", title: "Harlow budget", score: 0.9 },
-    { kind: "record", id: "rec_a", title: "Harlow plan", snippet: "…[Harlow] plan…", path: "Clients/Harlow", link: "vyre://record/rec_a", label: "internal", score: 0.8 },
+    {
+      kind: "record",
+      id: "rec_a",
+      title: "Harlow plan",
+      snippet: "…[Harlow] plan…",
+      path: "Clients/Harlow",
+      link: "vyre://record/rec_a",
+      label: "internal",
+      score: 0.8,
+    },
     { kind: "file", id: "fil_c", title: "Harlow.md", score: 0.5 },
   ];
   const m = mergeHits(local, server);
-  assert.deepEqual(m.map((x) => x.id), ["usr_elena", "rec_a", "rec_b", "fil_c"]);
+  assert.deepEqual(
+    m.map((x) => x.id),
+    ["usr_elena", "rec_a", "rec_b", "fil_c"],
+  );
   assert.equal((m[1] as { snippet?: string }).snippet, "…[Harlow] plan…");
   assert.equal((m[1] as { path?: string }).path, "Clients/Harlow");
-  assert.deepEqual(mergeHits(local, server, 2).map((x) => x.id), ["usr_elena", "rec_a"], "cut to the limit");
-  assert.deepEqual(mergeHits([], server).map((x) => x.id), ["rec_b", "rec_a", "fil_c"], "no local answer: the server's order");
-  assert.deepEqual(mergeHits(local, []).map((x) => x.id), ["usr_elena", "rec_a"], "the server has not answered yet");
+  assert.deepEqual(
+    mergeHits(local, server, 2).map((x) => x.id),
+    ["usr_elena", "rec_a"],
+    "cut to the limit",
+  );
+  assert.deepEqual(
+    mergeHits([], server).map((x) => x.id),
+    ["rec_b", "rec_a", "fil_c"],
+    "no local answer: the server's order",
+  );
+  assert.deepEqual(
+    mergeHits(local, []).map((x) => x.id),
+    ["usr_elena", "rec_a"],
+    "the server has not answered yet",
+  );
   assert.equal(mergeHits([local[0]!, local[0]!], []).length, 1, "a repeated local hit is shown once");
 });
 
@@ -140,26 +209,71 @@ test("resolve names one visible item, a record's type included, and nothing for 
   assert.deepEqual(await resolveItem(h.ctx, { kind: "record", itemId: "rec_hidden" }), {});
   assert.deepEqual(await resolveItem(h.ctx, { kind: "record", itemId: "rec_missing" }), {});
   seed(h, { id: "fld_x", title: "A folder", kind: "folder" });
-  assert.equal((await resolveItem(h.ctx, { kind: "folder", itemId: "fld_x" })).hit?.recordType, undefined, "only a record hit names a type");
+  assert.equal(
+    (await resolveItem(h.ctx, { kind: "folder", itemId: "fld_x" })).hit?.recordType,
+    undefined,
+    "only a record hit names a type",
+  );
 });
 
 test("an agent's search of a room that gained a person reads it only from the last join on; a person's own search reads all of it", async () => {
-  const old = { messageId: "msg_1", body: "my budget ceiling for the Acme deal is 80000 dollars", createdAt: 100, enc: 0 };
+  const old = {
+    messageId: "msg_1",
+    body: "my budget ceiling for the Acme deal is 80000 dollars",
+    createdAt: 100,
+    enc: 0,
+  };
   const fresh = { messageId: "msg_2", body: "the launch email goes out on Thursday", createdAt: 300, enc: 0 };
-  const h = harness({ respond: { "threads.get": () => ({ thread: { threadId: "thr_plans", kind: "channel", joinedAt: { usr_omar: 200 } } }), "chat.messages.list": () => ({ messages: [old, fresh] }), "channels.get": () => ({ channel: {} }) } });
+  const h = harness({
+    respond: {
+      "threads.get": () => ({ thread: { threadId: "thr_plans", kind: "channel", joinedAt: { usr_omar: 200 } } }),
+      "chat.messages.list": () => ({ messages: [old, fresh] }),
+      "channels.get": () => ({ channel: {} }),
+    },
+  });
   seed(h, { id: "thr_plans", title: "plans", kind: "chat", body: `${old.body}\n${fresh.body}` });
   const asAgent = { ...h.ctx, origin: "engine" };
-  assert.deepEqual((await query(asAgent, { q: "budget ceiling Acme" })).hits, [], "the line from before the join is not found by an agent");
+  assert.deepEqual(
+    (await query(asAgent, { q: "budget ceiling Acme" })).hits,
+    [],
+    "the line from before the join is not found by an agent",
+  );
   const later = (await query(asAgent, { q: "launch email Thursday" })).hits;
-  assert.deepEqual(later.map((x) => x.id), ["thr_plans"], "what was said after the join is found");
+  assert.deepEqual(
+    later.map((x) => x.id),
+    ["thr_plans"],
+    "what was said after the join is found",
+  );
   assert.ok(!/80000/.test(later[0]!.snippet ?? ""), "and the snippet holds none of the earlier text");
-  assert.deepEqual((await query(h.ctx, { q: "budget ceiling Acme" })).hits.map((x) => x.id), ["thr_plans"], "a person searching for themselves keeps their own floor");
+  assert.deepEqual(
+    (await query(h.ctx, { q: "budget ceiling Acme" })).hits.map((x) => x.id),
+    ["thr_plans"],
+    "a person searching for themselves keeps their own floor",
+  );
 });
 
 test("an agent's own home in Files (AGENT.md, MAP.md, agent.toml) never comes back in a person's search, and a firm's own file still does", async () => {
   const h = harness();
-  seed(h, { id: "fil_agent", title: "AGENT.md", body: "You are their chief of staff: you plan, find, draft the project", kind: "file", path: "Agents/Desk/AGENT.md" });
-  seed(h, { id: "fil_map", title: "MAP.md", body: "project map of the folders", kind: "file", path: "Agents/Desk/MAP.md" });
-  seed(h, { id: "fil_firm", title: "Project plan.docx", body: "the project plan for the firm", kind: "file", path: "Matters/Project plan.docx" });
+  seed(h, {
+    id: "fil_agent",
+    title: "AGENT.md",
+    body: "You are their chief of staff: you plan, find, draft the project",
+    kind: "file",
+    path: "Agents/Desk/AGENT.md",
+  });
+  seed(h, {
+    id: "fil_map",
+    title: "MAP.md",
+    body: "project map of the folders",
+    kind: "file",
+    path: "Agents/Desk/MAP.md",
+  });
+  seed(h, {
+    id: "fil_firm",
+    title: "Project plan.docx",
+    body: "the project plan for the firm",
+    kind: "file",
+    path: "Matters/Project plan.docx",
+  });
   assert.deepEqual(await ids(h, { q: "project" }), ["fil_firm"]);
 });

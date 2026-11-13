@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const TO = "held@gate.test";
 
@@ -24,29 +30,43 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "gate-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "gate-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "gate-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "gate-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-  ...extra,
-});
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+    ...extra,
+  });
 
-const call = async (d: Daemon, p: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (
+  d: Daemon,
+  p: string,
+  body: unknown,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
-  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+  return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown): Promise<Record<string, unknown>> => {
   const r = await call(d, p, body);
@@ -63,15 +83,33 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
   }
 }
 
-interface StepRow { step: string; attempt: number; state: string; inputRef?: string; outputRef?: string; error?: { code?: string; message?: string } }
-interface HoldRow { id?: string; taskId?: string; runId?: string; capName?: string; act?: string; state?: string }
+interface StepRow {
+  step: string;
+  attempt: number;
+  state: string;
+  inputRef?: string;
+  outputRef?: string;
+  error?: { code?: string; message?: string };
+}
+interface HoldRow {
+  id?: string;
+  taskId?: string;
+  runId?: string;
+  capName?: string;
+  act?: string;
+  state?: string;
+}
 
 test("an outward send held for approval resumes with the same attempt key", async () => {
   const d = await boot(seededDir());
   try {
     await ok(d, "/v1/contacts/suppression/add", { channel: "email", addresses: [TO], reason: "manual" });
     const box = await ok(d, "/v1/mail/mailbox/create", {
-      idempotencyKey: "gate-mbx", kind: "service", address: "gate-live@example.com", title: "Gate", provider: "inbound_only",
+      idempotencyKey: "gate-mbx",
+      kind: "service",
+      address: "gate-live@example.com",
+      title: "Gate",
+      provider: "inbound_only",
     });
     const mailboxId = String((box["mailbox"] as { id?: string } | undefined)?.id);
     assert.match(mailboxId, /^mbx_/);
@@ -84,18 +122,31 @@ test("an outward send held for approval resumes with the same attempt key", asyn
       definition: {
         triggers: [{ key: "manual" }],
         nodes: [
-          { id: "letter", key: "send_email", askBeforeSending: true, input: { mailboxId, to: [TO], subject: "Held", body: "This waits for approval." } },
+          {
+            id: "letter",
+            key: "send_email",
+            askBeforeSending: true,
+            input: { mailboxId, to: [TO], subject: "Held", body: "This waits for approval." },
+          },
         ],
       },
     });
     await ok(d, "/v1/automations/promote", { automationId: id, confirm: true });
     await ok(d, "/v1/access/share", {
-      idempotencyKey: "gate-share-space", resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view",
+      idempotencyKey: "gate-share-space",
+      resource: { type: "space", id: "spc_core" },
+      subject: { kind: "service", id: serviceId },
+      level: "view",
     });
     await ok(d, "/v1/access/share", {
-      idempotencyKey: "gate-share-mbx", resource: { type: "mailbox", id: mailboxId }, subject: { kind: "service", id: serviceId }, level: "use",
+      idempotencyKey: "gate-share-mbx",
+      resource: { type: "mailbox", id: mailboxId },
+      subject: { kind: "service", id: serviceId },
+      level: "use",
     });
-    const runId = String((await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "gate-run-1" }))["runId"]);
+    const runId = String(
+      (await ok(d, "/v1/automations/run", { automationId: id, idempotencyKey: "gate-run-1" }))["runId"],
+    );
     const key = `in:${runId}:letter:1`;
     const waiting = await until("the send to wait for approval", 12_000, async () => {
       const body = await ok(d, "/v1/runs/get", { runId });
@@ -110,7 +161,10 @@ test("an outward send held for approval resumes with the same attempt key", asyn
     assert.equal(waiting.attempt, 1, JSON.stringify(waiting));
     assert.equal(waiting.inputRef, key, JSON.stringify(waiting));
     const listed = (await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[];
-    assert.ok(listed.length >= 1, `no hold for this run: ${JSON.stringify(await ok(d, "/v1/gate/holds/list", { states: ["held"] }))}`);
+    assert.ok(
+      listed.length >= 1,
+      `no hold for this run: ${JSON.stringify(await ok(d, "/v1/gate/holds/list", { states: ["held"] }))}`,
+    );
     const hold = listed[0]!;
     assert.equal(hold.runId, runId, JSON.stringify(hold));
     assert.equal(hold.capName, "mail.send", JSON.stringify(hold));
@@ -128,27 +182,57 @@ test("an outward send held for approval resumes with the same attempt key", asyn
     });
     const steps = (await ok(d, "/v1/runs/steps", { runId }))["steps"] as StepRow[];
     const sends = steps.filter((s) => s.step === "letter");
-    assert.deepEqual(sends.map((s) => ({ attempt: s.attempt, state: s.state, inputRef: s.inputRef, outputRef: s.outputRef })), [
-      { attempt: 1, state: "succeeded", inputRef: key, outputRef: `out:${runId}:letter:1` },
-    ], `the send resumed on the same attempt key: ${JSON.stringify(sends)}`);
-  } finally { await d.stop(); }
+    assert.deepEqual(
+      sends.map((s) => ({ attempt: s.attempt, state: s.state, inputRef: s.inputRef, outputRef: s.outputRef })),
+      [{ attempt: 1, state: "succeeded", inputRef: key, outputRef: `out:${runId}:letter:1` }],
+      `the send resumed on the same attempt key: ${JSON.stringify(sends)}`,
+    );
+  } finally {
+    await d.stop();
+  }
 });
 
 /** A Space automation with one send step, ready to run: the service principal holds the Space and the mailbox. */
 async function sendAutomation(d: Daemon, name: string, askBeforeSending: boolean | undefined): Promise<string> {
   await ok(d, "/v1/contacts/suppression/add", { channel: "email", addresses: [TO], reason: "manual" });
-  const box = await ok(d, "/v1/mail/mailbox/create", { idempotencyKey: `${name}-mbx`, kind: "service", address: `${name}@example.com`, title: name, provider: "inbound_only" });
+  const box = await ok(d, "/v1/mail/mailbox/create", {
+    idempotencyKey: `${name}-mbx`,
+    kind: "service",
+    address: `${name}@example.com`,
+    title: name,
+    provider: "inbound_only",
+  });
   const mailboxId = String((box["mailbox"] as { id?: string } | undefined)?.id);
   const made = await ok(d, "/v1/automations/create", { idempotencyKey: `${name}-make`, name });
   const id = String((made["automation"] as { id?: string } | undefined)?.id);
   await ok(d, "/v1/automations/update", {
     automationId: id,
-    definition: { triggers: [{ key: "manual" }], nodes: [{ id: "letter", key: "send_email", ...(askBeforeSending === undefined ? {} : { askBeforeSending }), input: { mailboxId, to: [TO], subject: name, body: "Body." } }] },
+    definition: {
+      triggers: [{ key: "manual" }],
+      nodes: [
+        {
+          id: "letter",
+          key: "send_email",
+          ...(askBeforeSending === undefined ? {} : { askBeforeSending }),
+          input: { mailboxId, to: [TO], subject: name, body: "Body." },
+        },
+      ],
+    },
   });
   await ok(d, "/v1/automations/promote", { automationId: id, confirm: true });
   const serviceId = `svc_${id.slice(4)}`;
-  await ok(d, "/v1/access/share", { idempotencyKey: `${name}-s1`, resource: { type: "space", id: "spc_core" }, subject: { kind: "service", id: serviceId }, level: "view" });
-  await ok(d, "/v1/access/share", { idempotencyKey: `${name}-s2`, resource: { type: "mailbox", id: mailboxId }, subject: { kind: "service", id: serviceId }, level: "use" });
+  await ok(d, "/v1/access/share", {
+    idempotencyKey: `${name}-s1`,
+    resource: { type: "space", id: "spc_core" },
+    subject: { kind: "service", id: serviceId },
+    level: "view",
+  });
+  await ok(d, "/v1/access/share", {
+    idempotencyKey: `${name}-s2`,
+    resource: { type: "mailbox", id: mailboxId },
+    subject: { kind: "service", id: serviceId },
+    level: "use",
+  });
   return id;
 }
 
@@ -160,9 +244,10 @@ async function outcome(d: Daemon, id: string, key: string): Promise<"sent" | "he
     if (run.status === "succeeded") return "sent" as const;
     if (run.status === "waiting") {
       const holds = (await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[];
-      return holds.length > 0 ? "held" as const : undefined;
+      return holds.length > 0 ? ("held" as const) : undefined;
     }
-    if (run.status === "failed" || run.status === "stopped") assert.fail(`the run ${run.status}: ${JSON.stringify(await ok(d, "/v1/runs/steps", { runId }))}`);
+    if (run.status === "failed" || run.status === "stopped")
+      assert.fail(`the run ${run.status}: ${JSON.stringify(await ok(d, "/v1/runs/steps", { runId }))}`);
     return undefined;
   });
 }
@@ -172,7 +257,9 @@ test("Ask before sending Off sends at once, with no hold", async () => {
   try {
     const id = await sendAutomation(d, "ask-off", false);
     assert.equal(await outcome(d, id, "ask-off-run"), "sent");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a send with no setting is Off too", async () => {
@@ -180,7 +267,9 @@ test("a send with no setting is Off too", async () => {
   try {
     const id = await sendAutomation(d, "ask-unset", undefined);
     assert.equal(await outcome(d, id, "ask-unset-run"), "sent");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("Ask before sending On holds the send for approval", async () => {
@@ -188,7 +277,9 @@ test("Ask before sending On holds the send for approval", async () => {
   try {
     const id = await sendAutomation(d, "ask-on", true);
     assert.equal(await outcome(d, id, "ask-on-run"), "held");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a Space rule that requires approval for sends holds even when the step is Off", async () => {
@@ -197,5 +288,7 @@ test("a Space rule that requires approval for sends holds even when the step is 
     const id = await sendAutomation(d, "ask-rule", false);
     await ok(d, "/v1/gate/rules/set", { act: "send", scope: "space", mode: "hold" });
     assert.equal(await outcome(d, id, "ask-rule-run"), "held");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

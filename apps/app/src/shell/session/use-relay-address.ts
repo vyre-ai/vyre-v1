@@ -10,8 +10,12 @@ export function useRelayAddress(address: string | null | undefined, active = tru
     setRelay(named);
     if (!active || !named || !address) return undefined;
     let live = true;
-    void isRelayAddress(address).then((r) => { if (live) setRelay(r); });
-    return () => { live = false; };
+    void isRelayAddress(address).then((r) => {
+      if (live) setRelay(r);
+    });
+    return () => {
+      live = false;
+    };
   }, [address, active, named]);
   return relay;
 }

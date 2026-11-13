@@ -18,23 +18,41 @@ test("idem-calls: idempotencyKey in the literal, as a key or shorthand, passes; 
   assert.ok(idempotencyKey);
   assert.deepEqual(run(`await ctx.call("tasks.create", { title: "x", idempotencyKey });`), []);
   assert.deepEqual(run(`await ctx.call("tasks.create", {\n  title: "x",\n  idempotencyKey: key(a, b),\n});`), []);
-  assert.equal(run(`await ctx.call("tasks.create", { meta: { idempotencyKey: "k" }, title: "x" });`).length, 1, "a nested key is not the input's");
+  assert.equal(
+    run(`await ctx.call("tasks.create", { meta: { idempotencyKey: "k" }, title: "x" });`).length,
+    1,
+    "a nested key is not the input's",
+  );
 });
 
 test("idem-calls: capabilities that do not declare a key, and non-literal names, are ignored", () => {
-  assert.deepEqual(run(`await ctx.call("settings.get", { key: "a" }); await ctx.call(name, { a: 1 }); await ctx.call(\`x.\${n}\`, {});`), []);
+  assert.deepEqual(
+    run(
+      `await ctx.call("settings.get", { key: "a" }); await ctx.call(name, { a: 1 }); await ctx.call(\`x.\${n}\`, {});`,
+    ),
+    [],
+  );
 });
 
 test("idem-calls: an input the lint cannot see is a warning (unseen), never a failure", () => {
   const v = run(`await ctx.call("tasks.create", input);`);
-  assert.deepEqual(v.map((h) => h.kind), ["unseen"]);
-  assert.deepEqual(run(`await ctx.call("tasks.create", { ...base, title: "x" });`).map((h) => h.kind), ["unseen"]);
+  assert.deepEqual(
+    v.map((h) => h.kind),
+    ["unseen"],
+  );
+  assert.deepEqual(
+    run(`await ctx.call("tasks.create", { ...base, title: "x" });`).map((h) => h.kind),
+    ["unseen"],
+  );
   assert.deepEqual(run(`await ctx.call("tasks.create", { ...base, idempotencyKey: "k" });`), []);
 });
 
 test("idem-calls: an as never cast on the name and an apostrophe in a comment do not hide the key", () => {
   assert.deepEqual(run(`await ctx.call("tasks.create" as never, { idempotencyKey: "k", title: "x" });`), []);
   assert.equal(run(`await ctx.call("tasks.create" as never, { title: "x" });`).length, 1);
-  assert.deepEqual(run("await ctx.call(\"tasks.create\", {\n  title: \"x\",\n  // the caller's own key\n  idempotencyKey: k,\n});"), []);
-  assert.deepEqual(run("await ctx.call(\"tasks.create\", { /* it's */ title: \"x\", idempotencyKey: k });"), []);
+  assert.deepEqual(
+    run('await ctx.call("tasks.create", {\n  title: "x",\n  // the caller\'s own key\n  idempotencyKey: k,\n});'),
+    [],
+  );
+  assert.deepEqual(run('await ctx.call("tasks.create", { /* it\'s */ title: "x", idempotencyKey: k });'), []);
 });

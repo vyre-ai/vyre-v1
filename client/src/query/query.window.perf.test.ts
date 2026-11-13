@@ -7,31 +7,65 @@ import type { LocalDb, SpaceStore } from "../store/index.ts";
 import { createQueryClient } from "./index.ts";
 import type { ListDef } from "./index.ts";
 
-interface Item { id: string; title: string; rank: number; open: number }
+interface Item {
+  id: string;
+  title: string;
+  rank: number;
+  open: number;
+}
 const ROWS = 10_000;
 
 function setup() {
-  const items: Item[] = Array.from({ length: ROWS }, (_, i) => ({ id: `it_${String(i).padStart(5, "0")}`, title: `Item ${i}`, rank: i, open: 1 }));
+  const items: Item[] = Array.from({ length: ROWS }, (_, i) => ({
+    id: `it_${String(i).padStart(5, "0")}`,
+    title: `Item ${i}`,
+    rank: i,
+    open: 1,
+  }));
   const byId = new Map(items.map((r) => [r.id, r]));
   const changes = createChangeFeed();
   // LocalDb is the seam: the two statements the list asks for are answered from these rows (the ids read is index-only, the rows read is by id)
   const db: LocalDb = {
     all(sql, params = []) {
       if (sql.startsWith("SELECT id FROM item")) {
-        return [...byId.values()].filter((r) => r.open === params[0]).sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id)).map((r) => ({ id: r.id }));
+        return [...byId.values()]
+          .filter((r) => r.open === params[0])
+          .sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id))
+          .map((r) => ({ id: r.id }));
       }
-      return params.map((id) => byId.get(String(id))).filter((r): r is Item => r !== undefined).map((r) => ({ ...r }));
+      return params
+        .map((id) => byId.get(String(id)))
+        .filter((r): r is Item => r !== undefined)
+        .map((r) => ({ ...r }));
     },
   };
   const store: SpaceStore = { spaceId: "spc_a", db, changes };
-  const set = (id: string, patch: Partial<Item>): void => { const cur = byId.get(id); if (cur) Object.assign(cur, patch); changes.emit({ entity: "item", id }); };
-  const add = (id: string, title: string, rank: number, open = 1): void => { byId.set(id, { id, title, rank, open }); changes.emit({ entity: "item", id }); };
-  const remove = (id: string): void => { byId.delete(id); changes.emit({ entity: "item", id }); };
+  const set = (id: string, patch: Partial<Item>): void => {
+    const cur = byId.get(id);
+    if (cur) Object.assign(cur, patch);
+    changes.emit({ entity: "item", id });
+  };
+  const add = (id: string, title: string, rank: number, open = 1): void => {
+    byId.set(id, { id, title, rank, open });
+    changes.emit({ entity: "item", id });
+  };
+  const remove = (id: string): void => {
+    byId.delete(id);
+    changes.emit({ entity: "item", id });
+  };
   let rowReads = 0;
   const def: ListDef<{ open: number }, Item> = {
-    cap: "item.list", entity: "item",
-    orderIds: (d, i) => d.all("SELECT id FROM item WHERE open = ? ORDER BY rank, id", [i.open]).map((r) => String(r["id"])),
-    readRows: (d, ids) => { rowReads += ids.length; return d.all(`SELECT id, title, rank, open FROM item WHERE id IN (${ids.map(() => "?").join(",")})`, ids) as unknown as Item[]; },
+    cap: "item.list",
+    entity: "item",
+    orderIds: (d, i) =>
+      d.all("SELECT id FROM item WHERE open = ? ORDER BY rank, id", [i.open]).map((r) => String(r["id"])),
+    readRows: (d, ids) => {
+      rowReads += ids.length;
+      return d.all(
+        `SELECT id, title, rank, open FROM item WHERE id IN (${ids.map(() => "?").join(",")})`,
+        ids,
+      ) as unknown as Item[];
+    },
     idOf: (r) => r.id,
     matches: (r, i) => r.open === i.open,
     orderKey: (r) => r.rank,
@@ -39,7 +73,11 @@ function setup() {
   return { store, changes, def, set, add, remove, reads: () => rowReads };
 }
 
-const win = (q: ReturnType<ReturnType<typeof createQueryClient>["list"]>) => { const s = q.getSnapshot(); assert.equal(s.status, "ready"); return (s as { data: ReturnType<typeof Object> }).data as unknown as import("./index.ts").ListWindow<Item>; };
+const win = (q: ReturnType<ReturnType<typeof createQueryClient>["list"]>) => {
+  const s = q.getSnapshot();
+  assert.equal(s.status, "ready");
+  return (s as { data: ReturnType<typeof Object> }).data as unknown as import("./index.ts").ListWindow<Item>;
+};
 
 test("a 10,000-row list updates one row inside a frame and the other rows keep their identity", () => {
   const t = setup();

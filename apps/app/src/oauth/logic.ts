@@ -8,21 +8,49 @@ import type { AiHome } from "../ai-signin/own-ai.ts";
 /** Where Back goes: the Connections page of the Console. */
 export const BACK_TO_CONNECTIONS = "/console#screen=console.integrations&page=connections";
 
-export interface CallbackParams { state: string | null; code: string | null; error: string | null }
+export interface CallbackParams {
+  state: string | null;
+  code: string | null;
+  error: string | null;
+}
 
 /** What the app put in the address. Values are bounded: a state or code longer than any real one is not read. */
 export function readCallback(search: string): CallbackParams {
   const q = new URLSearchParams(search);
-  const take = (k: string, max: number): string | null => { const v = q.get(k); return v !== null && v.length > 0 && v.length <= max ? v : null; };
+  const take = (k: string, max: number): string | null => {
+    const v = q.get(k);
+    return v !== null && v.length > 0 && v.length <= max ? v : null;
+  };
   return { state: take("state", 200), code: take("code", 4096), error: take("error", 100) };
 }
 
 export type Outcome =
   | { kind: "connected"; connectionId: string }
   | { kind: "declined" }
-  | { kind: "failed"; message: string; cause: string; next: string; code?: string; traceId?: string; retryable: boolean };
+  | {
+      kind: "failed";
+      message: string;
+      cause: string;
+      next: string;
+      code?: string;
+      traceId?: string;
+      retryable: boolean;
+    };
 
-const failed = (message: string, cause: string, next: string, extra: { code?: string; traceId?: string; retryable?: boolean } = {}): Outcome => ({ kind: "failed", message, cause, next, retryable: extra.retryable === true, ...(extra.code ? { code: extra.code } : {}), ...(extra.traceId ? { traceId: extra.traceId } : {}) });
+const failed = (
+  message: string,
+  cause: string,
+  next: string,
+  extra: { code?: string; traceId?: string; retryable?: boolean } = {},
+): Outcome => ({
+  kind: "failed",
+  message,
+  cause,
+  next,
+  retryable: extra.retryable === true,
+  ...(extra.code ? { code: extra.code } : {}),
+  ...(extra.traceId ? { traceId: extra.traceId } : {}),
+});
 const START_AGAIN = "Open Connections and connect the account again.";
 
 /** Every way finishing a sign-in can end, in words a person can act on. The server's own message is used where it says something the person needs (a locked vault, the app's refusal). */
@@ -30,34 +58,81 @@ export function describeFailure(e: unknown, home: AiHome = "here"): Outcome {
   if (e instanceof CapError) {
     const x = { code: e.code, traceId: e.traceId };
     if (e.details?.["reason"] === "declined") return { kind: "declined" };
-    if (e.code === "auth.invalid_code") return failed("This sign-in link has expired or was already used", "A sign-in link works once and only for ten minutes.", START_AGAIN, x);
-    if (e.code === "permission.no_grant") return failed("This sign-in was started by someone else", "Only the person who started a connection can finish it. You are signed in as a different person.", "Ask them to open the link, or start the connection yourself from Connections.", x);
+    if (e.code === "auth.invalid_code")
+      return failed(
+        "This sign-in link has expired or was already used",
+        "A sign-in link works once and only for ten minutes.",
+        START_AGAIN,
+        x,
+      );
+    if (e.code === "permission.no_grant")
+      return failed(
+        "This sign-in was started by someone else",
+        "Only the person who started a connection can finish it. You are signed in as a different person.",
+        "Ask them to open the link, or start the connection yourself from Connections.",
+        x,
+      );
     // "locked" only for a locked key on a device that can unlock it; on a Space that runs elsewhere signing in opens the key; anything else is a session that ended
-    if (e.code === "auth.unauthenticated" && !isOwnKeyRefusal(e)) return failed("You were signed out", "This browser is no longer signed in to the Space.", "Sign in again, then connect the account again.", x);
-    if (e.code === "auth.unauthenticated" && home !== "here") return failed("Your vault opens when you sign in", "A personal account's tokens are kept in your own vault, which opens while you are signed in to this Space.", "Sign in again on this device, then connect the account again.", x);
-    if (e.code === "auth.unauthenticated") return failed("Your vault is locked", e.message, "Unlock it, then connect the account again.", x);
-    if (e.code === "validation.not_found") return failed("The connection was removed while you signed in", e.message, START_AGAIN, x);
-    if (e.code.startsWith("provider.")) return failed("The app did not complete the sign-in", e.message, START_AGAIN, x);
+    if (e.code === "auth.unauthenticated" && !isOwnKeyRefusal(e))
+      return failed(
+        "You were signed out",
+        "This browser is no longer signed in to the Space.",
+        "Sign in again, then connect the account again.",
+        x,
+      );
+    if (e.code === "auth.unauthenticated" && home !== "here")
+      return failed(
+        "Your vault opens when you sign in",
+        "A personal account's tokens are kept in your own vault, which opens while you are signed in to this Space.",
+        "Sign in again on this device, then connect the account again.",
+        x,
+      );
+    if (e.code === "auth.unauthenticated")
+      return failed("Your vault is locked", e.message, "Unlock it, then connect the account again.", x);
+    if (e.code === "validation.not_found")
+      return failed("The connection was removed while you signed in", e.message, START_AGAIN, x);
+    if (e.code.startsWith("provider."))
+      return failed("The app did not complete the sign-in", e.message, START_AGAIN, x);
     return failed("Couldn’t finish connecting this account", e.message, START_AGAIN, x);
   }
-  return failed("Couldn’t reach the Space", "The connection to the Space dropped, so it is not known whether the sign-in finished.", "Try again; if it says the link was already used, check Connections.", { retryable: true });
+  return failed(
+    "Couldn’t reach the Space",
+    "The connection to the Space dropped, so it is not known whether the sign-in finished.",
+    "Try again; if it says the link was already used, check Connections.",
+    { retryable: true },
+  );
 }
 
 /** Dropbox, Google mail, Microsoft mail and remote outside-tool servers (mcs_) keep their own sign-ins (the state starts dbs_, gos_, mos_): the module that started one finishes it, everything else is the connectors module. */
 const finishing = (state: string): string => {
   if (state.startsWith("dbs_")) return "dropbox.connect.complete";
-  if (state.startsWith("gos_")) return "google.user.complete";   // a person's own Google or Microsoft mailbox
+  if (state.startsWith("gos_")) return "google.user.complete"; // a person's own Google or Microsoft mailbox
   if (state.startsWith("mos_")) return "ms.user.complete";
-  if (state.startsWith("mcs_")) return "engine.mcp.oauth_complete";   // a remote outside-tool server, finished in the engine
+  if (state.startsWith("mcs_")) return "engine.mcp.oauth_complete"; // a remote outside-tool server, finished in the engine
   return "connections.complete_auth";
 };
 
 /** Finish the sign-in with what the address carried. */
 export async function completeCallback(call: CapCall, p: CallbackParams, home: AiHome = "here"): Promise<Outcome> {
-  if (p.state === null) return failed("There is no sign-in to finish", "This address has no sign-in state. It only works when an app sends you back to it.", START_AGAIN);
-  if (p.error === null && p.code === null) return failed("The app did not send a sign-in code", "It returned to Vyre without a code or an error.", START_AGAIN);
+  if (p.state === null)
+    return failed(
+      "There is no sign-in to finish",
+      "This address has no sign-in state. It only works when an app sends you back to it.",
+      START_AGAIN,
+    );
+  if (p.error === null && p.code === null)
+    return failed(
+      "The app did not send a sign-in code",
+      "It returned to Vyre without a code or an error.",
+      START_AGAIN,
+    );
   try {
-    const out = (await call(finishing(p.state), p.error !== null ? { state: p.state, error: p.error } : { state: p.state, code: p.code })) as { connectionId?: string; accountId?: string };
+    const out = (await call(
+      finishing(p.state),
+      p.error !== null ? { state: p.state, error: p.error } : { state: p.state, code: p.code },
+    )) as { connectionId?: string; accountId?: string };
     return { kind: "connected", connectionId: out.connectionId ?? out.accountId ?? "" };
-  } catch (e) { return describeFailure(e, home); }
+  } catch (e) {
+    return describeFailure(e, home);
+  }
 }

@@ -22,7 +22,11 @@ const g = (): InstallGlobal => globalThis as unknown as InstallGlobal;
 
 /** Already running as the installed app (Android standalone, or iPhone's home screen). */
 export function runningInstalled(w: InstallGlobal = g()): boolean {
-  try { if (w.matchMedia?.("(display-mode: standalone)").matches === true) return true; } catch { /* no media queries */ }
+  try {
+    if (w.matchMedia?.("(display-mode: standalone)").matches === true) return true;
+  } catch {
+    /* no media queries */
+  }
   return w.navigator?.standalone === true;
 }
 
@@ -37,7 +41,9 @@ export async function promptInstall(w: InstallGlobal = g()): Promise<boolean> {
   if (!ev) return false;
   w.__VYRE_INSTALL__ = null;
   await ev.prompt();
-  const choice = ev.userChoice ? await ev.userChoice.catch(() => ({ outcome: "dismissed" as const })) : { outcome: "dismissed" as const };
+  const choice = ev.userChoice
+    ? await ev.userChoice.catch(() => ({ outcome: "dismissed" as const }))
+    : { outcome: "dismissed" as const };
   return choice.outcome === "accepted";
 }
 

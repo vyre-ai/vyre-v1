@@ -21,15 +21,24 @@ export const DESCRIPTION_MAX = 1536;
 function scalar(raw: string): unknown {
   const s = raw.trim();
   if (s === "") return "";
-  if ((s.startsWith('"') && s.endsWith('"') && s.length >= 2)) {
-    try { return JSON.parse(s) as unknown; } catch { return s.slice(1, -1); }
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
+    try {
+      return JSON.parse(s) as unknown;
+    } catch {
+      return s.slice(1, -1);
+    }
   }
   if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) return s.slice(1, -1).replace(/''/g, "'");
   if (s === "true" || s === "yes" || s === "on") return true;
   if (s === "false" || s === "no" || s === "off") return false;
   if (s === "null" || s === "~") return null;
   if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
-  if (s.startsWith("[") && s.endsWith("]")) return s.slice(1, -1).split(",").map((x) => scalar(x)).filter((x) => x !== "");
+  if (s.startsWith("[") && s.endsWith("]"))
+    return s
+      .slice(1, -1)
+      .split(",")
+      .map((x) => scalar(x))
+      .filter((x) => x !== "");
   return s;
 }
 
@@ -45,14 +54,26 @@ export function parseFrontMatter(text: string): Record<string, unknown> {
     const key = m[1]!;
     const rest = m[2]!.trim();
     const indented: string[] = [];
-    while (i + 1 < lines.length && (/^[ \t]/.test(lines[i + 1]!) || lines[i + 1]!.trim() === "" || /^-\s/.test(lines[i + 1]!))) {
-      if (lines[i + 1]!.trim() === "" && !(lines[i + 2] !== undefined && (/^[ \t]/.test(lines[i + 2]!) || /^-\s/.test(lines[i + 2]!)))) break;
+    while (
+      i + 1 < lines.length &&
+      (/^[ \t]/.test(lines[i + 1]!) || lines[i + 1]!.trim() === "" || /^-\s/.test(lines[i + 1]!))
+    ) {
+      if (
+        lines[i + 1]!.trim() === "" &&
+        !(lines[i + 2] !== undefined && (/^[ \t]/.test(lines[i + 2]!) || /^-\s/.test(lines[i + 2]!)))
+      )
+        break;
       indented.push(lines[++i]!);
     }
     if (/^[|>][+-]?$/.test(rest)) {
-      const pad = Math.min(...indented.filter((l) => l.trim() !== "").map((l) => /^[ \t]*/.exec(l)![0].length), Infinity);
+      const pad = Math.min(
+        ...indented.filter((l) => l.trim() !== "").map((l) => /^[ \t]*/.exec(l)![0].length),
+        Infinity,
+      );
       const body = indented.map((l) => (pad === Infinity ? l : l.slice(pad)));
-      out[key] = rest.startsWith("|") ? body.join("\n").replace(/\n+$/, "") : body.join(" ").replace(/\s+/g, " ").trim();
+      out[key] = rest.startsWith("|")
+        ? body.join("\n").replace(/\n+$/, "")
+        : body.join(" ").replace(/\s+/g, " ").trim();
     } else if (rest === "" && indented.length > 0) {
       const items = indented.filter((l) => /^\s*-\s/.test(l));
       if (items.length > 0) out[key] = items.map((l) => scalar(l.replace(/^\s*-\s+/, "")));
@@ -60,28 +81,52 @@ export function parseFrontMatter(text: string): Record<string, unknown> {
     } else if (rest === "" && indented.length === 0) {
       out[key] = "";
     } else {
-      out[key] = indented.length > 0 && !rest.startsWith("[") && !rest.startsWith('"') && !rest.startsWith("'") ? [rest, ...indented.map((l) => l.trim())].join(" ") : scalar(rest);
+      out[key] =
+        indented.length > 0 && !rest.startsWith("[") && !rest.startsWith('"') && !rest.startsWith("'")
+          ? [rest, ...indented.map((l) => l.trim())].join(" ")
+          : scalar(rest);
     }
   }
   return out;
 }
 
-export interface SkillProblem { message: string }
+export interface SkillProblem {
+  message: string;
+}
 
 /**
  * Reads a SKILL.md. `fallbackName` is the folder name, used when the front matter has no `name` (the open format defaults to the directory name). Returns the problem when the text is not a skill.
  */
-export function parseSkill(text: string, fallbackName?: string): { ok: true; skill: SkillFile } | { ok: false; problem: string } {
-  if (Buffer.byteLength(text, "utf8") > SKILL_MAX_BYTES) return { ok: false, problem: `A skill is at most ${SKILL_MAX_BYTES / 1000} KB of text.` };
+export function parseSkill(
+  text: string,
+  fallbackName?: string,
+): { ok: true; skill: SkillFile } | { ok: false; problem: string } {
+  if (Buffer.byteLength(text, "utf8") > SKILL_MAX_BYTES)
+    return { ok: false, problem: `A skill is at most ${SKILL_MAX_BYTES / 1000} KB of text.` };
   const m = FRONT.exec(text);
   const meta = m ? parseFrontMatter(m[1]!) : {};
   const body = m ? text.slice(m[0].length) : text;
-  const name = typeof meta["name"] === "string" && meta["name"].trim() !== "" ? meta["name"].trim() : (fallbackName ?? "");
-  if (name === "") return { ok: false, problem: "The skill has no name. Start the file with a --- front matter block that has name: and description:." };
-  if (!SKILL_NAME.test(name)) return { ok: false, problem: `"${name}" is not a skill name. Use letters, digits, dash and underscore, up to 64 characters.` };
+  const name =
+    typeof meta["name"] === "string" && meta["name"].trim() !== "" ? meta["name"].trim() : (fallbackName ?? "");
+  if (name === "")
+    return {
+      ok: false,
+      problem: "The skill has no name. Start the file with a --- front matter block that has name: and description:.",
+    };
+  if (!SKILL_NAME.test(name))
+    return {
+      ok: false,
+      problem: `"${name}" is not a skill name. Use letters, digits, dash and underscore, up to 64 characters.`,
+    };
   let description = typeof meta["description"] === "string" ? meta["description"].trim() : "";
-  if (description === "") description = body.split(/\r?\n/).map((l) => l.replace(/^#+\s*/, "").trim()).find((l) => l !== "") ?? "";
-  if (description === "") return { ok: false, problem: "The skill has no description. Say what it does and when to use it." };
+  if (description === "")
+    description =
+      body
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^#+\s*/, "").trim())
+        .find((l) => l !== "") ?? "";
+  if (description === "")
+    return { ok: false, problem: "The skill has no description. Say what it does and when to use it." };
   const when = typeof meta["when_to_use"] === "string" ? meta["when_to_use"].trim() : "";
   if (when !== "") description = `${description} ${when}`;
   if (description.length > DESCRIPTION_MAX) description = `${description.slice(0, DESCRIPTION_MAX - 1)}…`;
@@ -91,7 +136,15 @@ export function parseSkill(text: string, fallbackName?: string): { ok: true; ski
 /** The text of a SKILL.md for a name, a description and instructions (used when a skill is made from a plugin command or an agent definition). */
 export function skillText(name: string, description: string, body: string, extra: Record<string, string> = {}): string {
   const q = (s: string): string => JSON.stringify(s.replace(/\s+/g, " ").trim());
-  const lines = ["---", `name: ${name}`, `description: ${q(description)}`, ...Object.entries(extra).map(([k, v]) => `${k}: ${q(v)}`), "---", "", body.replace(/^\n+/, "")];
+  const lines = [
+    "---",
+    `name: ${name}`,
+    `description: ${q(description)}`,
+    ...Object.entries(extra).map(([k, v]) => `${k}: ${q(v)}`),
+    "---",
+    "",
+    body.replace(/^\n+/, ""),
+  ];
   return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
 

@@ -26,7 +26,14 @@ function rig(over: Partial<World> = {}) {
       "access.check": (i) => {
         const r = (i as { resource: { type: string; id: string } }).resource;
         world.asked.push(`${r.type}:${r.id}`);
-        return { decision: { effect: world.denied.has(`${r.type}:${r.id}`) ? "deny" : "allow", reason: "test", steps: [], decisionId: "dec_1" } };
+        return {
+          decision: {
+            effect: world.denied.has(`${r.type}:${r.id}`) ? "deny" : "allow",
+            reason: "test",
+            steps: [],
+            decisionId: "dec_1",
+          },
+        };
       },
       "calendar.get_event": (i) => {
         const e = world.events[(i as { eventId: string }).eventId];
@@ -45,11 +52,20 @@ function rig(over: Partial<World> = {}) {
   return { hn, world };
 }
 const ask = async (ctx: Harness["ctx"], scopeType: string, scopeId: string, agentId = INTAKE): Promise<any> =>
-  (await h["chat.start"]!(ctx, { kind: "ask", agentIds: [agentId], scopeType, scopeId, idempotencyKey: `a${++n}` })).thread;
-async function code(f: () => unknown): Promise<{ code: string; reason?: string; next: Array<{ kind: string; action?: { cap: string; input: any } }> }> {
-  try { await f(); } catch (e) {
+  (await h["chat.start"]!(ctx, { kind: "ask", agentIds: [agentId], scopeType, scopeId, idempotencyKey: `a${++n}` }))
+    .thread;
+async function code(
+  f: () => unknown,
+): Promise<{ code: string; reason?: string; next: Array<{ kind: string; action?: { cap: string; input: any } }> }> {
+  try {
+    await f();
+  } catch (e) {
     const err = (e as { error?: { code?: string; details?: { reason?: string }; next?: any[] } }).error;
-    return { code: err?.code ?? "unknown", ...(err?.details?.reason ? { reason: err.details.reason } : {}), next: err?.next ?? [] };
+    return {
+      code: err?.code ?? "unknown",
+      ...(err?.details?.reason ? { reason: err.details.reason } : {}),
+      next: err?.next ?? [],
+    };
   }
   return { code: "none", next: [] };
 }
@@ -66,15 +82,42 @@ test("suggested agent: the one that booked the event, else the contact's agent, 
   world.records["rec_c2"] = { type: "contact", fields: {} };
   world.last = "agt_last";
 
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_booked" }), { agentId: "agt_booker", reason: "booked_by" });
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_plain" }), { agentId: "agt_contact", reason: "contact_agent" }, "a linked company is not a contact; the contact's agent is");
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_none" }), { agentId: "agt_last", reason: "last_used" });
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_c1" }), { agentId: "agt_contact", reason: "contact_agent" });
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_c2" }), { agentId: "agt_last", reason: "last_used" }, "a contact with no agent");
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_company" }), { agentId: "agt_last", reason: "last_used" }, "a record that is not a contact");
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "file", scopeId: "fil_1" }), { agentId: "agt_last", reason: "last_used" });
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_booked" }), {
+    agentId: "agt_booker",
+    reason: "booked_by",
+  });
+  assert.deepEqual(
+    await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_plain" }),
+    { agentId: "agt_contact", reason: "contact_agent" },
+    "a linked company is not a contact; the contact's agent is",
+  );
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_none" }), {
+    agentId: "agt_last",
+    reason: "last_used",
+  });
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_c1" }), {
+    agentId: "agt_contact",
+    reason: "contact_agent",
+  });
+  assert.deepEqual(
+    await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_c2" }),
+    { agentId: "agt_last", reason: "last_used" },
+    "a contact with no agent",
+  );
+  assert.deepEqual(
+    await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_company" }),
+    { agentId: "agt_last", reason: "last_used" },
+    "a record that is not a contact",
+  );
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "file", scopeId: "fil_1" }), {
+    agentId: "agt_last",
+    reason: "last_used",
+  });
   world.last = null;
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "file", scopeId: "fil_1" }), { agentId: null, reason: "none" });
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "file", scopeId: "fil_1" }), {
+    agentId: null,
+    reason: "none",
+  });
   assert.deepEqual(contractErrors("chat.ask_suggest", "out", { agentId: null, reason: "none" }), []);
 });
 
@@ -83,14 +126,20 @@ test("suggested agent: only an agent id counts, wherever it came from", async ()
   world.events["cev_x"] = { bookedByAgentId: "usr_not_an_agent", recordIds: ["rec_c1"] };
   world.records["rec_c1"] = { type: "contact", fields: { agent: "someone" } };
   world.last = "agent-ish";
-  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_x" }), { agentId: null, reason: "none" });
+  assert.deepEqual(await A["chat.ask_suggest"]!(hn.ctx, { scopeType: "event", scopeId: "cev_x" }), {
+    agentId: null,
+    reason: "none",
+  });
 });
 
 test("the suggestion follows the asker: the setting is read for the person who calls", async () => {
   const seen: Array<string | undefined> = [];
   const hn = harness({
     calls: {
-      "access.check": (i) => { seen.push((i as { principal: { id: string } }).principal.id); return { decision: { effect: "allow", reason: "ok", steps: [], decisionId: "d" } }; },
+      "access.check": (i) => {
+        seen.push((i as { principal: { id: string } }).principal.id);
+        return { decision: { effect: "allow", reason: "ok", steps: [], decisionId: "d" } };
+      },
       "settings.get": () => ({ row: { value: "agt_mine" } }),
     },
   });
@@ -102,9 +151,21 @@ test("the suggestion follows the asker: the setting is read for the person who c
 
 test("an Ask scope names an object with a type and an id", async () => {
   const { hn } = rig();
-  for (const bad of [{ scopeType: "Record!", scopeId: "rec_1" }, { scopeType: "", scopeId: "rec_1" }, { scopeType: "record", scopeId: "  " }, { scopeType: "record", scopeId: "x".repeat(201) }]) {
-    assert.equal((await code(() => A["chat.ask_suggest"]!(hn.ctx, bad))).code, "validation.bad_input", JSON.stringify(bad).slice(0, 40));
-    assert.equal((await code(() => A["chat.asks_of"]!(hn.ctx, { resourceType: bad.scopeType, resourceId: bad.scopeId }))).code, "validation.bad_input");
+  for (const bad of [
+    { scopeType: "Record!", scopeId: "rec_1" },
+    { scopeType: "", scopeId: "rec_1" },
+    { scopeType: "record", scopeId: "  " },
+    { scopeType: "record", scopeId: "x".repeat(201) },
+  ]) {
+    assert.equal(
+      (await code(() => A["chat.ask_suggest"]!(hn.ctx, bad))).code,
+      "validation.bad_input",
+      JSON.stringify(bad).slice(0, 40),
+    );
+    assert.equal(
+      (await code(() => A["chat.asks_of"]!(hn.ctx, { resourceType: bad.scopeType, resourceId: bad.scopeId }))).code,
+      "validation.bad_input",
+    );
   }
 });
 
@@ -113,7 +174,13 @@ test("an object the person cannot see gets no answer and the Ask for access link
   world.denied.add("record:rec_secret");
   const r = await code(() => A["chat.ask_suggest"]!(hn.ctx, { scopeType: "record", scopeId: "rec_secret" }));
   assert.deepEqual([r.code, r.reason], ["permission.no_grant", "no_view"]);
-  assert.deepEqual(r.next, [{ kind: "ask_access", label: "Ask for access", action: { cap: "access.request", input: { resource: { type: "record", id: "rec_secret" }, level: "view" } } }]);
+  assert.deepEqual(r.next, [
+    {
+      kind: "ask_access",
+      label: "Ask for access",
+      action: { cap: "access.request", input: { resource: { type: "record", id: "rec_secret" }, level: "view" } },
+    },
+  ]);
   const h2 = await code(() => A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_secret" }));
   assert.equal(h2.code, "permission.no_grant", "the pane history of an object is as private as the object");
   // the person can still ask about what they can see
@@ -121,7 +188,17 @@ test("an object the person cannot see gets no answer and the Ask for access link
 });
 
 /** A session of its own: an opening message. */
-const session = async (ctx: Harness["ctx"], scopeType: string, scopeId: string): Promise<any> => (await h["chat.start"]!(ctx, { kind: "ask", agentIds: [INTAKE], scopeType, scopeId, first: "Start here", idempotencyKey: `sess-${++n}` })).thread;
+const session = async (ctx: Harness["ctx"], scopeType: string, scopeId: string): Promise<any> =>
+  (
+    await h["chat.start"]!(ctx, {
+      kind: "ask",
+      agentIds: [INTAKE],
+      scopeType,
+      scopeId,
+      first: "Start here",
+      idempotencyKey: `sess-${++n}`,
+    })
+  ).thread;
 
 test("objects that are not resources of their own are read through their own capability, which carries the refusal; no access check is made for them", async () => {
   const { hn, world } = rig();
@@ -147,10 +224,28 @@ test("one Ask per person, agent and object: every door finds the same conversati
   const { hn } = rig();
   const a = await ask(hn.ctx, "record", "rec_key");
   assert.equal((await ask(hn.ctx, "record", "rec_key")).threadId, a.threadId, "a second door, with its own key");
-  assert.notEqual((await ask(hn.person(MAYA), "record", "rec_key")).threadId, a.threadId, "another person has their own");
+  assert.notEqual(
+    (await ask(hn.person(MAYA), "record", "rec_key")).threadId,
+    a.threadId,
+    "another person has their own",
+  );
   assert.notEqual((await ask(hn.ctx, "file", "rec_key")).threadId, a.threadId, "another scope is a new session");
-  assert.notEqual((await session(hn.ctx, "record", "rec_key")).threadId, a.threadId, "an opening message starts a session of its own");
-  const comment = (await h["chat.start"]!(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_key", recordId: "rec_key", title: "Comment replies", idempotencyKey: `rcm-${++n}` })).thread;
+  assert.notEqual(
+    (await session(hn.ctx, "record", "rec_key")).threadId,
+    a.threadId,
+    "an opening message starts a session of its own",
+  );
+  const comment = (
+    await h["chat.start"]!(hn.ctx, {
+      kind: "ask",
+      agentIds: [INTAKE],
+      scopeType: "record",
+      scopeId: "rec_key",
+      recordId: "rec_key",
+      title: "Comment replies",
+      idempotencyKey: `rcm-${++n}`,
+    })
+  ).thread;
   assert.notEqual(comment.threadId, a.threadId, "a comment's pane is its own conversation");
 });
 
@@ -163,36 +258,76 @@ test("the pane history of an object is the caller's own Ask panes on it, newest 
   await ask(hn.ctx, "record", "rec_a2");
   hn.advance(10);
   const mine = await ask(hn.person(MAYA), "record", "rec_a1");
-  await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], recordId: "rec_a1", idempotencyKey: "plain-chat" });
+  await h["chat.start"]!(hn.ctx, {
+    kind: "chat",
+    agentIds: [INTAKE],
+    recordId: "rec_a1",
+    idempotencyKey: "plain-chat",
+  });
   await A["chat.open_as_chat"]!(hn.ctx, { threadId: first.threadId });
 
   const dana = await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_a1" });
-  assert.deepEqual(dana.threads.map((x: any) => x.threadId), [second.threadId, first.threadId]);
+  assert.deepEqual(
+    dana.threads.map((x: any) => x.threadId),
+    [second.threadId, first.threadId],
+  );
   assert.equal(dana.total, 2);
-  assert.deepEqual(dana.threads.map((x: any) => x.listed), [false, true]);
+  assert.deepEqual(
+    dana.threads.map((x: any) => x.listed),
+    [false, true],
+  );
   assert.equal("next" in dana, false);
   assert.deepEqual(contractErrors("chat.asks_of", "out", dana), []);
 
   const maya = await A["chat.asks_of"]!(hn.person(MAYA), { resourceType: "record", resourceId: "rec_a1" });
-  assert.deepEqual(maya.threads.map((x: any) => x.threadId), [mine.threadId]);
-  for (const other of [hn.person(LEO), hn.agent(INTAKE, LEO)]) assert.deepEqual((await A["chat.asks_of"]!(other, { resourceType: "record", resourceId: "rec_a1" })).threads, [], "an Ask pane is private, even from an admin");
-  assert.deepEqual((await A["chat.asks_of"]!(hn.ctx, { resourceType: "file", resourceId: "rec_a1" })).threads, [], "the type is part of the object");
+  assert.deepEqual(
+    maya.threads.map((x: any) => x.threadId),
+    [mine.threadId],
+  );
+  for (const other of [hn.person(LEO), hn.agent(INTAKE, LEO)])
+    assert.deepEqual(
+      (await A["chat.asks_of"]!(other, { resourceType: "record", resourceId: "rec_a1" })).threads,
+      [],
+      "an Ask pane is private, even from an admin",
+    );
+  assert.deepEqual(
+    (await A["chat.asks_of"]!(hn.ctx, { resourceType: "file", resourceId: "rec_a1" })).threads,
+    [],
+    "the type is part of the object",
+  );
 });
 
 test("the pane history pages with a cursor and counts all of it", async () => {
   const { hn } = rig();
   const ids: string[] = [];
-  for (let i = 0; i < 5; i++) { ids.unshift((await session(hn.ctx, "record", "rec_p")).threadId); hn.advance(i === 2 ? 0 : 10); }
+  for (let i = 0; i < 5; i++) {
+    ids.unshift((await session(hn.ctx, "record", "rec_p")).threadId);
+    hn.advance(i === 2 ? 0 : 10);
+  }
   const p1 = await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", limit: 2 });
   assert.equal(p1.threads.length, 2);
   assert.equal(p1.total, 5);
   assert.ok(p1.next);
-  const p2 = await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", limit: 2, cursor: p1.next });
-  const p3 = await A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", limit: 2, cursor: p2.next });
+  const p2 = await A["chat.asks_of"]!(hn.ctx, {
+    resourceType: "record",
+    resourceId: "rec_p",
+    limit: 2,
+    cursor: p1.next,
+  });
+  const p3 = await A["chat.asks_of"]!(hn.ctx, {
+    resourceType: "record",
+    resourceId: "rec_p",
+    limit: 2,
+    cursor: p2.next,
+  });
   const got = [...p1.threads, ...p2.threads, ...p3.threads].map((x: any) => x.threadId);
   assert.equal(new Set(got).size, 5, "no pane twice, none missed, even where two share a timestamp");
   assert.equal("next" in p3, false);
-  assert.equal((await code(() => A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", cursor: "garbage" }))).code, "validation.bad_input");
+  assert.equal(
+    (await code(() => A["chat.asks_of"]!(hn.ctx, { resourceType: "record", resourceId: "rec_p", cursor: "garbage" })))
+      .code,
+    "validation.bad_input",
+  );
   assert.deepEqual(got.slice().sort(), ids.slice().sort());
 });
 
@@ -219,7 +354,12 @@ test("open as chat refuses what is not the caller's own Ask pane: someone else's
   const { hn } = rig();
   const t = await ask(hn.ctx, "record", "rec_a1");
   const chat = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "c1" })).thread;
-  for (const [ctx, id] of [[hn.person(MAYA), t.threadId], [hn.agent(INTAKE, LEO), t.threadId], [hn.ctx, chat.threadId], [hn.ctx, "thr_none"]] as const) {
+  for (const [ctx, id] of [
+    [hn.person(MAYA), t.threadId],
+    [hn.agent(INTAKE, LEO), t.threadId],
+    [hn.ctx, chat.threadId],
+    [hn.ctx, "thr_none"],
+  ] as const) {
     assert.equal((await code(() => A["chat.open_as_chat"]!(ctx, { threadId: id }))).code, "validation.not_found");
   }
   assert.equal(threadBy(hn.db, t.threadId)?.listed, false);

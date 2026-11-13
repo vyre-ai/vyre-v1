@@ -32,16 +32,28 @@ export function ChatsPlace({ sidebar, conversation, pane, paneOpen = true, windo
   const wide = width === 0 || width >= WIDE;
   const [open, setOpen] = useState(paneOpen);
   // The chat's own button toggles the same pane the pane's toggle does.
-  const chat = useMemo<ConversationData>(() => ({ ...conversation, nav: { ...conversation.nav, togglePane: () => setOpen((o) => !o) } }), [conversation]);
+  const chat = useMemo<ConversationData>(
+    () => ({ ...conversation, nav: { ...conversation.nav, togglePane: () => setOpen((o) => !o) } }),
+    [conversation],
+  );
   return (
     <CrewProvider call={conversation.call} threadId={conversation.threadId} onShow={() => setOpen(true)}>
-     <SessionProvider threadId={conversation.threadId}>
-      <View testID="chats-place" style={st.root}>
-        <ChatsSidebarSlot data={sidebar} {...(window ? { window } : {})} />
-        <View testID="chats-place-chat" style={st.chat}><Conversation data={chat} /></View>
-        {wide ? <ChatRightPane data={pane} open={open} onToggle={() => setOpen((o) => !o)} {...(window ? { window } : {})} /> : null}
-      </View>
-     </SessionProvider>
+      <SessionProvider threadId={conversation.threadId}>
+        <View testID="chats-place" style={st.root}>
+          <ChatsSidebarSlot data={sidebar} {...(window ? { window } : {})} />
+          <View testID="chats-place-chat" style={st.chat}>
+            <Conversation data={chat} />
+          </View>
+          {wide ? (
+            <ChatRightPane
+              data={pane}
+              open={open}
+              onToggle={() => setOpen((o) => !o)}
+              {...(window ? { window } : {})}
+            />
+          ) : null}
+        </View>
+      </SessionProvider>
     </CrewProvider>
   );
 }

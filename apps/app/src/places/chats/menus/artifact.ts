@@ -7,7 +7,13 @@ export interface ArtifactFacts {
   /** The person owns it: only an owner shares, renames or deletes. */
   mine: boolean;
 }
-export interface ArtifactDo { open(): void; share?(): void; copyLink?(): void; rename?(): void; remove?(): void }
+export interface ArtifactDo {
+  open(): void;
+  share?(): void;
+  copyLink?(): void;
+  rename?(): void;
+  remove?(): void;
+}
 
 export function artifactMenu(f: ArtifactFacts, d: ArtifactDo): MenuEntry[] {
   return tidy([

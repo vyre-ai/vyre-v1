@@ -6,7 +6,8 @@ import { consumers } from "../impl.ts";
 import { readPolicy } from "../projections.ts";
 
 const MINUTE = 60_000;
-const announce = (h: ReturnType<typeof harness>, key: string, after: unknown): Promise<unknown> => consumers["scheduler.settings_sync"].run({ db: h.db } as never, { payload: { key, scope: "space", after } });
+const announce = (h: ReturnType<typeof harness>, key: string, after: unknown): Promise<unknown> =>
+  consumers["scheduler.settings_sync"].run({ db: h.db } as never, { payload: { key, scope: "space", after } });
 
 test("changing a scheduler setting changes the policy a pass reads", async () => {
   const h = harness();

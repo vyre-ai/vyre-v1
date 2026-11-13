@@ -15,11 +15,27 @@ import type { NoticeKind, NoticeStore } from "./model.ts";
 type ListOut = CapMap["notifications.list"]["out"];
 
 /** Which kind of notice a notification is, and the one word on its action. */
-export function noticeKindOf(n: Pick<Notification, "kind">): { kind: Exclude<NoticeKind, "passing" | "locked" | "offline" | "update">; label: string } {
+export function noticeKindOf(n: Pick<Notification, "kind">): {
+  kind: Exclude<NoticeKind, "passing" | "locked" | "offline" | "update">;
+  label: string;
+} {
   switch (n.kind) {
-    case "task.turn": case "approval.requested": case "approval.backstop": case "unblock.requested": case "answer.requested": case "access.requested": return { kind: "approval", label: "Review" };
-    case "health.degraded": case "incident.owned": case "sync.attention": case "agent.blocked": case "run.failed": case "limit.hit": return { kind: "machine", label: "Open" };
-    default: return { kind: "reply", label: "Open" };
+    case "task.turn":
+    case "approval.requested":
+    case "approval.backstop":
+    case "unblock.requested":
+    case "answer.requested":
+    case "access.requested":
+      return { kind: "approval", label: "Review" };
+    case "health.degraded":
+    case "incident.owned":
+    case "sync.attention":
+    case "agent.blocked":
+    case "run.failed":
+    case "limit.hit":
+      return { kind: "machine", label: "Open" };
+    default:
+      return { kind: "reply", label: "Open" };
   }
 }
 
@@ -39,7 +55,12 @@ export function noticeText(n: Pick<Notification, "title" | "count">): string {
  * Bring the slot in line with a fresh read of my unseen Interrupt notifications: each is a persisting notice with one action; one that is no longer in the read (seen elsewhere, settled) goes.
  * Answers the ids it raised, for the next read.
  */
-export function syncNotifications(store: NoticeStore, before: ReadonlySet<string>, items: readonly Notification[], act: (n: Notification) => void): Set<string> {
+export function syncNotifications(
+  store: NoticeStore,
+  before: ReadonlySet<string>,
+  items: readonly Notification[],
+  act: (n: Notification) => void,
+): Set<string> {
   const now = new Set<string>();
   for (const n of items) {
     if (n.level !== "interrupt" || n.seenAt !== undefined || isGoalStuck(n)) continue;
@@ -85,7 +106,16 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
       if (!parents.has(id)) {
         if (!asked.has(id)) {
           asked.add(id);
-          void Promise.resolve(p.call("threads.get", { threadId: id })).then((r) => { parents.set(id, (r as { thread?: { parentThreadId?: string } } | undefined)?.thread?.parentThreadId ?? null); read(); }, () => parents.set(id, null));
+          void Promise.resolve(p.call("threads.get", { threadId: id })).then(
+            (r) => {
+              parents.set(
+                id,
+                (r as { thread?: { parentThreadId?: string } } | undefined)?.thread?.parentThreadId ?? null,
+              );
+              read();
+            },
+            () => parents.set(id, null),
+          );
         }
         return false;
       }
@@ -97,12 +127,19 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
       if (s.status !== "ready") return;
       const shown = s.data.notifications.filter((n) => {
         if (n.level !== "interrupt" || n.seenAt !== undefined || !isViewed(n)) return true;
-        if (!quieted.has(n.id)) { quieted.add(n.id); void Promise.resolve(p.call("notifications.mark_seen", { notificationIds: [n.id] })).catch(() => undefined); }
+        if (!quieted.has(n.id)) {
+          quieted.add(n.id);
+          void Promise.resolve(p.call("notifications.mark_seen", { notificationIds: [n.id] })).catch(() => undefined);
+        }
         return false;
       });
       raised.current = syncNotifications(store, raised.current, shown, act);
       if (p.os) {
-        const r = osBanners(shown.filter((n) => n.level === "interrupt" && n.seenAt === undefined && !isGoalStuck(n)), bannered.current, p.os.view());
+        const r = osBanners(
+          shown.filter((n) => n.level === "interrupt" && n.seenAt === undefined && !isGoalStuck(n)),
+          bannered.current,
+          p.os.view(),
+        );
         bannered.current = r.memory;
         for (const b of r.banners) p.os.show(b);
       }
@@ -110,7 +147,12 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
     const off = q.subscribe(read);
     const offView = viewing.subscribe(read);
     read();
-    return () => { off(); offView(); for (const id of raised.current) store.resolve(id); raised.current = new Set(); };
+    return () => {
+      off();
+      offView();
+      for (const id of raised.current) store.resolve(id);
+      raised.current = new Set();
+    };
   }, [p, store]);
 }
 
@@ -126,8 +168,24 @@ export interface UpdateSource {
 export function updateNoticeFrom(src: UpdateSource, store: NoticeStore): void {
   const s = src.state();
   const version = s.check?.phase === "available" ? s.check.version : null;
-  if (s.installing) { store.raise({ id: "update", kind: "update", text: `Updating to ${version ?? "the new version"}` }); return; }
-  if (version !== null && src.install) { store.raise({ id: "update", kind: "update", text: `Vyre ${version} is ready`, action: { label: "Restart", run: () => { void src.install!(); } } }); return; }
+  if (s.installing) {
+    store.raise({ id: "update", kind: "update", text: `Updating to ${version ?? "the new version"}` });
+    return;
+  }
+  if (version !== null && src.install) {
+    store.raise({
+      id: "update",
+      kind: "update",
+      text: `Vyre ${version} is ready`,
+      action: {
+        label: "Restart",
+        run: () => {
+          void src.install!();
+        },
+      },
+    });
+    return;
+  }
   store.resolve("update");
 }
 
@@ -138,6 +196,9 @@ export function useUpdateNotice(src: UpdateSource | null, store: NoticeStore = s
     const read = (): void => updateNoticeFrom(src, store);
     const off = src.subscribe(read);
     read();
-    return () => { off(); store.resolve("update"); };
+    return () => {
+      off();
+      store.resolve("update");
+    };
   }, [src, store]);
 }

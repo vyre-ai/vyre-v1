@@ -17,18 +17,71 @@ const DAY = 86_400_000;
 
 export type Variant = "northwind" | "harbor";
 
-interface FolderSeed { id: string; name: string; parent: string | null; section: "personal" | "shared" | "space"; shared?: boolean; knowledge?: boolean; git?: boolean; rootKey?: string; source?: { mountId: string; provider: string }; subject?: { kind: "agent" | "project"; id?: string } }
-interface FileSeed { id: string; name: string; folder: string; kind: FileKind; size: number; ago: number; by: string; source?: string; shared?: boolean; knowledge?: boolean; starred?: boolean; conflict?: boolean; mime?: string }
+interface FolderSeed {
+  id: string;
+  name: string;
+  parent: string | null;
+  section: "personal" | "shared" | "space";
+  shared?: boolean;
+  knowledge?: boolean;
+  git?: boolean;
+  rootKey?: string;
+  source?: { mountId: string; provider: string };
+  subject?: { kind: "agent" | "project"; id?: string };
+}
+interface FileSeed {
+  id: string;
+  name: string;
+  folder: string;
+  kind: FileKind;
+  size: number;
+  ago: number;
+  by: string;
+  source?: string;
+  shared?: boolean;
+  knowledge?: boolean;
+  starred?: boolean;
+  conflict?: boolean;
+  mime?: string;
+}
 
-interface ChangesetSeed { id: string; folder: string; by: string; files: number }
+interface ChangesetSeed {
+  id: string;
+  folder: string;
+  by: string;
+  files: number;
+}
 
-export interface SampleSpace { id: Variant; name: string; folders: FolderSeed[]; files: FileSeed[]; people: Record<string, string>; changesets?: ChangesetSeed[] }
+export interface SampleSpace {
+  id: Variant;
+  name: string;
+  folders: FolderSeed[];
+  files: FileSeed[];
+  people: Record<string, string>;
+  changesets?: ChangesetSeed[];
+}
 
-const F = (id: string, name: string, parent: string | null, section: FolderSeed["section"], o: Partial<FolderSeed> = {}): FolderSeed => ({ id, name, parent, section, ...o });
-const f = (id: string, name: string, folder: string, kind: FileKind, size: number, ago: number, by: string, o: Partial<FileSeed> = {}): FileSeed => ({ id, name, folder, kind, size, ago, by, ...o });
+const F = (
+  id: string,
+  name: string,
+  parent: string | null,
+  section: FolderSeed["section"],
+  o: Partial<FolderSeed> = {},
+): FolderSeed => ({ id, name, parent, section, ...o });
+const f = (
+  id: string,
+  name: string,
+  folder: string,
+  kind: FileKind,
+  size: number,
+  ago: number,
+  by: string,
+  o: Partial<FileSeed> = {},
+): FileSeed => ({ id, name, folder, kind, size, ago, by, ...o });
 
 export const northwind: SampleSpace = {
-  id: "northwind", name: "Northwind",
+  id: "northwind",
+  name: "Northwind",
   people: namesFor("northwind"),
   folders: [
     F("fld_daily", "Daily", null, "personal"),
@@ -48,7 +101,9 @@ export const northwind: SampleSpace = {
     f("fil_pricing", "Pricing sheet.xlsx", "fld_sales", "spreadsheet", 62_000, 30 * HOUR, "usr_omar"),
     f("fil_logo", "logo-northwind.png", "fld_sales", "image", 210_000, 9 * DAY, "usr_maya"),
     f("fil_rivera", "Rivera engagement letter.docx", "fld_proposals", "document", 31_000, 3 * HOUR, "agt_docs"),
-    f("fil_harlow", "Harlow & Price worksheet.xlsx", "fld_proposals", "spreadsheet", 77_000, 2 * DAY, "usr_irfad", { source: "Google Drive" }),
+    f("fil_harlow", "Harlow & Price worksheet.xlsx", "fld_proposals", "spreadsheet", 77_000, 2 * DAY, "usr_irfad", {
+      source: "Google Drive",
+    }),
     f("fil_inv", "Invoice 1042.pdf", "fld_billing", "pdf", 58_000, 6 * HOUR, "agt_billing"),
     f("fil_inv2", "Invoice 1041.pdf", "fld_billing", "pdf", 61_000, 30 * HOUR, "agt_billing"),
     f("fil_form", "Intake form.pdf", "fld_intake", "pdf", 184_000, 4 * DAY, "usr_maya"),
@@ -61,7 +116,8 @@ export const northwind: SampleSpace = {
 };
 
 export const harbor: SampleSpace = {
-  id: "harbor", name: "Harbor Studio",
+  id: "harbor",
+  name: "Harbor Studio",
   people: namesFor("harbor"),
   folders: [F("fld_h_clients", "Clients", null, "space"), F("fld_h_assets", "Assets", null, "space")],
   files: [
@@ -72,9 +128,24 @@ export const harbor: SampleSpace = {
 };
 
 const fileRow = (s: FileSeed): FileRow & Row => ({
-  id: s.id, fileId: s.id, folderId: s.folder, name: s.name, kind: s.kind, mime: s.mime ?? "application/octet-stream", size: s.size, version: 1, label: 1, ownerId: s.by,
-  createdAt: SAMPLE_NOW - s.ago - DAY, updatedAt: SAMPLE_NOW - s.ago, updatedBy: s.by, ...(s.source ? { source: { mountId: "mnt_1", provider: s.source } } : {}), thumb: s.kind === "image", holds: 0,
-  ...(s.starred === true ? { starred: true } : {}), ...(s.conflict === true ? { conflict: true } : {}),
+  id: s.id,
+  fileId: s.id,
+  folderId: s.folder,
+  name: s.name,
+  kind: s.kind,
+  mime: s.mime ?? "application/octet-stream",
+  size: s.size,
+  version: 1,
+  label: 1,
+  ownerId: s.by,
+  createdAt: SAMPLE_NOW - s.ago - DAY,
+  updatedAt: SAMPLE_NOW - s.ago,
+  updatedBy: s.by,
+  ...(s.source ? { source: { mountId: "mnt_1", provider: s.source } } : {}),
+  thumb: s.kind === "image",
+  holds: 0,
+  ...(s.starred === true ? { starred: true } : {}),
+  ...(s.conflict === true ? { conflict: true } : {}),
   ...({ shared: s.shared === true, knowledge: s.knowledge === true } as Record<string, unknown>),
 });
 
@@ -106,7 +177,9 @@ const SUBJECT_FILES: FileSeed[] = [
   f("fil_pj_chk", "engagement-checklist.csv", "fld_pj_rivera", "spreadsheet", 900, 16 * HOUR, "usr_lena"),
   f("fil_pj_id", "id-scan.png", "fld_pj_rivera", "image", 408_000, 17 * HOUR, "usr_maya"),
   f("fil_pj_onb", "Rivera onboarding plan", "fld_pj_rivera", "document", 2_000, 2.4 * HOUR, "agt_intake"),
-  f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", { starred: true }),
+  f("fil_pj_letter", "rivera-engagement-letter.docx", "fld_pj_rivera", "document", 37_000, 1.2 * HOUR, "agt_docs", {
+    starred: true,
+  }),
   f("fil_pj_scan", "site-photo.png", "fld_pj_rivera", "image", 598_000, 0.8 * HOUR, "usr_maya", { conflict: true }),
   f("fil_pj_plan", "Launch plan.docx", "fld_pj_launch", "document", 41_000, 2 * DAY, "usr_omar"),
 ];
@@ -128,23 +201,67 @@ export interface SampleFiles {
 type Seeded = FileRow & { deletedAt?: number; shared?: boolean; knowledge?: boolean };
 type FolderSeedRow = FolderSeed & Row;
 
-export function createSampleFiles(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number; subjects?: boolean } = {}): SampleFiles {
+export function createSampleFiles(
+  space: SampleSpace = northwind,
+  o: { online?: boolean; bulk?: number; subjects?: boolean } = {},
+): SampleFiles {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
   let online = o.online ?? true;
   const listeners = new Set<() => void>();
 
-  const folderSeeds = o.subjects === true && space === northwind ? [...SUBJECT_FOLDERS, ...space.folders] : space.folders;
-  replica.put("folders", folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })));
+  const folderSeeds =
+    o.subjects === true && space === northwind ? [...SUBJECT_FOLDERS, ...space.folders] : space.folders;
+  replica.put(
+    "folders",
+    folderSeeds.map((x): FolderSeedRow => ({ ...x, id: x.id })),
+  );
   // Docs staged three writes in the Rivera matter folder too, where the prototype shows its banner
-  const changesets = o.subjects === true && space === northwind ? [...(space.changesets ?? []), { id: "chg_rivera", folder: "fld_pj_rivera", by: "agt_docs", files: 3 }] : space.changesets ?? [];
-  replica.put("changesets", changesets.map((c) => ({ id: c.id, changesetId: c.id, folderId: c.folder, state: "open", by: c.by, fileCount: c.files, added: c.files * 12, removed: 0, openedAt: SAMPLE_NOW - HOUR, pushPending: false }) as Row));
+  const changesets =
+    o.subjects === true && space === northwind
+      ? [...(space.changesets ?? []), { id: "chg_rivera", folder: "fld_pj_rivera", by: "agt_docs", files: 3 }]
+      : (space.changesets ?? []);
+  replica.put(
+    "changesets",
+    changesets.map(
+      (c) =>
+        ({
+          id: c.id,
+          changesetId: c.id,
+          folderId: c.folder,
+          state: "open",
+          by: c.by,
+          fileCount: c.files,
+          added: c.files * 12,
+          removed: 0,
+          openedAt: SAMPLE_NOW - HOUR,
+          pushPending: false,
+        }) as Row,
+    ),
+  );
   const rich = o.subjects === true && space === northwind;
-  const files: Row[] = (rich ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) => fileRow(rich ? { ...x, ...(STARRED.has(x.id) ? { starred: true } : {}), ...(CONFLICT.has(x.id) ? { conflict: true } : {}) } : x));
+  const files: Row[] = (rich ? [...space.files, ...SUBJECT_FILES] : space.files).map((x) =>
+    fileRow(
+      rich
+        ? { ...x, ...(STARRED.has(x.id) ? { starred: true } : {}), ...(CONFLICT.has(x.id) ? { conflict: true } : {}) }
+        : x,
+    ),
+  );
   if (o.bulk) {
     const target = space.folders.find((x) => x.section === "space")?.id ?? space.folders[0]!.id;
-    for (let i = 0; i < o.bulk; i++) files.push(fileRow({ id: `bulk${i}`, name: `Scan ${String(i).padStart(5, "0")}.pdf`, folder: target, kind: i % 4 === 0 ? "image" : "pdf", size: 10_000 + (i * 37) % 900_000, ago: HOUR + i * 60_000, by: "usr_irfad" }));
+    for (let i = 0; i < o.bulk; i++)
+      files.push(
+        fileRow({
+          id: `bulk${i}`,
+          name: `Scan ${String(i).padStart(5, "0")}.pdf`,
+          folder: target,
+          kind: i % 4 === 0 ? "image" : "pdf",
+          size: 10_000 + ((i * 37) % 900_000),
+          ago: HOUR + i * 60_000,
+          by: "usr_irfad",
+        }),
+      );
   }
   replica.put("files", files);
 
@@ -161,29 +278,83 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
   const folderRow = (x: FolderSeed): FolderRow => {
     const kids = allFolders().filter((k) => k.parent === x.id).length;
     const n = allFiles().filter((fl) => live(fl) && fl.folderId === x.id).length;
-    return { folderId: x.id, ...(x.parent ? { parentId: x.parent } : {}), name: x.name, path: x.name, fileCount: n, folderCount: kids, scope: x.section === "space" ? "space" : "personal", label: 1, git: x.git === true, reviewChanges: false, ...(x.source ? { source: x.source } : {}), ...(x.subject ? { subject: x.subject } : {}) };
+    return {
+      folderId: x.id,
+      ...(x.parent ? { parentId: x.parent } : {}),
+      name: x.name,
+      path: x.name,
+      fileCount: n,
+      folderCount: kids,
+      scope: x.section === "space" ? "space" : "personal",
+      label: 1,
+      git: x.git === true,
+      reviewChanges: false,
+      ...(x.source ? { source: x.source } : {}),
+      ...(x.subject ? { subject: x.subject } : {}),
+    };
   };
-  const strip = (x: Seeded): FileRow => { const { shared: _s, knowledge: _k, ...rest } = x as Seeded & Record<string, unknown>; void _s; void _k; return rest as unknown as FileRow; };
+  const strip = (x: Seeded): FileRow => {
+    const { shared: _s, knowledge: _k, ...rest } = x as Seeded & Record<string, unknown>;
+    void _s;
+    void _k;
+    return rest as unknown as FileRow;
+  };
 
   replica.resolve("files.list", (_t, i) => {
     const parent = i.folder ?? null;
-    const folders = allFolders().filter((x) => x.parent === parent).map(folderRow);
-    const list = parent === null ? [] : allFiles().filter((x) => live(x) && x.folderId === parent && (!i.kind || x.kind === i.kind)).map(strip);
+    const folders = allFolders()
+      .filter((x) => x.parent === parent)
+      .map(folderRow);
+    const list =
+      parent === null
+        ? []
+        : allFiles()
+            .filter((x) => live(x) && x.folderId === parent && (!i.kind || x.kind === i.kind))
+            .map(strip);
     return { files: list, folders, total: list.length + folders.length };
   });
-  replica.resolve("files.recent", (_t, i) => ({ files: allFiles().filter(live).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, i.limit ?? 50).map(strip) }));
+  replica.resolve("files.recent", (_t, i) => ({
+    files: allFiles()
+      .filter(live)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, i.limit ?? 50)
+      .map(strip),
+  }));
   replica.resolve("files.shared_with_me", () => ({
-    files: allFiles().filter((x) => live(x) && x.shared === true).map(strip),
-    folders: allFolders().filter((x) => x.shared === true).map(folderRow), total: 0,
+    files: allFiles()
+      .filter((x) => live(x) && x.shared === true)
+      .map(strip),
+    folders: allFolders()
+      .filter((x) => x.shared === true)
+      .map(folderRow),
+    total: 0,
   }));
   replica.resolve("files.knowledge", () => ({
-    files: allFiles().filter((x) => live(x) && x.knowledge === true).map(strip),
-    folders: allFolders().filter((x) => x.knowledge === true).map(folderRow), total: 0,
+    files: allFiles()
+      .filter((x) => live(x) && x.knowledge === true)
+      .map(strip),
+    folders: allFolders()
+      .filter((x) => x.knowledge === true)
+      .map(folderRow),
+    total: 0,
   }));
-  replica.resolve("files.trash.list", () => ({ files: allFiles().filter((x) => !live(x)).map(strip), folders: [], total: 0 }));
+  replica.resolve("files.trash.list", () => ({
+    files: allFiles()
+      .filter((x) => !live(x))
+      .map(strip),
+    folders: [],
+    total: 0,
+  }));
   replica.resolve("stars.list", (_t, i) => {
-    const starred = i.type === undefined || i.type === "file" ? allFiles().filter((x) => live(x) && x.starred === true) : [];
-    return { stars: starred.map((x) => ({ resource: { type: "file" as const, id: x.fileId }, title: x.name, at: x.updatedAt })) };
+    const starred =
+      i.type === undefined || i.type === "file" ? allFiles().filter((x) => live(x) && x.starred === true) : [];
+    return {
+      stars: starred.map((x) => ({
+        resource: { type: "file" as const, id: x.fileId },
+        title: x.name,
+        at: x.updatedAt,
+      })),
+    };
   });
   // the preview the viewer shows for a file with a thumbnail: a small picture as a data address (the real one is a signed address on the Space)
   replica.resolve("files.viewer_data", (_t, i) => {
@@ -191,19 +362,47 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     if (!x) throw new Error(`no such file ${i.fileId}`);
     const hue = [...x.name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 360, 7);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" fill="hsl(${hue},35%,62%)"/><rect y="36" width="60" height="24" fill="hsl(${hue},30%,40%)"/></svg>`;
-    return { file: strip(x), canEdit: false, canMark: false, canComment: true, pins: 0, ...(x.thumb ? { previewUrl: `data:image/svg+xml;base64,${btoa(svg)}` } : {}) };
+    return {
+      file: strip(x),
+      canEdit: false,
+      canMark: false,
+      canComment: true,
+      pins: 0,
+      ...(x.thumb ? { previewUrl: `data:image/svg+xml;base64,${btoa(svg)}` } : {}),
+    };
   });
   replica.resolve("changesets.list", (_t, i) => {
-    const rows = replica.rows("changesets") as unknown as (CapMap["changesets.list"]["out"]["changesets"][number] & { id: string })[];
-    const list = rows.filter((c) => (i.folderId === undefined || c.folderId === i.folderId) && (i.state === undefined || c.state === i.state)).map(({ id: _id, ...c }) => c);
+    const rows = replica.rows("changesets") as unknown as (CapMap["changesets.list"]["out"]["changesets"][number] & {
+      id: string;
+    })[];
+    const list = rows
+      .filter(
+        (c) =>
+          (i.folderId === undefined || c.folderId === i.folderId) && (i.state === undefined || c.state === i.state),
+      )
+      .map(({ id: _id, ...c }) => c);
     return { changesets: list, total: list.length };
   });
   replica.resolve("files.tree", () => ({
     roots: [
       { key: "recent", title: "Recent", kind: "virtual" as const, count: allFiles().filter(live).length },
-      { key: "shared", title: "Shared with me", kind: "virtual" as const, count: allFiles().filter((x) => live(x) && x.shared === true).length },
+      {
+        key: "shared",
+        title: "Shared with me",
+        kind: "virtual" as const,
+        count: allFiles().filter((x) => live(x) && x.shared === true).length,
+      },
       { key: "trash", title: "Trash", kind: "virtual" as const, count: allFiles().filter((x) => !live(x)).length },
-      ...allFolders().filter((x) => x.parent === null).map((x) => ({ key: x.rootKey ?? x.id, title: x.name, kind: "folder" as const, folderId: x.id, count: folderRow(x).fileCount, ...(x.subject ? { subject: x.subject } : {}) })),
+      ...allFolders()
+        .filter((x) => x.parent === null)
+        .map((x) => ({
+          key: x.rootKey ?? x.id,
+          title: x.name,
+          kind: "folder" as const,
+          folderId: x.id,
+          count: folderRow(x).fileCount,
+          ...(x.subject ? { subject: x.subject } : {}),
+        })),
     ],
   }));
 
@@ -214,7 +413,14 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     getSnapshot() {
       if (cached.at === replica.version()) return cached.snap;
       const nodes: FolderNode[] = allFolders().map((x) => ({
-        id: x.id, name: x.name, parentId: x.parent, count: allFiles().filter((fl) => live(fl) && fl.folderId === x.id).length, scope: x.section === "space" ? "space" : "personal", section: x.section, via: VIA[x.section], open: false,
+        id: x.id,
+        name: x.name,
+        parentId: x.parent,
+        count: allFiles().filter((fl) => live(fl) && fl.folderId === x.id).length,
+        scope: x.section === "space" ? "space" : "personal",
+        section: x.section,
+        via: VIA[x.section],
+        open: false,
       }));
       cached = { at: replica.version(), snap: { status: "ready", data: nodes } };
       return cached.snap;
@@ -227,13 +433,30 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     replica.put("files", [{ ...cur, ...patch, id: cur.fileId, updatedAt: SAMPLE_NOW } as unknown as Row]);
   };
   const writes: Record<string, (i: never) => unknown> = {
-    "files.move": (i: { fileId: string; toFolderId: string }) => { patchFile(i.fileId, { folderId: i.toFolderId }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
-    "files.rename": (i: { fileId: string; name: string }) => { patchFile(i.fileId, { name: i.name }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
-    "files.star": (i: { fileId: string; starred: boolean }) => { patchFile(i.fileId, { starred: i.starred }); return { file: allFiles().find((x) => x.fileId === i.fileId) }; },
-    "files.delete": (i: { fileId: string }) => { patchFile(i.fileId, { deletedAt: SAMPLE_NOW }); return { ok: true }; },
+    "files.move": (i: { fileId: string; toFolderId: string }) => {
+      patchFile(i.fileId, { folderId: i.toFolderId });
+      return { file: allFiles().find((x) => x.fileId === i.fileId) };
+    },
+    "files.rename": (i: { fileId: string; name: string }) => {
+      patchFile(i.fileId, { name: i.name });
+      return { file: allFiles().find((x) => x.fileId === i.fileId) };
+    },
+    "files.star": (i: { fileId: string; starred: boolean }) => {
+      patchFile(i.fileId, { starred: i.starred });
+      return { file: allFiles().find((x) => x.fileId === i.fileId) };
+    },
+    "files.delete": (i: { fileId: string }) => {
+      patchFile(i.fileId, { deletedAt: SAMPLE_NOW });
+      return { ok: true };
+    },
     "files.restore": (i: { fileId: string }) => {
       const cur = allFiles().find((x) => x.fileId === i.fileId);
-      if (cur) { const { deletedAt: _d, ...rest } = cur; void _d; replica.remove("files", [cur.fileId]); replica.put("files", [{ ...rest, id: rest.fileId } as unknown as Row]); }
+      if (cur) {
+        const { deletedAt: _d, ...rest } = cur;
+        void _d;
+        replica.remove("files", [cur.fileId]);
+        replica.put("files", [{ ...rest, id: rest.fileId } as unknown as Row]);
+      }
       return { ok: true };
     },
     "files.folder.move": (i: { folderId: string; toParentId?: string }) => {
@@ -246,8 +469,14 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       if (cur) replica.put("folders", [{ ...cur, parent: i.parentId }]);
       return { ok: true };
     },
-    "folders.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { ok: true }; },
-    "files.folder.delete": (i: { folderId: string }) => { replica.remove("folders", [i.folderId]); return { deleted: true }; },
+    "folders.delete": (i: { folderId: string }) => {
+      replica.remove("folders", [i.folderId]);
+      return { ok: true };
+    },
+    "files.folder.delete": (i: { folderId: string }) => {
+      replica.remove("folders", [i.folderId]);
+      return { deleted: true };
+    },
     "files.folder.restore": () => ({}),
     "changesets.approve": (i: { changesetId: string }) => {
       const cur = (replica.rows("changesets") as unknown as { id: string }[]).find((c) => c.id === i.changesetId);
@@ -268,12 +497,30 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
     reviewChanges: (id) => void opened.push(`review:${id}`),
     resolveConflict: (id) => void opened.push(`resolve:${id}`),
   };
-  const result: SampleFiles = { data: undefined as unknown as FilesData, replica, calls, opened, paneToggles: 0, setOnline(v) { online = v; for (const l of [...listeners]) l(); } };
-  const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
+  const result: SampleFiles = {
+    data: undefined as unknown as FilesData,
+    replica,
+    calls,
+    opened,
+    paneToggles: 0,
+    setOnline(v) {
+      online = v;
+      for (const l of [...listeners]) l();
+    },
+  };
+  const connection: Connection = {
+    get: () => (online ? "online" : "offline"),
+    subscribe: (l) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
 
   const data: FilesData = {
     screens: createScreenHooks(replica, screensById),
-    live<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): LiveQuery<CapMap[C]["out"]> { return liveQuery(replica, cap, input); },
+    live<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): LiveQuery<CapMap[C]["out"]> {
+      return liveQuery(replica, cap, input);
+    },
     folders,
     async call(cap, input) {
       calls.push({ cap, input });
@@ -281,8 +528,14 @@ export function createSampleFiles(space: SampleSpace = northwind, o: { online?: 
       if (!w) throw new Error(`unknown capability ${cap}`);
       return w(input as never);
     },
-    connection, nav,
-    pane: { open: true, toggle: () => { result.paneToggles += 1; } },
+    connection,
+    nav,
+    pane: {
+      open: true,
+      toggle: () => {
+        result.paneToggles += 1;
+      },
+    },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
     nameOf: (id) => space.people[id] ?? nameOf(space.id, id),
   };

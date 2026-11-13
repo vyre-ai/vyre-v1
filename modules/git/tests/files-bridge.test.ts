@@ -15,17 +15,31 @@ type Row = Record<string, unknown>;
 
 /** Files: folders and files by id, behind the capabilities the bridge calls. */
 function filesStandIn() {
-  const folders = new Map<string, { id: string; parent: string | null; name: string }>([[F, { id: F, parent: null, name: "Alpha" }]]);
-  const files = new Map<string, { id: string; folder: string; name: string; bytes: Buffer; at: number; deleted: boolean }>();
-  let n = 0, clock = 1000;
-  const row = (f: { id: string; folder: string; name: string; bytes: Buffer; at: number }): Row => ({ fileId: f.id, folderId: f.folder, name: f.name, size: f.bytes.length, updatedAt: f.at });
+  const folders = new Map<string, { id: string; parent: string | null; name: string }>([
+    [F, { id: F, parent: null, name: "Alpha" }],
+  ]);
+  const files = new Map<
+    string,
+    { id: string; folder: string; name: string; bytes: Buffer; at: number; deleted: boolean }
+  >();
+  let n = 0,
+    clock = 1000;
+  const row = (f: { id: string; folder: string; name: string; bytes: Buffer; at: number }): Row => ({
+    fileId: f.id,
+    folderId: f.folder,
+    name: f.name,
+    size: f.bytes.length,
+    updatedAt: f.at,
+  });
   const call = async (cap: string, i: Row): Promise<unknown> => {
     if (cap === "settings.get") return { row: { key: "git.protected_branches", value: ["main"] } };
     if (cap === "files.list") {
       const folder = String(i["folder"]);
       return {
         files: [...files.values()].filter((f) => f.folder === folder && !f.deleted).map(row),
-        folders: [...folders.values()].filter((f) => f.parent === folder).map((f) => ({ folderId: f.id, name: f.name })),
+        folders: [...folders.values()]
+          .filter((f) => f.parent === folder)
+          .map((f) => ({ folderId: f.id, name: f.name })),
         total: 0,
       };
     }
@@ -41,7 +55,14 @@ function filesStandIn() {
     }
     if (cap === "files.create") {
       const id = `fil_made${++n}`;
-      const f = { id, folder: String(i["folderId"]), name: String(i["name"]), bytes: Buffer.from(String((i["content"] as Row)["base64"]), "base64"), at: ++clock, deleted: false };
+      const f = {
+        id,
+        folder: String(i["folderId"]),
+        name: String(i["name"]),
+        bytes: Buffer.from(String((i["content"] as Row)["base64"]), "base64"),
+        at: ++clock,
+        deleted: false,
+      };
       files.set(id, f);
       return { file: row(f) };
     }
@@ -52,26 +73,48 @@ function filesStandIn() {
       f.at = ++clock;
       return { file: row(f) };
     }
-    if (cap === "files.delete") { const f = files.get(String(i["fileId"])); if (f) f.deleted = true; return { deleted: true }; }
+    if (cap === "files.delete") {
+      const f = files.get(String(i["fileId"]));
+      if (f) f.deleted = true;
+      return { deleted: true };
+    }
     throw new Error(`unscripted call ${cap}`);
   };
   return {
     call,
-    add(name: string, text: string, folder = F): string { const id = `fil_t${++n}`; files.set(id, { id, folder, name, bytes: Buffer.from(text), at: ++clock, deleted: false }); return id; },
-    folder(name: string, parent = F): string { const id = `fld_t${++n}`; folders.set(id, { id, parent, name }); return id; },
-    remove(id: string): void { const f = files.get(id); if (f) f.deleted = true; },
-    named(name: string) { return [...files.values()].find((f) => f.name === name && !f.deleted); },
+    add(name: string, text: string, folder = F): string {
+      const id = `fil_t${++n}`;
+      files.set(id, { id, folder, name, bytes: Buffer.from(text), at: ++clock, deleted: false });
+      return id;
+    },
+    folder(name: string, parent = F): string {
+      const id = `fld_t${++n}`;
+      folders.set(id, { id, parent, name });
+      return id;
+    },
+    remove(id: string): void {
+      const f = files.get(id);
+      if (f) f.deleted = true;
+    },
+    named(name: string) {
+      return [...files.values()].find((f) => f.name === name && !f.deleted);
+    },
   };
 }
 
-async function with_(run: (ctx: Ctx, w: ReturnType<typeof world>, fl: ReturnType<typeof filesStandIn>) => Promise<void>): Promise<void> {
+async function with_(
+  run: (ctx: Ctx, w: ReturnType<typeof world>, fl: ReturnType<typeof filesStandIn>) => Promise<void>,
+): Promise<void> {
   const w = world();
   try {
     const fl = filesStandIn();
     await run({ ...w.ctx, call: ((cap: string, input: unknown) => fl.call(cap, input as Row)) as Ctx["call"] }, w, fl);
-  } finally { w.cleanup(); }
+  } finally {
+    w.cleanup();
+  }
 }
-const op = (ctx: Ctx, cap: keyof typeof handlers, input: Row): Promise<Row> => (handlers[cap] as (c: Ctx, i: unknown) => Promise<Row>)(ctx, input);
+const op = (ctx: Ctx, cap: keyof typeof handlers, input: Row): Promise<Row> =>
+  (handlers[cap] as (c: Ctx, i: unknown) => Promise<Row>)(ctx, input);
 const filesOf = (r: Row): string[] => (r["changes"] as { path: string }[]).map((c) => c.path).sort();
 
 test("a file made in Files is in the commit git makes next, nested folders included", async () => {
@@ -90,9 +133,11 @@ test("a file made in Files is in the commit git makes next, nested folders inclu
 test("a file edited in Files goes into the next commit, and one deleted in Files leaves it", async () => {
   await with_(async (ctx, _w, fl) => {
     await op(ctx, "git.init", { folderId: F });
-    const keep = fl.add("keep.txt", "one"), gone = fl.add("gone.txt", "two");
+    const keep = fl.add("keep.txt", "one"),
+      gone = fl.add("gone.txt", "two");
     await op(ctx, "git.commit", { folderId: F, message: "First" });
-    fl.named("keep.txt")!.bytes = Buffer.from("one, edited"); fl.named("keep.txt")!.at += 10;
+    fl.named("keep.txt")!.bytes = Buffer.from("one, edited");
+    fl.named("keep.txt")!.at += 10;
     fl.remove(gone);
     const second = await op(ctx, "git.status", { folderId: F });
     assert.deepEqual(filesOf(second), ["gone.txt", "keep.txt"], "the edit and the removal are both changes");
@@ -102,7 +147,7 @@ test("a file edited in Files goes into the next commit, and one deleted in Files
 
 test("a file git brings in is brought into Files, and is not deleted on the next copy out", async () => {
   await with_(async (ctx, w, fl) => {
-    await w.bare();   // the bare repository the test seam maps REMOTE to (url.<dir>.insteadOf), so the module's https-only rule stays as it is
+    await w.bare(); // the bare repository the test seam maps REMOTE to (url.<dir>.insteadOf), so the module's https-only rule stays as it is
     const remote = REMOTE;
     await op(ctx, "git.init", { folderId: F });
     await op(ctx, "git.remote_add", { folderId: F, name: "origin", url: remote });
@@ -121,7 +166,11 @@ test("a file git brings in is brought into Files, and is not deleted on the next
     await op(ctx, "git.pull", { folderId: F, strategy: "ff_only" });
     assert.equal(fl.named("b.txt")?.bytes.toString(), "from elsewhere", "the pulled file is a file in Files");
     await op(ctx, "git.status", { folderId: F });
-    assert.equal(fs.existsSync(path.join(w.tree(F), "b.txt")), true, "and the next copy out leaves it where git put it");
+    assert.equal(
+      fs.existsSync(path.join(w.tree(F), "b.txt")),
+      true,
+      "and the next copy out leaves it where git put it",
+    );
   });
 });
 

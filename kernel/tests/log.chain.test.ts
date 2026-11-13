@@ -11,8 +11,16 @@ import { formatHlc, parseHlc, compareHlc } from "../../lib/hlc.ts";
 const TRACE = "0123456789abcdef0123456789abcdef";
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-log-"));
 const ev = (i: number, over: Partial<NewEvent> = {}): NewEvent => ({
-  type: "record.updated", sv: 1, trace_id: TRACE, actor: "usr_dana", vis: "space",
-  entity: "rec", entity_id: `r${i % 3}`, fields: ["name"], payload: { i }, ...over,
+  type: "record.updated",
+  sv: 1,
+  trace_id: TRACE,
+  actor: "usr_dana",
+  vis: "space",
+  entity: "rec",
+  entity_id: `r${i % 3}`,
+  fields: ["name"],
+  payload: { i },
+  ...over,
 });
 function fresh(n = 0, clock?: () => number) {
   const file = path.join(dir(), "events.db");
@@ -26,9 +34,19 @@ test("a clean log verifies: gap-free seq from 1, head matches", () => {
   assert.equal(store.count(), 50);
   const v = store.verify();
   assert.equal(v.ok, true);
-  if (v.ok) { assert.equal(v.seq, 50); assert.equal(v.head, store.head.hash); }
-  assert.deepEqual(store.read({ limit: 1000 }).map((e) => e.seq), Array.from({ length: 50 }, (_, i) => i + 1));
-  assert.equal(store.verify({ from: 40, prev: store.get(40)!.hash }).ok, true, "verify can start from a trusted checkpoint");
+  if (v.ok) {
+    assert.equal(v.seq, 50);
+    assert.equal(v.head, store.head.hash);
+  }
+  assert.deepEqual(
+    store.read({ limit: 1000 }).map((e) => e.seq),
+    Array.from({ length: 50 }, (_, i) => i + 1),
+  );
+  assert.equal(
+    store.verify({ from: 40, prev: store.get(40)!.hash }).ok,
+    true,
+    "verify can start from a trusted checkpoint",
+  );
 });
 
 test("tamper: an edited envelope is found at its seq", () => {
@@ -36,7 +54,10 @@ test("tamper: an edited envelope is found at its seq", () => {
   store.db.exec(`UPDATE events SET event = replace(event, '"depth":0', '"depth":9') WHERE seq = 10`);
   const v = store.verify();
   assert.equal(v.ok, false);
-  if (!v.ok) { assert.equal(v.at, 10); assert.match(v.why, /hash/); }
+  if (!v.ok) {
+    assert.equal(v.at, 10);
+    assert.match(v.why, /hash/);
+  }
 });
 
 test("tamper: a re-hashed envelope still breaks the next link", () => {
@@ -48,7 +69,10 @@ test("tamper: a re-hashed envelope still breaks the next link", () => {
   store.db.prepare("UPDATE events SET event = ? WHERE seq = 5").run(JSON.stringify(e));
   const v = store.verify();
   assert.equal(v.ok, false);
-  if (!v.ok) { assert.equal(v.at, 6); assert.match(v.why, /prev/); }
+  if (!v.ok) {
+    assert.equal(v.at, 6);
+    assert.match(v.why, /prev/);
+  }
 });
 
 test("tamper: a deleted row is a seq gap; a cut tail is a short log", () => {
@@ -56,7 +80,10 @@ test("tamper: a deleted row is a seq gap; a cut tail is a short log", () => {
   a.store.db.exec("DELETE FROM events WHERE seq = 20");
   const gap = a.store.verify();
   assert.equal(gap.ok, false);
-  if (!gap.ok) { assert.ok(gap.at >= 20 && gap.at <= 21); assert.match(gap.why, /contiguous/); }
+  if (!gap.ok) {
+    assert.ok(gap.at >= 20 && gap.at <= 21);
+    assert.match(gap.why, /contiguous/);
+  }
   const b = fresh(40);
   b.store.db.exec("DELETE FROM events WHERE seq = 40");
   const cut = b.store.verify();
@@ -80,8 +107,12 @@ test("payload edits and erasure leave the chain intact but break the commitment"
 
 test("indexed columns are generated from the event, so a database edit cannot disagree with it", () => {
   const { store } = fresh(6);
-  for (const c of ["type", "entity", "entity_id", "trace_id", "run_id", "vis", "label", "origin", "hash"]) assert.ok(GENERATED_COLUMNS.includes(c), c);
-  const row = store.db.prepare("SELECT type, entity_id, vis, label, hash FROM events WHERE seq = 2").get() as Record<string, unknown>;
+  for (const c of ["type", "entity", "entity_id", "trace_id", "run_id", "vis", "label", "origin", "hash"])
+    assert.ok(GENERATED_COLUMNS.includes(c), c);
+  const row = store.db.prepare("SELECT type, entity_id, vis, label, hash FROM events WHERE seq = 2").get() as Record<
+    string,
+    unknown
+  >;
   assert.equal(row.type, "record.updated");
   assert.equal(row.entity_id, "r1");
   assert.equal(row.vis, "space");
@@ -102,10 +133,22 @@ test("re-appending an id writes nothing and returns the stored event", () => {
 
 test("a malformed event is refused alone and the rest of its batch commits", () => {
   const { store } = fresh(0);
-  const r = store.appendBatch([ev(1), { ...ev(2), type: "NotAType" }, ev(3), { ...ev(4), trace_id: "short" }, { ...ev(5), vis: "everyone" as never }]);
-  assert.deepEqual(r.map((x) => x.ok), [true, false, true, false, false]);
+  const r = store.appendBatch([
+    ev(1),
+    { ...ev(2), type: "NotAType" },
+    ev(3),
+    { ...ev(4), trace_id: "short" },
+    { ...ev(5), vis: "everyone" as never },
+  ]);
+  assert.deepEqual(
+    r.map((x) => x.ok),
+    [true, false, true, false, false],
+  );
   assert.equal(store.count(), 2);
-  assert.deepEqual(store.read().map((e) => e.seq), [1, 2]);
+  assert.deepEqual(
+    store.read().map((e) => e.seq),
+    [1, 2],
+  );
   assert.equal(store.verify().ok, true);
 });
 
@@ -116,11 +159,14 @@ test("hlc: a client value more than 5 minutes ahead is clamped and the skew reco
   const [a] = store.appendBatch([ev(0, { hlc: ahead })]);
   const [b] = store.appendBatch([ev(1)]);
   assert.ok(a!.ok && b!.ok);
-  const ea = (a as { event: { hlc: string; skew_ms?: number } }).event, eb = (b as { event: { hlc: string } }).event;
+  const ea = (a as { event: { hlc: string; skew_ms?: number } }).event,
+    eb = (b as { event: { hlc: string } }).event;
   assert.equal(parseHlc(ea.hlc)!.ms, NOW);
   assert.equal(ea.skew_ms, 3_600_000);
   assert.ok(compareHlc(parseHlc(ea.hlc)!, parseHlc(eb.hlc)!) < 0);
-  const ok = store.appendBatch([ev(2, { hlc: formatHlc({ ms: NOW + 1000, counter: 0, deviceId: "devA" }) })])[0] as { event: { skew_ms?: number } };
+  const ok = store.appendBatch([ev(2, { hlc: formatHlc({ ms: NOW + 1000, counter: 0, deviceId: "devA" }) })])[0] as {
+    event: { skew_ms?: number };
+  };
   assert.equal(ok.event.skew_ms, undefined, "inside the bound passes untouched");
   const bad = store.appendBatch([ev(3, { hlc: "garbage" })])[0]!;
   assert.equal(bad.ok, false);
@@ -136,7 +182,10 @@ test("reopening continues the same chain; another space is refused", () => {
   assert.equal(again.head.seq, 13);
   assert.equal(again.verify().ok, true);
   again.close();
-  assert.throws(() => new LogStore({ db: new DatabaseSync(file), space: "sp_other" }), (e: unknown) => e instanceof LogError && e.code === "wrong_space");
+  assert.throws(
+    () => new LogStore({ db: new DatabaseSync(file), space: "sp_other" }),
+    (e: unknown) => e instanceof LogError && e.code === "wrong_space",
+  );
 });
 
 test("per-chat sequence replay: interleaved chats read back in order, resumable from a cursor with no gap or repeat", async () => {
@@ -149,33 +198,55 @@ test("per-chat sequence replay: interleaved chats read back in order, resumable 
     for (let i = 0; i < 90; i++) {
       const c = chats[(i * 7 + (i >> 2)) % 3]!;
       counter[c]!++;
-      sent.push(log.append(ev(i, { type: "message.created", entity: "thread", entity_id: c, payload: { chat: c, n: counter[c] } })));
+      sent.push(
+        log.append(
+          ev(i, { type: "message.created", entity: "thread", entity_id: c, payload: { chat: c, n: counter[c] } }),
+        ),
+      );
     }
     const evs = await Promise.all(sent);
     assert.equal(evs.length, 90);
     for (const c of chats) {
       const all = await log.read({ entity: "thread", entity_id: c, limit: 1000 });
       assert.equal(all.length, counter[c]);
-      assert.deepEqual(all.map((e) => JSON.parse(new TextDecoder().decode(e.payload)).n), Array.from({ length: counter[c]! }, (_, i) => i + 1), `${c}: n is 1..N in order`);
+      assert.deepEqual(
+        all.map((e) => JSON.parse(new TextDecoder().decode(e.payload)).n),
+        Array.from({ length: counter[c]! }, (_, i) => i + 1),
+        `${c}: n is 1..N in order`,
+      );
       // replay "everything after N": read half, then resume from the last seq seen
       const half = await log.read({ entity: "thread", entity_id: c, limit: Math.floor(all.length / 2) });
       const rest = await log.read({ entity: "thread", entity_id: c, after: half[half.length - 1]!.seq, limit: 1000 });
-      assert.deepEqual([...half, ...rest].map((e) => e.seq), all.map((e) => e.seq), `${c}: resume has no gap and no repeat`);
+      assert.deepEqual(
+        [...half, ...rest].map((e) => e.seq),
+        all.map((e) => e.seq),
+        `${c}: resume has no gap and no repeat`,
+      );
     }
     assert.equal((await log.read({ type: "message.*", limit: 1000 })).length, 90);
     assert.equal((await log.read({ type: "record.*", limit: 1000 })).length, 0);
     const v = await log.verify();
     assert.equal(v.ok, true);
     assert.equal((await log.currentHead()).seq, 90);
-  } finally { await log.close(); }
+  } finally {
+    await log.close();
+  }
 });
 
 test("group commit: 200 concurrent appends all land once, seqs are 1..200, the chain verifies", async () => {
   const log = await LogClient.open({ path: path.join(dir(), "events.db"), space: "sp_1" });
   try {
     const out = await Promise.all(Array.from({ length: 200 }, (_, i) => log.append(ev(i))));
-    assert.deepEqual(out.map((e) => e.seq).sort((a, b) => a - b), Array.from({ length: 200 }, (_, i) => i + 1));
+    assert.deepEqual(
+      out.map((e) => e.seq).sort((a, b) => a - b),
+      Array.from({ length: 200 }, (_, i) => i + 1),
+    );
     assert.equal((await log.verify()).ok, true);
-    await assert.rejects(log.append({ ...ev(1), type: "bad" }), (e: unknown) => e instanceof LogError && e.code === "bad_event");
-  } finally { await log.close(); }
+    await assert.rejects(
+      log.append({ ...ev(1), type: "bad" }),
+      (e: unknown) => e instanceof LogError && e.code === "bad_event",
+    );
+  } finally {
+    await log.close();
+  }
 });

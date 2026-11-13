@@ -10,7 +10,8 @@ export interface SpacePortDeps {
 }
 
 type Ns = Record<string, unknown>;
-const fn = (ns: Ns | undefined, name: string): ((...a: never[]) => unknown) | null => (ns && typeof ns[name] === "function" ? (ns[name] as (...a: never[]) => unknown) : null);
+const fn = (ns: Ns | undefined, name: string): ((...a: never[]) => unknown) | null =>
+  ns && typeof ns[name] === "function" ? (ns[name] as (...a: never[]) => unknown) : null;
 
 // Two daemons in one process (tests) share the modules: each binding is kept, the newest is the one in force, and a daemon that stops puts back the one before it instead of the defaults.
 const live: Array<{ modules: ReadonlyMap<string, Ns>; d: SpacePortDeps }> = [];
@@ -25,10 +26,18 @@ function apply(modules: ReadonlyMap<string, Ns>, d: SpacePortDeps): string[] {
   const bound: string[] = [];
   for (const id of ["terminal", "computers"]) {
     const bindTeam = fn(modules.get(id), "bindTeam") as ((f: ((space: string) => boolean) | null) => void) | null;
-    if (bindTeam) { bindTeam(() => d.team); bound.push(`${id}.bindTeam`); }
+    if (bindTeam) {
+      bindTeam(() => d.team);
+      bound.push(`${id}.bindTeam`);
+    }
   }
-  const bindSandboxStopper = fn(modules.get("engine"), "bindSandboxStopper") as ((f: ((person: string) => Promise<boolean>) | null) => void) | null;
-  if (bindSandboxStopper) { bindSandboxStopper((person) => d.stopSandbox(person)); bound.push("engine.bindSandboxStopper"); }
+  const bindSandboxStopper = fn(modules.get("engine"), "bindSandboxStopper") as
+    | ((f: ((person: string) => Promise<boolean>) | null) => void)
+    | null;
+  if (bindSandboxStopper) {
+    bindSandboxStopper((person) => d.stopSandbox(person));
+    bound.push("engine.bindSandboxStopper");
+  }
   return bound;
 }
 
@@ -37,7 +46,10 @@ export function unbindSpacePorts(modules: ReadonlyMap<string, Ns>, d?: SpacePort
   const at = live.findLastIndex((x) => x.modules === modules && (d === undefined || x.d === d));
   if (at >= 0) live.splice(at, 1);
   const top = live.at(-1);
-  if (top) { apply(top.modules, top.d); return; }
+  if (top) {
+    apply(top.modules, top.d);
+    return;
+  }
   reset(modules);
 }
 

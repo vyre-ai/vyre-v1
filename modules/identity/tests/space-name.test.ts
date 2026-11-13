@@ -8,8 +8,16 @@ function world(profile: string) {
   const rows = new Map<string, string>([["spc_firm", "spc_firm"]]);
   const ctx = {
     space: "spc_firm",
-    db: { run: (sql: string, name: string, id: string) => { assert.match(sql, /^UPDATE identity_space SET name = \? WHERE id = \?$/); rows.set(id, name); } },
-    call: async (cap: string) => { assert.equal(cap, "spaces.get"); return { space: { id: "spc_firm", name: profile } }; },
+    db: {
+      run: (sql: string, name: string, id: string) => {
+        assert.match(sql, /^UPDATE identity_space SET name = \? WHERE id = \?$/);
+        rows.set(id, name);
+      },
+    },
+    call: async (cap: string) => {
+      assert.equal(cap, "spaces.get");
+      return { space: { id: "spc_firm", name: profile } };
+    },
   };
   return { ctx, name: () => rows.get("spc_firm") };
 }

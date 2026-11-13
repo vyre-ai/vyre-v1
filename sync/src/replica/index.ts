@@ -8,7 +8,17 @@ export { admit, ceilingRank, fieldsAboveCeiling, labelRankOf } from "./profile.t
 export { openReplica } from "./store.ts";
 export { BLOB_BUDGET_BYTES, DEVICE_LABEL_CEILING, LABEL_RANK, RESTRICTED_RANK, ReplicaError } from "./types.ts";
 export type {
-  DeviceClass, EntityInfo, LabelName, OpenReplicaOptions, ReplicaReason, ReplicaStore, ReplicaWrite, ReplicaWriteResult, SqlDriver, SqlRow, SqlValue,
+  DeviceClass,
+  EntityInfo,
+  LabelName,
+  OpenReplicaOptions,
+  ReplicaReason,
+  ReplicaStore,
+  ReplicaWrite,
+  ReplicaWriteResult,
+  SqlDriver,
+  SqlRow,
+  SqlValue,
 } from "./types.ts";
 export { bindWaSqlite, createWaDriver, openWaReplica } from "./wa.ts";
 export type { WaDatabase, WaSqlite3, WaStatement } from "./wa.ts";

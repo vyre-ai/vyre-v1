@@ -9,28 +9,41 @@ import path from "node:path";
 import { openMcpBridge } from "../mcp-bridge.ts";
 import { shimCommand } from "../../../agent/src/drivers/cli/hooks-config.ts";
 
-async function run(answer: (body: { method: string; params: { event: string; payload: Record<string, unknown> } }) => unknown | null, event = "PreToolUse") {
+async function run(
+  answer: (body: { method: string; params: { event: string; payload: Record<string, unknown> } }) => unknown | null,
+  event = "PreToolUse",
+) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-hookshim-"));
   const seen: unknown[] = [];
-  const bridge = await openMcpBridge({ url: "http://127.0.0.1:9/mcp", token: "tok_test" }, {
-    scratch,
-    fetch: (async (_u: unknown, i?: RequestInit) => {
-      const body = JSON.parse(String(i?.body));
-      seen.push(body);
-      const a = answer(body);
-      if (a === null) throw new Error("down");
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: a }), { headers: { "content-type": "application/json" } });
-    }) as typeof fetch,
-  });
+  const bridge = await openMcpBridge(
+    { url: "http://127.0.0.1:9/mcp", token: "tok_test" },
+    {
+      scratch,
+      fetch: (async (_u: unknown, i?: RequestInit) => {
+        const body = JSON.parse(String(i?.body));
+        seen.push(body);
+        const a = answer(body);
+        if (a === null) throw new Error("down");
+        return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: a }), {
+          headers: { "content-type": "application/json" },
+        });
+      }) as typeof fetch,
+    },
+  );
   try {
     const cmd = shimCommand(bridge.stdio, event);
     const p = spawn("/bin/sh", ["-c", cmd], { env: { ...process.env, VYRE_MCP_TOKEN: "tok_test" } });
-    let out = "", err = "";
-    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
+    let out = "",
+      err = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (err += d));
     p.stdin.end(JSON.stringify({ tool_name: "Bash", tool_input: { command: "rm -rf x" } }));
     const code = await new Promise<number | null>((ok) => p.on("close", ok));
     return { code, out, err, seen };
-  } finally { await bridge.close(); fs.rmSync(scratch, { recursive: true, force: true }); }
+  } finally {
+    await bridge.close();
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 test("a block stops the CLI's call: exit 2 and the reason on stderr; the event reaches Vyre with the tool and its input", async () => {

@@ -29,10 +29,17 @@ export function roomLeft(i: RoomInput): Room {
   const parts: Array<{ k: RoomWhy; free: number; why: string }> = [];
   if (i.cpuPct !== undefined) parts.push({ k: "cpu", free: 100 - i.cpuPct, why: `CPU at ${Math.round(i.cpuPct)}%` });
   // memory below 92% in use is not pressure; the score falls to 0 at 100% used the way the Machines page draws it
-  if (i.memPct !== undefined) parts.push({ k: "memory", free: 100 - i.memPct * 0.92, why: `memory at ${Math.round(i.memPct)}%` });
-  if (i.maxTurns !== undefined && i.maxTurns > 0) parts.push({ k: "turns", free: 100 - (i.turns / i.maxTurns) * 100, why: `${i.turns} of ${i.maxTurns} turns` });
+  if (i.memPct !== undefined)
+    parts.push({ k: "memory", free: 100 - i.memPct * 0.92, why: `memory at ${Math.round(i.memPct)}%` });
+  if (i.maxTurns !== undefined && i.maxTurns > 0)
+    parts.push({ k: "turns", free: 100 - (i.turns / i.maxTurns) * 100, why: `${i.turns} of ${i.maxTurns} turns` });
   // disk only counts when it is nearly full (under 10% free)
-  if (i.diskFreePct !== undefined) parts.push({ k: "disk", free: i.diskFreePct < 10 ? i.diskFreePct : 100, why: `${Math.round(i.diskFreePct)}% disk left` });
+  if (i.diskFreePct !== undefined)
+    parts.push({
+      k: "disk",
+      free: i.diskFreePct < 10 ? i.diskFreePct : 100,
+      why: `${Math.round(i.diskFreePct)}% disk left`,
+    });
   let t = { k: "cpu" as RoomWhy, free: 100, why: "" };
   for (const p of parts) if (p.free < t.free) t = p;
   return { score: Math.round(clamp(t.free)), tightest: t.k, why: t.why };

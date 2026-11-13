@@ -15,7 +15,8 @@ const read = (p: string) => fs.readFileSync(new URL(`../../app/${p}`, import.met
 
 test("each route file default-exports a component", () => {
   assert.equal(typed.length, 0);
-  for (const f of ["[place].tsx", "_layout.tsx", "index.tsx", "+html.tsx"]) assert.match(read(f), /export default function \w+/, f);
+  for (const f of ["[place].tsx", "_layout.tsx", "index.tsx", "+html.tsx"])
+    assert.match(read(f), /export default function \w+/, f);
 });
 
 test("[place] exports generateStaticParams so every place gets a page", () => {
@@ -29,5 +30,8 @@ test("the document renders Expo's head and body nodes, or the export ships no Ja
 });
 
 test("a place is loaded with a dynamic import, so only the active place bundle loads", () => {
-  assert.match(fs.readFileSync(new URL("./places.ts", import.meta.url), "utf8"), /import\("\.\/PlaceholderPlace\.tsx"\)/);
+  assert.match(
+    fs.readFileSync(new URL("./places.ts", import.meta.url), "utf8"),
+    /import\("\.\/PlaceholderPlace\.tsx"\)/,
+  );
 });

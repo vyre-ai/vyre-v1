@@ -12,7 +12,9 @@ const CASES = 200;
 
 function load(rows: Row[]): DatabaseSync {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE deal (id TEXT PRIMARY KEY, owner_id TEXT, label INTEGER, holds INTEGER, stage TEXT, amount REAL, region TEXT)");
+  db.exec(
+    "CREATE TABLE deal (id TEXT PRIMARY KEY, owner_id TEXT, label INTEGER, holds INTEGER, stage TEXT, amount REAL, region TEXT)",
+  );
   db.exec("CREATE TABLE acl_index (person TEXT, entity_type TEXT, entity_id TEXT, level_rank INTEGER)");
   const ins = db.prepare("INSERT INTO deal VALUES (?, ?, ?, ?, ?, ?, ?)");
   for (const r of rows) ins.run(r.id, r.owner_id, r.label, r.holds, r.stage, r.amount, r.region);
@@ -20,7 +22,11 @@ function load(rows: Row[]): DatabaseSync {
 }
 
 test(`scopeFor and authorize agree on ${CASES} seeded worlds (predicate and SQL)`, () => {
-  let allowed = 0, denied = 0, viaAcl = 0, viaFilter = 0, empties = 0;
+  let allowed = 0,
+    denied = 0,
+    viaAcl = 0,
+    viaFilter = 0,
+    empties = 0;
   for (let seed = 1; seed <= CASES; seed++) {
     const { snap, rows } = buildWorld(seed);
     const r = rng(seed * 7919);
@@ -28,25 +34,53 @@ test(`scopeFor and authorize agree on ${CASES} seeded worlds (predicate and SQL)
     const actingFor = r.chance(0.5) ? r.pick(PERSONS) : undefined;
     const level = r.pick(LEVELS);
     const destructive = r.chance(0.2);
-    const s = scopeFor(snap, { principal, actingFor, entityType: "deal", level, perm: "records.read", destructive, now: NOW });
+    const s = scopeFor(snap, {
+      principal,
+      actingFor,
+      entityType: "deal",
+      level,
+      perm: "records.read",
+      destructive,
+      now: NOW,
+    });
     if (s.predicate.t === "false") empties++;
     const db = load(rows);
     try {
       const ins = db.prepare("INSERT INTO acl_index VALUES (?, ?, ?, ?)");
       for (const a of aclRows(s.predicate, "deal")) ins.run(a.person, a.entity_type, a.entity_id, a.level_rank);
       const q = toSql(s.predicate);
-      const sqlIds = new Set((db.prepare(`SELECT id FROM deal WHERE ${q.sql}`).all(...q.params) as { id: string }[]).map((x) => x.id));
+      const sqlIds = new Set(
+        (db.prepare(`SELECT id FROM deal WHERE ${q.sql}`).all(...q.params) as { id: string }[]).map((x) => x.id),
+      );
       for (const row of rows) {
-        const d = authorize(snap, { principal, actingFor, action: { perm: "records.read", level, destructive }, resource: { type: "deal", id: row.id }, row, now: NOW });
+        const d = authorize(snap, {
+          principal,
+          actingFor,
+          action: { perm: "records.read", level, destructive },
+          resource: { type: "deal", id: row.id },
+          row,
+          now: NOW,
+        });
         const want = d.effect === "allow";
         const ctx = `seed ${seed} principal ${principal} actingFor ${actingFor} level ${level} destructive ${destructive} record ${row.id} (${d.reason})`;
-        assert.equal(evalPred(s.predicate, row as unknown as Record<string, unknown>), want, `predicate vs authorize: ${ctx}`);
+        assert.equal(
+          evalPred(s.predicate, row as unknown as Record<string, unknown>),
+          want,
+          `predicate vs authorize: ${ctx}`,
+        );
         assert.equal(sqlIds.has(row.id), want, `sql vs authorize: ${ctx}`);
-        if (want) allowed++; else denied++;
+        if (want) allowed++;
+        else denied++;
       }
-      if (s.predicate.t !== "false" && JSON.stringify(s.predicate, (_k, v) => (v instanceof Set ? [...v] : v)).includes('"t":"acl"')) viaAcl++;
+      if (
+        s.predicate.t !== "false" &&
+        JSON.stringify(s.predicate, (_k, v) => (v instanceof Set ? [...v] : v)).includes('"t":"acl"')
+      )
+        viaAcl++;
       if (JSON.stringify(s.predicate).includes('"t":"expr"')) viaFilter++;
-    } finally { db.close(); }
+    } finally {
+      db.close();
+    }
   }
   // the generator must exercise every path, or the property proves nothing
   assert.ok(allowed >= 150, `allowed ${allowed}`);
@@ -54,7 +88,9 @@ test(`scopeFor and authorize agree on ${CASES} seeded worlds (predicate and SQL)
   assert.ok(viaAcl >= 20, `acl_index paths ${viaAcl}`);
   assert.ok(viaFilter >= 8, `row-filter paths ${viaFilter}`);
   assert.ok(empties >= 5 && empties < CASES, `empty scopes ${empties}`);
-  console.log(`scopeFor agreement: ${CASES} worlds, ${allowed + denied} record checks (${allowed} allow, ${denied} deny), ${viaAcl} acl_index scopes, ${viaFilter} row-filter scopes, ${empties} empty`);
+  console.log(
+    `scopeFor agreement: ${CASES} worlds, ${allowed + denied} record checks (${allowed} allow, ${denied} deny), ${viaAcl} acl_index scopes, ${viaFilter} row-filter scopes, ${empties} empty`,
+  );
 });
 
 test("scopeFor with no access gives a false predicate; compiled SQL is valid for it", () => {

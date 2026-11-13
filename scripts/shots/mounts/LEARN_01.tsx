@@ -14,25 +14,44 @@ import { createSampleSettings, northwind } from "../../../apps/app/src/places/se
 export const title = "Learn from every correction";
 
 const READS: Array<[string, unknown]> = [
-  ["memory.knows", { threadId: "c1", agentId: ASSISTANT }], ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }], ["memory.map.get", { agentId: ASSISTANT }],
-  ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
-  ["memory.facts.list", { status: ["current"], agentId: ASSISTANT, kind: "lesson" }], ["memory.facts.list", { status: ["current"], agentId: ASSISTANT }], ["settings.get", { key: "memory.lessons" }],
+  ["memory.knows", { threadId: "c1", agentId: ASSISTANT }],
+  ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
+  ["memory.map.get", { agentId: ASSISTANT }],
+  ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }],
+  ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
+  ["memory.facts.list", { status: ["current"], agentId: ASSISTANT, kind: "lesson" }],
+  ["memory.facts.list", { status: ["current"], agentId: ASSISTANT }],
+  ["settings.get", { key: "memory.lessons" }],
 ];
 
 function Chat({ part }: { part: "chat" | "knows" }): ReactNode {
   const s = useMemo(() => createChatMemorySample({ lessons: true }), []);
   const [ready, setReady] = useState(false);
-  useEffect(() => { void s.warm(READS).then(() => setReady(true)); }, [s]);
+  useEffect(() => {
+    void s.warm(READS).then(() => setReady(true));
+  }, [s]);
   if (!ready) return <View style={{ flex: 1 }} />;
   if (part === "knows") {
     return (
       <View style={{ flex: 1, flexDirection: "row" }}>
-        <View style={{ flex: 1 }}><Conversation data={s.data} /></View>
-        <ChatRightPane data={s.pane} open onToggle={() => undefined} initialTab="memory" window={{ start: 0, end: 500 }} />
+        <View style={{ flex: 1 }}>
+          <Conversation data={s.data} />
+        </View>
+        <ChatRightPane
+          data={s.pane}
+          open
+          onToggle={() => undefined}
+          initialTab="memory"
+          window={{ start: 0, end: 500 }}
+        />
       </View>
     );
   }
-  return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={s.data} /></View>;
+  return (
+    <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+      <Conversation data={s.data} />
+    </View>
+  );
 }
 
 export default function Mount(): ReactNode {
@@ -44,8 +63,16 @@ export default function Mount(): ReactNode {
   // the Lessons section is under About you: bring it into view once the page has drawn
   useEffect(() => {
     if (search === null || q.get("part") !== "settings") return undefined;
-    const doc = (globalThis as { document?: { querySelector(s: string): { scrollIntoView(o?: unknown): void } | null } }).document;
-    const t = setInterval(() => { const el = doc?.querySelector("[data-testid='lessons']"); if (el) { el.scrollIntoView({ block: "start" }); clearInterval(t); } }, 100);
+    const doc = (
+      globalThis as { document?: { querySelector(s: string): { scrollIntoView(o?: unknown): void } | null } }
+    ).document;
+    const t = setInterval(() => {
+      const el = doc?.querySelector("[data-testid='lessons']");
+      if (el) {
+        el.scrollIntoView({ block: "start" });
+        clearInterval(t);
+      }
+    }, 100);
     return () => clearInterval(t);
   }, [search, q]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
@@ -53,7 +80,9 @@ export default function Mount(): ReactNode {
   if (part === "chat" || part === "knows") return <Chat part={part} />;
   return (
     <SettingsDataProvider value={sample.data}>
-      <View style={{ height }}><SettingsPlace initialPage="memory" /></View>
+      <View style={{ height }}>
+        <SettingsPlace initialPage="memory" />
+      </View>
     </SettingsDataProvider>
   );
 }

@@ -6,35 +6,71 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import {
-  CARD_W, RecordTypesList, SchemaDataProvider, SchemaMap, bounds, cardDim, cardHeight, edgeGeometry, emphasis, fieldRows, fitView, layout, miniGo, miniModel, moreCount, neighbor, shownCount,
-  summary, typeTag, zoomAt, ZMAX, ZMIN,
+  CARD_W,
+  RecordTypesList,
+  SchemaDataProvider,
+  SchemaMap,
+  bounds,
+  cardDim,
+  cardHeight,
+  edgeGeometry,
+  emphasis,
+  fieldRows,
+  fitView,
+  layout,
+  miniGo,
+  miniModel,
+  moreCount,
+  neighbor,
+  shownCount,
+  summary,
+  typeTag,
+  zoomAt,
+  ZMAX,
+  ZMIN,
 } from "../schemamap/index.ts";
 import type { MapEdge, MapNode, Rect } from "../schemamap/index.ts";
 import { createSampleSchema, harbor, northwind, northwindEdges, northwindTypes } from "../schemamap/sample.ts";
 import type { SampleSchema } from "../schemamap/sample.ts";
 
-const html = (s: SampleSchema, el: ReactElement): string => renderToStaticMarkup(<SchemaDataProvider value={s.data}>{el}</SchemaDataProvider>).replaceAll("<!-- -->", "");
+const html = (s: SampleSchema, el: ReactElement): string =>
+  renderToStaticMarkup(<SchemaDataProvider value={s.data}>{el}</SchemaDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 /** The text inside the element with this test id. */
-const textOf = (s: string, id: string): string | null => new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`).exec(s)?.[1] ?? null;
-const titleOf = (t: string): string => (northwindTypes.find((x) => x.key === t)?.plural ?? t);
+const textOf = (s: string, id: string): string | null =>
+  new RegExp(`data-testid="${id}"[^>]*>([^<]*)<`).exec(s)?.[1] ?? null;
+const titleOf = (t: string): string => northwindTypes.find((x) => x.key === t)?.plural ?? t;
 
-const map = (s: SampleSchema, props: Parameters<typeof SchemaMap>[0] = {}): string => html(s, <SchemaMap details={s.details} {...props} />);
+const map = (s: SampleSchema, props: Parameters<typeof SchemaMap>[0] = {}): string =>
+  html(s, <SchemaMap details={s.details} {...props} />);
 
 test("a card lists the title field first, then the links, then the rest; links read Link to and Linked from", () => {
   const clients = northwindTypes.find((t) => t.key === "clients")!;
   const rows = fieldRows("clients", northwindEdges, titleOf, clients);
   assert.equal(rows[0]?.key, "name", "the title field leads");
-  assert.deepEqual(rows.slice(1, 4).map((r) => r.key), ["projects", "invoices", "meetings"], "then the links, in the order the type has them");
+  assert.deepEqual(
+    rows.slice(1, 4).map((r) => r.key),
+    ["projects", "invoices", "meetings"],
+    "then the links, in the order the type has them",
+  );
   assert.equal(rows[1]?.typeLabel, "Link to Projects");
   assert.equal(rows.find((r) => r.key === "email")?.typeLabel, "Email");
   assert.equal(rows.find((r) => r.key === "balance")?.symbol, "Σ");
-  const tasks = fieldRows("tasks", northwindEdges, titleOf, northwindTypes.find((t) => t.key === "tasks"));
+  const tasks = fieldRows(
+    "tasks",
+    northwindEdges,
+    titleOf,
+    northwindTypes.find((t) => t.key === "tasks"),
+  );
   const project = tasks.find((r) => r.key === "project")!;
   assert.equal(project.typeLabel, "Linked from Projects");
   assert.equal(project.outgoing, false);
   const bare = fieldRows("clients", northwindEdges, titleOf, undefined);
-  assert.deepEqual(bare.map((r) => r.key), ["projects", "invoices", "meetings"], "before the details load the card shows the links the map knows");
+  assert.deepEqual(
+    bare.map((r) => r.key),
+    ["projects", "invoices", "meetings"],
+    "before the details load the card shows the links the map knows",
+  );
 });
 
 test("five fields show, the rest sit behind +N more, and the card is as tall as its rows", () => {
@@ -54,18 +90,29 @@ test("the starting layout places every card, none on top of another, the same wa
   const b = layout(nodes, northwindEdges, heights);
   assert.deepEqual([...a], [...b]);
   assert.equal(a.size, 7);
-  const rects: Rect[] = nodes.map((n) => ({ x: a.get(n.type)![0], y: a.get(n.type)![1], w: CARD_W, h: heights.get(n.type)! }));
+  const rects: Rect[] = nodes.map((n) => ({
+    x: a.get(n.type)![0],
+    y: a.get(n.type)![1],
+    w: CARD_W,
+    h: heights.get(n.type)!,
+  }));
   for (let i = 0; i < rects.length; i++) {
     for (let j = i + 1; j < rects.length; j++) {
-      const p = rects[i]!, q = rects[j]!;
-      assert.ok(p.x + p.w <= q.x || q.x + q.w <= p.x || p.y + p.h <= q.y || q.y + q.h <= p.y, `cards ${i} and ${j} overlap`);
+      const p = rects[i]!,
+        q = rects[j]!;
+      assert.ok(
+        p.x + p.w <= q.x || q.x + q.w <= p.x || p.y + p.h <= q.y || q.y + q.h <= p.y,
+        `cards ${i} and ${j} overlap`,
+      );
     }
   }
 });
 
 test("a curve leaves the link field on the side facing its target: dot at the source, crow's foot at the many side, bar at the one side", () => {
   const e: MapEdge = { from: "clients", to: "projects", field: "projects", inverse: "client" };
-  const from: Rect = { x: 0, y: 0, w: 232, h: 200 }, right: Rect = { x: 400, y: 50, w: 232, h: 200 }, left: Rect = { x: -400, y: 50, w: 232, h: 200 };
+  const from: Rect = { x: 0, y: 0, w: 232, h: 200 },
+    right: Rect = { x: 400, y: 50, w: 232, h: 200 },
+    left: Rect = { x: -400, y: 50, w: 232, h: 200 };
   const g = edgeGeometry(e, from, right, 1, 5);
   assert.deepEqual(g.dot, [232, 40 + 26 + 13]);
   assert.ok(g.d.startsWith("M232 79 "), g.d);
@@ -95,7 +142,10 @@ test("hovering or selecting a type lights its links and dims the rest", () => {
 });
 
 test("fit shows every card; zoom keeps the point under the pointer still and stays within its limits", () => {
-  const rects: Rect[] = [{ x: 70, y: 40, w: 232, h: 200 }, { x: 430, y: 300, w: 232, h: 200 }];
+  const rects: Rect[] = [
+    { x: 70, y: 40, w: 232, h: 200 },
+    { x: 430, y: 300, w: 232, h: 200 },
+  ];
   const v = fitView(rects, 1000, 700);
   const b = bounds(rects)!;
   assert.ok(v.k <= 1.1 && v.k >= ZMIN);
@@ -110,7 +160,11 @@ test("fit shows every card; zoom keeps the point under the pointer still and sta
 });
 
 test("arrow keys move to the nearest card that way; the minimap centres the view where it is pressed", () => {
-  const rects = new Map<string, Rect>([["a", { x: 0, y: 0, w: 232, h: 100 }], ["b", { x: 400, y: 10, w: 232, h: 100 }], ["c", { x: 20, y: 300, w: 232, h: 100 }]]);
+  const rects = new Map<string, Rect>([
+    ["a", { x: 0, y: 0, w: 232, h: 100 }],
+    ["b", { x: 400, y: 10, w: 232, h: 100 }],
+    ["c", { x: 20, y: 300, w: 232, h: 100 }],
+  ]);
   assert.equal(neighbor(rects, "a", "right"), "b");
   assert.equal(neighbor(rects, "a", "down"), "c");
   assert.equal(neighbor(rects, "a", "left"), "a", "nothing to the left keeps the selection");
@@ -148,9 +202,20 @@ test("an expanded card shows all its fields and offers Show fewer", () => {
 
 test("the map is read only: no New table, no Journey, no delete, no add link, no drag handles; the only way out is the Console", () => {
   const out = map(createSampleSchema());
-  for (const word of ["New table", "New Journey", "Delete", "Add relation", "Rename", "Workspace per record", "Drag to another table"]) assert.ok(!has(out, word), word);
+  for (const word of [
+    "New table",
+    "New Journey",
+    "Delete",
+    "Add relation",
+    "Rename",
+    "Workspace per record",
+    "Drag to another table",
+  ])
+    assert.ok(!has(out, word), word);
   assert.ok(has(out, "Edit in the Console") && has(out, 'data-testid="schema-map-console"'));
-  assert.ok(has(out, 'aria-label="Zoom in"') && has(out, 'aria-label="Zoom out"') && has(out, 'aria-label="Fit to screen"'));
+  assert.ok(
+    has(out, 'aria-label="Zoom in"') && has(out, 'aria-label="Zoom out"') && has(out, 'aria-label="Fit to screen"'),
+  );
   assert.ok(has(out, 'data-testid="schema-minimap"'));
   assert.ok(has(out, 'aria-label="Schema map. Arrow keys move between tables, Enter opens one."'));
 });
@@ -161,7 +226,11 @@ test("selecting a type lights its links, dims the others, and dims the cards it 
   const dimmed = out.split('data-emphasis="dim"').length - 1;
   assert.equal(hot, 3, "projects is on the ends of three links: from clients, to tasks, to invoices");
   assert.equal(dimmed, northwindEdges.length - 3);
-  assert.equal(out.split('aria-selected="true"').length - 1, 1, "exactly the selected card says so, to screen readers too");
+  assert.equal(
+    out.split('aria-selected="true"').length - 1,
+    1,
+    "exactly the selected card says so, to screen readers too",
+  );
   assert.ok(has(out, 'role="listbox"') && has(out, 'role="option"'), "the cards are the options of the map's listbox");
   assert.ok(has(out, 'aria-label="Projects, 12 records"'));
 });
@@ -175,7 +244,24 @@ test("a smaller Space draws on its own: Harbor Studio with three types and two l
 
 test("a new type added to the Space shows up on the map and in the list", () => {
   const s = createSampleSchema();
-  s.addType({ key: "referrals", title: "Referral", plural: "Referrals", icon: "referrals", label: "internal", system: false, titleField: "source", fields: [{ key: "source", type: "text", title: "Source" }, { key: "client", type: "relation", title: "Client" }], version: 1 }, 6, [{ from: "referrals", to: "clients", field: "client" }]);
+  s.addType(
+    {
+      key: "referrals",
+      title: "Referral",
+      plural: "Referrals",
+      icon: "referrals",
+      label: "internal",
+      system: false,
+      titleField: "source",
+      fields: [
+        { key: "source", type: "text", title: "Source" },
+        { key: "client", type: "relation", title: "Client" },
+      ],
+      version: 1,
+    },
+    6,
+    [{ from: "referrals", to: "clients", field: "client" }],
+  );
   const out = map(s);
   assert.ok(has(out, 'data-testid="schema-card-referrals"') && has(out, 'data-edge="referrals&gt;clients"'));
   assert.equal(textOf(out, "schema-map-summary"), "8 tables · 47 fields");
@@ -187,7 +273,10 @@ test("Record types: a Row per type with its records and fields, where it comes f
   const out = html(s, <RecordTypesList />);
   for (const t of northwindTypes) assert.ok(has(out, `data-testid="row-type:${t.key}"`), t.key);
   assert.ok(has(out, "38 records · 10 fields") && has(out, "2 records · 4 fields"));
-  assert.ok(has(out, 'data-testid="row-type:clients-leading"') && has(out, 'data-testid="row-type:clients-trailing"'), "ui/Row with its slots");
+  assert.ok(
+    has(out, 'data-testid="row-type:clients-leading"') && has(out, 'data-testid="row-type:clients-trailing"'),
+    "ui/Row with its slots",
+  );
   assert.equal(textOf(out, "type-tag-clients"), null, "Built in is a section, not a tag");
   assert.equal(textOf(out, "type-tag-hires"), "Synced from HubSpot");
   assert.ok(!has(out, "New record type") && !has(out, "New table") && !has(out, "Add a type"));

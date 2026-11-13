@@ -2,7 +2,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  checkDiskEncryption, installerMayContinue, mountFor, parseDiskutil, parseFdesetup, parseMounts, parseZfsEncryption, stackIsEncrypted, toProbeResult,
+  checkDiskEncryption,
+  installerMayContinue,
+  mountFor,
+  parseDiskutil,
+  parseFdesetup,
+  parseMounts,
+  parseZfsEncryption,
+  stackIsEncrypted,
+  toProbeResult,
 } from "./index.ts";
 import type { Probe } from "./index.ts";
 
@@ -61,11 +69,20 @@ const LSBLK_LUKS = "crypt\npart\ndisk\n";
 const LSBLK_LVM_ON_LUKS = "lvm\ncrypt\npart\ndisk\n";
 const LSBLK_PLAIN = "part\ndisk\n";
 
-function probe(o: { os: string; cmds?: Record<string, { code: number; stdout: string }>; files?: Record<string, string> }): Probe & { ran: string[] } {
+function probe(o: {
+  os: string;
+  cmds?: Record<string, { code: number; stdout: string }>;
+  files?: Record<string, string>;
+}): Probe & { ran: string[] } {
   const ran: string[] = [];
   return {
-    os: o.os, ran,
-    run: async (cmd, args) => { const k = [cmd, ...args].join(" "); ran.push(k); return o.cmds?.[k] ?? { code: 127, stdout: "" }; },
+    os: o.os,
+    ran,
+    run: async (cmd, args) => {
+      const k = [cmd, ...args].join(" ");
+      ran.push(k);
+      return o.cmds?.[k] ?? { code: 127, stdout: "" };
+    },
     readFile: async (p) => o.files?.[p] ?? null,
   };
 }
@@ -95,7 +112,11 @@ test("/proc/mounts: fields, escaped spaces, and the mount that holds a path", ()
   assert.deepEqual(mounts[6], { source: "/dev/mapper/crypt data", target: "/mnt/my files", fsType: "ext4" });
   assert.equal(mountFor(mounts, "/srv/vyre/data/events")?.source, "/dev/mapper/luks-9f3c1a2e");
   assert.equal(mountFor(mounts, "/srv/vyre")?.source, "/dev/mapper/luks-9f3c1a2e");
-  assert.equal(mountFor(mounts, "/srv/vyre2/data")?.source, "/dev/mapper/vg0-root", "a longer name is not inside /srv/vyre");
+  assert.equal(
+    mountFor(mounts, "/srv/vyre2/data")?.source,
+    "/dev/mapper/vg0-root",
+    "a longer name is not inside /srv/vyre",
+  );
   assert.equal(mountFor(mounts, "/var/lib/vyre")?.target, "/");
   assert.equal(mountFor(mounts, "/mnt/my files/x")?.source, "/dev/mapper/crypt data");
   assert.equal(mountFor([], "/x"), null);
@@ -119,16 +140,25 @@ test("zfs: off, a cipher, and no answer", () => {
 // ---- the check
 
 test("mac: FileVault on is healthy and off is down with the next step", async () => {
-  const on = await checkDiskEncryption(probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_ON } } }), "/Users/me/vyre");
+  const on = await checkDiskEncryption(
+    probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_ON } } }),
+    "/Users/me/vyre",
+  );
   assert.deepEqual([on.encrypted, on.state, on.evidence.method], [true, "healthy", "filevault"]);
-  const off = await checkDiskEncryption(probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_OFF } } }), "/Users/me/vyre");
+  const off = await checkDiskEncryption(
+    probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_OFF } } }),
+    "/Users/me/vyre",
+  );
   assert.deepEqual([off.encrypted, off.state], [false, "down"]);
   assert.match(off.detail, /System Settings, Privacy and Security/);
   assert.match(off.detail, /vyre-server doctor/);
 });
 
 test("mac: fdesetup missing or unreadable is unknown, which does not pass the installer", async () => {
-  const variants: Record<string, { code: number; stdout: string }>[] = [{}, { "fdesetup status": { code: 1, stdout: "Error: not permitted\n" } }];
+  const variants: Record<string, { code: number; stdout: string }>[] = [
+    {},
+    { "fdesetup status": { code: 1, stdout: "Error: not permitted\n" } },
+  ];
   for (const cmds of variants) {
     const v = await checkDiskEncryption(probe({ os: "darwin", cmds }), "/Users/me/vyre");
     assert.deepEqual([v.encrypted, v.state, installerMayContinue(v)], [null, "degraded", false]);
@@ -153,9 +183,16 @@ test("mac: a data directory on another volume is judged by that volume, not by t
 });
 
 test("linux: a data directory on a LUKS volume is healthy and the evidence names the device", async () => {
-  const p = probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds: { "lsblk -s -n -o TYPE /dev/mapper/luks-9f3c1a2e": { code: 0, stdout: LSBLK_LUKS } } });
+  const p = probe({
+    os: "linux",
+    files: { "/proc/mounts": MOUNTS_LUKS },
+    cmds: { "lsblk -s -n -o TYPE /dev/mapper/luks-9f3c1a2e": { code: 0, stdout: LSBLK_LUKS } },
+  });
   const v = await checkDiskEncryption(p, "/srv/vyre/data");
-  assert.deepEqual([v.encrypted, v.state, v.evidence], [true, "healthy", { method: "luks", volume: "/dev/mapper/luks-9f3c1a2e", fsType: "ext4" }]);
+  assert.deepEqual(
+    [v.encrypted, v.state, v.evidence],
+    [true, "healthy", { method: "luks", volume: "/dev/mapper/luks-9f3c1a2e", fsType: "ext4" }],
+  );
   assert.match(v.detail, /encrypted volume/);
   assert.equal(installerMayContinue(v), true);
 });
@@ -165,16 +202,26 @@ test("linux: LVM on LUKS counts, a plain partition does not", async () => {
     "lsblk -s -n -o TYPE /dev/mapper/vg0-root": { code: 0, stdout: LSBLK_LVM_ON_LUKS },
     "lsblk -s -n -o TYPE /dev/sda3": { code: 0, stdout: LSBLK_PLAIN },
   };
-  const root = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds }), "/var/lib/vyre");
+  const root = await checkDiskEncryption(
+    probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds }),
+    "/var/lib/vyre",
+  );
   assert.deepEqual([root.encrypted, root.evidence.volume], [true, "/dev/mapper/vg0-root"]);
-  const home = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds }), "/home/vyre");
+  const home = await checkDiskEncryption(
+    probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds }),
+    "/home/vyre",
+  );
   assert.deepEqual([home.encrypted, home.state, installerMayContinue(home)], [false, "down", false]);
   assert.match(home.detail, /LUKS or dm-crypt/);
   assert.match(home.detail, /\/dev\/sda3/);
 });
 
 test("linux: a path with a space in its mount is read from the escaped /proc/mounts line", async () => {
-  const p = probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds: { "lsblk -s -n -o TYPE /dev/mapper/crypt data": { code: 0, stdout: LSBLK_LUKS } } });
+  const p = probe({
+    os: "linux",
+    files: { "/proc/mounts": MOUNTS_LUKS },
+    cmds: { "lsblk -s -n -o TYPE /dev/mapper/crypt data": { code: 0, stdout: LSBLK_LUKS } },
+  });
   assert.equal((await checkDiskEncryption(p, "/mnt/my files/vyre")).encrypted, true);
 });
 
@@ -184,7 +231,14 @@ test("linux: a container root, a missing /proc/mounts and a failing lsblk are un
   assert.match(docker.detail, /Mount an encrypted volume/);
   const none = await checkDiskEncryption(probe({ os: "linux" }), "/data");
   assert.deepEqual([none.encrypted, none.state], [null, "degraded"]);
-  const broken = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_LUKS }, cmds: { "lsblk -s -n -o TYPE /dev/mapper/luks-9f3c1a2e": { code: 1, stdout: "" } } }), "/srv/vyre");
+  const broken = await checkDiskEncryption(
+    probe({
+      os: "linux",
+      files: { "/proc/mounts": MOUNTS_LUKS },
+      cmds: { "lsblk -s -n -o TYPE /dev/mapper/luks-9f3c1a2e": { code: 1, stdout: "" } },
+    }),
+    "/srv/vyre",
+  );
   assert.deepEqual([broken.encrypted, broken.state], [null, "degraded"]);
 });
 
@@ -193,16 +247,25 @@ test("linux: ZFS datasets are judged by their encryption property", async () => 
     "zfs get -H -o value encryption tank/vyre": { code: 0, stdout: "aes-256-gcm\n" },
     "zfs get -H -o value encryption tank/plain": { code: 0, stdout: "off\n" },
   };
-  const yes = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ZFS }, cmds }), "/srv/vyre/data");
+  const yes = await checkDiskEncryption(
+    probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ZFS }, cmds }),
+    "/srv/vyre/data",
+  );
   assert.deepEqual([yes.encrypted, yes.evidence.method], [true, "zfs"]);
-  const no = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ZFS }, cmds }), "/srv/plain");
+  const no = await checkDiskEncryption(
+    probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ZFS }, cmds }),
+    "/srv/plain",
+  );
   assert.deepEqual([no.encrypted, no.state], [false, "down"]);
   const unknown = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ZFS } }), "/srv/vyre");
   assert.deepEqual([unknown.encrypted, unknown.state], [null, "degraded"]);
 });
 
 test("linux: ecryptfs is an encrypted file system", async () => {
-  const v = await checkDiskEncryption(probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ECRYPTFS } }), "/home/alex/vyre");
+  const v = await checkDiskEncryption(
+    probe({ os: "linux", files: { "/proc/mounts": MOUNTS_ECRYPTFS } }),
+    "/home/alex/vyre",
+  );
   assert.deepEqual([v.encrypted, v.evidence.method], [true, "ecryptfs"]);
 });
 
@@ -213,7 +276,10 @@ test("other systems cannot be checked", async () => {
 });
 
 test("the health probe result carries the state and the sentence", async () => {
-  const v = await checkDiskEncryption(probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_OFF } } }), "/Users/me/vyre");
+  const v = await checkDiskEncryption(
+    probe({ os: "darwin", cmds: { "fdesetup status": { code: 0, stdout: FDESETUP_OFF } } }),
+    "/Users/me/vyre",
+  );
   assert.deepEqual(toProbeResult(v), { state: "down", detail: v.detail });
 });
 

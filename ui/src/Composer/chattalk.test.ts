@@ -11,12 +11,19 @@ import { chatExtensions, endTalk, replaceDoc } from "./chatnode.ts";
 import { placed } from "./talk.ts";
 
 const schema = getSchema(chatExtensions());
-const chips = (d: ChatNode): string[] => (d.content?.[0]?.content ?? []).filter((n) => n.type === "chip").map((n) => String(n.attrs?.["label"]));
-const start = (text: string, ranges: { start: number; end: number; kind: string }[]): EditorState => EditorState.create({ doc: schema.nodeFromJSON(chatDoc(text, ranges)), plugins: [history()] });
+const chips = (d: ChatNode): string[] =>
+  (d.content?.[0]?.content ?? []).filter((n) => n.type === "chip").map((n) => String(n.attrs?.["label"]));
+const start = (text: string, ranges: { start: number; end: number; kind: string }[]): EditorState =>
+  EditorState.create({ doc: schema.nodeFromJSON(chatDoc(text, ranges)), plugins: [history()] });
 const docOf = (s: EditorState): ChatNode => s.doc.toJSON() as ChatNode;
 
 /** One Talk session over the field: what Talk's composer glue does on each result, then what ChatField does when it stops. */
-function session(text: string, ranges: { start: number; end: number; kind: string }[], caret: number, heard: string[]): { states: EditorState[]; before: ChatNode; after: EditorState } {
+function session(
+  text: string,
+  ranges: { start: number; end: number; kind: string }[],
+  caret: number,
+  heard: string[],
+): { states: EditorState[]; before: ChatNode; after: EditorState } {
   let s = start(text, ranges);
   const before = docOf(s);
   const anchor = { before: text.slice(0, caret), after: text.slice(caret) };
@@ -38,9 +45,23 @@ function session(text: string, ranges: { start: number; end: number; kind: strin
 
 test("interim then final words land at the caret after a chip, the chip stays one chip, the words stay out of the history until Talk stops", () => {
   const text = "Hi @Maya  please check";
-  const r = session(text, [{ start: 3, end: 8, kind: "mention" }], 9, ["send", "send the lease", "send the lease draft"]);
-  assert.deepEqual(r.states.map((s) => chatText(docOf(s))), ["Hi @Maya send please check", "Hi @Maya send the lease please check", "Hi @Maya send the lease draft please check"]);
-  for (const s of r.states) { assert.deepEqual(chips(docOf(s)), ["@Maya"]); assert.equal(undoDepth(s), 0, "while it listens nothing is in the history"); }
+  const r = session(text, [{ start: 3, end: 8, kind: "mention" }], 9, [
+    "send",
+    "send the lease",
+    "send the lease draft",
+  ]);
+  assert.deepEqual(
+    r.states.map((s) => chatText(docOf(s))),
+    [
+      "Hi @Maya send please check",
+      "Hi @Maya send the lease please check",
+      "Hi @Maya send the lease draft please check",
+    ],
+  );
+  for (const s of r.states) {
+    assert.deepEqual(chips(docOf(s)), ["@Maya"]);
+    assert.equal(undoDepth(s), 0, "while it listens nothing is in the history");
+  }
   assert.equal(chatText(docOf(r.after)), "Hi @Maya send the lease draft please check");
   assert.deepEqual(chips(docOf(r.after)), ["@Maya"]);
   assert.equal(undoDepth(r.after), 1, "one step for everything spoken");
@@ -55,15 +76,31 @@ test("words before a chip move the chip with the text, and it stays whole", () =
 });
 
 test("Undo is one step back to what was there before Talk, Redo brings every word back, chips unharmed", () => {
-  const r = session("Hi @Maya  please", [{ start: 3, end: 8, kind: "mention" }], 9, ["send", "send it today", "send it today please"]);
+  const r = session("Hi @Maya  please", [{ start: 3, end: 8, kind: "mention" }], 9, [
+    "send",
+    "send it today",
+    "send it today please",
+  ]);
   let s = r.after;
   let next: EditorState | null = null;
-  assert.ok(undo(s, (tr) => { next = s.apply(tr); }));
+  assert.ok(
+    undo(s, (tr) => {
+      next = s.apply(tr);
+    }),
+  );
   s = next!;
   assert.deepEqual(docOf(s), r.before, "the field is exactly as it was before Talk");
   assert.deepEqual(chips(docOf(s)), ["@Maya"]);
-  assert.equal(undo(s, () => undefined), false, "no second step: one undo took all the words");
-  assert.ok(redo(s, (tr) => { next = s.apply(tr); }));
+  assert.equal(
+    undo(s, () => undefined),
+    false,
+    "no second step: one undo took all the words",
+  );
+  assert.ok(
+    redo(s, (tr) => {
+      next = s.apply(tr);
+    }),
+  );
   assert.equal(chatText(docOf(next!)), "Hi @Maya send it today please please");
   assert.deepEqual(chips(docOf(next!)), ["@Maya"]);
 });

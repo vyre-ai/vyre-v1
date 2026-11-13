@@ -5,7 +5,14 @@ import { handlers } from "../impl.ts";
 import { codeOf, harness } from "../fixtures/db.ts";
 
 const OFF = { secondFactor: "off" as const, requireSso: false, allowPassword: true, allowGithub: true };
-const OKTA = { key: "okta" as const, title: "Okta", issuer: "https://dev-1.okta.com", clientId: "abc", clientSecretHandle: "#Okta_Secret", enabled: true };
+const OKTA = {
+  key: "okta" as const,
+  title: "Okta",
+  issuer: "https://dev-1.okta.com",
+  clientId: "abc",
+  clientSecretHandle: "#Okta_Secret",
+  enabled: true,
+};
 
 test("the policy starts permissive, stores what is set, and names each changed rule once", async () => {
   const h = harness();
@@ -14,13 +21,23 @@ test("the policy starts permissive, stores what is set, and names each changed r
   h.world.factors.set("usr_admin", ["totp"]);
   h.world.factors.set("usr_owner", ["totp"]);
   h.events.length = 0;
-  const out = await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, secondFactor: "required", allowGithub: false } });
-  assert.deepEqual(out.policy, { secondFactor: "required", requireSso: false, allowPassword: true, allowGithub: false });
+  const out = await handlers["members.sign_in_policy.set"](a, {
+    policy: { ...OFF, secondFactor: "required", allowGithub: false },
+  });
+  assert.deepEqual(out.policy, {
+    secondFactor: "required",
+    requireSso: false,
+    allowPassword: true,
+    allowGithub: false,
+  });
   assert.deepEqual((await handlers["members.sign_in_policy.get"](a, {})).policy, out.policy);
-  assert.deepEqual(h.events.map((e) => e.payload), [
-    { key: "sign_in.second_factor", scope: "space", kind: "sign_in", by: "usr_admin" },
-    { key: "sign_in.allow_github", scope: "space", kind: "sign_in", by: "usr_admin" },
-  ]);
+  assert.deepEqual(
+    h.events.map((e) => e.payload),
+    [
+      { key: "sign_in.second_factor", scope: "space", kind: "sign_in", by: "usr_admin" },
+      { key: "sign_in.allow_github", scope: "space", kind: "sign_in", by: "usr_admin" },
+    ],
+  );
   h.events.length = 0;
   await handlers["members.sign_in_policy.set"](a, { policy: out.policy });
   assert.equal(h.events.length, 0, "setting the same policy is quiet");
@@ -29,16 +46,31 @@ test("the policy starts permissive, stores what is set, and names each changed r
 test("the owner floor: only the owner lowers a requirement, and nobody is locked out by their own change", async () => {
   const h = harness();
   const admin = h.as("usr_admin");
-  await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, secondFactor: "required" } }), (e) => codeOf(e) === "validation.precondition_failed", "no factor of your own yet");
+  await assert.rejects(
+    handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, secondFactor: "required" } }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+    "no factor of your own yet",
+  );
   h.world.factors.set("usr_admin", ["totp"]);
   h.world.factors.set("usr_owner", ["totp"]);
   await handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, secondFactor: "required" } });
-  await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: OFF }), (e) => codeOf(e) === "permission.role_lacks_permission");
+  await assert.rejects(
+    handlers["members.sign_in_policy.set"](admin, { policy: OFF }),
+    (e) => codeOf(e) === "permission.role_lacks_permission",
+  );
   assert.equal((await handlers["members.sign_in_policy.get"](admin, {})).policy.secondFactor, "required");
   await handlers["members.sign_in_policy.set"](h.as("usr_owner"), { policy: OFF });
   assert.equal((await handlers["members.sign_in_policy.get"](admin, {})).policy.secondFactor, "off");
-  await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, allowPassword: false, allowGithub: false } }), (e) => codeOf(e) === "validation.precondition_failed", "someone must be able to sign in");
-  await assert.rejects(handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, requireSso: true } }), (e) => codeOf(e) === "validation.precondition_failed", "no provider yet");
+  await assert.rejects(
+    handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, allowPassword: false, allowGithub: false } }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+    "someone must be able to sign in",
+  );
+  await assert.rejects(
+    handlers["members.sign_in_policy.set"](admin, { policy: { ...OFF, requireSso: true } }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+    "no provider yet",
+  );
 });
 
 test("the report puts the people without a second factor first", async () => {
@@ -48,7 +80,15 @@ test("the report puts the people without a second factor first", async () => {
   h.world.factors.set("usr_admin", ["totp"]);
   h.world.factors.set("usr_bob", ["totp"]);
   const out = await handlers["members.second_factor.report"](h.as("usr_admin"), {});
-  assert.deepEqual(out.people.map((p) => [p.name, p.factors.length]), [["Cara", 0], ["Olive", 0], ["Ada", 1], ["Bob", 1]]);
+  assert.deepEqual(
+    out.people.map((p) => [p.name, p.factors.length]),
+    [
+      ["Cara", 0],
+      ["Olive", 0],
+      ["Ada", 1],
+      ["Bob", 1],
+    ],
+  );
   assert.deepEqual(out.people[0]!.person, { kind: "person", id: "usr_cara" });
   const page = await handlers["members.second_factor.report"](h.as("usr_admin"), { limit: 3 });
   assert.equal(page.people.length, 3);
@@ -58,23 +98,67 @@ test("the report puts the people without a second factor first", async () => {
 test("SSO providers: a Vault handle for the secret, https issuers, a list, and requiring SSO needs one that is on", async () => {
   const h = harness();
   const a = h.as("usr_admin");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: { ...OKTA, issuer: "http://dev-1.okta.com" } }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: { ...OKTA, issuer: "not a url" } }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: { ...OKTA, clientSecretHandle: "s3cr3t-value" } }), (e) => codeOf(e) === "validation.bad_input", "a secret value is never stored here");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: { ...OKTA, clientId: " " } }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: { ...OKTA, issuer: "http://dev-1.okta.com" } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: { ...OKTA, issuer: "not a url" } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: { ...OKTA, clientSecretHandle: "s3cr3t-value" } }),
+    (e) => codeOf(e) === "validation.bad_input",
+    "a secret value is never stored here",
+  );
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: { ...OKTA, clientId: " " } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   h.events.length = 0;
-  const set = await handlers["members.sso.set"](a, { provider: { ...OKTA, issuer: "https://dev-1.okta.com/", domainHint: " Example.COM " } });
+  const set = await handlers["members.sso.set"](a, {
+    provider: { ...OKTA, issuer: "https://dev-1.okta.com/", domainHint: " Example.COM " },
+  });
   assert.deepEqual(set.provider, { ...OKTA, domainHint: "example.com" });
-  assert.deepEqual(h.events.map((e) => e.payload), [{ key: "sso.okta", scope: "space", kind: "sign_in", by: "usr_admin" }]);
+  assert.deepEqual(
+    h.events.map((e) => e.payload),
+    [{ key: "sso.okta", scope: "space", kind: "sign_in", by: "usr_admin" }],
+  );
   assert.ok(!JSON.stringify(h.raw.rows("members_policy")).includes("secret value"));
-  assert.deepEqual((await handlers["members.sso.list"](a, {})).providers.map((p) => p.key), ["okta"]);
+  assert.deepEqual(
+    (await handlers["members.sso.list"](a, {})).providers.map((p) => p.key),
+    ["okta"],
+  );
   await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, requireSso: true } });
-  await assert.rejects(handlers["members.sso.set"](a, { provider: { ...OKTA, enabled: false } }), (e) => codeOf(e) === "validation.precondition_failed", "the only provider cannot be turned off while SSO is required");
-  await assert.rejects(handlers["members.sso.remove"](a, { key: "okta" }), (e) => codeOf(e) === "validation.precondition_failed");
-  await handlers["members.sso.set"](a, { provider: { key: "google", title: "Google", issuer: "https://accounts.google.com", clientId: "g", clientSecretHandle: "#Google.Secret", enabled: true } });
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: { ...OKTA, enabled: false } }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+    "the only provider cannot be turned off while SSO is required",
+  );
+  await assert.rejects(
+    handlers["members.sso.remove"](a, { key: "okta" }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
+  await handlers["members.sso.set"](a, {
+    provider: {
+      key: "google",
+      title: "Google",
+      issuer: "https://accounts.google.com",
+      clientId: "g",
+      clientSecretHandle: "#Google.Secret",
+      enabled: true,
+    },
+  });
   await handlers["members.sso.remove"](a, { key: "okta" });
-  assert.deepEqual((await handlers["members.sso.list"](a, {})).providers.map((p) => p.key), ["google"]);
-  assert.deepEqual(await handlers["members.sso.remove"](a, { key: "okta" }), { ok: true }, "removing what is not there is fine");
+  assert.deepEqual(
+    (await handlers["members.sso.list"](a, {})).providers.map((p) => p.key),
+    ["google"],
+  );
+  assert.deepEqual(
+    await handlers["members.sso.remove"](a, { key: "okta" }),
+    { ok: true },
+    "removing what is not there is fine",
+  );
 });
 
 test("the SSO test reads the discovery document and the signing keys and says what is wrong", async () => {
@@ -83,7 +167,12 @@ test("the SSO test reads the discovery document and the signing keys and says wh
   await assert.rejects(handlers["members.sso.test"](a, { key: "okta" }), (e) => codeOf(e) === "validation.not_found");
   await handlers["members.sso.set"](a, { provider: OKTA });
   const disco = "https://dev-1.okta.com/.well-known/openid-configuration";
-  const good = { issuer: "https://dev-1.okta.com", authorization_endpoint: "https://dev-1.okta.com/a", token_endpoint: "https://dev-1.okta.com/t", jwks_uri: "https://dev-1.okta.com/keys" };
+  const good = {
+    issuer: "https://dev-1.okta.com",
+    authorization_endpoint: "https://dev-1.okta.com/a",
+    token_endpoint: "https://dev-1.okta.com/t",
+    jwks_uri: "https://dev-1.okta.com/keys",
+  };
   h.world.http.set(disco, { status: 200, body: good });
   h.world.http.set(good.jwks_uri, { status: 200, body: { keys: [{ kid: "1" }, { kid: "2" }] } });
   const ok = await handlers["members.sso.test"](a, { key: "okta" });
@@ -94,7 +183,10 @@ test("the SSO test reads the discovery document and the signing keys and says wh
   h.world.http.set(disco, { status: 200, body: { ...good, jwks_uri: "http://dev-1.okta.com/keys" } });
   assert.match((await handlers["members.sso.test"](a, { key: "okta" })).detail!, /missing an https endpoint/);
   h.world.http.set(disco, { status: 404, body: {} });
-  assert.deepEqual(await handlers["members.sso.test"](a, { key: "okta" }), { ok: false, detail: "the discovery document answered 404" });
+  assert.deepEqual(await handlers["members.sso.test"](a, { key: "okta" }), {
+    ok: false,
+    detail: "the discovery document answered 404",
+  });
   h.world.http.set(disco, { status: 200, body: good });
   h.world.http.set(good.jwks_uri, { status: 200, body: { keys: [] } });
   assert.match((await handlers["members.sso.test"](a, { key: "okta" })).detail!, /no signing keys/);
@@ -108,31 +200,54 @@ test("requiring SSO refuses to lock the owner out: they signed in with it once, 
   const h = harness();
   const a = h.as("usr_owner");
   await handlers["members.sso.set"](a, { provider: OKTA });
-  const need = async (breakGlass: { ssoLinked(): boolean; hasRecovery(): boolean }, words: RegExp) => assert.rejects(handlers["members.sign_in_policy.set"]({ ...a, breakGlass }, { policy: { ...OFF, requireSso: true } }), (e) => codeOf(e) === "validation.precondition_failed" && words.test((e as { error: { message: string } }).error.message));
+  const need = async (breakGlass: { ssoLinked(): boolean; hasRecovery(): boolean }, words: RegExp) =>
+    assert.rejects(
+      handlers["members.sign_in_policy.set"]({ ...a, breakGlass }, { policy: { ...OFF, requireSso: true } }),
+      (e) =>
+        codeOf(e) === "validation.precondition_failed" &&
+        words.test((e as { error: { message: string } }).error.message),
+    );
   await need({ ssoLinked: () => false, hasRecovery: () => true }, /sign in with this provider once/);
   await need({ ssoLinked: () => true, hasRecovery: () => false }, /recovery key/);
-  await handlers["members.sign_in_policy.set"]({ ...a, breakGlass: { ssoLinked: () => true, hasRecovery: () => true } }, { policy: { ...OFF, requireSso: true } });
+  await handlers["members.sign_in_policy.set"](
+    { ...a, breakGlass: { ssoLinked: () => true, hasRecovery: () => true } },
+    { policy: { ...OFF, requireSso: true } },
+  );
 });
 
 test("the join page names the sign-in when everyone must use it, and nothing else", async () => {
   const h = harness();
   const a = h.as("usr_owner");
   await handlers["members.sso.set"](a, { provider: { ...OKTA, domainHint: "firm.test" } });
-  const { link } = await handlers["members.invites.create"](a, { role: "rol_member", email: "new@firm.test", idempotencyKey: "i1" }) as { link: string };
+  const { link } = (await handlers["members.invites.create"](a, {
+    role: "rol_member",
+    email: "new@firm.test",
+    idempotencyKey: "i1",
+  })) as { link: string };
   const code = link.split("/").pop()!.split("#")[0]!;
   assert.equal((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, undefined);
   await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, requireSso: true } });
-  assert.deepEqual((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, [{ key: "okta", title: "Okta" }]);
+  assert.deepEqual((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, [
+    { key: "okta", title: "Okta" },
+  ]);
 });
 
 test("members.sso.set checks that the caller can use the secret's Vault item, as vault.use", async () => {
   const h = harness();
   const a = h.as("usr_admin");
   h.world.vaultDenied.add("#okta_secret");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: OKTA }), (e) => codeOf(e) === "permission.no_grant", "someone else's key cannot be pointed at a sign-in app");
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: OKTA }),
+    (e) => codeOf(e) === "permission.no_grant",
+    "someone else's key cannot be pointed at a sign-in app",
+  );
   h.world.vaultDenied.clear();
   h.world.vaultMissing.add("#okta_secret");
-  await assert.rejects(handlers["members.sso.set"](a, { provider: OKTA }), (e) => codeOf(e) === "permission.no_grant", "an item that is not in the Vault is refused the same way");
+  await assert.rejects(
+    handlers["members.sso.set"](a, { provider: OKTA }),
+    (e) => codeOf(e) === "permission.no_grant",
+    "an item that is not in the Vault is refused the same way",
+  );
   assert.deepEqual((await handlers["members.sso.list"](a, {})).providers, [], "nothing was saved");
   h.world.vaultMissing.clear();
   await handlers["members.sso.set"](a, { provider: { ...OKTA, clientSecretHandle: "#Okta_Secret.value" } });

@@ -3,4 +3,6 @@ import test from "node:test";
 import { createRoot } from "test-renderer";
 import { sweep } from "./controls-sweep.support.tsx";
 
-test("notifications as owner: every control can be pressed", async () => { await sweep(createRoot, "notifications", "owner"); });
+test("notifications as owner: every control can be pressed", async () => {
+  await sweep(createRoot, "notifications", "owner");
+});

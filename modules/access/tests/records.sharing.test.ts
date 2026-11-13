@@ -14,8 +14,14 @@ function rig() {
   const db = new MemoryDb();
   const events: { name: string; payload: unknown }[] = [];
   const ctx: ShareCtx = {
-    space: "spc_test", principal: { kind: "person", id: "usr_ada" }, trace: { traceId: "0123456789abcdef0123456789abcdef" },
-    now: () => NOW, db, emit(name, _subject, payload) { events.push({ name, payload }); },
+    space: "spc_test",
+    principal: { kind: "person", id: "usr_ada" },
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    now: () => NOW,
+    db,
+    emit(name, _subject, payload) {
+      events.push({ name, payload });
+    },
   };
   const store = storeOf(ctx);
   const everyone = store.groups.get(EVERYONE)!;
@@ -24,15 +30,51 @@ function rig() {
     store.setRoles(id, [id === "usr_ada" ? "rol_owner" : "rol_member"]);
     everyone.members.push({ kind: "person", id });
   }
-  store.resources.set("spc_test", { id: "spc_test", type: "space", parentId: null, label: "public", ownerId: "usr_ada", holds: 0 });
-  store.resources.set("deal", { id: "deal", type: "record_type", parentId: "spc_test", label: "public", ownerId: "usr_ada", holds: 0 });
-  for (const id of ["rec_one", "rec_two"]) store.resources.set(id, { id, type: "record", parentId: "deal", label: "public", ownerId: "usr_ada", holds: 0 });
+  store.resources.set("spc_test", {
+    id: "spc_test",
+    type: "space",
+    parentId: null,
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+  });
+  store.resources.set("deal", {
+    id: "deal",
+    type: "record_type",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+  });
+  for (const id of ["rec_one", "rec_two"])
+    store.resources.set(id, { id, type: "record", parentId: "deal", label: "public", ownerId: "usr_ada", holds: 0 });
   // what the host adds to every snapshot: the roles' standard level on the Space
-  store.grants.set("gnt_owner", { id: "gnt_owner", subject: { kind: "role", id: "rol_owner" }, resource: { type: "space", id: "spc_test" }, level: "manage", conditions: {}, by: "svc_host", createdAt: 1 });
-  store.grants.set("gnt_member", { id: "gnt_member", subject: { kind: "role", id: "rol_member" }, resource: { type: "space", id: "spc_test" }, level: "edit", conditions: {}, by: "svc_host", createdAt: 1 });
+  store.grants.set("gnt_owner", {
+    id: "gnt_owner",
+    subject: { kind: "role", id: "rol_owner" },
+    resource: { type: "space", id: "spc_test" },
+    level: "manage",
+    conditions: {},
+    by: "svc_host",
+    createdAt: 1,
+  });
+  store.grants.set("gnt_member", {
+    id: "gnt_member",
+    subject: { kind: "role", id: "rol_member" },
+    resource: { type: "space", id: "spc_test" },
+    level: "edit",
+    conditions: {},
+    by: "svc_host",
+    createdAt: 1,
+  });
   store.bump();
   const as = (id: string): ShareCtx => ({ ...ctx, principal: { kind: "person", id } });
-  const can = (who: string, resource: { type: string; id: string }, level: "view" | "edit" | "manage" = "view", perm: string | null = null): boolean =>
+  const can = (
+    who: string,
+    resource: { type: string; id: string },
+    level: "view" | "edit" | "manage" = "view",
+    perm: string | null = null,
+  ): boolean =>
     authorize(store.snapshot(), { principal: who, action: { perm, level }, resource, now: NOW }).effect === "allow";
   return { ctx, store, as, can, events };
 }
@@ -40,14 +82,22 @@ const deal = { type: "record_type", id: "deal" };
 const one = { type: "record", id: "rec_one" };
 const person = (id: string) => ({ kind: "person" as const, id });
 async function code(p: Promise<unknown>): Promise<string> {
-  try { await p; } catch (e) { return (e as { error?: { code?: string } }).error?.code ?? "no code"; }
+  try {
+    await p;
+  } catch (e) {
+    return (e as { error?: { code?: string } }).error?.code ?? "no code";
+  }
   return "no error";
 }
 
 test("Only people added cuts a type off from the Space: the others lose it, admins and the people added keep it", async () => {
   const r = rig();
   assert.ok(r.can("usr_dee", deal) && r.can("usr_dee", one), "a member sees it through the Space");
-  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, audience: "added" }), { audience: "added", exporters: "admins", outside: false });
+  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, audience: "added" }), {
+    audience: "added",
+    exporters: "admins",
+    outside: false,
+  });
   assert.ok(!r.can("usr_dee", deal) && !r.can("usr_dee", one), "Dee was not added");
   assert.ok(r.can("usr_ada", deal) && r.can("usr_ada", one, "manage"));
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit" });
@@ -57,10 +107,22 @@ test("Only people added cuts a type off from the Space: the others lose it, admi
   assert.ok(!r.can("usr_dee", one));
   const of = await sharesOf(r.ctx, { resource: deal });
   assert.equal(of.audience, "added");
-  assert.deepEqual(of.shares.filter((x) => x.through === "direct" && x.grant.source === undefined).map((x) => [x.grant.subject.id, x.grant.level]).sort(), [["usr_bea", "edit"], ["usr_cal", "view"]]);
+  assert.deepEqual(
+    of.shares
+      .filter((x) => x.through === "direct" && x.grant.source === undefined)
+      .map((x) => [x.grant.subject.id, x.grant.level])
+      .sort(),
+    [
+      ["usr_bea", "edit"],
+      ["usr_cal", "view"],
+    ],
+  );
   await audienceSet(r.ctx, { resource: deal, audience: "space" });
   assert.ok(r.can("usr_dee", one), "back to everyone: the Space reaches it again");
-  assert.ok(!(await sharesOf(r.ctx, { resource: deal })).shares.some((x) => x.grant.source === "audience"), "the keepers' grants went with the choice");
+  assert.ok(
+    !(await sharesOf(r.ctx, { resource: deal })).shares.some((x) => x.grant.source === "audience"),
+    "the keepers' grants went with the choice",
+  );
 });
 
 test("export is a right a grant carries, and only from someone who holds it", async () => {
@@ -69,18 +131,41 @@ test("export is a right a grant carries, and only from someone who holds it", as
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
   assert.ok(!r.can("usr_cal", deal, "view", "records.export"), "a member has no export by role");
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: true });
-  assert.ok(r.can("usr_cal", deal, "view", "records.export") && r.can("usr_cal", one, "view", "records.export"), "Cal can export what he can see");
+  assert.ok(
+    r.can("usr_cal", deal, "view", "records.export") && r.can("usr_cal", one, "view", "records.export"),
+    "Cal can export what he can see",
+  );
   assert.ok(!r.can("usr_cal", deal, "edit"), "export is not edit");
   // changing the level keeps the flag
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "edit" });
   assert.ok(r.can("usr_cal", deal, "edit", "records.export"));
   // Bea may not hand it on: she cannot export, and a member cannot share a type without the right
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "manage" });
-  assert.equal(await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_dee"), level: "view", export: true })), "permission.not_contained");
+  assert.equal(
+    await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_dee"), level: "view", export: true })),
+    "permission.not_contained",
+  );
   await share(r.as("usr_bea"), { resource: deal, subject: person("usr_dee"), level: "view" });
   // the flag is for records only
-  r.store.resources.set("sit_x", { id: "sit_x", type: "site", parentId: "spc_test", label: "public", ownerId: "usr_ada", holds: 0 });
-  assert.equal(await code(share(r.ctx, { resource: { type: "site", id: "sit_x" }, subject: person("usr_bea"), level: "view", export: true })), "validation.bad_input");
+  r.store.resources.set("sit_x", {
+    id: "sit_x",
+    type: "site",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+  });
+  assert.equal(
+    await code(
+      share(r.ctx, {
+        resource: { type: "site", id: "sit_x" },
+        subject: person("usr_bea"),
+        level: "view",
+        export: true,
+      }),
+    ),
+    "validation.bad_input",
+  );
   // taking the flag away
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: false });
   assert.ok(!r.can("usr_cal", deal, "view", "records.export"));
@@ -92,7 +177,11 @@ test("Anyone who can view may export when the type says so; Admins only takes it
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "view", export: true });
   assert.equal((await sharesOf(r.ctx, { resource: deal })).exporters, "chosen");
-  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, exporters: "viewers" }), { audience: "added", exporters: "viewers", outside: false });
+  assert.deepEqual(await audienceSet(r.ctx, { resource: deal, exporters: "viewers" }), {
+    audience: "added",
+    exporters: "viewers",
+    outside: false,
+  });
   assert.ok(r.can("usr_cal", deal, "view", "records.export"), "Cal can view, so he exports");
   assert.ok(!r.can("usr_dee", deal, "view", "records.export"), "Dee cannot view, so she does not");
   await audienceSet(r.ctx, { resource: deal, exporters: "admins" });
@@ -102,7 +191,10 @@ test("Anyone who can view may export when the type says so; Admins only takes it
   assert.equal((await audienceSet(r.ctx, { resource: deal, exporters: "chosen" })).exporters, "chosen");
   assert.equal((await sharesOf(r.ctx, { resource: deal })).exporters, "chosen");
   assert.ok(!r.can("usr_cal", deal, "view", "records.export"), "nobody chosen yet");
-  assert.equal(await code(audienceSet(r.as("usr_cal"), { resource: deal, exporters: "viewers" })), "permission.no_grant");
+  assert.equal(
+    await code(audienceSet(r.as("usr_cal"), { resource: deal, exporters: "viewers" })),
+    "permission.no_grant",
+  );
 });
 
 test("one record can be cut off from its type and put back", async () => {
@@ -140,11 +232,17 @@ test("sharing a record type needs Manage or the right to share it on", async () 
   const r = rig();
   await audienceSet(r.ctx, { resource: deal, audience: "added" });
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit" });
-  assert.equal(await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_cal"), level: "view" })), "permission.no_grant");
+  assert.equal(
+    await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_cal"), level: "view" })),
+    "permission.no_grant",
+  );
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit", reshare: true });
   await share(r.as("usr_bea"), { resource: deal, subject: person("usr_cal"), level: "view" });
   assert.ok(r.can("usr_cal", deal));
-  assert.equal(await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_dee"), level: "manage" })), "permission.not_contained");
+  assert.equal(
+    await code(share(r.as("usr_bea"), { resource: deal, subject: person("usr_dee"), level: "manage" })),
+    "permission.not_contained",
+  );
   const gone = await unshare(r.ctx, { resource: deal, subject: person("usr_cal") });
   assert.equal(gone.revoked, 1);
 });
@@ -156,7 +254,13 @@ test("record marks name the rows that differ and whether the caller was given th
   await audienceSet(r.ctx, { resource: one, audience: "me" });
   await share(r.ctx, { resource: { type: "record", id: "rec_two" }, subject: person("usr_bea"), level: "edit" });
   const ada = await recordMarks(r.ctx, { type: "deal" });
-  assert.deepEqual(ada.rows.map((x) => [x.id, x.audience, x.direct]), [["rec_one", "me", 0], ["rec_two", "space", 1]]);
+  assert.deepEqual(
+    ada.rows.map((x) => [x.id, x.audience, x.direct]),
+    [
+      ["rec_one", "me", 0],
+      ["rec_two", "space", 1],
+    ],
+  );
   assert.equal(ada.typeShared, false, "she owns it");
   const cal = await recordMarks(r.as("usr_cal"), { type: "deal" });
   assert.equal(cal.typeShared, true);
@@ -168,12 +272,37 @@ test("the caller's rights come back with the shares, so the app draws Share and 
   await audienceSet(r.ctx, { resource: deal, audience: "added" });
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view" });
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit", reshare: true, export: true });
-  assert.deepEqual((await sharesOf(r.ctx, { resource: deal })).can, { manage: true, edit: true, share: true, export: true });
-  assert.deepEqual((await sharesOf(r.as("usr_cal"), { resource: deal })).can, { manage: false, edit: false, share: false, export: false });
-  assert.deepEqual((await sharesOf(r.as("usr_bea"), { resource: one })).can, { manage: false, edit: true, share: true, export: true });
-  assert.deepEqual((await recordMarks(r.as("usr_cal"), { type: "deal" })).can, { manage: false, edit: false, share: false, export: false });
+  assert.deepEqual((await sharesOf(r.ctx, { resource: deal })).can, {
+    manage: true,
+    edit: true,
+    share: true,
+    export: true,
+  });
+  assert.deepEqual((await sharesOf(r.as("usr_cal"), { resource: deal })).can, {
+    manage: false,
+    edit: false,
+    share: false,
+    export: false,
+  });
+  assert.deepEqual((await sharesOf(r.as("usr_bea"), { resource: one })).can, {
+    manage: false,
+    edit: true,
+    share: true,
+    export: true,
+  });
+  assert.deepEqual((await recordMarks(r.as("usr_cal"), { type: "deal" })).can, {
+    manage: false,
+    edit: false,
+    share: false,
+    export: false,
+  });
   // Dee was not added: she is told nothing about the type (no rights, not shared with her, no rows, and not the type's own audience), and the call is not refused
-  assert.deepEqual(await recordMarks(r.as("usr_dee"), { type: "deal" }), { can: { manage: false, edit: false, share: false, export: false }, typeShared: false, audience: "added", rows: [] });
+  assert.deepEqual(await recordMarks(r.as("usr_dee"), { type: "deal" }), {
+    can: { manage: false, edit: false, share: false, export: false },
+    typeShared: false,
+    audience: "added",
+    rows: [],
+  });
   await share(r.ctx, { resource: deal, subject: person("usr_cal"), level: "view", export: true });
   assert.equal((await recordMarks(r.as("usr_cal"), { type: "deal" })).can.export, true);
 });
@@ -185,12 +314,30 @@ test("an agent acts with the asker's access, never more: Dee's agent cannot read
   r.store.bump();
   await audienceSet(r.ctx, { resource: deal, audience: "added" });
   await share(r.ctx, { resource: deal, subject: person("usr_bea"), level: "edit" });
-  await share(r.ctx, { resource: deal, subject: { kind: "agent", id: "agt_helper" }, level: "edit" });   // an agent can be added to the sheet like a person
+  await share(r.ctx, { resource: deal, subject: { kind: "agent", id: "agt_helper" }, level: "edit" }); // an agent can be added to the sheet like a person
   const asks = (asker: string, resource: { type: string; id: string }): boolean =>
-    authorize(r.store.snapshot(), { principal: "agt_helper", actingFor: asker, action: { perm: null, level: "view" }, resource, now: NOW }).effect === "allow";
-  assert.ok(!asks("usr_dee", deal) && !asks("usr_dee", one), "Dee was not added, so the agent added to the sheet still reads nothing for her");
+    authorize(r.store.snapshot(), {
+      principal: "agt_helper",
+      actingFor: asker,
+      action: { perm: null, level: "view" },
+      resource,
+      now: NOW,
+    }).effect === "allow";
+  assert.ok(
+    !asks("usr_dee", deal) && !asks("usr_dee", one),
+    "Dee was not added, so the agent added to the sheet still reads nothing for her",
+  );
   assert.ok(asks("usr_bea", deal) && asks("usr_bea", one), "Bea was");
-  assert.ok(!authorize(r.store.snapshot(), { principal: "agt_helper", actingFor: "usr_bea", action: { perm: "records.export", level: "view" }, resource: deal, now: NOW }).effect.startsWith("allow"), "and her agent has no export either");
+  assert.ok(
+    !authorize(r.store.snapshot(), {
+      principal: "agt_helper",
+      actingFor: "usr_bea",
+      action: { perm: "records.export", level: "view" },
+      resource: deal,
+      now: NOW,
+    }).effect.startsWith("allow"),
+    "and her agent has no export either",
+  );
 });
 
 test("links outside the Space are off for a type until its sheet turns them on", async () => {
@@ -199,12 +346,24 @@ test("links outside the Space are off for a type until its sheet turns them on",
   assert.equal((await audienceSet(r.ctx, { resource: deal, outside: true })).outside, true);
   assert.equal((await sharesOf(r.ctx, { resource: deal })).outside, true);
   assert.equal((await audienceSet(r.ctx, { resource: deal, outside: false })).outside, false);
-  assert.equal(await code(audienceSet(r.ctx, { resource: one, outside: true })), "validation.bad_input", "a type setting, not a record's");
+  assert.equal(
+    await code(audienceSet(r.ctx, { resource: one, outside: true })),
+    "validation.bad_input",
+    "a type setting, not a record's",
+  );
 });
 
 test("a record's Files folder follows its record: who cannot see the record cannot open the folder, and it goes with the record when it is set apart", async () => {
   const r = rig();
-  r.store.resources.set("fld_deal", { id: "fld_deal", type: "folder", parentId: "spc_test", label: "public", ownerId: "usr_ada", holds: 0, row: { name: "Acme files", itemType: "file", scope: "space" } });
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
   r.store.bump();
   const folder = { type: "folder", id: "fld_deal" };
   assert.ok(r.can("usr_dee", folder), "a Space folder is open to the Space until it follows a record");
@@ -222,13 +381,37 @@ test("an agent changes who a type is open to on behalf of an admin, and is refus
   const r = rig();
   putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });
   r.store.setRoles("agt_helper", ["rol_member"]);
-  r.store.grants.set("gnt_agent_manage", { id: "gnt_agent_manage", subject: { kind: "agent", id: "agt_helper" }, resource: { type: "record_type", id: "deal" }, level: "manage", conditions: {}, by: "usr_ada", createdAt: 1 });
+  r.store.grants.set("gnt_agent_manage", {
+    id: "gnt_agent_manage",
+    subject: { kind: "agent", id: "agt_helper" },
+    resource: { type: "record_type", id: "deal" },
+    level: "manage",
+    conditions: {},
+    by: "usr_ada",
+    createdAt: 1,
+  });
   r.store.bump();
   // the host's ctx carries the person an agent acts for as a plain id string
-  const agentFor = (asker?: string): ShareCtx => ({ ...r.ctx, principal: { kind: "agent", id: "agt_helper" }, ...(asker ? { actingFor: asker as never } : {}) });
-  assert.equal(await code(audienceSet(agentFor(), { resource: deal, audience: "added" })), "permission.no_grant", "an agent with no one behind it acts for no one");
-  assert.equal(await code(audienceSet(agentFor("usr_dee"), { resource: deal, audience: "added" })), "permission.no_grant", "acting for a member without manage: refused, whatever the agent's own grant");
-  assert.equal((await audienceSet(agentFor("usr_ada"), { resource: deal, audience: "added" })).audience, "added", "acting for the owner: allowed");
+  const agentFor = (asker?: string): ShareCtx => ({
+    ...r.ctx,
+    principal: { kind: "agent", id: "agt_helper" },
+    ...(asker ? { actingFor: asker as never } : {}),
+  });
+  assert.equal(
+    await code(audienceSet(agentFor(), { resource: deal, audience: "added" })),
+    "permission.no_grant",
+    "an agent with no one behind it acts for no one",
+  );
+  assert.equal(
+    await code(audienceSet(agentFor("usr_dee"), { resource: deal, audience: "added" })),
+    "permission.no_grant",
+    "acting for a member without manage: refused, whatever the agent's own grant",
+  );
+  assert.equal(
+    (await audienceSet(agentFor("usr_ada"), { resource: deal, audience: "added" })).audience,
+    "added",
+    "acting for the owner: allowed",
+  );
   // the narrowing holds the other way round: an agent without its own grant gets nothing from an admin asker beyond what the grants allow together
   r.store.grants.delete("gnt_agent_manage");
   r.store.bump();

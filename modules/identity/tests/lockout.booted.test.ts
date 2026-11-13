@@ -13,7 +13,13 @@ import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import { LOCK_AFTER, provisionAccount } from "../projections.ts";
 import type { IdentityCtx } from "../projections.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("wrong passwords lock the account after the limit and every attempt leaves a signin.failed event; a wrong pair code does too", async () => {
   const core = bootCore();
@@ -25,7 +31,9 @@ test("wrong passwords lock the account after the limit and every attempt leaves 
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "lockout", free: 80e9,
+      os: "linux",
+      hostname: "lockout",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -36,13 +44,26 @@ test("wrong passwords lock the account after the limit and every attempt leaves 
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const signIn = async (password: string): Promise<{ status: number; code?: string }> => {
-    const r = await fetch(`${d.url}/v1/identity/sign_in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: "lockme", password, deviceName: "Mac", deviceClass: "desktop" }) });
+    const r = await fetch(`${d.url}/v1/identity/sign_in`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "lockme", password, deviceName: "Mac", deviceClass: "desktop" }),
+    });
     const body = (await r.json()) as { error?: { code?: string } };
     return { status: r.status, ...(body.error?.code ? { code: body.error.code } : {}) };
   };
-  const failedFor = async (name: string): Promise<number> => (await d.log!.read({ type: "signin.failed" })).filter((e) => JSON.parse(new TextDecoder().decode(e.payload)).username === name).length;
+  const failedFor = async (name: string): Promise<number> =>
+    (await d.log!.read({ type: "signin.failed" })).filter(
+      (e) => JSON.parse(new TextDecoder().decode(e.payload)).username === name,
+    ).length;
   try {
-    const ctx = { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx;
+    const ctx = {
+      space: "spc_core",
+      trace: { traceId: "t".repeat(32) },
+      now: () => Date.now(),
+      db: d.db,
+      emit: () => undefined,
+    } as unknown as IdentityCtx;
     await provisionAccount(ctx, { personId: "usr_noah", username: "lockme", name: "Noah Berg", secret: PASSWORD });
     for (let i = 1; i <= LOCK_AFTER; i++) {
       const r = await signIn("wrong password number " + i);
@@ -52,12 +73,21 @@ test("wrong passwords lock the account after the limit and every attempt leaves 
     const locked = await signIn(PASSWORD);
     assert.notEqual(locked.status, 200, "the right password is refused while the account is locked");
     assert.equal(await failedFor("lockme"), LOCK_AFTER + 1, "and the refusal is logged too");
-    const row = d.db!.all("SELECT fails, locked_until FROM identity_accounts WHERE person_id = ?", "usr_noah")[0] as { fails: number; locked_until: number };
+    const row = d.db!.all("SELECT fails, locked_until FROM identity_accounts WHERE person_id = ?", "usr_noah")[0] as {
+      fails: number;
+      locked_until: number;
+    };
     assert.ok(row.fails >= LOCK_AFTER && row.locked_until > Date.now(), "the counter and the lock are stored");
 
     const before = await failedFor("pair");
-    const bad = await fetch(`${d.url}/v1/identity/pair_redeem`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "NOPE-NOPE", deviceName: "Phone", deviceClass: "phone" }) });
+    const bad = await fetch(`${d.url}/v1/identity/pair_redeem`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "NOPE-NOPE", deviceName: "Phone", deviceClass: "phone" }),
+    });
     assert.notEqual(bad.status, 200);
     assert.equal(await failedFor("pair"), before + 1, "a wrong pair code leaves its signin.failed event");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

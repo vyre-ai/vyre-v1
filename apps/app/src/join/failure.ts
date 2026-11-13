@@ -14,7 +14,8 @@ export const NOT_AN_INVITE = "That is not an invite link or a Space address.";
 /** After this many misses in a row the screen says so, whatever the server answered. */
 export const MANY_TRIES = 5;
 
-const unreachable = (e: unknown): boolean => e instanceof TypeError || (typeof DOMException !== "undefined" && e instanceof DOMException);
+const unreachable = (e: unknown): boolean =>
+  e instanceof TypeError || (typeof DOMException !== "undefined" && e instanceof DOMException);
 
 /** The line for a failed sign-in. A wrong password or a locked account read the same, as the server means them to. */
 export function signInLine(e: unknown): string {
@@ -30,4 +31,5 @@ export function signInLine(e: unknown): string {
 }
 
 /** True when the failure was a wrong password, wrong code or a refused account: the kind that counts towards too many tries. */
-export const isMiss = (e: unknown): boolean => e instanceof CapError && (e.code === "auth.bad_credentials" || e.code === "auth.invalid_code");
+export const isMiss = (e: unknown): boolean =>
+  e instanceof CapError && (e.code === "auth.bad_credentials" || e.code === "auth.invalid_code");

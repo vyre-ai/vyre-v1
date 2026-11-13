@@ -9,14 +9,34 @@ export class Ring<T> {
     if (this.items.length > this.cap) this.items.splice(0, this.items.length - this.cap);
   }
   /** Oldest first. A copy: a later push never changes a bundle already built. */
-  list(): T[] { return this.items.slice(); }
-  get size(): number { return this.items.length; }
-  clear(): void { this.items = []; }
+  list(): T[] {
+    return this.items.slice();
+  }
+  get size(): number {
+    return this.items.length;
+  }
+  clear(): void {
+    this.items = [];
+  }
 }
 
-export interface CapturedEvent { type: string; at: number; traceId?: string }
-export interface CapturedError { code: string; message: string; at: number; traceId?: string; /** The message holds a Restricted or sealed value: only its code leaves the device. */ restricted?: boolean }
-export interface LogLine { at: number; level: "debug" | "info" | "warn" | "error"; text: string }
+export interface CapturedEvent {
+  type: string;
+  at: number;
+  traceId?: string;
+}
+export interface CapturedError {
+  code: string;
+  message: string;
+  at: number;
+  traceId?: string;
+  /** The message holds a Restricted or sealed value: only its code leaves the device. */ restricted?: boolean;
+}
+export interface LogLine {
+  at: number;
+  level: "debug" | "info" | "warn" | "error";
+  text: string;
+}
 
 export const ACTION_CAP = 20;
 export const EVENT_CAP = 50;
@@ -42,12 +62,23 @@ export class Captures {
     if (all[all.length - 1] === traceId) return;
     this.actions.push(traceId);
   }
-  noteEvent(e: CapturedEvent): void { this.events.push(e); }
-  noteError(e: CapturedError): void { this.errors.push(e); }
-  writeLog(level: LogLine["level"], text: string, at: number = Date.now()): void { this.log.push({ at, level, text }); }
+  noteEvent(e: CapturedEvent): void {
+    this.events.push(e);
+  }
+  noteError(e: CapturedError): void {
+    this.errors.push(e);
+  }
+  writeLog(level: LogLine["level"], text: string, at: number = Date.now()): void {
+    this.log.push({ at, level, text });
+  }
 
   snapshot(): Snapshot {
-    return { traceIds: this.actions.list(), events: this.events.list(), errors: this.errors.list(), log: this.log.list() };
+    return {
+      traceIds: this.actions.list(),
+      events: this.events.list(),
+      errors: this.errors.list(),
+      log: this.log.list(),
+    };
   }
 }
 

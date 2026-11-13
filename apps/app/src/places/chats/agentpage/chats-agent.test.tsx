@@ -6,60 +6,177 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentPage, AgentPageLoading } from "./AgentPage.tsx";
-import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, saveRoleLine, setAccounts, setRoutine, startChat } from "./actions.ts";
+import {
+  acceptSuggestion,
+  dismissSuggestion,
+  moveToTrash,
+  pause,
+  resume,
+  saveRoleLine,
+  setAccounts,
+  setRoutine,
+  startChat,
+} from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
 import {
-  AGENT_MD_LIMIT, computerRowNote, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, moveRef, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
-  stripOf, suggestionTitle, OUTCOME_WORDS, OUTSIDE_LINE, OUTSIDE_TABS, offlineLine, toolWords,
+  AGENT_MD_LIMIT,
+  computerRowNote,
+  LOCKED_NOTE,
+  ROLE_MAX,
+  TABS,
+  accountLine,
+  moveRef,
+  chatsOf,
+  dollars,
+  instructionsLine,
+  isTabKey,
+  limitRows,
+  mineOnly,
+  roleToSave,
+  routineLabel,
+  routineNote,
+  spendLine,
+  spendRatio,
+  statusLine,
+  stripOf,
+  suggestionTitle,
+  OUTCOME_WORDS,
+  OUTSIDE_LINE,
+  OUTSIDE_TABS,
+  offlineLine,
+  toolWords,
 } from "./model.ts";
 import type { AgentRow, Routine, Summary, TabKey, Thread } from "./model.ts";
 import { SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
 const ALL = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const html = (s: Sample, tab: TabKey = "chats"): string => clean(renderToStaticMarkup(<AgentPage data={s.data} tab={tab} window={ALL} />));
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const html = (s: Sample, tab: TabKey = "chats"): string =>
+  clean(renderToStaticMarkup(<AgentPage data={s.data} tab={tab} window={ALL} />));
 const has = (s: string, needle: string): boolean => s.includes(needle);
-const at = (s: string, needle: string): number => { const i = s.indexOf(needle); assert.ok(i >= 0, `expected ${needle}`); return i; };
-const inOrder = (s: string, needles: string[]): void => { const idx = needles.map((n) => at(s, n)); assert.deepEqual([...idx].sort((a, b) => a - b), idx, `in the order ${needles.join(" > ")}`); };
+const at = (s: string, needle: string): number => {
+  const i = s.indexOf(needle);
+  assert.ok(i >= 0, `expected ${needle}`);
+  return i;
+};
+const inOrder = (s: string, needles: string[]): void => {
+  const idx = needles.map((n) => at(s, n));
+  assert.deepEqual(
+    [...idx].sort((a, b) => a - b),
+    idx,
+    `in the order ${needles.join(" > ")}`,
+  );
+};
 const deps = (s: Sample): { d: PageDeps; notes: { text: string; undo?: () => Promise<void> | void }[] } => {
   const notes: { text: string; undo?: () => Promise<void> | void }[] = [];
   return { notes, d: { call: s.data.call, note: (text, undo) => notes.push(undo ? { text, undo } : { text }) } };
 };
-const agentNow = (s: Sample): AgentRow => (s.replica.rows("agents") as unknown as AgentRow[]).find((a) => a.agentId === s.data.agent.agentId)!;
-const summaryOf = (s: Sample): Summary => (s.data.screens.query("chats.agent-page", "summary", { agentId: s.data.agent.agentId }).getSnapshot() as unknown as { data: Summary }).data;
+const agentNow = (s: Sample): AgentRow =>
+  (s.replica.rows("agents") as unknown as AgentRow[]).find((a) => a.agentId === s.data.agent.agentId)!;
+const summaryOf = (s: Sample): Summary =>
+  (
+    s.data.screens.query("chats.agent-page", "summary", { agentId: s.data.agent.agentId }).getSnapshot() as unknown as {
+      data: Summary;
+    }
+  ).data;
 const tabs: TabKey[] = ["chats", "memory", "files", "computer", "settings"];
 
 test("the page reads: photo and name with the status, the role line, Chat and Automation runs, the strip, then five tabs in order", () => {
   const out = html(createSample("owner"));
-  inOrder(out, ['data-testid="agent-page"', 'data-testid="agent-name"', ">Intake<", 'data-testid="agent-status"', ">Working<", 'data-testid="role-line"', 'data-testid="chat-button"', 'data-testid="runs-button"', 'data-testid="agent-strip"', ">Chats<", ">Memory<", ">Files<", ">Computer<", ">Settings<"]);
+  inOrder(out, [
+    'data-testid="agent-page"',
+    'data-testid="agent-name"',
+    ">Intake<",
+    'data-testid="agent-status"',
+    ">Working<",
+    'data-testid="role-line"',
+    'data-testid="chat-button"',
+    'data-testid="runs-button"',
+    'data-testid="agent-strip"',
+    ">Chats<",
+    ">Memory<",
+    ">Files<",
+    ">Computer<",
+    ">Settings<",
+  ]);
   assert.ok(has(out, ">Books first calls and follows up on cold inquiries<"));
-  assert.deepEqual(TABS.map((t) => t.title), ["Chats", "Memory", "Files", "Computer", "Settings"]);
-  assert.ok(has(out, "Automation runs") && has(out, 'data-testid="folder-button"') && has(out, 'data-testid="computer-button"') && has(out, 'data-testid="more-button"'));
+  assert.deepEqual(
+    TABS.map((t) => t.title),
+    ["Chats", "Memory", "Files", "Computer", "Settings"],
+  );
+  assert.ok(
+    has(out, "Automation runs") &&
+      has(out, 'data-testid="folder-button"') &&
+      has(out, 'data-testid="computer-button"') &&
+      has(out, 'data-testid="more-button"'),
+  );
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
 test("the strip: chats this week, open tasks, runs today, spend against the limit, memory facts, proposed facts", () => {
   const s = createSample("owner");
   const out = html(s);
-  inOrder(out, ['data-testid="stat-chats"', "chats this week", 'data-testid="stat-tasks"', "open tasks", 'data-testid="stat-runs"', "runs today", 'data-testid="stat-spend"', "of $5 today", 'data-testid="stat-facts"', "memory facts", 'data-testid="stat-proposed"', "proposed facts"]);
-  assert.deepEqual(stripOf(summaryOf(s)).map((x) => [x.key, x.value]), [["chats", "3"], ["tasks", "4"], ["runs", "6"], ["spend", "$0.42"], ["facts", "4"], ["proposed", "3"]]);
+  inOrder(out, [
+    'data-testid="stat-chats"',
+    "chats this week",
+    'data-testid="stat-tasks"',
+    "open tasks",
+    'data-testid="stat-runs"',
+    "runs today",
+    'data-testid="stat-spend"',
+    "of $5 today",
+    'data-testid="stat-facts"',
+    "memory facts",
+    'data-testid="stat-proposed"',
+    "proposed facts",
+  ]);
+  assert.deepEqual(
+    stripOf(summaryOf(s)).map((x) => [x.key, x.value]),
+    [
+      ["chats", "3"],
+      ["tasks", "4"],
+      ["runs", "6"],
+      ["spend", "$0.42"],
+      ["facts", "4"],
+      ["proposed", "3"],
+    ],
+  );
   assert.equal(spendLine(summaryOf(s)), "$0.42 of $5 today");
   assert.ok(has(out, 'data-testid="spend-bar"'));
   assert.equal(Math.round(spendRatio(summaryOf(s)) * 100), 8);
   assert.equal(dollars(0), "$0.00");
   assert.equal(dollars(12_000_000), "$12");
   assert.equal(dollars(1_500_000_000), "$1.5k");
-  assert.equal(stripOf({ ...summaryOf(s), chatsThisWeek: 1, openTasks: 1, runsToday: 1, memoryFacts: 1, proposedFacts: 1 }).map((x) => x.label).join("|"), "chat this week|open task|run today|of $5 today|memory fact|proposed fact");
+  assert.equal(
+    stripOf({ ...summaryOf(s), chatsThisWeek: 1, openTasks: 1, runsToday: 1, memoryFacts: 1, proposedFacts: 1 })
+      .map((x) => x.label)
+      .join("|"),
+    "chat this week|open task|run today|of $5 today|memory fact|proposed fact",
+  );
 });
 
 test("Chats tab: what it is working on, its chats newest first, what it is linked to", () => {
   const s = createSample("owner");
   const out = html(s, "chats");
-  inOrder(out, ['data-testid="label-l-working"', "Rivera matter intake", "Follow up with Dev Rao", 'data-testid="label-l-chats"', "Rivera intake", "Weekly lead report", 'data-testid="label-l-linked"', "#intake"]);
+  inOrder(out, [
+    'data-testid="label-l-working"',
+    "Rivera matter intake",
+    "Follow up with Dev Rao",
+    'data-testid="label-l-chats"',
+    "Rivera intake",
+    "Weekly lead report",
+    'data-testid="label-l-linked"',
+    "#intake",
+  ]);
   assert.ok(has(out, 'data-testid="page-body-chats"'));
-  const all = (s.replica.rows("threads") as unknown as Thread[]);
-  assert.deepEqual(chatsOf("agt_intake", all).map((t) => t.threadId), ["c1", "c5"], "chats only, newest first; threads and helpers stay in the right pane");
+  const all = s.replica.rows("threads") as unknown as Thread[];
+  assert.deepEqual(
+    chatsOf("agt_intake", all).map((t) => t.threadId),
+    ["c1", "c5"],
+    "chats only, newest first; threads and helpers stay in the right pane",
+  );
 });
 
 test("a press on Chat starts a chat with the agent and opens it; a failed start says so and opens nothing", async () => {
@@ -67,8 +184,15 @@ test("a press on Chat starts a chat with the agent and opens it; a failed start 
   const { d, notes } = deps(s);
   const id = await startChat(d, "agt_intake", "Intake");
   assert.ok(id !== null && id.startsWith("c_new"));
-  assert.deepEqual(s.calls.map((c) => c.cap), ["chat.start"]);
-  assert.deepEqual(s.calls[0]!.input, { kind: "chat", agentIds: ["agt_intake"], idempotencyKey: (s.calls[0]!.input as { idempotencyKey: string }).idempotencyKey });
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["chat.start"],
+  );
+  assert.deepEqual(s.calls[0]!.input, {
+    kind: "chat",
+    agentIds: ["agt_intake"],
+    idempotencyKey: (s.calls[0]!.input as { idempotencyKey: string }).idempotencyKey,
+  });
   assert.ok(has(html(s), `data-testid="row-chat-${id}"`), "the new chat is in the list");
   s.failNext("chat.start");
   assert.equal(await startChat(d, "agt_intake", "Intake"), null);
@@ -78,13 +202,26 @@ test("a press on Chat starts a chat with the agent and opens it; a failed start 
 test("the role line: Enter saves to description with an inline Undo that restores the version the save returned", async () => {
   const s = createSample("owner");
   const { d, notes } = deps(s);
-  assert.equal(roleToSave("  Books first calls   and  more  ", "Books first calls and follows up on cold inquiries"), "Books first calls and more");
-  assert.equal(roleToSave("Books first calls and follows up on cold inquiries ", "Books first calls and follows up on cold inquiries"), null, "unchanged: nothing to save");
+  assert.equal(
+    roleToSave("  Books first calls   and  more  ", "Books first calls and follows up on cold inquiries"),
+    "Books first calls and more",
+  );
+  assert.equal(
+    roleToSave(
+      "Books first calls and follows up on cold inquiries ",
+      "Books first calls and follows up on cold inquiries",
+    ),
+    null,
+    "unchanged: nothing to save",
+  );
   assert.equal(roleToSave("   ", "x"), null, "empty: nothing to save");
   assert.equal(roleToSave("x".repeat(ROLE_MAX + 40), "y")?.length, ROLE_MAX);
   const before = agentNow(s).role!;
   assert.equal(await saveRoleLine(d, "agt_intake", "Books consults and chases forms", before), true);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["agents.role_line.set"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["agents.role_line.set"],
+  );
   assert.deepEqual(s.calls[0]!.input, { agentId: "agt_intake", description: "Books consults and chases forms" });
   assert.equal(agentNow(s).role, "Books consults and chases forms");
   assert.ok(has(html(s), "Books consults and chases forms"));
@@ -92,7 +229,10 @@ test("the role line: Enter saves to description with an inline Undo that restore
   assert.equal(saved.text, "Role line saved.");
   assert.ok(saved.undo, "the save offers Undo");
   await saved.undo!();
-  assert.deepEqual(s.calls.map((c) => c.cap), ["agents.role_line.set", "agents.restore_version"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["agents.role_line.set", "agents.restore_version"],
+  );
   assert.deepEqual(s.calls[1]!.input, { agentId: "agt_intake", file: "agent.toml", versionId: "ver_1" });
   assert.equal(agentNow(s).role, before, "the old line is back");
   assert.equal(notes[notes.length - 1]!.text, `Role line is back to "${before}".`);
@@ -108,7 +248,10 @@ test("a person who may not change the agent sees the role line read-only, with t
   assert.ok(has(owner, 'aria-label="Role line: Books first calls and follows up on cold inquiries. Press to edit"'));
   assert.ok(has(viewer, `Role line: Books first calls and follows up on cold inquiries. ${LOCKED_NOTE}`));
   assert.ok(!has(viewer, "Press to edit"));
-  const tag = viewer.slice(viewer.lastIndexOf("<", at(viewer, 'data-testid="role-line"')), viewer.indexOf(">", at(viewer, 'data-testid="role-line"')) + 1);
+  const tag = viewer.slice(
+    viewer.lastIndexOf("<", at(viewer, 'data-testid="role-line"')),
+    viewer.indexOf(">", at(viewer, 'data-testid="role-line"')) + 1,
+  );
   assert.ok(!has(tag, 'role="button"'), "not a button");
 });
 
@@ -117,7 +260,13 @@ test("routine posts carry the label; only the routines you set are shown, and no
   const s = createSample("owner");
   const out = html(s, "settings");
   assert.ok(has(out, "Sent by Intake on a routine Omar Haddad set") && has(out, 'data-testid="routine-label-note"'));
-  inOrder(out, ['data-testid="label-l-routines"', 'data-testid="row-automation-runs"', "Morning lead sweep", "Watch #intake for new clients", "Chase missing intake forms"]);
+  inOrder(out, [
+    'data-testid="label-l-routines"',
+    'data-testid="row-automation-runs"',
+    "Morning lead sweep",
+    "Watch #intake for new clients",
+    "Chase missing intake forms",
+  ]);
   const all = s.replica.rows("routines") as unknown as Routine[];
   assert.equal(all.length, 3);
   assert.equal(mineOnly(all, "usr_omar").length, 3);
@@ -125,7 +274,10 @@ test("routine posts carry the label; only the routines you set are shown, and no
   const viewer = html(createSample("viewer"), "settings");
   assert.ok(!has(viewer, "Morning lead sweep") && !has(viewer, "routine-label-note") && !has(viewer, "Sent by Intake"));
   assert.ok(has(viewer, 'data-testid="routines-empty"') && has(viewer, "You have not set a routine for Intake."));
-  assert.ok(has(viewer, 'data-testid="row-automation-runs"'), "Automation runs is still there for the agent's own runs");
+  assert.ok(
+    has(viewer, 'data-testid="row-automation-runs"'),
+    "Automation runs is still there for the agent's own runs",
+  );
 });
 
 test("a routine's switch turns it on or off with an Undo; the row says when it runs and when it last ran", async () => {
@@ -145,7 +297,23 @@ test("a routine's switch turns it on or off with an Undo; the row says when it r
 test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, computer, limits, access and keys (names only)", () => {
   const s = createSample("owner");
   const out = html(s, "settings");
-  inOrder(out, ['data-testid="label-l-files"', "93 of 150 lines", 'data-testid="row-setting-toml"', 'data-testid="row-setting-model"', "opus, then sonnet", "Runs on the account of whoever asks", "Proposes facts for you to accept", computerRowNote(false, agentNow(s).hasComputer), 'data-testid="label-l-limits"', "Spend per day", "Turns per day", "Minutes per run", 'data-testid="label-l-access"', "calendar.read", "#CRM_API, #CALENDAR_BOOKING (names only)"]);
+  inOrder(out, [
+    'data-testid="label-l-files"',
+    "93 of 150 lines",
+    'data-testid="row-setting-toml"',
+    'data-testid="row-setting-model"',
+    "opus, then sonnet",
+    "Runs on the account of whoever asks",
+    "Proposes facts for you to accept",
+    computerRowNote(false, agentNow(s).hasComputer),
+    'data-testid="label-l-limits"',
+    "Spend per day",
+    "Turns per day",
+    "Minutes per run",
+    'data-testid="label-l-access"',
+    "calendar.read",
+    "#CRM_API, #CALENDAR_BOOKING (names only)",
+  ]);
   assert.ok(has(out, "Instructions") && has(out, "AGENT.md") && has(out, "agent.toml") && has(out, "Limits"));
   // every agent has a workspace and a browser now (an old desktop, where one exists, is the Computer tab's business): the row says that for all, and never "None yet" or "Has its own computer"
   assert.ok(!has(out, "None yet") && !has(out, "Has its own computer"));
@@ -157,10 +325,23 @@ test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, 
   assert.equal(instructionsLine(93), "93 of 150 lines");
   assert.equal(instructionsLine(140), "140 of 150 lines, nearly full");
   assert.equal(instructionsLine(AGENT_MD_LIMIT + 1), "151 of 150 lines, over the limit");
-  assert.equal(accountLine({ ...agentNow(s), accountPolicy: "key", accountKey: "#TEAM_ANTHROPIC" }), "Runs on the key #TEAM_ANTHROPIC");
+  assert.equal(
+    accountLine({ ...agentNow(s), accountPolicy: "key", accountKey: "#TEAM_ANTHROPIC" }),
+    "Runs on the key #TEAM_ANTHROPIC",
+  );
   assert.deepEqual(limitRows({}), []);
-  assert.deepEqual(limitRows({ dayCostMicros: 5_000_000, tokensPerDay: 1_200_000 }).map((l) => [l.label, l.value]), [["Spend per day", "$5"], ["Tokens per day", "1,200,000"]]);
-  assert.ok(!has(html(createSample("personal"), "settings"), "Agent computers") && !has(html(createSample("personal"), "settings"), 'data-testid="setting-computer"'), "no capable host, nothing said about a computer");
+  assert.deepEqual(
+    limitRows({ dayCostMicros: 5_000_000, tokensPerDay: 1_200_000 }).map((l) => [l.label, l.value]),
+    [
+      ["Spend per day", "$5"],
+      ["Tokens per day", "1,200,000"],
+    ],
+  );
+  assert.ok(
+    !has(html(createSample("personal"), "settings"), "Agent computers") &&
+      !has(html(createSample("personal"), "settings"), 'data-testid="setting-computer"'),
+    "no capable host, nothing said about a computer",
+  );
 });
 
 test("a broken agent.toml shows the line and message and says the last good version is running", () => {
@@ -172,24 +353,41 @@ test("a broken agent.toml shows the line and message and says the last good vers
 test("suggested changes: the owner accepts or dismisses; a person who cannot change the agent sees them as suggested only", async () => {
   const s = createSample("owner");
   const out = html(s, "settings");
-  inOrder(out, ['data-testid="label-l-sug"', "AGENT.md: Offer Thursday morning times. Maya blocks them.", 'data-testid="accept-sg1"', 'data-testid="dismiss-sg1"', "Template change to agent.toml", "Widens what the agent may do: a Space admin approves it"]);
-  const list = s.data.screens.query("chats.agent-page", "suggestions", { agentId: "agt_intake" }).getSnapshot() as unknown as { data: { suggestions: Parameters<typeof suggestionTitle>[0][] } };
+  inOrder(out, [
+    'data-testid="label-l-sug"',
+    "AGENT.md: Offer Thursday morning times. Maya blocks them.",
+    'data-testid="accept-sg1"',
+    'data-testid="dismiss-sg1"',
+    "Template change to agent.toml",
+    "Widens what the agent may do: a Space admin approves it",
+  ]);
+  const list = s.data.screens
+    .query("chats.agent-page", "suggestions", { agentId: "agt_intake" })
+    .getSnapshot() as unknown as { data: { suggestions: Parameters<typeof suggestionTitle>[0][] } };
   assert.equal(suggestionTitle(list.data.suggestions[0]!), "AGENT.md: Offer Thursday morning times. Maya blocks them.");
   const { d, notes } = deps(s);
   assert.equal(await acceptSuggestion(d, list.data.suggestions[0]!), true);
   assert.equal(await dismissSuggestion(d, list.data.suggestions[1]!), true);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["agents.suggestion.accept", "agents.suggestion.dismiss"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["agents.suggestion.accept", "agents.suggestion.dismiss"],
+  );
   assert.deepEqual(s.calls[0]!.input, { suggestionId: "sg1" });
   assert.equal(notes[0]!.text, "Accepted. AGENT.md has the change.");
   assert.ok(!has(html(s, "settings"), "Suggested changes"), "both are resolved, so the section is gone");
   const viewer = html(createSample("viewer"), "settings");
-  assert.ok(!has(viewer, 'data-testid="suggested-sg1"') && !has(viewer, 'data-testid="accept-sg1"'), "a viewer sees the suggestion but has no button that does nothing");
+  assert.ok(
+    !has(viewer, 'data-testid="suggested-sg1"') && !has(viewer, 'data-testid="accept-sg1"'),
+    "a viewer sees the suggestion but has no button that does nothing",
+  );
 });
 
 test("Pause and Resume write and change the status line with the reason; Move to Trash asks first", async () => {
   const s = createSample("owner");
   const { d, notes } = deps(s);
-  assert.ok(has(html(s, "settings"), 'data-testid="row-pause"') && !has(html(s, "settings"), 'data-testid="row-resume"'));
+  assert.ok(
+    has(html(s, "settings"), 'data-testid="row-pause"') && !has(html(s, "settings"), 'data-testid="row-resume"'),
+  );
   assert.equal(await pause(d, "agt_intake", "Intake", "Paused from the agent page"), true);
   assert.equal(agentNow(s).status, "paused");
   assert.equal(statusLine(agentNow(s), s.data.nameOf), "Paused by Omar Haddad: Paused from the agent page");
@@ -202,20 +400,27 @@ test("Pause and Resume write and change the status line with the reason; Move to
   assert.equal(await resume(d, "agt_intake", "Intake"), true);
   assert.equal(agentNow(s).pausedBy, undefined);
   assert.ok(has(html(createSample("paused")), "Paused by Maya Chen: Waiting for the new retainer terms"));
-  assert.ok(has(html(s, "settings"), 'data-testid="row-trash"') && !has(html(s, "settings"), 'data-testid="trash-confirm"'));
+  assert.ok(
+    has(html(s, "settings"), 'data-testid="row-trash"') && !has(html(s, "settings"), 'data-testid="trash-confirm"'),
+  );
   assert.equal(await moveToTrash(d, "agt_intake", "Intake"), true);
   assert.equal(s.calls[s.calls.length - 1]!.cap, "agents.delete");
   s.failNext("agents.delete");
   assert.equal(await moveToTrash(d, "agt_intake", "Intake"), false);
   assert.equal(notes[notes.length - 1]!.text, "Could not move Intake to Trash. Try again.");
   const viewer = html(createSample("viewer"), "settings");
-  assert.ok(!has(viewer, 'data-testid="row-pause"') && !has(viewer, 'data-testid="row-trash"'), "no Pause or Trash without the right to change the agent");
+  assert.ok(
+    !has(viewer, 'data-testid="row-pause"') && !has(viewer, 'data-testid="row-trash"'),
+    "no Pause or Trash without the right to change the agent",
+  );
 });
 
 test("Memory, Files and Computer are the right pane's tabs read from the same data, so the page adds no second copy", () => {
   const s = createSample("owner");
   const memory = html(s, "memory");
-  assert.ok(has(memory, 'data-testid="page-body-memory"') && has(memory, "Consult invoices go out the same day as the call."));
+  assert.ok(
+    has(memory, 'data-testid="page-body-memory"') && has(memory, "Consult invoices go out the same day as the call."),
+  );
   const files = html(s, "files");
   assert.ok(has(files, "AGENT.md") && has(files, "agent.toml"));
   const computer = html(s, "computer");
@@ -225,12 +430,16 @@ test("Memory, Files and Computer are the right pane's tabs read from the same da
 });
 
 test("states: the frame before data, offline, a Personal Space, and no em dash in any copy", () => {
-  assert.ok(has(clean(renderToStaticMarkup(<AgentPageLoading />)), 'data-testid="agent-page-loading"') && has(clean(renderToStaticMarkup(<AgentPage />)), 'data-testid="agent-page-loading"'));
+  assert.ok(
+    has(clean(renderToStaticMarkup(<AgentPageLoading />)), 'data-testid="agent-page-loading"') &&
+      has(clean(renderToStaticMarkup(<AgentPage />)), 'data-testid="agent-page-loading"'),
+  );
   assert.ok(has(html(createSample("owner", { online: false })), 'data-testid="agent-offline"'));
   const personal = html(createSample("personal"), "settings");
   assert.ok(has(personal, "Assistant") && !has(personal, 'data-testid="computer-button"'));
   const variants: Variant[] = ["owner", "viewer", "paused", "broken", "personal"];
-  for (const v of variants) for (const t of tabs) assert.ok(!html(createSample(v), t).includes(String.fromCharCode(0x2014)), `${v} ${t}`);
+  for (const v of variants)
+    for (const t of tabs) assert.ok(!html(createSample(v), t).includes(String.fromCharCode(0x2014)), `${v} ${t}`);
 });
 
 test("sample clock: Friday 24 October 2025, 10:00", () => {
@@ -241,29 +450,74 @@ test("Settings > AI accounts: the chat key, the ordered fallback list and the me
   const s = createSample("owner");
   const { d, notes } = deps(s);
   const out = html(s, "settings");
-  for (const t of ["AI accounts", "Chat key", "The account of whoever asks", "No fallback keys", "Memory key", "The Space memory key", 'data-testid="pick-chat-key"', 'data-testid="pick-fallback"', 'data-testid="pick-memory-key"']) assert.ok(has(out, t), t);
-  const before = { accountPolicy: "asker" as const, accountKey: null, accountFallback: [] as string[], memoryKey: null };
+  for (const t of [
+    "AI accounts",
+    "Chat key",
+    "The account of whoever asks",
+    "No fallback keys",
+    "Memory key",
+    "The Space memory key",
+    'data-testid="pick-chat-key"',
+    'data-testid="pick-fallback"',
+    'data-testid="pick-memory-key"',
+  ])
+    assert.ok(has(out, t), t);
+  const before = {
+    accountPolicy: "asker" as const,
+    accountKey: null,
+    accountFallback: [] as string[],
+    memoryKey: null,
+  };
 
   // pin the chat key, add two fallbacks, reorder, remove, set the memory key
-  assert.equal(await setAccounts(d, "agt_intake", { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" }, before, "Intake now runs on Team Anthropic (shared)."), true);
+  assert.equal(
+    await setAccounts(
+      d,
+      "agt_intake",
+      { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" },
+      before,
+      "Intake now runs on Team Anthropic (shared).",
+    ),
+    true,
+  );
   assert.equal(s.calls[s.calls.length - 1]!.cap, "agents.update");
   assert.ok(has(html(s, "settings"), "Always Team Anthropic (shared)"));
   await setAccounts(d, "agt_intake", { accountFallback: ["#Team_OpenAI_Key", "#Omar_Claude"] }, before, "added");
   let page = html(s, "settings");
-  inOrder(page, ["1. Team OpenAI (shared)", "Tried first if the chat key fails", "2. Omar&#x27;s Claude (yours)".replace("&#x27;", "'"), "Tried next"]);
+  inOrder(page, [
+    "1. Team OpenAI (shared)",
+    "Tried first if the chat key fails",
+    "2. Omar&#x27;s Claude (yours)".replace("&#x27;", "'"),
+    "Tried next",
+  ]);
   assert.ok(has(page, 'data-testid="fallback-up-0"') && has(page, 'data-testid="fallback-down-1"'));
   assert.deepEqual(moveRef(["a", "b", "c"], 0, 1), ["b", "a", "c"]);
   assert.deepEqual(moveRef(["a", "b", "c"], 0, -1), ["a", "b", "c"], "the top one cannot go up");
   assert.deepEqual(moveRef(["a", "b", "c"], 2, 1), ["a", "b", "c"], "the bottom one cannot go down");
-  await setAccounts(d, "agt_intake", { accountFallback: moveRef(["#Team_OpenAI_Key", "#Omar_Claude"], 0, 1) }, before, "moved");
+  await setAccounts(
+    d,
+    "agt_intake",
+    { accountFallback: moveRef(["#Team_OpenAI_Key", "#Omar_Claude"], 0, 1) },
+    before,
+    "moved",
+  );
   page = html(s, "settings");
   inOrder(page, ["1. Omar's Claude (yours)", "2. Team OpenAI (shared)"]);
-  await setAccounts(d, "agt_intake", { memoryKey: "#Team_Anthropic_Key" }, before, "Team Anthropic (shared) now pays for Intake's memory upkeep.");
+  await setAccounts(
+    d,
+    "agt_intake",
+    { memoryKey: "#Team_Anthropic_Key" },
+    before,
+    "Team Anthropic (shared) now pays for Intake's memory upkeep.",
+  );
   assert.ok(has(html(s, "settings"), "Team Anthropic (shared) pays for this agent's memory upkeep"));
   // Undo writes the values from before
   await notes[notes.length - 1]!.undo!();
   const now = agentNow(s);
-  assert.deepEqual([now.accountPolicy, now.accountKey, now.accountFallback, now.memoryKey], ["asker", undefined, [], undefined]);
+  assert.deepEqual(
+    [now.accountPolicy, now.accountKey, now.accountFallback, now.memoryKey],
+    ["asker", undefined, [], undefined],
+  );
 
   // a refusal is one quiet line
   s.failNext("agents.update");
@@ -273,7 +527,11 @@ test("Settings > AI accounts: the chat key, the ordered fallback list and the me
   // a viewer reads the same rows with no pickers
   const viewer = html(createSample("viewer"), "settings");
   assert.ok(has(viewer, "Chat key") && has(viewer, "Memory key"));
-  assert.ok(!has(viewer, 'data-testid="pick-chat-key"') && !has(viewer, 'data-testid="pick-fallback"') && !has(viewer, 'data-testid="pick-memory-key"'));
+  assert.ok(
+    !has(viewer, 'data-testid="pick-chat-key"') &&
+      !has(viewer, 'data-testid="pick-fallback"') &&
+      !has(viewer, 'data-testid="pick-memory-key"'),
+  );
 });
 
 test("Settings > Helper models: the default says same provider, an owner can change it through agents.update with Undo, a viewer sees it with no picker", async () => {
@@ -281,8 +539,17 @@ test("Settings > Helper models: the default says same provider, an owner can cha
   const s = createSample("owner");
   const { d, notes } = deps(s);
   const out = html(s, "settings");
-  for (const t of ["Helper models", "Helpers use a cheap or a strong model from the same provider", 'data-testid="pick-helper-models"', "Pick for me (same provider)"]) assert.ok(has(out, t), t);
-  assert.deepEqual(Object.values(HELPER_MODEL_WORDS).map((w) => w.title), ["Pick for me (same provider)", "Any provider when I ask", "Always ask me first"]);
+  for (const t of [
+    "Helper models",
+    "Helpers use a cheap or a strong model from the same provider",
+    'data-testid="pick-helper-models"',
+    "Pick for me (same provider)",
+  ])
+    assert.ok(has(out, t), t);
+  assert.deepEqual(
+    Object.values(HELPER_MODEL_WORDS).map((w) => w.title),
+    ["Pick for me (same provider)", "Any provider when I ask", "Always ask me first"],
+  );
   assert.equal(await setHelperModels(d, "agt_intake", "ask", "same_provider"), true);
   const call = s.calls[s.calls.length - 1]!;
   assert.equal(call.cap, "agents.update");
@@ -297,15 +564,33 @@ test("Settings > Helper models: the default says same provider, an owner can cha
 
 test("an outside agent reads as what it is: Offline, not Asleep; what it did comes first; and it says so where a person might wait", () => {
   const a = { status: "asleep", runtime: "outside" } as Parameters<typeof statusLine>[0];
-  assert.equal(statusLine(a, (x) => x), "Offline");
-  assert.equal(statusLine({ ...a, status: "awake" }, (x) => x), "Online");
-  assert.equal(statusLine({ ...a, status: "working" }, (x) => x), "Working");
+  assert.equal(
+    statusLine(a, (x) => x),
+    "Offline",
+  );
+  assert.equal(
+    statusLine({ ...a, status: "awake" }, (x) => x),
+    "Online",
+  );
+  assert.equal(
+    statusLine({ ...a, status: "working" }, (x) => x),
+    "Working",
+  );
   // owner walk, 12 Nov: the agent's own state is Idle, never the workspace's word Asleep
-  assert.equal(statusLine({ ...a, runtime: undefined } as never, (x) => x), "Idle");
+  assert.equal(
+    statusLine({ ...a, runtime: undefined } as never, (x) => x),
+    "Idle",
+  );
   assert.equal(OUTSIDE_TABS[0]?.key, "activity");
-  assert.ok(!OUTSIDE_TABS.some((t) => t.key === "settings" || t.key === "computer"), "no computer and no settings of ours");
+  assert.ok(
+    !OUTSIDE_TABS.some((t) => t.key === "settings" || t.key === "computer"),
+    "no computer and no settings of ours",
+  );
   assert.equal(isTabKey("activity"), true);
-  assert.match(offlineLine("Claude Code"), /^Claude Code is offline\. It will see new tasks and mentions the next time it checks in\.$/);
+  assert.match(
+    offlineLine("Claude Code"),
+    /^Claude Code is offline\. It will see new tasks and mentions the next time it checks in\.$/,
+  );
   assert.match(OUTSIDE_LINE, /Only you can use it/);
   assert.equal(toolWords("records_query"), "records query");
   assert.equal(OUTCOME_WORDS.held, "Waiting for your yes");

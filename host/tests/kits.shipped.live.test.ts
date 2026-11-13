@@ -13,7 +13,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 function seededDir(): string {
@@ -36,7 +42,9 @@ function codeRootWithKitsLive(): string {
   for (const name of fs.readdirSync(path.join(CODE_ROOT, "host"))) {
     if (name !== "modules.json") fs.symlinkSync(path.join(CODE_ROOT, "host", name), path.join(root, "host", name));
   }
-  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   const kits = list.modules.find((m) => m.id === "kits");
   assert.ok(kits, "kits is in host/modules.json");
   kits.status = "live";
@@ -49,7 +57,9 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot,
     platform: fakePlatform({
-      os: "linux", hostname: "kits-shipped", free: 80e9,
+      os: "linux",
+      hostname: "kits-shipped",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -61,8 +71,13 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
@@ -78,7 +93,9 @@ test("the shipped Default and Harbor Studio Kits install by name on a booted dae
   try {
     const listed = await call(d, "kits.list", {});
     assert.equal(listed.status, 200, JSON.stringify(listed.data));
-    const byKey = new Map((listed.data.kits as { key: string; kitId: string; installed: boolean }[]).map((k) => [k.key, k]));
+    const byKey = new Map(
+      (listed.data.kits as { key: string; kitId: string; installed: boolean }[]).map((k) => [k.key, k]),
+    );
     for (const k of KITS) {
       const kit = byKey.get(k.key);
       assert.ok(kit, `${k.key} is shipped`);
@@ -88,14 +105,18 @@ test("the shipped Default and Harbor Studio Kits install by name on a booted dae
       assert.equal(done.data.kit.installed, true, `${k.key} reads installed`);
     }
     const types = JSON.stringify((await call(d, "schema.types.list", {})).data);
-    for (const k of KITS) for (const t of k.types) assert.ok(types.includes(`"${t}"`), `${k.key} created the record type ${t}`);
+    for (const k of KITS)
+      for (const t of k.types) assert.ok(types.includes(`"${t}"`), `${k.key} created the record type ${t}`);
     const agents = await call(d, "agents.list", {});
     assert.equal(agents.status, 200, JSON.stringify(agents.data));
     const names = JSON.stringify(agents.data);
-    for (const k of KITS) for (const a of k.agents) assert.ok(names.includes(`"${a}"`), `${k.key} created the agent ${a}`);
+    for (const k of KITS)
+      for (const a of k.agents) assert.ok(names.includes(`"${a}"`), `${k.key} created the agent ${a}`);
     for (const k of KITS) {
       const got = await call(d, "kits.get", { kitId: byKey.get(k.key)!.kitId });
       assert.equal(got.data.kit.installed, true, `${k.key} still reads installed`);
     }
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

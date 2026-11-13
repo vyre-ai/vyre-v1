@@ -16,7 +16,9 @@ export type PeopleWhere = "chat" | "project";
 
 /** The footer action: where the popover opens decides it. */
 export function footerOf(where: PeopleWhere): { label: string; id: "overview" | "add" } {
-  return where === "project" ? { label: "Manage on the Overview", id: "overview" } : { label: "Add people and agents", id: "add" };
+  return where === "project"
+    ? { label: "Manage on the Overview", id: "overview" }
+    : { label: "Add people and agents", id: "add" };
 }
 
 export const TITLE = "People and agents";
@@ -32,14 +34,19 @@ export interface MemberPerms {
 
 export type MemberAction = "message" | "role" | "remove" | "link" | "poke" | "settings";
 
-export interface MemberMenuItem { id: MemberAction; label: string; danger?: boolean }
+export interface MemberMenuItem {
+  id: MemberAction;
+  label: string;
+  danger?: boolean;
+}
 
 /** The right-click menu of a row: Message (a person who is not you), Change role and Remove (only when permitted, and never on yourself for Remove), Copy Link (always). */
 export function memberMenu(row: MemberRow, perms: MemberPerms, meId: string | undefined): MemberMenuItem[] {
   const out: MemberMenuItem[] = [];
   const me = row.id === meId;
   if (perms.message && row.kind === "person" && !me) out.push({ id: "message", label: "Message" });
-  if (perms.agentControls === true && row.kind !== "person") out.push({ id: "poke", label: "Poke" }, { id: "settings", label: "How and when it responds" });
+  if (perms.agentControls === true && row.kind !== "person")
+    out.push({ id: "poke", label: "Poke" }, { id: "settings", label: "How and when it responds" });
   if (perms.changeRole) out.push({ id: "role", label: "Change role" });
   if (perms.remove && !me) out.push({ id: "remove", label: "Remove", danger: true });
   out.push({ id: "link", label: "Copy Link" });
@@ -59,8 +66,16 @@ export function walk(at: number, key: string, count: number): number {
 export const WIDTH: Readonly<Record<PeopleWhere, number>> = { chat: 215, project: 260 };
 
 /** Where the popover sits: under the trigger, 4px below. A trigger in the left half of the window opens rightwards from its left edge; one in the right half (or one whose left edge is unknown) opens leftwards from its right edge. */
-export function placeOf(anchor: { x: number; y: number; left?: number }, win: number, where: PeopleWhere): { left: number; top: number; width: number } {
+export function placeOf(
+  anchor: { x: number; y: number; left?: number },
+  win: number,
+  where: PeopleWhere,
+): { left: number; top: number; width: number } {
   const width = Math.min(WIDTH[where], win - 16);
   const leftHalf = anchor.left !== undefined && anchor.left < win / 2;
-  return { left: Math.max(8, Math.min(leftHalf ? (anchor.left as number) : anchor.x - width, win - width - 8)), top: Math.max(8, anchor.y + 4), width };
+  return {
+    left: Math.max(8, Math.min(leftHalf ? (anchor.left as number) : anchor.x - width, win - width - 8)),
+    top: Math.max(8, anchor.y + 4),
+    width,
+  };
 }

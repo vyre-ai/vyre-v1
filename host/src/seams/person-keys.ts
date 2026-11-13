@@ -10,9 +10,13 @@ const b64url = (b: Buffer): string => b.toString("base64url");
 function bundleOf(db: Db | null, personId: string): { publicKey?: string; privateKeyWrapped?: string } | null {
   if (!db) return null;
   try {
-    const row = db.all("SELECT keys_json FROM identity_accounts WHERE person_id = ?", personId)[0] as { keys_json?: string } | undefined;
+    const row = db.all("SELECT keys_json FROM identity_accounts WHERE person_id = ?", personId)[0] as
+      | { keys_json?: string }
+      | undefined;
     return row?.keys_json ? (JSON.parse(row.keys_json) as { publicKey?: string; privateKeyWrapped?: string }) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** The person's public key (raw, base64url), or null when they have no real bundle here (32 bytes that are a point on the curve). */
@@ -29,5 +33,9 @@ export function privateKeyOf(db: Db | null, personId: string, personKey: Uint8Ar
   if (typeof wrapped !== "string" || personKey.length !== 32) return null;
   const priv = openPrivateKeyBlob(Buffer.from(wrapped, "base64"), personKey);
   if (!priv) return null;
-  try { return b64url(priv); } finally { priv.fill(0); }
+  try {
+    return b64url(priv);
+  } finally {
+    priv.fill(0);
+  }
 }

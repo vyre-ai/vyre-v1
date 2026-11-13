@@ -17,28 +17,73 @@ type Loose = { resolve(cap: string, r: (t: unknown, i: unknown) => unknown): voi
 
 /** The rows each place's first list reads, by capability (the output shape of generated/types.ts). */
 const SEED: Record<string, { cap: string; out: unknown }> = {
-  chat: { cap: "chat.recent", out: { starred: [{ threadId: "thr_1", kind: "chat", title: "Pruitt retainer thread", unread: 1 }], recent: [{ threadId: "thr_2", kind: "channel", title: "Billing room", unread: 0 }] } },
-  mail: { cap: "inbox.list_by_contact", out: { rows: [{ id: "con_1", address: "marcus@pruitt.example", displayName: "Marcus Pruitt", lastPreview: "Thanks, I will sign tonight" }] } },
-  records: { cap: "views.list", out: { views: [{ viewId: "vw_1", type: "client", kind: "table", title: "Active clients" }] } },
-  files: { cap: "files.list", out: { files: [{ fileId: "fil_1", name: "Rivera engagement letter.docx", kind: "document" }] } },
+  chat: {
+    cap: "chat.recent",
+    out: {
+      starred: [{ threadId: "thr_1", kind: "chat", title: "Pruitt retainer thread", unread: 1 }],
+      recent: [{ threadId: "thr_2", kind: "channel", title: "Billing room", unread: 0 }],
+    },
+  },
+  mail: {
+    cap: "inbox.list_by_contact",
+    out: {
+      rows: [
+        {
+          id: "con_1",
+          address: "marcus@pruitt.example",
+          displayName: "Marcus Pruitt",
+          lastPreview: "Thanks, I will sign tonight",
+        },
+      ],
+    },
+  },
+  records: {
+    cap: "views.list",
+    out: { views: [{ viewId: "vw_1", type: "client", kind: "table", title: "Active clients" }] },
+  },
+  files: {
+    cap: "files.list",
+    out: { files: [{ fileId: "fil_1", name: "Rivera engagement letter.docx", kind: "document" }] },
+  },
   sites: { cap: "sites.list", out: { sites: [{ siteId: "sit_1", name: "Northwind website", kind: "site" }] } },
-  automations: { cap: "automations.list", out: { automations: [{ id: "aut_1", name: "Welcome new leads", status: "on" }] } },
+  automations: {
+    cap: "automations.list",
+    out: { automations: [{ id: "aut_1", name: "Welcome new leads", status: "on" }] },
+  },
   vault: { cap: "vault.items.list", out: { items: [{ id: "vlt_1", name: "Stripe restricted key", kind: "api_key" }] } },
   settings: { cap: "settings.pages", out: { pages: [{ key: "profile", title: "Profile", group: "everywhere" }] } },
 };
 
-function runtimeFor(variant: Variant, seed: boolean, o: { calendarConnected?: boolean } = {}): { rt: ShellRuntime; sample: SampleHomeB; opened: ShellTarget[]; urls: string[] } {
+function runtimeFor(
+  variant: Variant,
+  seed: boolean,
+  o: { calendarConnected?: boolean } = {},
+): { rt: ShellRuntime; sample: SampleHomeB; opened: ShellTarget[]; urls: string[] } {
   const sample = createSampleHomeB(variant, o);
   const opened: ShellTarget[] = [];
   const urls: string[] = [];
-  if (seed) for (const { cap, out } of Object.values(SEED)) (sample.replica as unknown as Loose).resolve(cap, () => out);
+  if (seed)
+    for (const { cap, out } of Object.values(SEED)) (sample.replica as unknown as Loose).resolve(cap, () => out);
   const d = sample.data;
   const rt: ShellRuntime = {
-    screens: d.screens, call: d.call, connection: d.connection, principals: d.principals, recordTitle: d.recordTitle, me: d.me, clock: d.clock,
-    space: { id: sample.replica.spaceId, kind: variant === "personal" ? "personal" : "team", name: sample.extras.space.name },
+    screens: d.screens,
+    call: d.call,
+    connection: d.connection,
+    principals: d.principals,
+    recordTitle: d.recordTitle,
+    me: d.me,
+    clock: d.clock,
+    space: {
+      id: sample.replica.spaceId,
+      kind: variant === "personal" ? "personal" : "team",
+      name: sample.extras.space.name,
+    },
     assistant: sample.extras.assistant,
-    get aiConnected() { return sample.extras.aiConnected; },
-    deferredModules: new Set<string>(), isDeferred: () => false,
+    get aiConnected() {
+      return sample.extras.aiConnected;
+    },
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
     calendarConnected: sample.extras.calendarConnected,
     open: (t) => void opened.push(t),
     openUrl: (u) => void urls.push(u),
@@ -57,7 +102,10 @@ async function mount(id: string, rt: ShellRuntime | null): Promise<string> {
 test("eight app places and the standalone Console are registered with lazy routes, and Home is not one of them", () => {
   registerShellPlaces();
   registerShellPlaces();
-  assert.deepEqual(SHELL_PLACES.filter((p) => p.id !== "console").map((p) => p.label), ["Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"]);
+  assert.deepEqual(
+    SHELL_PLACES.filter((p) => p.id !== "console").map((p) => p.label),
+    ["Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"],
+  );
   for (const p of SHELL_PLACES) {
     assert.ok((PLACES as readonly string[]).includes(p.id), `${p.id} is an app route`);
     assert.equal(loaderFor(p.id), p.load, `${p.id} routes to its own loader`);
@@ -83,8 +131,15 @@ test("each place renders its data from a seeded replica, not its loading frame",
   registerShellPlaces();
   const { rt } = runtimeFor("northwind", true);
   const titles: Record<string, string> = {
-    home: "Send 12 invoices", chat: "Pruitt retainer thread", mail: "Marcus Pruitt", records: "Active clients", files: "Rivera engagement letter.docx",
-    sites: "Northwind website", automations: "Welcome new leads", vault: "Stripe restricted key", settings: "Profile",
+    home: "Send 12 invoices",
+    chat: "Pruitt retainer thread",
+    mail: "Marcus Pruitt",
+    records: "Active clients",
+    files: "Rivera engagement letter.docx",
+    sites: "Northwind website",
+    automations: "Welcome new leads",
+    vault: "Stripe restricted key",
+    settings: "Profile",
   };
   const firstList = (await import("./providers/first-list.tsx")).default;
   for (const p of SHELL_PLACES) {
@@ -102,7 +157,10 @@ test("before the Space's runtime exists a place draws its loading frame, never a
   for (const p of SHELL_PLACES) {
     const out = await mount(p.id, null);
     if (p.id === "console") {
-      assert.ok(out.includes("Opening the Console") && out.includes('data-testid="state-empty"'), "Console explains that its authenticated frame is opening");
+      assert.ok(
+        out.includes("Opening the Console") && out.includes('data-testid="state-empty"'),
+        "Console explains that its authenticated frame is opening",
+      );
     } else assert.ok(out.includes("-loading") || out.includes("place-loading"), `${p.id} draws a frame`);
   }
 });
@@ -126,9 +184,19 @@ test("a place whose list is empty says so with the shared empty state", async ()
 });
 
 test("list items take a key, a title and a quiet second line from whatever the capability returns", () => {
-  assert.deepEqual(listItems({ views: [{ viewId: "a", title: "Active", kind: "table" }], other: [{ id: "b", displayName: "Marcus" }, { id: "b", name: "dup" }] }), [
-    { key: "a", title: "Active", note: "table" }, { key: "b", title: "Marcus" },
-  ]);
+  assert.deepEqual(
+    listItems({
+      views: [{ viewId: "a", title: "Active", kind: "table" }],
+      other: [
+        { id: "b", displayName: "Marcus" },
+        { id: "b", name: "dup" },
+      ],
+    }),
+    [
+      { key: "a", title: "Active", note: "table" },
+      { key: "b", title: "Marcus" },
+    ],
+  );
   assert.deepEqual(listItems(null), []);
 });
 
@@ -140,12 +208,20 @@ test("a first-list read that fails ends the loading frame: not in this version i
     return { ...rt, screens: { query: () => q } as unknown as ShellRuntime["screens"] };
   };
   const First = (await import("./providers/first-list.tsx")).default;
-  const first = (runtime: ShellRuntime): string => renderToStaticMarkup(<ShellRuntimeProvider value={runtime}><First place="sites" /></ShellRuntimeProvider>);
-  const calm = first( failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
+  const first = (runtime: ShellRuntime): string =>
+    renderToStaticMarkup(
+      <ShellRuntimeProvider value={runtime}>
+        <First place="sites" />
+      </ShellRuntimeProvider>,
+    );
+  const calm = first(failing({ code: "internal.unavailable", message: "Not in this version yet", traceId: "t1" }));
   assert.ok(calm.includes("This is not in this version yet."));
-  assert.ok(!calm.includes('data-testid="state-error"') && !calm.includes("Not in this version yet</"), "no raw error text");
-  const broken = first( failing({ code: "internal.unexpected", message: "boom", traceId: "t2" }));
+  assert.ok(
+    !calm.includes('data-testid="state-error"') && !calm.includes("Not in this version yet</"),
+    "no raw error text",
+  );
+  const broken = first(failing({ code: "internal.unexpected", message: "boom", traceId: "t2" }));
   assert.ok(broken.includes('data-testid="state-error"'));
   assert.ok(broken.includes("Couldn&#x27;t load Apps") || broken.includes("Couldn't load Apps"));
-  assert.ok(!(first(rt)).includes("place-sites-failed"), "a healthy read is not the failed frame");
+  assert.ok(!first(rt).includes("place-sites-failed"), "a healthy read is not the failed frame");
 });

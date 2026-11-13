@@ -12,10 +12,18 @@ import AutomationsPlace, { automationsData } from "./automations.tsx";
 test("the Automations place draws the sidebar through the shell runtime", () => {
   const s = createSampleAutomations();
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
-  const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><AutomationsPlace place="automations" /></ShellRuntimeProvider>);
+  const out = renderToStaticMarkup(
+    <ShellRuntimeProvider value={rt}>
+      <AutomationsPlace place="automations" />
+    </ShellRuntimeProvider>,
+  );
   assert.ok(out.includes("automations-place"));
   assert.ok(out.includes("Pick an automation") && out.includes("Start from a template"));
-  const el = AutomationsSidebarSlot({ selectedId: null, view: "automations", onView: () => undefined }) as ReactElement<{ title: string }>;
+  const el = AutomationsSidebarSlot({
+    selectedId: null,
+    view: "automations",
+    onView: () => undefined,
+  }) as ReactElement<{ title: string }>;
   assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
   assert.equal(el.props.title, "Automations");
 });
@@ -28,7 +36,14 @@ test("Automations opens a run through the shell's door", () => {
   const s = createSampleAutomations();
   const opened: string[] = [];
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call, opened });
-  const d = automationsData(rt, { openAutomation: () => undefined, openJourney: () => undefined, openFailedRuns: () => rt.open({ screen: "runs.failed" }), openRun: () => undefined, ask: () => undefined, connect: () => undefined });
+  const d = automationsData(rt, {
+    openAutomation: () => undefined,
+    openJourney: () => undefined,
+    openFailedRuns: () => rt.open({ screen: "runs.failed" }),
+    openRun: () => undefined,
+    ask: () => undefined,
+    connect: () => undefined,
+  });
   d.nav.openFailedRuns();
   assert.deepEqual(opened, ["runs.failed"]);
   assert.equal(d.name("usr_irfad"), "Irfad Imtiaz");

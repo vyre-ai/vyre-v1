@@ -10,7 +10,10 @@ import { open } from "../fixtures/lists-world.ts";
 
 type Row = Record<string, unknown>;
 
-interface Access { sharedFiles: string[]; sharedFolders: string[] }
+interface Access {
+  sharedFiles: string[];
+  sharedFolders: string[];
+}
 
 /** access.lists for the one caller who has grants; everybody else has none. */
 function script(a: Access, grantee: string): (cap: string, input: unknown, who: string) => unknown {
@@ -18,7 +21,19 @@ function script(a: Access, grantee: string): (cap: string, input: unknown, who: 
     const i = (input ?? {}) as Row;
     if (cap === "access.lists") {
       const ids = who !== grantee ? [] : i["type"] === "file" ? a.sharedFiles : a.sharedFolders;
-      return { rows: ids.map((id) => ({ type: i["type"], id, title: id, via: "grant", level: "view", starred: false, following: false })), counts: {}, total: ids.length };
+      return {
+        rows: ids.map((id) => ({
+          type: i["type"],
+          id,
+          title: id,
+          via: "grant",
+          level: "view",
+          starred: false,
+          following: false,
+        })),
+        counts: {},
+        total: ids.length,
+      };
     }
     if (cap === "access.shares_of") return { shares: [{ grant: { createdAt: 0 }, through: "owner" }] };
     throw new Error(`unscripted call ${cap}`);
@@ -38,8 +53,10 @@ test("the Shared with me root counts the caller's shared items: files and folder
   const { ctx } = open(script(access, "per_maya"));
   assert.equal(await shared(ctx), 0, "nothing is shared yet");
   const personal = (await handlers["files.tree"](ctx, {})).roots.find((r) => r.key === "personal")!.folderId!;
-  const folder = async (parentId: string, name: string): Promise<string> => (await handlers["files.folder.create"](ctx, { parentId, name })).folder.folderId;
-  const file = async (folderId: string, name: string): Promise<string> => (await handlers["files.create"](ctx, { folderId, name, content: { text: name } })).file.fileId;
+  const folder = async (parentId: string, name: string): Promise<string> =>
+    (await handlers["files.folder.create"](ctx, { parentId, name })).folder.folderId;
+  const file = async (folderId: string, name: string): Promise<string> =>
+    (await handlers["files.create"](ctx, { folderId, name, content: { text: name } })).file.fileId;
   const clients = await folder(personal, "Clients");
   const inside = await file(clients, "inside.txt");
   const a = await file(personal, "a.md");
@@ -72,8 +89,12 @@ test("a caller without grants sees 0 whatever others share, and the other roots 
   const omar = open(script(access, "per_maya"), "per_omar");
   for (const w of [maya, omar]) {
     const personal = (await handlers["files.tree"](w.ctx, {})).roots.find((r) => r.key === "personal")!.folderId!;
-    const f = (await handlers["files.create"](w.ctx, { folderId: personal, name: "x.md", content: { text: "x" } })).file.fileId;
-    if (w === maya) { w.ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", f); access.sharedFiles = [f]; }   // someone else's file, shared with maya
+    const f = (await handlers["files.create"](w.ctx, { folderId: personal, name: "x.md", content: { text: "x" } })).file
+      .fileId;
+    if (w === maya) {
+      w.ctx.db.run("UPDATE files_file SET owner = ? WHERE id = ?", "usr_other", f);
+      access.sharedFiles = [f];
+    } // someone else's file, shared with maya
   }
   assert.equal(await shared(maya.ctx), 1);
   assert.equal(await shared(omar.ctx), 0, "refused by access: nothing is listed for omar");
@@ -83,7 +104,9 @@ test("a caller without grants sees 0 whatever others share, and the other roots 
 });
 
 test("when access cannot answer, the tree still loads and the Shared with me count is 0", async () => {
-  const { ctx } = open((cap) => { throw new Error(`access is down: ${cap}`); });
+  const { ctx } = open((cap) => {
+    throw new Error(`access is down: ${cap}`);
+  });
   const tree = await handlers["files.tree"](ctx, {});
   assert.equal(tree.roots.length, 13, "every root is still there");
   assert.equal(tree.roots.find((r) => r.key === "shared")!.count, 0);

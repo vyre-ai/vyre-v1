@@ -7,11 +7,18 @@ import { alice, bob, create, goodDefinition, node } from "../fixtures/seed.ts";
 import { loadRunPlan } from "../impl.ts";
 import { findRunLink } from "../projections.ts";
 
-const validate = async (h: Harness, definition: unknown): Promise<{ ok: boolean; issues: { nodeId?: string; severity: string; message: string }[] }> =>
+const validate = async (
+  h: Harness,
+  definition: unknown,
+): Promise<{ ok: boolean; issues: { nodeId?: string; severity: string; message: string }[] }> =>
   h.call("automations.validate", { definition }, alice);
 const trig = [{ key: "manual" }];
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
 const makeLive = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> => {
   const id = (await h.call("automations.create", create(over), alice)).automation.id as string;
@@ -29,35 +36,88 @@ test("a complete definition passes with nothing to say", async () => {
 
 test("missing inputs are named per step", async () => {
   const h = harness();
-  const r = await validate(h, { triggers: trig, nodes: [node("a", "records.update", { type: "contact" }), node("b", "send_email", { to: "x@example.com", subject: "Hi", body: "Hello" })] });
+  const r = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("a", "records.update", { type: "contact" }),
+      node("b", "send_email", { to: "x@example.com", subject: "Hi", body: "Hello" }),
+    ],
+  });
   assert.equal(r.ok, false);
   const msgs = r.issues.filter((i) => i.severity === "error").map((i) => `${i.nodeId}: ${i.message}`);
-  assert.deepEqual(msgs.sort(), ["a: Update a record needs patch.", "a: Update a record needs recordId.", "b: Send an email needs a mailbox."]);
-  assert.ok(r.issues.some((i) => i.nodeId === "b" && i.severity === "warning"), "b is not reached from a");
+  assert.deepEqual(msgs.sort(), [
+    "a: Update a record needs patch.",
+    "a: Update a record needs recordId.",
+    "b: Send an email needs a mailbox.",
+  ]);
+  assert.ok(
+    r.issues.some((i) => i.nodeId === "b" && i.severity === "warning"),
+    "b is not reached from a",
+  );
 });
 
 test("an authenticated request needs a connection and cannot store a secret", async () => {
   const h = harness();
-  const secret = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping", connectionId: "con_1", input: { apiKey: "sk-live" } })] });
+  const secret = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("r", "connector_request", {
+        connector: "acme",
+        action: "ping",
+        connectionId: "con_1",
+        input: { apiKey: "sk-live" },
+      }),
+    ],
+  });
   assert.ok(secret.issues.some((i) => /cannot hold a secret/.test(i.message)));
-  const missing = await validate(h, { triggers: trig, nodes: [node("r", "connector_request", { connector: "acme", action: "ping" })] });
+  const missing = await validate(h, {
+    triggers: trig,
+    nodes: [node("r", "connector_request", { connector: "acme", action: "ping" })],
+  });
   assert.ok(missing.issues.some((i) => /needs a connection/.test(i.message)));
 });
 
 test("create and update refuse a pasted secret anywhere, including a draft, and keep a page token", async () => {
   const h = harness();
-  const withPatch = (patch: Record<string, unknown>) => ({ triggers: trig, nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch })] });
-  await refused(h.call("automations.create", create({ definition: withPatch({ note: "sk-live-pasted" }) }), alice), "validation.bad_input", "secret");
-  await refused(h.call("automations.create", create({ definition: withPatch({ note: "Bearer pasted-token" }) }), alice), "validation.bad_input", "secret");
-  await refused(h.call("automations.create", create({ definition: withPatch({ apiKey: "not-a-token" }) }), alice), "validation.bad_input", "secret");
-  await refused(h.call("automations.create", create({ definition: { triggers: [{ key: "manual", filter: { token: "x" } }], nodes: [] } }), alice), "validation.bad_input", "secret");
+  const withPatch = (patch: Record<string, unknown>) => ({
+    triggers: trig,
+    nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch })],
+  });
+  await refused(
+    h.call("automations.create", create({ definition: withPatch({ note: "sk-live-pasted" }) }), alice),
+    "validation.bad_input",
+    "secret",
+  );
+  await refused(
+    h.call("automations.create", create({ definition: withPatch({ note: "Bearer pasted-token" }) }), alice),
+    "validation.bad_input",
+    "secret",
+  );
+  await refused(
+    h.call("automations.create", create({ definition: withPatch({ apiKey: "not-a-token" }) }), alice),
+    "validation.bad_input",
+    "secret",
+  );
+  await refused(
+    h.call(
+      "automations.create",
+      create({ definition: { triggers: [{ key: "manual", filter: { token: "x" } }], nodes: [] } }),
+      alice,
+    ),
+    "validation.bad_input",
+    "secret",
+  );
   assert.equal((await h.call("automations.list", {}, alice)).automations.length, 0);
   const page = withPatch({ pageToken: "next", status: "active" });
   const made = await h.call("automations.create", create({ definition: page }), alice);
   const id = made.automation.id as string;
   assert.equal(made.automation.status, "draft");
   assert.equal(made.automation.definition.nodes[0].input.patch.pageToken, "next");
-  await refused(h.call("automations.update", { automationId: id, definition: withPatch({ note: "key_live_pasted" }) }, alice), "validation.bad_input", "secret");
+  await refused(
+    h.call("automations.update", { automationId: id, definition: withPatch({ note: "key_live_pasted" }) }, alice),
+    "validation.bad_input",
+    "secret",
+  );
   const still = await h.call("automations.get", { automationId: id }, alice);
   assert.equal(still.automation.version, 1);
   assert.equal(still.automation.definition.nodes[0].input.patch.pageToken, "next");
@@ -70,15 +130,29 @@ test("steps and triggers that are not in the catalogue are errors", async () => 
   const h = harness();
   const r = await validate(h, { triggers: [{ key: "teleport" }], nodes: [node("a", "do_magic", {})] });
   assert.equal(r.ok, false);
-  assert.deepEqual(r.issues.filter((i) => i.severity === "error").map((i) => i.message).sort(), ["There is no step called do_magic.", "There is no trigger called teleport."]);
+  assert.deepEqual(
+    r.issues
+      .filter((i) => i.severity === "error")
+      .map((i) => i.message)
+      .sort(),
+    ["There is no step called do_magic.", "There is no trigger called teleport."],
+  );
 });
 
 test("references to steps that do not exist, and two steps with one id, are errors", async () => {
   const h = harness();
   const ok = { type: "contact", recordId: "rec_a", patch: {} };
   const r = await validate(h, {
-    triggers: trig, start: ["zzz"],
-    nodes: [node("a", "records.update", ok, { next: ["gone"] }), node("a", "records.update", ok), node("c", "records.update", ok, { branches: [{ label: "x", to: "nope" }], onError: { mode: "route", route: "nowhere" } })],
+    triggers: trig,
+    start: ["zzz"],
+    nodes: [
+      node("a", "records.update", ok, { next: ["gone"] }),
+      node("a", "records.update", ok),
+      node("c", "records.update", ok, {
+        branches: [{ label: "x", to: "nope" }],
+        onError: { mode: "route", route: "nowhere" },
+      }),
+    ],
   });
   const msgs = r.issues.filter((i) => i.severity === "error").map((i) => i.message);
   assert.ok(msgs.includes("Two steps share the id a."));
@@ -91,11 +165,22 @@ test("references to steps that do not exist, and two steps with one id, are erro
 test("a step nothing reaches is a warning; the Automation is still valid", async () => {
   const h = harness();
   const ok = { type: "contact", recordId: "rec_a", patch: {} };
-  const r = await validate(h, { triggers: trig, nodes: [node("a", "records.update", ok), node("island", "records.update", ok)] });
+  const r = await validate(h, {
+    triggers: trig,
+    nodes: [node("a", "records.update", ok), node("island", "records.update", ok)],
+  });
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, [{ nodeId: "island", severity: "warning", message: "No path reaches this step." }]);
-  const start = await validate(h, { triggers: trig, start: ["island"], nodes: [node("a", "records.update", ok), node("island", "records.update", ok)] });
-  assert.deepEqual(start.issues.map((i) => i.nodeId), ["a"], "the start list decides what is reached");
+  const start = await validate(h, {
+    triggers: trig,
+    start: ["island"],
+    nodes: [node("a", "records.update", ok), node("island", "records.update", ok)],
+  });
+  assert.deepEqual(
+    start.issues.map((i) => i.nodeId),
+    ["a"],
+    "the start list decides what is reached",
+  );
 });
 
 test("a loop above 1000 iterations is an error, and so is a loop inside a loop", async () => {
@@ -104,13 +189,35 @@ test("a loop above 1000 iterations is an error, and so is a loop inside a loop",
   const after = node("after", "stop", {});
   const over = await validate(h, {
     triggers: trig,
-    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1001 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+    nodes: [
+      node(
+        "each",
+        "loop",
+        { items: "trigger.items", maxIterations: 1001 },
+        { branches: [{ label: "body", to: "make" }], next: ["after"] },
+      ),
+      make,
+      after,
+    ],
   });
   assert.equal(over.ok, false);
-  assert.ok(over.issues.some((i) => i.nodeId === "each" && i.severity === "error" && i.message === "A loop allows at most 1000 iterations."));
+  assert.ok(
+    over.issues.some(
+      (i) => i.nodeId === "each" && i.severity === "error" && i.message === "A loop allows at most 1000 iterations.",
+    ),
+  );
   const atCap = await validate(h, {
     triggers: trig,
-    nodes: [node("each", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["after"] }), make, after],
+    nodes: [
+      node(
+        "each",
+        "loop",
+        { items: "trigger.items", maxIterations: 1000 },
+        { branches: [{ label: "body", to: "make" }], next: ["after"] },
+      ),
+      make,
+      after,
+    ],
   });
   assert.equal(atCap.ok, true, JSON.stringify(atCap.issues));
   const nested = await validate(h, {
@@ -124,13 +231,27 @@ test("a loop above 1000 iterations is an error, and so is a loop inside a loop",
     ],
   });
   assert.equal(nested.ok, false);
-  assert.ok(nested.issues.some((i) => i.nodeId === "inner" && i.severity === "error" && i.message === "A loop cannot contain another loop."));
+  assert.ok(
+    nested.issues.some(
+      (i) => i.nodeId === "inner" && i.severity === "error" && i.message === "A loop cannot contain another loop.",
+    ),
+  );
   const sequence = await validate(h, {
     triggers: trig,
     nodes: [
-      node("first", "loop", { items: "trigger.items", maxIterations: 1000 }, { branches: [{ label: "body", to: "make" }], next: ["second"] }),
+      node(
+        "first",
+        "loop",
+        { items: "trigger.items", maxIterations: 1000 },
+        { branches: [{ label: "body", to: "make" }], next: ["second"] },
+      ),
       make,
-      node("second", "loop", { items: "trigger.more", maxIterations: 1000 }, { branches: [{ label: "body", to: "make2" }] }),
+      node(
+        "second",
+        "loop",
+        { items: "trigger.more", maxIterations: 1000 },
+        { branches: [{ label: "body", to: "make2" }] },
+      ),
       node("make2", "records.create", { type: "note", fields: { title: "More" } }),
     ],
   });
@@ -140,62 +261,144 @@ test("a loop above 1000 iterations is an error, and so is a loop inside a loop",
 test("a path that loops back is an error unless it goes through a Loop step", async () => {
   const h = harness();
   const find = { type: "contact" };
-  const bad = await validate(h, { triggers: trig, nodes: [node("a", "records.find", find, { next: ["b"] }), node("b", "records.find", find, { next: ["a"] })] });
+  const bad = await validate(h, {
+    triggers: trig,
+    nodes: [node("a", "records.find", find, { next: ["b"] }), node("b", "records.find", find, { next: ["a"] })],
+  });
   assert.equal(bad.ok, false);
   assert.match(bad.issues.find((i) => i.severity === "error")!.message, /loops back to a without a Loop step/);
-  const good = await validate(h, { triggers: trig, nodes: [node("a", "records.find", find, { next: ["b"] }), node("b", "loop", { items: "{{ steps.a.out.records }}" }, { next: ["a"] })] });
+  const good = await validate(h, {
+    triggers: trig,
+    nodes: [
+      node("a", "records.find", find, { next: ["b"] }),
+      node("b", "loop", { items: "{{ steps.a.out.records }}" }, { next: ["a"] }),
+    ],
+  });
   assert.equal(good.ok, true);
 });
 
 // ---- live steps: Run code and the AI step ----
 
-type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean };
-const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
-const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
+type Prov = {
+  id: string;
+  handle?: string;
+  itemId: string;
+  name: string;
+  connection: string;
+  scope: string;
+  spaceMayUse: boolean;
+  state: string;
+  uses?: Record<string, unknown>;
+  capped?: boolean;
+};
+const prov = (over: Partial<Prov> = {}): Prov => ({
+  id: "prv_1",
+  handle: "#Mine_Anthropic",
+  itemId: "vit_1",
+  name: "Mine Anthropic",
+  connection: "api_key",
+  scope: "mine",
+  spaceMayUse: false,
+  state: "ok",
+  ...over,
+});
+const shared = (over: Partial<Prov> = {}): Prov =>
+  prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
 /** The engine's answer to engine.accounts.list { place }, as the engine gives it for these rows: its judgment (agent/src/accounts/usable.ts) restated here for the automation place, since a module's test cannot import the agent layer. */
-function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false, runsAs?: "person" | "space") {
+function accountsFrom(
+  providers: Prov[],
+  place: "chat" | "automation" | "agent" | "space",
+  explicit = false,
+  runsAs?: "person" | "space",
+) {
   return providers.map((p) => {
     const mine = p.scope === "mine";
     const status = p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed";
     let why: string | undefined;
     if (status === "expired") why = "Sign in to this account again.";
     else if (status === "failed") why = "This account is not working. Open it in the Vault to test it.";
-    else if (p.connection === "subscription" && !p.spaceMayUse) why = "Turn on \"Let the Space run work on my subscription\" for this account to use it here.";
-    else if (!mine && place !== "space" && !explicit && !(place === "automation" && runsAs === "person") && p.uses?.automations !== true) why = "An admin has not kept this account for this kind of work.";
+    else if (p.connection === "subscription" && !p.spaceMayUse)
+      why = 'Turn on "Let the Space run work on my subscription" for this account to use it here.';
+    else if (
+      !mine &&
+      place !== "space" &&
+      !explicit &&
+      !(place === "automation" && runsAs === "person") &&
+      p.uses?.automations !== true
+    )
+      why = "An admin has not kept this account for this kind of work.";
     else if (!mine && p.capped === true) why = "This account reached its monthly cap.";
-    return { ref: p.handle, providerId: p.id, title: p.name, mine, status, ...(why === undefined ? { usable: true } : { usable: false, why }) };
+    return {
+      ref: p.handle,
+      providerId: p.id,
+      title: p.name,
+      mine,
+      status,
+      ...(why === undefined ? { usable: true } : { usable: false, why }),
+    };
   });
 }
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
   const h = harness({ authorize: () => false });
   const code = opts.code ?? true;
   let providers = opts.providers ?? [];
-  h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
-  h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true, (i as { runsAs?: "person" | "space" } | undefined)?.runsAs) }));
-  return Object.assign(h, { setProviders(p: Prov[]) { providers = p; } });
+  h.callee("steps.support", () => ({
+    code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code },
+    ai: { available: true },
+  }));
+  h.callee("engine.accounts.list", (i) => ({
+    accounts: accountsFrom(
+      providers,
+      (i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place ?? "automation",
+      (i as { explicit?: boolean } | undefined)?.explicit === true,
+      (i as { runsAs?: "person" | "space" } | undefined)?.runsAs,
+    ),
+  }));
+  return Object.assign(h, {
+    setProviders(p: Prov[]) {
+      providers = p;
+    },
+  });
 }
-const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
-const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> => (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation.id as string;
-const turnOn = (h: Harness, id: string) => h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
+const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) =>
+  node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
+const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> =>
+  (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation
+    .id as string;
+const turnOn = (h: Harness, id: string) =>
+  h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
 const messageOf = (e: unknown): string => (e as { error?: { message?: string } }).error?.message ?? String(e);
 
 test("a code step can be saved anywhere, and turned on only where this server can sandbox it", async () => {
   const off = liveHarness({ code: "Run code needs a Linux server with bubblewrap." });
   const id = await draftWith(off, node("a", "code", { source: "return 1" }));
-  assert.equal((await off.call("automations.get", { automationId: id }, alice)).automation.definition.nodes[0].key, "code");
-  await assert.rejects(turnOn(off, id), (e) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.equal(reasonOf(e), "live_step"); assert.match(messageOf(e), /Run code cannot be turned on here\. Run code needs a Linux server with bubblewrap\./); return true; });
+  assert.equal(
+    (await off.call("automations.get", { automationId: id }, alice)).automation.definition.nodes[0].key,
+    "code",
+  );
+  await assert.rejects(turnOn(off, id), (e) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.equal(reasonOf(e), "live_step");
+    assert.match(messageOf(e), /Run code cannot be turned on here\. Run code needs a Linux server with bubblewrap\./);
+    return true;
+  });
   const on = liveHarness();
   const id2 = await draftWith(on, node("a", "code", { source: "return 1" }));
   assert.equal((await turnOn(on, id2)).automation.status, "on");
 });
 
 test("the step catalogue hides Run code where the server cannot sandbox it, and shows it where it can", async () => {
-  const keys = async (h: Harness): Promise<string[]> => ((await h.call("automations.steps.list", {}, alice)).steps as { key: string }[]).map((s) => s.key);
+  const keys = async (h: Harness): Promise<string[]> =>
+    ((await h.call("automations.steps.list", {}, alice)).steps as { key: string }[]).map((s) => s.key);
   assert.equal((await keys(liveHarness({ code: false }))).includes("code"), false);
   assert.equal((await keys(liveHarness({ code: false }))).includes("ai"), true);
   const both = await keys(liveHarness());
   assert.equal(both.includes("code") && both.includes("ai"), true);
-  assert.equal((await keys(harness())).some((k) => k === "code" || k === "ai"), false, "a server that has not said it can run them hides them");
+  assert.equal(
+    (await keys(harness())).some((k) => k === "code" || k === "ai"),
+    false,
+    "a server that has not said it can run them hides them",
+  );
 });
 
 test("a Personal AI step needs no key: it turns on when the owner has an account that works on the server", async () => {
@@ -206,33 +409,60 @@ test("a Personal AI step needs no key: it turns on when the owner has an account
 
 test("a Personal AI step with no working account is refused, and the message says what to add", async () => {
   const none = liveHarness({ providers: [] });
-  await assert.rejects(turnOn(none, await draftWith(none, aiNode())), (e) => { assert.equal(reasonOf(e), "live_step"); assert.match(messageOf(e), /your own AI account/); assert.match(messageOf(e), /AI settings/); return true; });
+  await assert.rejects(turnOn(none, await draftWith(none, aiNode())), (e) => {
+    assert.equal(reasonOf(e), "live_step");
+    assert.match(messageOf(e), /your own AI account/);
+    assert.match(messageOf(e), /AI settings/);
+    return true;
+  });
   const sub = liveHarness({ providers: [prov({ connection: "subscription", spaceMayUse: false })] });
-  await assert.rejects(turnOn(sub, await draftWith(sub, aiNode())), (e) => { assert.match(messageOf(e), /Let the Space run work on my subscription/); return true; });
+  await assert.rejects(turnOn(sub, await draftWith(sub, aiNode())), (e) => {
+    assert.match(messageOf(e), /Let the Space run work on my subscription/);
+    return true;
+  });
   const subOk = liveHarness({ providers: [prov({ connection: "subscription", spaceMayUse: true })] });
   assert.equal((await turnOn(subOk, await draftWith(subOk, aiNode()))).automation.status, "on");
   const broken = liveHarness({ providers: [prov({ state: "needs_sign_in" })] });
-  await assert.rejects(turnOn(broken, await draftWith(broken, aiNode())), (e) => { assert.match(messageOf(e), /your own AI account/); return true; });
+  await assert.rejects(turnOn(broken, await draftWith(broken, aiNode())), (e) => {
+    assert.match(messageOf(e), /your own AI account/);
+    return true;
+  });
 });
 
 test("a Personal AI step runs as its owner: a shared account not kept for automations still counts, as before", async () => {
   const h = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  assert.equal((await turnOn(h, await draftWith(h, aiNode()))).automation.status, "on", "Automatic: any account the person may use");
+  assert.equal(
+    (await turnOn(h, await draftWith(h, aiNode()))).automation.status,
+    "on",
+    "Automatic: any account the person may use",
+  );
   const named = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  assert.equal((await turnOn(named, await draftWith(named, aiNode({}, { keyId: "#Team_Key" })))).automation.status, "on");
+  assert.equal(
+    (await turnOn(named, await draftWith(named, aiNode({}, { keyId: "#Team_Key" })))).automation.status,
+    "on",
+  );
 });
 
 test("a Personal AI step may name one of its owner's accounts, and an unknown one is refused", async () => {
   const h = liveHarness({ providers: [prov()] });
   assert.equal((await turnOn(h, await draftWith(h, aiNode({}, { keyId: "#Mine_Anthropic" })))).automation.status, "on");
-  await assert.rejects(turnOn(h, await draftWith(h, aiNode({}, { keyId: "#Nope" }))), (e) => { assert.match(messageOf(e), /#Nope is not in the Vault/); return true; });
+  await assert.rejects(turnOn(h, await draftWith(h, aiNode({}, { keyId: "#Nope" }))), (e) => {
+    assert.match(messageOf(e), /#Nope is not in the Vault/);
+    return true;
+  });
 });
 
 test("a Space AI step needs a Space-shared key in the step", async () => {
   const h = liveHarness({ providers: [prov(), shared()] });
   const mk = async (ai?: Record<string, unknown>): Promise<string> => {
     const id = await draftWith(h, aiNode({}, ai));
-    await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }].filter(() => false) }, alice).catch(() => undefined);
+    await h
+      .call(
+        "automations.promote",
+        { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }].filter(() => false) },
+        alice,
+      )
+      .catch(() => undefined);
     return id;
   };
   // promote an AI step that already names a shared key, then check the other cases on the Space copy
@@ -240,38 +470,73 @@ test("a Space AI step needs a Space-shared key in the step", async () => {
   assert.equal((await h.call("automations.get", { automationId: okId }, alice)).automation.kind, "space");
   assert.equal((await turnOn(h, okId)).automation.status, "on");
   const bareId = await draftWith(h, aiNode());
-  await h.call("automations.promote", { automationId: bareId, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
-  assert.equal((await h.call("automations.get", { automationId: bareId }, alice)).automation.definition.nodes[0].ai.keyId, "#Team_Key", "Promote fills the step with the shared key it was given");
+  await h.call(
+    "automations.promote",
+    { automationId: bareId, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] },
+    alice,
+  );
+  assert.equal(
+    (await h.call("automations.get", { automationId: bareId }, alice)).automation.definition.nodes[0].ai.keyId,
+    "#Team_Key",
+    "Promote fills the step with the shared key it was given",
+  );
   const mineId = await draftWith(h, aiNode({}, { keyId: "#Mine_Anthropic" }));
   await h.call("automations.promote", { automationId: mineId, confirm: true }, alice);
-  await assert.rejects(turnOn(h, mineId), (e) => { assert.match(messageOf(e), /belongs to one person/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
+  await assert.rejects(turnOn(h, mineId), (e) => {
+    assert.match(messageOf(e), /belongs to one person/);
+    assert.match(messageOf(e), /Space-shared AI key/);
+    return true;
+  });
 });
 
 test("Promote asks for a shared key for an AI step that had none", async () => {
   const h = liveHarness({ providers: [shared()] });
   h.callee("vault.items.list", () => ({ items: [] }));
   const id = await draftWith(h, aiNode());
-  const diff = (await h.call("automations.preview_promote", { automationId: id }, alice));
+  const diff = await h.call("automations.preview_promote", { automationId: id }, alice);
   assert.equal(diff.ready, false);
-  assert.deepEqual(diff.diff.keysToReplace.map((k: { stepId: string; keyId: string }) => [k.stepId, k.keyId]), [["a", ""]]);
-  await refused(h.call("automations.promote", { automationId: id, confirm: true }, alice), "validation.precondition_failed", "keys_not_replaced");
+  assert.deepEqual(
+    diff.diff.keysToReplace.map((k: { stepId: string; keyId: string }) => [k.stepId, k.keyId]),
+    [["a", ""]],
+  );
+  await refused(
+    h.call("automations.promote", { automationId: id, confirm: true }, alice),
+    "validation.precondition_failed",
+    "keys_not_replaced",
+  );
 });
 
 test("a Space AI step with no key is refused and the message names what to add", async () => {
   const h = liveHarness({ providers: [shared()] });
   h.callee("vault.items.list", () => ({ items: [] }));
   const id = await draftWith(h, aiNode());
-  await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
+  await h.call(
+    "automations.promote",
+    { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] },
+    alice,
+  );
   // the key is later removed from the Vault
   h.setProviders([]);
-  await assert.rejects(turnOn(h, id), (e) => { assert.match(messageOf(e), /#Team_Key is not in the Vault/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
+  await assert.rejects(turnOn(h, id), (e) => {
+    assert.match(messageOf(e), /#Team_Key is not in the Vault/);
+    assert.match(messageOf(e), /Space-shared AI key/);
+    return true;
+  });
 });
 
 test("a schedule can be turned on", async () => {
   const h = harness();
-  const id = (await h.call("automations.create", create({
-    definition: goodDefinition({ triggers: [{ key: "schedule", config: { cron: "0 9 * * 1-5", timezone: "UTC", missed: "skip" } }] }),
-  }), alice)).automation.id as string;
+  const id = (
+    await h.call(
+      "automations.create",
+      create({
+        definition: goodDefinition({
+          triggers: [{ key: "schedule", config: { cron: "0 9 * * 1-5", timezone: "UTC", missed: "skip" } }],
+        }),
+      }),
+      alice,
+    )
+  ).automation.id as string;
   const on = await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   assert.equal(on.automation.status, "on");
 });
@@ -282,7 +547,10 @@ test("an AI step needs a prompt; a Personal Space cannot use a webhook trigger",
   assert.equal(bare.ok, true, "a Personal AI step runs on its owner's account and needs neither");
   const noPrompt = await validate(h, { triggers: trig, nodes: [node("a", "ai", {})] });
   assert.equal(noPrompt.issues[0]!.message, "AI step needs prompt.");
-  const withAgent = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })] });
+  const withAgent = await validate(h, {
+    triggers: trig,
+    nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })],
+  });
   assert.equal(withAgent.ok, true);
   const hook = { triggers: [{ key: "webhook" }], nodes: [] };
   assert.equal((await validate(h, hook)).ok, true);
@@ -301,7 +569,9 @@ test("a Run keeps the definition version it started on, even after the Automatio
   const v1 = loadRunPlan({ db: h.db }, first.runId)!;
   assert.equal(v1.link.version, 1);
 
-  const next = goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "won" } })] });
+  const next = goodDefinition({
+    nodes: [node("a", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "won" } })],
+  });
   const upd = await h.call("automations.update", { automationId: id, definition: next }, alice);
   assert.equal(upd.automation.version, 2);
   const second = await h.call("automations.run", { automationId: id }, alice);
@@ -320,43 +590,85 @@ test("replay offers the same version or the current one; test can pin any earlie
   const h = harness();
   const id = await makeLive(h);
   const old = await h.call("automations.run", { automationId: id }, alice);
-  await h.call("automations.update", { automationId: id, definition: goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_zzz", patch: {} })] }) }, alice);
-  const same = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "same", confirm: true }, alice);
-  const cur = await h.call("automations.replay", { automationId: id, runId: old.runId, version: "current", confirm: true }, alice);
+  await h.call(
+    "automations.update",
+    {
+      automationId: id,
+      definition: goodDefinition({
+        nodes: [node("a", "records.update", { type: "contact", recordId: "rec_zzz", patch: {} })],
+      }),
+    },
+    alice,
+  );
+  const same = await h.call(
+    "automations.replay",
+    { automationId: id, runId: old.runId, version: "same", confirm: true },
+    alice,
+  );
+  const cur = await h.call(
+    "automations.replay",
+    { automationId: id, runId: old.runId, version: "current", confirm: true },
+    alice,
+  );
   assert.equal(findRunLink(h.db, same.runId)!.version, 1);
   assert.equal(findRunLink(h.db, cur.runId)!.version, 2);
   assert.equal(findRunLink(h.db, same.runId)!.parentRun, old.runId);
   const t = await h.call("automations.test", { automationId: id, version: 1 }, alice);
   assert.equal(findRunLink(h.db, t.runId)!.version, 1);
-  await refused(h.call("automations.test", { automationId: id, version: 9 }, alice), "validation.not_found", "no_version");
+  await refused(
+    h.call("automations.test", { automationId: id, version: 9 }, alice),
+    "validation.not_found",
+    "no_version",
+  );
 });
 
 // ---- Promote and its access diff ----
 
 const sub = { id: "vit_sub1", kind: "ai_subscription", handle: "#Claude_Max", name: "Claude Max" };
-const promotable = (): Record<string, unknown> => create({
-  definition: {
-    triggers: [{ key: "record_change", filter: { type: "contact" } }],
-    nodes: [
-      node("find", "records.find", { type: "contact", filter: { id: "rec_read1" } }, { next: ["mail"] }),
-      node("mail", "send_email", { to: "a@example.com", subject: "Hi", body: "Sent with #Resend_Key and #Resend_Key.", mailboxId: "mbx_main" }, { next: ["upd"] }),
-      node("upd", "records.update", { type: "contact", recordId: "rec_abc", patch: { status: "x" }, via: "con_google1" }, { next: ["ask"] }),
-      node("ask", "ai", { prompt: "Write a note" }, { ai: { keyId: "vit_sub1", backupKeyId: "vit_api9" } }),
-    ],
-  },
-});
+const promotable = (): Record<string, unknown> =>
+  create({
+    definition: {
+      triggers: [{ key: "record_change", filter: { type: "contact" } }],
+      nodes: [
+        node("find", "records.find", { type: "contact", filter: { id: "rec_read1" } }, { next: ["mail"] }),
+        node(
+          "mail",
+          "send_email",
+          { to: "a@example.com", subject: "Hi", body: "Sent with #Resend_Key and #Resend_Key.", mailboxId: "mbx_main" },
+          { next: ["upd"] },
+        ),
+        node(
+          "upd",
+          "records.update",
+          { type: "contact", recordId: "rec_abc", patch: { status: "x" }, via: "con_google1" },
+          { next: ["ask"] },
+        ),
+        node("ask", "ai", { prompt: "Write a note" }, { ai: { keyId: "vit_sub1", backupKeyId: "vit_api9" } }),
+      ],
+    },
+  });
 
 test("Promote shows what the Space Automation will hold, and which subscription keys must be replaced", async () => {
   const h = harness({ authorize: (_who, a, r) => a.level === "edit" && r.id === "rec_abc" });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
-  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
+  h.callee("vault.items.list", (i) => ({
+    items:
+      (i as { kind?: string }).kind === "ai_subscription"
+        ? [sub]
+        : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }],
+  }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
   const p = await h.call("automations.preview_promote", { automationId: id }, alice);
   assert.equal(p.ready, false);
   assert.deepEqual(p.diff.vaultNames, ["#Resend_Key"]);
   assert.deepEqual(p.diff.connections, ["con_google1"]);
-  assert.deepEqual(p.diff.keysToReplace.map((k: { stepId: string; keyId: string }) => `${k.stepId}:${k.keyId}`), ["ask:vit_sub1"]);
-  const by = Object.fromEntries(p.diff.grants.map((g: { resource: string; level: string; via: string }) => [g.resource, `${g.level}/${g.via}`]));
+  assert.deepEqual(
+    p.diff.keysToReplace.map((k: { stepId: string; keyId: string }) => `${k.stepId}:${k.keyId}`),
+    ["ask:vit_sub1"],
+  );
+  const by = Object.fromEntries(
+    p.diff.grants.map((g: { resource: string; level: string; via: string }) => [g.resource, `${g.level}/${g.via}`]),
+  );
   assert.deepEqual(by, {
     "record/rec_abc": "edit/owner_access",
     "record/rec_read1": "view/new_grant",
@@ -367,33 +679,80 @@ test("Promote shows what the Space Automation will hold, and which subscription 
 test("Promote refuses until the subscription keys are replaced, then makes a Space Automation owned by the named person", async () => {
   const h = harness({ authorize: () => false });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
-  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
+  h.callee("vault.items.list", (i) => ({
+    items:
+      (i as { kind?: string }).kind === "ai_subscription"
+        ? [sub]
+        : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }],
+  }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
-  await refused(h.call("automations.promote", { automationId: id, confirm: true }, alice), "validation.precondition_failed", "keys_not_replaced");
+  await refused(
+    h.call("automations.promote", { automationId: id, confirm: true }, alice),
+    "validation.precondition_failed",
+    "keys_not_replaced",
+  );
   assert.equal((await h.call("automations.get", { automationId: id }, alice)).automation.kind, "personal");
 
-  const r = await h.call("automations.promote", { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] }, alice);
+  const r = await h.call(
+    "automations.promote",
+    { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] },
+    alice,
+  );
   assert.equal(r.automation.kind, "space");
   assert.equal(r.automation.ownerId, bob.id);
   assert.equal(r.automation.version, 2, "the key change is a new version");
   const ask = r.automation.definition.nodes.find((n: { id: string }) => n.id === "ask");
   assert.deepEqual(ask.ai, { keyId: "vit_shared1", backupKeyId: "vit_api9" }, "only the subscription key is replaced");
   assert.equal(r.diff.grants.length, 3);
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.promoted", "automation.runs_as_changed"], "putting it on the Space makes the presser its runs-as person, and says so (review 12 Nov, 4)");
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.promoted", "automation.runs_as_changed"],
+    "putting it on the Space makes the presser its runs-as person, and says so (review 12 Nov, 4)",
+  );
   assert.deepEqual(h.events[0]!.payload, { automationId: id, ownerId: bob.id, grants: 3, keysReplaced: 1 });
   const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions;
-  assert.deepEqual(versions.map((v: { n: number }) => v.n), [2, 1], "history and versions are kept");
+  assert.deepEqual(
+    versions.map((v: { n: number }) => v.n),
+    [2, 1],
+    "history and versions are kept",
+  );
   assert.equal(versions[0].reason, "Promoted to the Space: shared keys");
-  await refused(h.call("automations.promote", { automationId: id, confirm: true }, alice), "validation.precondition_failed", "already_space");
+  await refused(
+    h.call("automations.promote", { automationId: id, confirm: true }, alice),
+    "validation.precondition_failed",
+    "already_space",
+  );
 });
 
 test("a promoted Automation runs as its own Service principal with only the vault names it was confirmed with", async () => {
   const h = harness();
-  const id = (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [node("m", "send_email", { to: "a@example.com", subject: "s", body: "Key #Resend_Key", mailboxId: "mbx_main" })] } }), alice)).automation.id as string;
+  const id = (
+    await h.call(
+      "automations.create",
+      create({
+        definition: {
+          triggers: trig,
+          nodes: [
+            node("m", "send_email", {
+              to: "a@example.com",
+              subject: "s",
+              body: "Key #Resend_Key",
+              mailboxId: "mbx_main",
+            }),
+          ],
+        },
+      }),
+      alice,
+    )
+  ).automation.id as string;
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   const personal = await h.call("automations.run", { automationId: id }, alice);
   assert.deepEqual(loadRunPlan({ db: h.db }, personal.runId)!.link.principal, { kind: "person", id: alice.id });
-  assert.deepEqual(loadRunPlan({ db: h.db }, personal.runId)!.vault, [], "a Personal Automation uses its owner's own access");
+  assert.deepEqual(
+    loadRunPlan({ db: h.db }, personal.runId)!.vault,
+    [],
+    "a Personal Automation uses its owner's own access",
+  );
 
   await h.call("automations.promote", { automationId: id, confirm: true, ownerId: bob.id }, alice);
   const space = await h.call("automations.run", { automationId: id }, bob);
@@ -413,11 +772,18 @@ test("a Personal copy of a Space Automation runs with only the copier's access",
   assert.equal(r.automation.status, "draft");
   assert.notEqual(r.automation.id, id);
   assert.deepEqual(r.automation.definition, goodDefinition());
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.copied", "automation.created"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.copied", "automation.created"],
+  );
   assert.deepEqual(h.events[0]!.payload, { automationId: r.automation.id, fromId: id });
   const named = await h.call("automations.make_personal_copy", { automationId: id, name: "Mine" }, bob);
   assert.equal(named.automation.name, "Mine");
-  await refused(h.call("automations.make_personal_copy", { automationId: r.automation.id }, bob), "validation.precondition_failed", "not_space");
+  await refused(
+    h.call("automations.make_personal_copy", { automationId: r.automation.id }, bob),
+    "validation.precondition_failed",
+    "not_space",
+  );
 });
 
 test("a Space automation's AI account: Automatic needs a Space account kept for automations, and a chosen account and its backup must be kept for them too", async () => {
@@ -427,7 +793,11 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
     if (definition) {
       const a = (await h.call("automations.get", { automationId: id }, alice)).automation;
       const nodes = a.definition.nodes.map((n: { ai?: Record<string, unknown> }) => ({ ...n, ai: {} }));
-      await h.call("automations.update", { automationId: id, definition: { ...a.definition, nodes, ...definition }, expectedVersion: a.version }, alice);
+      await h.call(
+        "automations.update",
+        { automationId: id, definition: { ...a.definition, nodes, ...definition }, expectedVersion: a.version },
+        alice,
+      );
     }
     return id;
   };
@@ -438,40 +808,90 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   assert.equal((await turnOn(auto, autoId)).automation.status, "on");
   // none kept for automations: refused, and the message says what to tick
   const none = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  await assert.rejects(turnOn(none, await spaceDraft(none, {})), (e) => { assert.match(messageOf(e), /Space AI account that pays for automations/); return true; });
+  await assert.rejects(turnOn(none, await spaceDraft(none, {})), (e) => {
+    assert.match(messageOf(e), /Space AI account that pays for automations/);
+    return true;
+  });
   // a capped account does not count for Automatic
   const capped = liveHarness({ providers: [{ ...kept, capped: true }] });
-  await assert.rejects(turnOn(capped, await spaceDraft(capped, {})), (e) => { assert.match(messageOf(e), /pays for automations/); return true; });
+  await assert.rejects(turnOn(capped, await spaceDraft(capped, {})), (e) => {
+    assert.match(messageOf(e), /pays for automations/);
+    return true;
+  });
   // the automation's own account is kept in the definition and read back
-  const pick = liveHarness({ providers: [kept, shared({ id: "prv_b", handle: "#Backup", itemId: "vit_b", name: "Backup", uses: { automations: true } })] });
+  const pick = liveHarness({
+    providers: [
+      kept,
+      shared({ id: "prv_b", handle: "#Backup", itemId: "vit_b", name: "Backup", uses: { automations: true } }),
+    ],
+  });
   const pickId = await spaceDraft(pick, { ai: { keyId: "#Team_Key", backupKeyId: "#Backup" } });
-  assert.deepEqual((await pick.call("automations.get", { automationId: pickId }, alice)).automation.definition.ai, { keyId: "#Team_Key", backupKeyId: "#Backup" });
+  assert.deepEqual((await pick.call("automations.get", { automationId: pickId }, alice)).automation.definition.ai, {
+    keyId: "#Team_Key",
+    backupKeyId: "#Backup",
+  });
   assert.equal((await turnOn(pick, pickId)).automation.status, "on");
   // a chosen account that is not kept for automations is refused by name
   const wrong = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, cannot run it\. An admin has not kept this account for this kind of work/); return true; });
+  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => {
+    assert.match(
+      messageOf(e),
+      /Team key, the AI account chosen for this automation, cannot run it\. An admin has not kept this account for this kind of work/,
+    );
+    return true;
+  });
   // so is a backup that is gone
   const gone = liveHarness({ providers: [kept] });
-  await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });
+  await assert.rejects(
+    turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })),
+    (e) => {
+      assert.match(messageOf(e), /#Missing is not in the Vault/);
+      return true;
+    },
+  );
 });
 
 test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
   const h = harness({ authorize: () => false });
   // the Vault as the creator sees it, as in the Promote tests above: the subscription, and the key the send step uses (a step may only name a key its saver can use)
-  h.callee("vault.items.list", (i) => ({ items: (i as { kind?: string }).kind === "ai_subscription" ? [sub] : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }] }));
+  h.callee("vault.items.list", (i) => ({
+    items:
+      (i as { kind?: string }).kind === "ai_subscription"
+        ? [sub]
+        : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }],
+  }));
   const told: Array<{ to?: string; title?: string }> = [];
-  h.callee("tasks.create", (i: { assigned?: { id?: string }; title?: string }) => { told.push({ to: i.assigned?.id, title: i.title }); return { task: { id: `tsk_${told.length}` } }; });
+  h.callee("tasks.create", (i: { assigned?: { id?: string }; title?: string }) => {
+    told.push({ to: i.assigned?.id, title: i.title });
+    return { task: { id: `tsk_${told.length}` } };
+  });
   h.callee("audit.append", () => ({ auditId: "aud_1" }));
-  h.callee("access.principals.get", (i: { principal: { id: string } }) => ({ principal: { name: i.principal.id === alice.id ? "Alice" : "Bob" } }));
+  h.callee("access.principals.get", (i: { principal: { id: string } }) => ({
+    principal: { name: i.principal.id === alice.id ? "Alice" : "Bob" },
+  }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
-  const r = await h.call("automations.promote", { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] }, alice);
+  const r = await h.call(
+    "automations.promote",
+    { automationId: id, confirm: true, ownerId: bob.id, replaceKeys: [{ stepId: "ask", keyId: "vit_shared1" }] },
+    alice,
+  );
   assert.equal(r.automation.runsAs, alice.id, "the person who put it on the Space");
   h.db.run("UPDATE automations_defs SET status = 'on' WHERE id = ?", id);
   // an agent working for Bob, who owns it, presses On again: that is not a person's own press
-  await h.call("automations.set_enabled", { automationId: id, enabled: true }, { kind: "agent", id: "agt_helper", actingFor: bob.id } as never);
+  await h.call("automations.set_enabled", { automationId: id, enabled: true }, {
+    kind: "agent",
+    id: "agt_helper",
+    actingFor: bob.id,
+  } as never);
   const after = (await h.call("automations.get", { automationId: id }, alice)).automation;
   assert.equal(after.runsAs, undefined, "an agent's change carries nobody's yes");
-  assert.deepEqual(told.filter((t) => t.to === bob.id).map((t) => t.title), [`${after.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`], "the accountable owner is told, once");
+  assert.deepEqual(
+    told.filter((t) => t.to === bob.id).map((t) => t.title),
+    [
+      `${after.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`,
+    ],
+    "the accountable owner is told, once",
+  );
 });
 
 test("a Run an agent starts by hand is marked as started by an agent, so its steps treat it as from outside; a person's is not (runs-as review pass 4)", async () => {
@@ -479,20 +899,59 @@ test("a Run an agent starts by hand is marked as started by an agent, so its ste
   const id = await makeLive(h);
   const mine = await h.call("automations.run", { automationId: id }, alice);
   assert.equal(loadRunPlan({ db: h.db }, mine.runId)!.link.origin, undefined, "a person's press");
-  const byAgent = await h.call("automations.run", { automationId: id, payload: { note: "from a stranger" } }, { kind: "agent", id: "agt_helper", actingFor: alice.id } as never).catch((e: unknown) => ({ error: e }));
-  if ("runId" in (byAgent as object)) assert.equal(loadRunPlan({ db: h.db }, (byAgent as { runId: string }).runId)!.link.origin, "agent:agt_helper");
+  const byAgent = await h
+    .call("automations.run", { automationId: id, payload: { note: "from a stranger" } }, {
+      kind: "agent",
+      id: "agt_helper",
+      actingFor: alice.id,
+    } as never)
+    .catch((e: unknown) => ({ error: e }));
+  if ("runId" in (byAgent as object))
+    assert.equal(loadRunPlan({ db: h.db }, (byAgent as { runId: string }).runId)!.link.origin, "agent:agt_helper");
   else assert.fail(`an agent working for the owner may start it: ${JSON.stringify(byAgent)}`);
 });
 
 test("a step that names a Vault key the saver cannot use is refused, and other steps stay editable", async () => {
   const { harness: mkHarness } = await import("../fixtures/db.ts");
   const seed = await import("../fixtures/seed.ts");
-  const h = mkHarness({ calls: { "vault.items.list": () => ({ items: [{ id: "vit_other", handle: "#Other", yourLevel: "use" }] }) } });
-  const keyed = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://api.acme.example/v1", auth: { kind: "bearer", handle: "#Acme_API.api_key" } })] });
-  await assert.rejects(h.call("automations.create", seed.create({ name: "Keyed", definition: keyed }), seed.alice), /Step 1 uses a key you cannot use/);
-  const computed = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://{{trigger.host}}/v1", auth: { kind: "bearer", handle: "#Other" } })] });
-  await assert.rejects(h.call("automations.create", seed.create({ name: "Computed", definition: computed }), seed.alice), /sends a key to an address filled in when it runs/);
-  const fine = seed.goodDefinition({ nodes: [seed.node("n1", "http_request", { method: "GET", url: "https://api.acme.example/v1", auth: { kind: "bearer", handle: "#Other" } })] });
+  const h = mkHarness({
+    calls: { "vault.items.list": () => ({ items: [{ id: "vit_other", handle: "#Other", yourLevel: "use" }] }) },
+  });
+  const keyed = seed.goodDefinition({
+    nodes: [
+      seed.node("n1", "http_request", {
+        method: "GET",
+        url: "https://api.acme.example/v1",
+        auth: { kind: "bearer", handle: "#Acme_API.api_key" },
+      }),
+    ],
+  });
+  await assert.rejects(
+    h.call("automations.create", seed.create({ name: "Keyed", definition: keyed }), seed.alice),
+    /Step 1 uses a key you cannot use/,
+  );
+  const computed = seed.goodDefinition({
+    nodes: [
+      seed.node("n1", "http_request", {
+        method: "GET",
+        url: "https://{{trigger.host}}/v1",
+        auth: { kind: "bearer", handle: "#Other" },
+      }),
+    ],
+  });
+  await assert.rejects(
+    h.call("automations.create", seed.create({ name: "Computed", definition: computed }), seed.alice),
+    /sends a key to an address filled in when it runs/,
+  );
+  const fine = seed.goodDefinition({
+    nodes: [
+      seed.node("n1", "http_request", {
+        method: "GET",
+        url: "https://api.acme.example/v1",
+        auth: { kind: "bearer", handle: "#Other" },
+      }),
+    ],
+  });
   const made = await h.call("automations.create", seed.create({ name: "Fine", definition: fine }), seed.alice);
   assert.ok(made.automation.id);
 });

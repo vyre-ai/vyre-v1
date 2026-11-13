@@ -41,7 +41,11 @@ function attr(html: string, name: string): string {
 }
 
 function styleMap(html: string): Record<string, string> {
-  const raw = attr(html, "style").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+  const raw = attr(html, "style")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
   const out: Record<string, string> = {};
   for (const part of raw.split(";")) {
     const cut = part.indexOf(":");
@@ -131,7 +135,9 @@ test("perf theme_flash: zero wrong frames, and resolving plus writing the root f
   doc.run(headScript());
   const headMs = performance.now() - t1;
   const median = [...runs].sort((a, b) => a - b)[2] ?? Infinity;
-  console.log(`perf theme_flash wrong_frames=${wrong} apply_median_ms=${median.toFixed(3)} head_script_ms=${headMs.toFixed(3)} ceiling_wrong=${THEME_FLASH_WRONG_FRAMES} ceiling_ms=${THEME_FLASH_APPLY_MS}`);
+  console.log(
+    `perf theme_flash wrong_frames=${wrong} apply_median_ms=${median.toFixed(3)} head_script_ms=${headMs.toFixed(3)} ceiling_wrong=${THEME_FLASH_WRONG_FRAMES} ceiling_ms=${THEME_FLASH_APPLY_MS}`,
+  );
   assert.equal(wrong, THEME_FLASH_WRONG_FRAMES);
   assert.ok(median < THEME_FLASH_APPLY_MS, `apply median ${median}`);
   assert.ok(headMs < THEME_FLASH_APPLY_MS, `head script ${headMs}`);

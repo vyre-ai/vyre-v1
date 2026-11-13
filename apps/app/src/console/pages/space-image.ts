@@ -23,11 +23,16 @@ export function isPicture(f: { name?: string; type?: string; size?: number }): b
 
 /** The words for a file that is not a picture the Space can use. */
 export function notPictureLine(f: { name?: string; type?: string; size?: number }): string {
-  if (f.size !== undefined && f.size > SOURCE_MAX_BYTES) return `${f.name ?? "That file"} is over ${SOURCE_MAX_BYTES / 1024 / 1024} MB. Choose a smaller picture.`;
+  if (f.size !== undefined && f.size > SOURCE_MAX_BYTES)
+    return `${f.name ?? "That file"} is over ${SOURCE_MAX_BYTES / 1024 / 1024} MB. Choose a smaller picture.`;
   return `${f.name ?? "That file"} is not a PNG, JPEG, WebP or GIF picture.`;
 }
 
-export interface Crop { zoom: number; x: number; y: number }
+export interface Crop {
+  zoom: number;
+  x: number;
+  y: number;
+}
 export const FULL: Crop = { zoom: 1, x: 0, y: 0 };
 export const MAX_ZOOM = 4;
 
@@ -38,7 +43,8 @@ export const MAX_ZOOM = 4;
 export function cropSquare(natural: { w: number; h: number }, crop: Crop): { sx: number; sy: number; side: number } {
   const zoom = Math.min(MAX_ZOOM, Math.max(1, crop.zoom));
   const side = Math.min(natural.w, natural.h) / zoom;
-  const cx = natural.w / 2 + crop.x, cy = natural.h / 2 + crop.y;
+  const cx = natural.w / 2 + crop.x,
+    cy = natural.h / 2 + crop.y;
   const sx = Math.min(natural.w - side, Math.max(0, cx - side / 2));
   const sy = Math.min(natural.h - side, Math.max(0, cy - side / 2));
   return { sx, sy, side };
@@ -75,11 +81,23 @@ export type Call = (cap: string, input: unknown) => Promise<unknown>;
  * Upload the square to Shared knowledge/Branding and make it the Space image: files.resolve finds the folder (Files makes it with the Space's other system folders), files.create puts the picture
  * there as the person, and spaces.update makes it the Space image. Answers the new file's id.
  */
-export async function saveSpaceImage(call: Call, square: { mime: string; base64: string }, at: Date, key: string): Promise<string> {
+export async function saveSpaceImage(
+  call: Call,
+  square: { mime: string; base64: string },
+  at: Date,
+  key: string,
+): Promise<string> {
   const folder = (await call("files.resolve", { path: BRANDING_PATH })) as { kind?: string; folderId?: string };
-  if (folder.kind !== "folder" || typeof folder.folderId !== "string") throw new Error("The Branding folder is missing. Open Files once and try again.");
+  if (folder.kind !== "folder" || typeof folder.folderId !== "string")
+    throw new Error("The Branding folder is missing. Open Files once and try again.");
   const ext = square.mime === "image/jpeg" ? "jpg" : "png";
-  const made = (await call("files.create", { folderId: folder.folderId, name: imageName(at, ext), content: { base64: square.base64 }, mime: square.mime, idempotencyKey: `space-image:${key}` })) as { file?: { fileId?: string } };
+  const made = (await call("files.create", {
+    folderId: folder.folderId,
+    name: imageName(at, ext),
+    content: { base64: square.base64 },
+    mime: square.mime,
+    idempotencyKey: `space-image:${key}`,
+  })) as { file?: { fileId?: string } };
   const fileId = made.file?.fileId;
   if (typeof fileId !== "string") throw new Error("The picture did not upload. Try again.");
   await call("spaces.update", { logoFileId: fileId });

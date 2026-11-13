@@ -6,25 +6,69 @@ import http from "node:http";
 import { doorPath, publicPathOk, servePublic } from "../host/src/seams/relay.ts";
 
 test("the door is the named addresses and nothing near them", () => {
-  for (const p of ["/mcp", "/oauth/authorize?client_id=x", "/oauth/token", "/oauth/register", "/oauth/wait", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server"]) {
+  for (const p of [
+    "/mcp",
+    "/oauth/authorize?client_id=x",
+    "/oauth/token",
+    "/oauth/register",
+    "/oauth/wait",
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
+  ]) {
     assert.equal(doorPath(p), true, p);
     assert.equal(publicPathOk(p), true, p);
   }
-  for (const p of ["/mcp/x", "/mcp/../v1/identity/whoami", "/oauth/other", "/oauth/../v1/x", "/.well-known/acme-challenge/x", "/v1/identity/whoami", "/local/daemon/stop", "/sync/hello", "//mcp"]) {
+  for (const p of [
+    "/mcp/x",
+    "/mcp/../v1/identity/whoami",
+    "/oauth/other",
+    "/oauth/../v1/x",
+    "/.well-known/acme-challenge/x",
+    "/v1/identity/whoami",
+    "/local/daemon/stop",
+    "/sync/hello",
+    "//mcp",
+  ]) {
     assert.equal(publicPathOk(p), false, p);
   }
 });
 
 test("Authorization reaches the daemon on /mcp alone, Cookie never, and a visitor cannot name themselves", async (t) => {
   const seen: Array<{ url: string; method: string; headers: http.IncomingHttpHeaders }> = [];
-  const server = http.createServer((req, res) => { seen.push({ url: req.url ?? "", method: req.method ?? "", headers: req.headers }); req.resume(); res.writeHead(200, { "content-type": "application/json" }); res.end("{}"); });
+  const server = http.createServer((req, res) => {
+    seen.push({ url: req.url ?? "", method: req.method ?? "", headers: req.headers });
+    req.resume();
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end("{}");
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   t.after(() => server.close());
   const port = (server.address() as { port: number }).port;
-  const ask = (method: string, path: string): Promise<unknown[]> => new Promise((resolve) => {
-    const out: unknown[] = [];
-    servePublic((m) => { out.push(m); if ((m as { t: string }).t !== "p.res" && (m as { t: string }).t !== "p.data") resolve(out); }, { id: "1", method, path, ip: "203.0.113.5", headers: { authorization: "Bearer vya_x", cookie: "a=b", "x-vyre-visitor": "1.1.1.1", "mcp-session-id": "ses_1" } }, new Uint8Array(0), port);
-  });
+  const ask = (method: string, path: string): Promise<unknown[]> =>
+    new Promise((resolve) => {
+      const out: unknown[] = [];
+      servePublic(
+        (m) => {
+          out.push(m);
+          if ((m as { t: string }).t !== "p.res" && (m as { t: string }).t !== "p.data") resolve(out);
+        },
+        {
+          id: "1",
+          method,
+          path,
+          ip: "203.0.113.5",
+          headers: {
+            authorization: "Bearer vya_x",
+            cookie: "a=b",
+            "x-vyre-visitor": "1.1.1.1",
+            "mcp-session-id": "ses_1",
+          },
+        },
+        new Uint8Array(0),
+        port,
+      );
+    });
   await ask("POST", "/mcp");
   await ask("DELETE", "/mcp");
   await ask("POST", "/oauth/token");

@@ -13,7 +13,10 @@ export const WHATS_NEW_MAX = 6;
 export const WHATS_NEW_LINE_MAX = 140;
 const EM_DASH = String.fromCharCode(0x2014);
 
-export interface WhatsNew { version: string; lines: string[] }
+export interface WhatsNew {
+  version: string;
+  lines: string[];
+}
 
 const isWhatsNewHeading = (l: string): boolean => /^#{1,6}\s+what['’]s new\s*$/i.test(l.trim());
 
@@ -23,7 +26,10 @@ export function splitFragment(text: string): { entries: string[]; whatsNew: stri
   const whatsNew: string[] = [];
   let inWhatsNew = false;
   for (const l of text.split("\n")) {
-    if (/^#{1,6}\s/.test(l)) { inWhatsNew = isWhatsNewHeading(l); continue; }
+    if (/^#{1,6}\s/.test(l)) {
+      inWhatsNew = isWhatsNewHeading(l);
+      continue;
+    }
     if (!l.startsWith("- ")) continue;
     if (inWhatsNew) whatsNew.push(l.slice(2).trim());
     else entries.push(l);
@@ -34,17 +40,24 @@ export function splitFragment(text: string): { entries: string[]; whatsNew: stri
 /** What a What's new line must be: words for a person, short, with no em dash. Returns the problems. */
 export function whatsNewProblems(lines: readonly string[]): string[] {
   const out: string[] = [];
-  if (lines.length > WHATS_NEW_MAX) out.push(`What's new has ${lines.length} lines; keep it to ${WHATS_NEW_MAX} at most`);
+  if (lines.length > WHATS_NEW_MAX)
+    out.push(`What's new has ${lines.length} lines; keep it to ${WHATS_NEW_MAX} at most`);
   for (const l of lines) {
     if (l.includes(EM_DASH)) out.push(`"${l}" has an em dash`);
-    if (l.length > WHATS_NEW_LINE_MAX) out.push(`"${l.slice(0, 40)}..." is longer than ${WHATS_NEW_LINE_MAX} characters`);
+    if (l.length > WHATS_NEW_LINE_MAX)
+      out.push(`"${l.slice(0, 40)}..." is longer than ${WHATS_NEW_LINE_MAX} characters`);
     if (l === "") out.push("a What's new line is empty");
   }
   return out;
 }
 
 function rootVersion(root: string): string {
-  try { const v = (JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version?: unknown }).version; return typeof v === "string" ? v : "0.0.0"; } catch { return "0.0.0"; }
+  try {
+    const v = (JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version?: unknown }).version;
+    return typeof v === "string" ? v : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 export function assemble(root: string, order: (file: string) => number = () => 0): { added: number; whatsNew: number } {
@@ -53,7 +66,9 @@ export function assemble(root: string, order: (file: string) => number = () => 0
   if (files.length === 0) return { added: 0, whatsNew: 0 };
   const sorted = files.map((f) => path.join(dir, f)).sort((a, b) => order(a) - order(b) || a.localeCompare(b));
   const parts = sorted.map((f) => ({ f, ...splitFragment(fs.readFileSync(f, "utf8")) }));
-  for (const p of parts) if (p.entries.length === 0 && p.whatsNew.length === 0) throw new Error(`${p.f} has no "- " line: its entry would be lost`);
+  for (const p of parts)
+    if (p.entries.length === 0 && p.whatsNew.length === 0)
+      throw new Error(`${p.f} has no "- " line: its entry would be lost`);
   const lines = parts.flatMap((p) => p.entries);
   const whatsNew = parts.flatMap((p) => p.whatsNew);
   const problems = whatsNewProblems(whatsNew);
@@ -66,18 +81,34 @@ export function assemble(root: string, order: (file: string) => number = () => 0
   // Every release has its own What's new, empty when no fragment wrote one: last release's lines never show again.
   const wn = path.join(root, WHATS_NEW_FILE);
   fs.mkdirSync(path.dirname(wn), { recursive: true });
-  fs.writeFileSync(wn, `${JSON.stringify({ version: rootVersion(root), lines: whatsNew } satisfies WhatsNew, null, 2)}\n`);
+  fs.writeFileSync(
+    wn,
+    `${JSON.stringify({ version: rootVersion(root), lines: whatsNew } satisfies WhatsNew, null, 2)}\n`,
+  );
   for (const f of sorted) fs.unlinkSync(f);
   return { added: lines.length, whatsNew: whatsNew.length };
 }
 
 function firstCommitTime(root: string, file: string): number {
-  try { return Number(execFileSync("git", ["log", "--diff-filter=A", "--format=%ct", "-1", "--", file], { cwd: root, encoding: "utf8" }).trim()) || 0; } catch { return 0; }
+  try {
+    return (
+      Number(
+        execFileSync("git", ["log", "--diff-filter=A", "--format=%ct", "-1", "--", file], {
+          cwd: root,
+          encoding: "utf8",
+        }).trim(),
+      ) || 0
+    );
+  } catch {
+    return 0;
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const root = process.cwd();
   const { added, whatsNew } = assemble(root, (f) => firstCommitTime(root, f));
-  console.log(`changelog: ${added} entr${added === 1 ? "y" : "ies"} added from changelog.d; What's new has ${whatsNew} line${whatsNew === 1 ? "" : "s"} (${WHATS_NEW_FILE})`);
+  console.log(
+    `changelog: ${added} entr${added === 1 ? "y" : "ies"} added from changelog.d; What's new has ${whatsNew} line${whatsNew === 1 ? "" : "s"} (${WHATS_NEW_FILE})`,
+  );
   if (whatsNew > 0 && whatsNew < 3) console.log("changelog: What's new reads best with 3 to 6 lines");
 }
