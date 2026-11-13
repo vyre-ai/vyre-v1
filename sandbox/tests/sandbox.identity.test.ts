@@ -6,10 +6,11 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { bwrapCommand } from "../src/bwrap.ts";
-import { groupOf, passwdOf } from "../src/identity.ts";
-import { bwrapWallCommand } from "../src/net/bwrap.ts";
-import { ROOTS, spec } from "./helpers.ts";
+process.env["TMPDIR"] = "/tmp";   // the generated files are under the system temp folder: a user other than the server's must be able to pass through it in the real run
+const { bwrapCommand } = await import("../src/bwrap.ts");
+const { groupOf, passwdOf } = await import("../src/identity.ts");
+const { bwrapWallCommand } = await import("../src/net/bwrap.ts");
+const { ROOTS, spec } = await import("./helpers.ts");
 
 const who = { uid: 4242, gid: 4343 };
 const bound = (args: readonly string[], dest: string): string | undefined => { const i = args.findIndex((a, k) => a === dest && args[k - 2] === "--ro-bind-try"); return i < 0 ? undefined : args[i - 1]; };

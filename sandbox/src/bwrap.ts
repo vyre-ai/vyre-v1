@@ -1,7 +1,6 @@
 // The Linux person's sandbox (S8): bubblewrap with the same policy as the Mac's. New namespaces for everything, the system read only, an empty home, the person's folders bound in, all capabilities
 // dropped, and the process dies with its parent. Files are enforced by the kernel. The network is shared with the machine and steered through the egress proxy by variables: that is not a wall,
 // so `enforcement.network` says "proxy-env" and the engine driver may refuse to start where a wall is required. Windows has no native sandbox: its CLI engines run in WSL2 with this same profile.
-import os from "node:os";
 import { proxyEnv } from "./docker.ts";
 import { identityBinds } from "./identity.ts";
 import type { Who } from "./identity.ts";
@@ -35,7 +34,7 @@ export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly str
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   if (o.proxyPort !== undefined) a.push("--share-net");
   for (const p of [...SYSTEM_RO, ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
-  a.push(...identityBinds(checked.scratch ?? os.tmpdir(), o.identity));
+  a.push(...identityBinds(o.identity));
   a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
