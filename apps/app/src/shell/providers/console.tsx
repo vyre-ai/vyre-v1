@@ -185,7 +185,8 @@ export default function ConsolePlace(): ReactElement {
   const data = useMemo<ConsoleData | null>(() => rt && allowed ? consoleData(rt, allowed, (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); }) : null, [rt, allowed]);
   // no door leads here from a Personal Space and the shell sends a stale address Home; if this page is ever shown it follows the theme and has a way back
   if (rt?.space.kind === "personal") return <OutsideShell rt={rt ?? null} testID="console-needs-team"><States kind="empty" title="Needs a Team Space" icon="search" /></OutsideShell>;
-  if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused"><States kind="empty" title="Console is for admins and owners" icon="search" /></OutsideShell>;
+  // the way back is the state's own button, in the middle under the words (K5, 13 Nov 2026: it hung at the bottom edge of the window)
+  if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused" noBack><States kind="empty" title="Console is for admins and owners" icon="search" {...(rt && !onConsoleHost() ? { action: { label: "Back to Vyre", onPress: () => rt.open({ screen: "home.today-starred-ask" }) } } : {})} /></OutsideShell>;
   if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;
   if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
   // console.page opens any page by name, machines~<id> with a machine selected; any other screen opens the page that draws it
@@ -197,11 +198,11 @@ export default function ConsolePlace(): ReactElement {
 }
 
 /** The states of the Console that are not the Console itself keep the theme and a way back to the app. */
-function OutsideShell({ rt, testID, children }: { rt: ShellRuntime | null; testID?: string; children: ReactElement }): ReactElement {
+function OutsideShell({ rt, testID, noBack = false, children }: { rt: ShellRuntime | null; testID?: string; noBack?: boolean; children: ReactElement }): ReactElement {
   return (
     <View {...(testID ? { testID } : {})} style={{ flex: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "center", gap: 12 }}>
       {children}
-      {rt && !onConsoleHost() ? (
+      {rt && !onConsoleHost() && !noBack ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Back to Vyre" testID="console-back-home" onPress={() => rt.open({ screen: "home.today-starred-ask" })} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string }}>
           <Text style={{ color: "var(--ink)" as string, fontSize: 13 }}>Back to Vyre</Text>
         </Pressable>
