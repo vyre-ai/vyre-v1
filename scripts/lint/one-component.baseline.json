@@ -146,13 +146,13 @@
     "declared": 1
   },
   "apps/app/src/places/files/mounts/parts.tsx": {
-    "declared": 4
+    "declared": 2
   },
   "apps/app/src/places/files/review/DiffPanels.tsx": {
     "declared": 1
   },
   "apps/app/src/places/files/review/parts.tsx": {
-    "declared": 3
+    "declared": 2
   },
   "apps/app/src/places/files/tree/data.tsx": {
     "read-hook": 1
