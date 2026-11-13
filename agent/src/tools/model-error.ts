@@ -29,7 +29,7 @@ const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
   },
   "permission.above_clearance": {
     what: "That is restricted beyond what I am cleared to open.",
-    next: "Only an admin can change what I may open. Say so and stop; do not look for another way.",
+    next: "This is an item only people may open, and I cannot be given it. Say so, tell the person what they can do instead (open it themselves), and stop; do not suggest a request for access.",
   },
   "permission.no_grant": {
     what: "I do not have access to that.",

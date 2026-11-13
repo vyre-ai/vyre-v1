@@ -60,7 +60,8 @@ for (const [family, code] of FAMILIES) {
 test("what the agent is told when its own clearance is short names the agent, not the person, and says to stop", () => {
   const e = modelError({ code: "permission.above_clearance", message: "", traceId: "t" } as never);
   assert.match(e.say, /I am cleared to open/);
-  assert.match(e.say, /Only an admin can change/);
+  assert.match(e.say, /only people may open, and I cannot be given it/);
+  assert.doesNotMatch(e.say, /Ask for access|grant me/i);
   const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
   assert.match(r.say, /I am not allowed to do that here/);
 });
@@ -87,7 +88,7 @@ test("the error envelope an agent receives, as one snapshot", () => {
     JSON.stringify(e, null, 1),
     JSON.stringify(
       {
-        say: "That item is above your clearance. Only an admin can change what I may open. Say so and stop; do not look for another way.",
+        say: "That item is above your clearance. This is an item only people may open, and I cannot be given it. Say so, tell the person what they can do instead (open it themselves), and stop; do not suggest a request for access.",
         reply: REPLY_RULE,
         message: "That item is above your clearance.",
         details: { reason: "above_clearance", tool: "vault_use" },
