@@ -4,3 +4,4 @@
 - Nothing a person sees changes: lists that load page by page, and changes that show at once and undo themselves if they fail, now have one shared way to do it.
 - The on/off switches in Automations, Files and the share sheet now match the Settings switch in size and look, and answer Space and Enter.
 - Nothing a person sees changes: Settings shares its switch with the rest of the app, and the text boxes of Settings, the Console and other places now share one name for the check that stops a second copy.
+- Nothing a person sees changes: the check that stops a second copy of a shared piece now runs in CI and also catches copies hidden in memo, classes, aliases and other spellings of Load more.
