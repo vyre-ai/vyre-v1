@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { LiveFolders } from "./LiveFolders.tsx";
-import { liveRow, needsReconnect, orderRows, summaryLine, whoWords } from "./model.ts";
+import { liveRow, needsReconnect, orderRows, skippedWords, summaryLine, whoWords } from "./model.ts";
 import type { MountRow, Share } from "./model.ts";
 
 installDom();
@@ -142,12 +142,9 @@ test("items a pass could not bring in are a quiet line, never a failing mount; t
   const row = liveRow(m({ skippedCount: 2, skipped }), null, NOW);
   assert.equal(row.tone, "ok", "not red");
   assert.equal(row.state, "Live");
-  assert.match(row.detail, /2 items could not be shown/);
-  assert.match(
-    liveRow(m({ skippedCount: 1, skipped: skipped.slice(0, 1) }), null, NOW).detail,
-    /1 item could not be shown/,
-  );
-  assert.doesNotMatch(liveRow(m({}), null, NOW).detail, /could not be shown/);
+  assert.equal(row.skipped.length, 2);
+  assert.equal(skippedWords(1), "1 item could not be shown");
+  assert.equal(liveRow(m({}), null, NOW).skipped.length, 0);
   const root = await mount(
     createRoot,
     <LiveFolders

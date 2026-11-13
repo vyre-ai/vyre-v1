@@ -103,8 +103,6 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
     actions = m.kind === "local" ? ["pause", "open"] : ["sync", "pause", "open"];
   }
   const skipped = m.skipped ?? [];
-  const skippedCount = m.skippedCount ?? skipped.length;
-  if (skippedCount > 0) bits.push(skippedWords(skippedCount));
   if (behind) bits.unshift(behind);
   return {
     mountId: m.mountId,

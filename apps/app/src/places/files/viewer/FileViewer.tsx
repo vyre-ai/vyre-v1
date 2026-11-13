@@ -199,13 +199,19 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     );
   if (load.status === "failed")
     return (
-      <View testID="file-viewer-failed" style={s.frame} accessibilityLabel={`Could not get this from ${load.from}`}>
-        <States
-          kind="empty"
-          title={`Could not get this from ${load.from} just now`}
-          icon="offline"
-          action={{ label: "Try again", onPress: () => setAttempt((n) => n + 1) }}
-        />
+      <View
+        testID="file-viewer-failed"
+        style={[s.frame, s.failedFrame]}
+        accessibilityLabel={`Could not get this from ${load.from}`}
+      >
+        <View style={s.failedBox}>
+          <States
+            kind="empty"
+            title={`Could not get this from ${load.from} just now`}
+            icon="offline"
+            action={{ label: "Try again", onPress: () => setAttempt((n) => n + 1) }}
+          />
+        </View>
         {link && d.openUrl ? (
           <Pressable
             accessibilityRole="link"
@@ -520,7 +526,9 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: "var(--ink-3)" as string,
   },
-  failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -40 },
+  failedFrame: { alignItems: "center", justifyContent: "center" },
+  failedBox: { height: 190, width: "100%" },
+  failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -6 },
   failedOpenText: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "600" },
   note: {
     position: "absolute",
