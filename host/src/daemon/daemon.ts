@@ -1004,7 +1004,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return {
       key: "host.artifact_host",
       state: "degraded",
-      detail: `Artifact pages are served from the Space's own address. To isolate them, add this DNS record: ${host} pointing at this server.`,
+      detail: `Artifact pages cannot open yet: ${host} does not reach this server. Add this DNS record: ${host} pointing at this server.`,
       next: `Add the record, then wait a minute: this server checks ${host} again by itself and the pages open there once it answers.`,
     };
   };

@@ -165,7 +165,7 @@ test(
       assert.equal(f?.state, "degraded");
       assert.equal(
         f?.detail,
-        `Artifact pages are served from the Space's own address. To isolate them, add this DNS record: ${ART} pointing at this server.`,
+        `Artifact pages cannot open yet: ${ART} does not reach this server. Add this DNS record: ${ART} pointing at this server.`,
       );
       assert.ok(f?.next);
       // a name that answers as some other server is not this Space's host either
