@@ -12,7 +12,7 @@ const hit = (kind: Hit["kind"], id: string, title: string, o: Partial<Hit> = {})
 const shown = (hits: readonly Hit[]): Hit[] => groupRows(hits, 50).flatMap((r) => (r.type === "hit" ? [r.hit] : []));
 const labels = (hits: readonly Hit[]): string[] => hits.map((h) => `${h.kind}:${h.title}`);
 
-test("a task's own chat (its worker thread, found by id) is one row with the task; a chat that only shares the name stays", () => {
+test("a task's own chat (its own thread, found by id) is one row with the task; a chat that only shares the name stays", () => {
   const rt2 = { screens: { query: () => ({ getSnapshot: () => ({ status: "ready", data: { channels: [] } }) }) } } as unknown as ShellRuntime;
   const marked = linkedTo(rt2, [hit("chat", "thr_work0001", "Book the launch venue"), hit("chat", "thr_other001", "Book the launch venue"), hit("task", "tsk_bbbbbbbb01", "Book the launch venue")], new Map([["thr_work0001", "task:tsk_bbbbbbbb01"]]));
   assert.deepEqual(labels(shown(marked)).sort(), ["chat:Book the launch venue", "task:Book the launch venue"], "the own chat went, the same-name chat and the task stayed");

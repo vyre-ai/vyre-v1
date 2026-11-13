@@ -93,7 +93,7 @@ export function linkedTo(rt: ShellRuntime, hits: readonly Hit[], taskChats: Read
   const list = snap.status === "ready" ? ((snap.data as { channels?: { channelId: string; mainThreadId?: string; recordId?: string }[] }).channels ?? []) : [];
   const of = new Map<string, string>();
   for (const c of list) if (c.recordId !== undefined) { of.set(c.channelId, `record:${c.recordId}`); if (c.mainThreadId) of.set(c.mainThreadId, `record:${c.recordId}`); }
-  // a task's own chat is its worker thread (tasks.get workerThread): that chat is the task, found by id; a chat that only shares the task's name carries no mark
+  // a task's own chat is its own thread (tasks.get threadId, and workerThread when a worker has one; the thread it was created from is task.source, not these): that chat is the task, found by id; a chat that only shares the task's name carries no mark
   return hits.map((h) => (h.kind === "channel" && of.has(h.id) ? ({ ...h, of: of.get(h.id) } as Hit) : h.kind === "chat" && taskChats.has(h.id) ? ({ ...h, of: taskChats.get(h.id) } as Hit) : h));
 }
 
@@ -180,7 +180,7 @@ export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { 
 
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
-  /** worker thread id -> `task:<id>`, learned from the tasks a search returned (tasks.get), so the task's own chat is one row with the task. */
+  /** the task's own thread ids -> `task:<id>`, learned from the tasks a search returned (tasks.get), so the task's own chat is one row with the task. */
   const taskChats = new Map<string, string>();
   const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state, d.console?.());
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
@@ -199,7 +199,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     local: (text, types) => byTitleFirst(mine(linkedTo(rt, [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))), taskChats)), text),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
-      await Promise.all(out.hits.filter((h) => h.kind === "task").slice(0, 8).map((h) => Promise.resolve(rt.call("tasks.get", { taskId: h.id })).then((r) => { const w = (r as { task?: { workerThread?: string } }).task?.workerThread; if (w) taskChats.set(w, `task:${h.id}`); }).catch(() => undefined)));
+      await Promise.all(out.hits.filter((h) => h.kind === "task").slice(0, 8).map((h) => Promise.resolve(rt.call("tasks.get", { taskId: h.id })).then((r) => { const t = (r as { task?: { workerThread?: string; threadId?: string } }).task; for (const th of [t?.workerThread, t?.threadId]) if (th) taskChats.set(th, `task:${h.id}`); }).catch(() => undefined)));
       return mine(linkedTo(rt, out.hits, taskChats));
     },
     recent: () => mine(d.recent()),
