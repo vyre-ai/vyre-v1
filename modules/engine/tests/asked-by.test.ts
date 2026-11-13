@@ -109,3 +109,13 @@ test("known gap: a call from a cancelled wake turn reads the owner's interrupt t
   h.ctx.db.run("UPDATE engine_thread_queue SET state = 'running' WHERE qseq = ?", qseq);
   assert.equal(H["engine.turn.asked_by"](agentCtx(h), {}).askedBy?.person, PERSON, "the gap: the cancelled turn's late call counts as asked");
 });
+
+test("a database from rc.26 (every engine table, no typed-message table) is brought up by ensure() without a duplicate-column error", () => {
+  const h = harness();
+  ensure(h.ctx.db);
+  h.ctx.db.run("DROP TABLE engine_typed_message");
+  // a second handle onto the same file: ensure() probes again, finds the new table missing and runs the whole list, whose ALTERs (0010, 0014) have already been applied
+  const again = { ...h.ctx.db } as typeof h.ctx.db;
+  assert.doesNotThrow(() => ensure(again));
+  assert.deepEqual(h.rows("SELECT message_id FROM engine_typed_message"), [], "the table is back");
+});

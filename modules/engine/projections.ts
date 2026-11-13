@@ -124,7 +124,8 @@ export function ensure(db: Db): void {
     db.all("SELECT stop_reason FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT message_id FROM engine_typed_message WHERE thread_id = ?", "probe");
   } catch {
-    for (const stmt of SCHEMA) db.run(stmt);
+    // a database that has most of the tables (an older build) runs the whole list again: an ALTER that was already applied says "duplicate column" and is not a failure
+    for (const stmt of SCHEMA) { try { db.run(stmt); } catch (e) { if (!/duplicate column/i.test(e instanceof Error ? e.message : String(e))) throw e; } }
   }
   ready.add(db);
 }
