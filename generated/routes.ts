@@ -976,7 +976,7 @@ const routes0: Route[] = [
     "module": "access",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },

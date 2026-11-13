@@ -49,7 +49,7 @@ Capabilities:
 - access.policies.set (write, policy.manage, level view)
 - access.principals.effective (read, access.manage, level view)
 - access.principals.get (read, grant only, level view)
-- access.principals.list (read, grant only, level view)
+- access.principals.list (read, grant only, level member)
 - access.projection_health (read, grant only, level view)
 - access.propose_change (write, grant only, level view)
 - access.provider_check (read, grant only, level view)
