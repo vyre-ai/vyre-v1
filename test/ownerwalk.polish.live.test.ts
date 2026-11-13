@@ -13,10 +13,20 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
   const w = await bootWalk(t, "polish");
   if (!w) return;
   const { page } = w;
-  const tabs = async (): Promise<string[]> => (await page.getByTestId("tab-strip").innerText()).split("\n").map((x) => x.trim()).filter((x) => x !== "" && x !== "×");
+  const tabs = async (): Promise<string[]> =>
+    (await page.getByTestId("tab-strip").innerText())
+      .split("\n")
+      .map((x) => x.trim())
+      .filter((x) => x !== "" && x !== "×");
   try {
     await connectAi(w);
-    const dex = (await w.api("agents.create", { name: "Dex", role: "You help the team plan and ship launches.", idempotencyKey: "pw-dex" })).data.agent.agentId as string;
+    const dex = (
+      await w.api("agents.create", {
+        name: "Dex",
+        role: "You help the team plan and ship launches.",
+        idempotencyKey: "pw-dex",
+      })
+    ).data.agent.agentId as string;
 
     await w.step("1 Your Profile opens in the Settings tab already open", async () => {
       await w.go("settings", "settings-place");
@@ -37,27 +47,54 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await page.getByText("Join a Space", { exact: true }).waitFor({ timeout: 15_000 });
       await page.keyboard.press("Escape");
       const back = page.getByRole("button", { name: /back/i }).first();
-      if (await page.getByText("Join a Space", { exact: true }).count() && await back.count()) await back.click();
+      if ((await page.getByText("Join a Space", { exact: true }).count()) && (await back.count())) await back.click();
       await page.getByTestId("shell").waitFor({ timeout: 15_000 });
       await page.waitForTimeout(800);
-      assert.equal(await page.getByText("Add a server", { exact: true }).count(), 0, "no Add a server dialog was opened behind it");
+      assert.equal(
+        await page.getByText("Add a server", { exact: true }).count(),
+        0,
+        "no Add a server dialog was opened behind it",
+      );
       assert.equal(await page.getByTestId("settings-place").count(), 0, "Settings was not opened behind it");
       await w.shot("add-a-space-closed", { widths: [1280] });
     });
 
     await w.step("3 the composer of a finished chat says Message, not Steer", async () => {
       await w.go("chat", "chats-place");
-      const c = composer(page); await c.waitFor({ timeout: 15_000 });
+      const c = composer(page);
+      await c.waitFor({ timeout: 15_000 });
       await c.fill("LONG plan for the launch week");
       await c.press("Enter");
       // the conversation's field is made while the reply is still being written: it says Steer then
       await page.getByTestId("stop-button").waitFor({ timeout: 20_000 });
-      await page.waitForFunction(() => /^Steer /.test(document.querySelector('[data-testid="conversation"] ~ * [data-testid="composer-field"], [data-testid="composer-field"]')?.getAttribute("data-placeholder") ?? ""), null, { timeout: 15_000 });
+      await page.waitForFunction(
+        () =>
+          /^Steer /.test(
+            document
+              .querySelector(
+                '[data-testid="conversation"] ~ * [data-testid="composer-field"], [data-testid="composer-field"]',
+              )
+              ?.getAttribute("data-placeholder") ?? "",
+          ),
+        null,
+        { timeout: 15_000 },
+      );
       await page.getByTestId("stop-button").click();
       await page.getByTestId("stop-button").waitFor({ state: "detached", timeout: 30_000 });
       const field = page.locator('[data-testid="composer-field"]').first();
-      await page.waitForFunction(() => document.querySelector('[data-testid="composer-field"]')?.getAttribute("data-placeholder") === "Message Assistant…", null, { timeout: 15_000 })
-        .catch(async () => { throw new Error(`the empty composer of a finished chat says "${await field.getAttribute("data-placeholder")}"`); });
+      await page
+        .waitForFunction(
+          () =>
+            document.querySelector('[data-testid="composer-field"]')?.getAttribute("data-placeholder") ===
+            "Message Assistant…",
+          null,
+          { timeout: 15_000 },
+        )
+        .catch(async () => {
+          throw new Error(
+            `the empty composer of a finished chat says "${await field.getAttribute("data-placeholder")}"`,
+          );
+        });
       // said once, under the reply: the composer does not say it again
       await page.waitForTimeout(800);
       const said = ((await page.locator("body").innerText()).match(/The steps so far are kept/g) ?? []).length;
@@ -96,18 +133,32 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await w.shot("new-project-row", { widths: [1280] });
       await row.fill("Spring launch");
       await row.press("Enter");
-      await page.getByTestId("project-page").or(page.getByText("Spring launch", { exact: true })).first().waitFor({ timeout: 20_000 });
+      await page
+        .getByTestId("project-page")
+        .or(page.getByText("Spring launch", { exact: true }))
+        .first()
+        .waitFor({ timeout: 20_000 });
       const made = (await w.api("projects.list", {})).data;
       assert.ok(JSON.stringify(made).includes("Spring launch"), "a real project was made");
       await page.waitForTimeout(1500);
-      assert.deepEqual(w.notes.slice(seen).filter((n) => /\/v1\/records\/get/.test(n)), [], "the new project opens as a project, never read as another type's record");
+      assert.deepEqual(
+        w.notes.slice(seen).filter((n) => /\/v1\/records\/get/.test(n)),
+        [],
+        "the new project opens as a project, never read as another type's record",
+      );
       // the request is spent: the sidebar can switch to Contacts, and a reload starts no second row (review O2)
       await w.go("records", "records-place");
       await page.getByText("Contacts", { exact: true }).first().click({ timeout: 15_000 });
       await page.getByText("No contacts yet.").first().waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("records-adding-input").count(), 0, "no new row on Contacts");
-      await page.reload({ waitUntil: "load" }); await page.getByTestId("records-place").waitFor({ timeout: 25_000 }); await page.waitForTimeout(1500);
-      assert.equal(await page.getByTestId("records-adding-input").count(), 0, "a reload starts no second New project row");
+      await page.reload({ waitUntil: "load" });
+      await page.getByTestId("records-place").waitFor({ timeout: 25_000 });
+      await page.waitForTimeout(1500);
+      assert.equal(
+        await page.getByTestId("records-adding-input").count(),
+        0,
+        "a reload starts no second New project row",
+      );
       // the phone: the same request opens Projects with a name row (review O3)
       await page.setViewportSize({ width: 390, height: 844 });
       const phoneRow = page.getByTestId("records-adding-input");
@@ -116,12 +167,19 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
         await page.getByTestId("mobile-shell").waitFor({ timeout: 25_000 });
         await page.getByTestId("new-project").first().click({ timeout: 15_000 });
         await phoneRow.waitFor({ timeout: 25_000 });
-      } catch (e) { await page.setViewportSize({ width: 1280, height: 860 }); throw e; }
+      } catch (e) {
+        await page.setViewportSize({ width: 1280, height: 860 });
+        throw e;
+      }
       await w.shot("new-project-phone", { widths: [390] });
-      await phoneRow.fill("Phone launch"); await phoneRow.press("Enter");
+      await phoneRow.fill("Phone launch");
+      await phoneRow.press("Enter");
       await page.setViewportSize({ width: 1280, height: 860 });
       let names = "";
-      for (let i = 0; i < 20 && !names.includes("Phone launch"); i++) { names = JSON.stringify((await w.api("projects.list", {})).data); if (!names.includes("Phone launch")) await page.waitForTimeout(500); }
+      for (let i = 0; i < 20 && !names.includes("Phone launch"); i++) {
+        names = JSON.stringify((await w.api("projects.list", {})).data);
+        if (!names.includes("Phone launch")) await page.waitForTimeout(500);
+      }
       assert.ok(names.includes("Phone launch"), "a project made at the phone width");
     });
 
@@ -135,33 +193,57 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await w.shot("space-settings-console", { widths: [1280] });
     });
 
-    await w.step("8 Console Home says who joined in plain words, and the audit log has one view per visit", async () => {
-      await w.join("Maya", "Lin", "maya");
-      await page.goto(`${w.web.origin}/console`, { waitUntil: "load" });
-      await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await page.getByTestId("row-nav-overview").click();
-      await page.getByText(/Maya Lin joined the Space from an invite/).first().waitFor({ timeout: 20_000 });
-      const home = await page.locator("body").innerText();
-      for (const bad of ["create account of an invite", "An outside agent accepted", "created an invite of", "group member in access settings"]) assert.ok(!home.includes(bad), `Home says "${bad}"`);
-      await w.shot("console-home-activity", { widths: [1280] });
-      for (let i = 0; i < 3; i++) { await page.reload({ waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 }); await page.waitForTimeout(800); }
-      const rows = (await w.api("audit.list", { action: "audit.viewed", limit: 50 })).data.rows as unknown[];
-      assert.ok(rows.length <= 1, `a visit wrote ${rows.length} "opened the audit log" rows`);
-    });
+    await w.step(
+      "8 Console Home says who joined in plain words, and the audit log has one view per visit",
+      async () => {
+        await w.join("Maya", "Lin", "maya");
+        await page.goto(`${w.web.origin}/console`, { waitUntil: "load" });
+        await page.getByTestId("console").waitFor({ timeout: 30_000 });
+        await page.getByTestId("row-nav-overview").click();
+        await page
+          .getByText(/Maya Lin joined the Space from an invite/)
+          .first()
+          .waitFor({ timeout: 20_000 });
+        const home = await page.locator("body").innerText();
+        for (const bad of [
+          "create account of an invite",
+          "An outside agent accepted",
+          "created an invite of",
+          "group member in access settings",
+        ])
+          assert.ok(!home.includes(bad), `Home says "${bad}"`);
+        await w.shot("console-home-activity", { widths: [1280] });
+        for (let i = 0; i < 3; i++) {
+          await page.reload({ waitUntil: "load" });
+          await page.getByTestId("console").waitFor({ timeout: 30_000 });
+          await page.waitForTimeout(800);
+        }
+        const rows = (await w.api("audit.list", { action: "audit.viewed", limit: 50 })).data.rows as unknown[];
+        assert.ok(rows.length <= 1, `a visit wrote ${rows.length} "opened the audit log" rows`);
+      },
+    );
 
     await w.step("6 the Computer pane: Browser sits under its label", async () => {
-      const thread = (await w.api("chat.start", { kind: "chat", agentIds: [dex], title: "Desk work", idempotencyKey: "pw-thread" })).data.thread.threadId as string;
+      const thread = (
+        await w.api("chat.start", { kind: "chat", agentIds: [dex], title: "Desk work", idempotencyKey: "pw-thread" })
+      ).data.thread.threadId as string;
       await page.goto(`${w.web.origin}/chat#subject=thread:${thread}`, { waitUntil: "load" });
       await page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
-      if (await page.getByTestId("pane-agent").count() === 0) await page.getByTestId("pane-button").click();
+      if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
       await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await page.getByTestId("tab-computer").click();
       const label = page.getByTestId("label-l-browser");
       await label.waitFor({ timeout: 20_000 });
-      const next = page.getByTestId("browser-note").or(page.getByTestId("browser-take")).or(page.getByTestId("browser-none")).or(page.getByTestId("browser-open")).first();
+      const next = page
+        .getByTestId("browser-note")
+        .or(page.getByTestId("browser-take"))
+        .or(page.getByTestId("browser-none"))
+        .or(page.getByTestId("browser-open"))
+        .first();
       await next.waitFor({ timeout: 20_000 });
       await page.waitForTimeout(1500);
-      const a = (await label.boundingBox())!, b = (await next.boundingBox())!;
+      const a = (await label.boundingBox())!,
+        b = (await next.boundingBox())!;
       const gap = b.y - (a.y + a.height);
       assert.ok(gap >= 0 && gap < 80, `the Browser card starts ${Math.round(gap)} px under its label`);
       await w.shot("computer-pane", { widths: [1280] });

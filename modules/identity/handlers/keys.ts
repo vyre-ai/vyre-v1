@@ -1,11 +1,37 @@
-import {assertNewMemberPolicy,assertSignInPolicy} from "../policy.ts";
+import { assertNewMemberPolicy, assertSignInPolicy } from "../policy.ts";
 // Wrapped key storage, password change, recovery and admin reset (spec 3.13, 2.25). The server holds ciphertext only: it checks that a bundle is base64 and stores it,
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import { spendRecoveryProof } from "./recovery.ts";
 import {
-  MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  currentSessionId, revokeSessions, setKeys, sha, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
+  MIN_SECRET,
+  RESET_TTL_MS,
+  USERNAME,
+  nid,
+  provisionAccount,
+  randomBytes,
+  validBundle,
+  accountById,
+  accountByName,
+  bundleOf,
+  burnVerify,
+  checkVerifier,
+  issueSession,
+  lockedFor,
+  makeVerifier,
+  me,
+  mustAccount,
+  noteFail,
+  raise,
+  currentSessionId,
+  revokeSessions,
+  setKeys,
+  sha,
+  peekCode,
+  spendCode,
+  putCode,
+  clearFails,
+  LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -21,21 +47,55 @@ export async function keysGet(ctx: IdentityCtx, _input: Record<string, never>) {
 export async function keysPut(ctx: IdentityCtx, input: { keys: KeyBundle; reason: Reason }) {
   const a = me(ctx);
   const have = bundleOf(a);
-  if (input.reason === "first_device" && have) raise(ctx.trace.traceId, "validation.precondition_failed", "keys are already stored; use new_device or a password change");
-  if (input.reason !== "first_device" && !have) raise(ctx.trace.traceId, "validation.precondition_failed", "no keys are stored yet; use first_device");
-  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
-  const epochs=input.keys.spaceKeys.map(key=>key.epoch);
-  if(new Set(epochs).size!==epochs.length)raise(ctx.trace.traceId,"validation.bad_input","Each Space key epoch must occur once.");
-  if(have){
-    if(["password_change","recovery","reset"].includes(input.reason))raise(ctx.trace.traceId,"validation.precondition_failed","Use the verified password change, recovery or administrator reset flow.");
-    if(input.keys.personKeyByPassword!==have.personKeyByPassword||input.keys.personKeyByRecovery!==have.personKeyByRecovery||input.keys.publicKey!==have.publicKey||input.keys.privateKeyWrapped!==have.privateKeyWrapped||input.keys.formerKey!==have.formerKey)raise(ctx.trace.traceId,"permission.no_grant","A device session cannot replace existing account identity keys.");
-    if(have.spaceKeys.some(old=>!input.keys.spaceKeys.some(next=>next.epoch===old.epoch&&next.wrapped===old.wrapped)))raise(ctx.trace.traceId,"validation.version_conflict","Existing Space key epochs must remain unchanged.");
-    if(input.reason!=="space_key_epoch"&&(input.keys.spaceKeys.length!==have.spaceKeys.length))raise(ctx.trace.traceId,"validation.precondition_failed","Add a new Space key epoch through its dedicated key update reason.");
+  if (input.reason === "first_device" && have)
+    raise(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "keys are already stored; use new_device or a password change",
+    );
+  if (input.reason !== "first_device" && !have)
+    raise(ctx.trace.traceId, "validation.precondition_failed", "no keys are stored yet; use first_device");
+  if (!validBundle(input.keys)) raise(ctx.trace.traceId, "validation.bad_input", "keys must be base64 ciphertext");
+  const epochs = input.keys.spaceKeys.map((key) => key.epoch);
+  if (new Set(epochs).size !== epochs.length)
+    raise(ctx.trace.traceId, "validation.bad_input", "Each Space key epoch must occur once.");
+  if (have) {
+    if (["password_change", "recovery", "reset"].includes(input.reason))
+      raise(
+        ctx.trace.traceId,
+        "validation.precondition_failed",
+        "Use the verified password change, recovery or administrator reset flow.",
+      );
+    if (
+      input.keys.personKeyByPassword !== have.personKeyByPassword ||
+      input.keys.personKeyByRecovery !== have.personKeyByRecovery ||
+      input.keys.publicKey !== have.publicKey ||
+      input.keys.privateKeyWrapped !== have.privateKeyWrapped ||
+      input.keys.formerKey !== have.formerKey
+    )
+      raise(
+        ctx.trace.traceId,
+        "permission.no_grant",
+        "A device session cannot replace existing account identity keys.",
+      );
+    if (
+      have.spaceKeys.some(
+        (old) => !input.keys.spaceKeys.some((next) => next.epoch === old.epoch && next.wrapped === old.wrapped),
+      )
+    )
+      raise(ctx.trace.traceId, "validation.version_conflict", "Existing Space key epochs must remain unchanged.");
+    if (input.reason !== "space_key_epoch" && input.keys.spaceKeys.length !== have.spaceKeys.length)
+      raise(
+        ctx.trace.traceId,
+        "validation.precondition_failed",
+        "Add a new Space key epoch through its dedicated key update reason.",
+      );
   }
   // a Space key epoch only moves forward
   if (have && input.reason === "space_key_epoch") {
     const top = (k: KeyBundle) => k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0);
-    if (top(input.keys) < top(have)) raise(ctx.trace.traceId, "validation.version_conflict", "the Space key epoch cannot go back");
+    if (top(input.keys) < top(have))
+      raise(ctx.trace.traceId, "validation.version_conflict", "the Space key epoch cannot go back");
   }
   setKeys(ctx, a.person_id, input.keys, input.reason);
   return ok;
@@ -45,7 +105,10 @@ function checkNewSecret(ctx: IdentityCtx, secret: string): void {
   if (secret.length < MIN_SECRET) raise(ctx.trace.traceId, "validation.bad_input", "the new password is too short");
 }
 
-export async function changePassword(ctx: IdentityCtx, input: { currentPassword: string; newPassword: string; keys: KeyBundle }) {
+export async function changePassword(
+  ctx: IdentityCtx,
+  input: { currentPassword: string; newPassword: string; keys: KeyBundle },
+) {
   const a = me(ctx);
   if (lockedFor(a, ctx.now()) > 0) raise(ctx.trace.traceId, "auth.bad_credentials");
   if (!(await checkVerifier(input.currentPassword, a.verifier))) {
@@ -55,7 +118,11 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
   checkNewSecret(ctx, input.newPassword);
   const verifier = await makeVerifier(input.newPassword);
   ctx.db.run(`UPDATE identity_accounts SET verifier = ? WHERE person_id = ?`, verifier, a.person_id);
-  ctx.db.run(`INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`, a.person_id, ctx.now());
+  ctx.db.run(
+    `INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`,
+    a.person_id,
+    ctx.now(),
+  );
   setKeys(ctx, a.person_id, input.keys, "password_change");
   revokeSessions(ctx, a.person_id, currentSessionId(ctx, a.person_id));
   ctx.emit("password.changed", a.person_id, { personId: a.person_id });
@@ -69,31 +136,68 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
  * different key pair), takes the username and password, stores the bundle, ends every session of the person (their key leaves this server's memory and its wrap is dropped) and opens
  * one for this device. The person id, their role, groups and data do not change.
  */
-export async function linkAccount(ctx: IdentityCtx, input: Device & { currentPassword?: string; recoveryProof?: string; username: string; password: string; keys: KeyBundle }): Promise<SignInOut> {
+export async function linkAccount(
+  ctx: IdentityCtx,
+  input: Device & {
+    currentPassword?: string;
+    recoveryProof?: string;
+    username: string;
+    password: string;
+    keys: KeyBundle;
+  },
+): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   const a = me(ctx);
-  if (lockedFor(a, ctx.now()) > 0) { noteFail(ctx, a, a.username, "locked"); raise(tid, "auth.bad_credentials"); }
+  if (lockedFor(a, ctx.now()) > 0) {
+    noteFail(ctx, a, a.username, "locked");
+    raise(tid, "auth.bad_credentials");
+  }
   const have = bundleOf(a);
   if (!have) raise(tid, "validation.precondition_failed", "no keys are stored here yet");
   if (typeof input.currentPassword === "string") {
-    if (!(await checkVerifier(input.currentPassword, a.verifier))) { noteFail(ctx, a, a.username, "bad_credentials"); raise(tid, "auth.bad_credentials"); }
+    if (!(await checkVerifier(input.currentPassword, a.verifier))) {
+      noteFail(ctx, a, a.username, "bad_credentials");
+      raise(tid, "auth.bad_credentials");
+    }
   } else if (typeof input.recoveryProof === "string") spendRecoveryProof(ctx, a, have, input.recoveryProof);
-  else { await burnVerify(input.password); raise(tid, "auth.bad_credentials"); }
+  else {
+    await burnVerify(input.password);
+    raise(tid, "auth.bad_credentials");
+  }
   const username = input.username.trim().toLowerCase();
-  if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+  if (!USERNAME.test(username))
+    raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
   const holder = accountByName(ctx, username);
-  if (holder && holder.person_id !== a.person_id) raise(tid, "validation.duplicate", "that username is taken in this Space");
+  if (holder && holder.person_id !== a.person_id)
+    raise(tid, "validation.duplicate", "that username is taken in this Space");
   checkNewSecret(ctx, input.password);
-  if (!validBundle(input.keys) || !input.keys.formerKey) raise(tid, "validation.bad_input", "a linked bundle carries the key this Space's data is under");
-  if (input.keys.publicKey === have.publicKey) raise(tid, "validation.precondition_failed", "these are already one account");
-  const epochs = (k: KeyBundle): string => k.spaceKeys.map((s) => s.epoch).sort((x, y) => x - y).join(",");
-  if (epochs(input.keys) !== epochs(have)) raise(tid, "validation.version_conflict", "every Space key epoch here must be sealed again, and no other");
+  if (!validBundle(input.keys) || !input.keys.formerKey)
+    raise(tid, "validation.bad_input", "a linked bundle carries the key this Space's data is under");
+  if (input.keys.publicKey === have.publicKey)
+    raise(tid, "validation.precondition_failed", "these are already one account");
+  const epochs = (k: KeyBundle): string =>
+    k.spaceKeys
+      .map((s) => s.epoch)
+      .sort((x, y) => x - y)
+      .join(",");
+  if (epochs(input.keys) !== epochs(have))
+    raise(tid, "validation.version_conflict", "every Space key epoch here must be sealed again, and no other");
   const verifier = await makeVerifier(input.password);
   // nothing about the account may have moved while the verifier was made
   const now = mustAccount(ctx, a.person_id);
-  if (now.keys_json !== a.keys_json || now.verifier !== a.verifier || now.username !== a.username) raise(tid, "validation.version_conflict", "the account changed; try again");
-  ctx.db.run(`UPDATE identity_accounts SET username = ?, verifier = ?, fails = 0, locked_until = 0 WHERE person_id = ?`, username, verifier, a.person_id);
-  ctx.db.run(`INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`, a.person_id, ctx.now());
+  if (now.keys_json !== a.keys_json || now.verifier !== a.verifier || now.username !== a.username)
+    raise(tid, "validation.version_conflict", "the account changed; try again");
+  ctx.db.run(
+    `UPDATE identity_accounts SET username = ?, verifier = ?, fails = 0, locked_until = 0 WHERE person_id = ?`,
+    username,
+    verifier,
+    a.person_id,
+  );
+  ctx.db.run(
+    `INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`,
+    a.person_id,
+    ctx.now(),
+  );
   setKeys(ctx, a.person_id, input.keys, "link");
   revokeSessions(ctx, a.person_id);
   ctx.emit("account.linked", a.person_id, { personId: a.person_id, from: a.username, to: username });
@@ -110,91 +214,153 @@ export async function recoverySave(ctx: IdentityCtx, input: { personKeyByRecover
   return ok;
 }
 
-export {recoveryRestore,recoveryFetch} from "./recovery.ts";
+export { recoveryRestore, recoveryFetch } from "./recovery.ts";
 
 export async function resetPreview(ctx: IdentityCtx, input: { personId: string }) {
   const a = mustAccount(ctx, input.personId);
   const n = ctx.losses?.of(a.person_id) ?? { vault_mine: 0, private_chats: 0, personal_memory: 0 };
-  const losses = (["vault_mine", "private_chats", "personal_memory"] as const).map((kind) => ({ kind, count: n[kind] })).filter((l) => l.count > 0);
+  const losses = (["vault_mine", "private_chats", "personal_memory"] as const)
+    .map((kind) => ({ kind, count: n[kind] }))
+    .filter((l) => l.count > 0);
   return { hasRecoveryCode: !!bundleOf(a)?.personKeyByRecovery, losses };
 }
 
-function resetOwner(ctx:IdentityCtx):string {
-  const owner=ctx.spaceOwner?.();if(!owner)raise(ctx.trace.traceId,"internal.unavailable","The server cannot verify the current Space owner for account reset.");return owner;
+function resetOwner(ctx: IdentityCtx): string {
+  const owner = ctx.spaceOwner?.();
+  if (!owner)
+    raise(
+      ctx.trace.traceId,
+      "internal.unavailable",
+      "The server cannot verify the current Space owner for account reset.",
+    );
+  return owner;
 }
-function assertResetTarget(ctx:IdentityCtx,personId:string):void {
-  if(resetOwner(ctx)===personId)raise(ctx.trace.traceId,"permission.role_lacks_permission","The current Space owner cannot be reset by an administrator. Use the owner's signed-in password change or saved recovery code.");
+function assertResetTarget(ctx: IdentityCtx, personId: string): void {
+  if (resetOwner(ctx) === personId)
+    raise(
+      ctx.trace.traceId,
+      "permission.role_lacks_permission",
+      "The current Space owner cannot be reset by an administrator. Use the owner's signed-in password change or saved recovery code.",
+    );
 }
 export async function resetStart(ctx: IdentityCtx, input: { personId: string }) {
-  if(!ctx.principal)raise(ctx.trace.traceId,"auth.unauthenticated");
-  if(ctx.principal.kind!=="person")raise(ctx.trace.traceId,"permission.needs_approval","A person must review and issue an account reset.");
-  if(ctx.principal.id===input.personId)raise(ctx.trace.traceId,"validation.precondition_failed","Change your own password in account settings instead of signing yourself out through an administrator reset.");
-  assertResetTarget(ctx,input.personId);
+  if (!ctx.principal) raise(ctx.trace.traceId, "auth.unauthenticated");
+  if (ctx.principal.kind !== "person")
+    raise(ctx.trace.traceId, "permission.needs_approval", "A person must review and issue an account reset.");
+  if (ctx.principal.id === input.personId)
+    raise(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "Change your own password in account settings instead of signing yourself out through an administrator reset.",
+    );
+  assertResetTarget(ctx, input.personId);
   const a = mustAccount(ctx, input.personId);
   const resetCode = `rst_${randomBytes(24).toString("base64url")}`;
-  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS,`reset_by:${ctx.principal.id}`);
+  const expiresAt = putCode(ctx, "reset", a.person_id, resetCode, RESET_TTL_MS, `reset_by:${ctx.principal.id}`);
   revokeSessions(ctx, a.person_id);
   return { resetCode, expiresAt };
 }
 
-export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCode: string; newPassword: string; keys: KeyBundle }): Promise<SignInOut> {
-  const code=input.resetCode.trim();const pending=peekCode(ctx,"reset",code);
+export async function resetComplete(
+  ctx: IdentityCtx,
+  input: Device & { resetCode: string; newPassword: string; keys: KeyBundle },
+): Promise<SignInOut> {
+  const code = input.resetCode.trim();
+  const pending = peekCode(ctx, "reset", code);
   const a = accountById(ctx, pending.personId);
   if (!a) raise(ctx.trace.traceId, "auth.invalid_code");
-  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
+  assertResetTarget(ctx, a.person_id);
+  assertSignInPolicy(ctx, a, "recovery");
   checkNewSecret(ctx, input.newPassword);
-  if(!validBundle(input.keys))raise(ctx.trace.traceId,"validation.bad_input","keys must be base64 ciphertext");
+  if (!validBundle(input.keys)) raise(ctx.trace.traceId, "validation.bad_input", "keys must be base64 ciphertext");
   const verifier = await makeVerifier(input.newPassword);
   // Recheck authority/policy after hashing; ownership can change while the verifier is prepared.
-  assertResetTarget(ctx,a.person_id);assertSignInPolicy(ctx,a,"recovery");
-  const spent=spendCode(ctx,"reset",code);
+  assertResetTarget(ctx, a.person_id);
+  assertSignInPolicy(ctx, a, "recovery");
+  const spent = spendCode(ctx, "reset", code);
   // fresh keys replace the old bundle: Mine items stay sealed under the old key unless a recovery code was saved
-  ctx.db.run(`UPDATE identity_accounts SET verifier = ?, keys_json = NULL, recovery_hash = NULL WHERE person_id = ?`, verifier, a.person_id);
+  ctx.db.run(
+    `UPDATE identity_accounts SET verifier = ?, keys_json = NULL, recovery_hash = NULL WHERE person_id = ?`,
+    verifier,
+    a.person_id,
+  );
   setKeys(ctx, a.person_id, input.keys, "reset");
   revokeSessions(ctx, a.person_id);
   clearFails(ctx, a);
-  const by=spent.purpose?.match(/^reset_by:(usr_[a-z0-9]+)$/)?.[1]??"admin";
+  const by = spent.purpose?.match(/^reset_by:(usr_[a-z0-9]+)$/)?.[1] ?? "admin";
   ctx.emit("password.reset", a.person_id, { personId: a.person_id, by, recovered: false });
   return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "recovery");
 }
-
 
 /** What a sign-in for this invitation is held under: never the code itself. */
 const joinOffer = (code: string): string => `invite:${sha(code)}`;
 
 /** Someone invited, with everyone required to use single sign-on: the address to prove the invitation's email at. It works in any browser, and what it proves waits here for them to accept. */
-export async function ssoJoinStart(ctx: IdentityCtx, input: { code: string; provider: string }): Promise<{ start: string }> {
+export async function ssoJoinStart(
+  ctx: IdentityCtx,
+  input: { code: string; provider: string },
+): Promise<{ start: string }> {
   const tid = ctx.trace.traceId;
-  if (!ctx.invites || !ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(tid, "validation.unsupported", "That sign-in is not set up for this Space");
+  if (!ctx.invites || !ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider))
+    raise(tid, "validation.unsupported", "That sign-in is not set up for this Space");
   const invite = await ctx.invites.peek(input.code.trim());
   if (invite === "invalid") raise(tid, "auth.invalid_code");
   if (invite === "expired") raise(tid, "auth.expired");
-  return { start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(joinOffer(input.code.trim())))}` };
+  return {
+    start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(joinOffer(input.code.trim())))}`,
+  };
 }
 
 export async function acceptCreateAccount(
-  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle; ssoProvider?: string },
+  ctx: IdentityCtx,
+  input: Device & {
+    code: string;
+    username: string;
+    displayName?: string;
+    password: string;
+    keys: KeyBundle;
+    ssoProvider?: string;
+  },
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!ctx.invites) raise(tid, "internal.not_implemented", "invites are not wired into this host");
   const invite = await ctx.invites.peek(input.code.trim());
-  if (invite === "invalid") { await burnVerify(input.password); raise(tid, "auth.invalid_code"); }
+  if (invite === "invalid") {
+    await burnVerify(input.password);
+    raise(tid, "auth.invalid_code");
+  }
   if (invite === "expired") raise(tid, "auth.expired");
   const username = input.username.trim().toLowerCase();
-  if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+  if (!USERNAME.test(username))
+    raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
   if (accountByName(ctx, username)) raise(tid, "validation.duplicate", "that username is taken");
   checkNewSecret(ctx, input.password);
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
   // when everyone must use single sign-on, the invitation's address is proved at the provider; the password only wraps the person's keys and never signs them in
-  const proved = input.ssoProvider ? ctx.sso?.prove?.(input.ssoProvider, joinOffer(input.code.trim())) ?? null : null;
-  if (input.ssoProvider && (!proved || !invite.email || proved.email.toLowerCase() !== invite.email.toLowerCase())) raise(tid, "auth.bad_credentials");
+  const proved = input.ssoProvider ? (ctx.sso?.prove?.(input.ssoProvider, joinOffer(input.code.trim())) ?? null) : null;
+  if (input.ssoProvider && (!proved || !invite.email || proved.email.toLowerCase() !== invite.email.toLowerCase()))
+    raise(tid, "auth.bad_credentials");
   assertNewMemberPolicy(ctx, proved !== null);
-  await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
+  await provisionAccount(ctx, {
+    personId,
+    username,
+    name: input.displayName?.trim() || username,
+    secret: input.password,
+  });
   setKeys(ctx, personId, input.keys, "first_device");
   proved?.bind(personId);
   await ctx.invites.accept(invite.inviteId, personId);
-  ctx.emit("principal.created", personId, { principalId: personId, kind: "person", name: input.displayName?.trim() || username });
-  ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
+  ctx.emit("principal.created", personId, {
+    principalId: personId,
+    kind: "person",
+    name: input.displayName?.trim() || username,
+  });
+  ctx.emit("member.joined", personId, {
+    personId,
+    inviteId: invite.inviteId,
+    role: invite.role,
+    invitedBy: invite.invitedBy,
+  });
   return await issueSession(ctx, mustAccount(ctx, personId), input, proved ? "sso" : "password", { joining: true });
 }

@@ -12,17 +12,32 @@ function cfg(risk: "read" | "change" | "danger") {
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input });
     switch (cap) {
-      case "devices.mine": return { devices: [{ id: "dev_1", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }] };
-      case "computers.list": return { computers: [] };
-      case "terminal.risk": return { risk, verdict: "none", why: "" };
-      case "terminal.list": return { terminals: [{ terminalId: "t1", host: "device", deviceId: "dev_1", state: "idle", lastActiveAt: 1 }] };
-      case "terminal.run": return { exitCode: 0, output: "file-a\nfile-b" };
-      case "terminal.read": return { next: 3, text: "" };
-      case "terminal.status": return { rows: [{ state: "idle" }] };
-      default: return {};
+      case "devices.mine":
+        return { devices: [{ id: "dev_1", name: "Mac", class: "desktop", current: true, lastSeenAt: 1 }] };
+      case "computers.list":
+        return { computers: [] };
+      case "terminal.risk":
+        return { risk, verdict: "none", why: "" };
+      case "terminal.list":
+        return { terminals: [{ terminalId: "t1", host: "device", deviceId: "dev_1", state: "idle", lastActiveAt: 1 }] };
+      case "terminal.run":
+        return { exitCode: 0, output: "file-a\nfile-b" };
+      case "terminal.read":
+        return { next: 3, text: "" };
+      case "terminal.status":
+        return { rows: [{ state: "idle" }] };
+      default:
+        return {};
     }
   };
-  const c: RunCodeConfig = { deps: { call, newKey: () => "k", sleep: async () => undefined }, team: false, nameOf: (id) => id, now: () => 10, copy: () => undefined, openTerminal: (id) => void opened.push(id) };
+  const c: RunCodeConfig = {
+    deps: { call, newKey: () => "k", sleep: async () => undefined },
+    team: false,
+    nameOf: (id) => id,
+    now: () => 10,
+    copy: () => undefined,
+    openTerminal: (id) => void opened.push(id),
+  };
   return { c, calls, opened };
 }
 
@@ -38,7 +53,9 @@ test("a read-only command: the bar shows the machine and the risk, Run brings th
     await flush();
     assert.match(textOf(find(root, "run-code-out")), /file-a/);
     assert.ok(r.calls.some((c) => c.cap === "terminal.run"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a command that changes something is typed into the terminal, which opens, and no run is made", async () => {
@@ -53,18 +70,25 @@ test("a command that changes something is typed into the terminal, which opens, 
     assert.ok(!r.calls.some((c) => c.cap === "terminal.run"));
     assert.deepEqual(r.calls.find((c) => c.cap === "terminal.input")?.input, { terminalId: "t1", data: "npm install" });
     assert.deepEqual(r.opened, ["t1"]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("with no machine to run on the bar is not drawn", async () => {
   const restore = installDom();
   try {
     const r = cfg("read");
-    const c: RunCodeConfig = { ...r.c, deps: { ...r.c.deps, call: async (cap) => (cap === "devices.mine" ? { devices: [] } : { risk: "read" }) } };
+    const c: RunCodeConfig = {
+      ...r.c,
+      deps: { ...r.c.deps, call: async (cap) => (cap === "devices.mine" ? { devices: [] } : { risk: "read" }) },
+    };
     const root = await mount(createRoot, <RunCode command="ls" cfg={c} />);
     await flush();
     assert.equal(find(root, "run-code"), null);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a code block gets the bar only when it is finished, and only where the caller draws one", async () => {
@@ -74,15 +98,27 @@ test("a code block gets the bar only when it is finished, and only where the cal
   const restore = installDom();
   try {
     const blocks = parseChunk("Try this:\n\n```bash\nls -la\n```\n\n```python\nprint(1)\n```", 0);
-    const render = (c: (b: { lang: string; text: string; closed: boolean }) => string | null) =>
-      (b: { lang: string; text: string; closed: boolean }) => { const cmd = c(b); return cmd ? <RunCode command={cmd} cfg={cfg("read").c} /> : null; };
-    const withBar = await mount(createRoot, <MarkdownBlocks blocks={blocks} renderCode={render((b) => commandOf(b.lang, b.text, b.closed))} />);
+    const render =
+      (c: (b: { lang: string; text: string; closed: boolean }) => string | null) =>
+      (b: { lang: string; text: string; closed: boolean }) => {
+        const cmd = c(b);
+        return cmd ? <RunCode command={cmd} cfg={cfg("read").c} /> : null;
+      };
+    const withBar = await mount(
+      createRoot,
+      <MarkdownBlocks blocks={blocks} renderCode={render((b) => commandOf(b.lang, b.text, b.closed))} />,
+    );
     await flush();
     assert.ok(find(withBar, "run-code"), "the shell block has its bar");
     const plain = await mount(createRoot, <MarkdownBlocks blocks={blocks} />);
     assert.equal(find(plain, "run-code"), null, "no renderCode, no bar");
     const open = parseChunk("```bash\nls -la", 0);
-    const streaming = await mount(createRoot, <MarkdownBlocks blocks={open} streaming renderCode={render((b) => commandOf(b.lang, b.text, b.closed))} />);
+    const streaming = await mount(
+      createRoot,
+      <MarkdownBlocks blocks={open} streaming renderCode={render((b) => commandOf(b.lang, b.text, b.closed))} />,
+    );
     assert.equal(find(streaming, "run-code"), null, "a block still being written has none");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

@@ -4,8 +4,19 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Glyph, pointer } from "./ui.tsx";
 
-export interface SavedLine { id: number; text: string; undo?: () => Promise<void> | void; tone: "saved" | "error" }
-interface Api { line: SavedLine | null; saved(text: string, undo?: () => Promise<void> | void): void; failed(text: string): void; undo(): void; dismiss(): void }
+export interface SavedLine {
+  id: number;
+  text: string;
+  undo?: () => Promise<void> | void;
+  tone: "saved" | "error";
+}
+interface Api {
+  line: SavedLine | null;
+  saved(text: string, undo?: () => Promise<void> | void): void;
+  failed(text: string): void;
+  undo(): void;
+  dismiss(): void;
+}
 const Ctx = createContext<Api | null>(null);
 export const SAVED_MS = 6000;
 
@@ -13,21 +24,42 @@ export function SavedProvider({ children, ms = SAVED_MS }: { children: ReactNode
   const [line, setLine] = useState<SavedLine | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dismiss = useCallback(() => { if (timer.current) clearTimeout(timer.current); timer.current = null; setLine(null); }, []);
-  const put = useCallback((text: string, tone: SavedLine["tone"], undo?: () => Promise<void> | void) => {
+  const dismiss = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
-    const id = ++seq.current;
-    setLine({ id, text, tone, ...(undo ? { undo } : {}) });
-    timer.current = setTimeout(() => setLine((cur) => (cur && cur.id === id ? null : cur)), ms);
-  }, [ms]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const api = useMemo<Api>(() => ({
-    line,
-    saved: (text, undo) => put(text, "saved", undo),
-    failed: (text) => put(text, "error"),
-    undo() { if (line?.undo) { const u = line.undo; dismiss(); void u(); } },
-    dismiss,
-  }), [line, put, dismiss]);
+    timer.current = null;
+    setLine(null);
+  }, []);
+  const put = useCallback(
+    (text: string, tone: SavedLine["tone"], undo?: () => Promise<void> | void) => {
+      if (timer.current) clearTimeout(timer.current);
+      const id = ++seq.current;
+      setLine({ id, text, tone, ...(undo ? { undo } : {}) });
+      timer.current = setTimeout(() => setLine((cur) => (cur && cur.id === id ? null : cur)), ms);
+    },
+    [ms],
+  );
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const api = useMemo<Api>(
+    () => ({
+      line,
+      saved: (text, undo) => put(text, "saved", undo),
+      failed: (text) => put(text, "error"),
+      undo() {
+        if (line?.undo) {
+          const u = line.undo;
+          dismiss();
+          void u();
+        }
+      },
+      dismiss,
+    }),
+    [line, put, dismiss],
+  );
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
@@ -44,9 +76,23 @@ export function SavedBar(): ReactElement {
     <View style={s.slot} accessibilityLiveRegion="polite" testID="saved-slot">
       {line ? (
         <View style={s.line} testID={line.tone === "error" ? "saved-error" : "saved"}>
-          <Glyph name={line.tone === "error" ? "x" : "check"} size={12} color={line.tone === "error" ? "var(--danger)" : "var(--ok)"} />
+          <Glyph
+            name={line.tone === "error" ? "x" : "check"}
+            size={12}
+            color={line.tone === "error" ? "var(--danger)" : "var(--ok)"}
+          />
           <Text style={s.text}>{line.text}</Text>
-          {line.undo ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="undo" onPress={undo} style={pointer}><Text style={s.link}>Undo</Text></Pressable> : null}
+          {line.undo ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Undo"
+              testID="undo"
+              onPress={undo}
+              style={pointer}
+            >
+              <Text style={s.link}>Undo</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -55,7 +101,20 @@ export function SavedBar(): ReactElement {
 
 const s = StyleSheet.create({
   slot: { height: 10, zIndex: 5 },
-  line: { position: "absolute", top: 0, left: 0, flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 99, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  line: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 99,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   text: { fontSize: 12.5, color: "var(--ink-2)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string },
 });

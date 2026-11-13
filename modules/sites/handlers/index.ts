@@ -8,6 +8,25 @@ import { tableHandlers } from "./tables.ts";
 
 export const handlers = { ...deployHandlers, ...domainHandlers, ...promoteHandlers, ...tableHandlers };
 
-export { configureSites, handleBranchMerged, sweepMergedPreviews, NETWORK, DEFAULT_BRANCH, stagingHost, previewHost, branchSlug } from "./deploy.ts";
-export type { SiteDrivers, SiteRuntime, SiteRouter, SiteDns, BuildRequest, BuildResult, StartRequest, StartResult, RouteSpec } from "./deploy.ts";
+export {
+  configureSites,
+  handleBranchMerged,
+  sweepMergedPreviews,
+  NETWORK,
+  DEFAULT_BRANCH,
+  stagingHost,
+  previewHost,
+  branchSlug,
+} from "./deploy.ts";
+export type {
+  SiteDrivers,
+  SiteRuntime,
+  SiteRouter,
+  SiteDns,
+  BuildRequest,
+  BuildResult,
+  StartRequest,
+  StartResult,
+  RouteSpec,
+} from "./deploy.ts";
 export { routeProductionDomains, edgeTarget } from "./domains.ts";

@@ -22,69 +22,181 @@ export async function runMatrix(live: readonly string[]): Promise<{ events: Obse
     const admin = s.d.token;
     const tess = s.signedIn("usr_tess");
     const allowed = async (what: string): Promise<boolean> =>
-      expectStatus(await s.call("access.check", admin, { principal: TESS, action: { level: "view" }, resource: CHANNEL }), 200, `access.check ${what}`).decision.effect === "allow";
+      expectStatus(
+        await s.call("access.check", admin, { principal: TESS, action: { level: "view" }, resource: CHANNEL }),
+        200,
+        `access.check ${what}`,
+      ).decision.effect === "allow";
 
     await trail.step("every built-in role holds exactly the catalogue's permissions", async () => {
-      const roles = expectStatus(await s.call("access.roles.list", admin, {}), 200, "access.roles.list").roles as { name: string; permissions: string[] }[];
+      const roles = expectStatus(await s.call("access.roles.list", admin, {}), 200, "access.roles.list").roles as {
+        name: string;
+        permissions: string[];
+      }[];
       for (const name of ["owner", "admin", "developer", "member", "guest"] as const) {
         const role = roles.find((r) => r.name.toLowerCase() === name);
         assert.ok(role, `access.roles.list has ${name}`);
-        const want = PERMISSIONS.filter((p) => p.defaults[name]).map((p) => p.key).sort();
+        const want = PERMISSIONS.filter((p) => p.defaults[name])
+          .map((p) => p.key)
+          .sort();
         assert.deepEqual([...role.permissions].sort(), want, `${name}: role permissions equal the catalogue column`);
       }
     });
     await trail.step("View as previews a member and is audited", async () => {
       const bootstrap = await s.call("access.view_as", admin, { person: "usr_noah" });
       assert.equal(bootstrap.status, 403, "bootstrap authority is not a signed-in source device");
-      const signed = expectStatus(await s.call("identity.sign_in", null, { username: "olivia", password: SEED_TEST_PASSWORD, deviceName: "Golden preview source", deviceClass: "desktop" }), 200, "identity.sign_in");
+      const signed = expectStatus(
+        await s.call("identity.sign_in", null, {
+          username: "olivia",
+          password: SEED_TEST_PASSWORD,
+          deviceName: "Golden preview source",
+          deviceClass: "desktop",
+        }),
+        200,
+        "identity.sign_in",
+      );
       const sourceToken = signed.session.token as string;
-      const v = expectStatus(await s.call("access.view_as", sourceToken, { person: "usr_noah" }), 200, "access.view_as");
+      const v = expectStatus(
+        await s.call("access.view_as", sourceToken, { person: "usr_noah" }),
+        200,
+        "access.view_as",
+      );
       assert.ok(v.previewToken && v.expiresAt > Date.now(), `preview ${short(v)}`);
-      const rows = expectStatus(await s.call("records.query", v.previewToken, { type: "contact", limit: 1 }), 200, "preview records.query").rows;
+      const rows = expectStatus(
+        await s.call("records.query", v.previewToken, { type: "contact", limit: 1 }),
+        200,
+        "preview records.query",
+      ).rows;
       assert.ok(Array.isArray(rows));
-      const audit = expectStatus(await s.call("audit.list", sourceToken, { q: "access.view_as", limit: 100 }), 200, "audit.list");
-      assert.ok(audit.rows.some((row: { action: string }) => row.action === "access.view_as"), "real source device preview is audited");
+      const audit = expectStatus(
+        await s.call("audit.list", sourceToken, { q: "access.view_as", limit: 100 }),
+        200,
+        "audit.list",
+      );
+      assert.ok(
+        audit.rows.some((row: { action: string }) => row.action === "access.view_as"),
+        "real source device preview is audited",
+      );
     });
     await trail.step("refusal: Tess cannot open View as", async () => {
       const r = await s.call("access.view_as", tess, { person: "usr_noah" });
       assert.equal(r.status, 403, `access.view_as as a temp: ${r.status} ${short(r.body?.error ?? r.body)}`);
     });
-    await trail.step("the General channel is not visible to Tess", async () => { assert.equal(await allowed("before"), false); });
-    const folder = await trail.step("a Clients folder is made", async () =>
-      expectStatus(await s.call("folders.create", admin, { idempotencyKey: "golden-12-folder", type: "channel", name: "Clients", scope: "space" }), 200, "folders.create").folder.id as string);
-    const grant = await trail.step("the Clients folder is shared with Tess", async () =>
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-12-share", resource: { type: "folder", id: folder! }, subject: TESS, level: "view" }), 200, "access.share").grant.id as string,
-    ["a Clients folder is made"]);
-    await trail.step("an item placed in the shared folder is visible to Tess", async () => {
-      expectStatus(await s.call("folders.place", admin, { resource: CHANNEL, folderId: folder! }), 200, "folders.place");
-      assert.equal(await allowed("placed"), true);
-    }, ["the Clients folder is shared with Tess"]);
-    await trail.step("moved out of the shared folder it is hidden again", async () => {
-      expectStatus(await s.call("folders.unplace", admin, { resource: CHANNEL }), 200, "folders.unplace");
-      assert.equal(await allowed("moved out"), false);
-    }, ["an item placed in the shared folder is visible to Tess"]);
-    await trail.step("the share is revoked", async () => {
-      const out = expectStatus(await s.call("access.unshare", admin, { grantId: grant! }), 200, "access.unshare");
-      assert.equal(out.revoked, 1);
-    }, ["the Clients folder is shared with Tess"]);
+    await trail.step("the General channel is not visible to Tess", async () => {
+      assert.equal(await allowed("before"), false);
+    });
+    const folder = await trail.step(
+      "a Clients folder is made",
+      async () =>
+        expectStatus(
+          await s.call("folders.create", admin, {
+            idempotencyKey: "golden-12-folder",
+            type: "channel",
+            name: "Clients",
+            scope: "space",
+          }),
+          200,
+          "folders.create",
+        ).folder.id as string,
+    );
+    const grant = await trail.step(
+      "the Clients folder is shared with Tess",
+      async () =>
+        expectStatus(
+          await s.call("access.share", admin, {
+            idempotencyKey: "golden-12-share",
+            resource: { type: "folder", id: folder! },
+            subject: TESS,
+            level: "view",
+          }),
+          200,
+          "access.share",
+        ).grant.id as string,
+      ["a Clients folder is made"],
+    );
+    await trail.step(
+      "an item placed in the shared folder is visible to Tess",
+      async () => {
+        expectStatus(
+          await s.call("folders.place", admin, { resource: CHANNEL, folderId: folder! }),
+          200,
+          "folders.place",
+        );
+        assert.equal(await allowed("placed"), true);
+      },
+      ["the Clients folder is shared with Tess"],
+    );
+    await trail.step(
+      "moved out of the shared folder it is hidden again",
+      async () => {
+        expectStatus(await s.call("folders.unplace", admin, { resource: CHANNEL }), 200, "folders.unplace");
+        assert.equal(await allowed("moved out"), false);
+      },
+      ["an item placed in the shared folder is visible to Tess"],
+    );
+    await trail.step(
+      "the share is revoked",
+      async () => {
+        const out = expectStatus(await s.call("access.unshare", admin, { grantId: grant! }), 200, "access.unshare");
+        assert.equal(out.revoked, 1);
+      },
+      ["the Clients folder is shared with Tess"],
+    );
     await trail.step("refusal: Tess, a guest, gets the designed refusal when she asks", async () => {
-      const r = await s.call("access.request", tess, { idempotencyKey: "golden-12-guest-ask", resource: CHANNEL, level: "view", note: "I need the general channel" });
+      const r = await s.call("access.request", tess, {
+        idempotencyKey: "golden-12-guest-ask",
+        resource: CHANNEL,
+        level: "view",
+        note: "I need the general channel",
+      });
       assert.equal(r.status, 403, short(r.body?.error ?? r.body));
-      assert.equal(r.body?.error?.code, "permission.guest_cannot_request", "guests work inside the access they were given and cannot ask for more");
+      assert.equal(
+        r.body?.error?.code,
+        "permission.guest_cannot_request",
+        "guests work inside the access they were given and cannot ask for more",
+      );
     });
     const noah = s.signedIn("usr_noah");
     const request = await trail.step("a member asks for access", async () => {
-      const out = expectStatus(await s.call("access.request", noah, { idempotencyKey: "golden-12-ask", resource: CHANNEL, level: "view", note: "I need the general channel" }), 200, "access.request");
+      const out = expectStatus(
+        await s.call("access.request", noah, {
+          idempotencyKey: "golden-12-ask",
+          resource: CHANNEL,
+          level: "view",
+          note: "I need the general channel",
+        }),
+        200,
+        "access.request",
+      );
       assert.equal(out.request.requester, "usr_noah", short(out));
       return out.request.id as string;
     });
-    await trail.step("the admin approves and the member's retry succeeds", async () => {
-      expectStatus(await s.call("access.requests.approve", admin, { requestId: request!, level: "view" }), 200, "access.requests.approve");
-      const can = expectStatus(await s.call("access.check", admin, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: CHANNEL }), 200, "access.check").decision.effect === "allow";
-      assert.equal(can, true);
-    }, ["a member asks for access"]);
+    await trail.step(
+      "the admin approves and the member's retry succeeds",
+      async () => {
+        expectStatus(
+          await s.call("access.requests.approve", admin, { requestId: request!, level: "view" }),
+          200,
+          "access.requests.approve",
+        );
+        const can =
+          expectStatus(
+            await s.call("access.check", admin, {
+              principal: { kind: "person", id: "usr_noah" },
+              action: { level: "view" },
+              resource: CHANNEL,
+            }),
+            200,
+            "access.check",
+          ).decision.effect === "allow";
+        assert.equal(can, true);
+      },
+      ["a member asks for access"],
+    );
     return { events: await s.events(), trail };
-  } finally { await s.stop(); }
+  } finally {
+    await s.stop();
+  }
 }
 
 export default async function steps(): Promise<Observed[]> {

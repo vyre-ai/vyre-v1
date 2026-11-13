@@ -11,11 +11,23 @@
 export const CONSEQUENTIAL = Object.freeze([
   { kind: "send", re: /\bsend\b|\bresend\b|\breply\b|\bforward\b/i },
   { kind: "post", re: /\bpost\b|\bpublish\b|\bshare\b|\btweet\b/i },
-  { kind: "payment", re: /\bpay\b|\bcharge\b|\bpurchase\b|\bcheckout\b|\bsubscribe\b|\bbuy\b|\bplace order\b|\bdonate\b|\$\s?\d/i },
-  { kind: "delete", re: /\bdelete\b|\bremove\b|\btrash\b|\berase\b|\bdiscard\b|\bcancel (subscription|plan|account|order)\b|\bclose account\b/i },
-  { kind: "submit", re: /\bsubmit\b|\bconfirm\b|\bapprove\b|\bapply (now|for)\b|\bcomplete (order|purchase|payment|booking)\b|\bregister\b|\bsign up\b|\bagree and (continue|submit)\b/i },
+  {
+    kind: "payment",
+    re: /\bpay\b|\bcharge\b|\bpurchase\b|\bcheckout\b|\bsubscribe\b|\bbuy\b|\bplace order\b|\bdonate\b|\$\s?\d/i,
+  },
+  {
+    kind: "delete",
+    re: /\bdelete\b|\bremove\b|\btrash\b|\berase\b|\bdiscard\b|\bcancel (subscription|plan|account|order)\b|\bclose account\b/i,
+  },
+  {
+    kind: "submit",
+    re: /\bsubmit\b|\bconfirm\b|\bapprove\b|\bapply (now|for)\b|\bcomplete (order|purchase|payment|booking)\b|\bregister\b|\bsign up\b|\bagree and (continue|submit)\b/i,
+  },
   { kind: "deploy", re: /\bmerge\b|\bpush\b|\bdeploy\b|\brelease\b|\btransfer\b|\bwire\b/i },
-  { kind: "access", re: /\bsign out\b|\blog ?out\b|\bsign (the|this|document|agreement|contract)\b|\binvite\b|\badd member\b|\bgrant\b|\bauthori[sz]e\b|\brevoke\b|\bconnect\b|\binstall\b|\bunsubscribe\b/i },
+  {
+    kind: "access",
+    re: /\bsign out\b|\blog ?out\b|\bsign (the|this|document|agreement|contract)\b|\binvite\b|\badd member\b|\bgrant\b|\bauthori[sz]e\b|\brevoke\b|\bconnect\b|\binstall\b|\bunsubscribe\b/i,
+  },
 ]);
 
 /** A link that leaves for a consent, sign-in, payment or deletion page. */
@@ -23,7 +35,8 @@ export const RISKY_HREF = /oauth|authori[sz]e|consent|checkout|payment|delete|lo
 /** Input-like controls: clicking or toggling one only focuses or sets it, whatever its label says ("Send to", "Subscribe to updates"). The page names the role, so it is believed for these and for nothing else. */
 export const PASSIVE_ROLES = /^(?:textbox|searchbox|combobox|slider|spinbutton|checkbox|radio|switch|listbox)$/i;
 /** A form-submit control with one of these names moves on or looks something up; it does not send anything out. */
-export const BENIGN_SUBMIT = /^(?:sign ?in|log ?in|search|next|continue|go|back|filter|apply filters?|update|refresh|reload|show results?|find)$/i;
+export const BENIGN_SUBMIT =
+  /^(?:sign ?in|log ?in|search|next|continue|go|back|filter|apply filters?|update|refresh|reload|show results?|find)$/i;
 
 /**
  * @typedef {{ consequential: boolean, kind: "send" | "post" | "payment" | "delete" | "submit" | "deploy" | "access" | "unreadable" | "form" | "link" | "none", why: string }} Verdict
@@ -32,15 +45,31 @@ export const BENIGN_SUBMIT = /^(?:sign ?in|log ?in|search|next|continue|go|back|
  */
 export function of(ctl) {
   const name = String((ctl && ctl.name) || "").trim();
-  if (ctl && PASSIVE_ROLES.test(String(ctl.role || "").trim())) return { consequential: false, kind: "none", why: "typing, focusing or setting a field" };
+  if (ctl && PASSIVE_ROLES.test(String(ctl.role || "").trim()))
+    return { consequential: false, kind: "none", why: "typing, focusing or setting a field" };
   if (!name || (ctl && ctl.nameless)) {
-    return { consequential: true, kind: "unreadable", why: "cannot read what this control does, so it is treated as one that matters" };
+    return {
+      consequential: true,
+      kind: "unreadable",
+      why: "cannot read what this control does, so it is treated as one that matters",
+    };
   }
   for (const c of CONSEQUENTIAL) {
-    if (c.re.test(name)) return { consequential: true, kind: /** @type {Verdict["kind"]} */ (c.kind), why: `${JSON.stringify(name)} looks like an action that cannot be undone by doing it again` };
+    if (c.re.test(name))
+      return {
+        consequential: true,
+        kind: /** @type {Verdict["kind"]} */ (c.kind),
+        why: `${JSON.stringify(name)} looks like an action that cannot be undone by doing it again`,
+      };
   }
-  if (ctl && ctl.submit === true && !BENIGN_SUBMIT.test(name)) return { consequential: true, kind: "form", why: `${JSON.stringify(name)} submits a form` };
-  if (ctl && typeof ctl.href === "string" && RISKY_HREF.test(ctl.href)) return { consequential: true, kind: "link", why: `${JSON.stringify(name)} leads to a consent, sign-in, payment or deletion page` };
+  if (ctl && ctl.submit === true && !BENIGN_SUBMIT.test(name))
+    return { consequential: true, kind: "form", why: `${JSON.stringify(name)} submits a form` };
+  if (ctl && typeof ctl.href === "string" && RISKY_HREF.test(ctl.href))
+    return {
+      consequential: true,
+      kind: "link",
+      why: `${JSON.stringify(name)} leads to a consent, sign-in, payment or deletion page`,
+    };
   return { consequential: false, kind: "none", why: "navigating, focusing or selecting" };
 }
 
@@ -50,7 +79,8 @@ export function of(ctl) {
  * @returns {Verdict}
  */
 export function ofEnter(ctl) {
-  if (!ctl || !ctl.formSubmit) return { consequential: false, kind: "none", why: "Enter in a field with no form to submit" };
+  if (!ctl || !ctl.formSubmit)
+    return { consequential: false, kind: "none", why: "Enter in a field with no form to submit" };
   const v = of({ name: ctl.formSubmit, role: "button", submit: true });
   return v.consequential ? { ...v, why: `Enter would press ${JSON.stringify(ctl.formSubmit)}: ${v.why}` } : v;
 }

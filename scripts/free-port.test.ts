@@ -12,8 +12,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** file (repo relative) -> why it may keep the pattern. */
 export const KEPT: Record<string, string> = {
-  "apps/app/tests/real-app-harness.test.ts": "bootFreshSpace(publishLocal): the daemon binds the port itself and must be told its own address before it starts; the boot is tried again on another port when the bind fails (and the failed try's daemon is killed)",
-  "host/tests/compute.stream.live.test.ts": "the port goes straight into startStreamServer in the next statement (product code that binds a given port and builds its own address from it); the gap is one tick",
+  "apps/app/tests/real-app-harness.test.ts":
+    "bootFreshSpace(publishLocal): the daemon binds the port itself and must be told its own address before it starts; the boot is tried again on another port when the bind fails (and the failed try's daemon is killed)",
+  "host/tests/compute.stream.live.test.ts":
+    "the port goes straight into startStreamServer in the next statement (product code that binds a given port and builds its own address from it); the gap is one tick",
   "agent/tests/sandbox.net.heavy.test.ts": "the port is handed to a sandboxed program that binds it itself",
   "modules/engine/tests/access.heavy.test.ts": "the port is handed to sshd, which binds it itself",
   "modules/esign/tests/documenso.heavy.test.ts": "the port is handed to a Documenso container, which binds it itself",
@@ -35,14 +37,23 @@ export function givenBack(text: string): number[] {
   const lines: number[] = [];
   for (const m of text.matchAll(/listen\(\s*0\b/g)) {
     const near = text.slice(m.index, m.index! + 260);
-    if (/\.close\(/.test(near) && /\b(?:resolve|r|ok|done)\(\s*\w+\s*\)/.test(near)) lines.push(text.slice(0, m.index).split("\n").length);
+    if (/\.close\(/.test(near) && /\b(?:resolve|r|ok|done)\(\s*\w+\s*\)/.test(near))
+      lines.push(text.slice(0, m.index).split("\n").length);
   }
   return lines;
 }
 
 test("the guard sees the pattern it exists to stop, and not a helper that keeps its server", () => {
-  assert.deepEqual(givenBack('const p = await new Promise<number>((r) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = (s.address() as net.AddressInfo).port; s.close(() => r(p)); }); });'), [1]);
-  assert.deepEqual(givenBack('await new Promise<void>((r) => server.listen(0, "127.0.0.1", r)); const port = server.address().port;'), []);
+  assert.deepEqual(
+    givenBack(
+      'const p = await new Promise<number>((r) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = (s.address() as net.AddressInfo).port; s.close(() => r(p)); }); });',
+    ),
+    [1],
+  );
+  assert.deepEqual(
+    givenBack('await new Promise<void>((r) => server.listen(0, "127.0.0.1", r)); const port = server.address().port;'),
+    [],
+  );
 });
 
 test("no test helper picks a free port, closes it and binds it later, except where listed with a reason", () => {
@@ -53,7 +64,15 @@ test("no test helper picks a free port, closes it and binds it later, except whe
     if (givenBack(fs.readFileSync(file, "utf8")).length > 0) found.push(rel);
   }
   const unlisted = found.filter((f) => !(f in KEPT));
-  assert.deepEqual(unlisted, [], `these files pick a port, close it and bind it later (hold the socket instead, or list the file in KEPT with the reason): ${unlisted.join(", ")}`);
+  assert.deepEqual(
+    unlisted,
+    [],
+    `these files pick a port, close it and bind it later (hold the socket instead, or list the file in KEPT with the reason): ${unlisted.join(", ")}`,
+  );
   const stale = Object.keys(KEPT).filter((f) => !found.includes(f));
-  assert.deepEqual(stale, [], `listed in KEPT but no longer has the pattern, so remove it from the list: ${stale.join(", ")}`);
+  assert.deepEqual(
+    stale,
+    [],
+    `listed in KEPT but no longer has the pattern, so remove it from the list: ${stale.join(", ")}`,
+  );
 });

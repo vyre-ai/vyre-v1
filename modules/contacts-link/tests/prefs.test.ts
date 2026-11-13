@@ -15,11 +15,33 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
   });
 }
 
-function seedSuppression(h: Harness, o: { id: string; channel?: string; address: string; reason: string; contactId?: string; at?: number; deleted?: boolean }): void {
+function seedSuppression(
+  h: Harness,
+  o: {
+    id: string;
+    channel?: string;
+    address: string;
+    reason: string;
+    contactId?: string;
+    at?: number;
+    deleted?: boolean;
+  },
+): void {
   h.ctx.db.run(
     `INSERT INTO contacts_link_suppression (id, channel, address, reason, source, "contactId", "addedAt", "addedBy", note, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    o.id, o.channel ?? "email", o.address, o.reason, "test", o.contactId ?? null, o.at ?? NOW, "usr_maya01", null, 1, NOW, o.deleted ? NOW : null,
+    o.id,
+    o.channel ?? "email",
+    o.address,
+    o.reason,
+    "test",
+    o.contactId ?? null,
+    o.at ?? NOW,
+    "usr_maya01",
+    null,
+    1,
+    NOW,
+    o.deleted ? NOW : null,
   );
 }
 
@@ -35,26 +57,63 @@ test("a contact with nothing set has unknown consent, is not Do-not-contact and 
 
 test("the preferences a record holds are read back", async () => {
   const h = harness();
-  h.contact("rec_pat01", { pref_email_consent: "granted", pref_sms_consent: "denied", pref_do_not_contact: true, pref_opt_outs: ["sms", "call", "fax"], pref_source: "form", pref_at: 123 });
+  h.contact("rec_pat01", {
+    pref_email_consent: "granted",
+    pref_sms_consent: "denied",
+    pref_do_not_contact: true,
+    pref_opt_outs: ["sms", "call", "fax"],
+    pref_source: "form",
+    pref_at: 123,
+  });
   assert.deepEqual(await preferencesGet(h.ctx, { contactId: "rec_pat01" }), {
-    emailConsent: "granted", smsConsent: "denied", doNotContact: true, optedOut: ["sms", "call"], source: "form", at: 123,
+    emailConsent: "granted",
+    smsConsent: "denied",
+    doNotContact: true,
+    optedOut: ["sms", "call"],
+    source: "form",
+    at: 123,
   });
 });
 
 test("setting preferences writes the changed fields, stamps the source and the time, and says what changed", async () => {
   const h = harness();
   h.contact("rec_pat01", { name: "Pat Lee" });
-  const input = { contactId: "rec_pat01", emailConsent: "granted" as const, optedOut: ["sms" as const], source: "form" };
+  const input = {
+    contactId: "rec_pat01",
+    emailConsent: "granted" as const,
+    optedOut: ["sms" as const],
+    source: "form",
+  };
   assert.deepEqual(contractErrors("contacts.preferences.set", "in", input), []);
   const out = await preferencesSet(h.ctx, input);
-  assert.deepEqual(out, { emailConsent: "granted", smsConsent: "unknown", doNotContact: false, optedOut: ["sms"], source: "form", at: NOW });
+  assert.deepEqual(out, {
+    emailConsent: "granted",
+    smsConsent: "unknown",
+    doNotContact: false,
+    optedOut: ["sms"],
+    source: "form",
+    at: NOW,
+  });
   assert.deepEqual(contractErrors("contacts.preferences.set", "out", out), []);
-  assert.deepEqual(h.calls("records.update").map((c) => c.input), [
-    { type: "contact", recordId: "rec_pat01", patch: { pref_email_consent: "granted", pref_opt_outs: ["sms"], pref_source: "form", pref_at: new Date(NOW).toISOString() } },
-  ]);
-  assert.deepEqual(h.named("contact.preferences_changed").map((e) => [e.subject, e.payload]), [
-    ["record/rec_pat01", { contactId: "rec_pat01", changed: ["emailConsent", "optedOut"], source: "form" }],
-  ]);
+  assert.deepEqual(
+    h.calls("records.update").map((c) => c.input),
+    [
+      {
+        type: "contact",
+        recordId: "rec_pat01",
+        patch: {
+          pref_email_consent: "granted",
+          pref_opt_outs: ["sms"],
+          pref_source: "form",
+          pref_at: new Date(NOW).toISOString(),
+        },
+      },
+    ],
+  );
+  assert.deepEqual(
+    h.named("contact.preferences_changed").map((e) => [e.subject, e.payload]),
+    [["record/rec_pat01", { contactId: "rec_pat01", changed: ["emailConsent", "optedOut"], source: "form" }]],
+  );
 });
 
 test("without a source the change is stamped manual, and Do-not-contact can be set and cleared", async () => {
@@ -65,13 +124,27 @@ test("without a source the change is stamped manual, and Do-not-contact can be s
   h.advance(1000);
   const cleared = await preferencesSet(h.ctx, { contactId: "rec_pat01", doNotContact: false, smsConsent: "denied" });
   assert.deepEqual([cleared.doNotContact, cleared.smsConsent, cleared.at], [false, "denied", NOW + 1000]);
-  assert.deepEqual(h.named("contact.preferences_changed").map((e) => e.payload.changed), [["doNotContact"], ["smsConsent", "doNotContact"]]);
+  assert.deepEqual(
+    h.named("contact.preferences_changed").map((e) => e.payload.changed),
+    [["doNotContact"], ["smsConsent", "doNotContact"]],
+  );
 });
 
 test("a call that changes nothing writes nothing and announces nothing", async () => {
   const h = harness();
-  h.contact("rec_pat01", { pref_email_consent: "granted", pref_opt_outs: ["sms", "call"], pref_source: "form", pref_at: 5 });
-  const out = await preferencesSet(h.ctx, { contactId: "rec_pat01", emailConsent: "granted", optedOut: ["call", "sms"], doNotContact: false, source: "other" });
+  h.contact("rec_pat01", {
+    pref_email_consent: "granted",
+    pref_opt_outs: ["sms", "call"],
+    pref_source: "form",
+    pref_at: 5,
+  });
+  const out = await preferencesSet(h.ctx, {
+    contactId: "rec_pat01",
+    emailConsent: "granted",
+    optedOut: ["call", "sms"],
+    doNotContact: false,
+    source: "other",
+  });
   assert.deepEqual([out.source, out.at], ["form", 5]);
   assert.equal(h.calls("records.update").length, 0);
   assert.equal(h.emitted.length, 0);
@@ -88,14 +161,26 @@ test("preferences refuse values that are not choices and contacts that are not t
   const h = harness();
   h.contact("rec_pat01", {});
   h.company("rec_acme1", {});
-  await refused(preferencesSet(h.ctx, { contactId: "rec_pat01", emailConsent: "maybe" as unknown as "granted" }), "validation.bad_input");
-  await refused(preferencesSet(h.ctx, { contactId: "rec_pat01", smsConsent: "" as unknown as "granted" }), "validation.bad_input");
-  await refused(preferencesSet(h.ctx, { contactId: "rec_pat01", doNotContact: "yes" as unknown as boolean }), "validation.bad_input");
-  await refused(preferencesSet(h.ctx, { contactId: "rec_pat01", optedOut: ["fax"] as unknown as ["email"] }), "validation.bad_input");
+  await refused(
+    preferencesSet(h.ctx, { contactId: "rec_pat01", emailConsent: "maybe" as unknown as "granted" }),
+    "validation.bad_input",
+  );
+  await refused(
+    preferencesSet(h.ctx, { contactId: "rec_pat01", smsConsent: "" as unknown as "granted" }),
+    "validation.bad_input",
+  );
+  await refused(
+    preferencesSet(h.ctx, { contactId: "rec_pat01", doNotContact: "yes" as unknown as boolean }),
+    "validation.bad_input",
+  );
+  await refused(
+    preferencesSet(h.ctx, { contactId: "rec_pat01", optedOut: ["fax"] as unknown as ["email"] }),
+    "validation.bad_input",
+  );
   await refused(preferencesSet(h.ctx, { contactId: "rec_pat01", source: "x".repeat(201) }), "validation.bad_input");
   await refused(preferencesSet(h.ctx, { contactId: "pat", doNotContact: true }), "validation.bad_input");
   await refused(preferencesSet(h.ctx, { contactId: "rec_nobody", doNotContact: true }), "validation.not_found");
-  await refused(preferencesGet(h.ctx, { contactId: "rec_acme1" }), "validation.not_found");   // a company has no preferences group
+  await refused(preferencesGet(h.ctx, { contactId: "rec_acme1" }), "validation.not_found"); // a company has no preferences group
   assert.equal(h.calls("records.update").length, 0);
 });
 
@@ -126,7 +211,11 @@ test("a hard bounce makes it bounced, a complaint outranks it, and an address fr
   assert.deepEqual((await deliverability(h.ctx, { contactId: "rec_pat01" })).state, "bounced");
   seedSuppression(h, { id: "sup_c1", address: "pat@home.test", reason: "complaint", at: NOW - 2000 });
   const out = await deliverability(h.ctx, { contactId: "rec_pat01" });
-  assert.deepEqual(out, { state: "complained", lastEventAt: NOW - 1000, reasons: ["complaint: pat@home.test", "hard bounce: pat@x.test"] });
+  assert.deepEqual(out, {
+    state: "complained",
+    lastEventAt: NOW - 1000,
+    reasons: ["complaint: pat@home.test", "hard bounce: pat@x.test"],
+  });
 });
 
 test("a row tied to the contact counts even when its address is not on the record any more", async () => {
@@ -145,7 +234,10 @@ test("unsubscribes, removed rows and other people's rows do not count; the recor
   seedSuppression(h, { id: "sup_s1", channel: "sms", address: "+14155550123", reason: "stop", contactId: "rec_pat01" });
   assert.deepEqual(await deliverability(h.ctx, { contactId: "rec_pat01" }), { state: "good", reasons: [] });
   h.records.get("rec_pat01")!.fields.deliverability = "risky";
-  assert.deepEqual(await deliverability(h.ctx, { contactId: "rec_pat01" }), { state: "risky", reasons: ["marked risky on the record"] });
+  assert.deepEqual(await deliverability(h.ctx, { contactId: "rec_pat01" }), {
+    state: "risky",
+    reasons: ["marked risky on the record"],
+  });
   await refused(deliverability(h.ctx, { contactId: "rec_nobody" }), "validation.not_found");
 });
 
@@ -162,9 +254,15 @@ test("an unowned reply goes to the contact's owner first", async () => {
 test("then to the shared inbox", async () => {
   const h = harness();
   h.contact("rec_pat01", { name: "No owner" });
-  assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_pat01", mailboxId: "mbx_hello" }), { via: "shared_inbox", mailboxId: "mbx_hello" });
+  assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_pat01", mailboxId: "mbx_hello" }), {
+    via: "shared_inbox",
+    mailboxId: "mbx_hello",
+  });
   assert.deepEqual(await routeOwner(h.ctx, {}), { via: "shared_inbox" });
-  assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_nobody", mailboxId: "mbx_hello" }), { via: "shared_inbox", mailboxId: "mbx_hello" });
+  assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_nobody", mailboxId: "mbx_hello" }), {
+    via: "shared_inbox",
+    mailboxId: "mbx_hello",
+  });
 });
 
 test("route_owner refuses ids that are not ids", async () => {

@@ -22,25 +22,46 @@ export function useCall<T>(cap: string, input: unknown, parse: (out: unknown) =>
   const key = JSON.stringify(input);
   useEffect(() => {
     let live = true;
-    void data.call(cap, JSON.parse(key) as unknown).then((out) => {
-      if (!live) return;
-      const value = parse(out);
-      setState(value === null ? { phase: "error", message: "That list did not return rows." } : { phase: "ready", value });
-    }).catch((e: unknown) => {
-      if (!live) return;
-      setState({ phase: "error", message: e instanceof Error ? e.message : "That did not load." });
-    });
-    return () => { live = false; };
+    void data
+      .call(cap, JSON.parse(key) as unknown)
+      .then((out) => {
+        if (!live) return;
+        const value = parse(out);
+        setState(
+          value === null ? { phase: "error", message: "That list did not return rows." } : { phase: "ready", value },
+        );
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        setState({ phase: "error", message: e instanceof Error ? e.message : "That did not load." });
+      });
+    return () => {
+      live = false;
+    };
   }, [data, cap, key, again]);
   return state;
 }
 
-export function Frame({ testID, title, line, actions, children }: { testID: string; title: string; line?: string; actions?: ReactNode; children: ReactNode }): ReactElement {
+export function Frame({
+  testID,
+  title,
+  line,
+  actions,
+  children,
+}: {
+  testID: string;
+  title: string;
+  line?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}): ReactElement {
   return (
     <View testID={testID} style={v.page}>
       <View style={v.head}>
         <View style={v.headText}>
-          <Text accessibilityRole="header" style={v.title}>{title}</Text>
+          <Text accessibilityRole="header" style={v.title}>
+            {title}
+          </Text>
           {line ? <Text style={v.dim}>{line}</Text> : null}
         </View>
         {actions ? <View style={v.actions}>{actions}</View> : null}
@@ -51,7 +72,12 @@ export function Frame({ testID, title, line, actions, children }: { testID: stri
 }
 
 export function Status({ state }: { state: Phase<unknown> }): ReactElement | null {
-  if (state.phase === "loading") return <Text style={v.dim} accessibilityLiveRegion="polite">Loading</Text>;
+  if (state.phase === "loading")
+    return (
+      <Text style={v.dim} accessibilityLiveRegion="polite">
+        Loading
+      </Text>
+    );
   if (state.phase === "error") {
     return (
       <View style={v.stack}>
@@ -64,7 +90,17 @@ export function Status({ state }: { state: Phase<unknown> }): ReactElement | nul
 }
 
 /** A header button that opens a menu under itself. Enter or Space opens it, arrows move, Escape closes. */
-export function MenuButton({ label, entries, testID, icon = "chevD" }: { label: string; entries: readonly MenuEntry[]; testID: string; icon?: "chevD" | "plus" }): ReactElement {
+export function MenuButton({
+  label,
+  entries,
+  testID,
+  icon = "chevD",
+}: {
+  label: string;
+  entries: readonly MenuEntry[];
+  testID: string;
+  icon?: "chevD" | "plus";
+}): ReactElement {
   const { element, show } = useMenu();
   const [over, setOver] = useState(false);
   return (
@@ -77,13 +113,17 @@ export function MenuButton({ label, entries, testID, icon = "chevD" }: { label: 
         onHoverIn={() => setOver(true)}
         onHoverOut={() => setOver(false)}
         onPress={(e) => {
-          const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+          const box = (
+            e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }
+          ).currentTarget?.getBoundingClientRect?.();
           show(entries, box?.left ?? 0, (box?.bottom ?? 0) + 4, "other");
         }}
         {...webOnly({ title: label })}
         style={[v.menuBtn, over && v.menuBtnOver, pointer]}
       >
-        <Text style={v.menuText} numberOfLines={1}>{label}</Text>
+        <Text style={v.menuText} numberOfLines={1}>
+          {label}
+        </Text>
         <Glyph name={icon} size={11} color="var(--ink-3)" />
       </Pressable>
       {element}
@@ -95,12 +135,27 @@ export function MenuButton({ label, entries, testID, icon = "chevD" }: { label: 
  * Right-click, Shift-F10 and the menu key open a row's menu. One menu serves the whole list; `rowDom` builds the handlers for one row,
  * and the entries are built when the menu opens, so every item acts on the row that was clicked. A row is always the ui/Row: press or Enter opens it, hover lights it.
  */
-export function useRowMenu(): { element: ReactElement | null; rowDom(label: string, build: () => readonly MenuEntry[]): Record<string, unknown> } {
+export function useRowMenu(): {
+  element: ReactElement | null;
+  rowDom(label: string, build: () => readonly MenuEntry[]): Record<string, unknown>;
+} {
   const { element, show } = useMenu();
   return { element, rowDom: (label, build) => menuTrigger((x, y) => show(build(), x, y, "context", { label })) };
 }
 
-export function Tile({ label, value, note, testID, tone }: { label: string; value: string; note?: string; testID: string; tone?: "danger" }): ReactElement {
+export function Tile({
+  label,
+  value,
+  note,
+  testID,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  testID: string;
+  tone?: "danger";
+}): ReactElement {
   return (
     <View testID={testID} accessible accessibilityLabel={`${label}: ${value}`} style={v.tile}>
       <Text style={v.tileLabel}>{label}</Text>
@@ -112,10 +167,29 @@ export function Tile({ label, value, note, testID, tone }: { label: string; valu
 
 /** What is missing and the next thing to do about it. The button is optional. */
 /** An empty state, the shared one: an icon, a few words, one action. `next` is the long explanation; it stays out of the page (help belongs on hover or on failure) and rides on the title for a screen reader. */
-export function Empty({ testID, title, next, action, onAction, icon = "done" }: { testID: string; title: string; next?: string; action?: string; onAction?: () => void; icon?: "inbox" | "search" | "files" | "records" | "chat" | "done" }): ReactElement {
+export function Empty({
+  testID,
+  title,
+  next,
+  action,
+  onAction,
+  icon = "done",
+}: {
+  testID: string;
+  title: string;
+  next?: string;
+  action?: string;
+  onAction?: () => void;
+  icon?: "inbox" | "search" | "files" | "records" | "chat" | "done";
+}): ReactElement {
   return (
     <View testID={testID} style={v.empty} accessibilityLabel={next ? `${title}. ${next}` : title}>
-      <States kind="empty" title={title} icon={icon} {...(action && onAction ? { action: { label: action, onPress: onAction } } : {})} />
+      <States
+        kind="empty"
+        title={title}
+        icon={icon}
+        {...(action && onAction ? { action: { label: action, onPress: onAction } } : {})}
+      />
     </View>
   );
 }
@@ -133,7 +207,15 @@ export const v = StyleSheet.create({
   stack: { gap: 8 },
   section: { fontSize: 12, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 6 },
   list: { gap: 2 },
-  line: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 34, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  line: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
   lineOver: { backgroundColor: "var(--hover)" as string },
   lineOn: { backgroundColor: "var(--accent-wash)" as string },
   lineMain: { flex: 1, minWidth: 0, gap: 1 },
@@ -142,7 +224,15 @@ export const v = StyleSheet.create({
   tag: { fontSize: 11.5, fontWeight: "600", color: "var(--danger)" as string },
   tagWarn: { fontSize: 11.5, fontWeight: "600", color: "var(--warn)" as string },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tile: { minWidth: 120, flexGrow: 1, flexBasis: 120, gap: 2, padding: 12, borderRadius: 10, backgroundColor: "var(--surface-2)" as string },
+  tile: {
+    minWidth: 120,
+    flexGrow: 1,
+    flexBasis: 120,
+    gap: 2,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "var(--surface-2)" as string,
+  },
   tileLabel: { fontSize: 12, color: "var(--ink-3)" as string },
   tileValue: { fontSize: 20, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
   tileNote: { fontSize: 11.5, color: "var(--ink-3)" as string },
@@ -151,15 +241,47 @@ export const v = StyleSheet.create({
   menuText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   empty: { gap: 6, paddingVertical: 24, maxWidth: 480 },
   emptyTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  emptyBtn: { alignSelf: "flex-start", marginTop: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, backgroundColor: "var(--hover)" as string },
+  emptyBtn: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "var(--hover)" as string,
+  },
   bars: { flexDirection: "row", alignItems: "flex-end", gap: 2, height: 84 },
   barCol: { flex: 1, minWidth: 3, justifyContent: "flex-end" },
-  input: { fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 8, padding: 8, maxWidth: 220 },
+  input: {
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 8,
+    padding: 8,
+    maxWidth: 220,
+  },
   detail: { gap: 6, padding: 12, borderRadius: 10, backgroundColor: "var(--surface-2)" as string },
-  mono: { fontSize: 12, lineHeight: 17, color: "var(--ink-2)" as string, ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" } as object) },
+  mono: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: "var(--ink-2)" as string,
+    ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" } as object),
+  },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   choice: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--surface-2)" as string },
-  btn: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, backgroundColor: "var(--hover)" as string },
-  btnPrimary: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7, backgroundColor: "var(--accent)" as string },
+  btn: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "var(--hover)" as string,
+  },
+  btnPrimary: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 7,
+    backgroundColor: "var(--accent)" as string,
+  },
   btnPrimaryText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },
 });

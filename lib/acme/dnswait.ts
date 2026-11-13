@@ -13,14 +13,31 @@ import { Resolver } from "node:dns/promises";
  */
 export async function waitTxt(fqdn, value, o = {}) {
   const servers = o.servers || ["1.1.1.1", "8.8.8.8"];
-  const timeoutMs = o.timeoutMs ?? 120_000, everyMs = o.everyMs ?? 3000, settleMs = o.settleMs ?? 5000;
-  const sleep = o.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  const timeoutMs = o.timeoutMs ?? 120_000,
+    everyMs = o.everyMs ?? 3000,
+    settleMs = o.settleMs ?? 5000;
+  const sleep = o.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = o.now || Date.now;
-  const resolve = o.resolve || (async (server, name) => { const r = new Resolver({ timeout: 3000, tries: 1 }); r.setServers([server]); return r.resolveTxt(name); });
-  const sees = async (/** @type {string} */ server) => { try { return (await resolve(server, fqdn)).some(chunks => chunks.join("") === value); } catch { return false; } };
+  const resolve =
+    o.resolve ||
+    (async (server, name) => {
+      const r = new Resolver({ timeout: 3000, tries: 1 });
+      r.setServers([server]);
+      return r.resolveTxt(name);
+    });
+  const sees = async (/** @type {string} */ server) => {
+    try {
+      return (await resolve(server, fqdn)).some((chunks) => chunks.join("") === value);
+    } catch {
+      return false;
+    }
+  };
   const end = now() + timeoutMs;
   while (now() < end) {
-    if ((await Promise.all(servers.map(sees))).every(Boolean)) { await sleep(settleMs); return true; }
+    if ((await Promise.all(servers.map(sees))).every(Boolean)) {
+      await sleep(settleMs);
+      return true;
+    }
     await sleep(everyMs);
   }
   return false;

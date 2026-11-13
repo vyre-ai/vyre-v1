@@ -24,7 +24,11 @@ function personOf(ctx: VaultReqCtx): string | null {
 const requesterOf = (ctx: VaultReqCtx): Ref => ({ kind: ctx.principal.kind as Ref["kind"], id: ctx.principal.id });
 
 /** The people who may decide a request: those with Manage on the folder, else on the Space (its owners and admins). The requester is never one of them. Asked of the access module's own decider list, so an agent that cannot see the folder still reaches a real person. */
-export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined, requester: string): Promise<string[]> {
+export async function managersFor(
+  ctx: VaultReqCtx,
+  folderId: string | undefined,
+  requester: string,
+): Promise<string[]> {
   const ask = async (resource: { type: string; id: string }, why: string): Promise<string[]> => {
     try {
       const got = asRow(await ctx.call("access.deciders", { resource }));
@@ -34,7 +38,9 @@ export async function managersFor(ctx: VaultReqCtx, folderId: string | undefined
       return [];
     }
   };
-  const out = new Set<string>(folderId ? await ask({ type: "vault_folder", id: folderId }, "the folder's managers") : []);
+  const out = new Set<string>(
+    folderId ? await ask({ type: "vault_folder", id: folderId }, "the folder's managers") : [],
+  );
   out.delete(requester);
   // ruling 74: when no folder claims the key, or only the requester manages it, the Space's owners decide
   if (out.size === 0) for (const p of await ask({ type: "space", id: ctx.space }, "the Space managers")) out.add(p);
@@ -49,8 +55,16 @@ export function neededTitle(name: string): string {
 }
 
 /** The chat the agent asked in and the agent's id, read back from the request's own card (no column holds them). */
-async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: string; agentId?: string; asker?: string } | null> {
-  if (row.thread_id) return { threadId: row.thread_id, ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}), ...(row.asker_id ? { asker: row.asker_id } : row.requester_kind === "person" ? { asker: row.requester_id } : {}) };
+async function chatOf(
+  ctx: VaultReqCtx,
+  row: RequestRow,
+): Promise<{ threadId: string; agentId?: string; asker?: string } | null> {
+  if (row.thread_id)
+    return {
+      threadId: row.thread_id,
+      ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
+      ...(row.asker_id ? { asker: row.asker_id } : row.requester_kind === "person" ? { asker: row.requester_id } : {}),
+    };
   // the caller holds one of the cards, not necessarily the first: another manager's card is not theirs to read
   for (const taskId of idsOf(row.task_ids_json)) {
     try {
@@ -58,8 +72,16 @@ async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: st
       const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
       const d = asRow(asRow(blocks[0])?.["data"]);
       const threadId = strOf(d?.["threadId"]);
-      return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}), ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}) } : null;
-    } catch { /* the next card */ }
+      return threadId
+        ? {
+            threadId,
+            ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}),
+            ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}),
+          }
+        : null;
+    } catch {
+      /* the next card */
+    }
   }
   return null;
 }
@@ -67,40 +89,120 @@ async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: st
 /** Where a company key lives: the shared folder Connect your company uses, Restricted before anything goes in, so a Member and every agent can neither list, use nor change it. */
 async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   const name = "Company connections";
-  const have = (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as { id?: string; name?: string }[] | undefined ?? []).find((f) => f.name === name);
-  const id = have?.id ?? strOf(asRow(asRow(await ctx.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `company-folder:${ctx.now()}` }))?.["folder"])?.["id"]);
+  const have = (
+    (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
+      | { id?: string; name?: string }[]
+      | undefined) ?? []
+  ).find((f) => f.name === name);
+  const id =
+    have?.id ??
+    strOf(
+      asRow(
+        asRow(
+          await ctx.call("vault.folders.create", {
+            name,
+            scope: "shared",
+            idempotencyKey: `company-folder:${ctx.now()}`,
+          }),
+        )?.["folder"],
+      )?.["id"],
+    );
   if (id) await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" });
   return id ?? undefined;
 }
 
-export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; handleOnly?: boolean; to?: string; idempotencyKey: string }) {
+export async function requestCreate(
+  ctx: VaultReqCtx,
+  input: {
+    name: string;
+    fields?: string[];
+    reason: string;
+    forRun?: string;
+    folderId?: string;
+    handleOnly?: boolean;
+    to?: string;
+    idempotencyKey: string;
+  },
+) {
   const trace = ctx.trace.traceId;
   const requester = requesterOf(ctx);
   const name = input.name.trim();
-  if (!NAME.test(name)) raise(trace, "validation.bad_input", "Name the key like a handle: letters, digits and underscores, starting with a letter.");
+  if (!NAME.test(name))
+    raise(
+      trace,
+      "validation.bad_input",
+      "Name the key like a handle: letters, digits and underscores, starting with a letter.",
+    );
   if (!input.reason.trim()) raise(trace, "validation.bad_input", "Say why the key is needed, so a manager can decide.");
-  const fields = [...new Set((input.fields && input.fields.length > 0 ? input.fields : DEFAULT_FIELDS).map((f) => f.trim()))];
+  const fields = [
+    ...new Set((input.fields && input.fields.length > 0 ? input.fields : DEFAULT_FIELDS).map((f) => f.trim())),
+  ];
   for (const f of fields) if (!FIELD.test(f)) raise(trace, "validation.bad_input", `${f} is not a field name.`);
 
-  const asker = requester.kind === "person" ? null : ctx.actingFor ?? null;
+  const asker = requester.kind === "person" ? null : (ctx.actingFor ?? null);
   // one agent's asks for different people are different requests; one it made for nobody in particular serves whoever asks next
-  const mine = (ctx.db.all(`SELECT * FROM ${TABLE} WHERE requester_id = ?`, requester.id) as RequestRow[]).filter((r) => (r.asker_id ?? null) === asker || !r.asker_id);
+  const mine = (ctx.db.all(`SELECT * FROM ${TABLE} WHERE requester_id = ?`, requester.id) as RequestRow[]).filter(
+    (r) => (r.asker_id ?? null) === asker || !r.asker_id,
+  );
   const again = mine.find((r) => r.idem_key === input.idempotencyKey);
   if (again) return { request: requestOut(again) };
   // asked again while the first ask still waits (another chat, an earlier turn): the same request answers, and its card is drawn in this chat too, so the person types the key where they are now.
   // Both cards read the one request and close together; nobody gets a second task.
-  const waiting = mine.find((r) => r.state === "waiting" && r.name === name && r.folder_id === (input.folderId ?? null));
+  const waiting = mine.find(
+    (r) => r.state === "waiting" && r.name === name && r.folder_id === (input.folderId ?? null),
+  );
   if (waiting) {
-    if ((asker && !waiting.asker_id) || (ctx.thread && ctx.thread !== waiting.thread_id)) ctx.db.run(`UPDATE ${TABLE} SET asker_id = ?, thread_id = ? WHERE id = ?`, waiting.asker_id ?? asker, ctx.thread ?? waiting.thread_id ?? null, waiting.id);
+    if ((asker && !waiting.asker_id) || (ctx.thread && ctx.thread !== waiting.thread_id))
+      ctx.db.run(
+        `UPDATE ${TABLE} SET asker_id = ?, thread_id = ? WHERE id = ?`,
+        waiting.asker_id ?? asker,
+        ctx.thread ?? waiting.thread_id ?? null,
+        waiting.id,
+      );
     if (ctx.thread) {
       const fields0 = JSON.parse(waiting.fields_json) as string[];
-      const card = { type: "vault_request", v: 1, data: { requestId: waiting.id, name: waiting.name, fields: fields0, reason: waiting.reason, requester, ...(waiting.for_run ? { forRun: waiting.for_run } : {}), ...(waiting.folder_id ? { folderId: waiting.folder_id } : {}), threadId: ctx.thread, ...(requester.kind === "agent" ? { agentId: requester.id } : {}), ...((ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined)) ? { asker: (ctx.actingFor ?? requester.id) } : {}), state: "waiting" } };
-      try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [card], idempotencyKey: `${waiting.id}:card:${ctx.thread}` }); }
-      catch (e) { ctx.log.warn("vault request: the chat card was not posted", { requestId: waiting.id, error: e instanceof Error ? e.message : String(e) }); }
+      const card = {
+        type: "vault_request",
+        v: 1,
+        data: {
+          requestId: waiting.id,
+          name: waiting.name,
+          fields: fields0,
+          reason: waiting.reason,
+          requester,
+          ...(waiting.for_run ? { forRun: waiting.for_run } : {}),
+          ...(waiting.folder_id ? { folderId: waiting.folder_id } : {}),
+          threadId: ctx.thread,
+          ...(requester.kind === "agent" ? { agentId: requester.id } : {}),
+          ...((ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined))
+            ? { asker: ctx.actingFor ?? requester.id }
+            : {}),
+          state: "waiting",
+        },
+      };
+      try {
+        await ctx.call("chat.post", {
+          threadId: ctx.thread,
+          body: "",
+          blocks: [card],
+          idempotencyKey: `${waiting.id}:card:${ctx.thread}`,
+        });
+      } catch (e) {
+        ctx.log.warn("vault request: the chat card was not posted", {
+          requestId: waiting.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
       // the tasks' card names the chat the agent carries on in once the key is saved (chatOf): the newest ask's chat, where the person is
       for (const taskId of idsOf(waiting.task_ids_json)) {
-        try { await ctx.call("tasks.update", { taskId, blocks: [card] }); }
-        catch (e) { ctx.log.warn("vault request: the task card still names the first chat", { requestId: waiting.id, error: e instanceof Error ? e.message : String(e) }); }
+        try {
+          await ctx.call("tasks.update", { taskId, blocks: [card] });
+        } catch (e) {
+          ctx.log.warn("vault request: the task card still names the first chat", {
+            requestId: waiting.id,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
       }
     }
     return { request: requestOut(waiting) };
@@ -109,55 +211,123 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   // a request addressed to one teammate (an agent asking them in their direct chat) goes to that person alone; they decide it as they would as a manager
   // the person behind this ask (two merged lines named it `asker` twice, which stopped the module loading): a request is never addressed to them
   const self = ctx.actingFor ?? requester.id;
-  if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === self || input.to === requester.id)) raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
+  if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === self || input.to === requester.id))
+    raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
   const managers = input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id);
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
-  const block = { type: "vault_request", v: 1, data: { requestId: id, name, fields, reason: input.reason.trim(), requester, ...(input.forRun ? { forRun: input.forRun } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}), ...(ctx.thread && requester.kind === "agent" ? { agentId: requester.id } : {}), ...(ctx.thread && (ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined)) ? { asker: (ctx.actingFor ?? requester.id) } : {}), state: "waiting" } };
+  const block = {
+    type: "vault_request",
+    v: 1,
+    data: {
+      requestId: id,
+      name,
+      fields,
+      reason: input.reason.trim(),
+      requester,
+      ...(input.forRun ? { forRun: input.forRun } : {}),
+      ...(input.folderId ? { folderId: input.folderId } : {}),
+      ...(ctx.thread ? { threadId: ctx.thread } : {}),
+      ...(ctx.thread && requester.kind === "agent" ? { agentId: requester.id } : {}),
+      ...(ctx.thread && (ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined))
+        ? { asker: ctx.actingFor ?? requester.id }
+        : {}),
+      state: "waiting",
+    },
+  };
   const taskIds: string[] = [];
   for (const manager of managers) {
-    const made = asRow(await ctx.call("tasks.create", {
-      kind: "unblock", title: neededTitle(name), summary: input.reason.trim(), why: "Add the key to the Vault and it carries on.",
-      ...(ctx.thread ? { notes: { thread: ctx.thread } } : {}),
-      assigned: { kind: "person", id: manager }, source: { kind: "manual", id }, blocks: [block],
-            // no "resolved" here: a key request closes only through vault.requests.fulfil (a key saved) or decline, never by pressing a bare Done
-      actions: [{ key: "cannot", label: "Deny", note: "optional" }], idempotencyKey: `${id}:${manager}`,
-    }));
+    const made = asRow(
+      await ctx.call("tasks.create", {
+        kind: "unblock",
+        title: neededTitle(name),
+        summary: input.reason.trim(),
+        why: "Add the key to the Vault and it carries on.",
+        ...(ctx.thread ? { notes: { thread: ctx.thread } } : {}),
+        assigned: { kind: "person", id: manager },
+        source: { kind: "manual", id },
+        blocks: [block],
+        // no "resolved" here: a key request closes only through vault.requests.fulfil (a key saved) or decline, never by pressing a bare Done
+        actions: [{ key: "cannot", label: "Deny", note: "optional" }],
+        idempotencyKey: `${id}:${manager}`,
+      }),
+    );
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(trace, "internal.unexpected", "The task for the request was not created.");
     taskIds.push(taskId);
   }
   ctx.db.run(
     `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, idem_key, managers_json, task_ids_json, at, handle_only, asker_id, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, JSON.stringify(fields), input.reason.trim(), requester.kind, requester.id, input.forRun ?? null, input.folderId ?? null, "waiting", input.idempotencyKey, JSON.stringify(managers), JSON.stringify(taskIds), ctx.now(),
-    input.handleOnly === true ? 1 : 0, asker, ctx.thread ?? null,
+    id,
+    name,
+    JSON.stringify(fields),
+    input.reason.trim(),
+    requester.kind,
+    requester.id,
+    input.forRun ?? null,
+    input.folderId ?? null,
+    "waiting",
+    input.idempotencyKey,
+    JSON.stringify(managers),
+    JSON.stringify(taskIds),
+    ctx.now(),
+    input.handleOnly === true ? 1 : 0,
+    asker,
+    ctx.thread ?? null,
   );
   const row = requestById(ctx, id)!;
-  ctx.emit("vault.requested", id, { requestId: id, name, fields, requester, ...(input.forRun ? { forRun: input.forRun } : {}), taskId: taskIds[0]! });
+  ctx.emit("vault.requested", id, {
+    requestId: id,
+    name,
+    fields,
+    requester,
+    ...(input.forRun ? { forRun: input.forRun } : {}),
+    taskId: taskIds[0]!,
+  });
   // the person asked in a chat: the ask lands there as a card, where they are (Needs you keeps its linked row)
   if (ctx.thread) {
-    try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` }); }
-    catch (e) { ctx.log.warn("vault request: the chat card was not posted", { requestId: id, error: e instanceof Error ? e.message : String(e) }); }
+    try {
+      await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` });
+    } catch (e) {
+      ctx.log.warn("vault request: the chat card was not posted", {
+        requestId: id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return { request: requestOut(row) };
 }
 
 /** The person an agent asked for may add a key that names no folder into their own Mine (owner ruling 3 Nov). Never a company key, never an outside agent's name-only ask. */
 function askerDecides(row: RequestRow, me: string | null): boolean {
-  return !!me && row.asker_id === me && row.requester_kind === "agent" && row.handle_only !== 1 && !row.folder_id && !isCompanyKey(`#${row.name}`);
+  return (
+    !!me &&
+    row.asker_id === me &&
+    row.requester_kind === "agent" &&
+    row.handle_only !== 1 &&
+    !row.folder_id &&
+    !isCompanyKey(`#${row.name}`)
+  );
 }
 
 /** A request the caller made, or may decide. Anyone else gets "not found". */
 function visible(ctx: VaultReqCtx, requestId: string): { row: RequestRow; asRequester: boolean; asManager: boolean } {
   const row = requestById(ctx, requestId);
   const me = personOf(ctx);
-  const asRequester = !!row && (row.requester_id === ctx.principal.id || (!!ctx.actingFor && row.requester_id === ctx.actingFor) || (!!me && row.asker_id === me));
+  const asRequester =
+    !!row &&
+    (row.requester_id === ctx.principal.id ||
+      (!!ctx.actingFor && row.requester_id === ctx.actingFor) ||
+      (!!me && row.asker_id === me));
   const asManager = !!row && !!me && row.requester_id !== me && idsOf(row.managers_json).includes(me);
   if (!row || (!asRequester && !asManager)) return raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   return { row, asRequester, asManager };
 }
 
-export async function requestsList(ctx: VaultReqCtx, input: { mine?: boolean; state?: State; cursor?: string; limit?: number }) {
+export async function requestsList(
+  ctx: VaultReqCtx,
+  input: { mine?: boolean; state?: State; cursor?: string; limit?: number },
+) {
   const me = personOf(ctx);
   const ownIds = new Set([ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])]);
   const all = (ctx.db.all(`SELECT * FROM ${TABLE}`) as RequestRow[])
@@ -183,30 +353,46 @@ async function closeCards(ctx: VaultReqCtx, row: RequestRow, to: "done" | "cance
     try {
       await ctx.call("tasks.transition", { taskId, to, note });
     } catch (e) {
-      ctx.log.warn("vault request card did not close", { requestId: row.id, taskId, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("vault request card did not close", {
+        requestId: row.id,
+        taskId,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 }
 
 /** The agent that asked, when an agent did: an agent outside Vyre has no chat to be told in, so the answer reaches it by its id (modules/mcp). */
-const agentOf = (row: RequestRow): { agentId?: string } => (row.requester_kind === "agent" ? { agentId: row.requester_id } : {});
+const agentOf = (row: RequestRow): { agentId?: string } =>
+  row.requester_kind === "agent" ? { agentId: row.requester_id } : {};
 
 /** A manager decides a request that is still waiting, or the person it was asked for adds their own key (`own`: into their Mine). */
 function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: string; own: boolean } {
   const { row, asManager } = visible(ctx, requestId);
   const me = personOf(ctx);
   const own = !asManager && askerDecides(row, me);
-  if ((!asManager && !own) || !me) return raise(ctx.trace.traceId, "permission.no_grant", "Only a manager of this Vault can decide this request.");
+  if ((!asManager && !own) || !me)
+    return raise(ctx.trace.traceId, "permission.no_grant", "Only a manager of this Vault can decide this request.");
   if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
   return { row, me, own };
 }
 
 /** The person's own Mine folder for a key they add for themselves: the one they named when it is theirs, else their first, else a new one. */
 async function ownMine(ctx: VaultReqCtx, row: RequestRow, named: string | undefined): Promise<string | undefined> {
-  const mine = (asRow(await ctx.call("vault.folders.list", { scope: "mine" }))?.["folders"] as { id?: string }[] | undefined ?? []).map((f) => String(f.id ?? "")).filter(Boolean);
+  const mine = (
+    (asRow(await ctx.call("vault.folders.list", { scope: "mine" }))?.["folders"] as { id?: string }[] | undefined) ?? []
+  )
+    .map((f) => String(f.id ?? ""))
+    .filter(Boolean);
   if (named && mine.includes(named)) return named;
   if (mine[0]) return mine[0];
-  return strOf(asRow(asRow(await ctx.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: `${row.id}:mine` }))?.["folder"])?.["id"]);
+  return strOf(
+    asRow(
+      asRow(
+        await ctx.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: `${row.id}:mine` }),
+      )?.["folder"],
+    )?.["id"],
+  );
 }
 
 /**
@@ -217,11 +403,21 @@ export type KeyAudience = "asker" | "anyone";
 export const throughSource = (audience: KeyAudience, asker: string | undefined): string | null =>
   audience === "anyone" ? `${THROUGH_AGENT}${THROUGH_ANYONE}` : asker ? `${THROUGH_AGENT}${asker}` : null;
 
-export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: string; itemId?: string; fields?: { key: string; value: string }[]; folderId?: string; audience?: KeyAudience }) {
+export async function requestsFulfil(
+  ctx: VaultReqCtx,
+  input: {
+    requestId: string;
+    itemId?: string;
+    fields?: { key: string; value: string }[];
+    folderId?: string;
+    audience?: KeyAudience;
+  },
+) {
   const trace = ctx.trace.traceId;
   const { row, me, own } = decidable(ctx, input.requestId);
   const hasFields = !!input.fields && input.fields.length > 0;
-  if (!input.itemId === !hasFields) raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
+  if (!input.itemId === !hasFields)
+    raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
   const wanted = idsOf(row.fields_json);
   let itemId = input.itemId;
   // the item's handle: the agent is told it, because a name another item already holds gets a numbered handle (#Fathom_2), and the name alone would find that other item
@@ -229,57 +425,118 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
 
   if (itemId) {
     const got = asRow(await ctx.call("vault.item.get", { itemId }));
-    const keys = Array.isArray(asRow(got?.["item"])?.["fieldKeys"]) ? ((asRow(got?.["item"])?.["fieldKeys"]) as unknown[]).map(String) : [];
+    const keys = Array.isArray(asRow(got?.["item"])?.["fieldKeys"])
+      ? (asRow(got?.["item"])?.["fieldKeys"] as unknown[]).map(String)
+      : [];
     const missing = wanted.filter((f) => !keys.includes(f));
-    if (missing.length > 0) raise(trace, "validation.precondition_failed", `That item has no ${missing.join(", ")} field.`);
+    if (missing.length > 0)
+      raise(trace, "validation.precondition_failed", `That item has no ${missing.join(", ")} field.`);
     const it = asRow(got?.["item"]);
     handle = strOf(it?.["handle"]);
-    if (own && (it?.["scope"] !== "mine" || it?.["owner"] !== me)) raise(trace, "permission.no_grant", "Attach a key from your own Mine. A key for the team is added by an owner or admin.");
+    if (own && (it?.["scope"] !== "mine" || it?.["owner"] !== me))
+      raise(
+        trace,
+        "permission.no_grant",
+        "Attach a key from your own Mine. A key for the team is added by an owner or admin.",
+      );
   } else {
     const given = new Map((input.fields ?? []).map((f) => [f.key, f.value] as const));
-    const missing = wanted.filter((f) => !(given.get(f)?.length));
-    if (missing.length > 0) raise(trace, "validation.precondition_failed", `The key needs a value for ${missing.join(", ")}.`);
-    const folderId = own ? await ownMine(ctx, row, input.folderId) : input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined);
+    const missing = wanted.filter((f) => !given.get(f)?.length);
+    if (missing.length > 0)
+      raise(trace, "validation.precondition_failed", `The key needs a value for ${missing.join(", ")}.`);
+    const folderId = own
+      ? await ownMine(ctx, row, input.folderId)
+      : (input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined));
     if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
-    const made = asRow(await ctx.call("vault.item.put", {
-      folderId, name: row.name, kind: "api_key", fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })), idempotencyKey: `${row.id}:put`,
-    }));
+    const made = asRow(
+      await ctx.call("vault.item.put", {
+        folderId,
+        name: row.name,
+        kind: "api_key",
+        fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
+        idempotencyKey: `${row.id}:put`,
+      }),
+    );
     itemId = strOf(asRow(made?.["item"])?.["id"]);
     handle = strOf(asRow(made?.["item"])?.["handle"]);
     if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
   }
 
   // a company key goes on the card from the person to the Vault, into the Restricted folder, and the agent that asked gets nothing: not Use, not the handle's value. It carries on through the connector, on the server
-  if (isCompanyKey(`#${row.name}`)) await ctx.call("access.labels.set", { resource: { type: "vault_item", id: itemId }, label: "restricted" });
+  if (isCompanyKey(`#${row.name}`))
+    await ctx.call("access.labels.set", { resource: { type: "vault_item", id: itemId }, label: "restricted" });
   // a requester that asked for the name only (an outside agent) gets no Use on the item: it passes #NAME as a handle to a call a person approves, and holds nothing afterwards
-  else if (row.handle_only === 1) { /* no share */ }
+  else if (row.handle_only === 1) {
+    /* no share */
+  }
   // the person's own key, in their own Mine: the agent working for them reaches it on their turns, and nobody else's turns do
-  else if (own) { /* no share */ }
-  else {
+  else if (own) {
+    /* no share */
+  } else {
     let shared = true;
     try {
-      await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
+      await ctx.call("vault.share", {
+        resource: { type: "vault_item", id: itemId },
+        subject: { kind: row.requester_kind, id: row.requester_id },
+        level: "use",
+        idempotencyKey: `${row.id}:use`,
+      });
     } catch (e) {
       // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
-      if (!/private/i.test(e instanceof Error ? e.message : "") ) throw e;
+      if (!/private/i.test(e instanceof Error ? e.message : "")) throw e;
       shared = false;
     }
     // who may use it through the agent: the person who asked (default), or anyone who asks this agent
-    const source = shared && row.requester_kind === "agent" ? throughSource(input.audience ?? "asker", (await chatOf(ctx, row))?.asker) : null;
-    if (source) await ctx.call("access.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: "agent", id: row.requester_id }, level: "use", source, idempotencyKey: `${row.id}:through` });
+    const source =
+      shared && row.requester_kind === "agent"
+        ? throughSource(input.audience ?? "asker", (await chatOf(ctx, row))?.asker)
+        : null;
+    if (source)
+      await ctx.call("access.share", {
+        resource: { type: "vault_item", id: itemId },
+        subject: { kind: "agent", id: row.requester_id },
+        level: "use",
+        source,
+        idempotencyKey: `${row.id}:through`,
+      });
   }
 
-  ctx.db.run(`UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "fulfilled", itemId, me, ctx.now(), row.id);
+  ctx.db.run(
+    `UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`,
+    "fulfilled",
+    itemId,
+    me,
+    ctx.now(),
+    row.id,
+  );
   const chat = await chatOf(ctx, row);
   // the engine reads the chat, the agent and the asker from this event and tells the agent to carry on there, as the person who asked (the admin who answered may not be in that chat)
-  ctx.emit("vault.request_fulfilled", row.id, { requestId: row.id, itemId, ...(handle && /^#[A-Za-z0-9_]+$/.test(handle) ? { handle } : {}), name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...agentOf(row), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
+  ctx.emit("vault.request_fulfilled", row.id, {
+    requestId: row.id,
+    itemId,
+    ...(handle && /^#[A-Za-z0-9_]+$/.test(handle) ? { handle } : {}),
+    name: row.name,
+    ...(row.for_run ? { forRun: row.for_run } : {}),
+    ...agentOf(row),
+    ...(chat
+      ? {
+          threadId: chat.threadId,
+          ...(chat.agentId ? { agentId: chat.agentId } : {}),
+          ...(chat.asker ? { asker: chat.asker } : {}),
+        }
+      : {}),
+  });
   // the owners' and admins' rows close from the event (tasks.source_settle); the person it was asked for holds none of them
   if (!own) await closeCards(ctx, row, "done", "Provided");
   if (row.for_run) {
     try {
       await ctx.call("runs.resume", { runId: row.for_run, reason: "key" });
     } catch (e) {
-      ctx.log.warn("vault request: the waiting run did not resume", { requestId: row.id, runId: row.for_run, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("vault request: the waiting run did not resume", {
+        requestId: row.id,
+        runId: row.for_run,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
   return { request: requestOut(requestById(ctx, row.id)!) };
@@ -288,18 +545,46 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
 export async function requestsDecline(ctx: VaultReqCtx, input: { requestId: string; note?: string }) {
   const { row, me, own } = decidable(ctx, input.requestId);
   const note = input.note?.trim() || null;
-  ctx.db.run(`UPDATE ${TABLE} SET state = ?, note = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "declined", note, me, ctx.now(), row.id);
+  ctx.db.run(
+    `UPDATE ${TABLE} SET state = ?, note = ?, decided_by = ?, decided_at = ? WHERE id = ?`,
+    "declined",
+    note,
+    me,
+    ctx.now(),
+    row.id,
+  );
   const chat = await chatOf(ctx, row);
-  ctx.emit("vault.request_declined", row.id, { requestId: row.id, name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...(note ? { note } : {}), ...agentOf(row), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
+  ctx.emit("vault.request_declined", row.id, {
+    requestId: row.id,
+    name: row.name,
+    ...(row.for_run ? { forRun: row.for_run } : {}),
+    ...(note ? { note } : {}),
+    ...agentOf(row),
+    ...(chat
+      ? {
+          threadId: chat.threadId,
+          ...(chat.agentId ? { agentId: chat.agentId } : {}),
+          ...(chat.asker ? { asker: chat.asker } : {}),
+        }
+      : {}),
+  });
   if (!own) await closeCards(ctx, row, "canceled", note ? `Declined: ${note}` : "Declined");
   return { ok: true };
 }
 
 export async function requestsCancel(ctx: VaultReqCtx, input: { requestId: string }) {
   const { row, asRequester } = visible(ctx, input.requestId);
-  if (!asRequester) raise(ctx.trace.traceId, "permission.no_grant", "Only the person who asked can withdraw a request.");
-  if (row.state !== "waiting") raise(ctx.trace.traceId, "validation.precondition_failed", `This request was already ${row.state}.`);
-  ctx.db.run(`UPDATE ${TABLE} SET state = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "canceled", ctx.principal.id, ctx.now(), row.id);
+  if (!asRequester)
+    raise(ctx.trace.traceId, "permission.no_grant", "Only the person who asked can withdraw a request.");
+  if (row.state !== "waiting")
+    raise(ctx.trace.traceId, "validation.precondition_failed", `This request was already ${row.state}.`);
+  ctx.db.run(
+    `UPDATE ${TABLE} SET state = ?, decided_by = ?, decided_at = ? WHERE id = ?`,
+    "canceled",
+    ctx.principal.id,
+    ctx.now(),
+    row.id,
+  );
   ctx.emit("vault.request_canceled", row.id, { requestId: row.id });
   await closeCards(ctx, row, "canceled", "Withdrawn");
   return { ok: true };

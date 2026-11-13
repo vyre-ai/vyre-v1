@@ -3,7 +3,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
-import { DRAFTER, INTAKE, MAYA, REVIEWER, assertEventsConform, contractErrors, failure, harness } from "../fixtures/harness.ts";
+import {
+  DRAFTER,
+  INTAKE,
+  MAYA,
+  REVIEWER,
+  assertEventsConform,
+  contractErrors,
+  failure,
+  harness,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { g24dHandlers as g } from "../handlers/g24d.ts";
 import { answerBlock, approvePlan, start } from "../handlers/thread.ts";
@@ -11,9 +20,13 @@ import { insertMessage } from "../projections.ts";
 
 const NAMES = Object.keys(g);
 const cap = (name: string) => registry.capabilities.filter((c) => c.name === name).sort((a, b) => b.v - a.v)[0]!;
-const chatOf = async (hn: Harness): Promise<string> => (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
+const chatOf = async (hn: Harness): Promise<string> =>
+  (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
 const turn = (n: number) => `trn_t${n}`;
-const rows = (text: string) => [{ role: "user", kind: "text", content: text }, { role: "assistant", kind: "text", content: { text: `answer to ${text}` } }];
+const rows = (text: string) => [
+  { role: "user", kind: "text", content: text },
+  { role: "assistant", kind: "text", content: { text: `answer to ${text}` } },
+];
 
 /** Run, then check the answer against the output schema, the events against the capability's list and their payloads against the event schemas. */
 async function ok<T>(hn: Harness, name: string, input: Record<string, unknown>, run: () => Promise<T>): Promise<T> {
@@ -21,7 +34,8 @@ async function ok<T>(hn: Harness, name: string, input: Record<string, unknown>, 
   hn.clear();
   const out = await run();
   assert.deepEqual(contractErrors(name, "out", out), [], `${name}: output`);
-  for (const e of hn.emitted) assert.ok((cap(name).emits as readonly string[]).includes(e.name), `${name} emitted undeclared ${e.name}`);
+  for (const e of hn.emitted)
+    assert.ok((cap(name).emits as readonly string[]).includes(e.name), `${name} emitted undeclared ${e.name}`);
   assert.deepEqual(assertEventsConform(hn), [], name);
   return out;
 }
@@ -31,29 +45,45 @@ async function refuses(hn: Harness, name: string, code: string, run: () => Promi
 }
 
 test("the table holds the nineteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
-  assert.equal(NAMES.length, 19);   // the 13, plus chat.question.withdraw (l-learn2), chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
+  assert.equal(NAMES.length, 19); // the 13, plus chat.question.withdraw (l-learn2), chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
   for (const name of NAMES) {
     const c = cap(name);
     assert.equal(c.module, "chat", name);
     assert.ok(c.examples.length > 0, `${name} has an example`);
-    for (const ex of c.examples) assert.deepEqual(contractErrors(name, "in", ex.input), [], `${name}: example ${ex.name}`);
+    for (const ex of c.examples)
+      assert.deepEqual(contractErrors(name, "in", ex.input), [], `${name}: example ${ex.name}`);
   }
 });
 
 test("transcript: append, get, read, summary", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const input = { threadId, turnId: turn(1), rows: [...rows("fix the login page"), { role: "tool", kind: "tool_call", content: { cmd: "ls" }, toolName: "Bash", toolCallId: "tc1" }] };
+  const input = {
+    threadId,
+    turnId: turn(1),
+    rows: [
+      ...rows("fix the login page"),
+      { role: "tool", kind: "tool_call", content: { cmd: "ls" }, toolName: "Bash", toolCallId: "tc1" },
+    ],
+  };
   const out = await ok(hn, "chat.transcript.append", input, () => g["chat.transcript.append"](hn.ctx, input));
   assert.equal(out.appended, 3);
   // the same turn again is the same turn
   assert.equal((await g["chat.transcript.append"](hn.ctx, input)).appended, 3);
   assert.equal(hn.rows("SELECT idx FROM chat_transcript_row WHERE thread = ?", threadId).length, 3);
   await g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(2), rows: rows("second") });
-  assert.deepEqual(hn.rows("SELECT idx FROM chat_transcript_row WHERE thread = ? ORDER BY idx", threadId).map((r) => r["idx"]), [1, 2, 3, 4, 5]);
+  assert.deepEqual(
+    hn.rows("SELECT idx FROM chat_transcript_row WHERE thread = ? ORDER BY idx", threadId).map((r) => r["idx"]),
+    [1, 2, 3, 4, 5],
+  );
 
-  const got = await ok(hn, "chat.transcript.get", { threadId, turnId: turn(1) }, () => g["chat.transcript.get"](hn.ctx, { threadId, turnId: turn(1) }));
-  assert.deepEqual(got.rows.map((r) => r.idx), [1, 2, 3]);
+  const got = await ok(hn, "chat.transcript.get", { threadId, turnId: turn(1) }, () =>
+    g["chat.transcript.get"](hn.ctx, { threadId, turnId: turn(1) }),
+  );
+  assert.deepEqual(
+    got.rows.map((r) => r.idx),
+    [1, 2, 3],
+  );
   assert.equal(got.rows[2]!.toolName, "Bash");
 
   const rd = { threadId, fromIdx: 1, limit: 2 };
@@ -64,7 +94,9 @@ test("transcript: append, get, read, summary", async () => {
   assert.equal(rest.next, undefined);
   assert.match(rest.markdown, /second/);
 
-  const empty = await ok(hn, "chat.transcript.summary", { threadId }, () => g["chat.transcript.summary"](hn.ctx, { threadId }));
+  const empty = await ok(hn, "chat.transcript.summary", { threadId }, () =>
+    g["chat.transcript.summary"](hn.ctx, { threadId }),
+  );
   assert.equal(empty.upToIdx, 0);
   assert.equal(empty.transcriptPath, `chats/${threadId}/transcript.md`);
 });
@@ -73,7 +105,11 @@ test("transcript: a credential never reaches the stored rows", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
   const key = ["sk", "ant", "a".repeat(30)].join("-");
-  await g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(1), rows: [{ role: "user", kind: "text", content: `use ${key} please` }] });
+  await g["chat.transcript.append"](hn.ctx, {
+    threadId,
+    turnId: turn(1),
+    rows: [{ role: "user", kind: "text", content: `use ${key} please` }],
+  });
   const stored = String(hn.rows("SELECT content FROM chat_transcript_row WHERE thread = ?", threadId)[0]!["content"]);
   assert.ok(!stored.includes(key));
   assert.match(stored, /redacted/);
@@ -84,21 +120,43 @@ test("transcript refusals: missing thread, empty turn, another chat's turn, a st
   const threadId = await chatOf(hn);
   const other = await chatOf(hn);
   await g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(1), rows: rows("one") });
-  await refuses(hn, "chat.transcript.append", "validation.not_found", () => g["chat.transcript.append"](hn.ctx, { threadId: "thr_none", turnId: turn(9), rows: rows("x") }));
-  await refuses(hn, "chat.transcript.append", "validation.bad_input", () => g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(9), rows: [] }));
-  await refuses(hn, "chat.transcript.append", "validation.bad_input", () => g["chat.transcript.append"](hn.ctx, { threadId: other, turnId: turn(1), rows: rows("x") }));
-  await refuses(hn, "chat.transcript.get", "validation.not_found", () => g["chat.transcript.get"](hn.ctx, { threadId, turnId: "trn_none" }));
-  await refuses(hn, "chat.transcript.read", "validation.not_found", () => g["chat.transcript.read"](hn.person(MAYA), { threadId }));
-  await refuses(hn, "chat.transcript.summary", "validation.not_found", () => g["chat.transcript.summary"](hn.person(MAYA), { threadId }));
-  await refuses(hn, "chat.transcript.summarize", "validation.not_found", () => g["chat.transcript.summarize"](hn.ctx, { threadId: "thr_none" }));
+  await refuses(hn, "chat.transcript.append", "validation.not_found", () =>
+    g["chat.transcript.append"](hn.ctx, { threadId: "thr_none", turnId: turn(9), rows: rows("x") }),
+  );
+  await refuses(hn, "chat.transcript.append", "validation.bad_input", () =>
+    g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(9), rows: [] }),
+  );
+  await refuses(hn, "chat.transcript.append", "validation.bad_input", () =>
+    g["chat.transcript.append"](hn.ctx, { threadId: other, turnId: turn(1), rows: rows("x") }),
+  );
+  await refuses(hn, "chat.transcript.get", "validation.not_found", () =>
+    g["chat.transcript.get"](hn.ctx, { threadId, turnId: "trn_none" }),
+  );
+  await refuses(hn, "chat.transcript.read", "validation.not_found", () =>
+    g["chat.transcript.read"](hn.person(MAYA), { threadId }),
+  );
+  await refuses(hn, "chat.transcript.summary", "validation.not_found", () =>
+    g["chat.transcript.summary"](hn.person(MAYA), { threadId }),
+  );
+  await refuses(hn, "chat.transcript.summarize", "validation.not_found", () =>
+    g["chat.transcript.summarize"](hn.ctx, { threadId: "thr_none" }),
+  );
 });
 
 test("transcript search finds words in the asker's own chats only", async () => {
   const hn = harness();
   const mine = await chatOf(hn);
   const maya = (await start(hn.person(MAYA), { kind: "chat", agentIds: [DRAFTER] })).thread["threadId"] as string;
-  await g["chat.transcript.append"](hn.ctx, { threadId: mine, turnId: turn(1), rows: rows("the retainer agreement for Northwind") });
-  await g["chat.transcript.append"](hn.person(MAYA), { threadId: maya, turnId: turn(2), rows: rows("retainer secrets") });
+  await g["chat.transcript.append"](hn.ctx, {
+    threadId: mine,
+    turnId: turn(1),
+    rows: rows("the retainer agreement for Northwind"),
+  });
+  await g["chat.transcript.append"](hn.person(MAYA), {
+    threadId: maya,
+    turnId: turn(2),
+    rows: rows("retainer secrets"),
+  });
   const input = { q: "retainer northwind", limit: 5 };
   const out = await ok(hn, "chat.transcript.search", input, () => g["chat.transcript.search"](hn.ctx, input));
   assert.deepEqual(new Set(out.hits.map((h) => h.threadId)), new Set([mine]));
@@ -106,16 +164,30 @@ test("transcript search finds words in the asker's own chats only", async () => 
   assert.equal(user.role, "user");
   assert.match(user.link, /transcript\.md#1$/);
   assert.equal((await g["chat.transcript.search"](hn.ctx, { q: "retainer", agentId: DRAFTER })).hits.length, 0);
-  assert.equal((await g["chat.transcript.search"](hn.ctx, { q: "retainer", mode: "semantic", threadId: mine })).hits.length, 2);
-  await refuses(hn, "chat.transcript.search", "validation.bad_input", () => g["chat.transcript.search"](hn.ctx, { q: "  " }));
-  await refuses(hn, "chat.transcript.search", "validation.bad_input", () => g["chat.transcript.search"](hn.ctx, { q: "retainer", threadId: maya }));
+  assert.equal(
+    (await g["chat.transcript.search"](hn.ctx, { q: "retainer", mode: "semantic", threadId: mine })).hits.length,
+    2,
+  );
+  await refuses(hn, "chat.transcript.search", "validation.bad_input", () =>
+    g["chat.transcript.search"](hn.ctx, { q: "  " }),
+  );
+  await refuses(hn, "chat.transcript.search", "validation.bad_input", () =>
+    g["chat.transcript.search"](hn.ctx, { q: "retainer", threadId: maya }),
+  );
 });
 
 test("transcript summarize: no provider call, the extract covers all but the newest twenty turns", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  for (let i = 1; i <= 25; i++) await g["chat.transcript.append"](hn.ctx, { threadId, turnId: turn(i), rows: [{ role: "user", kind: "text", content: `question number ${i}` }] });
-  const out = await ok(hn, "chat.transcript.summarize", { threadId }, () => g["chat.transcript.summarize"](hn.ctx, { threadId }));
+  for (let i = 1; i <= 25; i++)
+    await g["chat.transcript.append"](hn.ctx, {
+      threadId,
+      turnId: turn(i),
+      rows: [{ role: "user", kind: "text", content: `question number ${i}` }],
+    });
+  const out = await ok(hn, "chat.transcript.summarize", { threadId }, () =>
+    g["chat.transcript.summarize"](hn.ctx, { threadId }),
+  );
   assert.equal(out.upToIdx, 5);
   assert.equal(hn.callLog.length, 0);
   const sum = await g["chat.transcript.summary"](hn.ctx, { threadId });
@@ -128,44 +200,121 @@ test("transcript summarize: no provider call, the extract covers all but the new
 test("chat.question.ask writes the block the answer capability expects", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const input = { threadId, prompt: "Which court?", mode: "single" as const, options: [{ key: "a", label: "Superior" }, { key: "b", label: "Federal" }], allowOther: true };
+  const input = {
+    threadId,
+    prompt: "Which court?",
+    mode: "single" as const,
+    options: [
+      { key: "a", label: "Superior" },
+      { key: "b", label: "Federal" },
+    ],
+    allowOther: true,
+  };
   const out = await ok(hn, "chat.question.ask", input, () => g["chat.question.ask"](hn.agent(), input));
   assert.deepEqual(hn.names().sort(), ["block.waiting", "message.received"]);
   assert.equal(hn.rows("SELECT state FROM chat_block WHERE id = ?", out.blockId)[0]!["state"], "waiting");
   assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: out.blockId, answer: "b" }), { ok: true });
   const free = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Is there anything else?", mode: "free" });
   assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: free.blockId, answer: "No" }), { ok: true });
-  await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single" }));
-  await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "multi", options: [{ key: "a", label: "A" }, { key: "a", label: "B" }] }));
-  await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: " ", mode: "free" }));
-  await refuses(hn, "chat.question.ask", "validation.not_found", () => g["chat.question.ask"](hn.person(MAYA), { threadId, prompt: "Hi", mode: "free" }));
+  await refuses(hn, "chat.question.ask", "validation.bad_input", () =>
+    g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single" }),
+  );
+  await refuses(hn, "chat.question.ask", "validation.bad_input", () =>
+    g["chat.question.ask"](hn.agent(), {
+      threadId,
+      prompt: "Pick",
+      mode: "multi",
+      options: [
+        { key: "a", label: "A" },
+        { key: "a", label: "B" },
+      ],
+    }),
+  );
+  await refuses(hn, "chat.question.ask", "validation.bad_input", () =>
+    g["chat.question.ask"](hn.agent(), { threadId, prompt: " ", mode: "free" }),
+  );
+  await refuses(hn, "chat.question.ask", "validation.not_found", () =>
+    g["chat.question.ask"](hn.person(MAYA), { threadId, prompt: "Hi", mode: "free" }),
+  );
 });
 
 test("a question can carry a terminal card, and what the person ran comes back as the answer", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const card = { kind: "terminal" as const, command: "sudo apt install ffmpeg", host: "device" as const, risk: "danger" as const };
-  const q = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "ffmpeg is needed", mode: "single", allowOther: true, options: [{ key: "run", label: "Run in my terminal" }, { key: "copy", label: "Copy" }, { key: "decline", label: "Decline" }], card });
-  const stored = JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", q.blockId)[0]!["data"])) as { card?: unknown };
+  const card = {
+    kind: "terminal" as const,
+    command: "sudo apt install ffmpeg",
+    host: "device" as const,
+    risk: "danger" as const,
+  };
+  const q = await g["chat.question.ask"](hn.agent(), {
+    threadId,
+    prompt: "ffmpeg is needed",
+    mode: "single",
+    allowOther: true,
+    options: [
+      { key: "run", label: "Run in my terminal" },
+      { key: "copy", label: "Copy" },
+      { key: "decline", label: "Decline" },
+    ],
+    card,
+  });
+  const stored = JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", q.blockId)[0]!["data"])) as {
+    card?: unknown;
+  };
   assert.deepEqual(stored.card, card);
-  assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: { other: "Ran in my terminal (exit 0):\nffmpeg installed" } }), { ok: true });
+  assert.deepEqual(
+    await answerBlock(hn.ctx, {
+      threadId,
+      blockId: q.blockId,
+      answer: { other: "Ran in my terminal (exit 0):\nffmpeg installed" },
+    }),
+    { ok: true },
+  );
   const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Which one do you want?", mode: "free" });
-  assert.equal(JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", plain.blockId)[0]!["data"])).card, undefined);
+  assert.equal(
+    JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", plain.blockId)[0]!["data"])).card,
+    undefined,
+  );
 });
 
 test("a question made only of mount sources takes the words of what was mounted", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const q = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Where is the Q4 deck?", mode: "single", options: [{ key: "mount:google_drive", label: "Google Drive" }, { key: "mount:github", label: "GitHub" }] });
-  assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: 'Mounted "Sales" (folder fld_1). It is shared with you.' }), { ok: true });
-  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single", options: [{ key: "a", label: "A" }] });
+  const q = await g["chat.question.ask"](hn.agent(), {
+    threadId,
+    prompt: "Where is the Q4 deck?",
+    mode: "single",
+    options: [
+      { key: "mount:google_drive", label: "Google Drive" },
+      { key: "mount:github", label: "GitHub" },
+    ],
+  });
+  assert.deepEqual(
+    await answerBlock(hn.ctx, {
+      threadId,
+      blockId: q.blockId,
+      answer: 'Mounted "Sales" (folder fld_1). It is shared with you.',
+    }),
+    { ok: true },
+  );
+  const plain = await g["chat.question.ask"](hn.agent(), {
+    threadId,
+    prompt: "Pick",
+    mode: "single",
+    options: [{ key: "a", label: "A" }],
+  });
   await assert.rejects(() => answerBlock(hn.ctx, { threadId, blockId: plain.blockId, answer: "free words" }));
 });
 
 test("plans: propose, approve, tick steps, reject", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const input = { threadId, title: "Move the file", steps: [{ text: "Read it", detail: "all of it" }, { text: "Move it" }] };
+  const input = {
+    threadId,
+    title: "Move the file",
+    steps: [{ text: "Read it", detail: "all of it" }, { text: "Move it" }],
+  };
   const made = await ok(hn, "chat.plan.propose", input, () => g["chat.plan.propose"](hn.agent(), input));
   assert.deepEqual(hn.names().sort(), ["block.waiting", "message.received", "plan.proposed"]);
   const stored = hn.rows("SELECT steps, state FROM chat_plan WHERE id = ?", made.planId)[0]!;
@@ -174,20 +323,32 @@ test("plans: propose, approve, tick steps, reject", async () => {
   assert.equal(stored["state"], "proposed");
 
   // ticking before approval is refused; after approval the steps tick and the plan finishes
-  await refuses(hn, "chat.plan.step_done", "validation.bad_input", () => g["chat.plan.step_done"](hn.agent(), { threadId, planId: made.planId, stepId: steps[0]!.stepId }));
+  await refuses(hn, "chat.plan.step_done", "validation.bad_input", () =>
+    g["chat.plan.step_done"](hn.agent(), { threadId, planId: made.planId, stepId: steps[0]!.stepId }),
+  );
   const approved = await approvePlan(hn.ctx, { threadId, planId: made.planId });
   assert.equal(approved.plan.state, "approved");
   const tick = { threadId, planId: made.planId, stepId: steps[0]!.stepId };
   const one = await ok(hn, "chat.plan.step_done", tick, () => g["chat.plan.step_done"](hn.agent(), tick));
-  assert.deepEqual(one.plan.steps.map((s) => s.state), ["done", "todo"]);
+  assert.deepEqual(
+    one.plan.steps.map((s) => s.state),
+    ["done", "todo"],
+  );
   assert.deepEqual(hn.names(), ["plan.step_done"]);
   hn.clear();
-  assert.deepEqual((await g["chat.plan.step_done"](hn.agent(), tick)).plan.steps.map((s) => s.state), ["done", "todo"]);
+  assert.deepEqual(
+    (await g["chat.plan.step_done"](hn.agent(), tick)).plan.steps.map((s) => s.state),
+    ["done", "todo"],
+  );
   assert.deepEqual(hn.names(), []);
   await g["chat.plan.step_done"](hn.agent(), { ...tick, stepId: steps[1]!.stepId });
   assert.equal(hn.rows("SELECT state FROM chat_plan WHERE id = ?", made.planId)[0]!["state"], "done");
-  await refuses(hn, "chat.plan.step_done", "validation.bad_input", () => g["chat.plan.step_done"](hn.agent(), { ...tick, stepId: "stp_none" }));
-  await refuses(hn, "chat.plan.step_done", "validation.not_found", () => g["chat.plan.step_done"](hn.agent(), { ...tick, planId: "pln_none" }));
+  await refuses(hn, "chat.plan.step_done", "validation.bad_input", () =>
+    g["chat.plan.step_done"](hn.agent(), { ...tick, stepId: "stp_none" }),
+  );
+  await refuses(hn, "chat.plan.step_done", "validation.not_found", () =>
+    g["chat.plan.step_done"](hn.agent(), { ...tick, planId: "pln_none" }),
+  );
 
   // reject: a person sends it back with a note and plan mode stays as it was
   const second = await g["chat.plan.propose"](hn.agent(), { threadId, title: "Again", steps: [{ text: "Try" }] });
@@ -198,25 +359,48 @@ test("plans: propose, approve, tick steps, reject", async () => {
   assert.deepEqual(hn.names().sort(), ["block.answered", "plan.rejected"]);
   assert.equal(hn.rows("SELECT state FROM chat_plan WHERE id = ?", second.planId)[0]!["state"], "rejected");
   assert.equal(hn.rows("SELECT modePlan FROM chat_thread WHERE id = ?", threadId)[0]!["modePlan"], 1);
-  assert.match(String(hn.rows("SELECT answer FROM chat_block WHERE id = ?", second.blockId)[0]!["answer"]), /Too broad/);
+  assert.match(
+    String(hn.rows("SELECT answer FROM chat_block WHERE id = ?", second.blockId)[0]!["answer"]),
+    /Too broad/,
+  );
   assert.deepEqual(await g["chat.plan.reject"](hn.ctx, rej), { ok: true });
-  await refuses(hn, "chat.plan.reject", "validation.bad_input", () => g["chat.plan.reject"](hn.ctx, { threadId, planId: made.planId }));
-  await refuses(hn, "chat.plan.reject", "validation.not_found", () => g["chat.plan.reject"](hn.ctx, { threadId, planId: "pln_none" }));
+  await refuses(hn, "chat.plan.reject", "validation.bad_input", () =>
+    g["chat.plan.reject"](hn.ctx, { threadId, planId: made.planId }),
+  );
+  await refuses(hn, "chat.plan.reject", "validation.not_found", () =>
+    g["chat.plan.reject"](hn.ctx, { threadId, planId: "pln_none" }),
+  );
 });
 
 test("plan propose refusals", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  await refuses(hn, "chat.plan.propose", "validation.bad_input", () => g["chat.plan.propose"](hn.agent(), { threadId, title: "Empty", steps: [] }));
-  await refuses(hn, "chat.plan.propose", "validation.bad_input", () => g["chat.plan.propose"](hn.agent(), { threadId, title: "Blank", steps: [{ text: " " }] }));
-  await refuses(hn, "chat.plan.propose", "validation.not_found", () => g["chat.plan.propose"](hn.agent(), { threadId: "thr_none", title: "x", steps: [{ text: "y" }] }));
-  await refuses(hn, "chat.plan.propose", "validation.not_found", () => g["chat.plan.propose"](hn.person(MAYA), { threadId, title: "x", steps: [{ text: "y" }] }));
+  await refuses(hn, "chat.plan.propose", "validation.bad_input", () =>
+    g["chat.plan.propose"](hn.agent(), { threadId, title: "Empty", steps: [] }),
+  );
+  await refuses(hn, "chat.plan.propose", "validation.bad_input", () =>
+    g["chat.plan.propose"](hn.agent(), { threadId, title: "Blank", steps: [{ text: " " }] }),
+  );
+  await refuses(hn, "chat.plan.propose", "validation.not_found", () =>
+    g["chat.plan.propose"](hn.agent(), { threadId: "thr_none", title: "x", steps: [{ text: "y" }] }),
+  );
+  await refuses(hn, "chat.plan.propose", "validation.not_found", () =>
+    g["chat.plan.propose"](hn.person(MAYA), { threadId, title: "x", steps: [{ text: "y" }] }),
+  );
 });
 
 test("helpers: start, list, refusals", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);
-  const input = { threadId, title: "Check the dates", instruction: "List every date in the deed.", agentId: DRAFTER, model: "claude-haiku-4-5", provider: "anthropic", effort: "low" as const };
+  const input = {
+    threadId,
+    title: "Check the dates",
+    instruction: "List every date in the deed.",
+    agentId: DRAFTER,
+    model: "claude-haiku-4-5",
+    provider: "anthropic",
+    effort: "low" as const,
+  };
   const out = await ok(hn, "chat.helper.start", input, () => g["chat.helper.start"](hn.agent(), input));
   assert.deepEqual(hn.names().sort(), ["helper.started", "message.received", "message.received", "thread.started"]);
   assert.equal(out.helper["kind"], "helper");
@@ -230,12 +414,24 @@ test("helpers: start, list, refusals", async () => {
   assert.equal(list.helpers.length, 1);
   assert.equal(list.helpers[0]!.status, "running");
   assert.equal(list.helpers[0]!.agentId, DRAFTER);
-  await refuses(hn, "chat.helper.start", "validation.bad_input", () => g["chat.helper.start"](hn.agent(), { threadId: out.helper["threadId"] as string, title: "Nested", instruction: "x" }));
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), {
+      threadId: out.helper["threadId"] as string,
+      title: "Nested",
+      instruction: "x",
+    }),
+  );
   hn.raw.run("UPDATE chat_thread SET closedAt = ? WHERE id = ?", hn.clock.t, out.helper["threadId"]);
   assert.equal((await g["chat.helpers.list"](hn.ctx, { threadId })).helpers[0]!.status, "done");
-  await refuses(hn, "chat.helper.start", "validation.bad_input", () => g["chat.helper.start"](hn.agent(), { threadId, title: "", instruction: "x" }));
-  await refuses(hn, "chat.helper.start", "validation.not_found", () => g["chat.helper.start"](hn.person(MAYA), { threadId, title: "t", instruction: "x" }));
-  await refuses(hn, "chat.helpers.list", "validation.not_found", () => g["chat.helpers.list"](hn.person(MAYA), { threadId }));
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), { threadId, title: "", instruction: "x" }),
+  );
+  await refuses(hn, "chat.helper.start", "validation.not_found", () =>
+    g["chat.helper.start"](hn.person(MAYA), { threadId, title: "t", instruction: "x" }),
+  );
+  await refuses(hn, "chat.helpers.list", "validation.not_found", () =>
+    g["chat.helpers.list"](hn.person(MAYA), { threadId }),
+  );
 });
 
 test("helpers count against the chat's one budget of agent turns (owner ruling, 3 Nov): each brief and each result is a turn, and at the limit no helper starts", async () => {
@@ -243,21 +439,36 @@ test("helpers count against the chat's one budget of agent turns (owner ruling, 
   const threadId = await chatOf(hn);
   const input = { threadId, title: "Check the dates", instruction: "List every date.", agentId: DRAFTER };
   const one = await g["chat.helper.start"](hn.agent(INTAKE), input);
-  const line = (hn.raw.all("SELECT depth FROM chat_message WHERE thread = ? ORDER BY threadSeq DESC LIMIT 1", threadId) as Array<{ depth: number }>)[0]!;
+  const line = (
+    hn.raw.all("SELECT depth FROM chat_message WHERE thread = ? ORDER BY threadSeq DESC LIMIT 1", threadId) as Array<{
+      depth: number;
+    }>
+  )[0]!;
   assert.equal(line.depth, 1, "the brief is one agent turn");
-  const brief = (hn.raw.all("SELECT depth FROM chat_message WHERE thread = ?", one.helper["threadId"]) as Array<{ depth: number }>)[0]!;
+  const brief = (
+    hn.raw.all("SELECT depth FROM chat_message WHERE thread = ?", one.helper["threadId"]) as Array<{ depth: number }>
+  )[0]!;
   assert.equal(brief.depth, 1, "the helper's own chat starts from the same count");
   await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Second" });
   await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Third" });
-  await refuses(hn, "chat.helper.start", "validation.bad_input", () => g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Fourth" }));
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Fourth" }),
+  );
   // a person writing starts the count again, and a person may always start a helper
-  insertMessage({ db: hn.ctx.db, now: () => hn.clock.t }, threadId, { author: "usr_dana", kind: "text", body: "go on", depth: 0 });
+  insertMessage({ db: hn.ctx.db, now: () => hn.clock.t }, threadId, {
+    author: "usr_dana",
+    kind: "text",
+    body: "go on",
+    depth: 0,
+  });
   assert.ok((await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "After you wrote" })).helper);
   assert.ok((await g["chat.helper.start"](hn.ctx, { ...input, title: "Yours" })).helper);
 });
 
 test("handoff opens a linked thread for the other agent and counts the hop", async () => {
-  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: true }) } });
+  const hn = harness({
+    calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: true }) },
+  });
   const threadId = await chatOf(hn);
   const input = { threadId, toAgentId: REVIEWER, note: "Please review the draft." };
   const out = await ok(hn, "chat.handoff", input, () => g["chat.handoff"](hn.agent(INTAKE), input));
@@ -265,7 +476,13 @@ test("handoff opens a linked thread for the other agent and counts the hop", asy
   assert.deepEqual(hn.names().sort(), ["agent.handoff", "message.received", "thread.started"]);
   assert.equal(out.thread["parentThreadId"], threadId);
   assert.equal((out.thread["agents"] as Array<Record<string, unknown>>)[0]!["agentId"], REVIEWER);
-  assert.deepEqual(hn.named("agent.handoff")[0]!.payload, { fromThreadId: threadId, toThreadId: out.thread["threadId"], fromAgentId: INTAKE, toAgentId: REVIEWER, depth: 1 });
+  assert.deepEqual(hn.named("agent.handoff")[0]!.payload, {
+    fromThreadId: threadId,
+    toThreadId: out.thread["threadId"],
+    fromAgentId: INTAKE,
+    toAgentId: REVIEWER,
+    depth: 1,
+  });
 
   // an agent's last line makes the next handoff a second hop; a third is over the limit of 2
   await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Is this plan okay to run?", mode: "free" });
@@ -273,18 +490,29 @@ test("handoff opens a linked thread for the other agent and counts the hop", asy
   assert.equal((await g["chat.handoff"](hn.agent(INTAKE), input)).depth, 2);
   hn.raw.run("UPDATE chat_message SET depth = 2 WHERE thread = ?", threadId);
   await refuses(hn, "chat.handoff", "validation.precondition_failed", () => g["chat.handoff"](hn.agent(INTAKE), input));
-  await refuses(hn, "chat.handoff", "validation.bad_input", () => g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: INTAKE, note: "me" }));
-  await refuses(hn, "chat.handoff", "validation.bad_input", () => g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: "usr_dana", note: "x" }));
-  await refuses(hn, "chat.handoff", "validation.not_found", () => g["chat.handoff"](hn.agent(INTAKE), { threadId: "thr_none", toAgentId: REVIEWER, note: "x" }));
+  await refuses(hn, "chat.handoff", "validation.bad_input", () =>
+    g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: INTAKE, note: "me" }),
+  );
+  await refuses(hn, "chat.handoff", "validation.bad_input", () =>
+    g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: "usr_dana", note: "x" }),
+  );
+  await refuses(hn, "chat.handoff", "validation.not_found", () =>
+    g["chat.handoff"](hn.agent(INTAKE), { threadId: "thr_none", toAgentId: REVIEWER, note: "x" }),
+  );
 });
 
 test("handoff: an agent is refused when the other agent has calls from agents turned Off; a person is not asked", async () => {
-  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: false }) } });
+  const hn = harness({
+    calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: false }) },
+  });
   const threadId = await chatOf(hn);
   const input = { threadId, toAgentId: REVIEWER, note: "Please review the draft." };
   await refuses(hn, "chat.handoff", "permission.no_grant", () => g["chat.handoff"](hn.agent(INTAKE), input));
   assert.equal(hn.named("agent.handoff").length, 0, "nothing was handed over");
   hn.clear();
   assert.equal((await g["chat.handoff"](hn.ctx, input)).depth, 1, "a person may still hand work on");
-  assert.equal(hn.callLog.some((c) => c.cap === "access.agents_can_call.get"), false);
+  assert.equal(
+    hn.callLog.some((c) => c.cap === "access.agents_can_call.get"),
+    false,
+  );
 });

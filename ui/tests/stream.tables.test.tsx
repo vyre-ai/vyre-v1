@@ -7,9 +7,16 @@ import { MarkdownBlocks, createIncrementalMarkdown, parseChunk } from "../src/st
 import { cells, isSeparator } from "../src/stream/markdown.ts";
 import { markdownToDoc } from "../src/RichEditor/mdtree.ts";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const draw = (md: string): string => { const p = createIncrementalMarkdown(); p.append(md); p.finish(); return clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} />)); };
-const TABLE = "| Step | Owner | Due |\n|---|:---:|---:|\n| Draft the brief | Dex | Fri |\n| Send to Sara | Mira | Mon |\n";
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const draw = (md: string): string => {
+  const p = createIncrementalMarkdown();
+  p.append(md);
+  p.finish();
+  return clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} />));
+};
+const TABLE =
+  "| Step | Owner | Due |\n|---|:---:|---:|\n| Draft the brief | Dex | Fri |\n| Send to Sara | Mira | Mon |\n";
 
 test("a table is a table: the header, the aligned columns and every row, not raw pipes", () => {
   const [b] = parseChunk(TABLE, 0);
@@ -29,7 +36,14 @@ test("a wide table scrolls sideways inside its own box", () => {
   const wide = `| ${Array.from({ length: 9 }, (_, i) => `Column ${i + 1}`).join(" | ")} |\n|${"---|".repeat(9)}\n| ${Array.from({ length: 9 }, (_, i) => `value ${i + 1}`).join(" | ")} |\n`;
   const html = draw(wide);
   assert.ok(html.includes('data-testid="table-scroll-b0"'), "its own scroll view");
-  assert.match(html.slice(html.indexOf('data-testid="table-scroll-b0"') - 400, html.indexOf('data-testid="table-scroll-b0"') + 200), /overflow-x:\s*auto|r-overflowX-/i, "horizontal scroll, so the page does not widen");
+  assert.match(
+    html.slice(
+      html.indexOf('data-testid="table-scroll-b0"') - 400,
+      html.indexOf('data-testid="table-scroll-b0"') + 200,
+    ),
+    /overflow-x:\s*auto|r-overflowX-/i,
+    "horizontal scroll, so the page does not widen",
+  );
 });
 
 test("cells: pipes inside code or escaped stay in the cell, missing cells are empty, inline marks work in a cell", () => {
@@ -56,7 +70,10 @@ test("streaming: a table is text until its header and separator rows are complet
   let sawTable = false;
   for (const ch of TABLE) {
     p.append(ch);
-    const k = p.view().blocks.map((b) => b.kind).join(",");
+    const k = p
+      .view()
+      .blocks.map((b) => b.kind)
+      .join(",");
     kinds.push(k);
     if (k.includes("table")) sawTable = true;
     else assert.ok(!sawTable, `the table does not turn back into text (at ${JSON.stringify(k)})`);
@@ -64,7 +81,10 @@ test("streaming: a table is text until its header and separator rows are complet
   const firstTable = kinds.findIndex((k) => k.includes("table"));
   const sepAt = TABLE.indexOf("|---|:---:|---") + "|---|:---:|---".length - 1;
   assert.ok(firstTable >= sepAt, "no table before every column of the separator row is written");
-  assert.ok(kinds.slice(0, firstTable).every((k) => k === "p" || k === ""), "until then it reads as text");
+  assert.ok(
+    kinds.slice(0, firstTable).every((k) => k === "p" || k === ""),
+    "until then it reads as text",
+  );
   p.finish();
   const done = p.view().blocks[0];
   assert.equal(done?.kind, "table");
@@ -84,29 +104,62 @@ test("streaming: a half-written last row waits for its closing pipe, and finishe
   assert.equal(next.blocks[0], mid.blocks[0], "the paragraph that was final is the same object");
   p.append("\nAfter the table.\n");
   p.finish();
-  assert.deepEqual(p.view().blocks.map((b) => b.kind), ["p", "table", "p"]);
+  assert.deepEqual(
+    p.view().blocks.map((b) => b.kind),
+    ["p", "table", "p"],
+  );
 });
 
 test("a table agrees with the editor's Markdown reader about what a table is", () => {
-  for (const [md, isTable] of [[TABLE, true], ["| not | a table |\nsome text\n", false], ["a | b\n---|---\n1 | 2\n", true], ["| A |\n|---|\n| 1 |\n", true]] as const) {
+  for (const [md, isTable] of [
+    [TABLE, true],
+    ["| not | a table |\nsome text\n", false],
+    ["a | b\n---|---\n1 | 2\n", true],
+    ["| A |\n|---|\n| 1 |\n", true],
+  ] as const) {
     const chat = parseChunk(md, 0).some((b) => b.kind === "table");
-    const editor = (markdownToDoc(md).content ?? []).some((n) => n.type === "rawBlock" && n.attrs?.["kind"] === "table");
+    const editor = (markdownToDoc(md).content ?? []).some(
+      (n) => n.type === "rawBlock" && n.attrs?.["kind"] === "table",
+    );
     assert.equal(chat, isTable, `chat: ${JSON.stringify(md)}`);
     assert.equal(editor, isTable, `editor: ${JSON.stringify(md)}`);
   }
 });
 
 test("headings, lists, checklists, quotes, dividers and inline code each draw", () => {
-  const md = "# One\n\n## Two\n\n### Three\n\n- first\n- second\n\n1. step\n2. step\n\n- [x] done\n- [ ] open\n\n> quoted\n\n---\n\nSome `inline` code and a [link](https://example.com/a) and **strong** and *em*.\n";
+  const md =
+    "# One\n\n## Two\n\n### Three\n\n- first\n- second\n\n1. step\n2. step\n\n- [x] done\n- [ ] open\n\n> quoted\n\n---\n\nSome `inline` code and a [link](https://example.com/a) and **strong** and *em*.\n";
   const html = draw(md);
-  for (const w of ["One", "Two", "Three", "first", "second", "step", "done", "open", "quoted", "inline", "link", "strong", "em"]) assert.ok(html.includes(w), w);
+  for (const w of [
+    "One",
+    "Two",
+    "Three",
+    "first",
+    "second",
+    "step",
+    "done",
+    "open",
+    "quoted",
+    "inline",
+    "link",
+    "strong",
+    "em",
+  ])
+    assert.ok(html.includes(w), w);
   assert.ok(html.includes('role="heading"'), "headings");
-  assert.ok(html.includes('aria-label="Done"') && html.includes('aria-label="Not done"') && html.includes("\u2713"), "a checklist draws boxes, ticked and open");
+  assert.ok(
+    html.includes('aria-label="Done"') && html.includes('aria-label="Not done"') && html.includes("\u2713"),
+    "a checklist draws boxes, ticked and open",
+  );
   assert.ok(!html.includes("[x]") && !html.includes("[ ]"), "no raw checkbox text");
   assert.ok(html.includes('href="https://example.com/a"') || html.includes('role="link"'), "a link");
   const blocks = createIncrementalMarkdown();
-  blocks.append(md); blocks.finish();
-  assert.deepEqual(blocks.view().blocks.map((b) => b.kind), ["h", "h", "h", "ul", "ol", "ul", "quote", "hr", "p"]);
+  blocks.append(md);
+  blocks.finish();
+  assert.deepEqual(
+    blocks.view().blocks.map((b) => b.kind),
+    ["h", "h", "h", "ul", "ol", "ul", "quote", "hr", "p"],
+  );
   const list = blocks.view().blocks[5];
   assert.deepEqual(list?.kind === "ul" ? list.checks : null, [true, false]);
 });
@@ -122,7 +175,10 @@ test("a finished code block has a Copy control, an open one does not", () => {
 
 test("a table sorts on its header and copies as CSV: numbers by value with $ and % set aside, words by letters, a second press reverses", async () => {
   const { sortRows, inlineText } = await import("../src/stream/index.ts");
-  const [b] = parseChunk("| Option | Monthly | Uptime |\n|---|---:|---:|\n| Railway | $48 | 99.9% |\n| Fly.io | $39 | 99.95% |\n| Self-hosted | $1,022 | 99.5% |\n", 0);
+  const [b] = parseChunk(
+    "| Option | Monthly | Uptime |\n|---|---:|---:|\n| Railway | $48 | 99.9% |\n| Fly.io | $39 | 99.95% |\n| Self-hosted | $1,022 | 99.5% |\n",
+    0,
+  );
   assert.equal(b?.kind, "table");
   if (b?.kind !== "table") return;
   assert.deepEqual(sortRows(b.rows, 1, 1), [1, 0, 2], "by money, not by letters ($1,022 is the largest)");
@@ -131,5 +187,7 @@ test("a table sorts on its header and copies as CSV: numbers by value with $ and
   assert.deepEqual(sortRows(b.rows, 2, -1), [1, 0, 2]);
   assert.equal(inlineText(b.rows[0]![0]!), "Railway");
   const html = draw("| A | B |\n|---|---|\n| x | y |\n");
-  assert.ok(html.includes('data-testid="sort-b0-0"') && html.includes('data-testid="csv-b0"') && html.includes("Copy as CSV"));
+  assert.ok(
+    html.includes('data-testid="sort-b0-0"') && html.includes('data-testid="csv-b0"') && html.includes("Copy as CSV"),
+  );
 });

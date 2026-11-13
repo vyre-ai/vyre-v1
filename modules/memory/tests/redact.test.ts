@@ -11,10 +11,25 @@ import { harness, seedNote, NOW } from "../fixtures/harness.ts";
 const RAW = "# Clients\nElena Rivera, SSN 512-44-8391, came through Maya.";
 const REDACTED = "# Clients\n[REDACTED], SSN [REDACTED], came through Maya.";
 const respond = {
-  "files.get": (i: Record<string, unknown>) => ({ file: { fileId: i["fileId"], folderId: "fld_notes", name: "Clients.md", ownerId: "usr_dana", createdAt: NOW - 1000, updatedAt: NOW, kind: "markdown" } }),
+  "files.get": (i: Record<string, unknown>) => ({
+    file: {
+      fileId: i["fileId"],
+      folderId: "fld_notes",
+      name: "Clients.md",
+      ownerId: "usr_dana",
+      createdAt: NOW - 1000,
+      updatedAt: NOW,
+      kind: "markdown",
+    },
+  }),
   "files.folder.get": () => ({ folder: { path: "Agents/Intake/memory/notes" } }),
   "files.read": () => ({ text: RAW }),
-  "files.agent_view": () => ({ state: "redacted", name: "Clients.md", path: "Agents/Intake/memory/notes", text: REDACTED }),
+  "files.agent_view": () => ({
+    state: "redacted",
+    name: "Clients.md",
+    path: "Agents/Intake/memory/notes",
+    text: REDACTED,
+  }),
   "agents.list": () => ({ agents: [{ agentId: "agt_intake", name: "Intake" }] }),
   "agents.get": () => ({ agent: { folderId: "fld_intake", ownerId: "usr_boss" } }),
 };
@@ -32,10 +47,24 @@ test("the memory index holds the agent's view of a note: a redacted word is neve
 
 test("an agent reading a note gets [REDACTED] where a part is hidden; a person gets the note as it is", async () => {
   const agent = harness({ respond, principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_dana" });
-  const n = seedNote(agent, { fileId: "fil_clients", title: "Clients", body: REDACTED, layer: "agent", agentId: "agt_intake", area: "notes" });
+  const n = seedNote(agent, {
+    fileId: "fil_clients",
+    title: "Clients",
+    body: REDACTED,
+    layer: "agent",
+    agentId: "agt_intake",
+    area: "notes",
+  });
   const a = await readNote(agent.ctx, { noteId: n });
   assert.equal(a.markdown, REDACTED);
   const person = harness({ respond });
-  const n2 = seedNote(person, { fileId: "fil_clients", title: "Clients", body: REDACTED, layer: "agent", agentId: "agt_intake", area: "notes" });
+  const n2 = seedNote(person, {
+    fileId: "fil_clients",
+    title: "Clients",
+    body: REDACTED,
+    layer: "agent",
+    agentId: "agt_intake",
+    area: "notes",
+  });
   assert.equal((await readNote(person.ctx, { noteId: n2 })).markdown, RAW);
 });

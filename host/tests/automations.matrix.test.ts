@@ -12,7 +12,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const NOAH = "tok-usr_noah";
 
@@ -25,30 +31,43 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "exec-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
+      return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    const who = t === OWNER ? "usr_olivia" : t === NOAH ? "usr_noah" : null;
-    return who === null ? null : { space: "spc_core", principal: { kind: "person", id: who }, device: "exec-live" };
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-  ...extra,
-});
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+    ...extra,
+  });
 
-const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (
+  d: Daemon,
+  p: string,
+  body: unknown,
+  token = OWNER,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
-  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+  return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
   const r = await call(d, p, body, token);
@@ -66,11 +85,19 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
 }
 
 const hasNote = async (d: Daemon, title: string): Promise<boolean> =>
-  ((await ok(d, "/v1/records/query", { type: "note_board" }))["rows"] as { fields: { title?: string } }[]).some((r) => r.fields.title === title);
-const mk = (id: string, title: string) => ({ id, key: "records.create", input: { type: "note_board", fields: { title } } });
+  ((await ok(d, "/v1/records/query", { type: "note_board" }))["rows"] as { fields: { title?: string } }[]).some(
+    (r) => r.fields.title === title,
+  );
+const mk = (id: string, title: string) => ({
+  id,
+  key: "records.create",
+  input: { type: "note_board", fields: { title } },
+});
 
 const countNotes = async (d: Daemon, title: string): Promise<number> =>
-  ((await ok(d, "/v1/records/query", { type: "note_board", limit: 50 }))["rows"] as { fields?: { title?: string } }[]).filter((r) => r.fields?.title === title).length;
+  (
+    (await ok(d, "/v1/records/query", { type: "note_board", limit: 50 }))["rows"] as { fields?: { title?: string } }[]
+  ).filter((r) => r.fields?.title === title).length;
 
 async function automation(d: Daemon, name: string, definition: unknown): Promise<string> {
   const made = await ok(d, "/v1/automations/create", { idempotencyKey: `matrix-${name}`, name });
@@ -96,7 +123,13 @@ function loopDef(items: unknown[], concurrency: number, maxIterations: number, b
     triggers: [{ key: "manual" }],
     start: ["each"],
     nodes: [
-      { id: "each", key: "loop", input: { items, concurrency, maxIterations }, branches: [{ label: "body", to: "make" }], next: ["after"] },
+      {
+        id: "each",
+        key: "loop",
+        input: { items, concurrency, maxIterations },
+        branches: [{ label: "body", to: "make" }],
+        next: ["after"],
+      },
       { ...mk("make", bodyTitle), next: [] },
       { ...mk("after", "After loop") },
     ],
@@ -111,7 +144,9 @@ test("a loop of zero items writes After loop and does not write a body note", as
     assert.equal(run.status, "succeeded", run.summary);
     assert.equal(await countNotes(d, "After loop"), 1);
     assert.equal(await hasNote(d, "Body note"), false);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a loop of one item writes that body note once and the after note once", async () => {
@@ -122,7 +157,9 @@ test("a loop of one item writes that body note once and the after note once", as
     assert.equal(run.status, "succeeded", run.summary);
     assert.equal(await countNotes(d, "ITEM"), 1);
     assert.equal(await countNotes(d, "After loop"), 1);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a concurrency of 50 is accepted or clamped and two items still succeed", async () => {
@@ -130,7 +167,9 @@ test("a concurrency of 50 is accepted or clamped and two items still succeed", a
   try {
     const id = await automation(d, "concurrency-cap", loopDef([{ id: "a" }, { id: "b" }], 50, 10, "Cap item"));
     const got = await ok(d, "/v1/automations/get", { automationId: id });
-    const nodes = ((got["automation"] as { definition?: { nodes?: { id?: string; input?: { concurrency?: unknown } }[] } }).definition?.nodes ?? []);
+    const nodes =
+      (got["automation"] as { definition?: { nodes?: { id?: string; input?: { concurrency?: unknown } }[] } })
+        .definition?.nodes ?? [];
     const stored = nodes.find((n) => n.id === "each")?.input?.concurrency;
     // automations.get returns the definition as saved. The host clamps concurrency to 20 only when it starts children, so a stored 20 is not visible when the saved value stays 50.
     if (stored === 20) assert.equal(stored, 20);
@@ -139,7 +178,9 @@ test("a concurrency of 50 is accepted or clamped and two items still succeed", a
     assert.equal(run.status, "succeeded", run.summary);
     assert.equal(await countNotes(d, "Cap item"), 2);
     assert.equal(await countNotes(d, "After loop"), 1);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("maxIterations below the item count fails the run and does not write the after note", async () => {
@@ -152,11 +193,20 @@ test("maxIterations below the item count fails the run and does not write the af
     assert.equal(run.status, "failed", run.summary);
     // run.loop_too_large is not a catalogue code, so the live host records the failure as an internal error. The run is still failed and the after note is absent.
     const steps = (await ok(d, "/v1/runs/steps", { runId }))["steps"] as { step: string; state: string }[];
-    assert.equal(steps.some((s) => s.step === "each" && s.state === "failed"), true, JSON.stringify(steps));
-    assert.equal(steps.some((s) => s.step === "after" && s.state === "succeeded"), false);
+    assert.equal(
+      steps.some((s) => s.step === "each" && s.state === "failed"),
+      true,
+      JSON.stringify(steps),
+    );
+    assert.equal(
+      steps.some((s) => s.step === "after" && s.state === "succeeded"),
+      false,
+    );
     assert.equal(await hasNote(d, "After loop"), false);
     assert.equal(await hasNote(d, "Over max"), false);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("parallel waitFor any writes the fast lane and does not write the slow lane", async () => {
@@ -166,7 +216,15 @@ test("parallel waitFor any writes the fast lane and does not write the slow lane
       triggers: [{ key: "manual" }],
       start: ["par"],
       nodes: [
-        { id: "par", key: "parallel", input: { waitFor: "any", branches: ["slowWait", "fast"] }, branches: [{ label: "Slow", to: "slowWait" }, { label: "Fast", to: "fast" }] },
+        {
+          id: "par",
+          key: "parallel",
+          input: { waitFor: "any", branches: ["slowWait", "fast"] },
+          branches: [
+            { label: "Slow", to: "slowWait" },
+            { label: "Fast", to: "fast" },
+          ],
+        },
         { id: "slowWait", key: "wait", input: { forDuration: "30s" }, next: ["slowNote"] },
         { ...mk("slowNote", "Slow lane"), next: [] },
         { ...mk("fast", "Fast lane"), next: [] },
@@ -176,5 +234,7 @@ test("parallel waitFor any writes the fast lane and does not write the slow lane
     assert.equal(run.status, "succeeded", run.summary);
     assert.equal(await countNotes(d, "Fast lane"), 1);
     assert.equal(await hasNote(d, "Slow lane"), false);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

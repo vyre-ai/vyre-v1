@@ -17,7 +17,16 @@ const fail = (/** @type {string} */ code, /** @type {string} */ message) => Obje
  */
 async function callPending(conn, tool, input) {
   /** @type {any} */ let to;
-  const r = await Promise.race([conn.fetch(`/v1/tools/${tool}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }), new Promise((_, rej) => { to = setTimeout(() => rej(fail("unreachable", "The other device did not answer.")), 15_000); })]).finally(() => clearTimeout(to));
+  const r = await Promise.race([
+    conn.fetch(`/v1/tools/${tool}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    new Promise((_, rej) => {
+      to = setTimeout(() => rej(fail("unreachable", "The other device did not answer.")), 15_000);
+    }),
+  ]).finally(() => clearTimeout(to));
   const body = /** @type {any} */ (await /** @type {any} */ (r).json().catch(() => null));
   return { status: /** @type {any} */ (r).status, body };
 }
@@ -32,7 +41,8 @@ export async function pairToProofMessage(box, device, ticket) {
 }
 
 /** Did the server record the identity that is pairing as its owner? Both ways a first adoption ends (at once, or after the words) answer `owner`; a success for anyone else is not this pairing's. */
-export const ownerIs = (/** @type {any} */ data, /** @type {string} */ id) => Boolean(data && data.owner && typeof data.owner.id === "string" && data.owner.id === id);
+export const ownerIs = (/** @type {any} */ data, /** @type {string} */ id) =>
+  Boolean(data && data.owner && typeof data.owner.id === "string" && data.owner.id === id);
 
 /**
  * A server's waiting pairing: wink.server.adopt. The first call carries the claimed owner, its proof and the pairing's commit; the server answers with its nonce; the app reveals its own, both derive
@@ -47,46 +57,126 @@ export const ownerIs = (/** @type {any} */ data, /** @type {string} */ id) => Bo
  */
 export async function adoptServer(paired, o) {
   const deviceName = o.deviceName || "a device";
-  const conn = connect({ relay: o.relay, route: paired.route, box: paired.box, name: deviceName, crypto: o.crypto, keyStore: o.keyStore, WebSocket: o.WebSocket });
-  const stop = () => { try { conn.close(); } catch { /* closed */ } };
+  const conn = connect({
+    relay: o.relay,
+    route: paired.route,
+    box: paired.box,
+    name: deviceName,
+    crypto: o.crypto,
+    keyStore: o.keyStore,
+    WebSocket: o.WebSocket,
+  });
+  const stop = () => {
+    try {
+      conn.close();
+    } catch {
+      /* closed */
+    }
+  };
   const adopt = async (/** @type {any} */ input) => callPending(conn, "wink.server.adopt", input);
-  const owner = { kind: o.owner.kind || "identity", id: o.owner.id, ...(o.owner.name ? { name: String(o.owner.name).slice(0, 64) } : {}), ...(/** @type {any} */ (o.owner).vyre ? { vyre: String(/** @type {any} */ (o.owner).vyre).slice(0, 253) } : {}), ...(/** @type {any} */ (o.owner).pin ? { pin: /** @type {any} */ (o.owner).pin } : {}) };
+  const owner = {
+    kind: o.owner.kind || "identity",
+    id: o.owner.id,
+    ...(o.owner.name ? { name: String(o.owner.name).slice(0, 64) } : {}),
+    .../** @type {any} */ (o.owner.vyre ? { vyre: String(/** @type {any} */ (o.owner).vyre).slice(0, 253) } : {}),
+    .../** @type {any} */ (o.owner.pin ? { pin: /** @type {any} */ (o.owner).pin } : {}),
+  };
   // The proof that the identity's own key stands behind this pairing: its signature over this pairing's box and relay device and ticket tag (so it is good for this pairing only, PI-3); a phone's key adds its Face ID signature `esig`.
   /** @type {{ eid: string, sig: string } | undefined} */ let proof = o.proof;
-  if (!proof && o.signIdentity) proof = await o.signIdentity(await pairToProofMessage(String(paired.box), String(paired.device), o.ticket));
-  const base = { owner, identity: owner.kind === "identity" ? owner.id : undefined, ...(proof ? { proof } : {}), ...(o.deviceKind ? { deviceKind: o.deviceKind } : {}), ...(deviceName ? { deviceName } : {}), ...(o.keyStorage ? { keyStorage: o.keyStorage } : {}), ...(o.keySigner ? { keySigner: o.keySigner } : {}), ...(o.keyRp ? { keyRp: o.keyRp } : {}) };
+  if (!proof && o.signIdentity)
+    proof = await o.signIdentity(await pairToProofMessage(String(paired.box), String(paired.device), o.ticket));
+  const base = {
+    owner,
+    identity: owner.kind === "identity" ? owner.id : undefined,
+    ...(proof ? { proof } : {}),
+    ...(o.deviceKind ? { deviceKind: o.deviceKind } : {}),
+    ...(deviceName ? { deviceName } : {}),
+    ...(o.keyStorage ? { keyStorage: o.keyStorage } : {}),
+    ...(o.keySigner ? { keySigner: o.keySigner } : {}),
+    ...(o.keyRp ? { keyRp: o.keyRp } : {}),
+  };
   const refuse = (/** @type {any} */ r) => {
     const e = r.body && r.body.error;
     const code = e && e.code;
-    throw fail(code === "busy" ? "busy" : code === "expired" ? "expired" : code === "denied" ? "denied" : code === "denied_no_proof" || code === "denied_wrong_proof" || code === "no_pin" ? code : code === "bad_input" ? "bad_owner" : code === "not_hardware" ? "not_hardware" : code === "owned_by_other" ? "owned_by_other" : code === "unavailable" ? "cannot_check" : "unreachable", (e && e.message) || "The server refused.");
+    throw fail(
+      code === "busy"
+        ? "busy"
+        : code === "expired"
+          ? "expired"
+          : code === "denied"
+            ? "denied"
+            : code === "denied_no_proof" || code === "denied_wrong_proof" || code === "no_pin"
+              ? code
+              : code === "bad_input"
+                ? "bad_owner"
+                : code === "not_hardware"
+                  ? "not_hardware"
+                  : code === "owned_by_other"
+                    ? "owned_by_other"
+                    : code === "unavailable"
+                      ? "cannot_check"
+                      : "unreachable",
+      (e && e.message) || "The server refused.",
+    );
   };
-  const done = (/** @type {any} */ data) => { stop(); if (!ownerIs(data, o.owner.id)) throw fail("bad_owner", "The server named a different owner than the one pairing, so nothing was connected. Start again."); return { paired: /** @type {true} */ (true), relay: o.relay, route: paired.route, box: paired.box, device: paired.device, name: paired.name || "", owner: data.owner, session: data.session !== false }; };
+  const done = (/** @type {any} */ data) => {
+    stop();
+    if (!ownerIs(data, o.owner.id))
+      throw fail(
+        "bad_owner",
+        "The server named a different owner than the one pairing, so nothing was connected. Start again.",
+      );
+    return {
+      paired: /** @type {true} */ (true),
+      relay: o.relay,
+      route: paired.route,
+      box: paired.box,
+      device: paired.device,
+      name: paired.name || "",
+      owner: data.owner,
+      session: data.session !== false,
+    };
+  };
   try {
-    const na = newNonce(), commit = await nonceCommit(na), tag = await ticketTag(o.ticket);
+    const na = newNonce(),
+      commit = await nonceCommit(na),
+      tag = await ticketTag(o.ticket);
     const mark = o.typed ? { typed_tag: tag } : { tag };
     // The server answers the first call at once (it only starts the ask and sends its nonce). One that never answers is a server that is stuck, not one waiting for a person: say so after two minutes (the directory it asks can be out of reach for about a minute).
     const FIRST_MS = o.firstAdoptMs ?? 120_000;
     /** @type {any} */ let firstTimer;
     const first = await Promise.race([
       adopt({ ...base, pairing: { commit, ...mark } }),
-      new Promise((_, rej) => { firstTimer = setTimeout(() => rej(fail("unreachable", "The server did not answer the pairing")), FIRST_MS); }),
+      new Promise((_, rej) => {
+        firstTimer = setTimeout(() => rej(fail("unreachable", "The server did not answer the pairing")), FIRST_MS);
+      }),
     ]).finally(() => clearTimeout(firstTimer));
     if (first.status !== 200 || !first.body || !first.body.data) return refuse(first);
     // a proven (--pair-to) server, or a typed code whose ack was typed back, answers the owner at once; a first adoption answers pending with the server's nonce
     if (first.body.data.owner) return done(first.body.data);
     const nb = String(first.body.data.nb || "");
     if (!nb) throw fail("unreachable", "The server did not start the pairing.");
-    const words = await pairWords(String(paired.box), String(paired.device), { ticket: o.typed ? "" : o.ticket, nonceA: na, nonceB: nb });
+    const words = await pairWords(String(paired.box), String(paired.device), {
+      ticket: o.typed ? "" : o.ticket,
+      nonceA: na,
+      nonceB: nb,
+    });
     if (o.onWords) o.onWords(words);
     const deadline = Date.now() + (o.timeoutMs ?? 5 * 60_000);
     const pollMs = o.pollMs ?? 1000;
     for (;;) {
-      if (o.signal && o.signal.aborted) { await adopt({ ...base, pairing: { commit, ...mark, cancel: true } }).catch(() => null); throw fail("cancelled", "Pairing was cancelled."); }
+      if (o.signal && o.signal.aborted) {
+        await adopt({ ...base, pairing: { commit, ...mark, cancel: true } }).catch(() => null);
+        throw fail("cancelled", "Pairing was cancelled.");
+      }
       if (Date.now() > deadline) throw fail("expired", "Nobody answered at the server in time.");
       const r = await adopt({ ...base, pairing: { commit, ...mark, reveal: na } });
       if (r.status === 200 && r.body && r.body.data && r.body.data.owner) return done(r.body.data);
       if (!(r.status === 200 && r.body && r.body.data && r.body.data.pending)) return refuse(r);
-      await new Promise(res => setTimeout(res, pollMs));
+      await new Promise((res) => setTimeout(res, pollMs));
     }
-  } catch (e) { stop(); throw e; }
+  } catch (e) {
+    stop();
+    throw e;
+  }
 }

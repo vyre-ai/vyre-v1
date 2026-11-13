@@ -7,7 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { STATEMENT_CACHE, keptStatements, openDb } from "../src/daemon/sqlite.ts";
 
-const file = (): string => path.join(fs.mkdtempSync(path.join(process.env["TMPDIR"] ?? os.tmpdir(), "sqlite-cache-")), "x.db");
+const file = (): string =>
+  path.join(fs.mkdtempSync(path.join(process.env["TMPDIR"] ?? os.tmpdir(), "sqlite-cache-")), "x.db");
 const plain = (rows: unknown[]): unknown[] => rows.map((r) => ({ ...(r as object) }));
 
 test("one statement per SQL text, and the cache stays within its bound", () => {
@@ -37,13 +38,15 @@ test("a schema change never hands back a stale statement", () => {
   assert.deepEqual(plain(db.all("SELECT * FROM t")), [], "and back");
   // a change made through another connection to the same file
   const f = file();
-  const one = openDb(f), two = openDb(f);
+  const one = openDb(f),
+    two = openDb(f);
   one.exec("CREATE TABLE u (a INTEGER)");
   one.run("INSERT INTO u (a) VALUES (1)");
   assert.deepEqual(plain(two.all("SELECT * FROM u")), [{ a: 1 }]);
   one.exec("ALTER TABLE u ADD COLUMN b INTEGER DEFAULT 7");
   assert.deepEqual(plain(two.all("SELECT * FROM u")), [{ a: 1, b: 7 }], "another connection's schema change is seen");
-  one.close(); two.close();
+  one.close();
+  two.close();
   db.close();
 });
 
@@ -53,7 +56,14 @@ test("a closed database refuses every call, and VACUUM and transactions still wo
   db.run("INSERT INTO t (a) VALUES (1)");
   db.all("SELECT a FROM t");
   db.exec("VACUUM");
-  assert.throws(() => db.tx(() => { db.run("INSERT INTO t (a) VALUES (2)"); throw new Error("rolled back"); }), /rolled back/);
+  assert.throws(
+    () =>
+      db.tx(() => {
+        db.run("INSERT INTO t (a) VALUES (2)");
+        throw new Error("rolled back");
+      }),
+    /rolled back/,
+  );
   assert.deepEqual(plain(db.all("SELECT a FROM t")), [{ a: 1 }], "the rolled back insert is not there");
   db.close();
   assert.equal(keptStatements(db), 0);

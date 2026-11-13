@@ -38,14 +38,32 @@ export function ingressHostOf(address: string | null | undefined): string | null
   if (typeof address !== "string" || !address.trim()) return null;
   const raw = address.trim();
   let url: URL;
-  try { url = new URL(raw.includes("://") ? raw : `https://${raw}`); } catch { return null; }
-  if (url.protocol !== "https:" || url.port !== "" || url.username || url.password || (url.pathname !== "/" && url.pathname !== "")) return null;
-  try { return normalizeHost(url.hostname); } catch { return null; }
+  try {
+    url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.port !== "" ||
+    url.username ||
+    url.password ||
+    (url.pathname !== "/" && url.pathname !== "")
+  )
+    return null;
+  try {
+    return normalizeHost(url.hostname);
+  } catch {
+    return null;
+  }
 }
 
 export const routeId = (host: string): string => `${ROUTE_PREFIX}${host}`;
 
-export interface BasicAuth { username: string; /** a bcrypt hash, never the password */ hash: string }
+export interface BasicAuth {
+  username: string;
+  /** a bcrypt hash, never the password */ hash: string;
+}
 
 export interface RouteJson {
   "@id": string;
@@ -59,9 +77,15 @@ export function siteRoute(host: string, upstream: string, auth: BasicAuth | null
   const h = normalizeHost(host);
   const handle: Record<string, unknown>[] = [];
   if (auth) {
-    if (!/^\$2[aby]\$\d{2}\$.{53}$/.test(auth.hash)) throw new RouteError("basic auth needs a bcrypt hash, not a password");
+    if (!/^\$2[aby]\$\d{2}\$.{53}$/.test(auth.hash))
+      throw new RouteError("basic auth needs a bcrypt hash, not a password");
     handle.push({ handler: "headers", response: { set: { "X-Robots-Tag": ["noindex, nofollow"] } } });
-    handle.push({ handler: "authentication", providers: { http_basic: { hash: { algorithm: "bcrypt" }, accounts: [{ username: auth.username, password: auth.hash }] } } });
+    handle.push({
+      handler: "authentication",
+      providers: {
+        http_basic: { hash: { algorithm: "bcrypt" }, accounts: [{ username: auth.username, password: auth.hash }] },
+      },
+    });
   }
   handle.push({ handler: "reverse_proxy", upstreams: [{ dial: normalizeUpstream(upstream) }] });
   return { "@id": routeId(h), match: [{ host: [h] }], handle, terminal: true };
@@ -74,20 +98,56 @@ export function siteRoute(host: string, upstream: string, auth: BasicAuth | null
  */
 export function deployedSiteRoute(host: string, auth: string, app: string): RouteJson {
   const h = normalizeHost(host);
-  const a = normalizeUpstream(auth), u = normalizeUpstream(app);
+  const a = normalizeUpstream(auth),
+    u = normalizeUpstream(app);
   const forwardAuth = {
-    handler: "reverse_proxy", upstreams: [{ dial: a }], rewrite: { method: "GET", uri: "/__vyre/auth" },
+    handler: "reverse_proxy",
+    upstreams: [{ dial: a }],
+    rewrite: { method: "GET", uri: "/__vyre/auth" },
     // the question is a plain GET: a WebSocket's Upgrade headers stay off it, or vyred would see an upgrade instead of a request
-    headers: { request: { set: { "X-Forwarded-Method": ["{http.request.method}"], "X-Forwarded-Uri": ["{http.request.uri}"] }, delete: ["Connection", "Upgrade", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol"] } },
-    handle_response: [{ match: { status_code: [2] }, routes: [{ handle: [{ handler: "headers", request: { set: { "X-Vyre-User": ["{http.reverse_proxy.header.X-Vyre-User}"] } } }] }] }],
+    headers: {
+      request: {
+        set: { "X-Forwarded-Method": ["{http.request.method}"], "X-Forwarded-Uri": ["{http.request.uri}"] },
+        delete: [
+          "Connection",
+          "Upgrade",
+          "Sec-WebSocket-Key",
+          "Sec-WebSocket-Version",
+          "Sec-WebSocket-Extensions",
+          "Sec-WebSocket-Protocol",
+        ],
+      },
+    },
+    handle_response: [
+      {
+        match: { status_code: [2] },
+        routes: [
+          {
+            handle: [
+              { handler: "headers", request: { set: { "X-Vyre-User": ["{http.reverse_proxy.header.X-Vyre-User}"] } } },
+            ],
+          },
+        ],
+      },
+    ],
   };
-  const stripCookie = { handler: "headers", request: { replace: { Cookie: [{ search_regexp: "__vyre_site=[^;]*;?\\s*", replace: "" }] } } };
+  const stripCookie = {
+    handler: "headers",
+    request: { replace: { Cookie: [{ search_regexp: "__vyre_site=[^;]*;?\\s*", replace: "" }] } },
+  };
   return {
-    "@id": routeId(h), match: [{ host: [h] }], terminal: true,
-    handle: [{ handler: "subroute", routes: [
-      { match: [{ path: ["/__vyre/*"] }], handle: [{ handler: "reverse_proxy", upstreams: [{ dial: a }] }] },
-      { handle: [forwardAuth, stripCookie, { handler: "reverse_proxy", upstreams: [{ dial: u }] }] },
-    ] }],
+    "@id": routeId(h),
+    match: [{ host: [h] }],
+    terminal: true,
+    handle: [
+      {
+        handler: "subroute",
+        routes: [
+          { match: [{ path: ["/__vyre/*"] }], handle: [{ handler: "reverse_proxy", upstreams: [{ dial: a }] }] },
+          { handle: [forwardAuth, stripCookie, { handler: "reverse_proxy", upstreams: [{ dial: u }] }] },
+        ],
+      },
+    ],
   };
 }
 
@@ -122,7 +182,8 @@ export function baseConfig(o: BaseOptions = {}): Record<string, unknown> {
 }
 
 type Json = Record<string, unknown>;
-const obj = (v: unknown): Json | undefined => (v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined);
+const obj = (v: unknown): Json | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined;
 
 /** `config` with the vyre server present (everything else Caddy already runs is kept). Returns the same object when nothing had to change. */
 export function withServer(config: Json | undefined, o: BaseOptions = {}): { config: Json; changed: boolean } {
@@ -131,7 +192,10 @@ export function withServer(config: Json | undefined, o: BaseOptions = {}): { con
   const http = obj(apps?.["http"]);
   const servers = obj(http?.["servers"]);
   if (servers && obj(servers[SERVER])) return { config, changed: false };
-  const next: Json = { ...config, apps: { ...(apps ?? {}), http: { ...(http ?? {}), servers: { ...(servers ?? {}), [SERVER]: serverJson(o) } } } };
+  const next: Json = {
+    ...config,
+    apps: { ...(apps ?? {}), http: { ...(http ?? {}), servers: { ...(servers ?? {}), [SERVER]: serverJson(o) } } },
+  };
   const policy = acmePolicy(o.acme);
   if (policy) {
     const apps2 = next["apps"] as Json;

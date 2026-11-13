@@ -30,8 +30,26 @@ import {
   vaultLine,
 } from "../impl-b/index.tsx";
 import type { BlockHostB, PartTwoType } from "../impl-b/index.tsx";
-import { accessRequestData, diffCardData, helperData, memorySavedData, modelSwitchData, secretInputData, vaultUsedData } from "../impl-b/data.ts";
-import { SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD, SAMPLE_HELPER, SAMPLE_MEMORY, SAMPLE_MODEL_SWITCH, SAMPLE_SECRET_INPUT, SAMPLE_TALK_KEY, SAMPLE_VAULT_USED, sampleBlocksB } from "../impl-b/sample.ts";
+import {
+  accessRequestData,
+  diffCardData,
+  helperData,
+  memorySavedData,
+  modelSwitchData,
+  secretInputData,
+  vaultUsedData,
+} from "../impl-b/data.ts";
+import {
+  SAMPLE_ACCESS_REQUEST,
+  SAMPLE_DIFF_CARD,
+  SAMPLE_HELPER,
+  SAMPLE_MEMORY,
+  SAMPLE_MODEL_SWITCH,
+  SAMPLE_SECRET_INPUT,
+  SAMPLE_TALK_KEY,
+  SAMPLE_VAULT_USED,
+  sampleBlocksB,
+} from "../impl-b/sample.ts";
 import type { Block } from "../../kit/types.ts";
 
 interface RegistryBlock {
@@ -52,7 +70,9 @@ interface Registry {
   capabilities: RegistryCap[];
 }
 
-const registry = JSON.parse(readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 
 function dataSchema(def: RegistryBlock): { properties: Record<string, unknown>; required: string[] } {
   const raw = def.data;
@@ -128,7 +148,10 @@ for (const type of PART_TWO_TYPES) {
       spec.actions.map((a) => ({ key: a.key, cap: a.cap, input: a.input })),
       (def.actions ?? []).map((a) => ({ key: a.key, cap: a.cap, input: a.input })),
     );
-    assert.deepEqual(spec.opens === undefined ? undefined : { tab: spec.opens.tab, input: spec.opens.input }, def.opens);
+    assert.deepEqual(
+      spec.opens === undefined ? undefined : { tab: spec.opens.tab, input: spec.opens.input },
+      def.opens,
+    );
     assert.equal(def.component, COMPONENT_NAME[type]);
   });
 }
@@ -148,7 +171,8 @@ test("every id a block action sends is a field of the block's data schema", () =
     const def = registry.blocks.find((b) => b.type === type);
     assert.ok(def);
     for (const a of BLOCK_SPECS_B[type].actions) {
-      for (const pointer of Object.values(a.input)) assert.ok(pointer.slice(1) in dataSchema(def).properties, `${type}.${a.key} reads ${pointer}`);
+      for (const pointer of Object.values(a.input))
+        assert.ok(pointer.slice(1) in dataSchema(def).properties, `${type}.${a.key} reads ${pointer}`);
       const schema = inputSchema(a.cap);
       for (const key of Object.keys(a.input)) assert.ok(key in schema.properties, `${a.cap} takes ${key}`);
     }
@@ -177,7 +201,12 @@ test("the registry of this part holds the seven types and each renders with its 
 });
 
 test("a type of another part renders nothing here", () => {
-  assert.equal(renderToStaticMarkup(<BlockViewB block={{ type: "terminal", v: 1, id: "x", data: {}, traceId: "t" }} host={fakeHost().host} />), "");
+  assert.equal(
+    renderToStaticMarkup(
+      <BlockViewB block={{ type: "terminal", v: 1, id: "x", data: {}, traceId: "t" }} host={fakeHost().host} />,
+    ),
+    "",
+  );
 });
 
 test("a thin payload never throws: every card renders from empty or null data", () => {
@@ -212,11 +241,18 @@ test("vault_used: the name and never shown, and the value or the fields are not 
 });
 
 test("access_request: an approver sees Approve and Decline; a decided one shows its state", () => {
-  const markup = html(SAMPLE_ACCESS_REQUEST, fakeHost({ viewerId: "usr_z9y8x7", nameOf: (id) => (id === "usr_a1b2c3" ? "Maya" : undefined) }).host);
+  const markup = html(
+    SAMPLE_ACCESS_REQUEST,
+    fakeHost({ viewerId: "usr_z9y8x7", nameOf: (id) => (id === "usr_a1b2c3" ? "Maya" : undefined) }).host,
+  );
   assert.ok(markup.includes("Maya asks for edit access to Clients"));
   assert.ok(markup.includes("I need to attach the signed engagement letters."));
-  for (const key of ["approve", "decline", "level"]) assert.ok(markup.includes(`blk-access_request-blk_acc1-${key}`), key);
-  const granted: Block = { ...SAMPLE_ACCESS_REQUEST, data: { ...(SAMPLE_ACCESS_REQUEST.data as object), state: "granted" } };
+  for (const key of ["approve", "decline", "level"])
+    assert.ok(markup.includes(`blk-access_request-blk_acc1-${key}`), key);
+  const granted: Block = {
+    ...SAMPLE_ACCESS_REQUEST,
+    data: { ...(SAMPLE_ACCESS_REQUEST.data as object), state: "granted" },
+  };
   const done = html(granted, fakeHost({ viewerId: "usr_z9y8x7" }).host);
   assert.ok(done.includes("Granted edit access"));
   assert.ok(!done.includes("blk-access_request-blk_acc1-approve"));
@@ -230,8 +266,14 @@ test("access_request: the person who asked sees the locked state with Waiting, n
   assert.ok(!markup.includes("blk-access_request-blk_acc1-approve"));
   assert.equal(requestView("usr_a1b2c3", "usr_a1b2c3"), "requester");
   assert.equal(requestView(undefined, "usr_a1b2c3"), "approver");
-  const declined: Block = { ...SAMPLE_ACCESS_REQUEST, data: { ...(SAMPLE_ACCESS_REQUEST.data as object), state: "declined" } };
-  assert.ok(html(declined, fakeHost({ viewerId: "usr_a1b2c3" }).host).includes("Ask for access"), "a declined request can be asked again");
+  const declined: Block = {
+    ...SAMPLE_ACCESS_REQUEST,
+    data: { ...(SAMPLE_ACCESS_REQUEST.data as object), state: "declined" },
+  };
+  assert.ok(
+    html(declined, fakeHost({ viewerId: "usr_a1b2c3" }).host).includes("Ask for access"),
+    "a declined request can be asked again",
+  );
 });
 
 test("model_switch: Sub-task, the reason and the Model and Effort menus; no action is declared", () => {
@@ -241,7 +283,10 @@ test("model_switch: Sub-task, the reason and the Model and Effort menus; no acti
   assert.ok(markup.includes("Model: Haiku"));
   assert.ok(markup.includes("Effort: Low"));
   assert.equal(BLOCK_SPECS_B.model_switch.actions.length, 0);
-  assert.deepEqual(modelChoices({ provider: "p", model: "Sonnet" }, { provider: "p", model: "Haiku" }), ["Haiku", "Sonnet"]);
+  assert.deepEqual(modelChoices({ provider: "p", model: "Sonnet" }, { provider: "p", model: "Haiku" }), [
+    "Haiku",
+    "Sonnet",
+  ]);
 });
 
 test("helper: title, status, trail, Open, and Stop only while it runs", () => {
@@ -264,7 +309,10 @@ test("diff_card: title, kind, every change with before and after, Apply and Disc
   assert.ok(markup.includes("roles/paralegal/clients.files"));
   assert.ok(markup.includes(">view<") && markup.includes(">edit<"));
   assert.ok(markup.includes("blk-diff_card-blk_dif1-apply") && markup.includes("blk-diff_card-blk_dif1-reject"));
-  assert.ok(markup.includes(">Apply<") && markup.includes(">Discard<") && !markup.includes(">Reject<"), "the card says Apply and Discard");
+  assert.ok(
+    markup.includes(">Apply<") && markup.includes(">Discard<") && !markup.includes(">Reject<"),
+    "the card says Apply and Discard",
+  );
   assert.equal(valueText(undefined), "none");
   assert.equal(valueText(["a", "b"]), "a, b");
   assert.equal(valueText(""), "empty");
@@ -290,7 +338,8 @@ for (const type of PART_TWO_TYPES) {
       assert.ok(call);
       assert.equal(call.kind, "invoke");
       assert.equal(call.name, spec.cap);
-      for (const [key, pointer] of Object.entries(spec.input)) assert.equal(call.input[key], readPointer(block.data, pointer), `${key} from ${pointer}`);
+      for (const [key, pointer] of Object.entries(spec.input))
+        assert.equal(call.input[key], readPointer(block.data, pointer), `${key} from ${pointer}`);
       const schema = inputSchema(spec.cap);
       for (const key of schema.required) assert.ok(key in call.input, `${spec.cap} receives required ${key}`);
       for (const key of Object.keys(call.input)) assert.ok(key in schema.properties, `${spec.cap} declares ${key}`);
@@ -327,7 +376,8 @@ test("the helper and the vault item open the tab the manifest names, with their 
 test("the model menus change the model through engine.set_model with the thread and agent of the block", () => {
   const schema = inputSchema(SET_MODEL_CAPABILITY);
   for (const key of ["threadId", "agentId", "provider", "model", "effort"]) assert.ok(key in schema.properties, key);
-  for (const key of schema.required) assert.ok(["threadId", "agentId"].includes(key), `${key} is supplied by the block`);
+  for (const key of schema.required)
+    assert.ok(["threadId", "agentId"].includes(key), `${key} is supplied by the block`);
   const d = modelSwitchData(SAMPLE_MODEL_SWITCH.data);
   assert.equal(d.threadId, "thr_a1b2c3");
   assert.equal(d.agentId, "agt_a1b2c3");
@@ -373,7 +423,11 @@ test("secret_input: the value goes to vault.item.put once, as a secret field, an
   assert.equal(call.input["kind"], "api_key");
   assert.equal(typeof call.input["idempotencyKey"], "string");
   assert.deepEqual(call.input["fields"], fields);
-  assert.equal(JSON.stringify(calls).split(SECRET).length - 1, 1, "the value appears in exactly one place: the vault.item.put fields");
+  assert.equal(
+    JSON.stringify(calls).split(SECRET).length - 1,
+    1,
+    "the value appears in exactly one place: the vault.item.put fields",
+  );
 });
 
 test("secret_input: the value is absent from the block, the rendered thread and what a host would log", async () => {
@@ -383,7 +437,9 @@ test("secret_input: the value is absent from the block, the rendered thread and 
   // The block the thread keeps is unchanged by the save.
   assert.ok(!JSON.stringify(SAMPLE_SECRET_INPUT).includes(SECRET));
   // The whole thread of part-two blocks, rendered, holds no trace of it.
-  const thread = sampleBlocksB().map((b) => html(b)).join("");
+  const thread = sampleBlocksB()
+    .map((b) => html(b))
+    .join("");
   assert.ok(!thread.includes(SECRET));
   // A host that logs a call logs the redacted input.
   const first = calls[0];
@@ -396,7 +452,12 @@ test("secret_input: the value is absent from the block, the rendered thread and 
 
 test("secret_input: a failed save is reported by the rejected call and nothing is stored in the block", async () => {
   const host: BlockHostB = { invoke: () => Promise.reject(new Error("validation.duplicate")), open: () => undefined };
-  await assert.rejects(performB(host, "secret_input", "save", SAMPLE_SECRET_INPUT, { fields: secretFields(["api_key"], { api_key: SECRET }) }), /duplicate/);
+  await assert.rejects(
+    performB(host, "secret_input", "save", SAMPLE_SECRET_INPUT, {
+      fields: secretFields(["api_key"], { api_key: SECRET }),
+    }),
+    /duplicate/,
+  );
   assert.ok(!JSON.stringify(SAMPLE_SECRET_INPUT).includes(SECRET));
 });
 

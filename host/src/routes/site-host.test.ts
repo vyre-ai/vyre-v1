@@ -7,27 +7,77 @@ import { test } from "node:test";
 import { createSiteHostRoute, createSiteSigninPage } from "./site-host.ts";
 import type { HostSite } from "./site-host.ts";
 
-const TOKEN = "a".repeat(48), OTHER = "b".repeat(48), PW = "c".repeat(48);
+const TOKEN = "a".repeat(48),
+  OTHER = "b".repeat(48),
+  PW = "c".repeat(48);
 
 async function world(access: string) {
   const seen: http.IncomingHttpHeaders[] = [];
-  const app = http.createServer((q, s) => { seen.push(q.headers); s.setHeader("set-cookie", ["app=1; Path=/", "two=2"]); s.end(`app ${q.method} ${q.url}`); });
+  const app = http.createServer((q, s) => {
+    seen.push(q.headers);
+    s.setHeader("set-cookie", ["app=1; Path=/", "two=2"]);
+    s.end(`app ${q.method} ${q.url}`);
+  });
   await new Promise<void>((r) => app.listen(0, "127.0.0.1", r));
-  const site: HostSite = { siteId: "sit_1", name: "CX", access, live: true, blocked: false, owner: "usr_owner", passwordHash: "hash", target: { container: "c1", port: (app.address() as AddressInfo).port } };
-  const tickets = new Map([[TOKEN, "usr_anem"], [OTHER, "usr_gone"], [PW, "visitor:password"]]);
+  const site: HostSite = {
+    siteId: "sit_1",
+    name: "CX",
+    access,
+    live: true,
+    blocked: false,
+    owner: "usr_owner",
+    passwordHash: "hash",
+    target: { container: "c1", port: (app.address() as AddressInfo).port },
+  };
+  const tickets = new Map([
+    [TOKEN, "usr_anem"],
+    [OTHER, "usr_gone"],
+    [PW, "visitor:password"],
+  ]);
   const route = createSiteHostRoute({
-    own: (h) => h === "space.test", site: (h) => (h === "cx.space.test" ? site : null), ticket: async (_id, t) => tickets.get(t) ?? null,
-    may: (p, x) => p === x.owner || (x.access !== "private" && p === "usr_anem"), checkPassword: async (g) => g === "right", newSession: async () => PW,
-    address: async () => "127.0.0.1", origin: () => "https://space.test",
+    own: (h) => h === "space.test",
+    site: (h) => (h === "cx.space.test" ? site : null),
+    ticket: async (_id, t) => tickets.get(t) ?? null,
+    may: (p, x) => p === x.owner || (x.access !== "private" && p === "usr_anem"),
+    checkPassword: async (g) => g === "right",
+    newSession: async () => PW,
+    address: async () => "127.0.0.1",
+    origin: () => "https://space.test",
   });
   const page = createSiteSigninPage();
-  const gw = http.createServer((q, s) => { if (!route.handle(q, s) && !page.handle(q, s)) { s.writeHead(599); s.end(); } });
-  await new Promise<void>((r) => gw.listen(0, "127.0.0.1", r));
-  const call = (path: string, o: { host?: string; cookie?: string; method?: string; body?: string; headers?: Record<string, string> } = {}) => new Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }>((resolve, reject) => {
-    const r = http.request({ host: "127.0.0.1", port: (gw.address() as AddressInfo).port, path, method: o.method ?? "GET", headers: { host: o.host ?? "cx.space.test", ...(o.cookie ? { cookie: o.cookie } : {}), ...(o.headers ?? {}) } }, (res) => { let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => resolve({ status: res.statusCode ?? 0, body: b, headers: res.headers })); });
-    r.on("error", reject); r.end(o.body);
+  const gw = http.createServer((q, s) => {
+    if (!route.handle(q, s) && !page.handle(q, s)) {
+      s.writeHead(599);
+      s.end();
+    }
   });
-  const close = (): void => { app.close(); gw.close(); };
+  await new Promise<void>((r) => gw.listen(0, "127.0.0.1", r));
+  const call = (
+    path: string,
+    o: { host?: string; cookie?: string; method?: string; body?: string; headers?: Record<string, string> } = {},
+  ) =>
+    new Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }>((resolve, reject) => {
+      const r = http.request(
+        {
+          host: "127.0.0.1",
+          port: (gw.address() as AddressInfo).port,
+          path,
+          method: o.method ?? "GET",
+          headers: { host: o.host ?? "cx.space.test", ...(o.cookie ? { cookie: o.cookie } : {}), ...(o.headers ?? {}) },
+        },
+        (res) => {
+          let b = "";
+          res.on("data", (c) => (b += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: b, headers: res.headers }));
+        },
+      );
+      r.on("error", reject);
+      r.end(o.body);
+    });
+  const close = (): void => {
+    app.close();
+    gw.close();
+  };
   return { site, call, seen, close };
 }
 
@@ -40,7 +90,10 @@ test("space: a visitor goes to sign in, a member's link becomes a cookie, a non-
   const signin = await w.call(`/__vyre/signin?t=${TOKEN}&next=/dash`);
   assert.equal(signin.status, 302);
   assert.equal(signin.headers.location, "/dash");
-  assert.match(String(signin.headers["set-cookie"]), /^__vyre_site=c{48}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400$/);
+  assert.match(
+    String(signin.headers["set-cookie"]),
+    /^__vyre_site=c{48}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400$/,
+  );
   assert.equal((await w.call(`/__vyre/signin?t=${OTHER}`)).status, 403, "a link for someone who may not see it");
   const ok = await w.call("/api", { cookie: `__vyre_site=${TOKEN}; theirs=1`, headers: { "x-vyre-user": "forged" } });
   assert.equal(ok.status, 200);
@@ -52,7 +105,11 @@ test("space: a visitor goes to sign in, a member's link becomes a cookie, a non-
   assert.equal(h.host, "cx.space.test");
   assert.equal(h["x-forwarded-proto"], "https");
   assert.equal((await w.call("/", { cookie: `__vyre_site=${OTHER}` })).status, 403);
-  assert.equal((await w.call("/", { method: "POST", body: "x" })).status, 401, "a write with no cookie is refused, not redirected");
+  assert.equal(
+    (await w.call("/", { method: "POST", body: "x" })).status,
+    401,
+    "a write with no cookie is refused, not redirected",
+  );
   assert.equal((await w.call("/__vyre/signin?t=../../x&next=//evil.example")).status, 403);
 });
 
@@ -60,8 +117,21 @@ test("password: a form, a wrong password, the right one; a next that leaves the 
   const w = await world("password");
   t.after(w.close);
   assert.match((await w.call("/")).body, /This site has a password/);
-  assert.equal((await w.call("/__vyre/password", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "password=wrong&next=/" })).status, 401);
-  const right = await w.call("/__vyre/password", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "password=right&next=//evil.example" });
+  assert.equal(
+    (
+      await w.call("/__vyre/password", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "password=wrong&next=/",
+      })
+    ).status,
+    401,
+  );
+  const right = await w.call("/__vyre/password", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: "password=right&next=//evil.example",
+  });
   assert.equal(right.status, 303);
   assert.equal(right.headers.location, "/");
   assert.equal((await w.call("/x", { cookie: `__vyre_site=${PW}` })).body, "app GET /x");
@@ -76,7 +146,8 @@ test("public, private, stopped and taken down; the Space's own name and an unkno
   assert.equal((await w.call("/", { cookie: `__vyre_site=${TOKEN}` })).status, 403, "a member it is not shared with");
   w.site.live = false;
   assert.equal((await w.call("/")).status, 404);
-  w.site.live = true; w.site.blocked = true;
+  w.site.live = true;
+  w.site.blocked = true;
   assert.equal((await w.call("/")).status, 451);
   assert.equal((await w.call("/", { host: "space.test" })).status, 599);
   assert.equal((await w.call("/", { host: "nope.example" })).status, 599);
@@ -90,17 +161,53 @@ test("clientOnNetwork: a container on the network is a client; the host's own si
   const { clientOnNetwork } = await import("./site-host.ts");
   const computers = ["192.168.48.0/20", "192.168.32.0/20"];
   // the compose topology: vyred has 192.168.16.2 on the default network and 192.168.48.2 on the computer's network
-  assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", computers), true, "the computer itself (a container) is a computer");
-  assert.equal(clientOnNetwork("192.168.48.2", "::ffff:192.168.48.3", computers), true, "an IPv4-mapped address is the same");
-  assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.1", computers), false, "the owner's browser arriving through the published port is the bridge gateway, not a computer");
+  assert.equal(
+    clientOnNetwork("192.168.48.2", "192.168.48.3", computers),
+    true,
+    "the computer itself (a container) is a computer",
+  );
+  assert.equal(
+    clientOnNetwork("192.168.48.2", "::ffff:192.168.48.3", computers),
+    true,
+    "an IPv4-mapped address is the same",
+  );
+  assert.equal(
+    clientOnNetwork("192.168.48.2", "192.168.48.1", computers),
+    false,
+    "the owner's browser arriving through the published port is the bridge gateway, not a computer",
+  );
   assert.equal(clientOnNetwork("192.168.48.2", "::ffff:192.168.48.1", computers), false);
-  assert.equal(clientOnNetwork("192.168.16.2", "192.168.16.1", computers), false, "the default network is no computer network");
-  assert.equal(clientOnNetwork("127.0.0.1", "127.0.0.1", computers), false, "Caddy's loopback proxy is the Space's own");
-  assert.equal(clientOnNetwork("192.168.48.2", "10.0.0.5", computers), false, "a client outside the subnet is not on it");
-  assert.equal(clientOnNetwork("192.168.16.2", "192.168.48.3", computers), false, "a computer reaching the default network's address is not on its own network (it cannot, but the rule is about its own network)");
+  assert.equal(
+    clientOnNetwork("192.168.16.2", "192.168.16.1", computers),
+    false,
+    "the default network is no computer network",
+  );
+  assert.equal(
+    clientOnNetwork("127.0.0.1", "127.0.0.1", computers),
+    false,
+    "Caddy's loopback proxy is the Space's own",
+  );
+  assert.equal(
+    clientOnNetwork("192.168.48.2", "10.0.0.5", computers),
+    false,
+    "a client outside the subnet is not on it",
+  );
+  assert.equal(
+    clientOnNetwork("192.168.16.2", "192.168.48.3", computers),
+    false,
+    "a computer reaching the default network's address is not on its own network (it cannot, but the rule is about its own network)",
+  );
   assert.equal(clientOnNetwork("::1", "::1", computers), false, "IPv6 loopback is the Space's own");
-  assert.equal(clientOnNetwork("fd00::2", "fd00::3", computers), false, "an IPv6 pair is no IPv4 computer network (the networks are IPv4)");
-  assert.equal(clientOnNetwork("::ffff:192.168.48.2", "::ffff:192.168.48.3", computers), true, "both ends IPv4-mapped, as a dual-stack socket reports them");
+  assert.equal(
+    clientOnNetwork("fd00::2", "fd00::3", computers),
+    false,
+    "an IPv6 pair is no IPv4 computer network (the networks are IPv4)",
+  );
+  assert.equal(
+    clientOnNetwork("::ffff:192.168.48.2", "::ffff:192.168.48.3", computers),
+    true,
+    "both ends IPv4-mapped, as a dual-stack socket reports them",
+  );
   assert.equal(clientOnNetwork(undefined, undefined, computers), false);
   assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", []), false);
 });
@@ -125,14 +232,22 @@ test("agentSubnetsOf: the guard's networks are the union of what each module exp
   const { agentSubnetsOf, agentCaller } = await import("./site-host.ts");
   let workspaces = ["172.30.0.0/16"];
   const of = agentSubnetsOf([
-    { agentSubnets: () => ["172.29.0.0/16"] },             // computers: the Space browser
-    { agentSubnets: () => workspaces },                     // terminal: the workspaces' network
-    { agentSubnets: () => { throw new Error("x"); } },
+    { agentSubnets: () => ["172.29.0.0/16"] }, // computers: the Space browser
+    { agentSubnets: () => workspaces }, // terminal: the workspaces' network
+    {
+      agentSubnets: () => {
+        throw new Error("x");
+      },
+    },
     { agentSubnets: () => ["not a subnet", 5] },
     { somethingElse: () => ["10.0.0.0/8"] },
   ]);
   assert.deepEqual(of(), ["172.29.0.0/16", "172.30.0.0/16"]);
-  assert.equal(agentCaller("10.0.0.5", "172.30.0.9", of()), true, "a workspace terminal calling the host's LAN address is an agent");
+  assert.equal(
+    agentCaller("10.0.0.5", "172.30.0.9", of()),
+    true,
+    "a workspace terminal calling the host's LAN address is an agent",
+  );
   workspaces = [];
   assert.deepEqual(of(), ["172.29.0.0/16"], "read on every call: a network that went is gone");
 });

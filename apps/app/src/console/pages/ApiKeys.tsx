@@ -1,28 +1,195 @@
-import{useEffect,useState}from'react';import type{ReactElement}from'react';import{Text,View}from'react-native';
-import type{CapMap}from'../../../../../generated/types.ts';
-import{ObjectPage,ObjectSection,withBaseTabs}from'../../../../../ui/src/ObjectPage/index.tsx';import{Row}from'../../../../../ui/src/Row/index.tsx';
-import{ObjectList}from'../objects/ObjectList.tsx';import{useObjectNames}from'../objects/names.ts';import{useConsoleData}from'../shell/data.tsx';import{Group,Section}from'../shell/ui.tsx';
-import{ Help, Actions,Button,FormSheet,Note,ReadState,useAction}from'./shared.tsx';import{useIntegrationRows}from'./integration-data.ts';
-type Session=CapMap['mcp.sessions.list']['out']['sessions'][number];type Link=CapMap['mcp.connected.link']['out'];
-const sessionState=(session:Session,now:number)=>session.closedAt!==undefined?'Closed':session.expiresAt!==undefined&&session.expiresAt<=now?'Expired':'Open';
-const identityOf=(id:string):{kind:'actor'|'agent'|'person';id:string}=>({kind:id.startsWith('act_')?'actor':id.startsWith('agt_')?'agent':'person',id});
-export function ApiKeysPage({initialSessionId}:{initialSessionId?:string}={}):ReactElement{
- const data=useConsoleData();const list=useIntegrationRows<Session>('mcp.sessions.list','sessions');
- const[link,setLink]=useState<Link|null>(null),[notice,setNotice]=useState(''),[search,setSearch]=useState(''),[selected,setSelected]=useState<string|null>(initialSessionId??null);
- useEffect(()=>setSelected(initialSessionId??null),[initialSessionId]);
- const openSession=(id:string)=>{setSelected(id);data.nav.openPage('keys',{sessionId:id});};
- const back=()=>{setSelected(null);data.nav.openPage('keys');};
- const names=useObjectNames({identities:list.rows.flatMap(row=>[identityOf(row.principal),...(row.actingFor?[{kind:'person' as const,id:row.actingFor}]:[])]),resources:[]});
- const connect=async()=>{setNotice('');try{setLink(await data.call('mcp.connected.link',{})as Link);}catch{setNotice('Couldn’t read this Space’s address. Check the connection and try again.');}};
- const copy=async(text:string)=>{try{await navigator.clipboard.writeText(text);setNotice('Copied');}catch{setNotice('Couldn’t copy that.');}};
- if(selected){const session=list.rows.find(row=>row.sessionId===selected);if(session)return <SessionObject session={session} owner={names.identity(identityOf(session.principal))} onBack={back} onClosed={()=>{back();list.refresh();}}/>;}
- if(!list.ready)return <ReadState error={list.error} retry={list.refresh}/>;
- return <View testID="console-api-keys"><Section title="Outside sessions" count={list.rows.length} right={<Button label="Connect a tool" testID="key-new" onPress={()=>void connect()}/>}><ObjectList rows={list.rows.map(row=>({id:row.sessionId,title:row.name||names.identity(identityOf(row.principal)),note:`${sessionState(row,data.clock().now)} · ${row.kind==='driver'?'Agent engine':'Outside agent'} · ${row.calls} calls${row.actingFor?` · for ${names.identity({kind:'person',id:row.actingFor})}`:''}`,value:row,actions:[{label:'Open session',onSelect:()=>openSession(row.sessionId)}]}))} selectedId={selected} onOpen={row=>openSession(row.id)} search={{value:search,onSearch:setSearch}} pagination={list.pagination} empty="No outside sessions match." testID="api-session-list"/>{list.error?<Note>{list.error}</Note>:null}</Section>
- {link?<FormSheet title="Connect an outside agent" testID="key-sheet" onClose={()=>setLink(null)} submit="Done" onSubmit={()=>setLink(null)} note="Paste the link into Claude Code, Cursor or any MCP app. Sign-in takes one press."><Row title="Link" note={link.url}/><Row title="Claude Code" note={link.claudeCode}/><Actions><Button label="Copy the link" testID="key-copy" onPress={()=>void copy(link.url)}/><Button label="Copy the Claude Code line" onPress={()=>void copy(link.claudeCode)}/></Actions></FormSheet>:null}{notice?<Note>{notice}</Note>:null}</View>;
+import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
+import { Text, View } from "react-native";
+import type { CapMap } from "../../../../../generated/types.ts";
+import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { ObjectList } from "../objects/ObjectList.tsx";
+import { useObjectNames } from "../objects/names.ts";
+import { useConsoleData } from "../shell/data.tsx";
+import { Group, Section } from "../shell/ui.tsx";
+import { Help, Actions, Button, FormSheet, Note, ReadState, useAction } from "./shared.tsx";
+import { useIntegrationRows } from "./integration-data.ts";
+type Session = CapMap["mcp.sessions.list"]["out"]["sessions"][number];
+type Link = CapMap["mcp.connected.link"]["out"];
+const sessionState = (session: Session, now: number) =>
+  session.closedAt !== undefined
+    ? "Closed"
+    : session.expiresAt !== undefined && session.expiresAt <= now
+      ? "Expired"
+      : "Open";
+const identityOf = (id: string): { kind: "actor" | "agent" | "person"; id: string } => ({
+  kind: id.startsWith("act_") ? "actor" : id.startsWith("agt_") ? "agent" : "person",
+  id,
+});
+export function ApiKeysPage({ initialSessionId }: { initialSessionId?: string } = {}): ReactElement {
+  const data = useConsoleData();
+  const list = useIntegrationRows<Session>("mcp.sessions.list", "sessions");
+  const [link, setLink] = useState<Link | null>(null),
+    [notice, setNotice] = useState(""),
+    [search, setSearch] = useState(""),
+    [selected, setSelected] = useState<string | null>(initialSessionId ?? null);
+  useEffect(() => setSelected(initialSessionId ?? null), [initialSessionId]);
+  const openSession = (id: string) => {
+    setSelected(id);
+    data.nav.openPage("keys", { sessionId: id });
+  };
+  const back = () => {
+    setSelected(null);
+    data.nav.openPage("keys");
+  };
+  const names = useObjectNames({
+    identities: list.rows.flatMap((row) => [
+      identityOf(row.principal),
+      ...(row.actingFor ? [{ kind: "person" as const, id: row.actingFor }] : []),
+    ]),
+    resources: [],
+  });
+  const connect = async () => {
+    setNotice("");
+    try {
+      setLink((await data.call("mcp.connected.link", {})) as Link);
+    } catch {
+      setNotice("Couldn’t read this Space’s address. Check the connection and try again.");
+    }
+  };
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("Copied");
+    } catch {
+      setNotice("Couldn’t copy that.");
+    }
+  };
+  if (selected) {
+    const session = list.rows.find((row) => row.sessionId === selected);
+    if (session)
+      return (
+        <SessionObject
+          session={session}
+          owner={names.identity(identityOf(session.principal))}
+          onBack={back}
+          onClosed={() => {
+            back();
+            list.refresh();
+          }}
+        />
+      );
+  }
+  if (!list.ready) return <ReadState error={list.error} retry={list.refresh} />;
+  return (
+    <View testID="console-api-keys">
+      <Section
+        title="Outside sessions"
+        count={list.rows.length}
+        right={<Button label="Connect a tool" testID="key-new" onPress={() => void connect()} />}
+      >
+        <ObjectList
+          rows={list.rows.map((row) => ({
+            id: row.sessionId,
+            title: row.name || names.identity(identityOf(row.principal)),
+            note: `${sessionState(row, data.clock().now)} · ${row.kind === "driver" ? "Agent engine" : "Outside agent"} · ${row.calls} calls${row.actingFor ? ` · for ${names.identity({ kind: "person", id: row.actingFor })}` : ""}`,
+            value: row,
+            actions: [{ label: "Open session", onSelect: () => openSession(row.sessionId) }],
+          }))}
+          selectedId={selected}
+          onOpen={(row) => openSession(row.id)}
+          search={{ value: search, onSearch: setSearch }}
+          pagination={list.pagination}
+          empty="No outside sessions match."
+          testID="api-session-list"
+        />
+        {list.error ? <Note>{list.error}</Note> : null}
+      </Section>
+      {link ? (
+        <FormSheet
+          title="Connect an outside agent"
+          testID="key-sheet"
+          onClose={() => setLink(null)}
+          submit="Done"
+          onSubmit={() => setLink(null)}
+          note="Paste the link into Claude Code, Cursor or any MCP app. Sign-in takes one press."
+        >
+          <Row title="Link" note={link.url} />
+          <Row title="Claude Code" note={link.claudeCode} />
+          <Actions>
+            <Button label="Copy the link" testID="key-copy" onPress={() => void copy(link.url)} />
+            <Button label="Copy the Claude Code line" onPress={() => void copy(link.claudeCode)} />
+          </Actions>
+        </FormSheet>
+      ) : null}
+      {notice ? <Note>{notice}</Note> : null}
+    </View>
+  );
 }
-function SessionObject({session,owner,onBack,onClosed}:{session:Session;owner:string;onBack():void;onClosed():void}):ReactElement{
- const[tab,setTab]=useState('overview');const action=useAction(()=>undefined);const data=useConsoleData();
- return <ObjectPage id={session.sessionId} name={session.name||owner} kind="Outside session" owner={owner} status={sessionState(session,data.clock().now)} density="regular" parent="API keys" onBack={onBack} actions={sessionState(session,data.clock().now)==='Open'?[{id:'close',label:'Close session',destructive:true}]:[]} impacts={{close:'Close this session? The agent opens another with its next call. To end its access, remove it on its own page.'}} tabs={withBaseTabs([])} activeTabId={tab} onTab={setTab} sheetOpen={false} onAction={async()=>{const out=await action.run<CapMap['mcp.session.close']['out']>('mcp.session.close',{sessionId:session.sessionId},'Session closed');if(!out?.closed)return false;onClosed();}}>
- {tab==='overview'?<ObjectSection title="Session"><Row title="Started" note={new Date(session.startedAt).toLocaleString()}/><Row title="Last call" note={session.lastCallAt?new Date(session.lastCallAt).toLocaleString():'No calls yet'}/><Row title="Calls" note={String(session.calls)}/></ObjectSection>:tab==='access'?<ObjectSection title="Access"><Help>An outside agent can do what the person it acts for can, and no more.</Help><Button label="Manage actor access" onPress={()=>data.nav.openPage('actors')}/></ObjectSection>:<ObjectSection title="Activity"><Help>Every call an outside agent makes is on the audit log.</Help><Button label="Open audit log" onPress={()=>data.nav.openPage('audit')}/></ObjectSection>}{action.note?<Note>{action.note}</Note>:null}
- </ObjectPage>;
+function SessionObject({
+  session,
+  owner,
+  onBack,
+  onClosed,
+}: {
+  session: Session;
+  owner: string;
+  onBack(): void;
+  onClosed(): void;
+}): ReactElement {
+  const [tab, setTab] = useState("overview");
+  const action = useAction(() => undefined);
+  const data = useConsoleData();
+  return (
+    <ObjectPage
+      id={session.sessionId}
+      name={session.name || owner}
+      kind="Outside session"
+      owner={owner}
+      status={sessionState(session, data.clock().now)}
+      density="regular"
+      parent="API keys"
+      onBack={onBack}
+      actions={
+        sessionState(session, data.clock().now) === "Open"
+          ? [{ id: "close", label: "Close session", destructive: true }]
+          : []
+      }
+      impacts={{
+        close:
+          "Close this session? The agent opens another with its next call. To end its access, remove it on its own page.",
+      }}
+      tabs={withBaseTabs([])}
+      activeTabId={tab}
+      onTab={setTab}
+      sheetOpen={false}
+      onAction={async () => {
+        const out = await action.run<CapMap["mcp.session.close"]["out"]>(
+          "mcp.session.close",
+          { sessionId: session.sessionId },
+          "Session closed",
+        );
+        if (!out?.closed) return false;
+        onClosed();
+      }}
+    >
+      {tab === "overview" ? (
+        <ObjectSection title="Session">
+          <Row title="Started" note={new Date(session.startedAt).toLocaleString()} />
+          <Row
+            title="Last call"
+            note={session.lastCallAt ? new Date(session.lastCallAt).toLocaleString() : "No calls yet"}
+          />
+          <Row title="Calls" note={String(session.calls)} />
+        </ObjectSection>
+      ) : tab === "access" ? (
+        <ObjectSection title="Access">
+          <Help>An outside agent can do what the person it acts for can, and no more.</Help>
+          <Button label="Manage actor access" onPress={() => data.nav.openPage("actors")} />
+        </ObjectSection>
+      ) : (
+        <ObjectSection title="Activity">
+          <Help>Every call an outside agent makes is on the audit log.</Help>
+          <Button label="Open audit log" onPress={() => data.nav.openPage("audit")} />
+        </ObjectSection>
+      )}
+      {action.note ? <Note>{action.note}</Note> : null}
+    </ObjectPage>
+  );
 }

@@ -19,7 +19,17 @@ const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-mac-test-"
 
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: os.tmpdir(), VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Darwin", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      HOME: os.tmpdir(),
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_OS: "Darwin",
+      ...env,
+    },
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 function block(file: string, name: string): string {
@@ -53,9 +63,14 @@ test("the disk check, the version order and the signed-release code are the same
 
 test("disk_encrypted on a Mac reads diskutil: FileVault passes, a plain volume is refused, silence is reported as such", () => {
   const dir = tmp();
-  const run = (out: string): number | null => sh(INSTALL, `disk_encrypted "${dir}"`, { VYRE_TEST_DISKUTIL: fakeDiskutil(dir, out) }).status;
+  const run = (out: string): number | null =>
+    sh(INSTALL, `disk_encrypted "${dir}"`, { VYRE_TEST_DISKUTIL: fakeDiskutil(dir, out) }).status;
   assert.equal(run("   FileVault:                 Yes"), 0);
-  assert.equal(run("   FileVault:                 No\n   Encrypted:                 Yes"), 0, "an encrypted external volume");
+  assert.equal(
+    run("   FileVault:                 No\n   Encrypted:                 Yes"),
+    0,
+    "an encrypted external volume",
+  );
   assert.equal(run("   FileVault:                 No"), 1);
   assert.equal(run("   Volume Name:  X"), 2);
   fs.rmSync(dir, { recursive: true });
@@ -63,12 +78,16 @@ test("disk_encrypted on a Mac reads diskutil: FileVault passes, a plain volume i
 
 test("check_encrypted refuses a Mac without FileVault with exit 3 and the steps to turn it on, and passes one with it", () => {
   const dir = tmp();
-  const bad = sh(INSTALL, `check_encrypted "${dir}/data"`, { VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 No") });
+  const bad = sh(INSTALL, `check_encrypted "${dir}/data"`, {
+    VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 No"),
+  });
   assert.equal(bad.status, 3);
   assert.match(bad.stderr, /not on an encrypted volume/);
   assert.match(bad.stderr, /FileVault/);
   assert.match(bad.stderr, /--data-dir/);
-  const ok = sh(INSTALL, `check_encrypted "${dir}/data"`, { VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 Yes") });
+  const ok = sh(INSTALL, `check_encrypted "${dir}/data"`, {
+    VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 Yes"),
+  });
   assert.equal(ok.status, 0);
   assert.match(ok.stdout, /on an encrypted volume/);
   fs.rmSync(dir, { recursive: true });
@@ -76,7 +95,11 @@ test("check_encrypted refuses a Mac without FileVault with exit 3 and the steps 
 
 test("find_openssl skips the system LibreSSL and takes an OpenSSL 3; with none, need_tools says what to brew install", () => {
   const dir = tmp();
-  const mk = (n: string, banner: string): string => { const f = path.join(dir, n); fs.writeFileSync(f, `#!/bin/sh\necho "${banner}"\n`, { mode: 0o755 }); return f; };
+  const mk = (n: string, banner: string): string => {
+    const f = path.join(dir, n);
+    fs.writeFileSync(f, `#!/bin/sh\necho "${banner}"\n`, { mode: 0o755 });
+    return f;
+  };
   const libre = mk("openssl", "LibreSSL 3.3.6");
   const three = mk("openssl3", "OpenSSL 3.4.0 22 Oct 2024 (Library: OpenSSL 3.4.0 22 Oct 2024)");
   const env = { PATH: `${dir}:/usr/bin:/bin`, VYRE_TEST_OPENSSL_ONLY: "1" };
@@ -92,7 +115,12 @@ test("find_openssl skips the system LibreSSL and takes an OpenSSL 3; with none, 
 
 test("verify_manifest takes the signature of the release key through the OpenSSL 3 that was found, and nothing else", () => {
   const dir = tmp();
-  const key = path.join(dir, "k.pem"), pub = path.join(dir, "k.pub"), m = path.join(dir, "m.json"), msg = path.join(dir, "msg"), raw = path.join(dir, "raw"), sig = path.join(dir, "m.sig");
+  const key = path.join(dir, "k.pem"),
+    pub = path.join(dir, "k.pub"),
+    m = path.join(dir, "m.json"),
+    msg = path.join(dir, "msg"),
+    raw = path.join(dir, "raw"),
+    sig = path.join(dir, "m.sig");
   assert.equal(spawnSync("openssl", ["genpkey", "-algorithm", "ed25519", "-out", key]).status, 0);
   assert.equal(spawnSync("openssl", ["pkey", "-in", key, "-pubout", "-out", pub]).status, 0);
   const body = '{"v":1}\n';
@@ -100,7 +128,8 @@ test("verify_manifest takes the signature of the release key through the OpenSSL
   fs.writeFileSync(msg, Buffer.concat([Buffer.from("vyre-release-sums\n"), Buffer.from(body)]));
   assert.equal(spawnSync("openssl", ["pkeyutl", "-sign", "-inkey", key, "-rawin", "-in", msg, "-out", raw]).status, 0);
   fs.writeFileSync(sig, fs.readFileSync(raw).toString("base64") + "\n");
-  const verify = (file: string): number | null => sh(INSTALL, `TMP="${dir}"; verify_manifest "${file}" "${sig}"`, { VYRE_RELEASE_KEY_PEM: pub }).status;
+  const verify = (file: string): number | null =>
+    sh(INSTALL, `TMP="${dir}"; verify_manifest "${file}" "${sig}"`, { VYRE_RELEASE_KEY_PEM: pub }).status;
   assert.equal(verify(m), 0);
   const t = path.join(dir, "t.json");
   fs.writeFileSync(t, body.replace("1", "2"));
@@ -112,21 +141,35 @@ test("fetch_release over file:// checks the signature and the tarball's sha256, 
   const dir = tmp();
   const feed = path.join(dir, "feed");
   fs.mkdirSync(feed);
-  const key = path.join(dir, "k.pem"), pub = path.join(dir, "k.pub");
+  const key = path.join(dir, "k.pem"),
+    pub = path.join(dir, "k.pub");
   assert.equal(spawnSync("openssl", ["genpkey", "-algorithm", "ed25519", "-out", key]).status, 0);
   assert.equal(spawnSync("openssl", ["pkey", "-in", key, "-pubout", "-out", pub]).status, 0);
   const tarball = path.join(feed, "vyre.tgz");
   fs.writeFileSync(tarball, "pretend release");
   const sum = createHash("sha256").update(fs.readFileSync(tarball)).digest("hex");
   const publish = (digest: string): void => {
-    const body = JSON.stringify({ v: 1, channel: "stable", server: { version: "1.0.0", tarball: "vyre.tgz", sha256: digest } });
-    const msg = path.join(dir, "msg"), raw = path.join(dir, "raw");
+    const body = JSON.stringify({
+      v: 1,
+      channel: "stable",
+      server: { version: "1.0.0", tarball: "vyre.tgz", sha256: digest },
+    });
+    const msg = path.join(dir, "msg"),
+      raw = path.join(dir, "raw");
     fs.writeFileSync(path.join(feed, "stable.json"), body);
     fs.writeFileSync(msg, Buffer.concat([Buffer.from("vyre-release-sums\n"), Buffer.from(body)]));
-    assert.equal(spawnSync("openssl", ["pkeyutl", "-sign", "-inkey", key, "-rawin", "-in", msg, "-out", raw]).status, 0);
+    assert.equal(
+      spawnSync("openssl", ["pkeyutl", "-sign", "-inkey", key, "-rawin", "-in", msg, "-out", raw]).status,
+      0,
+    );
     fs.writeFileSync(path.join(feed, "stable.json.sig"), fs.readFileSync(raw).toString("base64") + "\n");
   };
-  const fetchIt = (): Out => sh(INSTALL, `TMP="$(mktemp -d)"; UPDATE_URL="file://${feed}/"; fetch_release; echo "got=$REL_VERSION $(basename "$REL_TARBALL")"`, { VYRE_RELEASE_KEY_PEM: pub });
+  const fetchIt = (): Out =>
+    sh(
+      INSTALL,
+      `TMP="$(mktemp -d)"; UPDATE_URL="file://${feed}/"; fetch_release; echo "got=$REL_VERSION $(basename "$REL_TARBALL")"`,
+      { VYRE_RELEASE_KEY_PEM: pub },
+    );
   publish(sum);
   const ok = fetchIt();
   assert.equal(ok.status, 0, ok.stderr);
@@ -139,7 +182,12 @@ test("fetch_release over file:// checks the signature and the tarball's sha256, 
 });
 
 test("parse_args: the same choices as Linux, plain paths only, and the Mac defaults live under the person's home", () => {
-  const args = (a: string, env: Record<string, string> = {}): Out => sh(INSTALL, `parse_args ${a}; echo "relay=$RELAY domain=$DOMAIN data=$DATA_DIR dir=$DIR bin=$BIN_DIR agents=$AGENT_DIR"`, { HOME: "/Users/pat", ...env });
+  const args = (a: string, env: Record<string, string> = {}): Out =>
+    sh(
+      INSTALL,
+      `parse_args ${a}; echo "relay=$RELAY domain=$DOMAIN data=$DATA_DIR dir=$DIR bin=$BIN_DIR agents=$AGENT_DIR"`,
+      { HOME: "/Users/pat", ...env },
+    );
   assert.match(args("--domain a.example.com --relay").stderr, /choose one/);
   assert.match(args("--channel weekly").stderr, /stable, beta or nightly/);
   assert.match(args("--domain 'bad host!'").stderr, /host name/);
@@ -157,8 +205,12 @@ test("write_config keeps the setup code out of output at mode 0600, makes no cho
   const dir = tmp();
   const d = path.join(dir, "vyre");
   fs.mkdirSync(path.join(d, "releases/1.0.0"), { recursive: true });
-  fs.writeFileSync(path.join(d, "releases/1.0.0/images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const body = (domain: string): string => `DIR="${d}"; DATA_DIR="${d}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; write_config`;
+  fs.writeFileSync(
+    path.join(d, "releases/1.0.0/images.lock"),
+    "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n",
+  );
+  const body = (domain: string): string =>
+    `DIR="${d}"; DATA_DIR="${d}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY=""; DRY=0; UPDATE_URL=https://vyre.run/server/; write_config`;
   const first = sh(INSTALL, body("vyre.example.com"), { VYRE_CODE: "code-77", VYRE_DIR: d });
   assert.equal(first.status, 0, first.stderr);
   assert.doesNotMatch(first.stdout + first.stderr, /code-77/);
@@ -166,7 +218,11 @@ test("write_config keeps the setup code out of output at mode 0600, makes no cho
   assert.equal(read(path.join(d, "vyre.env")), "VYRE_SETUP_CODE=code-77\n");
   assert.match(read(path.join(d, "compose.env")), /^VYRE_ADDRESS=vyre\.example\.com$/m);
   assert.match(read(path.join(d, "compose.override.yml")), /device: .*\/data\/space/);
-  assert.doesNotMatch(read(INSTALL), /chown/, "no chown: Docker Desktop shares the folder under the person's own account");
+  assert.doesNotMatch(
+    read(INSTALL),
+    /chown/,
+    "no chown: Docker Desktop shares the folder under the person's own account",
+  );
   fs.appendFileSync(path.join(d, "vyre.env"), "MINE=1\n");
   assert.equal(sh(INSTALL, body(""), { VYRE_CODE: "other", VYRE_DIR: d }).status, 0);
   assert.equal(read(path.join(d, "vyre.env")), "VYRE_SETUP_CODE=code-77\nMINE=1\n");
@@ -178,9 +234,14 @@ test("the launchd agents: marked, valid XML, the server starts at login and retr
   const dir = tmp();
   const d = path.join(dir, "vyre");
   const agents = path.join(dir, "LaunchAgents");
-  const r = sh(INSTALL, `DIR="${d}"; BIN_DIR="${dir}/bin"; AGENT_DIR="${agents}"; DRY=0; mkdir -p "${d}"; write_agents`, {});
+  const r = sh(
+    INSTALL,
+    `DIR="${d}"; BIN_DIR="${dir}/bin"; AGENT_DIR="${agents}"; DRY=0; mkdir -p "${d}"; write_agents`,
+    {},
+  );
   assert.equal(r.status, 0, r.stderr);
-  const server = read(path.join(agents, "ai.vyre.server.plist")), update = read(path.join(agents, "ai.vyre.server-update.plist"));
+  const server = read(path.join(agents, "ai.vyre.server.plist")),
+    update = read(path.join(agents, "ai.vyre.server-update.plist"));
   for (const t of [server, update]) {
     assert.match(t, /<!-- Vyre Server, installed by install\.sh -->/);
     assert.match(t, new RegExp(`<string>${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/bin/vyre-server</string>`));
@@ -224,7 +285,11 @@ test("the vyre-server command remembers the Docker the server was installed on, 
     const d = path.join(dir, "vyre");
     fs.mkdirSync(path.join(d, "releases/1.0.0"), { recursive: true });
     fs.mkdirSync(path.join(d, "state"));
-    const r = sh(INSTALL, `DIR="${d}"; BIN_DIR="${dir}/bin"; REL_VERSION=1.0.0; DRY=0; link_current`, ctx === undefined ? {} : { DOCKER_CONTEXT: ctx });
+    const r = sh(
+      INSTALL,
+      `DIR="${d}"; BIN_DIR="${dir}/bin"; REL_VERSION=1.0.0; DRY=0; link_current`,
+      ctx === undefined ? {} : { DOCKER_CONTEXT: ctx },
+    );
     assert.equal(r.status, 0, r.stderr);
     const cmd = read(path.join(dir, "bin/vyre-server"));
     fs.rmSync(dir, { recursive: true });
@@ -235,22 +300,34 @@ test("the vyre-server command remembers the Docker the server was installed on, 
   assert.ok(named.indexOf("export DOCKER_CONTEXT") < named.indexOf("exec "), "set before the release's script runs");
   assert.equal(spawnSync("sh", ["-n", "-c", named]).status, 0, "still valid sh");
   assert.doesNotMatch(make("default"), /DOCKER_CONTEXT/, "the default context follows the socket as before");
-  for (const odd of ['x"; rm -rf ~; "', "a b", "$(id)", "a`id`"]) assert.doesNotMatch(make(odd), /DOCKER_CONTEXT/, `a name that is not a plain context name is not written (${odd})`);
+  for (const odd of ['x"; rm -rf ~; "', "a b", "$(id)", "a`id`"])
+    assert.doesNotMatch(make(odd), /DOCKER_CONTEXT/, `a name that is not a plain context name is not written (${odd})`);
 });
 
 test("sudo is refused, and an agent or command that is not ours is never removed", () => {
-  const asRoot = spawnSync("sh", ["-c", `. "${INSTALL}"\nis_user`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: os.tmpdir(), VYRE_SOURCE_ONLY: "1" } });
+  const asRoot = spawnSync("sh", ["-c", `. "${INSTALL}"\nis_user`], {
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "", HOME: os.tmpdir(), VYRE_SOURCE_ONLY: "1" },
+  });
   assert.equal(asRoot.status, process.getuid?.() === 0 ? 1 : 0);
   const u = read(INSTALL);
   assert.match(u, /grep -q "\$MARK" "\$AGENT_DIR\/\$l\.plist"/);
   assert.match(u, /grep -q "\$MARK" "\$BIN_DIR\/vyre-server"/);
   const dir = tmp();
-  const d = path.join(dir, "vyre"), agents = path.join(dir, "agents"), bin = path.join(dir, "bin");
-  fs.mkdirSync(d); fs.mkdirSync(agents); fs.mkdirSync(bin);
+  const d = path.join(dir, "vyre"),
+    agents = path.join(dir, "agents"),
+    bin = path.join(dir, "bin");
+  fs.mkdirSync(d);
+  fs.mkdirSync(agents);
+  fs.mkdirSync(bin);
   fs.writeFileSync(path.join(agents, "ai.vyre.server.plist"), "<plist>someone else's</plist>");
   fs.writeFileSync(path.join(agents, "ai.vyre.server-update.plist"), "<!-- Vyre Server, installed by install.sh -->");
   fs.writeFileSync(path.join(bin, "vyre-server"), "#!/bin/sh\n# Vyre Server, installed by install.sh\n");
-  const r = sh(INSTALL, `DIR="${d}"; AGENT_DIR="${agents}"; BIN_DIR="${bin}"; DATA_DIR="${d}/data"; DRY=0; PURGE=0; uninstall`, {});
+  const r = sh(
+    INSTALL,
+    `DIR="${d}"; AGENT_DIR="${agents}"; BIN_DIR="${bin}"; DATA_DIR="${d}/data"; DRY=0; PURGE=0; uninstall`,
+    {},
+  );
   assert.equal(r.status, 0, r.stderr);
   assert.ok(fs.existsSync(path.join(agents, "ai.vyre.server.plist")), "another program's file stays");
   assert.ok(!fs.existsSync(path.join(agents, "ai.vyre.server-update.plist")), "ours goes");
@@ -262,7 +339,17 @@ test("sudo is refused, and an agent or command that is not ours is never removed
 test("--dry-run on the whole installer stops at the FileVault check with exit 3 and writes nothing", () => {
   const dir = tmp();
   const target = path.join(dir, "vyre");
-  const r = spawnSync("sh", [INSTALL, "--yes", "--dry-run"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: dir, VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Darwin", VYRE_DIR: target, VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 No") } });
+  const r = spawnSync("sh", [INSTALL, "--yes", "--dry-run"], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      HOME: dir,
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_OS: "Darwin",
+      VYRE_DIR: target,
+      VYRE_TEST_DISKUTIL: fakeDiskutil(dir, "   FileVault:                 No"),
+    },
+  });
   // curl, jq and OpenSSL 3 are checked first: where one is missing the exit is 1, with all of them it is 3. Never 0, never a write.
   assert.notEqual(r.status, 0);
   assert.ok(!fs.existsSync(target));
@@ -275,20 +362,31 @@ test("the Linux installer points a Mac at this installer", () => {
 });
 
 test("the default release feed is the GitHub feed of the chosen channel, and VYRE_UPDATE_URL wins", () => {
-  const feed = (a: string, env: Record<string, string> = {}): string => sh(INSTALL, `parse_args ${a}; echo "$UPDATE_URL"`, { VYRE_DIR: "/Users/pat/.vyre/server", ...env }).stdout.trim();
+  const feed = (a: string, env: Record<string, string> = {}): string =>
+    sh(INSTALL, `parse_args ${a}; echo "$UPDATE_URL"`, { VYRE_DIR: "/Users/pat/.vyre/server", ...env }).stdout.trim();
   assert.equal(feed("--yes"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
   assert.equal(feed("--channel beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
-  assert.equal(feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }), "https://updates.example/server/");
+  assert.equal(
+    feed("--channel beta", { VYRE_UPDATE_URL: "https://updates.example/server/" }),
+    "https://updates.example/server/",
+  );
   assert.doesNotMatch(read(INSTALL), /vyre\.run\/server/);
 });
 
 test("the compute role on a Mac: the same block as Linux, its own folder under the home folder, and the same checks of the address and the code", () => {
   assert.equal(block(INSTALL, "node"), block(LINUX, "node"));
-  const r = sh(INSTALL, `parse_args --role compute --server https://home.example.com; echo "role=$ROLE dir=$DIR join=$JOIN_ARG"`, { VYRE_JOIN: "VYRE-AB23-CD45" });
+  const r = sh(
+    INSTALL,
+    `parse_args --role compute --server https://home.example.com; echo "role=$ROLE dir=$DIR join=$JOIN_ARG"`,
+    { VYRE_JOIN: "VYRE-AB23-CD45" },
+  );
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /role=compute dir=.*\/\.vyre\/node join=VYRE-AB23-CD45/);
   assert.match(sh(INSTALL, "parse_args --role compute").stderr, /needs --server/);
-  assert.match(sh(INSTALL, "parse_args --role compute --server https://x.example", { VYRE_JOIN: "x" }).stderr, /looks like VYRE-ABCD-2345/);
+  assert.match(
+    sh(INSTALL, "parse_args --role compute --server https://x.example", { VYRE_JOIN: "x" }).stderr,
+    /looks like VYRE-ABCD-2345/,
+  );
 });
 
 test("a Mac without FileVault: the refusal offers FileVault or --allow-plain-disk (recorded), and the Linux installer's wording is the same for the same choice", () => {
@@ -298,9 +396,26 @@ test("a Mac without FileVault: the refusal offers FileVault or --allow-plain-dis
   assert.equal(bad.status, 3);
   assert.match(bad.stderr, /Turn on FileVault/);
   assert.match(bad.stderr, /--allow-plain-disk/);
-  assert.match(bad.stderr, /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./);
-  const linux = spawnSync("sh", ["-c", `. "${LINUX}"\nENC_KIND=; check_encrypted "${dir}/data" 2>&1`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Darwin", VYRE_TEST_DISKUTIL: plain.VYRE_TEST_DISKUTIL, ALLOW_PLAIN: "0" } });
-  assert.match(linux.stdout, /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./, "the same sentence on both installers");
+  assert.match(
+    bad.stderr,
+    /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./,
+  );
+  const linux = spawnSync("sh", ["-c", `. "${LINUX}"\nENC_KIND=; check_encrypted "${dir}/data" 2>&1`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_OS: "Darwin",
+      VYRE_TEST_DISKUTIL: plain.VYRE_TEST_DISKUTIL,
+      ALLOW_PLAIN: "0",
+    },
+  });
+  assert.match(
+    linux.stdout,
+    /Vyre records your choice\. vyre-server doctor and the Console then say, every time, that the data is not encrypted at rest\./,
+    "the same sentence on both installers",
+  );
   const ok = sh(INSTALL, `ALLOW_PLAIN=1; check_encrypted "${dir}/data"; echo "kind=$ENC_KIND"`, plain);
   assert.equal(ok.status, 0, ok.stderr);
   assert.match(ok.stdout, /NOT encrypted at rest/);
@@ -314,7 +429,8 @@ test("the Mac installer switches relay and domain the way the Linux one does, sa
   const rel = path.join(dirVyre, "releases/1.0.0");
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(rel, "images.lock"), "VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:" + "b".repeat(64) + "\n");
-  const body = (domain: string, relay: string): string => `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY="${relay}"; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=plain; write_config`;
+  const body = (domain: string, relay: string): string =>
+    `DIR="${dirVyre}"; DATA_DIR="${dirVyre}/data"; REL_VERSION=1.0.0; CHANNEL=stable; DOMAIN="${domain}"; RELAY="${relay}"; DRY=0; UPDATE_URL=https://vyre.run/server/; ENC_KIND=plain; write_config`;
   const first = sh(INSTALL, body("", "https://relay.vyre.run"), { VYRE_DIR: dirVyre });
   assert.equal(first.status, 0, first.stderr);
   let env = read(path.join(dirVyre, "compose.env"));

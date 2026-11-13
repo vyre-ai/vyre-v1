@@ -21,15 +21,28 @@ const compose = readFileSync(new URL("../../../images/documenso/compose.yml", im
 
 test("lock: both images are pinned by sha256 digest, and the compose file runs exactly what the lock names", () => {
   const lock = parseLock(lockText);
-  assert.match(lock.documenso.image, /^documenso\/documenso:v\d+\.\d+\.\d+$/, "a release tag beside the digest, never latest");
+  assert.match(
+    lock.documenso.image,
+    /^documenso\/documenso:v\d+\.\d+\.\d+$/,
+    "a release tag beside the digest, never latest",
+  );
   assert.match(lock.postgres.image, /^postgres:\d+(\.\d+)?-alpine$/);
   assert.match(lock.documenso.digest, /^sha256:[0-9a-f]{64}$/);
   assert.match(lock.postgres.digest, /^sha256:[0-9a-f]{64}$/);
   assert.match(compose, /image: \$\{DOCUMENSO_IMAGE\}/);
   assert.match(compose, /image: \$\{POSTGRES_IMAGE\}/);
   assert.equal(/image: (?!\$\{)/.test(compose), false, "no image in the compose file is named outside the lock");
-  assert.throws(() => parseLock("DOCUMENSO_IMAGE=documenso/documenso:latest\nPOSTGRES_IMAGE=postgres:16@sha256:" + "a".repeat(64)), /not pinned by digest/);
-  assert.throws(() => parseLock("DOCUMENSO_IMAGE=documenso/documenso:v2@sha256:abc\nPOSTGRES_IMAGE=postgres:16@sha256:" + "a".repeat(64)), /malformed digest/);
+  assert.throws(
+    () => parseLock("DOCUMENSO_IMAGE=documenso/documenso:latest\nPOSTGRES_IMAGE=postgres:16@sha256:" + "a".repeat(64)),
+    /not pinned by digest/,
+  );
+  assert.throws(
+    () =>
+      parseLock(
+        "DOCUMENSO_IMAGE=documenso/documenso:v2@sha256:abc\nPOSTGRES_IMAGE=postgres:16@sha256:" + "a".repeat(64),
+      ),
+    /malformed digest/,
+  );
   assert.throws(() => parseLock(""), /DOCUMENSO_IMAGE/);
 });
 
@@ -43,7 +56,12 @@ test("compose: the database is on an internal-only network with no published por
   assert.match(app, /"127\.0\.0\.1:\$\{DOCUMENSO_PORT:-3010\}:3000"/);
   assert.match(app, /- documenso-internal\b/);
   assert.match(app, /- documenso-edge\b/);
-  for (const secret of ["NEXTAUTH_SECRET", "NEXT_PRIVATE_ENCRYPTION_KEY", "NEXT_PRIVATE_SMTP_PASSWORD", "POSTGRES_PASSWORD"]) {
+  for (const secret of [
+    "NEXTAUTH_SECRET",
+    "NEXT_PRIVATE_ENCRYPTION_KEY",
+    "NEXT_PRIVATE_SMTP_PASSWORD",
+    "POSTGRES_PASSWORD",
+  ]) {
     const line = compose.split("\n").find((l) => l.includes(`${secret}:`))!;
     assert.match(line, /\$\{[A-Z_]+\}/, `${secret} comes from the environment`);
   }
@@ -53,14 +71,34 @@ test("compose: the database is on an internal-only network with no published por
 
 // ---- a scripted Documenso -----------------------------------------------------------------------------------
 
-interface Recipient { id: number; name: string; email: string; role: string; signingOrder?: number; signingStatus: "NOT_SIGNED" | "SIGNED" | "REJECTED"; readStatus: "NOT_OPENED" | "OPENED"; rejectionReason?: string; fields?: unknown[] }
-interface Doc { id: number; title: string; externalId: string; status: "DRAFT" | "PENDING" | "COMPLETED" | "REJECTED" | "CANCELLED"; recipients: Recipient[]; meta: Record<string, unknown>; pdf?: Uint8Array; fileName?: string }
+interface Recipient {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  signingOrder?: number;
+  signingStatus: "NOT_SIGNED" | "SIGNED" | "REJECTED";
+  readStatus: "NOT_OPENED" | "OPENED";
+  rejectionReason?: string;
+  fields?: unknown[];
+}
+interface Doc {
+  id: number;
+  title: string;
+  externalId: string;
+  status: "DRAFT" | "PENDING" | "COMPLETED" | "REJECTED" | "CANCELLED";
+  recipients: Recipient[];
+  meta: Record<string, unknown>;
+  pdf?: Uint8Array;
+  fileName?: string;
+}
 
 const envelopeOf = (id: number): string => `envelope_${id}`;
 const idOf = (ref: string): number => Number(ref.replace("envelope_", ""));
 
 /** Reads the `payload` JSON part and the `files` bytes out of a multipart body, the way Documenso's create endpoint does. */
-function readMultipart(contentType: string, body: Uint8Array): { payload: any; file: Uint8Array; fileName: string } {   // eslint-disable-line @typescript-eslint/no-explicit-any
+function readMultipart(contentType: string, body: Uint8Array): { payload: any; file: Uint8Array; fileName: string } {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   const boundary = /boundary=(.+)$/.exec(contentType)![1]!;
   const text = new TextDecoder("latin1").decode(body);
   const parts = text.split(`--${boundary}`).filter((x) => x.includes("Content-Disposition"));
@@ -84,21 +122,52 @@ class FakeDocumenso {
     const method = init.method ?? "GET";
     const auth = init.headers?.Authorization;
     const ctype = init.headers?.["Content-Type"] ?? "";
-    const multipart = ctype.startsWith("multipart/form-data") && init.body instanceof Uint8Array ? readMultipart(ctype, init.body) : undefined;
-    this.log.push({ method, path: u.pathname, auth, ...(multipart ? { body: multipart.payload } : typeof init.body === "string" ? { body: JSON.parse(init.body) } : {}) });
+    const multipart =
+      ctype.startsWith("multipart/form-data") && init.body instanceof Uint8Array
+        ? readMultipart(ctype, init.body)
+        : undefined;
+    this.log.push({
+      method,
+      path: u.pathname,
+      auth,
+      ...(multipart
+        ? { body: multipart.payload }
+        : typeof init.body === "string"
+          ? { body: JSON.parse(init.body) }
+          : {}),
+    });
     const reply = (status: number, body: unknown = {}): HttpResponse => ({
-      status, ok: status >= 200 && status < 300, json: async () => body, arrayBuffer: async () => (body instanceof Uint8Array ? body.slice().buffer : new ArrayBuffer(0)),
+      status,
+      ok: status >= 200 && status < 300,
+      json: async () => body,
+      arrayBuffer: async () => (body instanceof Uint8Array ? body.slice().buffer : new ArrayBuffer(0)),
     });
     if (this.down) return reply(503);
     if (u.pathname === "/api/health") return reply(200, { status: "ok" });
     if (u.pathname.startsWith("/api/v2/") && auth !== this.token) return reply(401);
     if (method === "POST" && u.pathname === "/api/v2/envelope/create") {
       if (!multipart) return reply(400);
-      const b = multipart.payload as { title: string; externalId: string; recipients: { name: string; email: string; role: string; signingOrder?: number; fields?: unknown[] }[]; meta: Record<string, unknown> };
+      const b = multipart.payload as {
+        title: string;
+        externalId: string;
+        recipients: { name: string; email: string; role: string; signingOrder?: number; fields?: unknown[] }[];
+        meta: Record<string, unknown>;
+      };
       const id = ++this.seq;
       this.docs.set(id, {
-        id, title: b.title, externalId: b.externalId, status: "DRAFT", meta: b.meta, pdf: multipart.file, fileName: multipart.fileName,
-        recipients: b.recipients.map((r, i) => ({ id: id * 10 + i, ...r, signingStatus: "NOT_SIGNED", readStatus: "NOT_OPENED" })),
+        id,
+        title: b.title,
+        externalId: b.externalId,
+        status: "DRAFT",
+        meta: b.meta,
+        pdf: multipart.file,
+        fileName: multipart.fileName,
+        recipients: b.recipients.map((r, i) => ({
+          id: id * 10 + i,
+          ...r,
+          signingStatus: "NOT_SIGNED",
+          readStatus: "NOT_OPENED",
+        })),
       });
       return reply(200, { id: envelopeOf(id) });
     }
@@ -106,7 +175,19 @@ class FakeDocumenso {
       const doc = this.docs.get(idOf(String((JSON.parse(String(init.body)) as { envelopeId: string }).envelopeId)));
       if (!doc) return reply(404);
       doc.status = "PENDING";
-      return reply(200, { success: true, id: envelopeOf(doc.id), recipients: doc.recipients.map((r) => ({ id: r.id, name: r.name, email: r.email, token: `tok_${r.id}`, role: r.role, signingOrder: r.signingOrder ?? null, signingUrl: `http://documenso.test/sign/tok_${r.id}` })) });
+      return reply(200, {
+        success: true,
+        id: envelopeOf(doc.id),
+        recipients: doc.recipients.map((r) => ({
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          token: `tok_${r.id}`,
+          role: r.role,
+          signingOrder: r.signingOrder ?? null,
+          signingUrl: `http://documenso.test/sign/tok_${r.id}`,
+        })),
+      });
     }
     if (method === "POST" && u.pathname === "/api/v2/envelope/cancel") {
       const doc = this.docs.get(idOf(String((JSON.parse(String(init.body)) as { envelopeId: string }).envelopeId)));
@@ -115,17 +196,29 @@ class FakeDocumenso {
       return reply(200, { success: true });
     }
     const item = u.pathname.match(/^\/api\/v2\/envelope\/item\/envelope_item_(\d+)\/download$/);
-    if (method === "GET" && item) return this.docs.has(Number(item[1])) && u.searchParams.get("version") === "signed" ? reply(200, SIGNED_PDF) : reply(404);
+    if (method === "GET" && item)
+      return this.docs.has(Number(item[1])) && u.searchParams.get("version") === "signed"
+        ? reply(200, SIGNED_PDF)
+        : reply(404);
     const one = u.pathname.match(/^\/api\/v2\/envelope\/(envelope_\d+)$/);
     const doc = one ? this.docs.get(idOf(one[1]!)) : undefined;
     if (method === "GET" && one) {
       if (!doc) return reply(404);
-      return reply(200, { id: envelopeOf(doc.id), title: doc.title, externalId: doc.externalId, status: doc.status, recipients: doc.recipients, envelopeItems: [{ id: `envelope_item_${doc.id}` }] });
+      return reply(200, {
+        id: envelopeOf(doc.id),
+        title: doc.title,
+        externalId: doc.externalId,
+        status: doc.status,
+        recipients: doc.recipients,
+        envelopeItems: [{ id: `envelope_item_${doc.id}` }],
+      });
     }
     return reply(405);
   };
 
-  open(id: number, email: string): void { this.rec(id, email).readStatus = "OPENED"; }
+  open(id: number, email: string): void {
+    this.rec(id, email).readStatus = "OPENED";
+  }
   sign(id: number, email: string): void {
     const doc = this.docs.get(id)!;
     this.rec(id, email).signingStatus = "SIGNED";
@@ -136,13 +229,27 @@ class FakeDocumenso {
     Object.assign(this.rec(id, email), { signingStatus: "REJECTED", rejectionReason: reason });
     doc.status = "REJECTED";
   }
-  private rec(id: number, email: string): Recipient { return this.docs.get(id)!.recipients.find((r) => r.email === email)!; }
+  private rec(id: number, email: string): Recipient {
+    return this.docs.get(id)!.recipients.find((r) => r.email === email)!;
+  }
 }
 
 /** The webhook body Documenso posts: the event name, the document with its recipients, a timestamp. */
 function hookBody(server: FakeDocumenso, event: string, id: number, at: string): unknown {
   const doc = server.docs.get(id)!;
-  return { event, payload: { id, envelopeId: envelopeOf(id), externalId: doc.externalId, title: doc.title, status: doc.status, Recipient: doc.recipients }, createdAt: at, webhookEndpoint: "https://space.example/hooks/esign" };
+  return {
+    event,
+    payload: {
+      id,
+      envelopeId: envelopeOf(id),
+      externalId: doc.externalId,
+      title: doc.title,
+      status: doc.status,
+      Recipient: doc.recipients,
+    },
+    createdAt: at,
+    webhookEndpoint: "https://space.example/hooks/esign",
+  };
 }
 
 function rig() {
@@ -152,8 +259,12 @@ function rig() {
   return { server, provider, h };
 }
 
-const SIGNERS = [{ name: "Dana Whitfield", email: "dana@client.example" }, { name: "Sam Ortiz", email: "sam@client.example" }];
-const sendIt = (h: Harness, thread = "thr_1") => h.call("esign.send", { fileId: FILE, recordId: RECORD, signers: SIGNERS, idempotencyKey: "k1" }, { ...dana, thread });
+const SIGNERS = [
+  { name: "Dana Whitfield", email: "dana@client.example" },
+  { name: "Sam Ortiz", email: "sam@client.example" },
+];
+const sendIt = (h: Harness, thread = "thr_1") =>
+  h.call("esign.send", { fileId: FILE, recordId: RECORD, signers: SIGNERS, idempotencyKey: "k1" }, { ...dana, thread });
 const hook = (h: Harness, payload: unknown) => h.call("esign.hook", { provider: "documenso", payload });
 
 // ---- REST client --------------------------------------------------------------------------------------------
@@ -161,10 +272,22 @@ const hook = (h: Harness, payload: unknown) => h.call("esign.hook", { provider: 
 test("client: create sends the PDF and each signer with a signature field in one multipart call, then distributes; the token goes in the Authorization header as is", async () => {
   const server = new FakeDocumenso();
   const provider = documenso({ baseUrl: "http://documenso.test", apiToken: server.token, http: server.http });
-  const req: EnvelopeRequest = { envelopeId: "env_abc", title: "Retainer", fileName: "Retainer.pdf", pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }, { name: "B", email: "b@x.example", order: 2 }] };
+  const req: EnvelopeRequest = {
+    envelopeId: "env_abc",
+    title: "Retainer",
+    fileName: "Retainer.pdf",
+    pdf: PDF,
+    signers: [
+      { name: "A", email: "a@x.example", order: 1 },
+      { name: "B", email: "b@x.example", order: 2 },
+    ],
+  };
   const { ref } = await provider.create(req);
   assert.equal(ref, "envelope_101");
-  assert.deepEqual(server.log.map((l) => `${l.method} ${l.path}`), ["POST /api/v2/envelope/create", "POST /api/v2/envelope/distribute"]);
+  assert.deepEqual(
+    server.log.map((l) => `${l.method} ${l.path}`),
+    ["POST /api/v2/envelope/create", "POST /api/v2/envelope/distribute"],
+  );
   assert.equal(server.log[0]!.auth, "api_test_token");
   assert.deepEqual(server.log[1]!.body, { envelopeId: "envelope_101", meta: { subject: "Please sign: Retainer" } });
   const doc = server.docs.get(101)!;
@@ -172,14 +295,24 @@ test("client: create sends the PDF and each signer with a signature field in one
   assert.equal(doc.status, "PENDING");
   assert.equal(doc.fileName, "Retainer.pdf");
   assert.deepEqual([...doc.pdf!], [...PDF]);
-  assert.deepEqual(doc.recipients.map((r) => [r.email, r.role, r.signingOrder]), [["a@x.example", "SIGNER", 1], ["b@x.example", "SIGNER", 2]]);
+  assert.deepEqual(
+    doc.recipients.map((r) => [r.email, r.role, r.signingOrder]),
+    [
+      ["a@x.example", "SIGNER", 1],
+      ["b@x.example", "SIGNER", 2],
+    ],
+  );
   for (const r of doc.recipients) {
     const f = r.fields as { type: string; page: number; positionY: number }[];
     assert.equal(f.length, 1, "Documenso refuses to send a signer without a signature field");
     assert.equal(f[0]!.type, "SIGNATURE");
     assert.equal(f[0]!.page, 1);
   }
-  assert.notEqual((doc.recipients[0]!.fields as { positionY: number }[])[0]!.positionY, (doc.recipients[1]!.fields as { positionY: number }[])[0]!.positionY, "boxes do not overlap");
+  assert.notEqual(
+    (doc.recipients[0]!.fields as { positionY: number }[])[0]!.positionY,
+    (doc.recipients[1]!.fields as { positionY: number }[])[0]!.positionY,
+    "boxes do not overlap",
+  );
   assert.equal(doc.meta.signingOrder, "SEQUENTIAL");
   await provider.create({ ...req, signers: [{ name: "A", email: "a@x.example", order: 1 }] });
   assert.equal(server.docs.get(102)!.meta.signingOrder, "PARALLEL");
@@ -188,19 +321,43 @@ test("client: create sends the PDF and each signer with a signature field in one
 test("client: a file name that could break the multipart header is made safe", async () => {
   const server = new FakeDocumenso();
   const provider = documenso({ baseUrl: "http://documenso.test", apiToken: server.token, http: server.http });
-  await provider.create({ envelopeId: "env_1", title: "T", fileName: 'a"b\r\nX: y.pdf', pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }] });
+  await provider.create({
+    envelopeId: "env_1",
+    title: "T",
+    fileName: 'a"b\r\nX: y.pdf',
+    pdf: PDF,
+    signers: [{ name: "A", email: "a@x.example", order: 1 }],
+  });
   assert.equal(server.docs.get(101)!.fileName, "a_b__X_ y.pdf");
 });
 
 test("client: status maps Documenso's words, cancel cancels, fetchSigned downloads the signed PDF, health reads /api/health", async () => {
   const { server, provider } = rig();
-  const { ref } = await provider.create({ envelopeId: "env_1", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "Dana", email: "dana@client.example", order: 1 }, { name: "Sam", email: "sam@client.example", order: 1 }] });
+  const { ref } = await provider.create({
+    envelopeId: "env_1",
+    title: "T",
+    fileName: "T.pdf",
+    pdf: PDF,
+    signers: [
+      { name: "Dana", email: "dana@client.example", order: 1 },
+      { name: "Sam", email: "sam@client.example", order: 1 },
+    ],
+  });
   const id = idOf(ref);
-  assert.deepEqual(await provider.status(ref), { state: "sent", signers: [{ name: "Dana", email: "dana@client.example", status: "sent" }, { name: "Sam", email: "sam@client.example", status: "sent" }] });
+  assert.deepEqual(await provider.status(ref), {
+    state: "sent",
+    signers: [
+      { name: "Dana", email: "dana@client.example", status: "sent" },
+      { name: "Sam", email: "sam@client.example", status: "sent" },
+    ],
+  });
   server.open(id, "dana@client.example");
   assert.equal((await provider.status(ref)).state, "viewed");
   server.sign(id, "dana@client.example");
-  assert.deepEqual((await provider.status(ref)).signers.map((s) => s.status), ["signed", "sent"]);
+  assert.deepEqual(
+    (await provider.status(ref)).signers.map((s) => s.status),
+    ["signed", "sent"],
+  );
   server.sign(id, "sam@client.example");
   assert.equal((await provider.status(ref)).state, "signed");
   const files = await provider.fetchSigned(ref);
@@ -208,9 +365,21 @@ test("client: status maps Documenso's words, cancel cancels, fetchSigned downloa
   assert.equal(files.certificate, undefined);
   assert.deepEqual(await provider.health!(), { ok: true });
 
-  const second = (await provider.create({ envelopeId: "env_2", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "Dana", email: "dana@client.example", order: 1 }] })).ref;
+  const second = (
+    await provider.create({
+      envelopeId: "env_2",
+      title: "T",
+      fileName: "T.pdf",
+      pdf: PDF,
+      signers: [{ name: "Dana", email: "dana@client.example", order: 1 }],
+    })
+  ).ref;
   server.reject(idOf(second), "dana@client.example", "wrong amount");
-  assert.deepEqual(await provider.status(second), { state: "declined", signers: [{ name: "Dana", email: "dana@client.example", status: "declined" }], reason: "wrong amount" });
+  assert.deepEqual(await provider.status(second), {
+    state: "declined",
+    signers: [{ name: "Dana", email: "dana@client.example", status: "declined" }],
+    reason: "wrong amount",
+  });
   await provider.cancel(second);
   assert.equal(server.docs.get(idOf(second))!.status, "CANCELLED");
 });
@@ -223,7 +392,16 @@ test("client: a wrong token, a missing document or a server error throws with th
   await assert.rejects(good.status("envelope_999"), /answered 404/);
   await assert.rejects(good.fetchSigned("envelope_999"), /answered 404/);
   server.down = true;
-  await assert.rejects(good.create({ envelopeId: "e", title: "T", fileName: "T.pdf", pdf: PDF, signers: [{ name: "A", email: "a@x.example", order: 1 }] }), /refused the document \(503\)/);
+  await assert.rejects(
+    good.create({
+      envelopeId: "e",
+      title: "T",
+      fileName: "T.pdf",
+      pdf: PDF,
+      signers: [{ name: "A", email: "a@x.example", order: 1 }],
+    }),
+    /refused the document \(503\)/,
+  );
   assert.deepEqual(await good.health!(), { ok: false, detail: "Documenso answered 503." });
   assert.equal(server.docs.size, 0, "a failed create leaves no document");
 });
@@ -232,19 +410,60 @@ test("client: a wrong token, a missing document or a server error throws with th
 
 test("webhook: Documenso events read as viewed, signed, completed, declined and cancelled; other events are not tracked; junk throws ProviderPayloadError", () => {
   const { server, provider } = rig();
-  server.docs.set(7, { id: 7, title: "T", externalId: "env_1", status: "PENDING", meta: {}, recipients: [{ id: 70, name: "Dana", email: "Dana@Client.example", role: "SIGNER", signingStatus: "SIGNED", readStatus: "OPENED" }] });
+  server.docs.set(7, {
+    id: 7,
+    title: "T",
+    externalId: "env_1",
+    status: "PENDING",
+    meta: {},
+    recipients: [
+      {
+        id: 70,
+        name: "Dana",
+        email: "Dana@Client.example",
+        role: "SIGNER",
+        signingStatus: "SIGNED",
+        readStatus: "OPENED",
+      },
+    ],
+  });
   const body = (event: string) => hookBody(server, event, 7, "2026-10-25T10:00:00Z");
-  const kinds: Record<string, string> = { DOCUMENT_OPENED: "viewed", DOCUMENT_SIGNED: "signed", DOCUMENT_COMPLETED: "completed", DOCUMENT_REJECTED: "declined", DOCUMENT_CANCELLED: "cancelled" };
+  const kinds: Record<string, string> = {
+    DOCUMENT_OPENED: "viewed",
+    DOCUMENT_SIGNED: "signed",
+    DOCUMENT_COMPLETED: "completed",
+    DOCUMENT_REJECTED: "declined",
+    DOCUMENT_CANCELLED: "cancelled",
+  };
   for (const [event, kind] of Object.entries(kinds)) {
     const ev = provider.webhook(body(event))!;
     assert.equal(ev.kind, kind, event);
     assert.equal(ev.ref, "envelope_7");
-    assert.deepEqual(ev.recipients, [{ email: "dana@client.example", name: "Dana", read: true, signed: true, rejected: false }]);
+    assert.deepEqual(ev.recipients, [
+      { email: "dana@client.example", name: "Dana", read: true, signed: true, rejected: false },
+    ]);
   }
-  for (const ignored of ["DOCUMENT_CREATED", "DOCUMENT_SENT", "SOMETHING_NEW"]) assert.equal(provider.webhook(body(ignored)), null, ignored);
-  assert.equal(provider.webhook(body("DOCUMENT_OPENED"))!.id, provider.webhook(body("DOCUMENT_OPENED"))!.id, "a re-delivery has the same id");
-  assert.notEqual(provider.webhook(hookBody(server, "DOCUMENT_OPENED", 7, "2026-10-25T11:00:00Z"))!.id, provider.webhook(body("DOCUMENT_OPENED"))!.id, "a later event has its own id");
-  for (const junk of [null, "x", [], {}, { event: 1 }, { event: "DOCUMENT_OPENED" }, { event: "DOCUMENT_OPENED", payload: {} }]) {
+  for (const ignored of ["DOCUMENT_CREATED", "DOCUMENT_SENT", "SOMETHING_NEW"])
+    assert.equal(provider.webhook(body(ignored)), null, ignored);
+  assert.equal(
+    provider.webhook(body("DOCUMENT_OPENED"))!.id,
+    provider.webhook(body("DOCUMENT_OPENED"))!.id,
+    "a re-delivery has the same id",
+  );
+  assert.notEqual(
+    provider.webhook(hookBody(server, "DOCUMENT_OPENED", 7, "2026-10-25T11:00:00Z"))!.id,
+    provider.webhook(body("DOCUMENT_OPENED"))!.id,
+    "a later event has its own id",
+  );
+  for (const junk of [
+    null,
+    "x",
+    [],
+    {},
+    { event: 1 },
+    { event: "DOCUMENT_OPENED" },
+    { event: "DOCUMENT_OPENED", payload: {} },
+  ]) {
     assert.throws(() => provider.webhook(junk), ProviderPayloadError, JSON.stringify(junk));
   }
 });
@@ -260,8 +479,14 @@ test("replay: opened, signed twice, completed. The signed PDF is saved as a new 
 
   server.open(id, "dana@client.example");
   await hook(h, hookBody(server, "DOCUMENT_OPENED", id, "2026-10-25T10:00:00Z"));
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["signature.viewed", { envelopeId, signer: "dana@client.example" }]]);
-  assert.deepEqual((await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status), ["viewed", "sent"]);
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload]),
+    [["signature.viewed", { envelopeId, signer: "dana@client.example" }]],
+  );
+  assert.deepEqual(
+    (await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status),
+    ["viewed", "sent"],
+  );
   assert.equal((await h.call("esign.status", { envelopeId })).status, "viewed");
 
   // the same delivery again: nothing happens
@@ -271,17 +496,32 @@ test("replay: opened, signed twice, completed. The signed PDF is saved as a new 
   server.sign(id, "dana@client.example");
   await hook(h, hookBody(server, "DOCUMENT_SIGNED", id, "2026-10-25T10:05:00Z"));
   assert.equal(h.events.length, 0, "one of two signed: no signature.signed yet");
-  assert.deepEqual((await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status), ["signed", "sent"]);
+  assert.deepEqual(
+    (await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status),
+    ["signed", "sent"],
+  );
 
   server.sign(id, "sam@client.example");
   await hook(h, hookBody(server, "DOCUMENT_SIGNED", id, "2026-10-25T10:10:00Z"));
   await hook(h, hookBody(server, "DOCUMENT_COMPLETED", id, "2026-10-25T10:10:01Z"));
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["signature.signed", { envelopeId, fileId: FILE }]]);
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload]),
+    [["signature.signed", { envelopeId, fileId: FILE }]],
+  );
   assert.equal(h.written.length, 1);
   assert.deepEqual([...fromBase64(h.written[0]!.base64)], [...SIGNED_PDF]);
   assert.equal(h.written[0]!.fileId, FILE);
-  assert.deepEqual(await h.call("esign.status", { envelopeId }), { status: "signed", signers: [{ name: "Dana Whitfield", status: "signed" }, { name: "Sam Ortiz", status: "signed" }] });
-  assert.deepEqual(h.callsTo("tasks.transition").map((c) => [c.input.taskId, c.input.to]), [["tsk_sig1", "done"]]);
+  assert.deepEqual(await h.call("esign.status", { envelopeId }), {
+    status: "signed",
+    signers: [
+      { name: "Dana Whitfield", status: "signed" },
+      { name: "Sam Ortiz", status: "signed" },
+    ],
+  });
+  assert.deepEqual(
+    h.callsTo("tasks.transition").map((c) => [c.input.taskId, c.input.to]),
+    [["tsk_sig1", "done"]],
+  );
   assert.ok(h.callsTo("chat.post").some((c) => /Retainer is signed/.test(String(c.input.body))));
 
   // Documenso re-delivers the completion later, and esign.fetch_signed is asked for by hand: still one saved version
@@ -314,10 +554,26 @@ test("replay: a rejection is applied once the API confirms it, with the signer a
   const { envelopeId } = await sendIt(h);
   server.reject(101, "sam@client.example", "wrong retainer amount");
   await hook(h, hookBody(server, "DOCUMENT_REJECTED", 101, "2026-10-25T10:00:00Z"));
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["signature.declined", { envelopeId, signer: "sam@client.example", reason: "wrong retainer amount" }]]);
-  assert.deepEqual(await h.call("esign.status", { envelopeId }), { status: "declined", signers: [{ name: "Dana Whitfield", status: "sent" }, { name: "Sam Ortiz", status: "declined" }] });
-  assert.deepEqual(h.callsTo("tasks.transition").map((c) => [c.input.to, c.input.note]), [["canceled", "A signer declined."]]);
-  assert.ok(h.callsTo("chat.post").some((c) => /sam@client.example declined to sign Retainer: wrong retainer amount/.test(String(c.input.body))));
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload]),
+    [["signature.declined", { envelopeId, signer: "sam@client.example", reason: "wrong retainer amount" }]],
+  );
+  assert.deepEqual(await h.call("esign.status", { envelopeId }), {
+    status: "declined",
+    signers: [
+      { name: "Dana Whitfield", status: "sent" },
+      { name: "Sam Ortiz", status: "declined" },
+    ],
+  });
+  assert.deepEqual(
+    h.callsTo("tasks.transition").map((c) => [c.input.to, c.input.note]),
+    [["canceled", "A signer declined."]],
+  );
+  assert.ok(
+    h
+      .callsTo("chat.post")
+      .some((c) => /sam@client.example declined to sign Retainer: wrong retainer amount/.test(String(c.input.body))),
+  );
   await hook(h, hookBody(server, "DOCUMENT_REJECTED", 101, "2026-10-25T10:00:00Z"));
   assert.equal(h.events.length, 0, "a re-delivery changes nothing");
   await refused(h.call("esign.fetch_signed", { envelopeId }), "validation.precondition_failed");
@@ -342,8 +598,14 @@ test("replay: a document deleted at Documenso cancels the envelope; events after
   server.docs.delete(101);
   await hook(h, cancelled);
   assert.equal((await h.call("esign.status", { envelopeId })).status, "cancelled");
-  assert.deepEqual((await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status), ["cancelled", "cancelled"]);
-  assert.deepEqual(h.callsTo("tasks.transition").map((c) => c.input.to), ["canceled"]);
+  assert.deepEqual(
+    (await h.call("esign.status", { envelopeId })).signers.map((s: { status: string }) => s.status),
+    ["cancelled", "cancelled"],
+  );
+  assert.deepEqual(
+    h.callsTo("tasks.transition").map((c) => c.input.to),
+    ["canceled"],
+  );
   await hook(h, opened);
   assert.equal(h.events.length, 0);
   assert.equal((await h.call("esign.status", { envelopeId })).status, "cancelled");
@@ -368,7 +630,16 @@ test("replay: Documenso down while confirming returns an error and keeps the eve
 test("replay: documents that are not ours, junk bodies, unknown providers and a provider that is not connected", async () => {
   const { server, h } = rig();
   await sendIt(h);
-  server.docs.set(555, { id: 555, title: "Other", externalId: "other", status: "PENDING", meta: {}, recipients: [{ id: 5550, name: "X", email: "x@y.example", role: "SIGNER", signingStatus: "NOT_SIGNED", readStatus: "OPENED" }] });
+  server.docs.set(555, {
+    id: 555,
+    title: "Other",
+    externalId: "other",
+    status: "PENDING",
+    meta: {},
+    recipients: [
+      { id: 5550, name: "X", email: "x@y.example", role: "SIGNER", signingStatus: "NOT_SIGNED", readStatus: "OPENED" },
+    ],
+  });
   assert.deepEqual(await hook(h, hookBody(server, "DOCUMENT_OPENED", 555, "2026-10-25T10:00:00Z")), { ok: true });
   assert.equal(h.events.length, 0);
   assert.ok(h.warnings.some((w) => w.includes("not ours")));

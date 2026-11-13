@@ -10,7 +10,12 @@ export class AgentError extends Error {
   readonly reason: ToolReason | undefined;
   /** browser_reopened: the start of the browser now (null: it is not running), so the caller knows what it has not seen yet. */
   start: string | null | undefined;
-  constructor(code: ToolCode, message: string, reason?: ToolReason) { super(message); this.name = "AgentError"; this.code = code; this.reason = reason; }
+  constructor(code: ToolCode, message: string, reason?: ToolReason) {
+    super(message);
+    this.name = "AgentError";
+    this.code = code;
+    this.reason = reason;
+  }
 }
 
 export const badInput = (m: string): AgentError => new AgentError("bad_input", m);
@@ -22,7 +27,15 @@ export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
 
 export async function within<T>(ms: number, what: string, f: () => Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new AgentError("timeout", `${what} took longer than ${Math.round(ms / 1000)} seconds`)), ms); });
-  try { return await Promise.race([f(), late]); } finally { if (timer !== undefined) clearTimeout(timer); }
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new AgentError("timeout", `${what} took longer than ${Math.round(ms / 1000)} seconds`)),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([f(), late]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
-

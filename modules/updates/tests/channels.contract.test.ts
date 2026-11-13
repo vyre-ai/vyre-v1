@@ -14,13 +14,28 @@ import { configureUpdates, handlers } from "../handlers/index.ts";
 import type { UpdateCtx } from "../handlers/index.ts";
 
 interface RegCap {
-  name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[];
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
   examples: { name: string; input: unknown; output: unknown }[];
 }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
 
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "updates");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "updates").map((e) => [e.name, e.payload]));
@@ -38,7 +53,17 @@ async function populated(): Promise<World> {
   configureUpdates(w.drivers);
   await w.publish({ version: "1.3.0", notes: "Faster sync.", apps: { mac: "1.3.0", ios: "1.2.0" } });
   await run("updates.check", w.ctx, {});
-  w.raw.run("INSERT INTO updates_history (id, at, from_version, to_version, result, seconds, backup_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", "run_seed1", 1, "1.1.0", "1.2.0", "ok", 42, null, null);
+  w.raw.run(
+    "INSERT INTO updates_history (id, at, from_version, to_version, result, seconds, backup_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "run_seed1",
+    1,
+    "1.1.0",
+    "1.2.0",
+    "ok",
+    42,
+    null,
+    null,
+  );
   w.events.length = 0;
   w.backups.calls.length = 0;
   return w;
@@ -94,12 +119,24 @@ test("every declared event is emitted by the handler that declares it", async ()
     const w = await populated();
     prep?.(w);
     await run(cap, w.ctx, input);
-    for (const e of w.events) assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
+    for (const e of w.events)
+      assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
     return [...new Set(w.events.map((e) => e.name))].sort();
   };
   assert.deepEqual(await emitted("updates.apply", {}), ["update.completed", "update.started"]);
-  assert.deepEqual(await emitted("updates.apply", {}, (w) => { w.installer.health = [false]; }), ["update.failed", "update.started"]);
+  assert.deepEqual(
+    await emitted("updates.apply", {}, (w) => {
+      w.installer.health = [false];
+    }),
+    ["update.failed", "update.started"],
+  );
   assert.deepEqual(await emitted("updates.rollback", { to: "1.1.0" }), ["update.rolled_back"]);
-  for (const c of caps.filter((x) => x.emits.length === 0)) assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
-  assert.deepEqual([...new Set(caps.flatMap((c) => c.emits))].sort(), ["update.completed", "update.failed", "update.rolled_back", "update.started"]);
+  for (const c of caps.filter((x) => x.emits.length === 0))
+    assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
+  assert.deepEqual([...new Set(caps.flatMap((c) => c.emits))].sort(), [
+    "update.completed",
+    "update.failed",
+    "update.rolled_back",
+    "update.started",
+  ]);
 });

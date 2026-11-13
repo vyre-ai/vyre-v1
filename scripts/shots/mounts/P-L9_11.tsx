@@ -5,7 +5,15 @@ import { useCallback, useState } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { BlockViewA } from "../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../ui/src/blocks/impl-a/index.tsx";
-import { SAMPLE_CHANGESET, SAMPLE_DEPLOY, SAMPLE_MOUNT, SAMPLE_PLAN, SAMPLE_QUESTION, SAMPLE_RECORD, SAMPLE_TERMINAL } from "../../../ui/src/blocks/impl-a/sample.ts";
+import {
+  SAMPLE_CHANGESET,
+  SAMPLE_DEPLOY,
+  SAMPLE_MOUNT,
+  SAMPLE_PLAN,
+  SAMPLE_QUESTION,
+  SAMPLE_RECORD,
+  SAMPLE_TERMINAL,
+} from "../../../ui/src/blocks/impl-a/sample.ts";
 import type { Block } from "../../../ui/src/kit/types.ts";
 
 export const title = "Chat blocks, part 1";
@@ -19,14 +27,41 @@ interface Turn {
 
 const PARTS: Record<string, Turn[]> = {
   a: [
-    { who: "You", at: "9:40", text: "A new client is coming in this afternoon. Get everything ready for her intake.", blocks: [] },
-    { who: "Intake", at: "9:40", text: "Here is how I would do it. Plan mode is on, so I have not touched anything yet.", blocks: [SAMPLE_PLAN, SAMPLE_QUESTION] },
+    {
+      who: "You",
+      at: "9:40",
+      text: "A new client is coming in this afternoon. Get everything ready for her intake.",
+      blocks: [],
+    },
+    {
+      who: "Intake",
+      at: "9:40",
+      text: "Here is how I would do it. Plan mode is on, so I have not touched anything yet.",
+      blocks: [SAMPLE_PLAN, SAMPLE_QUESTION],
+    },
   ],
   b: [
-    { who: "Intake", at: "9:42", text: "Plan approved. I checked the form fields first.", blocks: [SAMPLE_TERMINAL, SAMPLE_MOUNT] },
-    { who: "Intake", at: "9:46", text: "The form copy and the letter changed. Please look at the diff before I send anything.", blocks: [SAMPLE_CHANGESET] },
+    {
+      who: "Intake",
+      at: "9:42",
+      text: "Plan approved. I checked the form fields first.",
+      blocks: [SAMPLE_TERMINAL, SAMPLE_MOUNT],
+    },
+    {
+      who: "Intake",
+      at: "9:46",
+      text: "The form copy and the letter changed. Please look at the diff before I send anything.",
+      blocks: [SAMPLE_CHANGESET],
+    },
   ],
-  c: [{ who: "Intake", at: "9:48", text: "Booking widget is up. Elena is on the record.", blocks: [SAMPLE_DEPLOY, SAMPLE_RECORD] }],
+  c: [
+    {
+      who: "Intake",
+      at: "9:48",
+      text: "Booking widget is up. Elena is on the record.",
+      blocks: [SAMPLE_DEPLOY, SAMPLE_RECORD],
+    },
+  ],
 };
 
 function part(): string {
@@ -64,7 +99,9 @@ export default function Mount() {
         {log.length > 0 ? (
           <View testID="host-log" style={{ marginTop: 8 }}>
             {log.map((l, i) => (
-              <Text key={i} numberOfLines={1} style={{ color: "var(--ink-3)", fontSize: 11.5 }}>{l}</Text>
+              <Text key={i} numberOfLines={1} style={{ color: "var(--ink-3)", fontSize: 11.5 }}>
+                {l}
+              </Text>
             ))}
           </View>
         ) : null}

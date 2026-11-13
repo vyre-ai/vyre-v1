@@ -37,14 +37,29 @@ export interface QueryDeps {
 }
 
 export interface QueryHandlers {
-  "records.query"(ctx: Pick<WriteCtx, "trace">, input: { type: string } & ViewSpec): Promise<{ rows: RecordRow[]; next?: string; total?: number }>;
-  "records.search"(ctx: Pick<WriteCtx, "trace">, input: { type: string; q: string; cursor?: string; limit?: number }): Promise<{ rows: RecordRow[]; next?: string; total?: number }>;
+  "records.query"(
+    ctx: Pick<WriteCtx, "trace">,
+    input: { type: string } & ViewSpec,
+  ): Promise<{ rows: RecordRow[]; next?: string; total?: number }>;
+  "records.search"(
+    ctx: Pick<WriteCtx, "trace">,
+    input: { type: string; q: string; cursor?: string; limit?: number },
+  ): Promise<{ rows: RecordRow[]; next?: string; total?: number }>;
   "records.counts"(ctx: Pick<WriteCtx, "trace">, input: { type: string; filter?: unknown }): Promise<{ count: number }>;
 }
 
 class Unsupported extends Error {}
 
-interface Raw { id: string; version: number; created_at: number; updated_at: number; deleted_at: number | null; data: string; label: number; holds: number }
+interface Raw {
+  id: string;
+  version: number;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+  data: string;
+  label: number;
+  holds: number;
+}
 
 // ---- schema owned by this file ----
 
@@ -66,7 +81,8 @@ function ensureBase(tx: Tx): void {
 }
 
 function typeDef(tx: Tx, type: string): TypeDef {
-  if (!NAME.test(type)) throw new StoreError("invalid", `record type names are lowercase letters, digits and underscores: ${type}`);
+  if (!NAME.test(type))
+    throw new StoreError("invalid", `record type names are lowercase letters, digits and underscores: ${type}`);
   const r = tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type);
   if (!r) throw new StoreError("unknown_type", `no type ${type}`);
   return JSON.parse(r.def) as TypeDef;
@@ -79,22 +95,33 @@ function expr(def: TypeDef, field: string, alias = "r."): string {
   if (COLUMNS.has(field)) return `${alias}${field}`;
   const parts = field.split(".");
   if (!parts.every((p) => SEG.test(p))) throw new StoreError("invalid", `bad field name ${field}`);
-  if (!def.fields.some((f) => f.name === parts[0])) throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
+  if (!def.fields.some((f) => f.name === parts[0]))
+    throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
   return `json_extract(${alias}data, '$.${parts.map((p) => `"${p}"`).join(".")}')`;
 }
 
-const pathOf = (field: string): string => `$.${field.split(".").map((p) => `"${p}"`).join(".")}`;
+const pathOf = (field: string): string =>
+  `$.${field
+    .split(".")
+    .map((p) => `"${p}"`)
+    .join(".")}`;
 
 type Bind = string | number | null;
 function bindable(v: unknown): Bind {
   if (v === undefined || v === null) return null;
   if (typeof v === "boolean") return v ? 1 : 0;
-  if (typeof v === "number") { if (!Number.isFinite(v)) throw new Unsupported(); return v; }
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) throw new Unsupported();
+    return v;
+  }
   if (typeof v === "string") return v;
   throw new Unsupported();
 }
 
-interface Sql { text: string; args: Bind[] }
+interface Sql {
+  text: string;
+  args: Bind[];
+}
 
 function compile(def: TypeDef, f: unknown): Sql {
   if (f === undefined || f === null) return { text: "1", args: [] };
@@ -105,18 +132,29 @@ function compile(def: TypeDef, f: unknown): Sql {
     return v.map((y) => compile(def, y));
   };
   const join = (parts: Sql[], op: string, empty: string): Sql =>
-    parts.length ? { text: `(${parts.map((p) => p.text).join(` ${op} `)})`, args: parts.flatMap((p) => p.args) } : { text: empty, args: [] };
+    parts.length
+      ? { text: `(${parts.map((p) => p.text).join(` ${op} `)})`, args: parts.flatMap((p) => p.args) }
+      : { text: empty, args: [] };
   if (x["and"] !== undefined) return join(list(x["and"]), "AND", "1");
   if (x["or"] !== undefined) return join(list(x["or"]), "OR", "0");
-  if (x["not"] !== undefined) { const inner = compile(def, x["not"]); return { text: `(NOT COALESCE(${inner.text}, 0))`, args: inner.args }; }
-  if (typeof x["field"] !== "string" || typeof x["op"] !== "string") throw new StoreError("invalid", "a filter needs field and op");
+  if (x["not"] !== undefined) {
+    const inner = compile(def, x["not"]);
+    return { text: `(NOT COALESCE(${inner.text}, 0))`, args: inner.args };
+  }
+  if (typeof x["field"] !== "string" || typeof x["op"] !== "string")
+    throw new StoreError("invalid", "a filter needs field and op");
   const field = x["field"];
   const e = expr(def, field);
   const v = x["value"];
   switch (x["op"]) {
-    case "eq": return { text: `(${e} IS ?)`, args: [bindable(v)] };
-    case "ne": return { text: `(${e} IS NOT ?)`, args: [bindable(v)] };
-    case "lt": case "lte": case "gt": case "gte": {
+    case "eq":
+      return { text: `(${e} IS ?)`, args: [bindable(v)] };
+    case "ne":
+      return { text: `(${e} IS NOT ?)`, args: [bindable(v)] };
+    case "lt":
+    case "lte":
+    case "gt":
+    case "gte": {
       const op = { lt: "<", lte: "<=", gt: ">", gte: ">=" }[x["op"]];
       return { text: `(${e} IS NOT NULL AND ${e} ${op} ?)`, args: [bindable(v)] };
     }
@@ -139,10 +177,15 @@ function compile(def: TypeDef, f: unknown): Sql {
         args: typeof v === "string" ? [needle, needle] : [needle],
       };
     }
-    case "starts": return { text: `(typeof(${e}) = 'text' AND substr(${e}, 1, length(?)) = ?)`, args: [bindable(v), bindable(v)] };
-    case "is_null": case "empty": return { text: `(${e} IS NULL OR ${e} = '')`, args: [] };
-    case "notempty": return { text: `(${e} IS NOT NULL AND ${e} <> '')`, args: [] };
-    default: throw new StoreError("invalid", `unknown filter op ${String(x["op"])}`);
+    case "starts":
+      return { text: `(typeof(${e}) = 'text' AND substr(${e}, 1, length(?)) = ?)`, args: [bindable(v), bindable(v)] };
+    case "is_null":
+    case "empty":
+      return { text: `(${e} IS NULL OR ${e} = '')`, args: [] };
+    case "notempty":
+      return { text: `(${e} IS NOT NULL AND ${e} <> '')`, args: [] };
+    default:
+      throw new StoreError("invalid", `unknown filter op ${String(x["op"])}`);
   }
 }
 
@@ -150,7 +193,10 @@ function compile(def: TypeDef, f: unknown): Sql {
 
 function fnv(s: string): string {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(16).padStart(8, "0");
 }
 
@@ -167,7 +213,10 @@ export function ensureSortIndex(tx: Tx, def: TypeDef, keys: readonly Sort[]): vo
 
 function effectiveSort(def: TypeDef, spec: ViewSpec): Sort[] {
   const out: Sort[] = [];
-  if (spec.group) { expr(def, spec.group); out.push({ field: spec.group, dir: "asc" }); }
+  if (spec.group) {
+    expr(def, spec.group);
+    out.push({ field: spec.group, dir: "asc" });
+  }
   for (const s of spec.sort ?? []) {
     if (!s || typeof s.field !== "string") throw new StoreError("invalid", "a sort needs a field");
     expr(def, s.field);
@@ -181,7 +230,9 @@ function decodeKey(cursor: string, n: number): unknown[] {
   try {
     const k = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as unknown;
     if (Array.isArray(k) && k.length === n) return k;
-  } catch { /* falls through */ }
+  } catch {
+    /* falls through */
+  }
   throw new StoreError("invalid", "invalid cursor");
 }
 
@@ -194,15 +245,24 @@ function after(def: TypeDef, keys: readonly Sort[], key: readonly unknown[]): Sq
     const e = expr(def, k.field);
     const eqs: string[] = [];
     const eqArgs: Bind[] = [];
-    for (let j = 0; j < i; j++) { eqs.push(`${expr(def, keys[j]!.field)} IS ?`); eqArgs.push(bindable(key[j])); }
+    for (let j = 0; j < i; j++) {
+      eqs.push(`${expr(def, keys[j]!.field)} IS ?`);
+      eqArgs.push(bindable(key[j]));
+    }
     const v = key[i];
     let cmp: string;
     const cmpArgs: Bind[] = [];
     if (k.dir === "asc") {
       if (v === null || v === undefined) cmp = `${e} IS NOT NULL`;
-      else { cmp = `${e} > ?`; cmpArgs.push(bindable(v)); }
+      else {
+        cmp = `${e} > ?`;
+        cmpArgs.push(bindable(v));
+      }
     } else if (v === null || v === undefined) cmp = "0";
-    else { cmp = `(${e} < ? OR ${e} IS NULL)`; cmpArgs.push(bindable(v)); }
+    else {
+      cmp = `(${e} < ? OR ${e} IS NULL)`;
+      cmpArgs.push(bindable(v));
+    }
     alts.push(`(${[...eqs, cmp].join(" AND ")})`);
     args.push(...eqArgs, ...cmpArgs);
   }
@@ -212,14 +272,25 @@ function after(def: TypeDef, keys: readonly Sort[], key: readonly unknown[]): Sq
 function toRow(type: string, r: Raw, fields: readonly string[] | undefined): RecordRow {
   const all = JSON.parse(r.data) as Record<string, unknown>;
   let data = all;
-  if (fields) { data = {}; for (const f of fields) if (Object.prototype.hasOwnProperty.call(all, f)) data[f] = all[f]; }
+  if (fields) {
+    data = {};
+    for (const f of fields) if (Object.prototype.hasOwnProperty.call(all, f)) data[f] = all[f];
+  }
   return {
-    id: r.id, type, version: r.version, label: r.label, fields: data, createdAt: r.created_at, updatedAt: r.updated_at, holds: r.holds,
+    id: r.id,
+    type,
+    version: r.version,
+    label: r.label,
+    fields: data,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    holds: r.holds,
     ...(r.deleted_at !== null ? { deletedAt: r.deleted_at } : {}),
   };
 }
 
-const SELECT = "SELECT r.id, r.version, r.created_at, r.updated_at, r.deleted_at, r.data, COALESCE(m.label, 0) AS label, COALESCE(m.holds, 0) AS holds";
+const SELECT =
+  "SELECT r.id, r.version, r.created_at, r.updated_at, r.deleted_at, r.data, COALESCE(m.label, 0) AS label, COALESCE(m.holds, 0) AS holds";
 
 function windowOf(spec: ViewSpec): { limit: number; offset: number } {
   const limit = Math.max(1, Math.min(Math.trunc(spec.limit ?? DEFAULT_LIMIT), MAX_LIMIT));
@@ -236,18 +307,32 @@ export function countOf(tx: Tx, def: TypeDef, filter: unknown): number {
   ensureBase(tx);
   const key = canonical(filter ?? null);
   const stamp = stampOf(tx);
-  const hit = tx.get<{ n: number; stamp: number }>("SELECT n, stamp FROM qx_counts WHERE type = ? AND key = ?", def.name, key);
+  const hit = tx.get<{ n: number; stamp: number }>(
+    "SELECT n, stamp FROM qx_counts WHERE type = ? AND key = ?",
+    def.name,
+    key,
+  );
   if (hit && hit.stamp === stamp) return hit.n;
   let n: number;
   try {
     const w = compile(def, filter);
-    n = tx.get<{ n: number }>(`SELECT count(*) AS n FROM rt_${def.name} r WHERE r.deleted_at IS NULL AND ${w.text}`, ...w.args)!.n;
+    n = tx.get<{ n: number }>(
+      `SELECT count(*) AS n FROM rt_${def.name} r WHERE r.deleted_at IS NULL AND ${w.text}`,
+      ...w.args,
+    )!.n;
   } catch (e) {
     if (!(e instanceof Unsupported)) throw e;
     n = 0;
-    for (const r of tx.all<Raw>(`SELECT r.* FROM rt_${def.name} r WHERE r.deleted_at IS NULL`)) if (matches(filter as Filter | undefined, { ...r, data: JSON.parse(r.data) })) n++;
+    for (const r of tx.all<Raw>(`SELECT r.* FROM rt_${def.name} r WHERE r.deleted_at IS NULL`))
+      if (matches(filter as Filter | undefined, { ...r, data: JSON.parse(r.data) })) n++;
   }
-  tx.run("INSERT INTO qx_counts (type, key, n, stamp) VALUES (?, ?, ?, ?) ON CONFLICT(type, key) DO UPDATE SET n = excluded.n, stamp = excluded.stamp", def.name, key, n, stamp);
+  tx.run(
+    "INSERT INTO qx_counts (type, key, n, stamp) VALUES (?, ?, ?, ?) ON CONFLICT(type, key) DO UPDATE SET n = excluded.n, stamp = excluded.stamp",
+    def.name,
+    key,
+    n,
+    stamp,
+  );
   return n;
 }
 
@@ -267,10 +352,19 @@ export function findRows(tx: Tx, type: string, spec: ViewSpec): { rows: RecordRo
 /** An index on the fields an import matches rows by, so each lookup reads the matching rows and not the whole type (the same index a sort on those fields makes). */
 export function ensureMatchIndex(tx: Tx, type: string, fields: readonly string[]): void {
   ensureBase(tx);
-  ensureSortIndex(tx, typeDef(tx, type), fields.map((field) => ({ field, dir: "asc" as const })));
+  ensureSortIndex(
+    tx,
+    typeDef(tx, type),
+    fields.map((field) => ({ field, dir: "asc" as const })),
+  );
 }
 
-function pageOf(tx: Tx, type: string, spec: ViewSpec, counted: boolean): { rows: RecordRow[]; next?: string; total?: number } {
+function pageOf(
+  tx: Tx,
+  type: string,
+  spec: ViewSpec,
+  counted: boolean,
+): { rows: RecordRow[]; next?: string; total?: number } {
   ensureBase(tx);
   const def = typeDef(tx, type);
   const sort = effectiveSort(def, spec);
@@ -307,18 +401,53 @@ function pageOf(tx: Tx, type: string, spec: ViewSpec, counted: boolean): { rows:
   return { rows: out, ...(next !== undefined ? { next } : {}), ...(total !== undefined ? { total } : {}) };
 }
 
-function fallback(tx: Tx, def: TypeDef, spec: ViewSpec, sort: Sort[], limit: number, offset: number, fields: readonly string[] | undefined, total: number): { rows: RecordRow[]; next?: string; total: number } {
-  const meta = new Map(tx.all<{ id: string; label: number; holds: number }>("SELECT id, label, holds FROM records_row_meta WHERE type = ?", def.name).map((m) => [m.id, m]));
+function fallback(
+  tx: Tx,
+  def: TypeDef,
+  spec: ViewSpec,
+  sort: Sort[],
+  limit: number,
+  offset: number,
+  fields: readonly string[] | undefined,
+  total: number,
+): { rows: RecordRow[]; next?: string; total: number } {
+  const meta = new Map(
+    tx
+      .all<{
+        id: string;
+        label: number;
+        holds: number;
+      }>("SELECT id, label, holds FROM records_row_meta WHERE type = ?", def.name)
+      .map((m) => [m.id, m]),
+  );
   const live = (function* () {
-    for (const r of tx.all<Raw>(`SELECT * FROM rt_${def.name} WHERE deleted_at IS NULL`)) yield { ...r, type: def.name, data: JSON.parse(r.data) as Record<string, unknown> };
+    for (const r of tx.all<Raw>(`SELECT * FROM rt_${def.name} WHERE deleted_at IS NULL`))
+      yield { ...r, type: def.name, data: JSON.parse(r.data) as Record<string, unknown> };
   })();
-  const res = page(live, { ...(spec.filter !== undefined ? { filter: spec.filter as Filter } : {}), sort, page: { limit: limit + offset, ...(spec.cursor ? { cursor: spec.cursor } : {}) } });
+  const res = page(live, {
+    ...(spec.filter !== undefined ? { filter: spec.filter as Filter } : {}),
+    sort,
+    page: { limit: limit + offset, ...(spec.cursor ? { cursor: spec.cursor } : {}) },
+  });
   if ("error" in res) throw new StoreError("invalid", res.error);
   const sliced = res.rows.slice(offset);
-  const rows = sliced.map((r: { id: string; version: number; created_at: number; updated_at: number; deleted_at: number | null; data: Record<string, unknown> }) => {
-    const m = meta.get(r.id);
-    return toRow(def.name, { ...r, data: JSON.stringify(r.data), label: m?.label ?? 0, holds: m?.holds ?? 0 }, fields);
-  });
+  const rows = sliced.map(
+    (r: {
+      id: string;
+      version: number;
+      created_at: number;
+      updated_at: number;
+      deleted_at: number | null;
+      data: Record<string, unknown>;
+    }) => {
+      const m = meta.get(r.id);
+      return toRow(
+        def.name,
+        { ...r, data: JSON.stringify(r.data), label: m?.label ?? 0, holds: m?.holds ?? 0 },
+        fields,
+      );
+    },
+  );
   const trimmed = rows.slice(0, limit);
   const lastRaw = sliced[trimmed.length - 1];
   const next = res.next_cursor !== undefined && lastRaw ? encodeCursor(lastRaw, sort) : undefined;
@@ -327,21 +456,25 @@ function fallback(tx: Tx, def: TypeDef, spec: ViewSpec, sort: Sort[], limit: num
 
 // ---- search ----
 
-const BODY = (row: string): string => `COALESCE((SELECT group_concat(value, ' ') FROM json_each(${row}.data) WHERE type = 'text'), '')`;
+const BODY = (row: string): string =>
+  `COALESCE((SELECT group_concat(value, ' ') FROM json_each(${row}.data) WHERE type = 'text'), '')`;
 
 /** FTS5 index of every text value of a type, kept by triggers. Returns false when FTS5 is not compiled in. */
 function ensureSearch(tx: Tx, type: string): boolean {
   const fts = `qx_${type}_fts`;
   const trig = `${fts}_ai`;
   // The prefix index ('1 2 3 4') answers "wor"* from the index instead of walking every term; tables made before it are rebuilt.
-  const haveTable = tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ? AND sql LIKE '%prefix%'", fts) !== undefined;
+  const haveTable =
+    tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ? AND sql LIKE '%prefix%'", fts) !== undefined;
   const staleTable = !haveTable && tx.get("SELECT 1 AS x FROM sqlite_master WHERE name = ?", fts) !== undefined;
   const haveTrig = tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'trigger' AND name = ?", trig) !== undefined;
   if (haveTable && haveTrig) return true;
   try {
     if (staleTable || haveTable) tx.exec(`DROP TABLE IF EXISTS "${fts}"`);
     tx.exec(`CREATE VIRTUAL TABLE "${fts}" USING fts5(body, prefix='1 2 3 4')`);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
   tx.exec(`DROP TRIGGER IF EXISTS "${trig}"`);
   tx.exec(`DROP TRIGGER IF EXISTS "${fts}_au"`);
   tx.exec(`INSERT INTO "${fts}" (rowid, body) SELECT rowid, ${BODY(`rt_${type}`)} FROM rt_${type}`);
@@ -358,7 +491,12 @@ function ensureSearch(tx: Tx, type: string): boolean {
 const WORD = /[\p{L}\p{N}_]+/gu;
 const likeEscape = (s: string): string => s.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
 
-export function runSearch(tx: Tx, type: string, q: string, o: { cursor?: string; limit?: number }): { rows: RecordRow[]; next?: string; total?: number } {
+export function runSearch(
+  tx: Tx,
+  type: string,
+  q: string,
+  o: { cursor?: string; limit?: number },
+): { rows: RecordRow[]; next?: string; total?: number } {
   ensureBase(tx);
   const def = typeDef(tx, type);
   const words = q.match(WORD) ?? [];
@@ -366,7 +504,11 @@ export function runSearch(tx: Tx, type: string, q: string, o: { cursor?: string;
   const limit = Math.max(1, Math.min(Math.trunc(o.limit ?? 50), MAX_LIMIT));
   let skip = 0;
   if (o.cursor) {
-    try { skip = (JSON.parse(Buffer.from(o.cursor, "base64url").toString("utf8")) as { o: number }).o; } catch { throw new StoreError("invalid", "invalid cursor"); }
+    try {
+      skip = (JSON.parse(Buffer.from(o.cursor, "base64url").toString("utf8")) as { o: number }).o;
+    } catch {
+      throw new StoreError("invalid", "invalid cursor");
+    }
     if (!Number.isInteger(skip) || skip < 0) throw new StoreError("invalid", "invalid cursor");
   }
   let rows: Raw[];
@@ -375,13 +517,15 @@ export function runSearch(tx: Tx, type: string, q: string, o: { cursor?: string;
     rows = tx.all<Raw>(
       `${SELECT} FROM "qx_${type}_fts" JOIN rt_${type} r ON r.rowid = "qx_${type}_fts".rowid LEFT JOIN records_row_meta m ON m.type = ? AND m.id = r.id
        WHERE "qx_${type}_fts" MATCH ? AND r.deleted_at IS NULL ORDER BY "qx_${type}_fts".rowid LIMIT ${limit + 1} OFFSET ${skip}`,
-      type, match,
+      type,
+      match,
     );
   } else {
     const cond = words.map(() => `${BODY("r")} LIKE ? ESCAPE '\\'`).join(" AND ");
     rows = tx.all<Raw>(
       `${SELECT} FROM rt_${type} r LEFT JOIN records_row_meta m ON m.type = ? AND m.id = r.id WHERE r.deleted_at IS NULL AND ${cond} ORDER BY r.id LIMIT ${limit + 1} OFFSET ${skip}`,
-      type, ...words.map((w) => `%${likeEscape(w)}%`),
+      type,
+      ...words.map((w) => `%${likeEscape(w)}%`),
     );
   }
   const more = rows.length > limit;
@@ -404,22 +548,47 @@ export interface SavedView {
   updatedAt: number;
 }
 
-interface ViewRow { view_id: string; type: string; title: string; kind: string; spec: string; shared: number; owner_id: string; created_at: number; updated_at: number }
+interface ViewRow {
+  view_id: string;
+  type: string;
+  title: string;
+  kind: string;
+  spec: string;
+  shared: number;
+  owner_id: string;
+  created_at: number;
+  updated_at: number;
+}
 const viewOf = (r: ViewRow): SavedView => ({
-  viewId: r.view_id, type: r.type, title: r.title, kind: r.kind, spec: JSON.parse(r.spec) as ViewSpec, shared: r.shared === 1, ownerId: r.owner_id, createdAt: r.created_at, updatedAt: r.updated_at,
+  viewId: r.view_id,
+  type: r.type,
+  title: r.title,
+  kind: r.kind,
+  spec: JSON.parse(r.spec) as ViewSpec,
+  shared: r.shared === 1,
+  ownerId: r.owner_id,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
 });
 
 /**
  * Save or replace a view. The sort index and the count of its filter are built now, so the first open of the view is already a range scan
  * and its total is a lookup. A personal view can only be replaced by its owner.
  */
-export function saveView(deps: QueryDeps, v: { viewId: string; type: string; title: string; kind?: string; spec: ViewSpec; shared?: boolean; ownerId: string }): SavedView {
+export function saveView(
+  deps: QueryDeps,
+  v: { viewId: string; type: string; title: string; kind?: string; spec: ViewSpec; shared?: boolean; ownerId: string },
+): SavedView {
   const { tx } = deps;
   ensureBase(tx);
   const def = typeDef(tx, v.type);
   if (!v.viewId || !v.title.trim()) throw new StoreError("invalid", "a view needs an id and a title");
   const sort = effectiveSort(def, v.spec);
-  try { compile(def, v.spec.filter); } catch (e) { if (!(e instanceof Unsupported)) throw e; }
+  try {
+    compile(def, v.spec.filter);
+  } catch (e) {
+    if (!(e instanceof Unsupported)) throw e;
+  }
   const prior = tx.get<ViewRow>("SELECT * FROM qx_views WHERE view_id = ?", v.viewId);
   if (prior && prior.owner_id !== v.ownerId) throw new StoreError("invalid", "only the owner of a view changes it");
   const now = (deps.now ?? Date.now)();
@@ -427,9 +596,21 @@ export function saveView(deps: QueryDeps, v: { viewId: string; type: string; tit
   tx.run(
     `INSERT INTO qx_views (view_id, type, title, kind, spec, shared, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(view_id) DO UPDATE SET title = excluded.title, kind = excluded.kind, spec = excluded.spec, shared = excluded.shared, updated_at = excluded.updated_at`,
-    v.viewId, v.type, v.title, v.kind ?? "table", spec, v.shared ? 1 : 0, v.ownerId, prior?.created_at ?? now, now,
+    v.viewId,
+    v.type,
+    v.title,
+    v.kind ?? "table",
+    spec,
+    v.shared ? 1 : 0,
+    v.ownerId,
+    prior?.created_at ?? now,
+    now,
   );
-  try { ensureSortIndex(tx, def, sort); } catch (e) { if (!(e instanceof Unsupported)) throw e; }
+  try {
+    ensureSortIndex(tx, def, sort);
+  } catch (e) {
+    if (!(e instanceof Unsupported)) throw e;
+  }
   countOf(tx, def, v.spec.filter);
   return viewOf(tx.get<ViewRow>("SELECT * FROM qx_views WHERE view_id = ?", v.viewId)!);
 }
@@ -437,7 +618,13 @@ export function saveView(deps: QueryDeps, v: { viewId: string; type: string; tit
 /** Views of a type the person may open: their own and every shared one. */
 export function listViews(deps: QueryDeps, type: string, ownerId: string): SavedView[] {
   ensureBase(deps.tx);
-  return deps.tx.all<ViewRow>("SELECT * FROM qx_views WHERE type = ? AND (shared = 1 OR owner_id = ?) ORDER BY created_at, view_id", type, ownerId).map(viewOf);
+  return deps.tx
+    .all<ViewRow>(
+      "SELECT * FROM qx_views WHERE type = ? AND (shared = 1 OR owner_id = ?) ORDER BY created_at, view_id",
+      type,
+      ownerId,
+    )
+    .map(viewOf);
 }
 
 export function deleteView(deps: QueryDeps, viewId: string, ownerId: string): boolean {
@@ -446,7 +633,11 @@ export function deleteView(deps: QueryDeps, viewId: string, ownerId: string): bo
 }
 
 /** Run a saved view with an optional cursor. */
-export function runView(deps: QueryDeps, viewId: string, o: { cursor?: string } = {}): { rows: RecordRow[]; next?: string; total: number } {
+export function runView(
+  deps: QueryDeps,
+  viewId: string,
+  o: { cursor?: string } = {},
+): { rows: RecordRow[]; next?: string; total: number } {
   ensureBase(deps.tx);
   const r = deps.tx.get<ViewRow>("SELECT * FROM qx_views WHERE view_id = ?", viewId);
   if (!r) throw new StoreError("not_found", `no view ${viewId}`);
@@ -458,17 +649,26 @@ export function runView(deps: QueryDeps, viewId: string, o: { cursor?: string } 
 
 export function createQueryHandlers(deps: QueryDeps): QueryHandlers {
   const guard = <T>(ctx: Pick<WriteCtx, "trace">, run: () => T): Promise<T> => {
-    try { return Promise.resolve(run()); } catch (e) { return Promise.resolve().then(() => mapError(ctx as WriteCtx, e)); }
+    try {
+      return Promise.resolve(run());
+    } catch (e) {
+      return Promise.resolve().then(() => mapError(ctx as WriteCtx, e));
+    }
   };
   return {
-    "records.query": (ctx, input) => guard(ctx, () => {
-      const { type, ...spec } = input;
-      return runQuery(deps.tx, type, spec);
-    }),
-    "records.search": (ctx, input) => guard(ctx, () => runSearch(deps.tx, input.type, input.q, {
-      ...(input.cursor !== undefined ? { cursor: input.cursor } : {}), ...(input.limit !== undefined ? { limit: input.limit } : {}),
-    })),
-    "records.counts": (ctx, input) => guard(ctx, () => ({ count: countOf(deps.tx, typeDef(deps.tx, input.type), input.filter) })),
+    "records.query": (ctx, input) =>
+      guard(ctx, () => {
+        const { type, ...spec } = input;
+        return runQuery(deps.tx, type, spec);
+      }),
+    "records.search": (ctx, input) =>
+      guard(ctx, () =>
+        runSearch(deps.tx, input.type, input.q, {
+          ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
+          ...(input.limit !== undefined ? { limit: input.limit } : {}),
+        }),
+      ),
+    "records.counts": (ctx, input) =>
+      guard(ctx, () => ({ count: countOf(deps.tx, typeDef(deps.tx, input.type), input.filter) })),
   };
 }
-

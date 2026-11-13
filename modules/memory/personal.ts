@@ -44,11 +44,14 @@ export interface SealCtx {
 const aadOf = (owner: string): string => `vyre:memory:v1|${owner}`;
 const te = new TextEncoder();
 const td = new TextDecoder();
-const who = (ctx: SealCtx): string | null => (ctx.principal ? ctx.actingFor ?? ctx.principal.id : null);
+const who = (ctx: SealCtx): string | null => (ctx.principal ? (ctx.actingFor ?? ctx.principal.id) : null);
 
 /** Raised by openText when the person's key is not held here. */
 export class MemoryLocked extends Error {
-  constructor() { super("this person's memory key is not held here"); this.name = "MemoryLocked"; }
+  constructor() {
+    super("this person's memory key is not held here");
+    this.name = "MemoryLocked";
+  }
 }
 
 // ---- keys
@@ -61,7 +64,10 @@ const perCall = new WeakMap<object, Map<string, PersonMemoryKey | null>>();
 /** The person's memory key when the keyring holds their person key now; null otherwise (and anything kept for them is dropped). Registers their public key in this Space on the way. */
 export function heldKey(ctx: SealCtx, owner: string): PersonMemoryKey | null {
   let memo = perCall.get(ctx);
-  if (!memo) { memo = new Map(); perCall.set(ctx, memo); }
+  if (!memo) {
+    memo = new Map();
+    perCall.set(ctx, memo);
+  }
   if (memo.has(owner)) return memo.get(owner) ?? null;
   const raw = port?.personKey(owner) ?? null;
   let k: PersonMemoryKey | null = null;
@@ -69,8 +75,19 @@ export function heldKey(ctx: SealCtx, owner: string): PersonMemoryKey | null {
     try {
       const fresh = PersonMemoryKey.from(raw);
       const old = held.get(owner);
-      if (old && old.tag === fresh.tag) { fresh.wipe(); k = old; } else { drop(owner); held.set(owner, fresh); k = fresh; }
-    } catch { k = null; } finally { raw.fill(0); }
+      if (old && old.tag === fresh.tag) {
+        fresh.wipe();
+        k = old;
+      } else {
+        drop(owner);
+        held.set(owner, fresh);
+        k = fresh;
+      }
+    } catch {
+      k = null;
+    } finally {
+      raw.fill(0);
+    }
   }
   if (!k) drop(owner);
   else if (ctx.db) register(ctx.db, owner, k);
@@ -81,7 +98,15 @@ export function heldKey(ctx: SealCtx, owner: string): PersonMemoryKey | null {
 function drop(owner: string): void {
   held.get(owner)?.wipe();
   held.delete(owner);
-  for (const [k, ix] of indexes) if (ix.owner === owner) { ix.texts.clear(); ix.toks.clear(); ix.grams.clear(); ix.vecs.clear(); ix.meta.clear(); indexes.delete(k); }
+  for (const [k, ix] of indexes)
+    if (ix.owner === owner) {
+      ix.texts.clear();
+      ix.toks.clear();
+      ix.grams.clear();
+      ix.vecs.clear();
+      ix.meta.clear();
+      indexes.delete(k);
+    }
 }
 
 /** Drop every person whose key the keyring no longer holds (the background job calls this, so plaintext does not wait for a read). */
@@ -89,7 +114,10 @@ export function sweepHeld(): number {
   let n = 0;
   for (const owner of [...new Set([...held.keys(), ...[...indexes.values()].map((i) => i.owner)])]) {
     const raw = port?.personKey(owner) ?? null;
-    if (raw) { raw.fill(0); continue; }
+    if (raw) {
+      raw.fill(0);
+      continue;
+    }
     drop(owner);
     n++;
   }
@@ -99,32 +127,53 @@ export function sweepHeld(): number {
 // ---- public keys
 
 const SCHEMA = readFileSync(new URL("./migrations/0004_person_keys.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 function keysTable(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key_tag FROM memory_person_keys WHERE owner_ref = ?", "probe"); } catch { for (const s of SCHEMA) db.run(s); }
+  try {
+    db.all("SELECT key_tag FROM memory_person_keys WHERE owner_ref = ?", "probe");
+  } catch {
+    for (const s of SCHEMA) db.run(s);
+  }
   ready.add(db);
 }
 
 function register(db: Db, owner: string, k: PersonMemoryKey): void {
   try {
     keysTable(db);
-    const have = db.all("SELECT key_tag FROM memory_person_keys WHERE owner_ref = ?", owner)[0] as { key_tag?: string } | undefined;
+    const have = db.all("SELECT key_tag FROM memory_person_keys WHERE owner_ref = ?", owner)[0] as
+      | { key_tag?: string }
+      | undefined;
     if (have?.key_tag === k.tag) return;
-    db.run("INSERT INTO memory_person_keys (owner_ref, public_key, key_tag, registered_at) VALUES (?, ?, ?, ?) ON CONFLICT (owner_ref) DO UPDATE SET public_key = excluded.public_key, key_tag = excluded.key_tag, registered_at = excluded.registered_at",
-      owner, k.pub, k.tag, Date.now());
-  } catch { /* a read-only or foreign handle: the key is registered by the next call that can */ }
+    db.run(
+      "INSERT INTO memory_person_keys (owner_ref, public_key, key_tag, registered_at) VALUES (?, ?, ?, ?) ON CONFLICT (owner_ref) DO UPDATE SET public_key = excluded.public_key, key_tag = excluded.key_tag, registered_at = excluded.registered_at",
+      owner,
+      k.pub,
+      k.tag,
+      Date.now(),
+    );
+  } catch {
+    /* a read-only or foreign handle: the key is registered by the next call that can */
+  }
 }
 
 /** The person's memory public key in this Space, or null when their key was never held here. */
 export function publicKeyOf(db: Db, owner: string): string | null {
   try {
     keysTable(db);
-    const r = db.all("SELECT public_key FROM memory_person_keys WHERE owner_ref = ?", owner)[0] as { public_key?: string } | undefined;
+    const r = db.all("SELECT public_key FROM memory_person_keys WHERE owner_ref = ?", owner)[0] as
+      | { public_key?: string }
+      | undefined;
     return r?.public_key ? String(r.public_key) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ---- seal and open
@@ -134,7 +183,13 @@ export function sealText(ctx: SealCtx, owner: string, text: string): string {
   if (who(ctx) === owner) {
     const k = heldKey(ctx, owner);
     // a sign-out during this call wipes the key: the public form below still works
-    if (k) { try { return k.seal(text, aadOf(owner)); } catch { /* wiped */ } }
+    if (k) {
+      try {
+        return k.seal(text, aadOf(owner));
+      } catch {
+        /* wiped */
+      }
+    }
   }
   let pub = ctx.db ? publicKeyOf(ctx.db, owner) : null;
   // a write for someone else may still register the owner's public key from a held key; the key is not used to seal
@@ -153,27 +208,58 @@ export function openText(ctx: SealCtx, sealed: string, owner: string | null = wh
 }
 
 /** Each person had their own server seal scope before their own key; kept so rows from then still open until they are re-sealed. */
-export const sealScope = (owner: string): string => `mem.${owner}`.toLowerCase().replace(/[^a-z0-9_.:-]/g, "_").slice(0, 64);
-const legacySeal = (ctx: SealCtx, owner: string, text: string): string => JSON.stringify(ctx.seal.seal(te.encode(text), sealScope(owner)));
+export const sealScope = (owner: string): string =>
+  `mem.${owner}`
+    .toLowerCase()
+    .replace(/[^a-z0-9_.:-]/g, "_")
+    .slice(0, 64);
+const legacySeal = (ctx: SealCtx, owner: string, text: string): string =>
+  JSON.stringify(ctx.seal.seal(te.encode(text), sealScope(owner)));
 
 /** Is this person's memory sealed under their own key and that key not held here now? Then their own reads come back empty, and this says why. False when no keyring is wired. */
 export function personalLocked(ctx: SealCtx & { db: Db }, owner: string): boolean {
   if (!port || heldKey(ctx, owner)) return false;
-  try { return ctx.db.all("SELECT 1 AS x FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status IN ('current', 'proposed') AND enc = 2 AND sealed LIKE 'pm1.%' LIMIT 1", owner).length > 0; } catch { return false; }
+  try {
+    return (
+      ctx.db.all(
+        "SELECT 1 AS x FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status IN ('current', 'proposed') AND enc = 2 AND sealed LIKE 'pm1.%' LIMIT 1",
+        owner,
+      ).length > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** The plain words that go with an empty personal answer. */
-export const LOCKED_LINE = "Your private memory is sealed under your own key, and this server does not hold it right now, so nothing personal was recalled. It opens again when you sign in here with your password (or on your own computer).";
+export const LOCKED_LINE =
+  "Your private memory is sealed under your own key, and this server does not hold it right now, so nothing personal was recalled. It opens again when you sign in here with your password (or on your own computer).";
 
 // ---- the session index (memory only)
 
 /** What search and recall need of one live personal fact, without its words. */
-export interface FactMeta { rid: number; id: string; agentId: string | null; projectId: string | null; noteId: string | null; kind: string | null; validFrom: number; validTo: number | null; learnedAt: number; sourceLink: string | null }
+export interface FactMeta {
+  rid: number;
+  id: string;
+  agentId: string | null;
+  projectId: string | null;
+  noteId: string | null;
+  kind: string | null;
+  validFrom: number;
+  validTo: number | null;
+  learnedAt: number;
+  sourceLink: string | null;
+}
 export interface PersonIndex {
-  owner: string; tag: string;
-  texts: Map<string, string>; toks: Map<string, unknown>; grams: Map<string, unknown>; vecs: Map<string, Float32Array>;
+  owner: string;
+  tag: string;
+  texts: Map<string, string>;
+  toks: Map<string, unknown>;
+  grams: Map<string, unknown>;
+  vecs: Map<string, Float32Array>;
   /** the person's current facts by rowid, and the signature of the set they were read at */
-  meta: Map<number, FactMeta>; sig: string;
+  meta: Map<number, FactMeta>;
+  sig: string;
 }
 const indexes = new Map<string, PersonIndex>();
 
@@ -183,8 +269,23 @@ export function indexOf(ctx: SealCtx, owner: string): PersonIndex | null {
   if (!k) return null;
   const at = `${ctx.space ?? ""}\u0000${owner}`;
   let ix = indexes.get(at);
-  if (ix && ix.tag !== k.tag) { indexes.delete(at); ix = undefined; }
-  if (!ix) { ix = { owner, tag: k.tag, texts: new Map(), toks: new Map(), grams: new Map(), vecs: new Map(), meta: new Map(), sig: "" }; indexes.set(at, ix); }
+  if (ix && ix.tag !== k.tag) {
+    indexes.delete(at);
+    ix = undefined;
+  }
+  if (!ix) {
+    ix = {
+      owner,
+      tag: k.tag,
+      texts: new Map(),
+      toks: new Map(),
+      grams: new Map(),
+      vecs: new Map(),
+      meta: new Map(),
+      sig: "",
+    };
+    indexes.set(at, ix);
+  }
   return ix;
 }
 
@@ -199,7 +300,9 @@ export function openFactText(ctx: SealCtx, id: string, owner: string, sealed: st
     const text = openText(ctx, sealed, owner);
     if (ix && id !== "") ix.texts.set(id, text);
     return text;
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 // sealed rows only: a plain person-layer row (a fact on the owner's public profile) is read from the table like shared text
@@ -220,11 +323,22 @@ export function currentPersonFacts(ctx: SealCtx & { db: Db }, owner: string): It
     const add = rids.filter((x) => !ix.meta.has(x));
     for (let i = 0; i < add.length; i += 500) {
       const part = add.slice(i, i + 500);
-      for (const m of ctx.db.all(`SELECT rowid AS rid, id, agent_id, project_id, note_id, kind, valid_from, valid_to, learned_at, source_link FROM memory_facts WHERE rowid IN (${part.map(() => "?").join(",")})`, ...part) as Array<Record<string, unknown>>) {
+      for (const m of ctx.db.all(
+        `SELECT rowid AS rid, id, agent_id, project_id, note_id, kind, valid_from, valid_to, learned_at, source_link FROM memory_facts WHERE rowid IN (${part.map(() => "?").join(",")})`,
+        ...part,
+      ) as Array<Record<string, unknown>>) {
         const o = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
         ix.meta.set(Number(m["rid"]), {
-          rid: Number(m["rid"]), id: String(m["id"]), agentId: o(m["agent_id"]), projectId: o(m["project_id"]), noteId: o(m["note_id"]), kind: o(m["kind"]), validFrom: Number(m["valid_from"]),
-          validTo: m["valid_to"] === null || m["valid_to"] === undefined ? null : Number(m["valid_to"]), learnedAt: Number(m["learned_at"]), sourceLink: o(m["source_link"]),
+          rid: Number(m["rid"]),
+          id: String(m["id"]),
+          agentId: o(m["agent_id"]),
+          projectId: o(m["project_id"]),
+          noteId: o(m["note_id"]),
+          kind: o(m["kind"]),
+          validFrom: Number(m["valid_from"]),
+          validTo: m["valid_to"] === null || m["valid_to"] === undefined ? null : Number(m["valid_to"]),
+          learnedAt: Number(m["learned_at"]),
+          sourceLink: o(m["source_link"]),
         });
       }
     }
@@ -243,18 +357,36 @@ export const indexedPeople = (): number => indexes.size;
 const SEALED: ReadonlyArray<{ table: string; col: string; mine: string }> = [
   { table: "memory_facts", col: "sealed", mine: "enc = 2 AND layer = 'person' AND owner_ref = ?" },
   { table: "memory_pages", col: "sealed", mine: "enc = 2 AND layer = 'person' AND owner_ref = ?" },
-  { table: "memory_page_versions", col: "sealed", mine: "enc = 2 AND page_id IN (SELECT page_id FROM memory_pages WHERE layer = 'person' AND owner_ref = ?)" },
-  { table: "memory_page_links", col: "sealed", mine: "from_page IN (SELECT page_id FROM memory_pages WHERE layer = 'person' AND owner_ref = ?)" },
+  {
+    table: "memory_page_versions",
+    col: "sealed",
+    mine: "enc = 2 AND page_id IN (SELECT page_id FROM memory_pages WHERE layer = 'person' AND owner_ref = ?)",
+  },
+  {
+    table: "memory_page_links",
+    col: "sealed",
+    mine: "from_page IN (SELECT page_id FROM memory_pages WHERE layer = 'person' AND owner_ref = ?)",
+  },
   { table: "memory_notes", col: "sealed_title", mine: "layer = 'person' AND owner_ref = ?" },
 ];
 
-export interface SettleOut { people: number; resealed: number; unreadable: number; fromPublic: string[]; left: number }
+export interface SettleOut {
+  people: number;
+  resealed: number;
+  unreadable: number;
+  fromPublic: string[];
+  left: number;
+}
 
 /**
  * Re-seal up to `budget` of one person's rows that are not yet in the own form: open each (server seal or public key), seal it under their own key, check the new value opens to the same words,
  * then replace the old value only if it is still the one read (a row changed meanwhile is left for the next pass). Answers the fact ids that came from the public key, for the duplicate check.
  */
-export function resealPerson(ctx: SealCtx & { db: Db }, owner: string, budget = 2000): { resealed: number; unreadable: number; fromPublic: string[]; left: number } | null {
+export function resealPerson(
+  ctx: SealCtx & { db: Db },
+  owner: string,
+  budget = 2000,
+): { resealed: number; unreadable: number; fromPublic: string[]; left: number } | null {
   const k = heldKey(ctx, owner);
   if (!k) return null;
   const aad = aadOf(owner);
@@ -267,22 +399,51 @@ export function resealPerson(ctx: SealCtx & { db: Db }, owner: string, budget = 
     let rows: Array<Record<string, unknown>>;
     try {
       // everything not yet in the own form of the key held now: the server seal, the public key, or an older key of theirs (which cannot open, and is counted as such)
-      rows = ctx.db.all(`SELECT rowid AS rid, ${s.col} AS v${s.table === "memory_facts" ? ", id" : ""} FROM ${s.table} WHERE ${s.mine} AND ${s.col} IS NOT NULL AND ${s.col} <> '' AND substr(${s.col}, 1, ?) <> ?`, owner, own.length, own) as Array<Record<string, unknown>>;
-    } catch { continue; }
+      rows = ctx.db.all(
+        `SELECT rowid AS rid, ${s.col} AS v${s.table === "memory_facts" ? ", id" : ""} FROM ${s.table} WHERE ${s.mine} AND ${s.col} IS NOT NULL AND ${s.col} <> '' AND substr(${s.col}, 1, ?) <> ?`,
+        owner,
+        own.length,
+        own,
+      ) as Array<Record<string, unknown>>;
+    } catch {
+      continue;
+    }
     for (const r of rows) {
       const old = String(r["v"]);
-      if (plan.length >= budget) { left++; continue; }
+      if (plan.length >= budget) {
+        left++;
+        continue;
+      }
       let plain: string;
-      try { plain = openText(ctx, old, owner); } catch { unreadable++; continue; }
+      try {
+        plain = openText(ctx, old, owner);
+      } catch {
+        unreadable++;
+        continue;
+      }
       const next = k.seal(plain, aad);
-      if (k.open(next, aad) !== plain) { unreadable++; continue; }
+      if (k.open(next, aad) !== plain) {
+        unreadable++;
+        continue;
+      }
       plan.push({ table: s.table, col: s.col, rowid: Number(r["rid"]), old, next });
       if (s.table === "memory_facts" && memorySealForm(old) === "public") fromPublic.push(String(r["id"]));
     }
   }
   let resealed = 0;
-  const apply = (): void => { for (const p of plan) resealed += ctx.db.run(`UPDATE ${p.table} SET ${p.col} = ? WHERE rowid = ? AND ${p.col} = ?`, p.next, p.rowid, p.old).changes; };
-  if (plan.length > 0) { if (port?.wipe) port.wipe(apply); else apply(); }
+  const apply = (): void => {
+    for (const p of plan)
+      resealed += ctx.db.run(
+        `UPDATE ${p.table} SET ${p.col} = ? WHERE rowid = ? AND ${p.col} = ?`,
+        p.next,
+        p.rowid,
+        p.old,
+      ).changes;
+  };
+  if (plan.length > 0) {
+    if (port?.wipe) port.wipe(apply);
+    else apply();
+  }
   return { resealed, unreadable, fromPublic, left };
 }
 
@@ -290,8 +451,16 @@ export function resealPerson(ctx: SealCtx & { db: Db }, owner: string, budget = 
 export function peopleWithMemory(db: Db): string[] {
   const out = new Set<string>();
   for (const sql of [
-    "SELECT DISTINCT owner_ref AS o FROM memory_facts WHERE layer = 'person'", "SELECT DISTINCT owner_ref AS o FROM memory_pages WHERE layer = 'person'",
-    "SELECT DISTINCT owner_ref AS o FROM memory_notes WHERE layer = 'person'", "SELECT owner_ref AS o FROM memory_person_keys",
-  ]) { try { for (const r of db.all(sql) as Array<{ o?: unknown }>) if (r.o) out.add(String(r.o)); } catch { /* table not there yet */ } }
+    "SELECT DISTINCT owner_ref AS o FROM memory_facts WHERE layer = 'person'",
+    "SELECT DISTINCT owner_ref AS o FROM memory_pages WHERE layer = 'person'",
+    "SELECT DISTINCT owner_ref AS o FROM memory_notes WHERE layer = 'person'",
+    "SELECT owner_ref AS o FROM memory_person_keys",
+  ]) {
+    try {
+      for (const r of db.all(sql) as Array<{ o?: unknown }>) if (r.o) out.add(String(r.o));
+    } catch {
+      /* table not there yet */
+    }
+  }
   return [...out].sort();
 }

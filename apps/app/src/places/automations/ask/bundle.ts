@@ -24,7 +24,18 @@ const BEARER = /bearer\s+[a-z0-9._~+/-]{8,}/gi;
 const KEY_LITERAL = /\b(?:sk|pk|rk|ghp|xox[baprs])-[a-z0-9_-]{8,}\b/gi;
 const JWT = /\beyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\b/g;
 
-const ALLOWED = ["resource", "errorCode", "message", "traceId", "definitionVersion", "nodeId", "stepKey", "attempt", "connectionId", "connectionState"] as const;
+const ALLOWED = [
+  "resource",
+  "errorCode",
+  "message",
+  "traceId",
+  "definitionVersion",
+  "nodeId",
+  "stepKey",
+  "attempt",
+  "connectionId",
+  "connectionState",
+] as const;
 
 function scrubString(value: string): string {
   return value.replace(BEARER, "Bearer [redacted]").replace(KEY_LITERAL, "[redacted]").replace(JWT, "[redacted]");
@@ -57,7 +68,10 @@ export function scrubAskContext(input: Record<string, unknown>): AskBundle {
       const name = (field as { name?: unknown }).name;
       const type = (field as { type?: unknown }).type;
       if (typeof name !== "string" || BANNED.test(name)) continue;
-      kept.push({ name: scrubString(name), type: typeof type === "string" && !BANNED.test(type) ? scrubString(type) : "unknown" });
+      kept.push({
+        name: scrubString(name),
+        type: typeof type === "string" && !BANNED.test(type) ? scrubString(type) : "unknown",
+      });
     }
     if (kept.length > 0) out.fields = kept;
   }

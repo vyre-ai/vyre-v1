@@ -9,24 +9,52 @@ import { CARD } from "./card-style.ts";
 import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 /** This computer's phone address (Settings > Computers > Phone access), when it has claimed one: the https name and the box key its link carries. */
-export interface PhoneAddress { url: string; boxKey: string }
+export interface PhoneAddress {
+  url: string;
+  boxKey: string;
+}
 export async function phoneAddressOf(call: CapCall): Promise<PhoneAddress | null> {
   try {
-    const p = await call("network.phone", {}) as { state?: string; url?: string; link?: string };
+    const p = (await call("network.phone", {})) as { state?: string; url?: string; link?: string };
     const key = /#box=([A-Za-z0-9_-]{43})$/.exec(p.link ?? "")?.[1];
     return p.state === "claimed" && typeof p.url === "string" && key ? { url: p.url, boxKey: key } : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-export async function makePairLink(call: CapCall, address: string, idempotencyKey: string, phone?: PhoneAddress | null): Promise<{ link: string; expiresAt: number }> {
-  const out = await call("identity.pair_create", { purpose: "phone", idempotencyKey }) as { code: string; expiresAt: number };
-  return { link: phone ? pairLink(phone.url, out.code, phone.boxKey) : pairLink(address, out.code), expiresAt: out.expiresAt };
+export async function makePairLink(
+  call: CapCall,
+  address: string,
+  idempotencyKey: string,
+  phone?: PhoneAddress | null,
+): Promise<{ link: string; expiresAt: number }> {
+  const out = (await call("identity.pair_create", { purpose: "phone", idempotencyKey })) as {
+    code: string;
+    expiresAt: number;
+  };
+  return {
+    link: phone ? pairLink(phone.url, out.code, phone.boxKey) : pairLink(address, out.code),
+    expiresAt: out.expiresAt,
+  };
 }
 
-export function PairPhoneCard({ call, address, onPaired, onTeamSpace }: { call: CapCall; address: string; onPaired?(): void; onTeamSpace?(): void }): ReactElement | null {
+export function PairPhoneCard({
+  call,
+  address,
+  onPaired,
+  onTeamSpace,
+}: {
+  call: CapCall;
+  address: string;
+  onPaired?(): void;
+  onTeamSpace?(): void;
+}): ReactElement | null {
   // a Space on this computer alone has nothing a phone can open, unless the computer has claimed a vyre.run name: then the link is that name's
   const [phone, setPhone] = useState<PhoneAddress | null | undefined>(phoneCanReach(address) ? null : undefined);
-  useEffect(() => { if (phone === undefined) void phoneAddressOf(call).then(setPhone); }, [call, phone]);
+  useEffect(() => {
+    if (phone === undefined) void phoneAddressOf(call).then(setPhone);
+  }, [call, phone]);
   if (phone === undefined) return null;
   if (!phone && !phoneCanReach(address)) return <PhoneUnreachable onTeamSpace={onTeamSpace} />;
   return <PairPhoneLive call={call} address={address} phone={phone} onPaired={onPaired} />;
@@ -49,27 +77,70 @@ function PhoneUnreachable({ onTeamSpace }: { onTeamSpace: (() => void) | undefin
   );
 }
 
-function PairPhoneLive({ call, address, phone, onPaired }: { call: CapCall; address: string; phone: PhoneAddress | null; onPaired: (() => void) | undefined }): ReactElement {
+function PairPhoneLive({
+  call,
+  address,
+  phone,
+  onPaired,
+}: {
+  call: CapCall;
+  address: string;
+  phone: PhoneAddress | null;
+  onPaired: (() => void) | undefined;
+}): ReactElement {
   const attempt = useRef(0);
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const make = async (): Promise<void> => {
     if (busy) return;
-    setBusy(true); setError("");
-    try { setLink((await makePairLink(call, address, `${Date.now()}:${attempt.current++}`, phone)).link); } catch { setError("Could not make a pairing link. Try again."); } finally { setBusy(false); }
+    setBusy(true);
+    setError("");
+    try {
+      setLink((await makePairLink(call, address, `${Date.now()}:${attempt.current++}`, phone)).link);
+    } catch {
+      setError("Could not make a pairing link. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
   // the code is made when the step opens, so the QR is there to scan at once
-  useEffect(() => { void make(); }, []);
+  useEffect(() => {
+    void make();
+  }, []);
   return (
     <View testID="pair-phone" style={s.col}>
       {link ? <QrCode text={link} /> : null}
-      {link ? <Text selectable testID="pair-link" style={s.link}>{link}</Text> : null}
-      {link ? <Text style={s.dim}>Scan it, or open the link on your phone. It works once, for ten minutes.</Text> : <Text style={s.dim}>Making a link</Text>}
-      {error ? <Text testID="pair-error" style={s.err}>{error}</Text> : null}
+      {link ? (
+        <Text selectable testID="pair-link" style={s.link}>
+          {link}
+        </Text>
+      ) : null}
+      {link ? (
+        <Text style={s.dim}>Scan it, or open the link on your phone. It works once, for ten minutes.</Text>
+      ) : (
+        <Text style={s.dim}>Making a link</Text>
+      )}
+      {error ? (
+        <Text testID="pair-error" style={s.err}>
+          {error}
+        </Text>
+      ) : null}
       <View style={s.row}>
-        <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={[s.primaryText, busy && s.offText]}>{link ? "New link" : "Make a pairing link"}</Text></Pressable>
-        {link && onPaired ? <Pressable testID="pair-done" accessibilityRole="button" onPress={onPaired} style={s.ghost}><Text style={s.ghostText}>My phone is paired</Text></Pressable> : null}
+        <Pressable
+          testID="pair-make"
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => void make()}
+          style={[s.primary, busy && s.off]}
+        >
+          <Text style={[s.primaryText, busy && s.offText]}>{link ? "New link" : "Make a pairing link"}</Text>
+        </Pressable>
+        {link && onPaired ? (
+          <Pressable testID="pair-done" accessibilityRole="button" onPress={onPaired} style={s.ghost}>
+            <Text style={s.ghostText}>My phone is paired</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -78,14 +149,29 @@ function PairPhoneLive({ call, address, phone, onPaired }: { call: CapCall; addr
 const s = StyleSheet.create({
   col: { gap: 10 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  link: { fontSize: 13, color: "var(--ink)" as string, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  link: {
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    padding: 10,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--win)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string },
   err: CARD.err,
   primary: CARD.primary,
   primaryText: CARD.primaryText,
   ghost: CARD.ghost,
   ghostText: CARD.ghostText,
-  choice: { gap: 4, padding: 12, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
+  choice: {
+    gap: 4,
+    padding: 12,
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   choiceTitle: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   off: CARD.off,
   offText: CARD.offText,

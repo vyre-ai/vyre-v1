@@ -8,7 +8,13 @@ export const title = "Main tab strip";
 
 export default function Mount() {
   const [controller] = useState(() => {
-    const c = createTabsController({ deviceId: "d1", personId: "p1", spaceId: "northwind", storage: null, start: "home" });
+    const c = createTabsController({
+      deviceId: "d1",
+      personId: "p1",
+      spaceId: "northwind",
+      storage: null,
+      start: "home",
+    });
     c.openPlace("chats");
     c.openPlace("records");
     c.openPlace("files");

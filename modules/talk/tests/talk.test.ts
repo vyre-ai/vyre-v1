@@ -7,10 +7,22 @@ import { KEY, agent, person, world } from "../fixtures/harness.ts";
 import type { TalkCtx } from "../projections.ts";
 
 const fields = (value = KEY) => [{ key: "api_key", value, secret: true }];
-const refusal = (e: unknown): { code?: string; reason?: string; message?: string } => { const x = (e as { error: { code: string; details?: { reason?: string }; message: string } }).error; return { code: x.code, reason: x.details?.reason as string, message: x.message }; };
-const reason = async (p: Promise<unknown>): Promise<string | undefined> => { try { await p; return "no refusal"; } catch (e) { return refusal(e).reason ?? refusal(e).code; } };
-const connect = (ctx: TalkCtx, id = "k1") => h.connect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
-const spaceConnect = (ctx: TalkCtx, id = "s1") => h.spaceConnect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
+const refusal = (e: unknown): { code?: string; reason?: string; message?: string } => {
+  const x = (e as { error: { code: string; details?: { reason?: string }; message: string } }).error;
+  return { code: x.code, reason: x.details?.reason as string, message: x.message };
+};
+const reason = async (p: Promise<unknown>): Promise<string | undefined> => {
+  try {
+    await p;
+    return "no refusal";
+  } catch (e) {
+    return refusal(e).reason ?? refusal(e).code;
+  }
+};
+const connect = (ctx: TalkCtx, id = "k1") =>
+  h.connect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
+const spaceConnect = (ctx: TalkCtx, id = "s1") =>
+  h.spaceConnect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
 
 test("what covers a person: nothing, then the Space key, then their own key, which wins; turning the Space off leaves own keys working", async () => {
   const w = world({ admins: ["usr_admin"] });
@@ -24,7 +36,11 @@ test("what covers a person: nothing, then the Space key, then their own key, whi
   const viaSpace = await h.session(mia, {});
   assert.equal(viaSpace.source, "space");
   assert.equal(w.minted.at(-1)!.asker, undefined, "a Space key opens with no asker: Shared only");
-  assert.equal(w.calls.filter((c) => c.cap === "vault.use" && c.by === "usr_mia").length, 0, "a member gets no Use on the Space item");
+  assert.equal(
+    w.calls.filter((c) => c.cap === "vault.use" && c.by === "usr_mia").length,
+    0,
+    "a member gets no Use on the Space item",
+  );
 
   await connect(mia);
   assert.equal((await h.status(mia, {})).source, "own");
@@ -37,8 +53,16 @@ test("what covers a person: nothing, then the Space key, then their own key, whi
   const noah = w.as(person("usr_noah"));
   assert.equal((await h.status(noah, {})).source, "none");
   assert.equal((await h.status(noah, {})).spaceOn, false);
-  assert.equal(await reason(h.session(noah, {})), "no_key", "off means the first-press sheet again for anyone with no key of their own");
-  assert.equal(w.items.some((i) => i.name === "Deepgram for this Space"), true, "turning off keeps the key");
+  assert.equal(
+    await reason(h.session(noah, {})),
+    "no_key",
+    "off means the first-press sheet again for anyone with no key of their own",
+  );
+  assert.equal(
+    w.items.some((i) => i.name === "Deepgram for this Space"),
+    true,
+    "turning off keeps the key",
+  );
 
   await h.spaceConfigure(admin, { on: true });
   assert.equal((await h.session(noah, {})).source, "space");
@@ -50,7 +74,10 @@ test("the Space key is Restricted before a value can be read, and a member's ses
   const item = w.items.find((i) => i.scope === "shared")!;
   assert.equal(item.label, "restricted");
   const order = w.calls.map((c) => c.cap);
-  assert.ok(order.indexOf("access.labels.set") < order.indexOf("vault.item.put"), "the folder is labelled before the value goes in");
+  assert.ok(
+    order.indexOf("access.labels.set") < order.indexOf("vault.item.put"),
+    "the folder is labelled before the value goes in",
+  );
   const out = await h.session(w.as(person("usr_mia")), {});
   assert.ok(!JSON.stringify(out).includes(KEY));
   assert.ok(!JSON.stringify(out).includes(item.handle));
@@ -70,7 +97,13 @@ test("a key goes to the check and the Vault and nowhere else: no event, log, row
   const out = await connect(mia, "good");
   assert.equal(w.items[0]!.value, KEY);
   assert.equal(w.items[0]!.scope, "mine");
-  const around = JSON.stringify([out, w.events, w.logs, [...w.db.rows.get("talk_prefs")!.values()], [...w.db.rows.get("talk_space")!.values()]]);
+  const around = JSON.stringify([
+    out,
+    w.events,
+    w.logs,
+    [...w.db.rows.get("talk_prefs")!.values()],
+    [...w.db.rows.get("talk_space")!.values()],
+  ]);
   assert.ok(!around.includes(KEY));
 });
 
@@ -95,30 +128,61 @@ test("agents: they change a person's own choices for that person, never add a ke
   const out = await h.configure(helper, { language: "es" });
   assert.equal(out.language, "es");
   assert.equal((await h.status(w.as(person("usr_mia")), {})).language, "es", "the person's own row changed");
-  await assert.rejects(() => connect(helper), (e) => refusal(e).code === "permission.no_grant");
-  await assert.rejects(() => spaceConnect(helper), (e) => refusal(e).code === "permission.no_grant");
-  await assert.rejects(() => h.session(helper, {}), (e) => refusal(e).code === "permission.no_grant");
-  await assert.rejects(() => h.status(w.as(agent("agt_alone")), {}), (e) => refusal(e).code === "auth.unauthenticated");
+  await assert.rejects(
+    () => connect(helper),
+    (e) => refusal(e).code === "permission.no_grant",
+  );
+  await assert.rejects(
+    () => spaceConnect(helper),
+    (e) => refusal(e).code === "permission.no_grant",
+  );
+  await assert.rejects(
+    () => h.session(helper, {}),
+    (e) => refusal(e).code === "permission.no_grant",
+  );
+  await assert.rejects(
+    () => h.status(w.as(agent("agt_alone")), {}),
+    (e) => refusal(e).code === "auth.unauthenticated",
+  );
 });
 
 test("an agent asks for a key by posting the card, naming no value, in the chat it is in", async () => {
   const w = world();
   const helper = w.as(agent("agt_assistant"), { actingFor: "usr_mia", thread: "thr_1" });
   await h.askKey(helper, { scope: "space" });
-  const post = w.calls.find((c) => c.cap === "chat.post")!.input as { threadId: string; blocks: { type: string; data: unknown }[] };
+  const post = w.calls.find((c) => c.cap === "chat.post")!.input as {
+    threadId: string;
+    blocks: { type: string; data: unknown }[];
+  };
   assert.equal(post.threadId, "thr_1");
   assert.deepEqual(post.blocks[0], { type: "talk_key", v: 1, data: { provider: "deepgram", scope: "space" } });
-  await assert.rejects(() => h.askKey(w.as(agent("agt_assistant"), { actingFor: "usr_mia" }), {}), (e) => refusal(e).code === "validation.precondition_failed");
+  await assert.rejects(
+    () => h.askKey(w.as(agent("agt_assistant"), { actingFor: "usr_mia" }), {}),
+    (e) => refusal(e).code === "validation.precondition_failed",
+  );
 });
 
 test("choices: an unknown language or model is refused with what there is, off is said plainly, and mayManage follows policy.manage", async () => {
   const w = world({ admins: ["usr_admin"] });
   const mia = w.as(person("usr_mia"));
-  await assert.rejects(() => h.configure(mia, { language: "tlh" }), (e) => /Spanish/.test(refusal(e).message ?? ""));
-  await assert.rejects(() => h.configure(mia, { model: "gpt-9" }), (e) => /Nova 3/.test(refusal(e).message ?? ""));
-  await assert.rejects(() => h.configure(mia, { provider: "whisper" }), (e) => /not known/.test(refusal(e).message ?? ""));
+  await assert.rejects(
+    () => h.configure(mia, { language: "tlh" }),
+    (e) => /Spanish/.test(refusal(e).message ?? ""),
+  );
+  await assert.rejects(
+    () => h.configure(mia, { model: "gpt-9" }),
+    (e) => /Nova 3/.test(refusal(e).message ?? ""),
+  );
+  await assert.rejects(
+    () => h.configure(mia, { provider: "whisper" }),
+    (e) => /not known/.test(refusal(e).message ?? ""),
+  );
   const eleven = await h.configure(mia, { provider: "elevenlabs" });
-  assert.deepEqual([eleven.provider, eleven.model], ["elevenlabs", "scribe_v2_realtime"], "a provider change takes its own default model");
+  assert.deepEqual(
+    [eleven.provider, eleven.model],
+    ["elevenlabs", "scribe_v2_realtime"],
+    "a provider change takes its own default model",
+  );
   await h.configure(mia, { provider: "deepgram" });
   await h.configure(mia, { on: false });
   assert.equal(await reason(h.session(mia, {})), "off");
@@ -145,7 +209,11 @@ test("the Space keeps a key for each provider and picks which one covers people;
   const mia = w.as(person("usr_mia"));
   await spaceConnect(admin);
   assert.deepEqual((await h.spaceStatus(admin, {})).keyed, ["deepgram"]);
-  assert.equal(await reason(h.spaceConfigure(admin, { provider: "elevenlabs" })), "no_key", "a provider with no key cannot be picked");
+  assert.equal(
+    await reason(h.spaceConfigure(admin, { provider: "elevenlabs" })),
+    "no_key",
+    "a provider with no key cannot be picked",
+  );
   assert.equal(await reason(h.spaceConfigure(admin, {})), "validation.bad_input");
   assert.equal(await reason(h.spaceConfigure(admin, { provider: "nope" })), "validation.bad_input");
 
@@ -167,7 +235,11 @@ test("the Space keeps a key for each provider and picks which one covers people;
   assert.deepEqual([off.on, off.provider], [false, "deepgram"]);
 
   const gone = await h.spaceDisconnect(admin, {});
-  assert.deepEqual([gone.set, gone.provider, gone.keyed], [true, "elevenlabs", ["elevenlabs"]], "removing the picked key moves the pick to the one left");
+  assert.deepEqual(
+    [gone.set, gone.provider, gone.keyed],
+    [true, "elevenlabs", ["elevenlabs"]],
+    "removing the picked key moves the pick to the one left",
+  );
   assert.equal((await h.spaceDisconnect(admin, {})).set, false);
 });
 
@@ -188,15 +260,35 @@ test("a session asks the provider to favour Vyre, the Space, its agents and its 
   await spaceConnect(w.as(person("usr_admin")));
   const mia = w.as(person("usr_mia"));
   const url = new URL((await h.session(mia, {})).url);
-  assert.deepEqual(url.searchParams.getAll("keyterm"), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"], "someone else's private agent is not named");
+  assert.deepEqual(
+    url.searchParams.getAll("keyterm"),
+    ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"],
+    "someone else's private agent is not named",
+  );
   await h.spaceConnect(w.as(person("usr_admin")), { provider: "elevenlabs", fields: fields(), idempotencyKey: "s9" });
   const eleven = await h.session(mia, {});
-  assert.deepEqual(JSON.parse(new URL(eleven.url).searchParams.get("keyterms")!), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"]);
-  assert.equal(eleven.context, "Words that may come up: Vyre, Hart Reyes Law, Intake, Maya Chen, Dana Wine.", "the same words as a line for the first audio chunk");
+  assert.deepEqual(JSON.parse(new URL(eleven.url).searchParams.get("keyterms")!), [
+    "Vyre",
+    "Hart Reyes Law",
+    "Intake",
+    "Maya Chen",
+    "Dana Wine",
+  ]);
+  assert.equal(
+    eleven.context,
+    "Words that may come up: Vyre, Hart Reyes Law, Intake, Maya Chen, Dana Wine.",
+    "the same words as a line for the first audio chunk",
+  );
   assert.equal(new URL(url.toString()).searchParams.has("keyterm"), true);
   const quiet = world({ admins: ["usr_admin"] });
   const call = quiet.as(person("usr_admin")).call;
   await spaceConnect(quiet.as(person("usr_admin")));
-  const ctx = { ...quiet.as(person("usr_mia")), call: async (cap: string, i: unknown) => { if (cap === "spaces.get" || cap === "access.principals.list") throw new Error("no"); return call(cap, i); } };
+  const ctx = {
+    ...quiet.as(person("usr_mia")),
+    call: async (cap: string, i: unknown) => {
+      if (cap === "spaces.get" || cap === "access.principals.list") throw new Error("no");
+      return call(cap, i);
+    },
+  };
   assert.deepEqual(new URL((await h.session(ctx, {})).url).searchParams.getAll("keyterm"), ["Vyre"]);
 });

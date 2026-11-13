@@ -3,19 +3,52 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { connections, createInviteLink, directory, draftInvites, importable, importPeople, invites, memberRoleId, ownMailbox, sendDrafts, ssoProviders, ssoWorks, ssoLine, stepDoneBy, testSso } from "./suite.ts";
+import {
+  connections,
+  createInviteLink,
+  directory,
+  draftInvites,
+  importable,
+  importPeople,
+  invites,
+  memberRoleId,
+  ownMailbox,
+  sendDrafts,
+  ssoProviders,
+  ssoWorks,
+  ssoLine,
+  stepDoneBy,
+  testSso,
+} from "./suite.ts";
 import type { DirectoryPage, DirectoryPerson, ImportResult, MailSender, Probe, SendOutcome } from "./suite.ts";
 import { CARD } from "./card-style.ts";
 import { RADIUS } from "../../../../ui/src/tokens/radius.ts";
 
 const NOT_YET = "This part is not available on this server yet. You can come back to it from the checklist.";
 /** The company directory needs Google Workspace or Microsoft 365; until one is connected there is nothing to read, and that is not a fault. */
-const NO_DIRECTORY = "Your company directory is not connected yet. Connect Google Workspace or Microsoft 365 in the step before, or make invite links in the next step.";
+const NO_DIRECTORY =
+  "Your company directory is not connected yet. Connect Google Workspace or Microsoft 365 in the step before, or make invite links in the next step.";
 const FAILED = "Vyre could not read this. Check the connection, then try again.";
 
-function Buttons({ children }: { children: ReactElement | (ReactElement | null)[] }): ReactElement { return <View style={s.row}>{children}</View>; }
-function Go({ id, label, onPress, ghost }: { id: string; label: string; onPress(): void; ghost?: boolean }): ReactElement {
-  return <Pressable testID={id} accessibilityRole="button" onPress={onPress} style={ghost ? s.ghost : s.primary}><Text style={ghost ? s.ghostText : s.primaryText}>{label}</Text></Pressable>;
+function Buttons({ children }: { children: ReactElement | (ReactElement | null)[] }): ReactElement {
+  return <View style={s.row}>{children}</View>;
+}
+function Go({
+  id,
+  label,
+  onPress,
+  ghost,
+}: {
+  id: string;
+  label: string;
+  onPress(): void;
+  ghost?: boolean;
+}): ReactElement {
+  return (
+    <Pressable testID={id} accessibilityRole="button" onPress={onPress} style={ghost ? s.ghost : s.primary}>
+      <Text style={ghost ? s.ghostText : s.primaryText}>{label}</Text>
+    </Pressable>
+  );
 }
 type Gate = (save: (() => Promise<boolean>) | null) => void;
 /** In the onboarding screen the bar's Continue ticks the step done once the card says it is (the card hands it over); the card then shows no Done of its own. */
@@ -26,20 +59,54 @@ function useGate(gate: Gate | undefined, ready: boolean): void {
     return () => gate(null);
   }, [gate, ready]);
 }
-const line = (p: Probe<unknown>, ok: string): string => (p.kind === "ready" ? ok : p.kind === "not_yet" ? NOT_YET : FAILED);
+const line = (p: Probe<unknown>, ok: string): string =>
+  p.kind === "ready" ? ok : p.kind === "not_yet" ? NOT_YET : FAILED;
 
 /** Step 3: Google Workspace or Microsoft 365. Setup itself lives in the Console pages; the secure fields there send keys straight to the Vault. */
-export function WorkspaceCard({ call, onOpenConsole, onDone, gate }: { call: CapCall; onOpenConsole(): void; onDone(): void; gate?: Gate }): ReactElement {
+export function WorkspaceCard({
+  call,
+  onOpenConsole,
+  onDone,
+  gate,
+}: {
+  call: CapCall;
+  onOpenConsole(): void;
+  onDone(): void;
+  gate?: Gate;
+}): ReactElement {
   const [c, setC] = useState<Awaited<ReturnType<typeof connections>> | null>(null);
   useGate(gate, c !== null && stepDoneBy(c));
-  useEffect(() => { let off = false; void connections(call).then((r) => { if (!off) setC(r); }); return () => { off = true; }; }, [call]);
+  useEffect(() => {
+    let off = false;
+    void connections(call).then((r) => {
+      if (!off) setC(r);
+    });
+    return () => {
+      off = true;
+    };
+  }, [call]);
   const rows = c ? [c.google, c.microsoft] : [];
   return (
     <View testID="workspace-card" style={s.col}>
-      <Text style={s.line}>Connect Google Workspace or Microsoft 365 so Vyre can use your team's mail, calendar and files.</Text>
+      <Text style={s.line}>
+        Connect Google Workspace or Microsoft 365 so Vyre can use your team's mail, calendar and files.
+      </Text>
       {/* ui-rows-lint: not a list (two status lines of text, not list rows) */}
-      {c === null ? <Text style={s.dim}>Checking</Text> : rows.map((p, i) => <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>{p.kind === "ready" ? `${p.value.name}: ${p.value.note}` : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}</Text>)}
-      <Buttons><Go id="workspace-open" label="Set up Google or Microsoft" onPress={onOpenConsole} />{!gate && c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
+      {c === null ? (
+        <Text style={s.dim}>Checking</Text>
+      ) : (
+        rows.map((p, i) => (
+          <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>
+            {p.kind === "ready"
+              ? `${p.value.name}: ${p.value.note}`
+              : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}
+          </Text>
+        ))
+      )}
+      <Buttons>
+        <Go id="workspace-open" label="Set up Google or Microsoft" onPress={onOpenConsole} />
+        {!gate && c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}
+      </Buttons>
     </View>
   );
 }
@@ -47,28 +114,93 @@ export function WorkspaceCard({ call, onOpenConsole, onDone, gate }: { call: Cap
 /** The Console page that holds the Google and Microsoft sign-in forms (access.policies, the sign-in policy). */
 export const SSO_SETUP_HASH = "screen=access.policies&policyId=sign_in";
 
-export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone, gate }: { call: CapCall; onOpenConsole(): void; /** opens the Google and Microsoft sign-in forms in the Console; without it the Console opens at its start */ onSetUp?: () => void; onDone(): void; gate?: Gate }): ReactElement {
+export function SignInDomainCard({
+  call,
+  onOpenConsole,
+  onSetUp,
+  onDone,
+  gate,
+}: {
+  call: CapCall;
+  onOpenConsole(): void;
+  /** opens the Google and Microsoft sign-in forms in the Console; without it the Console opens at its start */ onSetUp?: () => void;
+  onDone(): void;
+  gate?: Gate;
+}): ReactElement {
   const [p, setP] = useState<Awaited<ReturnType<typeof ssoProviders>> | null>(null);
   const [tested, setTested] = useState<Record<string, string>>({});
-  useEffect(() => { let off = false; void ssoProviders(call).then((r) => { if (!off) setP(r); }); return () => { off = true; }; }, [call]);
+  useEffect(() => {
+    let off = false;
+    void ssoProviders(call).then((r) => {
+      if (!off) setP(r);
+    });
+    return () => {
+      off = true;
+    };
+  }, [call]);
   const list = p?.kind === "ready" ? p.value : [];
   useGate(gate, list.some(ssoWorks));
   return (
     <View testID="signin-domain-card" style={s.col}>
       <Text style={s.line}>Sign in with a work account, in the same app.</Text>
       {/* ui-rows-lint: not a list (each sign-in setup is a block with its own status and buttons, not a list row) */}
-      {p === null ? <Text style={s.dim}>Checking</Text> : p.kind !== "ready" ? <Text style={s.dim}>{line(p, "")}</Text> : list.length === 0 ? <Text testID="signin-none" style={s.dim}>Not turned on yet. Press Set up to add your Google or Microsoft app.</Text> : list.map((x) => (
-        <View key={x.key} style={s.col}>
-          <Text testID={`sso-${x.key}`} style={s.dim}>{ssoLine(x)}</Text>
-          <Buttons><Go id={`sso-test-${x.key}`} label="Test it" ghost onPress={() => void testSso(call, x.key).then((r) => setTested((t) => ({ ...t, [x.key]: r.ok ? "The test passed." : r.detail ?? "The test did not pass." })))} />{tested[x.key] ? <Text style={s.dim}>{tested[x.key]}</Text> : null}</Buttons>
-        </View>
-      ))}
-      <Buttons><Go id="signin-setup" label="Set up" onPress={onSetUp ?? onOpenConsole} /><Go id="signin-open" label="Open sign-in settings" ghost onPress={onSetUp ?? onOpenConsole} />{!gate && list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
+      {p === null ? (
+        <Text style={s.dim}>Checking</Text>
+      ) : p.kind !== "ready" ? (
+        <Text style={s.dim}>{line(p, "")}</Text>
+      ) : list.length === 0 ? (
+        <Text testID="signin-none" style={s.dim}>
+          Not turned on yet. Press Set up to add your Google or Microsoft app.
+        </Text>
+      ) : (
+        list.map((x) => (
+          <View key={x.key} style={s.col}>
+            <Text testID={`sso-${x.key}`} style={s.dim}>
+              {ssoLine(x)}
+            </Text>
+            <Buttons>
+              <Go
+                id={`sso-test-${x.key}`}
+                label="Test it"
+                ghost
+                onPress={() =>
+                  void testSso(call, x.key).then((r) =>
+                    setTested((t) => ({
+                      ...t,
+                      [x.key]: r.ok ? "The test passed." : (r.detail ?? "The test did not pass."),
+                    })),
+                  )
+                }
+              />
+              {tested[x.key] ? <Text style={s.dim}>{tested[x.key]}</Text> : null}
+            </Buttons>
+          </View>
+        ))
+      )}
+      <Buttons>
+        <Go id="signin-setup" label="Set up" onPress={onSetUp ?? onOpenConsole} />
+        <Go id="signin-open" label="Open sign-in settings" ghost onPress={onSetUp ?? onOpenConsole} />
+        {!gate && list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : null}
+      </Buttons>
     </View>
   );
 }
 
-export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: { call: CapCall; /** who is inviting, for the email */ by: string; space: string; onOpenConsole(): void; onDone(): void; gate?: Gate }): ReactElement {
+export function DirectoryCard({
+  call,
+  by,
+  space,
+  onOpenConsole,
+  onDone,
+  gate,
+}: {
+  call: CapCall;
+  /** who is inviting, for the email */ by: string;
+  space: string;
+  onOpenConsole(): void;
+  onDone(): void;
+  gate?: Gate;
+}): ReactElement {
   const attempt = useRef(0);
   const [people, setPeople] = useState<DirectoryPerson[] | null>(null);
   const [next, setNext] = useState<DirectoryPage["next"]>({});
@@ -81,21 +213,45 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
   const [error, setError] = useState("");
   const load = async (from?: DirectoryPage["next"]): Promise<void> => {
     const r = await directory(call, from);
-    if (r.kind !== "ready") { if (!from) setState(r.kind); return; }
-    setState("ready"); setNext(r.value.next);
-    setPeople((cur) => [...(from ? cur ?? [] : []), ...r.value.people]);
+    if (r.kind !== "ready") {
+      if (!from) setState(r.kind);
+      return;
+    }
+    setState("ready");
+    setNext(r.value.next);
+    setPeople((cur) => [...(from ? (cur ?? []) : []), ...r.value.people]);
   };
-  useEffect(() => { void load(); }, [call]);
+  useEffect(() => {
+    void load();
+  }, [call]);
   const shown = people ? importable(people) : [];
   const more = Boolean(next.google || next.microsoft);
-  const toggle = (email: string): void => setTicked((t) => { const n = new Set(t); if (n.has(email)) n.delete(email); else n.add(email); return n; });
+  const toggle = (email: string): void =>
+    setTicked((t) => {
+      const n = new Set(t);
+      if (n.has(email)) n.delete(email);
+      else n.add(email);
+      return n;
+    });
   const run = async (): Promise<void> => {
     if (busy || ticked.size === 0) return;
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
     try {
-      setResult(await importPeople(call, shown.filter((p) => ticked.has(p.email)), await memberRoleId(call), `onb-import-${Date.now()}-${attempt.current++}`));
+      setResult(
+        await importPeople(
+          call,
+          shown.filter((p) => ticked.has(p.email)),
+          await memberRoleId(call),
+          `onb-import-${Date.now()}-${attempt.current++}`,
+        ),
+      );
       setSender(await ownMailbox(call));
-    } catch { setError("Could not bring these people in. Try again."); } finally { setBusy(false); }
+    } catch {
+      setError("Could not bring these people in. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
   useGate(gate, result !== null);
   const names = new Map((people ?? []).filter((p) => p.name).map((p) => [p.email, p.name!] as const));
@@ -103,17 +259,39 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
   const send = async (): Promise<void> => {
     if (busy || !sender) return;
     setBusy(true);
-    try { setSent(await sendDrafts(call, sender, drafts, `onb-mail-${Date.now()}-${attempt.current++}`)); } finally { setBusy(false); }
+    try {
+      setSent(await sendDrafts(call, sender, drafts, `onb-mail-${Date.now()}-${attempt.current++}`));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <View testID="directory-card" style={s.col}>
       <Text style={s.line}>Tick the people to bring in. Nothing sends until you press send.</Text>
-      {state === "loading" ? <Text style={s.dim}>Checking</Text> : state !== "ready" ? <Text testID="directory-status" style={s.dim}>{state === "not_yet" ? NO_DIRECTORY : FAILED}</Text> : shown.length === 0 ? <Text testID="directory-status" style={s.dim}>Everyone in your directory is already here.</Text> : (
+      {state === "loading" ? (
+        <Text style={s.dim}>Checking</Text>
+      ) : state !== "ready" ? (
+        <Text testID="directory-status" style={s.dim}>
+          {state === "not_yet" ? NO_DIRECTORY : FAILED}
+        </Text>
+      ) : shown.length === 0 ? (
+        <Text testID="directory-status" style={s.dim}>
+          Everyone in your directory is already here.
+        </Text>
+      ) : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (the people to bring in are checkbox choices on a card, not list rows) */}
           {shown.map((p) => (
-            <Pressable key={p.email} testID={`dir-${p.email}`} accessibilityRole="checkbox" accessibilityState={{ checked: ticked.has(p.email) }} onPress={() => toggle(p.email)} style={[s.person, ticked.has(p.email) && s.personOn]}>
-              <Text style={s.line}>{p.name ?? p.email}</Text><Text style={s.dim}>{p.name ? p.email : p.source === "google" ? "Google" : "Microsoft"}</Text>
+            <Pressable
+              key={p.email}
+              testID={`dir-${p.email}`}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: ticked.has(p.email) }}
+              onPress={() => toggle(p.email)}
+              style={[s.person, ticked.has(p.email) && s.personOn]}
+            >
+              <Text style={s.line}>{p.name ?? p.email}</Text>
+              <Text style={s.dim}>{p.name ? p.email : p.source === "google" ? "Google" : "Microsoft"}</Text>
             </Pressable>
           ))}
           {more ? <Go id="directory-more" label="Show more people" ghost onPress={() => void load(next)} /> : null}
@@ -121,26 +299,75 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: 
       )}
       {result ? (
         <View testID="directory-result" style={s.col}>
-          <Text style={s.dim}>{`${result.invited.length} invited${result.skipped.length ? `, ${result.skipped.length} skipped` : ""}.`}</Text>
-          {sent ? <Text testID="directory-sent" style={s.dim}>{sent.map((x) => `${x.to}: ${x.status === "queued" || x.status === "sent" ? "sent" : x.status === "held" ? "held for approval" : x.status === "suppressed" ? "not sent (suppressed)" : "failed"}`).join(". ")}</Text> : drafts.length > 0 ? (
+          <Text
+            style={s.dim}
+          >{`${result.invited.length} invited${result.skipped.length ? `, ${result.skipped.length} skipped` : ""}.`}</Text>
+          {sent ? (
+            <Text testID="directory-sent" style={s.dim}>
+              {sent
+                .map(
+                  (x) =>
+                    `${x.to}: ${x.status === "queued" || x.status === "sent" ? "sent" : x.status === "held" ? "held for approval" : x.status === "suppressed" ? "not sent (suppressed)" : "failed"}`,
+                )
+                .join(". ")}
+            </Text>
+          ) : drafts.length > 0 ? (
             <View style={s.col}>
-              <Text style={s.line}>{sender ? `Email these invites from ${sender.address}. One email per person, with their link.` : "Connect your mailbox to email these invites. Until then, share each link yourself."}</Text>
+              <Text style={s.line}>
+                {sender
+                  ? `Email these invites from ${sender.address}. One email per person, with their link.`
+                  : "Connect your mailbox to email these invites. Until then, share each link yourself."}
+              </Text>
               {/* ui-rows-lint: not a list (each draft is a card with its own text, not a list row) */}
-              {drafts.map((d) => <View key={d.to} testID="invite-draft" style={s.person}><Text style={s.line}>{`To ${d.to}`}</Text><Text style={s.dim}>{d.subject}</Text></View>)}
-              {sender ? <Go id="directory-email" label={busy ? "Sending" : `Send ${drafts.length} ${drafts.length === 1 ? "email" : "emails"}`} onPress={() => void send()} /> : null}
+              {drafts.map((d) => (
+                <View key={d.to} testID="invite-draft" style={s.person}>
+                  <Text style={s.line}>{`To ${d.to}`}</Text>
+                  <Text style={s.dim}>{d.subject}</Text>
+                </View>
+              ))}
+              {sender ? (
+                <Go
+                  id="directory-email"
+                  label={busy ? "Sending" : `Send ${drafts.length} ${drafts.length === 1 ? "email" : "emails"}`}
+                  onPress={() => void send()}
+                />
+              ) : null}
             </View>
           ) : null}
           <Text style={s.dim}>The links, if you would rather share them yourself:</Text>
           {/* ui-rows-lint: not a list (the links are plain lines of text to copy, not list rows) */}
-          {result.invited.map((i) => <CopyRow key={i.inviteId} label={i.email} value={i.link} />)}
+          {result.invited.map((i) => (
+            <CopyRow key={i.inviteId} label={i.email} value={i.link} />
+          ))}
           {/* ui-rows-lint: not a list (the skipped people are plain lines of text, not list rows) */}
-          {result.skipped.map((x) => <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>)}
+          {result.skipped.map((x) => (
+            <Text key={x.email} style={s.dim}>{`${x.email}: ${x.reason}`}</Text>
+          ))}
         </View>
       ) : null}
-      {error ? <Text testID="directory-error" style={s.err}>{error}</Text> : null}
+      {error ? (
+        <Text testID="directory-error" style={s.err}>
+          {error}
+        </Text>
+      ) : null}
       <Buttons>
-        {shown.length > 0 && !result ? <Go id="directory-import" label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`} onPress={() => void run()} /> : null}
-        {state === "failed" ? <Go id="directory-retry" label="Try again" onPress={() => { setState("loading"); void load(); }} /> : null}
+        {shown.length > 0 && !result ? (
+          <Go
+            id="directory-import"
+            label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`}
+            onPress={() => void run()}
+          />
+        ) : null}
+        {state === "failed" ? (
+          <Go
+            id="directory-retry"
+            label="Try again"
+            onPress={() => {
+              setState("loading");
+              void load();
+            }}
+          />
+        ) : null}
         <Go id="directory-open" label="Manage people" ghost onPress={onOpenConsole} />
         {gate ? null : <Go id="directory-done" label="Done" ghost onPress={onDone} />}
       </Buttons>
@@ -155,20 +382,59 @@ export function InvitesCard({ call, onDone, gate }: { call: CapCall; onDone(): v
   const [email, setEmail] = useState("");
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState("");
-  useEffect(() => { let off = false; void invites(call).then((r) => { if (!off) setList(r); }); return () => { off = true; }; }, [call]);
+  useEffect(() => {
+    let off = false;
+    void invites(call).then((r) => {
+      if (!off) setList(r);
+    });
+    return () => {
+      off = true;
+    };
+  }, [call]);
   useGate(gate, link !== null || (list?.kind === "ready" && (list.value ?? []).some((i) => i.state === "open")));
   const make = async (): Promise<void> => {
     setError("");
-    try { setLink(await createInviteLink(call, "Member", email.trim() || undefined, `onb-invite-${Date.now()}-${attempt.current++}`)); } catch { setError("Could not make an invite. Try again."); }
+    try {
+      setLink(
+        await createInviteLink(
+          call,
+          "Member",
+          email.trim() || undefined,
+          `onb-invite-${Date.now()}-${attempt.current++}`,
+        ),
+      );
+    } catch {
+      setError("Could not make an invite. Try again.");
+    }
   };
   return (
     <View testID="invites-card" style={s.col}>
       <Text style={s.line}>Make an invite for each person. Nothing is sent until you share it or approve it.</Text>
-      {list?.kind === "ready" ? <Text testID="invites-count" style={s.dim}>{`${list.value.filter((i) => i.state === "open").length} open invites.`}</Text> : null}
-      <TextInput testID="invite-email" accessibilityLabel="Email" value={email} onChangeText={setEmail} placeholder="Their email, if you know it" autoCapitalize="none" style={s.input} />
+      {list?.kind === "ready" ? (
+        <Text
+          testID="invites-count"
+          style={s.dim}
+        >{`${list.value.filter((i) => i.state === "open").length} open invites.`}</Text>
+      ) : null}
+      <TextInput
+        testID="invite-email"
+        accessibilityLabel="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Their email, if you know it"
+        autoCapitalize="none"
+        style={s.input}
+      />
       {link ? <CopyRow label="Link, works once" value={link} testID="invite-link" /> : null}
-      {error ? <Text testID="invite-error" style={s.err}>{error}</Text> : null}
-      <Buttons><Go id="invite-make" label={link ? "Make another" : "Make an invite link"} onPress={() => void make()} />{gate ? null : <Go id="invites-done" label="Done" ghost onPress={onDone} />}</Buttons>
+      {error ? (
+        <Text testID="invite-error" style={s.err}>
+          {error}
+        </Text>
+      ) : null}
+      <Buttons>
+        <Go id="invite-make" label={link ? "Make another" : "Make an invite link"} onPress={() => void make()} />
+        {gate ? null : <Go id="invites-done" label="Done" ghost onPress={onDone} />}
+      </Buttons>
     </View>
   );
 }
@@ -179,7 +445,15 @@ const s = StyleSheet.create({
   line: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   err: CARD.err,
-  link: { fontSize: 13, color: "var(--ink)" as string, padding: 10, borderRadius: RADIUS, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  link: {
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    padding: 10,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--win)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   person: { padding: 10, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, gap: 2 },
   personOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   input: CARD.input,

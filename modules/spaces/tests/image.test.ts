@@ -10,9 +10,15 @@ import { IMAGE_MAX_BYTES } from "../handlers/extra/core.ts";
 import type { ExtraCtx } from "../handlers/extra/core.ts";
 
 type Fn = (ctx: ExtraCtx, input: never) => Promise<unknown>;
-const call = (name: string, ctx: ExtraCtx, input: unknown): Promise<any> => (extraHandlers as unknown as Record<string, Fn>)[name]!(ctx, input as never);   // eslint-disable-line @typescript-eslint/no-explicit-any
+const call = (name: string, ctx: ExtraCtx, input: unknown): Promise<any> =>
+  (extraHandlers as unknown as Record<string, Fn>)[name]!(ctx, input as never); // eslint-disable-line @typescript-eslint/no-explicit-any
 const failed = async (p: Promise<unknown>): Promise<VyreErr> => {
-  try { await p; } catch (e) { assert.ok(e instanceof VyreErr, "a typed error"); return e; }
+  try {
+    await p;
+  } catch (e) {
+    assert.ok(e instanceof VyreErr, "a typed error");
+    return e;
+  }
   throw new Error("expected the call to fail");
 };
 function ready(files: Record<string, FakeFile> = {}) {
@@ -27,9 +33,20 @@ test("a picture saved as the Space image is read as the caller, kept, and handed
   assert.deepEqual(await call("spaces.image", w.ctx, {}), {}, "no image yet: the letter shows");
   const out = await call("spaces.update", w.ctx, { logoFileId: "fil_logo" });
   assert.equal(out.space.logoFileId, "fil_logo");
-  assert.deepEqual(w.calls.map((c) => [c.cap, c.input]), [["files.read", { fileId: "fil_logo", as: "base64" }]], "read through Files, as the caller");
-  assert.deepEqual(await call("spaces.image", w.ctx, {}), { logoFileId: "fil_logo", image: `data:image/png;base64,${PIXEL_PNG}` });
-  assert.deepEqual(await call("spaces.image", w.ctx, { known: "fil_logo" }), { logoFileId: "fil_logo" }, "a face that already shows it gets no bytes");
+  assert.deepEqual(
+    w.calls.map((c) => [c.cap, c.input]),
+    [["files.read", { fileId: "fil_logo", as: "base64" }]],
+    "read through Files, as the caller",
+  );
+  assert.deepEqual(await call("spaces.image", w.ctx, {}), {
+    logoFileId: "fil_logo",
+    image: `data:image/png;base64,${PIXEL_PNG}`,
+  });
+  assert.deepEqual(
+    await call("spaces.image", w.ctx, { known: "fil_logo" }),
+    { logoFileId: "fil_logo" },
+    "a face that already shows it gets no bytes",
+  );
   assert.deepEqual((w.events.at(-1)!.payload as { fields: string[] }).fields, ["logoFileId"]);
 });
 
@@ -43,18 +60,33 @@ test("anyone may ask for it: the sign-in and join pages show it before sign-in",
 test("a file that is not a picture the Space can use is refused before anything is written", async () => {
   const big = "A".repeat(Math.ceil(((IMAGE_MAX_BYTES + 10) * 4) / 3));
   const w = ready({
-    fil_svg: { mime: "image/svg+xml", base64: "PHN2Zy8+" }, fil_pdf: { mime: "application/pdf", base64: "JVBERi0=" }, fil_big: { mime: "image/png", base64: big },
-    fil_cut: { mime: "image/png", base64: PIXEL_PNG, truncated: true }, fil_gone: { refuse: "validation.not_found" }, fil_huge: { refuse: "validation.too_large" },
+    fil_svg: { mime: "image/svg+xml", base64: "PHN2Zy8+" },
+    fil_pdf: { mime: "application/pdf", base64: "JVBERi0=" },
+    fil_big: { mime: "image/png", base64: big },
+    fil_cut: { mime: "image/png", base64: PIXEL_PNG, truncated: true },
+    fil_gone: { refuse: "validation.not_found" },
+    fil_huge: { refuse: "validation.too_large" },
   });
   await call("spaces.update", w.ctx, { logoFileId: "fil_ok" });
   w.events.length = 0;
-  for (const [id, line] of [["fil_svg", /PNG, JPEG, WebP or GIF/], ["fil_pdf", /PNG, JPEG, WebP or GIF/], ["fil_big", /under 256 KB/], ["fil_cut", /under 256 KB/], ["fil_gone", /cannot be read/], ["fil_huge", /under 256 KB/]] as const) {
+  for (const [id, line] of [
+    ["fil_svg", /PNG, JPEG, WebP or GIF/],
+    ["fil_pdf", /PNG, JPEG, WebP or GIF/],
+    ["fil_big", /under 256 KB/],
+    ["fil_cut", /under 256 KB/],
+    ["fil_gone", /cannot be read/],
+    ["fil_huge", /under 256 KB/],
+  ] as const) {
     const e = await failed(call("spaces.update", w.ctx, { name: "Renamed", logoFileId: id }));
     assert.equal(e.error.code, "validation.bad_input", id);
     assert.match(e.error.message, line, id);
   }
   const space = (await call("spaces.get", w.ctx, {})).space;
-  assert.deepEqual([space.name, space.logoFileId], ["Northwind", "fil_ok"], "nothing was written, not even the name sent with it");
+  assert.deepEqual(
+    [space.name, space.logoFileId],
+    ["Northwind", "fil_ok"],
+    "nothing was written, not even the name sent with it",
+  );
   assert.equal((await call("spaces.image", w.ctx, {})).logoFileId, "fil_ok");
   assert.deepEqual(w.events, []);
 });
@@ -66,7 +98,11 @@ test("removing the image takes the copy too; a profile save that repeats the log
   await call("spaces.update", w.ctx, { name: "Northwind Law", logoFileId: "fil_logo" });
   assert.deepEqual(w.calls, [], "the same file is not read again");
   await call("spaces.update", w.ctx, { name: "Northwind Law" });
-  assert.equal((await call("spaces.image", w.ctx, {})).logoFileId, "fil_logo", "a save without logoFileId leaves the image");
+  assert.equal(
+    (await call("spaces.image", w.ctx, {})).logoFileId,
+    "fil_logo",
+    "a save without logoFileId leaves the image",
+  );
   await call("spaces.update", w.ctx, { logoFileId: null });
   assert.deepEqual(await call("spaces.image", w.ctx, {}), {});
 });

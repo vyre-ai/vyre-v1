@@ -32,11 +32,25 @@ test("sign-in registers the device through devices.register, mints the token for
   const h = harness();
   await maya(h);
   const a = await handlers["identity.sign_in"](h.anon, { username: "maya", password: SECRET, ...DEVICE });
-  const b = await handlers["identity.sign_in"](h.anon, { username: "maya", password: SECRET, deviceName: "Phone", deviceClass: "phone" });
-  assert.deepEqual(h.registered.map((r) => [r.person, r.name, r.class]), [["usr_maya", "Maya's Mac", "desktop"], ["usr_maya", "Phone", "phone"]]);
+  const b = await handlers["identity.sign_in"](h.anon, {
+    username: "maya",
+    password: SECRET,
+    deviceName: "Phone",
+    deviceClass: "phone",
+  });
+  assert.deepEqual(
+    h.registered.map((r) => [r.person, r.name, r.class]),
+    [
+      ["usr_maya", "Maya's Mac", "desktop"],
+      ["usr_maya", "Phone", "phone"],
+    ],
+  );
   assert.match(a.session!.sessionId, /^ses_w/, "the session is the devices session");
   assert.notEqual(a.session!.sessionId, b.session!.sessionId);
-  await handlers["identity.sign_out"](h.as("usr_maya", { id: a.session!.sessionId, deviceId: a.session!.deviceId }), {});
+  await handlers["identity.sign_out"](
+    h.as("usr_maya", { id: a.session!.sessionId, deviceId: a.session!.deviceId }),
+    {},
+  );
   assert.deepEqual(h.ended, [a.session!.sessionId], "the gateway session of this device only");
 });
 
@@ -52,7 +66,10 @@ test("without the host's session seam, sign-in refuses and signs nobody in (fail
   const h = harness();
   await maya(h);
   configureSessionTokens(null);
-  await assert.rejects(handlers["identity.sign_in"](h.anon, { username: "maya", password: SECRET, ...DEVICE }), (e) => codeOf(e) === "internal.unavailable");
+  await assert.rejects(
+    handlers["identity.sign_in"](h.anon, { username: "maya", password: SECRET, ...DEVICE }),
+    (e) => codeOf(e) === "internal.unavailable",
+  );
   assert.deepEqual(h.registered, []);
   assert.equal((h.db.all(`SELECT id FROM identity_sessions`) as unknown[]).length, 0);
 });
@@ -60,21 +77,47 @@ test("without the host's session seam, sign-in refuses and signs nobody in (fail
 // ---- booted
 
 const whoCap = {
-  name: "example.whoami", v: 1, permission: null, level: "view", resource: { type: "space" }, idempotency: "natural", effects: "read", risk: "low", emits: [],
-  examples: [], surfaces: {}, input: {}, output: {}, errors: [], summary: "Who the gateway says is calling",
+  name: "example.whoami",
+  v: 1,
+  permission: null,
+  level: "view",
+  resource: { type: "space" },
+  idempotency: "natural",
+  effects: "read",
+  risk: "low",
+  emits: [],
+  examples: [],
+  surfaces: {},
+  input: {},
+  output: {},
+  errors: [],
+  summary: "Who the gateway says is calling",
 } as unknown as CapabilityDef;
 const whoRoute = { method: "POST", path: "/v1/example/whoami", cap: "example.whoami", v: 1, effects: "read" as const };
-const whoHandler = (ctx: { device?: string; principal: { id: string } }): unknown => ({ device: ctx.device ?? null, person: ctx.principal.id });
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const whoHandler = (ctx: { device?: string; principal: { id: string } }): unknown => ({
+  device: ctx.device ?? null,
+  person: ctx.principal.id,
+});
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 /** A code root that is this repo with the identity and devices modules live (the flip itself waits for P-CI_02, ruling 25). */
 function codeRootWithLive(ids: string[]): string {
   const repo = fileURLToPath(new URL("../../..", import.meta.url));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-coderoot-"));
-  for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
+  for (const name of fs.readdirSync(repo))
+    if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
   fs.mkdirSync(path.join(root, "host"));
-  for (const name of fs.readdirSync(path.join(repo, "host"))) if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
-  const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  for (const name of fs.readdirSync(path.join(repo, "host")))
+    if (name !== "modules.json") fs.symlinkSync(path.join(repo, "host", name), path.join(root, "host", name));
+  const list = JSON.parse(fs.readFileSync(path.join(repo, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   for (const id of ids) {
     const m = list.modules.find((x) => x.id === id);
     assert.ok(m, `host/modules.json lists ${id}`);
@@ -84,10 +127,16 @@ function codeRootWithLive(ids: string[]): string {
   return root;
 }
 
-const post = (d: Daemon, p: string, token: string | null, body: unknown) => fetch(`${d.url}${p}`, {
-  method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
-});
-const who = async (d: Daemon, token: string | null): Promise<{ status: number; person?: string; device?: string | null }> => {
+const post = (d: Daemon, p: string, token: string | null, body: unknown) =>
+  fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+const who = async (
+  d: Daemon,
+  token: string | null,
+): Promise<{ status: number; person?: string; device?: string | null }> => {
   const r = await post(d, "/v1/example/whoami", token, {});
   if (r.status !== 200) return { status: r.status };
   const data = ((await r.json()) as { data: { person: string; device: string | null } }).data;
@@ -104,7 +153,9 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: codeRootWithLive(["identity", "devices"]),
     platform: fakePlatform({
-      os: "linux", hostname: "session-issue", free: 80e9,
+      os: "linux",
+      hostname: "session-issue",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -112,26 +163,53 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
       },
     }),
     fetch: caddyFetch,
-    extra: { caps: [whoCap], routes: [whoRoute], handlers: { "example.whoami": whoHandler as never, "sync.epoch.bump": (() => ({ epoch: 1 })) as never } },
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, tick: 3_600_000, hooks: 3_600_000 },
+    extra: {
+      caps: [whoCap],
+      routes: [whoRoute],
+      handlers: { "example.whoami": whoHandler as never, "sync.epoch.bump": (() => ({ epoch: 1 })) as never },
+    },
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      tick: 3_600_000,
+      hooks: 3_600_000,
+    },
   });
   try {
     // no configureSessionTokens here: the daemon wires identity's setSessionTokens seam at boot, and that is what this proves
     // the joined member: an account row, as the invite accept leaves it
-    const ctx = { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx;
+    const ctx = {
+      space: "spc_core",
+      trace: { traceId: "t".repeat(32) },
+      now: () => Date.now(),
+      db: d.db,
+      emit: () => undefined,
+    } as unknown as IdentityCtx;
     await provisionAccount(ctx, { personId: "usr_noah", username: "joined", name: "Joined Member", secret: SECRET });
     assert.ok(await makeVerifier(SECRET));
 
     const signIn = async (deviceName: string, deviceClass: string) => {
-      const r = await post(d, "/v1/identity/sign_in", null, { username: "joined", password: SECRET, deviceName, deviceClass });
+      const r = await post(d, "/v1/identity/sign_in", null, {
+        username: "joined",
+        password: SECRET,
+        deviceName,
+        deviceClass,
+      });
       assert.equal(r.status, 200, JSON.stringify(await r.clone().json()).slice(0, 300));
-      return ((await r.json()) as { data: { session: { sessionId: string; deviceId: string; token: string } } }).data.session;
+      return ((await r.json()) as { data: { session: { sessionId: string; deviceId: string; token: string } } }).data
+        .session;
     };
     const mac = await signIn("Mac", "desktop");
     const phone = await signIn("Phone", "phone");
     assert.notEqual(mac.deviceId, phone.deviceId);
 
-    assert.deepEqual(await who(d, mac.token), { status: 200, person: "usr_noah", device: mac.deviceId }, "the new member's token works at the gateway");
+    assert.deepEqual(
+      await who(d, mac.token),
+      { status: 200, person: "usr_noah", device: mac.deviceId },
+      "the new member's token works at the gateway",
+    );
     assert.deepEqual(await who(d, phone.token), { status: 200, person: "usr_noah", device: phone.deviceId });
     assert.equal((await who(d, null)).status, 401);
     assert.equal((await who(d, "vst_" + "0".repeat(64))).status, 401, "an unknown token is refused");
@@ -152,6 +230,18 @@ test("booted: a person who has just joined signs in on two devices, both tokens 
 
     // a server with no session seam signs nobody in
     configureSessionTokens(null);
-    assert.equal((await post(d, "/v1/identity/sign_in", null, { username: "joined", password: SECRET, deviceName: "X", deviceClass: "web" })).status, 503);
-  } finally { await d.stop(); }
+    assert.equal(
+      (
+        await post(d, "/v1/identity/sign_in", null, {
+          username: "joined",
+          password: SECRET,
+          deviceName: "X",
+          deviceClass: "web",
+        })
+      ).status,
+      503,
+    );
+  } finally {
+    await d.stop();
+  }
 });

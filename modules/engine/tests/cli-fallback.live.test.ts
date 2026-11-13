@@ -22,8 +22,22 @@ const CLAUDE_KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-
 const TRACE = "a".repeat(32);
 const AGENT: EngineAgent = { id: "intake", mode: "lead", model: "gpt-5" };
 
-const CODEX: ResolvedAccount = { ref: "#Dana_Codex", driver: "codex", provider: "openai", kind: "subscription", payer: "dana", reason: "starter" };
-const CLAUDE: ResolvedAccount = { ref: "#Dana_Claude", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "dana", reason: "starter" };
+const CODEX: ResolvedAccount = {
+  ref: "#Dana_Codex",
+  driver: "codex",
+  provider: "openai",
+  kind: "subscription",
+  payer: "dana",
+  reason: "starter",
+};
+const CLAUDE: ResolvedAccount = {
+  ref: "#Dana_Claude",
+  driver: "claude_code",
+  provider: "anthropic",
+  kind: "subscription",
+  payer: "dana",
+  reason: "starter",
+};
 
 /** A home like the owner's Mac: Claude Code in ~/.local/bin, no Codex anywhere. */
 function home(programs: string[]): { probe: NodeCliProbe; dir: string } {
@@ -35,9 +49,17 @@ function home(programs: string[]): { probe: NodeCliProbe; dir: string } {
 }
 
 /** engine.account.resolve as the policy answers it: the person's accounts in the order they are tried, minus the ones named in `unavailable`. */
-const resolver = (order: ResolvedAccount[]) => async (q: AccountQuery): Promise<ResolvedAccount | null> => order.find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null;
+const resolver =
+  (order: ResolvedAccount[]) =>
+  async (q: AccountQuery): Promise<ResolvedAccount | null> =>
+    order.find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null;
 
-function rig(o: { programs: string[]; order: ResolvedAccount[]; accountsList?: string[]; engines?: (probe: NodeCliProbe) => { engines: EngineSetup; probe: NodeCliProbe } }) {
+function rig(o: {
+  programs: string[];
+  order: ResolvedAccount[];
+  accountsList?: string[];
+  engines?: (probe: NodeCliProbe) => { engines: EngineSetup; probe: NodeCliProbe };
+}) {
   const base = home(o.programs);
   const withEngines = o.engines?.(base.probe);
   const h = { ...base, probe: withEngines?.probe ?? base.probe };
@@ -45,23 +67,70 @@ function rig(o: { programs: string[]; order: ResolvedAccount[]; accountsList?: s
   const started: string[][] = [];
   const looked: string[] = [];
   const posted: Array<{ threadId: string; blocks: unknown[] }> = [];
-  const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, value: v, spaceOnly: false, injectIntoDeployments: false });
-  const source: ValueSource = { lookup: async (hd) => { looked.push(hd); return hd === "#Dana_Claude.setup_token" ? value(CLAUDE_KEY, "vit_claude") : { kind: "unknown" }; } };
-  const session = { source, reportMiss: () => undefined, mcp: { mint: async () => ({ sessionId: "ses_1", sessionToken: "vys_token_1_0123456789abcdef0123456789", url: "http://127.0.0.1:41800/mcp", expiresAt: 9_999_999_999_999 }), close: async () => undefined } };
-  const local = createLocalLauncher({ wrap: (argv) => [process.execPath, FAKE_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  const value = (v: string, itemId: string): Lookup => ({
+    kind: "value",
+    itemId,
+    value: v,
+    spaceOnly: false,
+    injectIntoDeployments: false,
+  });
+  const source: ValueSource = {
+    lookup: async (hd) => {
+      looked.push(hd);
+      return hd === "#Dana_Claude.setup_token" ? value(CLAUDE_KEY, "vit_claude") : { kind: "unknown" };
+    },
+  };
+  const session = {
+    source,
+    reportMiss: () => undefined,
+    mcp: {
+      mint: async () => ({
+        sessionId: "ses_1",
+        sessionToken: "vys_token_1_0123456789abcdef0123456789",
+        url: "http://127.0.0.1:41800/mcp",
+        expiresAt: 9_999_999_999_999,
+      }),
+      close: async () => undefined,
+    },
+  };
+  const local = createLocalLauncher({
+    wrap: (argv) => [process.execPath, FAKE_CLI, ...argv],
+    baseEnv: { PATH: process.env["PATH"] ?? "" },
+  });
   // the same check the Space's own launcher makes (session.ts buildOpener), then the fake CLI in place of the program
-  const launcher = { async spawn(spec: Parameters<typeof local.spawn>[0]) { refuseMissingProgram(spec.argv[0] ?? "", h.probe); started.push([...spec.argv]); return local.spawn(spec); } };
+  const launcher = {
+    async spawn(spec: Parameters<typeof local.spawn>[0]) {
+      refuseMissingProgram(spec.argv[0] ?? "", h.probe);
+      started.push([...spec.argv]);
+      return local.spawn(spec);
+    },
+  };
   const opener = buildNodeOpener({ session, call: async () => ({}) }, launcher);
   const resolveAccount = createRunnableAccount({
-    call: async (cap) => (cap === "engine.accounts.list" ? { accounts: (o.accountsList ?? o.order.map((a) => a.ref)).map((ref) => ({ ref })) } : { placement: "host", reason: "default" }),
-    resolve: resolver(o.order), probe: h.probe, ...(withEngines ? { engines: withEngines.engines } : {}),
-    postAs: async (_agent, post) => { posted.push({ threadId: (post as { threadId: string }).threadId, blocks: (post as { blocks: unknown[] }).blocks }); return undefined as never; },
+    call: async (cap) =>
+      cap === "engine.accounts.list"
+        ? { accounts: (o.accountsList ?? o.order.map((a) => a.ref)).map((ref) => ({ ref })) }
+        : { placement: "host", reason: "default" },
+    resolve: resolver(o.order),
+    probe: h.probe,
+    ...(withEngines ? { engines: withEngines.engines } : {}),
+    postAs: async (_agent, post) => {
+      posted.push({
+        threadId: (post as { threadId: string }).threadId,
+        blocks: (post as { blocks: unknown[] }).blocks,
+      });
+      return undefined as never;
+    },
   });
   let n = 0;
   const engine = createTurnEngine({
     holder: "host:s",
     resolveAccount,
-    openSession: checkedOpen((spec: SessionSpec) => opener.openSession({ ...spec, turnId: spec.turnId || `turn_${++n}`, traceId: TRACE } as SessionSpec), { probe: h.probe, ...(withEngines ? { engines: withEngines.engines } : {}), live: (e) => live.push(e as never) }),
+    openSession: checkedOpen(
+      (spec: SessionSpec) =>
+        opener.openSession({ ...spec, turnId: spec.turnId || `turn_${++n}`, traceId: TRACE } as SessionSpec),
+      { probe: h.probe, ...(withEngines ? { engines: withEngines.engines } : {}), live: (e) => live.push(e as never) },
+    ),
   });
   engine.openThread({ id: "T1", kind: "chat", starter: "dana", agents: [AGENT] });
   return { engine, started, looked, posted, opener, live };
@@ -74,16 +143,46 @@ test("the Codex account cannot run here, so the turn is answered by Claude and t
     await r.engine.idle("T1");
     const turn = r.engine.turns("T1").at(-1);
     assert.equal(turn?.state, "completed", JSON.stringify(r.engine.events().filter((e) => e.type === "turn.failed")));
-    assert.ok((r.engine.messages("T1").filter((m) => m.author.kind === "agent").at(-1)?.body ?? "").includes("Hello from the fake engine."), "Claude's engine answered");
-    assert.deepEqual(r.started.map((a) => path.basename(a[0] ?? "")), ["claude"], "no codex process was started");
-    assert.deepEqual(r.looked.filter((h) => h.includes("Codex")), [], "the Codex account's key was never read from the Vault");
-    assert.deepEqual(r.posted.map((p) => p.blocks), [[{ type: "turn_status", v: 1, data: { state: "note", text: "Codex is not installed here, so Claude answered." } }]], "one line in the chat");
+    assert.ok(
+      (
+        r.engine
+          .messages("T1")
+          .filter((m) => m.author.kind === "agent")
+          .at(-1)?.body ?? ""
+      ).includes("Hello from the fake engine."),
+      "Claude's engine answered",
+    );
+    assert.deepEqual(
+      r.started.map((a) => path.basename(a[0] ?? "")),
+      ["claude"],
+      "no codex process was started",
+    );
+    assert.deepEqual(
+      r.looked.filter((h) => h.includes("Codex")),
+      [],
+      "the Codex account's key was never read from the Vault",
+    );
+    assert.deepEqual(
+      r.posted.map((p) => p.blocks),
+      [
+        [
+          {
+            type: "turn_status",
+            v: 1,
+            data: { state: "note", text: "Codex is not installed here, so Claude answered." },
+          },
+        ],
+      ],
+      "one line in the chat",
+    );
 
     r.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "again" });
     await r.engine.idle("T1");
     assert.equal(r.engine.turns("T1").at(-1)?.state, "completed");
     assert.equal(r.posted.length, 1, "the same change is not announced on every message");
-  } finally { await r.opener.close(); }
+  } finally {
+    await r.opener.close();
+  }
 });
 
 test("with nothing installed the turn fails with engine.cli_missing naming the program, and no engine and no key are touched", async () => {
@@ -91,31 +190,39 @@ test("with nothing installed the turn fails with engine.cli_missing naming the p
   try {
     r.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "hello" });
     await r.engine.idle("T1");
-    const failed = r.engine.events().filter((e) => e.type === "turn.failed").at(-1) as { code?: string; message?: string } | undefined;
+    const failed = r.engine
+      .events()
+      .filter((e) => e.type === "turn.failed")
+      .at(-1) as { code?: string; message?: string } | undefined;
     assert.equal(failed?.code, "engine.cli_missing");
     assert.match(failed?.message ?? "", /^codex is not installed/);
     assert.deepEqual(r.started, []);
     assert.deepEqual(r.looked, [], "the Vault was not asked for a key");
     assert.equal(r.posted.length, 0, "nobody answered, so there is no change to announce");
-  } finally { await r.opener.close(); }
+  } finally {
+    await r.opener.close();
+  }
 });
 
 /** Vyre's installer over a real engines folder; the "download" writes a program there after a moment (or fails offline). */
-const installing = (fail = false) => (probe: NodeCliProbe) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engines-"));
-  const engines = createEngineInstaller({
-    root, platform: "darwin-arm64",
-    install: async (program, o) => {
-      await new Promise((r) => setTimeout(r, 30));
-      if (fail) throw new EngineInstallError("offline", "the vendor could not be reached");
-      const at = path.join(o.root, program, "2.1.316", program);
-      fs.mkdirSync(path.dirname(at), { recursive: true });
-      fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 });
-      return at;
-    },
-  });
-  return { engines, probe: { ...probe, enginesRoot: root } };
-};
+const installing =
+  (fail = false) =>
+  (probe: NodeCliProbe) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engines-"));
+    const engines = createEngineInstaller({
+      root,
+      platform: "darwin-arm64",
+      install: async (program, o) => {
+        await new Promise((r) => setTimeout(r, 30));
+        if (fail) throw new EngineInstallError("offline", "the vendor could not be reached");
+        const at = path.join(o.root, program, "2.1.316", program);
+        fs.mkdirSync(path.dirname(at), { recursive: true });
+        fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 });
+        return at;
+      },
+    });
+    return { engines, probe: { ...probe, enginesRoot: root } };
+  };
 
 test("Claude Code is not installed: the turn waits while Vyre sets it up, says so on its live line, and Claude answers on the account the person chose, with no fallback", async () => {
   // Codex is here and could have answered; the chosen account is Claude
@@ -125,14 +232,27 @@ test("Claude Code is not installed: the turn waits while Vyre sets it up, says s
     await r.engine.idle("T1");
     const turn = r.engine.turns("T1").at(-1);
     assert.equal(turn?.state, "completed", JSON.stringify(r.engine.events().filter((e) => e.type === "turn.failed")));
-    assert.ok((r.engine.messages("T1").filter((m) => m.author.kind === "agent").at(-1)?.body ?? "").includes("Hello from the fake engine."));
-    assert.deepEqual(r.started.map((a) => path.basename(a[0] ?? "")), ["claude"], "Claude Code ran; no codex process started");
+    assert.ok(
+      (
+        r.engine
+          .messages("T1")
+          .filter((m) => m.author.kind === "agent")
+          .at(-1)?.body ?? ""
+      ).includes("Hello from the fake engine."),
+    );
+    assert.deepEqual(
+      r.started.map((a) => path.basename(a[0] ?? "")),
+      ["claude"],
+      "Claude Code ran; no codex process started",
+    );
     assert.deepEqual(r.posted, [], "no fallback line: the chosen account answered");
     assert.deepEqual([r.live[0]?.["phase"], r.live[0]?.["name"]], ["call", "engine_setup"]);
     assert.equal(r.live.find((e) => e["phase"] === "input")?.["detail"], "Claude", "read as Setting up Claude");
     assert.deepEqual([r.live.at(-1)?.["phase"], r.live.at(-1)?.["ok"]], ["result", true]);
     assert.equal(r.live[0]?.["turnId"], turn?.id, "on this turn's own live line");
-  } finally { await r.opener.close(); }
+  } finally {
+    await r.opener.close();
+  }
 });
 
 test("the install fails (offline) and nothing else can answer: the turn fails naming the program and why, before any engine starts or any key is read", async () => {
@@ -140,17 +260,28 @@ test("the install fails (offline) and nothing else can answer: the turn fails na
   try {
     r.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "hello" });
     await r.engine.idle("T1");
-    const failed = r.engine.events().filter((e) => e.type === "turn.failed").at(-1) as { code?: string; message?: string } | undefined;
+    const failed = r.engine
+      .events()
+      .filter((e) => e.type === "turn.failed")
+      .at(-1) as { code?: string; message?: string } | undefined;
     assert.equal(failed?.code, "engine.cli_missing");
     assert.equal(failed?.message, "claude is not installed on this computer (offline).");
     assert.deepEqual(r.started, []);
     assert.deepEqual(r.looked, []);
-  } finally { await r.opener.close(); }
+  } finally {
+    await r.opener.close();
+  }
 });
 
 test("a spawn without the program is a precise LaunchError, never the sandbox's execvp failure", () => {
   const h = home(["claude"]);
-  assert.throws(() => refuseMissingProgram("codex", h.probe), (e: unknown) => e instanceof LaunchError && e.code === "engine.cli_missing" && e.message === "codex is not installed on this computer.");
+  assert.throws(
+    () => refuseMissingProgram("codex", h.probe),
+    (e: unknown) =>
+      e instanceof LaunchError &&
+      e.code === "engine.cli_missing" &&
+      e.message === "codex is not installed on this computer.",
+  );
   assert.doesNotThrow(() => refuseMissingProgram("claude", h.probe), "found in ~/.local/bin");
   assert.doesNotThrow(() => refuseMissingProgram("node", h.probe), "only the CLI engines are checked");
 });

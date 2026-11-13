@@ -1,6 +1,23 @@
 // relay/client: the device side of the relay and of pairing, as plain ES modules with no npm dependency.
 // The web app, the desktop shell, the installer and the tests all import these same files; index.d.ts types them.
-export { pair, pairOffer, pairTicket, resolveTicket, parsePairUrl, keyFingerprint, sameRelay, connect, Connection, openChannel, request, RelaySocket, deviceKey, defaultVisibility, PAIR_BASE, REMOVED } from "./client.js";
+export {
+  pair,
+  pairOffer,
+  pairTicket,
+  resolveTicket,
+  parsePairUrl,
+  keyFingerprint,
+  sameRelay,
+  connect,
+  Connection,
+  openChannel,
+  request,
+  RelaySocket,
+  deviceKey,
+  defaultVisibility,
+  PAIR_BASE,
+  REMOVED,
+} from "./client.js";
 export { createPaths } from "./paths.js";
 export { webCrypto, createDeviceKey, memoryKeyStore, indexedDbKeyStore } from "./webcrypto.js";
 export { nobleCrypto } from "./noble.js";

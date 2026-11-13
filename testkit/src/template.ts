@@ -20,7 +20,7 @@ export async function templateFor(space: string): Promise<string> {
     store.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     store.close();
     fs.mkdirSync(dir, { recursive: true });
-    fs.copyFileSync(path.join(tmp, "events.db"), `${file}.${process.pid}.part`);   // closed cleanly, so the db file is whole; rename is atomic: two test files racing never see a half copy
+    fs.copyFileSync(path.join(tmp, "events.db"), `${file}.${process.pid}.part`); // closed cleanly, so the db file is whole; rename is atomic: two test files racing never see a half copy
     fs.renameSync(`${file}.${process.pid}.part`, file);
     fs.rmSync(tmp, { recursive: true, force: true });
   }

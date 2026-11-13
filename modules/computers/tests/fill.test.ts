@@ -17,8 +17,17 @@ function world(over: { logFails?: boolean; lookupThrows?: boolean } = {}) {
     "#Payroll.password": { kind: "denied", reason: "no_access" },
   };
   const svc = createFillService({
-    source: { lookup: async (handle, who) => { asked.push({ handle, who }); if (over.lookupThrows) throw new Error(`boom with ${SECRET}`); return items[handle] ?? { kind: "unknown" }; } },
-    log: (u) => { if (over.logFails) throw new Error("disk full"); uses.push(u); },
+    source: {
+      lookup: async (handle, who) => {
+        asked.push({ handle, who });
+        if (over.lookupThrows) throw new Error(`boom with ${SECRET}`);
+        return items[handle] ?? { kind: "unknown" };
+      },
+    },
+    log: (u) => {
+      if (over.logFails) throw new Error("disk full");
+      uses.push(u);
+    },
     now: () => 1_760_000_000_000,
   });
   return { svc, uses, asked, items };
@@ -31,8 +40,16 @@ async function serve(svc: ReturnType<typeof createFillService>): Promise<{ url: 
   return { url: `http://127.0.0.1:${port}/fill`, close: () => new Promise<void>((ok) => server.close(() => ok())) };
 }
 
-const post = async (url: string, token: string | null, body: unknown): Promise<{ status: number; json: Record<string, unknown> }> => {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+const post = async (
+  url: string,
+  token: string | null,
+  body: unknown,
+): Promise<{ status: number; json: Record<string, unknown> }> => {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
   return { status: r.status, json: (await r.json()) as Record<string, unknown> };
 };
 
@@ -45,10 +62,24 @@ test("an allowed fill answers 200 with the value and the item id, asks as the ag
   try {
     const r = await post(s.url, g.fillToken, { handle: "Stripe", field: "api_key", computerId: "cmp_1" });
     assert.deepEqual([r.status, r.json], [200, { value: SECRET, itemId: "vit_stripe" }]);
-    assert.deepEqual(w.asked, [{ handle: "#Stripe.api_key", who: { agentId: "agt_1", asker: "usr_dana", where: "computer" } }]);
-    assert.deepEqual(w.uses, [{ computerId: "cmp_1", agentId: "agt_1", asker: "usr_dana", handle: "#Stripe.api_key", itemId: "vit_stripe", outcome: "filled", at: 1_760_000_000_000 }]);
+    assert.deepEqual(w.asked, [
+      { handle: "#Stripe.api_key", who: { agentId: "agt_1", asker: "usr_dana", where: "computer" } },
+    ]);
+    assert.deepEqual(w.uses, [
+      {
+        computerId: "cmp_1",
+        agentId: "agt_1",
+        asker: "usr_dana",
+        handle: "#Stripe.api_key",
+        itemId: "vit_stripe",
+        outcome: "filled",
+        at: 1_760_000_000_000,
+      },
+    ]);
     assert.equal(JSON.stringify(w.uses).includes(SECRET), false, "the log never holds the value");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("an item the agent may not use is 403, a handle with no value is 404, and both are logged as refused or missing", async () => {
@@ -60,8 +91,16 @@ test("an item the agent may not use is 403, a handle with no value is 404, and b
     assert.deepEqual([no.status, no.json], [403, { code: "forbidden" }]);
     const gone = await post(s.url, g.fillToken, { handle: "Nothing", field: "here", computerId: "cmp_1" });
     assert.deepEqual([gone.status, gone.json], [404, { code: "not_found" }]);
-    assert.deepEqual(w.uses.map((u) => [u.handle, u.outcome]), [["#Payroll.password", "refused"], ["#Nothing.here", "missing"]]);
-  } finally { await s.close(); }
+    assert.deepEqual(
+      w.uses.map((u) => [u.handle, u.outcome]),
+      [
+        ["#Payroll.password", "refused"],
+        ["#Nothing.here", "missing"],
+      ],
+    );
+  } finally {
+    await s.close();
+  }
 });
 
 test("a missing, wrong or another computer's token is 401, and nothing is asked of the Vault", async () => {
@@ -75,7 +114,9 @@ test("a missing, wrong or another computer's token is 401, and nothing is asked 
     assert.equal((await post(s.url, `${a.fillToken}0`, body)).status, 401);
     assert.equal(w.asked.length, 0);
     assert.equal(w.uses.length, 0);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a token is for one computer: a body that names another computer is 403 and asks nothing", async () => {
@@ -87,7 +128,9 @@ test("a token is for one computer: a body that names another computer is 403 and
     const r = await post(s.url, a.fillToken, { handle: "Stripe", field: "api_key", computerId: "cmp_2" });
     assert.deepEqual([r.status, r.json], [403, { code: "forbidden" }]);
     assert.equal(w.asked.length, 0);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a body that is not a handle and field is 400, and a GET is 404", async () => {
@@ -95,12 +138,20 @@ test("a body that is not a handle and field is 400, and a GET is 404", async () 
   const g = await w.svc.issue({ computerId: "cmp_1", agentId: "agt_1", asker: "usr_dana" });
   const s = await serve(w.svc);
   try {
-    for (const bad of [{}, { handle: "Stripe" }, { handle: "../x", field: "y", computerId: "cmp_1" }, { handle: "Stripe", field: "a b", computerId: "cmp_1" }, { handle: 1, field: 2 }]) {
+    for (const bad of [
+      {},
+      { handle: "Stripe" },
+      { handle: "../x", field: "y", computerId: "cmp_1" },
+      { handle: "Stripe", field: "a b", computerId: "cmp_1" },
+      { handle: 1, field: 2 },
+    ]) {
       assert.equal((await post(s.url, g.fillToken, bad)).status, 400, JSON.stringify(bad));
     }
     assert.equal((await fetch(s.url)).status, 404);
     assert.equal(w.asked.length, 0);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 test("a Vault that fails is 503 without its error text, and a fill whose log cannot be written is not handed out", async () => {
@@ -111,17 +162,25 @@ test("a Vault that fails is 503 without its error text, and a fill whose log can
     const r = await post(s1.url, g1.fillToken, { handle: "Stripe", field: "api_key", computerId: "cmp_1" });
     assert.deepEqual([r.status, r.json], [503, { code: "unavailable" }]);
     assert.equal(JSON.stringify(r).includes(SECRET), false);
-  } finally { await s1.close(); }
+  } finally {
+    await s1.close();
+  }
   const noLog = world({ logFails: true });
   const g2 = await noLog.svc.issue({ computerId: "cmp_1", agentId: "agt_1", asker: "usr_dana" });
   const s2 = await serve(noLog.svc);
   try {
     const r = await post(s2.url, g2.fillToken, { handle: "Stripe", field: "api_key", computerId: "cmp_1" });
     assert.equal(r.status, 503);
-    assert.equal(JSON.stringify(r).includes(SECRET), false, "the value is not delivered when the use cannot be recorded");
+    assert.equal(
+      JSON.stringify(r).includes(SECRET),
+      false,
+      "the value is not delivered when the use cannot be recorded",
+    );
     const refused = await post(s2.url, g2.fillToken, { handle: "Payroll", field: "password", computerId: "cmp_1" });
     assert.equal(refused.status, 403, "a refusal stays a refusal when its log fails");
-  } finally { await s2.close(); }
+  } finally {
+    await s2.close();
+  }
 });
 
 test("issuing again for a computer ends its earlier token, and revoke ends the current one", async () => {
@@ -140,7 +199,9 @@ test("issuing again for a computer ends its earlier token, and revoke ends the c
     second.revoke();
     assert.equal((await post(s.url, second.fillToken, body)).status, 401);
     assert.equal(w.svc.live(), 0);
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });
 
 // ---- the wiring: a computer that wakes gets its Vault channel, and loses it when it sleeps or is removed -------------------------------------------------------------------------
@@ -152,24 +213,56 @@ import { harness as chatHarness, INTAKE } from "../fixtures/harness.ts";
 
 function seam(h: ReturnType<typeof world>) {
   let mounted: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | null = null;
-  setComputersFill({ source: { lookup: async (handle, who) => { h.asked.push({ handle, who }); return h.items[handle] ?? { kind: "unknown" }; } }, log: (u) => { h.uses.push(u); }, url: () => "http://host.docker.internal:7000/computers/fill", mount: (m) => { mounted = m; } });
+  setComputersFill({
+    source: {
+      lookup: async (handle, who) => {
+        h.asked.push({ handle, who });
+        return h.items[handle] ?? { kind: "unknown" };
+      },
+    },
+    log: (u) => {
+      h.uses.push(u);
+    },
+    url: () => "http://host.docker.internal:7000/computers/fill",
+    mount: (m) => {
+      mounted = m;
+    },
+  });
   return () => mounted;
 }
 
 test("a tool call on a computer passes agentd the Vault address and a token of at least 16 characters for the person whose call it is, the token works against the mounted route as that person, and it ends with the call; waking gives none", async () => {
   const { leaseFill } = await import("../handlers/tools/common.ts");
   const w = world();
-  const respond = { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) };
+  const respond = {
+    "agents.get": (i: Record<string, unknown>) => ({
+      agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" },
+    }),
+  };
   const hn = chatHarness({ respond });
   const mounted = seam(w);
   try {
     const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kf" });
     const id = p.computer.computerId;
     await wake(hn.ctx, { computerId: id });
-    assert.equal(hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length, 0, "no channel at wake");
-    const turn = chatHarness({ principal: { kind: "agent", id: INTAKE }, actingFor: "usr_omar", respond, raw: hn.raw, clock: hn.clock, fake: hn.fake });
+    assert.equal(
+      hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length,
+      0,
+      "no channel at wake",
+    );
+    const turn = chatHarness({
+      principal: { kind: "agent", id: INTAKE },
+      actingFor: "usr_omar",
+      respond,
+      raw: hn.raw,
+      clock: hn.clock,
+      fake: hn.fake,
+    });
     const lease = (await leaseFill(turn.ctx, computerBy(hn.ctx.db, id)!, hn.fake.host))!;
-    const cfg = hn.fake.named("configure").map((c) => c.args as { computerId: string; fillUrl?: string; fillToken?: string }).find((a) => a.fillToken !== undefined)!;
+    const cfg = hn.fake
+      .named("configure")
+      .map((c) => c.args as { computerId: string; fillUrl?: string; fillToken?: string })
+      .find((a) => a.fillToken !== undefined)!;
     assert.equal(cfg.computerId, id);
     assert.equal(cfg.fillUrl, "http://host.docker.internal:7000/computers/fill");
     assert.ok(cfg.fillToken!.length >= 16);
@@ -179,19 +272,43 @@ test("a tool call on a computer passes agentd the Vault address and a token of a
     try {
       const ok = await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id });
       assert.deepEqual([ok.status, ok.json], [200, { value: SECRET, itemId: "vit_stripe" }]);
-      assert.deepEqual(w.asked[0]!.who, { agentId: INTAKE, asker: "usr_omar", where: "computer" }, "asked as the person whose turn it is, not the owner");
+      assert.deepEqual(
+        w.asked[0]!.who,
+        { agentId: INTAKE, asker: "usr_omar", where: "computer" },
+        "asked as the person whose turn it is, not the owner",
+      );
       lease.done();
-      assert.equal((await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status, 401, "the token ends with the call");
-    } finally { await new Promise<void>((ok) => server.close(() => ok())); }
-  } finally { bindFill(null); setComputersFill(null); }
+      assert.equal(
+        (await post(url, cfg.fillToken!, { handle: "Stripe", field: "api_key", computerId: id })).status,
+        401,
+        "the token ends with the call",
+      );
+    } finally {
+      await new Promise<void>((ok) => server.close(() => ok()));
+    }
+  } finally {
+    bindFill(null);
+    setComputersFill(null);
+  }
 });
 
 test("without a Vault channel a computer wakes as before and gets no fill settings", async () => {
-  const hn = chatHarness({ respond: { "agents.get": (i: Record<string, unknown>) => ({ agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" } }) } });
+  const hn = chatHarness({
+    respond: {
+      "agents.get": (i: Record<string, unknown>) => ({
+        agent: { agentId: i["agentId"], ownerId: "usr_dana", folderId: "fld_x" },
+      }),
+    },
+  });
   setComputersFill(null);
   try {
     const p = await provision(hn.ctx, { agentId: INTAKE, idempotencyKey: "kg" });
     await wake(hn.ctx, { computerId: p.computer.computerId });
-    assert.equal(hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length, 0);
-  } finally { setComputersFill(null); }
+    assert.equal(
+      hn.fake.named("configure").filter((c) => (c.args as { fillToken?: string }).fillToken !== undefined).length,
+      0,
+    );
+  } finally {
+    setComputersFill(null);
+  }
 });

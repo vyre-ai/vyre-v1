@@ -23,7 +23,12 @@ import type { TerminalProps } from "./index.tsx";
 
 const plain = (b: TerminalBuffer): string[] => b.text().split("\n");
 
-const base: TerminalProps = { sessionId: "ter_1", title: "Rivera dev server", host: "agent", hostLabel: "Intake's computer" };
+const base: TerminalProps = {
+  sessionId: "ter_1",
+  title: "Rivera dev server",
+  host: "agent",
+  hostLabel: "Intake's computer",
+};
 
 /* ---------- the VT engine ---------- */
 
@@ -46,13 +51,16 @@ test("colours become skin tokens and reset; bold and dim are kept", () => {
   const b = new TerminalBuffer();
   b.write("\x1b[32mok\x1b[0m plain \x1b[1;31mfail\x1b[0m \x1b[2mquiet\x1b[0m");
   const line = b.lines()[0] ?? [];
-  assert.deepEqual(line.map((s) => [s.text, s.style.fg ?? "", s.style.bold === true, s.style.dim === true]), [
-    ["ok", "ok", false, false],
-    [" plain ", "", false, false],
-    ["fail", "danger", true, false],
-    [" ", "", false, false],
-    ["quiet", "", false, true],
-  ]);
+  assert.deepEqual(
+    line.map((s) => [s.text, s.style.fg ?? "", s.style.bold === true, s.style.dim === true]),
+    [
+      ["ok", "ok", false, false],
+      [" plain ", "", false, false],
+      ["fail", "danger", true, false],
+      [" ", "", false, false],
+      ["quiet", "", false, true],
+    ],
+  );
 });
 
 test("clear screen, erase line and unknown sequences", () => {
@@ -129,10 +137,17 @@ test("copy on select: the selection is trimmed and written; an empty selection c
   assert.equal(selectionToCopy("  \n"), null);
   assert.equal(selectionToCopy("npm run dev   \nready  \n\n"), "npm run dev\nready");
   const written: string[] = [];
-  const copied = await copySelection("ready on :3000   \n", (t) => { written.push(t); });
+  const copied = await copySelection("ready on :3000   \n", (t) => {
+    written.push(t);
+  });
   assert.equal(copied, "ready on :3000");
   assert.deepEqual(written, ["ready on :3000"]);
-  assert.equal(await copySelection("", (t) => { written.push(t); }), null);
+  assert.equal(
+    await copySelection("", (t) => {
+      written.push(t);
+    }),
+    null,
+  );
   assert.equal(written.length, 1);
 });
 
@@ -164,7 +179,12 @@ test("the host menu names the three hosts, checks the current one and marks a lo
 /* ---------- screens ---------- */
 
 test("attach renders the scrollback with its colours and a cursor on the last line", () => {
-  const html = renderToStaticMarkup(<Terminal {...base} output={"$ git status\r\nOn branch main\r\n\x1b[31mmodified: forms/rivera-intake.json\x1b[0m\r\n"} />);
+  const html = renderToStaticMarkup(
+    <Terminal
+      {...base}
+      output={"$ git status\r\nOn branch main\r\n\x1b[31mmodified: forms/rivera-intake.json\x1b[0m\r\n"}
+    />,
+  );
   assert.match(html, /data-testid="terminal-ter_1"/);
   assert.match(html, /git status/);
   assert.match(html, /On branch main/);
@@ -197,7 +217,17 @@ test("an exited session shows exited and takes no input; a read-only one says so
 });
 
 test("a locked server shell asks for access and draws no prompt", () => {
-  const html = renderToStaticMarkup(<Terminal {...base} host="server" hostLabel="Space server" locked owner="Maya Chen" fallbackLabel="Intake's computer" output={"secret scrollback\r\n"} />);
+  const html = renderToStaticMarkup(
+    <Terminal
+      {...base}
+      host="server"
+      hostLabel="Space server"
+      locked
+      owner="Maya Chen"
+      fallbackLabel="Intake's computer"
+      output={"secret scrollback\r\n"}
+    />,
+  );
   assert.match(html, /The server shell is locked/);
   assert.match(html, /server\.services/);
   assert.match(html, /aria-label="Ask Maya Chen for access"/);
@@ -205,7 +235,9 @@ test("a locked server shell asks for access and draws no prompt", () => {
   assert.doesNotMatch(html, /data-testid="terminal-scroll"/, "no prompt and no scrollback while locked");
   assert.doesNotMatch(html, /secret scrollback/);
   assert.doesNotMatch(html, /data-testid="terminal-cursor"/);
-  const asked = renderToStaticMarkup(<Terminal {...base} host="server" hostLabel="Space server" locked owner="Maya Chen" asked />);
+  const asked = renderToStaticMarkup(
+    <Terminal {...base} host="server" hostLabel="Space server" locked owner="Maya Chen" asked />,
+  );
   assert.match(asked, /Asked Maya Chen/);
   assert.match(asked, /aria-disabled="true"/);
   const generic = renderToStaticMarkup(<Terminal {...base} host="server" hostLabel="Space server" locked />);
@@ -228,7 +260,14 @@ test("the label falls back to Terminal", () => {
 });
 
 test("the bar shows a dot for what the typed line would do, and none without one", () => {
-  const base = { sessionId: "trm_1", title: "build", host: "device" as const, hostLabel: "This computer", state: "running" as const, output: "" };
+  const base = {
+    sessionId: "trm_1",
+    title: "build",
+    host: "device" as const,
+    hostLabel: "This computer",
+    state: "running" as const,
+    output: "",
+  };
   for (const risk of ["read", "change", "danger"] as const) {
     const html = renderToStaticMarkup(<Terminal {...base} risk={risk} />);
     assert.ok(html.includes(`data-testid="terminal-risk-${risk}"`), risk);

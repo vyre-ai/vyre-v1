@@ -2,7 +2,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TAB_STRIP_HEIGHT, TabStrip, afterClose, closableKeys, reorderKeys, stepKey, tabCap, tabMenuEntries } from "./index.tsx";
+import {
+  TAB_STRIP_HEIGHT,
+  TabStrip,
+  afterClose,
+  closableKeys,
+  reorderKeys,
+  stepKey,
+  tabCap,
+  tabMenuEntries,
+} from "./index.tsx";
 import type { TabSpec } from "./index.tsx";
 import { isItem, isSeparator } from "../Menu/props.ts";
 
@@ -84,22 +93,45 @@ test("the tab menu: extras first, then the close commands, icons all or none", (
   const labels = entries.filter(isItem).map((e) => e.label);
   assert.deepEqual(labels, ["Pin", "Close Tab", "Close Other Tabs", "Close All Tabs"]);
   assert.ok(entries.some(isSeparator), "a separator splits extras from the close commands");
-  assert.ok(entries.filter(isItem).every((e) => typeof e.icon === "string" && e.icon.length > 0), "all have icons");
+  assert.ok(
+    entries.filter(isItem).every((e) => typeof e.icon === "string" && e.icon.length > 0),
+    "all have icons",
+  );
   for (const entry of entries) if (isItem(entry) && entry.label !== "Pin") entry.onSelect?.();
   assert.deepEqual(ran, ["close:a", "closeOthers:a", "closeAll:a"]);
 
   const mixed = tabMenuEntries(TABS, "a", [{ label: "Pin" }], () => undefined);
-  assert.ok(mixed.filter(isItem).every((e) => e.icon === undefined), "one extra without an icon drops every icon");
+  assert.ok(
+    mixed.filter(isItem).every((e) => e.icon === undefined),
+    "one extra without an icon drops every icon",
+  );
 
-  const pinned = tabMenuEntries(TABS, "home", [], () => undefined).filter(isItem).map((e) => e.label);
+  const pinned = tabMenuEntries(TABS, "home", [], () => undefined)
+    .filter(isItem)
+    .map((e) => e.label);
   assert.deepEqual(pinned, ["Close Other Tabs", "Close All Tabs"], "no Close Tab for a pinned tab");
-  const strip = tabMenuEntries(TABS, undefined, [], () => undefined).filter(isItem).map((e) => e.label);
+  const strip = tabMenuEntries(TABS, undefined, [], () => undefined)
+    .filter(isItem)
+    .map((e) => e.label);
   assert.deepEqual(strip, ["Close Other Tabs", "Close All Tabs"]);
 });
 
 test("an extra's own handler is kept", () => {
   let hit = 0;
-  const entries = tabMenuEntries(TABS, "a", [{ label: "Pin", icon: "star", onSelect: () => { hit += 1; } }], () => undefined);
+  const entries = tabMenuEntries(
+    TABS,
+    "a",
+    [
+      {
+        label: "Pin",
+        icon: "star",
+        onSelect: () => {
+          hit += 1;
+        },
+      },
+    ],
+    () => undefined,
+  );
   const first = entries[0];
   assert.ok(first !== undefined && isItem(first));
   first.onSelect?.();
@@ -107,10 +139,25 @@ test("an extra's own handler is kept", () => {
 });
 
 test("the + sits right after the last tab and before the spacer and the options button; tabs show their icon when given", () => {
-  const html = renderToStaticMarkup(<TabStrip tabs={[{ key: "a", title: "Chats", icon: "<svg id=\"ic-a\"></svg>" }, { key: "b", title: "Files" }]} active="a" onPlus={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <TabStrip
+      tabs={[
+        { key: "a", title: "Chats", icon: '<svg id="ic-a"></svg>' },
+        { key: "b", title: "Files" },
+      ]}
+      active="a"
+      onPlus={() => undefined}
+    />,
+  );
   const at = (needle: string): number => html.indexOf(needle);
-  assert.ok(at('data-testid="tab-b"') > 0 && at('data-testid="tab-strip-plus"') > at('data-testid="tab-b"'), "the + follows the last tab");
-  assert.ok(at('data-testid="tab-strip-plus"') < at('data-testid="tab-strip-more"'), "the + comes before the options button");
+  assert.ok(
+    at('data-testid="tab-b"') > 0 && at('data-testid="tab-strip-plus"') > at('data-testid="tab-b"'),
+    "the + follows the last tab",
+  );
+  assert.ok(
+    at('data-testid="tab-strip-plus"') < at('data-testid="tab-strip-more"'),
+    "the + comes before the options button",
+  );
   assert.ok(html.includes('id="ic-a"'), "a tab shows its icon");
 });
 
@@ -120,7 +167,17 @@ test("the main strip's lone tab has no Close (it would only reopen the start pla
   assert.doesNotMatch(main, /tab-close-home/, "the main strip hides it");
   const pane = renderToStaticMarkup(<TabStrip tabs={lone} active="home" onClose={() => undefined} />);
   assert.match(pane, /tab-close-home/, "a pane strip keeps the close x: it is how the pane closes");
-  const two = renderToStaticMarkup(<TabStrip tabs={[{ key: "home", title: "Home" }, { key: "x", title: "Files" }]} active="home" onClose={() => undefined} hideLoneClose />);
+  const two = renderToStaticMarkup(
+    <TabStrip
+      tabs={[
+        { key: "home", title: "Home" },
+        { key: "x", title: "Files" },
+      ]}
+      active="home"
+      onClose={() => undefined}
+      hideLoneClose
+    />,
+  );
   assert.match(two, /tab-close-home/);
   assert.match(two, /tab-close-x/);
 });
@@ -148,17 +205,26 @@ test("a tab keeps its hover while the pointer is on its close button: hover is e
     };
     assert.equal(close().opacity, 0, "the x is hidden until the tab is hovered");
     assert.equal(tab.props.onHoverOut, undefined, "no hover-out that a move onto the x would fire");
-    await act(async () => { (tab.props.onPointerEnter as () => void)(); });
+    await act(async () => {
+      (tab.props.onPointerEnter as () => void)();
+    });
     assert.notEqual(close().opacity, 0, "hovering the tab shows its x");
-    await act(async () => { (find(root, "tab-close-b")!.props.onPointerEnter as (() => void) | undefined)?.(); });
+    await act(async () => {
+      (find(root, "tab-close-b")!.props.onPointerEnter as (() => void) | undefined)?.();
+    });
     assert.notEqual(close().opacity, 0, "still shown with the pointer on the x");
-    await act(async () => { (find(root, "tab-b")!.props.onPointerLeave as () => void)(); });
+    await act(async () => {
+      (find(root, "tab-b")!.props.onPointerLeave as () => void)();
+    });
     assert.equal(close().opacity, 0, "leaving the tab hides it again");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("an underline strip marks the open tab with a line, never a filled pill; the default strip keeps its fill", () => {
-  const tagOf = (html: string, id: string): string => new RegExp(`<[^>]*data-testid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const tagOf = (html: string, id: string): string =>
+    new RegExp(`<[^>]*data-testid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
   const line = renderToStaticMarkup(<TabStrip tabs={TABS} active="b" underline />);
   const open = tagOf(line, "tab-b-selected");
   assert.match(open, /box-shadow:inset 0 -2px 0 var\(--ink\)/, "a 2 px line under the open tab");
@@ -169,12 +235,31 @@ test("an underline strip marks the open tab with a line, never a filled pill; th
 });
 
 test("a close button that is not shown takes no click: a press on the right edge of a short tab selects the tab", () => {
-  const html = renderToStaticMarkup(<TabStrip tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }]} active="chat" onSelect={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <TabStrip
+      tabs={[
+        { key: "chat", title: "Chat" },
+        { key: "plan", title: "Plan" },
+      ]}
+      active="chat"
+      onSelect={() => undefined}
+    />,
+  );
   const close = /<[^>]*tab-close-plan[^>]*>/.exec(html)?.[0] ?? "";
   assert.match(close, /pointer-events:\s*none/, "hidden close, no click");
 });
 
 test("a strip of page sections (noClose) has no close button on any tab, so no tab holds room for one", () => {
-  const html = renderToStaticMarkup(<TabStrip noClose tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }]} active="chat" onSelect={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <TabStrip
+      noClose
+      tabs={[
+        { key: "chat", title: "Chat" },
+        { key: "plan", title: "Plan" },
+      ]}
+      active="chat"
+      onSelect={() => undefined}
+    />,
+  );
   assert.doesNotMatch(html, /tab-close-/);
 });

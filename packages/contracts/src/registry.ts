@@ -1,9 +1,29 @@
 // Shape of the merged registry produced by tools/gen (generated/registry.json). Hand-written, frozen.
 import type {
-  AgentToolDef, BlockTypeDef, CapabilityDef, ConnectorDef, EntityDef, ErrorCode, EventDef, FieldTypeDef, GateActKindDef, HealthCheckDef,
-  ImportSourceDef, KitScreenDef, ListDef, Manifest, NotificationKindDef, PermissionDef, RecordTypeDef, RetentionDef, SettingDef, StepDef,
-  TaskKindDef, TriggerDef, ViewKindDef,
-} from './types.ts';
+  AgentToolDef,
+  BlockTypeDef,
+  CapabilityDef,
+  ConnectorDef,
+  EntityDef,
+  ErrorCode,
+  EventDef,
+  FieldTypeDef,
+  GateActKindDef,
+  HealthCheckDef,
+  ImportSourceDef,
+  KitScreenDef,
+  ListDef,
+  Manifest,
+  NotificationKindDef,
+  PermissionDef,
+  RecordTypeDef,
+  RetentionDef,
+  SettingDef,
+  StepDef,
+  TaskKindDef,
+  TriggerDef,
+  ViewKindDef,
+} from "./types.ts";
 
 export type Owned<T> = T & { module: string };
 
@@ -11,16 +31,22 @@ export interface RegistryModule {
   id: string;
   version: string;
   title: string;
-  kind: Manifest['kind'];
+  kind: Manifest["kind"];
   owner: string;
-  requires: string[];                    // derived from references plus any hand-written entries
+  requires: string[]; // derived from references plus any hand-written entries
 }
 
-export interface RegistryError { code: ErrorCode; group: string; http: number; retryable: boolean; summary: string }
+export interface RegistryError {
+  code: ErrorCode;
+  group: string;
+  http: number;
+  retryable: boolean;
+  summary: string;
+}
 
 export interface Registry {
   registryVersion: 1;
-  $defs?: Record<string, import('./types.ts').JsonSchema>;   // shared schemas referenced by $ref
+  $defs?: Record<string, import("./types.ts").JsonSchema>; // shared schemas referenced by $ref
   levelLadders: Record<string, string[]>;
   modules: RegistryModule[];
   capabilities: Owned<CapabilityDef>[];

@@ -19,7 +19,11 @@ export interface RollerDeps {
   compactor: () => Compactor | null;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
-export interface TurnDone { threadId: string; turnId: string; agentId: string }
+export interface TurnDone {
+  threadId: string;
+  turnId: string;
+  agentId: string;
+}
 
 export function createRoller(d: RollerDeps) {
   /** Turn boundaries a roll has been held over a queued message, per chat and agent. */
@@ -34,34 +38,67 @@ export function createRoller(d: RollerDeps) {
     },
     /** Look at a chat after one of its turns completed. Returns whether it rolled. */
     async afterTurn(ev: TurnDone): Promise<boolean> {
-      const engine = d.engine(), compactor = d.compactor();
+      const engine = d.engine(),
+        compactor = d.compactor();
       if (!engine || !compactor) return false;
       const turn = engine.turns(ev.threadId).find((t) => t.id === ev.turnId);
       if (!turn || turn.state !== "completed") return false;
       const account = accounts.get(ev.turnId);
       accounts.delete(ev.turnId);
-      if (!account) return false;   // an API engine, or a turn this host did not run
+      if (!account) return false; // an API engine, or a turn this host did not run
       const key = `${ev.threadId}|${ev.agentId}`;
       const c = lastCompaction(d.db, ev.threadId, ev.agentId);
-      const since = c ? engine.turns(ev.threadId).filter((t) => t.agentId === ev.agentId && t.state === "completed" && t.startedAt > c.at).length : null;
+      const since = c
+        ? engine
+            .turns(ev.threadId)
+            .filter((t) => t.agentId === ev.agentId && t.state === "completed" && t.startedAt > c.at).length
+        : null;
       const msgs = engine.messages(ev.threadId);
       const chars = msgs.filter((m) => m.threadSeq > (c?.upToSeq ?? 0)).reduce((n, m) => n + m.body.length, 0);
       const queued = engine.queue(ev.threadId).some((q) => q.state === "queued");
       // the context is what the model was shown in its last call; the turn's input tokens add up every call of it (cache reads included) and would roll a chat that is nowhere near full
-      const check = rolloverCheck({ turns: () => [] }, {
-        threadId: ev.threadId, ...(turn.info?.contextTokens !== undefined && turn.info.contextTokens > 0 ? { used: turn.info.contextTokens } : {}), ...(turn.info?.contextWindow !== undefined && turn.info.contextWindow > 0 ? { window: turn.info.contextWindow } : {}), chars, model: turn.model, provider: account.provider,
-        blocked: queued ? "a queued message" : null, waited: waited.get(key) ?? 0, sinceRoll: since,
-      });
+      const check = rolloverCheck(
+        { turns: () => [] },
+        {
+          threadId: ev.threadId,
+          ...(turn.info?.contextTokens !== undefined && turn.info.contextTokens > 0
+            ? { used: turn.info.contextTokens }
+            : {}),
+          ...(turn.info?.contextWindow !== undefined && turn.info.contextWindow > 0
+            ? { window: turn.info.contextWindow }
+            : {}),
+          chars,
+          model: turn.model,
+          provider: account.provider,
+          blocked: queued ? "a queued message" : null,
+          waited: waited.get(key) ?? 0,
+          sinceRoll: since,
+        },
+      );
       if (!check.roll) {
-        if (check.wait) waited.set(key, (waited.get(key) ?? 0) + 1); else waited.delete(key);
+        if (check.wait) waited.set(key, (waited.get(key) ?? 0) + 1);
+        else waited.delete(key);
         return false;
       }
       waited.delete(key);
       try {
-        await compactor.roll({ threadId: ev.threadId, agentId: ev.agentId, asker: turn.asker, keep: keepEvery(d.db, ev.threadId), traceId: turn.traceId }, check.ctx.share, check.why);
+        await compactor.roll(
+          {
+            threadId: ev.threadId,
+            agentId: ev.agentId,
+            asker: turn.asker,
+            keep: keepEvery(d.db, ev.threadId),
+            traceId: turn.traceId,
+          },
+          check.ctx.share,
+          check.why,
+        );
         return true;
       } catch (e) {
-        d.log?.("a chat could not be rolled over", { threadId: ev.threadId, error: e instanceof Error ? e.message : String(e) });
+        d.log?.("a chat could not be rolled over", {
+          threadId: ev.threadId,
+          error: e instanceof Error ? e.message : String(e),
+        });
         return false;
       }
     },

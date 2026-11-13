@@ -6,11 +6,26 @@ import type { CommitBatch } from "../invoke.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 
 const ev = (id: string, o: Partial<EventEnvelope> = {}): EventEnvelope => ({
-  seq: 0, id, type: "record.updated", sv: 1, hlc: "h", at: 1, traceId: "a".repeat(32), actor: "usr_a", depth: 0, label: 0, vis: "space", enc: 0, payload: {}, ...o,
+  seq: 0,
+  id,
+  type: "record.updated",
+  sv: 1,
+  hlc: "h",
+  at: 1,
+  traceId: "a".repeat(32),
+  actor: "usr_a",
+  depth: 0,
+  label: 0,
+  vis: "space",
+  enc: 0,
+  payload: {},
+  ...o,
 });
 
 test("minted event ids match evt_[a-z0-9]+ and sort by time", () => {
-  const a = mintEventId(1_000_000), b = mintEventId(2_000_000), c = mintEventId(3_000_000);
+  const a = mintEventId(1_000_000),
+    b = mintEventId(2_000_000),
+    c = mintEventId(3_000_000);
   for (const id of [a, b, c]) assert.match(id, EVENT_ID);
   assert.ok(a < b && b < c, "ids sort in time order");
   assert.notEqual(mintEventId(5), mintEventId(5), "same millisecond, still unique");
@@ -35,10 +50,22 @@ test("normalizeEvent fixes id and cause and leaves a good event as it is", () =>
 
 test("withEventIds hands the log events with contract ids and keeps the rest of the batch", async () => {
   let seen: CommitBatch | undefined;
-  const commit = withEventIds(async (b) => { seen = b; return b.events.map((e, i) => ({ ...e, seq: i + 1 })); });
-  const batch: CommitBatch = { cap: "x.y", v: 1, principal: "usr_a", events: [ev("evt_aa-bb"), ev("evt_cc-dd", { cause: "evt_aa-bb" })], audit: null };
+  const commit = withEventIds(async (b) => {
+    seen = b;
+    return b.events.map((e, i) => ({ ...e, seq: i + 1 }));
+  });
+  const batch: CommitBatch = {
+    cap: "x.y",
+    v: 1,
+    principal: "usr_a",
+    events: [ev("evt_aa-bb"), ev("evt_cc-dd", { cause: "evt_aa-bb" })],
+    audit: null,
+  };
   const stored = await commit(batch);
-  assert.deepEqual(stored.map((e) => e.id), ["evt_aabb", "evt_ccdd"]);
+  assert.deepEqual(
+    stored.map((e) => e.id),
+    ["evt_aabb", "evt_ccdd"],
+  );
   assert.equal(stored[1]!.cause, "evt_aabb", "a cause still points at the event it named");
   assert.equal(seen?.cap, "x.y");
   assert.equal(batch.events[0]!.id, "evt_aa-bb", "the caller's batch is not changed");

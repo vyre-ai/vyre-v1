@@ -4,13 +4,26 @@ import { applyRole, removeIfMember } from "./project.ts";
 import { call, ensure, keyed, memberOf, membersOf, raise, remember, tolerant, visible } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 
-interface AgentView { agentId: string; name: string; role?: string; status: "awake" | "working" | "asleep" | "paused"; teammateOf?: string }
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+interface AgentView {
+  agentId: string;
+  name: string;
+  role?: string;
+  status: "awake" | "working" | "asleep" | "paused";
+  teammateOf?: string;
+}
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function rowFor(ctx: ProjectsCtx, projectId: string, principal: string, role: string) {
   const got = await tolerant<{ agent?: AgentView }>(ctx, "agents.get", { agentId: principal }, {});
   const a = got.agent;
-  return { agentId: principal, name: a?.name ?? principal, role, ...(a?.role ? { roleLine: a.role } : {}), status: a?.status ?? "asleep", madeForProject: a?.teammateOf === projectId };
+  return {
+    agentId: principal,
+    name: a?.name ?? principal,
+    role,
+    ...(a?.role ? { roleLine: a.role } : {}),
+    status: a?.status ?? "asleep",
+    madeForProject: a?.teammateOf === projectId,
+  };
 }
 
 export async function teammatesList(ctx: ProjectsCtx, input: In): Promise<unknown> {
@@ -32,9 +45,20 @@ export async function teammatesCreate(ctx: ProjectsCtx, input: In): Promise<unkn
   if (again) return again;
   const name = String(input.name ?? "").trim();
   if (name === "") raise(ctx, "validation.bad_input", "Give the teammate a name.");
-  const made = await call<{ agent: { agentId: string } }>(ctx, "agents.create", {
-    name, ...(typeof input.brief === "string" && input.brief.trim() !== "" ? { role: input.brief.trim().replace(/\s+/g, " ").slice(0, 200) } : {}), computer: false, projectId: p.projectId, idempotencyKey: `${input.idempotencyKey}:agent`,
-  }, { idempotencyKey: `${input.idempotencyKey}:agent` });
+  const made = await call<{ agent: { agentId: string } }>(
+    ctx,
+    "agents.create",
+    {
+      name,
+      ...(typeof input.brief === "string" && input.brief.trim() !== ""
+        ? { role: input.brief.trim().replace(/\s+/g, " ").slice(0, 200) }
+        : {}),
+      computer: false,
+      projectId: p.projectId,
+      idempotencyKey: `${input.idempotencyKey}:agent`,
+    },
+    { idempotencyKey: `${input.idempotencyKey}:agent` },
+  );
   await applyRole(ctx, p, made.agent.agentId, input.role);
   const res = { teammate: await rowFor(ctx, p.projectId, made.agent.agentId, input.role) };
   remember(ctx.db, input.idempotencyKey, "projects.teammates.create", res);

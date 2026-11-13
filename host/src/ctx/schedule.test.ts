@@ -8,7 +8,11 @@ import { parseWhen, ScheduleQueue } from "./schedule.ts";
 import type { ScheduledCall, ScheduleSeed } from "./schedule.ts";
 
 const T0 = 1_760_000_000_000;
-const seed: ScheduleSeed = { space: "spc_1", principal: { kind: "person", id: "usr_dana" }, trace: { traceId: "b".repeat(32) } };
+const seed: ScheduleSeed = {
+  space: "spc_1",
+  principal: { kind: "person", id: "usr_dana" },
+  trace: { traceId: "b".repeat(32) },
+};
 
 function rig(o: { maxTries?: number; failFor?: number } = {}) {
   const db: RawDb = openRecordStore({ path: ":memory:", space: "sp_sched" }).host.tx;
@@ -16,15 +20,28 @@ function rig(o: { maxTries?: number; failFor?: number } = {}) {
   const ran: ScheduledCall[] = [];
   const errors: { final: boolean; message: string }[] = [];
   let failsLeft = o.failFor ?? 0;
-  const make = (): ScheduleQueue => new ScheduleQueue({
-    db, now: () => clock.t, maxTries: o.maxTries ?? 5, backoffMs: (n) => n * 1000,
-    run: async (c) => { ran.push(c); if (failsLeft > 0) { failsLeft--; throw new Error("boom"); } },
-    onError: (_c, e, final) => errors.push({ final, message: e instanceof Error ? e.message : String(e) }),
-  });
+  const make = (): ScheduleQueue =>
+    new ScheduleQueue({
+      db,
+      now: () => clock.t,
+      maxTries: o.maxTries ?? 5,
+      backoffMs: (n) => n * 1000,
+      run: async (c) => {
+        ran.push(c);
+        if (failsLeft > 0) {
+          failsLeft--;
+          throw new Error("boom");
+        }
+      },
+      onError: (_c, e, final) => errors.push({ final, message: e instanceof Error ? e.message : String(e) }),
+    });
   return { db, clock, ran, errors, q: make(), make };
 }
 
-const bad = (code: string) => (e: unknown): boolean => e instanceof HostError && e.error.code === code;
+const bad =
+  (code: string) =>
+  (e: unknown): boolean =>
+    e instanceof HostError && e.error.code === code;
 
 test("parseWhen reads epoch milliseconds, ISO times and delays, and refuses the rest", () => {
   assert.equal(parseWhen(T0 + 5, T0), T0 + 5);
@@ -49,7 +66,14 @@ test("a job waits for its time, then runs once as the principal who scheduled it
   assert.equal(await r.q.tick(), 1);
   assert.equal(r.ran.length, 1);
   assert.deepEqual(r.ran[0], {
-    id, space: "spc_1", cap: "gate.expire", input: { taskId: "tsk_1" }, principal: { kind: "person", id: "usr_dana" }, actingFor: "usr_boss", traceId: "b".repeat(32), tries: 0,
+    id,
+    space: "spc_1",
+    cap: "gate.expire",
+    input: { taskId: "tsk_1" },
+    principal: { kind: "person", id: "usr_dana" },
+    actingFor: "usr_boss",
+    traceId: "b".repeat(32),
+    tries: 0,
   });
   assert.equal(await r.q.tick(), 0, "a finished job is gone");
   assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
@@ -72,7 +96,10 @@ test("jobs run oldest first and only the due ones", async () => {
   await add(T0 + 99_000, "a.later", {});
   r.clock.t = T0 + 3000;
   assert.equal(await r.q.tick(), 3);
-  assert.deepEqual(r.ran.map((c) => c.cap), ["a.first", "a.second", "a.third"]);
+  assert.deepEqual(
+    r.ran.map((c) => c.cap),
+    ["a.first", "a.second", "a.third"],
+  );
   assert.equal(r.q.counts().pending, 1);
 });
 
@@ -107,7 +134,10 @@ test("after maxTries failures a job is parked as dead and never runs again", asy
   await r.q.tick();
   r.clock.t += 1000;
   await r.q.tick();
-  assert.deepEqual(r.errors.map((e) => e.final), [false, true]);
+  assert.deepEqual(
+    r.errors.map((e) => e.final),
+    [false, true],
+  );
   assert.deepEqual(r.q.counts(), { pending: 0, dead: 1 });
   r.clock.t += 3_600_000;
   assert.equal(await r.q.tick(), 0);

@@ -1,6 +1,26 @@
 // One handler per members capability (29). Invites and the join are invite.ts, suspend and the removal wizard remove.ts, sign-in policy, second factor and SSO policy.ts.
-import { accept, invitesCreate, invitesGuest, invitesExtend, invitesList, invitesPreview, invitesRevoke, joinsList, joinsRetry } from "./invite.ts";
-import { joinLinkCreate, joinLinkDisable, joinLinkGet, joinLinkPreview, joinLinkRequest, joinLinkRotate, joinRequestsApprove, joinRequestsDecline, joinRequestsList } from "./join-link.ts";
+import {
+  accept,
+  invitesCreate,
+  invitesGuest,
+  invitesExtend,
+  invitesList,
+  invitesPreview,
+  invitesRevoke,
+  joinsList,
+  joinsRetry,
+} from "./invite.ts";
+import {
+  joinLinkCreate,
+  joinLinkDisable,
+  joinLinkGet,
+  joinLinkPreview,
+  joinLinkRequest,
+  joinLinkRotate,
+  joinRequestsApprove,
+  joinRequestsDecline,
+  joinRequestsList,
+} from "./join-link.ts";
 import { githubClear, githubGet, githubSet } from "./github.ts";
 import { policyGetH, policySet, secondFactorReport, ssoList, ssoRemove, ssoSet, ssoTest } from "./policy.ts";
 import { companyHandlers } from "./company.ts";

@@ -16,13 +16,9 @@ export interface SafeTestPlan {
   vaultItemId: string;
 }
 
-export type SafeTestPlanResult =
-  | { ok: true; plan: SafeTestPlan }
-  | { ok: false; reason: string };
+export type SafeTestPlanResult = { ok: true; plan: SafeTestPlan } | { ok: false; reason: string };
 
-export type SafeTestRun =
-  | { level: "tested" }
-  | { level: "draft"; reason: string };
+export type SafeTestRun = { level: "tested" } | { level: "draft"; reason: string };
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MARKED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE", "TRACE"]);

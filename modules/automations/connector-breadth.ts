@@ -26,7 +26,10 @@ export function actionsFromSchema(actions: readonly NamedAction[], docsText: str
 }
 
 function actionKey(title: string): string {
-  return title.toLowerCase().replace(/ /g, "-").replace(/[^a-z0-9-]/g, "");
+  return title
+    .toLowerCase()
+    .replace(/ /g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 }
 
 /** One draft action per named tool. Descriptions are not extra actions. Nothing is fetched. */

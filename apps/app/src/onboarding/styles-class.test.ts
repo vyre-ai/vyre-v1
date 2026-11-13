@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FILES = [
-  ...fs.readdirSync(HERE).filter((f) => f.endsWith(".tsx") && !f.includes(".test.")).map((f) => path.join(HERE, f)),
+  ...fs
+    .readdirSync(HERE)
+    .filter((f) => f.endsWith(".tsx") && !f.includes(".test."))
+    .map((f) => path.join(HERE, f)),
   path.join(HERE, "../ai-signin/SignInPanel.tsx"),
   path.join(HERE, "../console/pages/SpaceKey.tsx"),
 ];
@@ -19,7 +22,8 @@ test("no style sheet in setup writes a key twice", () => {
     const src = fs.readFileSync(f, "utf8");
     for (const m of src.matchAll(/StyleSheet\.create\(\{([\s\S]*?)\n\}\);/g)) {
       const keys = [...m[1]!.matchAll(/^ {2}([A-Za-z0-9_]+):/gm)].map((k) => k[1]!);
-      for (const k of new Set(keys)) if (keys.filter((x) => x === k).length > 1) twice.push(`${path.basename(f)}: ${k}`);
+      for (const k of new Set(keys))
+        if (keys.filter((x) => x === k).length > 1) twice.push(`${path.basename(f)}: ${k}`);
     }
   }
   assert.deepEqual(twice, []);

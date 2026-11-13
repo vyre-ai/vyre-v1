@@ -16,7 +16,12 @@ test("dockerfile: its own Dockerfile on its own port, then a redeploy and a roll
   assert.equal((await w.get(site.slug, "/")).body, "dockerfile-fixture-ok v1");
   const row = (await w.h["sites.get"](w.ctx, { siteId: site.siteId })).site;
   assert.equal(row.port, 8080, "the port comes from EXPOSE");
-  const inspect = JSON.parse(docker("inspect", w.sdb.all("SELECT container_id FROM sites_site WHERE id = ?", site.siteId)[0]!["container_id"] as string).stdout)[0];
+  const inspect = JSON.parse(
+    docker(
+      "inspect",
+      w.sdb.all("SELECT container_id FROM sites_site WHERE id = ?", site.siteId)[0]!["container_id"] as string,
+    ).stdout,
+  )[0];
   assert.equal(inspect.HostConfig.NanoCpus, 500_000_000);
   assert.equal(inspect.HostConfig.Memory, 256 * 1024 * 1024);
   assert.equal(inspect.HostConfig.PidsLimit, 512);

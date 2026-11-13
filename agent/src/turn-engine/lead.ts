@@ -11,7 +11,11 @@ export function defaultMode(kind: ThreadKind, opts: { startedByAgent?: boolean }
 }
 
 /** Give a thread's agents their default modes, at most one lead (the first agent that qualifies). */
-export function assignDefaults(kind: ThreadKind, agentIds: readonly string[], opts: { startedByAgent?: boolean } = {}): EngineAgent[] {
+export function assignDefaults(
+  kind: ThreadKind,
+  agentIds: readonly string[],
+  opts: { startedByAgent?: boolean } = {},
+): EngineAgent[] {
   const lead = defaultMode(kind, opts) === "lead" ? agentIds[0] : undefined;
   return agentIds.map((id) => ({ id, mode: id === lead ? "lead" : "listen" }));
 }
@@ -19,14 +23,35 @@ export function assignDefaults(kind: ThreadKind, agentIds: readonly string[], op
 /** engine.setMode: making an agent the lead demotes the current lead (the unique partial index); setting the lead to listen leaves the thread with none. */
 export function withMode(agents: readonly EngineAgent[], agentId: string, mode: "lead" | "listen"): EngineAgent[] {
   if (!agents.some((a) => a.id === agentId)) throw new RangeError(`no agent ${agentId} in this thread`);
-  return agents.map((a) => (a.id === agentId ? { ...a, mode } : mode === "lead" && a.mode === "lead" ? { ...a, mode: "listen" as const } : { ...a }));
+  return agents.map((a) =>
+    a.id === agentId
+      ? { ...a, mode }
+      : mode === "lead" && a.mode === "lead"
+        ? { ...a, mode: "listen" as const }
+        : { ...a },
+  );
 }
 
 /** The composer line, from the same route() the engine uses, so label and behaviour cannot disagree. */
-export function preview(agents: readonly EngineAgent[], author: Author, mentions: readonly RouteMention[], depth: number | undefined, policy: RoutePolicy = {}, thread: { kind?: string; personal?: boolean; people?: readonly string[] } = {}, text?: string): PreviewResult {
-  const r = route({ agents, ...thread }, { author, mentions, ...(depth === undefined ? {} : { depth }), ...(text === undefined ? {} : { text }) }, policy);
+export function preview(
+  agents: readonly EngineAgent[],
+  author: Author,
+  mentions: readonly RouteMention[],
+  depth: number | undefined,
+  policy: RoutePolicy = {},
+  thread: { kind?: string; personal?: boolean; people?: readonly string[] } = {},
+  text?: string,
+): PreviewResult {
+  const r = route(
+    { agents, ...thread },
+    { author, mentions, ...(depth === undefined ? {} : { depth }), ...(text === undefined ? {} : { text }) },
+    policy,
+  );
   const name = (id: string): string => agents.find((a) => a.id === id)?.name ?? id;
   const names = r.responders.map(name);
-  const line = names.length === 0 ? "" : `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`} will reply`;
+  const line =
+    names.length === 0
+      ? ""
+      : `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`} will reply`;
   return { responders: r.responders, reason: r.reason, listeners: r.listeners, line };
 }

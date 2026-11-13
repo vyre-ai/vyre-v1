@@ -9,13 +9,18 @@ import { OUT, guidedSetup, signInThroughSheet } from "./support/mail-journey.ts"
 
 test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a mailbox, signing in again clears it", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "personal" }, env);
   const dir = `${OUT}/3-revoked`;
   try {
     const w = s.world;
     await unlockVault(w);
-    w.fake.open("google", "olivia@gmail.test", [{ from: "pat@acme.test", subject: "Before the break", text: "Hello before the break" }]);
+    w.fake.open("google", "olivia@gmail.test", [
+      { from: "pat@acme.test", subject: "Before the break", text: "Hello before the break" },
+    ]);
     const me = await seat(s, w.owner, "Owner");
     await guidedSetup(s, me, dir);
     await open(me, s, "/mail");
@@ -28,28 +33,42 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     w.fake.revoke("olivia@gmail.test");
     w.clock.t += 2 * 3_600_000;
     await w.owner.ok("mail.sync_now", { mailboxId: box!.id });
-    await until(async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length > 0 ? true : null), "the Needs you item");
+    await until(
+      async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length > 0 ? true : null),
+      "the Needs you item",
+    );
 
-    await open(me, s, "/chat");   // Home is gone: what needs you is on the Chats landing
-    await me.page.getByText(/Sign in to olivia@gmail.test again/).first().waitFor({ timeout: 30_000 });
+    await open(me, s, "/chat"); // Home is gone: what needs you is on the Chats landing
+    await me.page
+      .getByText(/Sign in to olivia@gmail.test again/)
+      .first()
+      .waitFor({ timeout: 30_000 });
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 1, "one item");
     await shoot(me.page, dir, "home-fix-item");
     // the item's button repairs it where it is: Connect a mailbox opens on Gmail
     w.fake.restore("olivia@gmail.test");
     // the landing row's button opens the item (its page has the sign-in); the page's button opens Connect a mailbox on Gmail
-    await me.page.locator("[data-testid^=\"landing-act-\"]").first().click();
+    await me.page.locator('[data-testid^="landing-act-"]').first().click();
     await me.page.getByTestId("task-mailfix").click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "fix");
 
-    await until(async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length === 0 ? true : null), "the item is cleared");
+    await until(
+      async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length === 0 ? true : null),
+      "the item is cleared",
+    );
     await open(me, s, "/chat");
     await me.page.waitForTimeout(1500);
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 0, "Home is clear");
     await shoot(me.page, dir, "home-clear");
-    await phonePass(me, s, dir, [{ name: "home", route: "/home", tab: "You" }, { name: "inbox", route: "/mail" }]);
+    await phonePass(me, s, dir, [
+      { name: "home", route: "/home", tab: "You" },
+      { name: "inbox", route: "/mail" },
+    ]);
     assert.deepEqual(me.errors, [], "no page errors");
   } catch (e) {
     await s.debug(dir);
     throw e;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

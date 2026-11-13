@@ -34,11 +34,34 @@ async function code(p: Promise<unknown>): Promise<string> {
   return "none";
 }
 
-interface SiteOut { siteId: string; name: string; kind: string; owner: string; repoFolderId?: string; stagingUrl?: string; productionUrl?: string; state: string }
-interface DepOut { deploymentId: string; siteId: string; env: string; state: string; url?: string; branch?: string; commit?: string; at: number }
+interface SiteOut {
+  siteId: string;
+  name: string;
+  kind: string;
+  owner: string;
+  repoFolderId?: string;
+  stagingUrl?: string;
+  productionUrl?: string;
+  state: string;
+}
+interface DepOut {
+  deploymentId: string;
+  siteId: string;
+  env: string;
+  state: string;
+  url?: string;
+  branch?: string;
+  commit?: string;
+  at: number;
+}
 
 async function newSite(w: World, name = "Harbor", extra: Record<string, unknown> = {}): Promise<SiteOut> {
-  const out = await run<{ site: SiteOut }>(w.ctx, "sites.create", { name, kind: "site", idempotencyKey: `k-${name}`, ...extra });
+  const out = await run<{ site: SiteOut }>(w.ctx, "sites.create", {
+    name,
+    kind: "site",
+    idempotencyKey: `k-${name}`,
+    ...extra,
+  });
   return out.site;
 }
 
@@ -49,12 +72,20 @@ async function readySite(w: World, extra: Record<string, unknown> = {}): Promise
 }
 
 async function build(w: World, siteId: string, branch?: string): Promise<string> {
-  const out = await run<{ runId: string; deploymentId: string }>(w.ctx, "sites.build", branch === undefined ? { siteId } : { siteId, branch });
+  const out = await run<{ runId: string; deploymentId: string }>(
+    w.ctx,
+    "sites.build",
+    branch === undefined ? { siteId } : { siteId, branch },
+  );
   return out.deploymentId;
 }
 
 async function deploy(w: World, siteId: string, deploymentId?: string): Promise<DepOut> {
-  const out = await run<{ deployment: DepOut }>(w.ctx, "sites.deploy", deploymentId === undefined ? { siteId } : { siteId, deploymentId });
+  const out = await run<{ deployment: DepOut }>(
+    w.ctx,
+    "sites.deploy",
+    deploymentId === undefined ? { siteId } : { siteId, deploymentId },
+  );
   return out.deployment;
 }
 
@@ -81,12 +112,22 @@ test("create: folder under Deployments, row, event, service identity capped by t
   assert.equal(site.state, "queued");
   assert.equal(site.repoFolderId, "fld_site1");
   assert.equal(site.stagingUrl, undefined);
-  assert.deepEqual(w.calls.map((c) => c.cap), ["files.tree", "files.folder.create"]);
+  assert.deepEqual(
+    w.calls.map((c) => c.cap),
+    ["files.tree", "files.folder.create"],
+  );
   assert.equal((w.calls[1]?.input as { parentId: string }).parentId, "fld_deployments");
-  assert.deepEqual(w.events.map((e) => [e.name, e.subject]), [["site.created", `site/${site.siteId}`]]);
+  assert.deepEqual(
+    w.events.map((e) => [e.name, e.subject]),
+    [["site.created", `site/${site.siteId}`]],
+  );
   assert.deepEqual(w.events[0]?.payload, { siteId: site.siteId, name: "Harbor Studio" });
 
-  const identity = await run<{ principal: string; grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", { siteId: site.siteId });
+  const identity = await run<{ principal: string; grants: { resource: string; level: string }[] }>(
+    w.ctx,
+    "sites.service_identity",
+    { siteId: site.siteId },
+  );
   assert.equal(identity.principal, `svc_site_${hexOf(site.siteId)}`);
   assert.deepEqual(identity.grants, [
     { resource: "folder/fld_site1", level: "edit" },
@@ -99,7 +140,9 @@ test("create: the service identity never holds more than its owner", async () =>
   w.levelFor.set("folder", "use");
   w.levelFor.set("site", "view");
   const site = await newSite(w);
-  const identity = await run<{ grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", { siteId: site.siteId });
+  const identity = await run<{ grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", {
+    siteId: site.siteId,
+  });
   assert.deepEqual(identity.grants, [
     { resource: "folder/fld_site1", level: "use" },
     { resource: `site/${site.siteId}`, level: "view" },
@@ -109,17 +152,24 @@ test("create: the service identity never holds more than its owner", async () =>
 test("the service identity follows the owner: a grant the owner no longer holds is not handed out, and a check that cannot be made hands out nothing (P-SEC_10)", async () => {
   const w = harness();
   const site = await newSite(w);
-  const ask = () => run<{ grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", { siteId: site.siteId });
+  const ask = () =>
+    run<{ grants: { resource: string; level: string }[] }>(w.ctx, "sites.service_identity", { siteId: site.siteId });
   assert.equal((await ask()).grants.length, 2);
-  w.hidden.add(`folder/fld_site1`);   // the owner's access to the folder was revoked after the site was made
+  w.hidden.add(`folder/fld_site1`); // the owner's access to the folder was revoked after the site was made
   assert.deepEqual((await ask()).grants, [{ resource: `site/${site.siteId}`, level: "edit" }]);
-  w.levelFor.set("site", "view");   // and the owner was demoted on the site itself
+  w.levelFor.set("site", "view"); // and the owner was demoted on the site itself
   assert.deepEqual((await ask()).grants, []);
   const failing = harness();
   const other = await newSite(failing);
   const real = failing.ctx.call.bind(failing.ctx);
-  failing.ctx.call = async (cap, input) => { if (cap === "access.check") throw new Error("access is down"); return real(cap, input); };
-  assert.deepEqual((await run<{ grants: unknown[] }>(failing.ctx, "sites.service_identity", { siteId: other.siteId })).grants, []);
+  failing.ctx.call = async (cap, input) => {
+    if (cap === "access.check") throw new Error("access is down");
+    return real(cap, input);
+  };
+  assert.deepEqual(
+    (await run<{ grants: unknown[] }>(failing.ctx, "sites.service_identity", { siteId: other.siteId })).grants,
+    [],
+  );
 });
 
 test("create: rejects bad names, kinds and repo addresses; a taken folder name gets a suffix", async () => {
@@ -127,8 +177,14 @@ test("create: rejects bad names, kinds and repo addresses; a taken folder name g
   assert.equal(await code(run(w.ctx, "sites.create", { name: "   ", kind: "site" })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "sites.create", { name: "x".repeat(81), kind: "site" })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "sites.create", { name: "ok", kind: "spaceship" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "sites.create", { name: "ok", kind: "site", repoUrl: "ftp://x/y" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "sites.create", { name: "ok", kind: "site", repoUrl: "https://a b" })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "sites.create", { name: "ok", kind: "site", repoUrl: "ftp://x/y" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "sites.create", { name: "ok", kind: "site", repoUrl: "https://a b" })),
+    "validation.bad_input",
+  );
   assert.equal(w.db.rows("sites_site").length, 0);
   const a = await newSite(w, "Same");
   const b = await newSite(w, "Same");
@@ -143,19 +199,32 @@ test("get, list: sections, visibility, paging and recent activity first", async 
   const b = await newSite(w, "Beta");
   w.advance(1000);
   const other = w.as("usr_ana");
-  const c = (await run<{ site: SiteOut }>(other, "sites.create", { name: "Gamma", kind: "app", idempotencyKey: "k-g" })).site;
+  const c = (await run<{ site: SiteOut }>(other, "sites.create", { name: "Gamma", kind: "app", idempotencyKey: "k-g" }))
+    .site;
 
   const all = await run<{ sites: SiteOut[]; total: number; next?: string }>(w.ctx, "sites.list", {});
-  assert.deepEqual(all.sites.map((s) => s.name), ["Gamma", "Beta", "Alpha"]);
+  assert.deepEqual(
+    all.sites.map((s) => s.name),
+    ["Gamma", "Beta", "Alpha"],
+  );
   assert.equal(all.total, 3);
   assert.equal(all.next, undefined);
 
   const mine = await run<{ sites: SiteOut[] }>(w.ctx, "sites.list", { section: "personal" });
-  assert.deepEqual(mine.sites.map((s) => s.name), ["Beta", "Alpha"]);
+  assert.deepEqual(
+    mine.sites.map((s) => s.name),
+    ["Beta", "Alpha"],
+  );
   const shared = await run<{ sites: SiteOut[] }>(w.ctx, "sites.list", { section: "shared" });
-  assert.deepEqual(shared.sites.map((s) => s.name), ["Gamma"]);
+  assert.deepEqual(
+    shared.sites.map((s) => s.name),
+    ["Gamma"],
+  );
   const inFolder = await run<{ sites: SiteOut[] }>(w.ctx, "sites.list", { folderId: a.repoFolderId });
-  assert.deepEqual(inFolder.sites.map((s) => s.name), ["Alpha"]);
+  assert.deepEqual(
+    inFolder.sites.map((s) => s.name),
+    ["Alpha"],
+  );
 
   w.advance(1000);
   await run(w.ctx, "sites.update", { siteId: a.siteId, name: "Alpha 2" });
@@ -181,12 +250,19 @@ test("get, list: sections, visibility, paging and recent activity first", async 
 test("update: rename, merge settings, reject a bad default branch", async () => {
   const w = harness();
   const site = await newSite(w);
-  const renamed = await run<{ site: SiteOut }>(w.ctx, "sites.update", { siteId: site.siteId, name: "Harbor 2", settings: { defaultBranch: "trunk", note: 1 } });
+  const renamed = await run<{ site: SiteOut }>(w.ctx, "sites.update", {
+    siteId: site.siteId,
+    name: "Harbor 2",
+    settings: { defaultBranch: "trunk", note: 1 },
+  });
   assert.equal(renamed.site.name, "Harbor 2");
   await run(w.ctx, "sites.update", { siteId: site.siteId, settings: { extra: true } });
   const row = w.db.rows("sites_site")[0] as Row;
   assert.deepEqual(JSON.parse(String(row.settings)), { defaultBranch: "trunk", note: 1, extra: true });
-  assert.equal(await code(run(w.ctx, "sites.update", { siteId: site.siteId, settings: { defaultBranch: "a b" } })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "sites.update", { siteId: site.siteId, settings: { defaultBranch: "a b" } })),
+    "validation.bad_input",
+  );
   assert.equal(await code(run(w.ctx, "sites.update", { siteId: site.siteId, settings: [] })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "sites.update", { siteId: site.siteId, name: "" })), "validation.bad_input");
 });
@@ -212,19 +288,28 @@ test("build: a good build is ready without a url; a failed build emits build_fai
   w.runtime.outcomes.set("main", { ok: false, log: ["npm ERR! missing script: build", "exit 1"] });
   const bad = await run<{ runId: string; deploymentId: string }>(w.ctx, "sites.build", { siteId: site.siteId });
   assert.equal(bad.runId, "run_fixed");
-  assert.deepEqual(w.events.filter((e) => e.name === "site.build_failed").map((e) => e.payload), [
-    { siteId: site.siteId, deploymentId: bad.deploymentId, reason: "exit 1" },
-  ]);
+  assert.deepEqual(
+    w.events.filter((e) => e.name === "site.build_failed").map((e) => e.payload),
+    [{ siteId: site.siteId, deploymentId: bad.deploymentId, reason: "exit 1" }],
+  );
   assert.equal((await run<{ site: SiteOut }>(w.ctx, "sites.get", { siteId: site.siteId })).site.state, "failed");
-  const logs = await run<{ lines: string[] }>(w.ctx, "sites.logs", { siteId: site.siteId, deploymentId: bad.deploymentId });
+  const logs = await run<{ lines: string[] }>(w.ctx, "sites.logs", {
+    siteId: site.siteId,
+    deploymentId: bad.deploymentId,
+  });
   assert.deepEqual(logs.lines, ["npm ERR! missing script: build", "exit 1"]);
-  assert.equal(await code(run(w.ctx, "sites.deploy", { siteId: site.siteId, deploymentId: bad.deploymentId })), "validation.precondition_failed");
+  assert.equal(
+    await code(run(w.ctx, "sites.deploy", { siteId: site.siteId, deploymentId: bad.deploymentId })),
+    "validation.precondition_failed",
+  );
 });
 
 test("build: a driver that throws is a failed build, not a crash; no driver is a plain precondition", async () => {
   const w = harness();
   const site = await newSite(w);
-  w.runtime.build = async () => { throw new Error("docker daemon unreachable"); };
+  w.runtime.build = async () => {
+    throw new Error("docker daemon unreachable");
+  };
   const id = await build(w, site.siteId);
   const dep = w.db.rows("sites_deployment").find((r) => r.id === id) as Row;
   assert.equal(dep.state, "failed");
@@ -253,13 +338,20 @@ test("deploy: staging is always behind a sealed password; no password means no c
   assert.equal(dep.url, `https://${host}`);
   assert.deepEqual(w.router.routes.get(host)?.auth, { handle: "#Staging_Pass" });
   assert.match(w.router.routes.get(host)?.upstream ?? "", /^site-[a-z0-9]+-[a-z0-9]+:3000$/);
-  assert.deepEqual(w.filled.filter((f) => f.kind === "route_auth"), [{ handle: "#Staging_Pass", kind: "route_auth", ref: host }]);
+  assert.deepEqual(
+    w.filled.filter((f) => f.kind === "route_auth"),
+    [{ handle: "#Staging_Pass", kind: "route_auth", ref: host }],
+  );
   const started = w.runtime.starts[0];
   assert.equal(started?.network, "vyre-sites");
   assert.equal(started?.env, "staging");
   assert.equal(started?.servicePrincipal, `svc_site_${hexOf(site.siteId)}`);
   assert.equal(w.events.filter((e) => e.name === "site.deployed").length, 1);
-  assert.deepEqual(w.events.find((e) => e.name === "site.deployed")?.payload, { siteId: site.siteId, deploymentId: dep.deploymentId, env: "staging" });
+  assert.deepEqual(w.events.find((e) => e.name === "site.deployed")?.payload, {
+    siteId: site.siteId,
+    deploymentId: dep.deploymentId,
+    env: "staging",
+  });
   const got = await run<{ site: SiteOut }>(w.ctx, "sites.get", { siteId: site.siteId });
   assert.equal(got.site.stagingUrl, `https://${host}`);
   assert.equal(got.site.productionUrl, undefined);
@@ -271,7 +363,10 @@ test("deploy: nothing built is a precondition; a vault key the owner cannot use 
   const w = harness();
   const site = await readySite(w);
   assert.equal(await code(run(w.ctx, "sites.deploy", { siteId: site.siteId })), "validation.precondition_failed");
-  assert.equal(await code(run(w.ctx, "sites.deploy", { siteId: site.siteId, deploymentId: "dpl_nope" })), "validation.not_found");
+  assert.equal(
+    await code(run(w.ctx, "sites.deploy", { siteId: site.siteId, deploymentId: "dpl_nope" })),
+    "validation.not_found",
+  );
   await build(w, site.siteId);
   w.granted.delete("#Staging_Pass");
   assert.equal(await code(run(w.ctx, "sites.deploy", { siteId: site.siteId })), "permission.no_grant");
@@ -325,7 +420,9 @@ test("deploy: a router fault stops the container it started", async () => {
   const w = harness();
   const site = await readySite(w);
   await build(w, site.siteId);
-  w.router.setRoute = async () => { throw new Error("caddy admin api refused"); };
+  w.router.setRoute = async () => {
+    throw new Error("caddy admin api refused");
+  };
   const dep = await deploy(w, site.siteId);
   assert.equal(dep.state, "failed");
   assert.equal(w.runtime.running.size, 0);
@@ -336,8 +433,18 @@ test("env: names map to Vault handles, values are filled into the container and 
   const w = harness();
   const site = await readySite(w);
   assert.deepEqual(await run(w.ctx, "sites.env_list", { siteId: site.siteId }), { entries: [] });
-  await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [{ name: "STRIPE_KEY", vaultHandle: "#Stripe.key" }, { name: "DATABASE_URL", vaultHandle: "#Db_Url" }] });
-  const listed = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(w.ctx, "sites.env_list", { siteId: site.siteId });
+  await run(w.ctx, "sites.env_set", {
+    siteId: site.siteId,
+    entries: [
+      { name: "STRIPE_KEY", vaultHandle: "#Stripe.key" },
+      { name: "DATABASE_URL", vaultHandle: "#Db_Url" },
+    ],
+  });
+  const listed = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(
+    w.ctx,
+    "sites.env_list",
+    { siteId: site.siteId },
+  );
   assert.deepEqual(listed.entries, [
     { name: "DATABASE_URL", vaultName: "#Db_Url", injected: false },
     { name: "STRIPE_KEY", vaultName: "#Stripe.key", injected: false },
@@ -348,13 +455,34 @@ test("env: names map to Vault handles, values are filled into the container and 
   const refs = w.runtime.starts[0]?.envRefs ?? [];
   assert.deepEqual(refs.map((r) => r.name).sort(), ["DATABASE_URL", "STRIPE_KEY"]);
   for (const r of refs) assert.equal(r.ref.startsWith(`${dep.deploymentId}:`), true);
-  assert.deepEqual(w.filled.filter((f) => f.kind === "container_env").map((f) => f.handle).sort(), ["#Db_Url", "#Stripe.key"]);
-  const after = await run<{ entries: { name: string; injected: boolean }[] }>(w.ctx, "sites.env_list", { siteId: site.siteId });
-  assert.deepEqual(after.entries.map((e) => e.injected), [true, true]);
+  assert.deepEqual(
+    w.filled
+      .filter((f) => f.kind === "container_env")
+      .map((f) => f.handle)
+      .sort(),
+    ["#Db_Url", "#Stripe.key"],
+  );
+  const after = await run<{ entries: { name: string; injected: boolean }[] }>(w.ctx, "sites.env_list", {
+    siteId: site.siteId,
+  });
+  assert.deepEqual(
+    after.entries.map((e) => e.injected),
+    [true, true],
+  );
 
   // replacing keeps injected for an unchanged entry, resets it for a changed handle, drops removed names
-  await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [{ name: "STRIPE_KEY", vaultHandle: "#Stripe.key" }, { name: "DATABASE_URL", vaultHandle: "#Staging_Pass" }] });
-  const replaced = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(w.ctx, "sites.env_list", { siteId: site.siteId });
+  await run(w.ctx, "sites.env_set", {
+    siteId: site.siteId,
+    entries: [
+      { name: "STRIPE_KEY", vaultHandle: "#Stripe.key" },
+      { name: "DATABASE_URL", vaultHandle: "#Staging_Pass" },
+    ],
+  });
+  const replaced = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(
+    w.ctx,
+    "sites.env_list",
+    { siteId: site.siteId },
+  );
   assert.deepEqual(replaced.entries, [
     { name: "DATABASE_URL", vaultName: "#Staging_Pass", injected: false },
     { name: "STRIPE_KEY", vaultName: "#Stripe.key", injected: true },
@@ -367,16 +495,29 @@ test("env: bad names, duplicates, bad handles and keys without a grant are refus
   const w = harness();
   const site = await readySite(w);
   await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [{ name: "KEEP", vaultHandle: "#Db_Url" }] });
-  const bad = async (entries: unknown): Promise<string> => code(run(w.ctx, "sites.env_set", { siteId: site.siteId, entries }));
+  const bad = async (entries: unknown): Promise<string> =>
+    code(run(w.ctx, "sites.env_set", { siteId: site.siteId, entries }));
   assert.equal(await bad([{ name: "1BAD", vaultHandle: "#Db_Url" }]), "validation.bad_input");
   assert.equal(await bad([{ name: "A-B", vaultHandle: "#Db_Url" }]), "validation.bad_input");
   assert.equal(await bad([{ name: "OK", vaultHandle: "Db_Url" }]), "validation.bad_input");
-  assert.equal(await bad([{ name: "OK", vaultHandle: "#Db_Url" }, { name: "OK", vaultHandle: "#Stripe.key" }]), "validation.duplicate");
+  assert.equal(
+    await bad([
+      { name: "OK", vaultHandle: "#Db_Url" },
+      { name: "OK", vaultHandle: "#Stripe.key" },
+    ]),
+    "validation.duplicate",
+  );
   assert.equal(await bad([{ name: "OK", vaultHandle: "#Not_Granted" }]), "permission.no_grant");
   assert.equal(await bad("nope"), "validation.bad_input");
-  assert.equal(await bad(Array.from({ length: 201 }, (_, i) => ({ name: `N${i}`, vaultHandle: "#Db_Url" }))), "validation.too_large");
+  assert.equal(
+    await bad(Array.from({ length: 201 }, (_, i) => ({ name: `N${i}`, vaultHandle: "#Db_Url" }))),
+    "validation.too_large",
+  );
   const left = await run<{ entries: { name: string }[] }>(w.ctx, "sites.env_list", { siteId: site.siteId });
-  assert.deepEqual(left.entries.map((e) => e.name), ["KEEP"]);
+  assert.deepEqual(
+    left.entries.map((e) => e.name),
+    ["KEEP"],
+  );
 });
 
 test("previews: one per branch on its own address, built on push, rebuilt in place, removed on request and brought back", async () => {
@@ -393,7 +534,12 @@ test("previews: one per branch on its own address, built on push, rebuilt in pla
   const feat = previews.find((p) => p.branch === "feat/login");
   assert.equal(feat?.env, "preview");
   assert.equal(feat?.state, "ready");
-  assert.match(feat?.url ?? "", new RegExp(`^https://preview-${hexOf(site.siteId).slice(0, 12)}-feat-login-[0-9a-f]{4}\\.${SPACE_DOMAIN.replaceAll(".", "\\.")}$`));
+  assert.match(
+    feat?.url ?? "",
+    new RegExp(
+      `^https://preview-${hexOf(site.siteId).slice(0, 12)}-feat-login-[0-9a-f]{4}\\.${SPACE_DOMAIN.replaceAll(".", "\\.")}$`,
+    ),
+  );
   assert.notEqual(feat?.url, previews.find((p) => p.branch === "fix/typo")?.url);
   assert.equal(w.events.filter((e) => e.name === "site.preview_created").length, 2);
   assert.deepEqual(w.router.routes.get(new URL(feat?.url ?? "").host)?.auth, { handle: "#Staging_Pass" });
@@ -407,23 +553,42 @@ test("previews: one per branch on its own address, built on push, rebuilt in pla
   assert.equal(again, featId);
   previews = (await run<{ previews: DepOut[] }>(w.ctx, "sites.previews", { siteId: site.siteId })).previews;
   assert.equal(previews.length, 2);
-  assert.equal(w.runtime.running.size, 3);   // staging + 2 previews, the old preview container was stopped
+  assert.equal(w.runtime.running.size, 3); // staging + 2 previews, the old preview container was stopped
 
   // the default branch cannot be a preview
-  assert.equal(await code(run(w.ctx, "sites.preview_rebuild", { siteId: site.siteId, branch: "main" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "sites.build", { siteId: site.siteId, branch: "../etc" })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "sites.preview_rebuild", { siteId: site.siteId, branch: "main" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "sites.build", { siteId: site.siteId, branch: "../etc" })),
+    "validation.bad_input",
+  );
 
   const host = new URL(feat?.url ?? "").host;
-  assert.deepEqual(await run(w.ctx, "sites.preview_remove", { siteId: site.siteId, branch: "feat/login" }), { removed: true });
+  assert.deepEqual(await run(w.ctx, "sites.preview_remove", { siteId: site.siteId, branch: "feat/login" }), {
+    removed: true,
+  });
   assert.equal(w.router.routes.has(host), false);
   assert.equal(w.runtime.running.size, 2);
-  assert.deepEqual(w.events.filter((e) => e.name === "site.preview_removed").map((e) => e.payload), [{ siteId: site.siteId, branch: "feat/login" }]);
+  assert.deepEqual(
+    w.events.filter((e) => e.name === "site.preview_removed").map((e) => e.payload),
+    [{ siteId: site.siteId, branch: "feat/login" }],
+  );
   previews = (await run<{ previews: DepOut[] }>(w.ctx, "sites.previews", { siteId: site.siteId })).previews;
-  assert.deepEqual(previews.map((p) => p.branch), ["fix/typo"]);
-  assert.deepEqual(await run(w.ctx, "sites.preview_remove", { siteId: site.siteId, branch: "feat/login" }), { removed: false });
+  assert.deepEqual(
+    previews.map((p) => p.branch),
+    ["fix/typo"],
+  );
+  assert.deepEqual(await run(w.ctx, "sites.preview_remove", { siteId: site.siteId, branch: "feat/login" }), {
+    removed: false,
+  });
 
   w.advance(1000);
-  const back = await run<{ deployment: DepOut }>(w.ctx, "sites.preview_rebuild", { siteId: site.siteId, branch: "feat/login" });
+  const back = await run<{ deployment: DepOut }>(w.ctx, "sites.preview_rebuild", {
+    siteId: site.siteId,
+    branch: "feat/login",
+  });
   assert.equal(back.deployment.deploymentId, featId);
   assert.equal(back.deployment.state, "ready");
   assert.equal(back.deployment.url, feat?.url);
@@ -469,27 +634,40 @@ test("previews: removed when the pull request merges (marked by the event, remov
   on(tx, payloadEvent({ repo: "someone/else", number: 42 }));
   assert.equal((w.db.rows("sites_deployment").find((r) => r.branch === "feat/login") as Row).merge_pending, 0);
   on(tx, payloadEvent({ repo: "acme/harbor", number: 42 }));
-  on(tx, payloadEvent({ repo: "acme/harbor", number: 42 }));   // at-least-once delivery
+  on(tx, payloadEvent({ repo: "acme/harbor", number: 42 })); // at-least-once delivery
   assert.equal((w.db.rows("sites_deployment").find((r) => r.branch === "feat/login") as Row).merge_pending, 1);
   assert.equal((w.db.rows("sites_deployment").find((r) => r.branch === "fix/typo") as Row).merge_pending, 0);
 
   // marked previews no longer show
   const shown = (await run<{ previews: DepOut[] }>(w.ctx, "sites.previews", { siteId: site.siteId })).previews;
-  assert.deepEqual(shown.map((p) => p.branch), ["fix/typo"]);
-  const listed = (await run<{ deployments: DepOut[] }>(w.ctx, "sites.deployments", { siteId: site.siteId })).deployments;
-  assert.equal(listed.some((d) => d.branch === "feat/login"), false);
+  assert.deepEqual(
+    shown.map((p) => p.branch),
+    ["fix/typo"],
+  );
+  const listed = (await run<{ deployments: DepOut[] }>(w.ctx, "sites.deployments", { siteId: site.siteId }))
+    .deployments;
+  assert.equal(
+    listed.some((d) => d.branch === "feat/login"),
+    false,
+  );
   // the container is still up until the next write sweeps it
   assert.equal(w.router.routes.has(featHost), true);
   await build(w, site.siteId);
   assert.equal(w.router.routes.has(featHost), false);
-  assert.equal(w.runtime.running.size, 1);   // only fix/typo
-  assert.deepEqual(w.events.filter((e) => e.name === "site.preview_removed").map((e) => e.payload), [{ siteId: site.siteId, branch: "feat/login" }]);
+  assert.equal(w.runtime.running.size, 1); // only fix/typo
+  assert.deepEqual(
+    w.events.filter((e) => e.name === "site.preview_removed").map((e) => e.payload),
+    [{ siteId: site.siteId, branch: "feat/login" }],
+  );
   const gone = w.db.rows("sites_deployment").find((r) => r.branch === "feat/login") as Row;
   assert.equal(gone.state, "stopped");
   assert.notEqual(gone.removed_at, null);
 
   // a rebuild brings it back
-  const back = await run<{ deployment: DepOut }>(w.ctx, "sites.preview_rebuild", { siteId: site.siteId, branch: "feat/login" });
+  const back = await run<{ deployment: DepOut }>(w.ctx, "sites.preview_rebuild", {
+    siteId: site.siteId,
+    branch: "feat/login",
+  });
   assert.equal(back.deployment.state, "ready");
   assert.equal(w.router.routes.has(featHost), true);
 });
@@ -512,10 +690,22 @@ test("staging password: changing the key re-secures every live staging and previ
   assert.equal(w.router.routes.size, 2);
   w.granted.add("#New_Pass");
   await run(w.ctx, "sites.staging_password_set", { siteId: site.siteId, vaultHandle: "#New_Pass" });
-  assert.deepEqual([...w.router.routes.values()].map((r) => r.auth?.handle), ["#New_Pass", "#New_Pass"]);
-  assert.equal(w.db.rows("sites_route").every((r) => r.auth_handle === "#New_Pass"), true);
-  assert.equal(await code(run(w.ctx, "sites.staging_password_set", { siteId: site.siteId, vaultHandle: "#Not_Granted" })), "permission.no_grant");
-  assert.equal(await code(run(w.ctx, "sites.staging_password_set", { siteId: site.siteId, vaultHandle: "plain" })), "validation.bad_input");
+  assert.deepEqual(
+    [...w.router.routes.values()].map((r) => r.auth?.handle),
+    ["#New_Pass", "#New_Pass"],
+  );
+  assert.equal(
+    w.db.rows("sites_route").every((r) => r.auth_handle === "#New_Pass"),
+    true,
+  );
+  assert.equal(
+    await code(run(w.ctx, "sites.staging_password_set", { siteId: site.siteId, vaultHandle: "#Not_Granted" })),
+    "permission.no_grant",
+  );
+  assert.equal(
+    await code(run(w.ctx, "sites.staging_password_set", { siteId: site.siteId, vaultHandle: "plain" })),
+    "validation.bad_input",
+  );
   assert.equal((w.db.rows("sites_site")[0] as Row).staging_secret, "#New_Pass");
   noRouteWithoutPassword(w);
 });
@@ -527,8 +717,15 @@ test("logs: build lines then container lines, tail applies, bad tail refused", a
   w.runtime.outcomes.set("main", { log: ["step 1", "step 2"] });
   const id = await build(w, site.siteId);
   await deploy(w, site.siteId, id);
-  assert.deepEqual((await run<{ lines: string[] }>(w.ctx, "sites.logs", { siteId: site.siteId })).lines, ["step 1", "step 2", "container: listening on 3000"]);
-  assert.deepEqual((await run<{ lines: string[] }>(w.ctx, "sites.logs", { siteId: site.siteId, deploymentId: id, tail: 1 })).lines, ["container: listening on 3000"]);
+  assert.deepEqual((await run<{ lines: string[] }>(w.ctx, "sites.logs", { siteId: site.siteId })).lines, [
+    "step 1",
+    "step 2",
+    "container: listening on 3000",
+  ]);
+  assert.deepEqual(
+    (await run<{ lines: string[] }>(w.ctx, "sites.logs", { siteId: site.siteId, deploymentId: id, tail: 1 })).lines,
+    ["container: listening on 3000"],
+  );
   assert.equal(await code(run(w.ctx, "sites.logs", { siteId: site.siteId, tail: 0 })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "sites.logs", { siteId: site.siteId, tail: 1001 })), "validation.bad_input");
 });
@@ -560,7 +757,7 @@ test("activity projection: the last site event per site, idempotent on replay", 
   created(tx, payloadEvent({ siteId: "sit_a", name: "A" }, 10));
   on(tx, payloadEvent({ siteId: "sit_a", deploymentId: "dpl_x", env: "staging" }, 30));
   on(tx, payloadEvent({ siteId: "sit_a", deploymentId: "dpl_x", env: "staging" }, 30));
-  created(tx, payloadEvent({ siteId: "sit_a", name: "A" }, 10));   // an older event replayed later does not win
+  created(tx, payloadEvent({ siteId: "sit_a", name: "A" }, 10)); // an older event replayed later does not win
   on(tx, payloadEvent({ nothing: true }, 40));
   assert.deepEqual(w.db.rows("sites_activity"), [{ site_id: "sit_a", last_event: "site.deployed", at: 30 }]);
   p.reset(tx);

@@ -22,13 +22,16 @@ function mark(text: string, a: Attrs | undefined): string {
   if (a["bold"] || a["strong"]) out = `**${out}**`;
   if (a["italic"] || a["em"]) out = `*${out}*`;
   const link = a["link"];
-  if (link && typeof link === "object" && typeof (link as { href?: unknown }).href === "string") out = `[${out}](${(link as { href: string }).href})`;
+  if (link && typeof link === "object" && typeof (link as { href?: unknown }).href === "string")
+    out = `[${out}](${(link as { href: string }).href})`;
   return out;
 }
 
 function inline(node: Y.XmlElement | Y.XmlFragment | Y.XmlText): string {
   if (node instanceof Y.XmlText) {
-    return (node.toDelta() as { insert?: unknown; attributes?: Attrs }[]).map((d) => (typeof d.insert === "string" ? mark(d.insert, d.attributes) : "")).join("");
+    return (node.toDelta() as { insert?: unknown; attributes?: Attrs }[])
+      .map((d) => (typeof d.insert === "string" ? mark(d.insert, d.attributes) : ""))
+      .join("");
   }
   let out = "";
   for (const child of node.toArray()) {
@@ -41,18 +44,22 @@ function inline(node: Y.XmlElement | Y.XmlFragment | Y.XmlText): string {
 function block(node: Y.XmlElement | Y.XmlText, prefix: string, depth: number): string {
   if (node instanceof Y.XmlText) return `${prefix}${inline(node)}\n\n`;
   const name = node.nodeName;
-  const kids = node.toArray().filter((c): c is Y.XmlElement | Y.XmlText => c instanceof Y.XmlElement || c instanceof Y.XmlText);
+  const kids = node
+    .toArray()
+    .filter((c): c is Y.XmlElement | Y.XmlText => c instanceof Y.XmlElement || c instanceof Y.XmlText);
   if (name === "heading") {
     const level = Math.min(6, Math.max(1, Number(node.getAttribute("level") ?? 1) || 1));
     return `${prefix}${"#".repeat(level)} ${inline(node)}\n\n`;
   }
   if (name === "paragraph") return `${prefix}${inline(node)}\n\n`;
-  if (name === "codeBlock") return `${prefix}\`\`\`${String(node.getAttribute("language") ?? "")}\n${inline(node)}\n\`\`\`\n\n`;
+  if (name === "codeBlock")
+    return `${prefix}\`\`\`${String(node.getAttribute("language") ?? "")}\n${inline(node)}\n\`\`\`\n\n`;
   if (name === "blockquote") return kids.map((k) => block(k, `${prefix}> `, depth)).join("");
   if (name === "bulletList" || name === "orderedList") {
     const items = kids.map((li, i) => {
       const lead = name === "bulletList" ? "- " : `${i + 1}. `;
-      const inner = li instanceof Y.XmlElement ? li.toArray().filter((c): c is Y.XmlElement => c instanceof Y.XmlElement) : [];
+      const inner =
+        li instanceof Y.XmlElement ? li.toArray().filter((c): c is Y.XmlElement => c instanceof Y.XmlElement) : [];
       const [first, ...rest] = inner;
       const head = first ? inline(first) : "";
       const nested = rest.map((r) => block(r, "  ".repeat(depth + 1), depth + 1).replace(/\n+$/, "\n")).join("");
@@ -66,7 +73,8 @@ function block(node: Y.XmlElement | Y.XmlText, prefix: string, depth: number): s
 
 function fragmentToMarkdown(f: Y.XmlFragment): string {
   let out = "";
-  for (const child of f.toArray()) if (child instanceof Y.XmlElement || child instanceof Y.XmlText) out += block(child, "", 0);
+  for (const child of f.toArray())
+    if (child instanceof Y.XmlElement || child instanceof Y.XmlText) out += block(child, "", 0);
   return out.replace(/\n{3,}/g, "\n\n").trim();
 }
 

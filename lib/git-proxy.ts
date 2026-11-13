@@ -14,10 +14,17 @@ const REF = /^refs\/[^\s\x00-\x1f\x7f~^:?*[\\]+$/;
 
 export class PktError extends Error {
   readonly code: "malformed" | "too_big" | "unsupported" | "empty";
-  constructor(message: string, code: "malformed" | "too_big" | "unsupported" | "empty" = "malformed") { super(message); this.code = code; }
+  constructor(message: string, code: "malformed" | "too_big" | "unsupported" | "empty" = "malformed") {
+    super(message);
+    this.code = code;
+  }
 }
 
-export interface RefCommand { old: string; new: string; ref: string }
+export interface RefCommand {
+  old: string;
+  new: string;
+  ref: string;
+}
 export interface Update {
   commands: RefCommand[];
   caps: string[];
@@ -28,7 +35,13 @@ export interface Update {
   used: number;
 }
 
-const refOk = (ref: string): boolean => REF.test(ref) && !ref.includes("..") && !ref.includes("@{") && !ref.includes("//") && !/[/.]$/.test(ref) && !ref.split("/").some((p) => p.startsWith(".") || p.endsWith(".lock"));
+const refOk = (ref: string): boolean =>
+  REF.test(ref) &&
+  !ref.includes("..") &&
+  !ref.includes("@{") &&
+  !ref.includes("//") &&
+  !/[/.]$/.test(ref) &&
+  !ref.split("/").some((p) => p.startsWith(".") || p.endsWith(".lock"));
 
 /**
  * Read the command list from the start of a receive-pack body. Returns the update once the first flush has arrived, or null while more bytes are needed. Throws PktError for a body that is not a
@@ -47,24 +60,47 @@ export function readUpdate(buf: Uint8Array): Update | null {
     const len = parseInt(head, 16);
     if (len === 0) {
       if (commands.length === 0) throw new PktError("The push names no change.", "empty");
-      return { commands, caps: caps ?? [], sideBand: (caps ?? []).some((c) => c === "side-band-64k" || c === "side-band"), reportStatus: (caps ?? []).some((c) => c === "report-status" || c === "report-status-v2"), used: at + 4 };
+      return {
+        commands,
+        caps: caps ?? [],
+        sideBand: (caps ?? []).some((c) => c === "side-band-64k" || c === "side-band"),
+        reportStatus: (caps ?? []).some((c) => c === "report-status" || c === "report-status-v2"),
+        used: at + 4,
+      };
     }
     if (len < 4 || len > MAX_PKT) throw new PktError("The push has a line of an impossible length.");
-    if (at + len > MAX_COMMAND_BYTES + 4) throw new PktError("The list of changes in this push is too long.", "too_big");
+    if (at + len > MAX_COMMAND_BYTES + 4)
+      throw new PktError("The list of changes in this push is too long.", "too_big");
     if (buf.length - at < len) return needMore(buf.length);
-    const text = Buffer.from(buf.subarray(at + 4, at + len)).toString("utf8").replace(/\n$/, "");
+    const text = Buffer.from(buf.subarray(at + 4, at + len))
+      .toString("utf8")
+      .replace(/\n$/, "");
     at += len;
-    if (text.startsWith("push-cert")) throw new PktError("Signed pushes are not supported through Vyre.", "unsupported");
+    if (text.startsWith("push-cert"))
+      throw new PktError("Signed pushes are not supported through Vyre.", "unsupported");
     if (text.startsWith("shallow ") && commands.length === 0 && OID.test(text.slice(8))) continue;
     const nul = text.indexOf("\0");
     if (nul >= 0 && !first) throw new PktError("The push has capabilities on a line that should not.");
-    if (nul < 0 && first) { /* a first line with no capabilities is legal */ }
+    if (nul < 0 && first) {
+      /* a first line with no capabilities is legal */
+    }
     const line = nul >= 0 ? text.slice(0, nul) : text;
-    if (first) { caps = nul >= 0 ? text.slice(nul + 1).split(" ").filter(Boolean) : []; if (caps.length > 64) throw new PktError("The push names too many capabilities."); first = false; }
+    if (first) {
+      caps =
+        nul >= 0
+          ? text
+              .slice(nul + 1)
+              .split(" ")
+              .filter(Boolean)
+          : [];
+      if (caps.length > 64) throw new PktError("The push names too many capabilities.");
+      first = false;
+    }
     const parts = line.split(" ");
     if (parts.length !== 3) throw new PktError("The push has a change that is not <old> <new> <ref>.");
     const [o, n, ref] = parts as [string, string, string];
-    if (!OID.test(o) || !OID.test(n) || o.length !== n.length) throw new PktError("The push has a change with a bad object name.");
+    if (!OID.test(o) || !OID.test(n) || o.length !== n.length)
+      throw new PktError("The push has a change with a bad object name.");
     if (!refOk(ref)) throw new PktError("The push names a branch or tag git would not accept.");
     commands.push({ old: o, new: n, ref });
     if (commands.length > MAX_COMMANDS) throw new PktError("The push changes too many branches at once.", "too_big");
@@ -92,8 +128,15 @@ const shortOf = (ref: string): string => ref.replace(/^refs\/(?:heads|tags)\//, 
 /** What each ref needs (defaults: the branch the server names as its default, or main and master when it names none): the default branch is push_default, anything else is push_branch (tags and deletes too), and deleting the default branch is held whatever the settings say. */
 export function needsOf(commands: readonly RefCommand[], defaults: readonly string[]): RefNeed[] {
   return commands.map((command) => {
-    const del = isDelete(command), onDefault = defaults.some((d) => command.ref === `refs/heads/${d}`);
-    return { command, short: shortOf(command.ref), kind: del ? "delete" : ZERO.test(command.old) ? "create" : "update", need: onDefault ? "push_default" : "push_branch", always: del && onDefault };
+    const del = isDelete(command),
+      onDefault = defaults.some((d) => command.ref === `refs/heads/${d}`);
+    return {
+      command,
+      short: shortOf(command.ref),
+      kind: del ? "delete" : ZERO.test(command.old) ? "create" : "update",
+      need: onDefault ? "push_default" : "push_branch",
+      always: del && onDefault,
+    };
   });
 }
 
@@ -105,7 +148,9 @@ export function defaultBranchOf(advert: Uint8Array): { branch: string } | "empty
   const text = Buffer.from(advert.subarray(0, Math.min(advert.length, 16 * 1024))).toString("utf8");
   const m = /symref=HEAD:refs\/heads\/([^\s\0]+)/.exec(text);
   if (m) return { branch: m[1]! };
-  return /\0[^\n]*\bagent=/.test(text) && /capabilities\^\{\}/.test(text) && !/ refs\//.test(text) ? "empty" : "unknown";
+  return /\0[^\n]*\bagent=/.test(text) && /capabilities\^\{\}/.test(text) && !/ refs\//.test(text)
+    ? "empty"
+    : "unknown";
 }
 
 /**
@@ -121,13 +166,24 @@ export function receiveAdvert(upload: Uint8Array): Buffer | null {
     const head = buf.subarray(at, at + 4).toString("latin1");
     if (!/^[0-9a-f]{4}$/.test(head)) return null;
     const len = parseInt(head, 16);
-    if (len === 0) { at += 4; if (++flushes === 2) break; continue; }
+    if (len === 0) {
+      at += 4;
+      if (++flushes === 2) break;
+      continue;
+    }
     if (len < 4 || at + len > buf.length) return null;
-    if (flushes === 1) lines.push(buf.subarray(at + 4, at + len).toString("utf8").replace(/\n$/, ""));
+    if (flushes === 1)
+      lines.push(
+        buf
+          .subarray(at + 4, at + len)
+          .toString("utf8")
+          .replace(/\n$/, ""),
+      );
     at += len;
   }
   if (flushes < 2 || lines.length === 0) return null;
-  const first = lines[0]!, nul = first.indexOf("\0");
+  const first = lines[0]!,
+    nul = first.indexOf("\0");
   if (nul < 0 || /version [12]/.test(first)) return null;
   const upCaps = first.slice(nul + 1).split(" ");
   const oidLen = first.indexOf(" ");
@@ -142,7 +198,16 @@ export function receiveAdvert(upload: Uint8Array): Buffer | null {
     if (ref.startsWith("refs/pull/") || ref.startsWith("refs/changes/")) continue;
     refs.push(line);
   }
-  const caps = ["report-status", "report-status-v2", "delete-refs", "side-band-64k", "quiet", "atomic", "ofs-delta", ...upCaps.filter((c) => c.startsWith("object-format=") || c.startsWith("agent="))];
+  const caps = [
+    "report-status",
+    "report-status-v2",
+    "delete-refs",
+    "side-band-64k",
+    "quiet",
+    "atomic",
+    "ofs-delta",
+    ...upCaps.filter((c) => c.startsWith("object-format=") || c.startsWith("agent=")),
+  ];
   const out: Buffer[] = [pkt("# service=git-receive-pack\n"), FLUSH];
   if (refs.length === 0) out.push(pkt(`${"0".repeat(oidLen)} capabilities^{}\0${caps.join(" ")}\n`));
   else refs.forEach((r, i) => out.push(pkt(i === 0 ? `${r}\0${caps.join(" ")}\n` : `${r}\n`)));
@@ -162,7 +227,8 @@ export const FLUSH = Buffer.from("0000", "latin1");
 export function band(channel: 1 | 2 | 3, text: string | Uint8Array): Buffer {
   const body = typeof text === "string" ? Buffer.from(text, "utf8") : Buffer.from(text);
   const out: Buffer[] = [];
-  for (let i = 0; i < Math.max(body.length, 1); i += 65000) out.push(pkt(Buffer.concat([Buffer.from([channel]), body.subarray(i, i + 65000)])));
+  for (let i = 0; i < Math.max(body.length, 1); i += 65000)
+    out.push(pkt(Buffer.concat([Buffer.from([channel]), body.subarray(i, i + 65000)])));
   return Buffer.concat(out);
 }
 
@@ -170,21 +236,38 @@ export function band(channel: 1 | 2 | 3, text: string | Uint8Array): Buffer {
 export const remoteLine = (text: string): Buffer => band(2, `${text}\n`);
 
 /** One reason, on one line, with nothing a pkt-line or a terminal would misread. */
-export const oneLine = (s: string): string => s.replace(/[\x00-\x1f\x7f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+export const oneLine = (s: string): string =>
+  s
+    .replace(/[\x00-\x1f\x7f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
 
 /**
  * The report a receive-pack sends when every change was turned down: "unpack ok" then "ng <ref> <reason>" for each. With side-band the report rides on channel 1 and ends with a flush on both layers.
  */
 export function refusedReport(commands: readonly RefCommand[], reason: string, sideBand: boolean): Buffer {
-  const inner = Buffer.concat([pkt("unpack ok\n"), ...commands.map((c) => pkt(`ng ${c.ref} ${oneLine(reason)}\n`)), FLUSH]);
+  const inner = Buffer.concat([
+    pkt("unpack ok\n"),
+    ...commands.map((c) => pkt(`ng ${c.ref} ${oneLine(reason)}\n`)),
+    FLUSH,
+  ]);
   return sideBand ? Buffer.concat([band(1, inner), FLUSH]) : inner;
 }
 
 /** A client address: owner/repo.git under the proxy's path. Null for anything else. */
-export function repoOfPath(rest: string): { repo: string; tail: "info/refs" | "git-receive-pack" | "git-upload-pack" } | null {
-  const m = /^([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9_.-]{1,100})\.git\/(info\/refs|git-receive-pack|git-upload-pack)$/.exec(rest);
+export function repoOfPath(
+  rest: string,
+): { repo: string; tail: "info/refs" | "git-receive-pack" | "git-upload-pack" } | null {
+  const m =
+    /^([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9_.-]{1,100})\.git\/(info\/refs|git-receive-pack|git-upload-pack)$/.exec(rest);
   if (!m) return null;
-  const [, owner, name, tail] = m as unknown as [string, string, string, "info/refs" | "git-receive-pack" | "git-upload-pack"];
+  const [, owner, name, tail] = m as unknown as [
+    string,
+    string,
+    string,
+    "info/refs" | "git-receive-pack" | "git-upload-pack",
+  ];
   if (owner === "." || owner === ".." || name === "." || name === "..") return null;
   return { repo: `${owner}/${name}`, tail };
 }

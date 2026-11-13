@@ -6,13 +6,34 @@ import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
-  assert.deepEqual(s.route, { view: "ask", agentId: "agt_billing", scopeType: "record", scopeId: "rec_a1", bringFrom: "thr_old" });
-  assert.deepEqual(fromHash("#screen=chats.ask&with=assistant&about=automation%3Aaut_1").route, { view: "ask", agentId: "assistant", scopeType: "automation", scopeId: "aut_1", bringFrom: null });
+  assert.deepEqual(s.route, {
+    view: "ask",
+    agentId: "agt_billing",
+    scopeType: "record",
+    scopeId: "rec_a1",
+    bringFrom: "thr_old",
+  });
+  assert.deepEqual(fromHash("#screen=chats.ask&with=assistant&about=automation%3Aaut_1").route, {
+    view: "ask",
+    agentId: "assistant",
+    scopeType: "automation",
+    scopeId: "aut_1",
+    bringFrom: null,
+  });
 });
 
 test("with alone is a chat with that agent, a thread id wins, and neither is the start", () => {
-  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null });
-  assert.deepEqual(fromHash("#screen=chats.conversation&threadId=thr_1&with=agt_x&about=record%3Arec_1").route, { view: "chat", threadId: "thr_1" });
+  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant").route, {
+    view: "ask",
+    agentId: "assistant",
+    scopeType: "",
+    scopeId: "",
+    bringFrom: null,
+  });
+  assert.deepEqual(fromHash("#screen=chats.conversation&threadId=thr_1&with=agt_x&about=record%3Arec_1").route, {
+    view: "chat",
+    threadId: "thr_1",
+  });
   // a reply opened from Inbox > Replies: the chat, on the message the thread hangs off, with the thread beside it
   const reply = fromHash("#screen=chats.conversation&threadId=thr_chat&m=msg_9&side=thr_reply");
   assert.deepEqual(reply.route, { view: "chat", threadId: "thr_chat", focus: "msg_9" });
@@ -37,7 +58,10 @@ import { workOf } from "./route.ts";
 test("a chat tied to a record or a project is a workspace; a DM, a channel and an Ask pane are not", () => {
   assert.deepEqual(workOf({ kind: "chat", recordId: "rec_1" }), { type: "record", id: "rec_1" });
   assert.deepEqual(workOf({ kind: "chat", recordId: "prj_1" }), { type: "project", id: "prj_1" });
-  assert.deepEqual(workOf({ kind: "thread", scopeType: "project", scopeId: "prj_2" }), { type: "project", id: "prj_2" });
+  assert.deepEqual(workOf({ kind: "thread", scopeType: "project", scopeId: "prj_2" }), {
+    type: "project",
+    id: "prj_2",
+  });
   assert.deepEqual(workOf({ kind: "chat", scopeType: "record", scopeId: "rec_3" }), { type: "record", id: "rec_3" });
   assert.equal(workOf({ kind: "chat" }), null);
   assert.equal(workOf({ kind: "channel", recordId: "rec_1" }), null);
@@ -45,16 +69,42 @@ test("a chat tied to a record or a project is a workspace; a DM, a channel and a
 });
 
 test("an Ask link can carry the words the composer starts with", () => {
-  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant&about=compose%3Aemail&draft=Draft%20an%20email%20to%20").route, { view: "ask", agentId: "assistant", scopeType: "compose", scopeId: "email", bringFrom: null, draft: "Draft an email to " });
+  assert.deepEqual(
+    fromHash("#screen=chats.conversation&with=assistant&about=compose%3Aemail&draft=Draft%20an%20email%20to%20").route,
+    {
+      view: "ask",
+      agentId: "assistant",
+      scopeType: "compose",
+      scopeId: "email",
+      bringFrom: null,
+      draft: "Draft an email to ",
+    },
+  );
 });
 
 test("first is the opening message of a session on the object, and it rides along on the Ask", () => {
-  const s = fromHash("#screen=chats.conversation&with=assistant&about=vault_item%3Avit_1&first=Add%20Acme%20to%20Automations");
-  assert.deepEqual(s.route, { view: "ask", agentId: "assistant", scopeType: "vault_item", scopeId: "vit_1", bringFrom: null, first: "Add Acme to Automations" });
+  const s = fromHash(
+    "#screen=chats.conversation&with=assistant&about=vault_item%3Avit_1&first=Add%20Acme%20to%20Automations",
+  );
+  assert.deepEqual(s.route, {
+    view: "ask",
+    agentId: "assistant",
+    scopeType: "vault_item",
+    scopeId: "vit_1",
+    bringFrom: null,
+    first: "Add Acme to Automations",
+  });
 });
 
 test("first with an agent and no object opens a chat that starts with that message", () => {
-  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant&first=Build%20a%20connector").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null, first: "Build a connector" });
+  assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant&first=Build%20a%20connector").route, {
+    view: "ask",
+    agentId: "assistant",
+    scopeType: "",
+    scopeId: "",
+    bringFrom: null,
+    first: "Build a connector",
+  });
 });
 
 test("Open Terminal from the Space menu or Search opens the terminal list", () => {
@@ -67,9 +117,16 @@ test("Artifacts opens inside Chats like Threads, and its link lands there", () =
 });
 
 test("one artifact opens in its own tab inside Chats, keeps the Artifacts row selected, and asks for the Share sheet only when told", () => {
-  assert.deepEqual(step(START, { t: "artifact", artifactId: "sit_1" }).route, { view: "artifact", artifactId: "sit_1" });
+  assert.deepEqual(step(START, { t: "artifact", artifactId: "sit_1" }).route, {
+    view: "artifact",
+    artifactId: "sit_1",
+  });
   assert.deepEqual(fromHash("subject=artifact:sit_1").route, { view: "artifact", artifactId: "sit_1" });
-  assert.deepEqual(fromHash("subject=artifact:sit_1&share=1").route, { view: "artifact", artifactId: "sit_1", share: true });
+  assert.deepEqual(fromHash("subject=artifact:sit_1&share=1").route, {
+    view: "artifact",
+    artifactId: "sit_1",
+    share: true,
+  });
   assert.equal(openKeyOf(fromHash("subject=artifact:sit_1").route), "artifacts");
 });
 
@@ -80,13 +137,20 @@ test("the link Copy Link makes for a chat and for one message opens that chat, o
   assert.deepEqual(msg.route.view === "chat" ? [msg.route.threadId, msg.route.focus] : null, ["thr_a", "msg_9"]);
   // the target an /open/message link becomes (subject=thread plus m) opens the chat on that message too
   const opened = fromHash("subject=thread:thr_a&m=msg_9");
-  assert.deepEqual(opened.route.view === "chat" ? [opened.route.threadId, opened.route.focus] : null, ["thr_a", "msg_9"]);
+  assert.deepEqual(opened.route.view === "chat" ? [opened.route.threadId, opened.route.focus] : null, [
+    "thr_a",
+    "msg_9",
+  ]);
 });
 
 test("a link that names a layer opens it over the page that is already there, and a link without one leaves the page alone", () => {
   const onLanding = linkedTo(START, "screen=chats.terminal-list&at=1");
   assert.equal(onLanding.route.view, "new");
-  assert.equal(onLanding.layer?.kind, "terminals", "Open Terminal on the landing puts the Terminals list up (it was dropped when the page was the same)");
+  assert.equal(
+    onLanding.layer?.kind,
+    "terminals",
+    "Open Terminal on the landing puts the Terminals list up (it was dropped when the page was the same)",
+  );
   const chat = step(START, { t: "chat", threadId: "c1", pane: true });
   assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1").pane, true, "the same chat keeps its pane");
   assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1"), chat, "and is the very same state");
@@ -96,7 +160,11 @@ test("a link that names a layer opens it over the page that is already there, an
 
 test("a project opens in Chats as its own page: subject=project:<id>, with the tab it is on", () => {
   assert.deepEqual(fromHash("#subject=project:prj_1").route, { view: "project", projectId: "prj_1", tab: null });
-  assert.deepEqual(fromHash("#subject=project:prj_1&tab=plan").route, { view: "project", projectId: "prj_1", tab: "plan" });
+  assert.deepEqual(fromHash("#subject=project:prj_1&tab=plan").route, {
+    view: "project",
+    projectId: "prj_1",
+    tab: "plan",
+  });
   assert.equal(openKeyOf(fromHash("#subject=project:prj_1").route), "p:prj_1", "the sidebar selects its row");
   const next = step(START, { t: "project", projectId: "prj_1", tab: "linked" });
   assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "linked" });
@@ -109,7 +177,11 @@ test("a link to a person names the person and no page: the place keeps its page 
   assert.equal(personOfHash("#subject=person%3Ausr_omar"), "usr_omar");
   assert.equal(personOfHash("subject=thread:thr_1"), null);
   assert.equal(personOfHash(""), null);
-  assert.deepEqual(fromHash("subject=person:usr_omar").route, START.route, "as a page it is nothing: the profile is not a route");
+  assert.deepEqual(
+    fromHash("subject=person:usr_omar").route,
+    START.route,
+    "as a page it is nothing: the profile is not a route",
+  );
 });
 
 // 13 Nov 2026 (owner, rc.26): Attach on the Computer tab sent the chat's tab to the landing page. A terminal link or a layer link was turned into a whole new Shown (the landing page, and the old terminal

@@ -14,8 +14,12 @@ test("golden 8: memory-promotion", { todo: todoOf(GAPS) }, async () => {
   assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
 });
 
-test("golden 8: a promotion into a layer the person cannot edit waits for its owner", { todo: todoOf(APPROVAL_GAPS) }, async () => {
-  const { events, trail } = await runMemoryApproval(LIVE_FOR_MEMORY);
-  assert.deepEqual(trail.failures, [], `\n${trail.report()}`);
-  assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
-});
+test(
+  "golden 8: a promotion into a layer the person cannot edit waits for its owner",
+  { todo: todoOf(APPROVAL_GAPS) },
+  async () => {
+    const { events, trail } = await runMemoryApproval(LIVE_FOR_MEMORY);
+    assert.deepEqual(trail.failures, [], `\n${trail.report()}`);
+    assert.deepEqual(checkSequence(flow.events, events), [], `events: ${events.map((e) => e.type).join(", ")}`);
+  },
+);

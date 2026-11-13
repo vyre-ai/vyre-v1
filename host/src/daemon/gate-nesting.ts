@@ -16,10 +16,14 @@ export function withGateNesting(inner: GateHook): GateHook {
       if (act && act !== "none" && seed.clearedActs?.includes(act)) return null;
       return inner.applies(cap, input, seed);
     },
-    ...(inner.seen ? { seen: (cap, input, output, seed, startedAt) => inner.seen!(cap, input, output, seed, startedAt) } : {}),
+    ...(inner.seen
+      ? { seen: (cap, input, output, seed, startedAt) => inner.seen!(cap, input, output, seed, startedAt) }
+      : {}),
     ...(inner.mode ? { mode: (thread) => inner.mode!(thread) } : {}),
     ...(inner.allowed ? { allowed: (cap, input, seed) => inner.allowed!(cap, input, seed) } : {}),
-    ...(inner.fromAutomationContent ? { fromAutomationContent: (cap, seed) => inner.fromAutomationContent!(cap, seed) } : {}),
+    ...(inner.fromAutomationContent
+      ? { fromAutomationContent: (cap, seed) => inner.fromAutomationContent!(cap, seed) }
+      : {}),
     park: (a) => inner.park(a),
     verify: (token, a) => inner.verify(token, a),
     ...(inner.resume ? { resume: (a) => inner.resume!(a) } : {}),

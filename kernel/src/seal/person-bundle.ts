@@ -8,7 +8,15 @@ const X25519_PKCS8 = Buffer.from("302e020100300506032b656e04220420", "hex");
 /** True when `key` (32 raw bytes) is an X25519 public key. */
 export function isX25519Public(key: Uint8Array): boolean {
   if (key.length !== 32) return false;
-  try { crypto.createPublicKey({ key: { kty: "OKP", crv: "X25519", x: Buffer.from(key).toString("base64url") }, format: "jwk" }); return true; } catch { return false; }
+  try {
+    crypto.createPublicKey({
+      key: { kty: "OKP", crv: "X25519", x: Buffer.from(key).toString("base64url") },
+      format: "jwk",
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -18,7 +26,8 @@ export function isX25519Public(key: Uint8Array): boolean {
 export function openPrivateKeyBlob(blob: Uint8Array, personKey: Uint8Array): Buffer | null {
   if (personKey.length !== 32 || blob.length < 1 + 16 + 12 + 16 || blob[0] !== 1) return null;
   const b = Buffer.from(blob);
-  const nonce = b.subarray(17, 29), body = b.subarray(29);
+  const nonce = b.subarray(17, 29),
+    body = b.subarray(29);
   try {
     const d = crypto.createDecipheriv("aes-256-gcm", personKey, nonce);
     d.setAAD(PRIVATE_AAD);
@@ -27,6 +36,10 @@ export function openPrivateKeyBlob(blob: Uint8Array, personKey: Uint8Array): Buf
     try {
       if (pkcs8.length !== 48 || !pkcs8.subarray(0, 16).equals(X25519_PKCS8)) return null;
       return Buffer.from(pkcs8.subarray(16));
-    } finally { pkcs8.fill(0); }
-  } catch { return null; }
+    } finally {
+      pkcs8.fill(0);
+    }
+  } catch {
+    return null;
+  }
 }

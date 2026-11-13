@@ -7,25 +7,47 @@ import { AGENT_MD_DEFAULT } from "../projections.ts";
 import { DANA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 let n = 0;
 const make = async (hn: Harness, name = "Intake"): Promise<any> => {
-  const agent = (await h["agents.create"]!(hn.ctx, { name, role: "Use me when a new client form arrives.", idempotencyKey: `rk${++n}` })).agent;
+  const agent = (
+    await h["agents.create"]!(hn.ctx, {
+      name,
+      role: "Use me when a new client form arrives.",
+      idempotencyKey: `rk${++n}`,
+    })
+  ).agent;
   hn.world.homeGrants.push(
-    { resource: { type: "folder", id: agent.folderId }, subject: { kind: "agent", id: agent.agentId }, level: "edit", source: `agent:${agent.agentId}` },
-    { resource: { type: "folder", id: agent.folderId }, subject: { kind: "person", id: DANA }, level: "manage", source: `agent:${agent.agentId}` },
+    {
+      resource: { type: "folder", id: agent.folderId },
+      subject: { kind: "agent", id: agent.agentId },
+      level: "edit",
+      source: `agent:${agent.agentId}`,
+    },
+    {
+      resource: { type: "folder", id: agent.folderId },
+      subject: { kind: "person", id: DANA },
+      level: "manage",
+      source: `agent:${agent.agentId}`,
+    },
   );
-  hn.ctx.db.run("INSERT INTO agents_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", `agents.home_grants.v1:${agent.agentId}`, "gateway");
+  hn.ctx.db.run(
+    "INSERT INTO agents_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    `agents.home_grants.v1:${agent.agentId}`,
+    "gateway",
+  );
   return agent;
-};   // eslint-disable-line @typescript-eslint/no-explicit-any
-const record = (hn: Harness, id: string): Record<string, unknown> => hn.rows("SELECT * FROM agents_agent WHERE id = ?", id)[0]!;
+}; // eslint-disable-line @typescript-eslint/no-explicit-any
+const record = (hn: Harness, id: string): Record<string, unknown> =>
+  hn.rows("SELECT * FROM agents_agent WHERE id = ?", id)[0]!;
 
 test("nothing is missing: the check changes nothing and asks Files for no file to be made, moved or restored", async () => {
   const hn = harness();
   await make(hn);
   hn.clear();
   assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
-  for (const cap of ["files.create", "files.restore", "files.move"]) assert.equal(hn.world.calls.filter((c) => c.cap === cap).length, 0, cap);
+  for (const cap of ["files.create", "files.restore", "files.move"])
+    assert.equal(hn.world.calls.filter((c) => c.cap === cap).length, 0, cap);
 });
 
 test("a file in Trash is restored with its history; a file moved away or renamed is put back; a file that is gone is made again from the record", async () => {
@@ -56,7 +78,11 @@ test("a file in Trash is restored with its history; a file moved away or renamed
   hn.world.files.delete(toml);
   assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/agent.toml"]);
   const again = hn.world.fileIn(home, "agent.toml")!;
-  assert.equal(hn.world.text(again.fileId), String(record(hn, a.agentId)["tomlText"]), "agent.toml comes back as the last good text the record keeps");
+  assert.equal(
+    hn.world.text(again.fileId),
+    String(record(hn, a.agentId)["tomlText"]),
+    "agent.toml comes back as the last good text the record keeps",
+  );
   assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "and the next check finds nothing to do");
 });
 
@@ -70,11 +96,17 @@ test("every agent is checked, a deleted agent is not, and one that Files cannot 
   hn.world.files.delete(String(record(hn, c.agentId)["agentMdFileId"]));
   hn.ctx.db.run("UPDATE agents_agent SET deletedAt = ? WHERE id = ?", 1, c.agentId);
   const create = hn.world.handlers["files.create"]!;
-  hn.world.answer("files.create", () => { throw Object.assign(new Error("down"), { error: { code: "internal.unavailable", message: "down" } }); });
+  hn.world.answer("files.create", () => {
+    throw Object.assign(new Error("down"), { error: { code: "internal.unavailable", message: "down" } });
+  });
   assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "Files is down: nothing is put back, nothing throws");
   assert.ok(hn.warned.length > 0, "and it says so in the log");
   hn.world.answer("files.create", create);
-  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Alpha/AGENT.md", "Beta/AGENT.md"], "Files is back: every live agent is put right, the deleted one is left alone");
+  assert.deepEqual(
+    (await restoreAgentFiles(hn.ctx)).sort(),
+    ["Alpha/AGENT.md", "Beta/AGENT.md"],
+    "Files is back: every live agent is put right, the deleted one is left alone",
+  );
 });
 
 test("an agent access knows with no record gets one, with Agents/<name>, both files and the decided tree; one with no owner or a name already taken is left alone", async () => {
@@ -101,7 +133,10 @@ test("an agent access knows with no record gets one, with Agents/<name>, both fi
 test("a record with no folder or no file ids is given Agents/<name> and both files", async () => {
   const hn = harness();
   const a = await make(hn, "Lost");
-  hn.ctx.db.run("UPDATE agents_agent SET folderId = NULL, tomlFileId = NULL, agentMdFileId = NULL WHERE id = ?", a.agentId);
+  hn.ctx.db.run(
+    "UPDATE agents_agent SET folderId = NULL, tomlFileId = NULL, agentMdFileId = NULL WHERE id = ?",
+    a.agentId,
+  );
   assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Lost/AGENT.md", "Lost/agent.toml"]);
   const r = record(hn, a.agentId);
   assert.ok(r["folderId"] && r["tomlFileId"] && r["agentMdFileId"], "the record points at them again");
@@ -115,32 +150,43 @@ test("an outside agent is never adopted: it is an outside actor, not an agent of
     { id: "act_codex1", kind: "actor", name: "Codex", status: "active" },
     { id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" },
   );
-  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Scout/AGENT.md", "Scout/agent.toml"], "only the Space's own agent");
+  assert.deepEqual(
+    (await restoreAgentFiles(hn.ctx)).sort(),
+    ["Scout/AGENT.md", "Scout/agent.toml"],
+    "only the Space's own agent",
+  );
   assert.equal(hn.rows("SELECT * FROM agents_agent").length, 1);
   assert.equal(hn.world.folderNamed("Claude Code", hn.world.root), undefined);
   assert.equal(hn.world.folderNamed("Codex", hn.world.root), undefined);
   // and a list that ignored the kind filter still adopts no actor, and no agent whose id is not an agent id
-  hn.world.answer("access.principals.list", () => ({ principals: [
-    { id: "act_claudecode1", kind: "actor", name: "Claude Code", owner: DANA, status: "active" },
-    { id: "ext_agent9", kind: "agent", name: "Imported", owner: DANA, status: "active" },
-  ] }));
+  hn.world.answer("access.principals.list", () => ({
+    principals: [
+      { id: "act_claudecode1", kind: "actor", name: "Claude Code", owner: DANA, status: "active" },
+      { id: "ext_agent9", kind: "agent", name: "Imported", owner: DANA, status: "active" },
+    ],
+  }));
   assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
   assert.equal(hn.rows("SELECT * FROM agents_agent").length, 1);
 });
 
 // ---- ruling 99: the agent edits its own home, its owner manages it ----------------------------------------------------------------------------------------
 
-const onHome = (hn: Harness, home: string): string[] => hn.world.homeGrants.filter((g) => g.resource.id === home).map((g) => `${g.subject.kind}:${g.subject.id}:${g.level}:${g.source}`).sort();
+const onHome = (hn: Harness, home: string): string[] =>
+  hn.world.homeGrants
+    .filter((g) => g.resource.id === home)
+    .map((g) => `${g.subject.kind}:${g.subject.id}:${g.level}:${g.source}`)
+    .sort();
 const shareCalls = (hn: Harness) => hn.world.calls.filter((c) => c.cap === "access.share");
 
 test("create gives the agent Edit on its own folder (not Manage) and its owner Manage, and nothing else", async () => {
   const hn = harness();
   const a = await make(hn);
   const home = String(record(hn, a.agentId)["folderId"]);
-  assert.deepEqual(onHome(hn, home), [
-    `agent:${a.agentId}:edit:agent:${a.agentId}`,
-    `person:${DANA}:manage:agent:${a.agentId}`,
-  ].sort(), "the harness reflects the grants emitted at the gateway commit boundary");
+  assert.deepEqual(
+    onHome(hn, home),
+    [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort(),
+    "the harness reflects the grants emitted at the gateway commit boundary",
+  );
   assert.equal(shareCalls(hn).length, 0, "creation does not call access.share before the principal exists");
 });
 
@@ -148,15 +194,32 @@ test("the boot check never writes grants: it runs as the host, which holds no gr
   const hn = harness();
   const a = await make(hn);
   hn.world.principals.push({ id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" });
-  hn.world.homeGrants.length = 0;   // an agent made before ruling 99, and one adopted now: neither has its grants
+  hn.world.homeGrants.length = 0; // an agent made before ruling 99, and one adopted now: neither has its grants
   hn.ctx.db.run("DELETE FROM agents_meta WHERE key = ?", `agents.home_grants.v1:${a.agentId}`);
   const warned: string[] = [];
   const warn = hn.ctx.log.warn;
-  hn.ctx.log.warn = (msg: string, attrs?: Record<string, unknown>) => { warned.push(msg); warn.call(hn.ctx.log, msg, attrs); };
+  hn.ctx.log.warn = (msg: string, attrs?: Record<string, unknown>) => {
+    warned.push(msg);
+    warn.call(hn.ctx.log, msg, attrs);
+  };
   hn.clear();
-  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Scout/AGENT.md", "Scout/agent.toml"], "only the adopted agent's files");
+  assert.deepEqual(
+    (await restoreAgentFiles(hn.ctx)).sort(),
+    ["Scout/AGENT.md", "Scout/agent.toml"],
+    "only the adopted agent's files",
+  );
   hn.clear();
-  for (let i = 0; i < 3; i++) assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "a pass with nothing to do changes nothing");
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share" || c.cap === "access.shares_of" || c.cap === "spaces.get").length, 0, "no grant is read or written");
-  assert.deepEqual(warned.filter((m) => !/put back|adopted|given them/.test(m)), [], "and nothing is logged");
+  for (let i = 0; i < 3; i++)
+    assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "a pass with nothing to do changes nothing");
+  assert.equal(
+    hn.world.calls.filter((c) => c.cap === "access.share" || c.cap === "access.shares_of" || c.cap === "spaces.get")
+      .length,
+    0,
+    "no grant is read or written",
+  );
+  assert.deepEqual(
+    warned.filter((m) => !/put back|adopted|given them/.test(m)),
+    [],
+    "and nothing is logged",
+  );
 });

@@ -6,14 +6,28 @@ import { CARD_INSET, Card } from "../../../../../../ui/src/Card/index.tsx";
 import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
-export interface WebPageData { url: string; host: string; title: string; shot: string | null }
-export interface QuoteData { text: string; host: string; url: string }
+export interface WebPageData {
+  url: string;
+  host: string;
+  title: string;
+  shot: string | null;
+}
+export interface QuoteData {
+  text: string;
+  host: string;
+  url: string;
+}
 
 const SHOT = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 
 /** @param {unknown} u */
 function hostOf(u: unknown): string {
-  try { const x = new URL(String(u)); return x.protocol === "https:" || x.protocol === "http:" ? x.hostname.replace(/^www\./, "") : ""; } catch { return ""; }
+  try {
+    const x = new URL(String(u));
+    return x.protocol === "https:" || x.protocol === "http:" ? x.hostname.replace(/^www\./, "") : "";
+  } catch {
+    return "";
+  }
 }
 
 export const isWebPage = (type: string): boolean => type === "web_page";
@@ -25,7 +39,12 @@ export function webPageOf(data: unknown): WebPageData | null {
   const host = hostOf(d["url"]);
   if (!host) return null;
   const shot = typeof d["shot"] === "string" && SHOT.test(d["shot"]) ? d["shot"] : null;
-  return { url: String(d["url"]), host, title: typeof d["title"] === "string" && d["title"].trim() ? d["title"].trim().slice(0, 300) : host, shot };
+  return {
+    url: String(d["url"]),
+    host,
+    title: typeof d["title"] === "string" && d["title"].trim() ? d["title"].trim().slice(0, 300) : host,
+    shot,
+  };
 }
 
 /** A quote block's data, or null when it carries no text. */
@@ -36,22 +55,44 @@ export function quoteOf(data: unknown): QuoteData | null {
   return { text, host: hostOf(d["url"]), url: hostOf(d["url"]) ? String(d["url"]) : "" };
 }
 
-const open = (url: string): void => { if (/^https?:\/\//i.test(url)) void Linking.openURL(url).catch(() => undefined); };
+const open = (url: string): void => {
+  if (/^https?:\/\//i.test(url)) void Linking.openURL(url).catch(() => undefined);
+};
 
 export function WebPageCard({ id, data }: { id: string; data: unknown }): ReactElement | null {
   const p = webPageOf(data);
   if (!p) return null;
   return (
     <Card kind="item" size="compact" testID={`webpage-card-${id}`} label={p.title}>
-    <Pressable testID={`webpage-${id}`} accessibilityRole="link" accessibilityLabel={`${p.title}, ${p.host}${p.shot ? ", with a screenshot" : ""}`} onPress={() => open(p.url)} style={({ hovered }: { hovered?: boolean }) => [s.card, hovered && s.hover]}>
-      {p.shot ? <Image testID={`webpage-${id}-shot`} source={{ uri: p.shot }} style={s.shot} resizeMode="cover" accessibilityIgnoresInvertColors /> : (
-        <View style={s.tile}><Text style={s.tileText}>{(p.host[0] ?? "?").toUpperCase()}</Text></View>
-      )}
-      <View style={s.words}>
-        <Text style={s.title} numberOfLines={1}>{p.title}</Text>
-        <Text style={s.host} numberOfLines={1}>{p.shot ? `${p.host} · with screenshot` : p.host}</Text>
-      </View>
-    </Pressable>
+      <Pressable
+        testID={`webpage-${id}`}
+        accessibilityRole="link"
+        accessibilityLabel={`${p.title}, ${p.host}${p.shot ? ", with a screenshot" : ""}`}
+        onPress={() => open(p.url)}
+        style={({ hovered }: { hovered?: boolean }) => [s.card, hovered && s.hover]}
+      >
+        {p.shot ? (
+          <Image
+            testID={`webpage-${id}-shot`}
+            source={{ uri: p.shot }}
+            style={s.shot}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <View style={s.tile}>
+            <Text style={s.tileText}>{(p.host[0] ?? "?").toUpperCase()}</Text>
+          </View>
+        )}
+        <View style={s.words}>
+          <Text style={s.title} numberOfLines={1}>
+            {p.title}
+          </Text>
+          <Text style={s.host} numberOfLines={1}>
+            {p.shot ? `${p.host} · with screenshot` : p.host}
+          </Text>
+        </View>
+      </Pressable>
     </Card>
   );
 }
@@ -61,8 +102,12 @@ export function QuoteCard({ id, data }: { id: string; data: unknown }): ReactEle
   if (!q) return null;
   return (
     <Card kind="item" size="compact" testID={`quote-${id}`} label={`Selected text${q.host ? ` on ${q.host}` : ""}`}>
-      <Text style={s.quoteText} numberOfLines={6}>{q.text}</Text>
-      {q.host ? <Text style={s.host} onPress={() => open(q.url)} accessibilityRole="link">{`Selected on ${q.host}`}</Text> : null}
+      <Text style={s.quoteText} numberOfLines={6}>
+        {q.text}
+      </Text>
+      {q.host ? (
+        <Text style={s.host} onPress={() => open(q.url)} accessibilityRole="link">{`Selected on ${q.host}`}</Text>
+      ) : null}
     </Card>
   );
 }
@@ -70,8 +115,22 @@ export function QuoteCard({ id, data }: { id: string; data: unknown }): ReactEle
 const s = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12 },
   hover: { backgroundColor: "var(--sel)" as string },
-  shot: { width: 64, height: 42, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
-  tile: { width: 42, height: 42, borderRadius: RADIUS, backgroundColor: CARD_INSET, alignItems: "center", justifyContent: "center" },
+  shot: {
+    width: 64,
+    height: 42,
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    backgroundColor: "#fff",
+  },
+  tile: {
+    width: 42,
+    height: 42,
+    borderRadius: RADIUS,
+    backgroundColor: CARD_INSET,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tileText: { fontSize: 15, fontWeight: "600", color: "var(--ink-3)" as string },
   words: { flexShrink: 1, minWidth: 0 },
   title: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },

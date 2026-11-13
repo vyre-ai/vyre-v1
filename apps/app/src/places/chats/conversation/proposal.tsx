@@ -13,7 +13,11 @@ import { collect } from "./model.ts";
 import { useFollow } from "./use-follow.ts";
 import type { Changes } from "./use-follow.ts";
 
-export interface Hunk { sec: string; del: string; add: string }
+export interface Hunk {
+  sec: string;
+  del: string;
+  add: string;
+}
 
 export interface ProposalData {
   changesetId: string;
@@ -37,9 +41,22 @@ export function isProposal(b: { type: string; data: unknown }): boolean {
 
 export function proposalData(data: unknown): ProposalData {
   const d = isRec(data) ? data : {};
-  const hunks = collect((Array.isArray(d.hunks) ? d.hunks : []).filter(isRec), (h): Hunk => ({ sec: str(h.sec), del: str(h.del), add: str(h.add) }));
+  const hunks = collect(
+    (Array.isArray(d.hunks) ? d.hunks : []).filter(isRec),
+    (h): Hunk => ({ sec: str(h.sec), del: str(h.del), add: str(h.add) }),
+  );
   const state = d.state === "accepted" || d.state === "rejected" || d.state === "sent" ? d.state : "open";
-  return { changesetId: str(d.changesetId), file: str(d.file) || "AGENT.md", agent: str(d.agent), why: str(d.why), hunks, state, lines: typeof d.lines === "number" ? d.lines : 0, owner: str(d.owner), canAccept: d.canAccept !== false };
+  return {
+    changesetId: str(d.changesetId),
+    file: str(d.file) || "AGENT.md",
+    agent: str(d.agent),
+    why: str(d.why),
+    hunks,
+    state,
+    lines: typeof d.lines === "number" ? d.lines : 0,
+    owner: str(d.owner),
+    canAccept: d.canAccept !== false,
+  };
 }
 
 /** "1 change" / "2 changes". */
@@ -54,12 +71,33 @@ let keys = 0;
 const newKey = (id: string, verb: string): string => `idem_${id}_${verb}_${++keys}`;
 
 /** The presses of the card, over the host: Accept and Reject are the changeset capabilities; an edit or a suggestion goes back to the agent as a request for changes. */
-export function proposalActs(host: BlockHost, d: ProposalData, id: string): { accept(): Promise<unknown>; reject(): Promise<unknown>; sendEdited(lines: readonly string[]): Promise<unknown>; suggest(): Promise<unknown> } {
+export function proposalActs(
+  host: BlockHost,
+  d: ProposalData,
+  id: string,
+): {
+  accept(): Promise<unknown>;
+  reject(): Promise<unknown>;
+  sendEdited(lines: readonly string[]): Promise<unknown>;
+  suggest(): Promise<unknown>;
+} {
   return {
-    accept: async () => host.invoke("changesets.approve", { changesetId: d.changesetId, idempotencyKey: newKey(id, "approve") }),
+    accept: async () =>
+      host.invoke("changesets.approve", { changesetId: d.changesetId, idempotencyKey: newKey(id, "approve") }),
     reject: async () => host.invoke("changesets.discard", { changesetId: d.changesetId }),
-    sendEdited: async (lines) => host.invoke("changesets.request_changes", { changesetId: d.changesetId, note: editedNote(d.file, lines.filter((l) => l.trim() !== "")) }),
-    suggest: async () => host.invoke("changesets.request_changes", { changesetId: d.changesetId, note: `Suggested to ${d.owner || "the owner"}: ${d.why}` }),
+    sendEdited: async (lines) =>
+      host.invoke("changesets.request_changes", {
+        changesetId: d.changesetId,
+        note: editedNote(
+          d.file,
+          lines.filter((l) => l.trim() !== ""),
+        ),
+      }),
+    suggest: async () =>
+      host.invoke("changesets.request_changes", {
+        changesetId: d.changesetId,
+        note: `Suggested to ${d.owner || "the owner"}: ${d.why}`,
+      }),
   };
 }
 
@@ -69,15 +107,29 @@ export function decidedOf(out: unknown): "accepted" | "rejected" | null {
   return s === "approved" ? "accepted" : s === "discarded" ? "rejected" : null;
 }
 
-export function AgentFileProposal({ block, host, changes }: { block: Block; host: BlockHost; changes?: Changes | undefined }): ReactElement {
+export function AgentFileProposal({
+  block,
+  host,
+  changes,
+}: {
+  block: Block;
+  host: BlockHost;
+  changes?: Changes | undefined;
+}): ReactElement {
   const d = proposalData(block.data);
   const [state, setState] = useState<ProposalData["state"]>(d.state);
   const [elsewhere, setElsewhere] = useState<"accepted" | "rejected" | null>(null);
   const load = useCallback(async (): Promise<void> => {
     if (d.changesetId === "") return;
-    try { setElsewhere(decidedOf(await host.invoke("changesets.get", { changesetId: d.changesetId }))); } catch { /* the card still works from its own words */ }
+    try {
+      setElsewhere(decidedOf(await host.invoke("changesets.get", { changesetId: d.changesetId })));
+    } catch {
+      /* the card still works from its own words */
+    }
   }, [host, d.changesetId]);
-  useEffect(() => { if (state === "open") void load(); }, [load, state]);
+  useEffect(() => {
+    if (state === "open") void load();
+  }, [load, state]);
   useFollow(changes, load, state === "open" && elsewhere === null);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(collect(d.hunks, (h) => h.add).join("\n"));
@@ -85,99 +137,259 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
   const id = block.id;
   const open = (): void => host.open("file", { path: d.file, agent: d.agent });
   const acts = proposalActs(host, d, id);
-  const accept = (): void => { setState("accepted"); void acts.accept(); };
-  const reject = (): void => { setState("rejected"); void acts.reject(); };
-  const sendEdited = (): void => { setState("sent"); setEditing(false); void acts.sendEdited(text.split("\n")); };
-  const suggest = (): void => { setState("sent"); void acts.suggest(); };
+  const accept = (): void => {
+    setState("accepted");
+    void acts.accept();
+  };
+  const reject = (): void => {
+    setState("rejected");
+    void acts.reject();
+  };
+  const sendEdited = (): void => {
+    setState("sent");
+    setEditing(false);
+    void acts.sendEdited(text.split("\n"));
+  };
+  const suggest = (): void => {
+    setState("sent");
+    void acts.suggest();
+  };
 
   if (state === "open" && elsewhere !== null) {
     return (
       <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${elsewhere}`}>
-        <CardDone ok={elsewhere !== "rejected"} glyph={<Glyph name={elsewhere === "rejected" ? "x" : "check"} size={13} color={elsewhere === "rejected" ? "var(--ink-3)" : "var(--ok)"} />} text={`The change to ${d.file} was ${elsewhere}.`} testID={`proposal-${id}-state`} />
+        <CardDone
+          ok={elsewhere !== "rejected"}
+          glyph={
+            <Glyph
+              name={elsewhere === "rejected" ? "x" : "check"}
+              size={13}
+              color={elsewhere === "rejected" ? "var(--ink-3)" : "var(--ok)"}
+            />
+          }
+          text={`The change to ${d.file} was ${elsewhere}.`}
+          testID={`proposal-${id}-state`}
+        />
       </View>
     );
   }
   if (state !== "open") {
-    const line = state === "accepted" ? `You accepted the change to ${d.file}.${d.lines > 0 ? ` It has ${d.lines} lines now.` : ""}` : state === "rejected" ? `You rejected the change to ${d.file}.` : `Sent your edit to ${d.agent || "the agent"}. It will propose the change again.`;
+    const line =
+      state === "accepted"
+        ? `You accepted the change to ${d.file}.${d.lines > 0 ? ` It has ${d.lines} lines now.` : ""}`
+        : state === "rejected"
+          ? `You rejected the change to ${d.file}.`
+          : `Sent your edit to ${d.agent || "the agent"}. It will propose the change again.`;
     return (
       <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${state}`}>
-        <CardDone ok={state !== "rejected"} glyph={<Glyph name={state === "rejected" ? "x" : "check"} size={13} color={state === "rejected" ? "var(--ink-3)" : "var(--ok)"} />} text={line} testID={`proposal-${id}-state`} />
+        <CardDone
+          ok={state !== "rejected"}
+          glyph={
+            <Glyph
+              name={state === "rejected" ? "x" : "check"}
+              size={13}
+              color={state === "rejected" ? "var(--ink-3)" : "var(--ok)"}
+            />
+          }
+          text={line}
+          testID={`proposal-${id}-state`}
+        />
       </View>
     );
   }
   const menu = (x: number, y: number): void => {
-    show([
-      ...(d.canAccept ? [{ label: "Allow", onSelect: accept }, { label: "Edit…", onSelect: () => setEditing(true) }] : [{ label: `Suggest to ${d.owner || "the Owner"}`, onSelect: suggest }]),
-      { label: "Deny", onSelect: reject },
-      { separator: true as const },
-      { label: `Open ${d.file}`, onSelect: open },
-    ], x, y, "context", { label: `${d.file} change` });
+    show(
+      [
+        ...(d.canAccept
+          ? [
+              { label: "Allow", onSelect: accept },
+              { label: "Edit…", onSelect: () => setEditing(true) },
+            ]
+          : [{ label: `Suggest to ${d.owner || "the Owner"}`, onSelect: suggest }]),
+        { label: "Deny", onSelect: reject },
+        { separator: true as const },
+        { label: `Open ${d.file}`, onSelect: open },
+      ],
+      x,
+      y,
+      "context",
+      { label: `${d.file} change` },
+    );
   };
   return (
     <View {...menuTrigger(menu)}>
-    <Card kind="result" testID={`proposal-${id}`} label={`${d.file} change proposed by ${d.agent}`} onCancel={editing ? () => setEditing(false) : undefined}>
-      <View style={st.head}>
-        <Glyph name="file" size={15} color="var(--ink-3)" />
-        <View style={st.headTitle}>
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${d.file}`} testID={`proposal-${id}-open`} onPress={open}><Text style={st.link}>{d.file}</Text></Pressable>
-          <Text style={st.faint}>{` · proposed by ${d.agent}`}</Text>
+      <Card
+        kind="result"
+        testID={`proposal-${id}`}
+        label={`${d.file} change proposed by ${d.agent}`}
+        onCancel={editing ? () => setEditing(false) : undefined}
+      >
+        <View style={st.head}>
+          <Glyph name="file" size={15} color="var(--ink-3)" />
+          <View style={st.headTitle}>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${d.file}`}
+              testID={`proposal-${id}-open`}
+              onPress={open}
+            >
+              <Text style={st.link}>{d.file}</Text>
+            </Pressable>
+            <Text style={st.faint}>{` · proposed by ${d.agent}`}</Text>
+          </View>
+          <Text style={st.faint}>{changeCount(d.hunks.length)}</Text>
         </View>
-        <Text style={st.faint}>{changeCount(d.hunks.length)}</Text>
-      </View>
-      <Text testID={`proposal-${id}-why`} style={st.why}>{d.why}</Text>
-      {editing ? (
-        <TextInput testID={`proposal-${id}-edit`} accessibilityLabel="Edit the added lines" multiline numberOfLines={d.hunks.length * 2 + 1} value={text} onChangeText={setText} style={st.edit} />
-      ) : (
-        <View testID={`proposal-${id}-diff`} style={st.diff}>
-          {collect(d.hunks, (h, i) => (
-            <View key={i}>
-              {h.sec ? <Text style={[st.line, st.ctx]}>{h.sec}</Text> : null}
-              {h.del ? <View style={st.lineRow}><View testID="diff-del" pointerEvents="none" style={[st.wash, { backgroundColor: "var(--danger)" as string, opacity: 0.13 }]} /><Text style={st.sign}>{"−"}</Text><Text style={[st.line, { color: "var(--ink-2)" as string }]}>{h.del}</Text></View> : null}
-              <View style={st.lineRow}><View testID="diff-add" pointerEvents="none" style={[st.wash, { backgroundColor: "var(--ok)" as string, opacity: 0.16 }]} /><Text style={st.sign}>+</Text><Text style={st.line}>{h.add}</Text></View>
-            </View>
-          ))}
-        </View>
-      )}
-      {editing ? (
-        <CardActions primary={{ label: "Send Edited", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: sendEdited, testID: `proposal-${id}-send` }} secondary={[{ label: "Cancel", onPress: () => setEditing(false), testID: `proposal-${id}-cancel` }]} />
-      ) : d.canAccept ? (
-        <CardActions primary={{ label: "Allow", icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: accept, testID: `proposal-${id}-accept` }} secondary={[{ label: "Edit", icon: <Glyph name="edit" size={13} color="var(--ink-2)" />, onPress: () => setEditing(true), testID: `proposal-${id}-edit-open` }, { label: "Deny", icon: <Glyph name="x" size={13} color="var(--ink-2)" />, onPress: reject, testID: `proposal-${id}-reject` }]} />
-      ) : (
-        <CardActions primary={{ label: `Suggest to ${d.owner || "the Owner"}`, icon: <Glyph name="check" size={13} color="var(--accent-ink)" />, onPress: suggest, testID: `proposal-${id}-suggest` }} secondary={[{ label: "Deny", icon: <Glyph name="x" size={13} color="var(--ink-2)" />, onPress: reject, testID: `proposal-${id}-reject` }]} />
-      )}
-      {element}
-    </Card>
+        <Text testID={`proposal-${id}-why`} style={st.why}>
+          {d.why}
+        </Text>
+        {editing ? (
+          <TextInput
+            testID={`proposal-${id}-edit`}
+            accessibilityLabel="Edit the added lines"
+            multiline
+            numberOfLines={d.hunks.length * 2 + 1}
+            value={text}
+            onChangeText={setText}
+            style={st.edit}
+          />
+        ) : (
+          <View testID={`proposal-${id}-diff`} style={st.diff}>
+            {collect(d.hunks, (h, i) => (
+              <View key={i}>
+                {h.sec ? <Text style={[st.line, st.ctx]}>{h.sec}</Text> : null}
+                {h.del ? (
+                  <View style={st.lineRow}>
+                    <View
+                      testID="diff-del"
+                      pointerEvents="none"
+                      style={[st.wash, { backgroundColor: "var(--danger)" as string, opacity: 0.13 }]}
+                    />
+                    <Text style={st.sign}>{"−"}</Text>
+                    <Text style={[st.line, { color: "var(--ink-2)" as string }]}>{h.del}</Text>
+                  </View>
+                ) : null}
+                <View style={st.lineRow}>
+                  <View
+                    testID="diff-add"
+                    pointerEvents="none"
+                    style={[st.wash, { backgroundColor: "var(--ok)" as string, opacity: 0.16 }]}
+                  />
+                  <Text style={st.sign}>+</Text>
+                  <Text style={st.line}>{h.add}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {editing ? (
+          <CardActions
+            primary={{
+              label: "Send Edited",
+              icon: <Glyph name="check" size={13} color="var(--accent-ink)" />,
+              onPress: sendEdited,
+              testID: `proposal-${id}-send`,
+            }}
+            secondary={[{ label: "Cancel", onPress: () => setEditing(false), testID: `proposal-${id}-cancel` }]}
+          />
+        ) : d.canAccept ? (
+          <CardActions
+            primary={{
+              label: "Allow",
+              icon: <Glyph name="check" size={13} color="var(--accent-ink)" />,
+              onPress: accept,
+              testID: `proposal-${id}-accept`,
+            }}
+            secondary={[
+              {
+                label: "Edit",
+                icon: <Glyph name="edit" size={13} color="var(--ink-2)" />,
+                onPress: () => setEditing(true),
+                testID: `proposal-${id}-edit-open`,
+              },
+              {
+                label: "Deny",
+                icon: <Glyph name="x" size={13} color="var(--ink-2)" />,
+                onPress: reject,
+                testID: `proposal-${id}-reject`,
+              },
+            ]}
+          />
+        ) : (
+          <CardActions
+            primary={{
+              label: `Suggest to ${d.owner || "the Owner"}`,
+              icon: <Glyph name="check" size={13} color="var(--accent-ink)" />,
+              onPress: suggest,
+              testID: `proposal-${id}-suggest`,
+            }}
+            secondary={[
+              {
+                label: "Deny",
+                icon: <Glyph name="x" size={13} color="var(--ink-2)" />,
+                onPress: reject,
+                testID: `proposal-${id}-reject`,
+              },
+            ]}
+          />
+        )}
+        {element}
+      </Card>
     </View>
   );
 }
 
-export interface PlanFileData { fileId: string; name: string; openComments: number }
+export interface PlanFileData {
+  fileId: string;
+  name: string;
+  openComments: number;
+}
 
 export function planFileData(b: { id: string; data: unknown }): PlanFileData {
   const d = isRec(b.data) ? b.data : {};
-  return { fileId: str(d.id) || b.id, name: str(d.name) || str(d.title) || "Plan", openComments: typeof d.openComments === "number" ? d.openComments : 0 };
+  return {
+    fileId: str(d.id) || b.id,
+    name: str(d.name) || str(d.title) || "Plan",
+    openComments: typeof d.openComments === "number" ? d.openComments : 0,
+  };
 }
 
 /** The plan document card: "Plan · 1 open comment". */
-export const isPlanFile = (b: { type: string; data: unknown }): boolean => b.type === "file" && isRec(b.data) && b.data.kind === "plan";
+export const isPlanFile = (b: { type: string; data: unknown }): boolean =>
+  b.type === "file" && isRec(b.data) && b.data.kind === "plan";
 
 export const planFileLine = (n: number): string => `Plan · ${n} open comment${n === 1 ? "" : "s"}`;
 
-export function PlanFileCard({ block, onOpen }: { block: { id: string; data: unknown }; onOpen: (fileId: string) => void }): ReactElement {
+export function PlanFileCard({
+  block,
+  onOpen,
+}: {
+  block: { id: string; data: unknown };
+  onOpen: (fileId: string) => void;
+}): ReactElement {
   const d = planFileData(block);
   const [over, setOver] = useState(false);
   const w = useWindowDimensions().width;
   const line = planFileLine(d.openComments);
   return (
     <Pressable
-      testID={`plancard-${block.id}`} accessibilityRole="button" accessibilityLabel={`Open ${d.name} beside the chat`} onPress={() => onOpen(d.fileId)}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      testID={`plancard-${block.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${d.name} beside the chat`}
+      onPress={() => onOpen(d.fileId)}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[st.plan, w > 0 && w < 520 && { maxWidth: w - 32 }, over && { backgroundColor: "var(--hover)" as string }]}
     >
-      <View style={st.planIcon}><Glyph name="plan" size={16} color="var(--accent)" /></View>
+      <View style={st.planIcon}>
+        <Glyph name="plan" size={16} color="var(--accent)" />
+      </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={st.planName}>{d.name}</Text>
-        <Text numberOfLines={1} style={st.planSub}>{line}</Text>
+        <Text numberOfLines={1} style={st.planName}>
+          {d.name}
+        </Text>
+        <Text numberOfLines={1} style={st.planSub}>
+          {line}
+        </Text>
       </View>
     </Pressable>
   );
@@ -196,11 +408,48 @@ const st = StyleSheet.create({
   lineRow: { flexDirection: "row", paddingHorizontal: 10, position: "relative" },
   wash: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   sign: { width: 14, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink-3)" as string },
-  line: { flex: 1, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, paddingHorizontal: 0 },
+  line: {
+    flex: 1,
+    fontFamily: MONO,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "var(--ink)" as string,
+    paddingHorizontal: 0,
+  },
   ctx: { paddingHorizontal: 10, color: "var(--ink-4)" as string },
-  edit: { minHeight: 70, borderRadius: 12, padding: 10, fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "var(--ink)" as string, backgroundColor: CARD_INSET, outlineStyle: "none" } as object,
-  plan: { flexDirection: "row", alignItems: "center", gap: 12, alignSelf: "flex-start", maxWidth: 460, marginTop: 6, marginBottom: 8, paddingVertical: 10, paddingRight: 14, paddingLeft: 10, borderRadius: 12, ...RING },
-  planIcon: { width: 34, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  edit: {
+    minHeight: 70,
+    borderRadius: 12,
+    padding: 10,
+    fontFamily: MONO,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "var(--ink)" as string,
+    backgroundColor: CARD_INSET,
+    outlineStyle: "none",
+  } as object,
+  plan: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    alignSelf: "flex-start",
+    maxWidth: 460,
+    marginTop: 6,
+    marginBottom: 8,
+    paddingVertical: 10,
+    paddingRight: 14,
+    paddingLeft: 10,
+    borderRadius: 12,
+    ...RING,
+  },
+  planIcon: {
+    width: 34,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   planName: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   planSub: { fontSize: 12, color: "var(--ink-3)" as string },
 });

@@ -14,13 +14,28 @@ import { docx, para, world } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 interface RegCap {
-  name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[];
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
   examples: { name: string; input: unknown; output: unknown }[];
 }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
 
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "documents");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "documents").map((e) => [e.name, e.payload]));
@@ -76,13 +91,23 @@ test("every declared event is emitted by the handler that declares it", async ()
   const emitted = async (cap: string, input: unknown): Promise<string[]> => {
     const w = populated();
     await run(cap, w.ctx, input);
-    for (const e of w.events) assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
+    for (const e of w.events)
+      assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
     return [...new Set(w.events.map((e) => e.name))].sort();
   };
-  assert.deepEqual(await emitted("documents.fill", { templateFileId: "fil_a1b2c3", intoFolderId: "fld_a1b2c3" }), ["document.filled"]);
-  assert.deepEqual(await emitted("documents.mark_template", { fileId: "fil_a1b2c3", isTemplate: true }), ["document.template_marked"]);
-  for (const c of caps.filter((x) => x.emits.length === 0)) assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
+  assert.deepEqual(await emitted("documents.fill", { templateFileId: "fil_a1b2c3", intoFolderId: "fld_a1b2c3" }), [
+    "document.filled",
+  ]);
+  assert.deepEqual(await emitted("documents.mark_template", { fileId: "fil_a1b2c3", isTemplate: true }), [
+    "document.template_marked",
+  ]);
+  for (const c of caps.filter((x) => x.emits.length === 0))
+    assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
   const union = new Set(caps.flatMap((c) => c.emits));
-  for (const e of union) assert.ok(registry.events.some((x) => x.name === e), `${e} is in the registry`);
+  for (const e of union)
+    assert.ok(
+      registry.events.some((x) => x.name === e),
+      `${e} is in the registry`,
+    );
   assert.ok(union.has("document.filled") && union.has("document.template_marked"));
 });

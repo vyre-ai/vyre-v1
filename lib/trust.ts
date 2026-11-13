@@ -2,27 +2,36 @@
 // That is right for the host and for the system services it runs, and wrong for a service principal a tenant can create: a Space Automation runs as its own svc_<32 hex>, a public form submits as svc_form_<id>, a site
 // container as svc_site_<hex>. Those hold only the grants they were given, so they are never trusted by kind alone. The gateway never makes a caller a service at all: sessions are people (kind person) and signed-out
 // callers are actors (kind actor, ruling 67); a service reaches a handler only from the host's own seams or by a module's nested call keeping the identity it was called with.
-export interface PrincipalLike { kind: string; id: string }
+export interface PrincipalLike {
+  kind: string;
+  id: string;
+}
 
 export const HOST_SERVICE = "svc_host";
 
 /** The server itself: the hooks, the scheduler and the engine seams run as this. */
-export const isHostService = (p: PrincipalLike | null | undefined): boolean => !!p && p.kind === "service" && p.id === HOST_SERVICE;
+export const isHostService = (p: PrincipalLike | null | undefined): boolean =>
+  !!p && p.kind === "service" && p.id === HOST_SERVICE;
 
 const TENANT_SERVICE: readonly RegExp[] = [/^svc_form_/, /^svc_site_/, /^svc_[0-9a-f]{32}$/];
 
 /** A service principal a tenant can create: a Space Automation, a public form, a site. */
-export const isTenantService = (p: PrincipalLike | null | undefined): boolean => !!p && p.kind === "service" && TENANT_SERVICE.some((re) => re.test(p.id));
+export const isTenantService = (p: PrincipalLike | null | undefined): boolean =>
+  !!p && p.kind === "service" && TENANT_SERVICE.some((re) => re.test(p.id));
 
 /** A service the host runs (svc_host, svc_engine, svc_sync...), never one a tenant made. This is what "a service caller acts for every slot" means. */
-export const isTrustedService = (p: PrincipalLike | null | undefined): boolean => !!p && p.kind === "service" && !isTenantService(p);
+export const isTrustedService = (p: PrincipalLike | null | undefined): boolean =>
+  !!p && p.kind === "service" && !isTenantService(p);
 
 /**
  * The system halves of sign-in, devices, audit and sessions are for other modules and the host, not for a person typing a URL. A call another capability made carries depth above zero; a call from the gateway
  * carries zero. The host (svc_host) may call them directly. A call another module only forwarded for someone (ctx.forwarded) is that someone's own call and is refused.
  */
-export const isSystemCall = (ctx: { depth?: number | undefined; principal?: PrincipalLike | undefined; forwarded?: boolean | undefined }): boolean =>
-  isHostService(ctx.principal) || (!isForwarded(ctx) && (ctx.depth ?? 0) > 0);
+export const isSystemCall = (ctx: {
+  depth?: number | undefined;
+  principal?: PrincipalLike | undefined;
+  forwarded?: boolean | undefined;
+}): boolean => isHostService(ctx.principal) || (!isForwarded(ctx) && (ctx.depth ?? 0) > 0);
 
 /**
  * A call another module only forwarded for someone (CallOpts.asCaller: a schedule a person stored, a template's step, a Kit's step) carries that someone's standing, not the module's. It runs one level down like module
@@ -34,7 +43,8 @@ export const isForwarded = (ctx: { forwarded?: boolean | undefined }): boolean =
  * A person's own press: a person, and not a call that came through the MCP door. Under the setup grant (owner ruling 3 Nov) an outside agent's call runs as its person, but it is still the agent's act:
  * it never writes what only a press may write, such as an automation's standing permission to send (docs/ask-the-person.md).
  */
-export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined }): boolean => !!ctx.principal && ctx.principal.kind === "person" && ctx.origin !== "mcp";
+export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined }): boolean =>
+  !!ctx.principal && ctx.principal.kind === "person" && ctx.origin !== "mcp";
 
 /**
  * A person's own direct call with their session: the app or the API ("user"), or their own offline writes ("sync"), and never on someone's behalf. An allowlist, not a denylist: a call the
@@ -42,5 +52,13 @@ export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; orig
  * only this.
  */
 export const OWN_PRESS_ORIGINS: ReadonlySet<string> = new Set(["user", "sync"]);
-export const isOwnPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined; actingFor?: string | undefined }): boolean =>
-  !!ctx.principal && ctx.principal.kind === "person" && ctx.actingFor === undefined && typeof ctx.origin === "string" && OWN_PRESS_ORIGINS.has(ctx.origin);
+export const isOwnPress = (ctx: {
+  principal?: PrincipalLike | undefined;
+  origin?: string | undefined;
+  actingFor?: string | undefined;
+}): boolean =>
+  !!ctx.principal &&
+  ctx.principal.kind === "person" &&
+  ctx.actingFor === undefined &&
+  typeof ctx.origin === "string" &&
+  OWN_PRESS_ORIGINS.has(ctx.origin);

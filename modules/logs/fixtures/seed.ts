@@ -18,7 +18,7 @@ export const seed = {
       cost_micros: 0,
       label: 1,
       msg: "record.updated",
-      attrs: "{\"count\":1}",
+      attrs: '{"count":1}',
     },
   ],
 };

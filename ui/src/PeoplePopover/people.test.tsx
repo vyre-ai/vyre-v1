@@ -19,8 +19,15 @@ function props(over: Partial<Parameters<typeof PeoplePopover>[0]> = {}) {
   return {
     log,
     p: {
-      where: "chat" as PeopleWhere, rows, meId: "usr_me", perms: all, anchor: { x: 900, y: 60 },
-      onOpen: (r: MemberRow) => log.push(`open:${r.id}`), onAction: (a: MemberAction, r: MemberRow) => log.push(`${a}:${r.id}`), onFooter: (id: string) => log.push(`footer:${id}`), onClose: () => log.push("close"),
+      where: "chat" as PeopleWhere,
+      rows,
+      meId: "usr_me",
+      perms: all,
+      anchor: { x: 900, y: 60 },
+      onOpen: (r: MemberRow) => log.push(`open:${r.id}`),
+      onAction: (a: MemberAction, r: MemberRow) => log.push(`${a}:${r.id}`),
+      onFooter: (id: string) => log.push(`footer:${id}`),
+      onClose: () => log.push("close"),
       ...over,
     },
   };
@@ -45,7 +52,9 @@ test("the popover is titled People and agents, one row per member with the role 
     assert.equal(textOf(find(root, "people-footer")).trim(), "Add people and agents");
     const project = await mount(createRoot, <PeoplePopover {...props({ where: "project" }).p} />);
     assert.equal(textOf(find(project, "people-footer")).trim(), "Manage on the Overview");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a row opens the person or the agent; the footer runs its action; each place gets its own", async () => {
@@ -61,7 +70,9 @@ test("a row opens the person or the agent; the footer runs its action; each plac
     const b = await mount(createRoot, <PeoplePopover {...proj.p} />);
     await press(find(b, "people-footer"));
     assert.deepEqual(proj.log, ["footer:overview"]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("the right-click menu: Message for another person, Change role and Remove only when permitted, never Remove on yourself, Copy Link always", () => {
@@ -69,11 +80,23 @@ test("the right-click menu: Message for another person, Change role and Remove o
   assert.deepEqual(ids(rows[1]!), ["message", "role", "remove", "link"]);
   assert.deepEqual(ids(rows[0]!), ["role", "link"], "yourself: no Message, no Remove");
   assert.deepEqual(ids(rows[2]!), ["role", "remove", "link"], "an agent is not messaged");
-  assert.deepEqual(ids(rows[1]!, { message: true, changeRole: false, remove: false }), ["message", "link"], "a viewer may not change or remove");
+  assert.deepEqual(
+    ids(rows[1]!, { message: true, changeRole: false, remove: false }),
+    ["message", "link"],
+    "a viewer may not change or remove",
+  );
   assert.deepEqual(ids(rows[1]!, { message: false, changeRole: false, remove: false }), ["link"]);
   assert.equal(memberMenu(rows[1]!, all, "usr_me").find((i) => i.id === "remove")?.danger, true);
-  assert.deepEqual(memberMenu(rows[2]!, { ...all, agentControls: true }, "usr_me").map((i) => i.id), ["poke", "settings", "role", "remove", "link"], "a chat's agent row also pokes and has its settings");
-  assert.deepEqual(memberMenu(rows[1]!, { ...all, agentControls: true }, "usr_me").map((i) => i.id), ["message", "role", "remove", "link"], "a person row has no agent controls");
+  assert.deepEqual(
+    memberMenu(rows[2]!, { ...all, agentControls: true }, "usr_me").map((i) => i.id),
+    ["poke", "settings", "role", "remove", "link"],
+    "a chat's agent row also pokes and has its settings",
+  );
+  assert.deepEqual(
+    memberMenu(rows[1]!, { ...all, agentControls: true }, "usr_me").map((i) => i.id),
+    ["message", "role", "remove", "link"],
+    "a person row has no agent controls",
+  );
 });
 
 test("a right-click opens the menu and each item reports its action", async () => {
@@ -85,11 +108,23 @@ test("a right-click opens the menu and each item reports its action", async () =
     const open = row?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
     assert.equal(typeof open, "function");
     const { act } = await import("react");
-    await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 10, pageY: 10 }, pageX: 10, pageY: 10, clientX: 10, clientY: 10 }); });
-    for (const label of ["Message", "Change role", "Remove", "Copy Link"]) assert.ok(find(root, `menu-item-${label}`) !== null, label);
+    await act(async () => {
+      open?.({
+        preventDefault() {},
+        nativeEvent: { pageX: 10, pageY: 10 },
+        pageX: 10,
+        pageY: 10,
+        clientX: 10,
+        clientY: 10,
+      });
+    });
+    for (const label of ["Message", "Change role", "Remove", "Copy Link"])
+      assert.ok(find(root, `menu-item-${label}`) !== null, label);
     await press(find(root, "menu-item-Remove"));
     assert.deepEqual(log, ["remove:usr_sara"]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("arrow keys walk the rows and the footer, stopping at each end", () => {
@@ -107,25 +142,45 @@ test("arrow keys walk the rows and the footer, stopping at each end", () => {
 
 test("Enter opens the row the arrows reached, Escape closes", async () => {
   const restore = installDom();
-  const g = globalThis as unknown as { document: { addEventListener: (n: string, f: (e: unknown) => void) => void; removeEventListener: (n: string, f: (e: unknown) => void) => void } };
+  const g = globalThis as unknown as {
+    document: {
+      addEventListener: (n: string, f: (e: unknown) => void) => void;
+      removeEventListener: (n: string, f: (e: unknown) => void) => void;
+    };
+  };
   const listeners: Array<(e: { key: string; preventDefault(): void }) => void> = [];
   const before = { add: g.document.addEventListener, rem: g.document.removeEventListener };
-  g.document.addEventListener = (n, f) => { if (n === "keydown") listeners.push(f as never); };
-  g.document.removeEventListener = (n, f) => { const i = listeners.indexOf(f as never); if (n === "keydown" && i >= 0) listeners.splice(i, 1); };
+  g.document.addEventListener = (n, f) => {
+    if (n === "keydown") listeners.push(f as never);
+  };
+  g.document.removeEventListener = (n, f) => {
+    const i = listeners.indexOf(f as never);
+    if (n === "keydown" && i >= 0) listeners.splice(i, 1);
+  };
   try {
     const { p, log } = props();
     await mount(createRoot, <PeoplePopover {...p} />);
     const { act } = await import("react");
-    const key = async (k: string): Promise<void> => { await act(async () => { for (const l of [...listeners]) l({ key: k, preventDefault() {} }); }); };
+    const key = async (k: string): Promise<void> => {
+      await act(async () => {
+        for (const l of [...listeners]) l({ key: k, preventDefault() {} });
+      });
+    };
     assert.ok(listeners.length > 0, "the popover listens for keys");
-    await key("ArrowDown"); await key("ArrowDown");
+    await key("ArrowDown");
+    await key("ArrowDown");
     await key("Enter");
     assert.deepEqual(log, ["open:usr_sara"]);
-    await key("End"); await key("Enter");
+    await key("End");
+    await key("Enter");
     assert.deepEqual(log, ["open:usr_sara", "footer:add"]);
     await key("Escape");
     assert.equal(log[log.length - 1], "close");
-  } finally { g.document.addEventListener = before.add; g.document.removeEventListener = before.rem; restore(); }
+  } finally {
+    g.document.addEventListener = before.add;
+    g.document.removeEventListener = before.rem;
+    restore();
+  }
 });
 
 test("the popover is 215 wide in a chat and 260 in a project; a phone gets the bottom sheet with the same rows", async () => {
@@ -144,13 +199,25 @@ test("the popover is 215 wide in a chat and 260 in a project; a phone gets the b
       assert.equal(find(phone, "people-popover")?.props["data-sheet"], "phone");
       for (const r of rows) assert.ok(find(phone, `people-row-${r.id}`) !== null, r.name);
       assert.equal(textOf(find(phone, "people-footer")).trim(), "Add people and agents");
-    } finally { Dimensions.set({ window: before }); }
-  } finally { restore(); }
+    } finally {
+      Dimensions.set({ window: before });
+    }
+  } finally {
+    restore();
+  }
 });
 
 test("a trigger in the left half opens rightwards from its left edge; one in the right half opens leftwards from its right edge", () => {
-  assert.deepEqual(placeOf({ x: 543, y: 170, left: 483 }, 1280, "project"), { left: 483, top: 174, width: 260 }, "left half: from the trigger's left edge, 4px below");
-  assert.deepEqual(placeOf({ x: 1200, y: 100, left: 1100 }, 1280, "chat"), { left: 985, top: 104, width: 215 }, "right half: right-aligned");
+  assert.deepEqual(
+    placeOf({ x: 543, y: 170, left: 483 }, 1280, "project"),
+    { left: 483, top: 174, width: 260 },
+    "left half: from the trigger's left edge, 4px below",
+  );
+  assert.deepEqual(
+    placeOf({ x: 1200, y: 100, left: 1100 }, 1280, "chat"),
+    { left: 985, top: 104, width: 215 },
+    "right half: right-aligned",
+  );
   assert.equal(placeOf({ x: 600, y: 100 }, 1280, "chat").left, 385, "no left edge known: right-aligned");
   assert.equal(placeOf({ x: 60, y: 100, left: 10 }, 1280, "project").left, 10, "never off the left edge");
   assert.equal(placeOf({ x: 1270, y: 100, left: 1240 }, 1280, "project").left, 1010, "right half: right-aligned");
@@ -165,8 +232,14 @@ test("a Lead presses the role text to change the role (the same menu as Change r
     assert.deepEqual(lead.log, ["role:usr_sara"], "the role text is a button, and it does not also open the person");
     const plain = props({ where: "project", perms: { message: true, changeRole: false, remove: false } });
     const b = await mount(createRoot, <PeoplePopover {...plain.p} />);
-    assert.equal(find(b, "people-role-usr_sara")?.props.accessibilityRole, undefined, "no button for someone who cannot change roles");
+    assert.equal(
+      find(b, "people-role-usr_sara")?.props.accessibilityRole,
+      undefined,
+      "no button for someone who cannot change roles",
+    );
     assert.equal(typeof find(b, "people-role-usr_sara")?.props.onClick, "undefined", "plain text takes no press");
     assert.deepEqual(plain.log, []);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

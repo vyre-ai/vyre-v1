@@ -6,16 +6,29 @@ import { canView } from "./defs.ts";
 import { blockedKeySteps } from "../key-run.ts";
 
 type In = { handle?: unknown };
-interface Use { automationId: string; name: string; status: string; steps: { nodeId: string; title: string; blocked?: string }[] }
-interface ItemUses { handle: string; automations: Use[]; hidden?: number }
+interface Use {
+  automationId: string;
+  name: string;
+  status: string;
+  steps: { nodeId: string; title: string; blocked?: string }[];
+}
+interface ItemUses {
+  handle: string;
+  automations: Use[];
+  hidden?: number;
+}
 
 /** Does the caller see this item in the Vault: only then is the count of Automations they cannot open given (a count for an unseen handle would tell them it exists). */
 async function seesItem(ctx: AutoCtx, handle: string): Promise<boolean> {
   if (!ctx.call) return false;
   try {
     const out = (await ctx.call("vault.items.list", { limit: 500 })) as { items?: { handle?: unknown }[] } | null;
-    return (out?.items ?? []).some((i) => typeof i.handle === "string" && i.handle.toLowerCase() === handle.toLowerCase());
-  } catch { return false; }
+    return (out?.items ?? []).some(
+      (i) => typeof i.handle === "string" && i.handle.toLowerCase() === handle.toLowerCase(),
+    );
+  } catch {
+    return false;
+  }
 }
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
@@ -37,11 +50,19 @@ async function handlesByConnection(ctx: AutoCtx): Promise<Map<string, string[]>>
   const out = new Map<string, string[]>();
   if (!ctx.call) return out;
   try {
-    const r = (await ctx.call("connections.list", { whose: "all", limit: 500 })) as { connections?: { connectionId?: unknown; handles?: unknown }[] } | null;
+    const r = (await ctx.call("connections.list", { whose: "all", limit: 500 })) as {
+      connections?: { connectionId?: unknown; handles?: unknown }[];
+    } | null;
     for (const c of r?.connections ?? []) {
-      if (typeof c.connectionId === "string" && Array.isArray(c.handles)) out.set(c.connectionId, c.handles.filter((h): h is string => typeof h === "string"));
+      if (typeof c.connectionId === "string" && Array.isArray(c.handles))
+        out.set(
+          c.connectionId,
+          c.handles.filter((h): h is string => typeof h === "string"),
+        );
     }
-  } catch { /* without the list, connector steps are not counted */ }
+  } catch {
+    /* without the list, connector steps are not counted */
+  }
   return out;
 }
 
@@ -49,7 +70,9 @@ function usesOf(a: Automation, conns: ReadonlyMap<string, string[]>): Map<string
   const out = new Map<string, Use>();
   for (const n of a.definition.nodes) {
     const seen = new Set<string>();
-    strings({ input: n.input, ai: n.ai }, (s) => { for (const m of s.match(HANDLE) ?? []) seen.add(itemOf(m)); });
+    strings({ input: n.input, ai: n.ai }, (s) => {
+      for (const m of s.match(HANDLE) ?? []) seen.add(itemOf(m));
+    });
     // a connector step names its connection; the connection names the Vault items behind it
     const cid = n.key === "connector_request" ? n.input?.["connectionId"] : undefined;
     if (typeof cid === "string") for (const h of conns.get(cid) ?? []) seen.add(itemOf(h));
@@ -71,20 +94,29 @@ export async function vaultUsage(ctx: AutoCtx, input: In): Promise<{ uses: ItemU
     const seen = canView(ctx, a);
     for (const [item, use] of usesOf(a, conns)) {
       if (only !== null && item.toLowerCase() !== only.toLowerCase()) continue;
-      if (!seen) { if (only !== null) hidden += 1; continue; }
+      if (!seen) {
+        if (only !== null) hidden += 1;
+        continue;
+      }
       byItem.set(item, [...(byItem.get(item) ?? []), use]);
     }
   }
   // a step whose host was taken off this key's list says so on its row, before its next Run
-  for (const list of byItem.values()) for (const use of list) {
-    const a = allAutomations(ctx.db).find((x) => x.id === use.automationId);
-    if (!a) continue;
-    const blocked = await blockedKeySteps(ctx, a.definition.nodes);
-    for (const st of use.steps) { const b = blocked.find((x) => x.nodeId === st.nodeId); if (b) st.blocked = b.line; }
-  }
-  const uses: ItemUses[] = [...byItem.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([handle, automations]) => ({ handle, automations: automations.sort((p, q) => (p.name < q.name ? -1 : 1)) }));
+  for (const list of byItem.values())
+    for (const use of list) {
+      const a = allAutomations(ctx.db).find((x) => x.id === use.automationId);
+      if (!a) continue;
+      const blocked = await blockedKeySteps(ctx, a.definition.nodes);
+      for (const st of use.steps) {
+        const b = blocked.find((x) => x.nodeId === st.nodeId);
+        if (b) st.blocked = b.line;
+      }
+    }
+  const uses: ItemUses[] = [...byItem.entries()]
+    .sort(([x], [y]) => (x < y ? -1 : 1))
+    .map(([handle, automations]) => ({ handle, automations: automations.sort((p, q) => (p.name < q.name ? -1 : 1)) }));
   // one item asked for, and the caller can see it: the Automations they cannot open are counted, never named
-  if (only !== null && hidden > 0 && await seesItem(ctx, only)) {
+  if (only !== null && hidden > 0 && (await seesItem(ctx, only))) {
     if (uses.length === 0) uses.push({ handle: only, automations: [] });
     uses[0]!.hidden = hidden;
   }

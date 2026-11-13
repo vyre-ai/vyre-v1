@@ -54,7 +54,10 @@ export function gitChanged(repo: string, base?: string): string[] {
     : ["diff", "--name-only", "--no-renames", "HEAD"];
   const diff = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
   if (diff.status !== 0) return [];
-  return diff.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+  return diff.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function directRun(): boolean {

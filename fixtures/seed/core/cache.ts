@@ -6,10 +6,20 @@ import os from "node:os";
 import path from "node:path";
 
 export function cacheDir(): string {
-  const want = [process.env["VYRE_SEED_CACHE"], "/var/lib/ci-run/seed-cache-v1", path.join(os.tmpdir(), "seed-cache-v1")];
+  const want = [
+    process.env["VYRE_SEED_CACHE"],
+    "/var/lib/ci-run/seed-cache-v1",
+    path.join(os.tmpdir(), "seed-cache-v1"),
+  ];
   for (const d of want) {
     if (!d) continue;
-    try { fs.mkdirSync(d, { recursive: true }); fs.accessSync(d, fs.constants.W_OK); return d; } catch { /* next */ }
+    try {
+      fs.mkdirSync(d, { recursive: true });
+      fs.accessSync(d, fs.constants.W_OK);
+      return d;
+    } catch {
+      /* next */
+    }
   }
   throw new Error("no writable seed cache directory");
 }
@@ -21,14 +31,24 @@ export function templateKey(recipeFiles: readonly string[], registryHash: string
   return h.update(registryHash.trim()).digest("hex").slice(0, 32);
 }
 
-export interface Template { path: string; hit: boolean }
+export interface Template {
+  path: string;
+  hit: boolean;
+}
 
 /** The template file for `key`, built by `build(tmpPath)` when missing. */
 export function ensureTemplate(dir: string, name: string, key: string, build: (file: string) => void): Template {
   const file = path.join(dir, `${name}-${key}.db`);
   if (fs.existsSync(file)) return { path: file, hit: true };
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
-  try { build(tmp); fs.renameSync(tmp, file); } finally { fs.rmSync(tmp, { force: true }); fs.rmSync(`${tmp}-wal`, { force: true }); fs.rmSync(`${tmp}-shm`, { force: true }); }
+  try {
+    build(tmp);
+    fs.renameSync(tmp, file);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+    fs.rmSync(`${tmp}-wal`, { force: true });
+    fs.rmSync(`${tmp}-shm`, { force: true });
+  }
   return { path: file, hit: false };
 }
 

@@ -12,15 +12,23 @@ export interface SigninIdentity {
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
-const rec = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null);
+const rec = (v: unknown): Record<string, unknown> | null =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
-const email = (v: unknown): string => { const s = str(v).toLowerCase(); return EMAIL.test(s) ? s : ""; };
+const email = (v: unknown): string => {
+  const s = str(v).toLowerCase();
+  return EMAIL.test(s) ? s : "";
+};
 
 /** The claims of a JWT, or null. The signature is not checked: this names the account a token the provider just gave belongs to; it grants nothing. */
 export function jwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  try { return rec(JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8"))); } catch { return null; }
+  try {
+    return rec(JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8")));
+  } catch {
+    return null;
+  }
 }
 
 function made(kind: string, parts: readonly string[], label: string): SigninIdentity | null {
@@ -31,11 +39,16 @@ function made(kind: string, parts: readonly string[], label: string): SigninIden
 
 /** The Claude token answer (the exchange that gives the setup token): `account.uuid`, `account.email_address`, `organization.uuid`, `organization.name`. */
 export function claudeIdentity(answer: Record<string, unknown> | null): SigninIdentity | null {
-  const account = rec(answer?.["account"]), org = rec(answer?.["organization"]);
+  const account = rec(answer?.["account"]),
+    org = rec(answer?.["organization"]);
   const who = str(account?.["uuid"]) || email(account?.["email_address"]);
   const orgId = str(org?.["uuid"]);
   if (who === "" && orgId === "") return null;
-  return made("claude", [who !== "" ? `acct:${who}` : "", orgId !== "" ? `org:${orgId}` : ""], email(account?.["email_address"]) || str(org?.["name"]));
+  return made(
+    "claude",
+    [who !== "" ? `acct:${who}` : "", orgId !== "" ? `org:${orgId}` : ""],
+    email(account?.["email_address"]) || str(org?.["name"]),
+  );
 }
 
 /** The Codex id token: the ChatGPT account (a personal or a team workspace) and the person in it, and their email. */
@@ -46,18 +59,32 @@ export function codexIdentity(idToken: string): SigninIdentity | null {
   const account = str(auth?.["chatgpt_account_id"]);
   const user = str(auth?.["chatgpt_user_id"]) || str(auth?.["user_id"]) || str(c["sub"]);
   const mail = email(c["email"]);
-  return made("chatgpt", [account !== "" ? `acct:${account}` : "", user !== "" ? `user:${user}` : mail !== "" ? `email:${mail}` : ""], mail);
+  return made(
+    "chatgpt",
+    [account !== "" ? `acct:${account}` : "", user !== "" ? `user:${user}` : mail !== "" ? `email:${mail}` : ""],
+    mail,
+  );
 }
 
 /** The Grok sign-in files: the first id token, email or user id found in them. */
 export function grokIdentity(files: Readonly<Record<string, string>>): SigninIdentity | null {
-  let user = "", mail = "";
+  let user = "",
+    mail = "";
   const visit = (v: unknown, depth: number): void => {
     if (depth > 6 || (user !== "" && mail !== "")) return;
     if (typeof v === "string") {
       const claims = v.split(".").length === 3 ? jwtClaims(v) : null;
-      if (claims) { user ||= str(claims["sub"]) || str(claims["user_id"]); mail ||= email(claims["email"]); return; }
-      try { const inner = JSON.parse(v) as unknown; if (inner !== null && typeof inner === "object") visit(inner, depth + 1); } catch { /* plain text */ }
+      if (claims) {
+        user ||= str(claims["sub"]) || str(claims["user_id"]);
+        mail ||= email(claims["email"]);
+        return;
+      }
+      try {
+        const inner = JSON.parse(v) as unknown;
+        if (inner !== null && typeof inner === "object") visit(inner, depth + 1);
+      } catch {
+        /* plain text */
+      }
       return;
     }
     const r = rec(v);
@@ -75,15 +102,27 @@ export function grokIdentity(files: Readonly<Record<string, string>>): SigninIde
 }
 
 /** The identity of a saved sign-in, from the fields its Vault item holds: Codex and Grok keep files that name the account; a Claude setup token names nobody, so its identity is null. */
-export function identityOfFields(provider: string, fields: readonly { key: string; value: string }[]): SigninIdentity | null {
+export function identityOfFields(
+  provider: string,
+  fields: readonly { key: string; value: string }[],
+): SigninIdentity | null {
   const creds = fields.find((f) => f.key === "credentials")?.value;
   if (creds === undefined) return null;
   let files: Record<string, string> = {};
-  try { const v = rec(JSON.parse(creds)); if (v) files = Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === "string")); } catch { return null; }
+  try {
+    const v = rec(JSON.parse(creds));
+    if (v) files = Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === "string"));
+  } catch {
+    return null;
+  }
   if (provider === "codex") {
     const auth = files[".codex/auth.json"] ?? Object.entries(files).find(([k]) => k.endsWith("auth.json"))?.[1];
     if (auth === undefined) return null;
-    try { return codexIdentity(str(rec(rec(JSON.parse(auth))?.["tokens"])?.["id_token"])); } catch { return null; }
+    try {
+      return codexIdentity(str(rec(rec(JSON.parse(auth))?.["tokens"])?.["id_token"]));
+    } catch {
+      return null;
+    }
   }
   if (provider === "grok") return grokIdentity(files);
   return null;

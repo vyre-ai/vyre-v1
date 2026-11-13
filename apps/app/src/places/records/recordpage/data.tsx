@@ -8,7 +8,19 @@ import type { AskForInput } from "./askfor.ts";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 
 export type LiveCap =
-  | "records.get" | "schema.describe" | "schema.layout.get" | "records.completeness" | "records.page_prefs.get" | "records.relations_map" | "records.history" | "records.activity" | "records.comments.list" | "records.versions" | "memory.find_by_subject" | "files.list" | "files.folder.get";
+  | "records.get"
+  | "schema.describe"
+  | "schema.layout.get"
+  | "records.completeness"
+  | "records.page_prefs.get"
+  | "records.relations_map"
+  | "records.history"
+  | "records.activity"
+  | "records.comments.list"
+  | "records.versions"
+  | "memory.find_by_subject"
+  | "files.list"
+  | "files.folder.get";
 
 export interface RecordPageNav {
   /** A goal this record is linked to, on its own page in Chats. */
@@ -34,7 +46,11 @@ export interface RecordPageNav {
 }
 
 /** A file picked or dropped on the Files tab. */
-export interface AttachFile { name: string; mime: string; file: { arrayBuffer(): Promise<ArrayBuffer>; type?: string } }
+export interface AttachFile {
+  name: string;
+  mime: string;
+  file: { arrayBuffer(): Promise<ArrayBuffer>; type?: string };
+}
 
 export interface RecordPageData {
   live<C extends LiveCap>(cap: C, input: CapMap[C]["in"]): LiveQuery<CapMap[C]["out"]>;
@@ -62,7 +78,13 @@ export interface RecordPageData {
 
 const Ctx = createContext<RecordPageData | null>(null);
 
-export function RecordPageDataProvider({ value, children }: { value: RecordPageData; children: ReactNode }): ReactElement {
+export function RecordPageDataProvider({
+  value,
+  children,
+}: {
+  value: RecordPageData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -81,9 +103,16 @@ const notYet: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot
 const NOT_YET: QueryState<never> = { status: "loading" };
 
 /** A live capability query; the input is compared by value, so an equal object keeps the subscription. With `enabled` false it is not asked yet and reads as loading. */
-export function useLive<C extends LiveCap>(cap: C, input: CapMap[C]["in"], enabled = true): QueryState<CapMap[C]["out"]> {
+export function useLive<C extends LiveCap>(
+  cap: C,
+  input: CapMap[C]["in"],
+  enabled = true,
+): QueryState<CapMap[C]["out"]> {
   const { live } = usePageData();
   const key = JSON.stringify(input);
-  const q = useMemo(() => (enabled ? live(cap, JSON.parse(key) as CapMap[C]["in"]) : (notYet as LiveQuery<CapMap[C]["out"]>)), [live, cap, key, enabled]);
+  const q = useMemo(
+    () => (enabled ? live(cap, JSON.parse(key) as CapMap[C]["in"]) : (notYet as LiveQuery<CapMap[C]["out"]>)),
+    [live, cap, key, enabled],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }

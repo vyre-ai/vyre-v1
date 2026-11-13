@@ -26,7 +26,8 @@ export interface ParsedQuery {
 export function parseQuery(raw: string): ParsedQuery {
   const s = raw.replace(/^\s+/, "");
   const first = s.charAt(0);
-  if (first === "@" || first === "#" || first === "/") return { prefix: first, text: s.slice(1).replace(/^\s+/, ""), types: PREFIX_TYPES[first] };
+  if (first === "@" || first === "#" || first === "/")
+    return { prefix: first, text: s.slice(1).replace(/^\s+/, ""), types: PREFIX_TYPES[first] };
   if (first === ">") return { prefix: ">", text: s.slice(1).replace(/^\s+/, ""), types: null };
   return { prefix: null, text: s.trim(), types: null };
 }
@@ -105,8 +106,19 @@ export function mergeHits(local: readonly Hit[], server: readonly Hit[]): Hit[] 
 /* ---------- rows ---------- */
 
 export const GROUPS: readonly (readonly [HitKind, string])[] = [
-  ["agent", "Agents"], ["chat", "Chats"], ["channel", "Channels"], ["person", "People"], ["inbox", "Inbox"], ["record", "Records"],
-  ["task", "Tasks"], ["file", "Files"], ["automation", "Automations"], ["app", "Apps"], ["setting", "Settings"], ["memory", "Memory"], ["note", "Notes"],
+  ["agent", "Agents"],
+  ["chat", "Chats"],
+  ["channel", "Channels"],
+  ["person", "People"],
+  ["inbox", "Inbox"],
+  ["record", "Records"],
+  ["task", "Tasks"],
+  ["file", "Files"],
+  ["automation", "Automations"],
+  ["app", "Apps"],
+  ["setting", "Settings"],
+  ["memory", "Memory"],
+  ["note", "Notes"],
 ];
 
 /** What a source of an answer is, as search.ask returns it: a search hit with its number and where it lives (Chat, File, Record ...). */
@@ -122,7 +134,8 @@ export type RowModel =
   | { type: "skin"; key: string; id: string; name: string; swatch?: string; current: boolean }
   | { type: "empty"; key: string; title: string };
 
-export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type === "action" || r.type === "skin" || r.type === "ask" || r.type === "source";
+export const isSelectable = (r: RowModel): boolean =>
+  r.type === "hit" || r.type === "action" || r.type === "skin" || r.type === "ask" || r.type === "source";
 
 /** The search marks the typed word in a snippet with [ ]: shown as plain text, the marks are not part of what a person wrote. */
 export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]/g, "$1");
@@ -132,11 +145,21 @@ export const sameText = (a: string, b: string): boolean => a.trim().toLowerCase(
 
 /** One row per thing: the same title twice in a group (and a channel's own thread beside the channel) (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
 export function oneEach(hits: readonly Hit[]): Hit[] {
-  const at = new Map<string, number>(), out: Hit[] = [];
+  const at = new Map<string, number>(),
+    out: Hit[] = [];
   for (const h of hits) {
-    const t = { ...h, title: plainMarks(h.title), ...(h.snippet !== undefined ? { snippet: plainMarks(h.snippet) } : {}) } as Hit;
-    const k = `${t.kind}:${t.title.trim().toLowerCase()}`, seen = at.get(k);
-    if (seen === undefined) { at.set(k, out.length); out.push(t); continue; }
+    const t = {
+      ...h,
+      title: plainMarks(h.title),
+      ...(h.snippet !== undefined ? { snippet: plainMarks(h.snippet) } : {}),
+    } as Hit;
+    const k = `${t.kind}:${t.title.trim().toLowerCase()}`,
+      seen = at.get(k);
+    if (seen === undefined) {
+      at.set(k, out.length);
+      out.push(t);
+      continue;
+    }
     const mine = out[seen]!;
     if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
@@ -172,13 +195,20 @@ export function isSkinQuery(text: string): boolean {
 export function actionRows(actions: readonly CmdAction[], text: string): RowModel[] {
   const q = text.toLowerCase();
   const part = actions.filter((a) => !q || a.title.toLowerCase().includes(q));
-  return part.length ? [{ type: "head", key: "h-actions", title: "Actions" }, ...part.map((a): RowModel => ({ type: "action", key: `act-${a.key}`, action: a }))] : [];
+  return part.length
+    ? [
+        { type: "head", key: "h-actions", title: "Actions" },
+        ...part.map((a): RowModel => ({ type: "action", key: `act-${a.key}`, action: a })),
+      ]
+    : [];
 }
 
 /** Next selectable row index in a direction, wrapping. -1 when nothing can be chosen. */
 export function stepActive(rows: readonly RowModel[], from: number, dir: 1 | -1 | "first" | "last"): number {
   const sel: number[] = [];
-  rows.forEach((r, i) => { if (isSelectable(r)) sel.push(i); });
+  rows.forEach((r, i) => {
+    if (isSelectable(r)) sel.push(i);
+  });
   if (!sel.length) return -1;
   if (dir === "first") return sel[0] ?? -1;
   if (dir === "last") return sel[sel.length - 1] ?? -1;
@@ -189,8 +219,50 @@ export function stepActive(rows: readonly RowModel[], from: number, dir: 1 | -1 
 
 /* ---------- Ask the Space (owner decision, 3 Nov 2026): a question typed in the search is answered from what the person may read ---------- */
 
-const QUESTION = /^(who|whom|what|when|where|why|how|which|did|does|do|is|are|was|were|can|could|should|has|have|any)\b/i;
-const STOP = new Set(["what", "who", "whom", "when", "where", "why", "how", "which", "did", "does", "do", "is", "are", "was", "were", "can", "could", "should", "has", "have", "had", "any", "say", "said", "about", "the", "a", "an", "of", "to", "for", "on", "in", "me", "my", "i", "we", "and", "with", "tell"]);
+const QUESTION =
+  /^(who|whom|what|when|where|why|how|which|did|does|do|is|are|was|were|can|could|should|has|have|any)\b/i;
+const STOP = new Set([
+  "what",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "why",
+  "how",
+  "which",
+  "did",
+  "does",
+  "do",
+  "is",
+  "are",
+  "was",
+  "were",
+  "can",
+  "could",
+  "should",
+  "has",
+  "have",
+  "had",
+  "any",
+  "say",
+  "said",
+  "about",
+  "the",
+  "a",
+  "an",
+  "of",
+  "to",
+  "for",
+  "on",
+  "in",
+  "me",
+  "my",
+  "i",
+  "we",
+  "and",
+  "with",
+  "tell",
+]);
 
 /** A question (it ends in "?" or starts with a question word). */
 export const isQuestion = (text: string): boolean => /\?\s*$/.test(text) || QUESTION.test(text.trim());
@@ -231,15 +303,22 @@ export function revealed(parts: readonly AnswerPart[], shown: number): AnswerPar
   const out: AnswerPart[] = [];
   let left = shown;
   for (const p of parts) {
-    if ("cite" in p) { out.push(p); continue; }
-    if (left < p.text.length) { if (left > 0) out.push({ text: p.text.slice(0, left) }); break; }
+    if ("cite" in p) {
+      out.push(p);
+      continue;
+    }
+    if (left < p.text.length) {
+      if (left > 0) out.push({ text: p.text.slice(0, left) });
+      break;
+    }
     out.push(p);
     left -= p.text.length;
   }
   return out;
 }
 
-export const plainLength = (parts: readonly AnswerPart[]): number => parts.reduce((n, p) => n + ("text" in p ? p.text.length : 0), 0);
+export const plainLength = (parts: readonly AnswerPart[]): number =>
+  parts.reduce((n, p) => n + ("text" in p ? p.text.length : 0), 0);
 
 /** The answer as one plain text with its marks, for Copy and for a chat that continues it. */
 export const answerText = (a: Pick<AskAnswer, "answer" | "sources" | "cited">): string => {

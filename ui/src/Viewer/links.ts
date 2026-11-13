@@ -1,7 +1,11 @@
 // File references inside a note's words (rc.8): [[Name]], [text](relative/path.md) and a bare file name like VYRE.md or agent.toml. This finds them; what they point at is looked up by the caller (the Files
 // place) and handed back as `targets`, so a name that is a real file reachable from this one becomes a link, and a wikilink to nothing becomes a dim broken link that can create the file.
 
-export interface FileLinkTarget { id: string; name: string; path?: string }
+export interface FileLinkTarget {
+  id: string;
+  name: string;
+  path?: string;
+}
 
 export interface FileLinks {
   /** ref -> where it points. null: nothing there (a broken link). A ref not in the map has not been looked up, or is not a file. */
@@ -25,7 +29,10 @@ export interface FileRef {
 
 const EXT = "md|markdown|toml|txt|json|ya?ml|csv|pdf|docx?|xlsx?|pptx?|png|jpe?g|gif|svg|ts|tsx|js|jsx|py|sh|html|css";
 // one alternation, leftmost first: a wikilink, a markdown link to a path (not a web address), or a bare file name
-const RE = new RegExp(`\\[\\[([^\\]\\n]+)\\]\\]|\\[([^\\]\\n]+)\\]\\((?!https?:|mailto:|#|/\\/)([^)\\s]+)\\)|(?<![\\w/.@-])([\\w][\\w.-]*\\.(?:${EXT}))(?![\\w-])`, "gi");
+const RE = new RegExp(
+  `\\[\\[([^\\]\\n]+)\\]\\]|\\[([^\\]\\n]+)\\]\\((?!https?:|mailto:|#|/\\/)([^)\\s]+)\\)|(?<![\\w/.@-])([\\w][\\w.-]*\\.(?:${EXT}))(?![\\w-])`,
+  "gi",
+);
 
 /** Every file reference in the text, in order. */
 export function refsIn(text: string): FileRef[] {
@@ -34,7 +41,14 @@ export function refsIn(text: string): FileRef[] {
     const start = m.index ?? 0;
     const end = start + m[0].length;
     if (m[1] !== undefined) out.push({ start, end, label: m[1].trim(), ref: m[1].trim(), kind: "wiki" });
-    else if (m[3] !== undefined) out.push({ start, end, label: m[2] ?? m[3], ref: decodeURI(m[3]).replace(/#.*$/, "").replace(/^\.\//, ""), kind: "md" });
+    else if (m[3] !== undefined)
+      out.push({
+        start,
+        end,
+        label: m[2] ?? m[3],
+        ref: decodeURI(m[3]).replace(/#.*$/, "").replace(/^\.\//, ""),
+        kind: "md",
+      });
     else if (m[4] !== undefined) out.push({ start, end, label: m[4], ref: m[4], kind: "bare" });
   }
   return out;
@@ -57,7 +71,11 @@ export function splitRefs(text: string): Array<string | FileRef> {
 export function distinctRefs(text: string): FileRef[] {
   const seen = new Set<string>();
   const out: FileRef[] = [];
-  for (const r of refsIn(text)) if (!seen.has(r.ref)) { seen.add(r.ref); out.push(r); }
+  for (const r of refsIn(text))
+    if (!seen.has(r.ref)) {
+      seen.add(r.ref);
+      out.push(r);
+    }
   return out;
 }
 

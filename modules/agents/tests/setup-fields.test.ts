@@ -6,14 +6,34 @@ import { LEO, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
-const viewOnly = <T extends object>(ctx: T): T => ({ ...ctx, authorize: (action: { level: string }) => ({ effect: action.level === "view" ? "allow" : "deny" }) });
-const setup = { accountPolicy: "key", accountKey: "#Team_Key", accountFallback: ["#Backup_Key"], memoryKey: "#Memory_Key", vaultKeys: ["#Stripe"], limits: { dayCostMicros: 5_000_000 } };
+const viewOnly = <T extends object>(ctx: T): T => ({
+  ...ctx,
+  authorize: (action: { level: string }) => ({ effect: action.level === "view" ? "allow" : "deny" }),
+});
+const setup = {
+  accountPolicy: "key",
+  accountKey: "#Team_Key",
+  accountFallback: ["#Backup_Key"],
+  memoryKey: "#Memory_Key",
+  vaultKeys: ["#Stripe"],
+  limits: { dayCostMicros: 5_000_000 },
+};
 
 async function world(): Promise<{ hn: Harness; agentId: string; viewer: Harness["ctx"] }> {
   const hn = harness();
   const made = await h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me first.", idempotencyKey: "a1" });
   const agentId = made.agent.agentId as string;
-  await h["agents.update"]!(hn.ctx, { agentId, patch: { accountPolicy: "key", accountKey: "#Team_Key", accountFallback: ["#Backup_Key"], memoryKey: "#Memory_Key", vaultKeys: ["#Stripe"], limits: { dayCostMicros: 5_000_000 } } });
+  await h["agents.update"]!(hn.ctx, {
+    agentId,
+    patch: {
+      accountPolicy: "key",
+      accountKey: "#Team_Key",
+      accountFallback: ["#Backup_Key"],
+      memoryKey: "#Memory_Key",
+      vaultKeys: ["#Stripe"],
+      limits: { dayCostMicros: 5_000_000 },
+    },
+  });
   return { hn, agentId, viewer: viewOnly(hn.person(LEO)) };
 }
 const hidden = (a: Record<string, unknown>): void => {
@@ -45,17 +65,33 @@ test("those who may change it read it whole: the owner, and anyone with edit", a
   const { hn, agentId } = await world();
   const whole = (await h["agents.get"]!(hn.ctx, { agentId })).agent;
   assert.deepEqual(whole.accountKey, setup.accountKey);
-  assert.deepEqual([whole.accountFallback, whole.memoryKey, whole.vaultKeys, whole.limits], [setup.accountFallback, setup.memoryKey, setup.vaultKeys, setup.limits]);
+  assert.deepEqual(
+    [whole.accountFallback, whole.memoryKey, whole.vaultKeys, whole.limits],
+    [setup.accountFallback, setup.memoryKey, setup.vaultKeys, setup.limits],
+  );
   assert.equal((await h["agents.get"]!(hn.person(LEO), { agentId })).agent.accountKey, setup.accountKey);
 });
 
 test("the server's own reads stay whole: a turn asked for by a viewer, a module's nested call, and an agent reading itself", async () => {
   const { hn, agentId, viewer } = await world();
   const inTurn = (await h["agents.get"]!({ ...viewer, origin: "engine", depth: 0 } as never, { agentId })).agent;
-  assert.deepEqual([inTurn.accountKey, inTurn.vaultKeys, inTurn.limits], [setup.accountKey, setup.vaultKeys, setup.limits]);
-  assert.equal((await h["agents.get"]!({ ...viewer, depth: 1 } as never, { agentId })).agent.accountKey, setup.accountKey);
+  assert.deepEqual(
+    [inTurn.accountKey, inTurn.vaultKeys, inTurn.limits],
+    [setup.accountKey, setup.vaultKeys, setup.limits],
+  );
+  assert.equal(
+    (await h["agents.get"]!({ ...viewer, depth: 1 } as never, { agentId })).agent.accountKey,
+    setup.accountKey,
+  );
   const self = viewOnly(hn.as({ kind: "agent", id: agentId }, LEO));
   assert.deepEqual((await h["agents.get"]!(self, { agentId })).agent.vaultKeys, setup.vaultKeys);
   hidden((await h["agents.get"]!({ ...viewer, origin: "mcp", depth: 0 } as never, { agentId })).agent);
-  hidden((await h["agents.get"]!({ ...viewOnly(hn.as({ kind: "agent", id: "agt_other" }, LEO)), origin: "agent", depth: 0 } as never, { agentId })).agent);
+  hidden(
+    (
+      await h["agents.get"]!(
+        { ...viewOnly(hn.as({ kind: "agent", id: "agt_other" }, LEO)), origin: "agent", depth: 0 } as never,
+        { agentId },
+      )
+    ).agent,
+  );
 });

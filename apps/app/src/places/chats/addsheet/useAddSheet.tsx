@@ -6,15 +6,43 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useWindowDimensions } from "react-native";
-import { AccessSheet, AgentSettingsPopover, AccessFace, addCalls, agentSettingsInput, outsideAgentRemoveInput, pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import type { AccessDirectory, AccessEntry, AccessPick, AddContext, AddTarget, AgentSettings, LinkInfo, ShareLevel } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import {
+  AccessSheet,
+  AgentSettingsPopover,
+  AccessFace,
+  addCalls,
+  agentSettingsInput,
+  outsideAgentRemoveInput,
+  pokeInput,
+} from "../../../../../../ui/src/AccessSheet/index.tsx";
+import type {
+  AccessDirectory,
+  AccessEntry,
+  AccessPick,
+  AddContext,
+  AddTarget,
+  AgentSettings,
+  LinkInfo,
+  ShareLevel,
+} from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { swapNeeded } from "../conversation/model.ts";
 import { itemLink } from "../../../share/rows.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
-import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, roleWord, settingsOf, titleOfTarget } from "./model.ts";
+import {
+  addedLine,
+  addsSomeone,
+  directoryOf,
+  failedLine,
+  hereSub,
+  maxLevelOf,
+  projectExtras,
+  roleWord,
+  settingsOf,
+  titleOfTarget,
+} from "./model.ts";
 import type { AddOpen, AddSheetDeps, ThreadAgentRow, ThreadRow } from "./model.ts";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
@@ -36,11 +64,19 @@ interface Loaded {
 const MODELS: readonly string[] = ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "GPT-5 Codex"];
 
 async function tryCall<T>(deps: AddSheetDeps, cap: string, input: unknown): Promise<T | null> {
-  try { return (await deps.call(cap, input)) as T; } catch { return null; }
+  try {
+    return (await deps.call(cap, input)) as T;
+  } catch {
+    return null;
+  }
 }
 
 /** Reads the target and the directory. A directory part that cannot be read leaves that list empty; a target that cannot be read opens nothing. */
-export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: string) => void): Promise<Loaded | null> {
+export async function loadAdd(
+  deps: AddSheetDeps,
+  open: AddOpen,
+  copy?: (text: string) => void,
+): Promise<Loaded | null> {
   const me = deps.me.id;
   let ctx: AddContext;
   let kind: AddTarget["kind"];
@@ -72,7 +108,9 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
       kind = "channel";
       name = titleOfTarget("channel", ch?.channel.name ?? open.name ?? t.title ?? "this channel");
       resource = { type: "channel", id: channelId };
-      hereRows = (ch?.channel.members ?? t.members).filter((m) => m.kind === "person").map((m) => ({ kind: "person", id: m.id }));
+      hereRows = (ch?.channel.members ?? t.members)
+        .filter((m) => m.kind === "person")
+        .map((m) => ({ kind: "person", id: m.id }));
     } else {
       kind = t.kind === "thread" ? "thread" : "chat";
       ctx = { kind, threadId: t.threadId };
@@ -92,7 +130,9 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
     linkedCount = Math.max((links?.links ?? []).filter((l) => l.kind === "record").length, (ov?.linked ?? []).length);
     ctx = { kind: "project", projectId };
     resource = { type: "project", id: projectId };
-    hereRows = (mem?.members ?? []).filter((m) => m.kind !== "group").map((m) => ({ kind: m.kind === "agent" ? "agent" : "person", id: m.principal }));
+    hereRows = (mem?.members ?? [])
+      .filter((m) => m.kind !== "group")
+      .map((m) => ({ kind: m.kind === "agent" ? "agent" : "person", id: m.principal }));
     // a project's outside agents and guests belong to its chat: its main thread
     const chId = ov?.project.channelId;
     if (chId) {
@@ -105,36 +145,101 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
     agentsOut,
     tryCall<Out<"mcp.connected.list">>(deps, "mcp.connected.list", {}),
     tryCall<Out<"mcp.connected.link">>(deps, "mcp.connected.link", {}),
-    Promise.all((["manage", "edit", "use"] as const).map((level) => tryCall<Out<"access.check">>(deps, "access.check", { principal: { kind: "person", id: me }, action: { level }, resource }))),
+    Promise.all(
+      (["manage", "edit", "use"] as const).map((level) =>
+        tryCall<Out<"access.check">>(deps, "access.check", {
+          principal: { kind: "person", id: me },
+          action: { level },
+          resource,
+        }),
+      ),
+    ),
   ]);
-  const dir = directoryOf({ me, principals: principals?.principals ?? [], agents: agents?.agents ?? [], connected: connected?.agents ?? [], ...(projectId !== undefined ? { projectId } : {}) });
+  const dir = directoryOf({
+    me,
+    principals: principals?.principals ?? [],
+    agents: agents?.agents ?? [],
+    connected: connected?.agents ?? [],
+    ...(projectId !== undefined ? { projectId } : {}),
+  });
   const rowOf = new Map((agents?.agents ?? []).map((a) => [a.agentId, a] as const));
   const agentSettings: Record<string, AgentSettings> = {};
-  const here: AccessEntry[] = hereRows.filter((h) => h.id !== me).map((h) => ({ id: h.id, name: deps.nameOf(h.id), sub: h.kind === "person" ? "Person" : "Project teammate", kind: h.kind }));
+  const here: AccessEntry[] = hereRows
+    .filter((h) => h.id !== me)
+    .map((h) => ({
+      id: h.id,
+      name: deps.nameOf(h.id),
+      sub: h.kind === "person" ? "Person" : "Project teammate",
+      kind: h.kind,
+    }));
   const only = agentRows.length === 1;
   for (const a of agentRows) {
     const row = rowOf.get(a.agentId);
     const outside = row?.runtime === "outside";
     agentSettings[a.agentId] = settingsOf(a);
-    here.push({ id: a.agentId, name: deps.nameOf(a.agentId), sub: hereSub(a, only), kind: outside ? "outside" : "agent", ...(row !== undefined && row.kind === "assistant" ? { assistant: true } : {}) });
+    here.push({
+      id: a.agentId,
+      name: deps.nameOf(a.agentId),
+      sub: hereSub(a, only),
+      kind: outside ? "outside" : "agent",
+      ...(row !== undefined && row.kind === "assistant" ? { assistant: true } : {}),
+    });
   }
   const answers = checks.map((c) => c?.decision.effect === "allow");
   const known = checks.some((c) => c !== null);
   const adminOnProject = deps.admin === true && kind === "project";
-  const maxLevel = adminOnProject ? "manage" : known ? maxLevelOf({ manage: answers[0] === true, edit: answers[1] === true, use: answers[2] === true }) : undefined;
-  const filesName = folderId === undefined ? undefined : (await tryCall<Out<"files.folder.get">>(deps, "files.folder.get", { folderId }))?.folder.name;
+  const maxLevel = adminOnProject
+    ? "manage"
+    : known
+      ? maxLevelOf({ manage: answers[0] === true, edit: answers[1] === true, use: answers[2] === true })
+      : undefined;
+  const filesName =
+    folderId === undefined
+      ? undefined
+      : (await tryCall<Out<"files.folder.get">>(deps, "files.folder.get", { folderId }))?.folder.name;
   let recordsName: string | undefined;
   if (recordsOf !== undefined) {
-    const hit = (await tryCall<Out<"search.resolve">>(deps, "search.resolve", { kind: "record", itemId: recordsOf }))?.hit;
+    const hit = (await tryCall<Out<"search.resolve">>(deps, "search.resolve", { kind: "record", itemId: recordsOf }))
+      ?.hit;
     recordsName = hit?.title && hit.title.trim() !== "" ? hit.title.trim() : undefined;
   }
-  const target: AddTarget = kind === "project"
-    ? { kind, name, project: { name, hasFiles: Boolean(filesName), linkedRecords: linkedCount } }
-    : { kind, name, ...(filesName ? { filesFolder: filesName } : {}), ...(recordsName ? { recordsFolder: recordsName } : {}) };
+  const target: AddTarget =
+    kind === "project"
+      ? { kind, name, project: { name, hasFiles: Boolean(filesName), linkedRecords: linkedCount } }
+      : {
+          kind,
+          name,
+          ...(filesName ? { filesFolder: filesName } : {}),
+          ...(recordsName ? { recordsFolder: recordsName } : {}),
+        };
   const info: LinkInfo | undefined = link
-    ? { command: link.claudeCode, ...(connected && connected.agents.length > 0 ? { connected: (connected.agents[0] as { clientName: string }).clientName } : {}), onCopy: () => { (copy ?? ((t: string) => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(t); }))(link.claudeCode); } }
+    ? {
+        command: link.claudeCode,
+        ...(connected && connected.agents.length > 0
+          ? { connected: (connected.agents[0] as { clientName: string }).clientName }
+          : {}),
+        onCopy: () => {
+          (
+            copy ??
+            ((t: string) => {
+              void (
+                globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }
+              ).navigator?.clipboard?.writeText(t);
+            })
+          )(link.claudeCode);
+        },
+      }
     : undefined;
-  return { ctx, target, threadId, directory: dir, here, agentSettings, ...(maxLevel !== undefined ? { maxLevel } : {}), ...(info ? { link: info } : {}) };
+  return {
+    ctx,
+    target,
+    threadId,
+    directory: dir,
+    here,
+    agentSettings,
+    ...(maxLevel !== undefined ? { maxLevel } : {}),
+    ...(info ? { link: info } : {}),
+  };
 }
 
 /** The directory for a chat that does not exist yet (the new-chat landing): nobody is in it, nothing can be poked, and the picks go back to the caller instead of into calls. */
@@ -145,10 +250,34 @@ export async function loadPick(deps: AddSheetDeps, name: string, copy?: (text: s
     tryCall<Out<"mcp.connected.list">>(deps, "mcp.connected.list", {}),
     tryCall<Out<"mcp.connected.link">>(deps, "mcp.connected.link", {}),
   ]);
-  const info: LinkInfo | undefined = link ? { command: link.claudeCode, onCopy: () => { (copy ?? ((t: string) => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(t); }))(link.claudeCode); } } : undefined;
+  const info: LinkInfo | undefined = link
+    ? {
+        command: link.claudeCode,
+        onCopy: () => {
+          (
+            copy ??
+            ((t: string) => {
+              void (
+                globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }
+              ).navigator?.clipboard?.writeText(t);
+            })
+          )(link.claudeCode);
+        },
+      }
+    : undefined;
   return {
-    ctx: { kind: "chat", threadId: "" }, target: { kind: "chat", name }, threadId: null,
-    directory: directoryOf({ me: deps.me.id, principals: principals?.principals ?? [], agents: agents?.agents ?? [], connected: connected?.agents ?? [] }), here: [], agentSettings: {}, ...(info ? { link: info } : {}),
+    ctx: { kind: "chat", threadId: "" },
+    target: { kind: "chat", name },
+    threadId: null,
+    directory: directoryOf({
+      me: deps.me.id,
+      principals: principals?.principals ?? [],
+      agents: agents?.agents ?? [],
+      connected: connected?.agents ?? [],
+    }),
+    here: [],
+    agentSettings: {},
+    ...(info ? { link: info } : {}),
   };
 }
 
@@ -157,27 +286,53 @@ function nameOfCall(call: { cap: string; input: unknown }, picks: readonly Acces
   const i = call.input as Record<string, unknown>;
   const byId = (id: unknown): string[] => picks.filter((p) => p.id === id).map((p) => p.name);
   switch (call.cap) {
-    case "channels.members.add": return picks.filter((p) => (i["personIds"] as string[]).includes(p.id)).map((p) => p.name);
-    case "threads.members.add": return byId(i["personId"]);
-    case "threads.add_agent": case "threads.outside_agent.add": case "threads.agent_settings.set": return byId(i["agentId"]);
-    case "projects.members.set": return byId(i["principal"]);
-    case "threads.invite_guest": return picks.filter((p) => p.email === i["email"]).map((p) => p.name);
-    case "threads.agent.create": case "agents.create": return picks.filter((p) => p.name === i["name"]).map((p) => p.name);
-    default: return [];
+    case "channels.members.add":
+      return picks.filter((p) => (i["personIds"] as string[]).includes(p.id)).map((p) => p.name);
+    case "threads.members.add":
+      return byId(i["personId"]);
+    case "threads.add_agent":
+    case "threads.outside_agent.add":
+    case "threads.agent_settings.set":
+      return byId(i["agentId"]);
+    case "projects.members.set":
+      return byId(i["principal"]);
+    case "threads.invite_guest":
+      return picks.filter((p) => p.email === i["email"]).map((p) => p.name);
+    case "threads.agent.create":
+    case "agents.create":
+      return picks.filter((p) => p.name === i["name"]).map((p) => p.name);
+    default:
+      return [];
   }
 }
 
 /** Runs the sheet's picks: people first, then agents, then settings, new agents and guests, in the order addCalls plans. Says one line after. */
-export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly AccessPick[], earlier = false): Promise<{ added: string[]; failed: string[] }> {
+export async function runAdd(
+  deps: AddSheetDeps,
+  r: Loaded,
+  picks: readonly AccessPick[],
+  earlier = false,
+): Promise<{ added: string[]; failed: string[] }> {
   const key = (): string => deps.newKey();
   const plan = addCalls(r.ctx, picks, key, { earlier });
   const queue: { cap: string; input: unknown }[] = plan.calls.map((c) => ({ cap: c.cap, input: c.input }));
   if (r.ctx.kind === "project") {
     const extra = projectExtras(plan.unsupported, key);
-    for (const c of extra.creates) queue.push({ cap: "agents.create", input: { name: c.name, ...(c.role !== undefined ? { role: c.role } : {}), ...(c.model !== undefined ? { model: c.model } : {}), projectId: r.ctx.projectId, idempotencyKey: c.key } });
+    for (const c of extra.creates)
+      queue.push({
+        cap: "agents.create",
+        input: {
+          name: c.name,
+          ...(c.role !== undefined ? { role: c.role } : {}),
+          ...(c.model !== undefined ? { model: c.model } : {}),
+          projectId: r.ctx.projectId,
+          idempotencyKey: c.key,
+        },
+      });
     // an outside agent or a guest on a project goes to the project's chat
     if (extra.viaChat.length > 0 && r.threadId !== null) {
-      for (const c of addCalls({ kind: "chat", threadId: r.threadId }, extra.viaChat, key).calls) queue.push({ cap: c.cap, input: c.input });
+      for (const c of addCalls({ kind: "chat", threadId: r.threadId }, extra.viaChat, key).calls)
+        queue.push({ cap: c.cap, input: c.input });
     }
   }
   const added: string[] = [];
@@ -185,9 +340,15 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
   for (const c of queue) {
     const names = nameOfCall(c, picks);
     try {
-      const out = await deps.call(c.cap, c.input) as { agent?: { agentId?: string } } | undefined;
+      const out = (await deps.call(c.cap, c.input)) as { agent?: { agentId?: string } } | undefined;
       // an agent made for a project is one of the project's people too (listed with them, given a role by a Lead). It is a principal of the Space only once the create has committed (host/src/gateway/principals.ts), so this cannot be part of agents.create itself
-      if (c.cap === "agents.create" && r.ctx.kind === "project" && out?.agent?.agentId) await deps.call("projects.members.set", { projectId: r.ctx.projectId, principal: out.agent.agentId, role: "member", idempotencyKey: key() });
+      if (c.cap === "agents.create" && r.ctx.kind === "project" && out?.agent?.agentId)
+        await deps.call("projects.members.set", {
+          projectId: r.ctx.projectId,
+          principal: out.agent.agentId,
+          role: "member",
+          idempotencyKey: key(),
+        });
       if (addsSomeone(c as never)) for (const n of names) if (!added.includes(n)) added.push(n);
     } catch {
       for (const n of names) if (!failed.includes(n)) failed.push(n);
@@ -201,7 +362,15 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; /** opens the profile of whoever was pressed, a person or an agent */ onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
+  | {
+      k: "people";
+      thread: ThreadRow;
+      x: number;
+      y: number;
+      /** opens the profile of whoever was pressed, a person or an agent */ onOpenAgent(id: string): void;
+      outside: ReadonlySet<string>;
+      meRole: string;
+    }
   | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
@@ -219,7 +388,10 @@ export interface AddSheetApi {
   element: ReactElement | null;
 }
 
-export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; copy?: (text: string) => void } = {}): AddSheetApi {
+export function useAddSheet(
+  deps: AddSheetDeps,
+  opts: { onDone?: () => void; copy?: (text: string) => void } = {},
+): AddSheetApi {
   const win = useWindowDimensions();
   const menu = useMenu();
   const [surface, setSurface] = useState<Surface | null>(null);
@@ -229,13 +401,32 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
   o.current = opts;
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flush = useRef<(() => void) | null>(null);
-  useEffect(() => () => { if (pending.current) { clearTimeout(pending.current); flush.current?.(); } }, []);
+  useEffect(
+    () => () => {
+      if (pending.current) {
+        clearTimeout(pending.current);
+        flush.current?.();
+      }
+    },
+    [],
+  );
 
-  const close = useCallback(() => { if (pending.current) { clearTimeout(pending.current); pending.current = null; flush.current?.(); flush.current = null; } setSurface(null); }, []);
+  const close = useCallback(() => {
+    if (pending.current) {
+      clearTimeout(pending.current);
+      pending.current = null;
+      flush.current?.();
+      flush.current = null;
+    }
+    setSurface(null);
+  }, []);
 
   const open = useCallback((target: AddOpen): void => {
     void loadAdd(d.current, target, o.current.copy).then((r) => {
-      if (r === null) { d.current.toast("Could not open that. Try again."); return; }
+      if (r === null) {
+        d.current.toast("Could not open that. Try again.");
+        return;
+      }
       setSurface({ k: "sheet", open: target, r });
     });
   }, []);
@@ -246,15 +437,35 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
 
   const poke = useCallback((threadId: string | null, agentId: string, here: readonly { id: string }[]): void => {
     const name = d.current.nameOf(agentId);
-    if (threadId === null || !here.some((e) => e.id === agentId)) { d.current.toast(`Add ${name} first, then poke it.`); return; }
-    void Promise.resolve(d.current.call("threads.poke", pokeInput(threadId, agentId))).then(() => d.current.toast(`Poked ${name}`), () => d.current.toast(`Could not poke ${name}. Try again.`));
+    if (threadId === null || !here.some((e) => e.id === agentId)) {
+      d.current.toast(`Add ${name} first, then poke it.`);
+      return;
+    }
+    void Promise.resolve(d.current.call("threads.poke", pokeInput(threadId, agentId))).then(
+      () => d.current.toast(`Poked ${name}`),
+      () => d.current.toast(`Could not poke ${name}. Try again.`),
+    );
   }, []);
 
   /** Saves one agent's answers in one chat. Writing in the settings fields saves a moment after the last key; a pick saves at once. */
   const save = useCallback((threadId: string, agentId: string, next: AgentSettings, wait: boolean): void => {
-    const run = (): void => { pending.current = null; flush.current = null; void Promise.resolve(d.current.call("threads.agent_settings.set", agentSettingsInput(threadId, agentId, next))).then(() => undefined, () => d.current.toast(`Could not change how ${d.current.nameOf(agentId)} answers. Try again.`)); };
+    const run = (): void => {
+      pending.current = null;
+      flush.current = null;
+      void Promise.resolve(
+        d.current.call("threads.agent_settings.set", agentSettingsInput(threadId, agentId, next)),
+      ).then(
+        () => undefined,
+        () => d.current.toast(`Could not change how ${d.current.nameOf(agentId)} answers. Try again.`),
+      );
+    };
     if (pending.current) clearTimeout(pending.current);
-    if (!wait) { pending.current = null; flush.current = null; run(); return; }
+    if (!wait) {
+      pending.current = null;
+      flush.current = null;
+      run();
+      return;
+    }
     flush.current = run;
     pending.current = setTimeout(run, 400);
   }, []);
@@ -265,12 +476,37 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     return new Set((got?.agents ?? []).filter((a) => a.runtime === "outside").map((a) => a.agentId));
   }, []);
   /** The chat's agents as the server keeps them: the copy a screen holds may leave out how each answers (Listening, When, Style). */
-  const freshThread = useCallback(async (seen: ThreadRow): Promise<ThreadRow> => (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen, []);
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => {
-    void Promise.all([outsideOf(), freshThread(p.thread), tryCall<Out<"access.principals.list">>(d.current, "access.principals.list", {})]).then(([outside, thread, people]) =>
-      setSurface({ k: "people", ...p, thread, outside, meRole: roleWord(people?.principals.find((x) => x.id === d.current.me.id)?.roles) }));
-  }, [outsideOf, freshThread]);
-  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "settings", ...p, thread, outside })); }, [outsideOf, freshThread]);
+  const freshThread = useCallback(
+    async (seen: ThreadRow): Promise<ThreadRow> =>
+      (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen,
+    [],
+  );
+  const showPeople = useCallback(
+    (p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => {
+      void Promise.all([
+        outsideOf(),
+        freshThread(p.thread),
+        tryCall<Out<"access.principals.list">>(d.current, "access.principals.list", {}),
+      ]).then(([outside, thread, people]) =>
+        setSurface({
+          k: "people",
+          ...p,
+          thread,
+          outside,
+          meRole: roleWord(people?.principals.find((x) => x.id === d.current.me.id)?.roles),
+        }),
+      );
+    },
+    [outsideOf, freshThread],
+  );
+  const showSettings = useCallback(
+    (p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => {
+      void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) =>
+        setSurface({ k: "settings", ...p, thread, outside }),
+      );
+    },
+    [outsideOf, freshThread],
+  );
 
   let element: ReactElement | null = null;
   if (surface?.k === "sheet") {
@@ -279,15 +515,43 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const sameThread = r.threadId;
     element = (
       <AccessSheet
-        mode="add" density={phone ? "compact" : "regular"} ownerName={deps.me.name} target={r.target} directory={r.directory} here={r.here} agentSettings={r.agentSettings} models={MODELS}
-        earlierMessages={r.target.kind === "chat" || r.target.kind === "thread"} {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})} {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close}
-        {...(sameThread !== null ? { onPoke: (id: string) => poke(sameThread, id, r.here), onAgentSettings: (id: string, s: AgentSettings) => save(sameThread, id, s, true) } : {})}
-        {...(sameThread !== null ? { onRemoveHere: (e: AccessEntry) => {
-          void Promise.resolve(d.current.call("threads.outside_agent.remove", outsideAgentRemoveInput(sameThread, e.id))).then(
-            () => { d.current.toast(`${e.name} was removed`); setSurface((s) => (s?.k === "sheet" ? { ...s, r: { ...s.r, here: s.r.here.filter((x) => x.id !== e.id) } } : s)); o.current.onDone?.(); },
-            () => d.current.toast(`Could not remove ${e.name}. Try again.`),
-          );
-        } } : {})}
+        mode="add"
+        density={phone ? "compact" : "regular"}
+        ownerName={deps.me.name}
+        target={r.target}
+        directory={r.directory}
+        here={r.here}
+        agentSettings={r.agentSettings}
+        models={MODELS}
+        earlierMessages={r.target.kind === "chat" || r.target.kind === "thread"}
+        {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})}
+        {...(r.link ? { link: r.link } : {})}
+        testID="add-sheet"
+        onClose={close}
+        {...(sameThread !== null
+          ? {
+              onPoke: (id: string) => poke(sameThread, id, r.here),
+              onAgentSettings: (id: string, s: AgentSettings) => save(sameThread, id, s, true),
+            }
+          : {})}
+        {...(sameThread !== null
+          ? {
+              onRemoveHere: (e: AccessEntry) => {
+                void Promise.resolve(
+                  d.current.call("threads.outside_agent.remove", outsideAgentRemoveInput(sameThread, e.id)),
+                ).then(
+                  () => {
+                    d.current.toast(`${e.name} was removed`);
+                    setSurface((s) =>
+                      s?.k === "sheet" ? { ...s, r: { ...s.r, here: s.r.here.filter((x) => x.id !== e.id) } } : s,
+                    );
+                    o.current.onDone?.();
+                  },
+                  () => d.current.toast(`Could not remove ${e.name}. Try again.`),
+                );
+              },
+            }
+          : {})}
         onAdd={(picks, opts) => {
           void runAdd(d.current, r, picks, opts.earlier).then(({ added, failed }) => {
             if (added.length > 0) d.current.toast(addedLine(added));
@@ -302,8 +566,20 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const phone = isPhoneWidth(win.width);
     element = (
       <AccessSheet
-        mode="add" density={phone ? "compact" : "regular"} ownerName={deps.me.name} target={r.target} directory={r.directory} here={r.here} models={MODELS} earlierMessages={false}
-        {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close} onAdd={(picks) => { onPicks(picks); }}
+        mode="add"
+        density={phone ? "compact" : "regular"}
+        ownerName={deps.me.name}
+        target={r.target}
+        directory={r.directory}
+        here={r.here}
+        models={MODELS}
+        earlierMessages={false}
+        {...(r.link ? { link: r.link } : {})}
+        testID="add-sheet"
+        onClose={close}
+        onAdd={(picks) => {
+          onPicks(picks);
+        }}
       />
     );
   } else if (surface?.k === "people") {
@@ -311,36 +587,127 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const only = t.agents.length === 1;
     // one row per member with the role on the right (the prototype's people popover); an agent's role is who leads it, else Can use
     const rows: MemberRow[] = [
-      ...t.members.filter((m) => m.kind === "person").map((m): MemberRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", role: m.id === deps.me.id ? surface.meRole : "Member" })),
-      ...t.agents.map((a): MemberRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", role: a.mode === "lead" && !only ? "Lead" : "Can use" })),
+      ...t.members
+        .filter((m) => m.kind === "person")
+        .map(
+          (m): MemberRow => ({
+            id: m.id,
+            name: deps.nameOf(m.id),
+            kind: "person",
+            role: m.id === deps.me.id ? surface.meRole : "Member",
+          }),
+        ),
+      ...t.agents.map(
+        (a): MemberRow => ({
+          id: a.agentId,
+          name: deps.nameOf(a.agentId),
+          kind: surface.outside.has(a.agentId) ? "outside" : "agent",
+          role: a.mode === "lead" && !only ? "Lead" : "Can use",
+        }),
+      ),
     ];
     element = (
       <PeoplePopover
-        where="chat" rows={rows} meId={deps.me.id} perms={{ message: false, changeRole: false, remove: false, agentControls: true }} anchor={{ x: surface.x, y: surface.y }}
-        onOpen={(r) => { const go = surface.onOpenAgent; setSurface(null); go(r.id); }}
-        onAction={(action, r) => {
-          if (action === "poke") poke(t.threadId, r.id, t.agents.map((a) => ({ id: a.agentId })));
-          else if (action === "settings") setSurface({ k: "settings", thread: t, agentId: r.id, x: surface.x, y: surface.y, outside: surface.outside });
-          else if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLinkOf(r)); setSurface(null); }
+        where="chat"
+        rows={rows}
+        meId={deps.me.id}
+        perms={{ message: false, changeRole: false, remove: false, agentControls: true }}
+        anchor={{ x: surface.x, y: surface.y }}
+        onOpen={(r) => {
+          const go = surface.onOpenAgent;
+          setSurface(null);
+          go(r.id);
         }}
-        onFooter={() => { const id = t.threadId; setSurface(null); open({ threadId: id }); }} onClose={close}
+        onAction={(action, r) => {
+          if (action === "poke")
+            poke(
+              t.threadId,
+              r.id,
+              t.agents.map((a) => ({ id: a.agentId })),
+            );
+          else if (action === "settings")
+            setSurface({
+              k: "settings",
+              thread: t,
+              agentId: r.id,
+              x: surface.x,
+              y: surface.y,
+              outside: surface.outside,
+            });
+          else if (action === "link") {
+            const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } })
+              .navigator?.clipboard;
+            void clip?.writeText(itemLinkOf(r));
+            setSurface(null);
+          }
+        }}
+        onFooter={() => {
+          const id = t.threadId;
+          setSurface(null);
+          open({ threadId: id });
+        }}
+        onClose={close}
       />
     );
   } else if (surface?.k === "settings") {
-    element = <ChatAgentSettings deps={deps} thread={surface.thread} agentId={surface.agentId} outside={surface.outside.has(surface.agentId)} x={surface.x} y={surface.y} save={save} poke={poke} confirm={(entries, x, y, label) => menu.show(entries, x, y, "other", { label })} onClose={close} />;
+    element = (
+      <ChatAgentSettings
+        deps={deps}
+        thread={surface.thread}
+        agentId={surface.agentId}
+        outside={surface.outside.has(surface.agentId)}
+        x={surface.x}
+        y={surface.y}
+        save={save}
+        poke={poke}
+        confirm={(entries, x, y, label) => menu.show(entries, x, y, "other", { label })}
+        onClose={close}
+      />
+    );
   }
   return {
-    open, pick, showPeople, showSettings, isOpen: surface !== null,
-    element: element === null && menu.element === null ? null : <>{element}{menu.element}</>,
+    open,
+    pick,
+    showPeople,
+    showSettings,
+    isOpen: surface !== null,
+    element:
+      element === null && menu.element === null ? null : (
+        <>
+          {element}
+          {menu.element}
+        </>
+      ),
   };
 }
 
 /** The settings popover of an agent already in a chat. Making another agent the lead asks first: one lead per chat, and the old lead keeps listening. */
-function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, confirm, onClose }: {
-  deps: AddSheetDeps; thread: ThreadRow; agentId: string; outside: boolean; x: number; y: number;
+function ChatAgentSettings({
+  deps,
+  thread,
+  agentId,
+  outside,
+  x,
+  y,
+  save,
+  poke,
+  confirm,
+  onClose,
+}: {
+  deps: AddSheetDeps;
+  thread: ThreadRow;
+  agentId: string;
+  outside: boolean;
+  x: number;
+  y: number;
   save(threadId: string, agentId: string, next: AgentSettings, wait: boolean): void;
   poke(threadId: string | null, agentId: string, here: readonly { id: string }[]): void;
-  confirm(entries: import("../../../../../../ui/src/Menu/index.tsx").MenuEntry[], x: number, y: number, label: string): void;
+  confirm(
+    entries: import("../../../../../../ui/src/Menu/index.tsx").MenuEntry[],
+    x: number,
+    y: number,
+    label: string,
+  ): void;
   onClose(): void;
 }): ReactElement {
   const row = thread.agents.find((a) => a.agentId === agentId) as ThreadAgentRow;
@@ -351,11 +718,23 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
     const textOnly = next.how === value.how && next.when === value.when && next.style === value.style;
     if (next.how === "lead" && value.how !== "lead" && lead) {
       const old = deps.nameOf(lead.agentId);
-      confirm([
-        { head: `${old} leads this chat. Make ${name} lead instead? ${old} will keep listening.` },
-        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when mentioned.`); } },
-        { label: "Cancel" },
-      ], x, y, name);
+      confirm(
+        [
+          { head: `${old} leads this chat. Make ${name} lead instead? ${old} will keep listening.` },
+          {
+            label: "Swap",
+            onSelect: () => {
+              setValue(next);
+              save(thread.threadId, agentId, next, false);
+              deps.toast(`${name} now answers everything. ${old} answers only when mentioned.`);
+            },
+          },
+          { label: "Cancel" },
+        ],
+        x,
+        y,
+        name,
+      );
       return;
     }
     setValue(next);
@@ -363,23 +742,60 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
   };
   return (
     <AgentSettingsPopover
-      name={name} face={<AccessFace kind="agent" id={agentId} name={name} size={26} />} value={value} outside={outside} anchor={{ x, y }}
-      onChange={change} onPoke={() => poke(thread.threadId, agentId, thread.agents.map((a) => ({ id: a.agentId })))} onClose={onClose}
+      name={name}
+      face={<AccessFace kind="agent" id={agentId} name={name} size={26} />}
+      value={value}
+      outside={outside}
+      anchor={{ x, y }}
+      onChange={change}
+      onPoke={() =>
+        poke(
+          thread.threadId,
+          agentId,
+          thread.agents.map((a) => ({ id: a.agentId })),
+        )
+      }
+      onClose={onClose}
     />
   );
 }
 
-
 /** The picks a new chat's start could not take (outside agents, new agents, guests, more than one person): applied to the chat once it exists. An agent chat.start already added only gets its answers set. */
-export async function runAfterStart(deps: AddSheetDeps, threadId: string, picks: readonly AccessPick[]): Promise<{ added: string[]; failed: string[] }> {
+export async function runAfterStart(
+  deps: AddSheetDeps,
+  threadId: string,
+  picks: readonly AccessPick[],
+): Promise<{ added: string[]; failed: string[] }> {
   const rest = picks.filter((p) => p.kind === "outside" || p.kind === "new" || p.kind === "guest");
   const people = picks.filter((p) => p.kind === "person").slice(1);
-  const out = await runAdd(deps, { ctx: { kind: "chat", threadId }, target: { kind: "chat", name: "this chat" }, threadId, directory: {}, here: [], agentSettings: {} }, [...people, ...rest]);
-  for (const p of picks.filter((x) => x.kind === "agent" && x.settings !== undefined && (x.settings.how !== "tag" || x.settings.when !== "always" || x.settings.style !== "short"))) {
-    try { await deps.call("threads.agent_settings.set", agentSettingsInput(threadId, p.id, p.settings as AgentSettings)); } catch { out.failed.push(p.name); }
+  const out = await runAdd(
+    deps,
+    {
+      ctx: { kind: "chat", threadId },
+      target: { kind: "chat", name: "this chat" },
+      threadId,
+      directory: {},
+      here: [],
+      agentSettings: {},
+    },
+    [...people, ...rest],
+  );
+  for (const p of picks.filter(
+    (x) =>
+      x.kind === "agent" &&
+      x.settings !== undefined &&
+      (x.settings.how !== "tag" || x.settings.when !== "always" || x.settings.style !== "short"),
+  )) {
+    try {
+      await deps.call("threads.agent_settings.set", agentSettingsInput(threadId, p.id, p.settings as AgentSettings));
+    } catch {
+      out.failed.push(p.name);
+    }
   }
   return out;
 }
 
 /** The link a row copies: a person or an agent, on the Space's web address. */
-function itemLinkOf(r: { id: string; kind: string }): string { return itemLink(r.kind === "person" ? "person" : "agent", r.id); }
+function itemLinkOf(r: { id: string; kind: string }): string {
+  return itemLink(r.kind === "person" ? "person" : "agent", r.id);
+}

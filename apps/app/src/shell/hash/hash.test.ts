@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { formatHash, openedId, parseHash, placeForSubject } from "./hash.ts";
 
 test("hash: a target round-trips through the text form", () => {
-  const h = formatHash({ screen: "files.viewer", subject: { type: "file", id: "fil:1" }, args: { page: 2, open: true, skip: undefined } });
+  const h = formatHash({
+    screen: "files.viewer",
+    subject: { type: "file", id: "fil:1" },
+    args: { page: 2, open: true, skip: undefined },
+  });
   const t = parseHash(h);
   assert.equal(t.screen, "files.viewer");
   assert.deepEqual(t.subject, { type: "file", id: "fil:1" });

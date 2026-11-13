@@ -12,11 +12,25 @@ function rig(o: { secret?: string; withAuth?: boolean } = {}) {
   const asked: { handle: string; space: string }[] = [];
   const hashed: string[] = [];
   const router = new CaddyRouter({
-    admin: new CaddyAdmin({ fetch: caddy.fetch }), space: "spc_1", now: () => clock.t,
-    ...(o.withAuth === false ? {} : {
-      vault: { secret: async (handle: string, space: string) => { asked.push({ handle, space }); return o.secret ?? "correct horse battery"; } },
-      hasher: { hash: async (p: string) => { hashed.push(p); return HASH; } },
-    }),
+    admin: new CaddyAdmin({ fetch: caddy.fetch }),
+    space: "spc_1",
+    now: () => clock.t,
+    ...(o.withAuth === false
+      ? {}
+      : {
+          vault: {
+            secret: async (handle: string, space: string) => {
+              asked.push({ handle, space });
+              return o.secret ?? "correct horse battery";
+            },
+          },
+          hasher: {
+            hash: async (p: string) => {
+              hashed.push(p);
+              return HASH;
+            },
+          },
+        }),
   });
   return { caddy, router, asked, hashed };
 }
@@ -25,7 +39,12 @@ const seq = (c: FakeCaddy): string[] => c.calls.map((x) => `${x.method} ${x.path
 test("the first route loads the base config, then adds the route by id", async () => {
   const r = rig();
   await r.router.setRoute({ host: "www.firm.com", upstream: "site-1:3000", auth: null });
-  assert.deepEqual(seq(r.caddy), ["GET /config/", "POST /load", "GET /id/vyre-route-www.firm.com", "POST /config/apps/http/servers/vyre/routes"]);
+  assert.deepEqual(seq(r.caddy), [
+    "GET /config/",
+    "POST /load",
+    "GET /id/vyre-route-www.firm.com",
+    "POST /config/apps/http/servers/vyre/routes",
+  ]);
   assert.deepEqual(await r.router.hosts(), ["www.firm.com"]);
 });
 
@@ -34,8 +53,16 @@ test("setting the same host again replaces the route in place and never loads th
   await r.router.setRoute({ host: "www.firm.com", upstream: "site-1:3000", auth: null });
   r.caddy.calls.length = 0;
   await r.router.setRoute({ host: "WWW.firm.com", upstream: "site-2:4000", auth: null });
-  assert.deepEqual(seq(r.caddy), ["GET /config/", "GET /id/vyre-route-www.firm.com", "PATCH /id/vyre-route-www.firm.com"]);
-  const routes = (r.caddy.config as { apps: { http: { servers: { vyre: { routes: { handle: { upstreams?: { dial: string }[] }[] }[] } } } } }).apps.http.servers.vyre.routes;
+  assert.deepEqual(seq(r.caddy), [
+    "GET /config/",
+    "GET /id/vyre-route-www.firm.com",
+    "PATCH /id/vyre-route-www.firm.com",
+  ]);
+  const routes = (
+    r.caddy.config as {
+      apps: { http: { servers: { vyre: { routes: { handle: { upstreams?: { dial: string }[] }[] }[] } } } };
+    }
+  ).apps.http.servers.vyre.routes;
   assert.equal(routes.length, 1);
   assert.equal(routes[0]!.handle[0]!.upstreams![0]!.dial, "site-2:4000");
 });
@@ -55,7 +82,11 @@ test("removing a route deletes it by id; removing it again sends nothing", async
 
 test("a staging route reads its password from the Vault, hashes it, and only the hash reaches Caddy", async () => {
   const r = rig({ secret: "s3cret-preview-pw" });
-  await r.router.setRoute({ host: "staging-abc.acme.vyre.run", upstream: "site-abc:3000", auth: { handle: "#Site_abc_Staging" } });
+  await r.router.setRoute({
+    host: "staging-abc.acme.vyre.run",
+    upstream: "site-abc:3000",
+    auth: { handle: "#Site_abc_Staging" },
+  });
   assert.deepEqual(r.asked, [{ handle: "#Site_abc_Staging", space: "spc_1" }]);
   assert.deepEqual(r.hashed, ["s3cret-preview-pw"]);
   const sent = JSON.stringify(r.caddy.calls);
@@ -65,10 +96,16 @@ test("a staging route reads its password from the Vault, hashes it, and only the
 
 test("a protected route without a Vault and hasher, or with an empty key, is refused before Caddy is touched", async () => {
   const none = rig({ withAuth: false });
-  await assert.rejects(none.router.setRoute({ host: "staging-a.acme.vyre.run", upstream: "s:1", auth: { handle: "#K" } }), RouteError);
+  await assert.rejects(
+    none.router.setRoute({ host: "staging-a.acme.vyre.run", upstream: "s:1", auth: { handle: "#K" } }),
+    RouteError,
+  );
   assert.equal(none.caddy.calls.length, 0);
   const empty = rig({ secret: "" });
-  await assert.rejects(empty.router.setRoute({ host: "staging-a.acme.vyre.run", upstream: "s:1", auth: { handle: "#K" } }), RouteError);
+  await assert.rejects(
+    empty.router.setRoute({ host: "staging-a.acme.vyre.run", upstream: "s:1", auth: { handle: "#K" } }),
+    RouteError,
+  );
   assert.equal(empty.caddy.calls.length, 0);
 });
 
@@ -82,9 +119,13 @@ test("bad hosts and upstreams are refused before Caddy is touched", async () => 
 
 test("what Caddy already runs is kept when the Vyre server is added", async () => {
   const r = rig();
-  r.caddy.config = { admin: { listen: "localhost:2019" }, apps: { http: { servers: { other: { listen: [":9000"], routes: [{ "@id": "mine" }] } } } } };
+  r.caddy.config = {
+    admin: { listen: "localhost:2019" },
+    apps: { http: { servers: { other: { listen: [":9000"], routes: [{ "@id": "mine" }] } } } },
+  };
   await r.router.setRoute({ host: "a.firm.com", upstream: "s:1", auth: null });
-  const servers = (r.caddy.config as { apps: { http: { servers: Record<string, { routes: unknown[] }> } } }).apps.http.servers;
+  const servers = (r.caddy.config as { apps: { http: { servers: Record<string, { routes: unknown[] }> } } }).apps.http
+    .servers;
   assert.deepEqual(Object.keys(servers).sort(), ["other", "vyre"]);
   assert.deepEqual(servers["other"]!.routes, [{ "@id": "mine" }]);
   assert.equal(servers["vyre"]!.routes.length, 1);
@@ -112,10 +153,13 @@ test("a second writer taking the id between the check and the append turns into 
   await r.router.ensureBase();
   r.caddy.beforeAppend = (route) => {
     r.caddy.beforeAppend = null;
-    ((r.caddy.config as { apps: { http: { servers: { vyre: { routes: unknown[] } } } } }).apps.http.servers.vyre.routes).push({ ...route, handle: [] });
+    (
+      r.caddy.config as { apps: { http: { servers: { vyre: { routes: unknown[] } } } } }
+    ).apps.http.servers.vyre.routes.push({ ...route, handle: [] });
   };
   await r.router.setRoute({ host: "a.firm.com", upstream: "s:1", auth: null });
-  const routes = (r.caddy.config as { apps: { http: { servers: { vyre: { routes: { handle: unknown[] }[] } } } } }).apps.http.servers.vyre.routes;
+  const routes = (r.caddy.config as { apps: { http: { servers: { vyre: { routes: { handle: unknown[] }[] } } } } }).apps
+    .http.servers.vyre.routes;
   assert.equal(routes.length, 1);
   assert.equal(routes[0]!.handle.length, 1, "our route replaced the other writer's");
 });
@@ -124,24 +168,40 @@ test("Caddy's refusals carry its own message and status; a dead admin API says i
   const r = rig();
   await r.router.ensureBase();
   r.caddy.failNext = { status: 400, body: JSON.stringify({ error: "loading new config: unknown module" }) };
-  await assert.rejects(r.router.setRoute({ host: "a.firm.com", upstream: "s:1", auth: null }), (e: unknown) => e instanceof CaddyError && e.status === 400 && /unknown module/.test(e.message));
+  await assert.rejects(
+    r.router.setRoute({ host: "a.firm.com", upstream: "s:1", auth: null }),
+    (e: unknown) => e instanceof CaddyError && e.status === 400 && /unknown module/.test(e.message),
+  );
   r.caddy.down = true;
-  await assert.rejects(r.router.hosts(), (e: unknown) => e instanceof CaddyError && e.status === 0 && /did not answer/.test(e.message));
+  await assert.rejects(
+    r.router.hosts(),
+    (e: unknown) => e instanceof CaddyError && e.status === 0 && /did not answer/.test(e.message),
+  );
 });
 
 test("an admin call that never answers is cut off at the timeout", async () => {
-  const admin = new CaddyAdmin({ timeoutMs: 20, fetch: (_u, init) => new Promise((_res, rej) => { init?.signal?.addEventListener("abort", () => rej(new Error("aborted"))); }) });
+  const admin = new CaddyAdmin({
+    timeoutMs: 20,
+    fetch: (_u, init) =>
+      new Promise((_res, rej) => {
+        init?.signal?.addEventListener("abort", () => rej(new Error("aborted")));
+      }),
+  });
   await assert.rejects(admin.config(), (e: unknown) => e instanceof CaddyError && /within 20 ms/.test(e.message));
 });
 
 test("the admin client reads an empty or null body as nothing and a body that is not JSON as an error", async () => {
-  const mk = (status: number, body: string) => new CaddyAdmin({ fetch: async () => ({ status, text: async () => body }) });
+  const mk = (status: number, body: string) =>
+    new CaddyAdmin({ fetch: async () => ({ status, text: async () => body }) });
   assert.equal(await mk(200, "null").config(), undefined);
   assert.equal(await mk(200, "").config(), undefined);
   assert.equal(await mk(404, "{}").config(), undefined);
   assert.deepEqual(await mk(200, '{"apps":{}}').config(), { apps: {} });
   await assert.rejects(mk(200, "<html>").config(), CaddyError);
-  await assert.rejects(mk(500, "boom").config(), (e: unknown) => e instanceof CaddyError && e.status === 500 && e.body === "boom");
+  await assert.rejects(
+    mk(500, "boom").config(),
+    (e: unknown) => e instanceof CaddyError && e.status === 500 && e.body === "boom",
+  );
 });
 
 // P-L7b_04 final run.

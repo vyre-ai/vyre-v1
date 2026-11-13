@@ -12,26 +12,40 @@ const args = process.argv.slice(2);
 const shotsDir = (args.find((a) => a.startsWith("--shots=")) ?? "").slice(8);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 let failed = 0;
-const check = (name, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${ok ? "" : " " + extra}`); if (!ok) failed++; };
+const check = (name, ok, extra = "") => {
+  console.log(`${ok ? "PASS" : "FAIL"} ${name}${ok ? "" : " " + extra}`);
+  if (!ok) failed++;
+};
 
 async function open(field, size = { width: 1440, height: 900 }, scheme = "light") {
   const ctx = await browser.newContext({ viewport: size, colorScheme: scheme, reducedMotion: "reduce" });
   await ctx.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => undefined);
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("pageerror", String(e).slice(0, 200)));
-  await page.goto(routeUrl(real.origin, `/m/EDITOR_03?field=${field}`, scheme === "dark" ? "graphite" : "paper"), { waitUntil: "load", timeout: 60000 });
+  await page.goto(routeUrl(real.origin, `/m/EDITOR_03?field=${field}`, scheme === "dark" ? "graphite" : "paper"), {
+    waitUntil: "load",
+    timeout: 60000,
+  });
   await page.waitForSelector("[data-testid=composer-field]", { timeout: 15000 });
   await page.waitForTimeout(field === "chat" ? 2500 : 800);
   return { ctx, page };
 }
-const textOf = (page) => page.evaluate(() => { const f = document.querySelector("[data-testid=composer-field]"); return f.value !== undefined ? f.value : f.innerText.replace(/​/g, ""); });
+const textOf = (page) =>
+  page.evaluate(() => {
+    const f = document.querySelector("[data-testid=composer-field]");
+    return f.value !== undefined ? f.value : f.innerText.replace(/​/g, "");
+  });
 const field = (page) => page.locator("[data-testid=composer-field]");
 const sentOf = async (page) => JSON.parse(await page.locator("[data-testid=sent]").innerText());
 
@@ -59,27 +73,37 @@ await page.waitForTimeout(300);
 check("a typed mention becomes one chip", (await chips()).join("|") === "@Aliza", JSON.stringify(await chips()));
 
 // the @ picker
-await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace");
+await page.keyboard.press("Control+A");
+await page.keyboard.press("Backspace");
 await page.keyboard.type("@Ru");
 await page.waitForSelector("[data-testid=composer-popup]", { timeout: 4000 }).catch(() => undefined);
-check("@ opens the mention picker", await page.locator("[data-testid=composer-popup]").count() > 0);
+check("@ opens the mention picker", (await page.locator("[data-testid=composer-popup]").count()) > 0);
 await page.keyboard.press("Enter");
 await page.waitForTimeout(400);
 check("picking from the @ list leaves a chip", (await chips()).includes("@Rubab"), JSON.stringify(await chips()));
 
 // Backspace deletes a chip whole
-await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace");
+await page.keyboard.press("Control+A");
+await page.keyboard.press("Backspace");
 await page.keyboard.type("@Sol");
 await page.waitForTimeout(300);
 await page.keyboard.press("Backspace");
 await page.waitForTimeout(300);
-check("Backspace deletes a mention chip whole", (await chips()).length === 0 && (await textOf(page)).trim() === "", JSON.stringify([await chips(), await textOf(page)]));
+check(
+  "Backspace deletes a mention chip whole",
+  (await chips()).length === 0 && (await textOf(page)).trim() === "",
+  JSON.stringify([await chips(), await textOf(page)]),
+);
 
 // Enter sends, Shift+Enter is a new line
 await page.keyboard.type("line one");
 await page.keyboard.press("Shift+Enter");
 await page.keyboard.type("line two");
-check("Shift+Enter makes a new line and does not send", (await textOf(page)).includes("line one\nline two") && (await sentOf(page)).length === 0, JSON.stringify(await textOf(page)));
+check(
+  "Shift+Enter makes a new line and does not send",
+  (await textOf(page)).includes("line one\nline two") && (await sentOf(page)).length === 0,
+  JSON.stringify(await textOf(page)),
+);
 await page.keyboard.press("Enter");
 await page.waitForTimeout(400);
 const s1 = await sentOf(page);
@@ -96,9 +120,17 @@ await page.evaluate(() => {
   f.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
 });
 await page.waitForTimeout(300);
-check("paste keeps plain text with its line break", (await textOf(page)) === "pasted one\npasted two", JSON.stringify(await textOf(page)));
-check("paste brings no formatting", await page.locator("[data-testid=composer-field] b, [data-testid=composer-field] i").count() === 0);
-await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace");
+check(
+  "paste keeps plain text with its line break",
+  (await textOf(page)) === "pasted one\npasted two",
+  JSON.stringify(await textOf(page)),
+);
+check(
+  "paste brings no formatting",
+  (await page.locator("[data-testid=composer-field] b, [data-testid=composer-field] i").count()) === 0,
+);
+await page.keyboard.press("Control+A");
+await page.keyboard.press("Backspace");
 
 // undo
 await page.keyboard.type("first words");
@@ -108,7 +140,8 @@ await page.keyboard.press("Control+Z");
 await page.waitForTimeout(300);
 const afterUndo = await textOf(page);
 check("undo takes back typing", afterUndo.length < "first words and more".length, JSON.stringify(afterUndo));
-await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace");
+await page.keyboard.press("Control+A");
+await page.keyboard.press("Backspace");
 
 // IME
 const cdp = await chat.ctx.newCDPSession(page);
@@ -116,31 +149,73 @@ await cdp.send("Input.imeSetComposition", { text: "にほん", selectionStart: 3
 await cdp.send("Input.insertText", { text: "日本" });
 await page.waitForTimeout(300);
 check("an IME composition lands once", (await textOf(page)) === "日本", JSON.stringify(await textOf(page)));
-await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace");
+await page.keyboard.press("Control+A");
+await page.keyboard.press("Backspace");
 
 // a long draft with three mentions scrolls, and every chip is on its own word
-const long = ["Kickoff notes for the Meier file.", "@Aliza please confirm the engagement letter went out and the client was able to sign it.", "The retainer is paid.", "Two open questions remain about the trust schedule.", "@Rubab can you check the numbers on CX before Thursday.", "I will draft the cover note tonight.", "Nothing goes to the client until it is seen.", "The calendar hold for Friday stays.", "@Sol keep an eye on the filing portal.", "Thanks all, this is the last note for today."];
-for (const [i, l] of long.entries()) { await page.keyboard.type(l); if (i < long.length - 1) await page.keyboard.press("Shift+Enter"); }
+const long = [
+  "Kickoff notes for the Meier file.",
+  "@Aliza please confirm the engagement letter went out and the client was able to sign it.",
+  "The retainer is paid.",
+  "Two open questions remain about the trust schedule.",
+  "@Rubab can you check the numbers on CX before Thursday.",
+  "I will draft the cover note tonight.",
+  "Nothing goes to the client until it is seen.",
+  "The calendar hold for Friday stays.",
+  "@Sol keep an eye on the filing portal.",
+  "Thanks all, this is the last note for today.",
+];
+for (const [i, l] of long.entries()) {
+  await page.keyboard.type(l);
+  if (i < long.length - 1) await page.keyboard.press("Shift+Enter");
+}
 await page.waitForTimeout(500);
-const dims = await page.evaluate(() => { const f = document.querySelector("[data-testid=composer-field]"); return { sh: f.scrollHeight, ch: f.clientHeight }; });
+const dims = await page.evaluate(() => {
+  const f = document.querySelector("[data-testid=composer-field]");
+  return { sh: f.scrollHeight, ch: f.clientHeight };
+});
 check("a long draft scrolls inside the field", dims.sh > dims.ch, JSON.stringify(dims));
-check("each mention is a chip on its own name, however the lines wrap or scroll", (await chips()).join("|") === "@Aliza|@Rubab|@Sol", JSON.stringify(await chips()));
-await page.evaluate(() => { document.querySelector("[data-testid=composer-field]").scrollTop = 80; });
+check(
+  "each mention is a chip on its own name, however the lines wrap or scroll",
+  (await chips()).join("|") === "@Aliza|@Rubab|@Sol",
+  JSON.stringify(await chips()),
+);
+await page.evaluate(() => {
+  document.querySelector("[data-testid=composer-field]").scrollTop = 80;
+});
 await page.waitForTimeout(200);
-const inView = await page.evaluate(() => { const f = document.querySelector("[data-testid=composer-field]").getBoundingClientRect(); return [...document.querySelectorAll(".vyre-chip")].map((c) => { const r = c.getBoundingClientRect(); return { t: c.textContent, within: r.bottom > f.top - 2 && r.top < f.bottom + 2 }; }); });
+const inView = await page.evaluate(() => {
+  const f = document.querySelector("[data-testid=composer-field]").getBoundingClientRect();
+  return [...document.querySelectorAll(".vyre-chip")].map((c) => {
+    const r = c.getBoundingClientRect();
+    return { t: c.textContent, within: r.bottom > f.top - 2 && r.top < f.bottom + 2 };
+  });
+});
 check("chips move with the text when it scrolls", inView.length === 3, JSON.stringify(inView));
-if (shotsDir) { fs.mkdirSync(shotsDir, { recursive: true }); await page.screenshot({ path: path.join(shotsDir, "chat-field-long-paper.png") }); }
+if (shotsDir) {
+  fs.mkdirSync(shotsDir, { recursive: true });
+  await page.screenshot({ path: path.join(shotsDir, "chat-field-long-paper.png") });
+}
 const longText = long;
 await chat.ctx.close();
 
 // the payload is the plain field's payload
 const plain = await session("plain");
 const chatSent = await session("chat");
-check("the chat field sends what the plain field sends", JSON.stringify(plain) === JSON.stringify(chatSent) && plain.length === 1, JSON.stringify([plain, chatSent]));
+check(
+  "the chat field sends what the plain field sends",
+  JSON.stringify(plain) === JSON.stringify(chatSent) && plain.length === 1,
+  JSON.stringify([plain, chatSent]),
+);
 
 // shots at both widths and skins
 if (shotsDir) {
-  for (const [name, size, scheme] of [["wide-paper", { width: 1440, height: 900 }, "light"], ["wide-graphite", { width: 1440, height: 900 }, "dark"], ["phone-paper", { width: 390, height: 844 }, "light"], ["phone-graphite", { width: 390, height: 844 }, "dark"]]) {
+  for (const [name, size, scheme] of [
+    ["wide-paper", { width: 1440, height: 900 }, "light"],
+    ["wide-graphite", { width: 1440, height: 900 }, "dark"],
+    ["phone-paper", { width: 390, height: 844 }, "light"],
+    ["phone-graphite", { width: 390, height: 844 }, "dark"],
+  ]) {
     const o = await open("chat", size, scheme);
     await field(o.page).click();
     await o.page.keyboard.type("@Aliza and @Rubab, please take a look at this with @Sol");
@@ -152,15 +227,22 @@ if (shotsDir) {
   }
 }
 if (shotsDir) {
-  for (const [name, size] of [["wide", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+  for (const [name, size] of [
+    ["wide", { width: 1440, height: 900 }],
+    ["phone", { width: 390, height: 844 }],
+  ]) {
     const o = await open("chat", size, "dark");
     await field(o.page).click();
-    for (const [i, l] of longText.entries()) { await o.page.keyboard.type(l); if (i < longText.length - 1) await o.page.keyboard.press("Shift+Enter"); }
+    for (const [i, l] of longText.entries()) {
+      await o.page.keyboard.type(l);
+      if (i < longText.length - 1) await o.page.keyboard.press("Shift+Enter");
+    }
     await o.page.waitForTimeout(500);
     await o.page.screenshot({ path: path.join(shotsDir, `chat-field-long-graphite-${name}.png`) });
     await o.ctx.close();
   }
 }
-await browser.close(); real.close();
+await browser.close();
+real.close();
 console.log(failed === 0 ? "ALL PASSED" : `${failed} FAILED`);
 process.exit(failed === 0 ? 0 : 1);

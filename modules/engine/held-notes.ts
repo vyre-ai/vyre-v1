@@ -27,7 +27,11 @@ export function withHeldNotes(open: OpenSession): OpenSession {
     const s = await open(spec);
     const send = (input: TurnInput): AsyncIterable<DriverEvent> => {
       const notes = takeHeldNotes(input.threadId, input.agent.id);
-      return s.send(notes.length === 0 ? input : { ...input, notice: [...(input.notice ? [input.notice] : []), ...notes].join("\n") });
+      return s.send(
+        notes.length === 0
+          ? input
+          : { ...input, notice: [...(input.notice ? [input.notice] : []), ...notes].join("\n") },
+      );
     };
     // a plain wrapper: some sessions are frozen, so a Proxy may not answer for `send`
     const out: EngineSession = {
@@ -36,9 +40,13 @@ export function withHeldNotes(open: OpenSession): OpenSession {
       inject: (m) => s.inject(m),
       cancel: () => s.cancel(),
       close: () => s.close(),
-      get warm() { return s.warm; },
+      get warm() {
+        return s.warm;
+      },
       // the model that really runs is the inner session's word (a turn moved to another model records that one, not the one asked for)
-      get model() { return (s as { model?: string }).model; },
+      get model() {
+        return (s as { model?: string }).model;
+      },
       ...(s.providerLatencyMs !== undefined ? { providerLatencyMs: s.providerLatencyMs } : {}),
     } as EngineSession;
     return out;
@@ -48,8 +56,15 @@ export function withHeldNotes(open: OpenSession): OpenSession {
 /** The note an agent is given. `result` is what the held call answered (cut short); `note` is why it was declined. */
 export function heldNote(o: { approved: boolean; cap: string; by: string; result?: unknown; note?: string }): string {
   const what = o.cap.replace(/[._]/g, " ");
-  if (!o.approved) return `Your held call ${what} was declined by ${o.by}${o.note ? `: ${o.note}` : ""}. It did not run. Go on without it.`;
+  if (!o.approved)
+    return `Your held call ${what} was declined by ${o.by}${o.note ? `: ${o.note}` : ""}. It did not run. Go on without it.`;
   let said = "";
-  if (o.result !== undefined && o.result !== null) { try { said = JSON.stringify(o.result); } catch { said = ""; } }
+  if (o.result !== undefined && o.result !== null) {
+    try {
+      said = JSON.stringify(o.result);
+    } catch {
+      said = "";
+    }
+  }
   return `Your held call ${what} was approved by ${o.by} and ran${said ? `: ${said.length > 600 ? `${said.slice(0, 600)}...` : said}` : ""}. Carry on from there.`;
 }

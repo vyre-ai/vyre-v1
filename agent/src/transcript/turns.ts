@@ -34,8 +34,10 @@ function argsOf(name: string, input: unknown): ToolCallPart["args"] {
   const kind = toolKind(name);
   const out: ToolCallPart["args"] = {};
   const path = i["file_path"] ?? i["notebook_path"] ?? (kind !== "run" ? i["path"] : undefined);
-  if (typeof path === "string" && path && ["read", "edit", "write", "search"].includes(kind)) out.path = cut(clip(path, 500), 300);
-  if (typeof i["command"] === "string" && i["command"] && kind === "run") out.command = cut(clip(i["command"], 4000), 1000);
+  if (typeof path === "string" && path && ["read", "edit", "write", "search"].includes(kind))
+    out.path = cut(clip(path, 500), 300);
+  if (typeof i["command"] === "string" && i["command"] && kind === "run")
+    out.command = cut(clip(i["command"], 4000), 1000);
   const q = i["query"] ?? (kind === "search" ? i["pattern"] : undefined) ?? (kind === "fetch" ? i["url"] : undefined);
   if (typeof q === "string" && q) out.query = cut(clip(q, 500), 300);
   return out;
@@ -47,9 +49,17 @@ export function outputText(content: unknown): string {
   const joined = resultText(content);
   if (joined) return joined;
   if (content && typeof content === "object" && "data" in content) {
-    try { return JSON.stringify((content as { data: unknown }).data); } catch { return ""; }
+    try {
+      return JSON.stringify((content as { data: unknown }).data);
+    } catch {
+      return "";
+    }
   }
-  try { return content === undefined ? "" : JSON.stringify(content); } catch { return ""; }
+  try {
+    return content === undefined ? "" : JSON.stringify(content);
+  } catch {
+    return "";
+  }
 }
 
 export function createTurnBuilder(o: TurnBuilderOptions): TurnBuilder {
@@ -71,21 +81,44 @@ export function createTurnBuilder(o: TurnBuilderOptions): TurnBuilder {
   return {
     push(ev) {
       switch (ev.type) {
-        case "text": grow("text", ev.text); break;
-        case "thinking": grow("thinking", ev.text); break;
+        case "text":
+          grow("text", ev.text);
+          break;
+        case "thinking":
+          grow("thinking", ev.text);
+          break;
         case "tool_call": {
           const tool = toolKind(ev.name);
           parts.push({
-            kind: "tool_call", id: ev.id, name: ev.name, tool, summary: redact(describe(ev.name, ev.input)).text, args: argsOf(ev.name, ev.input), links: toolLinks(ev.name, ev.input, cwd),
+            kind: "tool_call",
+            id: ev.id,
+            name: ev.name,
+            tool,
+            summary: redact(describe(ev.name, ev.input)).text,
+            args: argsOf(ev.name, ev.input),
+            links: toolLinks(ev.name, ev.input, cwd),
           });
           const input = (ev.input && typeof ev.input === "object" ? ev.input : {}) as Record<string, unknown>;
-          if (ev.name === "Bash" && typeof input["command"] === "string" && /\bgit\b[^|;&\n]*\bcommit\b/.test(input["command"])) commits.add(ev.id);
+          if (
+            ev.name === "Bash" &&
+            typeof input["command"] === "string" &&
+            /\bgit\b[^|;&\n]*\bcommit\b/.test(input["command"])
+          )
+            commits.add(ev.id);
           break;
         }
-        case "block": parts.push({ kind: "block", type: ev.kind, data: ev.payload ?? null }); break;
-        case "usage": tokens.in += ev.inputTokens; tokens.out += ev.outputTokens; break;
-        case "error": error = { code: ev.code, message: redact(ev.message).text }; break;
-        case "done": break;
+        case "block":
+          parts.push({ kind: "block", type: ev.kind, data: ev.payload ?? null });
+          break;
+        case "usage":
+          tokens.in += ev.inputTokens;
+          tokens.out += ev.outputTokens;
+          break;
+        case "error":
+          error = { code: ev.code, message: redact(ev.message).text };
+          break;
+        case "done":
+          break;
       }
     },
     toolResult(callId, r) {
@@ -104,9 +137,19 @@ export function createTurnBuilder(o: TurnBuilderOptions): TurnBuilder {
         return { ...p };
       });
       // A turn's links: what its tool calls touched and what its own words name (a commit, a url).
-      const links = cleanLinks(out.flatMap((p): Link[] => (p.kind === "tool_call" ? p.links : p.kind === "text" ? textLinks(p.text) : [])));
+      const links = cleanLinks(
+        out.flatMap((p): Link[] => (p.kind === "tool_call" ? p.links : p.kind === "text" ? textLinks(p.text) : [])),
+      );
       return {
-        threadId: o.threadId, role: "agent", authorId: o.authorId, engine: o.engine, model: o.model, at, parts: out, links, tokens: { ...tokens },
+        threadId: o.threadId,
+        role: "agent",
+        authorId: o.authorId,
+        engine: o.engine,
+        model: o.model,
+        at,
+        parts: out,
+        links,
+        tokens: { ...tokens },
         ...(error ? { error } : {}),
       };
     },
@@ -117,6 +160,14 @@ export function createTurnBuilder(o: TurnBuilderOptions): TurnBuilder {
 export function personTurn(o: { threadId: string; authorId: string; text: string; at: number }): NewTurn {
   const clean = redact(o.text).text;
   return {
-    threadId: o.threadId, role: "person", authorId: o.authorId, engine: null, model: null, at: o.at, parts: [{ kind: "text", text: clean }], links: cleanLinks(textLinks(clean)), tokens: { in: 0, out: 0 },
+    threadId: o.threadId,
+    role: "person",
+    authorId: o.authorId,
+    engine: null,
+    model: null,
+    at: o.at,
+    parts: [{ kind: "text", text: clean }],
+    links: cleanLinks(textLinks(clean)),
+    tokens: { in: 0, out: 0 },
   };
 }

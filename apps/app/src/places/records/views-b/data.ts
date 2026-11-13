@@ -7,10 +7,18 @@ import type { TableViewState } from "../views-a/model.ts";
 import type { RecordRow } from "./model.ts";
 import { VIEW_LIMIT } from "./model.ts";
 
-export function useViewRows(type: string, v: TableViewState, titleField: string): { rows: readonly RecordRow[]; count: number; ready: boolean } {
+export function useViewRows(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+): { rows: readonly RecordRow[]; count: number; ready: boolean } {
   const q = useLive("records.query", pageSpec(type, v, titleField, VIEW_LIMIT));
   const n = useLive("records.counts", countSpec(type, v, titleField));
   const kept = useRef<RecordRow[]>([]);
   if (q.status === "ready") kept.current = q.data.rows;
-  return { rows: kept.current, count: n.status === "ready" ? n.data.count : kept.current.length, ready: q.status === "ready" };
+  return {
+    rows: kept.current,
+    count: n.status === "ready" ? n.data.count : kept.current.length,
+    ready: q.status === "ready",
+  };
 }

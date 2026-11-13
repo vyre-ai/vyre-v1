@@ -26,16 +26,29 @@ import { Group, Hint, IconLine, Lab, PickButton, SRow, Switch } from "./parts.ts
 import { PromoteSheet, usePromotePreview } from "./PromoteSheet.tsx";
 import { useSaved } from "./saved.ts";
 
-
 import { shareRows } from "../../../share/rows.ts";
 import type { AccessRow, SharesOut } from "../../../share/rows.ts";
 import { copyItemLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
 export { shareRows };
 export type { AccessRow };
 
-const THROUGH_NOTE: Readonly<Record<AccessRow["through"], string | undefined>> = { owner: "Owner", direct: undefined, group: "From a group", role: "From a role", folder: "From the folder" };
+const THROUGH_NOTE: Readonly<Record<AccessRow["through"], string | undefined>> = {
+  owner: "Owner",
+  direct: undefined,
+  group: "From a group",
+  role: "From a role",
+  folder: "From the folder",
+};
 
-export function SettingsTab({ automation, openPromote = false, openShare = false }: { automation: Automation; openPromote?: boolean; openShare?: boolean }): ReactElement {
+export function SettingsTab({
+  automation,
+  openPromote = false,
+  openShare = false,
+}: {
+  automation: Automation;
+  openPromote?: boolean;
+  openShare?: boolean;
+}): ReactElement {
   const data = useAutomationsData();
   const openConnect = useOpenConnect();
   const extras = useConfigExtras();
@@ -58,20 +71,48 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
   const setAi = (field: "keyId" | "backupKeyId", handle: string | undefined, said: string): void => {
     const prev = a.definition;
     const definition = withAutomationAi(prev, field, handle);
-    void saved.run(said, () => data.call("automations.update", { automationId: a.id, definition, expectedVersion: a.version }), () => data.call("automations.update", { automationId: a.id, definition: prev, expectedVersion: a.version + 1 }));
+    void saved.run(
+      said,
+      () => data.call("automations.update", { automationId: a.id, definition, expectedVersion: a.version }),
+      () => data.call("automations.update", { automationId: a.id, definition: prev, expectedVersion: a.version + 1 }),
+    );
   };
 
   const copy = async (): Promise<void> => {
     await saved.run("Made a personal copy", async () => {
-      const out = (await data.call("automations.make_personal_copy", { automationId: a.id, idempotencyKey: `copy-${a.id}-${a.version}` })) as { automation: { id: string } };
+      const out = (await data.call("automations.make_personal_copy", {
+        automationId: a.id,
+        idempotencyKey: `copy-${a.id}-${a.version}`,
+      })) as { automation: { id: string } };
       data.nav.openAutomation(out.automation.id);
     });
   };
-  const follow = (name: string, id: string): void => { void saved.run(`${name} follows it`, () => data.call("automations.followers.add", { automationId: a.id, follower: id }), () => data.call("automations.followers.remove", { automationId: a.id, follower: id })); };
-  const unfollow = (id: string): void => { void saved.run(`${data.name(id)} no longer follows it`, () => data.call("automations.followers.remove", { automationId: a.id, follower: id }), () => data.call("automations.followers.add", { automationId: a.id, follower: id })); };
+  const follow = (name: string, id: string): void => {
+    void saved.run(
+      `${name} follows it`,
+      () => data.call("automations.followers.add", { automationId: a.id, follower: id }),
+      () => data.call("automations.followers.remove", { automationId: a.id, follower: id }),
+    );
+  };
+  const unfollow = (id: string): void => {
+    void saved.run(
+      `${data.name(id)} no longer follows it`,
+      () => data.call("automations.followers.remove", { automationId: a.id, follower: id }),
+      () => data.call("automations.followers.add", { automationId: a.id, follower: id }),
+    );
+  };
   const selfTrigger = (on: boolean): void => {
     const prev = a.definition;
-    void saved.run(on ? "Can start itself" : "Cannot start itself", () => data.call("automations.update", { automationId: a.id, definition: { ...a.definition, allowSelfTrigger: on }, expectedVersion: a.version }), () => data.call("automations.update", { automationId: a.id, definition: prev, expectedVersion: a.version + 1 }));
+    void saved.run(
+      on ? "Can start itself" : "Cannot start itself",
+      () =>
+        data.call("automations.update", {
+          automationId: a.id,
+          definition: { ...a.definition, allowSelfTrigger: on },
+          expectedVersion: a.version,
+        }),
+      () => data.call("automations.update", { automationId: a.id, definition: prev, expectedVersion: a.version + 1 }),
+    );
   };
 
   if (personal && !mine) {
@@ -89,11 +130,23 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
       <Lab first>Scope</Lab>
       <Group testID="scope">
         <SRow
-          last minHeight={52} lead={<Glyph name={personal ? "lock" : "people"} size={15} color="var(--ink-2)" />}
+          last
+          minHeight={52}
+          lead={<Glyph name={personal ? "lock" : "people"} size={15} color="var(--ink-2)" />}
           label={personal ? "Personal" : "Space"}
-          sub={personal ? "Yours alone. It runs with only the access you already have." : "Bigger than one person. It runs on access given to it, not on anyone's own."}
+          sub={
+            personal
+              ? "Yours alone. It runs with only the access you already have."
+              : "Bigger than one person. It runs on access given to it, not on anyone's own."
+          }
         >
-          {personal ? (data.canSpace === false ? null : <TextButton label="Promote to Space" primary testID="promote" onPress={() => setPromote(true)} />) : <TextButton label="Make a personal copy" icon="plus" testID="personal-copy" onPress={() => void copy()} />}
+          {personal ? (
+            data.canSpace === false ? null : (
+              <TextButton label="Promote to Space" primary testID="promote" onPress={() => setPromote(true)} />
+            )
+          ) : (
+            <TextButton label="Make a personal copy" icon="plus" testID="personal-copy" onPress={() => void copy()} />
+          )}
         </SRow>
       </Group>
       {data.keysStatus ? (
@@ -102,15 +155,35 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
           <View testID="provider-keys">
             {data.keysStatus === "loading" ? <Text style={t.para}>Loading keys</Text> : null}
             {/* ui-rows-lint: not a list (provider key names, values stay in Vault) */}
-            {data.keysStatus === "ready" ? data.keys.map((key) => <Text key={key.id} style={t.para}>{key.name}</Text>) : null}
+            {data.keysStatus === "ready"
+              ? data.keys.map((key) => (
+                  <Text key={key.id} style={t.para}>
+                    {key.name}
+                  </Text>
+                ))
+              : null}
             {data.keysStatus === "empty" || data.keysStatus === "unavailable" ? (
               <>
                 <Text style={t.para}>No keys yet</Text>
                 {data.keysStatus === "unavailable" ? <Text style={t.para}>The provider list did not load.</Text> : null}
-                {openConnect ? <TextButton label={connectLabel({ kind: "ai" }, true)} testID="connect-key" onPress={() => void openConnect({ kind: "ai" })} /> : <TextButton label="Open keys" testID="open-keys" onPress={() => data.nav.openKeys?.()} />}
+                {openConnect ? (
+                  <TextButton
+                    label={connectLabel({ kind: "ai" }, true)}
+                    testID="connect-key"
+                    onPress={() => void openConnect({ kind: "ai" })}
+                  />
+                ) : (
+                  <TextButton label="Open keys" testID="open-keys" onPress={() => data.nav.openKeys?.()} />
+                )}
               </>
             ) : null}
-            {data.keysStatus === "ready" && openConnect ? <TextButton label={connectLabel({ kind: "ai" }, false)} testID="connect-key" onPress={() => void openConnect({ kind: "ai" })} /> : null}
+            {data.keysStatus === "ready" && openConnect ? (
+              <TextButton
+                label={connectLabel({ kind: "ai" }, false)}
+                testID="connect-key"
+                onPress={() => void openConnect({ kind: "ai" })}
+              />
+            ) : null}
           </View>
         </>
       ) : null}
@@ -132,31 +205,94 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
               <View style={t.files}>
                 <Glyph name="folder" size={15} color="var(--ink-3)" />
                 <Text numberOfLines={1} style={t.filesPath}>{`Space › Automations › ${a.name}`}</Text>
-                <TextButton label="Open in Files" icon="open" testID="open-files" onPress={() => extras.openFiles?.(`Automations/${a.name}`)} />
+                <TextButton
+                  label="Open in Files"
+                  icon="open"
+                  testID="open-files"
+                  onPress={() => extras.openFiles?.(`Automations/${a.name}`)}
+                />
               </View>
             </>
           ) : null}
 
           <Lab>Owner</Lab>
           <Group testID="owner">
-            <SRow last minHeight={44} lead={<Face name={data.name(a.ownerId)} seedId={a.ownerId} size={20} />} label={data.name(a.ownerId)} sub="The accountable person shown on it." />
+            <SRow
+              last
+              minHeight={44}
+              lead={<Face name={data.name(a.ownerId)} seedId={a.ownerId} size={20} />}
+              label={data.name(a.ownerId)}
+              sub="The accountable person shown on it."
+            />
           </Group>
 
-          <Lab right={<TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />}>Access</Lab>
+          <Lab right={<TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />}>
+            Access
+          </Lab>
           <Group testID="access">
-            {shares.phase === "ready" ? <AccessSummary rows={shareRows(shares.out, data.name)} /> : <SRow last label="Loading access…" />}
+            {shares.phase === "ready" ? (
+              <AccessSummary rows={shareRows(shares.out, data.name)} />
+            ) : (
+              <SRow last label="Loading access…" />
+            )}
           </Group>
-          <Hint>View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it. Access from a group can be raised here, never lowered.</Hint>
-          <View style={t.shareRow}><TextButton label="Share…" testID="share" onPress={() => setShare(true)} /></View>
+          <Hint>
+            View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it.
+            Access from a group can be raised here, never lowered.
+          </Hint>
+          <View style={t.shareRow}>
+            <TextButton label="Share…" testID="share" onPress={() => setShare(true)} />
+          </View>
 
-          <Lab right={<PickButton label="Add a follower" value="Add" testID="add-follower" onPress={(x, y) => show(roster.length ? each(roster.filter((r) => !a.followers.includes(r.id)), (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) })) : [{ head: "Nobody to add" }], x, y, "other", { label: "Add a follower" })} />}>Followers</Lab>
-          {a.followers.length === 0 ? <Text style={t.dim}>Nobody yet.</Text> : (
+          <Lab
+            right={
+              <PickButton
+                label="Add a follower"
+                value="Add"
+                testID="add-follower"
+                onPress={(x, y) =>
+                  show(
+                    roster.length
+                      ? each(
+                          roster.filter((r) => !a.followers.includes(r.id)),
+                          (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) }),
+                        )
+                      : [{ head: "Nobody to add" }],
+                    x,
+                    y,
+                    "other",
+                    { label: "Add a follower" },
+                  )
+                }
+              />
+            }
+          >
+            Followers
+          </Lab>
+          {a.followers.length === 0 ? (
+            <Text style={t.dim}>Nobody yet.</Text>
+          ) : (
             <Group testID="followers">
               {a.followers.map((f) => (
                 <Row
-                  key={f} id={`follower-${f}`} title={data.name(f)} note="Updates only"
-                  leading={<View style={t.lead}><Face name={data.name(f)} seedId={f} size={20} /></View>}
-                  trailing={<IconButton icon="x" label={`Stop ${data.name(f)} following`} size={22} testID={`unfollow-${f}`} onPress={() => unfollow(f)} />}
+                  key={f}
+                  id={`follower-${f}`}
+                  title={data.name(f)}
+                  note="Updates only"
+                  leading={
+                    <View style={t.lead}>
+                      <Face name={data.name(f)} seedId={f} size={20} />
+                    </View>
+                  }
+                  trailing={
+                    <IconButton
+                      icon="x"
+                      label={`Stop ${data.name(f)} following`}
+                      size={22}
+                      testID={`unfollow-${f}`}
+                      onPress={() => unfollow(f)}
+                    />
+                  }
                 />
               ))}
             </Group>
@@ -164,8 +300,17 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
 
           <Lab>Loops</Lab>
           <Group testID="loops">
-            <SRow label="Can start itself" sub="Off. A change it makes never starts it again" minHeight={44}><Switch on={a.definition.allowSelfTrigger === true} label="Can start itself" testID="self-trigger" onChange={selfTrigger} /></SRow>
-            <SRow last label="Chain depth" sub="An automation that starts another stops at 8 levels" minHeight={44}><Text style={t.value}>8</Text></SRow>
+            <SRow label="Can start itself" sub="Off. A change it makes never starts it again" minHeight={44}>
+              <Switch
+                on={a.definition.allowSelfTrigger === true}
+                label="Can start itself"
+                testID="self-trigger"
+                onChange={selfTrigger}
+              />
+            </SRow>
+            <SRow last label="Chain depth" sub="An automation that starts another stops at 8 levels" minHeight={44}>
+              <Text style={t.value}>8</Text>
+            </SRow>
           </Group>
 
           {webhook.phase === "ready" ? (
@@ -173,11 +318,23 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
               <Lab>Webhook address</Lab>
               <Group testID="webhook">
                 <SRow label="POST to this address" sub={webhook.url} minHeight={48} last={!rotating}>
-                  {rotating ? null : <TextButton label="Rotate…" testID="rotate-webhook" onPress={() => setRotating(true)} />}
+                  {rotating ? null : (
+                    <TextButton label="Rotate…" testID="rotate-webhook" onPress={() => setRotating(true)} />
+                  )}
                 </SRow>
                 {rotating ? (
                   <SRow last minHeight={44} label="Rotate it? The old address stops working.">
-                    <TextButton label="Rotate" testID="confirm-rotate" onPress={() => { void saved.run("Made a new address", async () => { await data.call("automations.webhook_url.rotate", { automationId: a.id, confirm: true }); webhook.reload(); setRotating(false); }); }} />
+                    <TextButton
+                      label="Rotate"
+                      testID="confirm-rotate"
+                      onPress={() => {
+                        void saved.run("Made a new address", async () => {
+                          await data.call("automations.webhook_url.rotate", { automationId: a.id, confirm: true });
+                          webhook.reload();
+                          setRotating(false);
+                        });
+                      }}
+                    />
                     <TextButton label="Cancel" testID="cancel-rotate" onPress={() => setRotating(false)} />
                   </SRow>
                 ) : null}
@@ -190,18 +347,71 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
               <Lab>AI account</Lab>
               <Group testID="ai-account">
                 <SRow
-                  minHeight={56} label={a.definition.ai?.keyId ? "This account" : "Automatic"}
-                  sub={a.definition.ai?.keyId ? "Every AI step runs on it unless the step chooses its own." : `An account the Space's rules allow for automations, the cheapest that fits each step. ${spaceAi ? automaticLine(spaceAi, "automations") : ""}`.trim()}
+                  minHeight={56}
+                  label={a.definition.ai?.keyId ? "This account" : "Automatic"}
+                  sub={
+                    a.definition.ai?.keyId
+                      ? "Every AI step runs on it unless the step chooses its own."
+                      : `An account the Space's rules allow for automations, the cheapest that fits each step. ${spaceAi ? automaticLine(spaceAi, "automations") : ""}`.trim()
+                  }
                 >
                   <PickButton
-                    label="Main AI account" value={aiName(spaceAi ?? [], a.definition.ai?.keyId)} testID="ai-main"
-                    onPress={(x, y) => show(refill((r) => aiMenu(r, "automations", a.definition.ai?.keyId, (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"), { ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [] })), x, y, "other")}
+                    label="Main AI account"
+                    value={aiName(spaceAi ?? [], a.definition.ai?.keyId)}
+                    testID="ai-main"
+                    onPress={(x, y) =>
+                      show(
+                        refill((r) =>
+                          aiMenu(
+                            r,
+                            "automations",
+                            a.definition.ai?.keyId,
+                            (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"),
+                            {
+                              ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}),
+                              skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [],
+                            },
+                          ),
+                        ),
+                        x,
+                        y,
+                        "other",
+                      )
+                    }
                   />
                 </SRow>
-                <SRow last minHeight={52} label="Backup" sub="Takes over when the main one is out of credits or not answering">
+                <SRow
+                  last
+                  minHeight={52}
+                  label="Backup"
+                  sub="Takes over when the main one is out of credits or not answering"
+                >
                   <PickButton
-                    label="Backup AI account" value={a.definition.ai?.backupKeyId ? aiName(spaceAi ?? [], a.definition.ai.backupKeyId) : "None"} empty={!a.definition.ai?.backupKeyId} testID="ai-backup"
-                    onPress={(x, y) => show(refill((r) => aiMenu(r, "automations", a.definition.ai?.backupKeyId, (h) => setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"), { none: "None", ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [] })), x, y, "other")}
+                    label="Backup AI account"
+                    value={a.definition.ai?.backupKeyId ? aiName(spaceAi ?? [], a.definition.ai.backupKeyId) : "None"}
+                    empty={!a.definition.ai?.backupKeyId}
+                    testID="ai-backup"
+                    onPress={(x, y) =>
+                      show(
+                        refill((r) =>
+                          aiMenu(
+                            r,
+                            "automations",
+                            a.definition.ai?.backupKeyId,
+                            (h) =>
+                              setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"),
+                            {
+                              none: "None",
+                              ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}),
+                              skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [],
+                            },
+                          ),
+                        ),
+                        x,
+                        y,
+                        "other",
+                      )
+                    }
                   />
                 </SRow>
               </Group>
@@ -210,33 +420,91 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
 
           <Lab>Runs on access given to it</Lab>
           <Group testID="runs-on">
-            {keys.length === 0 ? <SRow last label="No agent steps" minHeight={40} /> : keys.map((k) => (
-              <Row key={k.nodeId} id={`key-${k.nodeId}`} title={k.title} note={`${k.agent} on ${k.key}${k.backup ? `, then ${k.backup}` : ""}`} leading={<View style={t.lead}><Glyph name="key" size={14} color="var(--ink-3)" /></View>} />
-            ))}
+            {keys.length === 0 ? (
+              <SRow last label="No agent steps" minHeight={40} />
+            ) : (
+              keys.map((k) => (
+                <Row
+                  key={k.nodeId}
+                  id={`key-${k.nodeId}`}
+                  title={k.title}
+                  note={`${k.agent} on ${k.key}${k.backup ? `, then ${k.backup}` : ""}`}
+                  leading={
+                    <View style={t.lead}>
+                      <Glyph name="key" size={14} color="var(--ink-3)" />
+                    </View>
+                  }
+                />
+              ))
+            )}
           </Group>
         </>
       )}
 
       {saved.note ? (
         <View testID="saved-note" accessibilityLiveRegion="polite" style={t.saved}>
-          <Text style={[t.savedText, saved.note.failed && { color: "var(--danger)" as string }]}>{saved.note.text}</Text>
-          {saved.note.undo ? <Text accessibilityRole="button" testID="saved-undo" onPress={saved.note.undo} style={t.undo}>Undo</Text> : null}
+          <Text style={[t.savedText, saved.note.failed && { color: "var(--danger)" as string }]}>
+            {saved.note.text}
+          </Text>
+          {saved.note.undo ? (
+            <Text accessibilityRole="button" testID="saved-undo" onPress={saved.note.undo} style={t.undo}>
+              Undo
+            </Text>
+          ) : null}
         </View>
       ) : null}
       {promote ? (
         <Overlay label="Promote to Space" onClose={() => setPromote(false)} testID="promote-overlay">
-          <PromoteSheet automation={a} onClose={() => setPromote(false)} {...(preview.phase === "ready" ? { preview: preview.preview } : {})} onPromoted={() => saved.say("Promoted to the Space. History and versions kept.")} />
+          <PromoteSheet
+            automation={a}
+            onClose={() => setPromote(false)}
+            {...(preview.phase === "ready" ? { preview: preview.preview } : {})}
+            onPromoted={() => saved.say("Promoted to the Space. History and versions kept.")}
+          />
         </Overlay>
       ) : null}
       {share && shares.phase === "ready" ? (
         <Overlay label="Share" onClose={() => setShare(false)} testID="share-overlay">
           <AccessSheet
-            mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} {...(data.spaceName ? { spaceName: data.spaceName } : {})} levels={["view", "edit", "manage"]}
-            shares={shareRows(shares.out, data.name, a.id)} allowExternal={false} density="regular"
+            mode="share"
+            itemType="automation"
+            resourceType="automation"
+            resourceId={a.id}
+            itemName={a.name}
+            target="item"
+            ownerName={data.name(a.ownerId)}
+            ownerId={a.ownerId}
+            {...(data.spaceName ? { spaceName: data.spaceName } : {})}
+            levels={["view", "edit", "manage"]}
+            shares={shareRows(shares.out, data.name, a.id)}
+            allowExternal={false}
+            density="regular"
             directory={sheetDirectory(extras.directory)}
-            meId={data.me.id} notifyPeople {...(a.kind === "space" ? { onMakeOwner: (s: { id: string }) => { void saved.run("Ownership handed over", async () => { await data.call("automations.set_owner", { automationId: a.id, ownerId: s.id }); shares.reload(); }); } } : {})} onCopyLink={() => copyItemLink("automation", a.id)}
-            onShare={(i: ShareInput, opts) => { void saved.run("Access changed", async () => { await data.call("access.share", withNotify(i, opts)); shares.reload(); }); }}
-            onUnshare={(i: UnshareInput) => { void saved.run("Access removed", async () => { await data.call("access.unshare", i); shares.reload(); }); }}
+            meId={data.me.id}
+            notifyPeople
+            {...(a.kind === "space"
+              ? {
+                  onMakeOwner: (s: { id: string }) => {
+                    void saved.run("Ownership handed over", async () => {
+                      await data.call("automations.set_owner", { automationId: a.id, ownerId: s.id });
+                      shares.reload();
+                    });
+                  },
+                }
+              : {})}
+            onCopyLink={() => copyItemLink("automation", a.id)}
+            onShare={(i: ShareInput, opts) => {
+              void saved.run("Access changed", async () => {
+                await data.call("access.share", withNotify(i, opts));
+                shares.reload();
+              });
+            }}
+            onUnshare={(i: UnshareInput) => {
+              void saved.run("Access removed", async () => {
+                await data.call("access.unshare", i);
+                shares.reload();
+              });
+            }}
             onClose={() => setShare(false)}
           />
         </Overlay>
@@ -254,8 +522,20 @@ function AccessSummary({ rows }: { rows: readonly AccessRow[] }): ReactElement {
     <>
       {rows.map((r) => (
         <Row
-          key={`${r.subjectKind}:${r.subjectId}`} id={`access-${r.subjectId}`} title={r.name} note={THROUGH_NOTE[r.through]}
-          leading={<View style={t.lead}><Face name={data.name(r.subjectId)} seedId={r.subjectId} kind={r.subjectKind === "person" ? "person" : "agent"} size={20} /></View>}
+          key={`${r.subjectKind}:${r.subjectId}`}
+          id={`access-${r.subjectId}`}
+          title={r.name}
+          note={THROUGH_NOTE[r.through]}
+          leading={
+            <View style={t.lead}>
+              <Face
+                name={data.name(r.subjectId)}
+                seedId={r.subjectId}
+                kind={r.subjectKind === "person" ? "person" : "agent"}
+                size={20}
+              />
+            </View>
+          }
           trailing={<Text style={t.value}>{r.level[0]!.toUpperCase() + r.level.slice(1)}</Text>}
         />
       ))}
@@ -272,8 +552,17 @@ function useShares(automationId: string, enabled: boolean): SharesState {
   useEffect(() => {
     if (!enabled) return undefined;
     let live = true;
-    data.call("access.shares_of", { resource: { type: "automation", id: automationId } }).then((o) => { if (live) setOut(o as SharesOut); }).catch(() => { if (live) setOut({ shares: [] }); });
-    return () => { live = false; };
+    data
+      .call("access.shares_of", { resource: { type: "automation", id: automationId } })
+      .then((o) => {
+        if (live) setOut(o as SharesOut);
+      })
+      .catch(() => {
+        if (live) setOut({ shares: [] });
+      });
+    return () => {
+      live = false;
+    };
   }, [data, automationId, enabled, n]);
   return out ? { phase: "ready", out, reload } : { phase: "loading" };
 }
@@ -287,8 +576,15 @@ function useWebhook(automationId: string, enabled: boolean): WebhookState {
   useEffect(() => {
     if (!enabled) return undefined;
     let live = true;
-    data.call("automations.webhook_url.get", { automationId }).then((o) => { if (live) setUrl((o as { url: string }).url); }).catch(() => undefined);
-    return () => { live = false; };
+    data
+      .call("automations.webhook_url.get", { automationId })
+      .then((o) => {
+        if (live) setUrl((o as { url: string }).url);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
   }, [data, automationId, enabled, n]);
   return url ? { phase: "ready", url, reload } : { phase: "off" };
 }

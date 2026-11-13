@@ -5,11 +5,16 @@ import { sendMessage } from "./actions.ts";
 import type { ConversationData } from "./data.tsx";
 import { noteThreadKind, screenFromHash, setScreenContext } from "../../../shell/ask/screen.ts";
 
-const data = (threadId: string, posts: unknown[]): ConversationData => ({
-  threadId,
-  call: async (cap: string, input: unknown) => { posts.push({ cap, input }); return { message: { messageId: "msg_1", threadSeq: 1 } }; },
-}) as unknown as ConversationData;
-const send = (d: ConversationData) => sendMessage(d, { text: "who is this?", mentions: [], key: "k1", kind: "send", working: false });
+const data = (threadId: string, posts: unknown[]): ConversationData =>
+  ({
+    threadId,
+    call: async (cap: string, input: unknown) => {
+      posts.push({ cap, input });
+      return { message: { messageId: "msg_1", threadSeq: 1 } };
+    },
+  }) as unknown as ConversationData;
+const send = (d: ConversationData) =>
+  sendMessage(d, { text: "who is this?", mentions: [], key: "k1", kind: "send", working: false });
 
 test("an Ask pane's message carries where the person is", async () => {
   setScreenContext(screenFromHash("records", "screen=records.record-page&subject=record%3Arec_a1"));

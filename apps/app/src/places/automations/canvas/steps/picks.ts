@@ -2,9 +2,24 @@
 // people and groups a reviewer can be. Pure functions, so each shape is tested without a screen.
 import type { Assignee } from "./edits.ts";
 
-export interface VaultPick { id: string; name: string; handle: string; fieldKeys: string[]; kind: string }
-export interface AgentPick { id: string; name: string; kind?: string; ownerId?: string; runtime?: string }
-export interface WhoPick { assignee: Assignee; name: string }
+export interface VaultPick {
+  id: string;
+  name: string;
+  handle: string;
+  fieldKeys: string[];
+  kind: string;
+}
+export interface AgentPick {
+  id: string;
+  name: string;
+  kind?: string;
+  ownerId?: string;
+  runtime?: string;
+}
+export interface WhoPick {
+  assignee: Assignee;
+  name: string;
+}
 
 const rec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -15,8 +30,16 @@ export function vaultPicks(out: unknown): VaultPick[] {
   for (const raw of items) {
     if (!rec(raw) || text(raw["handle"]) === "" || text(raw["name"]) === "") continue;
     const kind = text(raw["kind"]);
-    if (kind === "ai_subscription" || kind === "card" || kind === "ssh_key" || kind === "totp") continue;   // not a request key
-    picks.push({ id: text(raw["id"]), name: text(raw["name"]), handle: text(raw["handle"]), fieldKeys: Array.isArray(raw["fieldKeys"]) ? raw["fieldKeys"].filter((k): k is string => typeof k === "string") : [], kind });
+    if (kind === "ai_subscription" || kind === "card" || kind === "ssh_key" || kind === "totp") continue; // not a request key
+    picks.push({
+      id: text(raw["id"]),
+      name: text(raw["name"]),
+      handle: text(raw["handle"]),
+      fieldKeys: Array.isArray(raw["fieldKeys"])
+        ? raw["fieldKeys"].filter((k): k is string => typeof k === "string")
+        : [],
+      kind,
+    });
   }
   return picks;
 }
@@ -24,7 +47,15 @@ export function vaultPicks(out: unknown): VaultPick[] {
 export function agentPicks(out: unknown): AgentPick[] {
   const rows = rec(out) && Array.isArray(out["agents"]) ? out["agents"] : [];
   const picks: AgentPick[] = [];
-  for (const raw of rows) if (rec(raw) && text(raw["agentId"]) !== "") picks.push({ id: text(raw["agentId"]), name: text(raw["name"]) || text(raw["agentId"]), ...(text(raw["kind"]) ? { kind: text(raw["kind"]) } : {}), ...(text(raw["ownerId"]) ? { ownerId: text(raw["ownerId"]) } : {}), ...(text(raw["runtime"]) ? { runtime: text(raw["runtime"]) } : {}) });
+  for (const raw of rows)
+    if (rec(raw) && text(raw["agentId"]) !== "")
+      picks.push({
+        id: text(raw["agentId"]),
+        name: text(raw["name"]) || text(raw["agentId"]),
+        ...(text(raw["kind"]) ? { kind: text(raw["kind"]) } : {}),
+        ...(text(raw["ownerId"]) ? { ownerId: text(raw["ownerId"]) } : {}),
+        ...(text(raw["runtime"]) ? { runtime: text(raw["runtime"]) } : {}),
+      });
   return picks;
 }
 
@@ -32,24 +63,36 @@ export function agentPicks(out: unknown): AgentPick[] {
  * The agents a task step may hand work to, as the server decides it (reason agent_not_yours): an Assistant or an agent on someone's own computer (runtime "outside") is never offered in a Space
  * Automation, and in a Personal one only when it is the owner's own. The server also refuses an agent the saver cannot give work to, with its own line.
  */
-export function taskAgents(list: readonly AgentPick[], automationKind: "space" | "personal", ownerId: string): AgentPick[] {
-  return list.filter((a) => (a.kind !== "assistant" && a.runtime !== "outside") || (automationKind === "personal" && a.ownerId === ownerId));
+export function taskAgents(
+  list: readonly AgentPick[],
+  automationKind: "space" | "personal",
+  ownerId: string,
+): AgentPick[] {
+  return list.filter(
+    (a) =>
+      (a.kind !== "assistant" && a.runtime !== "outside") || (automationKind === "personal" && a.ownerId === ownerId),
+  );
 }
 
 export function whoPicks(people: unknown, groups: unknown): WhoPick[] {
   const out: WhoPick[] = [];
   const rows = rec(people) && Array.isArray(people["principals"]) ? people["principals"] : [];
-  for (const raw of rows) if (rec(raw) && text(raw["kind"]) === "person" && text(raw["id"]) !== "") out.push({ assignee: { kind: "person", id: text(raw["id"]) }, name: text(raw["name"]) || text(raw["id"]) });
+  for (const raw of rows)
+    if (rec(raw) && text(raw["kind"]) === "person" && text(raw["id"]) !== "")
+      out.push({ assignee: { kind: "person", id: text(raw["id"]) }, name: text(raw["name"]) || text(raw["id"]) });
   const gs = rec(groups) && Array.isArray(groups["groups"]) ? groups["groups"] : [];
   for (const raw of gs) {
     const id = rec(raw) ? text(raw["groupId"]) || text(raw["id"]) : "";
-    if (rec(raw) && id !== "") out.push({ assignee: { kind: "group", id }, name: `${text(raw["name"]) || id} (group)` });
+    if (rec(raw) && id !== "")
+      out.push({ assignee: { kind: "group", id }, name: `${text(raw["name"]) || id} (group)` });
   }
   return out;
 }
 
-
-export interface RefPick { value: string; label: string }
+export interface RefPick {
+  value: string;
+  label: string;
+}
 
 /** Record types, forms and Journeys a trigger can be narrowed to, as value and name. */
 export function refPicks(kind: "types" | "forms" | "journeys", out: unknown): RefPick[] {

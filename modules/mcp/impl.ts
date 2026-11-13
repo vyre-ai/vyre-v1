@@ -1,7 +1,14 @@
 // mcp module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the runtime that puts the MCP server (agent/src/mcp) on this module's tables. The host mounts `runtime.handle` at the Space's /mcp address and on loopback for CLI engines, and `runtime.oauth` at /oauth/* and the
 // /.well-known addresses a client signs in through. What an outside agent does is written here too: one activity row per call, its status, and its steps as a message in the chat it is working in.
-import { CONNECTION_TOOLS, CONNECTOR_CHAT, CONNECTOR_TOOLS, CREW_TOOLS, CRM_CHAT, CRM_TOOLS } from "../../lib/connector-chat.ts";
+import {
+  CONNECTION_TOOLS,
+  CONNECTOR_CHAT,
+  CONNECTOR_TOOLS,
+  CREW_TOOLS,
+  CRM_CHAT,
+  CRM_TOOLS,
+} from "../../lib/connector-chat.ts";
 import { ABOUT_VYRE_TOOLS } from "../../lib/about-vyre.ts";
 import { createMcpServer } from "../../agent/src/mcp/server.ts";
 import { modePair } from "../../agent/src/tools/local.ts";
@@ -12,10 +19,34 @@ import { handlers as table } from "./handlers/index.ts";
 import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
-import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, hasSetup, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
+import {
+  bindEndpoint,
+  bindServer,
+  boundServer,
+  driverForToken,
+  ensure,
+  hasSetup,
+  insertSession,
+  isLive,
+  loadGenerated,
+  mintId,
+  outsideCaller,
+  sessionBy,
+  touchSession,
+} from "./projections.ts";
 import type { Db, Endpoint, McpCtx } from "./projections.ts";
 import { allowTab, refusalPage } from "./allow-page.ts";
-import { beginAuthorize, challenge, collect, createLimiter, exchange, grantForAccess, protectedResource, registerClient, serverMetadata } from "./oauth.ts";
+import {
+  beginAuthorize,
+  challenge,
+  collect,
+  createLimiter,
+  exchange,
+  grantForAccess,
+  protectedResource,
+  registerClient,
+  serverMetadata,
+} from "./oauth.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -44,30 +75,83 @@ export interface RuntimeOptions {
 export async function withChatMode(o: RuntimeOptions, caller: McpCaller): Promise<McpCaller> {
   if (caller.kind !== "driver" || caller.threadId === undefined) return caller;
   try {
-    const seed = { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" as const };
+    const seed = {
+      space: o.space,
+      principal: caller.principal,
+      ...(caller.actingFor ? { actingFor: caller.actingFor } : {}),
+      origin: "mcp" as const,
+    };
     const r = await o.invoke("threads.get", { threadId: caller.threadId }, seed);
-    const thread = r.status === "ok" ? (r.output as { thread?: { mode?: unknown; title?: unknown; kind?: unknown; scopeType?: unknown; scopeId?: unknown } } | null)?.thread : undefined;
+    const thread =
+      r.status === "ok"
+        ? (
+            r.output as {
+              thread?: { mode?: unknown; title?: unknown; kind?: unknown; scopeType?: unknown; scopeId?: unknown };
+            } | null
+          )?.thread
+        : undefined;
     const mode = thread?.mode;
     // the same facts the API tools read for a turn (modules/engine/api-tools.ts), so an Ask or a task thread is the same on every driver
-    const facts: Partial<McpCaller> = typeof thread?.kind !== "string" ? {} : { threadKind: thread.kind as McpCaller["threadKind"], ...(typeof thread.scopeType === "string" && typeof thread.scopeId === "string" ? { scope: { type: thread.scopeType, id: thread.scopeId } } : {}) };
+    const facts: Partial<McpCaller> =
+      typeof thread?.kind !== "string"
+        ? {}
+        : {
+            threadKind: thread.kind as McpCaller["threadKind"],
+            ...(typeof thread.scopeType === "string" && typeof thread.scopeId === "string"
+              ? { scope: { type: thread.scopeType, id: thread.scopeId } }
+              : {}),
+          };
     if (thread?.kind === "ask" && facts.scope) {
       const l = await o.invoke("chat.ask_level", { threadId: caller.threadId }, seed).catch(() => null);
-      facts.askLevel = l?.status === "ok" ? ((l.output as { level?: McpCaller["askLevel"] } | null)?.level ?? null) : null;
+      facts.askLevel =
+        l?.status === "ok" ? ((l.output as { level?: McpCaller["askLevel"] } | null)?.level ?? null) : null;
     }
     // a chat that builds a connector lists the builder's tools from the start: the CLI cannot pick up a tool found later with tool_search. A plain chat lists the crew tools, the reads
     // that check this Space before the agent says what Vyre can do here (lib/about-vyre.ts), and the tools that call the agent's outside tool servers and connections.
-    const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" ? { preload: [...CREW_TOOLS, ...ABOUT_VYRE_TOOLS, ...CONNECTION_TOOLS] } : {};
+    const preload =
+      typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title)
+        ? { preload: CONNECTOR_TOOLS }
+        : typeof thread?.title === "string" && CRM_CHAT.test(thread.title)
+          ? { preload: CRM_TOOLS }
+          : thread?.kind === "chat"
+            ? { preload: [...CREW_TOOLS, ...ABOUT_VYRE_TOOLS, ...CONNECTION_TOOLS] }
+            : {};
     // the owner's floor on the terminal: a local tool in this session follows the chat's mode up to it
-    const setting = await o.invoke("settings.get", { key: "security.terminal_mode" }, { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" }).catch(() => null);
-    const row = setting?.status === "ok" ? (setting.output as { row?: { value?: unknown; floor?: unknown } } | null)?.row : undefined;
+    const setting = await o
+      .invoke(
+        "settings.get",
+        { key: "security.terminal_mode" },
+        {
+          space: o.space,
+          principal: caller.principal,
+          ...(caller.actingFor ? { actingFor: caller.actingFor } : {}),
+          origin: "mcp",
+        },
+      )
+      .catch(() => null);
+    const row =
+      setting?.status === "ok"
+        ? (setting.output as { row?: { value?: unknown; floor?: unknown } } | null)?.row
+        : undefined;
     if (row) caller = { ...caller, localFloor: modePair(row, o.space) };
-    if (mode === "ask" || mode === "auto" || mode === "plan") return { ...caller, ...facts, mode, planMode: mode === "plan", ...preload };
+    if (mode === "ask" || mode === "auto" || mode === "plan")
+      return { ...caller, ...facts, mode, planMode: mode === "plan", ...preload };
     if ("preload" in preload || facts.threadKind !== undefined) return { ...caller, ...facts, ...preload };
-  } catch { /* the chat is not readable here: no mode is applied */ }
+  } catch {
+    /* the chat is not readable here: no mode is applied */
+  }
   return caller;
 }
 
-export interface OauthRequest { method: string; path: string; search: string; headers: Readonly<Record<string, string | undefined>>; body: string; origin: string | null; visitor: string }
+export interface OauthRequest {
+  method: string;
+  path: string;
+  search: string;
+  headers: Readonly<Record<string, string | undefined>>;
+  body: string;
+  origin: string | null;
+  visitor: string;
+}
 export interface McpRuntimeServer extends McpServer {
   /** A request to the sign-in addresses, or null when the path is not one of them. */
   oauth(req: OauthRequest): Promise<{ status: number; headers: Record<string, string>; body: string } | null>;
@@ -78,14 +162,29 @@ const SEEN_MS = 15_000;
 const KEEP_ACTIVITY = 1000;
 const MAX_STEP_BLOCKS = 18;
 /** Tools that are the work itself in a chat, or that only look around: a step line for them says nothing the chat does not show. */
-const NO_STEP: ReadonlySet<string> = new Set(["chat.post", "agents.next", "mcp.tool.search", "mcp.tool.describe", "mcp.tools.list", "mcp.toolsets.list"]);
+const NO_STEP: ReadonlySet<string> = new Set([
+  "chat.post",
+  "agents.next",
+  "mcp.tool.search",
+  "mcp.tool.describe",
+  "mcp.tools.list",
+  "mcp.toolsets.list",
+]);
 
 /** One outside agent's unfinished line in a chat: its steps gather for a moment and post as one message, the way a turn's steps sit together. */
-interface Steps { threadId: string; caller: McpCaller; blocks: Array<{ type: string; v: number; data: unknown }>; timer: ReturnType<typeof setTimeout> | null }
+interface Steps {
+  threadId: string;
+  caller: McpCaller;
+  blocks: Array<{ type: string; v: number; data: unknown }>;
+  timer: ReturnType<typeof setTimeout> | null;
+}
 
 const formOf = (body: string): Record<string, string | undefined> | null => {
   const out: Record<string, string> = {};
-  for (const [k, v] of new URLSearchParams(body)) { if (k in out) return null; out[k] = v; }   // a parameter sent twice is refused (RFC 6749 3.2)
+  for (const [k, v] of new URLSearchParams(body)) {
+    if (k in out) return null;
+    out[k] = v;
+  } // a parameter sent twice is refused (RFC 6749 3.2)
   return out;
 };
 
@@ -104,36 +203,99 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     if (s.timer) clearTimeout(s.timer);
     steps.delete(sessionId);
     if (s.blocks.length === 0) return Promise.resolve();
-    const seed = { space: o.space, principal: s.caller.principal, ...(s.caller.actingFor ? { actingFor: s.caller.actingFor } : {}), thread: s.threadId, origin: "mcp" as const };
-    return o.invoke("chat.post", { threadId: s.threadId, body: "", blocks: s.blocks, idempotencyKey: mintId("stp", now()) }, seed).then(() => undefined, () => undefined);
+    const seed = {
+      space: o.space,
+      principal: s.caller.principal,
+      ...(s.caller.actingFor ? { actingFor: s.caller.actingFor } : {}),
+      thread: s.threadId,
+      origin: "mcp" as const,
+    };
+    return o
+      .invoke(
+        "chat.post",
+        { threadId: s.threadId, body: "", blocks: s.blocks, idempotencyKey: mintId("stp", now()) },
+        seed,
+      )
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   };
 
-  function noteStep(caller: McpCaller, tool: string, outcome: "ok" | "error" | "held", detail: NonNullable<Parameters<NonNullable<McpServerDeps["onCall"]>>[3]>): void {
+  function noteStep(
+    caller: McpCaller,
+    tool: string,
+    outcome: "ok" | "error" | "held",
+    detail: NonNullable<Parameters<NonNullable<McpServerDeps["onCall"]>>[3]>,
+  ): void {
     const threadId = detail.threadId;
     if (!threadId?.startsWith("thr_")) return;
-    if (detail.cap === "chat.post") { void flush(caller.sessionId); return; }
+    if (detail.cap === "chat.post") {
+      void flush(caller.sessionId);
+      return;
+    }
     const open = steps.get(caller.sessionId);
     if (open && open.threadId !== threadId) void flush(caller.sessionId);
     const s = steps.get(caller.sessionId) ?? { threadId, caller, blocks: [], timer: null };
     steps.set(caller.sessionId, s);
     if (!NO_STEP.has(detail.cap)) {
       const id = mintId("cal", now());
-      s.blocks.push({ type: "tool_call", v: 1, data: { id, name: tool } }, { type: "tool_result", v: 1, data: { id, ok: outcome === "ok" } });
+      s.blocks.push(
+        { type: "tool_call", v: 1, data: { id, name: tool } },
+        { type: "tool_result", v: 1, data: { id, ok: outcome === "ok" } },
+      );
     }
-    if (detail.card) s.blocks.push({ type: "link_card", v: 1, data: { icon: detail.card.icon, lead: detail.card.lead, title: detail.card.title, target: detail.card.target, ...(detail.card.via ? { via: detail.card.via } : {}) } });
-    if (s.blocks.length >= MAX_STEP_BLOCKS) { void flush(caller.sessionId); return; }
+    if (detail.card)
+      s.blocks.push({
+        type: "link_card",
+        v: 1,
+        data: {
+          icon: detail.card.icon,
+          lead: detail.card.lead,
+          title: detail.card.title,
+          target: detail.card.target,
+          ...(detail.card.via ? { via: detail.card.via } : {}),
+        },
+      });
+    if (s.blocks.length >= MAX_STEP_BLOCKS) {
+      void flush(caller.sessionId);
+      return;
+    }
     if (s.timer) clearTimeout(s.timer);
-    s.timer = setTimeout(() => { void flush(caller.sessionId); }, STEP_MS);
+    s.timer = setTimeout(() => {
+      void flush(caller.sessionId);
+    }, STEP_MS);
     (s.timer as { unref?: () => void }).unref?.();
   }
 
-  function noteOutside(caller: McpCaller, tool: string, outcome: "ok" | "error" | "held", detail: NonNullable<Parameters<NonNullable<McpServerDeps["onCall"]>>[3]>): void {
+  function noteOutside(
+    caller: McpCaller,
+    tool: string,
+    outcome: "ok" | "error" | "held",
+    detail: NonNullable<Parameters<NonNullable<McpServerDeps["onCall"]>>[3]>,
+  ): void {
     const at = now();
     const threadId = detail.threadId?.startsWith("thr_") ? detail.threadId : null;
-    o.db.run("INSERT INTO mcp_activity (id, agent_id, person, tool, cap, outcome, thread_id, task_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", mintId("mca", at), caller.principal.id, caller.actingFor ?? "", tool, detail.cap, outcome, threadId, detail.taskId ?? null, at);
+    o.db.run(
+      "INSERT INTO mcp_activity (id, agent_id, person, tool, cap, outcome, thread_id, task_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      mintId("mca", at),
+      caller.principal.id,
+      caller.actingFor ?? "",
+      tool,
+      detail.cap,
+      outcome,
+      threadId,
+      detail.taskId ?? null,
+      at,
+    );
     if (at - (lastSeen.get(caller.principal.id) ?? 0) >= SEEN_MS) {
       lastSeen.set(caller.principal.id, at);
-      o.db.run("DELETE FROM mcp_activity WHERE agent_id = ? AND id NOT IN (SELECT id FROM mcp_activity WHERE agent_id = ? ORDER BY at DESC LIMIT ?)", caller.principal.id, caller.principal.id, KEEP_ACTIVITY);
+      o.db.run(
+        "DELETE FROM mcp_activity WHERE agent_id = ? AND id NOT IN (SELECT id FROM mcp_activity WHERE agent_id = ? ORDER BY at DESC LIMIT ?)",
+        caller.principal.id,
+        caller.principal.id,
+        KEEP_ACTIVITY,
+      );
       void o.system?.("agents.outside.seen", { agentId: caller.principal.id }).catch(() => undefined);
     }
     noteStep(caller, tool, outcome, detail);
@@ -146,7 +308,15 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     let s = grant.sessionId ? sessionBy(o.db, "session_id", grant.sessionId) : null;
     if (!s || s.closedAt !== undefined) {
       const at = now();
-      s = { sessionId: mintId("ses", at), kind: "outside", principal: grant.agentId, actingFor: grant.person, name: (clientName ?? grant.clientName).slice(0, 120), startedAt: at, calls: 0 };
+      s = {
+        sessionId: mintId("ses", at),
+        kind: "outside",
+        principal: grant.agentId,
+        actingFor: grant.person,
+        name: (clientName ?? grant.clientName).slice(0, 120),
+        startedAt: at,
+        calls: 0,
+      };
       insertSession(o.db, s);
       o.db.run("UPDATE mcp_oauth_grants SET session_id = ? WHERE grant_id = ?", s.sessionId, grant.grantId);
     }
@@ -175,71 +345,172 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     onCall(caller, tool, outcome, detail) {
       touchSession(o.db, caller.sessionId, now());
       // the call is done and on the audit log: a row that cannot be written must not turn its answer into an error
-      if (caller.kind === "outside" && detail) { try { noteOutside(caller, tool, outcome, detail); } catch { /* the activity list misses one row */ } }
+      if (caller.kind === "outside" && detail) {
+        try {
+          noteOutside(caller, tool, outcome, detail);
+        } catch {
+          /* the activity list misses one row */
+        }
+      }
       // a CLI engine's work shows under its reply as cards, as it does on an API driver: a task, a file, and a send waiting on a yes
-      else if (detail?.card && detail.threadId) recordWork(sessionWorkKey(detail.threadId, caller.principal.id), detail.card);
+      else if (detail?.card && detail.threadId)
+        recordWork(sessionWorkKey(detail.threadId, caller.principal.id), detail.card);
     },
     // the setup grant (owner ruling 3 Nov): read on every call, so taking it back in Settings or the Console counts at the next one
-    setupGrant: (caller) => caller.kind === "outside" && caller.actingFor !== undefined && hasSetup(o.db, caller.principal.id, caller.actingFor),
+    setupGrant: (caller) =>
+      caller.kind === "outside" &&
+      caller.actingFor !== undefined &&
+      hasSetup(o.db, caller.principal.id, caller.actingFor),
     async bindThread(caller, threadId) {
       const read = await withChatMode(o, { ...caller, kind: "driver", threadId });
-      return { ...(read.mode ? { mode: read.mode } : {}), ...(read.planMode ? { planMode: true } : {}), ...(read.threadKind ? { threadKind: read.threadKind } : {}), ...(read.scope ? { scope: read.scope } : {}) };
+      return {
+        ...(read.mode ? { mode: read.mode } : {}),
+        ...(read.planMode ? { planMode: true } : {}),
+        ...(read.threadKind ? { threadKind: read.threadKind } : {}),
+        ...(read.scope ? { scope: read.scope } : {}),
+      };
     },
-    onClose(caller) { void flush(caller.sessionId); o.db.run("UPDATE mcp_sessions SET closed_at = ? WHERE session_id = ? AND closed_at IS NULL", now(), caller.sessionId); },
+    onClose(caller) {
+      void flush(caller.sessionId);
+      o.db.run(
+        "UPDATE mcp_sessions SET closed_at = ? WHERE session_id = ? AND closed_at IS NULL",
+        now(),
+        caller.sessionId,
+      );
+    },
   });
   bindServer(server);
 
-  const limits = { register: createLimiter(20, now), authorize: createLimiter(60, now), token: createLimiter(120, now), wait: createLimiter(120, now) };
-  const JSON_NO_STORE = { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" };
-  const send = (status: number, body: unknown, headers: Record<string, string> = {}): { status: number; headers: Record<string, string>; body: string } => ({ status, headers: { ...JSON_NO_STORE, ...headers }, body: JSON.stringify(body) });
-  const oauthError = (status: number, error: string, description?: string) => send(status, { error, ...(description ? { error_description: description } : {}) });
+  const limits = {
+    register: createLimiter(20, now),
+    authorize: createLimiter(60, now),
+    token: createLimiter(120, now),
+    wait: createLimiter(120, now),
+  };
+  const JSON_NO_STORE = {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+  };
+  const send = (
+    status: number,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): { status: number; headers: Record<string, string>; body: string } => ({
+    status,
+    headers: { ...JSON_NO_STORE, ...headers },
+    body: JSON.stringify(body),
+  });
+  const oauthError = (status: number, error: string, description?: string) =>
+    send(status, { error, ...(description ? { error_description: description } : {}) });
   const slow = () => oauthError(429, "slow_down", "Too many requests. Try again in a minute.");
 
   async function oauth(req: OauthRequest): ReturnType<McpRuntimeServer["oauth"]> {
-    const paths = ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server", "/oauth/register", "/oauth/authorize", "/oauth/token", "/oauth/wait"];
+    const paths = [
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-protected-resource/mcp",
+      "/.well-known/oauth-authorization-server",
+      "/oauth/register",
+      "/oauth/authorize",
+      "/oauth/token",
+      "/oauth/wait",
+    ];
     if (!paths.includes(req.path)) return null;
     const origin = req.origin;
     if (origin === null) return oauthError(404, "not_found", "This Space has no address to sign in at.");
     const at = now();
-    if (req.method === "OPTIONS") return { status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type, authorization, mcp-protocol-version", "access-control-max-age": "600" }, body: "" };
-    if (req.path.startsWith("/.well-known/oauth-protected-resource")) return req.method === "GET" ? send(200, protectedResource(origin)) : oauthError(405, "method_not_allowed");
-    if (req.path === "/.well-known/oauth-authorization-server") return req.method === "GET" ? send(200, serverMetadata(origin)) : oauthError(405, "method_not_allowed");
+    if (req.method === "OPTIONS")
+      return {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-headers": "content-type, authorization, mcp-protocol-version",
+          "access-control-max-age": "600",
+        },
+        body: "",
+      };
+    if (req.path.startsWith("/.well-known/oauth-protected-resource"))
+      return req.method === "GET" ? send(200, protectedResource(origin)) : oauthError(405, "method_not_allowed");
+    if (req.path === "/.well-known/oauth-authorization-server")
+      return req.method === "GET" ? send(200, serverMetadata(origin)) : oauthError(405, "method_not_allowed");
     if (req.path === "/oauth/register") {
       if (req.method !== "POST") return oauthError(405, "method_not_allowed");
       if (!limits.register(req.visitor)) return slow();
       let body: unknown;
-      try { body = JSON.parse(req.body); } catch { return oauthError(400, "invalid_client_metadata", "That is not JSON."); }
+      try {
+        body = JSON.parse(req.body);
+      } catch {
+        return oauthError(400, "invalid_client_metadata", "That is not JSON.");
+      }
       const r = registerClient(o.db, body, at);
       return "client" in r ? send(201, r.client) : oauthError(400, r.error, r.description);
     }
     if (req.path === "/oauth/authorize") {
       if (req.method !== "GET") return oauthError(405, "method_not_allowed");
-      if (!limits.authorize(req.visitor)) { const page = refusalPage("Too many requests", "Try again in a minute."); return { status: 429, headers: { ...page.headers }, body: page.body }; }
+      if (!limits.authorize(req.visitor)) {
+        const page = refusalPage("Too many requests", "Try again in a minute.");
+        return { status: 429, headers: { ...page.headers }, body: page.body };
+      }
       const q: Record<string, string> = {};
-      for (const [k, v] of new URLSearchParams(req.search)) { if (k in q) { const page = refusalPage("This link is not valid", "Start again from the app you are connecting."); return { status: 400, headers: { ...page.headers }, body: page.body }; } q[k] = v; }
+      for (const [k, v] of new URLSearchParams(req.search)) {
+        if (k in q) {
+          const page = refusalPage("This link is not valid", "Start again from the app you are connecting.");
+          return { status: 400, headers: { ...page.headers }, body: page.body };
+        }
+        q[k] = v;
+      }
       const begun = beginAuthorize(o.db, q, origin, at);
-      if (begun.kind === "refuse") { const page = refusalPage(begun.title, begun.text); return { status: 400, headers: { ...page.headers }, body: page.body }; }
-      if (begun.kind === "redirect") return { status: 302, headers: { location: begun.to, "cache-control": "no-store" }, body: "" };
-      const page = allowTab({ clientName: begun.client.name, spaceName: (await o.spaceName?.().catch(() => undefined)) ?? "this Space", match: begun.request.match, requestId: begun.request.requestId, proof: begun.proof, origin, ...(begun.redirectHost ? { redirectHost: begun.redirectHost } : {}), ...(o.webApp ? { webApp: o.webApp } : {}) });
+      if (begun.kind === "refuse") {
+        const page = refusalPage(begun.title, begun.text);
+        return { status: 400, headers: { ...page.headers }, body: page.body };
+      }
+      if (begun.kind === "redirect")
+        return { status: 302, headers: { location: begun.to, "cache-control": "no-store" }, body: "" };
+      const page = allowTab({
+        clientName: begun.client.name,
+        spaceName: (await o.spaceName?.().catch(() => undefined)) ?? "this Space",
+        match: begun.request.match,
+        requestId: begun.request.requestId,
+        proof: begun.proof,
+        origin,
+        ...(begun.redirectHost ? { redirectHost: begun.redirectHost } : {}),
+        ...(o.webApp ? { webApp: o.webApp } : {}),
+      });
       return { status: 200, headers: { ...page.headers }, body: page.body };
     }
     if (req.path === "/oauth/wait") {
       if (req.method !== "POST") return oauthError(405, "method_not_allowed");
       if (!limits.wait(req.visitor)) return slow();
       let b: { request?: unknown; proof?: unknown } = {};
-      try { b = JSON.parse(req.body) as typeof b; } catch { return oauthError(400, "invalid_request"); }
-      const w = typeof b.request === "string" && typeof b.proof === "string" ? collect(o.db, b.request, b.proof, origin, at) : null;
+      try {
+        b = JSON.parse(req.body) as typeof b;
+      } catch {
+        return oauthError(400, "invalid_request");
+      }
+      const w =
+        typeof b.request === "string" && typeof b.proof === "string"
+          ? collect(o.db, b.request, b.proof, origin, at)
+          : null;
       return w ? send(200, w) : oauthError(404, "invalid_request");
     }
     if (req.method !== "POST") return oauthError(405, "method_not_allowed");
     if (!limits.token(req.visitor)) return slow();
-    if (!/^application\/x-www-form-urlencoded\b/i.test(req.headers["content-type"] ?? "")) return oauthError(400, "invalid_request", "Send the form as application/x-www-form-urlencoded.");
+    if (!/^application\/x-www-form-urlencoded\b/i.test(req.headers["content-type"] ?? ""))
+      return oauthError(400, "invalid_request", "Send the form as application/x-www-form-urlencoded.");
     const form = formOf(req.body);
     if (!form) return oauthError(400, "invalid_request", "A parameter was sent twice.");
     const r = exchange(o.db, form, origin, at);
     if ("tokens" in r) return send(200, r.tokens);
     if (r.ended) boundServer()?.end(r.ended);
-    if (r.replayed) void o.system?.("mcp.oauth.replayed", { agentId: r.replayed.agentId, person: r.replayed.person, why: "A used sign-in came back" }).catch(() => undefined);
+    if (r.replayed)
+      void o
+        .system?.("mcp.oauth.replayed", {
+          agentId: r.replayed.agentId,
+          person: r.replayed.person,
+          why: "A used sign-in came back",
+        })
+        .catch(() => undefined);
     return oauthError(r.error === "invalid_client" ? 401 : 400, r.error, r.description);
   }
 
@@ -249,11 +520,32 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
 /** The module's own reading of the event log. */
 export const consumers = {
   /** An agent went to Trash, whatever the way: its sign-in ends with it. */
-  "mcp.agent_gone": { on: ["agent.deleted"], run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event) },
+  "mcp.agent_gone": {
+    on: ["agent.deleted"],
+    run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event),
+  },
   /** A person answered a call an outside agent was held on. */
-  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; holdId?: unknown; mode?: unknown; note?: unknown; askedBy?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
+  "mcp.hold_answered": {
+    on: ["gate.approved", "gate.denied", "gate.expired"],
+    run: (
+      ctx: OauthCtx,
+      event: {
+        name: string;
+        payload: { taskId?: unknown; holdId?: unknown; mode?: unknown; note?: unknown; askedBy?: unknown };
+      },
+    ): Promise<string[]> => onHoldAnswered(ctx, event),
+  },
   /** A key an outside agent asked a person to paste was saved or declined. */
-  "mcp.key_answered": { on: ["vault.request_fulfilled", "vault.request_declined"], run: (ctx: OauthCtx, event: { name: string; payload: { requestId?: unknown; name?: unknown; note?: unknown; agentId?: unknown; threadId?: unknown } }): Promise<string[]> => onKeyAnswered(ctx, event) },
+  "mcp.key_answered": {
+    on: ["vault.request_fulfilled", "vault.request_declined"],
+    run: (
+      ctx: OauthCtx,
+      event: {
+        name: string;
+        payload: { requestId?: unknown; name?: unknown; note?: unknown; agentId?: unknown; threadId?: unknown };
+      },
+    ): Promise<string[]> => onKeyAnswered(ctx, event),
+  },
 };
 
 export { bindEndpoint, bindServer };

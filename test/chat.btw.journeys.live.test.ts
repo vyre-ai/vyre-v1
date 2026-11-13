@@ -12,19 +12,27 @@ const OUT = "shots-evidence/chat-btw";
 // code of its result, so a pass or a failure shows at once.
 let passes = 0;
 let ran = false;
-after(() => { if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500); });
+after(() => {
+  if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500);
+});
 
 test("/btw: the slash menu lists it, the aside answers on the side while the main reply goes on, Keep posts it, Dismiss puts it away", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   ran = true;
   const s = await bootScreens({ kind: "personal", engineCli: cli }, env);
   const dir = `${OUT}/btw`;
   try {
     const w = s.world;
     await connectSubscription(w);
-    const agent = (await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "bw-agent" })).agent.agentId as string;
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "bw-chat" })).thread.threadId as string;
+    const agent = (
+      await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "bw-agent" })
+    ).agent.agentId as string;
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "bw-chat" }))
+      .thread.threadId as string;
     await w.owner.ok("threads.set_mode", { threadId, mode: "auto", idempotencyKey: "bw-auto" });
     const me = await seat(s, w.owner, "Owner");
     const route = `/chat#screen=chats.conversation&threadId=${threadId}`;
@@ -35,7 +43,12 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await field.click();
     await field.fill("/");
     await me.page.getByText("Ask a side question while the agent works").first().waitFor({ timeout: 10_000 });
-    for (const known of ["Turn plan mode on or off for this chat", "Start a helper chat for a side task", "Hand the work to another agent"]) assert.ok(await me.page.getByText(known).count() > 0, known);
+    for (const known of [
+      "Turn plan mode on or off for this chat",
+      "Start a helper chat for a side task",
+      "Hand the work to another agent",
+    ])
+      assert.ok((await me.page.getByText(known).count()) > 0, known);
     await shoot(me.page, dir, "slash-menu", { phone: false });
     await field.fill("");
 
@@ -51,30 +64,63 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.getByTestId("composer-send").click();
     await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ timeout: 10_000 });
     assert.match(await me.page.locator('[data-testid^="aside-question-"]').first().innerText(), /what is the deadline/);
-    assert.ok(await me.page.locator('[data-testid^="aside-lock-"]').first().isVisible(), "marked as private: the lock that says only you see this");
-    assert.equal(await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("aria-label"), "Only you see this");
-    assert.equal(await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("title"), "Only you see this", "the sentence moved into the lock's tooltip");
-    await me.page.locator('[data-testid^="aside-answer-"]').getByText(/Aside answer/).first().waitFor({ timeout: 30_000 });
+    assert.ok(
+      await me.page.locator('[data-testid^="aside-lock-"]').first().isVisible(),
+      "marked as private: the lock that says only you see this",
+    );
+    assert.equal(
+      await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("aria-label"),
+      "Only you see this",
+    );
+    assert.equal(
+      await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("title"),
+      "Only you see this",
+      "the sentence moved into the lock's tooltip",
+    );
+    await me.page
+      .locator('[data-testid^="aside-answer-"]')
+      .getByText(/Aside answer/)
+      .first()
+      .waitFor({ timeout: 30_000 });
     await shoot(me.page, dir, "aside-answering", { phone: false });
 
     // the main reply goes on to the end, once, and the aside is not in the conversation
     await me.page.waitForTimeout(500);
     const feed = async (): Promise<string> => me.page.getByTestId("conversation-feed").innerText();
-    for (const end = Date.now() + 25_000; Date.now() < end && (await me.page.getByTestId("stop-button").count()) > 0;) await me.page.waitForTimeout(300);
+    for (const end = Date.now() + 25_000; Date.now() < end && (await me.page.getByTestId("stop-button").count()) > 0; )
+      await me.page.waitForTimeout(300);
     const main = await feed();
     assert.equal((main.match(/word\d+/g) ?? []).length, 14, "the main reply finished, every word once");
     assert.ok(!/Aside answer/.test(main), "the aside is not in the main conversation");
     assert.ok(!/what is the deadline/.test(main), "nor its question");
     const msgs = (await w.owner.ok("chat.messages.list", { threadId })).messages as Array<{ body: string }>;
-    assert.ok(!msgs.some((m) => /deadline|Aside answer/.test(m.body)), "the chat the aside came from holds nothing of it");
+    assert.ok(
+      !msgs.some((m) => /deadline|Aside answer/.test(m.body)),
+      "the chat the aside came from holds nothing of it",
+    );
 
     // Keep posts one card into the chat
     await me.page.locator('[data-testid^="aside-keep-"]').first().click();
     // the kept answer is a kept-aside card (KeptAside.tsx); its text carries no "Aside:" or "Aside by" label, so waiting for that text ran out its 15 s every run
-    await me.page.locator('[data-testid^="kept-aside-"]').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
-    await me.page.waitForFunction(() => document.body.innerText.includes("Aside answer to what is the deadline"), undefined, { timeout: 15_000 });
-    assert.equal(await me.page.locator('[data-testid^="kept-aside-"]').first().count(), 1, "the kept answer is a quiet note in the chat");
-    assert.ok(!(await me.page.locator('[data-testid^="kept-aside-body-"]').first().innerText()).includes("**"), "no raw markdown in the kept answer");
+    await me.page
+      .locator('[data-testid^="kept-aside-"]')
+      .first()
+      .waitFor({ timeout: 15_000 })
+      .catch(() => undefined);
+    await me.page.waitForFunction(
+      () => document.body.innerText.includes("Aside answer to what is the deadline"),
+      undefined,
+      { timeout: 15_000 },
+    );
+    assert.equal(
+      await me.page.locator('[data-testid^="kept-aside-"]').first().count(),
+      1,
+      "the kept answer is a quiet note in the chat",
+    );
+    assert.ok(
+      !(await me.page.locator('[data-testid^="kept-aside-body-"]').first().innerText()).includes("**"),
+      "no raw markdown in the kept answer",
+    );
     await shoot(me.page, dir, "aside-kept", { phone: false });
 
     // Keep takes the card away once it has said Kept
@@ -84,7 +130,7 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.getByTestId("composer-send").click();
     await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ timeout: 10_000 });
     await me.page.locator('[data-testid^="aside-dismiss-"]').first().click();
-    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ state: "detached", timeout: 5_000 });   // the card slides away in 140 ms
+    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ state: "detached", timeout: 5_000 }); // the card slides away in 140 ms
     assert.equal(await me.page.locator('[data-testid^="aside-question-"]').count(), 0, "the aside card is gone");
     // the same on a phone: its own pass at the end, because the phone width draws another shell and an aside lives in the chat on screen
     await me.page.setViewportSize({ width: 390, height: 844 });
@@ -92,9 +138,15 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.getByTestId("composer-field").click();
     await me.page.getByTestId("composer-field").fill("/btw and on a phone");
     await me.page.getByTestId("composer-send").click();
-    await me.page.locator('[data-testid^="aside-answer-"]').getByText(/Aside answer/).first().waitFor({ timeout: 30_000 });
+    await me.page
+      .locator('[data-testid^="aside-answer-"]')
+      .getByText(/Aside answer/)
+      .first()
+      .waitFor({ timeout: 30_000 });
     await shoot(me.page, dir, "aside-on-phone", { only: "phone" });
     assert.deepEqual(me.errors, [], "no page errors");
     passes++;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

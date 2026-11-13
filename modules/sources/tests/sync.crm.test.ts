@@ -9,22 +9,69 @@ import { openSources } from "../impl.ts";
 import { runSync } from "../handlers/sync.ts";
 import type { SyncBinding, SyncDeps } from "../handlers/sync.ts";
 
-const ORG = { name: "org", label: "Org", fields: [{ name: "name", kind: "text", label: "Name" }, { name: "persons", kind: "link", label: "Persons", to: "person", many: true }] };
-const PERSON = { name: "person", label: "Person", fields: [
-  { name: "name", kind: "text", label: "Name" }, { name: "email", kind: "text", label: "Email" }, { name: "stage", kind: "stage", label: "Stage", options: ["lead", "client"] },
-  { name: "org", kind: "link", label: "Org", to: "org", many: true },
-] };
-const R_ORG = { name: "r_org", label: "r_org", fields: [{ name: "/name", kind: "text" }] };
-const R_PERSON = { name: "r_person", label: "r_person", fields: [{ name: "/name", kind: "text" }, { name: "/email", kind: "text" }, { name: "/stage", kind: "text" }, { name: "/org", kind: "text" }] };
-
-const ORG_B: SyncBinding = { syncTypeId: "syt_org", type: "org", remote: "r_org", connector: "app", label: "App", fields: [{ local: "name", remote: "/name", direction: "pull" }], match: [], createAtSource: false, deletes: false, conflict: "newest" };
-const PERSON_B: SyncBinding = {
-  syncTypeId: "syt_person", type: "person", remote: "r_person", connector: "app", label: "App",
+const ORG = {
+  name: "org",
+  label: "Org",
   fields: [
-    { local: "name", remote: "/name", direction: "both" }, { local: "email", remote: "/email", direction: "both" }, { local: "stage", remote: "/stage", direction: "both" },
-    { local: "org", remote: "/org", direction: "pull", relation: { syncTypeId: "syt_org", type: "org", inverse: "persons" } },
+    { name: "name", kind: "text", label: "Name" },
+    { name: "persons", kind: "link", label: "Persons", to: "person", many: true },
   ],
-  match: ["email"], createAtSource: false, deletes: false, conflict: "newest",
+};
+const PERSON = {
+  name: "person",
+  label: "Person",
+  fields: [
+    { name: "name", kind: "text", label: "Name" },
+    { name: "email", kind: "text", label: "Email" },
+    { name: "stage", kind: "stage", label: "Stage", options: ["lead", "client"] },
+    { name: "org", kind: "link", label: "Org", to: "org", many: true },
+  ],
+};
+const R_ORG = { name: "r_org", label: "r_org", fields: [{ name: "/name", kind: "text" }] };
+const R_PERSON = {
+  name: "r_person",
+  label: "r_person",
+  fields: [
+    { name: "/name", kind: "text" },
+    { name: "/email", kind: "text" },
+    { name: "/stage", kind: "text" },
+    { name: "/org", kind: "text" },
+  ],
+};
+
+const ORG_B: SyncBinding = {
+  syncTypeId: "syt_org",
+  type: "org",
+  remote: "r_org",
+  connector: "app",
+  label: "App",
+  fields: [{ local: "name", remote: "/name", direction: "pull" }],
+  match: [],
+  createAtSource: false,
+  deletes: false,
+  conflict: "newest",
+};
+const PERSON_B: SyncBinding = {
+  syncTypeId: "syt_person",
+  type: "person",
+  remote: "r_person",
+  connector: "app",
+  label: "App",
+  fields: [
+    { local: "name", remote: "/name", direction: "both" },
+    { local: "email", remote: "/email", direction: "both" },
+    { local: "stage", remote: "/stage", direction: "both" },
+    {
+      local: "org",
+      remote: "/org",
+      direction: "pull",
+      relation: { syncTypeId: "syt_org", type: "org", inverse: "persons" },
+    },
+  ],
+  match: ["email"],
+  createAtSource: false,
+  deletes: false,
+  conflict: "newest",
 };
 
 async function kit() {
@@ -35,13 +82,24 @@ async function kit() {
   await r.store.define({ add_types: [R_ORG, R_PERSON] });
   const src = openSources({ tx: l.host.tx, now: () => clock.t });
   const events: { name: string; payload: Record<string, any> }[] = [];
-  const deps = (): SyncDeps => ({ local: l.store, remote: r.store, tx: l.host.tx, space: "sp_local", now: () => clock.t, emit: (name, _s, payload) => { events.push({ name, payload }); } });
-  const run = (b: SyncBinding, o: Parameters<typeof runSync>[2] = {}) => runSync({ ...deps(), remote: remoteOf(b) }, b, o);
+  const deps = (): SyncDeps => ({
+    local: l.store,
+    remote: r.store,
+    tx: l.host.tx,
+    space: "sp_local",
+    now: () => clock.t,
+    emit: (name, _s, payload) => {
+      events.push({ name, payload });
+    },
+  });
+  const run = (b: SyncBinding, o: Parameters<typeof runSync>[2] = {}) =>
+    runSync({ ...deps(), remote: remoteOf(b) }, b, o);
   const remoteOf = (_b: SyncBinding) => r.store;
   return { clock, l, r, src, events, run, deps };
 }
 type Kit = Awaited<ReturnType<typeof kit>>;
-const mk = async (k: Kit, type: string, data: Record<string, unknown>) => (await k.r.store.create(type, mintRecordId(), data)).id;
+const mk = async (k: Kit, type: string, data: Record<string, unknown>) =>
+  (await k.r.store.create(type, mintRecordId(), data)).id;
 const local = async (k: Kit, type: string) => (await k.l.store.query(type, { page: { limit: 100 } })).rows;
 
 test("a relation becomes a link to the record pulled for the app's id, and fills in once that record arrives", async () => {
@@ -59,7 +117,11 @@ test("a relation becomes a link to the record pulled for the app's id, and fills
   const org = (await local(k, "org"))[0]!;
   const linked = (await k.l.store.get("person", ada.id))!.data["org"] as { urn: string }[];
   assert.deepEqual(linked, [{ urn: `vyre://sp_local/org/${org.id}` }]);
-  assert.deepEqual((await k.l.store.get("org", org.id))!.data["persons"], [{ urn: `vyre://sp_local/person/${ada.id}` }], "the other end moved with it");
+  assert.deepEqual(
+    (await k.l.store.get("org", org.id))!.data["persons"],
+    [{ urn: `vyre://sp_local/person/${ada.id}` }],
+    "the other end moved with it",
+  );
   // the app moves Ada to another org: the old end lets go and the new one takes hold
   const other = await mk(k, "r_org", { "/name": "South Mill" });
   const adaRemote = (await k.r.store.query("r_person", { page: { limit: 10 } })).rows[0]!;
@@ -68,7 +130,9 @@ test("a relation becomes a link to the record pulled for the app's id, and fills
   await k.run(PERSON_B);
   const south = (await local(k, "org")).find((o) => o.data["name"] === "South Mill")!;
   assert.deepEqual((await k.l.store.get("org", org.id))!.data["persons"] ?? [], []);
-  assert.deepEqual((await k.l.store.get("org", south.id))!.data["persons"], [{ urn: `vyre://sp_local/person/${ada.id}` }]);
+  assert.deepEqual((await k.l.store.get("org", south.id))!.data["persons"], [
+    { urn: `vyre://sp_local/person/${ada.id}` },
+  ]);
   // a third pass is quiet
   assert.equal((await k.run(PERSON_B)).summary, "Nothing to change.");
 });
@@ -88,8 +152,14 @@ test("newest wins keeps the value that lost in the field's history, whichever si
   const rep = await k.run(PERSON_B);
   assert.equal(rep.conflicts, 1);
   assert.equal((await k.l.store.get("person", id))!.data["name"], "Ben (crm)");
-  const lost = k.l.host.tx.all<{ field: string; value: string; actor: string; reason: string }>("SELECT field, value, actor, reason FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ?", id);
-  assert.deepEqual(lost.map((h) => [h.field, JSON.parse(h.value), h.actor, h.reason]), [["name", "Ben (mine)", "sync:App", "lww_loser"]]);
+  const lost = k.l.host.tx.all<{ field: string; value: string; actor: string; reason: string }>(
+    "SELECT field, value, actor, reason FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ?",
+    id,
+  );
+  assert.deepEqual(
+    lost.map((h) => [h.field, JSON.parse(h.value), h.actor, h.reason]),
+    [["name", "Ben (mine)", "sync:App", "lww_loser"]],
+  );
 
   // now mine is newer: the app's value is what is kept, and it is pushed
   k.clock.t = 4000;
@@ -101,8 +171,17 @@ test("newest wins keeps the value that lost in the field's history, whichever si
   k.clock.t = 5000;
   await k.run(PERSON_B);
   assert.equal((await k.r.store.get("r_person", rid))!.data["/name"], "Ben (mine 2)");
-  const all = k.l.host.tx.all<{ value: string; actor: string }>("SELECT value, actor FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ? ORDER BY rowid", id);
-  assert.deepEqual(all.map((h) => [JSON.parse(h.value), h.actor]), [["Ben (mine)", "sync:App"], ["Ben (crm 2)", "source:App"]]);
+  const all = k.l.host.tx.all<{ value: string; actor: string }>(
+    "SELECT value, actor FROM records_field_history WHERE type = 'person' AND reason = 'lww_loser' AND id = ? ORDER BY rowid",
+    id,
+  );
+  assert.deepEqual(
+    all.map((h) => [JSON.parse(h.value), h.actor]),
+    [
+      ["Ben (mine)", "sync:App"],
+      ["Ben (crm 2)", "source:App"],
+    ],
+  );
 });
 
 test("a record the type refuses is skipped and logged, the others still arrive, and the next pass tries again", async () => {
@@ -114,7 +193,9 @@ test("a record the type refuses is skipped and logged, the others still arrive, 
   assert.equal(rep.skipped, 1);
   assert.equal(rep.local.created, 3, "the report counts what was planned");
   assert.deepEqual((await local(k, "person")).map((p) => p.data["name"]).sort(), ["Cy", "Ed"]);
-  const log = k.src.tx.all<{ kind: string; summary: string }>("SELECT kind, summary FROM sy_log WHERE sync_type = 'syt_person' AND kind = 'error'");
+  const log = k.src.tx.all<{ kind: string; summary: string }>(
+    "SELECT kind, summary FROM sy_log WHERE sync_type = 'syt_person' AND kind = 'error'",
+  );
   assert.equal(log.length, 1);
   assert.match(log[0]!.summary, /skipped App record .*stage must be one of its options/);
   const again = await k.run(PERSON_B);
@@ -133,5 +214,8 @@ test("a slice of a big app is pulled alone: its records arrive, nothing outside 
   assert.equal(second.removedAtSource, 0, "Al is not in this slice and is not gone");
   assert.equal(second.remote.created + second.remote.updated + second.remote.removed, 0);
   assert.deepEqual((await local(k, "person")).map((p) => p.data["name"]).sort(), ["Al", "Bo"]);
-  assert.equal((await local(k, "person")).every((p) => !p.deleted_at), true);
+  assert.equal(
+    (await local(k, "person")).every((p) => !p.deleted_at),
+    true,
+  );
 });

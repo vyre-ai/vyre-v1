@@ -10,12 +10,20 @@ if (!dir) {
   process.exit(2);
 }
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 const daemon = await startDaemon({
   config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
   platform: fakePlatform({
-    os: "linux", hostname: "killed-live", free: 80e9,
+    os: "linux",
+    hostname: "killed-live",
+    free: 80e9,
     commands: {
       [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
       "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -25,7 +33,9 @@ const daemon = await startDaemon({
   fetch: caddyFetch,
   session: (header) => {
     const token = /^Bearer (.+)$/.exec(String(header["authorization"] ?? ""))?.[1];
-    return token === "tok-usr_olivia" ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "killed-live" } : null;
+    return token === "tok-usr_olivia"
+      ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "killed-live" }
+      : null;
   },
   intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
 });

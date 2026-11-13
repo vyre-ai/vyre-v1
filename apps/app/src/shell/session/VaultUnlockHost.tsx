@@ -8,7 +8,11 @@ import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { registerVaultPrompt } from "./vault-gate.ts";
 import type { PromptWords, Unlock } from "./vault-gate.ts";
 
-interface Req { unlock: Unlock; done: (ok: boolean) => void; words?: PromptWords | undefined }
+interface Req {
+  unlock: Unlock;
+  done: (ok: boolean) => void;
+  words?: PromptWords | undefined;
+}
 
 export function VaultUnlockHost(): ReactElement | null {
   const [req, setReq] = useState<Req | null>(null);
@@ -16,29 +20,93 @@ export function VaultUnlockHost(): ReactElement | null {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    registerVaultPrompt((unlock, words) => new Promise<boolean>((done) => { setPassword(""); setError(null); setBusy(false); setReq({ unlock, done, words }); }));
+    registerVaultPrompt(
+      (unlock, words) =>
+        new Promise<boolean>((done) => {
+          setPassword("");
+          setError(null);
+          setBusy(false);
+          setReq({ unlock, done, words });
+        }),
+    );
     return () => registerVaultPrompt(null);
   }, []);
   if (!req) return null;
-  const close = (ok: boolean): void => { req.done(ok); setReq(null); setPassword(""); setBusy(false); setError(null); };
+  const close = (ok: boolean): void => {
+    req.done(ok);
+    setReq(null);
+    setPassword("");
+    setBusy(false);
+    setError(null);
+  };
   const submit = (): void => {
     if (busy) return;
-    if (password === "") { setError("Type your password."); return; }
-    setBusy(true); setError(null);
-    req.unlock(password).then(() => close(true), (e: unknown) => { setBusy(false); setPassword(""); setError(e instanceof Error && e.message ? e.message : "Could not unlock your Vault."); });
+    if (password === "") {
+      setError("Type your password.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    req.unlock(password).then(
+      () => close(true),
+      (e: unknown) => {
+        setBusy(false);
+        setPassword("");
+        setError(e instanceof Error && e.message ? e.message : "Could not unlock your Vault.");
+      },
+    );
   };
   return (
     <Dialog
-      title={req.words?.title ?? "Unlock your Vault"} testID="vault-unlock" width={400} onClose={() => close(false)}
-      actions={[{ label: "Cancel", testID: "vault-unlock-cancel", onPress: () => close(false) }, { label: busy ? "Unlocking" : "Unlock", primary: true, disabled: busy, testID: "vault-unlock-go", onPress: submit }]}
+      title={req.words?.title ?? "Unlock your Vault"}
+      testID="vault-unlock"
+      width={400}
+      onClose={() => close(false)}
+      actions={[
+        { label: "Cancel", testID: "vault-unlock-cancel", onPress: () => close(false) },
+        {
+          label: busy ? "Unlocking" : "Unlock",
+          primary: true,
+          disabled: busy,
+          testID: "vault-unlock-go",
+          onPress: submit,
+        },
+      ]}
     >
       <Text style={s.sub}>{req.words?.sub ?? "Your password opens your Mine items on this computer."}</Text>
       <TextField
-        value={password} onChangeText={(v) => { setPassword(v); setError(null); }} secureTextEntry placeholder="Your password" accessibilityLabel="Your password"
-        autoFocus onSubmitEditing={submit} editable={!busy} testID="vault-unlock-password"
+        value={password}
+        onChangeText={(v) => {
+          setPassword(v);
+          setError(null);
+        }}
+        secureTextEntry
+        placeholder="Your password"
+        accessibilityLabel="Your password"
+        autoFocus
+        onSubmitEditing={submit}
+        editable={!busy}
+        testID="vault-unlock-password"
       />
-      {req.words?.forgot ? <Pressable accessibilityRole="button" accessibilityLabel="Forgot password" testID="vault-unlock-forgot" onPress={() => { const f = req.words!.forgot!; close(false); f(); }}><Text style={s.link}>Forgot password</Text></Pressable> : null}
-      {error ? <Text style={s.error} accessibilityRole="alert" testID="vault-unlock-error">{error}</Text> : null}
+      {req.words?.forgot ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Forgot password"
+          testID="vault-unlock-forgot"
+          onPress={() => {
+            const f = req.words!.forgot!;
+            close(false);
+            f();
+          }}
+        >
+          <Text style={s.link}>Forgot password</Text>
+        </Pressable>
+      ) : null}
+      {error ? (
+        <Text style={s.error} accessibilityRole="alert" testID="vault-unlock-error">
+          {error}
+        </Text>
+      ) : null}
     </Dialog>
   );
 }

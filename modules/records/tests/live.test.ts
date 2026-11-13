@@ -6,16 +6,22 @@ import fs from "node:fs";
 import { registry } from "../../../generated/registry.ts";
 import { consumers, handlers } from "../impl.ts";
 
-const mine = registry.capabilities.filter((c) => c.module === "records").map((c) => c.name).sort();
+const mine = registry.capabilities
+  .filter((c) => c.module === "records")
+  .map((c) => c.name)
+  .sort();
 
 test("records live: every capability of the manifest has a handler, and no handler is outside it", () => {
   assert.equal(mine.length, 37);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
-  for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
+  for (const name of mine)
+    assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });
 
 test("records live: host/modules.json serves records live", () => {
-  const file = JSON.parse(fs.readFileSync(new URL("../../../host/modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] };
+  const file = JSON.parse(fs.readFileSync(new URL("../../../host/modules.json", import.meta.url), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   assert.equal(file.modules.find((m) => m.id === "records")?.status, "live");
 });
 

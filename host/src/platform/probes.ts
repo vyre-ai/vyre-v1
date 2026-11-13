@@ -4,12 +4,41 @@
 import type { Platform } from "./index.ts";
 
 export type ProbeState = "healthy" | "degraded" | "down";
-export interface ProbeResult { state: ProbeState; detail?: string; latencyMs?: number; values?: Record<string, number> }
-export type ProbeName = "disk_encrypted" | "events_db" | "index_db" | "scheduler" | "docker" | "caddy" | "disk_space" | "time_skew";
-export const PROBE_NAMES: readonly ProbeName[] = ["disk_encrypted", "events_db", "index_db", "scheduler", "docker", "caddy", "disk_space", "time_skew"];
-export type FetchFn = (url: string, init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
+export interface ProbeResult {
+  state: ProbeState;
+  detail?: string;
+  latencyMs?: number;
+  values?: Record<string, number>;
+}
+export type ProbeName =
+  | "disk_encrypted"
+  | "events_db"
+  | "index_db"
+  | "scheduler"
+  | "docker"
+  | "caddy"
+  | "disk_space"
+  | "time_skew";
+export const PROBE_NAMES: readonly ProbeName[] = [
+  "disk_encrypted",
+  "events_db",
+  "index_db",
+  "scheduler",
+  "docker",
+  "caddy",
+  "disk_space",
+  "time_skew",
+];
+export type FetchFn = (
+  url: string,
+  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> },
+) => Promise<{ ok: boolean; status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
 
-const result = (state: ProbeState, detail: string, extra: Omit<ProbeResult, "state" | "detail"> = {}): ProbeResult => ({ state, detail, ...extra });
+const result = (state: ProbeState, detail: string, extra: Omit<ProbeResult, "state" | "detail"> = {}): ProbeResult => ({
+  state,
+  detail,
+  ...extra,
+});
 
 // ---- disk encryption
 
@@ -26,19 +55,39 @@ export function stackIsEncrypted(lsblkTypes: string): boolean {
 }
 
 /** What the person chose at install about the disk question (VYRE_DISK_ENCRYPTION, written by the installer): the server inside Docker cannot see the host's disk, so it reports the choice. */
-export interface DiskChoice { kind: string; since?: string }
+export interface DiskChoice {
+  kind: string;
+  since?: string;
+}
 
 export function diskChoiceResult(c: DiskChoice): ProbeResult | null {
   const when = c.since ? ` on ${c.since}` : "";
   switch (c.kind) {
-    case "plain": return result("degraded", `The data is NOT encrypted at rest. You chose to install on a plain disk${when}: anyone who gets a copy of this disk, a snapshot or a backup can read it.`);
+    case "plain":
+      return result(
+        "degraded",
+        `The data is NOT encrypted at rest. You chose to install on a plain disk${when}: anyone who gets a copy of this disk, a snapshot or a backup can read it.`,
+      );
     // the person's word, not a check: shown as its own thing (not healthy) so a summary never counts it as encrypted
-    case "provider": return result("degraded", `Not verified: your provider's encryption, as you stated${when}. This server cannot check it; confirm it with your provider.`);
+    case "provider":
+      return result(
+        "degraded",
+        `Not verified: your provider's encryption, as you stated${when}. This server cannot check it; confirm it with your provider.`,
+      );
     // looked at again by the host script at every start of the server
-    case "detected": return result("healthy", "The data directory is on an encrypted volume (verified by the host at the last start; where its key is kept is not visible).");
+    case "detected":
+      return result(
+        "healthy",
+        "The data directory is on an encrypted volume (verified by the host at the last start; where its key is kept is not visible).",
+      );
     // an encryption layer on a file: the host cannot tell where its key is, and a key on the same disk protects nothing
-    case "detected_file": return result("degraded", "The data is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing.");
-    default: return null;
+    case "detected_file":
+      return result(
+        "degraded",
+        "The data is on an encrypted volume that is a file on this disk. This server cannot tell where its key is kept: a key on this same disk protects nothing.",
+      );
+    default:
+      return null;
   }
 }
 
@@ -49,7 +98,8 @@ export async function diskEncrypted(p: Platform, dataDir: string, choice?: DiskC
     const r = await p.run("fdesetup", ["status"]);
     const on = r.code === 0 || r.stdout ? parseFdesetup(r.stdout) : null;
     if (on === true) return result("healthy", "FileVault is on.");
-    if (on === false) return result("degraded", "Turn on FileVault in System Settings to encrypt this computer's disk.");
+    if (on === false)
+      return result("degraded", "Turn on FileVault in System Settings to encrypt this computer's disk.");
     return result("degraded", "Could not read the FileVault state.");
   }
   if (p.os === "linux") {
@@ -60,7 +110,10 @@ export async function diskEncrypted(p: Platform, dataDir: string, choice?: DiskC
     if (t.code !== 0) return result("degraded", `Could not inspect ${source}.`);
     return stackIsEncrypted(t.stdout)
       ? result("healthy", `${source} sits on an encrypted volume.`)
-      : result("degraded", `${source} is not encrypted. Put the data directory on a LUKS or dm-crypt volume to encrypt this computer's disk. The server works without it.`);
+      : result(
+          "degraded",
+          `${source} is not encrypted. Put the data directory on a LUKS or dm-crypt volume to encrypt this computer's disk. The server works without it.`,
+        );
   }
   return result("degraded", `Disk encryption cannot be checked on ${p.os}.`);
 }
@@ -98,11 +151,16 @@ export async function caddy(fetchFn: FetchFn, adminUrl: string, now: () => numbe
     timer.unref();
     // Node's fetch sends Sec-Fetch-Mode: cors, which Caddy's admin API reads as a browser and answers 403 ("not allowed to access from origin ''") unless the request names an allowed
     // Origin. The admin address is on its own allow list, so the probe names it.
-    const r = await fetchFn(`${adminUrl.replace(/\/$/, "")}/config/`, { signal: ctl.signal, headers: { origin: new URL(adminUrl).origin } }).finally(() => clearTimeout(timer));
+    const r = await fetchFn(`${adminUrl.replace(/\/$/, "")}/config/`, {
+      signal: ctl.signal,
+      headers: { origin: new URL(adminUrl).origin },
+    }).finally(() => clearTimeout(timer));
     const latencyMs = now() - t0;
     if (!r.ok) return result("down", `Caddy admin answered ${r.status}.`, { latencyMs });
     const body = (await r.text()).trim();
-    return body === "" || body === "null" ? result("degraded", "Caddy runs but has no routes loaded.", { latencyMs }) : result("healthy", "Caddy answers and routes are loaded.", { latencyMs });
+    return body === "" || body === "null"
+      ? result("degraded", "Caddy runs but has no routes loaded.", { latencyMs })
+      : result("healthy", "Caddy answers and routes are loaded.", { latencyMs });
   } catch {
     return result("down", "Caddy admin API does not answer.", { latencyMs: now() - t0 });
   }
@@ -114,14 +172,30 @@ export const SCHEDULER_STALE_MS = 60_000;
 export function schedulerTick(lastTickAt: number | null, now: number): ProbeResult {
   if (lastTickAt === null) return result("down", "The scheduler has not ticked yet.");
   const age = now - lastTickAt;
-  return age <= SCHEDULER_STALE_MS ? result("healthy", `Ticked ${Math.round(age / 1000)} s ago.`, { values: { ageMs: age } }) : result("down", `The scheduler has not ticked for ${Math.round(age / 1000)} s.`, { values: { ageMs: age } });
+  return age <= SCHEDULER_STALE_MS
+    ? result("healthy", `Ticked ${Math.round(age / 1000)} s ago.`, { values: { ageMs: age } })
+    : result("down", `The scheduler has not ticked for ${Math.round(age / 1000)} s.`, { values: { ageMs: age } });
 }
 
-export interface EventsCheck { ok: boolean; seq: number; why?: string; queue?: number; latencyMs?: number }
+export interface EventsCheck {
+  ok: boolean;
+  seq: number;
+  why?: string;
+  queue?: number;
+  latencyMs?: number;
+}
 export function eventsDb(c: EventsCheck): ProbeResult {
-  if (!c.ok) return result("down", `events.db failed verification${c.why ? `: ${c.why}` : ""}.`, { ...(c.latencyMs !== undefined ? { latencyMs: c.latencyMs } : {}), values: { seq: c.seq } });
+  if (!c.ok)
+    return result("down", `events.db failed verification${c.why ? `: ${c.why}` : ""}.`, {
+      ...(c.latencyMs !== undefined ? { latencyMs: c.latencyMs } : {}),
+      values: { seq: c.seq },
+    });
   const queue = c.queue ?? 0;
-  const out: ProbeResult = { state: queue > 100 ? "degraded" : "healthy", detail: queue > 100 ? `The writer queue holds ${queue} events.` : `Chain verifies through event ${c.seq}.`, values: { seq: c.seq, queue } };
+  const out: ProbeResult = {
+    state: queue > 100 ? "degraded" : "healthy",
+    detail: queue > 100 ? `The writer queue holds ${queue} events.` : `Chain verifies through event ${c.seq}.`,
+    values: { seq: c.seq, queue },
+  };
   if (c.latencyMs !== undefined) out.latencyMs = c.latencyMs;
   return out;
 }
@@ -129,7 +203,11 @@ export function eventsDb(c: EventsCheck): ProbeResult {
 /** lag = events the search index is behind the log head, or null when the Space has no index yet. */
 export function indexLag(lag: number | null): ProbeResult {
   if (lag === null) return result("healthy", "No search index is configured yet.", { values: { lag: 0 } });
-  return lag <= 100 ? result("healthy", lag === 0 ? "The index is caught up." : `The index is ${lag} events behind.`, { values: { lag } }) : result(lag <= 10_000 ? "degraded" : "down", `The index is ${lag} events behind the log.`, { values: { lag } });
+  return lag <= 100
+    ? result("healthy", lag === 0 ? "The index is caught up." : `The index is ${lag} events behind.`, {
+        values: { lag },
+      })
+    : result(lag <= 10_000 ? "degraded" : "down", `The index is ${lag} events behind the log.`, { values: { lag } });
 }
 
 /** Skew against a time source (the relay's Date header). HLC clamps at 5 minutes; the health def degrades at 60 s and fails at 300 s. */
@@ -141,10 +219,14 @@ export async function timeSkew(fetchFn: FetchFn | null, url: string | null, now:
     const t1 = now();
     const date = r.headers.get("date");
     const remote = date ? Date.parse(date) : NaN;
-    if (!Number.isFinite(remote)) return result("degraded", "The relay sent no usable Date header.", { latencyMs: t1 - t0 });
+    if (!Number.isFinite(remote))
+      return result("degraded", "The relay sent no usable Date header.", { latencyMs: t1 - t0 });
     const skewMs = Math.abs((t0 + t1) / 2 - remote);
     const state: ProbeState = skewMs > 300_000 ? "down" : skewMs > 60_000 ? "degraded" : "healthy";
-    return result(state, `Clock differs from the relay by ${Math.round(skewMs / 1000)} s.`, { latencyMs: t1 - t0, values: { skewMs: Math.round(skewMs) } });
+    return result(state, `Clock differs from the relay by ${Math.round(skewMs / 1000)} s.`, {
+      latencyMs: t1 - t0,
+      values: { skewMs: Math.round(skewMs) },
+    });
   } catch {
     return result("degraded", "The relay did not answer, so the clock was not compared.", { latencyMs: now() - t0 });
   }

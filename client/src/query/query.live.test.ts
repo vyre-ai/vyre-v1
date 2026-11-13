@@ -9,7 +9,10 @@ import { createChangeFeed, observeReplica } from "../store/index.ts";
 import type { LocalDb, SpaceStore } from "../store/index.ts";
 import { screensById } from "../../../generated/screens.ts";
 
-interface Ev { id: string; title: string }
+interface Ev {
+  id: string;
+  title: string;
+}
 
 /** A Space store over plain arrays. LocalDb is the seam: the queries below ask it SQL and this answers the two shapes they use. */
 function fakeSpace(spaceId: string) {
@@ -20,10 +23,16 @@ function fakeSpace(spaceId: string) {
   const db: LocalDb = {
     all(sql, params = []) {
       if (sql.includes("calendar_event")) {
-        const q = String(params[0] ?? "").replaceAll("%", "").toLowerCase();
-        return events.filter((e) => e.title.toLowerCase().includes(q)).sort((a, b) => a.id.localeCompare(b.id)).map((e) => ({ title: e.title }));
+        const q = String(params[0] ?? "")
+          .replaceAll("%", "")
+          .toLowerCase();
+        return events
+          .filter((e) => e.title.toLowerCase().includes(q))
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((e) => ({ title: e.title }));
       }
-      if (sql.includes("calendar_list")) return [...lists].sort((a, b) => a.id.localeCompare(b.id)).map((l) => ({ title: l.title }));
+      if (sql.includes("calendar_list"))
+        return [...lists].sort((a, b) => a.id.localeCompare(b.id)).map((l) => ({ title: l.title }));
       return [];
     },
   };
@@ -36,7 +45,8 @@ function fakeSpace(spaceId: string) {
       if (h !== undefined && (input.seq === undefined || input.seq <= h)) return { applied: false, reason: "hidden" };
       const t = table(input.entity);
       const cur = t.find((e) => e.id === input.id);
-      if (cur) cur.title = input.fields?.title ?? cur.title; else t.push({ id: input.id, title: input.fields?.title ?? "" });
+      if (cur) cur.title = input.fields?.title ?? cur.title;
+      else t.push({ id: input.id, title: input.fields?.title ?? "" });
       return { applied: true, reason: "ok" };
     },
     hide(entity: string, id: string, seq: number) {
@@ -58,11 +68,16 @@ function fakeSpace(spaceId: string) {
 const realStore = fakeSpace;
 
 const events: QueryDef<{ q?: string }, string[]> = {
-  cap: "calendar.events.list", entities: ["calendar_event"],
-  run: (db, i) => db.all("SELECT title FROM calendar_event WHERE title LIKE ? ORDER BY id", [`%${i.q ?? ""}%`]).map((r) => String(r["title"])),
+  cap: "calendar.events.list",
+  entities: ["calendar_event"],
+  run: (db, i) =>
+    db
+      .all("SELECT title FROM calendar_event WHERE title LIKE ? ORDER BY id", [`%${i.q ?? ""}%`])
+      .map((r) => String(r["title"])),
 };
 const lists: QueryDef<Record<string, never>, string[]> = {
-  cap: "calendar.lists.list", entities: ["calendar"],
+  cap: "calendar.lists.list",
+  entities: ["calendar"],
   run: (db) => db.all("SELECT title FROM calendar_list ORDER BY id", []).map((r) => String(r["title"])),
 };
 
@@ -71,7 +86,8 @@ test("a write invalidates only the queries that read what changed", () => {
   const client = createQueryClient(store);
   const ev = client.query(events, {});
   const li = client.query(lists, {});
-  let evCalls = 0, liCalls = 0;
+  let evCalls = 0,
+    liCalls = 0;
   ev.subscribe(() => evCalls++);
   li.subscribe(() => liCalls++);
   const evSnap = ev.getSnapshot();
@@ -96,7 +112,12 @@ test("a write invalidates only the queries that read what changed", () => {
 test("affects() lets a query skip changes that cannot alter its result", () => {
   const { store, put } = realStore("spc_a");
   const client = createQueryClient(store);
-  const one: QueryDef<{ id: string }, number> = { cap: "calendar.event.count", entities: ["calendar_event"], run: (db) => db.all("SELECT count(*) AS n FROM calendar_event", []).length, affects: (c, i) => c.id === i.id };
+  const one: QueryDef<{ id: string }, number> = {
+    cap: "calendar.event.count",
+    entities: ["calendar_event"],
+    run: (db) => db.all("SELECT count(*) AS n FROM calendar_event", []).length,
+    affects: (c, i) => c.id === i.id,
+  };
   const q = client.query(one, { id: "cev_7" });
   let calls = 0;
   q.subscribe(() => calls++);
@@ -109,7 +130,11 @@ test("affects() lets a query skip changes that cannot alter its result", () => {
 
 test("every query key carries the spaceId and Spaces never share entries", () => {
   assert.throws(() => queryKey("", "a.b", {}), /spaceId/);
-  assert.equal(queryKey("spc_a", "x.y", { b: 1, a: 2 }), queryKey("spc_a", "x.y", { a: 2, b: 1 }), "input order does not matter");
+  assert.equal(
+    queryKey("spc_a", "x.y", { b: 1, a: 2 }),
+    queryKey("spc_a", "x.y", { a: 2, b: 1 }),
+    "input order does not matter",
+  );
   assert.notEqual(queryKey("spc_a", "x.y", {}), queryKey("spc_b", "x.y", {}));
   assert.ok(queryKey("spc_a", "x.y", {}).startsWith("spc_a"));
 
@@ -150,7 +175,10 @@ test("hide, keep and batched writes reach the feed; a rejected write does not", 
   let calls = 0;
   q.subscribe(() => calls++);
   q.getSnapshot();
-  changes.batch(() => { put("calendar_event", "cev_1", { title: "a" }); put("calendar_event", "cev_2", { title: "b" }); });
+  changes.batch(() => {
+    put("calendar_event", "cev_1", { title: "a" });
+    put("calendar_event", "cev_2", { title: "b" });
+  });
   assert.equal(calls, 1, "a batch is one notification");
   assert.deepEqual(q.getSnapshot(), { status: "ready", data: ["a", "b"] });
   observed.hide("calendar_event", "cev_1", 9);
@@ -170,10 +198,28 @@ test("hover prefetches after 50 ms, leave cancels, focus is immediate, open repo
   const screenId = [...screensById.values()].find((s) => Object.values(s.queries).some((q) => q.live))?.id ?? "";
   assert.ok(screenId, "the generated index has a screen with a live query");
   const screen = screensById.get(screenId)!;
-  const caps = Object.values(screen.queries).filter((q) => q.live).map((q) => q.cap);
-  const defs = new Map(caps.map((cap) => [cap, asQuery<unknown, string[]>({ cap, entities: ["calendar_event"], run: (db) => db.all("SELECT title FROM calendar_event", []).map((r) => String(r["title"])) })]));
+  const caps = Object.values(screen.queries)
+    .filter((q) => q.live)
+    .map((q) => q.cap);
+  const defs = new Map(
+    caps.map((cap) => [
+      cap,
+      asQuery<unknown, string[]>({
+        cap,
+        entities: ["calendar_event"],
+        run: (db) => db.all("SELECT title FROM calendar_event", []).map((r) => String(r["title"])),
+      }),
+    ]),
+  );
   const chunks: string[] = [];
-  const p = createPrefetcher({ client, screens: screensById, defs, scheduler: sched, chunk: (s) => chunks.push(s), clock: () => sched.now() });
+  const p = createPrefetcher({
+    client,
+    screens: screensById,
+    defs,
+    scheduler: sched,
+    chunk: (s) => chunks.push(s),
+    clock: () => sched.now(),
+  });
 
   p.hover(screenId);
   sched.advance(49);

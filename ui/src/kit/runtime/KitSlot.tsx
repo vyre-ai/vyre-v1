@@ -24,17 +24,26 @@ export interface KitSlotProps {
 }
 
 /** The screens a viewer may see in a slot, in registration order. */
-export function screensFor(registry: ScreenRegistry, place: ScreenPlace, slot: Slot, can?: (permission: string) => boolean): KitScreenDef[] {
+export function screensFor(
+  registry: ScreenRegistry,
+  place: ScreenPlace,
+  slot: Slot,
+  can?: (permission: string) => boolean,
+): KitScreenDef[] {
   return registry.forSlot(place, slot).filter((d) => !can || (d.needs ?? []).every((n) => can(n)));
 }
 
 export function KitSlot({ place, slot, registry, env, activeId, state, builtins }: KitSlotProps): ReactElement {
   if (!(KIT_SLOTS as readonly string[]).includes(slot)) throw new Error(`unknown slot ${slot}`);
   const defs = screensFor(registry, place, slot, env.can);
-  const shown = STACKING_SLOTS.includes(slot) ? defs : defs.filter((d) => d.id === (activeId ?? defs[0]?.id)).slice(0, 1);
+  const shown = STACKING_SLOTS.includes(slot)
+    ? defs
+    : defs.filter((d) => d.id === (activeId ?? defs[0]?.id)).slice(0, 1);
   return (
     <View style={styles.slot} testID={`kit-slot-${place}-${slot}`}>
-      {each(shown, (d) => <KitScreen key={d.id} def={d} env={env} {...(state ? { state } : {})} {...(builtins ? { builtins } : {})} />)}
+      {each(shown, (d) => (
+        <KitScreen key={d.id} def={d} env={env} {...(state ? { state } : {})} {...(builtins ? { builtins } : {})} />
+      ))}
     </View>
   );
 }

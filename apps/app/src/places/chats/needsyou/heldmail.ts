@@ -3,15 +3,33 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 type Task = CapMap["tasks.list"]["out"]["tasks"][number];
-export interface HeldMail { to: string[]; cc: string[]; subject: string; body: string; attachments: number; recordId?: string }
+export interface HeldMail {
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
+  attachments: number;
+  recordId?: string;
+}
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
-const who = (r: unknown): string => (isRec(r) ? (text(r["name"]) ? `${text(r["name"])} <${text(r["address"])}>` : text(r["address"])) : "");
+const who = (r: unknown): string =>
+  isRec(r) ? (text(r["name"]) ? `${text(r["name"])} <${text(r["address"])}>` : text(r["address"])) : "";
 
 /** The words of an HTML body, as plain lines: tags out, breaks kept, the common entities back. */
 export function plainOf(html: string): string {
-  return html.replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, "\n").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\n{3,}/g, "\n\n").trim();
+  return html
+    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** The draft in a held mail.send, or null for any other task. */
@@ -23,20 +41,39 @@ export function heldMail(t: Pick<Task, "kind" | "blocks">): HeldMail | null {
     const i = d["input"];
     const to = (Array.isArray(i["to"]) ? i["to"] : []).map(who).filter((x) => x !== "");
     const cc = (Array.isArray(i["cc"]) ? i["cc"] : []).map(who).filter((x) => x !== "");
-    const contact = text(i["contactId"]) || (Array.isArray(i["to"]) ? (i["to"] as unknown[]).map((r) => (isRec(r) ? text(r["contactId"]) : "")).find((x) => x !== "") ?? "" : "");
-    return { to, cc, subject: text(i["subject"]), body: text(i["text"]) || plainOf(text(i["html"])), attachments: Array.isArray(i["attachments"]) ? i["attachments"].length : 0, ...(contact ? { recordId: contact } : {}) };
+    const contact =
+      text(i["contactId"]) ||
+      (Array.isArray(i["to"])
+        ? ((i["to"] as unknown[]).map((r) => (isRec(r) ? text(r["contactId"]) : "")).find((x) => x !== "") ?? "")
+        : "");
+    return {
+      to,
+      cc,
+      subject: text(i["subject"]),
+      body: text(i["text"]) || plainOf(text(i["html"])),
+      attachments: Array.isArray(i["attachments"]) ? i["attachments"].length : 0,
+      ...(contact ? { recordId: contact } : {}),
+    };
   }
   return null;
 }
 
 /** What the two buttons of a held send say: Send goes out as written, and asking for changes sends it back to the agent with the person's note. */
-export const HELD_LABELS = { approve: "Allow", send_back: "Deny" } as const;   // a held send: Allow sends it, Deny keeps it back with the reason (one approval vocabulary)
+export const HELD_LABELS = { approve: "Allow", send_back: "Deny" } as const; // a held send: Allow sends it, Deny keeps it back with the reason (one approval vocabulary)
 export function labelOf(held: HeldMail | null, a: { key: string; label: string }): string {
   if (!held) return a.label;
-  return a.key === "approve" ? HELD_LABELS.approve : a.key === "send_back" || a.key === "reject" ? HELD_LABELS.send_back : a.label;
+  return a.key === "approve"
+    ? HELD_LABELS.approve
+    : a.key === "send_back" || a.key === "reject"
+      ? HELD_LABELS.send_back
+      : a.label;
 }
 
-export interface Peek { title: string; type: string; lines: [string, string][] }
+export interface Peek {
+  title: string;
+  type: string;
+  lines: [string, string][];
+}
 const SKIP = new Set(["name", "title", "folder", "id"]);
 const label = (k: string): string => k.replaceAll("_", " ").replace(/^\w/, (c) => c.toUpperCase());
 /** A few lines of the record the draft is about: its name, and up to four of its filled fields, in the record's own order. */
@@ -44,7 +81,12 @@ export function peekOf(rec: { type: string; fields: Record<string, unknown> }, t
   const lines: [string, string][] = [];
   for (const [k, v] of Object.entries(rec.fields)) {
     if (SKIP.has(k) || k === titleField || lines.length >= 4) continue;
-    const s = typeof v === "string" || typeof v === "number" ? String(v) : isRec(v) && typeof v["amount"] === "number" ? `${v["amount"]} ${text(v["currency"])}`.trim() : "";
+    const s =
+      typeof v === "string" || typeof v === "number"
+        ? String(v)
+        : isRec(v) && typeof v["amount"] === "number"
+          ? `${v["amount"]} ${text(v["currency"])}`.trim()
+          : "";
     if (s) lines.push([label(k), s.length > 60 ? `${s.slice(0, 59)}…` : s]);
   }
   const title = text(rec.fields[titleField]) || text(rec.fields["name"]) || "Record";

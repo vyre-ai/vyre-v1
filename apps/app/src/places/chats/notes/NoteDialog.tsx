@@ -16,11 +16,28 @@ import type { Note, Who } from "./model.ts";
 import { Btn, IconBtn, LinkCard, Picture, Quote, Source, dom, pressPoint, web } from "./parts.tsx";
 
 /** The dimmed layer over the page that every sheet and the opened note sit on. A press on the dimmed area closes the top one. */
-export function Layer({ onClose, children, testID, label }: { onClose(): void; children: ReactNode; testID: string; label: string }): ReactElement {
+export function Layer({
+  onClose,
+  children,
+  testID,
+  label,
+}: {
+  onClose(): void;
+  children: ReactNode;
+  testID: string;
+  label: string;
+}): ReactElement {
   return (
     <View style={s.layer} testID={testID} {...dom({ dataSet: { nlayer: "true" } })}>
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollIn} keyboardShouldPersistTaps="handled">
-        <Pressable accessibilityLabel={`Close ${label}`} accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} testID={`${testID}-scrim`} {...dom({ tabIndex: -1 })} />
+        <Pressable
+          accessibilityLabel={`Close ${label}`}
+          accessible={false}
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+          testID={`${testID}-scrim`}
+          {...dom({ tabIndex: -1 })}
+        />
         {children}
       </ScrollView>
     </View>
@@ -47,12 +64,31 @@ export interface DialogActions {
   openFrom(threadId: string, messageId: string): void;
 }
 
-export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; askAgents: readonly AskAgent[]; a: DialogActions }): ReactElement {
+export function NoteDialog({
+  n,
+  image,
+  who,
+  edited,
+  from,
+  askAgents,
+  a,
+}: {
+  n: Note;
+  image: string | null;
+  who: Who;
+  edited: string;
+  from?: ReturnType<typeof fromLine>;
+  askAgents: readonly AskAgent[];
+  a: DialogActions;
+}): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
   const [bodyFocus, setBodyFocus] = useState(1);
   // the caret goes to the end of the text when the note opens
-  useEffect(() => { const t = setTimeout(() => setBodyFocus((k) => k + 1), 30); return () => clearTimeout(t); }, [n.noteId]);
+  useEffect(() => {
+    const t = setTimeout(() => setBodyFocus((k) => k + 1), 30);
+    return () => clearTimeout(t);
+  }, [n.noteId]);
   const words = shareWords(n, who);
   const ro = !n.canEdit;
   const menu = menuTrigger(a.menu);
@@ -62,75 +98,206 @@ export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: N
         {n.clip ? (
           <View style={s.cap} testID="note-clip-caption">
             <Ico name="clip" size={13} color="rgba(255,255,255,0.82)" />
-            <Text style={s.capText}>{`Clipped with Vyre for Chrome · ${edited.replace(/^(Clipped|Edited) /, "")}`}</Text>
+            <Text
+              style={s.capText}
+            >{`Clipped with Vyre for Chrome · ${edited.replace(/^(Clipped|Edited) /, "")}`}</Text>
           </View>
         ) : null}
-        <View role="dialog" aria-modal accessibilityLabel={n.title || "Note"} testID="note-dialog" style={[s.card, { backgroundColor: noteFill(n.color) }]}>
-          {n.hasImage ? <View {...menu}><Picture uri={image} alt={n.clip ? "Screenshot of the clipped page" : "Pasted image"} maxHeight={300} testID="note-dialog-image" /></View> : null}
+        <View
+          role="dialog"
+          aria-modal
+          accessibilityLabel={n.title || "Note"}
+          testID="note-dialog"
+          style={[s.card, { backgroundColor: noteFill(n.color) }]}
+        >
+          {n.hasImage ? (
+            <View {...menu}>
+              <Picture
+                uri={image}
+                alt={n.clip ? "Screenshot of the clipped page" : "Pasted image"}
+                maxHeight={300}
+                testID="note-dialog-image"
+              />
+            </View>
+          ) : null}
           <TextInput
-            value={title} editable={!ro} onChangeText={(v) => { setTitle(v); a.title(v); }} placeholder="Title" placeholderTextColor="var(--ink-3)" accessibilityLabel="Title" testID="note-title"
-            style={s.mt} onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); setBodyFocus((k) => k + 1); } }}
+            value={title}
+            editable={!ro}
+            onChangeText={(v) => {
+              setTitle(v);
+              a.title(v);
+            }}
+            placeholder="Title"
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel="Title"
+            testID="note-title"
+            style={s.mt}
+            onKeyPress={(e) => {
+              if ((e.nativeEvent as { key?: string }).key === "Enter") {
+                (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+                setBodyFocus((k) => k + 1);
+              }
+            }}
           />
           {/* the pin and the X sit together at the top right; Esc and a press outside close the note too, and it is saved as you type */}
           <View style={s.pin}>
-            <IconBtn icon={n.pinned ? "pinf" : "pin"} label={n.pinned ? "Unpin" : "Pin"} onPress={() => a.pin()} color={n.pinned ? "var(--ink)" : "var(--ink-3)"} over testID="note-dialog-pin" />
+            <IconBtn
+              icon={n.pinned ? "pinf" : "pin"}
+              label={n.pinned ? "Unpin" : "Pin"}
+              onPress={() => a.pin()}
+              color={n.pinned ? "var(--ink)" : "var(--ink-3)"}
+              over
+              testID="note-dialog-pin"
+            />
             <IconBtn icon="x" label="Close (Esc)" onPress={() => a.close()} over testID="note-dialog-close" />
           </View>
-          <View style={s.mbWrap}><MarkdownEditor testID="note-body" label="Note" value={body} mode={ro ? "read" : "edit"} onChange={(v) => { setBody(v); a.body(v); }} placeholder="Note" bare density="compact" minHeight={60} focusKey={bodyFocus} /></View>
+          <View style={s.mbWrap}>
+            <MarkdownEditor
+              testID="note-body"
+              label="Note"
+              value={body}
+              mode={ro ? "read" : "edit"}
+              onChange={(v) => {
+                setBody(v);
+                a.body(v);
+              }}
+              placeholder="Note"
+              bare
+              density="compact"
+              minHeight={60}
+              focusKey={bodyFocus}
+            />
+          </View>
           {/* a right-click on the text keeps the browser's menu; anywhere else it opens the note menu */}
           <View {...menu}>
-          {n.clip ? (
-            <View style={s.pad}>
-              {n.clip.selection?.trim() ? <Quote text={n.clip.selection.trim()} /> : null}
-              <Source icon="clip" url={n.clip.url}>
-                {openable(n.clip.url) ? <Pressable accessibilityRole="link" onPress={() => a.openUrl(openable(n.clip!.url)!)} testID="note-open-page" style={{ marginLeft: 6 }}><Text style={s.ref}>Open page</Text></Pressable> : null}
-              </Source>
-            </View>
-          ) : null}
-          {n.link ? <View style={[s.pad, { paddingTop: 4 }]}><LinkCard link={n.link} noteId={n.noteId} row={false} testID="note-dialog-link" /></View> : null}
-          {/* ui-rows-lint: not a list (the task or record made from this note, one line each with Open) */}
-          {n.linked.map((l) => (
-            <View key={`${l.kind}:${l.id}`} style={s.pad}>
-              <View style={s.linked}>
-                <Ico name={l.kind === "task" ? "task" : "record"} size={13} color="var(--ink-3)" />
-                <Text numberOfLines={1} style={s.linkedText}>{l.title}</Text>
-                <Pressable accessibilityRole="link" onPress={() => a.openLinked(l.kind, l.id)} testID={`note-linked-open-${l.id}`}><Text style={s.ref}>Open</Text></Pressable>
+            {n.clip ? (
+              <View style={s.pad}>
+                {n.clip.selection?.trim() ? <Quote text={n.clip.selection.trim()} /> : null}
+                <Source icon="clip" url={n.clip.url}>
+                  {openable(n.clip.url) ? (
+                    <Pressable
+                      accessibilityRole="link"
+                      onPress={() => a.openUrl(openable(n.clip!.url)!)}
+                      testID="note-open-page"
+                      style={{ marginLeft: 6 }}
+                    >
+                      <Text style={s.ref}>Open page</Text>
+                    </Pressable>
+                  ) : null}
+                </Source>
               </View>
-            </View>
-          ))}
-          {from ? (
-            <View style={s.pad}>
-              <View style={s.from} testID="note-from">
-                <Ico name="chat" size={13} color="var(--ink-3)" />
-                <Text numberOfLines={1} style={s.linkedText}>{from.text}</Text>
-                {from.open ? <Pressable accessibilityRole="link" onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)} testID="note-from-open"><Text style={s.ref}>Open message</Text></Pressable> : null}
+            ) : null}
+            {n.link ? (
+              <View style={[s.pad, { paddingTop: 4 }]}>
+                <LinkCard link={n.link} noteId={n.noteId} row={false} testID="note-dialog-link" />
               </View>
-            </View>
-          ) : null}
-          <View style={s.meta}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Labels" onPress={(e) => { const p = pressPoint(e); a.labels(p.x, p.y); }} style={s.lbx} testID="note-dialog-labels" {...dom({ dataSet: { nbtn: "ghost" } })}>
-              <Ico name="tag" size={13} color="var(--ink-3)" /><Text style={s.metaText}>{n.labels.length ? n.labels.join(", ") : "Add a label"}</Text>
-            </Pressable>
-            <Tooltip text={agentWords(n, who)}>
-              <Pressable accessibilityRole="button" accessibilityLabel={words.long} onPress={() => (n.mine ? a.share() : undefined)} style={s.lbx} testID="note-dialog-who" {...dom({ dataSet: { nbtn: "ghost" } })}>
-                <Ico name={words.icon} size={13} color="var(--ink-3)" /><Text style={s.metaText}>{words.long}</Text>
+            ) : null}
+            {/* ui-rows-lint: not a list (the task or record made from this note, one line each with Open) */}
+            {n.linked.map((l) => (
+              <View key={`${l.kind}:${l.id}`} style={s.pad}>
+                <View style={s.linked}>
+                  <Ico name={l.kind === "task" ? "task" : "record"} size={13} color="var(--ink-3)" />
+                  <Text numberOfLines={1} style={s.linkedText}>
+                    {l.title}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => a.openLinked(l.kind, l.id)}
+                    testID={`note-linked-open-${l.id}`}
+                  >
+                    <Text style={s.ref}>Open</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+            {from ? (
+              <View style={s.pad}>
+                <View style={s.from} testID="note-from">
+                  <Ico name="chat" size={13} color="var(--ink-3)" />
+                  <Text numberOfLines={1} style={s.linkedText}>
+                    {from.text}
+                  </Text>
+                  {from.open ? (
+                    <Pressable
+                      accessibilityRole="link"
+                      onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)}
+                      testID="note-from-open"
+                    >
+                      <Text style={s.ref}>Open message</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            <View style={s.meta}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Labels"
+                onPress={(e) => {
+                  const p = pressPoint(e);
+                  a.labels(p.x, p.y);
+                }}
+                style={s.lbx}
+                testID="note-dialog-labels"
+                {...dom({ dataSet: { nbtn: "ghost" } })}
+              >
+                <Ico name="tag" size={13} color="var(--ink-3)" />
+                <Text style={s.metaText}>{n.labels.length ? n.labels.join(", ") : "Add a label"}</Text>
               </Pressable>
-            </Tooltip>
-            <View style={{ flex: 1 }} />
-            <Text style={s.metaText} testID="note-edited">{edited}</Text>
-          </View>
-          {/* one row: what to do with the note, then colour, image, share and more (labels are the chip above) */}
-          <View style={s.acts}>
-            {/* the one Ask control, as everywhere else: the face of the agent, Ask, and a chevron that picks the agent. It opens the Ask pane with this note attached */}
-            <AskButton place="notes" context={{ kind: "note", id: n.noteId, title: n.title || "Note", access: n.canEdit ? "edit" : "view" }} agents={askAgents} onAsk={(agent) => a.ask(agent.id)} testID="note-dialog-ask" />
-            <Btn label="Turn into task" icon="task" sm onPress={() => a.task()} title="Turn into a task (T)" testID="note-dialog-task" />
-            <Btn label="Turn into record" icon="record" sm onPress={() => a.record()} title="Turn into a record (R)" testID="note-dialog-record" />
-            <View style={{ flex: 1 }} />
-            {ro ? null : <IconBtn icon="palette" label="Colour" onPress={a.colour} testID="note-dialog-colour" />}
-            {ro ? null : <IconBtn icon="image" label="Add an image" onPress={() => a.image()} testID="note-dialog-image-btn" />}
-            {n.mine ? <IconBtn icon="share" label="Share" onPress={() => a.share()} testID="note-dialog-share" /> : null}
-            <IconBtn icon="more" label="More" onPress={a.menu} testID="note-dialog-more" />
-          </View>
+              <Tooltip text={agentWords(n, who)}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={words.long}
+                  onPress={() => (n.mine ? a.share() : undefined)}
+                  style={s.lbx}
+                  testID="note-dialog-who"
+                  {...dom({ dataSet: { nbtn: "ghost" } })}
+                >
+                  <Ico name={words.icon} size={13} color="var(--ink-3)" />
+                  <Text style={s.metaText}>{words.long}</Text>
+                </Pressable>
+              </Tooltip>
+              <View style={{ flex: 1 }} />
+              <Text style={s.metaText} testID="note-edited">
+                {edited}
+              </Text>
+            </View>
+            {/* one row: what to do with the note, then colour, image, share and more (labels are the chip above) */}
+            <View style={s.acts}>
+              {/* the one Ask control, as everywhere else: the face of the agent, Ask, and a chevron that picks the agent. It opens the Ask pane with this note attached */}
+              <AskButton
+                place="notes"
+                context={{ kind: "note", id: n.noteId, title: n.title || "Note", access: n.canEdit ? "edit" : "view" }}
+                agents={askAgents}
+                onAsk={(agent) => a.ask(agent.id)}
+                testID="note-dialog-ask"
+              />
+              <Btn
+                label="Turn into task"
+                icon="task"
+                sm
+                onPress={() => a.task()}
+                title="Turn into a task (T)"
+                testID="note-dialog-task"
+              />
+              <Btn
+                label="Turn into record"
+                icon="record"
+                sm
+                onPress={() => a.record()}
+                title="Turn into a record (R)"
+                testID="note-dialog-record"
+              />
+              <View style={{ flex: 1 }} />
+              {ro ? null : <IconBtn icon="palette" label="Colour" onPress={a.colour} testID="note-dialog-colour" />}
+              {ro ? null : (
+                <IconBtn icon="image" label="Add an image" onPress={() => a.image()} testID="note-dialog-image-btn" />
+              )}
+              {n.mine ? (
+                <IconBtn icon="share" label="Share" onPress={() => a.share()} testID="note-dialog-share" />
+              ) : null}
+              <IconBtn icon="more" label="More" onPress={a.menu} testID="note-dialog-more" />
+            </View>
           </View>
         </View>
       </View>
@@ -139,24 +306,95 @@ export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: N
 }
 
 const s = StyleSheet.create({
-  layer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: "var(--n-scrim)" as string, ...(web ? ({ backdropFilter: "blur(3px)" } as object) : null) },
+  layer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    backgroundColor: "var(--n-scrim)" as string,
+    ...(web ? ({ backdropFilter: "blur(3px)" } as object) : null),
+  },
   scroll: { flex: 1 },
   scrollIn: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: 24, paddingHorizontal: 24 },
   stack: { width: "100%", maxWidth: 620, alignItems: "center" },
   cap: { width: "100%", flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   capText: { fontSize: 12, color: "rgba(255,255,255,0.82)" },
-  card: { width: "100%", borderRadius: 16, overflow: "hidden", position: "relative", ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null) },
-  mt: { width: "100%", fontSize: 20, lineHeight: 27, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string, paddingTop: 18, paddingRight: 84, paddingLeft: 20, paddingBottom: 4, ...(web ? ({ outlineStyle: "none" } as object) : null) },
+  card: {
+    width: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    position: "relative",
+    ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null),
+  },
+  mt: {
+    width: "100%",
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+    color: "var(--ink)" as string,
+    paddingTop: 18,
+    paddingRight: 84,
+    paddingLeft: 20,
+    paddingBottom: 4,
+    ...(web ? ({ outlineStyle: "none" } as object) : null),
+  },
   pin: { position: "absolute", top: 12, right: 12, flexDirection: "row", gap: 2, zIndex: 2 },
   mbWrap: { paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8 },
-  mb: { width: "100%", fontSize: 15, lineHeight: 24, color: "var(--ink)" as string, paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
+  mb: {
+    width: "100%",
+    fontSize: 15,
+    lineHeight: 24,
+    color: "var(--ink)" as string,
+    paddingTop: 6,
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null),
+  },
   pad: { paddingHorizontal: 20 },
   ref: { fontSize: 11.5, color: "var(--accent)" as string },
   from: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
-  linked: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  linked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   linkedText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
-  meta: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 },
-  lbx: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 6, marginLeft: -6, borderRadius: 6 },
+  meta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  lbx: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 24,
+    paddingHorizontal: 6,
+    marginLeft: -6,
+    borderRadius: 6,
+  },
   metaText: { fontSize: 12, color: "var(--ink-3)" as string },
-  acts: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 10 },
+  acts: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+    marginTop: 10,
+  },
 });

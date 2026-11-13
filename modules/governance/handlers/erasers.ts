@@ -15,7 +15,10 @@ const missingCap = (e: unknown): boolean => codeOf(e) === "validation.unknown_ca
 /** The pipeline answers a resource-bound call on something that does not exist as permission.not_found (existence is not leaked); for an erase both mean there is nothing left to remove. */
 const gone = (e: unknown): boolean => codeOf(e) === "validation.not_found" || codeOf(e) === "permission.not_found";
 
-interface Eraser { cap: string; input(type: string, id: string, key: string): Record<string, unknown> }
+interface Eraser {
+  cap: string;
+  input(type: string, id: string, key: string): Record<string, unknown>;
+}
 /** One eraser per kind and item type. `key` is a stable idempotency key, so a replay after a restore is one call. */
 const ERASERS: Readonly<Record<string, Eraser>> = {
   "records:*": { cap: "records.purge", input: (type, id, key) => ({ type, recordId: id, idempotencyKey: key }) },
@@ -28,10 +31,17 @@ const ERASERS: Readonly<Record<string, Eraser>> = {
   "runs:*": { cap: "runs.erase", input: (_t, id, key) => ({ runId: id, idempotencyKey: key }) },
 };
 
-const eraserFor = (kind: EraseKind, type: string): Eraser | undefined => ERASERS[`${kind}:${type}`] ?? ERASERS[`${kind}:*`];
+const eraserFor = (kind: EraseKind, type: string): Eraser | undefined =>
+  ERASERS[`${kind}:${type}`] ?? ERASERS[`${kind}:*`];
 
 /** Remove one item. Safe to call again: an item that is already gone is `gone`, not a failure. Anything else a store refuses is thrown (a hold is the caller's check, made before). */
-export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: string, reason: string): Promise<Outcome> {
+export async function eraseItem(
+  ctx: GovCtx,
+  kind: EraseKind,
+  type: string,
+  id: string,
+  reason: string,
+): Promise<Outcome> {
   const key = `gov-erase:${kind}:${type}:${id}`;
   try {
     if (kind === "files") {
@@ -44,7 +54,11 @@ export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: 
       return done["erased"] === 0 ? "gone" : "erased";
     }
     if (kind === "records") {
-      try { await ctx.call("records.delete", { type, recordId: id }); } catch (e) { if (!gone(e)) throw e; }   // out of every view first; already in Trash is fine
+      try {
+        await ctx.call("records.delete", { type, recordId: id });
+      } catch (e) {
+        if (!gone(e)) throw e;
+      } // out of every view first; already in Trash is fine
     }
     const e = eraserFor(kind, type);
     if (!e) return "no_eraser";
@@ -59,9 +73,15 @@ export async function eraseItem(ctx: GovCtx, kind: EraseKind, type: string, id: 
 
 // ---- purgers (retention)
 
-export type Purged = { kind: Kind; status: "purged"; removed: number; skipped?: number } | { kind: Kind; status: "no_purger" } | { kind: Kind; status: "kept"; why: string };
+export type Purged =
+  | { kind: Kind; status: "purged"; removed: number; skipped?: number }
+  | { kind: Kind; status: "no_purger" }
+  | { kind: Kind; status: "kept"; why: string };
 
-interface Purger { cap: string; input(before: number, key: string): Record<string, unknown> }
+interface Purger {
+  cap: string;
+  input(before: number, key: string): Record<string, unknown>;
+}
 /** One purger per retention kind that removes by age. `trash` and `audit` already have theirs in retention.ts (files.purge and audit.archive); `backups` uses backup.list and backup.delete. */
 const PURGERS: Readonly<Partial<Record<Kind, Purger>>> = {
   run_logs: { cap: "runs.purge", input: (before, key) => ({ before, limit: 500, idempotencyKey: key }) },
@@ -74,11 +94,18 @@ const PURGERS: Readonly<Partial<Record<Kind, Purger>>> = {
 const MAX_BATCHES = 50;
 
 /** Remove everything of `kind` older than `before` (epoch ms), a batch at a time. `day` makes the idempotency key one per kind and day, so a job that runs twice in a day is the same call. */
-export async function purgeKind(ctx: GovCtx, kind: Kind, before: number, day: string, extra: Record<string, unknown> = {}): Promise<Purged> {
+export async function purgeKind(
+  ctx: GovCtx,
+  kind: Kind,
+  before: number,
+  day: string,
+  extra: Record<string, unknown> = {},
+): Promise<Purged> {
   if (kind === "backups") return purgeBackups(ctx, before);
   const p = PURGERS[kind];
   if (!p) return { kind, status: "no_purger" };
-  let removed = 0, skipped = 0;
+  let removed = 0,
+    skipped = 0;
   try {
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
       const out = obj(await ctx.call(p.cap, { ...p.input(before, `gov-purge:${kind}:${day}:${batch}`), ...extra }));
@@ -104,7 +131,9 @@ async function purgeBackups(ctx: GovCtx, before: number): Promise<Purged> {
     cursor = typeof out["next"] === "string" ? out["next"] : undefined;
     if (!cursor) break;
   }
-  const byAge = rows.filter((b) => typeof b["at"] === "number").sort((a, b) => (b["at"] as number) - (a["at"] as number));
+  const byAge = rows
+    .filter((b) => typeof b["at"] === "number")
+    .sort((a, b) => (b["at"] as number) - (a["at"] as number));
   const keep = text((byAge.find((b) => b["verified"] === true) ?? byAge[0])?.["backupId"]);
   let removed = 0;
   for (const b of byAge) {

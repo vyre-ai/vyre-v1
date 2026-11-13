@@ -39,10 +39,16 @@ test("shell device key: the page gets a public key and a marker, never bytes, an
   const peer = /** @type {CryptoKeyPair} */ (await subtle.generateKey(X, false, ["deriveBits"]));
   const remote = new Uint8Array(await subtle.exportKey("raw", peer.publicKey));
   const mine = await c.dh(kp.privateKey, remote);
-  const theirs = new Uint8Array(await subtle.deriveBits({ name: "X25519", public: await subtle.importKey("raw", kp.publicKey, X, true, []) }, peer.privateKey, 256));
+  const theirs = new Uint8Array(
+    await subtle.deriveBits(
+      { name: "X25519", public: await subtle.importKey("raw", kp.publicKey, X, true, []) },
+      peer.privateKey,
+      256,
+    ),
+  );
   assert.deepEqual(mine, theirs, "the shell's DH is the X25519 the peer computes");
   assert.deepEqual(shell.calls, ["device_key_pub", "device_key_dh"]);
-  await keyStore.set(kp);   // a no-op: nothing to keep here
+  await keyStore.set(kp); // a no-op: nothing to keep here
   const fresh = await c.generateKeyPair();
   assert.equal((await c.dh(fresh.privateKey, remote)).length, 32, "a raw key still goes to the ordinary provider");
 });
@@ -50,7 +56,10 @@ test("shell device key: the page gets a public key and a marker, never bytes, an
 test("shell device key: a shell that answers nonsense is refused", async () => {
   const bad = shellDeviceKey(async () => "AAAA", { crypto });
   await assert.rejects(bad.keyStore.get(), /no device key/);
-  const kp = shellDeviceKey(async cmd => (cmd === "device_key_pub" ? base64url(new Uint8Array(32).fill(7)) : "AAAA"), { crypto });
+  const kp = shellDeviceKey(
+    async (cmd) => (cmd === "device_key_pub" ? base64url(new Uint8Array(32).fill(7)) : "AAAA"),
+    { crypto },
+  );
   const k = await kp.keyStore.get();
   assert.ok(k);
   await assert.rejects(kp.crypto.dh(k.privateKey, new Uint8Array(32).fill(9)), /no shared secret/);
@@ -63,8 +72,19 @@ test("shell device key: a box admits the shell's key, and the channel opens with
   const box = await crypto.generateKeyPair();
   /** @type {Uint8Array[]} */
   const seen = [];
-  const { dch, bch } = await link(c, { box, device, admit: async pub => { seen.push(pub); return { ok: true }; } });
+  const { dch, bch } = await link(c, {
+    box,
+    device,
+    admit: async (pub) => {
+      seen.push(pub);
+      return { ok: true };
+    },
+  });
   assert.deepEqual(seen[0], shell.publicKey, "the box saw the shell's public key");
-  assert.equal(shell.calls.filter(x => x === "device_key_dh").length >= 2, true, "both handshake DHs that use the static key went to the shell");
+  assert.equal(
+    shell.calls.filter((x) => x === "device_key_dh").length >= 2,
+    true,
+    "both handshake DHs that use the static key went to the shell",
+  );
   assert.equal(dch.closed || bch.closed, false);
 });

@@ -2,11 +2,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyScheduleChoice, canonicalSchedule, clampBackfill, compilePreset, nextOccurrences, planSchedule, scheduleRequestKey, summarizeCron, tickId,
+  applyScheduleChoice,
+  canonicalSchedule,
+  clampBackfill,
+  compilePreset,
+  nextOccurrences,
+  planSchedule,
+  scheduleRequestKey,
+  summarizeCron,
+  tickId,
 } from "./index.ts";
 import type { AutomationSchedule, PlanContext } from "./index.ts";
 import {
-  SCHEDULE_FIRE_CAPABILITY, deliverScheduleNeedsYou, loadOpenScheduleKeys, scheduleRequestKey as hostRequestKey, startScheduledTicks,
+  SCHEDULE_FIRE_CAPABILITY,
+  deliverScheduleNeedsYou,
+  loadOpenScheduleKeys,
+  scheduleRequestKey as hostRequestKey,
+  startScheduledTicks,
 } from "../../../host/src/seams/automation-schedule.ts";
 
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0, s = 0): number => Date.UTC(y, mo - 1, d, h, mi, s);
@@ -30,7 +42,14 @@ function schedule(over: Partial<AutomationSchedule> & Pick<AutomationSchedule, "
 }
 
 function ctx(over: Partial<PlanContext> = {}): PlanContext {
-  return { now: utc(2026, 1, 5, 14, 30), cursor: utc(2026, 1, 5, 9, 0), ownerId: OWNER, sharedRecipientIds: [SHARED], onTimeMs: 60_000, ...over };
+  return {
+    now: utc(2026, 1, 5, 14, 30),
+    cursor: utc(2026, 1, 5, 9, 0),
+    ownerId: OWNER,
+    sharedRecipientIds: [SHARED],
+    onTimeMs: 60_000,
+    ...over,
+  };
 }
 
 const DUE = [10, 11, 12, 13, 14].map((h) => utc(2026, 1, 5, h, 0));
@@ -41,8 +60,18 @@ test("next five runs in a named time zone, and a preset stores the same cron", (
   if (!preset.ok) return;
   assert.equal(preset.cron, "0 9 * * 1-5");
   assert.equal(summarizeCron(preset.cron), "Weekdays at 09:00");
-  const advanced = canonicalSchedule({ automationId: AUTOMATION, timezone: "Asia/Karachi", missed: "skip", cron: "0 9 * * 1-5" });
-  const friendly = canonicalSchedule({ automationId: AUTOMATION, timezone: "Asia/Karachi", missed: "skip", preset: { kind: "weekdays", hour: 9, minute: 0 } });
+  const advanced = canonicalSchedule({
+    automationId: AUTOMATION,
+    timezone: "Asia/Karachi",
+    missed: "skip",
+    cron: "0 9 * * 1-5",
+  });
+  const friendly = canonicalSchedule({
+    automationId: AUTOMATION,
+    timezone: "Asia/Karachi",
+    missed: "skip",
+    preset: { kind: "weekdays", hour: 9, minute: 0 },
+  });
   assert.equal(advanced.ok && friendly.ok && advanced.schedule.cron, friendly.ok ? friendly.schedule.cron : "");
   const after = utc(2025, 10, 10, 12, 0); // Friday afternoon UTC, after 09:00 in Karachi
   const next = nextOccurrences(preset.cron, "Asia/Karachi", after, 5);
@@ -102,9 +131,15 @@ test("skip drops a late gap, run once starts the latest, backfill starts each ti
   if (!skipped.ok || !once.ok || !each.ok) return;
   assert.deepEqual(skipped.plan.ticks, []);
   assert.equal(skipped.plan.cursor, DUE[4]);
-  assert.deepEqual(once.plan.ticks.map((t) => t.fireAt), [DUE[4]]);
+  assert.deepEqual(
+    once.plan.ticks.map((t) => t.fireAt),
+    [DUE[4]],
+  );
   assert.equal(once.plan.ticks[0]!.tickId, tickId(AUTOMATION, DUE[4]!));
-  assert.deepEqual(each.plan.ticks.map((t) => t.fireAt), DUE);
+  assert.deepEqual(
+    each.plan.ticks.map((t) => t.fireAt),
+    DUE,
+  );
   assert.equal(each.plan.paused, false);
 
   const onTime = ctx({ now: utc(2026, 1, 5, 14, 0, 30), cursor: utc(2026, 1, 5, 13, 0) });
@@ -112,13 +147,23 @@ test("skip drops a late gap, run once starts the latest, backfill starts each ti
     const plan = planSchedule(schedule({ missed }), onTime);
     assert.equal(plan.ok, true);
     if (!plan.ok) return;
-    assert.deepEqual(plan.plan.ticks.map((t) => t.fireAt), [utc(2026, 1, 5, 14, 0)], missed);
+    assert.deepEqual(
+      plan.plan.ticks.map((t) => t.fireAt),
+      [utc(2026, 1, 5, 14, 0)],
+      missed,
+    );
   }
 
-  const looked = planSchedule(schedule({ missed: "backfill_each_tick", lookbackMs: HOUR }), ctx({ cursor: utc(2026, 1, 1, 0, 0) }));
+  const looked = planSchedule(
+    schedule({ missed: "backfill_each_tick", lookbackMs: HOUR }),
+    ctx({ cursor: utc(2026, 1, 1, 0, 0) }),
+  );
   assert.equal(looked.ok, true);
   if (!looked.ok) return;
-  assert.deepEqual(looked.plan.ticks.map((t) => t.fireAt), [DUE[4]]);
+  assert.deepEqual(
+    looked.plan.ticks.map((t) => t.fireAt),
+    [DUE[4]],
+  );
 });
 
 test("a backlog over the cap pauses the schedule and returns one request key", () => {
@@ -146,12 +191,21 @@ test("a backlog over the cap pauses the schedule and returns one request key", (
   assert.deepEqual(request.followers, [SHARED]);
   assert.deepEqual(request.preview, DUE);
   assert.equal(request.backlogCount, 5);
-  assert.deepEqual(request.notifications.map((n) => n.collapseKey), [key, key]);
+  assert.deepEqual(
+    request.notifications.map((n) => n.collapseKey),
+    [key, key],
+  );
   for (const choice of ["run_latest_n", "skip_backlog_and_resume", "change_limits", "keep_paused"]) {
-    assert.ok(request.choices.some((c) => c.key === choice), choice);
+    assert.ok(
+      request.choices.some((c) => c.key === choice),
+      choice,
+    );
   }
 
-  const second = planSchedule(schedule({ missed: "backfill_each_tick", cap: 3 }), ctx({ openRequestKeys: new Set([key]) }));
+  const second = planSchedule(
+    schedule({ missed: "backfill_each_tick", cap: 3 }),
+    ctx({ openRequestKeys: new Set([key]) }),
+  );
   assert.equal(second.ok, true);
   if (!second.ok) return;
   assert.equal(second.plan.request, undefined);
@@ -165,14 +219,29 @@ test("a backlog over the cap pauses the schedule and returns one request key", (
   assert.equal(fits.plan.paused, false);
   assert.equal(fits.plan.ticks.length, 5);
 
-  const latest = applyScheduleChoice(schedule({ missed: "backfill_each_tick", cap: 3 }), DUE, new Set(), "run_latest_n", { n: 2, now: utc(2026, 1, 5, 14, 30), cursor: utc(2026, 1, 5, 9, 0) });
+  const latest = applyScheduleChoice(
+    schedule({ missed: "backfill_each_tick", cap: 3 }),
+    DUE,
+    new Set(),
+    "run_latest_n",
+    { n: 2, now: utc(2026, 1, 5, 14, 30), cursor: utc(2026, 1, 5, 9, 0) },
+  );
   assert.equal(latest.ok, true);
   if (!latest.ok) return;
   assert.equal(latest.paused, false);
   assert.equal(latest.clearRequest, true);
-  assert.deepEqual(latest.ticks.map((t) => t.fireAt), [DUE[3], DUE[4]]);
+  assert.deepEqual(
+    latest.ticks.map((t) => t.fireAt),
+    [DUE[3], DUE[4]],
+  );
   assert.equal(latest.skippedTickIds.length, 3);
-  const resume = applyScheduleChoice(schedule({ missed: "backfill_each_tick", cap: 3 }), DUE, new Set(), "skip_backlog_and_resume", { now: utc(2026, 1, 5, 14, 30), cursor: utc(2026, 1, 5, 9, 0) });
+  const resume = applyScheduleChoice(
+    schedule({ missed: "backfill_each_tick", cap: 3 }),
+    DUE,
+    new Set(),
+    "skip_backlog_and_resume",
+    { now: utc(2026, 1, 5, 14, 30), cursor: utc(2026, 1, 5, 9, 0) },
+  );
   assert.equal(resume.ok, true);
   if (!resume.ok) return;
   assert.deepEqual(resume.ticks, []);
@@ -192,26 +261,41 @@ test("a tick id that already started is ignored", () => {
   const plan = planSchedule(schedule({ missed: "backfill_each_tick" }), ctx({ startedTickIds: new Set([claimed]) }));
   assert.equal(plan.ok, true);
   if (!plan.ok) return;
-  assert.deepEqual(plan.plan.ticks.map((t) => t.fireAt), [DUE[0], DUE[1], DUE[3], DUE[4]]);
+  assert.deepEqual(
+    plan.plan.ticks.map((t) => t.fireAt),
+    [DUE[0], DUE[1], DUE[3], DUE[4]],
+  );
   assert.ok(plan.plan.ticks.every((t) => t.tickId !== claimed));
 });
 
 test("spacing holds the rest, and overlap skip drops ticks while a run is active", () => {
   const now = utc(2026, 1, 5, 14, 30);
-  const held = planSchedule(schedule({ missed: "backfill_each_tick", spacingMs: 10 * 60_000 }), ctx({ lastStartedAt: now - 1000 }));
+  const held = planSchedule(
+    schedule({ missed: "backfill_each_tick", spacingMs: 10 * 60_000 }),
+    ctx({ lastStartedAt: now - 1000 }),
+  );
   assert.equal(held.ok, true);
   if (!held.ok) return;
   assert.deepEqual(held.plan.ticks, []);
   assert.equal(held.plan.cursor, utc(2026, 1, 5, 9, 0));
   assert.equal(held.plan.paused, false);
 
-  const one = planSchedule(schedule({ missed: "backfill_each_tick", spacingMs: 10 * 60_000 }), ctx({ lastStartedAt: now - 10 * 60_000 }));
+  const one = planSchedule(
+    schedule({ missed: "backfill_each_tick", spacingMs: 10 * 60_000 }),
+    ctx({ lastStartedAt: now - 10 * 60_000 }),
+  );
   assert.equal(one.ok, true);
   if (!one.ok) return;
-  assert.deepEqual(one.plan.ticks.map((t) => t.fireAt), [DUE[0]]);
+  assert.deepEqual(
+    one.plan.ticks.map((t) => t.fireAt),
+    [DUE[0]],
+  );
   assert.equal(one.plan.cursor, DUE[0]);
 
-  const overlap = planSchedule(schedule({ missed: "backfill_each_tick", overlap: "skip_while_active" }), ctx({ activeRunCount: 1 }));
+  const overlap = planSchedule(
+    schedule({ missed: "backfill_each_tick", overlap: "skip_while_active" }),
+    ctx({ activeRunCount: 1 }),
+  );
   assert.equal(overlap.ok, true);
   if (!overlap.ok) return;
   assert.deepEqual(overlap.plan.ticks, []);
@@ -232,9 +316,18 @@ test("the host seam fires automations.fire in order and does not open a second N
     { automationId: AUTOMATION, tickId: tickId(AUTOMATION, DUE[1]!), fireAt: DUE[1]! },
     { automationId: AUTOMATION, tickId: tickId(AUTOMATION, DUE[0]!), fireAt: DUE[0]! },
   ];
-  const claim = { claim(id: string): boolean { if (held.has(id)) return false; held.add(id); return true; } };
+  const claim = {
+    claim(id: string): boolean {
+      if (held.has(id)) return false;
+      held.add(id);
+      return true;
+    },
+  };
   const first = await startScheduledTicks(call, ticks, { now: utc(2026, 1, 5, 14, 30), cron: "0 * * * *", claim });
-  assert.deepEqual(first.started.map((t) => t.fireAt), [DUE[0], DUE[1]]);
+  assert.deepEqual(
+    first.started.map((t) => t.fireAt),
+    [DUE[0], DUE[1]],
+  );
   assert.equal(calls[0]!.cap, SCHEDULE_FIRE_CAPABILITY);
   assert.equal(calls[0]!.input.idempotencyKey, ticks[1]!.tickId);
   assert.equal(calls[0]!.input.trigger, "schedule");
@@ -256,15 +349,25 @@ test("the host seam fires automations.fire in order and does not open a second N
   assert.equal(created[0]!.input.idempotencyKey, planned.plan.request.dedupKey);
   assert.equal(created[1]!.cap, "tasks.followers.add");
   assert.equal(created.filter((c) => c.cap === "notifications.send").length, 2);
-  assert.ok(created.filter((c) => c.cap === "notifications.send").every((c) => c.input.collapseKey === planned.plan.request!.dedupKey));
+  assert.ok(
+    created
+      .filter((c) => c.cap === "notifications.send")
+      .every((c) => c.input.collapseKey === planned.plan.request!.dedupKey),
+  );
   const repeat = await deliverScheduleNeedsYou(call, planned.plan.request, new Set([planned.plan.request.dedupKey]));
   assert.equal(repeat.created, false);
   assert.equal(calls.length, before + created.length);
 
   const heldFail = new Set<string>();
   const claimFail = {
-    claim(id: string): boolean { if (heldFail.has(id)) return false; heldFail.add(id); return true; },
-    release(id: string): void { heldFail.delete(id); },
+    claim(id: string): boolean {
+      if (heldFail.has(id)) return false;
+      heldFail.add(id);
+      return true;
+    },
+    release(id: string): void {
+      heldFail.delete(id);
+    },
   };
   let boom = true;
   const failing = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {

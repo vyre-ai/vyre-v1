@@ -17,7 +17,8 @@ export function agentOfName(personName: string, kind: "assistant" | "outside"): 
 }
 
 /** Does this name already say whose agent it is ("Maya’s Assistant", "Maya Lin (Agent)")? Then nothing more is added to it. */
-export const namesItsPerson = (name: string): boolean => / \(Agent\)$/.test(name) || /[’']s? Assistant$/.test(name) || name === "Assistant";
+export const namesItsPerson = (name: string): boolean =>
+  / \(Agent\)$/.test(name) || /[’']s? Assistant$/.test(name) || name === "Assistant";
 
 /** A line that marks an agent ("Edited by Dex (Agent)"), without marking one twice ("Maya’s Assistant", never "Maya’s Assistant (Agent)"). */
 export const markedAgent = (name: string): string => (namesItsPerson(name) ? name : `${name} (Agent)`);
@@ -26,8 +27,14 @@ export const markedAgent = (name: string): string => (namesItsPerson(name) ? nam
  * An agent that acted for a person, as every credit says it (lead, 12 Nov: one name everywhere). The reader's directory already names it: someone else's Assistant "Maya’s Assistant", their
  * outside agent "Maya Lin (Agent)", the reader's own agents by their own names. Only an agent the directory does not know is named here, from its person.
  */
-export function agentForPerson(agentId: string, personId: string, o: { nameOf(id: string): string; known(id: string): boolean; assistant?: boolean }): string {
-  return o.known(agentId) ? o.nameOf(agentId) : agentOfName(o.nameOf(personId), o.assistant === true ? "assistant" : "outside");
+export function agentForPerson(
+  agentId: string,
+  personId: string,
+  o: { nameOf(id: string): string; known(id: string): boolean; assistant?: boolean },
+): string {
+  return o.known(agentId)
+    ? o.nameOf(agentId)
+    : agentOfName(o.nameOf(personId), o.assistant === true ? "assistant" : "outside");
 }
 
 /** A name the server gave someone else's agent, which already says whose it is ("Maya’s Assistant", "Maya Lin (Agent)"); a bare "Assistant" is the reader's own word for their own, never this. */

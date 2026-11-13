@@ -6,14 +6,30 @@
 import type { ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
-export interface LearnHost { call: Call; log?: (msg: string, attrs?: Record<string, unknown>) => void }
+export interface LearnHost {
+  call: Call;
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
+}
 
 /** The input memory.capture gets for a completed turn, or null when the turn teaches nothing. */
 export function learnInput(turn: Readonly<TurnRow>, account: ResolvedAccount | null): Record<string, unknown> | null {
   if (turn.state !== "completed" || turn.routine || !turn.asker.startsWith("usr")) return null;
   return {
-    threadId: turn.threadId, reason: "turn", turnId: turn.id, agentId: turn.agentId,
-    ...(account ? { account: { ref: account.ref, driver: account.driver, kind: account.kind, payer: account.payer, ...(account.spaceKey ? { spaceKey: true } : {}) } } : {}),
+    threadId: turn.threadId,
+    reason: "turn",
+    turnId: turn.id,
+    agentId: turn.agentId,
+    ...(account
+      ? {
+          account: {
+            ref: account.ref,
+            driver: account.driver,
+            kind: account.kind,
+            payer: account.payer,
+            ...(account.spaceKey ? { spaceKey: true } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -21,9 +37,18 @@ export function learnInput(turn: Readonly<TurnRow>, account: ResolvedAccount | n
 export function learnAfterTurn(h: LearnHost, turn: Readonly<TurnRow>, account: ResolvedAccount | null): boolean {
   const input = learnInput(turn, account);
   if (!input) return false;
-  const said = (e: unknown): void => h.log?.("memory did not learn from a turn", { threadId: turn.threadId, turnId: turn.id, error: e instanceof Error ? e.message : String(e) });
+  const said = (e: unknown): void =>
+    h.log?.("memory did not learn from a turn", {
+      threadId: turn.threadId,
+      turnId: turn.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
   const go = (): void => {
-    try { void h.call("memory.capture", input, turn.asker).catch(said); } catch (e) { said(e); }
+    try {
+      void h.call("memory.capture", input, turn.asker).catch(said);
+    } catch (e) {
+      said(e);
+    }
   };
   setTimeout(go, 0);
   return true;
@@ -34,9 +59,30 @@ export function titleAfterTurn(h: LearnHost, turn: Readonly<TurnRow>, account: R
   if (turn.state !== "completed" || turn.routine || !turn.asker.startsWith("usr")) return false;
   const input = {
     threadId: turn.threadId,
-    ...(account ? { account: { ref: account.ref, driver: account.driver, kind: account.kind, payer: account.payer, ...(account.spaceKey ? { spaceKey: true } : {}) } } : {}),
+    ...(account
+      ? {
+          account: {
+            ref: account.ref,
+            driver: account.driver,
+            kind: account.kind,
+            payer: account.payer,
+            ...(account.spaceKey ? { spaceKey: true } : {}),
+          },
+        }
+      : {}),
   };
-  const said = (e: unknown): void => h.log?.("a chat was not titled after a turn", { threadId: turn.threadId, turnId: turn.id, error: e instanceof Error ? e.message : String(e) });
-  setTimeout(() => { try { void h.call("chat.title_make", input, turn.asker).catch(said); } catch (e) { said(e); } }, 0);
+  const said = (e: unknown): void =>
+    h.log?.("a chat was not titled after a turn", {
+      threadId: turn.threadId,
+      turnId: turn.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  setTimeout(() => {
+    try {
+      void h.call("chat.title_make", input, turn.asker).catch(said);
+    } catch (e) {
+      said(e);
+    }
+  }, 0);
   return true;
 }

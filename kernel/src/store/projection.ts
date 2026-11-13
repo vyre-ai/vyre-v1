@@ -55,12 +55,30 @@ const PAGE = 1000;
 
 export function makeTx(db: DatabaseSync): Tx {
   const cache = new Map<string, StatementSync>();
-  const st = (sql: string): StatementSync => { let s = cache.get(sql); if (!s) { s = db.prepare(sql); cache.set(sql, s); } return s; };
+  const st = (sql: string): StatementSync => {
+    let s = cache.get(sql);
+    if (!s) {
+      s = db.prepare(sql);
+      cache.set(sql, s);
+    }
+    return s;
+  };
   return {
-    run: (sql, ...a) => { const r = st(sql).run(...a); return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) }; },
-    get: <T,>(sql: string, ...a: any[]) => { const r = st(sql).get(...a); return r === undefined ? undefined : ({ ...r } as T); },
-    all: <T,>(sql: string, ...a: any[]) => st(sql).all(...a).map((r) => ({ ...r }) as T),
-    exec: (sql) => { db.exec(sql); },
+    run: (sql, ...a) => {
+      const r = st(sql).run(...a);
+      return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) };
+    },
+    get: <T>(sql: string, ...a: any[]) => {
+      const r = st(sql).get(...a);
+      return r === undefined ? undefined : ({ ...r } as T);
+    },
+    all: <T>(sql: string, ...a: any[]) =>
+      st(sql)
+        .all(...a)
+        .map((r) => ({ ...r }) as T),
+    exec: (sql) => {
+      db.exec(sql);
+    },
   };
 }
 
@@ -76,7 +94,12 @@ export interface HostOptions {
   clock?: () => number;
 }
 
-export interface PumpResult { name: string; processed: number; cursor: number; error?: string }
+export interface PumpResult {
+  name: string;
+  processed: number;
+  cursor: number;
+  error?: string;
+}
 
 export class ProjectionHost {
   readonly store: LogStore;
@@ -91,7 +114,10 @@ export class ProjectionHost {
 
   constructor(o: HostOptions) {
     const names = new Set<string>();
-    for (const d of o.projections) { if (names.has(d.name)) throw new Error(`projection ${d.name} registered twice`); names.add(d.name); }
+    for (const d of o.projections) {
+      if (names.has(d.name)) throw new Error(`projection ${d.name} registered twice`);
+      names.add(d.name);
+    }
     this.raw = o.db;
     this.defs = o.projections;
     this.inline = o.projections.filter((p): p is InlineProjection => p.mode === "inline");
@@ -102,7 +128,12 @@ export class ProjectionHost {
   }
 
   static open(o: { path: string; space: string; projections: ProjectionDef[]; clock?: () => number }): ProjectionHost {
-    return new ProjectionHost({ db: new DatabaseSync(o.path), space: o.space, projections: o.projections, ...(o.clock ? { clock: o.clock } : {}) });
+    return new ProjectionHost({
+      db: new DatabaseSync(o.path),
+      space: o.space,
+      projections: o.projections,
+      ...(o.clock ? { clock: o.clock } : {}),
+    });
   }
 
   /** The same connection, except that COMMIT first folds the batch through the inline reducers. A reducer that throws leaves the transaction open for the log store's own ROLLBACK. */
@@ -139,7 +170,11 @@ export class ProjectionHost {
       const h = p.on[e.type];
       if (!h) continue;
       const r = h(this.tx, e) as unknown;
-      if (r && typeof (r as { then?: unknown }).then === "function") throw new LogError("internal", `inline reducer ${p.name} for ${e.type} returned a promise; inline reducers are synchronous`);
+      if (r && typeof (r as { then?: unknown }).then === "function")
+        throw new LogError(
+          "internal",
+          `inline reducer ${p.name} for ${e.type} returned a promise; inline reducers are synchronous`,
+        );
     }
   }
 
@@ -160,7 +195,18 @@ export class ProjectionHost {
 
   private inTxn<T>(f: () => T): T {
     this.raw.exec("BEGIN IMMEDIATE");
-    try { const r = f(); this.raw.exec("COMMIT"); return r; } catch (e) { try { this.raw.exec("ROLLBACK"); } catch { /* already rolled back */ } throw e; }
+    try {
+      const r = f();
+      this.raw.exec("COMMIT");
+      return r;
+    } catch (e) {
+      try {
+        this.raw.exec("ROLLBACK");
+      } catch {
+        /* already rolled back */
+      }
+      throw e;
+    }
   }
 
   private setup(): void {
@@ -168,7 +214,10 @@ export class ProjectionHost {
     for (const p of this.defs) {
       this.inTxn(() => {
         p.init?.(this.tx);
-        const m = this.tx.get<{ version: number; applied: number }>("SELECT version, applied FROM projection_meta WHERE name = ?", p.name);
+        const m = this.tx.get<{ version: number; applied: number }>(
+          "SELECT version, applied FROM projection_meta WHERE name = ?",
+          p.name,
+        );
         if (!m || m.version !== p.version) this.replayAll(p);
         else if (p.mode === "inline" && m.applied < this.store.head.seq) this.replayFrom(p, m.applied);
       });
@@ -178,8 +227,19 @@ export class ProjectionHost {
 
   private replayAll(p: ProjectionDef): void {
     p.reset?.(this.tx);
-    this.tx.run("INSERT INTO projection_meta (name, version, applied) VALUES (?, ?, 0) ON CONFLICT(name) DO UPDATE SET version = excluded.version, applied = 0", p.name, p.version);
-    if (p.mode === "async") { this.tx.run("INSERT INTO consumers (name, cursor, updated) VALUES (?, 0, ?) ON CONFLICT(name) DO UPDATE SET cursor = 0, updated = excluded.updated", p.name, Date.now()); return; }
+    this.tx.run(
+      "INSERT INTO projection_meta (name, version, applied) VALUES (?, ?, 0) ON CONFLICT(name) DO UPDATE SET version = excluded.version, applied = 0",
+      p.name,
+      p.version,
+    );
+    if (p.mode === "async") {
+      this.tx.run(
+        "INSERT INTO consumers (name, cursor, updated) VALUES (?, 0, ?) ON CONFLICT(name) DO UPDATE SET cursor = 0, updated = excluded.updated",
+        p.name,
+        Date.now(),
+      );
+      return;
+    }
     this.replayFrom(p, 0);
   }
 
@@ -199,7 +259,10 @@ export class ProjectionHost {
   rebuild(name: string): void {
     const p = this.defs.find((d) => d.name === name);
     if (!p) throw new Error(`no projection ${name}`);
-    this.inTxn(() => { this.tx.run("DELETE FROM projection_meta WHERE name = ?", name); this.replayAll(p); });
+    this.inTxn(() => {
+      this.tx.run("DELETE FROM projection_meta WHERE name = ?", name);
+      this.replayAll(p);
+    });
   }
 
   /** Append one event, projections included, in one transaction. Throws LogError when the log or a reducer refuses it. */
@@ -221,7 +284,8 @@ export class ProjectionHost {
   async pump(name: string): Promise<PumpResult> {
     const c = this.consumers.find((d) => d.name === name);
     if (!c) throw new Error(`no async consumer ${name}`);
-    let cursor = this.consumerCursor(name), processed = 0;
+    let cursor = this.consumerCursor(name),
+      processed = 0;
     try {
       for (;;) {
         const evs = this.store.read({ after: cursor, limit: c.batch ?? 200 });
@@ -230,7 +294,8 @@ export class ProjectionHost {
           const e = this.upcast(c, raw);
           const h = c.on[e.type];
           if (h) await h(this.tx, e);
-          cursor = raw.seq; processed++;
+          cursor = raw.seq;
+          processed++;
           this.tx.run("UPDATE consumers SET cursor = ?, updated = ? WHERE name = ?", cursor, Date.now(), name);
         }
       }
@@ -247,5 +312,7 @@ export class ProjectionHost {
     return out;
   }
 
-  close(): void { this.store.close(); }
+  close(): void {
+    this.store.close();
+  }
 }

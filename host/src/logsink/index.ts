@@ -18,7 +18,17 @@ const PRUNE_EVERY_MS = 60_000;
 const PRUNE_BATCH = 2_000;
 const PRUNE_ROUNDS = 20;
 /** Keys that carry content. A lint forbids them in attrs; the sink drops them as a second line. */
-export const CONTENT_KEYS: readonly string[] = Object.freeze(["body", "text", "subject", "value", "secret", "password", "token", "content", "message"]);
+export const CONTENT_KEYS: readonly string[] = Object.freeze([
+  "body",
+  "text",
+  "subject",
+  "value",
+  "secret",
+  "password",
+  "token",
+  "content",
+  "message",
+]);
 const CONTENT_RE = new RegExp(`^(${CONTENT_KEYS.join("|")})$`, "i");
 
 export const LOGS_SCHEMA = `
@@ -43,14 +53,57 @@ CREATE TABLE IF NOT EXISTS log_tombstones (actor TEXT PRIMARY KEY, at INTEGER);
 
 /** The columns a caller may set on a row besides level, msg and attrs. */
 export interface LogContext {
-  space: string; trace_id?: string | undefined; span_id?: string | undefined; actor?: string | undefined; on_behalf?: string | undefined; run_id?: string | undefined; thread_id?: string | undefined;
-  device?: string | undefined; place?: string | undefined; cap?: string | undefined; entity?: string | undefined; entity_id?: string | undefined; result?: string | undefined; dur_ms?: number | undefined;
-  label?: number | undefined; app_version?: string | undefined; server_version?: string | undefined; machine?: string | undefined;
+  space: string;
+  trace_id?: string | undefined;
+  span_id?: string | undefined;
+  actor?: string | undefined;
+  on_behalf?: string | undefined;
+  run_id?: string | undefined;
+  thread_id?: string | undefined;
+  device?: string | undefined;
+  place?: string | undefined;
+  cap?: string | undefined;
+  entity?: string | undefined;
+  entity_id?: string | undefined;
+  result?: string | undefined;
+  dur_ms?: number | undefined;
+  label?: number | undefined;
+  app_version?: string | undefined;
+  server_version?: string | undefined;
+  machine?: string | undefined;
 }
-export interface LogRow extends LogContext { level: number; msg: string; attrs?: Record<string, unknown> | undefined }
-export interface StoredLog extends LogContext { id: number; at: number; level: number; msg: string; attrs: Record<string, unknown> | null }
+export interface LogRow extends LogContext {
+  level: number;
+  msg: string;
+  attrs?: Record<string, unknown> | undefined;
+}
+export interface StoredLog extends LogContext {
+  id: number;
+  at: number;
+  level: number;
+  msg: string;
+  attrs: Record<string, unknown> | null;
+}
 
-const COLS = ["trace_id", "span_id", "actor", "on_behalf", "run_id", "thread_id", "device", "place", "cap", "entity", "entity_id", "result", "dur_ms", "label", "app_version", "server_version", "machine"] as const;
+const COLS = [
+  "trace_id",
+  "span_id",
+  "actor",
+  "on_behalf",
+  "run_id",
+  "thread_id",
+  "device",
+  "place",
+  "cap",
+  "entity",
+  "entity_id",
+  "result",
+  "dur_ms",
+  "label",
+  "app_version",
+  "server_version",
+  "machine",
+] as const;
 
 export interface LogSinkOptions {
   /** An open handle; with `path` too, it is that file and gets the file's pragmas. A handle the caller passed is not closed when opening fails. */
@@ -68,7 +121,13 @@ export interface LogSinkOptions {
   rollupMs?: number;
 }
 
-interface Tally { row: LogRow; since: number; count: number; ms: number; max: number }
+interface Tally {
+  row: LogRow;
+  since: number;
+  count: number;
+  ms: number;
+  max: number;
+}
 
 export class LogSink implements SpanSink {
   readonly db: DatabaseSync;
@@ -99,8 +158,17 @@ export class LogSink implements SpanSink {
     this.keepMs = o.keepMs ?? LOG_KEEP_MS;
     this.maxBytes = o.maxBytes ?? LOG_MAX_BYTES;
     this.rollupMs = o.rollupMs ?? ROLLUP_MS;
-    try { this.sourceId = this.open(o.path !== undefined && o.path !== ":memory:"); }
-    catch (e) { if (own) try { this.db.close(); } catch { /* already closed */ } throw e; }
+    try {
+      this.sourceId = this.open(o.path !== undefined && o.path !== ":memory:");
+    } catch (e) {
+      if (own)
+        try {
+          this.db.close();
+        } catch {
+          /* already closed */
+        }
+      throw e;
+    }
   }
 
   /**
@@ -109,10 +177,19 @@ export class LogSink implements SpanSink {
    */
   static openFile(o: LogSinkOptions & { path: string }, aside: () => void): LogSink {
     const db = new DatabaseSync(o.path);
-    try { return new LogSink({ ...o, db }); }
-    catch (e) {
-      try { aside(); } catch { /* the caller sees the files where they are */ }
-      try { db.close(); } catch { /* already closed */ }
+    try {
+      return new LogSink({ ...o, db });
+    } catch (e) {
+      try {
+        aside();
+      } catch {
+        /* the caller sees the files where they are */
+      }
+      try {
+        db.close();
+      } catch {
+        /* already closed */
+      }
       throw e;
     }
   }
@@ -124,17 +201,29 @@ export class LogSink implements SpanSink {
   private open(file: boolean): string {
     if (file) {
       this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
-      this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 4194304; PRAGMA busy_timeout = 2000");
+      this.db.exec(
+        "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 4194304; PRAGMA busy_timeout = 2000",
+      );
     }
     this.db.exec(LOGS_SCHEMA);
-    const columns = this.db.prepare('PRAGMA table_info(log_source)').all();
-    if (!columns.some(column => column['name'] === 'row_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN row_seq INTEGER NOT NULL DEFAULT 0');
-    if (!columns.some(column => column['name'] === 'span_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN span_seq INTEGER NOT NULL DEFAULT 0');
-    const sourceId = String(this.db.prepare('SELECT id FROM log_source LIMIT 1').get()?.id ?? globalThis.crypto.randomUUID());
-    this.db.prepare('INSERT OR IGNORE INTO log_source (id) VALUES (?)').run(sourceId);
-    this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, (SELECT COALESCE(MAX(id), 0) FROM logs)), span_seq = MAX(span_seq, (SELECT COALESCE(MAX(rowid), 0) FROM spans)) WHERE id = ?').run(sourceId);
+    const columns = this.db.prepare("PRAGMA table_info(log_source)").all();
+    if (!columns.some((column) => column["name"] === "row_seq"))
+      this.db.exec("ALTER TABLE log_source ADD COLUMN row_seq INTEGER NOT NULL DEFAULT 0");
+    if (!columns.some((column) => column["name"] === "span_seq"))
+      this.db.exec("ALTER TABLE log_source ADD COLUMN span_seq INTEGER NOT NULL DEFAULT 0");
+    const sourceId = String(
+      this.db.prepare("SELECT id FROM log_source LIMIT 1").get()?.id ?? globalThis.crypto.randomUUID(),
+    );
+    this.db.prepare("INSERT OR IGNORE INTO log_source (id) VALUES (?)").run(sourceId);
+    this.db
+      .prepare(
+        "UPDATE log_source SET row_seq = MAX(row_seq, (SELECT COALESCE(MAX(id), 0) FROM logs)), span_seq = MAX(span_seq, (SELECT COALESCE(MAX(rowid), 0) FROM spans)) WHERE id = ?",
+      )
+      .run(sourceId);
     if (file && Number(this.db.prepare("PRAGMA auto_vacuum").get()?.["auto_vacuum"]) !== 2) {
-      while (this.pruneRound()) { /* a file from before the caps: down to them first, so the one full vacuum is small */ }
+      while (this.pruneRound()) {
+        /* a file from before the caps: down to them first, so the one full vacuum is small */
+      }
       this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
       this.db.exec("VACUUM");
     }
@@ -162,31 +251,51 @@ export class LogSink implements SpanSink {
     try {
       const del = (table: "logs" | "spans", key: "id" | "rowid", below: number | null, limit = PRUNE_BATCH): number => {
         if (below === null) return 0;
-        return Number(this.db.prepare(`DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM ${table} WHERE ${key} < ? ORDER BY ${key} LIMIT ?)`).run(below, limit).changes);
+        return Number(
+          this.db
+            .prepare(
+              `DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM ${table} WHERE ${key} < ? ORDER BY ${key} LIMIT ?)`,
+            )
+            .run(below, limit).changes,
+        );
       };
       const edge = (table: "logs" | "spans", key: "id" | "rowid"): number | null => {
-        const kept = this.db.prepare(`SELECT ${key} AS k FROM ${table} WHERE at >= ? ORDER BY ${key} LIMIT 1`).get(cutoff)?.["k"];
+        const kept = this.db
+          .prepare(`SELECT ${key} AS k FROM ${table} WHERE at >= ? ORDER BY ${key} LIMIT 1`)
+          .get(cutoff)?.["k"];
         if (kept !== undefined) return Number(kept);
         const last = this.db.prepare(`SELECT MAX(${key}) AS k FROM ${table}`).get()?.["k"];
         return last === null || last === undefined ? null : Number(last) + 1;
       };
       removed += del("logs", "id", edge("logs", "id")) + del("spans", "rowid", edge("spans", "rowid"));
-      removed += Number(this.db.prepare("DELETE FROM health_samples WHERE rowid IN (SELECT rowid FROM health_samples WHERE at < ? LIMIT ?)").run(cutoff, PRUNE_BATCH).changes);
+      removed += Number(
+        this.db
+          .prepare("DELETE FROM health_samples WHERE rowid IN (SELECT rowid FROM health_samples WHERE at < ? LIMIT ?)")
+          .run(cutoff, PRUNE_BATCH).changes,
+      );
       if (!removed && this.pages().used > this.maxBytes) this.over = true;
       if (!removed && this.over) {
         // whichever of logs and spans holds the older first row gives up a batch, so what is left covers the same stretch of time in both
-        const head = (table: "logs" | "spans", key: "id" | "rowid"): number => Number(this.db.prepare(`SELECT at FROM ${table} ORDER BY ${key} LIMIT 1`).get()?.["at"] ?? Infinity);
+        const head = (table: "logs" | "spans", key: "id" | "rowid"): number =>
+          Number(this.db.prepare(`SELECT at FROM ${table} ORDER BY ${key} LIMIT 1`).get()?.["at"] ?? Infinity);
         // a batch sized to the excess (ids run nearly unbroken, so their span counts the rows), so a small cap is not overshot
         const batch = (table: "logs" | "spans", key: "id" | "rowid"): number => {
           const r = this.db.prepare(`SELECT MIN(${key}) AS lo, MAX(${key}) AS hi FROM ${table}`).get();
-          const rows = Number(r?.["hi"] ?? 0) - Number(r?.["lo"] ?? 0) + 1, used = this.pages().used;
-          return Math.max(1, Math.min(PRUNE_BATCH, Math.ceil(rows * (used - this.maxBytes * 0.75) / used / 4)));
+          const rows = Number(r?.["hi"] ?? 0) - Number(r?.["lo"] ?? 0) + 1,
+            used = this.pages().used;
+          return Math.max(1, Math.min(PRUNE_BATCH, Math.ceil((rows * (used - this.maxBytes * 0.75)) / used / 4)));
         };
-        removed += head("logs", "id") <= head("spans", "rowid") ? del("logs", "id", Number.MAX_SAFE_INTEGER, batch("logs", "id")) : del("spans", "rowid", Number.MAX_SAFE_INTEGER, batch("spans", "rowid"));
+        removed +=
+          head("logs", "id") <= head("spans", "rowid")
+            ? del("logs", "id", Number.MAX_SAFE_INTEGER, batch("logs", "id"))
+            : del("spans", "rowid", Number.MAX_SAFE_INTEGER, batch("spans", "rowid"));
         if (!removed || this.pages().used <= this.maxBytes * 0.75) this.over = false;
       }
       this.db.exec("COMMIT");
-    } catch (e) { this.db.exec("ROLLBACK"); throw e; }
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
     return removed;
   }
 
@@ -204,17 +313,42 @@ export class LogSink implements SpanSink {
   }
 
   /** Attach the internal metadata writer after module initialization. */
-  setObserver(observer: ((batch: TelemetryBatch) => void) | undefined, position: TelemetryPosition = { rowId: 0, spanId: 0 }): void { this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, ?), span_seq = MAX(span_seq, ?) WHERE id = ?').run(position.rowId, position.spanId, this.sourceId); this.observer = observer; this.observed = position; if (observer) this.schedule(); }
+  setObserver(
+    observer: ((batch: TelemetryBatch) => void) | undefined,
+    position: TelemetryPosition = { rowId: 0, spanId: 0 },
+  ): void {
+    this.db
+      .prepare("UPDATE log_source SET row_seq = MAX(row_seq, ?), span_seq = MAX(span_seq, ?) WHERE id = ?")
+      .run(position.rowId, position.spanId, this.sourceId);
+    this.observer = observer;
+    this.observed = position;
+    if (observer) this.schedule();
+  }
 
   private observe(): boolean {
     if (!this.observer) return false;
-    const rawRows = this.db.prepare(`SELECT id,at,level,space,${COLS.join(',')},CASE WHEN length(msg) <= 80 THEN msg ELSE 'log.redacted' END AS msg,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM logs WHERE id > ? ORDER BY id LIMIT 1000`).all(this.observed.rowId) as Record<string, unknown>[];
-    const rawSpans = this.db.prepare('SELECT rowid AS source_id,trace_id,span_id,parent,substr(name,1,121) AS name,at,dur_us,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM spans WHERE rowid > ? ORDER BY rowid LIMIT 1000').all(this.observed.spanId) as Record<string, unknown>[];
+    const rawRows = this.db
+      .prepare(
+        `SELECT id,at,level,space,${COLS.join(",")},CASE WHEN length(msg) <= 80 THEN msg ELSE 'log.redacted' END AS msg,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM logs WHERE id > ? ORDER BY id LIMIT 1000`,
+      )
+      .all(this.observed.rowId) as Record<string, unknown>[];
+    const rawSpans = this.db
+      .prepare(
+        "SELECT rowid AS source_id,trace_id,span_id,parent,substr(name,1,121) AS name,at,dur_us,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM spans WHERE rowid > ? ORDER BY rowid LIMIT 1000",
+      )
+      .all(this.observed.spanId) as Record<string, unknown>[];
     if (!rawRows.length && !rawSpans.length) return false;
-    const position = { rowId: Number(rawRows.at(-1)?.['id'] ?? this.observed.rowId), spanId: Number(rawSpans.at(-1)?.['source_id'] ?? this.observed.spanId) };
-    const attrs = (value: unknown): Record<string, unknown> | null => typeof value === 'string' ? JSON.parse(value) as Record<string, unknown> : null;
-    const rows = rawRows.map(row => ({ ...row, attrs: attrs(row['attrs']) ?? undefined })) as unknown as TelemetryBatch['rows'];
-    const spans = rawSpans.map(row => ({ ...row, attrs: attrs(row['attrs']) })) as unknown as TelemetryBatch['spans'];
+    const position = {
+      rowId: Number(rawRows.at(-1)?.["id"] ?? this.observed.rowId),
+      spanId: Number(rawSpans.at(-1)?.["source_id"] ?? this.observed.spanId),
+    };
+    const attrs = (value: unknown): Record<string, unknown> | null =>
+      typeof value === "string" ? (JSON.parse(value) as Record<string, unknown>) : null;
+    const rows = rawRows.map((row) => ({
+      ...row,
+      attrs: attrs(row["attrs"]) ?? undefined,
+    })) as unknown as TelemetryBatch["rows"];
+    const spans = rawSpans.map((row) => ({ ...row, attrs: attrs(row["attrs"]) })) as unknown as TelemetryBatch["spans"];
     this.observer({ source: this.sourceId, position, rows, spans });
     this.observed = position;
     return rawRows.length === 1000 || rawSpans.length === 1000;
@@ -254,10 +388,18 @@ export class LogSink implements SpanSink {
     if (this.rollDue(at)) this.schedule();
     const t = this.tallies.get(key);
     if (!t) {
-      this.tallies.set(key, { row, since: at, count: o.keepFirst ? 0 : 1, ms: o.keepFirst ? 0 : ms, max: o.keepFirst ? 0 : ms });
+      this.tallies.set(key, {
+        row,
+        since: at,
+        count: o.keepFirst ? 0 : 1,
+        ms: o.keepFirst ? 0 : ms,
+        max: o.keepFirst ? 0 : ms,
+      });
       return o.keepFirst === true;
     }
-    t.count++; t.ms += ms; t.max = Math.max(t.max, ms);
+    t.count++;
+    t.ms += ms;
+    t.max = Math.max(t.max, ms);
     return false;
   }
 
@@ -268,101 +410,203 @@ export class LogSink implements SpanSink {
       if (!all && at - t.since < this.rollupMs) continue;
       this.tallies.delete(key);
       if (!t.count) continue;
-      this.rows.push({ at, row: { ...t.row, dur_ms: t.max, attrs: { ...t.row.attrs, count: t.count, ms: Math.round(t.ms) } } });
+      this.rows.push({
+        at,
+        row: { ...t.row, dur_ms: t.max, attrs: { ...t.row.attrs, count: t.count, ms: Math.round(t.ms) } },
+      });
       wrote = true;
     }
     return wrote;
   }
   private schedule(): void {
-    if (this.batchMs <= 0) { this.flush(); return; }
-    if (!this.timer) { this.timer = setTimeout(() => { try { this.flush(); } catch { this.schedule(); } }, this.batchMs); this.timer.unref(); }
+    if (this.batchMs <= 0) {
+      this.flush();
+      return;
+    }
+    if (!this.timer) {
+      this.timer = setTimeout(() => {
+        try {
+          this.flush();
+        } catch {
+          this.schedule();
+        }
+      }, this.batchMs);
+      this.timer.unref();
+    }
   }
 
   /** At most 1,000 rows/spans per transaction; native persistence remains the recovery source after observer failure. */
   flush(): void {
     if (this.closed) return;
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
     this.rollDue(this.now());
-    if (!this.rows.length && !this.spans.length) { if (this.observe()) this.schedule(); return; }
-    const rows = this.rows.splice(0, 1000), spans = this.spans.splice(0, 1000);
-    const insLog = this.db.prepare(`INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`);
-    const insSpan = this.db.prepare("INSERT INTO spans (rowid, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    if (!this.rows.length && !this.spans.length) {
+      if (this.observe()) this.schedule();
+      return;
+    }
+    const rows = this.rows.splice(0, 1000),
+      spans = this.spans.splice(0, 1000);
+    const insLog = this.db.prepare(
+      `INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`,
+    );
+    const insSpan = this.db.prepare(
+      "INSERT INTO spans (rowid, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
     this.db.exec("BEGIN");
     try {
-      const sequence = this.db.prepare('SELECT row_seq, span_seq FROM log_source WHERE id = ?').get(this.sourceId)!;
-      let rowSeq = Number(sequence['row_seq']), spanSeq = Number(sequence['span_seq']);
+      const sequence = this.db.prepare("SELECT row_seq, span_seq FROM log_source WHERE id = ?").get(this.sourceId)!;
+      let rowSeq = Number(sequence["row_seq"]),
+        spanSeq = Number(sequence["span_seq"]);
       for (const { at, row } of rows) {
         const attrs = row.attrs ? JSON.stringify(this.redact(row.attrs)) : null;
         insLog.run(++rowSeq, at, row.level, row.space, ...COLS.map((c) => row[c] ?? null), row.msg, attrs);
       }
-      for (const s of spans) insSpan.run(++spanSeq, s.trace_id, s.span_id, s.parent, s.name, s.at, s.dur_us, s.attrs ? JSON.stringify(this.redact(s.attrs)) : null);
-      this.db.prepare('UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?').run(rowSeq, spanSeq, this.sourceId);
+      for (const s of spans)
+        insSpan.run(
+          ++spanSeq,
+          s.trace_id,
+          s.span_id,
+          s.parent,
+          s.name,
+          s.at,
+          s.dur_us,
+          s.attrs ? JSON.stringify(this.redact(s.attrs)) : null,
+        );
+      this.db
+        .prepare("UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?")
+        .run(rowSeq, spanSeq, this.sourceId);
       this.db.exec("COMMIT");
-    } catch (e) { this.db.exec("ROLLBACK"); this.rows.unshift(...rows); this.spans.unshift(...spans); throw e; }
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      this.rows.unshift(...rows);
+      this.spans.unshift(...spans);
+      throw e;
+    }
     if (this.now() - this.prunedAt >= PRUNE_EVERY_MS) {
-      try { this.prune(); } catch (e) { this.rows.push({ at: this.now(), row: { space: "-", level: LEVELS.error, msg: "logs.prune_failed", place: "logsink", attrs: { error: e instanceof Error ? e.message : String(e) } } }); }
+      try {
+        this.prune();
+      } catch (e) {
+        this.rows.push({
+          at: this.now(),
+          row: {
+            space: "-",
+            level: LEVELS.error,
+            msg: "logs.prune_failed",
+            place: "logsink",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          },
+        });
+      }
     }
     const more = this.observe();
     if (this.rows.length || this.spans.length || more) this.schedule();
   }
 
   /** Native persistence is finite; a failed observer stays recoverable in logs.db. */
-  drain(): void { while (this.rows.length || this.spans.length) this.flush(); while (this.observer && this.observe()) { /* bounded batches until the finite source is drained */ } }
-
+  drain(): void {
+    while (this.rows.length || this.spans.length) this.flush();
+    while (this.observer && this.observe()) {
+      /* bounded batches until the finite source is drained */
+    }
+  }
 
   /** A Logger whose rows carry this context (trace, actor, device, cap...). */
   logger(ctx: LogContext): Logger {
-    const at = (level: number) => (msg: string, attrs?: Record<string, unknown>): void => this.log({ ...ctx, level, msg, ...(attrs ? { attrs } : {}) });
+    const at =
+      (level: number) =>
+      (msg: string, attrs?: Record<string, unknown>): void =>
+        this.log({ ...ctx, level, msg, ...(attrs ? { attrs } : {}) });
     return { debug: at(LEVELS.debug), info: at(LEVELS.info), warn: at(LEVELS.warn), error: at(LEVELS.error) };
   }
 
   /** The Logger the invoke pipeline takes: it logs `traceId` among its attrs, and this lifts it into the row's trace_id column so `trace()` finds the row. */
   invokeLogger(space: string): Logger {
-    const at = (level: number) => (msg: string, attrs?: Record<string, unknown>): void => {
-      const t = attrs?.["traceId"];
-      const actor = attrs?.["actor"], onBehalf = attrs?.["onBehalf"], status = attrs?.["status"];
-      this.log({
-        space, level, msg, ...(typeof t === "string" ? { trace_id: t } : {}), ...(typeof attrs?.["cap"] === "string" ? { cap: attrs["cap"] } : {}),
-        // a refused or failed call names who made it and its result in the columns a query filters on
-        ...(typeof actor === "string" ? { actor } : {}), ...(typeof onBehalf === "string" ? { on_behalf: onBehalf } : {}), ...(msg === "invoke" && typeof status === "string" ? { result: status } : {}),
-        // the ids go in their columns only, where an erased person is tombstoned, never in attrs
-        ...(attrs ? { attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== "actor" && k !== "onBehalf")) } : {}),
-      });
-    };
+    const at =
+      (level: number) =>
+      (msg: string, attrs?: Record<string, unknown>): void => {
+        const t = attrs?.["traceId"];
+        const actor = attrs?.["actor"],
+          onBehalf = attrs?.["onBehalf"],
+          status = attrs?.["status"];
+        this.log({
+          space,
+          level,
+          msg,
+          ...(typeof t === "string" ? { trace_id: t } : {}),
+          ...(typeof attrs?.["cap"] === "string" ? { cap: attrs["cap"] } : {}),
+          // a refused or failed call names who made it and its result in the columns a query filters on
+          ...(typeof actor === "string" ? { actor } : {}),
+          ...(typeof onBehalf === "string" ? { on_behalf: onBehalf } : {}),
+          ...(msg === "invoke" && typeof status === "string" ? { result: status } : {}),
+          // the ids go in their columns only, where an erased person is tombstoned, never in attrs
+          ...(attrs
+            ? { attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== "actor" && k !== "onBehalf")) }
+            : {}),
+        });
+      };
     return { debug: at(LEVELS.debug), info: at(LEVELS.info), warn: at(LEVELS.warn), error: at(LEVELS.error) };
   }
 
   /** Everything one trace left: log rows and spans, oldest first (`logs.trace`). A tombstoned actor reads as null. */
-  trace(traceId: string): { logs: StoredLog[]; spans: { span_id: string; parent: string | null; name: string; at: number; dur_us: number }[] } {
+  trace(traceId: string): {
+    logs: StoredLog[];
+    spans: { span_id: string; parent: string | null; name: string; at: number; dur_us: number }[];
+  } {
     this.flush();
-    const raw = this.db.prepare("SELECT l.*, (SELECT 1 FROM log_tombstones t WHERE t.actor = l.actor) AS erased FROM logs l WHERE trace_id = ? ORDER BY id").all(traceId) as Record<string, unknown>[];
+    const raw = this.db
+      .prepare(
+        "SELECT l.*, (SELECT 1 FROM log_tombstones t WHERE t.actor = l.actor) AS erased FROM logs l WHERE trace_id = ? ORDER BY id",
+      )
+      .all(traceId) as Record<string, unknown>[];
     const logs = raw.map((r) => {
       const { erased, attrs, ...rest } = r;
-      return { ...rest, ...(erased ? { actor: null } : {}), attrs: typeof attrs === "string" ? (JSON.parse(attrs) as Record<string, unknown>) : null } as unknown as StoredLog;
+      return {
+        ...rest,
+        ...(erased ? { actor: null } : {}),
+        attrs: typeof attrs === "string" ? (JSON.parse(attrs) as Record<string, unknown>) : null,
+      } as unknown as StoredLog;
     });
-    const spans = this.db.prepare("SELECT span_id, parent, name, at, dur_us FROM spans WHERE trace_id = ? ORDER BY at, rowid").all(traceId) as { span_id: string; parent: string | null; name: string; at: number; dur_us: number }[];
+    const spans = this.db
+      .prepare("SELECT span_id, parent, name, at, dur_us FROM spans WHERE trace_id = ? ORDER BY at, rowid")
+      .all(traceId) as { span_id: string; parent: string | null; name: string; at: number; dur_us: number }[];
     return { logs, spans };
   }
 
   /** Erase a person: rows keep ids only, and reads blank the actor. */
-  erase(actor: string): void { this.flush(); this.db.prepare("INSERT OR REPLACE INTO log_tombstones (actor, at) VALUES (?, ?)").run(actor, this.now()); }
+  erase(actor: string): void {
+    this.flush();
+    this.db.prepare("INSERT OR REPLACE INTO log_tombstones (actor, at) VALUES (?, ?)").run(actor, this.now());
+  }
 
   /** Drain all accepted records before closure; shutdown callbacks may append later. */
   close(): void {
     if (this.closed) return;
     this.observer = undefined;
     // the file is let go even when the last rows cannot be written: a handle left open keeps logs.db from being moved or deleted on Windows (an update, an uninstall, the next start's repair)
-    try { this.rollDue(this.now(), true); this.drain(); }
-    finally {
+    try {
+      this.rollDue(this.now(), true);
+      this.drain();
+    } finally {
       this.closed = true;
-      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+      if (this.timer) {
+        clearTimeout(this.timer);
+        this.timer = null;
+      }
       this.db.close();
     }
   }
 }
 
 /** One finished scheduler job, as the scheduler's onRun reports it. */
-export interface JobRun { job: string; ok: boolean; ms: number; error?: string | undefined }
+export interface JobRun {
+  job: string;
+  ok: boolean;
+  ms: number;
+  error?: string | undefined;
+}
 
 /**
  * What a scheduler run leaves in logs.db. A job's first run, a recovery, a new failure and a slow run are rows of their own; a routine success and a failure that repeats the last one are
@@ -375,23 +619,56 @@ export function jobRanLog(sink: LogSink, space: () => string): (r: JobRun) => vo
     last.set(r.job, { ok: r.ok, error: r.error });
     const row = { space: space(), msg: "job.ran", place: "scheduler", entity: "job", entity_id: r.job };
     if (r.ok) {
-      if (was?.ok === true && r.ms < SLOW_MS) { sink.count(`job:${r.job}:ok`, { ...row, level: LEVELS.debug, result: "ok" }, r.ms); return; }
-      sink.log({ ...row, level: was === undefined && r.ms < SLOW_MS ? LEVELS.debug : LEVELS.info, dur_ms: r.ms, result: "ok", ...(r.ms >= SLOW_MS ? { attrs: { slow: true } } : {}) });
+      if (was?.ok === true && r.ms < SLOW_MS) {
+        sink.count(`job:${r.job}:ok`, { ...row, level: LEVELS.debug, result: "ok" }, r.ms);
+        return;
+      }
+      sink.log({
+        ...row,
+        level: was === undefined && r.ms < SLOW_MS ? LEVELS.debug : LEVELS.info,
+        dur_ms: r.ms,
+        result: "ok",
+        ...(r.ms >= SLOW_MS ? { attrs: { slow: true } } : {}),
+      });
       return;
     }
-    if (was && !was.ok && was.error === r.error) { sink.count(`job:${r.job}:error`, { ...row, level: LEVELS.error, result: "error", ...(r.error ? { attrs: { error: r.error } } : {}) }, r.ms); return; }
-    sink.log({ ...row, level: LEVELS.error, dur_ms: r.ms, result: "error", ...(r.error ? { attrs: { error: r.error } } : {}) });
+    if (was && !was.ok && was.error === r.error) {
+      sink.count(
+        `job:${r.job}:error`,
+        { ...row, level: LEVELS.error, result: "error", ...(r.error ? { attrs: { error: r.error } } : {}) },
+        r.ms,
+      );
+      return;
+    }
+    sink.log({
+      ...row,
+      level: LEVELS.error,
+      dur_ms: r.ms,
+      result: "error",
+      ...(r.error ? { attrs: { error: r.error } } : {}),
+    });
   };
 }
 
 /** One finished invoke, as the pipeline reports it (host/src/invoke.ts SpanRecord). */
 export interface InvokeSpan {
-  traceId: string; spanId: string; parent?: string | undefined; name: string; cap: string; startedAt: number; ms: number; status: "ok" | "held" | "denied" | "error"; code?: string | undefined;
+  traceId: string;
+  spanId: string;
+  parent?: string | undefined;
+  name: string;
+  cap: string;
+  startedAt: number;
+  ms: number;
+  status: "ok" | "held" | "denied" | "error";
+  code?: string | undefined;
   principal?: string | undefined;
 }
 
 /** What the invoke pipeline writes into logs.db: its span hook and the Logger it logs `invoke` and `handler threw` rows with. */
-export interface InvokeLogs { onSpan(s: InvokeSpan): void; log: Logger }
+export interface InvokeLogs {
+  onSpan(s: InvokeSpan): void;
+  log: Logger;
+}
 
 /**
  * Invoke spans and rows into logs.db.
@@ -401,20 +678,45 @@ export interface InvokeLogs { onSpan(s: InvokeSpan): void; log: Logger }
  *   row per window (result is the error code), and its span and rows are not written. The next success is a row of its own, `invoke.recovered`.
  * - Writes, refusals, holds and slow calls keep every span and row.
  */
-export function invokeLogs(sink: LogSink, space: string, kinds: { routine(cap: string): boolean; read(cap: string): boolean }): InvokeLogs {
+export function invokeLogs(
+  sink: LogSink,
+  space: string,
+  kinds: { routine(cap: string): boolean; read(cap: string): boolean },
+): InvokeLogs {
   const failing = new Map<string, string>();
   // traces whose failure was counted: the pipeline logs them right after the span, and those rows are dropped
   const quiet = new Set<string>();
   const onSpan = (s: InvokeSpan): void => {
     const key = `${s.cap}:${s.principal ?? ""}`;
-    const row: SpanRow = { trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } };
+    const row: SpanRow = {
+      trace_id: s.traceId,
+      span_id: s.spanId,
+      parent: s.parent ?? null,
+      name: s.name,
+      at: s.startedAt,
+      dur_us: s.ms * 1000,
+      attrs: { cap: s.cap, status: s.status },
+    };
     const fast = s.ms < SLOW_MS;
     if (s.status === "error" && fast && kinds.read(s.cap)) {
       const code = s.code ?? "error";
       if (failing.get(key) === code) {
         if (quiet.size >= 1_000) quiet.clear();
         quiet.add(s.traceId);
-        sink.count(`invoke:${key}:failed`, { space, level: LEVELS.info, msg: "invoke", place: "invoke", cap: s.cap, actor: s.principal, result: code, attrs: { status: code } }, s.ms);
+        sink.count(
+          `invoke:${key}:failed`,
+          {
+            space,
+            level: LEVELS.info,
+            msg: "invoke",
+            place: "invoke",
+            cap: s.cap,
+            actor: s.principal,
+            result: code,
+            attrs: { status: code },
+          },
+          s.ms,
+        );
         return;
       }
       failing.set(key, code);
@@ -423,11 +725,36 @@ export function invokeLogs(sink: LogSink, space: string, kinds: { routine(cap: s
     }
     if (s.status === "ok" && failing.delete(key)) {
       sink.span(row);
-      sink.log({ space, level: LEVELS.info, msg: "invoke.recovered", place: "invoke", trace_id: s.traceId, cap: s.cap, actor: s.principal, result: "ok" });
+      sink.log({
+        space,
+        level: LEVELS.info,
+        msg: "invoke.recovered",
+        place: "invoke",
+        trace_id: s.traceId,
+        cap: s.cap,
+        actor: s.principal,
+        result: "ok",
+      });
       return;
     }
-    if (s.status !== "ok" || !fast || !kinds.routine(s.cap)) { sink.span(row); return; }
-    const first = sink.count(`invoke:${key}`, { space, level: LEVELS.debug, msg: "invoke.reads", place: "invoke", cap: s.cap, actor: s.principal, result: "ok" }, s.ms, { keepFirst: true });
+    if (s.status !== "ok" || !fast || !kinds.routine(s.cap)) {
+      sink.span(row);
+      return;
+    }
+    const first = sink.count(
+      `invoke:${key}`,
+      {
+        space,
+        level: LEVELS.debug,
+        msg: "invoke.reads",
+        place: "invoke",
+        cap: s.cap,
+        actor: s.principal,
+        result: "ok",
+      },
+      s.ms,
+      { keepFirst: true },
+    );
     if (first) sink.span(row);
   };
   const base = sink.invokeLogger(space);
@@ -438,9 +765,14 @@ export function invokeLogs(sink: LogSink, space: string, kinds: { routine(cap: s
     return msg === "invoke" || msg === "handler threw";
   };
   const log: Logger = {
-    debug: base.debug, warn: base.warn,
-    info: (msg, attrs) => { if (!counted(msg, attrs)) base.info(msg, attrs); },
-    error: (msg, attrs) => { if (!counted(msg, attrs)) base.error(msg, attrs); },
+    debug: base.debug,
+    warn: base.warn,
+    info: (msg, attrs) => {
+      if (!counted(msg, attrs)) base.info(msg, attrs);
+    },
+    error: (msg, attrs) => {
+      if (!counted(msg, attrs)) base.error(msg, attrs);
+    },
   };
   return { onSpan, log };
 }

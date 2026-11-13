@@ -18,19 +18,35 @@ const b64url = (s: string | Buffer): string => Buffer.from(s).toString("base64ur
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const KEY_JSON = JSON.stringify({
-  type: "service_account", project_id: "firm-prod", client_id: "104857384729183746501", client_email: CLIENT_EMAIL,
+  type: "service_account",
+  project_id: "firm-prod",
+  client_id: "104857384729183746501",
+  client_email: CLIENT_EMAIL,
   private_key: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
 });
 const verifier = createPublicKey(publicKey.export({ type: "spki", format: "pem" }));
 
 /** The Google stand-in: what each member has, what the key may delegate, and every call it saw by member. */
 function google() {
-  const refused = new Set<string>();   // scopes the Admin console has not delegated yet
+  const refused = new Set<string>(); // scopes the Admin console has not delegated yet
   const asked: { sub: string; scope: string; url: string }[] = [];
-  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = { [NOAH]: [{ id: "g-m1", subject: "Can we talk about the deed?", from: "Pat Lee <pat@acme.test>", at: Date.UTC(2026, 9, 28, 15, 0) }] };
+  const mail: Record<string, { id: string; subject: string; from: string; at: number }[]> = {
+    [NOAH]: [
+      {
+        id: "g-m1",
+        subject: "Can we talk about the deed?",
+        from: "Pat Lee <pat@acme.test>",
+        at: Date.UTC(2026, 9, 28, 15, 0),
+      },
+    ],
+  };
   const events: Record<string, Record<string, unknown>[]> = {};
-  const files: Record<string, { id: string; name: string; mimeType: string; modifiedTime: string; parents: string[] }[]> = {};
-  const START = Date.now() - 3_600_000, END = Date.now() - 1_800_000;
+  const files: Record<
+    string,
+    { id: string; name: string; mimeType: string; modifiedTime: string; parents: string[] }[]
+  > = {};
+  const START = Date.now() - 3_600_000,
+    END = Date.now() - 1_800_000;
   const conferences: Record<string, unknown>[] = [];
 
   const claims = (headers: Record<string, string>): { sub: string; scope: string } | null => {
@@ -47,14 +63,30 @@ function google() {
     if (url !== "https://oauth2.googleapis.com/token") return undefined;
     const form = new URLSearchParams(String(body));
     const [h, p, sig] = (form.get("assertion") ?? "").split(".");
-    if (form.get("grant_type") !== "urn:ietf:params:oauth:grant-type:jwt-bearer" || !h || !p || !sig) return { status: 400, json: { error: "invalid_request" } };
+    if (form.get("grant_type") !== "urn:ietf:params:oauth:grant-type:jwt-bearer" || !h || !p || !sig)
+      return { status: 400, json: { error: "invalid_request" } };
     const ok = createVerify("RSA-SHA256").update(`${h}.${p}`).verify(verifier, Buffer.from(sig, "base64url"));
     if (!ok) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid JWT Signature." } };
-    const c = JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as { iss: string; sub: string; scope: string; aud: string };
-    if (c.iss !== CLIENT_EMAIL || c.aud !== "https://oauth2.googleapis.com/token") return { status: 400, json: { error: "invalid_grant" } };
-    if (!c.sub.endsWith(`@${DOMAIN}`)) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid email or User ID" } };
+    const c = JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as {
+      iss: string;
+      sub: string;
+      scope: string;
+      aud: string;
+    };
+    if (c.iss !== CLIENT_EMAIL || c.aud !== "https://oauth2.googleapis.com/token")
+      return { status: 400, json: { error: "invalid_grant" } };
+    if (!c.sub.endsWith(`@${DOMAIN}`))
+      return { status: 400, json: { error: "invalid_grant", error_description: "Invalid email or User ID" } };
     for (const s of c.scope.split(" ")) {
-      if (refused.has(s)) return { status: 400, json: { error: "unauthorized_client", error_description: "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." } };
+      if (refused.has(s))
+        return {
+          status: 400,
+          json: {
+            error: "unauthorized_client",
+            error_description:
+              "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested.",
+          },
+        };
     }
     return { json: { access_token: `at|${c.sub}|${c.scope.split(" ")[0]!.slice(SCOPE.length)}`, expires_in: 3600 } };
   };
@@ -67,73 +99,186 @@ function google() {
     const msgs = mail[who.sub] ?? [];
     if (u.hostname === "gmail.googleapis.com") {
       if (u.pathname.endsWith("/profile")) return { json: { emailAddress: who.sub, historyId: "500" } };
-      if (u.pathname.endsWith("/messages")) return { json: { messages: msgs.map((m) => ({ id: m.id, threadId: `t-${m.id}` })) } };
+      if (u.pathname.endsWith("/messages"))
+        return { json: { messages: msgs.map((m) => ({ id: m.id, threadId: `t-${m.id}` })) } };
       const m = /\/messages\/([^/]+)$/.exec(u.pathname);
       const msg = m && msgs.find((x) => x.id === m[1]);
       if (msg) {
-        return { json: {
-          id: msg.id, threadId: `t-${msg.id}`, labelIds: ["INBOX", "UNREAD"], historyId: "400", internalDate: String(msg.at), snippet: msg.subject,
-          payload: { mimeType: "text/plain", headers: [{ name: "From", value: msg.from }, { name: "To", value: who.sub }, { name: "Subject", value: msg.subject }, { name: "Message-ID", value: `<${msg.id}@acme.test>` }], body: { data: b64url("Hello, can we talk?") } },
-        } };
+        return {
+          json: {
+            id: msg.id,
+            threadId: `t-${msg.id}`,
+            labelIds: ["INBOX", "UNREAD"],
+            historyId: "400",
+            internalDate: String(msg.at),
+            snippet: msg.subject,
+            payload: {
+              mimeType: "text/plain",
+              headers: [
+                { name: "From", value: msg.from },
+                { name: "To", value: who.sub },
+                { name: "Subject", value: msg.subject },
+                { name: "Message-ID", value: `<${msg.id}@acme.test>` },
+              ],
+              body: { data: b64url("Hello, can we talk?") },
+            },
+          },
+        };
       }
-      if (u.pathname.endsWith("/history")) return { json: { history: msgs.slice(1).map((m) => ({ id: "h", messagesAdded: [{ message: { id: m.id, labelIds: ["INBOX"] } }] })), historyId: "600" } };
+      if (u.pathname.endsWith("/history"))
+        return {
+          json: {
+            history: msgs
+              .slice(1)
+              .map((m) => ({ id: "h", messagesAdded: [{ message: { id: m.id, labelIds: ["INBOX"] } }] })),
+            historyId: "600",
+          },
+        };
       return undefined;
     }
-    if (u.hostname === "www.googleapis.com" && u.pathname.includes("/calendar/v3/calendars/")) return { json: { items: events[who.sub] ?? [], nextSyncToken: "sync-1" } };
+    if (u.hostname === "www.googleapis.com" && u.pathname.includes("/calendar/v3/calendars/"))
+      return { json: { items: events[who.sub] ?? [], nextSyncToken: "sync-1" } };
     if (u.hostname === "www.googleapis.com" && u.pathname.endsWith("/drive/v3/files")) {
       const parent = /'([^']+)' in parents/.exec(u.searchParams.get("q") ?? "")?.[1];
       return { json: { files: (files[who.sub] ?? []).filter((f) => !parent || f.parents.includes(parent)) } };
     }
-    if (u.hostname === "admin.googleapis.com" && u.pathname === "/admin/directory/v1/users") return { json: { users: [{ primaryEmail: NOAH, name: { fullName: "Noah Berg" } }, { primaryEmail: `kim@${DOMAIN}`, name: { fullName: "Kim Ito" } }] } };
+    if (u.hostname === "admin.googleapis.com" && u.pathname === "/admin/directory/v1/users")
+      return {
+        json: {
+          users: [
+            { primaryEmail: NOAH, name: { fullName: "Noah Berg" } },
+            { primaryEmail: `kim@${DOMAIN}`, name: { fullName: "Kim Ito" } },
+          ],
+        },
+      };
     if (u.hostname === "meet.googleapis.com") {
       if (u.pathname === "/v2/conferenceRecords") return { json: { conferenceRecords: conferences } };
-      if (u.pathname === "/v2/spaces/s1") return { json: { name: "spaces/s1", meetingUri: "https://meet.google.com/abc-defg-hij" } };
-      if (u.pathname.endsWith("/transcripts")) return { json: { transcripts: [{ name: "conferenceRecords/c1/transcripts/t1", state: "ENDED" }] } };
-      if (u.pathname.endsWith("/participants")) return { json: { participants: [{ name: "conferenceRecords/c1/participants/p1", signedinUser: { displayName: "Noah Park" } }] } };
+      if (u.pathname === "/v2/spaces/s1")
+        return { json: { name: "spaces/s1", meetingUri: "https://meet.google.com/abc-defg-hij" } };
+      if (u.pathname.endsWith("/transcripts"))
+        return { json: { transcripts: [{ name: "conferenceRecords/c1/transcripts/t1", state: "ENDED" }] } };
+      if (u.pathname.endsWith("/participants"))
+        return {
+          json: {
+            participants: [
+              { name: "conferenceRecords/c1/participants/p1", signedinUser: { displayName: "Noah Park" } },
+            ],
+          },
+        };
       if (u.pathname.endsWith("/entries")) {
-        return { json: { transcriptEntries: [
-          { text: "Thanks for joining the intake call.", participant: "conferenceRecords/c1/participants/p1", startTime: new Date(START + 2000).toISOString() },
-          { text: "Let us start with the deed.", participant: "conferenceRecords/c1/participants/p1", startTime: new Date(START + 9000).toISOString() },
-        ] } };
+        return {
+          json: {
+            transcriptEntries: [
+              {
+                text: "Thanks for joining the intake call.",
+                participant: "conferenceRecords/c1/participants/p1",
+                startTime: new Date(START + 2000).toISOString(),
+              },
+              {
+                text: "Let us start with the deed.",
+                participant: "conferenceRecords/c1/participants/p1",
+                startTime: new Date(START + 9000).toISOString(),
+              },
+            ],
+          },
+        };
       }
     }
     return undefined;
   };
 
   return {
-    api, seam, refused, asked, mail, events, files,
-    conference() { conferences.push({ name: "conferenceRecords/c1", startTime: new Date(START).toISOString(), endTime: new Date(END).toISOString(), space: "spaces/s1" }); },
+    api,
+    seam,
+    refused,
+    asked,
+    mail,
+    events,
+    files,
+    conference() {
+      conferences.push({
+        name: "conferenceRecords/c1",
+        startTime: new Date(START).toISOString(),
+        endTime: new Date(END).toISOString(),
+        space: "spaces/s1",
+      });
+    },
     times: { START, END },
   };
 }
 
 // the owner has no invitation email on record, and the admin address typed at setup is only who the checks act as: nobody is matched to it
-const members = [{ userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }];
+const members = [
+  { userId: "usr_noah", email: NOAH },
+  { userId: "usr_mia", email: MIA },
+];
 
 test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach the product; an excluded member is never read", async () => {
   const g = google();
-  g.refused.add(`${SCOPE}drive`);   // the Admin console has not delegated Drive yet
+  g.refused.add(`${SCOPE}drive`); // the Admin console has not delegated Drive yet
   // the same call is on Noah's calendar and in Meet: Meetings merges them on the Meet link
-  g.events[NOAH] = [{
-    id: "ev1", status: "confirmed", summary: "Intake call", hangoutLink: "https://meet.google.com/abc-defg-hij", start: { dateTime: new Date(g.times.START).toISOString() }, end: { dateTime: new Date(g.times.END).toISOString() },
-    attendees: [{ email: NOAH, responseStatus: "accepted" }, { email: "pat@acme.test", responseStatus: "needsAction" }],
-  }];
-  g.files[NOAH] = [{ id: "d-file1", name: "Engagement letter.pdf", mimeType: "application/pdf", modifiedTime: "2026-10-28T10:00:00Z", parents: ["root-folder"] }];
+  g.events[NOAH] = [
+    {
+      id: "ev1",
+      status: "confirmed",
+      summary: "Intake call",
+      hangoutLink: "https://meet.google.com/abc-defg-hij",
+      start: { dateTime: new Date(g.times.START).toISOString() },
+      end: { dateTime: new Date(g.times.END).toISOString() },
+      attendees: [
+        { email: NOAH, responseStatus: "accepted" },
+        { email: "pat@acme.test", responseStatus: "needsAction" },
+      ],
+    },
+  ];
+  g.files[NOAH] = [
+    {
+      id: "d-file1",
+      name: "Engagement letter.pdf",
+      mimeType: "application/pdf",
+      modifiedTime: "2026-10-28T10:00:00Z",
+      parents: ["root-folder"],
+    },
+  ];
   g.conference();
   const w = await bootWorld({
-    prefix: "google", api: g.api, seam: g.seam, members, secrets: { "#Google_DWD": KEY_JSON },
+    prefix: "google",
+    api: g.api,
+    seam: g.seam,
+    members,
+    secrets: { "#Google_DWD": KEY_JSON },
     sign: (data) => createSign("RSA-SHA256").update(data).sign(privateKey, "base64url"),
   });
   try {
     // 1 the key goes to the Vault by handle; the admin page reads status and scopes
-    const folder = await w.ok(OWNER, "vault.folders.create", { name: "Company connections", scope: "shared", idempotencyKey: w.idem() });
-    await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_folder", id: folder.folder.id }, label: "restricted" });   // as the setup page files it: Restricted, so only Owner and Admin reach the key (test/setup-secrets.live.test.ts)
-    const item = await w.ok(OWNER, "vault.item.put", { folderId: folder.folder.id, name: "Google_DWD", kind: "other", fields: [{ key: "key", value: KEY_JSON, secret: true }], idempotencyKey: w.idem() });
+    const folder = await w.ok(OWNER, "vault.folders.create", {
+      name: "Company connections",
+      scope: "shared",
+      idempotencyKey: w.idem(),
+    });
+    await w.ok(OWNER, "access.labels.set", {
+      resource: { type: "vault_folder", id: folder.folder.id },
+      label: "restricted",
+    }); // as the setup page files it: Restricted, so only Owner and Admin reach the key (test/setup-secrets.live.test.ts)
+    const item = await w.ok(OWNER, "vault.item.put", {
+      folderId: folder.folder.id,
+      name: "Google_DWD",
+      kind: "other",
+      fields: [{ key: "key", value: KEY_JSON, secret: true }],
+      idempotencyKey: w.idem(),
+    });
     await w.ok(OWNER, "access.labels.set", { resource: { type: "vault_item", id: item.item.id }, label: "restricted" });
     assert.equal(item.item.handle, "#Google_DWD");
     assert.equal(JSON.stringify(item).includes("PRIVATE KEY"), false, "the Vault never answers with the key");
     const before = await w.ok(OWNER, "google.dwd.status");
-    assert.deepEqual(before, { configured: false, data: { mail: true, calendar: true, files: true }, keyStored: false, autoConnect: true, mappedMembers: 0, excluded: [] });
+    assert.deepEqual(before, {
+      configured: false,
+      data: { mail: true, calendar: true, files: true },
+      keyStored: false,
+      autoConnect: true,
+      mappedMembers: 0,
+      excluded: [],
+    });
     const scopes = await w.ok(OWNER, "google.dwd.scopes");
     assert.equal(scopes.scopes.length, 7);
 
@@ -141,7 +286,11 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     await w.ok(OWNER, "google.dwd.set_excluded", { email: MIA, excluded: true });
 
     // 3 setup works with Gmail delegated; the check names the scope that is missing
-    const setup = await w.ok(OWNER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: ADMIN, idempotencyKey: w.idem() });
+    const setup = await w.ok(OWNER, "google.dwd.setup", {
+      vaultItem: "#Google_DWD",
+      adminEmail: ADMIN,
+      idempotencyKey: w.idem(),
+    });
     assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 1, 1]);
     const missing = await w.ok(OWNER, "google.dwd.probe", {});
     assert.equal(missing.ok, false);
@@ -150,31 +299,63 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const fixed = await w.ok(OWNER, "google.dwd.probe", {});
     assert.deepEqual([fixed.ok, fixed.scopesMissing, fixed.email], [true, [], ADMIN]);
     const status = await w.ok(OWNER, "google.dwd.status");
-    assert.deepEqual([status.configured, status.lastProbeOk, status.mappedMembers, status.excluded], [true, true, 1, [MIA]]);
+    assert.deepEqual(
+      [status.configured, status.lastProbeOk, status.mappedMembers, status.excluded],
+      [true, true, 1, [MIA]],
+    );
     assert.match(status.pushToken, /^[0-9a-f]{64}$/);
     const roster = await w.ok(OWNER, "google.dwd.members", {});
-    assert.deepEqual(roster.members.map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded]).sort(), [[MIA, true, true], [NOAH, true, false]].sort(), "the admin address is nobody's Inbox");
+    assert.deepEqual(
+      roster.members
+        .map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded])
+        .sort(),
+      [
+        [MIA, true, true],
+        [NOAH, true, false],
+      ].sort(),
+      "the admin address is nobody's Inbox",
+    );
 
     // 4 mail: Noah's mailbox was made pending, and his mail comes in with nobody pressing anything. The owner set this up, and a job the owner queued runs as the owner, who never
     // reads Noah's mailbox: the host takes his first pull over (google.adopt_polls, every minute) and runs the chain as its own work
     const boxes = await w.ok(MEMBER, "mail.mailbox.list", {});
     const mine = boxes.mailboxes.filter((b: { address: string }) => b.address === NOAH);
     assert.equal(mine.length, 1, "Noah has his Google mailbox");
-    assert.equal(boxes.mailboxes.some((b: { address: string }) => b.address === MIA), false, "Mia has none");
-    assert.equal(g.asked.some((a) => a.sub === NOAH), false, "nothing of Noah's was read as the owner");
+    assert.equal(
+      boxes.mailboxes.some((b: { address: string }) => b.address === MIA),
+      false,
+      "Mia has none",
+    );
+    assert.equal(
+      g.asked.some((a) => a.sub === NOAH),
+      false,
+      "nothing of Noah's was read as the owner",
+    );
     await w.d.hooks!.runPeriodic("google.adopt_polls");
     let arrived: string[] = [];
     for (let i = 0; i < 100 && arrived.length === 0; i++) {
       await new Promise((r) => setTimeout(r, 200));
-      arrived = (await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id })).messages.map((m: { subject: string }) => m.subject);
+      arrived = (await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id })).messages.map(
+        (m: { subject: string }) => m.subject,
+      );
     }
-    assert.deepEqual(arrived, ["Can we talk about the deed?"], `the host's pull brought it in: ${JSON.stringify(w.logsLike(/google pull/))}`);
+    assert.deepEqual(
+      arrived,
+      ["Can we talk about the deed?"],
+      `the host's pull brought it in: ${JSON.stringify(w.logsLike(/google pull/))}`,
+    );
     // and Noah's own Sync now still pulls at once, as himself
     await w.ok(MEMBER, "mail.sync_now", { mailboxId: mine[0].id });
     const list = await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id });
-    assert.deepEqual(list.messages.map((m: { subject: string }) => m.subject), ["Can we talk about the deed?"]);
+    assert.deepEqual(
+      list.messages.map((m: { subject: string }) => m.subject),
+      ["Can we talk about the deed?"],
+    );
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});
-    assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
+    assert.ok(
+      JSON.stringify(threads).includes("Can we talk about the deed?"),
+      "the message is in the Inbox thread list",
+    );
 
     // 5 calendar: setup made Noah's Google calendar, and Calendar's own scheduled pull (run by the server, which a member's private calendar does not refuse) lands his event
     await w.d.hooks!.runPeriodic("calendar.pull_provider");
@@ -182,31 +363,74 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const gcal = cals.calendars.find((c: { provider: string }) => c.provider === "google");
     assert.ok(gcal, "Noah's Google calendar is in Calendar");
     assert.equal(gcal.ownerId, "usr_noah");
-    const seen = await w.ok(MEMBER, "calendar.list_events", { from: Date.now() - 86_400_000, to: Date.now() + 86_400_000, calendarIds: [gcal.id] });
-    assert.deepEqual(seen.events.map((e: { title: string }) => e.title), ["Intake call"]);
+    const seen = await w.ok(MEMBER, "calendar.list_events", {
+      from: Date.now() - 86_400_000,
+      to: Date.now() + 86_400_000,
+      calendarIds: [gcal.id],
+    });
+    assert.deepEqual(
+      seen.events.map((e: { title: string }) => e.title),
+      ["Intake call"],
+    );
     const mia = await w.ok(OTHER, "calendar.list_calendars", {});
-    assert.equal(mia.calendars.some((c: { id: string }) => c.id === gcal.id), false, "another member does not see Noah's calendar");
-    assert.equal(gcal.title, NOAH, "the calendar is named for Noah's account, not \"Google Calendar\"");
-    await w.ok(MEMBER, "calendar.sync_now", { calendarId: gcal.id });   // Sync now on the sidebar row: Noah may pull his own calendar
-    assert.notEqual((await w.call(OTHER, "calendar.sync_now", { calendarId: gcal.id })).status, 200, "and Mia may not pull his");
+    assert.equal(
+      mia.calendars.some((c: { id: string }) => c.id === gcal.id),
+      false,
+      "another member does not see Noah's calendar",
+    );
+    assert.equal(gcal.title, NOAH, 'the calendar is named for Noah\'s account, not "Google Calendar"');
+    await w.ok(MEMBER, "calendar.sync_now", { calendarId: gcal.id }); // Sync now on the sidebar row: Noah may pull his own calendar
+    assert.notEqual(
+      (await w.call(OTHER, "calendar.sync_now", { calendarId: gcal.id })).status,
+      200,
+      "and Mia may not pull his",
+    );
 
     // 6 Meet: the same pass handed the conference's transcript to Meetings
     const meetings = await w.ok(MEMBER, "meetings.list", {});
     assert.equal(meetings.meetings.length, 1, JSON.stringify(meetings));
-    const transcript = await w.ok(MEMBER, "meetings.transcript.get", { meetingId: meetings.meetings[0].meetingId ?? meetings.meetings[0].id });
-    assert.deepEqual(transcript.segments.map((s: { speaker?: string; text: string }) => [s.speaker, s.text]), [["Noah Park", "Thanks for joining the intake call."], ["Noah Park", "Let us start with the deed."]]);
+    const transcript = await w.ok(MEMBER, "meetings.transcript.get", {
+      meetingId: meetings.meetings[0].meetingId ?? meetings.meetings[0].id,
+    });
+    assert.deepEqual(
+      transcript.segments.map((s: { speaker?: string; text: string }) => [s.speaker, s.text]),
+      [
+        ["Noah Park", "Thanks for joining the intake call."],
+        ["Noah Park", "Let us start with the deed."],
+      ],
+    );
 
     // 7 Drive: Noah mounts a Drive folder in Files; a file of the folder arrives, and a change in Drive reaches the mount
     const tree = await w.ok(MEMBER, "files.tree", {});
-    const into = tree.roots.find((r: { key: string; folderId?: string }) => r.key === "shared_knowledge" || r.key === "knowledge")?.folderId ?? tree.roots.find((r: { folderId?: string }) => r.folderId)?.folderId;
+    const into =
+      tree.roots.find((r: { key: string; folderId?: string }) => r.key === "shared_knowledge" || r.key === "knowledge")
+        ?.folderId ?? tree.roots.find((r: { folderId?: string }) => r.folderId)?.folderId;
     assert.ok(into, "Noah has a Files folder to mount into");
-    const added = await w.ok(MEMBER, "mounts.add", { into, source: { kind: "google_drive", connectionId: gcal.connectionId, ref: "root-folder" }, name: "Firm Drive", idempotencyKey: w.idem() });
+    const added = await w.ok(MEMBER, "mounts.add", {
+      into,
+      source: { kind: "google_drive", connectionId: gcal.connectionId, ref: "root-folder" },
+      name: "Firm Drive",
+      idempotencyKey: w.idem(),
+    });
     const listed = await w.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });
-    assert.deepEqual(listed.files.map((f: { name: string }) => f.name), ["Engagement letter.pdf"], JSON.stringify(listed));
-    g.files[NOAH]!.push({ id: "d-file2", name: "Closing statement.pdf", mimeType: "application/pdf", modifiedTime: "2026-10-29T09:00:00Z", parents: ["root-folder"] });
+    assert.deepEqual(
+      listed.files.map((f: { name: string }) => f.name),
+      ["Engagement letter.pdf"],
+      JSON.stringify(listed),
+    );
+    g.files[NOAH]!.push({
+      id: "d-file2",
+      name: "Closing statement.pdf",
+      mimeType: "application/pdf",
+      modifiedTime: "2026-10-29T09:00:00Z",
+      parents: ["root-folder"],
+    });
     await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, idempotencyKey: w.idem() });
     const after = await w.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });
-    assert.deepEqual(after.files.map((f: { name: string }) => f.name).sort(), ["Closing statement.pdf", "Engagement letter.pdf"]);
+    assert.deepEqual(after.files.map((f: { name: string }) => f.name).sort(), [
+      "Closing statement.pdf",
+      "Engagement letter.pdf",
+    ]);
 
     // 8 the push address takes only Google's secret, and no one can post a push themselves
     const connectionId = gcal.connectionId as string;
@@ -214,42 +438,127 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.equal(forged.status, 403, forged.text);
     const owner = await w.call(OWNER, "google.receive_push", { kind: "gmail", messageId: "forged-2", mailbox: NOAH });
     assert.equal(owner.status, 403, "not even the owner can record a push; only the server does");
-    const envelope = (id: string) => JSON.stringify({ message: { messageId: id, data: Buffer.from(JSON.stringify({ emailAddress: NOAH, historyId: 900 })).toString("base64") }, subscription: "projects/p/subscriptions/s" });
-    const post = (query: string, body: string) => fetch(`${w.d.url}/hooks/google/gmail${query}`, { method: "POST", body, headers: { "content-type": "application/json" } });
+    const envelope = (id: string) =>
+      JSON.stringify({
+        message: {
+          messageId: id,
+          data: Buffer.from(JSON.stringify({ emailAddress: NOAH, historyId: 900 })).toString("base64"),
+        },
+        subscription: "projects/p/subscriptions/s",
+      });
+    const post = (query: string, body: string) =>
+      fetch(`${w.d.url}/hooks/google/gmail${query}`, {
+        method: "POST",
+        body,
+        headers: { "content-type": "application/json" },
+      });
     assert.equal((await post("", envelope("hook-1"))).status, 401, "no secret");
     assert.equal((await post("?token=guess", envelope("hook-2"))).status, 401, "a wrong secret");
-    g.mail[NOAH]!.push({ id: "g-m2", subject: "Signed deed attached", from: "Pat Lee <pat@acme.test>", at: Date.UTC(2026, 9, 29, 9, 0) });
+    g.mail[NOAH]!.push({
+      id: "g-m2",
+      subject: "Signed deed attached",
+      from: "Pat Lee <pat@acme.test>",
+      at: Date.UTC(2026, 9, 29, 9, 0),
+    });
     const taken = await post(`?token=${status.pushToken}`, envelope("hook-3"));
     assert.equal(taken.status, 200, await taken.text());
     const afterPush = await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id });
-    assert.deepEqual(afterPush.messages.map((m: { subject: string }) => m.subject).sort(), ["Can we talk about the deed?", "Signed deed attached"]);
+    assert.deepEqual(afterPush.messages.map((m: { subject: string }) => m.subject).sort(), [
+      "Can we talk about the deed?",
+      "Signed deed attached",
+    ]);
 
     // 9 who may act as whom: a member cannot read another member's account, and nobody can act as an excluded member
     const asAdmin = await w.call(MEMBER, "google.gmail.get_profile", { connectionId, as: ADMIN });
     assert.ok(asAdmin.status >= 400, "Noah cannot act as the admin");
     const asMia = await w.call(OWNER, "google.gmail.get_profile", { connectionId, as: MIA });
     assert.equal(asMia.status, 403, "not even the admin can act as an excluded member");
-    assert.equal((await w.call(MEMBER, "google.dwd.set_excluded", { email: NOAH, excluded: true })).status, 403, "a member cannot change who is excluded");
-    assert.equal((await w.call(MEMBER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: NOAH, idempotencyKey: w.idem() })).status, 403, "a member cannot set delegation up");
+    assert.equal(
+      (await w.call(MEMBER, "google.dwd.set_excluded", { email: NOAH, excluded: true })).status,
+      403,
+      "a member cannot change who is excluded",
+    );
+    assert.equal(
+      (
+        await w.call(MEMBER, "google.dwd.setup", {
+          vaultItem: "#Google_DWD",
+          adminEmail: NOAH,
+          idempotencyKey: w.idem(),
+        })
+      ).status,
+      403,
+      "a member cannot set delegation up",
+    );
 
     // 9b the directory: only an admin lists it, the chosen person gets one invitation, and a member cannot match or sync
     assert.equal((await w.call(MEMBER, "google.directory.list", {})).status, 403, "a member cannot list the directory");
     const dir = await w.ok(OWNER, "google.directory.list", {});
-    assert.deepEqual(dir.people.map((p: { email: string; userId?: string }) => [p.email, p.userId]), [[NOAH, "usr_noah"], [`kim@${DOMAIN}`, undefined]]);
+    assert.deepEqual(
+      dir.people.map((p: { email: string; userId?: string }) => [p.email, p.userId]),
+      [
+        [NOAH, "usr_noah"],
+        [`kim@${DOMAIN}`, undefined],
+      ],
+    );
     const roles = await w.ok(OWNER, "access.roles.list", {});
     const roleId = roles.roles.find((r: { id: string }) => r.id === "rol_member").id;
-    const imported = await w.ok(OWNER, "google.directory.import", { people: [{ email: `kim@${DOMAIN}`, role: roleId }, { email: NOAH, role: roleId }], idempotencyKey: w.idem() });
-    assert.deepEqual([imported.invited.map((i: { email: string }) => i.email), imported.skipped.map((i: { email: string }) => i.email)], [[`kim@${DOMAIN}`], [NOAH]]);
+    const imported = await w.ok(OWNER, "google.directory.import", {
+      people: [
+        { email: `kim@${DOMAIN}`, role: roleId },
+        { email: NOAH, role: roleId },
+      ],
+      idempotencyKey: w.idem(),
+    });
+    assert.deepEqual(
+      [
+        imported.invited.map((i: { email: string }) => i.email),
+        imported.skipped.map((i: { email: string }) => i.email),
+      ],
+      [[`kim@${DOMAIN}`], [NOAH]],
+    );
     assert.match(imported.invited[0].link, /join/);
-    assert.equal((await w.call(MEMBER, "google.directory.import", { people: [{ email: `kim@${DOMAIN}`, role: roleId }], idempotencyKey: w.idem() })).status, 403);
-    assert.equal((await w.call(MEMBER, "google.dwd.map_member", { email: `kim@${DOMAIN}`, userId: "usr_noah", idempotencyKey: w.idem() })).status, 403, "a member cannot match addresses");
+    assert.equal(
+      (
+        await w.call(MEMBER, "google.directory.import", {
+          people: [{ email: `kim@${DOMAIN}`, role: roleId }],
+          idempotencyKey: w.idem(),
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await w.call(MEMBER, "google.dwd.map_member", {
+          email: `kim@${DOMAIN}`,
+          userId: "usr_noah",
+          idempotencyKey: w.idem(),
+        })
+      ).status,
+      403,
+      "a member cannot match addresses",
+    );
     assert.equal((await w.call(MEMBER, "google.dwd.sync_members", { idempotencyKey: w.idem() })).status, 403);
-    const matched = await w.ok(OWNER, "google.dwd.map_member", { email: `kim@${DOMAIN}`, userId: "usr_adam", idempotencyKey: w.idem() });
+    const matched = await w.ok(OWNER, "google.dwd.map_member", {
+      email: `kim@${DOMAIN}`,
+      userId: "usr_adam",
+      idempotencyKey: w.idem(),
+    });
     assert.deepEqual([matched.mapped, matched.connected], [true, true]);
-    assert.equal((await w.ok(OWNER, "google.dwd.members", {})).members.some((m: { email: string; mapped: boolean }) => m.email === `kim@${DOMAIN}` && m.mapped), true);
+    assert.equal(
+      (await w.ok(OWNER, "google.dwd.members", {})).members.some(
+        (m: { email: string; mapped: boolean }) => m.email === `kim@${DOMAIN}` && m.mapped,
+      ),
+      true,
+    );
 
     // 10 nothing was ever asked of Google as Mia
-    assert.equal(g.asked.some((a) => a.sub === MIA), false, "Mia's account was never read");
+    assert.equal(
+      g.asked.some((a) => a.sub === MIA),
+      false,
+      "Mia's account was never read",
+    );
     assert.ok(g.asked.some((a) => a.sub === NOAH && a.url.includes("gmail")));
-  } finally { await w.stop(); }
+  } finally {
+    await w.stop();
+  }
 });

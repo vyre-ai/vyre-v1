@@ -40,25 +40,42 @@ async function sha256hex(text: string): Promise<string> {
 export async function unsubscribeLink(ctx: MailCtx, address: string): Promise<string | null> {
   const base = (host?.publicBase ?? "").replace(/\/+$/, "");
   if (!base) {
-    ctx.log.warn("mail.send: no public address, so this email carries no unsubscribe link", { traceId: ctx.trace.traceId });
+    ctx.log.warn("mail.send: no public address, so this email carries no unsubscribe link", {
+      traceId: ctx.trace.traceId,
+    });
     return null;
   }
   const token = randomToken();
-  ctx.db.run(`INSERT INTO mail_unsub (token_hash, address, created_at, used_at) VALUES (?, ?, ?, ?)`, await sha256hex(token), address, ctx.now(), null);
+  ctx.db.run(
+    `INSERT INTO mail_unsub (token_hash, address, created_at, used_at) VALUES (?, ?, ?, ?)`,
+    await sha256hex(token),
+    address,
+    ctx.now(),
+    null,
+  );
   return `${base}${host?.publicPath ? "/p" : ""}/u/${token}`;
 }
 
 export const footerText = (url: string): string => `\n\nTo stop these emails: ${url}`;
-export const footerHtml = (url: string): string => `<p style="font-size:12px;color:#666"><a href="${url}">Unsubscribe</a></p>`;
+export const footerHtml = (url: string): string =>
+  `<p style="font-size:12px;color:#666"><a href="${url}">Unsubscribe</a></p>`;
 
 /** mail.unsubscribe. */
 export async function unsubscribe(ctx: MailCtx, input: { token?: unknown }): Promise<{ ok: boolean }> {
   const token = typeof input.token === "string" ? input.token : "";
-  const row = token ? first(ctx.db.all(`SELECT * FROM mail_unsub WHERE token_hash = ?`, await sha256hex(token))) : undefined;
+  const row = token
+    ? first(ctx.db.all(`SELECT * FROM mail_unsub WHERE token_hash = ?`, await sha256hex(token)))
+    : undefined;
   if (!row) throw fail("auth.invalid_code", ctx.trace.traceId, { message: "That link is not valid." });
   if ((row as { used_at?: unknown }).used_at != null) return { ok: true };
   const now = ctx.now();
-  await ctx.call("contacts.apply_optout", { channel: "email", address: str(row, "address"), keyword: "UNSUBSCRIBE", source: "link", at: now });
+  await ctx.call("contacts.apply_optout", {
+    channel: "email",
+    address: str(row, "address"),
+    keyword: "UNSUBSCRIBE",
+    source: "link",
+    at: now,
+  });
   ctx.db.run(`UPDATE mail_unsub SET used_at = ? WHERE token_hash = ?`, now, str(row, "token_hash"));
   return { ok: true };
 }

@@ -20,32 +20,79 @@ const orUndef = (v: unknown): string | undefined => (v === null || v === undefin
 
 interface ThreadOut {
   thread: {
-    threadId: string; kind?: string; starter?: string;
-    agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; provider?: string; effort?: string; accountRef?: string; watches?: boolean }>;
+    threadId: string;
+    kind?: string;
+    starter?: string;
+    agents: Array<{
+      agentId: string;
+      mode: "lead" | "listen";
+      model?: string;
+      provider?: string;
+      effort?: string;
+      accountRef?: string;
+      watches?: boolean;
+    }>;
   };
 }
 
 const KINDS = new Set<string>(["chat", "channel", "thread", "ask", "run", "helper", "console"]);
 const DRIVER_TITLE: Readonly<Record<string, string>> = {
-  anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter", google: "Google", xai: "xAI", opencode_go: "OpenCode Go", local: "a local model",
-  claude_code: "Claude Code", codex: "Codex", grok: "Grok",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  openrouter: "OpenRouter",
+  google: "Google",
+  xai: "xAI",
+  opencode_go: "OpenCode Go",
+  local: "a local model",
+  claude_code: "Claude Code",
+  codex: "Codex",
+  grok: "Grok",
 };
 
-interface AgentState { mode: string | null; model: string | null; provider: string | null; effort: string | null; accountRef: string | null; engine: string | null }
+interface AgentState {
+  mode: string | null;
+  model: string | null;
+  provider: string | null;
+  effort: string | null;
+  accountRef: string | null;
+  engine: string | null;
+}
 
 export function stateOf(ctx: EngineCtx, threadId: string, agentId: string): AgentState | null {
   const r = rows(ctx, "SELECT * FROM engine_agent_state WHERE thread_id = ? AND agent_id = ?", threadId, agentId)[0];
   if (!r) return null;
   const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
-  return { mode: s(r["mode"]), model: s(r["model"]), provider: s(r["provider"]), effort: s(r["effort"]), accountRef: s(r["account_ref"]), engine: s(r["engine"]) };
+  return {
+    mode: s(r["mode"]),
+    model: s(r["model"]),
+    provider: s(r["provider"]),
+    effort: s(r["effort"]),
+    accountRef: s(r["account_ref"]),
+    engine: s(r["engine"]),
+  };
 }
 
 function saveState(ctx: EngineCtx, threadId: string, agentId: string, patch: Partial<AgentState>): AgentState {
-  const cur = stateOf(ctx, threadId, agentId) ?? { mode: null, model: null, provider: null, effort: null, accountRef: null, engine: null };
+  const cur = stateOf(ctx, threadId, agentId) ?? {
+    mode: null,
+    model: null,
+    provider: null,
+    effort: null,
+    accountRef: null,
+    engine: null,
+  };
   const next: AgentState = { ...cur, ...patch };
   ctx.db.run(
     `INSERT OR REPLACE INTO engine_agent_state (thread_id, agent_id, mode, model, provider, effort, account_ref, engine, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    threadId, agentId, next.mode, next.model, next.provider, next.effort, next.accountRef, next.engine, ctx.now(),
+    threadId,
+    agentId,
+    next.mode,
+    next.model,
+    next.provider,
+    next.effort,
+    next.accountRef,
+    next.engine,
+    ctx.now(),
   );
   return next;
 }
@@ -54,7 +101,11 @@ function saveState(ctx: EngineCtx, threadId: string, agentId: string, patch: Par
  * Open the thread in the engine if this host has not yet, from threads.get plus what this module saved for its agents. A private chat answers only to its people, so a job that runs as the host (recovery,
  * a wake, a Gate answer) passes `read`, a way to ask as the person the turn is for; without it the caller's own access decides.
  */
-export async function open(ctx: EngineCtx, threadId: string, read?: (threadId: string) => Promise<unknown>): Promise<TurnEngine> {
+export async function open(
+  ctx: EngineCtx,
+  threadId: string,
+  read?: (threadId: string) => Promise<unknown>,
+): Promise<TurnEngine> {
   ensure(ctx.db);
   const engine = boundEngine(ctx);
   try {
@@ -65,26 +116,44 @@ export async function open(ctx: EngineCtx, threadId: string, read?: (threadId: s
   }
   let out: ThreadOut;
   try {
-    out = (await (read ? read(threadId).catch(() => ctx.call("threads.get", { threadId })) : ctx.call("threads.get", { threadId }))) as ThreadOut;
+    out = (await (read
+      ? read(threadId).catch(() => ctx.call("threads.get", { threadId }))
+      : ctx.call("threads.get", { threadId }))) as ThreadOut;
   } catch {
     raise(ctx, "validation.not_found", "There is no such conversation.", { threadId });
   }
   const t = out.thread;
   const kind: ThreadKind = t.kind !== undefined && KINDS.has(t.kind) ? (t.kind as ThreadKind) : "thread";
   // the same thread the bridge builds for a new message (thread-open.ts): whichever opens it first, the agents carry their model, name, settings, outside flag and task lead
-  const reading = (cap: string, input: unknown): Promise<unknown> => (read && cap === "threads.get" ? read((input as { threadId: string }).threadId) : ctx.call(cap as never, input as never));
+  const reading = (cap: string, input: unknown): Promise<unknown> =>
+    read && cap === "threads.get"
+      ? read((input as { threadId: string }).threadId)
+      : ctx.call(cap as never, input as never);
   const built = await engineThreadOf({
-    threadId, got: out as unknown as ThreadGet, read: reading, kind, starter: actorOf(ctx),
-    agentInfo: (agentId) => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+    threadId,
+    got: out as unknown as ThreadGet,
+    read: reading,
+    kind,
+    starter: actorOf(ctx),
+    agentInfo: (agentId) =>
+      ctx
+        .call("agents.get", { agentId })
+        .then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
     saved: (agentId) => stateOf(ctx, threadId, agentId),
   });
-  try { engine.openThread(built); }
-  catch (e) { if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e; }   // opened meanwhile by the bridge: the same thread
+  try {
+    engine.openThread(built);
+  } catch (e) {
+    if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
+  } // opened meanwhile by the bridge: the same thread
   return engine;
 }
 
 /** engine.drop_queued: a message waiting behind a running turn is taken out of the queue, so it can be edited and sent again. Nothing happens to a message whose turn has already started. */
-export async function dropQueued(ctx: EngineCtx, input: { threadId: string; messageId: string }): Promise<{ dropped: boolean }> {
+export async function dropQueued(
+  ctx: EngineCtx,
+  input: { threadId: string; messageId: string },
+): Promise<{ dropped: boolean }> {
   const engine = await open(ctx, input.threadId);
   const n = engine.dropQueued(input.threadId, input.messageId);
   return { dropped: n > 0 };
@@ -92,37 +161,64 @@ export async function dropQueued(ctx: EngineCtx, input: { threadId: string; mess
 
 // ---- interrupt, stop, stop_all
 
-export async function interrupt(ctx: EngineCtx, input: { threadId: string; messageId?: string }): Promise<{ queued: boolean }> {
+export async function interrupt(
+  ctx: EngineCtx,
+  input: { threadId: string; messageId?: string },
+): Promise<{ queued: boolean }> {
   const engine = await open(ctx, input.threadId);
   let r;
   try {
     r = await engine.interrupt(input.threadId, input.messageId);
   } catch (e) {
-    if (e instanceof RangeError) raise(ctx, "validation.not_found", "There is no such message in this conversation.", { messageId: input.messageId });
+    if (e instanceof RangeError)
+      raise(ctx, "validation.not_found", "There is no such message in this conversation.", {
+        messageId: input.messageId,
+      });
     throw e;
   }
   const by = actorOf(ctx);
-  for (const c of r.cancelled) ctx.emit("turn.cancelled", input.threadId, { turnId: c.turnId, threadId: input.threadId, agentId: c.agentId, by, pressed: true });
+  for (const c of r.cancelled)
+    ctx.emit("turn.cancelled", input.threadId, {
+      turnId: c.turnId,
+      threadId: input.threadId,
+      agentId: c.agentId,
+      by,
+      pressed: true,
+    });
   const queue = engine.queue(input.threadId);
   for (const qseq of r.qseqs) {
     const row = queue.find((q) => q.qseq === qseq);
     if (!row) continue;
     ctx.emit("turn.queued", input.threadId, {
-      threadId: input.threadId, agentId: row.agentId, kind: row.kind, qseq, ...(row.messageId === null ? {} : { messageId: row.messageId }),
+      threadId: input.threadId,
+      agentId: row.agentId,
+      kind: row.kind,
+      qseq,
+      ...(row.messageId === null ? {} : { messageId: row.messageId }),
     });
   }
   return { queued: r.queued };
 }
 
-async function stopWith(ctx: EngineCtx, threadId: string, o: { agentId?: string; all: boolean; reason?: "update" }): Promise<{ stopped: number }> {
+async function stopWith(
+  ctx: EngineCtx,
+  threadId: string,
+  o: { agentId?: string; all: boolean; reason?: "update" },
+): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const r = await engine.stop(threadId, { ...(o.agentId === undefined ? {} : { agentId: o.agentId }), clearQueue: o.all, ...(o.reason ? { reason: o.reason } : {}) });
+  const r = await engine.stop(threadId, {
+    ...(o.agentId === undefined ? {} : { agentId: o.agentId }),
+    clearQueue: o.all,
+    ...(o.reason ? { reason: o.reason } : {}),
+  });
   const by = actorOf(ctx);
   // a person's Stop is pressed; the app stopping its turns for an update is not (its terminal commands outlive the app), and says why
   const why = o.reason ? { reason: o.reason } : { pressed: true };
-  for (const c of r.stopped) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
-  for (const c of r.released) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
-  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) };   // a turn marked while starting counts: it will not run
+  for (const c of r.stopped)
+    ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
+  for (const c of r.released)
+    ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
+  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) }; // a turn marked while starting counts: it will not run
 }
 
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */
@@ -130,17 +226,22 @@ export const stop = (ctx: EngineCtx, input: { threadId: string; agentId?: string
   stopWith(ctx, input.threadId, { ...(input.agentId === undefined ? {} : { agentId: input.agentId }), all: false });
 
 /** Stop every agent working in the thread: the running turn, everything queued, everything parked. */
-export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> => stopWith(ctx, input.threadId, { all: true, ...(input.reason === "update" ? { reason: "update" as const } : {}) });
+export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> =>
+  stopWith(ctx, input.threadId, { all: true, ...(input.reason === "update" ? { reason: "update" as const } : {}) });
 
 // ---- set_mode, set_model, switch
 
-export async function setMode(ctx: EngineCtx, input: { threadId: string; agentId: string; mode: "lead" | "listen" }): Promise<{ mode: "lead" | "listen"; leadAgentId: string | null }> {
+export async function setMode(
+  ctx: EngineCtx,
+  input: { threadId: string; agentId: string; mode: "lead" | "listen" },
+): Promise<{ mode: "lead" | "listen"; leadAgentId: string | null }> {
   const engine = await open(ctx, input.threadId);
   const before = new Map(engine.agents(input.threadId).map((a) => [a.id, a.mode] as const));
   try {
     engine.setMode(input.threadId, input.agentId, input.mode);
   } catch (e) {
-    if (e instanceof RangeError) raise(ctx, "validation.not_found", "That agent is not in this conversation.", { agentId: input.agentId });
+    if (e instanceof RangeError)
+      raise(ctx, "validation.not_found", "That agent is not in this conversation.", { agentId: input.agentId });
     throw e;
   }
   const agents = engine.agents(input.threadId);
@@ -148,7 +249,12 @@ export async function setMode(ctx: EngineCtx, input: { threadId: string; agentId
   for (const a of agents) {
     if (a.id === input.agentId || before.get(a.id) !== a.mode) saveState(ctx, input.threadId, a.id, { mode: a.mode });
   }
-  ctx.emit("agent.mode_changed", input.threadId, { threadId: input.threadId, agentId: input.agentId, mode: input.mode, by: actorOf(ctx) });
+  ctx.emit("agent.mode_changed", input.threadId, {
+    threadId: input.threadId,
+    agentId: input.agentId,
+    mode: input.mode,
+    by: actorOf(ctx),
+  });
   return { mode: input.mode, leadAgentId: agents.find((a) => a.mode === "lead")?.id ?? null };
 }
 
@@ -164,46 +270,92 @@ function providerFor(model: string): string | undefined {
 
 export async function setModel(
   ctx: EngineCtx,
-  input: { threadId: string; agentId: string; model?: string; provider?: string; effort?: "low" | "medium" | "high" | "max"; accountRef?: string },
+  input: {
+    threadId: string;
+    agentId: string;
+    model?: string;
+    provider?: string;
+    effort?: "low" | "medium" | "high" | "max";
+    accountRef?: string;
+  },
 ): Promise<{ model: string; provider: string; effort?: "low" | "medium" | "high" | "max"; accountRef?: string }> {
   const engine = await open(ctx, input.threadId);
   const agent = engine.agents(input.threadId).find((a) => a.id === input.agentId);
   if (!agent) raise(ctx, "validation.not_found", "That agent is not in this conversation.", { agentId: input.agentId });
   const saved = stateOf(ctx, input.threadId, input.agentId);
   const model = input.model ?? saved?.model ?? agent.model;
-  if (model === undefined || model === null) raise(ctx, "validation.precondition_failed", "Pick a model first.", { agentId: input.agentId });
-  const provider = input.provider ?? (input.model === undefined ? saved?.provider ?? undefined : undefined) ?? providerFor(model);
-  if (provider === undefined) raise(ctx, "validation.precondition_failed", "Name the provider for this model.", { model });
+  if (model === undefined || model === null)
+    raise(ctx, "validation.precondition_failed", "Pick a model first.", { agentId: input.agentId });
+  const provider =
+    input.provider ?? (input.model === undefined ? (saved?.provider ?? undefined) : undefined) ?? providerFor(model);
+  if (provider === undefined)
+    raise(ctx, "validation.precondition_failed", "Name the provider for this model.", { model });
   const effort = input.effort ?? (saved?.effort as "low" | "medium" | "high" | "max" | null | undefined) ?? undefined;
   const accountRef = input.accountRef ?? saved?.accountRef ?? agent.accountRef;
   engine.setAgent(input.threadId, input.agentId, { model, ...(accountRef === undefined ? {} : { accountRef }) });
-  saveState(ctx, input.threadId, input.agentId, { model, provider, effort: effort ?? null, accountRef: accountRef ?? null });
-  ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId: input.agentId, model, provider, by: actorOf(ctx) });
+  saveState(ctx, input.threadId, input.agentId, {
+    model,
+    provider,
+    effort: effort ?? null,
+    accountRef: accountRef ?? null,
+  });
+  ctx.emit("agent.model_changed", input.threadId, {
+    threadId: input.threadId,
+    agentId: input.agentId,
+    model,
+    provider,
+    by: actorOf(ctx),
+  });
   // a person's own pick is what their next new chat starts on (last-pick.ts)
   // a model picked now is checked now, within the background check's cap or not (model-health.ts)
   if (input.model !== undefined) void probePick(ctx, model);
-  if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, ctx.principal.id, input.agentId, { model, provider, effort: effort ?? null }, ctx.now());
-  return { model, provider, ...(effort === undefined ? {} : { effort }), ...(accountRef === undefined ? {} : { accountRef }) };
+  if (input.model !== undefined && ctx.principal.kind === "person")
+    rememberPick(ctx.db, ctx.principal.id, input.agentId, { model, provider, effort: effort ?? null }, ctx.now());
+  return {
+    model,
+    provider,
+    ...(effort === undefined ? {} : { effort }),
+    ...(accountRef === undefined ? {} : { accountRef }),
+  };
 }
 
 /**
  * A new chat starts on the model its person last picked: when the chat has no pick of its own and the person has one remembered, it becomes this chat's pick (as if they had chosen it in the composer), so the
  * resolver honours it and the composer shows it. Answers the model, or undefined when there is nothing to apply.
  */
-export async function applyRememberedPick(ctx: EngineCtx, threadId: string, agentId: string, person: string): Promise<string | undefined> {
+export async function applyRememberedPick(
+  ctx: EngineCtx,
+  threadId: string,
+  agentId: string,
+  person: string,
+): Promise<string | undefined> {
   if (stateOf(ctx, threadId, agentId)?.model) return undefined;
   const pick = recallPick(ctx.db, person, agentId);
   if (!pick) return undefined;
   try {
-    const set = await setModel(ctx, { threadId, agentId, model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort as "low" | "medium" | "high" | "max" } : {}) });
+    const set = await setModel(ctx, {
+      threadId,
+      agentId,
+      model: pick.model,
+      ...(pick.provider ? { provider: pick.provider } : {}),
+      ...(pick.effort ? { effort: pick.effort as "low" | "medium" | "high" | "max" } : {}),
+    });
     return set.model;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 /** What this person last picked in a chat, for Settings > Your AI: the same store a new chat starts from (any agent). Nothing when they have not picked yet. */
 export async function lastPickGet(ctx: EngineCtx): Promise<{ provider?: string; model?: string; effort?: string }> {
   const pick = recallPick(ctx.db, actorOf(ctx), "*");
-  return pick ? { model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort } : {}) } : {};
+  return pick
+    ? {
+        model: pick.model,
+        ...(pick.provider ? { provider: pick.provider } : {}),
+        ...(pick.effort ? { effort: pick.effort } : {}),
+      }
+    : {};
 }
 
 /** Rolling handoff: the new engine starts from the summary and the last turns (spec 4.14). The summary itself is the transcript module's. */
@@ -213,58 +365,121 @@ const HANDOFF_TURNS = 20;
  * Does an account the asker may use serve the target? The named account when one is given; otherwise an account of the target's engine that works, or a model list row (the Space key's models, an API
  * key's) that is allowed. Accounts that cannot be read leave the switch as it was: the turn then says what is wrong.
  */
-async function someoneServes(ctx: EngineCtx, input: { driver: string; model: string; accountRef?: string }): Promise<boolean> {
+async function someoneServes(
+  ctx: EngineCtx,
+  input: { driver: string; model: string; accountRef?: string },
+): Promise<boolean> {
   let accounts: Array<{ ref: string; driver: string; status: string; aliases?: string[] }>;
-  try { accounts = ((await ctx.call("engine.accounts.list", {})) as { accounts?: typeof accounts }).accounts ?? []; } catch { return true; }
+  try {
+    accounts = ((await ctx.call("engine.accounts.list", {})) as { accounts?: typeof accounts }).accounts ?? [];
+  } catch {
+    return true;
+  }
   const usable = accounts.filter((a) => a.status !== "expired" && a.status !== "failed");
-  if (input.accountRef !== undefined) return usable.some((a) => a.ref === input.accountRef || (a.aliases ?? []).includes(input.accountRef as string));
+  if (input.accountRef !== undefined)
+    return usable.some((a) => a.ref === input.accountRef || (a.aliases ?? []).includes(input.accountRef as string));
   if (usable.some((a) => a.driver === input.driver)) return true;
   try {
-    const rows = ((await ctx.call("engine.models.list", {})) as { models?: Array<{ model: string; alias?: string; allowed: boolean }> }).models ?? [];
+    const rows =
+      (
+        (await ctx.call("engine.models.list", {})) as {
+          models?: Array<{ model: string; alias?: string; allowed: boolean }>;
+        }
+      ).models ?? [];
     return rows.some((m) => m.allowed && (m.model === input.model || m.alias === input.model));
-  } catch { return true; }
+  } catch {
+    return true;
+  }
 }
 
 export async function switchEngine(
   ctx: EngineCtx,
-  input: { threadId: string; agentId?: string; driver: string; model: string; provider?: string; effort?: "low" | "medium" | "high" | "max"; accountRef?: string },
+  input: {
+    threadId: string;
+    agentId?: string;
+    driver: string;
+    model: string;
+    provider?: string;
+    effort?: "low" | "medium" | "high" | "max";
+    accountRef?: string;
+  },
 ): Promise<{ engine: string; model: string; quietLine: string; handoffTurns: number }> {
   const engine = await open(ctx, input.threadId);
   const agents = engine.agents(input.threadId);
   const agentId = input.agentId ?? agents.find((a) => a.mode === "lead")?.id;
-  if (agentId === undefined) raise(ctx, "validation.precondition_failed", "Name the agent to switch; nobody leads this conversation.", { threadId: input.threadId });
+  if (agentId === undefined)
+    raise(ctx, "validation.precondition_failed", "Name the agent to switch; nobody leads this conversation.", {
+      threadId: input.threadId,
+    });
   const agent = agents.find((a) => a.id === agentId);
   if (!agent) raise(ctx, "validation.not_found", "That agent is not in this conversation.", { agentId });
   const paused = rows(ctx, "SELECT paused FROM engine_spend_state WHERE id = ?", "space")[0];
-  if (paused && Number(paused["paused"]) === 1) raise(ctx, "permission.limit", "AI spend is paused in this Space.", { reason: "spend_paused" });
+  if (paused && Number(paused["paused"]) === 1)
+    raise(ctx, "permission.limit", "AI spend is paused in this Space.", { reason: "spend_paused" });
   const saved = stateOf(ctx, input.threadId, agentId);
-  const provider = input.provider ?? providerFor(input.model) ?? (DRIVER_TITLE[input.driver] ? input.driver : "openrouter");
+  const provider =
+    input.provider ?? providerFor(input.model) ?? (DRIVER_TITLE[input.driver] ? input.driver : "openrouter");
   const accountRef = input.accountRef ?? saved?.accountRef ?? agent.accountRef;
   // A chat is never left switched to something that cannot answer: with no account the asker may use serving the target, the switch is refused up front, in words.
   if (!(await someoneServes(ctx, input))) {
     const what = modelName(input.model);
     const sub = ["claude_code", "codex", "grok"].includes(input.driver);
-    raise(ctx, "validation.precondition_failed", `No account here can run ${what}. Add ${sub ? `a ${DRIVER_TITLE[input.driver] ?? input.driver} sign-in` : `${/^[aeiou]/i.test(DRIVER_TITLE[input.driver] ?? "") ? "an" : "a"} ${DRIVER_TITLE[input.driver] ?? input.driver} key`} in Vault.`, { reason: "no_account_serves", model: input.model, driver: input.driver });
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `No account here can run ${what}. Add ${sub ? `a ${DRIVER_TITLE[input.driver] ?? input.driver} sign-in` : `${/^[aeiou]/i.test(DRIVER_TITLE[input.driver] ?? "") ? "an" : "a"} ${DRIVER_TITLE[input.driver] ?? input.driver} key`} in Vault.`,
+      { reason: "no_account_serves", model: input.model, driver: input.driver },
+    );
   }
   const done = engine.turns(input.threadId).filter((t) => t.state === "completed").length;
   const handoffTurns = Math.min(HANDOFF_TURNS, done);
   const to = DRIVER_TITLE[input.driver] ?? input.driver;
-  const quietLine = handoffTurns === 0
-    ? `Switched to ${to}`
-    : `Switched to ${to}, picked up from the summary and the last ${handoffTurns === 1 ? "turn" : `${handoffTurns} turns`}`;
+  const quietLine =
+    handoffTurns === 0
+      ? `Switched to ${to}`
+      : `Switched to ${to}, picked up from the summary and the last ${handoffTurns === 1 ? "turn" : `${handoffTurns} turns`}`;
   const from = saved?.engine ?? agent.model ?? "default";
   engine.setAgent(input.threadId, agentId, { model: input.model, ...(accountRef === undefined ? {} : { accountRef }) });
-  saveState(ctx, input.threadId, agentId, { model: input.model, provider, engine: input.driver, effort: input.effort ?? saved?.effort ?? null, accountRef: accountRef ?? null });
+  saveState(ctx, input.threadId, agentId, {
+    model: input.model,
+    provider,
+    engine: input.driver,
+    effort: input.effort ?? saved?.effort ?? null,
+    accountRef: accountRef ?? null,
+  });
   // A real handoff: bring the rolling summary up to date, then tell the new engine's first turn where it is taking over from.
   let summary = "";
   try {
-    await ctx.call("chat.transcript.summarize", { threadId: input.threadId, idempotencyKey: `switch:${ctx.trace.traceId}` });
-    summary = String(((await ctx.call("chat.transcript.summary", { threadId: input.threadId })) as { summary?: string }).summary ?? "");
-  } catch { /* a switch without a summary still carries the recent turns */ }
-  noteHandoff(input.threadId, `This chat was running on ${from} and moved to ${to}. Carry on as the same agent and do not mention the move unless asked.${summary ? `\nSummary of the chat so far:\n${summary}` : ""}\nThe latest turns follow word for word.`);
+    await ctx.call("chat.transcript.summarize", {
+      threadId: input.threadId,
+      idempotencyKey: `switch:${ctx.trace.traceId}`,
+    });
+    summary = String(
+      ((await ctx.call("chat.transcript.summary", { threadId: input.threadId })) as { summary?: string }).summary ?? "",
+    );
+  } catch {
+    /* a switch without a summary still carries the recent turns */
+  }
+  noteHandoff(
+    input.threadId,
+    `This chat was running on ${from} and moved to ${to}. Carry on as the same agent and do not mention the move unless asked.${summary ? `\nSummary of the chat so far:\n${summary}` : ""}\nThe latest turns follow word for word.`,
+  );
   const by = actorOf(ctx);
-  ctx.emit("turn.engine_switched", input.threadId, { threadId: input.threadId, agentId, from, to: input.driver, handoffTurns, by });
-  ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId, model: input.model, provider, by });
+  ctx.emit("turn.engine_switched", input.threadId, {
+    threadId: input.threadId,
+    agentId,
+    from,
+    to: input.driver,
+    handoffTurns,
+    by,
+  });
+  ctx.emit("agent.model_changed", input.threadId, {
+    threadId: input.threadId,
+    agentId,
+    model: input.model,
+    provider,
+    by,
+  });
   return { engine: input.driver, model: input.model, quietLine, handoffTurns };
 }
 
@@ -273,18 +488,39 @@ export async function switchEngine(
 type IncidentKind = "label_denied" | "scrub_miss" | "runaway_spend" | "repeated_failure" | "person_report" | "other";
 type IncidentState = "open" | "assigned" | "resolved";
 interface Incident {
-  incidentId: string; kind: IncidentKind; title: string; state: IncidentState; ownerId?: string; agentId?: string; turnId?: string;
-  openedAt: number; resolvedAt?: number; notes: Array<{ by: string; at: number; text: string }>;
+  incidentId: string;
+  kind: IncidentKind;
+  title: string;
+  state: IncidentState;
+  ownerId?: string;
+  agentId?: string;
+  turnId?: string;
+  openedAt: number;
+  resolvedAt?: number;
+  notes: Array<{ by: string; at: number; text: string }>;
 }
 
 function incidentOf(ctx: EngineCtx, r: Row): Incident {
   const id = String(r["id"]);
-  const notes = rows(ctx, "SELECT by_principal, at, note_text FROM engine_incident_notes WHERE incident_id = ? ORDER BY n ASC", id).map((n) => ({ by: String(n["by_principal"]), at: Number(n["at"]), text: String(n["note_text"]) }));
-  const owner = orUndef(r["owner_id"]), agent = orUndef(r["agent_id"]), turn = orUndef(r["turn_id"]);
+  const notes = rows(
+    ctx,
+    "SELECT by_principal, at, note_text FROM engine_incident_notes WHERE incident_id = ? ORDER BY n ASC",
+    id,
+  ).map((n) => ({ by: String(n["by_principal"]), at: Number(n["at"]), text: String(n["note_text"]) }));
+  const owner = orUndef(r["owner_id"]),
+    agent = orUndef(r["agent_id"]),
+    turn = orUndef(r["turn_id"]);
   return {
-    incidentId: id, kind: String(r["kind"]) as IncidentKind, title: String(r["title"]), state: String(r["state"]) as IncidentState,
-    ...(owner === undefined ? {} : { ownerId: owner }), ...(agent === undefined ? {} : { agentId: agent }), ...(turn === undefined ? {} : { turnId: turn }),
-    openedAt: Number(r["opened_at"]), ...(r["resolved_at"] === null || r["resolved_at"] === undefined ? {} : { resolvedAt: Number(r["resolved_at"]) }), notes,
+    incidentId: id,
+    kind: String(r["kind"]) as IncidentKind,
+    title: String(r["title"]),
+    state: String(r["state"]) as IncidentState,
+    ...(owner === undefined ? {} : { ownerId: owner }),
+    ...(agent === undefined ? {} : { agentId: agent }),
+    ...(turn === undefined ? {} : { turnId: turn }),
+    openedAt: Number(r["opened_at"]),
+    ...(r["resolved_at"] === null || r["resolved_at"] === undefined ? {} : { resolvedAt: Number(r["resolved_at"]) }),
+    notes,
   };
 }
 
@@ -296,8 +532,19 @@ function loadIncident(ctx: EngineCtx, incidentId: string): Incident {
 }
 
 function addNote(ctx: EngineCtx, incidentId: string, text: string): void {
-  const n = Number(rows(ctx, "SELECT COALESCE(MAX(n), 0) + 1 AS n FROM engine_incident_notes WHERE incident_id = ?", incidentId)[0]?.["n"] ?? 1);
-  ctx.db.run("INSERT INTO engine_incident_notes (incident_id, n, by_principal, at, note_text) VALUES (?, ?, ?, ?, ?)", incidentId, n, actorOf(ctx), ctx.now(), text);
+  const n = Number(
+    rows(ctx, "SELECT COALESCE(MAX(n), 0) + 1 AS n FROM engine_incident_notes WHERE incident_id = ?", incidentId)[0]?.[
+      "n"
+    ] ?? 1,
+  );
+  ctx.db.run(
+    "INSERT INTO engine_incident_notes (incident_id, n, by_principal, at, note_text) VALUES (?, ?, ?, ?, ?)",
+    incidentId,
+    n,
+    actorOf(ctx),
+    ctx.now(),
+    text,
+  );
 }
 
 /** Open an incident from inside the module (a scrub miss, a label denial, runaway spend). Handlers and the worker use it; the capability wraps it. */
@@ -309,19 +556,37 @@ export function openIncident(
   const incidentId = mintId("inc", ctx.now());
   ctx.db.run(
     `INSERT INTO engine_incidents (id, kind, title, state, owner_id, agent_id, turn_id, opened_by, opened_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    incidentId, input.kind, input.title, input.ownerId === undefined ? "open" : "assigned", input.ownerId ?? null, input.agentId ?? null, input.turnId ?? null, actorOf(ctx), ctx.now(),
+    incidentId,
+    input.kind,
+    input.title,
+    input.ownerId === undefined ? "open" : "assigned",
+    input.ownerId ?? null,
+    input.agentId ?? null,
+    input.turnId ?? null,
+    actorOf(ctx),
+    ctx.now(),
   );
   if (input.note !== undefined && input.note.trim() !== "") addNote(ctx, incidentId, input.note);
-  ctx.emit("incident.opened", incidentId, { incidentId, kind: input.kind, ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }) });
+  ctx.emit("incident.opened", incidentId, {
+    incidentId,
+    kind: input.kind,
+    ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }),
+  });
   return loadIncident(ctx, incidentId);
 }
 
-export function incidentOpen(ctx: EngineCtx, input: { kind: IncidentKind; title: string; agentId?: string; turnId?: string; note?: string }): { incident: Incident } {
+export function incidentOpen(
+  ctx: EngineCtx,
+  input: { kind: IncidentKind; title: string; agentId?: string; turnId?: string; note?: string },
+): { incident: Incident } {
   if (input.title.trim() === "") raise(ctx, "validation.bad_input", "Give the incident a title.");
   return { incident: openIncident(ctx, input) };
 }
 
-export function incidentsList(ctx: EngineCtx, input: { state?: IncidentState[]; cursor?: string; limit?: number }): { incidents: Incident[]; next?: string; total?: number } {
+export function incidentsList(
+  ctx: EngineCtx,
+  input: { state?: IncidentState[]; cursor?: string; limit?: number },
+): { incidents: Incident[]; next?: string; total?: number } {
   ensure(ctx.db);
   const states = input.state && input.state.length > 0 ? input.state : null;
   const where = states ? `WHERE state IN (${states.map(() => "?").join(", ")})` : "";
@@ -329,17 +594,32 @@ export function incidentsList(ctx: EngineCtx, input: { state?: IncidentState[]; 
   const total = Number(rows(ctx, `SELECT COUNT(*) AS n FROM engine_incidents ${where}`, ...args)[0]?.["n"] ?? 0);
   const limit = input.limit ?? 50;
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
-  const page = rows(ctx, `SELECT * FROM engine_incidents ${where} ORDER BY opened_at DESC, id DESC LIMIT ? OFFSET ?`, ...args, limit, offset);
+  const page = rows(
+    ctx,
+    `SELECT * FROM engine_incidents ${where} ORDER BY opened_at DESC, id DESC LIMIT ? OFFSET ?`,
+    ...args,
+    limit,
+    offset,
+  );
   const next = offset + page.length < total ? String(offset + page.length) : undefined;
   return { incidents: page.map((r) => incidentOf(ctx, r)), ...(next === undefined ? {} : { next }), total };
 }
 
-export const incidentGet = (ctx: EngineCtx, input: { incidentId: string }): { incident: Incident } => ({ incident: loadIncident(ctx, input.incidentId) });
+export const incidentGet = (ctx: EngineCtx, input: { incidentId: string }): { incident: Incident } => ({
+  incident: loadIncident(ctx, input.incidentId),
+});
 
 export function incidentAssign(ctx: EngineCtx, input: { incidentId: string; ownerId: string }): { incident: Incident } {
   const cur = loadIncident(ctx, input.incidentId);
-  if (cur.state === "resolved") raise(ctx, "validation.precondition_failed", "This incident is resolved. Reopen is not part of v1.", { incidentId: input.incidentId });
-  ctx.db.run("UPDATE engine_incidents SET owner_id = ?, state = 'assigned' WHERE id = ?", input.ownerId, input.incidentId);
+  if (cur.state === "resolved")
+    raise(ctx, "validation.precondition_failed", "This incident is resolved. Reopen is not part of v1.", {
+      incidentId: input.incidentId,
+    });
+  ctx.db.run(
+    "UPDATE engine_incidents SET owner_id = ?, state = 'assigned' WHERE id = ?",
+    input.ownerId,
+    input.incidentId,
+  );
   ctx.emit("incident.assigned", input.incidentId, { incidentId: input.incidentId, ownerId: input.ownerId });
   return { incident: loadIncident(ctx, input.incidentId) };
 }
@@ -349,7 +629,11 @@ export function incidentResolve(ctx: EngineCtx, input: { incidentId: string; not
   if (cur.state === "resolved") return { incident: cur };
   if (input.note.trim() === "") raise(ctx, "validation.bad_input", "Say what was done before resolving.");
   addNote(ctx, input.incidentId, input.note);
-  ctx.db.run("UPDATE engine_incidents SET state = 'resolved', resolved_at = ? WHERE id = ?", ctx.now(), input.incidentId);
+  ctx.db.run(
+    "UPDATE engine_incidents SET state = 'resolved', resolved_at = ? WHERE id = ?",
+    ctx.now(),
+    input.incidentId,
+  );
   ctx.emit("incident.resolved", input.incidentId, { incidentId: input.incidentId, by: actorOf(ctx) });
   return { incident: loadIncident(ctx, input.incidentId) };
 }

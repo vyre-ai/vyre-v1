@@ -47,7 +47,12 @@ export const filesVolume = (agentId: string): string => `${workspaceName(agentId
 export const projectVolume = (projectId: string): string => `${PROJECT_VOLUME_PREFIX}${projectId}`;
 
 /** What the disk side of the Files mirror is, as the computers module's HomeSync reads it (its HomeFs, written out: a module does not import another module). */
-export interface HomeSnapshot { files: Map<string, { bytes: Buffer; mtimeMs: number }>; dirs: Set<string>; refused: string[]; complete: boolean }
+export interface HomeSnapshot {
+  files: Map<string, { bytes: Buffer; mtimeMs: number }>;
+  dirs: Set<string>;
+  refused: string[];
+  complete: boolean;
+}
 export interface HomeDisk {
   snapshot(): Promise<HomeSnapshot>;
   put(files: Array<{ rel: string; bytes: Uint8Array; readOnly: boolean }>): Promise<void>;
@@ -55,7 +60,9 @@ export interface HomeDisk {
 }
 export interface WorkspaceHome {
   /** One mirror of this agent's folder in Files onto `disk`; `pass` runs one round. The daemon makes it with the computers module's createHomeSync, as the agent principal. */
-  sync(o: { agentId: string; computerId: string; fs: HomeDisk; manifest: string }): { pass(): Promise<{ failed: number }> };
+  sync(o: { agentId: string; computerId: string; fs: HomeDisk; manifest: string }): {
+    pass(): Promise<{ failed: number }>;
+  };
   /** The computers module's reader of the tar the archive call returns: plain files and folders only, anything else refused by name. */
   readTar(tar: Uint8Array): HomeSnapshot;
   manifest(agentId: string): string;
@@ -63,7 +70,12 @@ export interface WorkspaceHome {
    * One mirror of a project's shared folder onto `fs` (the project's volume, seen from a running workspace that mounts it), with every Files call made as `agentId`, so the file's history says which agent
    * made a change. Null when the project has no folder in Files: then the volume is shared between its agents and nothing else.
    */
-  syncProject?(o: { projectId: string; agentId: string; fs: HomeDisk; manifest: string }): { pass(): Promise<{ failed: number }> } | null;
+  syncProject?(o: {
+    projectId: string;
+    agentId: string;
+    fs: HomeDisk;
+    manifest: string;
+  }): { pass(): Promise<{ failed: number }> } | null;
   projectManifest?(projectId: string): string;
   /** How often a pass runs while the workspace is awake. Default 3 s. */
   intervalMs?: number;
@@ -84,7 +96,12 @@ export interface WorkspaceOptions {
    * Where mirrors are rooted in Files, for a Files change to bring forward only the mirrors it touches (lead, 12 Nov): the agent's folder, the project's folder, a folder's ancestors (itself first),
    * a file's folder. Null where it cannot be told. Omitted: every slowed mirror is brought forward on any change.
    */
-  folders?: { agentRoot(agentId: string): string | null; projectRoot(projectId: string): string | null; ancestors(folderId: string): string[] | null; ofFile(fileId: string): string | null };
+  folders?: {
+    agentRoot(agentId: string): string | null;
+    projectRoot(projectId: string): string | null;
+    ancestors(folderId: string): string[] | null;
+    ofFile(fileId: string): string | null;
+  };
   /** Does this agent have a turn running now (the engine's turns)? undefined when that cannot be read. A workspace is never put to sleep to make room while it does (lead, 12 Nov). */
   inTurn?: (agentId: string) => boolean | undefined;
   /** The longest a mirror waits between passes when nothing happens in the workspace. Default 60 s. */
@@ -129,9 +146,19 @@ export interface WorkspaceCapacity {
 }
 
 /** What a workspace is doing, for the Terminal tab: asleep and running are its container; waiting is a start the host had no room for; none is no container yet. */
-export interface WorkspaceStatus { state: "running" | "asleep" | "waiting" | "none"; line?: string; /** Where it is: the Space's own runtime, or a server that joined. */ host?: "space" | "server"; nodeId?: string; projects?: string[] }
+export interface WorkspaceStatus {
+  state: "running" | "asleep" | "waiting" | "none";
+  line?: string;
+  /** Where it is: the Space's own runtime, or a server that joined. */ host?: "space" | "server";
+  nodeId?: string;
+  projects?: string[];
+}
 
-export interface WorkspaceRow { agentId: string; state: "running" | "asleep"; lastUsedAt?: number }
+export interface WorkspaceRow {
+  agentId: string;
+  state: "running" | "asleep";
+  lastUsedAt?: number;
+}
 
 export interface WorkspaceManager {
   /** What it is doing now, without waking it or making it. */
@@ -141,7 +168,15 @@ export interface WorkspaceManager {
   /** Make the workspace if there is none and wake it if it sleeps; counts as use. */
   ensure(agentId: string): Promise<"created" | "woke" | "running">;
   /** Run argv in the workspace (waking it first), as the container's own user (10001): an exec never names another. */
-  exec(agentId: string, argv: readonly string[], o?: { env?: Readonly<Record<string, string>>; quiet?: boolean; /** The env holds Vault values: refused where they would cross a link that is not private. */ values?: boolean }): Promise<ExecResult>;
+  exec(
+    agentId: string,
+    argv: readonly string[],
+    o?: {
+      env?: Readonly<Record<string, string>>;
+      quiet?: boolean;
+      /** The env holds Vault values: refused where they would cross a link that is not private. */ values?: boolean;
+    },
+  ): Promise<ExecResult>;
   /** How many times this process has started the workspace's container: a change says tmux was lost. */
   generation(agentId: string): number;
   /** Stop the container (the volumes stay). False when it was not running. */
@@ -215,12 +250,12 @@ export const BUSY_SCRIPT = [
   "panes=\" $(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') \"",
   "for d in /proc/[0-9]*; do",
   "  p=${d#/proc/}",
-  "  [ \"$p\" = \"$$\" ] && continue; [ \"$p\" = 1 ] && continue; [ \"$p\" = \"$t\" ] && continue",
-  "  s=$(cat \"$d/stat\" 2>/dev/null) || continue",
+  '  [ "$p" = "$$" ] && continue; [ "$p" = 1 ] && continue; [ "$p" = "$t" ] && continue',
+  '  s=$(cat "$d/stat" 2>/dev/null) || continue',
   "  r=${s##*) }; set -- $r",
-  "  [ \"$1\" = Z ] && continue",
-  "  [ \"$2\" = 0 ] || [ \"$2\" = \"$$\" ] || [ \"$2\" = \"$t\" ] && continue",
-  "  case \"$panes\" in *\" $p \"*) continue;; esac",
+  '  [ "$1" = Z ] && continue',
+  '  [ "$2" = 0 ] || [ "$2" = "$$" ] || [ "$2" = "$t" ] && continue',
+  '  case "$panes" in *" $p "*) continue;; esac',
   "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
   "  echo \"$p $(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null | cut -c1-80)\"",
   "done",
@@ -229,10 +264,13 @@ export const BUSY_SCRIPT = [
 
 // ---- the container --------------------------------------------------------------------------------------------------------------------------------------
 
-export interface MountSpec { projects: string[] }
+export interface MountSpec {
+  projects: string[];
+}
 
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
-const stable = (m: MountSpec, net?: string): string => sha256Hex(JSON.stringify({ p: [...m.projects].sort(), ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(0, 16);
+const stable = (m: MountSpec, net?: string): string =>
+  sha256Hex(JSON.stringify({ p: [...m.projects].sort(), ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(0, 16);
 
 /**
  * Where workspaces live on an engine with no runner in front (a Personal Space with Docker Desktop, a Team server on the computers socket option): one network for all of them with traffic between
@@ -242,13 +280,25 @@ const stable = (m: MountSpec, net?: string): string => sha256Hex(JSON.stringify(
 export const SHARED_NETWORK = "vyre-workspaces";
 /** A workspace network of one workspace, as made before 12 Nov (and behind the runner as a fallback since). */
 const OLD_NET = /^vyre-wsnet-[a-f0-9]{16}$/;
-export const SHARED_NETWORK_BODY = { Name: SHARED_NETWORK, Driver: "bridge", CheckDuplicate: true, Options: { "com.docker.network.bridge.enable_icc": "false" }, Labels: { "vyre.workspaces": "shared" } };
+export const SHARED_NETWORK_BODY = {
+  Name: SHARED_NETWORK,
+  Driver: "bridge",
+  CheckDuplicate: true,
+  Options: { "com.docker.network.bridge.enable_icc": "false" },
+  Labels: { "vyre.workspaces": "shared" },
+};
 
 /**
  * `net`: the network it goes on. Default: each workspace's own behind the runner, else the shared one. "bridge" is Docker's default network, where every workspace was before 12 Nov: the fallback when the
  * shared network cannot be made, so a working workspace is never taken away for want of a network (its label then says bridge, and a later wake moves it).
  */
-export function workspaceContainerConfig(agentId: string, image: string, m: MountSpec, o: Pick<WorkspaceOptions, "limits" | "runner" | "owner">, net?: string): ContainerConfig {
+export function workspaceContainerConfig(
+  agentId: string,
+  image: string,
+  m: MountSpec,
+  o: Pick<WorkspaceOptions, "limits" | "runner" | "owner">,
+  net?: string,
+): ContainerConfig {
   const network = net ?? (o.runner ? workspaceNetworkName(agentId) : SHARED_NETWORK);
   // the numbers are modules/computers/capacity.ts hostConfigLimits("workspace): a hard cap of 1 GB, 64 MB held back while it runs, low CPU shares, no swap (test/workspace.capacity.test.ts holds the two together)
   const limits = { cpus: 1, memoryMb: 1024, pids: 512, reserveMb: 64, ...o.limits };
@@ -261,7 +311,11 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
     WorkingDir: WORKSPACE_HOME,
     Cmd: ["sleep", "infinity"],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
-    Labels: { "vyre.workspace": agentId, "vyre.mounts": stable(m, network), ...(o.owner === undefined ? {} : { "vyre.space": o.owner }) },
+    Labels: {
+      "vyre.workspace": agentId,
+      "vyre.mounts": stable(m, network),
+      ...(o.owner === undefined ? {} : { "vyre.space": o.owner }),
+    },
     StopTimeout: 10,
     HostConfig: {
       Binds: [
@@ -288,7 +342,10 @@ export function workspaceContainerConfig(agentId: string, image: string, m: Moun
       CpuShares: 256,
       Init: true,
       AutoRemove: false,
-      Ulimits: [{ Name: "nofile", Soft: 8192, Hard: 16384 }, { Name: "core", Soft: 0, Hard: 0 }],
+      Ulimits: [
+        { Name: "nofile", Soft: 8192, Hard: 16384 },
+        { Name: "core", Soft: 0, Hard: 0 },
+      ],
       LogConfig: { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } },
       ExtraHosts: [],
       Dns: [],
@@ -315,18 +372,42 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
   if (h.MemorySwap !== h.Memory) bad.push("swap is not pinned to memory");
   const user = /^(\d+):(\d+)$/.exec(c.User);
   if (!user || Number(user[1]) === 0 || Number(user[2]) === 0) bad.push(`runs as ${c.User || "the image's user"}`);
-  if (c.Hostname !== workspaceName(agentId) || c.Labels["vyre.workspace"] !== agentId) bad.push("is not this agent's workspace");
-  const SYSTEM = new Set(["/", "/etc", "/var", "/usr", "/root", "/home", "/proc", "/sys", "/dev", "/boot", "/lib", "/bin", "/sbin", "/run"]);
+  if (c.Hostname !== workspaceName(agentId) || c.Labels["vyre.workspace"] !== agentId)
+    bad.push("is not this agent's workspace");
+  const SYSTEM = new Set([
+    "/",
+    "/etc",
+    "/var",
+    "/usr",
+    "/root",
+    "/home",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/boot",
+    "/lib",
+    "/bin",
+    "/sbin",
+    "/run",
+  ]);
   for (const b of h.Binds) {
     const m = /^([^:]+):(\/[^:]*):(ro|rw)$/.exec(b);
-    if (!m) { bad.push(`bind ${b} is not source:guest:mode`); continue; }
+    if (!m) {
+      bad.push(`bind ${b} is not source:guest:mode`);
+      continue;
+    }
     const src = m[1] as string;
     const guest = m[2] as string;
     if (/docker\.sock|containerd\.sock|\.sock$/.test(src)) bad.push("docker socket");
     if (SYSTEM.has(src.replace(/\/+$/, "") || "/")) bad.push("a system folder is bound");
     if (src.startsWith("/")) bad.push(`a host folder is bound at ${guest}`);
-    else if (![homeVolume(agentId), filesVolume(agentId)].includes(src) && !(src.startsWith(PROJECT_VOLUME_PREFIX) && PROJECT_ID.test(src.slice(PROJECT_VOLUME_PREFIX.length)))) bad.push(`volume ${src} is not this workspace's`);
-    if (!(guest === WORKSPACE_HOME || guest === FILES_GUEST || guest.startsWith(`${PROJECTS_GUEST}/`))) bad.push(`binds into ${guest}`);
+    else if (
+      ![homeVolume(agentId), filesVolume(agentId)].includes(src) &&
+      !(src.startsWith(PROJECT_VOLUME_PREFIX) && PROJECT_ID.test(src.slice(PROJECT_VOLUME_PREFIX.length)))
+    )
+      bad.push(`volume ${src} is not this workspace's`);
+    if (!(guest === WORKSPACE_HOME || guest === FILES_GUEST || guest.startsWith(`${PROJECTS_GUEST}/`)))
+      bad.push(`binds into ${guest}`);
   }
   if (Object.keys(h.Tmpfs).some((k) => k !== "/tmp")) bad.push("a tmpfs other than /tmp");
   return bad;
@@ -335,26 +416,40 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
 // ---- the manager ----------------------------------------------------------------------------------------------------------------------------------------
 
 const dec = new TextDecoder();
-const bodyText = (b: Uint8Array): string => { const s = dec.decode(b); try { const m = (JSON.parse(s) as { message?: string }).message; return String(m ?? s).slice(0, 200); } catch { return s.slice(0, 200); } };
+const bodyText = (b: Uint8Array): string => {
+  const s = dec.decode(b);
+  try {
+    const m = (JSON.parse(s) as { message?: string }).message;
+    return String(m ?? s).slice(0, 200);
+  } catch {
+    return s.slice(0, 200);
+  }
+};
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 /** A refusal written for a person: the first line is plain words, anything after it (Details: ...) is for Copy details. The terminal says the first line as the reason a session did not open. */
-export const NOT_PRIVATE = "This workspace is on a server whose link to the Space is not private (no TLS), so no Vault value is sent to it. Connect the server over https, or run the command without the value.";
-const wsError = (message: string, code = "unavailable"): Error => Object.assign(new Error(message), { code, workspace: true });
+export const NOT_PRIVATE =
+  "This workspace is on a server whose link to the Space is not private (no TLS), so no Vault value is sent to it. Connect the server over https, or run the command without the value.";
+const wsError = (message: string, code = "unavailable"): Error =>
+  Object.assign(new Error(message), { code, workspace: true });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
 /** A command run before the workspace's copy of Files caught up (it took longer than a few seconds): its first line. */
-export const FILES_LATE_LINE = "Files changed in the last few seconds may not be in the workspace yet: copying them from Files is taking longer than usual.";
+export const FILES_LATE_LINE =
+  "Files changed in the last few seconds may not be in the workspace yet: copying them from Files is taking longer than usual.";
 
 /** A workspace that cannot get a network because Docker's address pools are used up (fourth look U3): it starts by itself on a later command once there is room. */
-export const NO_ROOM_FOR_WORKSPACE_NETWORK = "This server has no room for another network for this workspace right now. Remove sites or networks you no longer use, or ask for help to make room; the workspace starts on the next command once there is room.";
+export const NO_ROOM_FOR_WORKSPACE_NETWORK =
+  "This server has no room for another network for this workspace right now. Remove sites or networks you no longer use, or ask for help to make room; the workspace starts on the next command once there is room.";
 
 /** What an agent's next command says after its workspace was put to sleep to make room for another (lead, 12 Nov). */
-export const SLEPT_FOR_ROOM_LINE = "Your workspace was asleep and has been started again. Programs that were running are gone; your files are as you left them.";
+export const SLEPT_FOR_ROOM_LINE =
+  "Your workspace was asleep and has been started again. Programs that were running are gone; your files are as you left them.";
 
 /** What a deleted agent's commands answer (the daemon's admit check says the same, host/src/daemon/daemon.ts). */
 export const AGENT_GONE_LINE = "That agent is in Trash, so it has no workspace. Restore it to use its terminal again.";
 /** What a command cut off by a project removal answers. */
-export const REMOVED_LINE = "The agent was removed from a project, so its workspace restarted without that project's folder. What was running in it stopped.";
+export const REMOVED_LINE =
+  "The agent was removed from a project, so its workspace restarted without that project's folder. What was running in it stopped.";
 
 /**
  * What a workspace waiting for room says. The host's line names the host; its advice to add a compute server is not true for a workspace (12 Nov, audit item 9): a workspace stays on the machine it
@@ -381,12 +476,26 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const mounted = new Map<string, string[]>();
   const chain = new Map<string, Promise<unknown>>();
   let timer: ReturnType<typeof setInterval> | null = null;
-  type Paced = { timer: ReturnType<typeof setTimeout> | null; delay: number; stopped: boolean; tick?: () => void; poked?: boolean; dirty?: boolean };
+  type Paced = {
+    timer: ReturnType<typeof setTimeout> | null;
+    delay: number;
+    stopped: boolean;
+    tick?: () => void;
+    poked?: boolean;
+    dirty?: boolean;
+  };
   const homes = new Map<string, { sync: { pass(): Promise<{ failed: number }> } } & Paced>();
   // the projects each awake workspace mounts, who last worked in each project, and its mirror
   const agentProjects = new Map<string, string[]>();
   const projectActor = new Map<string, string>();
-  const projects = new Map<string, { sync: { pass(): Promise<{ failed: number }> } | null; kick: ReturnType<typeof setTimeout> | null; holder: string | null } & Paced>();
+  const projects = new Map<
+    string,
+    {
+      sync: { pass(): Promise<{ failed: number }> } | null;
+      kick: ReturnType<typeof setTimeout> | null;
+      holder: string | null;
+    } & Paced
+  >();
   let imageKnown = false;
   let discovered = false;
   /** The subnets of the workspaces' networks (subnets()), read when one is made and at every sweep. */
@@ -400,9 +509,16 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // before 12 Nov and not moved yet) puts the bridge's subnet on the list, so the daemon's guard refuses it too
     let onBridge = false;
     try {
-      const r = await http({ method: "GET", path: "/containers/json", query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+      const r = await http({
+        method: "GET",
+        path: "/containers/json",
+        query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) },
+      });
       if (r.status === 200) {
-        for (const x of JSON.parse(dec.decode(r.body)) as Array<{ Labels?: Record<string, string>; HostConfig?: { NetworkMode?: string } }>) {
+        for (const x of JSON.parse(dec.decode(r.body)) as Array<{
+          Labels?: Record<string, string>;
+          HostConfig?: { NetworkMode?: string };
+        }>) {
           const id = x.Labels?.["vyre.workspace"] ?? "";
           if (!AGENT_ID.test(id) || !mine(x.Labels, id)) continue;
           const mode = x.HostConfig?.NetworkMode ?? "";
@@ -410,7 +526,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
           if (mode === "bridge" || mode === "default") onBridge = true;
         }
       }
-    } catch { /* read again at the next sweep */ }
+    } catch {
+      /* read again at the next sweep */
+    }
     if (onBridge && !o.runner) {
       const r = await http({ method: "GET", path: "/networks/bridge" }).catch(() => null);
       if (r?.status === 200) list.push(JSON.parse(dec.decode(r.body)) as Net);
@@ -422,11 +540,21 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         else if (r?.status === 404) madeNets.delete(name);
       }
     } else {
-      const r = await http({ method: "GET", path: "/networks", query: { filters: JSON.stringify({ label: ["vyre.workspaces"] }) } }).catch(() => null);
+      const r = await http({
+        method: "GET",
+        path: "/networks",
+        query: { filters: JSON.stringify({ label: ["vyre.workspaces"] }) },
+      }).catch(() => null);
       if (!r || r.status !== 200) return;
       list.push(...(JSON.parse(dec.decode(r.body)) as Net[]));
     }
-    nets = [...new Set(list.flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter((x) => /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(x)))];
+    nets = [
+      ...new Set(
+        list
+          .flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? ""))
+          .filter((x) => /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(x)),
+      ),
+    ];
   }
   /** Workspaces this process started that hold room on the host: one whose container stopped without Vyre (out of memory, docker stop, a crash) gives its room back at the next sweep. */
   const claimed = new Set<string>();
@@ -465,35 +593,73 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const prev = chain.get(agentId) ?? Promise.resolve();
     const next = prev.catch(() => undefined).then(f);
     chain.set(agentId, next);
-    void next.finally(() => { if (chain.get(agentId) === next) chain.delete(agentId); }).catch(() => undefined);
+    void next
+      .finally(() => {
+        if (chain.get(agentId) === next) chain.delete(agentId);
+      })
+      .catch(() => undefined);
     return next;
   }
 
-  async function inspect(name: string): Promise<{ running: boolean; labels: Record<string, string>; projects: string[]; network: string } | null> {
+  async function inspect(
+    name: string,
+  ): Promise<{ running: boolean; labels: Record<string, string>; projects: string[]; network: string } | null> {
     const r = await http({ method: "GET", path: `/containers/${name}/json` });
     if (r.status === 404) return null;
     if (r.status !== 200) throw wsError(`Docker did not answer for the workspace (${r.status}: ${bodyText(r.body)}).`);
-    const j = JSON.parse(dec.decode(r.body)) as { State?: { Running?: boolean }; Config?: { Labels?: Record<string, string> }; HostConfig?: { Binds?: string[]; NetworkMode?: string } };
+    const j = JSON.parse(dec.decode(r.body)) as {
+      State?: { Running?: boolean };
+      Config?: { Labels?: Record<string, string> };
+      HostConfig?: { Binds?: string[]; NetworkMode?: string };
+    };
     // the project folders it was made with, from its binds: what it mounts until a change is applied
-    const projects = (j.HostConfig?.Binds ?? []).flatMap((b) => { const src = b.split(":")[0] ?? ""; return src.startsWith(PROJECT_VOLUME_PREFIX) ? [src.slice(PROJECT_VOLUME_PREFIX.length)] : []; }).filter((p) => PROJECT_ID.test(p)).sort();
-    return { running: j.State?.Running === true, labels: j.Config?.Labels ?? {}, projects, network: j.HostConfig?.NetworkMode ?? "" };
+    const projects = (j.HostConfig?.Binds ?? [])
+      .flatMap((b) => {
+        const src = b.split(":")[0] ?? "";
+        return src.startsWith(PROJECT_VOLUME_PREFIX) ? [src.slice(PROJECT_VOLUME_PREFIX.length)] : [];
+      })
+      .filter((p) => PROJECT_ID.test(p))
+      .sort();
+    return {
+      running: j.State?.Running === true,
+      labels: j.Config?.Labels ?? {},
+      projects,
+      network: j.HostConfig?.NetworkMode ?? "",
+    };
   }
 
   async function ensureImage(): Promise<void> {
     if (imageKnown) return;
     if (!(await api.imageExists(image))) {
       const byDigest = image.includes("@");
-      const [repo, tag] = byDigest ? [image, ""] : [image.slice(0, image.lastIndexOf(":")), image.slice(image.lastIndexOf(":") + 1)];
+      const [repo, tag] = byDigest
+        ? [image, ""]
+        : [image.slice(0, image.lastIndexOf(":")), image.slice(image.lastIndexOf(":") + 1)];
       let why = "";
       let pulled = false;
       // a local name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's (sandbox/src/docker.ts fetchableImage)
-      if (!fetchableImage(image)) throw wsError(`${IMAGE_MISSING_LINE}\nDetails: the workspace image ${image} is not on this server; ${NOT_FETCHED_REASON}.`, "image_missing");
+      if (!fetchableImage(image))
+        throw wsError(
+          `${IMAGE_MISSING_LINE}\nDetails: the workspace image ${image} is not on this server; ${NOT_FETCHED_REASON}.`,
+          "image_missing",
+        );
       try {
-        const r = await http({ method: "POST", path: "/images/create", query: byDigest ? { fromImage: repo } : { fromImage: repo, tag }, timeoutMs: 15 * 60_000 });
+        const r = await http({
+          method: "POST",
+          path: "/images/create",
+          query: byDigest ? { fromImage: repo } : { fromImage: repo, tag },
+          timeoutMs: 15 * 60_000,
+        });
         pulled = r.status === 200 && !/"error"/.test(dec.decode(r.body));
         if (!pulled) why = bodyText(r.body);
-      } catch (e) { why = e instanceof Error ? e.message.slice(0, 160) : "no answer"; }
-      if (!pulled || !(await api.imageExists(image))) throw wsError(`${IMAGE_MISSING_LINE}\nDetails: the workspace image ${image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Load it with: docker pull ${image}`, "image_missing");
+      } catch (e) {
+        why = e instanceof Error ? e.message.slice(0, 160) : "no answer";
+      }
+      if (!pulled || !(await api.imageExists(image)))
+        throw wsError(
+          `${IMAGE_MISSING_LINE}\nDetails: the workspace image ${image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Load it with: docker pull ${image}`,
+          "image_missing",
+        );
     }
     imageKnown = true;
   }
@@ -503,23 +669,35 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const vol = projectVolume(projectId);
     const have = await http({ method: "GET", path: `/volumes/${vol}` });
     if (have.status === 200) return;
-    if (have.status !== 404) throw wsError(`Docker did not answer for the project folder (${have.status}: ${bodyText(have.body)}).`);
-    const made = await http({ method: "POST", path: "/volumes/create", json: { Name: vol, Labels: { "vyre.workspace.project": projectId } } });
-    if (made.status !== 201 && made.status !== 200) throw wsError(`The project folder was not made (${made.status}: ${bodyText(made.body)}).`);
+    if (have.status !== 404)
+      throw wsError(`Docker did not answer for the project folder (${have.status}: ${bodyText(have.body)}).`);
+    const made = await http({
+      method: "POST",
+      path: "/volumes/create",
+      json: { Name: vol, Labels: { "vyre.workspace.project": projectId } },
+    });
+    if (made.status !== 201 && made.status !== 200)
+      throw wsError(`The project folder was not made (${made.status}: ${bodyText(made.body)}).`);
     const helper = `vyre-wsinit-${projectId}`;
     await http({ method: "DELETE", path: `/containers/${helper}`, query: { force: "true" } }).catch(() => undefined);
     const c = await http({
-      method: "POST", path: "/containers/create", query: { name: helper },
+      method: "POST",
+      path: "/containers/create",
+      query: { name: helper },
       json: projectInitBody(projectId, image),
     });
     if (c.status !== 201) throw wsError(`The project folder could not be set up (${c.status}: ${bodyText(c.body)}).`);
     try {
       const s = await http({ method: "POST", path: `/containers/${helper}/start` });
-      if (s.status !== 204 && s.status !== 304) throw wsError(`The project folder could not be set up (${s.status}: ${bodyText(s.body)}).`);
+      if (s.status !== 204 && s.status !== 304)
+        throw wsError(`The project folder could not be set up (${s.status}: ${bodyText(s.body)}).`);
       const w = await http({ method: "POST", path: `/containers/${helper}/wait`, timeoutMs: 60_000 });
       const code = (JSON.parse(dec.decode(w.body) || "{}") as { StatusCode?: number }).StatusCode;
-      if (w.status !== 200 || code !== 0) throw wsError(`The project folder could not be set up (exit ${code ?? "unknown"}).`);
-    } finally { await http({ method: "DELETE", path: `/containers/${helper}`, query: { force: "true" } }).catch(() => undefined); }
+      if (w.status !== 200 || code !== 0)
+        throw wsError(`The project folder could not be set up (exit ${code ?? "unknown"}).`);
+    } finally {
+      await http({ method: "DELETE", path: `/containers/${helper}`, query: { force: "true" } }).catch(() => undefined);
+    }
   }
 
   /**
@@ -535,40 +713,99 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (sharedReady) return true;
     if (now() - sharedFailedAt < SHARED_RETRY_MS) return false;
     const ok = await trySharedNetwork();
-    if (ok) { sharedFailure = null; sharedFailedAt = -Infinity; } else sharedFailedAt = now();
+    if (ok) {
+      sharedFailure = null;
+      sharedFailedAt = -Infinity;
+    } else sharedFailedAt = now();
     return ok;
   }
   async function trySharedNetwork(): Promise<boolean> {
-    const create = async (): Promise<DockerResponse | null> => { try { return await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY }); } catch { return null; } };
+    const create = async (): Promise<DockerResponse | null> => {
+      try {
+        return await http({ method: "POST", path: "/networks/create", json: SHARED_NETWORK_BODY });
+      } catch {
+        return null;
+      }
+    };
     let made = await create();
     // a host whose address pools are full of the old per-workspace networks: a pool is freed by removing the old network of a workspace that is not running (it moves to the shared one at its
     // next wake), then the shared one is made; a few tries, never a running workspace's
-    for (let tries = 0; tries < 3 && made !== null && made.status !== 201 && made.status !== 409 && /address pools|subnetted|no available network/i.test(bodyText(made.body)); tries++) {
+    for (
+      let tries = 0;
+      tries < 3 &&
+      made !== null &&
+      made.status !== 201 &&
+      made.status !== 409 &&
+      /address pools|subnetted|no available network/i.test(bodyText(made.body));
+      tries++
+    ) {
       if (!(await freeOldNetwork())) break;
       made = await create();
     }
-    if (made?.status === 201) { sharedReady = true; await readSubnets(); return true; }
+    if (made?.status === 201) {
+      sharedReady = true;
+      await readSubnets();
+      return true;
+    }
     if (made?.status === 409) {
       const r = await http({ method: "GET", path: `/networks/${SHARED_NETWORK}` }).catch(() => null);
-      const j = r?.status === 200 ? (JSON.parse(dec.decode(r.body)) as { Labels?: Record<string, string>; Options?: Record<string, string> }) : null;
-      if (j && j.Labels?.["vyre.workspaces"] === "shared" && j.Options?.["com.docker.network.bridge.enable_icc"] === "false") { sharedReady = true; await readSubnets(); return true; }
+      const j =
+        r?.status === 200
+          ? (JSON.parse(dec.decode(r.body)) as { Labels?: Record<string, string>; Options?: Record<string, string> })
+          : null;
+      if (
+        j &&
+        j.Labels?.["vyre.workspaces"] === "shared" &&
+        j.Options?.["com.docker.network.bridge.enable_icc"] === "false"
+      ) {
+        sharedReady = true;
+        await readSubnets();
+        return true;
+      }
       log("warn", "workspace.network_not_ours", { network: SHARED_NETWORK });
       sharedFailure = "a network with its name is there that is not Vyre's, or lets containers reach each other";
       return false;
     }
-    log("warn", "workspace.network_fallback", { network: SHARED_NETWORK, status: made?.status ?? 0, detail: made ? bodyText(made.body) : "no answer" });
-    sharedFailure = made ? bodyText(made.body).slice(0, 200) || `Docker answered ${made.status}` : "Docker did not answer";
+    log("warn", "workspace.network_fallback", {
+      network: SHARED_NETWORK,
+      status: made?.status ?? 0,
+      detail: made ? bodyText(made.body) : "no answer",
+    });
+    sharedFailure = made
+      ? bodyText(made.body).slice(0, 200) || `Docker answered ${made.status}`
+      : "Docker did not answer";
     return false;
   }
   /** Remove one old per-workspace network of a workspace that is not running (or of none), to free an address pool. True when one went. */
   async function freeOldNetwork(): Promise<boolean> {
     let rows: Array<{ State?: string; Labels?: Record<string, string>; HostConfig?: { NetworkMode?: string } }> = [];
-    try { const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } }); if (r.status === 200) rows = JSON.parse(dec.decode(r.body)); } catch { rows = []; }
+    try {
+      const r = await http({
+        method: "GET",
+        path: "/containers/json",
+        query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) },
+      });
+      if (r.status === 200) rows = JSON.parse(dec.decode(r.body));
+    } catch {
+      rows = [];
+    }
     const busy = new Set(rows.filter((x) => x.State === "running").map((x) => x.HostConfig?.NetworkMode ?? ""));
-    const candidates = rows.filter((x) => x.State !== "running" && OLD_NET.test(x.HostConfig?.NetworkMode ?? "") && !busy.has(x.HostConfig?.NetworkMode ?? "") && mine(x.Labels, x.Labels?.["vyre.workspace"] ?? "")).map((x) => x.HostConfig!.NetworkMode!);
+    const candidates = rows
+      .filter(
+        (x) =>
+          x.State !== "running" &&
+          OLD_NET.test(x.HostConfig?.NetworkMode ?? "") &&
+          !busy.has(x.HostConfig?.NetworkMode ?? "") &&
+          mine(x.Labels, x.Labels?.["vyre.workspace"] ?? ""),
+      )
+      .map((x) => x.HostConfig!.NetworkMode!);
     for (const net of candidates) {
       const r = await http({ method: "DELETE", path: `/networks/${net}` }).catch(() => null);
-      if (r && (r.status === 204 || r.status === 200)) { madeNets.delete(net); log("info", "workspace.old_network_removed", { network: net, why: "pools" }); return true; }
+      if (r && (r.status === 204 || r.status === 200)) {
+        madeNets.delete(net);
+        log("info", "workspace.old_network_removed", { network: net, why: "pools" });
+        return true;
+      }
     }
     return false;
   }
@@ -591,9 +828,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // the shared network was made or checked by networkFor before the config was chosen; on the default bridge there is nothing to make; behind the runner, the fallback is the workspace's own
     if (!o.runner || net !== workspaceNetworkName(agentId)) return;
     const name = workspaceNetworkName(agentId);
-    const r = await http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } } });
-    if (r.status !== 201 && r.status !== 409 && /address pools|subnetted|no available network/i.test(bodyText(r.body))) throw wsError(`${NO_ROOM_FOR_WORKSPACE_NETWORK} (${bodyText(r.body)})`, "unavailable");
-    if (r.status !== 201 && r.status !== 409) throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
+    const r = await http({
+      method: "POST",
+      path: "/networks/create",
+      json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.workspace": agentId } },
+    });
+    if (r.status !== 201 && r.status !== 409 && /address pools|subnetted|no available network/i.test(bodyText(r.body)))
+      throw wsError(`${NO_ROOM_FOR_WORKSPACE_NETWORK} (${bodyText(r.body)})`, "unavailable");
+    if (r.status !== 201 && r.status !== 409)
+      throw wsError(`The workspace's network was not made (${r.status}: ${bodyText(r.body)}).`);
     madeNets.add(name);
     await readSubnets();
   }
@@ -604,7 +847,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const listed = [...new Set((await o.projectsOf?.(agentId)) ?? [])];
     const out = excluded.get(agentId);
     // once the list no longer names a cut project, the cut is done with
-    if (out) { for (const p of [...out]) if (!listed.includes(p)) out.delete(p); if (out.size === 0) excluded.delete(agentId); }
+    if (out) {
+      for (const p of [...out]) if (!listed.includes(p)) out.delete(p);
+      if (out.size === 0) excluded.delete(agentId);
+    }
     const projects = listed.filter((p) => PROJECT_ID.test(p) && !(out?.has(p) ?? false)).sort();
     return { projects };
   }
@@ -616,24 +862,51 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const home = o.home as WorkspaceHome;
     return {
       async snapshot() {
-        const r = await http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${GUEST}/.` }, timeoutMs: 120_000 });
+        const r = await http({
+          method: "GET",
+          path: `/containers/${name}/archive`,
+          query: { path: `${GUEST}/.` },
+          timeoutMs: 120_000,
+        });
         if (r.status === 404) return { files: new Map(), dirs: new Set(), refused: [], complete: true };
         if (r.status !== 200) throw new Error(`the Files folder could not be read (${r.status})`);
-        if (r.body.length > 256 * 1024 * 1024) return { files: new Map(), dirs: new Set(), refused: [], complete: false };
+        if (r.body.length > 256 * 1024 * 1024)
+          return { files: new Map(), dirs: new Set(), refused: [], complete: false };
         return home.readTar(r.body);
       },
       async put(files) {
         if (files.length === 0) return;
         const at = Math.floor(now() / 1000);
-        const tar = tarFiles(files.map((f) => ({ path: f.rel, data: f.bytes, mode: f.readOnly ? 0o444 : 0o644, uid: f.readOnly ? 0 : WORKSPACE_UID, gid: f.readOnly ? 0 : WORKSPACE_UID, mtime: at })));
-        const r = await http({ method: "PUT", path: `/containers/${name}/archive`, query: { path: GUEST }, body: tar, contentType: "application/x-tar", timeoutMs: 120_000 });
+        const tar = tarFiles(
+          files.map((f) => ({
+            path: f.rel,
+            data: f.bytes,
+            mode: f.readOnly ? 0o444 : 0o644,
+            uid: f.readOnly ? 0 : WORKSPACE_UID,
+            gid: f.readOnly ? 0 : WORKSPACE_UID,
+            mtime: at,
+          })),
+        );
+        const r = await http({
+          method: "PUT",
+          path: `/containers/${name}/archive`,
+          query: { path: GUEST },
+          body: tar,
+          contentType: "application/x-tar",
+          timeoutMs: 120_000,
+        });
         if (r.status !== 200) throw new Error(`the Files folder could not be written (${r.status})`);
       },
       async remove(files, dirs) {
         if (files.length === 0 && dirs.length === 0) return;
         // a removal is an exec as the agent's own user inside the running container: rm and rmdir on named paths, nothing else
-        const script = 'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
-        const r = await execIn(agentId, ["sh", "-c", script, "sh", ...files.map((f) => `${GUEST}/${f}`), "::", ...dirs.map((d) => `${GUEST}/${d}`)], undefined);
+        const script =
+          'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
+        const r = await execIn(
+          agentId,
+          ["sh", "-c", script, "sh", ...files.map((f) => `${GUEST}/${f}`), "::", ...dirs.map((d) => `${GUEST}/${d}`)],
+          undefined,
+        );
         if (r.code !== 0) throw new Error(`the Files folder could not be tidied (${r.stderr.slice(0, 100)})`);
       },
     };
@@ -641,7 +914,20 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   function homeOf(agentId: string): ({ sync: { pass(): Promise<{ failed: number }> } } & Paced) | null {
     if (!o.home) return null;
     let h = homes.get(agentId);
-    if (!h) { h = { sync: o.home.sync({ agentId, computerId: `ws_${agentId}`, fs: diskOf(agentId), manifest: o.home.manifest(agentId) }), timer: null, delay: 0, stopped: false }; homes.set(agentId, h); }
+    if (!h) {
+      h = {
+        sync: o.home.sync({
+          agentId,
+          computerId: `ws_${agentId}`,
+          fs: diskOf(agentId),
+          manifest: o.home.manifest(agentId),
+        }),
+        timer: null,
+        delay: 0,
+        stopped: false,
+      };
+      homes.set(agentId, h);
+    }
     return h;
   }
   /** One round of the mirror; true when it finished with nothing left undone (or there is no mirror), so a caller about to stop the container knows nothing was lost. */
@@ -657,7 +943,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const have = inflight.get(key);
     if (have) return have;
     passStarted.set(key, now());
-    const p = f().finally(() => { inflight.delete(key); lastPass.set(key, now()); });
+    const p = f().finally(() => {
+      inflight.delete(key);
+      lastPass.set(key, now());
+    });
     inflight.set(key, p);
     return p;
   }
@@ -665,8 +954,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const h = homeOf(agentId);
     if (!h) return Promise.resolve(true);
     return shared(`h:${agentId}`, async () => {
-      try { return (await h.sync.pass()).failed === 0; }
-      catch (e) { log("warn", "workspace.home_pass_failed", { agent: agentId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+      try {
+        return (await h.sync.pass()).failed === 0;
+      } catch (e) {
+        log("warn", "workspace.home_pass_failed", {
+          agent: agentId,
+          error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+        });
+        return false;
+      }
     });
   }
   /**
@@ -678,24 +974,49 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     // a slowed mirror always (its last pass may be a minute old), else one whose last pass is older than the quick pace
     const slowed = (x: Paced | undefined): boolean => x !== undefined && x.delay > mirrorBase();
     // not on age alone: at the quick pace a command would wait for a pass on every command (fifth look V3); a mirror at the quick pace is caught up within its next pass anyway
-    const stale = (key: string): boolean => { const x = key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2)); return slowed(x) || (x?.dirty ?? false); };
+    const stale = (key: string): boolean => {
+      const x = key.startsWith("h:") ? homes.get(key.slice(2)) : projects.get(key.slice(2));
+      return slowed(x) || (x?.dirty ?? false);
+    };
     // the agent's own last Files write (kept from the Files events, eighth look Y2: no table scan per command): one made after the latest pass started is copied in first. Its first command
     // after this process started freshens once, since a write just before the restart was not seen
     const wrote = lastWrites.get(agentId) ?? null;
     const first = !freshenedOnce.has(agentId);
     freshenedOnce.add(agentId);
-    if (homes.has(agentId) && (first || (wrote !== null && wrote >= (passStarted.get(`h:${agentId}`) ?? 0)))) { const h = homes.get(agentId); if (h) h.dirty = true; }
+    if (homes.has(agentId) && (first || (wrote !== null && wrote >= (passStarted.get(`h:${agentId}`) ?? 0)))) {
+      const h = homes.get(agentId);
+      if (h) h.dirty = true;
+    }
     // a pass already running may have read Files before the drop: it is waited for, then a new one runs
-    const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => { const have = inflight.get(key); if (have) await have.catch(() => false); return f(); };
+    const after = async (key: string, f: () => Promise<boolean>): Promise<boolean> => {
+      const have = inflight.get(key);
+      if (have) await have.catch(() => false);
+      return f();
+    };
     const work: Array<Promise<boolean>> = [];
-    if (homes.has(agentId) && (stale(`h:${agentId}`) || inflight.has(`h:${agentId}`))) work.push(after(`h:${agentId}`, () => homePass(agentId)));
-    for (const pid of agentProjects.get(agentId) ?? []) if (stale(`p:${pid}`) || inflight.has(`p:${pid}`)) work.push(after(`p:${pid}`, () => projectPass(pid)));
+    if (homes.has(agentId) && (stale(`h:${agentId}`) || inflight.has(`h:${agentId}`)))
+      work.push(after(`h:${agentId}`, () => homePass(agentId)));
+    for (const pid of agentProjects.get(agentId) ?? [])
+      if (stale(`p:${pid}`) || inflight.has(`p:${pid}`)) work.push(after(`p:${pid}`, () => projectPass(pid)));
     if (work.length === 0) return true;
-    for (const pid of [agentId]) { const h = homes.get(pid); if (h) h.dirty = false; }
-    for (const pid of agentProjects.get(agentId) ?? []) { const p = projects.get(pid); if (p) p.dirty = false; }
+    for (const pid of [agentId]) {
+      const h = homes.get(pid);
+      if (h) h.dirty = false;
+    }
+    for (const pid of agentProjects.get(agentId) ?? []) {
+      const p = projects.get(pid);
+      if (p) p.dirty = false;
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<false>((r) => { timer = setTimeout(() => r(false), ms); timer.unref?.(); });
-    try { return await Promise.race([Promise.all(work).then(() => true), late]); } finally { clearTimeout(timer); }
+    const late = new Promise<false>((r) => {
+      timer = setTimeout(() => r(false), ms);
+      timer.unref?.();
+    });
+    try {
+      return await Promise.race([Promise.all(work).then(() => true), late]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   /**
    * Something changed in Files: the slowed mirrors whose root is the changed folder or one of its ancestors make their next pass soon (once, at the quick pace), so a dropped file arrives within
@@ -713,18 +1034,30 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     let touched: Set<string> | null = null;
     if (f) {
       const folders = [...(change.folderIds ?? [])];
-      if (change.fileId) { const at = f.ofFile(change.fileId); if (at) folders.push(at); }
+      if (change.fileId) {
+        const at = f.ofFile(change.fileId);
+        if (at) folders.push(at);
+      }
       const chains = folders.map((id) => f.ancestors(id));
       if (folders.length > 0 && chains.every((c) => c !== null)) touched = new Set(chains.flat() as string[]);
     }
-    const root = (key: string, look: () => string | null): string | null => { if (!rootOf.has(key)) rootOf.set(key, look()); return rootOf.get(key) ?? null; };
+    const root = (key: string, look: () => string | null): string | null => {
+      if (!rootOf.has(key)) rootOf.set(key, look());
+      return rootOf.get(key) ?? null;
+    };
     for (const [agentId, h] of slowedHomes) {
       const r = f ? root(`h:${agentId}`, () => f.agentRoot(agentId)) : null;
-      if (touched === null || r === null || touched.has(r)) { h.dirty = true; poke(h, mirrorBase()); }
+      if (touched === null || r === null || touched.has(r)) {
+        h.dirty = true;
+        poke(h, mirrorBase());
+      }
     }
     for (const [projectId, p] of slowedProjects) {
       const r = f ? root(`p:${projectId}`, () => f.projectRoot(projectId)) : null;
-      if (touched === null || r === null || touched.has(r)) { p.dirty = true; poke(p, mirrorBase()); }
+      if (touched === null || r === null || touched.has(r)) {
+        p.dirty = true;
+        poke(p, mirrorBase());
+      }
     }
   }
   /** Before a workspace stops: the project folders it mounts, mirrored once more, when it is the last running workspace on them (while another runs, that one keeps mirroring). */
@@ -732,7 +1065,13 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     let ok = true;
     for (const projectId of agentProjects.get(agentId) ?? []) {
       let other = false;
-      for (const [a, ps] of agentProjects) if (a !== agentId && ps.includes(projectId) && (await api.containerRunning(workspaceName(a)).catch(() => false))) other = true;
+      for (const [a, ps] of agentProjects)
+        if (
+          a !== agentId &&
+          ps.includes(projectId) &&
+          (await api.containerRunning(workspaceName(a)).catch(() => false))
+        )
+          other = true;
       if (!other && !(await projectPass(projectId))) ok = false;
     }
     stopProjects(agentId);
@@ -749,13 +1088,15 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     x.delay = base;
     const tick = (): void => {
       x.timer = null;
-      x.dirty = false;   // this pass reads Files as it is now: what a change marked is caught up by it
-      void pass().catch(() => undefined).finally(() => {
-        if (x.stopped || x.timer) return;
-        x.delay = now() - activeAt() < ACTIVE_MS ? base : Math.min(MIRROR_MAX_MS, Math.max(base, x.delay * 2));
-        x.timer = setTimeout(tick, x.delay);
-        x.timer.unref?.();
-      });
+      x.dirty = false; // this pass reads Files as it is now: what a change marked is caught up by it
+      void pass()
+        .catch(() => undefined)
+        .finally(() => {
+          if (x.stopped || x.timer) return;
+          x.delay = now() - activeAt() < ACTIVE_MS ? base : Math.min(MIRROR_MAX_MS, Math.max(base, x.delay * 2));
+          x.timer = setTimeout(tick, x.delay);
+          x.timer.unref?.();
+        });
     };
     x.tick = tick;
     x.timer = setTimeout(tick, base);
@@ -776,23 +1117,43 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (!x || x.stopped || !x.timer || !x.tick || x.delay <= base || x.poked) return;
     clearTimeout(x.timer);
     x.poked = true;
-    x.timer = setTimeout(() => { x.poked = false; x.tick?.(); }, base);
+    x.timer = setTimeout(() => {
+      x.poked = false;
+      x.tick?.();
+    }, base);
     x.timer.unref?.();
   }
   const mirrorBase = (): number => o.home?.intervalMs ?? 3000;
   function startHome(agentId: string): void {
     const h = homeOf(agentId);
     if (!h || h.timer) return;
-    pace(h, mirrorBase(), () => lastTouch.get(agentId) ?? 0, async () => { if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await homePass(agentId); });
+    pace(
+      h,
+      mirrorBase(),
+      () => lastTouch.get(agentId) ?? 0,
+      async () => {
+        if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await homePass(agentId);
+      },
+    );
   }
-  function stopHome(agentId: string): void { const h = homes.get(agentId); if (h) { h.stopped = true; if (h.timer) { clearTimeout(h.timer); h.timer = null; } } }
+  function stopHome(agentId: string): void {
+    const h = homes.get(agentId);
+    if (h) {
+      h.stopped = true;
+      if (h.timer) {
+        clearTimeout(h.timer);
+        h.timer = null;
+      }
+    }
+  }
 
   // ---- the project folders: a volume the agents on a project share, mirrored with the project's folder in Files, with history that says which agent changed what ----
   // The disk is read through any running workspace that mounts it. A pass runs as the agent that last worked in the project (every command an agent runs makes it the one, and a pass follows a second
   // later), so a change on the disk is put in the file's history as that agent's, and Files' own versions give "who changed what" and undo.
   const PROJECT_GUEST = (p: string): string => `${PROJECTS_GUEST}/${p}`;
   const runningMounter = async (projectId: string): Promise<string | null> => {
-    for (const [agent, ps] of agentProjects) if (ps.includes(projectId) && (await api.containerRunning(workspaceName(agent)).catch(() => false))) return agent;
+    for (const [agent, ps] of agentProjects)
+      if (ps.includes(projectId) && (await api.containerRunning(workspaceName(agent)).catch(() => false))) return agent;
     return null;
   };
   function projectDisk(projectId: string, via: string): HomeDisk {
@@ -801,29 +1162,58 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     const dir = PROJECT_GUEST(projectId);
     return {
       async snapshot() {
-        const r = await http({ method: "GET", path: `/containers/${name}/archive`, query: { path: `${dir}/.` }, timeoutMs: 120_000 });
+        const r = await http({
+          method: "GET",
+          path: `/containers/${name}/archive`,
+          query: { path: `${dir}/.` },
+          timeoutMs: 120_000,
+        });
         if (r.status === 404) return { files: new Map(), dirs: new Set(), refused: [], complete: true };
         if (r.status !== 200) throw new Error(`the project folder could not be read (${r.status})`);
-        if (r.body.length > 256 * 1024 * 1024) return { files: new Map(), dirs: new Set(), refused: [], complete: false };
+        if (r.body.length > 256 * 1024 * 1024)
+          return { files: new Map(), dirs: new Set(), refused: [], complete: false };
         return home.readTar(r.body);
       },
       async put(files) {
         if (files.length === 0) return;
         const at = Math.floor(now() / 1000);
-        const tar = tarFiles(files.map((f) => ({ path: f.rel, data: f.bytes, mode: 0o644, uid: WORKSPACE_UID, gid: WORKSPACE_UID, mtime: at })));
-        const r = await http({ method: "PUT", path: `/containers/${name}/archive`, query: { path: dir }, body: tar, contentType: "application/x-tar", timeoutMs: 120_000 });
+        const tar = tarFiles(
+          files.map((f) => ({
+            path: f.rel,
+            data: f.bytes,
+            mode: 0o644,
+            uid: WORKSPACE_UID,
+            gid: WORKSPACE_UID,
+            mtime: at,
+          })),
+        );
+        const r = await http({
+          method: "PUT",
+          path: `/containers/${name}/archive`,
+          query: { path: dir },
+          body: tar,
+          contentType: "application/x-tar",
+          timeoutMs: 120_000,
+        });
         if (r.status !== 200) throw new Error(`the project folder could not be written (${r.status})`);
       },
       async remove(files, dirs) {
         if (files.length === 0 && dirs.length === 0) return;
-        const script = 'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
-        const r = await execIn(via, ["sh", "-c", script, "sh", ...files.map((f) => `${dir}/${f}`), "::", ...dirs.map((d) => `${dir}/${d}`)], undefined);
+        const script =
+          'mode=f; for p in "$@"; do if [ "$p" = "::" ]; then mode=d; continue; fi; if [ "$mode" = f ]; then rm -f -- "$p"; else rmdir -- "$p" 2>/dev/null; fi; done; true';
+        const r = await execIn(
+          via,
+          ["sh", "-c", script, "sh", ...files.map((f) => `${dir}/${f}`), "::", ...dirs.map((d) => `${dir}/${d}`)],
+          undefined,
+        );
         if (r.code !== 0) throw new Error(`the project folder could not be tidied (${r.stderr.slice(0, 100)})`);
       },
     };
   }
   /** One round of a project's mirror, as the agent that last worked in it, through a workspace that is running and mounts it. True when nothing was left undone, or there is nothing to do. */
-  function projectPass(projectId: string): Promise<boolean> { return shared(`p:${projectId}`, () => projectPassNow(projectId)); }
+  function projectPass(projectId: string): Promise<boolean> {
+    return shared(`p:${projectId}`, () => projectPassNow(projectId));
+  }
   async function projectPassNow(projectId: string): Promise<boolean> {
     if (!o.home?.syncProject) return true;
     const via = await runningMounter(projectId);
@@ -833,23 +1223,51 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     projects.set(projectId, p);
     try {
       // the mirror is made for the agent whose calls it makes and the workspace whose disk it reads; either changing makes a new one (the manifest, which is the project's, is shared)
-      if (p.holder !== `${as}|${via}`) { p.sync = o.home.syncProject({ projectId, agentId: as, fs: projectDisk(projectId, via), manifest: (o.home.projectManifest ?? ((id) => `${o.home!.manifest(`project_${id}`)}`))(projectId) }); p.holder = `${as}|${via}`; }
+      if (p.holder !== `${as}|${via}`) {
+        p.sync = o.home.syncProject({
+          projectId,
+          agentId: as,
+          fs: projectDisk(projectId, via),
+          manifest: (o.home.projectManifest ?? ((id) => `${o.home!.manifest(`project_${id}`)}`))(projectId),
+        });
+        p.holder = `${as}|${via}`;
+      }
       if (p.sync === null) return true;
       return (await p.sync.pass()).failed === 0;
-    } catch (e) { log("warn", "workspace.project_pass_failed", { project: projectId, error: e instanceof Error ? e.message.slice(0, 200) : "unknown" }); return false; }
+    } catch (e) {
+      log("warn", "workspace.project_pass_failed", {
+        project: projectId,
+        error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+      });
+      return false;
+    }
   }
   function startProjects(agentId: string, ps: readonly string[]): void {
     if (!o.home?.syncProject) return;
     agentProjects.set(agentId, [...ps]);
     for (const projectId of ps) {
-      const p = projects.get(projectId) ?? { sync: null, timer: null, kick: null, holder: null, delay: 0, stopped: false };
+      const p = projects.get(projectId) ?? {
+        sync: null,
+        timer: null,
+        kick: null,
+        holder: null,
+        delay: 0,
+        stopped: false,
+      };
       projects.set(projectId, p);
       if (p.timer) continue;
       // the project's last activity: the latest command of any agent whose workspace mounts it
-      const active = (): number => Math.max(0, ...[...agentProjects].filter(([, ps2]) => ps2.includes(projectId)).map(([a]) => lastTouch.get(a) ?? 0));
+      const active = (): number =>
+        Math.max(
+          0,
+          ...[...agentProjects].filter(([, ps2]) => ps2.includes(projectId)).map(([a]) => lastTouch.get(a) ?? 0),
+        );
       pace(p, mirrorBase(), active, async () => {
         const via = await runningMounter(projectId);
-        if (via === null) { p.stopped = true; return; }
+        if (via === null) {
+          p.stopped = true;
+          return;
+        }
         await projectPass(projectId);
       });
     }
@@ -861,7 +1279,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       projectActor.set(projectId, agentId);
       const p = projects.get(projectId);
       if (!p || p.kick) continue;
-      p.kick = setTimeout(() => { p.kick = null; void projectPass(projectId); }, o.projectKickMs ?? 1200);
+      p.kick = setTimeout(() => {
+        p.kick = null;
+        void projectPass(projectId);
+      }, o.projectKickMs ?? 1200);
       p.kick.unref?.();
     }
   }
@@ -872,7 +1293,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const p = projects.get(projectId);
       if (!p) continue;
       // the timer stays while another running workspace mounts the project; it ends itself at its next look otherwise
-      if (p.kick) { clearTimeout(p.kick); p.kick = null; }
+      if (p.kick) {
+        clearTimeout(p.kick);
+        p.kick = null;
+      }
     }
   }
 
@@ -892,12 +1316,18 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   }
 
   function provision(agentId: string): Promise<{ workspaceId: string }> {
-    if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
+    if (!AGENT_ID.test(agentId))
+      return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
     if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
     return serial(agentId, async () => {
       const name = workspaceName(agentId);
       // the same admission as a make or a wake: after a restart the move of an old computer must not build a workspace for an agent in Trash (review, first look 2)
-      if (!(await inspect(name))) { await o.admit?.({ agentId, state: "create" }); const want = await mounts(agentId); await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o, await networkFor(agentId))); log("info", "workspace.provisioned", { agent: agentId }); }
+      if (!(await inspect(name))) {
+        await o.admit?.({ agentId, state: "create" });
+        const want = await mounts(agentId);
+        await build(agentId, name, want, workspaceContainerConfig(agentId, image, want, o, await networkFor(agentId)));
+        log("info", "workspace.provisioned", { agent: agentId });
+      }
       return { workspaceId: name };
     });
   }
@@ -906,21 +1336,43 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    * Is something working in the workspace: a run Vyre holds, a pane whose foreground command is not a shell, or any process that is not the workspace's own (BUSY_SCRIPT). A workspace that does not
    * answer is taken as busy: nothing is stopped on a guess.
    */
-  async function busy(agentId: string): Promise<boolean> { return (await work(agentId)) !== null; }
+  async function busy(agentId: string): Promise<boolean> {
+    return (await work(agentId)) !== null;
+  }
   /** What keeps the workspace busy, in a few words ("tail -f app.log"), or null when nothing does; remembered for its status line. */
   async function work(agentId: string): Promise<string | null> {
-    const say = (what: string | null): string | null => { if (what === null) busyNote.delete(agentId); else busyNote.set(agentId, what.slice(0, 120)); return what; };
+    const say = (what: string | null): string | null => {
+      if (what === null) busyNote.delete(agentId);
+      else busyNote.set(agentId, what.slice(0, 120));
+      return what;
+    };
     if ((holds.get(agentId) ?? 0) > 0) return say("a command");
     try {
       const panes = await execIn(agentId, ["tmux", "list-panes", "-a", "-F", "#{pane_current_command}"], undefined);
-      const fg = panes.code === 0 ? panes.stdout.split("\n").map((l) => l.trim()).filter((c) => c !== "" && !SHELLS.has(c)) : [];
+      const fg =
+        panes.code === 0
+          ? panes.stdout
+              .split("\n")
+              .map((l) => l.trim())
+              .filter((c) => c !== "" && !SHELLS.has(c))
+          : [];
       if (fg.length > 0) return say([...new Set(fg)].join(", "));
       const procs = await execIn(agentId, ["sh", "-c", BUSY_SCRIPT], undefined);
       if (procs.code !== 0) return say("something");
-      const names = procs.stdout.split("\n").map((l) => l.trim().replace(/^\d+\s*/, "").trim()).filter((l, i, all) => l !== "" || all.length === 1);
+      const names = procs.stdout
+        .split("\n")
+        .map((l) =>
+          l
+            .trim()
+            .replace(/^\d+\s*/, "")
+            .trim(),
+        )
+        .filter((l, i, all) => l !== "" || all.length === 1);
       if (procs.stdout.trim() === "") return say(null);
       return say([...new Set(names.filter((n) => n !== ""))].slice(0, 3).join(", ") || "something");
-    } catch { return say("something"); }
+    } catch {
+      return say("something");
+    }
   }
 
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
@@ -938,25 +1390,35 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       const removed = info.projects.filter((p) => !want.projects.includes(p));
       if (info.running && removed.length > 0) {
         restarts.set(agentId, { gen: (gens.get(agentId) ?? 0) + 1, line: REMOVED_LINE });
-        agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => !removed.includes(p)));
+        agentProjects.set(
+          agentId,
+          (agentProjects.get(agentId) ?? []).filter((p) => !removed.includes(p)),
+        );
         for (const p of removed) if (projectActor.get(p) === agentId) projectActor.delete(p);
         log("info", "workspace.project_removed", { agent: agentId, projects: removed });
       } else if (info.running) {
         const last = pendingMounts.get(agentId);
         if ((holds.get(agentId) ?? 0) > 0 || (last !== undefined && now() - last < MOUNT_RECHECK_MS)) now_ = false;
         else if (await busy(agentId)) now_ = false;
-        if (!now_) { if (last === undefined) log("info", "workspace.mounts_deferred", { agent: agentId }); if (last === undefined || now() - last >= MOUNT_RECHECK_MS) pendingMounts.set(agentId, now()); }
+        if (!now_) {
+          if (last === undefined) log("info", "workspace.mounts_deferred", { agent: agentId });
+          if (last === undefined || now() - last >= MOUNT_RECHECK_MS) pendingMounts.set(agentId, now());
+        }
       }
       if (now_) {
         pendingMounts.delete(agentId);
         stopHome(agentId);
-        if (info.running) { await homePass(agentId); await finalProjectPasses(agentId); }
+        if (info.running) {
+          await homePass(agentId);
+          await finalProjectPasses(agentId);
+        }
         // the room it holds stays held: the same workspace starts again at once, and the claim is asked again below
         await removeContainer(name);
         // moved off a network of its own: that network goes (a failure to remove it never stops the start)
         if (OLD_NET.test(info.network) && info.network !== config.HostConfig.NetworkMode) {
           const gone = await http({ method: "DELETE", path: `/networks/${info.network}` }).catch(() => null);
-          if (gone && (gone.status === 204 || gone.status === 200 || gone.status === 404)) madeNets.delete(info.network);
+          if (gone && (gone.status === 204 || gone.status === 200 || gone.status === 404))
+            madeNets.delete(info.network);
         }
         info = null;
         gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
@@ -966,7 +1428,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       lastUsed.set(agentId, now());
       if (!pendingMounts.has(agentId)) mounted.set(agentId, want.projects);
       // running before this process started: its projects' mirrors start now, and so does the idle timer
-      if (!agentProjects.has(agentId)) startProjects(agentId, pendingMounts.has(agentId) ? info.projects : want.projects);
+      if (!agentProjects.has(agentId))
+        startProjects(agentId, pendingMounts.has(agentId) ? info.projects : want.projects);
       // running before this process started, it holds room on the host (review 12 Nov, 5)
       if (o.capacity) claimed.add(agentId);
       if (pendingMounts.has(agentId)) mounted.set(agentId, info.projects);
@@ -980,7 +1443,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       // a full host first puts its longest-quiet workspace to sleep (nothing held, nothing running) and starts this one; only when every awake one is truly busy does this one wait (12 Nov)
       // newcomers at the same moment can take each other's freed room: it tries again as long as it can put another quiet one to sleep (each try sleeps one, so this ends)
       while (room.state === "waiting" && (await makeRoom(agentId))) room = await o.capacity.claim(agentId);
-      if (room.state === "waiting") { const line = workspaceWaitLine(room.line); waitingLine.set(agentId, line); throw wsError(line, "waiting"); }
+      if (room.state === "waiting") {
+        const line = workspaceWaitLine(room.line);
+        waitingLine.set(agentId, line);
+        throw wsError(line, "waiting");
+      }
       waitingLine.delete(agentId);
       // it was just asked for: not the one another newcomer puts to sleep for room while it starts
       wokenAt.set(agentId, now());
@@ -991,7 +1458,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (info && !["bridge", "default", "host", "none", ""].includes(info.network)) {
         const there = await http({ method: "GET", path: `/networks/${info.network}` }).catch(() => null);
         if (there?.status === 404) {
-          log("warn", "workspace.network_missing", { agent: agentId, network: info.network, now: config.HostConfig.NetworkMode });
+          log("warn", "workspace.network_missing", {
+            agent: agentId,
+            network: info.network,
+            now: config.HostConfig.NetworkMode,
+          });
           await removeContainer(name);
           info = null;
           gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
@@ -999,7 +1470,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       }
       if (!info) await build(agentId, name, want, config);
       await api.containerStart(name);
-    } catch (e) { await o.capacity?.release(agentId).catch(() => undefined); throw e; }
+    } catch (e) {
+      await o.capacity?.release(agentId).catch(() => undefined);
+      throw e;
+    }
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
@@ -1015,29 +1489,45 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   }
 
   function ensure(agentId: string): Promise<"created" | "woke" | "running"> {
-    if (!AGENT_ID.test(agentId)) return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
+    if (!AGENT_ID.test(agentId))
+      return Promise.reject(wsError("That is not an agent a workspace can be made for.", "bad_input"));
     if (gone.has(agentId)) return Promise.reject(wsError(AGENT_GONE_LINE, "gone"));
     usedHere.add(agentId);
     return serial(agentId, () => wake(agentId));
   }
 
-  async function execIn(agentId: string, argv: readonly string[], env: Readonly<Record<string, string>> | undefined): Promise<ExecResult> {
-    const r = await api.exec(workspaceName(agentId), { cmd: argv, env: Object.entries(env ?? {}).map(([k, v]) => `${k}=${v}`) });
+  async function execIn(
+    agentId: string,
+    argv: readonly string[],
+    env: Readonly<Record<string, string>> | undefined,
+  ): Promise<ExecResult> {
+    const r = await api.exec(workspaceName(agentId), {
+      cmd: argv,
+      env: Object.entries(env ?? {}).map(([k, v]) => `${k}=${v}`),
+    });
     return { code: r.exitCode ?? 1, stdout: r.stdout, stderr: r.stderr };
   }
 
-  async function exec(agentId: string, argv: readonly string[], x?: { env?: Readonly<Record<string, string>>; quiet?: boolean; values?: boolean }): Promise<ExecResult> {
+  async function exec(
+    agentId: string,
+    argv: readonly string[],
+    x?: { env?: Readonly<Record<string, string>>; quiet?: boolean; values?: boolean },
+  ): Promise<ExecResult> {
     if (x?.values === true && o.valuesAllowed && !o.valuesAllowed()) throw wsError(NOT_PRIVATE);
     // quiet: tidying up after a stream. It neither wakes a sleeping workspace nor counts as use.
-    if (x?.quiet === true) return (await api.containerRunning(workspaceName(agentId))) ? execIn(agentId, argv, x.env) : { code: 1, stdout: "", stderr: "the workspace is asleep" };
+    if (x?.quiet === true)
+      return (await api.containerRunning(workspaceName(agentId)))
+        ? execIn(agentId, argv, x.env)
+        : { code: 1, stdout: "", stderr: "the workspace is asleep" };
     await ensure(agentId);
     lastUsed.set(agentId, now());
     lastTouch.set(agentId, now());
     // someone works in it: its mirrors go back to their quick pace
     nudge(homes.get(agentId), mirrorBase());
     for (const pid of agentProjects.get(agentId) ?? []) nudge(projects.get(pid), mirrorBase());
-    try { return await execIn(agentId, argv, x?.env); }
-    catch (e) {
+    try {
+      return await execIn(agentId, argv, x?.env);
+    } catch (e) {
       // the container stopped between the wake and the exec (a sweep, or someone stopped it): wake it once more
       if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) throw e;
       await ensure(agentId);
@@ -1052,35 +1542,46 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    */
   async function makeRoom(forAgent: string): Promise<boolean> {
     let live: string[];
-    try { live = await running(); } catch { return false; }
+    try {
+      live = await running();
+    } catch {
+      return false;
+    }
     // one that was given room in the last minute and has had no command since is a newcomer still starting: never the one put to sleep
     // and one given room in the last minute is never taken for another: two agents never put each other to sleep twice within a minute (fourth look U1)
-    const starting = (id: string): boolean => { const w = wokenAt.get(id); return w !== undefined && now() - w < JUST_WOKEN_MS; };
+    const starting = (id: string): boolean => {
+      const w = wokenAt.get(id);
+      return w !== undefined && now() - w < JUST_WOKEN_MS;
+    };
     // never one with a turn or a run in progress, used in the last 90 s, or with a person's tab attached: "nothing running this instant" is not enough (lead, 12 Nov)
     const mayTake = (id: string): boolean => {
-      if ((holds.get(id) ?? 0) > 0 || starting(id) || now() - (viewedAt.get(id) ?? -Infinity) < ATTACHED_MS) return false;
+      if ((holds.get(id) ?? 0) > 0 || starting(id) || now() - (viewedAt.get(id) ?? -Infinity) < ATTACHED_MS)
+        return false;
       const turn = o.inTurn?.(id);
       if (turn === true) return false;
       return now() - (lastTouch.get(id) ?? 0) >= (turn === false ? ROOM_GRACE_MS : ROOM_GRACE_UNKNOWN_MS);
     };
-    const quiet = live.filter((id) => id !== forAgent && mayTake(id))
+    const quiet = live
+      .filter((id) => id !== forAgent && mayTake(id))
       .sort((a, b) => (lastTouch.get(a) ?? 0) - (lastTouch.get(b) ?? 0));
     // at most a few awake ones are asked whether they are busy; ones another newcomer already put to sleep (newcomers at once share one list) are passed over without counting
     let asked = 0;
     for (const id of quiet) {
       if (asked >= 8) break;
-      if (forRoom.has(id)) continue;   // another newcomer is putting this one to sleep
+      if (forRoom.has(id)) continue; // another newcomer is putting this one to sleep
       forRoom.add(id);
       try {
         if (!(await api.containerRunning(workspaceName(id)).catch(() => false))) continue;
         asked++;
         if (await sleepNow(id, false, true)) {
-        // its agent's next command says so, once
-        sleptNote.set(id, SLEPT_FOR_ROOM_LINE);
-        log("info", "workspace.slept_for_room", { agent: id, for: forAgent });
-        return true;
+          // its agent's next command says so, once
+          sleptNote.set(id, SLEPT_FOR_ROOM_LINE);
+          log("info", "workspace.slept_for_room", { agent: id, for: forAgent });
+          return true;
+        }
+      } finally {
+        forRoom.delete(id);
       }
-      } finally { forRoom.delete(id); }
     }
     return false;
   }
@@ -1095,8 +1596,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         if (at !== undefined && now() - at < idleMs) return false;
         const doing = await work(agentId);
         if (doing !== null) {
-          if (!overCeiling(agentId)) { lastUsed.set(agentId, now() - idleMs + 60_000); return false; }
-          sleptNote.set(agentId, `The workspace went to sleep after 12 hours with no command or keystroke, though it was still running ${doing}. It woke for this command; what ran then was stopped.`);
+          if (!overCeiling(agentId)) {
+            lastUsed.set(agentId, now() - idleMs + 60_000);
+            return false;
+          }
+          sleptNote.set(
+            agentId,
+            `The workspace went to sleep after 12 hours with no command or keystroke, though it was still running ${doing}. It woke for this command; what ran then was stopped.`,
+          );
           log("info", "workspace.slept_at_ceiling", { agent: agentId, running: doing });
         }
       }
@@ -1126,17 +1633,33 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     return usedHere.has(agentId) || (o.ownsAgent?.(agentId) ?? false);
   };
   async function running(): Promise<string[]> {
-    const r = await http({ method: "GET", path: "/containers/json", query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+    const r = await http({
+      method: "GET",
+      path: "/containers/json",
+      query: { all: "false", filters: JSON.stringify({ label: ["vyre.workspace"] }) },
+    });
     if (r.status !== 200) return [];
     const rows = JSON.parse(dec.decode(r.body)) as Array<{ Labels?: Record<string, string> }>;
-    return rows.flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) && mine(x.Labels, id) ? [id] : []; });
+    return rows.flatMap((x) => {
+      const id = x.Labels?.["vyre.workspace"] ?? "";
+      return AGENT_ID.test(id) && mine(x.Labels, id) ? [id] : [];
+    });
   }
 
   /** Every workspace container on this engine, running or not. */
   async function every(): Promise<Array<{ agentId: string; running: boolean }>> {
-    const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+    const r = await http({
+      method: "GET",
+      path: "/containers/json",
+      query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) },
+    });
     if (r.status !== 200) throw new Error(`Docker did not list the workspaces (${r.status})`);
-    return (JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>).flatMap((x) => { const id = x.Labels?.["vyre.workspace"] ?? ""; return AGENT_ID.test(id) && mine(x.Labels, id) ? [{ agentId: id, running: x.State === "running" }] : []; });
+    return (JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>).flatMap(
+      (x) => {
+        const id = x.Labels?.["vyre.workspace"] ?? "";
+        return AGENT_ID.test(id) && mine(x.Labels, id) ? [{ agentId: id, running: x.State === "running" }] : [];
+      },
+    );
   }
 
   /**
@@ -1146,16 +1669,24 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function giveBackDeadRoom(firstLook: boolean): Promise<void> {
     if (!o.capacity) return;
     let all: Array<{ agentId: string; running: boolean }>;
-    try { all = await every(); } catch { return; }
+    try {
+      all = await every();
+    } catch {
+      return;
+    }
     const up = new Set(all.filter((x) => x.running).map((x) => x.agentId));
     const dead = new Set<string>([...claimed].filter((id) => !up.has(id)));
     // after a restart: a stopped workspace's room goes back once, unless it waits in the host's queue, whose place the database keeps (review 12 Nov, 5)
-    if (firstLook) for (const x of all) {
-      if (x.running || waitingLine.has(x.agentId)) continue;
-      const line = await o.capacity.waiting?.(x.agentId).catch(() => null) ?? null;
-      if (line !== null) { waitingLine.set(x.agentId, workspaceWaitLine(line)); continue; }
-      dead.add(x.agentId);
-    }
+    if (firstLook)
+      for (const x of all) {
+        if (x.running || waitingLine.has(x.agentId)) continue;
+        const line = (await o.capacity.waiting?.(x.agentId).catch(() => null)) ?? null;
+        if (line !== null) {
+          waitingLine.set(x.agentId, workspaceWaitLine(line));
+          continue;
+        }
+        dead.add(x.agentId);
+      }
     // and one that was running before the restart holds room: if it dies outside Vyre later, that room goes back too
     if (firstLook) for (const x of all) if (x.running) claimed.add(x.agentId);
     for (const id of dead) {
@@ -1181,28 +1712,53 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function sweep(): Promise<string[]> {
     const slept: string[] = [];
     let live: string[];
-    try { live = await running(); } catch { return slept; }
+    try {
+      live = await running();
+    } catch {
+      return slept;
+    }
     await giveBackDeadRoom(!discovered);
     // behind the runner, the networks of workspaces that were running before this process started are read by their names too
     if (o.runner) for (const id of live) madeNets.add(workspaceNetworkName(id));
     await readSubnets();
     // workspaces that were running before this process started get a whole idle period from now
-    if (!discovered) { discovered = true; for (const id of live) if (!lastUsed.has(id)) lastUsed.set(id, now()); }
+    if (!discovered) {
+      discovered = true;
+      for (const id of live) if (!lastUsed.has(id)) lastUsed.set(id, now());
+    }
     for (const id of live) {
       const at = lastUsed.get(id);
-      if (at === undefined) { lastUsed.set(id, now()); continue; }
+      if (at === undefined) {
+        lastUsed.set(id, now());
+        continue;
+      }
       if (now() - at < idleMs) continue;
       // never sleeps mid-task: a run Vyre holds, a pane that runs something other than a shell, or any process of the agent's (a script, a job in the background) is work
       // ...but for at most MAX_BUSY_AWAKE_MS after the last command or keystroke: then it sleeps anyway (sleepNow says why to the next command)
-      if ((await busy(id)) && !overCeiling(id)) { lastUsed.set(id, now() - idleMs + 60_000); continue; }
-      try { if (await sleepNow(id, true)) slept.push(id); } catch (e) { log("warn", "workspace.sleep_failed", { agent: id, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" }); }
+      if ((await busy(id)) && !overCeiling(id)) {
+        lastUsed.set(id, now() - idleMs + 60_000);
+        continue;
+      }
+      try {
+        if (await sleepNow(id, true)) slept.push(id);
+      } catch (e) {
+        log("warn", "workspace.sleep_failed", {
+          agent: id,
+          error: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+        });
+      }
     }
     return slept;
   }
 
   function startTimer(): void {
     if (timer) return;
-    timer = setInterval(() => { void sweep().catch(() => undefined); }, Math.max(1000, Math.min(60_000, Math.floor(idleMs / 2))));
+    timer = setInterval(
+      () => {
+        void sweep().catch(() => undefined);
+      },
+      Math.max(1000, Math.min(60_000, Math.floor(idleMs / 2))),
+    );
     timer.unref?.();
   }
 
@@ -1212,36 +1768,66 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const firstRead: Promise<void> = readSubnets().catch(() => undefined);
 
   return {
-    ensure, exec, provision,
+    ensure,
+    exec,
+    provision,
     worked: (agentId) => kickProjects(agentId),
     async revoke(agentId) {
       if (!AGENT_ID.test(agentId)) return;
       // the mirror stops for the projects it left before anything else, then the container follows its projects (wake makes it again at once when one was removed)
       const want = await mounts(agentId);
       const left = (agentProjects.get(agentId) ?? []).filter((p) => !want.projects.includes(p));
-      if (left.length > 0) { agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => want.projects.includes(p))); for (const p of left) if (projectActor.get(p) === agentId) projectActor.delete(p); }
+      if (left.length > 0) {
+        agentProjects.set(
+          agentId,
+          (agentProjects.get(agentId) ?? []).filter((p) => want.projects.includes(p)),
+        );
+        for (const p of left) if (projectActor.get(p) === agentId) projectActor.delete(p);
+      }
       if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) await ensure(agentId);
     },
-    restore(agentId) { gone.delete(agentId); restarts.delete(agentId); },
+    restore(agentId) {
+      gone.delete(agentId);
+      restarts.delete(agentId);
+    },
     subnets: () => [...nets],
     ready: () => firstRead,
-    networkNote: () => (sharedFailure !== null && !o.runner ? `Agent workspaces are on Docker's default network because the shared one could not be made: ${sharedFailure}. They work, but can reach each other.` : null),
+    networkNote: () =>
+      sharedFailure !== null && !o.runner
+        ? `Agent workspaces are on Docker's default network because the shared one could not be made: ${sharedFailure}. They work, but can reach each other.`
+        : null,
     hostSubnets: async () => {
       const r = await http({ method: "GET", path: "/networks" }).catch(() => null);
       if (!r || r.status !== 200) return null;
-      try { return (JSON.parse(dec.decode(r.body)) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>).flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? "")).filter(Boolean); } catch { return null; }
+      try {
+        return (JSON.parse(dec.decode(r.body)) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>)
+          .flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? ""))
+          .filter(Boolean);
+      } catch {
+        return null;
+      }
     },
-    awake: (agentId) => (AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false)),
-    viewed(agentId) { viewedAt.set(agentId, now()); },
+    awake: (agentId) =>
+      AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),
+    viewed(agentId) {
+      viewedAt.set(agentId, now());
+    },
     freshen,
     filesChanged,
-    takeNote(agentId) { const n = sleptNote.get(agentId) ?? null; sleptNote.delete(agentId); return n; },
+    takeNote(agentId) {
+      const n = sleptNote.get(agentId) ?? null;
+      sleptNote.delete(agentId);
+      return n;
+    },
     async cut(agentId, projectId) {
       if (!AGENT_ID.test(agentId) || !PROJECT_ID.test(projectId)) return;
       const out = excluded.get(agentId) ?? new Set<string>();
       out.add(projectId);
       excluded.set(agentId, out);
-      agentProjects.set(agentId, (agentProjects.get(agentId) ?? []).filter((p) => p !== projectId));
+      agentProjects.set(
+        agentId,
+        (agentProjects.get(agentId) ?? []).filter((p) => p !== projectId),
+      );
       if (projectActor.get(projectId) === agentId) projectActor.delete(projectId);
       const info = await inspect(workspaceName(agentId)).catch(() => null);
       if (info?.running && info.projects.includes(projectId)) {
@@ -1251,7 +1837,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         log("info", "workspace.project_cut", { agent: agentId, project: projectId });
       }
     },
-    restartLine(agentId, since) { const r = restarts.get(agentId); return r !== undefined && r.gen > since ? r.line : null; },
+    restartLine(agentId, since) {
+      const r = restarts.get(agentId);
+      return r !== undefined && r.gen > since ? r.line : null;
+    },
     hold(agentId) {
       holds.set(agentId, (holds.get(agentId) ?? 0) + 1);
       let done = false;
@@ -1259,7 +1848,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         if (done) return;
         done = true;
         const n = (holds.get(agentId) ?? 1) - 1;
-        if (n <= 0) holds.delete(agentId); else holds.set(agentId, n);
+        if (n <= 0) holds.delete(agentId);
+        else holds.set(agentId, n);
         // the run counts as use up to its end
         if (lastUsed.has(agentId)) lastUsed.set(agentId, now());
         // a project change that waited for this run is looked at on the next use, not a few seconds later
@@ -1278,7 +1868,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (row?.state === "asleep" && waits !== undefined) return { state: "waiting", line: waits };
       // awake past its idle time because something runs: the line says what, so a person sees why in the Computer tab
       const doing = row?.state === "running" ? busyNote.get(agentId) : undefined;
-      if (row) return { state: row.state, ...(projects && projects.length > 0 ? { projects } : {}), ...(doing !== undefined ? { line: `running: ${doing}` } : {}) };
+      if (row)
+        return {
+          state: row.state,
+          ...(projects && projects.length > 0 ? { projects } : {}),
+          ...(doing !== undefined ? { line: `running: ${doing}` } : {}),
+        };
       const line = waitingLine.get(agentId);
       return line !== undefined ? { state: "waiting", line } : { state: "none" };
     },
@@ -1286,25 +1881,42 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     sleep: (agentId) => sleepNow(agentId),
     sweep,
     async list() {
-      const r = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) } });
+      const r = await http({
+        method: "GET",
+        path: "/containers/json",
+        query: { all: "true", filters: JSON.stringify({ label: ["vyre.workspace"] }) },
+      });
       if (r.status !== 200) return [];
       const rows = JSON.parse(dec.decode(r.body)) as Array<{ State?: string; Labels?: Record<string, string> }>;
       return rows.flatMap((x) => {
         const id = x.Labels?.["vyre.workspace"] ?? "";
         if (!AGENT_ID.test(id) || !mine(x.Labels, id)) return [];
         const at = lastUsed.get(id);
-        return [{ agentId: id, state: x.State === "running" ? ("running" as const) : ("asleep" as const), ...(at === undefined ? {} : { lastUsedAt: at }) }];
+        return [
+          {
+            agentId: id,
+            state: x.State === "running" ? ("running" as const) : ("asleep" as const),
+            ...(at === undefined ? {} : { lastUsedAt: at }),
+          },
+        ];
       });
     },
     async find(session) {
       for (const id of await running()) {
-        try { if ((await execIn(id, ["tmux", "has-session", "-t", session], undefined)).code === 0) return id; } catch { /* not this one */ }
+        try {
+          if ((await execIn(id, ["tmux", "has-session", "-t", session], undefined)).code === 0) return id;
+        } catch {
+          /* not this one */
+        }
       }
       return null;
     },
     async remove(agentId, x) {
       // from now on nothing makes or wakes it, not even a command still polling its screen: that command ends with the line below
-      if (x?.keepVolumes === true) { gone.add(agentId); restarts.set(agentId, { gen: Number.MAX_SAFE_INTEGER, line: AGENT_GONE_LINE }); }
+      if (x?.keepVolumes === true) {
+        gone.add(agentId);
+        restarts.set(agentId, { gen: Number.MAX_SAFE_INTEGER, line: AGENT_GONE_LINE });
+      }
       holds.delete(agentId);
       await serial(agentId, async () => {
         stopHome(agentId);
@@ -1314,10 +1926,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         if (x?.keepVolumes !== true) {
           for (const v of [homeVolume(agentId), filesVolume(agentId)]) {
             const r = await http({ method: "DELETE", path: `/volumes/${v}`, query: { force: "true" } });
-            if (r.status !== 204 && r.status !== 404) throw wsError(`The workspace's volume was not removed (${r.status}).`);
+            if (r.status !== 204 && r.status !== 404)
+              throw wsError(`The workspace's volume was not removed (${r.status}).`);
           }
         }
-        if (o.runner) await http({ method: "DELETE", path: `/networks/${workspaceNetworkName(agentId)}` }).catch(() => undefined);
+        if (o.runner)
+          await http({ method: "DELETE", path: `/networks/${workspaceNetworkName(agentId)}` }).catch(() => undefined);
         lastUsed.delete(agentId);
         mounted.delete(agentId);
         pendingMounts.delete(agentId);
@@ -1331,12 +1945,26 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       try {
         const r = await http({ method: "GET", path: "/_ping", timeoutMs: 5000 });
         return r.status === 200 ? { ok: true } : { ok: false, detail: `Docker answered an error (${r.status}).` };
-      } catch (e) { return { ok: false, detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer." }; }
+      } catch (e) {
+        return {
+          ok: false,
+          detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer.",
+        };
+      }
     },
     close() {
-      if (timer) { clearInterval(timer); timer = null; }
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
       for (const id of [...homes.keys()]) stopHome(id);
-      for (const p of projects.values()) { p.stopped = true; if (p.timer) clearTimeout(p.timer); if (p.kick) clearTimeout(p.kick); p.timer = null; p.kick = null; }
+      for (const p of projects.values()) {
+        p.stopped = true;
+        if (p.timer) clearTimeout(p.timer);
+        if (p.kick) clearTimeout(p.kick);
+        p.timer = null;
+        p.kick = null;
+      }
     },
   };
 }
@@ -1346,8 +1974,22 @@ export const PROJECT_INIT_SCRIPT = `chown ${WORKSPACE_UID}:${WORKSPACE_UID} /vol
 export const projectInitName = (projectId: string): string => `vyre-wsinit-${projectId}`;
 export function projectInitBody(projectId: string, img: string): Record<string, unknown> {
   return {
-    Image: img, User: "0:0", Entrypoint: ["sh", "-c", PROJECT_INIT_SCRIPT], NetworkDisabled: true, Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": projectId },
-    HostConfig: { Binds: [`${projectVolume(projectId)}:/vol:rw`], CapDrop: ["ALL"], CapAdd: ["CHOWN"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false, Memory: 128 * 1024 * 1024, PidsLimit: 32 },
+    Image: img,
+    User: "0:0",
+    Entrypoint: ["sh", "-c", PROJECT_INIT_SCRIPT],
+    NetworkDisabled: true,
+    Labels: { "vyre.workspace.helper": "project-init", "vyre.workspace.project": projectId },
+    HostConfig: {
+      Binds: [`${projectVolume(projectId)}:/vol:rw`],
+      CapDrop: ["ALL"],
+      CapAdd: ["CHOWN"],
+      SecurityOpt: ["no-new-privileges:true"],
+      NetworkMode: "none",
+      Privileged: false,
+      AutoRemove: false,
+      Memory: 128 * 1024 * 1024,
+      PidsLimit: 32,
+    },
   };
 }
 
@@ -1361,7 +2003,8 @@ export function buildWorkspaceManager(c: Omit<WorkspaceOptions, "api">): Workspa
 /** What tmux control mode prints for a byte it will not show: a backslash and three octal digits, the backslash itself the same way (the inverse of decodeControlOutput). */
 export function encodeControlOutput(bytes: Uint8Array): string {
   let out = "";
-  for (const b of bytes) out += b === 0x5c || b < 0x20 || b >= 0x7f ? `\\${b.toString(8).padStart(3, "0")}` : String.fromCharCode(b);
+  for (const b of bytes)
+    out += b === 0x5c || b < 0x20 || b >= 0x7f ? `\\${b.toString(8).padStart(3, "0")}` : String.fromCharCode(b);
   return out;
 }
 
@@ -1377,7 +2020,10 @@ export function incompleteTail(b: Uint8Array): number {
 }
 
 /** The workspace host also says whether it holds a session (the id was opened here, or a running workspace has its tmux session): how the machine's host tells one of its sessions from another's. */
-export type WorkspaceTerminalHost = TerminalHost & { has(terminalId: string): Promise<boolean>; adopt(a: AdoptArgs): void };
+export type WorkspaceTerminalHost = TerminalHost & {
+  has(terminalId: string): Promise<boolean>;
+  adopt(a: AdoptArgs): void;
+};
 
 export interface WorkspaceTerminalOptions {
   manager: WorkspaceManager;
@@ -1398,7 +2044,10 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   const streamMs = w.streamMs ?? 150;
   const nameOf = (terminalId: string): string => `${prefix}${terminalId}`;
   /** `gen`: the container start the session was last made or seen in (-1: not yet looked at since a restart); `seen`: the start it was known in, to tell a session the person ended from one a restart lost. */
-  const where = new Map<string, { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }>();
+  const where = new Map<
+    string,
+    { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }
+  >();
   const tmuxHosts = new Map<string, TmuxHost>();
   /** The first sweep of each workspace's leftover values buffers in this process: awaited before any use. */
   const firstSweep = new Map<string, Promise<void>>();
@@ -1408,11 +2057,28 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   function control(agentId: string): (session: string, onLine: (line: string) => void) => () => void {
     return (session, onLine) => {
       const have = streams.get(session);
-      if (have) { have.listeners.add(onLine); return () => { have.listeners.delete(onLine); if (have.listeners.size === 0) have.stop(); }; }
+      if (have) {
+        have.listeners.add(onLine);
+        return () => {
+          have.listeners.delete(onLine);
+          if (have.listeners.size === 0) have.stop();
+        };
+      }
       const file = `/tmp/.vyre-stream-${session}`;
       const listeners = new Set<(line: string) => void>([onLine]);
       let stopped = false;
-      const entry = { listeners, stop() { stopped = true; streams.delete(session); void m.exec(agentId, ["sh", "-c", 'tmux pipe-pane -t "$1" 2>/dev/null; rm -f "$2"', "sh", session, file], { quiet: true }).catch(() => undefined); } };
+      const entry = {
+        listeners,
+        stop() {
+          stopped = true;
+          streams.delete(session);
+          void m
+            .exec(agentId, ["sh", "-c", 'tmux pipe-pane -t "$1" 2>/dev/null; rm -f "$2"', "sh", session, file], {
+              quiet: true,
+            })
+            .catch(() => undefined);
+        },
+      };
       streams.set(session, entry);
       void (async () => {
         let offset = 0;
@@ -1420,23 +2086,39 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         try {
           await m.exec(agentId, ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file]);
           while (!stopped) {
-            const r = await m.exec(agentId, ["sh", "-c", 'tail -c +"$1" "$2" 2>/dev/null | head -c 49152 | base64 -w0', "sh", String(offset + 1), file]);
+            const r = await m.exec(agentId, [
+              "sh",
+              "-c",
+              'tail -c +"$1" "$2" 2>/dev/null | head -c 49152 | base64 -w0',
+              "sh",
+              String(offset + 1),
+              file,
+            ]);
             const b64 = r.stdout.trim();
             if (b64 !== "") {
               const got = Buffer.from(b64, "base64");
               offset += got.length;
               const all = new Uint8Array(carry.length + got.length);
-              all.set(carry); all.set(got, carry.length);
+              all.set(carry);
+              all.set(got, carry.length);
               const hold = incompleteTail(all);
               carry = all.slice(all.length - hold);
               const send = all.subarray(0, all.length - hold);
-              if (send.length > 0) { const line = `%output %0 ${encodeControlOutput(send)}`; for (const l of [...listeners]) l(line); }
+              if (send.length > 0) {
+                const line = `%output %0 ${encodeControlOutput(send)}`;
+                for (const l of [...listeners]) l(line);
+              }
             }
             await sleep(streamMs);
           }
-        } catch { entry.stop(); }
+        } catch {
+          entry.stop();
+        }
       })();
-      return () => { listeners.delete(onLine); if (listeners.size === 0) entry.stop(); };
+      return () => {
+        listeners.delete(onLine);
+        if (listeners.size === 0) entry.stop();
+      };
     };
   }
 
@@ -1444,13 +2126,26 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     let h = tmuxHosts.get(agentId);
     // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
     const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
-      x?.stdin === undefined ? m.exec(agentId, argv) : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], { env: { VYRE_STDIN: x.stdin }, values: true });
+      x?.stdin === undefined
+        ? m.exec(agentId, argv)
+        : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], {
+            env: { VYRE_STDIN: x.stdin },
+            values: true,
+          });
     if (!h) {
       // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
-      h = createTmuxHost({ exec, quietExec: (argv) => m.exec(agentId, argv, { quiet: true }), control: control(agentId), prefix });
+      h = createTmuxHost({
+        exec,
+        quietExec: (argv) => m.exec(agentId, argv, { quiet: true }),
+        control: control(agentId),
+        prefix,
+      });
       tmuxHosts.set(agentId, h);
       // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
-      firstSweep.set(agentId, h.sweep().catch(() => undefined));
+      firstSweep.set(
+        agentId,
+        h.sweep().catch(() => undefined),
+      );
     }
     return h;
   }
@@ -1471,7 +2166,20 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       // tmux died with the container (or this process never saw the session: a restart): the session is made again, empty, where it was; one that is still there is kept as it is
       const session = nameOf(terminalId);
       if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session])).code !== 0) {
-        await m.exec(w0.agentId, ["tmux", "new-session", "-A", ...HISTORY_ENV, "-d", "-s", session, "-x", String(w0.cols), "-y", String(w0.rows), ...(w0.cwd === undefined ? [] : ["-c", w0.cwd])]);
+        await m.exec(w0.agentId, [
+          "tmux",
+          "new-session",
+          "-A",
+          ...HISTORY_ENV,
+          "-d",
+          "-s",
+          session,
+          "-x",
+          String(w0.cols),
+          "-y",
+          String(w0.rows),
+          ...(w0.cwd === undefined ? [] : ["-c", w0.cwd]),
+        ]);
         await tmuxFor(w0.agentId).sweep();
       }
       w0.gen = gen;
@@ -1483,19 +2191,29 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   /** Do `f` in the session's workspace; a session tmux lost under a running workspace (its server was killed from inside) is made again once and `f` tried again. */
   async function inSession<T>(terminalId: string, f: (h: TerminalHost) => Promise<T>): Promise<T> {
     const t = await at(terminalId);
-    try { return await f(t.host); }
-    catch (e) {
+    try {
+      return await f(t.host);
+    } catch (e) {
       if (!(e instanceof Error && LOST.test(e.message))) throw e;
       return f((await at(terminalId, true)).host);
     }
   }
 
   return {
-    async has(id) { return where.has(id) || (await m.find(nameOf(id))) !== null; },
+    async has(id) {
+      return where.has(id) || (await m.find(nameOf(id))) !== null;
+    },
     adopt(a) {
       // what Vyre knows of a session (its row) after a restart: which workspace it is in, at what size and folder. Nothing is woken here; the next use wakes the workspace and remakes the session.
       if (where.has(a.terminalId) || a.target.agentId === undefined) return;
-      where.set(a.terminalId, { agentId: a.target.agentId, cols: a.cols, rows: a.rows, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), gen: -1, seen: m.generation(a.target.agentId) });
+      where.set(a.terminalId, {
+        agentId: a.target.agentId,
+        cols: a.cols,
+        rows: a.rows,
+        ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
+        gen: -1,
+        seen: m.generation(a.target.agentId),
+      });
     },
     async open(a) {
       const agentId = a.target.agentId;
@@ -1507,24 +2225,45 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
       return { ...r, title: "Workspace" };
     },
-    async input(id, data) { await inSession(id, (h) => h.input(id, data)); const x = where.get(id); if (x) m.worked(x.agentId); },
-    async interrupt(id) { await inSession(id, (h) => h.interrupt(id)); },
-    async resize(id, cols, rows) { await inSession(id, (h) => h.resize(id, cols, rows)); const x = where.get(id); if (x) { x.cols = cols; x.rows = rows; } },
+    async input(id, data) {
+      await inSession(id, (h) => h.input(id, data));
+      const x = where.get(id);
+      if (x) m.worked(x.agentId);
+    },
+    async interrupt(id) {
+      await inSession(id, (h) => h.interrupt(id));
+    },
+    async resize(id, cols, rows) {
+      await inSession(id, (h) => h.resize(id, cols, rows));
+      const x = where.get(id);
+      if (x) {
+        x.cols = cols;
+        x.rows = rows;
+      }
+    },
     async read(id, r) {
       const x = where.get(id);
       if (r.since === undefined || !x) return inSession(id, (h) => h.read(id, r));
       // the workspace was stopped or made again under the open tab for a reason (the agent left a project, went to Trash): the person sees the line the agent gets, once (third look T6)
       const why = m.restartLine(x.agentId, x.gen);
-      if (why !== null && x.told !== x.gen) { x.told = x.gen; return { text: `\n${why}\n`, next: r.since }; }   // the pane writes \n as \r\n
+      if (why !== null && x.told !== x.gen) {
+        x.told = x.gen;
+        return { text: `\n${why}\n`, next: r.since };
+      } // the pane writes \n as \r\n
       // the live read of an open tab: an asleep workspace has nothing new to show, and is left asleep until someone types or the agent runs something
       m.viewed(x.agentId);
       const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };
       if (x.gen !== m.generation(x.agentId)) {
-        if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0) return { text: "", next: r.since };
+        if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0)
+          return { text: "", next: r.since };
         x.gen = m.generation(x.agentId);
       }
-      try { return await tmuxFor(x.agentId).read(id, r); } catch { return { text: "", next: r.since }; }
+      try {
+        return await tmuxFor(x.agentId).read(id, r);
+      } catch {
+        return { text: "", next: r.since };
+      }
     },
     async run(id, r) {
       let t = await at(id);
@@ -1539,8 +2278,10 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         // a workspace that slept at the 12-hour ceiling says so, once, in the answer of the command that woke it
         const slept = m.takeNote(t.agentId);
         const note = fresh ? slept : [slept, FILES_LATE_LINE].filter((x): x is string => x !== null).join("\n");
-        try { const out = await t.host.run(id, r); return note === null ? out : { ...out, output: `${note}\n${out.output}` }; }
-        catch (e) {
+        try {
+          const out = await t.host.run(id, r);
+          return note === null ? out : { ...out, output: `${note}\n${out.output}` };
+        } catch (e) {
           // the workspace was made again under the command (the agent left a project): say so instead of a tmux error
           const why = m.restartLine(t.agentId, g0);
           if (why !== null) throw Object.assign(new Error(why), { code: "restarted", workspace: true });
@@ -1558,7 +2299,10 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         // a status read never wakes a sleeping workspace: asleep, its sessions are idle in the list until something uses them; one tmux does not hold (yet) is made again on its next use
         const x = where.get(id);
         const live = x ? await m.awake(x.agentId) : false;
-        if (!x || !live) { out.push({ terminalId: id, state: x ? "idle" : "exited", exitCode: null }); continue; }
+        if (!x || !live) {
+          out.push({ terminalId: id, state: x ? "idle" : "exited", exitCode: null });
+          continue;
+        }
         // gone from the container it lived in: the person ended it (exit), so it reads as exited; gone because the container was started again since: idle, made again on its next use
         const sameStart = (x.gen !== -1 ? x.gen : x.seen) === m.generation(x.agentId);
         const got = await tmuxFor(x.agentId).status([id]);
@@ -1574,14 +2318,25 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     },
     async close(id) {
       const x = where.get(id);
-      if (x) { const live = await m.awake(x.agentId); if (live) await tmuxFor(x.agentId).close(id); where.delete(id); return; }
+      if (x) {
+        const live = await m.awake(x.agentId);
+        if (live) await tmuxFor(x.agentId).close(id);
+        where.delete(id);
+        return;
+      }
       const found = await m.find(nameOf(id));
       if (found !== null) await tmuxFor(found).close(id);
     },
     async health() {
       const h = await m.health();
       const rows = h.ok ? await m.list().catch(() => []) : [];
-      return { ok: h.ok, detail: h.ok ? `${rows.filter((r) => r.state === "running").length} of ${rows.length} workspaces awake` : (h.detail ?? "The container runtime did not answer."), sessions: where.size };
+      return {
+        ok: h.ok,
+        detail: h.ok
+          ? `${rows.filter((r) => r.state === "running").length} of ${rows.length} workspaces awake`
+          : (h.detail ?? "The container runtime did not answer."),
+        sessions: where.size,
+      };
     },
   };
 }

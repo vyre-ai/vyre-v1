@@ -14,12 +14,17 @@ import { versionRows } from "../../files/viewer/model.ts";
 import { brandPatch, DEFAULT_EMAIL_STYLE } from "../../../../../../ui/src/EmailBuilder/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 
-const labels = (e: readonly MenuEntry[]): string[] => e.map((x) => ("separator" in x ? "-" : "head" in x ? `# ${x.head}` : x.label));
-const rows = (e: readonly MenuEntry[]): MenuItem[] => e.filter((x): x is MenuItem => !("separator" in x) && !("head" in x));
+const labels = (e: readonly MenuEntry[]): string[] =>
+  e.map((x) => ("separator" in x ? "-" : "head" in x ? `# ${x.head}` : x.label));
+const rows = (e: readonly MenuEntry[]): MenuItem[] =>
+  e.filter((x): x is MenuItem => !("separator" in x) && !("head" in x));
 
 test("the reaction chip toggles: it adds yours when you have not reacted and takes it back when you have", () => {
   const sent: string[] = [];
-  const a = { react: (id: string, emoji: string, remove: boolean) => void sent.push(`${id}:${emoji}:${remove ? "remove" : "add"}`) };
+  const a = {
+    react: (id: string, emoji: string, remove: boolean) =>
+      void sent.push(`${id}:${emoji}:${remove ? "remove" : "add"}`),
+  };
   pressChip(a, "m1", "✅", ["usr_maya", "agt_mira"], "usr_me");
   pressChip(a, "m1", "✅", ["usr_maya", "usr_me"], "usr_me");
   assert.deepEqual(sent, ["m1:✅:add", "m1:✅:remove"]);
@@ -27,9 +32,14 @@ test("the reaction chip toggles: it adds yours when you have not reacted and tak
 
 test("a face opens by what it is: a person's profile, an agent's page, a helper's chat", () => {
   const opened: string[] = [];
-  const rt = { open: (t: { subject?: { type: string; id: string } }) => void opened.push(`${t.subject?.type}:${t.subject?.id}`) } as never;
+  const rt = {
+    open: (t: { subject?: { type: string; id: string } }) => void opened.push(`${t.subject?.type}:${t.subject?.id}`),
+  } as never;
   const go = { agent: (id: string) => void opened.push(`agent-page:${id}`) } as never;
-  const list = [{ id: "usr_maya", name: "Maya", kind: "person" }, { id: "agt_mira", name: "Mira", kind: "agent" }] as never;
+  const list = [
+    { id: "usr_maya", name: "Maya", kind: "person" },
+    { id: "agt_mira", name: "Mira", kind: "agent" },
+  ] as never;
   openFace(rt, go, list, "usr_maya");
   openFace(rt, go, list, "agt_mira");
   assert.deepEqual(opened, ["contact:usr_maya", "agent-page:agt_mira"]);
@@ -39,36 +49,116 @@ test("a face opens by what it is: a person's profile, an agent's page, a helper'
 
 test("the chat header menu is the sidebar row menu's own builder: Rename, Star, Mute, Archive and Delete, each calling what it says; no Open, no Mark as Read", () => {
   const calls: string[] = [];
-  const d = { rename: () => calls.push("rename"), star: (on: boolean) => calls.push(`star:${on}`), mute: (on: boolean) => calls.push(`mute:${on}`), archive: () => calls.push("archive"), unarchive: () => calls.push("unarchive"), leave: () => calls.push("leave"), remove: () => calls.push("remove"), addPeople: () => calls.push("add"), copyLink: () => calls.push("link") };
+  const d = {
+    rename: () => calls.push("rename"),
+    star: (on: boolean) => calls.push(`star:${on}`),
+    mute: (on: boolean) => calls.push(`mute:${on}`),
+    archive: () => calls.push("archive"),
+    unarchive: () => calls.push("unarchive"),
+    leave: () => calls.push("leave"),
+    remove: () => calls.push("remove"),
+    addPeople: () => calls.push("add"),
+    copyLink: () => calls.push("link"),
+  };
   const e = chatHeaderEntries({ starred: false, muted: false, archived: false, withPeople: false }, d);
-  assert.deepEqual(labels(e), ["Rename", "Star", "Mute", "-", "Add People…", "Copy Link", "-", "Archive", "-", "Delete chat"]);
+  assert.deepEqual(labels(e), [
+    "Rename",
+    "Star",
+    "Mute",
+    "-",
+    "Add People…",
+    "Copy Link",
+    "-",
+    "Archive",
+    "-",
+    "Delete chat",
+  ]);
   for (const x of rows(e)) x.onSelect?.();
   assert.deepEqual(calls, ["rename", "star:true", "mute:true", "add", "link", "archive", "remove"]);
-  assert.deepEqual(labels(chatHeaderEntries({ starred: true, muted: true, archived: true, withPeople: true }, d)), ["Rename", "Remove Star", "Unmute", "-", "Add People…", "Copy Link", "-", "Unarchive", "-", "Leave chat"]);
+  assert.deepEqual(labels(chatHeaderEntries({ starred: true, muted: true, archived: true, withPeople: true }, d)), [
+    "Rename",
+    "Remove Star",
+    "Unmute",
+    "-",
+    "Add People…",
+    "Copy Link",
+    "-",
+    "Unarchive",
+    "-",
+    "Leave chat",
+  ]);
   // the same items, in the same words, as the row menu
-  const side = labels(chatMenu({ starred: false, unread: false, local: false, archived: false, withPeople: false, muted: false }, { open() {}, rename() {}, star() {}, markRead() {}, markUnread() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {}, addPeople() {}, copyLink() {} }));
-  for (const word of labels(e).filter((l) => l !== "-")) assert.ok(side.includes(word), `${word} is in the row menu too`);
+  const side = labels(
+    chatMenu(
+      { starred: false, unread: false, local: false, archived: false, withPeople: false, muted: false },
+      {
+        open() {},
+        rename() {},
+        star() {},
+        markRead() {},
+        markUnread() {},
+        mute() {},
+        archive() {},
+        unarchive() {},
+        leave() {},
+        remove() {},
+        addPeople() {},
+        copyLink() {},
+      },
+    ),
+  );
+  for (const word of labels(e).filter((l) => l !== "-"))
+    assert.ok(side.includes(word), `${word} is in the row menu too`);
 });
 
 test("a tab strip whose tabs cannot be closed offers no Close items (they did nothing); one that can still has all three", () => {
-  const tabs = [{ key: "a", title: "A" }, { key: "b", title: "B" }];
+  const tabs = [
+    { key: "a", title: "A" },
+    { key: "b", title: "B" },
+  ];
   assert.deepEqual(labels(tabMenuEntries(tabs, "a", [], () => undefined, false)), []);
-  assert.deepEqual(labels(tabMenuEntries(tabs, "a", [], () => undefined)), ["Close Tab", "Close Other Tabs", "Close All Tabs"]);
-  assert.deepEqual(labels(tabMenuEntries(tabs, "a", [{ label: "Rename" }], () => undefined, false)), ["Rename"], "extras stand alone, with no divider before nothing");
+  assert.deepEqual(labels(tabMenuEntries(tabs, "a", [], () => undefined)), [
+    "Close Tab",
+    "Close Other Tabs",
+    "Close All Tabs",
+  ]);
+  assert.deepEqual(
+    labels(tabMenuEntries(tabs, "a", [{ label: "Rename" }], () => undefined, false)),
+    ["Rename"],
+    "extras stand alone, with no divider before nothing",
+  );
 });
 
 test("the Move picker's path: going into a folder adds it, going into one already on the path steps back to it", () => {
   const top = [{ id: null, name: "Top of Files" }];
   const a = pathInto(top, null, "f1", "Clients");
   const b = pathInto(a, "f1", "f2", "Rivera");
-  assert.deepEqual(b.map((c) => c.name), ["Top of Files", "Clients", "Rivera"]);
-  assert.deepEqual(pathInto(b, "f2", "f1", "Clients").map((c) => c.name), ["Top of Files", "Clients"]);
+  assert.deepEqual(
+    b.map((c) => c.name),
+    ["Top of Files", "Clients", "Rivera"],
+  );
+  assert.deepEqual(
+    pathInto(b, "f2", "f1", "Clients").map((c) => c.name),
+    ["Top of Files", "Clients"],
+  );
 });
 
 test("the viewer's History lists versions newest first; the current one is marked and cannot be restored, the others can", () => {
-  const r = versionRows([{ versionId: "v3", n: 3, by: "usr_a", at: Date.UTC(2026, 10, 6, 9, 5) }, { versionId: "v2", n: 2, by: "usr_b", at: Date.UTC(2026, 10, 5, 8, 0), reason: "Edited" }], (id) => (id === "usr_a" ? "Ava" : "Ben"));
-  assert.deepEqual(r.map((x) => x.label), ["v3 (now) · Ava · 2026-11-06 09:05", "v2 · Ben · 2026-11-05 08:00 · Edited"]);
-  assert.deepEqual(r.map((x) => x.versionId), [null, "v2"]);
+  const r = versionRows(
+    [
+      { versionId: "v3", n: 3, by: "usr_a", at: Date.UTC(2026, 10, 6, 9, 5) },
+      { versionId: "v2", n: 2, by: "usr_b", at: Date.UTC(2026, 10, 5, 8, 0), reason: "Edited" },
+    ],
+    (id) => (id === "usr_a" ? "Ava" : "Ben"),
+  );
+  assert.deepEqual(
+    r.map((x) => x.label),
+    ["v3 (now) · Ava · 2026-11-06 09:05", "v2 · Ben · 2026-11-05 08:00 · Edited"],
+  );
+  assert.deepEqual(
+    r.map((x) => x.versionId),
+    [null, "v2"],
+  );
 });
 
 test("Use brand sets the brand's font and its colour on links and the button; a colour that is not a hex is left out", () => {
@@ -77,7 +167,10 @@ test("Use brand sets the brand's font and its colour on links and the button; a 
   assert.equal(p.colors?.links, "#112233");
   assert.equal(p.colors?.button, "#112233");
   assert.equal(p.colors?.text, DEFAULT_EMAIL_STYLE.colors.text, "the other colours stay");
-  assert.equal(brandPatch(DEFAULT_EMAIL_STYLE, { color: "teal", font: "Georgia" }).colors?.button, DEFAULT_EMAIL_STYLE.colors.button);
+  assert.equal(
+    brandPatch(DEFAULT_EMAIL_STYLE, { color: "teal", font: "Georgia" }).colors?.button,
+    DEFAULT_EMAIL_STYLE.colors.button,
+  );
 });
 
 test("a folder deleted from Files goes to Trash with files.folder.delete and comes back with files.folder.restore (the same trash); folders.delete is not used", () => {
@@ -92,12 +185,35 @@ test("the header menu says Unarchive for a chat that is in the Archived list, an
   assert.equal(isArchivedIn(recent, "thr_new"), false);
   assert.equal(isArchivedIn(null, "thr_new"), false);
   const d = { rename() {}, star() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {} };
-  assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_old"), withPeople: false }, d)).includes("Unarchive"));
-  assert.ok(labels(chatHeaderEntries({ starred: false, muted: false, archived: isArchivedIn(recent, "thr_new"), withPeople: false }, d)).includes("Archive"));
+  assert.ok(
+    labels(
+      chatHeaderEntries(
+        { starred: false, muted: false, archived: isArchivedIn(recent, "thr_old"), withPeople: false },
+        d,
+      ),
+    ).includes("Unarchive"),
+  );
+  assert.ok(
+    labels(
+      chatHeaderEntries(
+        { starred: false, muted: false, archived: isArchivedIn(recent, "thr_new"), withPeople: false },
+        d,
+      ),
+    ).includes("Archive"),
+  );
 });
 
 test("the folder Move picker opens with a search box and the path, and never offers the folder being moved", () => {
-  const html = renderToStaticMarkup(<FolderMovePicker moving={{ id: "f1", name: "Billing" }} call={async () => ({ folders: [] })} onMove={() => undefined} onClose={() => undefined} />);
-  assert.ok(html.includes("Move Billing") && html.includes('data-testid="folder-move-search"') && html.includes("Top of Files"));
+  const html = renderToStaticMarkup(
+    <FolderMovePicker
+      moving={{ id: "f1", name: "Billing" }}
+      call={async () => ({ folders: [] })}
+      onMove={() => undefined}
+      onClose={() => undefined}
+    />,
+  );
+  assert.ok(
+    html.includes("Move Billing") && html.includes('data-testid="folder-move-search"') && html.includes("Top of Files"),
+  );
   assert.ok(html.includes("Move to Top of Files"), "the one action names where it moves to");
 });

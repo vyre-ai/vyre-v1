@@ -24,7 +24,20 @@ export const STEP = STEP_MIN * MIN;
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const FULLWEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-const FULLMONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const FULLMONTH = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
 
 // ---------------------------------------------------------------- days
 
@@ -56,7 +69,10 @@ export function monthStart(day: number, offsetMin: number): number {
 /** The days the view draws: one for Day, seven for Week (Monday first), whole weeks covering the month for Month. */
 export function viewDays(mode: Mode, day: number, offsetMin: number): number[] {
   if (mode === "day") return [day];
-  if (mode === "week") { const w = weekStart(day, offsetMin); return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(w, i)); }
+  if (mode === "week") {
+    const w = weekStart(day, offsetMin);
+    return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(w, i));
+  }
   const first = monthStart(day, offsetMin);
   const p = parts(first, offsetMin);
   const len = new Date(Date.UTC(p.y, p.m + 1, 0)).getUTCDate();
@@ -85,8 +101,11 @@ export function viewTitle(mode: Mode, day: number, offsetMin: number): string {
   if (mode === "month") return `${FULLMONTH[p.m]} ${p.y}`;
   if (mode === "day") return `${FULLWEEK[p.wd]}, ${MONTH[p.m]} ${p.d}, ${p.y}`;
   const days = viewDays("week", day, offsetMin);
-  const a = parts(days[0] as number, offsetMin), b = parts(days[6] as number, offsetMin);
-  return a.m === b.m ? `${MONTH[a.m]} ${a.d} to ${b.d}, ${b.y}` : `${MONTH[a.m]} ${a.d} to ${MONTH[b.m]} ${b.d}, ${b.y}`;
+  const a = parts(days[0] as number, offsetMin),
+    b = parts(days[6] as number, offsetMin);
+  return a.m === b.m
+    ? `${MONTH[a.m]} ${a.d} to ${b.d}, ${b.y}`
+    : `${MONTH[a.m]} ${a.d} to ${MONTH[b.m]} ${b.d}, ${b.y}`;
 }
 
 export const weekdayShort = (day: number, offsetMin: number): string => WEEK[parts(day, offsetMin).wd] as string;
@@ -96,20 +115,24 @@ export const monthOf = (day: number, offsetMin: number): number => parts(day, of
 /** 9:30 AM */
 export function clock(at: number, offsetMin: number): string {
   const d = new Date(at + shiftMs(offsetMin));
-  const h = d.getUTCHours(), m = d.getUTCMinutes();
+  const h = d.getUTCHours(),
+    m = d.getUTCMinutes();
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
 /** 9:30 to 10:00 AM (the meridiem is named once when both ends share it). */
 export function range(a: number, b: number, offsetMin: number): string {
-  const s = clock(a, offsetMin), e = clock(b, offsetMin);
-  const sm = s.slice(-2), em = e.slice(-2);
+  const s = clock(a, offsetMin),
+    e = clock(b, offsetMin);
+  const sm = s.slice(-2),
+    em = e.slice(-2);
   return sm === em ? `${s.slice(0, -3)} to ${e}` : `${s} to ${e}`;
 }
 
 /** 11:30 to 12:00 (a list's time column): AM or PM only when it changes, else 11:30 AM to 1:00 PM. */
 export function rangeShort(a: number, b: number, offsetMin: number): string {
-  const s = clock(a, offsetMin), e = clock(b, offsetMin);
+  const s = clock(a, offsetMin),
+    e = clock(b, offsetMin);
   return s.slice(-2) === e.slice(-2) ? `${s.slice(0, -3)} to ${e.slice(0, -3)}` : `${s} to ${e}`;
 }
 
@@ -147,11 +170,15 @@ export function snap(at: number, offsetMin: number): number {
   return Math.round(local / STEP) * STEP - shiftMs(offsetMin);
 }
 
-export interface Span { startsAt: number; endsAt: number }
+export interface Span {
+  startsAt: number;
+  endsAt: number;
+}
 
 /** A drag on an empty column from y0 to y1: start and end on 15 minute steps, at least one step long, either direction. */
 export function dragCreate(day: number, y0: number, y1: number): Span {
-  const a = yToOffset(Math.min(y0, y1)), b = yToOffset(Math.max(y0, y1));
+  const a = yToOffset(Math.min(y0, y1)),
+    b = yToOffset(Math.max(y0, y1));
   const end = Math.max(b, a + STEP);
   return { startsAt: day + a, endsAt: day + Math.min(DAY, end) };
 }
@@ -215,11 +242,15 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
   let end = 0;
   const flush = (): void => {
     const from = out.length;
-    const keep = group.slice(0, group.length > 3 ? 2 : group.length), more = group.slice(keep.length);
+    const keep = group.slice(0, group.length > 3 ? 2 : group.length),
+      more = group.slice(keep.length);
     const subs: { at: number; end: number; es: EventRow[] }[] = [];
     for (const e of keep) {
       let g = subs.find((x) => Math.abs(e.startsAt - x.at) < TOGETHER);
-      if (!g) { g = { at: e.startsAt, end: 0, es: [] }; subs.push(g); }
+      if (!g) {
+        g = { at: e.startsAt, end: 0, es: [] };
+        subs.push(g);
+      }
       g.es.push(e);
       g.end = Math.max(g.end, e.endsAt);
     }
@@ -228,16 +259,25 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
       g.es.forEach((e, k) => out.push({ e, lane: k, lanes: g.es.length, level, band: false }));
     });
     const mine = out.slice(from);
-    [...mine].sort((a, b) => a.e.startsAt - b.e.startsAt || a.lane - b.lane).forEach((a, i) => { a.rank = i; });
+    [...mine]
+      .sort((a, b) => a.e.startsAt - b.e.startsAt || a.lane - b.lane)
+      .forEach((a, i) => {
+        a.rank = i;
+      });
     for (const a of mine) {
-      const over = mine.filter((b) => b !== a && b.e.startsAt > a.e.startsAt && b.e.startsAt < a.e.endsAt).map((b) => offsetToY(b.e.startsAt - a.e.startsAt));
+      const over = mine
+        .filter((b) => b !== a && b.e.startsAt > a.e.startsAt && b.e.startsAt < a.e.endsAt)
+        .map((b) => offsetToY(b.e.startsAt - a.e.startsAt));
       if (over.length > 0) a.room = Math.min(...over);
     }
     if (more.length > 0) out.push({ e: more[0] as EventRow, lane: 0, lanes: 1, level: 0, band: false, more });
     group = [];
   };
   for (const e of sorted) {
-    if (group.length > 0 && e.startsAt >= end) { flush(); end = 0; }
+    if (group.length > 0 && e.startsAt >= end) {
+      flush();
+      end = 0;
+    }
     group.push(e);
     end = Math.max(end, e.endsAt);
   }
@@ -250,7 +290,11 @@ export const TEXT_TOP = 1;
 export const LINE = 14;
 
 export interface Block {
-  top: number; height: number; left: string; width: string; z: number;
+  top: number;
+  height: number;
+  left: string;
+  width: string;
+  z: number;
   /** The height the text may take when a card is drawn over this one (clip there); unset when nothing covers it. */
   clip: number | undefined;
   /** Under 40 px. */
@@ -274,30 +318,51 @@ export function blockOf(l: Laid, day: number): Block {
   const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 && l.room === undefined ? "start" : "none";
   const off = l.level * CASCADE;
   const clip = l.room === undefined ? undefined : Math.max(TEXT_TOP + LINE, l.room);
-  return { top, height, clip, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + (l.rank ?? l.level), one: height < 40, lines, time };
+  return {
+    top,
+    height,
+    clip,
+    left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`,
+    width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`,
+    z: 2 + (l.rank ?? l.level),
+    one: height < 40,
+    lines,
+    time,
+  };
 }
 
 /** The events of one day: timed ones in order, all-day ones apart. */
 export function eventsOn(events: readonly EventRow[], day: number, allDay: boolean): EventRow[] {
-  return events.filter((e) => e.status !== "canceled" && e.allDay === allDay && e.startsAt < day + DAY && e.endsAt > day).sort((a, b) => a.startsAt - b.startsAt);
+  return events
+    .filter((e) => e.status !== "canceled" && e.allDay === allDay && e.startsAt < day + DAY && e.endsAt > day)
+    .sort((a, b) => a.startsAt - b.startsAt);
 }
 
 // ---------------------------------------------------------------- availability stripes
 
-export interface Stripe { top: number; height: number; who: string[]; alpha: number }
+export interface Stripe {
+  top: number;
+  height: number;
+  who: string[];
+  alpha: number;
+}
 
 /** Busy runs of one day for the chosen people: consecutive quarter hours with the same people busy become one stripe. Shade deepens with the number busy. */
 export function stripesOf(busy: readonly Busy[], people: readonly string[], day: number): Stripe[] {
   const slots: string[][] = [];
   for (let i = 0; i < 96; i++) {
-    const a = day + i * STEP, b = a + STEP;
+    const a = day + i * STEP,
+      b = a + STEP;
     slots.push(people.filter((p) => busy.some((x) => x.who === p && x.startsAt < b && x.endsAt > a)));
   }
   const out: Stripe[] = [];
   let i = 0;
   while (i < 96) {
     const who = slots[i] as string[];
-    if (who.length === 0) { i++; continue; }
+    if (who.length === 0) {
+      i++;
+      continue;
+    }
     const key = who.join();
     let j = i;
     while (j + 1 < 96 && (slots[j + 1] as string[]).join() === key) j++;
@@ -308,9 +373,20 @@ export function stripesOf(busy: readonly Busy[], people: readonly string[], day:
 }
 
 /** The line under the header while people are chosen: who is shaded and the first time all are free. */
-export function availabilityLine(people: readonly string[], names: ReadonlyMap<string, string>, first: Slot | undefined, minutes: number, offsetMin: number): { who: string; free: string } {
+export function availabilityLine(
+  people: readonly string[],
+  names: ReadonlyMap<string, string>,
+  first: Slot | undefined,
+  minutes: number,
+  offsetMin: number,
+): { who: string; free: string } {
   const who = people.map((p) => (names.get(p) ?? p).split(/\s+/)[0] as string).join(", ");
-  return { who: `${who} busy times shaded`, free: first ? `Everyone free ${slotText(first, offsetMin)}` : `No shared time for ${lengthText(minutes)} in two weeks` };
+  return {
+    who: `${who} busy times shaded`,
+    free: first
+      ? `Everyone free ${slotText(first, offsetMin)}`
+      : `No shared time for ${lengthText(minutes)} in two weeks`,
+  };
 }
 
 // ---------------------------------------------------------------- the draft (a new event)
@@ -341,19 +417,34 @@ export function atSlot(d: Draft, s: Slot): Draft {
 
 /** Who among the people on the draft is busy during it, and whether the person is. */
 export function conflicts(d: Draft, busy: readonly Busy[], me: string): { busy: string[]; mine: boolean } {
-  const hit = (who: string): boolean => busy.some((x) => x.who === who && x.startsAt < d.endsAt && x.endsAt > d.startsAt);
+  const hit = (who: string): boolean =>
+    busy.some((x) => x.who === who && x.startsAt < d.endsAt && x.endsAt > d.startsAt);
   return { busy: d.people.filter((p) => p !== me && hit(p)), mine: hit(me) };
 }
 
 /** The "free or busy" sentence of the new event card. */
-export function freeLine(d: Draft, c: { busy: string[]; mine: boolean }, names: ReadonlyMap<string, string>, unknown: readonly string[], me: string): string {
+export function freeLine(
+  d: Draft,
+  c: { busy: string[]; mine: boolean },
+  names: ReadonlyMap<string, string>,
+  unknown: readonly string[],
+  me: string,
+): string {
   const others = d.people.filter((p) => p !== me);
   if (others.length === 0) return "Add people to see when they are free.";
   const first = (p: string): string => (names.get(p) ?? p).split(/\s+/)[0] as string;
   const parts: string[] = [];
   const known = others.filter((p) => !unknown.includes(p));
-  if (known.length > 0) parts.push(c.busy.length > 0 ? `${c.busy.map(first).join(", ")} ${c.busy.length > 1 ? "are" : "is"} busy then.` : known.length > 1 ? "Everyone on the team is free." : `${first(known[0] as string)} is free.`);
-  if (unknown.length > 0) parts.push(`${unknown.map(first).join(", ")} ${unknown.length > 1 ? "have" : "has"} not shared a calendar.`);
+  if (known.length > 0)
+    parts.push(
+      c.busy.length > 0
+        ? `${c.busy.map(first).join(", ")} ${c.busy.length > 1 ? "are" : "is"} busy then.`
+        : known.length > 1
+          ? "Everyone on the team is free."
+          : `${first(known[0] as string)} is free.`,
+    );
+  if (unknown.length > 0)
+    parts.push(`${unknown.map(first).join(", ")} ${unknown.length > 1 ? "have" : "has"} not shared a calendar.`);
   if (c.mine) parts.push("You have something at this time.");
   return parts.join(" ");
 }
@@ -361,20 +452,33 @@ export function freeLine(d: Draft, c: { busy: string[]; mine: boolean }, names: 
 export function createInput(d: Draft, key: string): CapMap["calendar.create_event"]["in"] {
   const attendees = d.people.map((email) => ({ email }));
   return {
-    calendarId: d.calendarId, title: d.title.trim() || "New event", startsAt: d.startsAt, endsAt: d.endsAt, ...(attendees.length ? { attendees } : {}), ...(d.video && d.video !== "none" ? { video: d.video } : {}), idempotencyKey: key,
+    calendarId: d.calendarId,
+    title: d.title.trim() || "New event",
+    startsAt: d.startsAt,
+    endsAt: d.endsAt,
+    ...(attendees.length ? { attendees } : {}),
+    ...(d.video && d.video !== "none" ? { video: d.video } : {}),
+    idempotencyKey: key,
   };
 }
 
 // ---------------------------------------------------------------- the event's menu
 
-export interface MenuFacts { joinUrl: boolean; record: boolean; conversation: boolean; calendars: readonly { id: string; title: string; current: boolean }[] }
+export interface MenuFacts {
+  joinUrl: boolean;
+  record: boolean;
+  conversation: boolean;
+  calendars: readonly { id: string; title: string; current: boolean }[];
+}
 
 export function menuFacts(e: EventRow, calendars: readonly CalendarRow[]): MenuFacts {
   return {
     joinUrl: e.joinUrl !== undefined && e.joinProvider !== "none",
     record: e.recordIds.length > 0,
     conversation: e.attendees.some((a) => a.contactId !== undefined),
-    calendars: calendars.filter((c) => c.state !== "error").map((c) => ({ id: c.id, title: c.title, current: c.id === e.calendarId })),
+    calendars: calendars
+      .filter((c) => c.state !== "error")
+      .map((c) => ({ id: c.id, title: c.title, current: c.id === e.calendarId })),
   };
 }
 
@@ -401,7 +505,13 @@ export type Action =
   | { type: "select"; id: string | null }
   | { type: "draft"; draft: Draft | null };
 
-export interface CalState { mode: Mode; day: number; people: readonly string[]; selected: string | null; draft: Draft | null }
+export interface CalState {
+  mode: Mode;
+  day: number;
+  people: readonly string[];
+  selected: string | null;
+  draft: Draft | null;
+}
 
 export function initialCal(day: number, mode: Mode = "week"): CalState {
   return { mode, day, people: [], selected: null, draft: null };
@@ -409,14 +519,25 @@ export function initialCal(day: number, mode: Mode = "week"): CalState {
 
 export function calReduce(s: CalState, a: Action): CalState {
   switch (a.type) {
-    case "mode": return { ...s, mode: a.mode, draft: null };
-    case "go": return { ...s, day: a.day, draft: s.mode === "month" ? s.draft : null };
-    case "step": return { ...s, day: stepView(s.mode, s.day, a.dir, a.offsetMin), draft: s.mode === "month" ? s.draft : null };
-    case "today": return { ...s, day: a.today };
-    case "people": return { ...s, people: s.people.includes(a.email) ? s.people.filter((p) => p !== a.email) : [...s.people, a.email] };
-    case "clearPeople": return { ...s, people: [] };
-    case "select": return { ...s, selected: a.id };
-    case "draft": return { ...s, draft: a.draft };
+    case "mode":
+      return { ...s, mode: a.mode, draft: null };
+    case "go":
+      return { ...s, day: a.day, draft: s.mode === "month" ? s.draft : null };
+    case "step":
+      return { ...s, day: stepView(s.mode, s.day, a.dir, a.offsetMin), draft: s.mode === "month" ? s.draft : null };
+    case "today":
+      return { ...s, day: a.today };
+    case "people":
+      return {
+        ...s,
+        people: s.people.includes(a.email) ? s.people.filter((p) => p !== a.email) : [...s.people, a.email],
+      };
+    case "clearPeople":
+      return { ...s, people: [] };
+    case "select":
+      return { ...s, selected: a.id };
+    case "draft":
+      return { ...s, draft: a.draft };
   }
 }
 
@@ -428,12 +549,23 @@ export function nameMap(team: readonly { email: string; name: string }[]): Map<s
   return out;
 }
 
-export function directoryOf(team: readonly { email: string; name: string }[]): { name: string; email: string; kind: "team"; sub: string }[] {
+export function directoryOf(
+  team: readonly { email: string; name: string }[],
+): { name: string; email: string; kind: "team"; sub: string }[] {
   return team.map((t) => ({ name: t.name, email: t.email, kind: "team" as const, sub: "Team" }));
 }
 
-export interface AllDaySeg { e: EventRow; /** First and last day index it covers in the view. */ a: number; b: number; /** Its row in the lane. */ row: number }
-export interface AllDayLane { segs: AllDaySeg[]; /** Per day index: how many are folded into the "+N". */ hidden: Record<number, number>; /** Rows to draw, the "+N" row included. */ rows: number }
+export interface AllDaySeg {
+  e: EventRow;
+  /** First and last day index it covers in the view. */ a: number;
+  b: number;
+  /** Its row in the lane. */ row: number;
+}
+export interface AllDayLane {
+  segs: AllDaySeg[];
+  /** Per day index: how many are folded into the "+N". */ hidden: Record<number, number>;
+  /** Rows to draw, the "+N" row included. */ rows: number;
+}
 
 /**
  * A provider's all-day event is a date, not an instant: the server keeps it as midnight UTC of that date to midnight UTC of the day after. The grid's days start at midnight in the
@@ -441,22 +573,34 @@ export interface AllDayLane { segs: AllDaySeg[]; /** Per day index: how many are
  * midnight in the viewer's zone. Timed events pass through. `allDayToWire` is the way back for a write.
  */
 export function allDayLocal<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
-  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt - shiftMs(offsetMin), endsAt: e.endsAt - shiftMs(offsetMin) } : e;
+  return e.allDay && offsetMin !== 0
+    ? { ...e, startsAt: e.startsAt - shiftMs(offsetMin), endsAt: e.endsAt - shiftMs(offsetMin) }
+    : e;
 }
 export function allDayToWire<T extends Pick<EventRow, "allDay" | "startsAt" | "endsAt">>(e: T, offsetMin: number): T {
-  return e.allDay && offsetMin !== 0 ? { ...e, startsAt: e.startsAt + shiftMs(offsetMin), endsAt: e.endsAt + shiftMs(offsetMin) } : e;
+  return e.allDay && offsetMin !== 0
+    ? { ...e, startsAt: e.startsAt + shiftMs(offsetMin), endsAt: e.endsAt + shiftMs(offsetMin) }
+    : e;
 }
 
 /** The all-day lane: one chip per event per day (a copy of the same title on the same days is one), a multi-day event is one bar across its days, and rows past `cap` fold into "+N" per day. */
 export function allDayLane(events: readonly EventRow[], days: readonly number[], cap = 2): AllDayLane {
-  const first = days[0] as number, last = (days[days.length - 1] as number) + DAY;
-  const seen = new Set<string>(), segs: AllDaySeg[] = [];
-  const list = events.filter((e) => e.status !== "canceled" && e.allDay && e.startsAt < last && e.endsAt > first).sort((x, y) => x.startsAt - y.startsAt || y.endsAt - x.endsAt);
+  const first = days[0] as number,
+    last = (days[days.length - 1] as number) + DAY;
+  const seen = new Set<string>(),
+    segs: AllDaySeg[] = [];
+  const list = events
+    .filter((e) => e.status !== "canceled" && e.allDay && e.startsAt < last && e.endsAt > first)
+    .sort((x, y) => x.startsAt - y.startsAt || y.endsAt - x.endsAt);
   for (const e of list) {
     const ix: number[] = [];
-    days.forEach((d, i) => { if (e.startsAt < d + DAY && e.endsAt > d) ix.push(i); });
+    days.forEach((d, i) => {
+      if (e.startsAt < d + DAY && e.endsAt > d) ix.push(i);
+    });
     if (ix.length === 0) continue;
-    const a = ix[0] as number, b = ix[ix.length - 1] as number, key = `${e.calendarId}|${e.title}|${a}|${b}`;
+    const a = ix[0] as number,
+      b = ix[ix.length - 1] as number,
+      key = `${e.calendarId}|${e.title}|${a}|${b}`;
     if (seen.has(key)) continue;
     seen.add(key);
     segs.push({ e, a, b, row: 0 });
@@ -468,8 +612,10 @@ export function allDayLane(events: readonly EventRow[], days: readonly number[],
     (rows[r] ??= []).push(sg);
     sg.row = r;
   }
-  const over = rows.length > cap, hidden: Record<number, number> = {};
-  if (over) for (const sg of segs) if (sg.row >= cap) for (let i = sg.a; i <= sg.b; i++) hidden[i] = (hidden[i] ?? 0) + 1;
+  const over = rows.length > cap,
+    hidden: Record<number, number> = {};
+  if (over)
+    for (const sg of segs) if (sg.row >= cap) for (let i = sg.a; i <= sg.b; i++) hidden[i] = (hidden[i] ?? 0) + 1;
   return { segs: segs.filter((x) => x.row < cap || !over), hidden, rows: over ? cap + 1 : rows.length };
 }
 
@@ -478,7 +624,10 @@ export const MONTH_CAP = 3;
 
 /** The events one month cell lists: all-day ones first (one per title), then the timed ones in order; background bands are left out. */
 export function monthCell(events: readonly EventRow[], day: number): EventRow[] {
-  return [...allDayLane(events, [day], 99).segs.map((x) => x.e), ...eventsOn(events, day, false).filter((e) => !isBand(e))];
+  return [
+    ...allDayLane(events, [day], 99).segs.map((x) => x.e),
+    ...eventsOn(events, day, false).filter((e) => !isBand(e)),
+  ];
 }
 
 /** The all-day events of each day, in the order of the days. */

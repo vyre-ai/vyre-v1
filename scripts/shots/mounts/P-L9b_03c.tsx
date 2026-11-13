@@ -18,8 +18,14 @@ export default function Mount(): ReactNode {
   const wide = useWindowDimensions().width >= 560;
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-      <View style={{ width: wide ? 272 : "100%", flexShrink: 0 }}><ChatsSidebar data={sample.data} window={{ start: 0, end: 500 }} /></View>
-      {wide ? <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>Pick a chat</Text></View> : null}
+      <View style={{ width: wide ? 272 : "100%", flexShrink: 0 }}>
+        <ChatsSidebar data={sample.data} window={{ start: 0, end: 500 }} />
+      </View>
+      {wide ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>Pick a chat</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

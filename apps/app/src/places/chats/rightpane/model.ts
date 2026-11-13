@@ -2,7 +2,18 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "overview" | "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
+export type TabKey =
+  | "overview"
+  | "about"
+  | "computer"
+  | "threads"
+  | "files"
+  | "terminal"
+  | "memory"
+  | "routines"
+  | "crew"
+  | "skills"
+  | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
@@ -16,16 +27,23 @@ export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", t
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
 /** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal for every agent where the shell has a terminal, Crew when teammates work for the chat. */
-export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false, overview = false): readonly { key: TabKey; title: string }[] => {
+export const tabsOf = (
+  terminal: boolean,
+  crew = false,
+  computer = true,
+  skills = false,
+  hooks = false,
+  overview = false,
+): readonly { key: TabKey; title: string }[] => {
   const out: { key: TabKey; title: string }[] = overview ? [OVERVIEW_TAB] : [];
   for (const t of TABS) {
     if (t.key === "computer" && !computer) continue;
     out.push(t);
     if (t.key === "threads" && crew) out.push(CREW_TAB);
-    if (t.key === "files" && terminal) out.push(TERMINAL_TAB);   // every agent has a Terminal (owner, 31 Oct: reaching every machine, safe); its host chip picks the machine
+    if (t.key === "files" && terminal) out.push(TERMINAL_TAB); // every agent has a Terminal (owner, 31 Oct: reaching every machine, safe); its host chip picks the machine
   }
-  if (hooks) out.push(HOOKS_TAB);   // once the chat has hooks (l-hooks)
-  if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
+  if (hooks) out.push(HOOKS_TAB); // once the chat has hooks (l-hooks)
+  if (skills) out.push(SKILLS_TAB); // once the person has skills (l-install)
   return out;
 };
 /** The session Overview: first, in a long chat (lane l-session). */
@@ -66,7 +84,10 @@ export interface FittedTabs<T extends { key: string; title: string }> {
  * follow in their own order, and the rest go behind a More tab. Nothing is ever clipped.
  */
 export function fitTabs<T extends { key: string; title: string }>(
-  tabs: readonly T[], active: string, width: number, o: { chrome?: number; widthOf?: (title: string) => number } = {},
+  tabs: readonly T[],
+  active: string,
+  width: number,
+  o: { chrome?: number; widthOf?: (title: string) => number } = {},
 ): FittedTabs<T> {
   const tabWidth = o.widthOf ?? tabW;
   const room = width - (o.chrome ?? HEADER_CHROME);
@@ -76,7 +97,10 @@ export function fitTabs<T extends { key: string; title: string }>(
   let left = room - tabWidth("More") - 2;
   const keep = new Set<string>();
   const open = tabs.find((t) => t.key === active);
-  if (open) { keep.add(open.key); left -= tabWidth(open.title); }
+  if (open) {
+    keep.add(open.key);
+    left -= tabWidth(open.title);
+  }
   for (const t of tabs) {
     if (keep.has(t.key)) continue;
     const w = tabWidth(t.title);
@@ -105,7 +129,10 @@ export type AgentRow = CapMap["agents.get"]["out"]["agent"];
 
 /* ---------- time ---------- */
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock {
+  now: number;
+  offsetMin: number;
+}
 const DAY = 86_400_000;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -161,12 +188,18 @@ export interface ComputerView {
 export function computerView(c: Computer): ComputerView {
   const tabs = `${c.tabs} of ${c.tabLimit} tabs`;
   switch (c.state) {
-    case "asleep": return { label: "Asleep", screen: "asleep", detail: "Wakes when it has work", action: "wake" };
-    case "waking": return { label: "Waking", screen: "busy", detail: "One moment", action: null };
-    case "provisioning": return { label: "Setting up", screen: "busy", detail: "Its computer is being made", action: null };
-    case "working": return { label: c.caption ? `Working: ${c.caption}` : "Working", screen: "live", detail: tabs, action: "take" };
-    case "takeover": return { label: "You're in control", screen: "mine", detail: tabs, action: "give" };
-    case "error": return { label: "Needs attention", screen: "error", detail: "It could not start", action: "wake" };
+    case "asleep":
+      return { label: "Asleep", screen: "asleep", detail: "Wakes when it has work", action: "wake" };
+    case "waking":
+      return { label: "Waking", screen: "busy", detail: "One moment", action: null };
+    case "provisioning":
+      return { label: "Setting up", screen: "busy", detail: "Its computer is being made", action: null };
+    case "working":
+      return { label: c.caption ? `Working: ${c.caption}` : "Working", screen: "live", detail: tabs, action: "take" };
+    case "takeover":
+      return { label: "You're in control", screen: "mine", detail: tabs, action: "give" };
+    case "error":
+      return { label: "Needs attention", screen: "error", detail: "It could not start", action: "wake" };
   }
 }
 
@@ -214,13 +247,20 @@ export interface ThreadGroups {
 }
 
 /** Threads the agent worked in (children of the open chat or channel), its running helpers first, and its own chats, newest first. */
-export function groupThreads(agentId: string, children: readonly Thread[], helpers: readonly Helper[], chats: readonly Thread[]): ThreadGroups {
+export function groupThreads(
+  agentId: string,
+  children: readonly Thread[],
+  helpers: readonly Helper[],
+  chats: readonly Thread[],
+): ThreadGroups {
   const mine = (t: Thread): boolean => t.agents.some((a) => a.agentId === agentId);
   const byNew = (a: Thread, b: Thread): number => b.createdAt - a.createdAt;
   const rank = (s: Helper["status"]): number => (s === "running" ? 0 : 1);
   return {
     worked: children.filter((t) => t.kind === "thread" && mine(t) && t.closedAt === undefined).sort(byNew),
-    helpers: helpers.filter((h) => h.agentId === agentId).sort((a, b) => rank(a.status) - rank(b.status) || b.startedAt - a.startedAt),
+    helpers: helpers
+      .filter((h) => h.agentId === agentId)
+      .sort((a, b) => rank(a.status) - rank(b.status) || b.startedAt - a.startedAt),
     chats: chats.filter((t) => t.kind === "chat" && mine(t) && t.closedAt === undefined).sort(byNew),
   };
 }
@@ -236,16 +276,26 @@ export type CrewJob = CapMap["engine.crew.list"]["out"]["jobs"][number];
 
 /** A teammate's second line in the Crew tab: what it is on and how it stands, in a few words. */
 export function crewNote(j: CrewJob, c: Clock): string {
-  const files = Array.isArray(j.result?.["summary"] && (j.result["summary"] as { files?: unknown[] }).files) ? ((j.result?.["summary"] as { files: unknown[] }).files.length) : null;
+  const files = Array.isArray(j.result?.["summary"] && (j.result["summary"] as { files?: unknown[] }).files)
+    ? (j.result?.["summary"] as { files: unknown[] }).files.length
+    : null;
   switch (j.state) {
-    case "working": return `Working · started ${agoLabel(j.startedAt, c)}`;
-    case "waiting": return "Waiting on you";
-    case "paused": return "Paused with its agent";
-    case "lost": return `The server stopped ${agoLabel(j.endedAt ?? j.startedAt, c)} · run it again?`;
-    case "done": return `Done ${agoLabel(j.endedAt ?? j.startedAt, c)}${files === null ? "" : ` · ${files} ${files === 1 ? "file" : "files"}`}`;
-    case "merged": return `Merged ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
-    case "failed": return `Could not finish ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
-    default: return `Stopped ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+    case "working":
+      return `Working · started ${agoLabel(j.startedAt, c)}`;
+    case "waiting":
+      return "Waiting on you";
+    case "paused":
+      return "Paused with its agent";
+    case "lost":
+      return `The server stopped ${agoLabel(j.endedAt ?? j.startedAt, c)} · run it again?`;
+    case "done":
+      return `Done ${agoLabel(j.endedAt ?? j.startedAt, c)}${files === null ? "" : ` · ${files} ${files === 1 ? "file" : "files"}`}`;
+    case "merged":
+      return `Merged ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+    case "failed":
+      return `Could not finish ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+    default:
+      return `Stopped ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
   }
 }
 
@@ -271,7 +321,10 @@ export function chatWhen(ts: number, c: Clock): string {
 
 /* ---------- files ---------- */
 
-export interface Crumb { folderId: string; name: string }
+export interface Crumb {
+  folderId: string;
+  name: string;
+}
 
 /** Walks into a folder. */
 export function enter(stack: readonly Crumb[], folder: Crumb): Crumb[] {
@@ -296,7 +349,11 @@ export function formatSize(bytes: number): string {
 export const VYRE_OWN_NAMES: ReadonlySet<string> = new Set([".index", ".vyre"]);
 
 /** One level of the agent's folder, without Vyre's own .index and .vyre (owner walk, 12 Nov). */
-export function folderEntries(folders: readonly FolderRow[], files: readonly FileRow[], folderId: string): { folders: FolderRow[]; files: FileRow[] } {
+export function folderEntries(
+  folders: readonly FolderRow[],
+  files: readonly FileRow[],
+  folderId: string,
+): { folders: FolderRow[]; files: FileRow[] } {
   const byName = (a: { name: string }, b: { name: string }): number => a.name.localeCompare(b.name);
   const shown = (name: string): boolean => !VYRE_OWN_NAMES.has(name);
   return {
@@ -313,7 +370,10 @@ export function filePath(crumbs: readonly Crumb[], name?: string): string {
 
 /* ---------- memory ---------- */
 
-export interface MemoryFilter { fromMe: boolean; replaced: boolean }
+export interface MemoryFilter {
+  fromMe: boolean;
+  replaced: boolean;
+}
 export const CURRENT: MemoryFilter = { fromMe: false, replaced: false };
 
 export function statusFor(f: MemoryFilter): Fact["status"][] {
@@ -332,13 +392,20 @@ export function showingLine(f: MemoryFilter): string {
 
 export function sourceName(kind: Fact["sourceKind"]): string {
   switch (kind) {
-    case "chat": return "a chat";
-    case "channel": return "a channel";
-    case "task": return "a task";
-    case "record": return "a record";
-    case "run": return "a run";
-    case "journey": return "a Journey";
-    case "manual": return "you";
+    case "chat":
+      return "a chat";
+    case "channel":
+      return "a channel";
+    case "task":
+      return "a task";
+    case "record":
+      return "a record";
+    case "run":
+      return "a run";
+    case "journey":
+      return "a Journey";
+    case "manual":
+      return "you";
   }
 }
 
@@ -347,7 +414,9 @@ export function factNote(f: Fact, c: Clock): string {
   const since = `Since ${dayMonth(f.validFrom, c)}`;
   const learned = `learned ${dayMonth(f.learnedAt, c)}`;
   const from = `from ${sourceName(f.sourceKind)}`;
-  return f.status === "closed" ? `Replaced ${dayMonth(f.closedAt ?? f.validTo ?? f.learnedAt, c)} · ${learned} · ${from}` : `${since} · ${learned} · ${from}`;
+  return f.status === "closed"
+    ? `Replaced ${dayMonth(f.closedAt ?? f.validTo ?? f.learnedAt, c)} · ${learned} · ${from}`
+    : `${since} · ${learned} · ${from}`;
 }
 
 /** Proposed facts wait for Accept or Reject; the rest are what the agent knows. Proposed never mixes into the current list. */
@@ -355,7 +424,9 @@ export function splitFacts(facts: readonly Fact[]): { proposed: Fact[]; known: F
   const newest = (a: Fact, b: Fact): number => b.learnedAt - a.learnedAt;
   return {
     proposed: facts.filter((f) => f.status === "proposed").sort(newest),
-    known: facts.filter((f) => f.status !== "proposed" && f.status !== "removed").sort((a, b) => (a.status === b.status ? newest(a, b) : a.status === "current" ? -1 : 1)),
+    known: facts
+      .filter((f) => f.status !== "proposed" && f.status !== "removed")
+      .sort((a, b) => (a.status === b.status ? newest(a, b) : a.status === "current" ? -1 : 1)),
   };
 }
 
@@ -370,11 +441,16 @@ export function cronWords(cron: string, c: { offsetMin: number } = { offsetMin: 
   const w = cronShape(cron, c.offsetMin);
   if (w === null) return CUSTOM_SCHEDULE;
   switch (w.t) {
-    case "minute": return "Every minute";
-    case "minutes": return `Every ${w.n} minutes`;
-    case "hourly": return `Every hour at :${two(w.min)}`;
-    case "daily": return w.days === null ? `Every day at ${w.at}` : `${daysWords(w.days)} at ${w.at}`;
-    case "monthly": return `On day ${w.day} of each month at ${w.at}`;
+    case "minute":
+      return "Every minute";
+    case "minutes":
+      return `Every ${w.n} minutes`;
+    case "hourly":
+      return `Every hour at :${two(w.min)}`;
+    case "daily":
+      return w.days === null ? `Every day at ${w.at}` : `${daysWords(w.days)} at ${w.at}`;
+    case "monthly":
+      return `On day ${w.day} of each month at ${w.at}`;
   }
 }
 export const CUSTOM_SCHEDULE = "On a custom schedule";
@@ -389,15 +465,19 @@ function daysWords(days: readonly number[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 type CronShape =
-  | { t: "minute" } | { t: "minutes"; n: number } | { t: "hourly"; min: number }
-  | { t: "daily"; at: string; h: number; m: number; days: number[] | null } | { t: "monthly"; at: string; day: number };
+  | { t: "minute" }
+  | { t: "minutes"; n: number }
+  | { t: "hourly"; min: number }
+  | { t: "daily"; at: string; h: number; m: number; days: number[] | null }
+  | { t: "monthly"; at: string; day: number };
 /** The day-of-week field as days (0 is Sunday; 7 is Sunday too), or null when it is not a plain list or range. */
 function dowSet(f: string): number[] | null {
   const out = new Set<number>();
   for (const part of f.split(",")) {
     const r = /^(\d)(?:-(\d))?$/.exec(part);
     if (!r) return null;
-    const a = Number(r[1]), b = r[2] === undefined ? a : Number(r[2]);
+    const a = Number(r[1]),
+      b = r[2] === undefined ? a : Number(r[2]);
     if (a > 7 || b > 7 || b < a) return null;
     for (let d = a; d <= b; d++) out.add(d % 7);
   }
@@ -411,20 +491,29 @@ export function cronShape(cron: string, offsetMin: number): CronShape | null {
   if (mon !== "*") return null;
   if (min === "*" && hour === "*" && dom === "*" && dow === "*") return { t: "minute" };
   const every = /^\*\/(\d+)$/.exec(min);
-  if (every && hour === "*" && dom === "*" && dow === "*") return Number(every[1]) === 1 ? { t: "minute" } : { t: "minutes", n: Number(every[1]) };
+  if (every && hour === "*" && dom === "*" && dow === "*")
+    return Number(every[1]) === 1 ? { t: "minute" } : { t: "minutes", n: Number(every[1]) };
   if (!/^\d+$/.test(min)) return null;
-  if (hour === "*" && dom === "*" && dow === "*") return { t: "hourly", min: (((Number(min) + offsetMin) % 60) + 60) % 60 };
+  if (hour === "*" && dom === "*" && dow === "*")
+    return { t: "hourly", min: (((Number(min) + offsetMin) % 60) + 60) % 60 };
   if (!/^\d+$/.test(hour)) return null;
   const total = Number(hour) * 60 + Number(min) + offsetMin;
   const shift = Math.floor(total / 1440);
   const local = ((total % 1440) + 1440) % 1440;
-  const h = Math.floor(local / 60), m = local % 60;
+  const h = Math.floor(local / 60),
+    m = local % 60;
   const at = `${two(h)}:${two(m)}`;
   if (dom === "*") {
     if (dow === "*") return { t: "daily", at, h, m, days: null };
     const days = dowSet(dow);
     if (days === null) return null;
-    return { t: "daily", at, h, m, days: [...new Set(days.map((d) => (((d + shift) % 7) + 7) % 7))].sort((x, y) => x - y) };
+    return {
+      t: "daily",
+      at,
+      h,
+      m,
+      days: [...new Set(days.map((d) => (((d + shift) % 7) + 7) % 7))].sort((x, y) => x - y),
+    };
   }
   // a day of the month moved across midnight would be a different day each month: only the plain case is put in words
   if (/^\d+$/.test(dom) && dow === "*" && shift === 0) return { t: "monthly", at, day: Number(dom) };
@@ -458,10 +547,12 @@ export function nextDay(ts: number, c: Clock): string {
 
 export function routineNote(r: Routine, c: Clock): string {
   const cron = r.cron ?? "";
-  if (!r.enabled && r.pausedReason) return r.pausedReason;   // paused by itself after failed runs: the row says why
+  if (!r.enabled && r.pausedReason) return r.pausedReason; // paused by itself after failed runs: the row says why
   if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron, c)}`;
   if (isWatcher(r)) return "on new messages";
-  return r.nextRunAt !== undefined ? `${shortSchedule(cron, c)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron, c);
+  return r.nextRunAt !== undefined
+    ? `${shortSchedule(cron, c)} · next ${nextDay(r.nextRunAt, c)}`
+    : shortSchedule(cron, c);
 }
 
 /** The one Next line under an open routine's title: "Next: today 09:12", "Next: tomorrow 08:00", "Next: Mon 10:00"; Paused, or nothing scheduled, says so. */
@@ -470,7 +561,8 @@ export function nextLine(r: Routine, c: Clock): string {
   if (isWatcher(r)) return "Runs on every new message in the channel";
   return r.nextRunAt !== undefined ? `Next: ${nextLower(r.nextRunAt, c)}` : "No run is scheduled";
 }
-const nextLower = (ts: number, c: Clock): string => nextLabel(ts, c).replace(/^(Today|Tomorrow)\b/, (w) => w.toLowerCase());
+const nextLower = (ts: number, c: Clock): string =>
+  nextLabel(ts, c).replace(/^(Today|Tomorrow)\b/, (w) => w.toLowerCase());
 
 export function routinesOn(rs: readonly Routine[]): number {
   return rs.filter((r) => r.enabled).length;
@@ -486,7 +578,11 @@ export function sortRoutines(rs: readonly Routine[]): Routine[] {
 }
 
 /** The three sentence starters; each fills the chat composer, because routines are made by asking the agent. */
-export const ROUTINE_STARTS: readonly string[] = ["Every morning at 8, ", "When someone mentions ", "Every Friday, summarise "];
+export const ROUTINE_STARTS: readonly string[] = [
+  "Every morning at 8, ",
+  "When someone mentions ",
+  "Every Friday, summarise ",
+];
 
 export function changeByAsking(title: string): string {
   return `Change “${title}”: `;
@@ -494,7 +590,10 @@ export function changeByAsking(title: string): string {
 
 /** The file name a routine's instructions live in: routines/<slug>.md. */
 export function routineSlug(title: string): string {
-  const s = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const s = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return s === "" ? "routine" : s;
 }
 
@@ -516,8 +615,14 @@ export function lastRunLine(r: Routine, c: Clock): string {
 
 /* ---------- MAP.md ---------- */
 
-export interface MapRow { key: string; text: string }
-export interface MapIndex { rows: MapRow[]; lines: number }
+export interface MapRow {
+  key: string;
+  text: string;
+}
+export interface MapIndex {
+  rows: MapRow[];
+  lines: number;
+}
 /** MAP.md is the index every chat loads; it stays under this many lines. */
 export const MAP_LIMIT = 200;
 
@@ -561,7 +666,11 @@ export function idParts(text: string): IdPart[] {
 }
 
 /** The name an id is shown as: "this chat" for the chat the pane is beside, "#intake" for a channel, the chat's title, else a plain word. */
-export function idName(p: { id: string; kind: "thread" | "channel" }, here: string, found: { kind?: string; title?: string; name?: string } | null | undefined): string {
+export function idName(
+  p: { id: string; kind: "thread" | "channel" },
+  here: string,
+  found: { kind?: string; title?: string; name?: string } | null | undefined,
+): string {
   if (p.kind === "thread" && p.id === here) return "this chat";
   if (p.kind === "channel") return found?.name ? `#${found.name}` : "a channel";
   if (found?.kind === "channel" && found.title) return `#${found.title}`;

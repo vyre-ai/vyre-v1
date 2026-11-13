@@ -17,7 +17,11 @@ export class SSEParser {
     this.dec = new TextDecoder();
     this.reset();
   }
-  reset() { this.data = /** @type {string[]} */ ([]); this.event = ""; this.id = /** @type {string|null} */ (null); }
+  reset() {
+    this.data = /** @type {string[]} */ ([]);
+    this.event = "";
+    this.id = /** @type {string|null} */ (null);
+  }
   /** @param {Uint8Array} chunk */
   push(chunk) {
     this.buf += this.dec.decode(chunk, { stream: true });
@@ -50,13 +54,22 @@ export class SSEParser {
   }
 }
 
-const later = (ms, signal) => new Promise(resolve => {
-  const t = globalThis.setTimeout(resolve, ms);
-  signal?.addEventListener?.("abort", () => { globalThis.clearTimeout(t); resolve(undefined); }, { once: true });
-});
+const later = (ms, signal) =>
+  new Promise((resolve) => {
+    const t = globalThis.setTimeout(resolve, ms);
+    signal?.addEventListener?.(
+      "abort",
+      () => {
+        globalThis.clearTimeout(t);
+        resolve(undefined);
+      },
+      { once: true },
+    );
+  });
 
 /** Is `id` at or below `last`? Only comparable when both are numbers, as vyred's ids are. */
-const seen = (id, last) => last != null && id != null && /^\d+$/.test(id) && /^\d+$/.test(String(last)) && Number(id) <= Number(last);
+const seen = (id, last) =>
+  last != null && id != null && /^\d+$/.test(id) && /^\d+$/.test(String(last)) && Number(id) <= Number(last);
 
 /**
  * Follow an event stream until closed.
@@ -69,7 +82,8 @@ const seen = (id, last) => last != null && id != null && /^\d+$/.test(id) && /^\
 export function followEvents(fetcher, path, o) {
   let last = o.lastEventId == null ? null : String(o.lastEventId);
   const stallMs = o.stallMs ?? 45_000;
-  const min = o.backoff?.min ?? 1000, max = o.backoff?.max ?? 60_000;
+  const min = o.backoff?.min ?? 1000,
+    max = o.backoff?.max ?? 60_000;
   const random = o.random || Math.random;
   let closed = false;
   let retryMs = 2000;
@@ -85,24 +99,35 @@ export function followEvents(fetcher, path, o) {
       current = ac;
       const headers = { ...(o.headers || {}), accept: "text/event-stream" };
       if (last != null) headers["last-event-id"] = last;
-      let good = false, started = Date.now();
+      let good = false,
+        started = Date.now();
       /** @type {any} */
       let stall = null;
-      const arm = () => { globalThis.clearTimeout(stall); stall = globalThis.setTimeout(() => ac.abort(), stallMs); };
+      const arm = () => {
+        globalThis.clearTimeout(stall);
+        stall = globalThis.setTimeout(() => ac.abort(), stallMs);
+      };
       try {
         const res = await fetcher(path, { headers, signal: ac.signal });
         if (res.status !== 200) {
           o.onError?.(Object.assign(new Error(`event stream answered ${res.status}`), { status: res.status }));
-          try { await res.cancel?.(); } catch {}
+          try {
+            await res.cancel?.();
+          } catch {}
         } else {
           good = true;
           started = Date.now();
           o.onOpen?.();
-          const parser = new SSEParser(e => {
-            if (e.id != null && seen(e.id, last)) return;
-            if (e.id != null) last = e.id;
-            if (!closed) o.onEvent(e);
-          }, ms => { retryMs = ms; });
+          const parser = new SSEParser(
+            (e) => {
+              if (e.id != null && seen(e.id, last)) return;
+              if (e.id != null) last = e.id;
+              if (!closed) o.onEvent(e);
+            },
+            (ms) => {
+              retryMs = ms;
+            },
+          );
           arm();
           for await (const chunk of res.body) {
             if (closed) break;
@@ -112,21 +137,35 @@ export function followEvents(fetcher, path, o) {
         }
       } catch (e) {
         if (!closed && !ac.signal.aborted) o.onError?.(e);
-      } finally { globalThis.clearTimeout(stall); }
+      } finally {
+        globalThis.clearTimeout(stall);
+      }
       if (closed) break;
       if (good) backoff = min;
       // A stream that ran a while reopens at the server's retry hint; a failure backs off.
       let wait = good && Date.now() - started >= retryMs ? 0 : good ? retryMs : backoff * (0.8 + 0.4 * random());
       if (!good) backoff = Math.min(backoff * 2, max);
-      if (now) { now = false; wait = 0; }
+      if (now) {
+        now = false;
+        wait = 0;
+      }
       if (wait) await later(wait, stop.signal);
     }
   })();
 
   return {
-    get lastEventId() { return last; },
+    get lastEventId() {
+      return last;
+    },
     /** Drop the current stream and reopen now (a path switch, a wake). */
-    reopen() { now = true; current?.abort(); },
-    close() { closed = true; stop.abort(); current?.abort(); },
+    reopen() {
+      now = true;
+      current?.abort();
+    },
+    close() {
+      closed = true;
+      stop.abort();
+      current?.abort();
+    },
   };
 }

@@ -13,7 +13,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 const SCHEDULE_JOB = "hook.automations.schedule_tick";
 const MINUTE = 60_000;
@@ -33,30 +39,51 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "miss-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "miss-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "miss-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "miss-live" } : null;
-  },
-  now: () => clock,
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, tick: 3_600_000 },
-  ...extra,
-});
+    now: () => clock,
+    intervals: {
+      fast: 3_600_000,
+      slow: 3_600_000,
+      encryption: 3_600_000,
+      commands: 3_600_000,
+      hooks: 3_600_000,
+      tick: 3_600_000,
+    },
+    ...extra,
+  });
 
-const call = async (d: Daemon, p: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (
+  d: Daemon,
+  p: string,
+  body: unknown,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
-  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+  return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown): Promise<Record<string, unknown>> => {
   const r = await call(d, p, body);
@@ -68,7 +95,10 @@ async function onlyScheduleJob(d: Daemon): Promise<void> {
   assert.ok(d.hooks!.periodic.some((p) => p.name === "automations.schedule_tick"));
   await d.scheduler.stop();
   for (const job of d.scheduler.status()) if (job.name !== SCHEDULE_JOB) d.scheduler.remove(job.name);
-  assert.deepEqual(d.scheduler.status().map((job) => job.name), [SCHEDULE_JOB]);
+  assert.deepEqual(
+    d.scheduler.status().map((job) => job.name),
+    [SCHEDULE_JOB],
+  );
 }
 
 async function automation(d: Daemon, name: string, config: Record<string, unknown>): Promise<string> {
@@ -88,7 +118,11 @@ async function automation(d: Daemon, name: string, config: Record<string, unknow
 }
 
 async function runCount(d: Daemon, automationId: string): Promise<number> {
-  const listed = await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id: automationId }, limit: 100 });
+  const listed = await ok(d, "/v1/runs/list", {
+    scope: "subject",
+    subject: { type: "automation", id: automationId },
+    limit: 100,
+  });
   return (listed["runs"] as unknown[]).length;
 }
 
@@ -148,8 +182,9 @@ test("73 missed ticks follow skip, run once, and the backfill cap", async () => 
     assert.equal(paused.pausedReason, "Schedule backlog is over its cap");
 
     const needs = await ok(d, "/v1/tasks/needs_you", { limit: 50 });
-    const asks = (needs["items"] as { task?: { source?: { id?: string }; summary?: string; why?: string } }[])
-      .filter((item) => item.task?.source?.id === `automation-schedule:${fillId}`);
+    const asks = (needs["items"] as { task?: { source?: { id?: string }; summary?: string; why?: string } }[]).filter(
+      (item) => item.task?.source?.id === `automation-schedule:${fillId}`,
+    );
     assert.equal(asks.length, 1, "one Needs you request for the capped schedule");
     assert.match(String(asks[0]?.task?.summary), new RegExp(`${MISSED} missed runs`));
     assert.match(String(asks[0]?.task?.why), new RegExp(`backlog of ${MISSED}`));
@@ -159,7 +194,15 @@ test("73 missed ticks follow skip, run once, and the backfill cap", async () => 
     assert.equal(await runCount(d, skipId), 0);
     assert.equal(await runCount(d, onceId), 1, "the same missed gap does not start a second Run");
     assert.equal(await runCount(d, fillId), 0, "a second tick still does not backfill past the cap");
-    const again = (await ok(d, "/v1/tasks/needs_you", { limit: 50 }))["items"] as { task?: { source?: { id?: string } } }[];
-    assert.equal(again.filter((item) => item.task?.source?.id === `automation-schedule:${fillId}`).length, 1, "the open request is not opened again");
-  } finally { await d.stop(); }
+    const again = (await ok(d, "/v1/tasks/needs_you", { limit: 50 }))["items"] as {
+      task?: { source?: { id?: string } };
+    }[];
+    assert.equal(
+      again.filter((item) => item.task?.source?.id === `automation-schedule:${fillId}`).length,
+      1,
+      "the open request is not opened again",
+    );
+  } finally {
+    await d.stop();
+  }
 });

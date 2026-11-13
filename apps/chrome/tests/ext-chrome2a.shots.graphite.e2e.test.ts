@@ -2,4 +2,8 @@
 import test from "node:test";
 import { found, shootExtension } from "./e2e/c2a-shots.ts";
 
-test("the extension's pieces, graphite, at 1440 and 390", { skip: !found && "no Chromium on this machine", timeout: 120_000 }, () => shootExtension("dark", "graphite"));
+test(
+  "the extension's pieces, graphite, at 1440 and 390",
+  { skip: !found && "no Chromium on this machine", timeout: 120_000 },
+  () => shootExtension("dark", "graphite"),
+);

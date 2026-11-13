@@ -21,10 +21,20 @@ export function chatTitle(h: Hit, nameOf: (id: string) => string, meId: string):
   return others.length > 0 ? others.join(", ") : "Chat";
 }
 
-export interface Piece { text: string; mark: boolean }
+export interface Piece {
+  text: string;
+  mark: boolean;
+}
 
 const WORD = /[^\p{L}\p{N}]+/u;
-export const wordsOf = (q: string): string[] => [...new Set(q.toLowerCase().split(WORD).filter((w) => w.length >= 2))];
+export const wordsOf = (q: string): string[] => [
+  ...new Set(
+    q
+      .toLowerCase()
+      .split(WORD)
+      .filter((w) => w.length >= 2),
+  ),
+];
 
 /** The snippet cut at the words of the question: the pieces that match are marked. */
 export function highlight(snippet: string, query: string): Piece[] {
@@ -45,7 +55,8 @@ export function highlight(snippet: string, query: string): Piece[] {
   const merged: Array<[number, number]> = [];
   for (const s of spans) {
     const last = merged[merged.length - 1];
-    if (last && (s[0] <= last[1] || /^\s+$/.test(snippet.slice(last[1], s[0])))) last[1] = Math.max(last[1], s[1]);   // words that touch, or sit with only space between, are one mark
+    if (last && (s[0] <= last[1] || /^\s+$/.test(snippet.slice(last[1], s[0]))))
+      last[1] = Math.max(last[1], s[1]); // words that touch, or sit with only space between, are one mark
     else merged.push([s[0], s[1]]);
   }
   const out: Piece[] = [];
@@ -69,5 +80,7 @@ export function statusLine(out: SearchOut | null, loading: boolean, query: strin
   const n = out.hits.length;
   const how = out.meaning ? "by words and meaning" : "by words";
   const head = n === 0 ? `Nothing found ${how}` : `${n} ${n === 1 ? "result" : "results"} ${how}`;
-  return out.sealedChats > 0 ? `${head}. ${out.sealedChats} sealed ${out.sealedChats === 1 ? "chat is" : "chats are"} not searched here.` : head;
+  return out.sealedChats > 0
+    ? `${head}. ${out.sealedChats} sealed ${out.sealedChats === 1 ? "chat is" : "chats are"} not searched here.`
+    : head;
 }

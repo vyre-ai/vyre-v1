@@ -25,11 +25,27 @@ function held() {
       return {
         ...q,
         getSnapshot: () => (released ? q.getSnapshot() : LOADING),
-        subscribe: (l: () => void) => { listeners.add(l); const off = q.subscribe(l); return () => { listeners.delete(l); off(); }; },
+        subscribe: (l: () => void) => {
+          listeners.add(l);
+          const off = q.subscribe(l);
+          return () => {
+            listeners.delete(l);
+            off();
+          };
+        },
       };
     },
   };
-  return { data: { ...s.data, screens } as typeof s.data, release: async () => { released = true; await act(async () => { for (const l of [...listeners]) l(); }); await flush(); } };
+  return {
+    data: { ...s.data, screens } as typeof s.data,
+    release: async () => {
+      released = true;
+      await act(async () => {
+        for (const l of [...listeners]) l();
+      });
+      await flush();
+    },
+  };
 }
 
 const errors: string[] = [];
@@ -40,21 +56,37 @@ for (const framed of [false, true]) {
     installDom();
     Dimensions.set({ window: { width: 1280, height: 844, scale: 1, fontScale: 1 } });
     errors.length = 0;
-    console.error = (...a: unknown[]) => { errors.push(a.map(String).join(" ")); };
+    console.error = (...a: unknown[]) => {
+      errors.push(a.map(String).join(" "));
+    };
     try {
       const h = held();
       const store = createFrameStore();
-      const el = framed ? <InProjectFrame value={store}><Conversation data={h.data} /></InProjectFrame> : <Conversation data={h.data} />;
+      const el = framed ? (
+        <InProjectFrame value={store}>
+          <Conversation data={h.data} />
+        </InProjectFrame>
+      ) : (
+        <Conversation data={h.data} />
+      );
       const root = await mount(createRoot, el);
       await flush();
       assert.equal(find(root, "conversation"), null, "still loading: the frame, not the page");
       await h.release();
       await flush();
       assert.ok(find(root, "conversation"), "the page is drawn once the chat has loaded");
-      assert.equal(find(root, "conversation-head") !== null, !framed, framed ? "the project's header is the only one" : "plain Chats keeps its header");
+      assert.equal(
+        find(root, "conversation-head") !== null,
+        !framed,
+        framed ? "the project's header is the only one" : "plain Chats keeps its header",
+      );
       if (framed) assert.ok(store.get(), "the frame got the conversation's controls after it loaded");
-      const bad = errors.filter((e) => /Rendered (more|fewer) hooks|Invalid hook call|React error #310|Minified React error/i.test(e));
+      const bad = errors.filter((e) =>
+        /Rendered (more|fewer) hooks|Invalid hook call|React error #310|Minified React error/i.test(e),
+      );
       assert.deepEqual(bad, [], "no hooks-order error");
-    } finally { console.error = origError; }
+    } finally {
+      console.error = origError;
+    }
   });
 }

@@ -4,8 +4,13 @@ import type { TraceContext } from "../../../packages/contracts/src/types.ts";
 
 const TRACE = /^([0-9a-f]{32})-([0-9a-f]{16})(?:-([0-9a-f]{16}))?$/;
 
-export interface TraceParts { traceId: string; spanId: string; parent?: string }
-const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+export interface TraceParts {
+  traceId: string;
+  spanId: string;
+  parent?: string;
+}
+const hex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 export const newTraceId = (): string => hex(16);
 export const newSpanId = (): string => hex(8);
 
@@ -14,11 +19,23 @@ export function parseTr(text: unknown): TraceParts | undefined {
   const m = typeof text === "string" ? TRACE.exec(text) : null;
   return m ? { traceId: m[1]!, spanId: m[2]!, ...(m[3] ? { parent: m[3] } : {}) } : undefined;
 }
-export function formatTr(p: TraceParts): string { return `${p.traceId}-${p.spanId}${p.parent ? `-${p.parent}` : ""}`; }
+export function formatTr(p: TraceParts): string {
+  return `${p.traceId}-${p.spanId}${p.parent ? `-${p.parent}` : ""}`;
+}
 
 /** One finished span, as it is written to logs.db `spans`. */
-export interface SpanRow { trace_id: string; span_id: string; parent: string | null; name: string; at: number; dur_us: number; attrs: Record<string, unknown> | null }
-export interface SpanSink { span(row: SpanRow): void }
+export interface SpanRow {
+  trace_id: string;
+  span_id: string;
+  parent: string | null;
+  name: string;
+  at: number;
+  dur_us: number;
+  attrs: Record<string, unknown> | null;
+}
+export interface SpanSink {
+  span(row: SpanRow): void;
+}
 
 export interface Tracer {
   /** The trace this tracer works in. */
@@ -40,14 +57,33 @@ export function createTracer(sink: SpanSink, o: { from?: TraceParts | undefined;
     current: () => stack[stack.length - 1],
     context: () => ({ traceId, spanId: stack[stack.length - 1] ?? newSpanId() }),
     async span(name, fn) {
-      const spanId = newSpanId(), parent = stack[stack.length - 1] ?? null, at = now(), t0 = performance.now();
+      const spanId = newSpanId(),
+        parent = stack[stack.length - 1] ?? null,
+        at = now(),
+        t0 = performance.now();
       const attrs: Record<string, unknown> = {};
       stack.push(spanId);
-      try { return await fn({ spanId, set: (k, v) => { attrs[k] = v; } }); }
-      catch (e) { attrs["error"] = e instanceof Error ? e.name : "error"; throw e; }
-      finally {
+      try {
+        return await fn({
+          spanId,
+          set: (k, v) => {
+            attrs[k] = v;
+          },
+        });
+      } catch (e) {
+        attrs["error"] = e instanceof Error ? e.name : "error";
+        throw e;
+      } finally {
         stack.pop();
-        sink.span({ trace_id: traceId, span_id: spanId, parent, name, at, dur_us: Math.round((performance.now() - t0) * 1000), attrs: Object.keys(attrs).length ? attrs : null });
+        sink.span({
+          trace_id: traceId,
+          span_id: spanId,
+          parent,
+          name,
+          at,
+          dur_us: Math.round((performance.now() - t0) * 1000),
+          attrs: Object.keys(attrs).length ? attrs : null,
+        });
       }
     },
   };

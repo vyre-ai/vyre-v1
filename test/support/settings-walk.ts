@@ -9,11 +9,18 @@ import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from 
 
 /** Scroll every scrollable box on the page to its end, so the shot shows what is below the fold. */
 async function scrollEnd(page: import("playwright-core").Page): Promise<void> {
-  await page.evaluate(() => { for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight + 20) el.scrollTop = el.scrollHeight; } });
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+      const o = getComputedStyle(el).overflowY;
+      if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight + 20) el.scrollTop = el.scrollHeight;
+    }
+  });
   await page.waitForTimeout(300);
 }
 async function scrollTop(page: import("playwright-core").Page): Promise<void> {
-  await page.evaluate(() => { for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollTop > 0) el.scrollTop = 0; });
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollTop > 0) el.scrollTop = 0;
+  });
   await page.waitForTimeout(200);
 }
 export const OUT = "shots-evidence/settings";
@@ -28,52 +35,134 @@ const PAGES: { id: string; title: string; sub: string }[] = [
 ];
 /** GitHub answers as a connected account: the daemon's GitHub egress cannot be faked from a test, so these five reads are answered at the browser's edge; every other call is the real daemon's. */
 const gh = { reconnect: false, connected: true };
-const POLICY = { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" };   // the server defaults (modules/github/handlers/me.ts DEFAULT_POLICY)
+const POLICY = {
+  read: "always",
+  push_branch: "always",
+  open_pr: "always",
+  comment: "always",
+  merge: "ask",
+  push_default: "ask",
+}; // the server defaults (modules/github/handlers/me.ts DEFAULT_POLICY)
 async function stubGithub(page: import("playwright-core").Page): Promise<void> {
   await page.route(/\/v1\/github\/me\/(status|reach|policy\/get|usage)$/, async (route) => {
     const k = /\/me\/(.+)$/.exec(route.request().url())?.[1];
-    const data = k === "status" ? gh.connected ? { connected: true, login: "maya-codes", source: "vyre", connectedAt: Date.now() - 9 * 86_400_000, needsReconnect: gh.reconnect } : { connected: false, source: "vyre", needsReconnect: false }
-      : k === "reach" ? { login: "maya-codes", orgs: [{ login: "maya-codes", install: "all", url: "https://github.com/settings/installations/1" }, { login: "northwind-law", install: "selected", url: "https://github.com/organizations/northwind-law/settings/installations/2" }, { login: "closed-org", install: "none", url: "https://github.com/apps/vyre/installations/new/permissions?target_id=10" }], repos: [{ repo: "maya-codes/notes", installationId: 1 }, { repo: "northwind-law/website", installationId: 2 }, { repo: "northwind-law/intake-forms", installationId: 2 }] }
-      : k === "usage" ? { uses: [{ consumer: "crews", repo: "northwind-law/website", action: "pr", at: Date.now() - 3_600_000 }, { consumer: "sessions", repo: "maya-codes/notes", action: "read", at: Date.now() - 86_400_000 }] }
-      : { policy: POLICY };
+    const data =
+      k === "status"
+        ? gh.connected
+          ? {
+              connected: true,
+              login: "maya-codes",
+              source: "vyre",
+              connectedAt: Date.now() - 9 * 86_400_000,
+              needsReconnect: gh.reconnect,
+            }
+          : { connected: false, source: "vyre", needsReconnect: false }
+        : k === "reach"
+          ? {
+              login: "maya-codes",
+              orgs: [
+                { login: "maya-codes", install: "all", url: "https://github.com/settings/installations/1" },
+                {
+                  login: "northwind-law",
+                  install: "selected",
+                  url: "https://github.com/organizations/northwind-law/settings/installations/2",
+                },
+                {
+                  login: "closed-org",
+                  install: "none",
+                  url: "https://github.com/apps/vyre/installations/new/permissions?target_id=10",
+                },
+              ],
+              repos: [
+                { repo: "maya-codes/notes", installationId: 1 },
+                { repo: "northwind-law/website", installationId: 2 },
+                { repo: "northwind-law/intake-forms", installationId: 2 },
+              ],
+            }
+          : k === "usage"
+            ? {
+                uses: [
+                  { consumer: "crews", repo: "northwind-law/website", action: "pr", at: Date.now() - 3_600_000 },
+                  { consumer: "sessions", repo: "maya-codes/notes", action: "read", at: Date.now() - 86_400_000 },
+                ],
+              }
+            : { policy: POLICY };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data }) });
   });
 }
-const BANNED = ["principal", "grant", "actor", "schema", "gate", "suppression", "retention", "tenant", "capability", "sandbox.denied", "trace"];
+const BANNED = [
+  "principal",
+  "grant",
+  "actor",
+  "schema",
+  "gate",
+  "suppression",
+  "retention",
+  "tenant",
+  "capability",
+  "sandbox.denied",
+  "trace",
+];
 
 /** Three parts of the walk, so each file stays well under the release-evidence watchdog: a is Profile, Your AI and This device; b is GitHub; c is Notifications, Appearance and Privacy and security (with the saved channel and look). */
-export const GROUPS: Record<"a" | "b" | "c", string[]> = { a: ["profile", "ai", "computer"], b: ["github"], c: ["notifications", "appearance", "signin"] };
+export const GROUPS: Record<"a" | "b" | "c", string[]> = {
+  a: ["profile", "ai", "computer"],
+  b: ["github"],
+  c: ["notifications", "appearance", "signin"],
+};
 export async function walkSettings(t: TestContext, only: "owner" | "member", group: "a" | "b" | "c"): Promise<void> {
   const mine = PAGES.filter((p) => GROUPS[group].includes(p.id));
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   // the default Vyre GitHub app, as a real server has in its environment (#876: a member who is not connected is told which app)
-  process.env["VYRE_GH_OAUTH_CLIENT_ID"] = "Iv1.fixture-default-app"; process.env["VYRE_GH_OAUTH_CLIENT_SECRET"] = "fixture-default-secret-0123456789";
+  process.env["VYRE_GH_OAUTH_CLIENT_ID"] = "Iv1.fixture-default-app";
+  process.env["VYRE_GH_OAUTH_CLIENT_SECRET"] = "fixture-default-secret-0123456789";
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
     const member = only === "member" ? await w.join("mia") : null;
     // the real server (not the page stub): a member who is not connected gets the source and nothing else (l-consolidate e8daeb4a2, moved here from the old single file)
-    if (member) assert.deepEqual(await member.ok("github.me.status", {}), { connected: false, source: "vyre", needsReconnect: false });
-    for (const [who, person, role] of (only === "owner" ? [["owner", w.owner, "Owner"]] : [["member", member!, "Member"]]) as readonly (readonly ["owner" | "member", Parameters<typeof seat>[1], string])[]) {
+    if (member)
+      assert.deepEqual(await member.ok("github.me.status", {}), {
+        connected: false,
+        source: "vyre",
+        needsReconnect: false,
+      });
+    for (const [who, person, role] of (only === "owner"
+      ? [["owner", w.owner, "Owner"]]
+      : [["member", member!, "Member"]]) as readonly (readonly [
+      "owner" | "member",
+      Parameters<typeof seat>[1],
+      string,
+    ])[]) {
       const me = await seat(s, person, role);
       const dir = `${OUT}/${who}`;
-      await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
+      await me.page.setViewportSize({ width: 1440, height: 900 }); // the prototype's width, for side-by-side shots
       const guard = guardCrashes(me.page);
       await stubGithub(me.page);
       gh.reconnect = false;
-      await open(me, s, "/settings?skin=paper");   // Paper for the light pictures, Graphite for the dark ones
+      await open(me, s, "/settings?skin=paper"); // Paper for the light pictures, Graphite for the dark ones
       await me.page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
       for (const p of PAGES) assert.ok(nav.includes(p.title), `${who}: the page list has ${p.title}`);
-      for (const gone of ["Connected", "Email and calendar", "Memory and privacy", "Skills", "About Vyre"]) assert.ok(!nav.includes(gone), `${who}: ${gone} left the page list`);
+      for (const gone of ["Connected", "Email and calendar", "Memory and privacy", "Skills", "About Vyre"])
+        assert.ok(!nav.includes(gone), `${who}: ${gone} left the page list`);
       for (const p of mine) {
         await me.page.getByTestId(`row-page-${p.id}`).click();
         await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
         await me.page.waitForTimeout(800);
         const text = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
-        for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
+        for (const b of BANNED) {
+          const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text);
+          assert.ok(
+            !m,
+            `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`,
+          );
+        }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
         await scrollTop(me.page);
         await guard.check(p.id);
@@ -84,13 +173,19 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
           await shoot(me.page, dir, `${p.id}-end`);
         }
         if (p.id === "github") {
-          assert.ok(text.includes("maya-codes") && text.includes("northwind-law"), `${who}: the connected account and its orgs show`);
+          assert.ok(
+            text.includes("maya-codes") && text.includes("northwind-law"),
+            `${who}: the connected account and its orgs show`,
+          );
           gh.reconnect = true;
           await me.page.getByTestId("row-page-profile").click();
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
-          assert.ok((await me.page.getByTestId("page-github").innerText()).includes("Reconnect GitHub once"), `${who}: the reconnect line shows`);
+          assert.ok(
+            (await me.page.getByTestId("page-github").innerText()).includes("Reconnect GitHub once"),
+            `${who}: the reconnect line shows`,
+          );
           await guard.check("github-reconnect");
           await shoot(me.page, dir, "github-reconnect");
           gh.reconnect = false;
@@ -100,7 +195,11 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
           await me.page.getByTestId("github-connect").waitFor();
           await me.page.waitForTimeout(500);
           // the line above Connect names the app the Space uses (#876), for the owner and for a member alike
-          assert.equal((await me.page.getByTestId("gh-app-source").innerText()).trim(), "Your Space uses the Vyre GitHub app.", `${who}: the app line above Connect`);
+          assert.equal(
+            (await me.page.getByTestId("gh-app-source").innerText()).trim(),
+            "Your Space uses the Vyre GitHub app.",
+            `${who}: the app line above Connect`,
+          );
           await guard.check("github-connect");
           await shoot(me.page, dir, "github-connect");
           gh.connected = true;
@@ -108,51 +207,85 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
       }
       // a notification channel and the look, as that person, saved on the server
       if (group === "c") {
-      await me.page.getByTestId("row-page-notifications").click();
-      await me.page.getByTestId("kind-mention-email").click();
-      await me.page.waitForTimeout(800);
-      const kinds = (await person.ok("notifications.kinds.list")).kinds as { key: string; mine?: { channels: string[] } }[];
-      assert.ok(kinds.find((k) => k.key === "mention")?.mine?.channels.includes("email"), `${who}: Email saved for Mentions`);
-      await me.page.getByTestId("row-page-appearance").click();
-      await me.page.getByTestId("look-rm").click();
-      await me.page.waitForTimeout(800);
-      const look = (await person.ok("settings.get", { key: "appearance.look" })).row.value as { rm: boolean };
-      assert.equal(look.rm, true, `${who}: Reduce motion saved`);
-      await setScheme(me.page, "dark");
-      await guard.check("appearance-after");
-      await shoot(me.page, dir, "appearance-after");
+        await me.page.getByTestId("row-page-notifications").click();
+        await me.page.getByTestId("kind-mention-email").click();
+        await me.page.waitForTimeout(800);
+        const kinds = (await person.ok("notifications.kinds.list")).kinds as {
+          key: string;
+          mine?: { channels: string[] };
+        }[];
+        assert.ok(
+          kinds.find((k) => k.key === "mention")?.mine?.channels.includes("email"),
+          `${who}: Email saved for Mentions`,
+        );
+        await me.page.getByTestId("row-page-appearance").click();
+        await me.page.getByTestId("look-rm").click();
+        await me.page.waitForTimeout(800);
+        const look = (await person.ok("settings.get", { key: "appearance.look" })).row.value as { rm: boolean };
+        assert.equal(look.rm, true, `${who}: Reduce motion saved`);
+        await setScheme(me.page, "dark");
+        await guard.check("appearance-after");
+        await shoot(me.page, dir, "appearance-after");
       }
       // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
       await me.page.setViewportSize(SIZES.phone);
       for (const p of mine) {
         await open(me, s, "/settings?skin=paper");
         const row = me.page.getByTestId(`row-page-${p.id}`);
-        if (!(await row.isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
+        if (!(await row.isVisible().catch(() => false)))
+          await me.page
+            .getByTestId("back")
+            .click()
+            .catch(() => undefined);
         await row.click();
         await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
         await me.page.waitForTimeout(800);
         const phoneText = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(phoneText.includes(p.sub), `${who}/${p.id}: the sentence on a phone`);
         await guard.check(`phone-${p.id}`);
-        await shoot(me.page, dir, `phone-${p.id}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+        await shoot(me.page, dir, `phone-${p.id}`).then((files) =>
+          files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))),
+        );
         if (p.id === "github") {
           gh.reconnect = true;
           await open(me, s, "/settings?skin=paper");
-          if (!(await me.page.getByTestId("row-page-github").isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
+          if (
+            !(await me.page
+              .getByTestId("row-page-github")
+              .isVisible()
+              .catch(() => false))
+          )
+            await me.page
+              .getByTestId("back")
+              .click()
+              .catch(() => undefined);
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
           await guard.check("phone-github-reconnect");
-          await shoot(me.page, dir, "phone-github-reconnect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+          await shoot(me.page, dir, "phone-github-reconnect").then((files) =>
+            files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))),
+          );
           gh.reconnect = false;
           gh.connected = false;
           await open(me, s, "/settings?skin=paper");
-          if (!(await me.page.getByTestId("row-page-github").isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
+          if (
+            !(await me.page
+              .getByTestId("row-page-github")
+              .isVisible()
+              .catch(() => false))
+          )
+            await me.page
+              .getByTestId("back")
+              .click()
+              .catch(() => undefined);
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("github-connect").waitFor();
           await me.page.waitForTimeout(500);
           await guard.check("phone-github-connect");
-          await shoot(me.page, dir, "phone-github-connect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+          await shoot(me.page, dir, "phone-github-connect").then((files) =>
+            files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))),
+          );
           gh.connected = true;
         }
       }
@@ -160,5 +293,7 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
       assert.deepEqual(guard.crashes(), [], `${who}: no crash logged`);
       assert.deepEqual(me.errors, [], `${who}: no page errors`);
     }
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 }

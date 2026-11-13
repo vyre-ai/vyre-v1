@@ -26,9 +26,19 @@ export interface ReservedImageProps {
 }
 
 /** A picture in a fixed box: full width up to its own width, height from the ratio. The box is painted `--sunk` until the picture arrives. */
-export const ReservedImage = memo(function ReservedImage({ uri, width, height, label, radius = 8, testID }: ReservedImageProps) {
+export const ReservedImage = memo(function ReservedImage({
+  uri,
+  width,
+  height,
+  label,
+  radius = 8,
+  testID,
+}: ReservedImageProps) {
   return (
-    <View testID={testID} style={[styles.imageBox, { maxWidth: width, aspectRatio: width / height, borderRadius: radius }]}>
+    <View
+      testID={testID}
+      style={[styles.imageBox, { maxWidth: width, aspectRatio: width / height, borderRadius: radius }]}
+    >
       <Image accessibilityLabel={label} source={{ uri }} resizeMode="cover" style={styles.imageFill} />
     </View>
   );
@@ -46,7 +56,13 @@ export interface AvatarSlotProps {
 }
 
 /** A square of a fixed size with the author's shared face in it: the same box whether or not anything has arrived. */
-export const AvatarSlot = memo(function AvatarSlot({ label, seedId, size = AVATAR_SIZE, kind = "agent", testID }: AvatarSlotProps) {
+export const AvatarSlot = memo(function AvatarSlot({
+  label,
+  seedId,
+  size = AVATAR_SIZE,
+  kind = "agent",
+  testID,
+}: AvatarSlotProps) {
   return (
     <View testID={testID} style={[styles.avatar, { width: size, height: size }]}>
       <Avatar name={label} seedId={seedId} kind={kind} size={size} />
@@ -66,7 +82,11 @@ export interface SkeletonMessageProps {
 }
 
 /** What shows while a message has not started: the header's avatar and the lines the text will fill. Same height as the message that replaces it. */
-export const SkeletonMessage = memo(function SkeletonMessage({ lines = 3, withHeader = true, testID = "skeleton-message" }: SkeletonMessageProps) {
+export const SkeletonMessage = memo(function SkeletonMessage({
+  lines = 3,
+  withHeader = true,
+  testID = "skeleton-message",
+}: SkeletonMessageProps) {
   const n = Math.max(1, lines);
   return (
     <View testID={testID} accessibilityLabel="Loading" style={{ height: messageHeight(n, withHeader) }}>

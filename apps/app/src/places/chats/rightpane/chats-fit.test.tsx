@@ -17,7 +17,10 @@ test("at 390 px the page column (358 px) folds the last tabs behind More and nev
   assert.ok(hidden.length > 0, "five tabs do not fit the room a phone leaves");
   const used = shown.reduce((n, t) => n + tabWidth(t.title), 0) + tabWidth("More") + 2;
   assert.ok(used <= col - HEADER_CHROME, `${used} fits ${col - HEADER_CHROME}`);
-  assert.ok(hidden.some((t) => t.key === "settings"), "Settings waits behind More");
+  assert.ok(
+    hidden.some((t) => t.key === "settings"),
+    "Settings waits behind More",
+  );
   assert.equal(MORE_KEY, "more");
 });
 
@@ -29,7 +32,10 @@ test("the open tab is always drawn, even when it is one of the last", () => {
 
 test("on a wide screen the agent page draws all five tabs and no More", () => {
   const s = createSample("owner");
-  const out = renderToStaticMarkup(<AgentPage data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(<AgentPage data={s.data} window={{ start: 0, end: 500 }} />).replaceAll(
+    "<!-- -->",
+    "",
+  );
   for (const t of ["Chats", "Memory", "Files", "Computer", "Settings"]) assert.ok(out.includes(`>${t}<`), t);
   assert.ok(!out.includes('aria-label="More tabs"'));
 });
@@ -37,12 +43,18 @@ test("on a wide screen the agent page draws all five tabs and no More", () => {
 test("Run now and Delegate call the P-CC_20 capabilities with their real inputs", async () => {
   const s = createPaneSample();
   const notes: { text: string; undo?: () => Promise<void> | void }[] = [];
-  const d = { call: s.data.call, note: (text: string, undo?: () => Promise<void> | void) => notes.push(undo ? { text, undo } : { text }) };
+  const d = {
+    call: s.data.call,
+    note: (text: string, undo?: () => Promise<void> | void) => notes.push(undo ? { text, undo } : { text }),
+  };
   const rows = (): Routine[] => s.replica.rows("routines") as unknown as Routine[];
   const r = rows().find((x) => x.routineId === "r3")!;
   assert.equal(await runNow(d, r), true);
   const run = s.calls.find((c) => c.cap === "agents.routine.run_now")!;
-  assert.deepEqual({ ...(run.input as object), idempotencyKey: "k" }, { agentId: r.agentId, routineId: "r3", idempotencyKey: "k" });
+  assert.deepEqual(
+    { ...(run.input as object), idempotencyKey: "k" },
+    { agentId: r.agentId, routineId: "r3", idempotencyKey: "k" },
+  );
   assert.ok(typeof (run.input as { idempotencyKey: string }).idempotencyKey === "string");
   assert.equal(await delegateRoutine(d, r, "usr_maya", "Maya Chen"), true);
   const del = s.calls.find((c) => c.cap === "agents.routine.delegate")!;
@@ -61,5 +73,6 @@ test("the fit folds by measured widths: wider real text folds sooner, narrower t
   assert.ok(wide.shown.length < est.shown.length || est.hidden.length > 0);
   assert.equal(narrow.hidden.length, 0, "five 40 px tabs fit 346 px");
   assert.ok(wide.shown.some((t) => t.key === "chats") && wide.hidden.length > 0);
-  for (const f of [wide, narrow, est]) assert.deepEqual([...f.shown, ...f.hidden].map((t) => t.key).sort(), PAGE_TABS.map((t) => t.key).sort());
+  for (const f of [wide, narrow, est])
+    assert.deepEqual([...f.shown, ...f.hidden].map((t) => t.key).sort(), PAGE_TABS.map((t) => t.key).sort());
 });

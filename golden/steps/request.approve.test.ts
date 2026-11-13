@@ -9,23 +9,59 @@ test("a member's access.request opens a card the owner approves, which creates t
   try {
     const owner = s.signedIn("usr_olivia", "dev_olivia1");
     const noah = s.signedIn("usr_noah", "dev_noah0001");
-    const asked = expectStatus(await s.call("access.request", noah, { idempotencyKey: "approve-ask", resource: { type: "channel", id: "chn_general" }, level: "view", note: "I need the general channel" }), 200, "access.request");
+    const asked = expectStatus(
+      await s.call("access.request", noah, {
+        idempotencyKey: "approve-ask",
+        resource: { type: "channel", id: "chn_general" },
+        level: "view",
+        note: "I need the general channel",
+      }),
+      200,
+      "access.request",
+    );
     assert.equal(asked.request.state, "waiting", short(asked));
     assert.ok(String(asked.request.taskId).startsWith("tsk_"), `a card was opened: ${short(asked)}`);
 
-    const waiting = expectStatus(await s.call("access.requests.list", owner, {}), 200, "access.requests.list").requests as { id: string; state: string }[];
-    assert.ok(waiting.some((r) => r.id === asked.request.id && r.state === "waiting"), `the owner sees the request: ${short(waiting)}`);
-    const approved = expectStatus(await s.call("access.requests.approve", owner, { requestId: asked.request.id, level: "view" }), 200, "access.requests.approve");
+    const waiting = expectStatus(await s.call("access.requests.list", owner, {}), 200, "access.requests.list")
+      .requests as { id: string; state: string }[];
+    assert.ok(
+      waiting.some((r) => r.id === asked.request.id && r.state === "waiting"),
+      `the owner sees the request: ${short(waiting)}`,
+    );
+    const approved = expectStatus(
+      await s.call("access.requests.approve", owner, { requestId: asked.request.id, level: "view" }),
+      200,
+      "access.requests.approve",
+    );
     assert.equal(approved.grant.resource.id, "chn_general", short(approved));
     assert.deepEqual(approved.grant.subject, { kind: "person", id: "usr_noah" });
-    const mine = expectStatus(await s.call("access.requests.list", noah, { mine: true }), 200, "access.requests.list mine").requests as { id: string; state: string }[];
+    const mine = expectStatus(
+      await s.call("access.requests.list", noah, { mine: true }),
+      200,
+      "access.requests.list mine",
+    ).requests as { id: string; state: string }[];
     assert.equal(mine.find((r) => r.id === asked.request.id)?.state, "granted", short(mine));
-    const check = expectStatus(await s.call("access.check", owner, { principal: { kind: "person", id: "usr_noah" }, action: { level: "view" }, resource: { type: "channel", id: "chn_general" } }), 200, "access.check");
+    const check = expectStatus(
+      await s.call("access.check", owner, {
+        principal: { kind: "person", id: "usr_noah" },
+        action: { level: "view" },
+        resource: { type: "channel", id: "chn_general" },
+      }),
+      200,
+      "access.check",
+    );
     assert.equal(check.decision.effect, "allow", short(check));
 
     const stranger = await s.call("access.requests.approve", noah, { requestId: asked.request.id });
     assert.ok(stranger.status >= 400, `the requester cannot decide their own request: ${stranger.status}`);
-    const folder = await s.call("folders.create", owner, { idempotencyKey: "approve-folder", type: "channel", name: "Clients", scope: "space" });
+    const folder = await s.call("folders.create", owner, {
+      idempotencyKey: "approve-folder",
+      type: "channel",
+      name: "Clients",
+      scope: "space",
+    });
     assert.equal(folder.status, 200, `folders.create answers 200: ${short(folder.body?.error ?? folder.body)}`);
-  } finally { await s.stop(); }
+  } finally {
+    await s.stop();
+  }
 });

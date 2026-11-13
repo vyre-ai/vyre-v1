@@ -13,8 +13,12 @@ import { applyInPage, forgetInPage, prepareInPage, submitInPage } from "./pageca
 const FILL_WAIT_MS = 3000;
 /** The field keys a Vault card may use for each card field, first match wins. */
 const CARD_KEYS = /** @type {Record<string, string[]>} */ ({
-  "cc-number": ["number", "card_number", "cardnumber"], "cc-name": ["name", "cardholder", "holder", "card_name"], "cc-exp": ["expiry", "exp", "expires", "expiration"],
-  "cc-expMonth": ["exp_month", "expiry_month", "month"], "cc-expYear": ["exp_year", "expiry_year", "year"], "cc-cvc": ["cvc", "cvv", "csc", "security_code"],
+  "cc-number": ["number", "card_number", "cardnumber"],
+  "cc-name": ["name", "cardholder", "holder", "card_name"],
+  "cc-exp": ["expiry", "exp", "expires", "expiration"],
+  "cc-expMonth": ["exp_month", "expiry_month", "month"],
+  "cc-expYear": ["exp_year", "expiry_year", "year"],
+  "cc-cvc": ["cvc", "cvv", "csc", "security_code"],
 });
 
 /** @param {number} n */
@@ -42,8 +46,15 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
   /** Resolves true when the value pushed for `ref` has gone into its field, false after `ms` without a push. @param {string} ref @param {number} ms */
   function waitFor(ref, ms) {
     return new Promise((resolve) => {
-      const timer = setTimeout(() => { waiters.delete(ref); resolve(false); }, ms);
-      waiters.set(ref, (applied) => { clearTimeout(timer); waiters.delete(ref); resolve(applied); });
+      const timer = setTimeout(() => {
+        waiters.delete(ref);
+        resolve(false);
+      }, ms);
+      waiters.set(ref, (applied) => {
+        clearTimeout(timer);
+        waiters.delete(ref);
+        resolve(applied);
+      });
     });
   }
 
@@ -56,7 +67,11 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
     let value = String(m.value);
     let applied = false;
     try {
-      const [res] = await scripting.executeScript({ target: { tabId: r.tabId, frameIds: [r.frameId] }, func: applyInPage, args: [r.pageRef, value] });
+      const [res] = await scripting.executeScript({
+        target: { tabId: r.tabId, frameIds: [r.frameId] },
+        func: applyInPage,
+        args: [r.pageRef, value],
+      });
       applied = Boolean(res && res.result);
     } finally {
       value = "";
@@ -89,16 +104,40 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
     const rule = await rules.forHost(page.host);
     if (rule && rule.neverFill) throw new BridgeFailure("never_fill", "never fill here");
 
-    const wantRoles = job.kind === "otp" ? ["otp"] : job.kind === "card" ? ["cc-number", "cc-name", "cc-exp", "cc-expMonth", "cc-expYear", "cc-cvc"] : ["username", "password"];
-    const found = await scripting.executeScript({ target: { tabId: job.tabId, allFrames: true }, func: prepareInPage, args: [{ roles: wantRoles }] });
-    const frame = found.find((f) => f.result && f.result.fields && f.result.fields.some((/** @type {any} */ x) => x.role === "password" || x.role === "otp" || x.role === "cc-number")) ?? found.find((f) => f.result && f.result.fields && f.result.fields.length);
+    const wantRoles =
+      job.kind === "otp"
+        ? ["otp"]
+        : job.kind === "card"
+          ? ["cc-number", "cc-name", "cc-exp", "cc-expMonth", "cc-expYear", "cc-cvc"]
+          : ["username", "password"];
+    const found = await scripting.executeScript({
+      target: { tabId: job.tabId, allFrames: true },
+      func: prepareInPage,
+      args: [{ roles: wantRoles }],
+    });
+    const frame =
+      found.find(
+        (f) =>
+          f.result &&
+          f.result.fields &&
+          f.result.fields.some(
+            (/** @type {any} */ x) => x.role === "password" || x.role === "otp" || x.role === "cc-number",
+          ),
+      ) ?? found.find((f) => f.result && f.result.fields && f.result.fields.length);
     if (!frame || !frame.result) throw new BridgeFailure("no_field", "no sign-in field");
     /** @type {{ ref: string, role: string }[]} */
     const fields = frame.result.fields;
 
     const used = await bridge.invoke("vault.use", { item: job.itemId, purpose: `fill ${page.host}` });
     const have = new Set(Array.isArray(used && used.fields) ? used.fields : []);
-    const keyFor = (/** @type {string} */ role) => role === "username" ? (job.usernameField || "username") : role === "password" ? "password" : role.startsWith("cc-") ? (CARD_KEYS[role] || []).find((/** @type {string} */ k) => have.has(k)) ?? "" : "totp";
+    const keyFor = (/** @type {string} */ role) =>
+      role === "username"
+        ? job.usernameField || "username"
+        : role === "password"
+          ? "password"
+          : role.startsWith("cc-")
+            ? ((CARD_KEYS[role] || []).find((/** @type {string} */ k) => have.has(k)) ?? "")
+            : "totp";
 
     /** @type {string[]} */
     const filled = [];
@@ -110,21 +149,42 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
         if (!key || !have.has(key)) continue;
         const ref = randomRef(++counter);
         minted.push(ref);
-        refs.set(ref, { tabId: job.tabId, frameId: frame.frameId, pageRef: f.ref, role: f.role, expires: now() + REF_TTL_MS });
+        refs.set(ref, {
+          tabId: job.tabId,
+          frameId: frame.frameId,
+          pageRef: f.ref,
+          role: f.role,
+          expires: now() + REF_TTL_MS,
+        });
         const landed = waitFor(ref, waitMs);
-        const done = await bridge.invoke("vault.fill", { handle: `${used.handle}.${key}`, target: { kind: "browser", ref } });
+        const done = await bridge.invoke("vault.fill", {
+          handle: `${used.handle}.${key}`,
+          target: { kind: "browser", ref },
+        });
         const applied = await landed;
         if (done && done.filled && applied) filled.push(f.role);
       }
       let signedIn = false;
       if (job.signIn && job.kind !== "card" && filled.some((r) => r === "password" || r === "otp")) {
-        const [res] = await scripting.executeScript({ target: { tabId: job.tabId, frameIds: [frame.frameId] }, func: submitInPage, args: [] });
+        const [res] = await scripting.executeScript({
+          target: { tabId: job.tabId, frameIds: [frame.frameId] },
+          func: submitInPage,
+          args: [],
+        });
         signedIn = Boolean(res && res.result);
       }
       return { filled, signedIn };
     } finally {
       for (const ref of minted) refs.delete(ref);
-      try { await scripting.executeScript({ target: { tabId: job.tabId, frameIds: [frame.frameId] }, func: forgetInPage, args: [] }); } catch { /* the tab closed */ }
+      try {
+        await scripting.executeScript({
+          target: { tabId: job.tabId, frameIds: [frame.frameId] },
+          func: forgetInPage,
+          args: [],
+        });
+      } catch {
+        /* the tab closed */
+      }
     }
   }
 
@@ -134,14 +194,33 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
     if (r.blocked || !r.page) return { blocked: r.blocked, rows: [] };
     const out = await bridge.invoke("vault.items.match", { url: r.page.origin });
     const items = Array.isArray(out && out.items) ? out.items : [];
-    return { blocked: null, rows: items.map((/** @type {any} */ e) => ({ ...loginRow(e), username: typeof e.username === "string" ? e.username.slice(0, 120) : "" })) };
+    return {
+      blocked: null,
+      rows: items.map((/** @type {any} */ e) => ({
+        ...loginRow(e),
+        username: typeof e.username === "string" ? e.username.slice(0, 120) : "",
+      })),
+    };
   }
 
   /** The person's card items, names only: a card is not tied to a site, so the list is the Vault's cards the person may use. */
   async function cards() {
     const out = await bridge.invoke("vault.items.list", { kind: "card", section: "personal" });
-    return (Array.isArray(out && out.items) ? out.items : []).map((/** @type {any} */ i) => ({ id: String(i.id ?? ""), name: String(i.name ?? "Card").slice(0, 80), kind: "card" }));
+    return (Array.isArray(out && out.items) ? out.items : []).map((/** @type {any} */ i) => ({
+      id: String(i.id ?? ""),
+      name: String(i.name ?? "Card").slice(0, 80),
+      kind: "card",
+    }));
   }
 
-  return { loginsFor, accountsFor, cards, fill, deliver, get pendingRefs() { return refs.size; } };
+  return {
+    loginsFor,
+    accountsFor,
+    cards,
+    fill,
+    deliver,
+    get pendingRefs() {
+      return refs.size;
+    },
+  };
 }

@@ -27,7 +27,11 @@ const LOADING = { status: "loading" } as const;
 const quiet = { query: () => ({ subscribe: () => () => undefined, getSnapshot: () => LOADING }) };
 
 /** A runtime whose chat capabilities answer an Ask, and which records every place it is asked to open. */
-function runtime(extra: (cap: string, input: Record<string, unknown>) => unknown = (cap) => { throw new Error(`${cap} is not part of this test`); }): { rt: ShellRuntime; opened: string[]; calls: { cap: string; input: Record<string, unknown> }[] } {
+function runtime(
+  extra: (cap: string, input: Record<string, unknown>) => unknown = (cap) => {
+    throw new Error(`${cap} is not part of this test`);
+  },
+): { rt: ShellRuntime; opened: string[]; calls: { cap: string; input: Record<string, unknown> }[] } {
   const opened: string[] = [];
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   let n = 0;
@@ -40,7 +44,13 @@ function runtime(extra: (cap: string, input: Record<string, unknown>) => unknown
       if (cap === "chat.asks_of") return { threads: [], total: 0 };
       if (cap === "chat.start") return { thread: { threadId: `thr_${++n}` } };
       if (cap === "chat.open_as_chat") return { thread: { threadId: input["threadId"] } };
-      if (cap === "agents.list") return { agents: [{ agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" }, { agentId: "agt_billing", name: "Billing", kind: "agent" }] };
+      if (cap === "agents.list")
+        return {
+          agents: [
+            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" },
+            { agentId: "agt_billing", name: "Billing", kind: "agent" },
+          ],
+        };
       return extra(cap, input);
     },
   });
@@ -54,24 +64,50 @@ let mounts = 0;
 /** A place with a door: it counts its mounts, so opening the pane beside it is seen not to remount it. */
 function Place({ rt, thing }: { rt: ShellRuntime; thing: { kind: string; id: string; title: string } }): ReactElement {
   const once = useRef(false);
-  useEffect(() => { if (!once.current) { once.current = true; mounts++; } }, []);
-  return <View testID="the-place"><Pressable testID="door" onPress={() => openAsk(rt, "assistant", thing)}><Text>Ask</Text></Pressable></View>;
+  useEffect(() => {
+    if (!once.current) {
+      once.current = true;
+      mounts++;
+    }
+  }, []);
+  return (
+    <View testID="the-place">
+      <Pressable testID="door" onPress={() => openAsk(rt, "assistant", thing)}>
+        <Text>Ask</Text>
+      </Pressable>
+    </View>
+  );
 }
 
-const host = (rt: ShellRuntime, place: string, body: ReactElement): ReactElement => <ShellRuntimeProvider value={rt}><AskPaneHost place={place} rt={rt}>{body}</AskPaneHost></ShellRuntimeProvider>;
-const settle = async (): Promise<void> => { for (let i = 0; i < 6; i++) await flush(); };
+const host = (rt: ShellRuntime, place: string, body: ReactElement): ReactElement => (
+  <ShellRuntimeProvider value={rt}>
+    <AskPaneHost place={place} rt={rt}>
+      {body}
+    </AskPaneHost>
+  </ShellRuntimeProvider>
+);
+const settle = async (): Promise<void> => {
+  for (let i = 0; i < 6; i++) await flush();
+};
 
 /** Mounted roots are unmounted before the DOM stubs go, so nothing they started keeps the test process alive. */
 const roots: { unmount(): void }[] = [];
 async function mount(make: typeof createRoot, el: ReactElement): Promise<Node> {
   const r = make();
   roots.push(r);
-  await act(async () => { r.render(el); });
+  await act(async () => {
+    r.render(el);
+  });
   await flush();
   return r.container as unknown as Node;
 }
 async function unmountAll(): Promise<void> {
-  while (roots.length > 0) { const r = roots.pop()!; await act(async () => { r.unmount(); }); }
+  while (roots.length > 0) {
+    const r = roots.pop()!;
+    await act(async () => {
+      r.unmount();
+    });
+  }
 }
 
 test("the Vault and Settings doors open the pane in their own place about their thing, and nothing navigates to Chats", () => {
@@ -79,9 +115,25 @@ test("the Vault and Settings doors open the pane in their own place about their 
   const { rt, opened } = runtime();
   const settings = createSampleSettings();
   const doors: [string, () => void, { kind: string; id: string } | null][] = [
-    ["vault", () => vaultData(rt).nav.ask?.("assistant", "chat", { kind: "vault_item", id: "vit_resend", title: "Resend" }), { kind: "vault_item", id: "vit_resend" }],
-    ["vault", () => vaultData(rt).nav.addToAutomations?.({ id: "vit_resend", name: "Resend", handle: "#Resend" }), { kind: "vault_item", id: "vit_resend" }],
-    ["settings", () => settingsData({ ...rt, screens: settings.data.screens, call: settings.data.call }).ask?.({ key: "appearance", title: "Appearance" }), { kind: "settings_page", id: "appearance" }],
+    [
+      "vault",
+      () => vaultData(rt).nav.ask?.("assistant", "chat", { kind: "vault_item", id: "vit_resend", title: "Resend" }),
+      { kind: "vault_item", id: "vit_resend" },
+    ],
+    [
+      "vault",
+      () => vaultData(rt).nav.addToAutomations?.({ id: "vit_resend", name: "Resend", handle: "#Resend" }),
+      { kind: "vault_item", id: "vit_resend" },
+    ],
+    [
+      "settings",
+      () =>
+        settingsData({ ...rt, screens: settings.data.screens, call: settings.data.call }).ask?.({
+          key: "appearance",
+          title: "Appearance",
+        }),
+      { kind: "settings_page", id: "appearance" },
+    ],
   ];
   for (const [place, press, thing] of doors) {
     closeAskPane(place);
@@ -103,16 +155,33 @@ test("Settings: the page's Ask button opens the pane beside the page, about that
     resetAskPanes();
     const { rt, opened } = runtime();
     const s = createSampleSettings();
-    const live = { ...rt, screens: s.data.screens, call: async (cap: string, input: unknown) => (cap.startsWith("chat.") || cap === "agents.list" ? rt.call(cap, input) : s.data.call(cap, input)) } as ShellRuntime;
+    const live = {
+      ...rt,
+      screens: s.data.screens,
+      call: async (cap: string, input: unknown) =>
+        cap.startsWith("chat.") || cap === "agents.list" ? rt.call(cap, input) : s.data.call(cap, input),
+    } as ShellRuntime;
     setScreenContext(screenFromHash("settings", "page=appearance"));
-    const root = await mount(createRoot, host(live, "settings", <SettingsDataProvider value={settingsData(live)}><SettingsPlace initialPage="appearance" /></SettingsDataProvider>));
+    const root = await mount(
+      createRoot,
+      host(
+        live,
+        "settings",
+        <SettingsDataProvider value={settingsData(live)}>
+          <SettingsPlace initialPage="appearance" />
+        </SettingsDataProvider>,
+      ),
+    );
     await press(find(root, "settings-ask"));
     await settle();
     assert.ok(find(root, "ask-pane"), "the pane is drawn");
     assert.ok(find(root, "page-appearance"), "the page stays where it was");
     assert.equal(textOf(find(root, "ask-pane-chip")).trim(), "Appearance");
     assert.deepEqual(opened, []);
-  } finally { await unmountAll(); restore(); }
+  } finally {
+    await unmountAll();
+    restore();
+  }
 });
 
 test("the pane opens beside the place without remounting it; New, the chip's x, Escape and Open in Chats", async () => {
@@ -122,7 +191,10 @@ test("the pane opens beside the place without remounting it; New, the chip's x, 
     mounts = 0;
     const { rt, opened, calls } = runtime();
     setScreenContext(screenFromHash("files", "subject=file:fil_lease"));
-    const root = await mount(createRoot, host(rt, "files", <Place rt={rt} thing={{ kind: "file", id: "fil_lease", title: "Lease.pdf" }} />));
+    const root = await mount(
+      createRoot,
+      host(rt, "files", <Place rt={rt} thing={{ kind: "file", id: "fil_lease", title: "Lease.pdf" }} />),
+    );
     assert.equal(find(root, "ask-pane"), null, "closed to begin with");
     await press(find(root, "door"));
     await settle();
@@ -153,7 +225,12 @@ test("the pane opens beside the place without remounting it; New, the chip's x, 
     // Escape inside the pane closes it, and the place is as it was
     const pane = find(root, "ask-pane")!;
     let prevented = false;
-    (pane.props["onKeyDown"] as (e: unknown) => void)({ key: "Escape", preventDefault: () => { prevented = true; } });
+    (pane.props["onKeyDown"] as (e: unknown) => void)({
+      key: "Escape",
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
     await settle();
     assert.ok(prevented);
     assert.equal(find(root, "ask-pane"), null, "Escape closed it");
@@ -168,7 +245,10 @@ test("the pane opens beside the place without remounting it; New, the chip's x, 
     assert.equal(opened.length, 1);
     assert.match(opened[0]!, /"type":"thread"/);
     assert.equal(find(root, "ask-pane"), null);
-  } finally { await unmountAll(); restore(); }
+  } finally {
+    await unmountAll();
+    restore();
+  }
 });
 
 test("the agent dropdown lists the person's agents, Assistant first, and another agent has its own thread", async () => {
@@ -188,6 +268,12 @@ test("the agent dropdown lists the person's agents, Assistant first, and another
     switchAskAgent("vault", "agt_billing");
     await settle();
     assert.equal(textOf(find(root, "ask-pane-agent-name")), "Billing");
-    assert.deepEqual(calls.filter((c) => c.cap === "chat.start").map((c) => (c.input["agentIds"] as string[])[0]), ["agt_assistant", "agt_billing"]);
-  } finally { await unmountAll(); restore(); }
+    assert.deepEqual(
+      calls.filter((c) => c.cap === "chat.start").map((c) => (c.input["agentIds"] as string[])[0]),
+      ["agt_assistant", "agt_billing"],
+    );
+  } finally {
+    await unmountAll();
+    restore();
+  }
 });

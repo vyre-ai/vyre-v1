@@ -29,10 +29,19 @@ export interface SidebarApi {
  * idempotency key tied to the local row) answers behind it. When it answers, the conversation switches to the real thread and the local row goes; when it fails the
  * local row goes and nothing else changes.
  */
-export function createSidebarApi(data: ChatsSidebarData, onLocal: (row: ChatRow) => void, onSettled: (localId: string) => void): SidebarApi {
+export function createSidebarApi(
+  data: ChatsSidebarData,
+  onLocal: (row: ChatRow) => void,
+  onSettled: (localId: string) => void,
+): SidebarApi {
   return {
     chatWithPerson: async (personId) => {
-      const out = (await data.call("chat.start", { kind: "chat", agentIds: [], personId, idempotencyKey: `dm_${personId}` })) as { thread?: { threadId?: string } } | null;
+      const out = (await data.call("chat.start", {
+        kind: "chat",
+        agentIds: [],
+        personId,
+        idempotencyKey: `dm_${personId}`,
+      })) as { thread?: { threadId?: string } } | null;
       if (out?.thread?.threadId) data.nav.openChat(out.thread.threadId);
     },
     newChat(agent) {
@@ -41,19 +50,41 @@ export function createSidebarApi(data: ChatsSidebarData, onLocal: (row: ChatRow)
       onLocal(row);
       data.nav.openChat(row.threadId);
       void data.call("chat.start", { kind: "chat", agentIds: [who.agentId], idempotencyKey: startKey(row) }).then(
-        (out) => { onSettled(row.threadId); data.nav.openChat((out as CapMap["chat.start"]["out"]).thread.threadId); },
+        (out) => {
+          onSettled(row.threadId);
+          data.nav.openChat((out as CapMap["chat.start"]["out"]).thread.threadId);
+        },
         () => onSettled(row.threadId),
       );
       return row;
     },
-    async star(type, id, on) { await data.call("stars.toggle", { resource: { type, id }, on }); },
-    async markRead(threadId) { await data.call("threads.mark_read", { threadId }); },
-    async markUnread(threadId) { await data.call("threads.mark_read", { threadId, unread: true }); },
-    async archive(threadId) { await data.call("threads.archive", { threadId }); },
-    async unarchive(threadId) { await data.call("threads.unarchive", { threadId }); },
-    async deleteChat(threadId) { await data.call("threads.delete", { threadId }); },
-    async restoreChat(threadId) { await data.call("threads.restore", { threadId }); },
-    async leaveChat(threadId) { await data.call("threads.leave", { threadId }); },
-    async act(item) { const a = item.task.actions[0]; if (a) await data.call("tasks.act", { taskId: item.task.id, action: a.key }); },
+    async star(type, id, on) {
+      await data.call("stars.toggle", { resource: { type, id }, on });
+    },
+    async markRead(threadId) {
+      await data.call("threads.mark_read", { threadId });
+    },
+    async markUnread(threadId) {
+      await data.call("threads.mark_read", { threadId, unread: true });
+    },
+    async archive(threadId) {
+      await data.call("threads.archive", { threadId });
+    },
+    async unarchive(threadId) {
+      await data.call("threads.unarchive", { threadId });
+    },
+    async deleteChat(threadId) {
+      await data.call("threads.delete", { threadId });
+    },
+    async restoreChat(threadId) {
+      await data.call("threads.restore", { threadId });
+    },
+    async leaveChat(threadId) {
+      await data.call("threads.leave", { threadId });
+    },
+    async act(item) {
+      const a = item.task.actions[0];
+      if (a) await data.call("tasks.act", { taskId: item.task.id, action: a.key });
+    },
   };
 }

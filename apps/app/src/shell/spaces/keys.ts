@@ -25,7 +25,8 @@ export function shellKey(e: KeyLike): ShellKey | null {
   // Cmd-\\ hides or shows the sidebar (Shift-Cmd-\\ still does, it was the first binding)
   if (k === "\\" || k === "|") return { type: "sidebar" };
   if (e.shiftKey === true) {
-    if (k === "1" || k === "2" || k === "3" || k === "!" || k === "@" || k === "#") return { type: "space", index: k === "1" || k === "!" ? 0 : k === "2" || k === "@" ? 1 : 2 };
+    if (k === "1" || k === "2" || k === "3" || k === "!" || k === "@" || k === "#")
+      return { type: "space", index: k === "1" || k === "!" ? 0 : k === "2" || k === "@" ? 1 : 2 };
     if (k === "/" || k === "?") return { type: "report" };
     if (k === "\\" || k === "|") return { type: "sidebar" };
     return null;

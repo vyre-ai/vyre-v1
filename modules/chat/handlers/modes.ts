@@ -9,7 +9,8 @@ export function applyMode(ctx: ChatCtx, t: ThreadRec, mode: ChatMode): void {
   touch(ctx, t.id, "modePlan = ?", codeOfMode(mode));
   const by = askerOf(ctx);
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["mode"] });
-  if ((mode === "plan") !== t.planMode) ctx.emit("thread.plan_mode_changed", t.id, { threadId: t.id, planMode: mode === "plan", by });
+  if ((mode === "plan") !== t.planMode)
+    ctx.emit("thread.plan_mode_changed", t.id, { threadId: t.id, planMode: mode === "plan", by });
 }
 
 export async function setThreadMode(ctx: ChatCtx, input: { threadId: string; mode: ChatMode }) {
@@ -25,7 +26,8 @@ export async function setThreadMode(ctx: ChatCtx, input: { threadId: string; mod
  */
 export async function setAgentReplies(ctx: ChatCtx, input: { threadId: string; inThreads: boolean }) {
   const t = load(ctx, input.threadId);
-  if (t.kind !== "channel" && t.kind !== "chat") raise(ctx, "validation.bad_input", "Only a chat or a channel chooses where its agents reply.");
+  if (t.kind !== "channel" && t.kind !== "chat")
+    raise(ctx, "validation.bad_input", "Only a chat or a channel chooses where its agents reply.");
   if (typeof input.inThreads !== "boolean") raise(ctx, "validation.bad_input", "Say whether agents reply in threads.");
   if (agentsReplyInThreads(t) !== input.inThreads || t.repliesIn === undefined) {
     touch(ctx, t.id, `"repliesIn" = ?`, input.inThreads ? 1 : 0);
@@ -44,32 +46,55 @@ const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
  */
 export async function configureAgent(
   ctx: ChatCtx,
-  input: { threadId: string; agentId: string; model?: string | null; provider?: string | null; effort?: string | null; accountRef?: string | null; scope?: "chat" | "agent" },
+  input: {
+    threadId: string;
+    agentId: string;
+    model?: string | null;
+    provider?: string | null;
+    effort?: string | null;
+    accountRef?: string | null;
+    scope?: "chat" | "agent";
+  },
 ) {
   const t = load(ctx, input.threadId);
   const scope = input.scope ?? "chat";
   if (scope !== "chat" && scope !== "agent") raise(ctx, "validation.bad_input", "The scope is chat or agent.");
-  if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
-  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) raise(ctx, "validation.not_found", "That agent is not in this chat.");
+  if (!input.agentId.startsWith("agt_"))
+    raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
+  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId))
+    raise(ctx, "validation.not_found", "That agent is not in this chat.");
   const text = (k: "model" | "provider" | "accountRef"): string | null | undefined => {
     const v = input[k];
     if (v === undefined || v === null) return v;
-    if (typeof v !== "string" || v.trim() === "" || v.length > 200) raise(ctx, "validation.bad_input", `${k} is a short name.`, { field: k });
+    if (typeof v !== "string" || v.trim() === "" || v.length > 200)
+      raise(ctx, "validation.bad_input", `${k} is a short name.`, { field: k });
     return v.trim();
   };
-  const model = text("model"), provider = text("provider"), accountRef = text("accountRef");
+  const model = text("model"),
+    provider = text("provider"),
+    accountRef = text("accountRef");
   const effort = input.effort;
-  if (effort !== undefined && effort !== null && !EFFORTS.includes(effort)) raise(ctx, "validation.bad_input", "Effort is low, medium, high or max.", { field: "effort" });
+  if (effort !== undefined && effort !== null && !EFFORTS.includes(effort))
+    raise(ctx, "validation.bad_input", "Effort is low, medium, high or max.", { field: "effort" });
   const sets: Array<[string, string | null]> = [];
   if (model !== undefined) sets.push(["model", model]);
   if (provider !== undefined) sets.push(["provider", provider]);
   if (effort !== undefined) sets.push(["effort", effort]);
   if (accountRef !== undefined) sets.push(["accountRef", accountRef]);
   if (scope === "agent") {
-    if (accountRef !== undefined && accountRef !== null && !HANDLE.test(accountRef)) raise(ctx, "validation.bad_input", "An agent default account is a Vault name like #Team_Anthropic_Key.", { field: "accountRef" });
+    if (accountRef !== undefined && accountRef !== null && !HANDLE.test(accountRef))
+      raise(ctx, "validation.bad_input", "An agent default account is a Vault name like #Team_Anthropic_Key.", {
+        field: "accountRef",
+      });
     const patch: Record<string, unknown> = {};
     if (model !== undefined) patch["model"] = model;
-    if (accountRef !== undefined) Object.assign(patch, accountRef === null ? { accountPolicy: "asker", accountKey: null } : { accountPolicy: "key", accountKey: accountRef });
+    if (accountRef !== undefined)
+      Object.assign(
+        patch,
+        accountRef === null
+          ? { accountPolicy: "asker", accountKey: null }
+          : { accountPolicy: "key", accountKey: accountRef },
+      );
     // The agent change goes first: when the person may not edit the agent, nothing in this chat changes either.
     if (Object.keys(patch).length > 0) {
       if (!ctx.call) raise(ctx, "internal.unavailable", "Changing an agent is not available here.");
@@ -79,13 +104,15 @@ export async function configureAgent(
   if (sets.length > 0) {
     ctx.db.run(
       `UPDATE chat_thread_agent SET ${sets.map(([k]) => `"${k}" = ?`).join(", ")}, version = version + 1, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL`,
-      ...sets.map(([, v]) => v), ctx.now(), t.id, input.agentId,
+      ...sets.map(([, v]) => v),
+      ctx.now(),
+      t.id,
+      input.agentId,
     );
     ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["agents"] });
   }
   return out(ctx, t.id);
 }
-
 
 export const modesHandlers = {
   "threads.set_mode": setThreadMode,

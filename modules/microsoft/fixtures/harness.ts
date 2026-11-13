@@ -13,11 +13,24 @@ export const NOW = 1_760_000_000_000;
 export const CONN = "con_ms1";
 export const U = "https://graph.microsoft.com/v1.0/users/maya%40vyre.test";
 
-export const fixture = (name: string): unknown => JSON.parse(readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), "utf8")) as unknown;
+export const fixture = (name: string): unknown =>
+  JSON.parse(readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), "utf8")) as unknown;
 
-export interface Reply { status?: number; body?: unknown; throws?: boolean }
-export interface Req { method: string; url: string; headers: Record<string, string>; body: unknown }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Reply {
+  status?: number;
+  body?: unknown;
+  throws?: boolean;
+}
+export interface Req {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   principal?: MsCtx["principal"];
@@ -34,7 +47,11 @@ export interface HarnessOptions {
 
 /** A stand-in for the Space seal: reversible, and not the plain text, so a test can see a token never sits in a row as typed. */
 export const fakeSeal = {
-  seal: (v: Uint8Array, scope: string) => ({ keyId: `seal:${scope}`, nonce: "n", bytes: Buffer.from(Array.from(v).reverse()).toString("base64") }),
+  seal: (v: Uint8Array, scope: string) => ({
+    keyId: `seal:${scope}`,
+    nonce: "n",
+    bytes: Buffer.from(Array.from(v).reverse()).toString("base64"),
+  }),
   unseal: (s: { bytes: string }) => new Uint8Array(Array.from(Buffer.from(s.bytes, "base64")).reverse()),
 };
 
@@ -48,10 +65,17 @@ export function harness(opts: HarnessOptions = {}) {
   const uploads: { url: string; ifMatch?: string }[] = [];
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
   const ingests: Record<string, unknown>[] = [];
-  const userApps = new Map<string, { clientId: string; tenant?: string }>([["#Microsoft_Sign_In", { clientId: "22222222-3333-4444-5555-666666666666" }]]);
+  const userApps = new Map<string, { clientId: string; tenant?: string }>([
+    ["#Microsoft_Sign_In", { clientId: "22222222-3333-4444-5555-666666666666" }],
+  ]);
   const exchanges: { appHandle: string; code: string; verifier: string; redirectUri: string }[] = [];
   const refreshes: { appHandle: string; refreshToken: string; cacheKey: string; fresh: boolean }[] = [];
-  const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null, /** Microsoft rotates the refresh token on each refresh */ rotate: false };
+  const userState = {
+    exchangeFails: false,
+    refreshFails: false,
+    publicUrl: "https://space.test" as string | null,
+    /** Microsoft rotates the refresh token on each refresh */ rotate: false,
+  };
   const mailState = { duplicate: false };
   const spaceState = { kind: "team" as "team" | "personal" };
   let taskSeq = 0;
@@ -82,17 +106,23 @@ export function harness(opts: HarnessOptions = {}) {
         return { created: n, notified: n, skipped: 0 };
       }
       if (cap === "mail.ingest") {
-        if (ingestState.fail) throw fail("validation.not_found", ctx.trace.traceId, { message: "Mailbox does not exist." });
+        if (ingestState.fail)
+          throw fail("validation.not_found", ctx.trace.traceId, { message: "Mailbox does not exist." });
         ingests.push(body);
         const id = String(body.providerId);
         return { messageId: `eml_${id}${++seq}`, deduped: ingestState.deduped.has(id), linked: "none" };
       }
       if (cap === "members.invites.create") {
-        if (String(body.email).startsWith("bad")) throw fail("validation.bad_input", ctx.trace.traceId, { message: "That invitation could not be made." });
-        return { invite: { id: `inv_${String(body.email).replace(/[^a-z0-9]/g, "")}` }, link: `https://space.test/join/${String(body.email).split("@")[0]}` };
+        if (String(body.email).startsWith("bad"))
+          throw fail("validation.bad_input", ctx.trace.traceId, { message: "That invitation could not be made." });
+        return {
+          invite: { id: `inv_${String(body.email).replace(/[^a-z0-9]/g, "")}` },
+          link: `https://space.test/join/${String(body.email).split("@")[0]}`,
+        };
       }
       if (cap === "mail.connect") {
-        if (mailState.duplicate) throw fail("validation.duplicate", ctx.trace.traceId, { message: "That mailbox is already connected." });
+        if (mailState.duplicate)
+          throw fail("validation.duplicate", ctx.trace.traceId, { message: "That mailbox is already connected." });
         return { mailbox: { id: `mbx_${String(body.connectionId ?? body.address)}`.slice(0, 40) } };
       }
       if (cap === "mail.sync_now") return { runId: "run_mail00001" };
@@ -100,18 +130,32 @@ export function harness(opts: HarnessOptions = {}) {
       if (cap === "spaces.get") return { space: { kind: spaceState.kind } };
       if (cap === "tasks.create") return { task: { id: `tsk_fix${++taskSeq}` } };
       if (cap === "tasks.transition") return { task: { id: body.taskId, state: body.to } };
-      if (cap === "calendar.connect_provider") return { calendarId: "cld_" + String(body.account).replace(/[^a-z0-9]/g, "") .padEnd(8, "0"), created: true };
+      if (cap === "calendar.connect_provider")
+        return {
+          calendarId:
+            "cld_" +
+            String(body.account)
+              .replace(/[^a-z0-9]/g, "")
+              .padEnd(8, "0"),
+          created: true,
+        };
       if (cap === "calendar.sync_now") return { runId: "run_cal00001" };
       if (cap === "meetings.ingest") return { meetingId: "rec_team00001", created: true, merged: false };
       if (cap === "meetings.attach_recording") return { runId: "run_team00001" };
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(action) {
-      if (action.perm === "connectors.manage" && opts.admin !== true) return { effect: "deny", reason: "no_grant", decisionId: "dec_mstest01" };
+      if (action.perm === "connectors.manage" && opts.admin !== true)
+        return { effect: "deny", reason: "no_grant", decisionId: "dec_mstest01" };
       return { effect: "allow", reason: "ok", decisionId: "dec_mstest01" };
     },
     async http(url, init) {
-      const req: Req = { method: init?.method ?? "GET", url, headers: init?.headers ?? {}, body: init?.body ? JSON.parse(init.body) : undefined };
+      const req: Req = {
+        method: init?.method ?? "GET",
+        url,
+        headers: init?.headers ?? {},
+        body: init?.body ? JSON.parse(init.body) : undefined,
+      };
       requests.push(req);
       for (let i = routes.length - 1; i >= 0; i--) {
         const r = routes[i]!;
@@ -120,7 +164,8 @@ export function harness(opts: HarnessOptions = {}) {
         const reply = typeof r.reply === "function" ? r.reply(req) : r.reply;
         if (reply.throws) throw new TypeError("fetch failed");
         const status = reply.status ?? 200;
-        const text = reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
+        const text =
+          reply.body === undefined ? "" : typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
         return { status, text: async () => text };
       }
       return { status: 404, text: async () => JSON.stringify({ error: { code: "ResourceNotFound" } }) };
@@ -140,18 +185,36 @@ export function harness(opts: HarnessOptions = {}) {
       const token = `${b64u({ alg: "RS256" })}.${b64u({ roles: state.roles, n: state.mints })}.sig`;
       return { token, expiresAt: clock + 3_600_000 };
     },
-    async memberEmails() { return opts.members ?? []; },
+    async memberEmails() {
+      return opts.members ?? [];
+    },
     async appRegistration(_c, handle) {
-      if (handle === "#NotAnApp") throw fail("provider.auth_failed", ctx.trace.traceId, { message: "That Vault item is not an app registration." });
+      if (handle === "#NotAnApp")
+        throw fail("provider.auth_failed", ctx.trace.traceId, {
+          message: "That Vault item is not an app registration.",
+        });
       return { clientId: "11111111-2222-3333-4444-555555555555", tenantId: "tenant-guid" };
     },
-    async fileBytes(_c, fileId) { return { name: `${fileId}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") }; },
-    async putBlob(_c, bytes) { return `blb_${bytes.byteLength}b`; },
-    async download(_c, a) { return { blobId: "blb_download", size: 42, mime: a.mime ?? "application/octet-stream" }; },
+    async fileBytes(_c, fileId) {
+      return { name: `${fileId}.txt`, mime: "text/plain", bytes: new TextEncoder().encode("file body") };
+    },
+    async putBlob(_c, bytes) {
+      return `blb_${bytes.byteLength}b`;
+    },
+    async download(_c, a) {
+      return { blobId: "blb_download", size: 42, mime: a.mime ?? "application/octet-stream" };
+    },
     async upload(_c, a) {
       uploads.push({ url: a.url, ...(a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}) });
-      if (a.ifMatch !== undefined && a.ifMatch !== state.eTag) throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
-      return { id: "up1", name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""), size: 9, eTag: "etag2", lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } } };
+      if (a.ifMatch !== undefined && a.ifMatch !== state.eTag)
+        throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
+      return {
+        id: "up1",
+        name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""),
+        size: 9,
+        eTag: "etag2",
+        lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } },
+      };
     },
   };
   Object.assign(host, {
@@ -161,31 +224,74 @@ export function harness(opts: HarnessOptions = {}) {
       return { clientId: app.clientId, hasSecret: true, ...(app.tenant ? { tenant: app.tenant } : {}) };
     },
     async userPublicUrl() {
-      if (userState.publicUrl === null) throw fail("internal.unavailable", ctx.trace.traceId, { message: "no public address" });
+      if (userState.publicUrl === null)
+        throw fail("internal.unavailable", ctx.trace.traceId, { message: "no public address" });
       return userState.publicUrl;
     },
     async userExchange(_c: MsCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }) {
       exchanges.push(a);
-      if (userState.exchangeFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
-      return { refreshToken: `refresh-for-${a.code}`, accessToken: `access-for-${a.code}`, expiresAt: clock + 3_600_000 };
+      if (userState.exchangeFails)
+        throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
+      return {
+        refreshToken: `refresh-for-${a.code}`,
+        accessToken: `access-for-${a.code}`,
+        expiresAt: clock + 3_600_000,
+      };
     },
     async userRefresh(_c: MsCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }) {
-      refreshes.push({ appHandle: a.appHandle, refreshToken: a.refreshToken, cacheKey: a.cacheKey, fresh: a.fresh === true });
-      if (userState.refreshFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
-      return { token: `user-access-${refreshes.length}`, expiresAt: clock + 3_600_000, ...(userState.rotate ? { refreshToken: `rotated-${refreshes.length}` } : {}) };
+      refreshes.push({
+        appHandle: a.appHandle,
+        refreshToken: a.refreshToken,
+        cacheKey: a.cacheKey,
+        fresh: a.fresh === true,
+      });
+      if (userState.refreshFails)
+        throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
+      return {
+        token: `user-access-${refreshes.length}`,
+        expiresAt: clock + 3_600_000,
+        ...(userState.rotate ? { refreshToken: `rotated-${refreshes.length}` } : {}),
+      };
     },
   });
   setMsHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, uploads, ingests, ingestState, state, userApps, exchanges, refreshes, userState, mailState, spaceState,
-    on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
-    advance(ms: number) { clock += ms; },
-    rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
-    named(name: string) { return emitted.filter((e) => e.name === name); },
-    calls(cap: string) { return called.filter((c) => c.cap === cap); },
+    ctx,
+    emitted,
+    called,
+    scheduled,
+    requests,
+    uploads,
+    ingests,
+    ingestState,
+    state,
+    userApps,
+    exchanges,
+    refreshes,
+    userState,
+    mailState,
+    spaceState,
+    on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) {
+      routes.push({ method, match, reply });
+    },
+    advance(ms: number) {
+      clock += ms;
+    },
+    rows(sql: string, ...args: unknown[]): Row[] {
+      return ctx.db.all(sql, ...args) as Row[];
+    },
+    named(name: string) {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string) {
+      return called.filter((c) => c.cap === cap);
+    },
     hits(match: string | RegExp, method?: string) {
-      return requests.filter((r) => (!method || r.method === method) && (typeof match === "string" ? r.url.startsWith(match) : match.test(r.url)));
+      return requests.filter(
+        (r) =>
+          (!method || r.method === method) && (typeof match === "string" ? r.url.startsWith(match) : match.test(r.url)),
+      );
     },
   };
 }
@@ -193,14 +299,37 @@ export function harness(opts: HarnessOptions = {}) {
 export type Harness = ReturnType<typeof harness>;
 
 /** The connection as consent setup leaves it, without running setup. */
-export function seedConsent(h: Harness, o: { members?: { email: string; userId: string; excluded?: boolean }[]; configured?: boolean } = {}): void {
+export function seedConsent(
+  h: Harness,
+  o: { members?: { email: string; userId: string; excluded?: boolean }[]; configured?: boolean } = {},
+): void {
   ensure(h.ctx);
   h.ctx.db.run(
     `INSERT INTO microsoft_config (id, "connectionId", "vaultItem", "tenantId", domain, "clientId", configured, "consentGiven", "policyConfirmed", "autoConnect", "lastVerifyAt", "nextRenewAt", updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    "microsoft", CONN, "#Microsoft_App", "tenant-guid", "vyre.test", "11111111-2222-3333-4444-555555555555", o.configured === false ? 0 : 1, 1, 1, 1, null, null, NOW,
+    "microsoft",
+    CONN,
+    "#Microsoft_App",
+    "tenant-guid",
+    "vyre.test",
+    "11111111-2222-3333-4444-555555555555",
+    o.configured === false ? 0 : 1,
+    1,
+    1,
+    1,
+    null,
+    null,
+    NOW,
   );
   for (const m of o.members ?? [{ email: "maya@vyre.test", userId: "usr_maya01" }]) {
-    h.ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, m.email, m.userId, 1, m.excluded ? 1 : 0, null, NOW);
+    h.ctx.db.run(
+      `INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      m.email,
+      m.userId,
+      1,
+      m.excluded ? 1 : 0,
+      null,
+      NOW,
+    );
   }
 }
 
@@ -211,5 +340,5 @@ export function contractErrors(cap: string, side: "in" | "out", value: unknown):
   return validate(side === "in" ? def.input : def.output, value, "", registry.$defs);
 }
 
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 export const act = { connectionId: CONN };

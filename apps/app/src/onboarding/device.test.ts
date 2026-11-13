@@ -21,7 +21,11 @@ test("on a phone, Your phone is already done, and the counts, resume and next fo
   assert.deepEqual(countsOn("personal", {}, "phone"), { done: 1, later: 0, total: 5 });
   assert.equal(resumeOn("personal", {}, "phone"), "ai");
   assert.equal(nextOn("personal", { ai: "done" }, "ai", "phone"), "interview");
-  assert.equal(nextOn("personal", { ai: "done", interview: "done" }, "interview", "phone"), "win", "the hidden steps and the done phone step are passed over");
+  assert.equal(
+    nextOn("personal", { ai: "done", interview: "done" }, "interview", "phone"),
+    "win",
+    "the hidden steps and the done phone step are passed over",
+  );
   assert.equal(nextOn("personal", { ai: "done", interview: "done", win: "done", team: "done" }, "team", "phone"), null);
 });
 
@@ -38,7 +42,8 @@ test("the device is a phone by width, the desktop app by its Tauri bridge (Mac o
     assert.equal(detectDevice(1440), "win");
   } finally {
     delete g.__TAURI__;
-    if (nav) Object.defineProperty(globalThis, "navigator", nav); else delete (globalThis as { navigator?: unknown }).navigator;
+    if (nav) Object.defineProperty(globalThis, "navigator", nav);
+    else delete (globalThis as { navigator?: unknown }).navigator;
   }
 });
 

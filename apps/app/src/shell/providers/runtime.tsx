@@ -1,6 +1,6 @@
 import type { AiHome } from "../../ai-signin/own-ai.ts";
-import type{SpaceDef}from'../spaces/model.ts';
-import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../client/src/gateway/records-preview.ts";
+import type { SpaceDef } from "../spaces/model.ts";
+import type { RecordsPreviewTicket, RecordsPreviewReader } from "../../../../../client/src/gateway/records-preview.ts";
 // What the shell hands every place: one runtime per open Space. It carries the client replica's screen hooks (every list a place draws is a live query over the kept copy),
 // the capability caller, the connection state, the signed-in person, and one door for opening things. Places never open the network and never decide where a thing opens.
 // The shell builds one runtime per Space and keeps it stable while that Space is open, so the providers below memoise on its identity.
@@ -25,7 +25,7 @@ export interface ShellTarget {
 export type SpaceKind = "team" | "personal";
 
 export interface ShellRuntime extends RuntimeBase {
-  createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
+  createRecordsPreview?(ticket: RecordsPreviewTicket): RecordsPreviewReader;
   space: { id: string; kind: SpaceKind; name: string };
   /** The Space changed: what a card that reads by capability follows, on the same tick that re-reads the live queries. */
   changes?: { subscribe(listener: () => void): () => void };
@@ -58,7 +58,13 @@ export interface ShellRuntime extends RuntimeBase {
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;
   /** Slash commands that plugins add to chat (name, one line, what to run). Absent until a plugin offers any. */
-  pluginCommands?(): readonly { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void> }[];
+  pluginCommands?(): readonly {
+    name: string;
+    description: string;
+    pluginId?: string;
+    prompt?: string;
+    run?(arg: string): Promise<string | void>;
+  }[];
   /** Run a capability in another Space this device is signed in to, as the same person. Absent where there is only one Space. */
   callIn?(spaceId: string, cap: string, input: unknown): Promise<unknown>;
   /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
@@ -71,7 +77,10 @@ export interface ShellRuntime extends RuntimeBase {
   aiHome?: AiHome;
 }
 
-export interface ServerKeyPort { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> }
+export interface ServerKeyPort {
+  state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>;
+  keep(keep: boolean): Promise<boolean>;
+}
 
 const Ctx = createContext<ShellRuntime | null>(null);
 

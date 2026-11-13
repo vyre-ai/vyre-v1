@@ -16,7 +16,9 @@ export type RunRow = RunsOut["runs"][number];
 
 /** The runs that hold a thread open: waits that have not ended, newest first. */
 export function waitsOf(runs: readonly RunRow[]): RunRow[] {
-  return runs.filter((r) => r.kind === "wait" && (r.status === "waiting" || r.status === "running" || r.status === "queued")).sort((a, b) => b.startedAt - a.startedAt);
+  return runs
+    .filter((r) => r.kind === "wait" && (r.status === "waiting" || r.status === "running" || r.status === "queued"))
+    .sort((a, b) => b.startedAt - a.startedAt);
 }
 
 /** What the line says: what it waits on, and who wakes. */
@@ -34,7 +36,11 @@ export interface WaitingLineProps {
 }
 
 export function WaitingLine({ screens, call, threadId, agent }: WaitingLineProps): ReactElement | null {
-  const q = useLive<RunsOut>(screens, RUNS_SCREEN, "runs", { scope: "subject", subject: { type: "thread", id: threadId }, statuses: ["queued", "running", "waiting"] });
+  const q = useLive<RunsOut>(screens, RUNS_SCREEN, "runs", {
+    scope: "subject",
+    subject: { type: "thread", id: threadId },
+    statuses: ["queued", "running", "waiting"],
+  });
   const menu = useMenu();
   if (q.status !== "ready") return null;
   const waits = waitsOf(q.data.runs);
@@ -42,12 +48,26 @@ export function WaitingLine({ screens, call, threadId, agent }: WaitingLineProps
   if (!first) return null;
   const extra = waits.length - 1;
   const items = [
-    { label: "Stop Waiting", danger: true, onSelect: () => void call("runs.stop", { runId: first.id }).catch(() => undefined) },
+    {
+      label: "Stop Waiting",
+      danger: true,
+      onSelect: () => void call("runs.stop", { runId: first.id }).catch(() => undefined),
+    },
   ];
   return (
-    <View testID="waiting-on" accessibilityRole="text" accessibilityLiveRegion="polite" accessibilityLabel={waitingWords(first, agent)} style={st.line} {...menuTrigger((x, y) => menu.show(items, x, y, "context", { label: "Waiting" }))}>
+    <View
+      testID="waiting-on"
+      accessibilityRole="text"
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={waitingWords(first, agent)}
+      style={st.line}
+      {...menuTrigger((x, y) => menu.show(items, x, y, "context", { label: "Waiting" }))}
+    >
       <Icon name="clock" size={13} />
-      <Text numberOfLines={2} style={st.text}>{waitingWords(first, agent)}{extra > 0 ? ` And ${extra} more.` : ""}</Text>
+      <Text numberOfLines={2} style={st.text}>
+        {waitingWords(first, agent)}
+        {extra > 0 ? ` And ${extra} more.` : ""}
+      </Text>
       {menu.element}
     </View>
   );

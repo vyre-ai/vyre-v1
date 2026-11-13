@@ -50,10 +50,24 @@
     if (typeof d.createElementNS !== "function") return null;
     const ns = "http://www.w3.org/2000/svg";
     const svg = d.createElementNS(ns, "svg");
-    for (const [k, v] of [["width", "13"], ["height", "13"], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.4"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]]) svg.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
+    for (const [k, v] of [
+      ["width", "13"],
+      ["height", "13"],
+      ["viewBox", "0 0 16 16"],
+      ["fill", "none"],
+      ["stroke", "currentColor"],
+      ["stroke-width", "1.4"],
+      ["stroke-linecap", "round"],
+      ["stroke-linejoin", "round"],
+    ])
+      svg.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
     svg.style.verticalAlign = "-2px";
     svg.style.marginRight = "5px";
-    for (const p of paths) { const el = d.createElementNS(ns, "path"); el.setAttribute("d", p); svg.append(el); }
+    for (const p of paths) {
+      const el = d.createElementNS(ns, "path");
+      el.setAttribute("d", p);
+      svg.append(el);
+    }
     return svg;
   }
 
@@ -92,16 +106,26 @@
     // the site's own icon (Chrome's favicon service), else its initial
     const ico = d.createElement("span");
     ico.className = "ico";
-    ico.textContent = String(p.host || "?").charAt(0).toUpperCase();
+    ico.textContent = String(p.host || "?")
+      .charAt(0)
+      .toUpperCase();
     try {
-      const url = g.chrome && g.chrome.runtime && g.chrome.runtime.getURL ? g.chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent("https://" + p.host + "/")}&size=32`) : "";
+      const url =
+        g.chrome && g.chrome.runtime && g.chrome.runtime.getURL
+          ? g.chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent("https://" + p.host + "/")}&size=32`)
+          : "";
       if (url) {
         const img = d.createElement("img");
         img.alt = "";
-        img.addEventListener("load", () => { ico.textContent = ""; ico.append(img); });
+        img.addEventListener("load", () => {
+          ico.textContent = "";
+          ico.append(img);
+        });
         img.src = url;
       }
-    } catch { /* the initial stays */ }
+    } catch {
+      /* the initial stays */
+    }
     const siteText = d.createElement("span");
     siteText.textContent = p.name && p.name !== p.host ? `${p.name} · ${p.host}` : p.host;
     siteLine.append(ico, siteText);
@@ -123,19 +147,30 @@
     out.textContent = MASK;
     const peek = d.createElement("button");
     peek.type = "button";
-    const eye = icon(d, ["M1.5 8s2.3-4.500 6.500-4.500S14.500 8 14.500 8 12.200 12.500 8 12.500 1.500 8 1.500 8z", "M8 9.800a1.800 1.800 0 100-3.600 1.800 1.800 0 000 3.600z"]);
-    if (eye) { peek.append(eye); peek.append(d.createTextNode("Peek")); } else peek.textContent = "Peek";
+    const eye = icon(d, [
+      "M1.5 8s2.3-4.500 6.500-4.500S14.500 8 14.500 8 12.200 12.500 8 12.500 1.500 8 1.500 8z",
+      "M8 9.800a1.800 1.800 0 100-3.600 1.800 1.800 0 000 3.600z",
+    ]);
+    if (eye) {
+      peek.append(eye);
+      peek.append(d.createTextNode("Peek"));
+    } else peek.textContent = "Peek";
     /** @type {any} */
     let peekTimer = null;
     peek.addEventListener("click", () => {
       out.textContent = secret;
       if (peekTimer) g.clearTimeout(peekTimer);
-      peekTimer = g.setTimeout(() => { out.textContent = MASK; peekTimer = null; }, PEEK_MS);
+      peekTimer = g.setTimeout(() => {
+        out.textContent = MASK;
+        peekTimer = null;
+      }, PEEK_MS);
     });
     pw.append(out, peek);
 
     // Mine is the default and stays private. Shared opens a folder picker and an allow list of agents, filled by the worker from the Space (names and ids only).
-    const cardId = Array.from(g.crypto.getRandomValues(new Uint8Array(8)), (/** @type {number} */ b) => b.toString(16).padStart(2, "0")).join("");
+    const cardId = Array.from(g.crypto.getRandomValues(new Uint8Array(8)), (/** @type {number} */ b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
     let scope = "mine";
     /** @type {{ id: string, name: string }[]} */
     let folders = [];
@@ -145,12 +180,26 @@
     seg.className = "seg";
     const mineBtn = d.createElement("button");
     mineBtn.type = "button";
-    const personIcon = icon(d, ["M8 7.500a2.700 2.700 0 100-5.400 2.700 2.700 0 000 5.400z", "M2.800 14c.3-2.600 2.400-4.300 5.200-4.300s4.900 1.700 5.200 4.300"]);
-    if (personIcon) { mineBtn.append(personIcon); mineBtn.append(d.createTextNode("Mine")); } else mineBtn.textContent = "Mine";
+    const personIcon = icon(d, [
+      "M8 7.500a2.700 2.700 0 100-5.400 2.700 2.700 0 000 5.400z",
+      "M2.800 14c.3-2.600 2.400-4.300 5.200-4.300s4.900 1.700 5.200 4.300",
+    ]);
+    if (personIcon) {
+      mineBtn.append(personIcon);
+      mineBtn.append(d.createTextNode("Mine"));
+    } else mineBtn.textContent = "Mine";
     const sharedBtn = d.createElement("button");
     sharedBtn.type = "button";
-    const peopleIcon = icon(d, ["M6 7.200a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z", "M1.500 13.500c.2-2.300 2-3.700 4.500-3.700s4.300 1.400 4.500 3.700", "M10.800 3a2.300 2.300 0 010 4.400", "M12 9.900c1.500.4 2.400 1.600 2.500 3.600"]);
-    if (peopleIcon) { sharedBtn.append(peopleIcon); sharedBtn.append(d.createTextNode("Shared")); } else sharedBtn.textContent = "Shared";
+    const peopleIcon = icon(d, [
+      "M6 7.200a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z",
+      "M1.500 13.500c.2-2.300 2-3.700 4.500-3.700s4.300 1.400 4.500 3.700",
+      "M10.800 3a2.300 2.300 0 010 4.400",
+      "M12 9.900c1.500.4 2.400 1.600 2.500 3.600",
+    ]);
+    if (peopleIcon) {
+      sharedBtn.append(peopleIcon);
+      sharedBtn.append(d.createTextNode("Shared"));
+    } else sharedBtn.textContent = "Shared";
     seg.append(mineBtn, sharedBtn);
     const sharedBox = d.createElement("div");
     sharedBox.style.display = "none";
@@ -168,10 +217,19 @@
       mineBtn.setAttribute("aria-pressed", String(scope === "mine"));
       sharedBtn.setAttribute("aria-pressed", String(scope === "shared"));
       sharedBox.style.display = scope === "shared" ? "" : "none";
-      keepNote.textContent = scope === "shared" ? "Shared with the folder's people and the agents you pick." : "Only you can see and use it.";
-      note.textContent = scope === "shared" && !folders.length ? "There is no shared folder you can add to. Ask a manager, or keep it in Mine." : "";
+      keepNote.textContent =
+        scope === "shared"
+          ? "Shared with the folder's people and the agents you pick."
+          : "Only you can see and use it.";
+      note.textContent =
+        scope === "shared" && !folders.length
+          ? "There is no shared folder you can add to. Ask a manager, or keep it in Mine."
+          : "";
     };
-    mineBtn.addEventListener("click", () => { scope = "mine"; paint(); });
+    mineBtn.addEventListener("click", () => {
+      scope = "mine";
+      paint();
+    });
     sharedBtn.addEventListener("click", () => {
       scope = "shared";
       paint();
@@ -179,9 +237,17 @@
       try {
         g.chrome.runtime.sendMessage({ type: "vyre.choices" }, (/** @type {any} */ r) => {
           const data = r && r.data;
-          if (!data) { note.textContent = "Vyre could not list your shared folders. Keep it in Mine, or try again."; return; }
+          if (!data) {
+            note.textContent = "Vyre could not list your shared folders. Keep it in Mine, or try again.";
+            return;
+          }
           folders = data.folders;
-          for (const f of folders) { const o = d.createElement("option"); o.value = f.id; o.textContent = f.name; folderSel.append(o); }
+          for (const f of folders) {
+            const o = d.createElement("option");
+            o.value = f.id;
+            o.textContent = f.name;
+            folderSel.append(o);
+          }
           for (const a of data.agents) {
             const l = d.createElement("label");
             const c = d.createElement("input");
@@ -194,7 +260,9 @@
           }
           paint();
         });
-      } catch { note.textContent = "Vyre could not list your shared folders."; }
+      } catch {
+        note.textContent = "Vyre could not list your shared folders.";
+      }
     });
     paint();
 
@@ -218,8 +286,13 @@
     if (p.mode !== "update") card.append(keepLabel, seg, keepNote, sharedBox);
     card.append(row, never);
     never.style.display = "none";
-    more.addEventListener("click", () => { never.style.display = never.style.display === "none" ? "" : "none"; });
-    closeBtn.addEventListener("click", () => { tell("vyre.dismiss", { never: false }); done(); });
+    more.addEventListener("click", () => {
+      never.style.display = never.style.display === "none" ? "" : "none";
+    });
+    closeBtn.addEventListener("click", () => {
+      tell("vyre.dismiss", { never: false });
+      done();
+    });
     root.append(style, card);
     (d.documentElement || d.body).appendChild(host);
 
@@ -235,22 +308,51 @@
     close = done;
     /** @param {string} type @param {Record<string, any>} [extra] */
     function tell(type, extra) {
-      try { g.chrome.runtime.sendMessage({ type, ...extra }); } catch { /* extension reloaded */ }
+      try {
+        g.chrome.runtime.sendMessage({ type, ...extra });
+      } catch {
+        /* extension reloaded */
+      }
     }
     save.addEventListener("click", () => {
       const agentIds = agentBoxes.filter((c) => c.checked).map((c) => c.value);
-      tell("vyre.save", { name: p.name || p.host, username: userInput.value, password: secret, scope, folderId: scope === "shared" ? folderSel.value : undefined, agentIds: scope === "shared" ? agentIds : [], cardId, mode: p.mode });
+      tell("vyre.save", {
+        name: p.name || p.host,
+        username: userInput.value,
+        password: secret,
+        scope,
+        folderId: scope === "shared" ? folderSel.value : undefined,
+        agentIds: scope === "shared" ? agentIds : [],
+        cardId,
+        mode: p.mode,
+      });
       done();
     });
-    later.addEventListener("click", () => { tell("vyre.dismiss", { never: false }); done(); });
-    never.addEventListener("click", () => { tell("vyre.dismiss", { never: true }); done(); });
-    card.addEventListener("keydown", (/** @type {any} */ e) => {
-      if (e.key === "Escape") { tell("vyre.dismiss", { never: false }); done(); }
-      else if (e.key === "Enter" && e.target !== never && e.target !== later && e.target !== peek) save.click();
+    later.addEventListener("click", () => {
+      tell("vyre.dismiss", { never: false });
+      done();
     });
-    life = g.setTimeout(() => { tell("vyre.dismiss", { never: false }); done(); }, LIFE_MS);
+    never.addEventListener("click", () => {
+      tell("vyre.dismiss", { never: true });
+      done();
+    });
+    card.addEventListener("keydown", (/** @type {any} */ e) => {
+      if (e.key === "Escape") {
+        tell("vyre.dismiss", { never: false });
+        done();
+      } else if (e.key === "Enter" && e.target !== never && e.target !== later && e.target !== peek) save.click();
+    });
+    life = g.setTimeout(() => {
+      tell("vyre.dismiss", { never: false });
+      done();
+    }, LIFE_MS);
     return true;
   }
 
-  ns.prompt = { show, hide: () => { if (close) close(); } };
+  ns.prompt = {
+    show,
+    hide: () => {
+      if (close) close();
+    },
+  };
 })();

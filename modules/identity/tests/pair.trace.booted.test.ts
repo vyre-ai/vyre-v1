@@ -14,7 +14,13 @@ import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import { provisionAccount } from "../projections.ts";
 import type { IdentityCtx } from "../projections.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("pair_redeem keeps the caller's trace on device.registered and session.started", async () => {
   const core = bootCore();
@@ -24,9 +30,15 @@ test("pair_redeem keeps the caller's trace on device.registered and session.star
   core.close();
   const PASSWORD = "correct horse battery staple 9";
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--role", "space,device", "--address", "team.example.com"], {}, "1.2.3"),
+    config: loadConfig(
+      ["--data-dir", dir, "--port", "0", "--role", "space,device", "--address", "team.example.com"],
+      {},
+      "1.2.3",
+    ),
     platform: fakePlatform({
-      os: "linux", hostname: "pair-trace", free: 80e9,
+      os: "linux",
+      hostname: "pair-trace",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -36,21 +48,54 @@ test("pair_redeem keeps the caller's trace on device.registered and session.star
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  const post = async (token: string | null, p: string, body: unknown, trace?: string): Promise<{ status: number; body: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...(trace ? { "x-vyre-trace": trace } : {}) }, body: JSON.stringify(body) });
+  const post = async (
+    token: string | null,
+    p: string,
+    body: unknown,
+    trace?: string,
+  ): Promise<{ status: number; body: any }> => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    const r = await fetch(`${d.url}${p}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(trace ? { "x-vyre-trace": trace } : {}),
+      },
+      body: JSON.stringify(body),
+    });
     const text = await r.text();
     return { status: r.status, body: text ? JSON.parse(text) : null };
   };
   try {
-    const ctx = { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx;
+    const ctx = {
+      space: "spc_core",
+      trace: { traceId: "t".repeat(32) },
+      now: () => Date.now(),
+      db: d.db,
+      emit: () => undefined,
+    } as unknown as IdentityCtx;
     await provisionAccount(ctx, { personId: "usr_noah", username: "pairer", name: "Noah Berg", secret: PASSWORD });
-    const signIn = await post(null, "/v1/identity/sign_in", { username: "pairer", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop" });
+    const signIn = await post(null, "/v1/identity/sign_in", {
+      username: "pairer",
+      password: PASSWORD,
+      deviceName: "Mac",
+      deviceClass: "desktop",
+    });
     assert.equal(signIn.status, 200, JSON.stringify(signIn.body));
-    const made = await post(signIn.body.data.session.token, "/v1/identity/pair_create", { purpose: "app", idempotencyKey: "pair-trace-1" });
+    const made = await post(signIn.body.data.session.token, "/v1/identity/pair_create", {
+      purpose: "app",
+      idempotencyKey: "pair-trace-1",
+    });
     assert.equal(made.status, 200, JSON.stringify(made.body));
 
     const traceId = "5a".repeat(16);
-    const redeemed = await post(null, "/v1/identity/pair_redeem", { code: made.body.data.code, deviceName: "Phone", deviceClass: "phone" }, `${traceId}-${"ab".repeat(8)}`);
+    const redeemed = await post(
+      null,
+      "/v1/identity/pair_redeem",
+      { code: made.body.data.code, deviceName: "Phone", deviceClass: "phone" },
+      `${traceId}-${"ab".repeat(8)}`,
+    );
     assert.equal(redeemed.status, 200, JSON.stringify(redeemed.body));
     for (const type of ["device.registered", "session.started"]) {
       const events = await d.log!.read({ type });
@@ -61,18 +106,36 @@ test("pair_redeem keeps the caller's trace on device.registered and session.star
     assert.equal(signed.length, 1, "and so does the sign-in event identity itself emits");
 
     // golden 2: the anonymous accept of an invite writes its events in the accept call's trace too
-    const role = await post(d.token, "/v1/access/roles/create", { name: "Newcomer", idempotencyKey: "pair-trace-role" });
+    const role = await post(d.token, "/v1/access/roles/create", {
+      name: "Newcomer",
+      idempotencyKey: "pair-trace-role",
+    });
     assert.equal(role.status, 200, JSON.stringify(role.body));
-    const invite = await post(d.token, "/v1/members/invites/create", { role: role.body.data.role.id, idempotencyKey: "pair-trace-invite" });
+    const invite = await post(d.token, "/v1/members/invites/create", {
+      role: role.body.data.role.id,
+      idempotencyKey: "pair-trace-invite",
+    });
     assert.equal(invite.status, 200, JSON.stringify(invite.body));
     const inviteCode = decodeURIComponent(new URL(invite.body.data.link as string).pathname.split("/").pop() ?? "");
     const acceptTrace = "7c".repeat(16);
-    const keys = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
-    const joined = await post(null, "/v1/members/accept", { code: inviteCode, username: "tracer", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys }, `${acceptTrace}-${"cd".repeat(8)}`);
+    const keys = {
+      personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+      publicKey: "cHVibGljLWtleQ==",
+      privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+      spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+    };
+    const joined = await post(
+      null,
+      "/v1/members/accept",
+      { code: inviteCode, username: "tracer", password: PASSWORD, deviceName: "Mac", deviceClass: "desktop", keys },
+      `${acceptTrace}-${"cd".repeat(8)}`,
+    );
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
     for (const type of ["member.joined", "keys.stored", "device.registered", "session.started"]) {
       const mine = (await d.log!.read({ type })).filter((e) => e.trace_id === acceptTrace);
       assert.ok(mine.length >= 1, `${type} carries the accept call's trace`);
     }
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

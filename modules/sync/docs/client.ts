@@ -11,7 +11,11 @@ import { fromB64, isEmptyUpdate, toB64 } from "./b64.ts";
 import { BODY, CONTENT, newDoc, toMarkdown } from "./markdown.ts";
 import type { DocEnc } from "./store.ts";
 
-export interface DocLocalRow { state: Uint8Array | null; sv: Uint8Array | null; dirty: boolean }
+export interface DocLocalRow {
+  state: Uint8Array | null;
+  sv: Uint8Array | null;
+  dirty: boolean;
+}
 
 /** Where a device keeps its copy of each document (the `doc_local` table). */
 export interface DocLocalStore {
@@ -25,9 +29,15 @@ export function memoryDocStore(): DocLocalStore & { has(doc: string): boolean; s
   const m = new Map<string, DocLocalRow>();
   return {
     get: (doc) => m.get(doc),
-    put: (doc, row) => { m.set(doc, row); },
-    remove: (doc) => { m.delete(doc); },
-    removeAll: () => { m.clear(); },
+    put: (doc, row) => {
+      m.set(doc, row);
+    },
+    remove: (doc) => {
+      m.delete(doc);
+    },
+    removeAll: () => {
+      m.clear();
+    },
     has: (doc) => m.has(doc),
     size: () => m.size,
   };
@@ -39,14 +49,26 @@ export function sqlDocStore(driver: SqlDriver): DocLocalStore {
   return {
     get(doc) {
       let r;
-      try { r = driver.prepare("SELECT state, sv, dirty FROM doc_local WHERE doc = ?").get([doc]); } catch { return undefined; }
+      try {
+        r = driver.prepare("SELECT state, sv, dirty FROM doc_local WHERE doc = ?").get([doc]);
+      } catch {
+        return undefined;
+      }
       return r ? { state: bytes(r["state"]), sv: bytes(r["sv"]), dirty: r["dirty"] === 1 } : undefined;
     },
     put(doc, row) {
-      driver.prepare("INSERT INTO doc_local (doc, state, sv, dirty) VALUES (?, ?, ?, ?) ON CONFLICT(doc) DO UPDATE SET state = excluded.state, sv = excluded.sv, dirty = excluded.dirty").run([doc, row.state, row.sv, row.dirty ? 1 : 0]);
+      driver
+        .prepare(
+          "INSERT INTO doc_local (doc, state, sv, dirty) VALUES (?, ?, ?, ?) ON CONFLICT(doc) DO UPDATE SET state = excluded.state, sv = excluded.sv, dirty = excluded.dirty",
+        )
+        .run([doc, row.state, row.sv, row.dirty ? 1 : 0]);
     },
-    remove(doc) { driver.prepare("DELETE FROM doc_local WHERE doc = ?").run([doc]); },
-    removeAll() { driver.prepare("DELETE FROM doc_local").run([]); },
+    remove(doc) {
+      driver.prepare("DELETE FROM doc_local WHERE doc = ?").run([doc]);
+    },
+    removeAll() {
+      driver.prepare("DELETE FROM doc_local").run([]);
+    },
   };
 }
 
@@ -62,7 +84,9 @@ export function aesDocCrypto(key: Uint8Array): DocCrypto {
   return {
     async seal(plain) {
       const iv = crypto.getRandomValues(new Uint8Array(12));
-      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await imported, plain as BufferSource));
+      const ct = new Uint8Array(
+        await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await imported, plain as BufferSource),
+      );
       const out = new Uint8Array(12 + ct.length);
       out.set(iv, 0);
       out.set(ct, 12);
@@ -70,12 +94,20 @@ export function aesDocCrypto(key: Uint8Array): DocCrypto {
     },
     async open(sealed) {
       if (sealed.length < 13) throw new Error("sealed update is too short");
-      return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: sealed.slice(0, 12) as BufferSource }, await imported, sealed.slice(12) as BufferSource));
+      return new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: sealed.slice(0, 12) as BufferSource },
+          await imported,
+          sealed.slice(12) as BufferSource,
+        ),
+      );
     },
   };
 }
 
-export interface DocLink { send(f: Frame): void }
+export interface DocLink {
+  send(f: Frame): void;
+}
 
 export interface DocClientOpts {
   store: DocLocalStore;
@@ -85,7 +117,9 @@ export interface DocClientOpts {
   onProblem?(doc: string, problem: { code: string; message: string; dropped: boolean }): void;
 }
 
-export interface OpenOpts { enc?: DocEnc }
+export interface OpenOpts {
+  enc?: DocEnc;
+}
 
 export interface DocBinding {
   readonly id: string;
@@ -138,7 +172,13 @@ export function createDocClient(o: DocClientOpts): DocClient {
   const bindings = new Map<string, Impl>();
   let link: DocLink | null = null;
 
-  interface Impl extends DocBinding { frame(f: Frame): Promise<void>; enqueue(f: Frame): Promise<void>; handshake(): void; upto(): number; destroy(forgetLocal: boolean): void }
+  interface Impl extends DocBinding {
+    frame(f: Frame): Promise<void>;
+    enqueue(f: Frame): Promise<void>;
+    handshake(): void;
+    upto(): number;
+    destroy(forgetLocal: boolean): void;
+  }
 
   function open(id: string, oo: OpenOpts = {}): Impl {
     const have = bindings.get(id);
@@ -158,7 +198,9 @@ export function createDocClient(o: DocClientOpts): DocClient {
     let saveQueued = false;
     let closed = false;
 
-    const queue = (fn: () => Promise<void> | void): void => { tail = tail.then(fn).catch(() => undefined); };
+    const queue = (fn: () => Promise<void> | void): void => {
+      tail = tail.then(fn).catch(() => undefined);
+    };
 
     function save(): void {
       o.store.put(id, { state: Y.encodeStateAsUpdate(ydoc), sv: Y.encodeStateVector(ydoc), dirty });
@@ -166,7 +208,10 @@ export function createDocClient(o: DocClientOpts): DocClient {
     function saveSoon(): void {
       if (saveQueued) return;
       saveQueued = true;
-      queueMicrotask(() => { saveQueued = false; if (!closed) save(); });
+      queueMicrotask(() => {
+        saveQueued = false;
+        if (!closed) save();
+      });
     }
 
     function send(t: "ydoc.sync1" | "ydoc.sync2" | "ydoc.update" | "ydoc.awareness", data: unknown): void {
@@ -176,7 +221,9 @@ export function createDocClient(o: DocClientOpts): DocClient {
     /** Send bytes out, sealed for a private document. Order is kept by the queue. */
     function ship(t: "ydoc.sync2" | "ydoc.update", u: Uint8Array): void {
       if (enc === 2) {
-        queue(async () => { if (link) send(t, { update: toB64(await o.crypto!.seal(u)), enc: 2 }); });
+        queue(async () => {
+          if (link) send(t, { update: toB64(await o.crypto!.seal(u)), enc: 2 });
+        });
       } else {
         send(t, { update: toB64(u), enc: 0 });
       }
@@ -184,12 +231,18 @@ export function createDocClient(o: DocClientOpts): DocClient {
 
     ydoc.on("update", (u: Uint8Array, origin: unknown) => {
       if (origin === REMOTE || origin === LOADED || closed) return;
-      if (link) { Y.applyUpdate(mirror, u); ship("ydoc.update", u); dirty = false; } else dirty = true;
+      if (link) {
+        Y.applyUpdate(mirror, u);
+        ship("ydoc.update", u);
+        dirty = false;
+      } else dirty = true;
       saveSoon();
     });
 
     const impl: Impl = {
-      id, enc, ydoc,
+      id,
+      enc,
+      ydoc,
       text: () => ydoc.getText(BODY),
       fragment: () => ydoc.getXmlFragment(CONTENT),
       markdown: () => toMarkdown(ydoc),
@@ -200,14 +253,21 @@ export function createDocClient(o: DocClientOpts): DocClient {
           const a = new Awareness(ydoc);
           a.on("update", (ch: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
             if (origin === REMOTE || !link || closed) return;
-            send("ydoc.awareness", { update: toB64(encodeAwarenessUpdate(a, [...ch.added, ...ch.updated, ...ch.removed])) });
+            send("ydoc.awareness", {
+              update: toB64(encodeAwarenessUpdate(a, [...ch.added, ...ch.updated, ...ch.removed])),
+            });
           });
           awareness = a;
         }
         return awareness;
       },
-      idle: async () => { await frames; await tail; },
-      close() { impl.destroy(false); },
+      idle: async () => {
+        await frames;
+        await tail;
+      },
+      close() {
+        impl.destroy(false);
+      },
       upto: () => confirmed,
       // Frames of one document are applied one at a time, in arrival order, even when opening a sealed update takes a turn.
       enqueue(f) {
@@ -234,22 +294,35 @@ export function createDocClient(o: DocClientOpts): DocClient {
         const err = data["error"] as { code?: unknown; message?: unknown } | undefined;
         if (err && typeof err.code === "string") {
           const gone = data["dropped"] === true;
-          o.onProblem?.(id, { code: err.code, message: typeof err.message === "string" ? err.message : "", dropped: gone });
+          o.onProblem?.(id, {
+            code: err.code,
+            message: typeof err.message === "string" ? err.message : "",
+            dropped: gone,
+          });
           if (gone) impl.destroy(true);
           return;
         }
         if (f.t === "ydoc.awareness") {
-          if (awareness && typeof data["update"] === "string") applyAwarenessUpdate(awareness, fromB64(data["update"]), REMOTE);
+          if (awareness && typeof data["update"] === "string")
+            applyAwarenessUpdate(awareness, fromB64(data["update"]), REMOTE);
           return;
         }
         // Frames reach this device in the order the server sent them, so a seq seen here means every lower seq was seen too (the handshake carried the rest).
         if (typeof data["upto"] === "number") confirmed = Math.max(confirmed, data["upto"]);
-        if (typeof data["ack"] === "number") { confirmed = Math.max(confirmed, data["ack"]); return; }
+        if (typeof data["ack"] === "number") {
+          confirmed = Math.max(confirmed, data["ack"]);
+          return;
+        }
         if (f.t === "ydoc.update" && typeof data["seq"] === "number") confirmed = Math.max(confirmed, data["seq"]);
         if (f.t === "ydoc.sync1") {
           // The server's state vector: send what it lacks.
           if (enc === 0 && typeof data["sv"] === "string") {
-            const diff = Y.encodeStateAsUpdate(ydoc, Y.encodeStateVector(unionSv(Y.decodeStateVector(fromB64(data["sv"])), Y.decodeStateVector(Y.encodeStateVector(mirror)))));
+            const diff = Y.encodeStateAsUpdate(
+              ydoc,
+              Y.encodeStateVector(
+                unionSv(Y.decodeStateVector(fromB64(data["sv"])), Y.decodeStateVector(Y.encodeStateVector(mirror))),
+              ),
+            );
             if (!isEmptyUpdate(diff)) ship("ydoc.sync2", diff);
             dirty = false;
             saveSoon();
@@ -258,7 +331,8 @@ export function createDocClient(o: DocClientOpts): DocClient {
         }
         // sync2 or a relayed update
         if (enc === 0) {
-          if (typeof data["update"] === "string" && data["update"].length > 0) Y.applyUpdate(ydoc, fromB64(data["update"]), REMOTE);
+          if (typeof data["update"] === "string" && data["update"].length > 0)
+            Y.applyUpdate(ydoc, fromB64(data["update"]), REMOTE);
           saveSoon();
           return;
         }
@@ -285,7 +359,8 @@ export function createDocClient(o: DocClientOpts): DocClient {
     return impl;
   }
 
-  const prefixed = (id: string, entity: string, row: string): boolean => id === docPrefix(entity, row) || id.startsWith(`${docPrefix(entity, row)}:`);
+  const prefixed = (id: string, entity: string, row: string): boolean =>
+    id === docPrefix(entity, row) || id.startsWith(`${docPrefix(entity, row)}:`);
 
   return {
     open,
@@ -298,7 +373,11 @@ export function createDocClient(o: DocClientOpts): DocClient {
       const b = bindings.get(f.doc);
       if (b) await b.enqueue(f);
     },
-    forget(id) { const b = bindings.get(id); if (b) b.destroy(true); else o.store.remove(id); },
+    forget(id) {
+      const b = bindings.get(id);
+      if (b) b.destroy(true);
+      else o.store.remove(id);
+    },
     openIds: () => [...bindings.keys()],
     async compactionOf(id) {
       const b = bindings.get(id);
@@ -306,8 +385,12 @@ export function createDocClient(o: DocClientOpts): DocClient {
       await b.idle();
       return { doc: id, upto: b.upto(), snapshot: toB64(await o.crypto!.seal(Y.encodeStateAsUpdate(b.ydoc))) };
     },
-    closeFor(entity, row) { for (const [id, b] of [...bindings]) if (prefixed(id, entity, row)) b.destroy(true); },
-    closeAll() { for (const b of [...bindings.values()]) b.destroy(true); },
+    closeFor(entity, row) {
+      for (const [id, b] of [...bindings]) if (prefixed(id, entity, row)) b.destroy(true);
+    },
+    closeAll() {
+      for (const b of [...bindings.values()]) b.destroy(true);
+    },
   };
 }
 
@@ -316,7 +399,12 @@ export function attributedInsert(text: Y.Text, index: number, content: string, a
   text.insert(index, content, suggest ? { author, suggest: true } : { author });
 }
 
-export interface Span { index: number; length: number; author: string; suggest: boolean }
+export interface Span {
+  index: number;
+  length: number;
+  author: string;
+  suggest: boolean;
+}
 
 export function spansOf(text: Y.Text): Span[] {
   const out: Span[] = [];
@@ -324,7 +412,8 @@ export function spansOf(text: Y.Text): Span[] {
   for (const d of text.toDelta() as { insert?: unknown; attributes?: Record<string, unknown> }[]) {
     if (typeof d.insert !== "string") continue;
     const author = d.attributes?.["author"];
-    if (typeof author === "string") out.push({ index: at, length: d.insert.length, author, suggest: d.attributes?.["suggest"] === true });
+    if (typeof author === "string")
+      out.push({ index: at, length: d.insert.length, author, suggest: d.attributes?.["suggest"] === true });
     at += d.insert.length;
   }
   return out;

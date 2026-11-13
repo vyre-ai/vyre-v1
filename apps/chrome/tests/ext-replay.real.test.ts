@@ -16,7 +16,18 @@ function serve() {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(u.pathname === "/new" ? NEW : PORTAL);
   });
-  return new Promise<{ url: string; close: () => Promise<void> }>((resolve) => server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${(server.address() as { port: number }).port}`, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) })));
+  return new Promise<{ url: string; close: () => Promise<void> }>((resolve) =>
+    server.listen(0, "127.0.0.1", () =>
+      resolve({
+        url: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+        close: () =>
+          new Promise<void>((r) => {
+            server.closeAllConnections();
+            server.close(() => r());
+          }),
+      }),
+    ),
+  );
 }
 
 const refOf = (tree: string, role: string, name: string) => {
@@ -25,48 +36,90 @@ const refOf = (tree: string, role: string, name: string) => {
   return /\[ref=(e\d+)\]/.exec(line!)![1]!;
 };
 
-test("an agent replays a saved skill with the real chrome_* tools: sign-in through the Vault's handles, an input asked for, a step that asks first", { skip: !found && "no Chromium on this machine", timeout: 60_000 }, async () => {
-  const srv = await serve();
-  const browser = await found!.chromium.launch({ executablePath: found!.exe, args: ["--no-sandbox", "--disable-gpu"] });
-  const r = await rig(browser, "light", { idleMs: 3000 });
-  try {
-    const at = (p: string) => `${srv.url}${p}`;
-    const steps: any[] = [
-      { id: "s1", kind: "open", url: at("/portal"), host: "127.0.0.1", at: 1 },
-      { id: "s2", kind: "signin", url: at("/portal"), host: "127.0.0.1", at: 2 },
-      { id: "s3", kind: "type", url: at("/new"), host: "127.0.0.1", target: { role: "textbox", name: "Name" }, value: "Daniel Okafor", at: 3 },
-      { id: "s4", kind: "type", url: at("/new"), host: "127.0.0.1", target: { role: "textbox", name: "Email" }, value: "dokafor@okaforinjury.com", at: 4 },
-      { id: "s5", kind: "click", url: at("/new"), host: "127.0.0.1", target: { role: "button", name: "Save" }, ask: true, at: 5 },
-    ];
-    const rec: any = { id: "rec_1", name: "Add a contact to Acme", startedAt: 0, steps, inputs: [] };
-    rec.inputs = inputsOf(steps).map((i: any) => (i.key === "email" ? { ...i, mode: "fixed" } : i));
-    const skill = buildSkill(rec);
-    const replay = JSON.parse(skill.files["replay.json"]!);
-    assert.equal(JSON.stringify(skill).includes(SECRET), false);
+test(
+  "an agent replays a saved skill with the real chrome_* tools: sign-in through the Vault's handles, an input asked for, a step that asks first",
+  { skip: !found && "no Chromium on this machine", timeout: 60_000 },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light", { idleMs: 3000 });
+    try {
+      const at = (p: string) => `${srv.url}${p}`;
+      const steps: any[] = [
+        { id: "s1", kind: "open", url: at("/portal"), host: "127.0.0.1", at: 1 },
+        { id: "s2", kind: "signin", url: at("/portal"), host: "127.0.0.1", at: 2 },
+        {
+          id: "s3",
+          kind: "type",
+          url: at("/new"),
+          host: "127.0.0.1",
+          target: { role: "textbox", name: "Name" },
+          value: "Daniel Okafor",
+          at: 3,
+        },
+        {
+          id: "s4",
+          kind: "type",
+          url: at("/new"),
+          host: "127.0.0.1",
+          target: { role: "textbox", name: "Email" },
+          value: "dokafor@okaforinjury.com",
+          at: 4,
+        },
+        {
+          id: "s5",
+          kind: "click",
+          url: at("/new"),
+          host: "127.0.0.1",
+          target: { role: "button", name: "Save" },
+          ask: true,
+          at: 5,
+        },
+      ];
+      const rec: any = { id: "rec_1", name: "Add a contact to Acme", startedAt: 0, steps, inputs: [] };
+      rec.inputs = inputsOf(steps).map((i: any) => (i.key === "email" ? { ...i, mode: "fixed" } : i));
+      const skill = buildSkill(rec);
+      const replay = JSON.parse(skill.files["replay.json"]!);
+      assert.equal(JSON.stringify(skill).includes(SECRET), false);
 
-    const given: Record<string, string> = { name: "Priya Raman" };
-    const asked: string[] = [];
-    for (const step of replay.steps) {
-      if (step.askFirst) asked.push(step.say); // the agent says what it is about to do and waits for the person's yes; the test person says yes
-      // chrome_open refuses a computer's own address (agents browse the public web only), so the fixture page is opened by the rig; every other step is the real tool
-      if (step.tool === "chrome_open") { await r.page.goto(step.args.url); continue; }
-      const snap = await r.call("chrome_snapshot");
-      if (step.tool === "vault_signin") {
-        // vault_use gave the handle #Acme; the fields go in as handles and the filler puts the values in the page
-        await r.call("chrome_type", { ref: refOf(snap.tree, "textbox", "Email"), text: "#Acme.username" });
-        await r.call("chrome_type", { ref: refOf(snap.tree, "textbox", "Password"), text: "#Acme.password" });
-        await r.call("chrome_click", { ref: refOf(snap.tree, "button", "Sign in") });
-        continue;
+      const given: Record<string, string> = { name: "Priya Raman" };
+      const asked: string[] = [];
+      for (const step of replay.steps) {
+        if (step.askFirst) asked.push(step.say); // the agent says what it is about to do and waits for the person's yes; the test person says yes
+        // chrome_open refuses a computer's own address (agents browse the public web only), so the fixture page is opened by the rig; every other step is the real tool
+        if (step.tool === "chrome_open") {
+          await r.page.goto(step.args.url);
+          continue;
+        }
+        const snap = await r.call("chrome_snapshot");
+        if (step.tool === "vault_signin") {
+          // vault_use gave the handle #Acme; the fields go in as handles and the filler puts the values in the page
+          await r.call("chrome_type", { ref: refOf(snap.tree, "textbox", "Email"), text: "#Acme.username" });
+          await r.call("chrome_type", { ref: refOf(snap.tree, "textbox", "Password"), text: "#Acme.password" });
+          await r.call("chrome_click", { ref: refOf(snap.tree, "button", "Sign in") });
+          continue;
+        }
+        const ref = refOf(snap.tree, step.find.role, step.find.name);
+        if (step.tool === "chrome_type")
+          assert.equal(
+            (await r.call("chrome_type", { ref, text: step.input ? given[step.input]! : step.text })).ok,
+            true,
+          );
+        else if (step.tool === "chrome_click") assert.equal((await r.call("chrome_click", { ref })).ok, true);
+        else assert.fail(`unknown tool ${step.tool}`);
       }
-      const ref = refOf(snap.tree, step.find.role, step.find.name);
-      if (step.tool === "chrome_type") assert.equal((await r.call("chrome_type", { ref, text: step.input ? given[step.input]! : step.text })).ok, true);
-      else if (step.tool === "chrome_click") assert.equal((await r.call("chrome_click", { ref })).ok, true);
-      else assert.fail(`unknown tool ${step.tool}`);
+      assert.deepEqual(asked, ['Click the button "Save"']);
+      assert.equal(r.fillCalls(), 2, "the Vault filled the login name and the password");
+      assert.match((await r.page.textContent("#done")) ?? "", /^Saved Priya Raman <dokafor@okaforinjury\.com>$/);
+      assert.equal(await r.page.inputValue("#m"), "dokafor@okaforinjury.com");
+      void LOGIN;
+    } finally {
+      await r.close();
+      await browser.close();
+      await srv.close();
     }
-    assert.deepEqual(asked, ['Click the button "Save"']);
-    assert.equal(r.fillCalls(), 2, "the Vault filled the login name and the password");
-    assert.match(await r.page.textContent("#done") ?? "", /^Saved Priya Raman <dokafor@okaforinjury\.com>$/);
-    assert.equal((await r.page.inputValue("#m")), "dokafor@okaforinjury.com");
-    void LOGIN;
-  } finally { await r.close(); await browser.close(); await srv.close(); }
-});
+  },
+);

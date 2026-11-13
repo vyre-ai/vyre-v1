@@ -3,7 +3,10 @@
 type Fetch = typeof fetch;
 
 export async function liveTicket(baseUrl: string, token: string, f: Fetch = (...a) => fetch(...a)): Promise<string> {
-  const res = await f(`${baseUrl.replace(/\/+$/, "")}/sync/v1/ticket`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+  const res = await f(`${baseUrl.replace(/\/+$/, "")}/sync/v1/ticket`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
   if (res.status !== 200) throw new Error(`the Space gave no live ticket (${res.status})`);
   const ticket = ((await res.json()) as { data?: { ticket?: unknown } }).data?.ticket;
   if (typeof ticket !== "string" || ticket === "") throw new Error("the Space gave no live ticket");

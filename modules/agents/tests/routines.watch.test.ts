@@ -18,14 +18,38 @@ const call = async (hn: Harness, cap: string, input: Record<string, unknown>): P
 };
 async function setup() {
   const hn = harness();
-  const agent = (await call(hn, "agents.create", { name: "Scout", role: "Use me to watch intake.", idempotencyKey: `w${++n}` })).agent;
+  const agent = (
+    await call(hn, "agents.create", { name: "Scout", role: "Use me to watch intake.", idempotencyKey: `w${++n}` })
+  ).agent;
   hn.clear();
   return { hn, id: agent.agentId as string };
 }
 const watch = (hn: Harness, id: string, over: Record<string, unknown> = {}) =>
-  call(hn, "agents.routine.save", { agentId: id, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_leads" }, prompt: "Say hello.", idempotencyKey: `x${++n}`, ...over });
-const msg = (over: Record<string, unknown> = {}) => ({ name: "message.received", payload: { messageId: `msg_${++n}`, threadId: "thr_leads", threadSeq: 1, author: { kind: "person", id: "usr_pat" }, kind: "text", depth: 0, mentions: [], hasBlocks: false, ...over } });
-const fire = (hn: Harness, event: ReturnType<typeof msg>) => (consumers["agents.watchers"].run as (c: Harness["ctx"], e: unknown) => Promise<string[]>)(hn.ctx, event);
+  call(hn, "agents.routine.save", {
+    agentId: id,
+    title: "Greet new leads",
+    kind: "watch",
+    watch: { on: "message", channelId: "chn_leads" },
+    prompt: "Say hello.",
+    idempotencyKey: `x${++n}`,
+    ...over,
+  });
+const msg = (over: Record<string, unknown> = {}) => ({
+  name: "message.received",
+  payload: {
+    messageId: `msg_${++n}`,
+    threadId: "thr_leads",
+    threadSeq: 1,
+    author: { kind: "person", id: "usr_pat" },
+    kind: "text",
+    depth: 0,
+    mentions: [],
+    hasBlocks: false,
+    ...over,
+  },
+});
+const fire = (hn: Harness, event: ReturnType<typeof msg>) =>
+  (consumers["agents.watchers"].run as (c: Harness["ctx"], e: unknown) => Promise<string[]>)(hn.ctx, event);
 
 test("a watcher is saved with no schedule, listed as a watcher, and never gets a next run", async () => {
   const { hn, id } = await setup();
@@ -37,12 +61,29 @@ test("a watcher is saved with no schedule, listed as a watcher, and never gets a
   assert.deepEqual((await call(hn, "agents.routines.list", { agentId: id })).routines, [routine]);
   assert.deepEqual(assertEventsConform(hn), []);
   // a schedule routine is unchanged, and turning a schedule into a watcher (and back) swaps what it waits for
-  const sched = (await call(hn, "agents.routine.save", { agentId: id, title: "Digest", cron: "0 9 * * *", prompt: "p", idempotencyKey: "s1" })).routine;
+  const sched = (
+    await call(hn, "agents.routine.save", {
+      agentId: id,
+      title: "Digest",
+      cron: "0 9 * * *",
+      prompt: "p",
+      idempotencyKey: "s1",
+    })
+  ).routine;
   assert.equal(sched.kind, undefined);
   assert.equal(sched.cron, "0 9 * * *");
   const flipped = (await watch(hn, id, { routineId: sched.routineId, title: "Digest" })).routine;
   assert.deepEqual([flipped.kind, flipped.cron, flipped.nextRunAt], ["watch", undefined, undefined]);
-  const back = (await call(hn, "agents.routine.save", { agentId: id, routineId: sched.routineId, title: "Digest", cron: "0 9 * * *", prompt: "p", idempotencyKey: "s2" })).routine;
+  const back = (
+    await call(hn, "agents.routine.save", {
+      agentId: id,
+      routineId: sched.routineId,
+      title: "Digest",
+      cron: "0 9 * * *",
+      prompt: "p",
+      idempotencyKey: "s2",
+    })
+  ).routine;
   assert.deepEqual([back.kind, back.watch, back.cron], [undefined, undefined, "0 9 * * *"]);
 });
 
@@ -50,13 +91,25 @@ test("a watcher needs its channel, and only a watcher may name one; a schedule n
   const { hn, id } = await setup();
   // straight to the handler: these inputs are ones the contract itself may not describe (a missing watch, a bad channel id), and the handler must still refuse them
   const bad = (over: Record<string, unknown>) => {
-    const input: Record<string, unknown> = { agentId: id, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_leads" }, prompt: "Say hello.", idempotencyKey: `y${++n}`, ...over };
+    const input: Record<string, unknown> = {
+      agentId: id,
+      title: "Greet new leads",
+      kind: "watch",
+      watch: { on: "message", channelId: "chn_leads" },
+      prompt: "Say hello.",
+      idempotencyKey: `y${++n}`,
+      ...over,
+    };
     for (const k of Object.keys(input)) if (input[k] === undefined) delete input[k];
     return failure(() => h["agents.routine.save"]!(hn.ctx, input));
   };
   assert.equal(await bad({ watch: undefined }), "validation.bad_input");
   assert.equal(await bad({ watch: { on: "message", channelId: "usr_nope" } }), "validation.bad_input");
-  assert.equal(await bad({ kind: "schedule", cron: "0 9 * * *" }), "validation.bad_input", "a schedule routine that names a watch is refused");
+  assert.equal(
+    await bad({ kind: "schedule", cron: "0 9 * * *" }),
+    "validation.bad_input",
+    "a schedule routine that names a watch is refused",
+  );
   assert.equal(await bad({ kind: "schedule", watch: undefined, cron: undefined }), "validation.bad_input");
   assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines.length, 0, "nothing was saved");
 });
@@ -64,30 +117,74 @@ test("a watcher needs its channel, and only a watcher may name one; a schedule n
 test("a watcher on a channel its owner cannot read is refused with permission.no_grant and never saved", async () => {
   const { hn, id } = await setup();
   hn.allowOnly((_a, res) => !(res.type === "channel" && res.id === "chn_secret"));
-  const code = await failure(() => h["agents.routine.save"]!(hn.ctx, { agentId: id, title: "Spy", kind: "watch", watch: { on: "message", channelId: "chn_secret" }, prompt: "Read.", idempotencyKey: "sec1" }));
+  const code = await failure(() =>
+    h["agents.routine.save"]!(hn.ctx, {
+      agentId: id,
+      title: "Spy",
+      kind: "watch",
+      watch: { on: "message", channelId: "chn_secret" },
+      prompt: "Read.",
+      idempotencyKey: "sec1",
+    }),
+  );
   assert.equal(code, "permission.no_grant");
   assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines.length, 0);
   // a channel they can read is fine, and changing an existing watcher to the secret channel is refused too
   const ok = (await watch(hn, id)).routine;
-  const move = await failure(() => h["agents.routine.save"]!(hn.ctx, { agentId: id, routineId: ok.routineId, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_secret" }, prompt: "Say hello.", idempotencyKey: "sec2" }));
+  const move = await failure(() =>
+    h["agents.routine.save"]!(hn.ctx, {
+      agentId: id,
+      routineId: ok.routineId,
+      title: "Greet new leads",
+      kind: "watch",
+      watch: { on: "message", channelId: "chn_secret" },
+      prompt: "Say hello.",
+      idempotencyKey: "sec2",
+    }),
+  );
   assert.equal(move, "permission.no_grant");
-  assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines[0].watch.channelId, "chn_leads", "the watcher still listens where it did");
+  assert.equal(
+    (await call(hn, "agents.routines.list", { agentId: id })).routines[0].watch.channelId,
+    "chn_leads",
+    "the watcher still listens where it did",
+  );
 });
 
 test("a new message in the watched channel starts one run under the routine owner; other channels, the agent itself and routine messages do not", async () => {
   const { hn, id } = await setup();
   const started: any[] = [];
   const keys: string[] = [];
-  hn.world.answer("runs.start", (i: any, o: any) => { started.push(i); keys.push(String(o?.idempotencyKey)); assert.equal(i.idempotencyKey, o?.idempotencyKey, "the key is in the input as well as the options"); return { runId: `run_a${started.length}` }; });
-  hn.world.answer("threads.get", (i: any) => ({ thread: { threadId: i.threadId, channelId: i.threadId === "thr_leads" ? "chn_leads" : "chn_other" } }));
+  hn.world.answer("runs.start", (i: any, o: any) => {
+    started.push(i);
+    keys.push(String(o?.idempotencyKey));
+    assert.equal(i.idempotencyKey, o?.idempotencyKey, "the key is in the input as well as the options");
+    return { runId: `run_a${started.length}` };
+  });
+  hn.world.answer("threads.get", (i: any) => ({
+    thread: { threadId: i.threadId, channelId: i.threadId === "thr_leads" ? "chn_leads" : "chn_other" },
+  }));
   const { routine } = await watch(hn, id);
   hn.clear();
   const first = msg();
   assert.deepEqual(await fire(hn, first), ["run_a1"]);
   assert.deepEqual([started[0].kind, started[0].owner, started[0].name], ["routine", DANA, "Greet new leads"]);
-  assert.deepEqual([started[0].threadId, started[0].trigger], ["thr_leads", { messageId: first.payload.messageId, threadId: "thr_leads", channelId: "chn_leads" }], "the run carries the message, thread and channel that woke it");
-  assert.deepEqual(contractErrors("runs.start", "in", { ...started[0], idempotencyKey: keys[0] }), [], "what the watcher sends is a valid runs.start input");
-  assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, { agentId: id, routineId: routine.routineId, runId: "run_a1", ownerId: DANA, requestedBy: `watch:${first.payload.messageId}` });
+  assert.deepEqual(
+    [started[0].threadId, started[0].trigger],
+    ["thr_leads", { messageId: first.payload.messageId, threadId: "thr_leads", channelId: "chn_leads" }],
+    "the run carries the message, thread and channel that woke it",
+  );
+  assert.deepEqual(
+    contractErrors("runs.start", "in", { ...started[0], idempotencyKey: keys[0] }),
+    [],
+    "what the watcher sends is a valid runs.start input",
+  );
+  assert.deepEqual(hn.named("agent.routine_run_started")[0]!.payload, {
+    agentId: id,
+    routineId: routine.routineId,
+    runId: "run_a1",
+    ownerId: DANA,
+    requestedBy: `watch:${first.payload.messageId}`,
+  });
   assert.deepEqual(assertEventsConform(hn), []);
   assert.deepEqual(await fire(hn, msg({ threadId: "thr_elsewhere" })), [], "another channel");
   assert.deepEqual(await fire(hn, msg({ author: { kind: "agent", id } })), [], "the watcher's own agent");
@@ -99,7 +196,16 @@ test("a new message in the watched channel starts one run under the routine owne
   assert.equal(keys[1], keys[0]);
   started.length = 1;
   // a disabled watcher is quiet
-  await call(hn, "agents.routine.save", { agentId: id, routineId: routine.routineId, title: "Greet new leads", kind: "watch", watch: { on: "message", channelId: "chn_leads" }, prompt: "Say hello.", enabled: false, idempotencyKey: "off1" });
+  await call(hn, "agents.routine.save", {
+    agentId: id,
+    routineId: routine.routineId,
+    title: "Greet new leads",
+    kind: "watch",
+    watch: { on: "message", channelId: "chn_leads" },
+    prompt: "Say hello.",
+    enabled: false,
+    idempotencyKey: "off1",
+  });
   const before = started.length;
   assert.deepEqual(await fire(hn, msg()), []);
   assert.equal(started.length, before);

@@ -7,10 +7,28 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ADAPTERS, createApiDriver, createSseParser } from "../src/drivers/api/index.ts";
 import type { ProviderId } from "../src/drivers/api/index.ts";
-import { MODELS, WIRE, authorize, chunked, ctx, fakeClock, fakeFetch, fixture, gate, spec, turnInput } from "../src/drivers/api/testing.ts";
+import {
+  MODELS,
+  WIRE,
+  authorize,
+  chunked,
+  ctx,
+  fakeClock,
+  fakeFetch,
+  fixture,
+  gate,
+  spec,
+  turnInput,
+} from "../src/drivers/api/testing.ts";
 
-interface Row { id: string; p95: number; also?: Array<{ metric: string; p95: number }> }
-const rows = (JSON.parse(readFileSync(new URL("../../perf/budgets.json", import.meta.url), "utf8")) as { budgets: Row[] }).budgets;
+interface Row {
+  id: string;
+  p95: number;
+  also?: Array<{ metric: string; p95: number }>;
+}
+const rows = (
+  JSON.parse(readFileSync(new URL("../../perf/budgets.json", import.meta.url), "utf8")) as { budgets: Row[] }
+).budgets;
 const row = (id: string): Row => {
   const r = rows.find((x) => x.id === id);
   assert.ok(r, `perf/budgets.json has a row ${id}`);
@@ -33,36 +51,52 @@ test("perf budgets are present and sane", () => {
 
 test("perf send: first token overhead of every API driver is inside the budget with a 200 ms provider", async () => {
   // The five drivers run side by side: eight sequential turns each would not fit the 20 s cap of a test file at 200 ms a turn.
-  const results = await Promise.all(PROVIDERS.map(async (provider) => {
-    const wire = fixture(`${WIRE[provider]}-text`);
-    const f = fakeFetch(() => ({ latencyMs: INJECTED_MS, chunks: chunked(wire, 256) }));
-    let fetchStart = 0;
-    let fetchEnd = 0;
-    const driver = createApiDriver(ADAPTERS[provider], {
-      authorize, context: () => ctx(),
-      fetch: async (url, init) => { fetchStart = performance.now(); const r = await f.fetch(url, init); fetchEnd = performance.now(); return r; },
-      clock: fakeClock(),
-    });
-    const overheads: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      const session = await driver.open(spec(MODELS[provider]));
-      const t0 = performance.now();
-      let firstText = 0;
-      for await (const e of session.send(turnInput(MODELS[provider]))) if (e.type === "text" && firstText === 0) firstText = performance.now();
-      assert.ok(firstText > 0, "a first token arrived");
-      const providerMs = fetchEnd - fetchStart;
-      assert.ok(providerMs >= INJECTED_MS - 5, "the injected provider latency really elapsed");
-      // Ours: everything between send() and the first token except the time the provider took to start answering.
-      overheads.push(firstText - t0 - providerMs);
-    }
-    return { provider, p95: percentile(overheads, 95) };
-  }));
-  console.log(`perf send: injected=${INJECTED_MS}ms first_token_overhead_p95_ms ${results.map((r) => `${r.provider}=${r.p95.toFixed(2)}`).join(" ")} budget=${FIRST_TOKEN_MS}`);
-  for (const r of results) assert.ok(r.p95 < FIRST_TOKEN_MS, `${r.provider}: first token overhead p95 ${r.p95.toFixed(2)} ms is over the ${FIRST_TOKEN_MS} ms budget`);
+  const results = await Promise.all(
+    PROVIDERS.map(async (provider) => {
+      const wire = fixture(`${WIRE[provider]}-text`);
+      const f = fakeFetch(() => ({ latencyMs: INJECTED_MS, chunks: chunked(wire, 256) }));
+      let fetchStart = 0;
+      let fetchEnd = 0;
+      const driver = createApiDriver(ADAPTERS[provider], {
+        authorize,
+        context: () => ctx(),
+        fetch: async (url, init) => {
+          fetchStart = performance.now();
+          const r = await f.fetch(url, init);
+          fetchEnd = performance.now();
+          return r;
+        },
+        clock: fakeClock(),
+      });
+      const overheads: number[] = [];
+      for (let i = 0; i < 8; i++) {
+        const session = await driver.open(spec(MODELS[provider]));
+        const t0 = performance.now();
+        let firstText = 0;
+        for await (const e of session.send(turnInput(MODELS[provider])))
+          if (e.type === "text" && firstText === 0) firstText = performance.now();
+        assert.ok(firstText > 0, "a first token arrived");
+        const providerMs = fetchEnd - fetchStart;
+        assert.ok(providerMs >= INJECTED_MS - 5, "the injected provider latency really elapsed");
+        // Ours: everything between send() and the first token except the time the provider took to start answering.
+        overheads.push(firstText - t0 - providerMs);
+      }
+      return { provider, p95: percentile(overheads, 95) };
+    }),
+  );
+  console.log(
+    `perf send: injected=${INJECTED_MS}ms first_token_overhead_p95_ms ${results.map((r) => `${r.provider}=${r.p95.toFixed(2)}`).join(" ")} budget=${FIRST_TOKEN_MS}`,
+  );
+  for (const r of results)
+    assert.ok(
+      r.p95 < FIRST_TOKEN_MS,
+      `${r.provider}: first token overhead p95 ${r.p95.toFixed(2)} ms is over the ${FIRST_TOKEN_MS} ms budget`,
+    );
 });
 
 const DELTA: Record<"anthropic" | "openai" | "google", (i: number) => string> = {
-  anthropic: (i) => `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"w${i} "}}\n\n`,
+  anthropic: (i) =>
+    `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"w${i} "}}\n\n`,
   openai: (i) => `data: {"choices":[{"index":0,"delta":{"content":"w${i} "}}]}\n\n`,
   google: (i) => `data: {"candidates":[{"content":{"parts":[{"text":"w${i} "}],"role":"model"}}]}\n\n`,
 };
@@ -72,7 +106,12 @@ test("perf stream_render: a delta leaves the driver inside one frame of its byte
   for (const provider of ["anthropic", "openai", "google"] as const) {
     const g = gate();
     const f = fakeFetch(() => ({ body: g.body }));
-    const driver = createApiDriver(ADAPTERS[provider], { authorize, context: () => ctx(), fetch: f.fetch, clock: fakeClock() });
+    const driver = createApiDriver(ADAPTERS[provider], {
+      authorize,
+      context: () => ctx(),
+      fetch: f.fetch,
+      clock: fakeClock(),
+    });
     const session = await driver.open(spec(MODELS[provider]));
     const it = session.send(turnInput(MODELS[provider]))[Symbol.asyncIterator]();
     const lat: number[] = [];
@@ -88,7 +127,10 @@ test("perf stream_render: a delta leaves the driver inside one frame of its byte
       if (i >= 20) lat.push(dt);
     }
     g.end();
-    for (;;) { const r = await it.next(); if (r.done) break; }
+    for (;;) {
+      const r = await it.next();
+      if (r.done) break;
+    }
     const p95 = percentile(lat, 95);
     lines.push(`${provider}=${p95.toFixed(3)}`);
     assert.equal(lat.length, 300);
@@ -99,7 +141,8 @@ test("perf stream_render: a delta leaves the driver inside one frame of its byte
 
 test("perf stream_render: ten thousand deltas decode in well under a second, no quadratic slowdown", () => {
   const p = createSseParser();
-  const one = 'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"word "}}\n\n';
+  const one =
+    'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"word "}}\n\n';
   const t0 = performance.now();
   let n = 0;
   for (let i = 0; i < 10_000; i++) n += p.push(one).length;

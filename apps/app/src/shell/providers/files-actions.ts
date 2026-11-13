@@ -16,39 +16,79 @@ export async function rootOf(call: Call, scope: "personal" | "space"): Promise<s
 }
 
 /** Make a folder inside `parentId` (null: the top of the scope) and return its id. */
-export async function newFolderIn(call: Call, scope: "personal" | "space", parentId: string | null, name: string): Promise<string> {
+export async function newFolderIn(
+  call: Call,
+  scope: "personal" | "space",
+  parentId: string | null,
+  name: string,
+): Promise<string> {
   const clean = name.trim();
   if (clean === "") throw new Error("Give the folder a name.");
   const parent = parentId ?? (await rootOf(call, scope));
   if (!parent) throw new Error("There is no place to put it yet.");
-  const out = (await call("files.folder.create", { parentId: parent, name: clean, idempotencyKey: key("folder") })) as { folder: { folderId: string } };
+  const out = (await call("files.folder.create", { parentId: parent, name: clean, idempotencyKey: key("folder") })) as {
+    folder: { folderId: string };
+  };
   return out.folder.folderId;
 }
 
 export async function renameEntry(call: Call, kind: "file" | "folder", id: string, name: string): Promise<void> {
   const clean = name.trim();
   if (clean === "") throw new Error("Give it a name.");
-  await call(kind === "file" ? "files.rename" : "files.folder.rename", kind === "file" ? { fileId: id, name: clean, idempotencyKey: key("rename") } : { folderId: id, name: clean, idempotencyKey: key("rename") });
+  await call(
+    kind === "file" ? "files.rename" : "files.folder.rename",
+    kind === "file"
+      ? { fileId: id, name: clean, idempotencyKey: key("rename") }
+      : { folderId: id, name: clean, idempotencyKey: key("rename") },
+  );
 }
 
-interface Chosen { name: string; mime: string; file: unknown }
-type Doc = { createElement(t: string): unknown; body?: { appendChild(n: unknown): void; removeChild(n: unknown): void } };
+interface Chosen {
+  name: string;
+  mime: string;
+  file: unknown;
+}
+type Doc = {
+  createElement(t: string): unknown;
+  body?: { appendChild(n: unknown): void; removeChild(n: unknown): void };
+};
 
 /** The page's file chooser for any number of files; an empty list when it is cancelled or the page has none. */
 export function pickFiles(): Promise<Chosen[]> {
   const doc = (globalThis as { document?: Doc }).document;
   if (!doc) return Promise.resolve([]);
   return new Promise((resolve) => {
-    const input = doc.createElement("input") as { type: string; multiple: boolean; style?: { display: string }; files?: ArrayLike<{ name: string; type: string }>; onchange: (() => void) | null; oncancel: (() => void) | null; click(): void; setAttribute?(k: string, v: string): void };
+    const input = doc.createElement("input") as {
+      type: string;
+      multiple: boolean;
+      style?: { display: string };
+      files?: ArrayLike<{ name: string; type: string }>;
+      onchange: (() => void) | null;
+      oncancel: (() => void) | null;
+      click(): void;
+      setAttribute?(k: string, v: string): void;
+    };
     input.type = "file";
     input.multiple = true;
     input.setAttribute?.("data-testid", "files-upload-input");
     if (input.style) input.style.display = "none";
     // WKWebView (the desktop app on a Mac) only opens a chooser for an input that is in the page: attach it, hidden, for the click, and take it out when it answers.
     doc.body?.appendChild(input);
-    const done = (): void => { try { doc.body?.removeChild(input); } catch { /* already gone */ } };
-    input.oncancel = () => { done(); resolve([]); };
-    input.onchange = () => { done(); resolve(Array.from(input.files ?? []).map((f) => ({ name: f.name, mime: f.type, file: f }))); };
+    const done = (): void => {
+      try {
+        doc.body?.removeChild(input);
+      } catch {
+        /* already gone */
+      }
+    };
+    input.oncancel = () => {
+      done();
+      resolve([]);
+    };
+    input.onchange = () => {
+      done();
+      resolve(Array.from(input.files ?? []).map((f) => ({ name: f.name, mime: f.type, file: f })));
+    };
     input.click();
   });
 }
@@ -59,9 +99,15 @@ export async function uploadInto(call: Call, putBlob: Put, folderId: string | nu
 }
 
 /** Store files already in hand (dropped or pasted on the list) in a folder, the same way Upload does. Returns how many were stored. */
-export async function storeInto(call: Call, putBlob: Put, folderId: string | null, files: readonly Chosen[]): Promise<number> {
+export async function storeInto(
+  call: Call,
+  putBlob: Put,
+  folderId: string | null,
+  files: readonly Chosen[],
+): Promise<number> {
   if (files.length === 0) return 0;
   const into = folderId ?? (await rootOf(call, "personal"));
   if (!into) throw new Error("There is no place to put them yet.");
-  return (await storeFiles({ call: call as never, ...(putBlob ? { putBlob } : {}) }, into, files, key("upload"))).length;
+  return (await storeFiles({ call: call as never, ...(putBlob ? { putBlob } : {}) }, into, files, key("upload")))
+    .length;
 }

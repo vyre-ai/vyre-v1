@@ -1,6 +1,12 @@
 // sync.pull, sync.snapshot.begin and sync.snapshot.page (ARCH 5.3, 5.8). The logic is in sync/src/server/pull; these bind it to the capability inputs and outputs.
 // The gateway has already authenticated the device session, so the caller's person and device arrive on the context.
-import { decodePage, encodePage, pullChanges, snapshotBegin, snapshotPage } from "../../../sync/src/server/pull/index.ts";
+import {
+  decodePage,
+  encodePage,
+  pullChanges,
+  snapshotBegin,
+  snapshotPage,
+} from "../../../sync/src/server/pull/index.ts";
 import type { PullDeps, SnapshotBeginRes, SnapshotPage } from "../../../sync/src/server/pull/index.ts";
 import type { DeviceClass, PullReq, PullRes } from "../../../sync/src/protocol.ts";
 
@@ -16,7 +22,10 @@ export interface PullCtx {
 
 export interface PullHandlers {
   "sync.pull"(ctx: PullCtx, input: PullReq): Promise<PullRes>;
-  "sync.snapshot.begin"(ctx: PullCtx, input: { entities?: string[]; deviceClass: DeviceClass }): Promise<SnapshotBeginRes>;
+  "sync.snapshot.begin"(
+    ctx: PullCtx,
+    input: { entities?: string[]; deviceClass: DeviceClass },
+  ): Promise<SnapshotBeginRes>;
   "sync.snapshot.page"(ctx: PullCtx, input: { entity: string; after?: string; asOf: number }): Promise<SnapshotPage>;
   /** The page as it goes on the wire: NDJSON, gzip (5.8). */
   snapshotPageBytes(ctx: PullCtx, input: { entity: string; after?: string; asOf: number }): Promise<Uint8Array>;
@@ -25,7 +34,11 @@ export interface PullHandlers {
 export { decodePage };
 
 export function createPullHandlers(deps: PullDeps): PullHandlers {
-  const who = (ctx: PullCtx, deviceClass: DeviceClass = ctx.deviceClass) => ({ person: ctx.principal, device: ctx.deviceId, deviceClass });
+  const who = (ctx: PullCtx, deviceClass: DeviceClass = ctx.deviceClass) => ({
+    person: ctx.principal,
+    device: ctx.deviceId,
+    deviceClass,
+  });
   return {
     async "sync.pull"(ctx, input) {
       return pullChanges(deps, who(ctx), input, ctx.trace.traceId, ctx.scopeChanged);

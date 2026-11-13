@@ -15,5 +15,10 @@ export interface PhonePurgeOpts {
 }
 
 export function createPhonePurge(o: PhonePurgeOpts): PurgeClient {
-  return createPurgeClient({ purge: o.purge, personActive: () => true, ...(o.currentEpoch ? { currentEpoch: o.currentEpoch } : {}), ...(o.around ? { around: o.around } : {}) });
+  return createPurgeClient({
+    purge: o.purge,
+    personActive: () => true,
+    ...(o.currentEpoch ? { currentEpoch: o.currentEpoch } : {}),
+    ...(o.around ? { around: o.around } : {}),
+  });
 }

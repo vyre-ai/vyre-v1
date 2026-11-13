@@ -50,13 +50,32 @@ test("fifteen skins, eight dark and seven light with Vyre's own first, system ke
   assert.equal(skins.length, 15);
   assert.deepEqual(
     skins.map((s) => s.id),
-    ["vyre-black", "graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "vyre-light", "paper", "fog", "linen", "sand", "sage", "mist"],
+    [
+      "vyre-black",
+      "graphite",
+      "obsidian",
+      "charcoal",
+      "slate",
+      "ember",
+      "moss",
+      "dusk",
+      "vyre-light",
+      "paper",
+      "fog",
+      "linen",
+      "sand",
+      "sage",
+      "mist",
+    ],
   );
   assert.equal(skins.filter((s) => s.base === "dark").length, 8);
   assert.equal(skins.filter((s) => s.base === "light").length, 7);
   assert.equal(system.id, "system");
   assert.equal(system.name, "Vyre", "the default shows as Vyre");
-  assert.equal(skins.some((s) => s.id === "system"), false);
+  assert.equal(
+    skins.some((s) => s.id === "system"),
+    false,
+  );
   assert.equal(typeTokens["--ui"].includes("Inter"), true);
   assert.equal(typeTokens["--mono"].includes("JetBrains Mono"), true);
 });
@@ -84,8 +103,56 @@ test("the Vyre palettes are vyre-palette.json, token for token", () => {
   const want = (set: TokenSet, p: Record<string, string>): void => {
     for (const [k, v] of Object.entries(p)) assert.equal(set[k as keyof TokenSet], v, k);
   };
-  want(black.dark, { "--win": "#121118", "--side": "#16151D", "--rail": "#07070A", "--raised": "#201E29", "--sunk": "#0B0A10", "--field": "#201E29", "--ink": "#F2F0F7", "--ink-2": "#C6C2D2", "--ink-3": "#928DA2", "--ink-4": "#625D70", "--me": "#2A2736", "--accent": "#A092FF", "--accent-ink": "#120E24", "--beacon": "#FF8A66", "--ok": "#5AD6A2", "--warn": "#F4BE62", "--danger": "#FF6F85", "--accent-wash": "rgba(160,146,255,0.15)", "--accent-line": "rgba(160,146,255,.4)", "--hover": "rgba(255,255,255,0.05)", "--sel": "rgba(255,255,255,0.085)", "--line": "rgba(255,255,255,0.07)", "--line-2": "rgba(255,255,255,0.12)" });
-  want(light.light, { "--win": "#FBFAFD", "--side": "#F4F2F8", "--rail": "#E8E5EF", "--raised": "#FFFFFF", "--sunk": "#EEEBF3", "--field": "#EEEBF3", "--ink": "#17141F", "--ink-2": "#454052", "--ink-3": "#6A6578", "--ink-4": "#A29DAF", "--me": "#E8E3F8", "--accent": "#5A3FF0", "--accent-ink": "#FFFFFF", "--beacon": "#EE5A38", "--ok": "#16805A", "--warn": "#9C5C07", "--danger": "#CC2A4A", "--accent-wash": "rgba(90,63,240,0.1)", "--accent-line": "rgba(90,63,240,.4)", "--hover": "rgba(23,20,31,0.045)", "--sel": "rgba(23,20,31,0.075)", "--line": "rgba(23,20,31,0.08)", "--line-2": "rgba(23,20,31,0.13)" });
+  want(black.dark, {
+    "--win": "#121118",
+    "--side": "#16151D",
+    "--rail": "#07070A",
+    "--raised": "#201E29",
+    "--sunk": "#0B0A10",
+    "--field": "#201E29",
+    "--ink": "#F2F0F7",
+    "--ink-2": "#C6C2D2",
+    "--ink-3": "#928DA2",
+    "--ink-4": "#625D70",
+    "--me": "#2A2736",
+    "--accent": "#A092FF",
+    "--accent-ink": "#120E24",
+    "--beacon": "#FF8A66",
+    "--ok": "#5AD6A2",
+    "--warn": "#F4BE62",
+    "--danger": "#FF6F85",
+    "--accent-wash": "rgba(160,146,255,0.15)",
+    "--accent-line": "rgba(160,146,255,.4)",
+    "--hover": "rgba(255,255,255,0.05)",
+    "--sel": "rgba(255,255,255,0.085)",
+    "--line": "rgba(255,255,255,0.07)",
+    "--line-2": "rgba(255,255,255,0.12)",
+  });
+  want(light.light, {
+    "--win": "#FBFAFD",
+    "--side": "#F4F2F8",
+    "--rail": "#E8E5EF",
+    "--raised": "#FFFFFF",
+    "--sunk": "#EEEBF3",
+    "--field": "#EEEBF3",
+    "--ink": "#17141F",
+    "--ink-2": "#454052",
+    "--ink-3": "#6A6578",
+    "--ink-4": "#A29DAF",
+    "--me": "#E8E3F8",
+    "--accent": "#5A3FF0",
+    "--accent-ink": "#FFFFFF",
+    "--beacon": "#EE5A38",
+    "--ok": "#16805A",
+    "--warn": "#9C5C07",
+    "--danger": "#CC2A4A",
+    "--accent-wash": "rgba(90,63,240,0.1)",
+    "--accent-line": "rgba(90,63,240,.4)",
+    "--hover": "rgba(23,20,31,0.045)",
+    "--sel": "rgba(23,20,31,0.075)",
+    "--line": "rgba(23,20,31,0.08)",
+    "--line-2": "rgba(23,20,31,0.13)",
+  });
 });
 
 test("palette colours from vyre-v1.html land on both modes, and status colours follow the mode", () => {
@@ -134,7 +201,10 @@ test("native mode matches the prototype derivation for graphite and paper", () =
   assert.equal(paper.light["--hover"], "rgba(24,24,26,0.045)");
   assert.equal(paper.light["--accent-wash"], "rgba(91,91,214,0.1)");
   assert.equal(paper.light["--sel-strong"], "color-mix(in srgb, #18181A 8%, #FFFFFF)");
-  assert.equal(paper.light["--sh-pop"], "0 0 0 1px rgba(24,24,26,.07), 0 10px 24px -8px rgba(24,24,26,.20), 0 2px 6px rgba(24,24,26,.06)");
+  assert.equal(
+    paper.light["--sh-pop"],
+    "0 0 0 1px rgba(24,24,26,.07), 0 10px 24px -8px rgba(24,24,26,.20), 0 2px 6px rgba(24,24,26,.06)",
+  );
   const obsidian = skinById("obsidian");
   const ember = skinById("ember");
   assert.ok(obsidian && ember);
@@ -176,17 +246,26 @@ test("every skin and System define every token the app uses", async () => {
     for (const name of readdirSync(dir)) {
       if (name === "node_modules" || name.startsWith(".")) continue;
       const full = join(dir, name);
-      if (statSync(full).isDirectory()) { walk(full); continue; }
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
       if (!/\.(ts|tsx)$/.test(name) || /\.test\./.test(name)) continue;
       for (const m of readFileSync(full, "utf8").matchAll(/var\((--[a-z0-9-]+)\s*\)/g)) used.add(m[1]!);
     }
   };
-  walk(join(root, "ui/src")); walk(join(root, "apps/app/src"));
+  walk(join(root, "ui/src"));
+  walk(join(root, "apps/app/src"));
   const known = new Set<string>([...TOKEN_NAMES, ...Object.keys(typeTokens)]);
-  const undefinedTokens = [...used].filter((n) => !known.has(n) && /^--(win|side|rail|raised|sunk|field|hover|press|sel|ink|line|accent|beacon|me|ok|warn|danger|sh)/.test(n));
+  const undefinedTokens = [...used].filter(
+    (n) =>
+      !known.has(n) &&
+      /^--(win|side|rail|raised|sunk|field|hover|press|sel|ink|line|accent|beacon|me|ok|warn|danger|sh)/.test(n),
+  );
   assert.deepEqual(undefinedTokens, [], "colour and shadow tokens used in code but defined nowhere");
   for (const mode of MODES) {
     for (const name of TOKEN_NAMES) assert.ok(name in documentTokens[mode], `System ${mode} ${name}`);
-    for (const skin of skins) for (const name of TOKEN_NAMES) assert.ok(name in skin[mode], `${skin.id} ${mode} ${name}`);
+    for (const skin of skins)
+      for (const name of TOKEN_NAMES) assert.ok(name in skin[mode], `${skin.id} ${mode} ${name}`);
   }
 });

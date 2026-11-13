@@ -17,10 +17,21 @@ export interface StripeCtx {
   trace: { traceId: string };
   now(): number;
   db: StripeDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -58,8 +69,9 @@ export const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.i
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-export const intOrUndef = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) ? v : undefined);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const intOrUndef = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isSafeInteger(v) ? v : undefined;
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<StripeCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -67,12 +79,14 @@ export function bad(ctx: Pick<StripeCtx, "trace">, message: string): never {
 
 /** A Stripe object id as it goes into a path: letters, digits and underscores only, so a caller cannot reach another path. */
 export function stripeId(ctx: Pick<StripeCtx, "trace">, value: unknown, what: string): string {
-  if (typeof value !== "string" || !/^[a-z]{2,8}(?:_[a-z]{2,8})?_[A-Za-z0-9]{1,64}$/.test(value)) bad(ctx, `${what} is not a Stripe id.`);
+  if (typeof value !== "string" || !/^[a-z]{2,8}(?:_[a-z]{2,8})?_[A-Za-z0-9]{1,64}$/.test(value))
+    bad(ctx, `${what} is not a Stripe id.`);
   return value;
 }
 
 /** Stripe counts in seconds; Vyre in milliseconds. */
-export const ms = (seconds: unknown): number | undefined => (typeof seconds === "number" && Number.isFinite(seconds) ? Math.round(seconds * 1000) : undefined);
+export const ms = (seconds: unknown): number | undefined =>
+  typeof seconds === "number" && Number.isFinite(seconds) ? Math.round(seconds * 1000) : undefined;
 export const secs = (millis: number): number => Math.floor(millis / 1000);
 export const upper = (v: unknown): string => (typeof v === "string" ? v.toUpperCase() : "");
 
@@ -89,7 +103,8 @@ export function formEncode(value: Json): string {
   };
   for (const [k, v] of Object.entries(value)) {
     if (Array.isArray(v)) v.forEach((x, i) => walk(`${k}[${i}]`, x));
-    else if (v !== null && typeof v === "object") for (const [sub, x] of Object.entries(v as Json)) walk(`${k}[${sub}]`, x);
+    else if (v !== null && typeof v === "object")
+      for (const [sub, x] of Object.entries(v as Json)) walk(`${k}[${sub}]`, x);
     else walk(k, v);
   }
   return pairs.join("&");
@@ -152,16 +167,28 @@ export interface Request {
 /** One call to the Stripe API with the Space's restricted key. Never throws for an HTTP status; a network failure is provider.network. */
 export async function raw(ctx: StripeCtx, c: Request): Promise<Answer> {
   const key = await needHost(ctx).secret(ctx, HANDLE.key);
-  const pairs = Object.entries(c.query ?? {}).filter((e): e is [string, string | number | boolean] => e[1] !== undefined);
-  const qs = pairs.length ? `?${pairs.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")}` : "";
-  const headers: Record<string, string> = { authorization: `Bearer ${key}`, accept: "application/json", "stripe-version": API_VERSION };
+  const pairs = Object.entries(c.query ?? {}).filter(
+    (e): e is [string, string | number | boolean] => e[1] !== undefined,
+  );
+  const qs = pairs.length
+    ? `?${pairs.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")}`
+    : "";
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${key}`,
+    accept: "application/json",
+    "stripe-version": API_VERSION,
+  };
   if (c.idempotencyKey) headers["idempotency-key"] = c.idempotencyKey;
   if (c.form !== undefined) headers["content-type"] = "application/x-www-form-urlencoded";
   let res: { status: number; text(): Promise<string> };
   try {
-    res = await ctx.http(`${API}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(c.form !== undefined ? { body: formEncode(c.form) } : {}) });
+    res = await ctx.http(`${API}${c.path}${qs}`, {
+      method: c.method ?? "GET",
+      headers,
+      ...(c.form !== undefined ? { body: formEncode(c.form) } : {}),
+    });
   } catch (e) {
-    if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+    if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
     throw fail("provider.network", ctx.trace.traceId, { message: "Stripe could not be reached." });
   }
   const body = await res.text();
@@ -170,7 +197,8 @@ export async function raw(ctx: StripeCtx, c: Request): Promise<Answer> {
     const parsed = body ? (JSON.parse(body) as unknown) : {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Json;
   } catch {
-    if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Stripe answered something unreadable." });
+    if (res.status < 300)
+      throw fail("provider.bad_response", ctx.trace.traceId, { message: "Stripe answered something unreadable." });
   }
   return { status: res.status, json };
 }
@@ -186,19 +214,41 @@ export async function api(ctx: StripeCtx, c: Request): Promise<Json> {
 export function refusal(ctx: Pick<StripeCtx, "trace">, status: number, json: Json) {
   const t = ctx.trace.traceId;
   const e = obj(json.error);
-  const details = { status, ...(typeof e.code === "string" ? { code: e.code } : {}), ...(typeof e.type === "string" ? { reason: e.type } : {}) };
+  const details = {
+    status,
+    ...(typeof e.code === "string" ? { code: e.code } : {}),
+    ...(typeof e.type === "string" ? { reason: e.type } : {}),
+  };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Stripe asked us to slow down.", details });
   if (status === 401 || status === 403) {
-    return fail("provider.auth_failed", t, { message: "Stripe did not accept the key, or the restricted key may not do this. Check Stripe_Key in the Vault and its permissions.", details });
+    return fail("provider.auth_failed", t, {
+      message:
+        "Stripe did not accept the key, or the restricted key may not do this. Check Stripe_Key in the Vault and its permissions.",
+      details,
+    });
   }
   if (status === 404) return fail("validation.not_found", t, { message: "Stripe has no such item.", details });
-  if (status === 409 || status === 402) return fail("validation.precondition_failed", t, { message: "Stripe refused because of the state of the item or the idempotency key.", details });
+  if (status === 409 || status === 402)
+    return fail("validation.precondition_failed", t, {
+      message: "Stripe refused because of the state of the item or the idempotency key.",
+      details,
+    });
   if (status >= 500) return fail("provider.unavailable", t, { message: "Stripe is not answering right now.", details });
   if (status === 400) {
     // A refund of what is already refunded, an invoice already paid: the item is in the wrong state, not the request malformed.
-    const state = new Set(["charge_already_refunded", "charge_already_captured", "invoice_not_editable", "payment_intent_unexpected_state", "resource_already_exists", "subscription_not_active"]);
+    const state = new Set([
+      "charge_already_refunded",
+      "charge_already_captured",
+      "invoice_not_editable",
+      "payment_intent_unexpected_state",
+      "resource_already_exists",
+      "subscription_not_active",
+    ]);
     return typeof e.code === "string" && state.has(e.code)
-      ? fail("validation.precondition_failed", t, { message: "Stripe says the item is not in a state that allows this.", details })
+      ? fail("validation.precondition_failed", t, {
+          message: "Stripe says the item is not in a state that allows this.",
+          details,
+        })
       : fail("validation.bad_input", t, { message: "Stripe could not use that request.", details });
   }
   return fail("provider.bad_response", t, { message: "Stripe answered something unexpected.", details });

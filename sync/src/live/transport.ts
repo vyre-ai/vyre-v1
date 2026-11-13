@@ -16,6 +16,12 @@ export interface LiveClock {
 
 export const systemClock: LiveClock = {
   now: () => Date.now(),
-  every(ms, fn) { const h = setInterval(fn, ms); return () => clearInterval(h); },
-  after(ms, fn) { const h = setTimeout(fn, ms); return () => clearTimeout(h); },
+  every(ms, fn) {
+    const h = setInterval(fn, ms);
+    return () => clearInterval(h);
+  },
+  after(ms, fn) {
+    const h = setTimeout(fn, ms);
+    return () => clearTimeout(h);
+  },
 };

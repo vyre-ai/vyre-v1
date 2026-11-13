@@ -19,7 +19,13 @@ const GAP: string[] = [];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -34,7 +40,9 @@ function boot(dir: string): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "l8-live", free: 80e9,
+      os: "linux",
+      hostname: "l8-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -54,11 +62,17 @@ function boot(dir: string): Promise<Daemon> {
 let n = 0;
 const post = (d: { url: string }, token: string, cap: string, body: Record<string, unknown> = {}) => {
   return fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
-    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ idempotencyKey: `l8-live-${++n}`, ...body }),
   });
 };
-const ok = async (d: { url: string }, token: string, cap: string, body: Record<string, unknown> = {}): Promise<unknown> => {
+const ok = async (
+  d: { url: string },
+  token: string,
+  cap: string,
+  body: Record<string, unknown> = {},
+): Promise<unknown> => {
   const r = await post(d, token, cap, body);
   const text = await r.text();
   assert.equal(r.status, 200, `${cap} answers through the live handler: ${text}`);
@@ -66,10 +80,16 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
 };
 
 test("l8 live: every L8 module is live in host/modules.json", () => {
-  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
-  const mine = file.modules.filter((m) => m.owner === "L8").map((m) => m.id).sort();
+  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as {
+    modules: { id: string; owner: string; status: string }[];
+  };
+  const mine = file.modules
+    .filter((m) => m.owner === "L8")
+    .map((m) => m.id)
+    .sort();
   assert.deepEqual(mine, [...L8].sort());
-  for (const m of file.modules.filter((x) => x.owner === "L8")) assert.equal(m.status, GAP.includes(m.id) ? "stub" : "live", `${m.id} status`);
+  for (const m of file.modules.filter((x) => x.owner === "L8"))
+    assert.equal(m.status, GAP.includes(m.id) ? "stub" : "live", `${m.id} status`);
 });
 
 test("l8 live: a booted daemon wires forms and mail links and reports no live L8 module as not set up", async () => {
@@ -77,51 +97,90 @@ test("l8 live: a booted daemon wires forms and mail links and reports no live L8
   const d = await boot(dir);
   try {
     const live = L8.filter((m) => !GAP.includes(m));
-    assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && live.includes(m.module)), [], "no live L8 module is reported as not set up");
-    for (const setter of ["setFormsHost", "setMailLinksHost"]) assert.ok((d.seams?.wired ?? []).includes(setter), `${setter} is wired`);
-  } finally { await d.stop(); }
+    assert.deepEqual(
+      (d.seams?.missing ?? []).filter((m) => m.module !== undefined && live.includes(m.module)),
+      [],
+      "no live L8 module is reported as not set up",
+    );
+    for (const setter of ["setFormsHost", "setMailLinksHost"])
+      assert.ok((d.seams?.wired ?? []).includes(setter), `${setter} is wired`);
+  } finally {
+    await d.stop();
+  }
 });
 
 // One booted daemon for the calls below, one test per step so a slow or stuck call is named in the run output.
 let shared: Daemon | null = null;
-test("l8 live: boot a daemon on the seeded Space", async () => { shared = await boot(seededDir()); });
-const live = (): Daemon => { assert.ok(shared, "the daemon booted"); return shared; };
+test("l8 live: boot a daemon on the seeded Space", async () => {
+  shared = await boot(seededDir());
+});
+const live = (): Daemon => {
+  assert.ok(shared, "the daemon booted");
+  return shared;
+};
 
 for (const cap of ["forms.list", "email_builder.list", "esign.providers", "esign.list", "templates.list"]) {
-  test(`l8 live: the owner reads ${cap}`, async () => { await ok(live(), OWNER_TOKEN, cap, {}); });
+  test(`l8 live: the owner reads ${cap}`, async () => {
+    await ok(live(), OWNER_TOKEN, cap, {});
+  });
 }
 test("l8 live: the owner creates a form and it is listed", async () => {
-  const form = (await ok(live(), OWNER_TOKEN, "forms.create", { name: "Intake", recordType: "contact", kind: "public" })) as { form: unknown };
+  const form = (await ok(live(), OWNER_TOKEN, "forms.create", {
+    name: "Intake",
+    recordType: "contact",
+    kind: "public",
+  })) as { form: unknown };
   assert.ok(form.form, "the form is created");
   const listed = (await ok(live(), OWNER_TOKEN, "forms.list", {})) as { forms: unknown[] };
   assert.ok(listed.forms.length >= 1, "the form is listed");
 });
 // email_builder.create is declared `make: [type, "/name"]` in the frozen manifests: the new resource's parent is read from the name, so the pipeline answers permission.not_found for any
 // caller (CONTRACT-CHANGE request to the steward, on P-L8_LIVE). Until that is fixed the write proofs for these two modules are other writes and a read.
-test("l8 live: the owner saves an email snippet", async () => { await ok(live(), OWNER_TOKEN, "email_builder.snippets.save", { name: "Sign-off", body: "Thanks," }); });
+test("l8 live: the owner saves an email snippet", async () => {
+  await ok(live(), OWNER_TOKEN, "email_builder.snippets.save", { name: "Sign-off", body: "Thanks," });
+});
 test("l8 live: choosing Documenso before its container is connected is refused with a typed precondition", async () => {
   const r = await post(live(), OWNER_TOKEN, "esign.provider_set", { provider: "documenso" });
   const body = (await r.json()) as { error?: { code?: string } };
   assert.equal(body.error?.code, "validation.precondition_failed");
 });
 test("l8 live: Sites is live as routes: a site is made and listed, nothing is served until it is published, and the dormant build pipeline still refuses with the shared message", async () => {
-  const made = (await ok(live(), OWNER_TOKEN, "sites.create", { idempotencyKey: "l8-site", name: "Studio", port: 3000 })) as { site: { siteId: string; slug: string; live: boolean; access: string } };
+  const made = (await ok(live(), OWNER_TOKEN, "sites.create", {
+    idempotencyKey: "l8-site",
+    name: "Studio",
+    port: 3000,
+  })) as { site: { siteId: string; slug: string; live: boolean; access: string } };
   assert.equal(made.site.live, false, "a new site serves nothing");
   assert.equal(made.site.access, "public");
   assert.equal(made.site.slug, "studio");
   const listed = (await ok(live(), OWNER_TOKEN, "sites.list", {})) as { sites: { siteId: string }[]; total: number };
-  assert.ok(listed.sites.some((s) => s.siteId === made.site.siteId), "the site is listed");
-  assert.equal(((await ok(live(), OWNER_TOKEN, "sites.get", { siteId: made.site.siteId })) as { site: { name: string } }).site.name, "Studio");
-  assert.equal(((await ok(live(), OWNER_TOKEN, "sites.status", { siteId: made.site.siteId })) as { live: boolean }).live, false);
+  assert.ok(
+    listed.sites.some((s) => s.siteId === made.site.siteId),
+    "the site is listed",
+  );
+  assert.equal(
+    ((await ok(live(), OWNER_TOKEN, "sites.get", { siteId: made.site.siteId })) as { site: { name: string } }).site
+      .name,
+    "Studio",
+  );
+  assert.equal(
+    ((await ok(live(), OWNER_TOKEN, "sites.status", { siteId: made.site.siteId })) as { live: boolean }).live,
+    false,
+  );
   const dormant = await post(live(), OWNER_TOKEN, "sites.build", { siteId: made.site.siteId });
   const body = (await dormant.json()) as { error?: { code?: string; message?: string } };
   assert.equal(body.error?.code, "internal.unavailable");
   assert.equal(body.error?.message, "Not in this version yet");
 });
 test("l8 live: a member holds none of these permissions and is refused", async () => {
-  for (const [cap, body] of [["esign.provider_set", { provider: "documenso" }], ["mail.domain.add", { idempotencyKey: "l8-domain", name: "mail.example.test", provider: "resend" }]] as const) {
+  for (const [cap, body] of [
+    ["esign.provider_set", { provider: "documenso" }],
+    ["mail.domain.add", { idempotencyKey: "l8-domain", name: "mail.example.test", provider: "resend" }],
+  ] as const) {
     const r = await post(live(), MEMBER_TOKEN, cap, body);
     assert.equal(r.status, 403, `${cap} refuses a member`);
   }
 });
-test("l8 live: stop the daemon", async () => { await shared?.stop(); });
+test("l8 live: stop the daemon", async () => {
+  await shared?.stop();
+});

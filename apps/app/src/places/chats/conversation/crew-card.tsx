@@ -16,15 +16,31 @@ type Data = Pick<ConversationData, "call" | "nav" | "changes">;
 type Job = CapMap["engine.crew.list"]["out"]["jobs"][number];
 
 /** The line a lead's chat shows when a teammate starts: a helper block that says `crew`. */
-export const isCrewStart = (b: Pick<MessageBlock, "type" | "data">): boolean => b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true;
+export const isCrewStart = (b: Pick<MessageBlock, "type" | "data">): boolean =>
+  b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true;
 
 /** One line for the start of a teammate's job, in place of "Started a helper", the chip and the lead's own sentence: who is on what, opening the teammate's thread. */
-export function CrewStartLine({ block, name, onOpen }: { block: Pick<MessageBlock, "data" | "id">; name: string; onOpen: (threadId: string) => void }): ReactElement {
+export function CrewStartLine({
+  block,
+  name,
+  onOpen,
+}: {
+  block: Pick<MessageBlock, "data" | "id">;
+  name: string;
+  onOpen: (threadId: string) => void;
+}): ReactElement {
   const d = (block.data && typeof block.data === "object" ? block.data : {}) as Record<string, unknown>;
   const thread = typeof d["helperThreadId"] === "string" ? (d["helperThreadId"] as string) : "";
   const title = typeof d["title"] === "string" ? (d["title"] as string) : "";
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${name} is on ${title}. Open its chat`} testID={`crew-start-${block.id}`} disabled={thread === ""} onPress={() => onOpen(thread)} style={st.start}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`${name} is on ${title}. Open its chat`}
+      testID={`crew-start-${block.id}`}
+      disabled={thread === ""}
+      onPress={() => onOpen(thread)}
+      style={st.start}
+    >
       <Glyph name="helper" size={13} />
       <Text style={st.startText}>{`${name} is on ${title}`}</Text>
     </Pressable>
@@ -34,25 +50,58 @@ export function CrewStartLine({ block, name, onOpen }: { block: Pick<MessageBloc
 export const isCrewResult = (b: Pick<MessageBlock, "type">): boolean => b.type === "crew_result";
 
 interface Card {
-  jobId: string; threadId: string; name: string; title: string; branch: string; state: "done" | "failed";
-  commits: number; files: Array<{ path: string; added: number; deleted: number }>; text: string;
+  jobId: string;
+  threadId: string;
+  name: string;
+  title: string;
+  branch: string;
+  state: "done" | "failed";
+  commits: number;
+  files: Array<{ path: string; added: number; deleted: number }>;
+  text: string;
 }
 
 /** The card's own words, read defensively from the block: a card from an older or odd sender still draws. */
 export function cardOf(b: Pick<MessageBlock, "data">): Card {
   const d = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
   const s = (k: string): string => (typeof d[k] === "string" ? (d[k] as string) : "");
-  const files = Array.isArray(d["files"]) ? (d["files"] as Array<Record<string, unknown>>).map((f) => ({ path: String(f["path"] ?? ""), added: Number(f["added"] ?? 0), deleted: Number(f["deleted"] ?? 0) })) : [];
-  return { jobId: s("jobId"), threadId: s("threadId"), name: s("name") || "A teammate", title: s("title"), branch: s("branch"), state: s("state") === "failed" ? "failed" : "done", commits: Number(d["ahead"] ?? (Array.isArray(d["commits"]) ? d["commits"].length : 0)), files, text: s("text") };
+  const files = Array.isArray(d["files"])
+    ? (d["files"] as Array<Record<string, unknown>>).map((f) => ({
+        path: String(f["path"] ?? ""),
+        added: Number(f["added"] ?? 0),
+        deleted: Number(f["deleted"] ?? 0),
+      }))
+    : [];
+  return {
+    jobId: s("jobId"),
+    threadId: s("threadId"),
+    name: s("name") || "A teammate",
+    title: s("title"),
+    branch: s("branch"),
+    state: s("state") === "failed" ? "failed" : "done",
+    commits: Number(d["ahead"] ?? (Array.isArray(d["commits"]) ? d["commits"].length : 0)),
+    files,
+    text: s("text"),
+  };
 }
 
 export const statsLine = (c: Pick<Card, "commits" | "files">): string =>
-  c.commits === 0 && c.files.length === 0 ? "No changes" : `${c.commits} ${c.commits === 1 ? "commit" : "commits"} · ${c.files.length} ${c.files.length === 1 ? "file" : "files"}`;
+  c.commits === 0 && c.files.length === 0
+    ? "No changes"
+    : `${c.commits} ${c.commits === 1 ? "commit" : "commits"} · ${c.files.length} ${c.files.length === 1 ? "file" : "files"}`;
 
 const SHOWN = 5;
 let seq = 0;
 
-export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBlock; leadThreadId: string; data: Data }): ReactElement {
+export function CrewResultCard({
+  block,
+  leadThreadId,
+  data,
+}: {
+  block: MessageBlock;
+  leadThreadId: string;
+  data: Data;
+}): ReactElement {
   const c = cardOf(block);
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,72 +112,209 @@ export function CrewResultCard({ block, leadThreadId, data }: { block: MessageBl
   // the card follows the repository, not its own buttons: it reads the job when it shows and on every change in the Space, so a branch merged or pushed any other way flips it without a refresh. A merge the lead
   // asked for is a held call, and a held call has one card: the approval card under the lead's message (conversation/approval.tsx).
   const look = useCallback(async (): Promise<void> => {
-    try { const out = (await data.call("engine.crew.list", { threadId: leadThreadId })) as CapMap["engine.crew.list"]["out"]; setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null); } catch { /* the card still works from its own words */ }
+    try {
+      const out = (await data.call("engine.crew.list", {
+        threadId: leadThreadId,
+      })) as CapMap["engine.crew.list"]["out"];
+      setJob(out.jobs.find((j) => j.jobId === c.jobId) ?? null);
+    } catch {
+      /* the card still works from its own words */
+    }
   }, [data, leadThreadId, c.jobId]);
-  useEffect(() => { void look(); }, [look]);
+  useEffect(() => {
+    void look();
+  }, [look]);
 
   const merged = job?.state === "merged" || line?.startsWith("Merged") === true;
   const merge = async (): Promise<void> => {
     setBusy(true);
     try {
-      const out = (await data.call("engine.crew.merge", { jobId: c.jobId, idempotencyKey: `card-merge-${c.jobId}-${++seq}` })) as { landed: boolean; note?: string; job: Job };
+      const out = (await data.call("engine.crew.merge", {
+        jobId: c.jobId,
+        idempotencyKey: `card-merge-${c.jobId}-${++seq}`,
+      })) as { landed: boolean; note?: string; job: Job };
       setJob(out.job);
-      setLine(out.landed ? `Merged ${c.branch}` : out.note ?? `${c.branch} is waiting to be merged`);
-    } catch { setLine("Could not merge. Try again."); } finally { setBusy(false); }
+      setLine(out.landed ? `Merged ${c.branch}` : (out.note ?? `${c.branch} is waiting to be merged`));
+    } catch {
+      setLine("Could not merge. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
   const sendBack = async (): Promise<void> => {
     if (words.trim() === "") return;
     setBusy(true);
-    try { await data.call("engine.crew.message", { jobId: c.jobId, body: words.trim(), idempotencyKey: `card-back-${c.jobId}-${++seq}` }); setLine(`Sent back to ${c.name}`); setBack(false); setWords(""); } catch { setLine("Could not send that. Try again."); } finally { setBusy(false); }
+    try {
+      await data.call("engine.crew.message", {
+        jobId: c.jobId,
+        body: words.trim(),
+        idempotencyKey: `card-back-${c.jobId}-${++seq}`,
+      });
+      setLine(`Sent back to ${c.name}`);
+      setBack(false);
+      setWords("");
+    } catch {
+      setLine("Could not send that. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const pushed = Boolean((job?.result as { pushed?: unknown } | undefined)?.pushed) || line?.startsWith("Pushed") === true;
+  const pushed =
+    Boolean((job?.result as { pushed?: unknown } | undefined)?.pushed) || line?.startsWith("Pushed") === true;
   // nothing more can happen to a card that is stopped, or merged and pushed
   useFollow(data.changes, look, job?.state !== "stopped" && !(merged && pushed));
   // Push sends the merged work to the project's remote from the host. It is an outward act: it holds for approval, and the card says so
   const push = async (): Promise<void> => {
     setBusy(true);
     try {
-      const out = (await data.call("engine.crew.push", { jobId: c.jobId, idempotencyKey: `card-push-${c.jobId}-${++seq}` })) as { status?: string; pushed?: boolean; note?: string; job?: Job };
+      const out = (await data.call("engine.crew.push", {
+        jobId: c.jobId,
+        idempotencyKey: `card-push-${c.jobId}-${++seq}`,
+      })) as { status?: string; pushed?: boolean; note?: string; job?: Job };
       if (out.status === "held") setLine("Waiting for approval. It is in Needs you.");
-      else { if (out.job) setJob(out.job); setLine(out.pushed ? "Pushed to the remote" : out.note ?? "Nothing was pushed"); }
-    } catch { setLine("Could not push. Try again."); } finally { setBusy(false); }
+      else {
+        if (out.job) setJob(out.job);
+        setLine(out.pushed ? "Pushed to the remote" : (out.note ?? "Nothing was pushed"));
+      }
+    } catch {
+      setLine("Could not push. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
   if (job?.state === "stopped") {
-    return <CardDone testID={`crew-card-${c.jobId}`} glyph={<Glyph name="check" size={13} />} text={`Stopped · ${c.name}: ${c.title}`} />;
+    return (
+      <CardDone
+        testID={`crew-card-${c.jobId}`}
+        glyph={<Glyph name="check" size={13} />}
+        text={`Stopped · ${c.name}: ${c.title}`}
+      />
+    );
   }
   if (merged) {
     return (
       <View testID={`crew-card-${c.jobId}`} style={st.doneBox}>
-        <CardDone glyph={<Glyph name="check" size={13} />} text={`Merged · ${c.name}: ${c.title}${pushed ? " · pushed" : ""}`} />
-        {pushed ? null : <CardActions busy={busy} secondary={[{ label: "Push", onPress: () => { void push(); }, testID: `crew-push-${c.jobId}` }]} />}
-        {line && !line.startsWith("Merged") ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
+        <CardDone
+          glyph={<Glyph name="check" size={13} />}
+          text={`Merged · ${c.name}: ${c.title}${pushed ? " · pushed" : ""}`}
+        />
+        {pushed ? null : (
+          <CardActions
+            busy={busy}
+            secondary={[
+              {
+                label: "Push",
+                onPress: () => {
+                  void push();
+                },
+                testID: `crew-push-${c.jobId}`,
+              },
+            ]}
+          />
+        )}
+        {line && !line.startsWith("Merged") ? (
+          <Text testID={`crew-line-${c.jobId}`} style={st.line}>
+            {line}
+          </Text>
+        ) : null}
       </View>
     );
   }
   const title = c.state === "failed" ? `${c.name} could not finish ${c.title}` : `${c.name} finished ${c.title}`;
   return (
-    <UiCard kind="result" size="compact" testID={`crew-card-${c.jobId}`} label={title} onCancel={back ? () => { setBack(false); setWords(""); } : undefined}>
+    <UiCard
+      kind="result"
+      size="compact"
+      testID={`crew-card-${c.jobId}`}
+      label={title}
+      onCancel={
+        back
+          ? () => {
+              setBack(false);
+              setWords("");
+            }
+          : undefined
+      }
+    >
       <CardHead title={title} meta={c.branch} />
-      {c.state === "done" ? <Text testID={`crew-stats-${c.jobId}`} style={st.stats}>{statsLine(c)}</Text> : null}
+      {c.state === "done" ? (
+        <Text testID={`crew-stats-${c.jobId}`} style={st.stats}>
+          {statsLine(c)}
+        </Text>
+      ) : null}
       {collect(c.files.slice(0, SHOWN), (f) => (
-        <View key={f.path} style={st.file}><Text numberOfLines={1} style={st.path}>{f.path}</Text><Text style={st.plus}>{`+${f.added}`}</Text><Text style={st.minus}>{`-${f.deleted}`}</Text></View>
+        <View key={f.path} style={st.file}>
+          <Text numberOfLines={1} style={st.path}>
+            {f.path}
+          </Text>
+          <Text style={st.plus}>{`+${f.added}`}</Text>
+          <Text style={st.minus}>{`-${f.deleted}`}</Text>
+        </View>
       ))}
       {c.files.length > SHOWN ? <Text style={st.more}>{`and ${c.files.length - SHOWN} more`}</Text> : null}
-      {c.text ? <Text numberOfLines={6} style={st.quote}>{c.text}</Text> : null}
+      {c.text ? (
+        <Text numberOfLines={6} style={st.quote}>
+          {c.text}
+        </Text>
+      ) : null}
       {back ? (
         <View style={st.backBox}>
-          <CardField label={`What ${c.name} should change`} accessLabel={`What ${c.name} should change`} placeholder={`What should ${c.name} change?`} value={words} onChange={setWords} multiline testID={`crew-back-input-${c.jobId}`} />
-          <CardActions busy={busy} primary={{ label: "Send", disabled: words.trim() === "", onPress: () => { void sendBack(); }, testID: `crew-back-send-${c.jobId}` }} secondary={[{ label: "Cancel", onPress: () => { setBack(false); setWords(""); } }]} />
+          <CardField
+            label={`What ${c.name} should change`}
+            accessLabel={`What ${c.name} should change`}
+            placeholder={`What should ${c.name} change?`}
+            value={words}
+            onChange={setWords}
+            multiline
+            testID={`crew-back-input-${c.jobId}`}
+          />
+          <CardActions
+            busy={busy}
+            primary={{
+              label: "Send",
+              disabled: words.trim() === "",
+              onPress: () => {
+                void sendBack();
+              },
+              testID: `crew-back-send-${c.jobId}`,
+            }}
+            secondary={[
+              {
+                label: "Cancel",
+                onPress: () => {
+                  setBack(false);
+                  setWords("");
+                },
+              },
+            ]}
+          />
         </View>
       ) : (
         <CardActions
           busy={busy}
-          {...(c.state === "done" ? { primary: { label: "Merge", onPress: () => { void merge(); }, testID: `crew-merge-${c.jobId}` } } : {})}
-          secondary={[{ label: "Send back", onPress: () => setBack(true), testID: `crew-back-${c.jobId}` }, { label: "Open thread", onPress: () => data.nav.openThread(c.threadId), testID: `crew-open-${c.jobId}` }]}
+          {...(c.state === "done"
+            ? {
+                primary: {
+                  label: "Merge",
+                  onPress: () => {
+                    void merge();
+                  },
+                  testID: `crew-merge-${c.jobId}`,
+                },
+              }
+            : {})}
+          secondary={[
+            { label: "Send back", onPress: () => setBack(true), testID: `crew-back-${c.jobId}` },
+            { label: "Open thread", onPress: () => data.nav.openThread(c.threadId), testID: `crew-open-${c.jobId}` },
+          ]}
         />
       )}
-      {line ? <Text testID={`crew-line-${c.jobId}`} style={st.line}>{line}</Text> : null}
+      {line ? (
+        <Text testID={`crew-line-${c.jobId}`} style={st.line}>
+          {line}
+        </Text>
+      ) : null}
     </UiCard>
   );
 }

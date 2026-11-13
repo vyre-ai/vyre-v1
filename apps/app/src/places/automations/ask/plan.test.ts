@@ -2,7 +2,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  accountFromCreate, connectionCreateInput, firstFolderId, handleOf, itemIdOf, linesFor, linkAccount, planAsk, savedLine, setupShape, vaultPutInput,
+  accountFromCreate,
+  connectionCreateInput,
+  firstFolderId,
+  handleOf,
+  itemIdOf,
+  linesFor,
+  linkAccount,
+  planAsk,
+  savedLine,
+  setupShape,
+  vaultPutInput,
 } from "./plan.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import type { Definition } from "../canvas/model.ts";
@@ -14,7 +24,11 @@ const steps = [
   { key: "connector_request", title: "Authenticated request" },
 ];
 
-const empty = (): Definition => ({ triggers: [{ key: "manual" }], start: ["s"], nodes: [{ id: "s", key: "stop", input: {} }] });
+const empty = (): Definition => ({
+  triggers: [{ key: "manual" }],
+  start: ["s"],
+  nodes: [{ id: "s", key: "stop", input: {} }],
+});
 
 test("an existing Google account is named and the catalog step is chosen", () => {
   const turn = planAsk({ text: "list gmail messages", accounts: [google("con_g", "Work Gmail")], steps });
@@ -30,7 +44,10 @@ test("two accounts are listed and neither is written until one is picked", () =>
   const turn = planAsk({ text: "gmail", accounts: [google("con_a", "Work"), google("con_b", "Home")], steps });
   assert.equal(turn.kind, "choose");
   if (turn.kind !== "choose") return;
-  assert.deepEqual(turn.accounts.map((account) => account.id), ["con_a", "con_b"]);
+  assert.deepEqual(
+    turn.accounts.map((account) => account.id),
+    ["con_a", "con_b"],
+  );
   assert.match(turn.say, /Work/);
   assert.match(turn.say, /Home/);
 });
@@ -62,12 +79,18 @@ test("document fields become Vault keys and the pasted value stays off the line"
     text: "stripe create a customer",
     accounts: [],
     steps,
-    fields: [{ name: "Client id", secret: false }, { name: "Client secret", secret: true }],
+    fields: [
+      { name: "Client id", secret: false },
+      { name: "Client secret", secret: true },
+    ],
     action: "createCustomer",
   });
   assert.equal(turn.kind, "paste");
   if (turn.kind !== "paste") return;
-  assert.deepEqual(turn.slots.map((slot) => slot.key), ["CLIENT_ID", "CLIENT_SECRET"]);
+  assert.deepEqual(
+    turn.slots.map((slot) => slot.key),
+    ["CLIENT_ID", "CLIENT_SECRET"],
+  );
   assert.equal(turn.slots[1]!.secret, true);
   assert.equal(turn.stepKey, "connector_request");
   assert.equal(turn.action, "createCustomer");
@@ -75,7 +98,12 @@ test("document fields become Vault keys and the pasted value stays off the line"
   const blob = JSON.stringify(lines) + turn.say;
   assert.equal(blob.includes(secret), false);
   assert.match(lines[0]!.say, /\[redacted\]/);
-  const put = vaultPutInput({ folderId: "fld_1", app: "stripe", slots: turn.slots, values: { CLIENT_ID: "pk_test", CLIENT_SECRET: secret } });
+  const put = vaultPutInput({
+    folderId: "fld_1",
+    app: "stripe",
+    slots: turn.slots,
+    values: { CLIENT_ID: "pk_test", CLIENT_SECRET: secret },
+  });
   assert.ok(!("error" in put));
   if ("error" in put) return;
   assert.equal(put.put.fields[1]!.value, secret);
@@ -106,18 +134,28 @@ test("linking writes the account onto the matching step and can add a catalog st
   assert.equal(node?.key, "google.gmail.list_messages");
   assert.equal((node?.input as { connectionId?: string }).connectionId, "con_g");
   assert.equal((node?.input as { connector?: string }).connector, "google");
-  const again = linkAccount(added.def, { account: google("con_h", "Home"), stepKey: "google.gmail.list_messages", nodeId: added.nodeId });
+  const again = linkAccount(added.def, {
+    account: google("con_h", "Home"),
+    stepKey: "google.gmail.list_messages",
+    nodeId: added.nodeId,
+  });
   assert.ok("def" in again);
   if (!("def" in again)) return;
   assert.equal(again.nodeId, added.nodeId);
   assert.equal(again.def.nodes.length, added.def.nodes.length);
-  assert.equal((again.def.nodes.find((item) => item.id === again.nodeId)?.input as { connectionId?: string }).connectionId, "con_h");
+  assert.equal(
+    (again.def.nodes.find((item) => item.id === again.nodeId)?.input as { connectionId?: string }).connectionId,
+    "con_h",
+  );
 });
 
 test("folder, item, and handle reads ignore every field except the id", () => {
   assert.equal(firstFolderId({ folders: [{ id: "fld_mine", name: "Mine" }] }), "fld_mine");
   assert.equal(itemIdOf({ item: { id: "vit_1", fields: [{ key: "TOKEN", value: "secret" }] } }), "vit_1");
   assert.equal(handleOf({ handle: "hnd_1", value: "secret" }), "hnd_1");
-  const account = accountFromCreate({ connection: { connectionId: "con_1", connector: "stripe", title: "Stripe", state: "active", secret: "no" } }, "stripe");
+  const account = accountFromCreate(
+    { connection: { connectionId: "con_1", connector: "stripe", title: "Stripe", state: "active", secret: "no" } },
+    "stripe",
+  );
   assert.deepEqual(account, { app: "stripe", id: "con_1", title: "Stripe", state: "active" });
 });

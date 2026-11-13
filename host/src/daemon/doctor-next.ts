@@ -11,7 +11,7 @@ export const NEXT = {
   events: "Restore from the last backup (Console, Data, Backups), then run vyre-server doctor again.",
   docker: "Start Docker or Colima; sites and agent computers need it.",
   caddy: "Restart Caddy in Console, Infrastructure, Services.",
-  ingress: "vyred writes the route within a minute of starting once Caddy answers. If it stays missing, run vyre-server restart and read vyre-server logs vyred.",
+  ingress:
+    "vyred writes the route within a minute of starting once Caddy answers. If it stays missing, run vyre-server restart and read vyre-server logs vyred.",
   logs: "Read them with vyre logs --level error.",
 } as const;
-

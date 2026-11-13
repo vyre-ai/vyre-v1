@@ -18,7 +18,11 @@ test("deletes outside the work folder and paths that leave it are read from the 
   assert.deepEqual(localFacts(terminal, { command: "ls", cwd: "work/../../x" }), { outsideLockedFolder: true });
   assert.deepEqual(localFacts(terminal, { command: "ls", cwd: "work/build" }), {});
   assert.equal(leavesWorkFolder(undefined), false);
-  assert.deepEqual(localFacts({ name: "chrome_act", local: "chrome" } as never, { command: "rm /x" }), {}, "only the terminal reads these");
+  assert.deepEqual(
+    localFacts({ name: "chrome_act", local: "chrome" } as never, { command: "rm /x" }),
+    {},
+    "only the terminal reads these",
+  );
 });
 
 test("the facts feed decideLocal: Auto still asks for a delete and refuses a path out", () => {

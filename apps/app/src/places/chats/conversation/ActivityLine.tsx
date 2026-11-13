@@ -33,14 +33,29 @@ function ensureCss(): void {
 
 const NO_STREAM = createStreamStore();
 
-const web = (cls: string, children: string): ReactElement | string => (Platform.OS === "web" ? createElement("span", { className: cls }, children) : children);
+const web = (cls: string, children: string): ReactElement | string =>
+  Platform.OS === "web" ? createElement("span", { className: cls }, children) : children;
 
 /** The body of a reply being written. Before its first word, while the activity line says what the agent is doing, it draws nothing: the line takes that spot and there is no lone caret on an empty line. */
-export function LiveBody({ store, hideEmpty, testID, style }: { store: StreamStore; hideEmpty: boolean; testID: string; style: object }): ReactElement | null {
+export function LiveBody({
+  store,
+  hideEmpty,
+  testID,
+  style,
+}: {
+  store: StreamStore;
+  hideEmpty: boolean;
+  testID: string;
+  style: object;
+}): ReactElement | null {
   const snap = useStream(store);
   const data = useConversationData();
   if (hideEmpty && snap.blocks.length === 0 && !snap.done) return null;
-  return <View testID={testID} style={style}><RefStreamText store={store} data={data} /></View>;
+  return (
+    <View testID={testID} style={style}>
+      <RefStreamText store={store} data={data} />
+    </View>
+  );
 }
 
 /** The seconds since the turn began, in its own element: it ticks without the rest of the line rendering, and it keeps its room so nothing beside it moves. */
@@ -52,7 +67,11 @@ const Elapsed = memo(function Elapsed({ since, done }: { since: number; done: bo
     return () => clearInterval(h);
   }, [done]);
   const words = done ? "" : elapsedWords(Math.max(0, Math.round((now - since) / 1000)));
-  return <Text testID="activity-elapsed" style={st.clock}>{words === "" ? "" : `· ${words}`}</Text>;
+  return (
+    <Text testID="activity-elapsed" style={st.clock}>
+      {words === "" ? "" : `· ${words}`}
+    </Text>
+  );
 });
 
 /** What the line shows: the newest label, but a label already on screen stays at least DWELL_MS. Changes inside that window collapse into the newest. */
@@ -64,17 +83,32 @@ function useDwelled(target: { label: string; detail: string }, done: boolean): {
   useEffect(() => {
     if (shown.label === target.label && shown.detail === target.detail) return;
     // a finished turn shows its end at once; the detail (the tail of the thinking) follows the same beat as the label
-    const wait = done ? 0 : shown.label === target.label ? Math.max(0, clock.current.shownAt + 1500 - Date.now()) : waitFor(clock.current.shownAt, Date.now());
+    const wait = done
+      ? 0
+      : shown.label === target.label
+        ? Math.max(0, clock.current.shownAt + 1500 - Date.now())
+        : waitFor(clock.current.shownAt, Date.now());
     const h = setTimeout(() => {
       const next = latest.current;
-      setShown((cur) => { if (cur.label !== next.label) clock.current.shownAt = Date.now(); return next; });
+      setShown((cur) => {
+        if (cur.label !== next.label) clock.current.shownAt = Date.now();
+        return next;
+      });
     }, wait);
     return () => clearTimeout(h);
   }, [target.label, target.detail, shown.label, shown.detail, done]);
   return shown;
 }
 
-export function ActivityLine({ store, stream, face }: { store: ActivityStore; stream?: StreamStore | undefined; /** Draws in place of the product mark (a thread shows the agent's own face). */ face?: ReactElement | undefined }): ReactElement {
+export function ActivityLine({
+  store,
+  stream,
+  face,
+}: {
+  store: ActivityStore;
+  stream?: StreamStore | undefined;
+  /** Draws in place of the product mark (a thread shows the agent's own face). */ face?: ReactElement | undefined;
+}): ReactElement {
   ensureCss();
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [open, setOpen] = useState(false);
@@ -83,25 +117,57 @@ export function ActivityLine({ store, stream, face }: { store: ActivityStore; st
   const state = snap.done ? "done" : words ? "writing" : "thinking";
   // the mark nods when the line's words change, not on every raw step: at most once per dwell
   const rows: ReactElement[] = [];
-  for (const s of snap.steps) rows.push(<Text key={s.id} testID={`activity-step-${s.id}`} style={st.step}>{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}`}</Text>);
+  for (const s of snap.steps)
+    rows.push(
+      <Text
+        key={s.id}
+        testID={`activity-step-${s.id}`}
+        style={st.step}
+      >{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}`}</Text>,
+    );
   const thought = thinkingExcerpt(snap.thinking, 420);
   const inner = (
     <View testID="activity" style={st.root}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${line.label}. ${open ? "Hide" : "Show"} what it is doing`} testID="activity-line" onPress={() => setOpen((o) => !o)} style={st.row}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${line.label}. ${open ? "Hide" : "Show"} what it is doing`}
+        testID="activity-line"
+        onPress={() => setOpen((o) => !o)}
+        style={st.row}
+      >
         {face ?? <WorkingMark state={state} step={line.label} size={20} testID="working-mark" />}
-        <Text accessibilityLiveRegion="polite" style={st.label}>{Platform.OS === "web" ? createElement("span", { className: "vy-shimmer" }, createElement("span", { key: line.label, className: "vy-fade" }, line.label)) : line.label}</Text>
+        <Text accessibilityLiveRegion="polite" style={st.label}>
+          {Platform.OS === "web"
+            ? createElement(
+                "span",
+                { className: "vy-shimmer" },
+                createElement("span", { key: line.label, className: "vy-fade" }, line.label),
+              )
+            : line.label}
+        </Text>
         <Elapsed since={snap.startedAt} done={snap.done} />
-        {line.detail !== "" ? <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>{line.detail}</Text> : null}
+        {line.detail !== "" ? (
+          <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>
+            {line.detail}
+          </Text>
+        ) : null}
       </Pressable>
       {open ? (
         <View testID="activity-trail" style={st.trail}>
           {rows.length > 0 ? rows : <Text style={st.step}>No steps yet</Text>}
-          {thought !== "" ? <Text testID="activity-thinking" style={st.thought}>{thought}</Text> : null}
+          {thought !== "" ? (
+            <Text testID="activity-thinking" style={st.thought}>
+              {thought}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </View>
   );
-  return Platform.OS === "web" ? createElement("div", { className: snap.done ? "vy-done-wrap" : undefined }, inner) : inner;
+  return Platform.OS === "web"
+    ? createElement("div", { className: snap.done ? "vy-done-wrap" : undefined }, inner)
+    : inner;
 }
 
 const st = StyleSheet.create({

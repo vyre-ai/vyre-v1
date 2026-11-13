@@ -14,9 +14,20 @@ import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx";
 import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { SidebarContent } from "../../../apps/app/src/shell/sidebar/index.ts";
-import { createSampleFiles, harbor as filesHarbor, northwind as filesNorthwind } from "../../../apps/app/src/places/files/list/sample.ts";
+import {
+  createSampleFiles,
+  harbor as filesHarbor,
+  northwind as filesNorthwind,
+} from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
-import { AgentFileEditor, AgentFilePage, ChangesetDiff, ChangesetHeader, GitRow, ReviewDataProvider } from "../../../apps/app/src/places/files/review/index.ts";
+import {
+  AgentFileEditor,
+  AgentFilePage,
+  ChangesetDiff,
+  ChangesetHeader,
+  GitRow,
+  ReviewDataProvider,
+} from "../../../apps/app/src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, createSampleReview } from "../../../apps/app/src/places/files/review/sample.ts";
 
 export const title = "Files: review";
@@ -33,22 +44,63 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
   const harborSpace = q.get("space") === "harbor";
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720; // 0 is "not measured yet" (the static page)
-  const sample = useMemo(() => createSampleReview({
-    variant: harborSpace ? "harbor" : "northwind", repo: q.get("repo") === "1" || q.get("part") === "git", protectedBranch: q.get("protected") === "1",
-  }), [q, harborSpace]);
-  const files = useMemo(() => createSampleFiles(harborSpace ? filesHarbor : filesNorthwind, { subjects: true }), [harborSpace]);
+  const sample = useMemo(
+    () =>
+      createSampleReview({
+        variant: harborSpace ? "harbor" : "northwind",
+        repo: q.get("repo") === "1" || q.get("part") === "git",
+        protectedBranch: q.get("protected") === "1",
+      }),
+    [q, harborSpace],
+  );
+  const files = useMemo(
+    () => createSampleFiles(harborSpace ? filesHarbor : filesNorthwind, { subjects: true }),
+    [harborSpace],
+  );
   const part = PARTS.find((p) => p === q.get("part")) ?? "review";
   const panel = q.get("panel") === "discard" ? "discard" : q.get("panel") === "request" ? "request" : undefined;
   const density = phone ? "compact" : "regular";
   let body: ReactNode;
   if (part === "git") body = <GitRow folderId={sample.folderId} />;
-  else if (part === "history") body = <AgentFilePage fileId={sample.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density={density} startHistory startViewing="ver_a3" />;
-  else if (part === "lint") body = <AgentFilePage fileId={sample.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density={density} />;
+  else if (part === "history")
+    body = (
+      <AgentFilePage
+        fileId={sample.fileIds.agent}
+        name="AGENT.md"
+        path="Agents/Intake"
+        agentId="agt_intake"
+        saved={AGENT_MD}
+        version={4}
+        density={density}
+        startHistory
+        startViewing="ver_a3"
+      />
+    );
+  else if (part === "lint")
+    body = (
+      <AgentFilePage
+        fileId={sample.fileIds.agent}
+        name="AGENT.md"
+        path="Agents/Intake"
+        agentId="agt_intake"
+        saved={AGENT_MD}
+        version={4}
+        density={density}
+      />
+    );
   else if (part === "form") {
     body = (
       <AgentFileEditor
-        fileId={sample.fileIds.toml} name="agent.toml" saved={AGENT_TOML} version={2} density={density}
-        start={{ view: "form", draft: AGENT_TOML.replace("daily_budget = 12", "daily_budget = 20"), review: q.get("diff") === "1" }}
+        fileId={sample.fileIds.toml}
+        name="agent.toml"
+        saved={AGENT_TOML}
+        version={2}
+        density={density}
+        start={{
+          view: "form",
+          draft: AGENT_TOML.replace("daily_budget = 12", "daily_budget = 20"),
+          review: q.get("diff") === "1",
+        }}
       />
     );
   } else {
@@ -64,10 +116,14 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
     <FilesDataProvider value={files.data}>
       <FilesStateProvider initial={{ where: { kind: "folder", id: harborSpace ? "fld_h_clients" : "fld_pj_rivera" } }}>
         <View testID="files-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <SidebarContent title="Files" searchPlaceholder="Search files">{(query, slot) => <FilesTree query={query} slot={slot} />}</SidebarContent>
+          <SidebarContent title="Files" searchPlaceholder="Search files">
+            {(query, slot) => <FilesTree query={query} slot={slot} />}
+          </SidebarContent>
           <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <ReviewDataProvider value={sample.data}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>{body}</ScrollView>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+                {body}
+              </ScrollView>
             </ReviewDataProvider>
           </View>
         </View>
@@ -82,16 +138,30 @@ function Framed({ q }: { q: URLSearchParams }): ReactNode {
     const skin = q.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: q.get("space") === "harbor" ? "hb" : "nw", theme });
     hub.go("files");
     return { hub, theme };
   }, [q]);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "files" ? <Body key={ctx.spaceId} q={q} /> : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "files" ? <Body key={ctx.spaceId} q={q} /> : samplePlace(ctx);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />
@@ -101,6 +171,8 @@ function Framed({ q }: { q: URLSearchParams }): ReactNode {
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Framed q={q} /> : <View style={{ flex: 1 }} />;
 }

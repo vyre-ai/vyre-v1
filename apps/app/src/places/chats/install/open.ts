@@ -5,11 +5,20 @@ const listeners = new Set<Listener>();
 let waiting: string | null = null;
 
 export function openSkills(name: string): void {
-  if (listeners.size === 0) { waiting = name; return; }
+  if (listeners.size === 0) {
+    waiting = name;
+    return;
+  }
   for (const l of listeners) l(name);
 }
 export function onOpenSkills(l: Listener): () => void {
   listeners.add(l);
-  if (waiting !== null) { const n = waiting; waiting = null; l(n); }
-  return () => { listeners.delete(l); };
+  if (waiting !== null) {
+    const n = waiting;
+    waiting = null;
+    l(n);
+  }
+  return () => {
+    listeners.delete(l);
+  };
 }

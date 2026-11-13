@@ -9,17 +9,40 @@ import type { LoggedEvent } from "../handlers/triggers.ts";
 import { findRunLink, getAutomation } from "../projections.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
 const live = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> => {
   const id = (await h.call("automations.create", create(over), alice)).automation.id as string;
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice);
   return id;
 };
-const fire = (h: Harness, id: string, over: Record<string, unknown> = {}): Promise<any> =>   // eslint-disable-line @typescript-eslint/no-explicit-any
-  h.call("automations.fire", { automationId: id, trigger: "record_change", eventId: "evt_one", payload: { recordId: "rec_abc" }, depth: 0, ...over }, engine);
+const fire = (
+  h: Harness,
+  id: string,
+  over: Record<string, unknown> = {},
+): Promise<any> => // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.call(
+    "automations.fire",
+    {
+      automationId: id,
+      trigger: "record_change",
+      eventId: "evt_one",
+      payload: { recordId: "rec_abc" },
+      depth: 0,
+      ...over,
+    },
+    engine,
+  );
 const change = (over: Partial<LoggedEvent> = {}): LoggedEvent => ({
-  id: "evt_c1", type: "record.updated", payload: { recordId: "rec_1", type: "contact", fields: { status: "won" }, prev: { status: "new" }, version: 3 }, depth: 0, ...over,
+  id: "evt_c1",
+  type: "record.updated",
+  payload: { recordId: "rec_1", type: "contact", fields: { status: "won" }, prev: { status: "new" }, version: 3 },
+  depth: 0,
+  ...over,
 });
 
 // ---- self-trigger and chain depth ----
@@ -29,7 +52,10 @@ test("an Automation does not trigger itself: an event it caused is dropped and s
   const id = await live(h);
   const r = await fire(h, id, { origin: `automation:${id}`, depth: 1, eventId: "evt_self" });
   assert.deepEqual(r, { dropped: "self_trigger" });
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.trigger_dropped"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.trigger_dropped"],
+  );
   assert.deepEqual(h.events[0]!.payload, { automationId: id, eventId: "evt_self", reason: "self_trigger" });
   assert.equal(h.runs.length, 0);
 });
@@ -42,7 +68,10 @@ test("a Run caused by another Automation, or by a person, does start", async () 
   const person = await fire(h, id, { origin: "user", depth: 0, eventId: "evt_b" });
   assert.ok(person.runId);
   assert.equal(h.runs.length, 2);
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.run_started"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.run_started"],
+  );
 });
 
 test("self-trigger is allowed when the definition says so", async () => {
@@ -59,7 +88,11 @@ test("the chain stops at depth 8: events from the eighth hop on do not start a R
   const b = await live(h, { definition: goodDefinition({ allowSelfTrigger: true }) });
   assert.ok((await fire(h, a, { depth: 7, eventId: "evt_d7" })).runId, "the eighth Run is the last");
   assert.deepEqual(await fire(h, a, { depth: 8, eventId: "evt_d8" }), { dropped: "depth_limit" });
-  assert.deepEqual(await fire(h, b, { depth: 8, origin: `automation:${b}`, eventId: "evt_d8b" }), { dropped: "depth_limit" }, "allowing self-trigger does not lift the limit");
+  assert.deepEqual(
+    await fire(h, b, { depth: 8, origin: `automation:${b}`, eventId: "evt_d8b" }),
+    { dropped: "depth_limit" },
+    "allowing self-trigger does not lift the limit",
+  );
   assert.deepEqual(await fire(h, a, { depth: 40, eventId: "evt_d40" }), { dropped: "depth_limit" });
   assert.equal(h.events[0]!.payload.reason, "depth_limit");
   assert.equal(h.runs.length, 1);
@@ -81,7 +114,10 @@ test("a chain of Automations ends at the limit when each one's events trigger th
   let started = 0;
   let depth = 0;
   for (let i = 0; i < 20; i++) {
-    const out = await consumeEvent(h.ctxFor(null, engine), change({ id: `evt_chain${i}`, origin: depth ? `automation:${id}` : "user", depth }));
+    const out = await consumeEvent(
+      h.ctxFor(null, engine),
+      change({ id: `evt_chain${i}`, origin: depth ? `automation:${id}` : "user", depth }),
+    );
     if (!("runId" in out[0]!.result)) break;
     started += 1;
     depth += 1;
@@ -115,8 +151,16 @@ test("the same event fires an Automation once", async () => {
 
 test("the consumer starts a Run for each enabled Automation whose trigger matches, with the record change reshaped", async () => {
   const h = harness();
-  const hit = await live(h, { name: "Contacts", definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "contact", op: "updated", fields: ["status"] } }] }) });
-  await live(h, { name: "Deals", definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "deal" } }] }) });
+  const hit = await live(h, {
+    name: "Contacts",
+    definition: goodDefinition({
+      triggers: [{ key: "record_change", filter: { type: "contact", op: "updated", fields: ["status"] } }],
+    }),
+  });
+  await live(h, {
+    name: "Deals",
+    definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "deal" } }] }),
+  });
   await h.call("automations.create", create({ name: "Draft" }), alice);
   const res = await h.consumer(engine, (ctx) => consumeEvent(ctx, change()));
   assert.equal(res.length, 1);
@@ -126,14 +170,36 @@ test("the consumer starts a Run for each enabled Automation whose trigger matche
   assert.equal(plan.link.trigger, "record_change");
   assert.equal(plan.link.eventId, "evt_c1");
   assert.equal(plan.link.depth, 0);
-  assert.deepEqual(plan.link.payload, { record: { status: "won" }, recordId: "rec_1", type: "contact", op: "updated", fields: ["status"], changed: { status: "won" }, version: 3 });
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.run_started"]);
-  assert.deepEqual(h.events[0]!.payload, { automationId: hit, runId, trigger: "record_change", version: 1, test: false, depth: 0 });
+  assert.deepEqual(plan.link.payload, {
+    record: { status: "won" },
+    recordId: "rec_1",
+    type: "contact",
+    op: "updated",
+    fields: ["status"],
+    changed: { status: "won" },
+    version: 3,
+  });
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.run_started"],
+  );
+  assert.deepEqual(h.events[0]!.payload, {
+    automationId: hit,
+    runId,
+    trigger: "record_change",
+    version: 1,
+    test: false,
+    depth: 0,
+  });
 });
 
 test("the filter narrows by type, operation, changed field and values", async () => {
   const h = harness();
-  const mk = (filter: unknown) => live(h, { name: JSON.stringify(filter), definition: goodDefinition({ triggers: [{ key: "record_change", filter }] }) });
+  const mk = (filter: unknown) =>
+    live(h, {
+      name: JSON.stringify(filter),
+      definition: goodDefinition({ triggers: [{ key: "record_change", filter }] }),
+    });
   const created = await mk({ type: "contact", op: "created" });
   const field = await mk({ type: "contact", fields: ["email"] });
   const where = await mk({ type: "contact", where: { status: "won" } });
@@ -141,14 +207,33 @@ test("the filter narrows by type, operation, changed field and values", async ()
   const any = await mk({ type: "contact" });
   const fired = (await h.consumer(engine, (ctx) => consumeEvent(ctx, change()))).map((r) => r.automationId).sort();
   assert.deepEqual(fired, [where, any].sort());
-  const made = (await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_c2", type: "record.created", payload: { recordId: "rec_2", type: "contact", fields: { email: "a@b.c", status: "won" } } })))).map((r) => r.automationId).sort();
-  assert.deepEqual(made, [created, field, where, any].sort(), "a new record matches a field filter when it sets one of the fields");
+  const made = (
+    await h.consumer(engine, (ctx) =>
+      consumeEvent(
+        ctx,
+        change({
+          id: "evt_c2",
+          type: "record.created",
+          payload: { recordId: "rec_2", type: "contact", fields: { email: "a@b.c", status: "won" } },
+        }),
+      ),
+    )
+  )
+    .map((r) => r.automationId)
+    .sort();
+  assert.deepEqual(
+    made,
+    [created, field, where, any].sort(),
+    "a new record matches a field filter when it sets one of the fields",
+  );
   assert.ok(!made.includes(wrongWhere));
 });
 
 test("a broken filter is reported, not guessed", async () => {
   const h = harness();
-  const id = await live(h, { definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "contact", fields: "status" } }] }) });
+  const id = await live(h, {
+    definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "contact", fields: "status" } }] }),
+  });
   const res = await h.consumer(engine, (ctx) => consumeEvent(ctx, change()));
   assert.deepEqual(res, [{ automationId: id, result: { dropped: "filter_error" } }]);
   assert.deepEqual(h.events[0]!.payload, { automationId: id, eventId: "evt_c1", reason: "filter_error" });
@@ -168,9 +253,13 @@ test("a paused Automation reports each event it ignores; one that is off stays s
 test("the consumer drops what an Automation caused itself and what is too deep", async () => {
   const h = harness();
   const id = await live(h);
-  const own = await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_own", origin: `automation:${id}`, depth: 1 })));
+  const own = await h.consumer(engine, (ctx) =>
+    consumeEvent(ctx, change({ id: "evt_own", origin: `automation:${id}`, depth: 1 })),
+  );
   assert.deepEqual(own[0]!.result, { dropped: "self_trigger" });
-  const deep = await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_deep", origin: "automation:aut_x", depth: 8 })));
+  const deep = await h.consumer(engine, (ctx) =>
+    consumeEvent(ctx, change({ id: "evt_deep", origin: "automation:aut_x", depth: 8 })),
+  );
   assert.deepEqual(deep[0]!.result, { dropped: "depth_limit" });
   assert.equal(h.runs.length, 0);
 });
@@ -180,19 +269,35 @@ test("what an importer or a sync backfill writes does not fire Automations unles
   await live(h);
   assert.deepEqual(await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_imp", imported: true }))), []);
   h.policy("automations.run_automations_on_import", true);
-  assert.equal((await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_imp2", imported: true })))).length, 1);
+  assert.equal(
+    (await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_imp2", imported: true })))).length,
+    1,
+  );
 });
 
 test("other triggers match by event name and payload", async () => {
   const h = harness();
-  const form = await live(h, { definition: { triggers: [{ key: "form_submit", filter: { formId: "frm_one" } }], nodes: [] } });
+  const form = await live(h, {
+    definition: { triggers: [{ key: "form_submit", filter: { formId: "frm_one" } }], nodes: [] },
+  });
   await live(h, { definition: { triggers: [{ key: "email_received" }], nodes: [] } });
-  const ev: LoggedEvent = { id: "evt_f", type: "form.submitted", payload: { formId: "frm_one", recordId: "rec_1", type: "contact", matched: true } };
+  const ev: LoggedEvent = {
+    id: "evt_f",
+    type: "form.submitted",
+    payload: { formId: "frm_one", recordId: "rec_1", type: "contact", matched: true },
+  };
   const res = await h.consumer(engine, (ctx) => consumeEvent(ctx, ev));
-  assert.deepEqual(res.map((r) => r.automationId), [form]);
-  const other = await h.consumer(engine, (ctx) => consumeEvent(ctx, { ...ev, id: "evt_g", payload: { ...ev.payload, formId: "frm_two" } }));
+  assert.deepEqual(
+    res.map((r) => r.automationId),
+    [form],
+  );
+  const other = await h.consumer(engine, (ctx) =>
+    consumeEvent(ctx, { ...ev, id: "evt_g", payload: { ...ev.payload, formId: "frm_two" } }),
+  );
   assert.deepEqual(other, []);
-  const mail = await h.consumer(engine, (ctx) => consumeEvent(ctx, { id: "evt_m", type: "sms.received", payload: { messageId: "m1" } }));
+  const mail = await h.consumer(engine, (ctx) =>
+    consumeEvent(ctx, { id: "evt_m", type: "sms.received", payload: { messageId: "m1" } }),
+  );
   assert.equal(mail.length, 1, "email_received covers texts too");
 });
 
@@ -208,8 +313,19 @@ test("test mode starts a test Run with the trigger's sample, reading for real an
   assert.equal(link.trigger, "record_change");
   assert.equal((link.payload as { recordId: string }).recordId, "rec_a1b2c3", "the trigger's sample");
   assert.deepEqual(link.principal, { kind: "person", id: alice.id });
-  assert.deepEqual(h.events[0]!.payload, { automationId: id, runId: r.runId, trigger: "record_change", version: 1, test: true, depth: 0 });
-  const mine = await h.call("automations.test", { automationId: id, trigger: "manual", sample: { startedBy: "usr_x" } }, alice);
+  assert.deepEqual(h.events[0]!.payload, {
+    automationId: id,
+    runId: r.runId,
+    trigger: "record_change",
+    version: 1,
+    test: true,
+    depth: 0,
+  });
+  const mine = await h.call(
+    "automations.test",
+    { automationId: id, trigger: "manual", sample: { startedBy: "usr_x" } },
+    alice,
+  );
   assert.deepEqual(findRunLink(h.db, mine.runId)!.payload, { startedBy: "usr_x" });
   await refused(h.call("automations.test", { automationId: id, trigger: "teleport" }, alice), "validation.bad_input");
 });
@@ -227,9 +343,17 @@ test("run starts by hand: the manual trigger, the caller's payload, once per key
   const again = await h.call("automations.run", { automationId: id, idempotencyKey: "k1" }, alice);
   assert.equal(again.runId, a.runId);
   assert.equal(h.runs.length, 1);
-  const button = await h.call("automations.run", { automationId: id, trigger: "button", payload: { label: "Go" } }, alice);
+  const button = await h.call(
+    "automations.run",
+    { automationId: id, trigger: "button", payload: { label: "Go" } },
+    alice,
+  );
   assert.deepEqual(findRunLink(h.db, button.runId)!.payload, { pressedBy: alice.id, label: "Go" });
-  await refused(h.call("automations.run", { automationId: id, trigger: "schedule" }, alice), "validation.precondition_failed", "not_manual");
+  await refused(
+    h.call("automations.run", { automationId: id, trigger: "schedule" }, alice),
+    "validation.precondition_failed",
+    "not_manual",
+  );
 });
 
 test("run is refused for a paused Automation and for a definition with errors", async () => {
@@ -237,8 +361,18 @@ test("run is refused for a paused Automation and for a definition with errors", 
   const id = await live(h);
   await h.call("automations.stop", { automationId: id }, alice);
   await refused(h.call("automations.run", { automationId: id }, alice), "validation.precondition_failed", "paused");
-  const bad = (await h.call("automations.create", create({ definition: goodDefinition({ nodes: [node("a", "records.update", {})] }) }), alice)).automation.id as string;
-  await refused(h.call("automations.run", { automationId: bad }, alice), "validation.precondition_failed", "invalid_definition");
+  const bad = (
+    await h.call(
+      "automations.create",
+      create({ definition: goodDefinition({ nodes: [node("a", "records.update", {})] }) }),
+      alice,
+    )
+  ).automation.id as string;
+  await refused(
+    h.call("automations.run", { automationId: bad }, alice),
+    "validation.precondition_failed",
+    "invalid_definition",
+  );
 });
 
 test("stop ends one Run, or every active Run and pauses the Automation", async () => {
@@ -251,7 +385,11 @@ test("stop ends one Run, or every active Run and pauses the Automation", async (
   const one = await h.call("automations.stop", { automationId: id, runId: r1.runId }, alice);
   assert.equal(one.stopped, 1);
   assert.equal(h.runs[0]!.status, "stopped");
-  assert.equal((await h.call("automations.get", { automationId: id }, alice)).automation.status, "on", "one Run stopped, the Automation keeps going");
+  assert.equal(
+    (await h.call("automations.get", { automationId: id }, alice)).automation.status,
+    "on",
+    "one Run stopped, the Automation keeps going",
+  );
   assert.deepEqual(h.events, []);
   const all = await h.call("automations.stop", { automationId: id }, alice);
   assert.equal(all.stopped, 1, "r2 only: r1 is already stopped and r3 finished");
@@ -259,20 +397,30 @@ test("stop ends one Run, or every active Run and pauses the Automation", async (
   const a = (await h.call("automations.get", { automationId: id }, alice)).automation;
   assert.equal(a.status, "paused");
   assert.equal(a.pausedReason, `Stopped by ${alice.id}`);
-  await refused(h.call("automations.stop", { automationId: id, runId: "run_t99" }, alice), "validation.precondition_failed", "not_a_run_of_this");
+  await refused(
+    h.call("automations.stop", { automationId: id, runId: "run_t99" }, alice),
+    "validation.precondition_failed",
+    "not_a_run_of_this",
+  );
 });
 
 test("stopping one run also stops an unfinished child and leaves a finished child", async () => {
   const h = harness();
   const id = await live(h);
   const parent = await h.call("automations.run", { automationId: id }, alice);
-  const startChild = (key: string) => h.consumer(engine, (ctx) => {
-    const a = getAutomation(ctx, id);
-    return startRun(ctx, a, {
-      trigger: "manual", payload: { startedBy: alice.id }, test: false, depth: 0, parentRun: parent.runId, key,
-      principal: { kind: "person", id: alice.id },
+  const startChild = (key: string) =>
+    h.consumer(engine, (ctx) => {
+      const a = getAutomation(ctx, id);
+      return startRun(ctx, a, {
+        trigger: "manual",
+        payload: { startedBy: alice.id },
+        test: false,
+        depth: 0,
+        parentRun: parent.runId,
+        key,
+        principal: { kind: "person", id: alice.id },
+      });
     });
-  });
   const waitingId = await startChild("child-wait");
   const doneId = await startChild("child-done");
   h.runs.find((r) => r.id === waitingId)!.status = "waiting";
@@ -292,7 +440,10 @@ test("stop with pause false only stops the Runs; the event for a pause says why"
   await h.call("automations.stop", { automationId: id, pause: false }, alice);
   assert.equal((await h.call("automations.get", { automationId: id }, alice)).automation.status, "on");
   await h.call("automations.stop", { automationId: id, pause: true }, alice);
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.disabled"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.disabled"],
+  );
   assert.deepEqual(h.events[0]!.payload, { automationId: id, reason: `Stopped by ${alice.id}` });
 });
 
@@ -301,7 +452,11 @@ test("retry starts the failed Run again on its own version and payload; it must 
   const id = await live(h);
   const other = await live(h, { name: "Other" });
   const first = await h.call("automations.run", { automationId: id, payload: { n: 1 } }, alice);
-  await h.call("automations.update", { automationId: id, definition: goodDefinition({ allowSelfTrigger: true }) }, alice);
+  await h.call(
+    "automations.update",
+    { automationId: id, definition: goodDefinition({ allowSelfTrigger: true }) },
+    alice,
+  );
   h.runs[0]!.status = "failed";
   const r = await h.call("automations.retry", { automationId: id, runId: first.runId, fromStep: "a" }, alice);
   assert.notEqual(r.runId, first.runId);
@@ -311,8 +466,15 @@ test("retry starts the failed Run again on its own version and payload; it must 
   assert.deepEqual(link.payload, { startedBy: alice.id, input: { n: 1 } });
   assert.equal(h.calls.filter((c) => c.cap === "runs.retry").length, 1);
   assert.deepEqual(h.calls.find((c) => c.cap === "runs.retry")!.input, { runId: first.runId, fromStep: "a" });
-  assert.deepEqual(h.events.map((e) => e.name), ["automation.run_started"]);
-  await refused(h.call("automations.retry", { automationId: other, runId: first.runId }, alice), "validation.precondition_failed", "not_a_run_of_this");
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["automation.run_started"],
+  );
+  await refused(
+    h.call("automations.retry", { automationId: other, runId: first.runId }, alice),
+    "validation.precondition_failed",
+    "not_a_run_of_this",
+  );
 });
 
 // ---- a Run retried or replayed from the Runs pages (runs.retry, runs.replay): they know nothing of the Automation, so without this the new Run stayed queued for ever ----
@@ -323,11 +485,21 @@ test("a Run retried through runs.retry joins its Automation and starts", async (
   const { runId } = await h.call("automations.run", { automationId: a, idempotencyKey: "k" }, alice);
   const fresh = "run_retry1";
   const ctx = h.ctxFor("automations.retry", alice);
-  const started = await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: fresh } } as never);
+  const started = await consumers["automations.run_retried"].run(
+    ctx as never,
+    { name: "run.retried", payload: { runId, newRunId: fresh } } as never,
+  );
   assert.equal(started, fresh);
   assert.equal(findRunLink(h.db, fresh)?.automationId, a);
   assert.equal(h.events.at(-1)?.name, "automation.run_started");
-  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: fresh } } as never), undefined, "a second delivery starts nothing");
+  assert.equal(
+    await consumers["automations.run_retried"].run(
+      ctx as never,
+      { name: "run.retried", payload: { runId, newRunId: fresh } } as never,
+    ),
+    undefined,
+    "a second delivery starts nothing",
+  );
 });
 
 test("a sandbox replay of an Automation's Run is driven too, in test mode; any other Run that starts is none of this", async () => {
@@ -335,8 +507,23 @@ test("a sandbox replay of an Automation's Run is driven too, in test mode; any o
   const a = await live(h);
   const { runId } = await h.call("automations.run", { automationId: a, idempotencyKey: "k" }, alice);
   const ctx = h.ctxFor("automations.retry", alice);
-  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.started", payload: { runId: "run_x", kind: "automation", parentRun: runId } } as never), undefined);
-  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.started", payload: { runId: "run_rp", kind: "replay", parentRun: runId, definitionVersion: 1 } } as never), "run_rp");
+  assert.equal(
+    await consumers["automations.run_retried"].run(
+      ctx as never,
+      { name: "run.started", payload: { runId: "run_x", kind: "automation", parentRun: runId } } as never,
+    ),
+    undefined,
+  );
+  assert.equal(
+    await consumers["automations.run_retried"].run(
+      ctx as never,
+      {
+        name: "run.started",
+        payload: { runId: "run_rp", kind: "replay", parentRun: runId, definitionVersion: 1 },
+      } as never,
+    ),
+    "run_rp",
+  );
   assert.equal((h.events.at(-1)?.payload as { test?: boolean }).test, true);
 });
 
@@ -347,6 +534,12 @@ test("a retry of a paused Automation ends at once with the reason instead of wai
   await h.call("automations.stop", { automationId: a }, alice);
   h.runs.push({ id: "run_t2", status: "queued" } as never);
   const ctx = h.ctxFor("automations.retry", alice);
-  assert.equal(await consumers["automations.run_retried"].run(ctx as never, { name: "run.retried", payload: { runId, newRunId: "run_t2" } } as never), undefined);
+  assert.equal(
+    await consumers["automations.run_retried"].run(
+      ctx as never,
+      { name: "run.retried", payload: { runId, newRunId: "run_t2" } } as never,
+    ),
+    undefined,
+  );
   assert.equal(h.runs.find((r: { id: string }) => r.id === "run_t2")?.status, "stopped");
 });

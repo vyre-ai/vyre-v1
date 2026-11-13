@@ -7,12 +7,16 @@ export interface FrameScheduler {
   cancel(handle: number): void;
 }
 
-const hasFrames = typeof globalThis.requestAnimationFrame === "function" && typeof globalThis.cancelAnimationFrame === "function";
+const hasFrames =
+  typeof globalThis.requestAnimationFrame === "function" && typeof globalThis.cancelAnimationFrame === "function";
 
 /** requestAnimationFrame where there is one (browsers, React Native); a 16 ms timer elsewhere (tests on the server, SSR). */
 export const frameScheduler: FrameScheduler = hasFrames
   ? { request: (cb) => globalThis.requestAnimationFrame(cb), cancel: (h) => globalThis.cancelAnimationFrame(h) }
-  : { request: (cb) => setTimeout(() => cb(Date.now()), 16) as unknown as number, cancel: (h) => clearTimeout(h as unknown as ReturnType<typeof setTimeout>) };
+  : {
+      request: (cb) => setTimeout(() => cb(Date.now()), 16) as unknown as number,
+      cancel: (h) => clearTimeout(h as unknown as ReturnType<typeof setTimeout>),
+    };
 
 export interface CoalescerStats {
   /** Deltas pushed. */
@@ -35,7 +39,10 @@ export interface Coalescer {
   readonly stats: Readonly<CoalescerStats>;
 }
 
-export function createCoalescer(onFlush: (text: string) => void, scheduler: FrameScheduler = frameScheduler): Coalescer {
+export function createCoalescer(
+  onFlush: (text: string) => void,
+  scheduler: FrameScheduler = frameScheduler,
+): Coalescer {
   const parts: string[] = [];
   let handle: number | null = null;
   const stats: CoalescerStats = { deltas: 0, flushes: 0, chars: 0, maxBatch: 0 };

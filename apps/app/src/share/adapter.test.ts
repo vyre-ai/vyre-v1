@@ -6,7 +6,13 @@ import type { ShareKind } from "./adapter.ts";
 import type { Level } from "../../../../packages/contracts/src/types.ts";
 
 type Calls = Array<{ cap: string; input: Record<string, unknown> }>;
-const names: Record<string, string> = { usr_me: "Irfad", usr_omar: "Omar", grp_everyone: "Everyone", grp_ops: "Ops", agt_a: "Scout" };
+const names: Record<string, string> = {
+  usr_me: "Irfad",
+  usr_omar: "Omar",
+  grp_everyone: "Everyone",
+  grp_ops: "Ops",
+  agt_a: "Scout",
+};
 const nameOf = (id: string): string => names[id] ?? id;
 
 function world(shares: unknown[], mine: Level, extra: Record<string, unknown> = {}) {
@@ -18,7 +24,10 @@ function world(shares: unknown[], mine: Level, extra: Record<string, unknown> = 
   };
   return { calls, call };
 }
-const grant = (kind: string, id: string, level: Level, through = "direct", resId = "x_1", conditions = {}) => ({ grant: { subject: { kind, id }, level, conditions, resource: { id: resId } }, through });
+const grant = (kind: string, id: string, level: Level, through = "direct", resId = "x_1", conditions = {}) => ({
+  grant: { subject: { kind, id }, level, conditions, resource: { id: resId } },
+  through,
+});
 const ownerRow = grant("person", "usr_me", "manage", "owner");
 
 const SIMPLE: Array<[Exclude<ShareKind, "note">, string[]]> = [
@@ -39,17 +48,37 @@ for (const [kind, labels] of SIMPLE) {
     const w = world([ownerRow], top);
     const a = accessAdapter({ call: w.call, nameOf }, kind, { id: "x_1" });
     await a.list();
-    assert.deepEqual(a.levels.map((l) => l.label), labels);
-    assert.ok(a.levels.every((l) => l.gets.length > 0), "every level says what the person gets");
+    assert.deepEqual(
+      a.levels.map((l) => l.label),
+      labels,
+    );
+    assert.ok(
+      a.levels.every((l) => l.gets.length > 0),
+      "every level says what the person gets",
+    );
   });
 
   test(`${kind}: lists who has access now, the Space and the folder rows apart`, async () => {
-    const w = world([ownerRow, grant("person", "usr_omar", "view"), grant("group", "grp_everyone", "view"), grant("agent", "agt_a", "view", "folder", "fld_9")], "manage");
+    const w = world(
+      [
+        ownerRow,
+        grant("person", "usr_omar", "view"),
+        grant("group", "grp_everyone", "view"),
+        grant("agent", "agt_a", "view", "folder", "fld_9"),
+      ],
+      "manage",
+    );
     const a = accessAdapter({ call: w.call, nameOf }, kind, { id: "x_1" });
     const s = await a.list();
     assert.equal(s.owner?.name, "Irfad");
     assert.equal(s.anyone, "view");
-    assert.deepEqual(s.entries.map((e) => [e.name, e.via, e.fromFolderId]), [["Omar", "grant", null], ["Scout", "folder", "fld_9"]]);
+    assert.deepEqual(
+      s.entries.map((e) => [e.name, e.via, e.fromFolderId]),
+      [
+        ["Omar", "grant", null],
+        ["Scout", "folder", "fld_9"],
+      ],
+    );
     assert.equal(s.canShare, true);
   });
 
@@ -64,8 +93,15 @@ for (const [kind, labels] of SIMPLE) {
     await a.setAnyone(null);
     const vault = kind === "vault_item" || kind === "vault_folder";
     const [share, unshare] = vault ? ["vault.share", "vault.unshare"] : ["access.share", "access.unshare"];
-    assert.deepEqual(w.calls.slice(1).map((c) => c.cap), [share, unshare, share, unshare]);
-    assert.deepEqual(w.calls[1]!.input, { resource: { type: a.resource.type, id: "x_1" }, subject: { kind: "person", id: "usr_omar" }, level: lvl });
+    assert.deepEqual(
+      w.calls.slice(1).map((c) => c.cap),
+      [share, unshare, share, unshare],
+    );
+    assert.deepEqual(w.calls[1]!.input, {
+      resource: { type: a.resource.type, id: "x_1" },
+      subject: { kind: "person", id: "usr_omar" },
+      level: lvl,
+    });
     assert.deepEqual(w.calls[4]!.input.subject, { kind: "group", id: "grp_everyone" });
   });
 
@@ -98,7 +134,10 @@ test("a Viewer is offered only View and cannot share", async () => {
   const w = world([ownerRow], "view");
   const a = accessAdapter({ call: w.call, nameOf }, "file", { id: "fil_1" });
   const s = await a.list();
-  assert.deepEqual(a.levels.map((l) => l.id), ["view"]);
+  assert.deepEqual(
+    a.levels.map((l) => l.id),
+    ["view"],
+  );
   assert.equal(s.canShare, false);
 });
 
@@ -106,7 +145,10 @@ test("a record type uses the rights the server returns", async () => {
   const w = world([ownerRow], "edit", { can: { manage: false, share: true, export: false } });
   const a = accessAdapter({ call: w.call, nameOf }, "record_type", { id: "contact" });
   assert.equal((await a.list()).canShare, true);
-  assert.deepEqual(a.levels.map((l) => l.id), ["view", "edit"]);
+  assert.deepEqual(
+    a.levels.map((l) => l.id),
+    ["view", "edit"],
+  );
 });
 
 test("a record keeps the switches on a person's row", async () => {
@@ -125,7 +167,10 @@ test("a level a type does not offer is refused before any call", async () => {
 
 /* ---------- Notes ---------- */
 
-function noteWorld(owner: string, share: { people: Array<{ personId: string; role: "edit" | "view" }>; space: "off" | "view" | "edit" }) {
+function noteWorld(
+  owner: string,
+  share: { people: Array<{ personId: string; role: "edit" | "view" }>; space: "off" | "view" | "edit" },
+) {
   const calls: Calls = [];
   const call = async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
     calls.push({ cap, input });
@@ -138,17 +183,26 @@ test("note: the owner sees View and Edit, the list, and shares", async () => {
   const w = noteWorld("usr_me", { people: [{ personId: "usr_omar", role: "view" }], space: "edit" });
   const a = noteAdapter({ call: w.call, nameOf }, "not_1", "usr_me");
   const s = await a.list();
-  assert.deepEqual(a.levels.map((l) => l.label), ["Can view", "Can edit"]);
-  assert.deepEqual(s.entries.map((e) => [e.name, e.level]), [["Omar", "view"]]);
+  assert.deepEqual(
+    a.levels.map((l) => l.label),
+    ["Can view", "Can edit"],
+  );
+  assert.deepEqual(
+    s.entries.map((e) => [e.name, e.level]),
+    [["Omar", "view"]],
+  );
   assert.equal(s.anyone, "edit");
   await a.set({ kind: "person", id: "usr_omar" }, "edit");
   await a.remove({ kind: "person", id: "usr_omar" });
   await a.setAnyone(null);
-  assert.deepEqual(w.calls.slice(1).map((c) => c.input), [
-    { noteId: "not_1", people: [{ personId: "usr_omar", role: "edit" }] },
-    { noteId: "not_1", people: [{ personId: "usr_omar", role: "remove" }] },
-    { noteId: "not_1", space: "off" },
-  ]);
+  assert.deepEqual(
+    w.calls.slice(1).map((c) => c.input),
+    [
+      { noteId: "not_1", people: [{ personId: "usr_omar", role: "edit" }] },
+      { noteId: "not_1", people: [{ personId: "usr_omar", role: "remove" }] },
+      { noteId: "not_1", space: "off" },
+    ],
+  );
 });
 
 test("note: only the owner shares; a reader is offered nothing and cannot", async () => {

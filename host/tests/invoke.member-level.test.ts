@@ -11,7 +11,23 @@ import { isMemberOrGuest } from "../src/daemon/access.ts";
 import { HostError } from "../src/routes/errors.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const pull = { name: "sync.pull", v: 1, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "space" }, permission: null, level: "member", risk: "low", effects: "read", emits: [], idempotency: "natural", surfaces: {}, examples: [] } as unknown as CapabilityDef;
+const pull = {
+  name: "sync.pull",
+  v: 1,
+  summary: "s",
+  input: { type: "object" },
+  output: { type: "object" },
+  errors: [],
+  resource: { type: "space" },
+  permission: null,
+  level: "member",
+  risk: "low",
+  effects: "read",
+  emits: [],
+  idempotency: "natural",
+  surfaces: {},
+  examples: [],
+} as unknown as CapabilityDef;
 const viewOnly = { ...pull, name: "example.view", level: "view" } as unknown as CapabilityDef;
 
 function world() {
@@ -20,12 +36,39 @@ function world() {
   s.putResource({ id: "fld_a", type: "folder", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "owner", clearance: 3, perms: [], name: "Owner" });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
-  s.putGrant({ id: "g_o", subject_kind: "actor", subject_id: "usr_olivia", resource_type: "space", resource_id: "spc_1", level: "manage" });
-  s.putGrant({ id: "g_m", subject_kind: "role", subject_id: "member", resource_type: "space", resource_id: "spc_1", level: "view" });
-  for (const [id, role] of [["usr_olivia", "owner"], ["usr_noah", "member"]] as const) { s.putPrincipal({ id, kind: "person", status: "active", name: id }); s.addPrincipalRole({ holder: id, role }); }
+  s.putGrant({
+    id: "g_o",
+    subject_kind: "actor",
+    subject_id: "usr_olivia",
+    resource_type: "space",
+    resource_id: "spc_1",
+    level: "manage",
+  });
+  s.putGrant({
+    id: "g_m",
+    subject_kind: "role",
+    subject_id: "member",
+    resource_type: "space",
+    resource_id: "spc_1",
+    level: "view",
+  });
+  for (const [id, role] of [
+    ["usr_olivia", "owner"],
+    ["usr_noah", "member"],
+  ] as const) {
+    s.putPrincipal({ id, kind: "person", status: "active", name: id });
+    s.addPrincipalRole({ holder: id, role });
+  }
   // Tess: no role, one grant on one folder. Zed: known to nobody. Rex: known, but no role and no grant.
   s.putPrincipal({ id: "usr_tess", kind: "person", status: "active", name: "Tess" });
-  s.putGrant({ id: "g_t", subject_kind: "actor", subject_id: "usr_tess", resource_type: "folder", resource_id: "fld_a", level: "view" });
+  s.putGrant({
+    id: "g_t",
+    subject_kind: "actor",
+    subject_id: "usr_tess",
+    resource_type: "folder",
+    resource_id: "fld_a",
+    level: "view",
+  });
   s.putPrincipal({ id: "usr_rex", kind: "person", status: "active", name: "Rex" });
   return s;
 }
@@ -36,10 +79,26 @@ function rig(withMembership = true) {
     caps: indexCapabilities([pull, viewOnly]),
     validateInput: () => [],
     authorize: (req) => authorize(snap, req),
-    ...(withMembership ? { membership: (p: string, a?: string) => isMemberOrGuest(snap, p) && (a === undefined || isMemberOrGuest(snap, a)) } : {}),
+    ...(withMembership
+      ? {
+          membership: (p: string, a?: string) =>
+            isMemberOrGuest(snap, p) && (a === undefined || isMemberOrGuest(snap, a)),
+        }
+      : {}),
     handler: () => async () => ({ ok: true }),
     commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
-    idem: (() => { const i = createIdempotency({ get: (k) => store.get(k) ?? null, put: (k, _p, _c, rec) => { store.set(k, rec as { hash: string; result: unknown }); } }); return { once: (p: string, c: string, k: string, inp: unknown, run: () => Promise<unknown>) => i.once(p, c, k, inp, run as never) } as never; })(),
+    idem: (() => {
+      const i = createIdempotency({
+        get: (k) => store.get(k) ?? null,
+        put: (k, _p, _c, rec) => {
+          store.set(k, rec as { hash: string; result: unknown });
+        },
+      });
+      return {
+        once: (p: string, c: string, k: string, inp: unknown, run: () => Promise<unknown>) =>
+          i.once(p, c, k, inp, run as never),
+      } as never;
+    })(),
     rate: createRateLimiter(),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     now: () => 1_000,
@@ -47,11 +106,20 @@ function rig(withMembership = true) {
   return createInvoke(deps);
 }
 const seed = (id: string): CtxSeed => ({ space: "spc_1", principal: { kind: "person", id } });
-const refused = async (p: Promise<unknown>) => { try { await p; } catch (e) { assert.ok(e instanceof HostError); return e.error.code; } assert.fail("expected a refusal"); };
+const refused = async (p: Promise<unknown>) => {
+  try {
+    await p;
+  } catch (e) {
+    assert.ok(e instanceof HostError);
+    return e.error.code;
+  }
+  assert.fail("expected a refusal");
+};
 
 test("a member, an owner and a person whose only grant is one folder pass level 'member'", async () => {
   const invoke = rig();
-  for (const id of ["usr_olivia", "usr_noah", "usr_tess"]) assert.equal((await invoke("sync.pull", {}, seed(id))).status, "ok", id);
+  for (const id of ["usr_olivia", "usr_noah", "usr_tess"])
+    assert.equal((await invoke("sync.pull", {}, seed(id))).status, "ok", id);
 });
 
 test("a stranger and a known person with no role and no grant are refused", async () => {
@@ -62,7 +130,11 @@ test("a stranger and a known person with no role and no grant are refused", asyn
 
 test("an agent acts for a person: both must be members", async () => {
   const invoke = rig();
-  const agent = (acting: string): CtxSeed => ({ space: "spc_1", principal: { kind: "person", id: "usr_noah" }, actingFor: acting });
+  const agent = (acting: string): CtxSeed => ({
+    space: "spc_1",
+    principal: { kind: "person", id: "usr_noah" },
+    actingFor: acting,
+  });
   assert.equal((await invoke("sync.pull", {}, agent("usr_tess"))).status, "ok");
   assert.match(await refused(invoke("sync.pull", {}, agent("usr_zed"))), /^(permission|auth)\./);
 });

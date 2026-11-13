@@ -6,8 +6,15 @@ import type { PKind, VaultReqCtx } from "../projections.ts";
 export const NOW = 1_700_000_000_000;
 export const FOLDER = "vfd_team";
 
-export interface Call { cap: string; input: Record<string, unknown> }
-export interface Event { name: string; subject: string; payload: unknown }
+export interface Call {
+  cap: string;
+  input: Record<string, unknown>;
+}
+export interface Event {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
 export interface Script {
   /** persons with Manage on a folder, by folder id */
   managers: Record<string, string[]>;
@@ -30,7 +37,14 @@ export function world(over: Partial<Script> = {}) {
   const calls: Call[] = [];
   const events: Event[] = [];
   const warnings: string[] = [];
-  const script: Script = { managers: { [FOLDER]: ["usr_mira"] }, owners: ["usr_owner"], admins: ["usr_admin"], items: { vit_have: ["api_key", "account"], vit_thin: ["account"] }, fail: {}, ...over };
+  const script: Script = {
+    managers: { [FOLDER]: ["usr_mira"] },
+    owners: ["usr_owner"],
+    admins: ["usr_admin"],
+    items: { vit_have: ["api_key", "account"], vit_thin: ["account"] },
+    fail: {},
+    ...over,
+  };
   let task = 0;
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     const i = input as Record<string, unknown>;
@@ -39,37 +53,78 @@ export function world(over: Partial<Script> = {}) {
     if (f) throw new Error(f);
     switch (cap) {
       case "access.deciders": {
-        if ((i["resource"] as { type: string }).type === "space") return { people: [...new Set([...(script.spaceOwner ? [script.spaceOwner] : []), ...script.owners, ...script.admins])] };
+        if ((i["resource"] as { type: string }).type === "space")
+          return {
+            people: [
+              ...new Set([...(script.spaceOwner ? [script.spaceOwner] : []), ...script.owners, ...script.admins]),
+            ],
+          };
         if (script.folderUnreadable) throw new Error("no access");
         return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
-      case "tasks.create": return { task: { id: `tsk_${++task}` } };
-      case "tasks.transition": return { task: { id: i["taskId"] } };
-      case "tasks.update": return { task: { id: i["taskId"] } };
+      case "tasks.create":
+        return { task: { id: `tsk_${++task}` } };
+      case "tasks.transition":
+        return { task: { id: i["taskId"] } };
+      case "tasks.update":
+        return { task: { id: i["taskId"] } };
       case "vault.item.get": {
         const keys = script.items[String(i["itemId"])];
         if (!keys) throw new Error("no such item");
-        return { item: { id: i["itemId"], fieldKeys: keys }, fields: keys.map((key) => ({ key, secret: true, hasValue: true })) };
+        return {
+          item: { id: i["itemId"], fieldKeys: keys },
+          fields: keys.map((key) => ({ key, secret: true, hasValue: true })),
+        };
       }
-      case "vault.item.put": return { item: { id: "vit_new", fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key) } };
-      case "vault.share": return { granted: true };
-      case "access.share": return { grant: { id: "gnt_through" } };
+      case "vault.item.put":
+        return { item: { id: "vit_new", fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key) } };
+      case "vault.share":
+        return { granted: true };
+      case "access.share":
+        return { grant: { id: "gnt_through" } };
       case "tasks.get": {
         if (!script.card) throw new Error("no card");
         return { task: { id: i["taskId"], blocks: [{ type: "vault_request", data: script.card }] } };
       }
-      case "vault.folders.list": return { folders: [] };
-      case "vault.folders.create": return { folder: { id: "vfd_company" } };
-      case "access.labels.set": return { ok: true };
-      case "runs.resume": return { run: { id: i["runId"] } };
-      case "chat.post": return { message: { id: `msg_${calls.length}` } };
-      default: throw new Error(`unexpected call ${cap}`);
+      case "vault.folders.list":
+        return { folders: [] };
+      case "vault.folders.create":
+        return { folder: { id: "vfd_company" } };
+      case "access.labels.set":
+        return { ok: true };
+      case "runs.resume":
+        return { run: { id: i["runId"] } };
+      case "chat.post":
+        return { message: { id: `msg_${calls.length}` } };
+      default:
+        throw new Error(`unexpected call ${cap}`);
     }
   };
   const as = (id: string, kind: PKind = "person", actingFor?: string): VaultReqCtx => ({
-    space: "spc_test", principal: { kind, id }, ...(actingFor ? { actingFor } : {}), trace: { traceId: "0123456789abcdef0123456789abcdef" }, now: () => NOW, db,
-    emit(name, subject, payload) { events.push({ name, subject, payload }); }, call, log: { warn(msg, attrs) { warnings.push(`${msg} ${JSON.stringify(attrs ?? {})}`); } },
+    space: "spc_test",
+    principal: { kind, id },
+    ...(actingFor ? { actingFor } : {}),
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    now: () => NOW,
+    db,
+    emit(name, subject, payload) {
+      events.push({ name, subject, payload });
+    },
+    call,
+    log: {
+      warn(msg, attrs) {
+        warnings.push(`${msg} ${JSON.stringify(attrs ?? {})}`);
+      },
+    },
   });
-  return { db, calls, events, warnings, script, as, called: (cap: string): Call[] => calls.filter((c) => c.cap === cap) };
+  return {
+    db,
+    calls,
+    events,
+    warnings,
+    script,
+    as,
+    called: (cap: string): Call[] => calls.filter((c) => c.cap === cap),
+  };
 }
 export type World = ReturnType<typeof world>;

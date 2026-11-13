@@ -19,7 +19,11 @@ export interface SyncStoreSeam {
   open(): { host: ProjectionHost; store: Store; tx: Tx };
 }
 
-export interface SyncEndpoint { kind: "direct" | "relay" | "tunnel"; url: string; rttMs?: number }
+export interface SyncEndpoint {
+  kind: "direct" | "relay" | "tunnel";
+  url: string;
+  rttMs?: number;
+}
 
 export interface SyncHostSeam {
   store: SyncStoreSeam;
@@ -43,7 +47,10 @@ export interface SyncHostSeam {
    */
   liveHub?: {
     provide(factory: () => Pick<LiveHub, "accept" | "commit" | "close">): void;
-    host(): { purge(person: string, epoch: number): number; purgeDevice(person: string, device: string, epoch: number): number } | null;
+    host(): {
+      purge(person: string, epoch: number): number;
+      purgeDevice(person: string, device: string, epoch: number): number;
+    } | null;
   };
 }
 
@@ -52,7 +59,10 @@ function fnv(text: string): string {
   let out = "";
   for (const seed of [0x811c9dc5, 0x01000193, 0x9e3779b9]) {
     let h = seed >>> 0;
-    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
     out += h.toString(16).padStart(8, "0");
   }
   return out;
@@ -72,25 +82,49 @@ export function ensureHostTables(db: Tx): void {
 }
 
 /** A pull by a device records where it got to; status, health and lag read it. */
-export function noteCursor(db: Tx, person: string, device: string, deviceClass: DeviceClass, cursor: number, at: number): void {
+export function noteCursor(
+  db: Tx,
+  person: string,
+  device: string,
+  deviceClass: DeviceClass,
+  cursor: number,
+  at: number,
+): void {
   ensureHostTables(db);
-  db.run("INSERT INTO sync_device_cursor (person, device, class, cursor, last_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET cursor = max(cursor, excluded.cursor), class = excluded.class, last_seen = excluded.last_seen", person, device, deviceClass, cursor, at);
+  db.run(
+    "INSERT INTO sync_device_cursor (person, device, class, cursor, last_seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET cursor = max(cursor, excluded.cursor), class = excluded.class, last_seen = excluded.last_seen",
+    person,
+    device,
+    deviceClass,
+    cursor,
+    at,
+  );
 }
 
 /** The field definition a Space-defined record type gives one field, read from the type in the Space store; undefined when the type or the field is not there. */
-function typeField(db: Tx, entity: string, field: string): { merge?: string; kind?: string; protected?: boolean } | undefined {
+function typeField(
+  db: Tx,
+  entity: string,
+  field: string,
+): { merge?: string; kind?: string; protected?: boolean } | undefined {
   try {
     const row = db.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", entity);
     if (!row) return undefined;
-    return (JSON.parse(row.def) as { fields?: { name?: string; merge?: string; kind?: string; protected?: boolean }[] }).fields?.find((x) => x.name === field);
-  } catch { return undefined; }
+    return (
+      JSON.parse(row.def) as { fields?: { name?: string; merge?: string; kind?: string; protected?: boolean }[] }
+    ).fields?.find((x) => x.name === field);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The merge rule a Space-defined record type gives one of its fields (schema.apply `merge`); a protected or sealed field without a rule collides into a conflict, like the records module's own rule; none when the type or the rule is not there. */
 function typeMerge(db: Tx, entity: string, field: string): Policy | undefined {
   const f = typeField(db, entity, field);
   if (f && f.merge === undefined && (f.protected === true || f.kind === "sealed")) return "assistant";
-  return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt" ? f.merge : undefined;
+  return f?.merge === "lww" || f?.merge === "assistant" || f?.merge === "append" || f?.merge === "text-crdt"
+    ? f.merge
+    : undefined;
 }
 
 /** A sealed field of a Space-defined type is Restricted: its conflict is a plain choice for the person and the values never go to an AI provider (conflicts.assist and the assistant route both honour plainChoice). */
@@ -103,7 +137,8 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
   const db = deps.db;
   ensureHostTables(db);
   return {
-    now: deps.now, hlc: deps.hlc,
+    now: deps.now,
+    hlc: deps.hlc,
     epochOf: (person) => epochOf(db, person),
     deviceRevoked: (person, device) => deviceRevoked(db, person, device),
     async invoke(call) {
@@ -115,23 +150,58 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
     },
     clocks: syncRowClocks(db),
     appliedSeq: (opId) => db.get<{ seq: number }>("SELECT seq FROM sync_applied WHERE op_id = ?", opId)?.seq,
-    policy: catalogPolicy(deps.catalog, (entity, field) => typeMerge(db, entity, field)), restricted: ((cat) => (entity: string, field: string) => cat(entity, field) || typeRestricted(db, entity, field))(catalogRestricted(deps.catalog)),
+    policy: catalogPolicy(deps.catalog, (entity, field) => typeMerge(db, entity, field)),
+    restricted: (
+      (cat) => (entity: string, field: string) =>
+        cat(entity, field) || typeRestricted(db, entity, field)
+    )(catalogRestricted(deps.catalog)),
     history(e) {
       if (seam.conflicts) return seam.conflicts.history(e);
-      db.run("INSERT OR IGNORE INTO sync_history (entity, id, field, hlc, actor, value, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", e.entity, e.id, e.field, e.hlc, e.actor, JSON.stringify(e.value ?? null), e.seq, e.reason);
+      db.run(
+        "INSERT OR IGNORE INTO sync_history (entity, id, field, hlc, actor, value, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        e.entity,
+        e.id,
+        e.field,
+        e.hlc,
+        e.actor,
+        JSON.stringify(e.value ?? null),
+        e.seq,
+        e.reason,
+      );
     },
     openConflict(c) {
       if (seam.conflicts) return seam.conflicts.open(c);
       const id = `cfl_${fnv(`${c.opId}\u0000${c.field}`)}`;
-      db.run("INSERT OR IGNORE INTO sync_conflict (id, entity, row_id, field, op_id, ours, theirs, base, state, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
-        id, c.entity, c.id, c.field, c.opId, JSON.stringify(c.ours ?? null), JSON.stringify(c.theirs ?? null), c.base, deps.now());
+      db.run(
+        "INSERT OR IGNORE INTO sync_conflict (id, entity, row_id, field, op_id, ours, theirs, base, state, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)",
+        id,
+        c.entity,
+        c.id,
+        c.field,
+        c.opId,
+        JSON.stringify(c.ours ?? null),
+        JSON.stringify(c.theirs ?? null),
+        c.base,
+        deps.now(),
+      );
       return id;
     },
     async once(principal, cap, key, _input, run) {
-      const hit = db.get<{ result: string }>("SELECT result FROM sync_once WHERE principal = ? AND cap = ? AND key = ?", principal, cap, key);
+      const hit = db.get<{ result: string }>(
+        "SELECT result FROM sync_once WHERE principal = ? AND cap = ? AND key = ?",
+        principal,
+        cap,
+        key,
+      );
       if (hit) return JSON.parse(hit.result) as never;
       const out = await run();
-      db.run("INSERT OR IGNORE INTO sync_once (principal, cap, key, result) VALUES (?, ?, ?, ?)", principal, cap, key, JSON.stringify(out ?? null));
+      db.run(
+        "INSERT OR IGNORE INTO sync_once (principal, cap, key, result) VALUES (?, ?, ?, ?)",
+        principal,
+        cap,
+        key,
+        JSON.stringify(out ?? null),
+      );
       return out;
     },
   };
@@ -140,13 +210,26 @@ export function pushDepsOf(deps: PullDeps, seam: SyncHostSeam): PushDeps {
 /** The document a capability names is the id of the row that owns it; access is that row's. */
 export function docRowOf(deps: PullDeps): (doc: string) => DocRowRef | undefined {
   return (doc) => {
-    const r = deps.db.get<{ entity: string; id: string; owner_id: string | null; enc: number }>("SELECT entity, id, owner_id, enc FROM sync_rows WHERE id = ? AND deleted = 0 LIMIT 1", doc);
+    const r = deps.db.get<{ entity: string; id: string; owner_id: string | null; enc: number }>(
+      "SELECT entity, id, owner_id, enc FROM sync_rows WHERE id = ? AND deleted = 0 LIMIT 1",
+      doc,
+    );
     if (!r) return undefined;
-    return { type: deps.catalog.get(r.entity).resource, resource: r.id, owner: { entity: r.entity, id: r.id }, ...(r.enc === 2 ? { enc: 2 as const, ownerId: r.owner_id ?? undefined } : {}) };
+    return {
+      type: deps.catalog.get(r.entity).resource,
+      resource: r.id,
+      owner: { entity: r.entity, id: r.id },
+      ...(r.enc === 2 ? { enc: 2 as const, ownerId: r.owner_id ?? undefined } : {}),
+    };
   };
 }
 
-interface InfoCtx { trace: { traceId: string }; principal: { id: string }; device?: string; call?(cap: string, input: unknown): Promise<unknown> }
+interface InfoCtx {
+  trace: { traceId: string };
+  principal: { id: string };
+  device?: string;
+  call?(cap: string, input: unknown): Promise<unknown>;
+}
 const versionsOf = (catalog: Catalog, db: Tx): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const e of catalog.known()) out[e.key] = 1;
@@ -158,54 +241,103 @@ const versionsOf = (catalog: Catalog, db: Tx): Record<string, number> => {
 export function createInfoHandlers(deps: PullDeps, seam: SyncHostSeam) {
   const db = deps.db;
   const state = (person: string, device: string) => ({
-    serverVersion: seam.serverVersion ?? "1.0.0", epoch: deviceEpochOf(db, person, device), head: headSeq(db), serverHlc: deps.hlc(),
-    registryHash: seam.registryHash, compatibleRegistryHashes: [], olderRegistryHashes: [], entityVersions: versionsOf(deps.catalog, db),
+    serverVersion: seam.serverVersion ?? "1.0.0",
+    epoch: deviceEpochOf(db, person, device),
+    head: headSeq(db),
+    serverHlc: deps.hlc(),
+    registryHash: seam.registryHash,
+    compatibleRegistryHashes: [],
+    olderRegistryHashes: [],
+    entityVersions: versionsOf(deps.catalog, db),
   });
-  const cursors = () => db.all<{ person: string; device: string; class: DeviceClass; cursor: number; last_seen: number }>("SELECT person, device, class, cursor, last_seen FROM sync_device_cursor ORDER BY device");
-  const openConflicts = (): number => db.get<{ n: number }>("SELECT count(*) AS n FROM sync_conflict WHERE state = 'open'")?.n ?? 0;
+  const cursors = () =>
+    db.all<{ person: string; device: string; class: DeviceClass; cursor: number; last_seen: number }>(
+      "SELECT person, device, class, cursor, last_seen FROM sync_device_cursor ORDER BY device",
+    );
+  const openConflicts = (): number =>
+    db.get<{ n: number }>("SELECT count(*) AS n FROM sync_conflict WHERE state = 'open'")?.n ?? 0;
   const start = (): void => ensureHostTables(db);
   return {
     "sync.hello": async (ctx: InfoCtx, input: Hello) => {
       start();
       const device = ctx.device ?? input.deviceId;
-      if (deviceRevoked(db, ctx.principal.id, device)) throw pullError("auth.device_revoked", "This device was removed. Sign in again.", ctx.trace.traceId);
+      if (deviceRevoked(db, ctx.principal.id, device))
+        throw pullError("auth.device_revoked", "This device was removed. Sign in again.", ctx.trace.traceId);
       return decideHello(input, state(ctx.principal.id, device)).ok;
     },
     "sync.status": async (ctx: InfoCtx, input: { deviceId?: string }) => {
       start();
       const device = input.deviceId ?? ctx.device ?? "";
       const person = ctx.principal.id;
-      const row = db.get<{ cursor: number }>("SELECT cursor FROM sync_device_cursor WHERE person = ? AND device = ?", person, device);
-      const head = headSeq(db), cursor = row?.cursor ?? 0;
+      const row = db.get<{ cursor: number }>(
+        "SELECT cursor FROM sync_device_cursor WHERE person = ? AND device = ?",
+        person,
+        device,
+      );
+      const head = headSeq(db),
+        cursor = row?.cursor ?? 0;
       // with the conflicts module live the count is its own (open and waiting for the person), else the collisions sync parked itself
       let open = openConflicts();
       if (seam.conflicts && ctx.call) {
-        try { const c = (await ctx.call("conflicts.counts", {})) as { open?: number; needsYou?: number }; open = (c.open ?? 0) + (c.needsYou ?? 0); } catch { /* not readable by this caller: the local count */ }
+        try {
+          const c = (await ctx.call("conflicts.counts", {})) as { open?: number; needsYou?: number };
+          open = (c.open ?? 0) + (c.needsYou ?? 0);
+        } catch {
+          /* not readable by this caller: the local count */
+        }
       }
-      return { head, cursor, lag: Math.max(0, head - cursor), epoch: deviceEpochOf(db, person, device), openConflicts: open, mode: deviceRevoked(db, person, device) ? "purge" as const : "live" as const };
+      return {
+        head,
+        cursor,
+        lag: Math.max(0, head - cursor),
+        epoch: deviceEpochOf(db, person, device),
+        openConflicts: open,
+        mode: deviceRevoked(db, person, device) ? ("purge" as const) : ("live" as const),
+      };
     },
     "sync.health": async () => {
       start();
       const head = headSeq(db);
       const slowest = cursors().reduce((m, c) => Math.max(m, head - c.cursor), 0);
-      const state = slowest > 10_000 ? "degraded" as const : "healthy" as const;
-      return { state, head, slowestCursorLag: slowest, ...(state === "degraded" ? { detail: "A device is far behind and will take a snapshot." } : {}) };
+      const state = slowest > 10_000 ? ("degraded" as const) : ("healthy" as const);
+      return {
+        state,
+        head,
+        slowestCursorLag: slowest,
+        ...(state === "degraded" ? { detail: "A device is far behind and will take a snapshot." } : {}),
+      };
     },
-    "sync.endpoints": async () => ({ endpoints: seam.endpoints?.() ?? [], spaceKeyFingerprint: seam.fingerprint?.() ?? "" }),
+    "sync.endpoints": async () => ({
+      endpoints: seam.endpoints?.() ?? [],
+      spaceKeyFingerprint: seam.fingerprint?.() ?? "",
+    }),
     "sync.entities": async (_ctx: InfoCtx, input: { deviceClass?: DeviceClass }) => {
       const cls = input.deviceClass ?? "desktop";
       return {
-        entities: deps.catalog.known().map((e) => ({ entity: e.key, version: 1, profile: e.profile[cls], ...(e.window.days !== undefined ? { windowDays: e.window.days } : {}) })),
+        entities: deps.catalog.known().map((e) => ({
+          entity: e.key,
+          version: 1,
+          profile: e.profile[cls],
+          ...(e.window.days !== undefined ? { windowDays: e.window.days } : {}),
+        })),
         registryHash: seam.registryHash,
       };
     },
     "sync.devices.lag": async (_ctx: InfoCtx, input: { cursor?: string; limit?: number }) => {
       start();
-      const head = headSeq(db), limit = input.limit ?? 100;
+      const head = headSeq(db),
+        limit = input.limit ?? 100;
       const all = cursors().filter((c) => input.cursor === undefined || c.device > input.cursor);
       const page = all.slice(0, limit);
       return {
-        devices: page.map((c) => ({ deviceId: c.device, personId: c.person, deviceClass: c.class, cursor: c.cursor, lag: Math.max(0, head - c.cursor), lastSeen: c.last_seen })),
+        devices: page.map((c) => ({
+          deviceId: c.device,
+          personId: c.person,
+          deviceClass: c.class,
+          cursor: c.cursor,
+          lag: Math.max(0, head - c.cursor),
+          lastSeen: c.last_seen,
+        })),
         total: cursors().length,
         ...(all.length > limit ? { next: page[page.length - 1]!.device } : {}),
       };

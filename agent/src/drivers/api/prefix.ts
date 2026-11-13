@@ -32,9 +32,13 @@ export function fingerprint(text: string): string {
 
 export function prefixHash(system: readonly SystemBlock[], tools: readonly ApiTool[], model: string): string {
   const parts: string[] = [model, "\u0000"];
-  for (const b of system) if (b.stable) { parts.push(b.text, "\u0000"); }
+  for (const b of system)
+    if (b.stable) {
+      parts.push(b.text, "\u0000");
+    }
   parts.push("\u0001");
-  for (const t of sortTools(tools)) parts.push(t.name, "\u0000", t.description, "\u0000", JSON.stringify(t.inputSchema ?? null), "\u0000");
+  for (const t of sortTools(tools))
+    parts.push(t.name, "\u0000", t.description, "\u0000", JSON.stringify(t.inputSchema ?? null), "\u0000");
   return fingerprint(parts.join(""));
 }
 
@@ -58,15 +62,25 @@ export interface PrefixTracker {
 }
 
 export function createPrefixTracker(): PrefixTracker {
-  const s: PrefixStats = { expectedHits: 0, expectedMisses: 0, cacheReadTokens: 0, cacheWriteTokens: 0, lastHash: null };
+  const s: PrefixStats = {
+    expectedHits: 0,
+    expectedMisses: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    lastHash: null,
+  };
   return {
     note(hash) {
       const same = s.lastHash === hash;
-      if (same) s.expectedHits += 1; else s.expectedMisses += 1;
+      if (same) s.expectedHits += 1;
+      else s.expectedMisses += 1;
       s.lastHash = hash;
       return same;
     },
-    settle(read, write) { s.cacheReadTokens += read; s.cacheWriteTokens += write; },
+    settle(read, write) {
+      s.cacheReadTokens += read;
+      s.cacheWriteTokens += write;
+    },
     stats: () => ({ ...s }),
   };
 }

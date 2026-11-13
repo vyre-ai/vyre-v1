@@ -4,7 +4,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MobileShell, YouScreen, useMobileBack } from "./index.ts";
-import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, replace, selectTab, swipeOffset, swipeRest } from "./model.ts";
+import {
+  MOBILE_TABS,
+  NOT_ON_PHONE,
+  SWIPE_OPEN_AT,
+  back,
+  canBack,
+  current,
+  initialNav,
+  isAllowed,
+  open,
+  origin,
+  replace,
+  selectTab,
+  swipeOffset,
+  swipeRest,
+} from "./model.ts";
 import { CHAT_ABOUT_IT, DesktopOnly } from "./DesktopOnly.tsx";
 import { SwipeRow } from "../sheets/SwipeRow.tsx";
 import { Sheet } from "../sheets/Sheet.tsx";
@@ -12,7 +27,10 @@ import { Sheet } from "../sheets/Sheet.tsx";
 const has = (s: string, n: string): boolean => s.includes(n);
 
 test("five bottom tabs in order: Chats, Inbox, Records, Files, You", () => {
-  assert.deepEqual(MOBILE_TABS.map((t) => t.label), ["Chats", "Inbox", "Records", "Files", "You"]);
+  assert.deepEqual(
+    MOBILE_TABS.map((t) => t.label),
+    ["Chats", "Inbox", "Records", "Files", "You"],
+  );
   const out = renderToStaticMarkup(<MobileShell renderScreen={(e) => <>{e.screen}</>} needsYou={7} />);
   const idx = MOBILE_TABS.map((t) => out.indexOf(`data-testid="tab-${t.id}"`));
   assert.ok(idx.every((i) => i >= 0) && [...idx].sort((a, b) => a - b).join() === idx.join());
@@ -37,14 +55,20 @@ test("Back returns to the screen you came from, not the parent", () => {
 test("pressing a tab goes to its first screen with a fresh history", () => {
   let s = open(initialNav("chats"), { tab: "chats", screen: "chat:c1", title: "Rivera intake" });
   s = selectTab(s, "files");
-  assert.deepEqual(s.history.map((e) => e.screen), ["files"]);
+  assert.deepEqual(
+    s.history.map((e) => e.screen),
+    ["files"],
+  );
   assert.equal(current(selectTab(s, "files")).tab, "files");
 });
 
 test("no Automations, Journeys or Console on the phone (owner ruling, 3 Nov)", () => {
   assert.deepEqual([...NOT_ON_PHONE].sort(), ["automation", "automations", "console", "journey", "journeys"]);
   for (const k of NOT_ON_PHONE) assert.equal(isAllowed(`${k}:anything`), false, k);
-  assert.ok(isAllowed("desktop:automations:") && isAllowed("desktop:console:"), "a link to either is the Chat-about-it screen");
+  assert.ok(
+    isAllowed("desktop:automations:") && isAllowed("desktop:console:"),
+    "a link to either is the Chat-about-it screen",
+  );
   assert.ok(isAllowed("record:rec_1") && isAllowed("chat:c1"));
   const s = initialNav("chats");
   assert.equal(open(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
@@ -53,15 +77,31 @@ test("no Automations, Journeys or Console on the phone (owner ruling, 3 Nov)", (
 });
 
 test("the shell shows a Back bar with the originating screen's name once you have gone deeper", () => {
-  const shell = (screen: string): string => renderToStaticMarkup(<MobileShell renderScreen={(e) => <>{e.screen}</>} initialTab="chats" />).replace(screen, screen);
+  const shell = (screen: string): string =>
+    renderToStaticMarkup(<MobileShell renderScreen={(e) => <>{e.screen}</>} initialTab="chats" />).replace(
+      screen,
+      screen,
+    );
   const out = shell("chats");
   assert.ok(!has(out, 'data-testid="mobile-back"'), "no Back at a tab's first screen");
   assert.ok(has(out, 'data-testid="screen-chats"'));
 });
 
 test("You has My work, Starred and Settings", () => {
-  const out = renderToStaticMarkup(<YouScreen nav={{ open: () => undefined, replace: () => undefined, back: () => undefined, selectTab: () => undefined, origin: undefined }} data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }} />).replaceAll("<!-- -->", "");
-  for (const t of ["Irfad Imtiaz", "Northwind", "My work", "4 open", "Starred", "3 starred", "Settings"]) assert.ok(has(out, t), t);
+  const out = renderToStaticMarkup(
+    <YouScreen
+      nav={{
+        open: () => undefined,
+        replace: () => undefined,
+        back: () => undefined,
+        selectTab: () => undefined,
+        origin: undefined,
+      }}
+      data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }}
+    />,
+  ).replaceAll("<!-- -->", "");
+  for (const t of ["Irfad Imtiaz", "Northwind", "My work", "4 open", "Starred", "3 starred", "Settings"])
+    assert.ok(has(out, t), t);
   assert.ok(!has(out, "Automations") && !has(out, "Console"));
 });
 
@@ -78,43 +118,95 @@ test("swipe: a row follows the finger up to the actions' width and settles open 
 });
 
 test("a swipe row has its actions behind the row, reachable by tap, right-click or long-press", () => {
-  const out = renderToStaticMarkup(<SwipeRow testID="r" actions={[{ key: "star", label: "Star", tone: "accent", onPress: () => undefined }, { key: "read", label: "Mark read", onPress: () => undefined }]}><span>Rivera intake</span></SwipeRow>);
-  assert.ok(has(out, 'data-testid="swipe-action-star"') && has(out, 'data-testid="swipe-action-read"') && has(out, "Rivera intake"));
+  const out = renderToStaticMarkup(
+    <SwipeRow
+      testID="r"
+      actions={[
+        { key: "star", label: "Star", tone: "accent", onPress: () => undefined },
+        { key: "read", label: "Mark read", onPress: () => undefined },
+      ]}
+    >
+      <span>Rivera intake</span>
+    </SwipeRow>,
+  );
+  assert.ok(
+    has(out, 'data-testid="swipe-action-star"') &&
+      has(out, 'data-testid="swipe-action-read"') &&
+      has(out, "Rivera intake"),
+  );
   assert.ok(out.indexOf("swipe-actions") < out.indexOf("swipe-front"), "actions sit behind the row");
 });
 
 test("a sheet is a labelled dialog with Done, and draws nothing when closed", () => {
-  assert.equal(renderToStaticMarkup(<Sheet open={false} title="Record" onClose={() => undefined}><span>x</span></Sheet>), "");
-  const out = renderToStaticMarkup(<Sheet open title="Record" onClose={() => undefined}><span>Body</span></Sheet>);
+  assert.equal(
+    renderToStaticMarkup(
+      <Sheet open={false} title="Record" onClose={() => undefined}>
+        <span>x</span>
+      </Sheet>,
+    ),
+    "",
+  );
+  const out = renderToStaticMarkup(
+    <Sheet open title="Record" onClose={() => undefined}>
+      <span>Body</span>
+    </Sheet>,
+  );
   assert.ok(has(out, 'role="dialog"') && has(out, 'aria-label="Record"') && has(out, "Done") && has(out, "Body"));
 });
 
-test("a copied task starts on that task with Back to You", () => { const out=renderToStaticMarkup(<MobileShell initialEntry={{tab:"you",screen:"task:tsk_fixture"}} renderScreen={entry=><>{entry.screen}</>} />);assert.ok(out.includes("task:tsk_fixture"));assert.ok(out.includes("Back")); });
+test("a copied task starts on that task with Back to You", () => {
+  const out = renderToStaticMarkup(
+    <MobileShell
+      initialEntry={{ tab: "you", screen: "task:tsk_fixture" }}
+      renderScreen={(entry) => <>{entry.screen}</>}
+    />,
+  );
+  assert.ok(out.includes("task:tsk_fixture"));
+  assert.ok(out.includes("Back"));
+});
 
 test("a conversation draws its own Back: no Back bar above it, and the dot for another Space sits on the You tab", () => {
   const nav = { tab: "chats" as const, screen: "chat:c1", title: "Chats" };
   const seen: (() => void)[] = [];
-  const Probe = (): null => { const back = useMobileBack(); if (back) seen.push(back); return null; };
+  const Probe = (): null => {
+    const back = useMobileBack();
+    if (back) seen.push(back);
+    return null;
+  };
   const shell = (extra: { headerBack?: (e: { screen: string }) => boolean; youDot?: boolean }): string =>
-    renderToStaticMarkup(<MobileShell initialEntry={nav} renderScreen={() => <Probe />} {...extra as object} />);
+    renderToStaticMarkup(<MobileShell initialEntry={nav} renderScreen={() => <Probe />} {...(extra as object)} />);
   assert.ok(has(shell({}), 'data-testid="mobile-back"') && seen.length === 0, "by default the shell's Back bar");
   const own = shell({ headerBack: () => true });
   assert.ok(!has(own, 'data-testid="mobile-back"'), "no separate bar");
   assert.equal(seen.length, 1, "the screen is handed Back for its own header");
-  assert.ok(!has(shell({}), 'data-testid="tab-dot"') && has(shell({ youDot: true }), 'data-testid="tab-dot"') && has(shell({ youDot: true }), "You, another Space needs you"));
+  assert.ok(
+    !has(shell({}), 'data-testid="tab-dot"') &&
+      has(shell({ youDot: true }), 'data-testid="tab-dot"') &&
+      has(shell({ youDot: true }), "You, another Space needs you"),
+  );
 });
 
 test("replace puts a screen in place of the one on show, so Back skips an Ask link", () => {
   let s = open(initialNav("chats"), { tab: "chats", screen: "desktop:automations:", title: "Automations" });
   s = open(s, { tab: "chats", screen: "ask:x", title: "Assistant" });
   s = replace(s, { tab: "chats", screen: "thread:thr_1" });
-  assert.deepEqual(s.history.map((e) => e.screen), ["chats", "desktop:automations:", "thread:thr_1"]);
+  assert.deepEqual(
+    s.history.map((e) => e.screen),
+    ["chats", "desktop:automations:", "thread:thr_1"],
+  );
   assert.equal(replace(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
 });
 
 test("the Chat-about-it screen is one line and one action, and the action is off until the session is there", () => {
-  const out = renderToStaticMarkup(<DesktopOnly line="Automations open on a computer. You can chat about them here." onChat={() => undefined} />);
-  assert.ok(has(out, 'data-testid="desktop-only"') && has(out, 'data-testid="desktop-only-chat"') && has(out, CHAT_ABOUT_IT) && has(out, "Automations open on a computer."));
+  const out = renderToStaticMarkup(
+    <DesktopOnly line="Automations open on a computer. You can chat about them here." onChat={() => undefined} />,
+  );
+  assert.ok(
+    has(out, 'data-testid="desktop-only"') &&
+      has(out, 'data-testid="desktop-only-chat"') &&
+      has(out, CHAT_ABOUT_IT) &&
+      has(out, "Automations open on a computer."),
+  );
   assert.ok(!has(out, 'aria-disabled="true"'));
   assert.ok(has(renderToStaticMarkup(<DesktopOnly line="x" />), 'aria-disabled="true"'));
 });

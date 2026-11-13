@@ -6,7 +6,15 @@ import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo,
 import type { MutableRefObject, ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { cachedFace, currentSkin, faceKey, marbleGradient, marbleInner, requestFace, wrapSvg } from "../../../../../../ui/src/Avatar/index.tsx";
+import {
+  cachedFace,
+  currentSkin,
+  faceKey,
+  marbleGradient,
+  marbleInner,
+  requestFace,
+  wrapSvg,
+} from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -19,8 +27,42 @@ import { useRecordsState } from "../sidebar/state.tsx";
 import { Scroller } from "./Scroller.tsx";
 import type { ScrollHandle } from "./Scroller.tsx";
 import {
-  FLING_OVERSCAN, GROUP_LIMIT, GUTTER, HEAD_H, ROW_H, cellText, clearClauses, colourOf, columnWindow, columnsOf, countSpec, cycleSort, filterOf, fromSaved, groupItems, groupable, hasOptions,
-  FaceLru, faceClassOf, faceRule, flingWindow, hueOf, isEdited, isNumeric, optionValue, optionsOf, queryOffset, querySpec, rowWindow, scrollBlockTop, setSort, sortable, toSaved, toggleHidden, totalWidth, safeBitmapUrl,
+  FLING_OVERSCAN,
+  GROUP_LIMIT,
+  GUTTER,
+  HEAD_H,
+  ROW_H,
+  cellText,
+  clearClauses,
+  colourOf,
+  columnWindow,
+  columnsOf,
+  countSpec,
+  cycleSort,
+  filterOf,
+  fromSaved,
+  groupItems,
+  groupable,
+  hasOptions,
+  FaceLru,
+  faceClassOf,
+  faceRule,
+  flingWindow,
+  hueOf,
+  isEdited,
+  isNumeric,
+  optionValue,
+  optionsOf,
+  queryOffset,
+  querySpec,
+  rowWindow,
+  scrollBlockTop,
+  setSort,
+  sortable,
+  toSaved,
+  toggleHidden,
+  totalWidth,
+  safeBitmapUrl,
 } from "./model.ts";
 import { allIds, eachId, recordsWord } from "./bulk.ts";
 import { plainError } from "../typeedit/model.ts";
@@ -40,7 +82,8 @@ import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
 
-const STICKY = (left: number): ViewStyle => (Platform.OS === "web" ? ({ position: "sticky", left, zIndex: 2 } as unknown as ViewStyle) : {});
+const STICKY = (left: number): ViewStyle =>
+  Platform.OS === "web" ? ({ position: "sticky", left, zIndex: 2 } as unknown as ViewStyle) : {};
 
 // ---------------------------------------------------------------- cells
 
@@ -49,21 +92,57 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
   const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(value);
   return (
     <View style={[styles.tag, { backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)` }]}>
-      <Text numberOfLines={1} style={[styles.tagText, { color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` }]}>{opt?.title ?? value}</Text>
+      <Text
+        numberOfLines={1}
+        style={[styles.tagText, { color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` }]}
+      >
+        {opt?.title ?? value}
+      </Text>
     </View>
   );
 }
 
-function Cell({ field, row, names }: { field: FieldDef; row: RecordRow; names: (id: string) => string }): ReactElement | null {
+function Cell({
+  field,
+  row,
+  names,
+}: {
+  field: FieldDef;
+  row: RecordRow;
+  names: (id: string) => string;
+}): ReactElement | null {
   const v = row.fields[field.key];
   if (v === undefined || v === null || v === "") return null;
-  if ((field.type === "choice" || field.type === "status") && typeof v === "string") return <Tag field={field} value={v} />;
-  if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} seedId={String(v)} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
-  if (field.type === "rating" && typeof v === "number") return <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
-  const text = <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
+  if ((field.type === "choice" || field.type === "status") && typeof v === "string")
+    return <Tag field={field} value={v} />;
+  if (field.type === "checkbox")
+    return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
+  if (field.type === "person")
+    return (
+      <View style={styles.person}>
+        <Face name={names(String(v))} seedId={String(v)} size={18} />
+        <Text numberOfLines={1} style={styles.cellText}>
+          {names(String(v))}
+        </Text>
+      </View>
+    );
+  if (field.type === "rating" && typeof v === "number")
+    return (
+      <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>
+        {"★".repeat(Math.max(0, Math.min(5, v)))}
+      </Text>
+    );
+  const text = (
+    <Text
+      numberOfLines={1}
+      style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}
+    >
+      {cellText(field, v, names)}
+    </Text>
+  );
   // a moment (a date with a time) shows both zones on hover and focus; a plain calendar date has no second clock
-  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  const at =
+    field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
   return Number.isFinite(at) ? <TimePop at={at}>{text}</TimePop> : text;
 }
 
@@ -85,21 +164,45 @@ interface RowProps {
 }
 
 /** What a mark on a row says when hovered. */
-const MARK_HELP: Readonly<Record<RowMark, string>> = { private: "Set apart from its type", shared: "Shared with people" };
+const MARK_HELP: Readonly<Record<RowMark, string>> = {
+  private: "Set apart from its type",
+  shared: "Shared with people",
+};
 const MARK_SVG: Readonly<Record<RowMark, string>> = {
-  private: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5h7v5.5h-7z"/><path d="M6 7.5V5.6a2 2 0 014 0v1.9"/></svg>',
-  shared: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z"/><path d="M1.8 13a4.2 4.2 0 018.4 0"/><path d="M10.5 3.5a2.3 2.3 0 010 4.4"/><path d="M12 9.2a4.2 4.2 0 012.2 3.8"/></svg>',
+  private:
+    '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5h7v5.5h-7z"/><path d="M6 7.5V5.6a2 2 0 014 0v1.9"/></svg>',
+  shared:
+    '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z"/><path d="M1.8 13a4.2 4.2 0 018.4 0"/><path d="M10.5 3.5a2.3 2.3 0 010 4.4"/><path d="M12 9.2a4.2 4.2 0 012.2 3.8"/></svg>',
 };
 
-const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad, selected, tint, names, mark, onSelect, onOpen }: RowProps): ReactElement {
+const TableRow = memo(function TableRow({
+  row,
+  n,
+  y,
+  width,
+  cols,
+  from,
+  to,
+  pad,
+  selected,
+  tint,
+  names,
+  mark,
+  onSelect,
+  onOpen,
+}: RowProps): ReactElement {
   const [over, setOver] = useState(false);
   const last = useRef(0);
-  const bg = selected ? "var(--sel)" : over ? "var(--hover)" : tint ?? "var(--win)";
+  const bg = selected ? "var(--sel)" : over ? "var(--hover)" : (tint ?? "var(--win)");
   const primary = cols[0];
   const cells: ReactElement[] = [];
   for (let i = from; i < to; i++) {
     const c = cols[i]!;
-    cells.push(<View key={c.field.key} style={[styles.td, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>{row ? <Cell field={c.field} row={row} names={names} /> : <View style={styles.ghostBar} />}</View>);
+    cells.push(
+      <View key={c.field.key} style={[styles.td, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>
+        {row ? <Cell field={c.field} row={row} names={names} /> : <View style={styles.ghostBar} />}
+      </View>,
+    );
   }
   return (
     <Pressable
@@ -111,24 +214,47 @@ const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad,
         if (!row) return;
         onSelect(row.id);
         const now = Date.now();
-        if (now - last.current < 450) { last.current = 0; onOpen(row.id); } else last.current = now;
+        if (now - last.current < 450) {
+          last.current = 0;
+          onOpen(row.id);
+        } else last.current = now;
       }}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       style={[styles.tr, { top: y, width, backgroundColor: bg }]}
     >
-      <View style={[styles.rn, STICKY(0), { backgroundColor: bg }]}><Text style={styles.rnText}>{n}</Text></View>
+      <View style={[styles.rn, STICKY(0), { backgroundColor: bg }]}>
+        <Text style={styles.rnText}>{n}</Text>
+      </View>
       {primary ? (
         <View style={[styles.td, styles.tdFirst, STICKY(GUTTER), { width: primary.width, backgroundColor: bg }]}>
           {row ? (
             <>
-              <Text numberOfLines={1} style={[styles.cellText, styles.title]}>{cellText(primary.field, row.fields[primary.field.key], names) || "Untitled"}</Text>
-              {mark ? <Tooltip text={MARK_HELP[mark]}><View testID={`mark-${row.id}`} accessibilityLabel={MARK_HELP[mark]}><Glyph name={mark === "private" ? "lock" : "people"} size={12} color="var(--ink-3)" /></View></Tooltip> : null}
+              <Text numberOfLines={1} style={[styles.cellText, styles.title]}>
+                {cellText(primary.field, row.fields[primary.field.key], names) || "Untitled"}
+              </Text>
+              {mark ? (
+                <Tooltip text={MARK_HELP[mark]}>
+                  <View testID={`mark-${row.id}`} accessibilityLabel={MARK_HELP[mark]}>
+                    <Glyph name={mark === "private" ? "lock" : "people"} size={12} color="var(--ink-3)" />
+                  </View>
+                </Tooltip>
+              ) : null}
               {over || selected ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open record"
+                  testID={`open-${row.id}`}
+                  onPress={() => onOpen(row.id)}
+                  style={styles.xopen}
+                >
+                  <Glyph name="expand" size={13} color="var(--ink-2)" />
+                </Pressable>
               ) : null}
             </>
-          ) : <View style={styles.ghostBar} />}
+          ) : (
+            <View style={styles.ghostBar} />
+          )}
         </View>
       ) : null}
       {pad > 0 ? <View style={{ width: pad }} /> : null}
@@ -136,7 +262,6 @@ const TableRow = memo(function TableRow({ row, n, y, width, cols, from, to, pad,
     </Pressable>
   );
 });
-
 
 // On the web a row is two pieces: the frozen left (row number and title) drawn in one sticky layer, and the scrolling rest. One sticky element for the whole table instead of two per row keeps a
 // scroll from re-resolving hundreds of sticky offsets every frame (that cost frames and shifted layout). The pieces hold no state of their own: hover and clicks come down from the grid.
@@ -155,13 +280,15 @@ interface PieceProps {
   onMenu: (row: RecordRow, x: number, y: number) => void;
 }
 
-const bgOf = (p: { selected: boolean; hot: boolean; tint: string | null }): string => (p.selected ? "var(--sel)" : p.hot ? "var(--hover)" : p.tint ?? "var(--win)");
+const bgOf = (p: { selected: boolean; hot: boolean; tint: string | null }): string =>
+  p.selected ? "var(--sel)" : p.hot ? "var(--hover)" : (p.tint ?? "var(--win)");
 
 /**
  * A new query window hands back new row objects (a clone each time), so a plain memo re-rendered every drawn row, 13 cells each, whenever the window moved by a hundred rows: that was the
  * long frames of the 100,000-row scroll. A row is the same row when it has the same id, version and update time.
  */
-const sameRow = (a: RecordRow | null, b: RecordRow | null): boolean => a === b || (a !== null && b !== null && a.id === b.id && a.version === b.version && a.updatedAt === b.updatedAt);
+const sameRow = (a: RecordRow | null, b: RecordRow | null): boolean =>
+  a === b || (a !== null && b !== null && a.id === b.id && a.version === b.version && a.updatedAt === b.updatedAt);
 function samePiece<T extends PieceProps>(a: T, b: T): boolean {
   if (!sameRow(a.row, b.row)) return false;
   const ka = Object.keys(a) as (keyof T)[];
@@ -178,17 +305,66 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
   return createElement(
     "div",
     {
-      role: "button", "aria-label": row ? String(row.fields[primary.field.key] ?? row.id) : "Loading", "aria-selected": selected, "data-testid": row ? `rec-${row.id}` : `rec-pending-${n}`,
-      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); },
-      ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
-      onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      className: "vrt-r", style: { left: 0, top: y, width: GUTTER + primary.width, backgroundColor: bg },
+      role: "button",
+      "aria-label": row ? String(row.fields[primary.field.key] ?? row.id) : "Loading",
+      "aria-selected": selected,
+      "data-testid": row ? `rec-${row.id}` : `rec-pending-${n}`,
+      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => {
+        if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true);
+      },
+      ...menuTrigger((x, y) => {
+        if (row) onMenu(row, x, y);
+      }),
+      onMouseEnter: () => onHot(row ? row.id : null),
+      onMouseLeave: () => onHot(null),
+      className: "vrt-r",
+      style: { left: 0, top: y, width: GUTTER + primary.width, backgroundColor: bg },
     },
     createElement("div", { className: "vrt-g" }, String(n)),
-    createElement("div", { style: { width: primary.width, height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, boxSizing: "border-box", padding: "0 10px", overflow: "hidden", flex: "none" } },
-      row ? createElement("span", { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } }, dot(row.id, title, false), title) : createElement("div", { style: GHOST }),
-      row && mark ? createElement("span", { className: "vrt-mk", title: MARK_HELP[mark], "aria-label": MARK_HELP[mark], "data-testid": `mark-${row.id}`, dangerouslySetInnerHTML: { __html: MARK_SVG[mark] } }) : null,
-      row && (hot || selected) ? <Pressable accessibilityRole="button" accessibilityLabel="Open record" testID={`open-${row.id}`} onPress={() => onOpen(row.id)} style={styles.xopen}><Glyph name="expand" size={13} color="var(--ink-2)" /></Pressable> : null,
+    createElement(
+      "div",
+      {
+        style: {
+          width: primary.width,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          boxSizing: "border-box",
+          padding: "0 10px",
+          overflow: "hidden",
+          flex: "none",
+        },
+      },
+      row
+        ? createElement(
+            "span",
+            { className: "vrt-p", style: { ...CELL_TEXT, fontWeight: 500 } },
+            dot(row.id, title, false),
+            title,
+          )
+        : createElement("div", { style: GHOST }),
+      row && mark
+        ? createElement("span", {
+            className: "vrt-mk",
+            title: MARK_HELP[mark],
+            "aria-label": MARK_HELP[mark],
+            "data-testid": `mark-${row.id}`,
+            dangerouslySetInnerHTML: { __html: MARK_SVG[mark] },
+          })
+        : null,
+      row && (hot || selected) ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open record"
+          testID={`open-${row.id}`}
+          onPress={() => onOpen(row.id)}
+          style={styles.xopen}
+        >
+          <Glyph name="expand" size={13} color="var(--ink-2)" />
+        </Pressable>
+      ) : null,
     ),
   );
 }, samePiece);
@@ -197,7 +373,14 @@ const RowFrozen = memo(function RowFrozen(p: PieceProps & { primary: Column }): 
 // 100,000-row scroll probe was 66.7 ms at p95 with every column and 16.8 ms with the name column alone, so the cost is the cells. Same looks as the cell styles below.
 // No overflow or contain on a cell: each one is a clip in the paint property tree, and 13 of them a row put Layerize at 5.9 ms a frame in the perf trace (run 40219986248, 3.6 s over 606 frames).
 // The text inside clips itself with its own ellipsis and the row clips what is left.
-const CELL_TEXT = { fontSize: 13, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
+const CELL_TEXT = {
+  fontSize: 13,
+  color: "var(--ink)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  minWidth: 0,
+} as const;
 const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" } as const;
 
 /**
@@ -208,18 +391,29 @@ const CSS_ID = "vyre-records-rows";
 let cssDone = false;
 function ensureRowCss(): void {
   if (cssDone) return;
-  const d = (globalThis as { document?: { getElementById(id: string): unknown; createElement(t: string): { id: string; textContent: string }; head?: { appendChild(n: unknown): void } } }).document;
+  const d = (
+    globalThis as {
+      document?: {
+        getElementById(id: string): unknown;
+        createElement(t: string): { id: string; textContent: string };
+        head?: { appendChild(n: unknown): void };
+      };
+    }
+  ).document;
   if (!d || !d.head || d.getElementById(CSS_ID)) return;
-  const css = `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}`
-    + ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}"
-    + ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}"
-    + ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}"
-    + ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}.vrt-so{color:var(--ink-4)}"
+  const css =
+    `.vrt-r{position:absolute;box-sizing:border-box;display:flex;align-items:center;height:${ROW_H}px;border-bottom:1px solid var(--line);contain:layout style}` +
+    ".vrt-c{box-sizing:border-box;flex:none;padding:0 10px;font-size:13px;color:var(--ink);white-space:nowrap}" +
+    ".vrt-b{box-sizing:border-box;display:flex;align-items:center;flex:none;height:100%;padding:0 10px;min-width:0}.vrt-e{justify-content:flex-end}" +
+    ".vrt-chip{box-sizing:border-box;display:inline-block;height:20px;line-height:20px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}" +
+    ".vrt-p{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap}.vrt-st{font-size:12px;color:var(--warn);letter-spacing:1px;white-space:nowrap}.vrt-so{color:var(--ink-4)}" +
     // the dot sits 1 px above the middle by its bottom margin, not by position: relative, which made every chip dot (three a row) a paint layer of its own
-    + ".vrt-chip::before{content:\"\";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;margin-bottom:2px;vertical-align:middle;background:hsl(var(--h) 65% 52%)}"
-    + ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}"
-    + ".vrt-mk{display:inline-flex;flex:none;color:var(--ink-3)}"
-    + ".vrt-g{width:" + GUTTER + "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
+    '.vrt-chip::before{content:"";display:inline-block;width:6px;height:6px;border-radius:3px;margin-right:5px;margin-bottom:2px;vertical-align:middle;background:hsl(var(--h) 65% 52%)}' +
+    ".vrt-n{font-variant-numeric:tabular-nums;text-align:right}.vrt-s{color:var(--ink-3);letter-spacing:1px}" +
+    ".vrt-mk{display:inline-flex;flex:none;color:var(--ink-3)}" +
+    ".vrt-g{width:" +
+    GUTTER +
+    "px;height:100%;display:flex;align-items:center;box-sizing:border-box;padding-left:10px;flex:none;font-size:11.5px;color:var(--ink-4);font-variant-numeric:tabular-nums}";
   injectCss(d, CSS_ID, css);
   cssDone = true;
 }
@@ -231,15 +425,32 @@ function fit(text: string, width: number, charW = 7): string {
 }
 /** The field types webCell draws as plain text (everything but chips, ticks, faces and stars). */
 function isPlainText(f: FieldDef): boolean {
-  return f.type !== "choice" && f.type !== "status" && f.type !== "checkbox" && f.type !== "person" && f.type !== "rating";
+  return (
+    f.type !== "choice" && f.type !== "status" && f.type !== "checkbox" && f.type !== "person" && f.type !== "rating"
+  );
 }
 
 const dots = new Map<string, Record<string, string | number>>();
 // the DOM bits the face rules need, typed here because the app's TypeScript config carries no DOM lib
-interface FaceRule { selectorText: string }
-interface FaceSheet { cssRules: { length: number; [i: number]: FaceRule }; insertRule(rule: string, index: number): number; deleteRule(index: number): void }
-interface FaceEl { className: string; getAttribute(name: string): string | null; removeAttribute(name: string): void; setAttribute(name: string, value: string): void }
-interface FaceDoc { createElement(tag: string): { sheet: FaceSheet | null }; head: { appendChild(node: unknown): unknown }; querySelectorAll(selector: string): ArrayLike<FaceEl> }
+interface FaceRule {
+  selectorText: string;
+}
+interface FaceSheet {
+  cssRules: { length: number; [i: number]: FaceRule };
+  insertRule(rule: string, index: number): number;
+  deleteRule(index: number): void;
+}
+interface FaceEl {
+  className: string;
+  getAttribute(name: string): string | null;
+  removeAttribute(name: string): void;
+  setAttribute(name: string, value: string): void;
+}
+interface FaceDoc {
+  createElement(tag: string): { sheet: FaceSheet | null };
+  head: { appendChild(node: unknown): unknown };
+  querySelectorAll(selector: string): ArrayLike<FaceEl>;
+}
 /** The faces that have a CSS rule now: an LRU of 400 (the table is virtual, so about forty rows, two or three faces each, are on screen); a full one drops its 40 oldest together. */
 const faceClasses = new FaceLru(400, 40);
 function findRule(sheet: FaceSheet, cls: string): number {
@@ -254,7 +465,11 @@ function ensureFace(doc: FaceDoc, seed: string): string {
   if (faceClasses.has(cls)) {
     faceClasses.use(cls);
   } else {
-    if (faceSheet === null) { const el = doc.createElement("style"); doc.head.appendChild(el); faceSheet = el.sheet; }
+    if (faceSheet === null) {
+      const el = doc.createElement("style");
+      doc.head.appendChild(el);
+      faceSheet = el.sheet;
+    }
     if (faceSheet !== null) {
       const sheet = faceSheet;
       for (const old of faceClasses.use(cls).evicted) {
@@ -267,7 +482,10 @@ function ensureFace(doc: FaceDoc, seed: string): string {
         // the bitmap replaces the rule: same class, the look with the real marble (a face dropped meanwhile is left alone)
         const at = findRule(sheet, cls);
         const url = cachedFace(key);
-        if (at >= 0 && safeBitmapUrl(url) !== null) { sheet.deleteRule(at); sheet.insertRule(faceRule(seed, url), at); }
+        if (at >= 0 && safeBitmapUrl(url) !== null) {
+          sheet.deleteRule(at);
+          sheet.insertRule(faceRule(seed, url), at);
+        }
       });
     }
   }
@@ -308,8 +526,16 @@ function dot(seed: string, label: string, shared = true): ReactElement {
     // no document (server render, tests), or a face that belongs to one record only (the Name cell: a 100,000 row table has 100,000 of them, and the scroll trace put a bitmap and a rule for each
     // at 50 ms p95): the same marble as a plain inline gradient, built once per seed on the server and per drawn row in the browser, with no rule, no bitmap and no stylesheet write
     let st = doc === undefined ? dots.get(seed) : undefined;
-    if (!st) { st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: marbleGradient(seed) }; if (doc === undefined) dots.set(seed, st); }
-    return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, style: st, ...(doc !== undefined ? { "data-face-seed": seed } : {}) });
+    if (!st) {
+      st = { width: 18, height: 18, flex: "none", borderRadius: 9, background: marbleGradient(seed) };
+      if (doc === undefined) dots.set(seed, st);
+    }
+    return createElement("span", {
+      "aria-hidden": true,
+      "data-testid": `face-${label}`,
+      style: st,
+      ...(doc !== undefined ? { "data-face-seed": seed } : {}),
+    });
   }
   const cls = ensureFace(doc, seed);
   return createElement("span", { "aria-hidden": true, "data-testid": `face-${label}`, className: cls });
@@ -320,24 +546,54 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
   // a rating is always five stars: the ones it has filled, the rest outlined (a row with no rating has five outlines)
   if (field.type === "rating") {
     const n = typeof v === "number" ? Math.max(0, Math.min(5, v)) : 0;
-    return createElement("span", { className: "vrt-st", "aria-label": `${n} of 5` }, "\u2605".repeat(n), n < 5 ? createElement("span", { className: "vrt-so" }, "\u2606".repeat(5 - n)) : null);
+    return createElement(
+      "span",
+      { className: "vrt-st", "aria-label": `${n} of 5` },
+      "\u2605".repeat(n),
+      n < 5 ? createElement("span", { className: "vrt-so" }, "\u2606".repeat(5 - n)) : null,
+    );
   }
   if (v === undefined || v === null || v === "") return null;
   // one element per chip, per name, per star run: the cut to the column is made here in text, so no box has to clip
   if ((field.type === "choice" || field.type === "status") && typeof v === "string") {
     const opt = optionsOf(field).find((o) => o.key === v);
     const hue = opt?.color && /^\d+$/.test(opt.color) ? Number(opt.color) : hueOf(v);
-    return createElement("span", { className: "vrt-chip", style: { "--h": hue, backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`, color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))` } }, fit(opt?.title ?? v, width - 27, 6.2));
+    return createElement(
+      "span",
+      {
+        className: "vrt-chip",
+        style: {
+          "--h": hue,
+          backgroundColor: `hsla(${hue}, 65%, 52%, 0.16)`,
+          color: `color-mix(in srgb, hsl(${hue}, 65%, 50%) 60%, var(--ink))`,
+        },
+      },
+      fit(opt?.title ?? v, width - 27, 6.2),
+    );
   }
-  if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
-  if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(String(v), names(String(v))), fit(names(String(v)), width - 25));
-  const cell = createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
+  if (field.type === "checkbox")
+    return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
+  if (field.type === "person")
+    return createElement(
+      "span",
+      { className: "vrt-p" },
+      dot(String(v), names(String(v))),
+      fit(names(String(v)), width - 25),
+    );
+  const cell = createElement(
+    "span",
+    { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" },
+    fit(cellText(field, v, names), width),
+  );
   // a moment (a date with a time) opens the hover card with both zones; a plain calendar date has no second clock
-  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  const at =
+    field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
   return Number.isFinite(at) ? createElement(TimePop, { at }, cell) : cell;
 }
 
-const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
+const RowBody = memo(function RowBody(
+  p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number },
+): ReactElement {
   const { row, n, y, left, width, cols, from, to, pad, names, onTap, onHot, onMenu } = p;
   ensureRowCss();
   const bg = bgOf(p);
@@ -347,18 +603,41 @@ const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: num
     // a plain text cell is one element, not a box with a span in it: the scroll trace (run 40232405129) had the whole cost in the cells, 33.4 ms p95 with them and 16.8 ms without
     if (row && isPlainText(c.field)) {
       const v = row.fields[c.field.key];
-      cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c", style: { width: c.width } }, v === undefined || v === null || v === "" ? null : fit(cellText(c.field, v, names), c.width)));
+      cells.push(
+        createElement(
+          "div",
+          {
+            key: c.field.key,
+            className: isNumeric(c.field) ? "vrt-c vrt-n" : c.field.type === "sealed" ? "vrt-c vrt-s" : "vrt-c",
+            style: { width: c.width },
+          },
+          v === undefined || v === null || v === "" ? null : fit(cellText(c.field, v, names), c.width),
+        ),
+      );
       continue;
     }
-    cells.push(createElement("div", { key: c.field.key, className: isNumeric(c.field) ? "vrt-b vrt-e" : "vrt-b", style: { width: c.width } }, row ? webCell(c.field, row, names, c.width) : createElement("div", { style: GHOST })));
+    cells.push(
+      createElement(
+        "div",
+        { key: c.field.key, className: isNumeric(c.field) ? "vrt-b vrt-e" : "vrt-b", style: { width: c.width } },
+        row ? webCell(c.field, row, names, c.width) : createElement("div", { style: GHOST }),
+      ),
+    );
   }
   return createElement(
     "div",
     {
       "data-testid": row ? `recb-${row.id}` : `recb-pending-${n}`,
-      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => { if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true); }, ...menuTrigger((x, y) => { if (row) onMenu(row, x, y); }),
-      onMouseEnter: () => onHot(row ? row.id : null), onMouseLeave: () => onHot(null),
-      className: "vrt-r", style: bg === "var(--win)" ? { top: y, left, width } : { top: y, left, width, backgroundColor: bg }, // the window shows through a plain row: nothing to paint but its text
+      onClick: (e: { metaKey?: boolean; ctrlKey?: boolean }) => {
+        if (row) onTap(row.id, e.metaKey === true || e.ctrlKey === true);
+      },
+      ...menuTrigger((x, y) => {
+        if (row) onMenu(row, x, y);
+      }),
+      onMouseEnter: () => onHot(row ? row.id : null),
+      onMouseLeave: () => onHot(null),
+      className: "vrt-r",
+      style: bg === "var(--win)" ? { top: y, left, width } : { top: y, left, width, backgroundColor: bg }, // the window shows through a plain row: nothing to paint but its text
     },
     pad > 0 ? createElement("div", { key: "pad", style: { width: pad, flex: "none" } }) : null,
     ...cells,
@@ -392,16 +671,35 @@ interface BodyProps {
 
 /** The rows the scroll meets: on the web each row is its frozen piece (number and title, in the one sticky layer) and its scrolling body; elsewhere one TableRow. */
 function Body(p: BodyProps): ReactElement {
-  const { items, loaded, total, width, cols, colWin, selected, sel, hot, colourField, names, marks, onTap, onOpen, onHot, onMenu } = p;
+  const {
+    items,
+    loaded,
+    total,
+    width,
+    cols,
+    colWin,
+    selected,
+    sel,
+    hot,
+    colourField,
+    names,
+    marks,
+    onTap,
+    onOpen,
+    onHot,
+    onMenu,
+  } = p;
   // the top and the way the scroll last moved, which decides the side the drawn rows reach out to
   const [pos, setPos] = useState<{ top: number; dir: 1 | -1 }>({ top: p.top, dir: 1 });
   const { setTop: register } = p;
   useEffect(() => {
     register.current = (t) => setPos((cur) => (t === cur.top ? cur : { top: t, dir: t > cur.top ? 1 : -1 }));
-    return () => { register.current = null; };
+    return () => {
+      register.current = null;
+    };
   }, [register]);
   const win = flingWindow(pos.top, p.viewH, total, pos.dir);
-  const rowAt = (i: number): RecordRow | null => (loaded ? loaded.rows[i - loaded.offset] ?? null : null);
+  const rowAt = (i: number): RecordRow | null => (loaded ? (loaded.rows[i - loaded.offset] ?? null) : null);
   const rows: ReactElement[] = [];
   const frozen: ReactElement[] = [];
   const web = Platform.OS === "web";
@@ -414,10 +712,18 @@ function Body(p: BodyProps): ReactElement {
       if (!it) continue;
       if (it.g) {
         rows.push(
-          <Pressable key={`g:${it.key}`} accessibilityRole="button" accessibilityState={{ expanded: !it.closed }} testID={`group-${it.key || "none"}`}
-            onPress={() => p.onFold((f) => (f.includes(it.key) ? f.filter((k) => k !== it.key) : [...f, it.key]))} style={[styles.tr, styles.group, { top: y, width }]}>
+          <Pressable
+            key={`g:${it.key}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: !it.closed }}
+            testID={`group-${it.key || "none"}`}
+            onPress={() => p.onFold((f) => (f.includes(it.key) ? f.filter((k) => k !== it.key) : [...f, it.key]))}
+            style={[styles.tr, styles.group, { top: y, width }]}
+          >
             <View style={[styles.groupIn, STICKY(12)]}>
-              <View style={it.closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
+              <View style={it.closed ? styles.chevShut : undefined}>
+                <Glyph name="chevd" size={10} />
+              </View>
               <Text style={styles.groupText}>{it.label}</Text>
               <Text style={styles.groupCount}>{it.n}</Text>
             </View>
@@ -428,23 +734,117 @@ function Body(p: BodyProps): ReactElement {
       const tint = colourOf(colourField, it.row);
       const picked = selected === it.row.id || isPickedRow(sel, it.row.id);
       if (web && primary) {
-        const piece = { row: it.row, n: it.n, y, selected: picked, hot: hot === it.row.id, tint, names, mark: marks.get(it.row.id) ?? null, onTap, onOpen, onHot, onMenu };
+        const piece = {
+          row: it.row,
+          n: it.n,
+          y,
+          selected: picked,
+          hot: hot === it.row.id,
+          tint,
+          names,
+          mark: marks.get(it.row.id) ?? null,
+          onTap,
+          onOpen,
+          onHot,
+          onMenu,
+        };
         frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
-        rows.push(<RowBody key={it.row.id} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
-      } else rows.push(<TableRow key={it.row.id} row={it.row} n={it.n} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={tint} names={names} mark={marks.get(it.row.id) ?? null} onSelect={p.onSelect} onOpen={onOpen} />);
+        rows.push(
+          <RowBody
+            key={it.row.id}
+            {...piece}
+            left={fw}
+            width={width - fw}
+            cols={cols}
+            from={colWin.from}
+            to={colWin.to}
+            pad={colWin.pad}
+          />,
+        );
+      } else
+        rows.push(
+          <TableRow
+            key={it.row.id}
+            row={it.row}
+            n={it.n}
+            y={y}
+            width={width}
+            cols={cols}
+            from={colWin.from}
+            to={colWin.to}
+            pad={colWin.pad}
+            selected={picked}
+            tint={tint}
+            names={names}
+            mark={marks.get(it.row.id) ?? null}
+            onSelect={p.onSelect}
+            onOpen={onOpen}
+          />,
+        );
       continue;
     }
     const r = rowAt(i);
     const picked = r !== null && (selected === r.id || isPickedRow(sel, r.id));
     if (web && primary) {
-      const piece = { row: r, n: i + 1, y, selected: picked, hot: r !== null && hot === r.id, tint: r ? colourOf(colourField, r) : null, names, mark: r ? marks.get(r.id) ?? null : null, onTap, onOpen, onHot, onMenu };
+      const piece = {
+        row: r,
+        n: i + 1,
+        y,
+        selected: picked,
+        hot: r !== null && hot === r.id,
+        tint: r ? colourOf(colourField, r) : null,
+        names,
+        mark: r ? (marks.get(r.id) ?? null) : null,
+        onTap,
+        onOpen,
+        onHot,
+        onMenu,
+      };
       frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
-      rows.push(<RowBody key={r ? r.id : `p${i}`} {...piece} left={fw} width={width - fw} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} />);
+      rows.push(
+        <RowBody
+          key={r ? r.id : `p${i}`}
+          {...piece}
+          left={fw}
+          width={width - fw}
+          cols={cols}
+          from={colWin.from}
+          to={colWin.to}
+          pad={colWin.pad}
+        />,
+      );
       continue;
     }
-    rows.push(<TableRow key={r ? r.id : `p${i}`} row={r} n={i + 1} y={y} width={width} cols={cols} from={colWin.from} to={colWin.to} pad={colWin.pad} selected={picked} tint={r ? colourOf(colourField, r) : null} names={names} mark={r ? marks.get(r.id) ?? null : null} onSelect={p.onSelect} onOpen={onOpen} />);
+    rows.push(
+      <TableRow
+        key={r ? r.id : `p${i}`}
+        row={r}
+        n={i + 1}
+        y={y}
+        width={width}
+        cols={cols}
+        from={colWin.from}
+        to={colWin.to}
+        pad={colWin.pad}
+        selected={picked}
+        tint={r ? colourOf(colourField, r) : null}
+        names={names}
+        mark={r ? (marks.get(r.id) ?? null) : null}
+        onSelect={p.onSelect}
+        onOpen={onOpen}
+      />,
+    );
   }
-  return <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>{rows}{web ? <View testID="records-frozen" style={styles.frozenLayer}>{frozen}</View> : null}</View>;
+  return (
+    <View style={{ height: total * ROW_H, width }} testID="records-body" accessibilityLabel={`${total} rows`}>
+      {rows}
+      {web ? (
+        <View testID="records-frozen" style={styles.frozenLayer}>
+          {frozen}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------- the grid
@@ -472,20 +872,44 @@ function aggregateOf(field: FieldDef, rows: readonly RecordRow[]): string {
   return v.length === 0 ? "" : `Avg ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}`;
 }
 
-function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnce = false, onStarted }: { type: string; def: TypeDef; views: readonly SavedView[]; base: TableViewState; saved: SavedView | undefined; headerExtra: ReactNode; startNew?: boolean; onStarted?: (() => void) | undefined }): ReactElement {
+function Grid({
+  type,
+  def,
+  views,
+  base,
+  saved,
+  headerExtra,
+  startNew: startAtOnce = false,
+  onStarted,
+}: {
+  type: string;
+  def: TypeDef;
+  views: readonly SavedView[];
+  base: TableViewState;
+  saved: SavedView | undefined;
+  headerExtra: ReactNode;
+  startNew?: boolean;
+  onStarted?: (() => void) | undefined;
+}): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const menu = useMenu();
   const online = useOnline();
   const phone = useWindowDimensions().width;
   const slim = isPhoneWidth(phone);
-  const tight = phone > 0 && phone < 1180;   // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
+  const tight = phone > 0 && phone < 1180; // beside the sidebar a 1024 window has no room for seven labelled buttons: icons only, so the type and view names keep their room
   const typeList = useScreenQuery<TypesOut>(SCREENS.types, "types");
   const access = useRecordAccess(type);
   const [sharedOnly, setSharedOnly] = useState(false);
   const [v, setV] = useState<TableViewState>(base);
   /** The view with "Shared with me" on top of it: the rows given to the viewer by name. Not saved with the view. */
-  const vq = useMemo<TableViewState>(() => (sharedOnly && access.sharedIds ? { ...v, clauses: [...v.clauses, { field: "id", op: "in", value: access.sharedIds }] } : v), [v, sharedOnly, access.sharedIds]);
+  const vq = useMemo<TableViewState>(
+    () =>
+      sharedOnly && access.sharedIds
+        ? { ...v, clauses: [...v.clauses, { field: "id", op: "in", value: access.sharedIds }] }
+        : v,
+    [v, sharedOnly, access.sharedIds],
+  );
   const [folded, setFolded] = useState<readonly string[]>([]);
   const [finding, setFinding] = useState(base.find !== "");
   const [selected, setSelected] = useState<string | null>(null);
@@ -521,38 +945,85 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
   const offset = v.group ? 0 : wanted;
   const q = useLive("records.query", querySpec(type, vq, def.titleField, offset));
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
-  if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset))) kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
+  if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset)))
+    kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
   // the starred records, for the menu's Star / Remove Star and the S key; a runtime that cannot read stars leaves them all unstarred
   const stars = useLive("stars.list", { type: "record" });
-  const starredIds = useMemo(() => new Set(stars.status === "ready" ? stars.data.stars.map((x) => x.resource.id) : []), [stars]);
-  const toggleStar = (id: string, on: boolean): void => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record", id }, on })).catch(() => undefined); };
-  const titleOf = (id: string): string => { const r = loaded?.rows.find((x) => x.id === id); const t = r ? r.fields[def.titleField] : undefined; return typeof t === "string" && t !== "" ? t : "Untitled"; };
-  const linkTo = (id: string): string => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; return `${l?.origin ?? ""}${l?.pathname ?? ""}#subject=record:${id}`; };
-  const copyText = (t: string): void => { const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(t); };
+  const starredIds = useMemo(
+    () => new Set(stars.status === "ready" ? stars.data.stars.map((x) => x.resource.id) : []),
+    [stars],
+  );
+  const toggleStar = (id: string, on: boolean): void => {
+    void Promise.resolve(data.call("stars.toggle", { resource: { type: "record", id }, on })).catch(() => undefined);
+  };
+  const titleOf = (id: string): string => {
+    const r = loaded?.rows.find((x) => x.id === id);
+    const t = r ? r.fields[def.titleField] : undefined;
+    return typeof t === "string" && t !== "" ? t : "Untitled";
+  };
+  const linkTo = (id: string): string => {
+    const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location;
+    return `${l?.origin ?? ""}${l?.pathname ?? ""}#subject=record:${id}`;
+  };
+  const copyText = (t: string): void => {
+    const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard;
+    if (c) void c.writeText(t);
+  };
 
-  const items = useMemo(() => (groupField && loaded ? groupItems(loaded.rows, groupField, folded, data.nameOf) : null), [groupField, loaded, folded, data]);
-  const total = items ? items.length : count ?? loaded?.rows.length ?? 0;
+  const items = useMemo(
+    () => (groupField && loaded ? groupItems(loaded.rows, groupField, folded, data.nameOf) : null),
+    [groupField, loaded, folded, data],
+  );
+  const total = items ? items.length : (count ?? loaded?.rows.length ?? 0);
   const colWin = columnWindow(cols, left, box.w);
 
   const edited = isEdited(v, base);
-  const set = (next: TableViewState): void => { setV(next); setSelected(null); };
+  const set = (next: TableViewState): void => {
+    setV(next);
+    setSelected(null);
+  };
 
   // ---- menus
   const countOf = (field: FieldDef, key: string): number | null => {
-    const probe: TableViewState = { ...v, clauses: [...v.clauses.filter((c) => c.field !== field.key), { field: field.key, op: "eq", value: optionValue(field, key) }] };
+    const probe: TableViewState = {
+      ...v,
+      clauses: [
+        ...v.clauses.filter((c) => c.field !== field.key),
+        { field: field.key, op: "eq", value: optionValue(field, key) },
+      ],
+    };
     const snap = data.live("records.counts", countSpec(type, probe, def.titleField)).getSnapshot();
     return snap.status === "ready" ? snap.data.count : null;
   };
-  const filterEntries = (cur: TableViewState): MenuEntry[] => filterMenuEntries({ def, cur, rows: loaded?.rows ?? [], nameOf: data.nameOf, countOf, set });
+  const filterEntries = (cur: TableViewState): MenuEntry[] =>
+    filterMenuEntries({ def, cur, rows: loaded?.rows ?? [], nameOf: data.nameOf, countOf, set });
   const sortEntries = (): MenuEntry[] => {
     const cur = v.sort[0];
     return [
       { head: "Sort by" },
-      ...def.fields.filter(sortable).map((f): MenuEntry => ({ label: f.title, checked: cur?.field === f.key, onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")) })),
+      ...def.fields.filter(sortable).map(
+        (f): MenuEntry => ({
+          label: f.title,
+          checked: cur?.field === f.key,
+          onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")),
+        }),
+      ),
       { separator: true },
-      { label: "Ascending", checked: cur?.dir === "asc", onSelect: () => { if (cur) set(setSort(v, cur.field, "asc")); } },
-      { label: "Descending", checked: cur?.dir === "desc", onSelect: () => { if (cur) set(setSort(v, cur.field, "desc")); } },
+      {
+        label: "Ascending",
+        checked: cur?.dir === "asc",
+        onSelect: () => {
+          if (cur) set(setSort(v, cur.field, "asc"));
+        },
+      },
+      {
+        label: "Descending",
+        checked: cur?.dir === "desc",
+        onSelect: () => {
+          if (cur) set(setSort(v, cur.field, "desc"));
+        },
+      },
       { separator: true },
       { label: "Clear sort", onSelect: () => set({ ...v, sort: [] }) },
     ];
@@ -560,76 +1031,174 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
   const groupEntries = (): MenuEntry[] => [
     { head: "Group by" },
     { label: "None", checked: v.group === null, onSelect: () => set({ ...v, group: null }) },
-    ...def.fields.filter(groupable).map((f): MenuEntry => ({ label: f.title, checked: v.group === f.key, onSelect: () => set({ ...v, group: f.key }) })),
+    ...def.fields
+      .filter(groupable)
+      .map(
+        (f): MenuEntry => ({ label: f.title, checked: v.group === f.key, onSelect: () => set({ ...v, group: f.key }) }),
+      ),
   ];
   const fieldEntries = (cur: TableViewState): MenuEntry[] => [
     { head: "Fields" },
-    ...def.fields.filter((f) => f.key !== def.titleField).map((f): MenuEntry => ({ label: f.title, checked: !cur.hidden.includes(f.key), onSelect: () => set(toggleHidden(cur, f.key)) })),
+    ...def.fields
+      .filter((f) => f.key !== def.titleField)
+      .map(
+        (f): MenuEntry => ({
+          label: f.title,
+          checked: !cur.hidden.includes(f.key),
+          onSelect: () => set(toggleHidden(cur, f.key)),
+        }),
+      ),
   ];
   const colourEntries = (cur: TableViewState): MenuEntry[] => [
     { head: "Colour rows by" },
     { label: "None", checked: cur.colour === null, onSelect: () => set({ ...cur, colour: null }) },
-    ...def.fields.filter(hasOptions).map((f): MenuEntry => ({ label: f.title, checked: cur.colour === f.key, onSelect: () => set({ ...cur, colour: f.key }) })),
+    ...def.fields.filter(hasOptions).map(
+      (f): MenuEntry => ({
+        label: f.title,
+        checked: cur.colour === f.key,
+        onSelect: () => set({ ...cur, colour: f.key }),
+      }),
+    ),
   ];
   const viewEntries = (): MenuEntry[] => [
     { head: "Saved views" },
-    { label: `All ${def.plural.toLowerCase()}`, checked: state.viewId === null, onSelect: () => dispatch({ type: "view", viewId: null }) },
-    ...views.map((sv): MenuEntry => ({ label: sv.title, checked: state.viewId === sv.viewId, onSelect: () => dispatch({ type: "view", viewId: sv.viewId }) })),
+    {
+      label: `All ${def.plural.toLowerCase()}`,
+      checked: state.viewId === null,
+      onSelect: () => dispatch({ type: "view", viewId: null }),
+    },
+    ...views.map(
+      (sv): MenuEntry => ({
+        label: sv.title,
+        checked: state.viewId === sv.viewId,
+        onSelect: () => dispatch({ type: "view", viewId: sv.viewId }),
+      }),
+    ),
   ];
 
-  const keep = (kind: "filter" | "fields" | "colour") => (x: number, y: number): void => {
-    const build = kind === "filter" ? filterEntries : kind === "fields" ? fieldEntries : colourEntries;
-    const again = (e: MenuEntry): MenuEntry => ("onSelect" in e && e.onSelect ? { ...e, onSelect: () => { e.onSelect?.(); setReopen({ kind, x, y }); } } : e);
-    menu.show(build(v).map(again), x, y, "other");
-  };
+  const keep =
+    (kind: "filter" | "fields" | "colour") =>
+    (x: number, y: number): void => {
+      const build = kind === "filter" ? filterEntries : kind === "fields" ? fieldEntries : colourEntries;
+      const again = (e: MenuEntry): MenuEntry =>
+        "onSelect" in e && e.onSelect
+          ? {
+              ...e,
+              onSelect: () => {
+                e.onSelect?.();
+                setReopen({ kind, x, y });
+              },
+            }
+          : e;
+      menu.show(build(v).map(again), x, y, "other");
+    };
   // the menus that take several choices open again on the new view after each click
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (reopen) { const r = reopen; setReopen(null); keep(r.kind)(r.x, r.y); } }, [reopen]);
+  useEffect(() => {
+    if (reopen) {
+      const r = reopen;
+      setReopen(null);
+      keep(r.kind)(r.x, r.y);
+    }
+  }, [reopen]);
 
   const saveView = (): void => {
-    void data.call("views.save", { type, ...(saved ? { viewId: saved.viewId } : {}), kind: "table", title: saved?.title ?? `${def.plural} view`, ...toSaved(v), idempotencyKey: `view-${type}-${Date.now()}` });
+    void data.call("views.save", {
+      type,
+      ...(saved ? { viewId: saved.viewId } : {}),
+      kind: "table",
+      title: saved?.title ?? `${def.plural} view`,
+      ...toSaved(v),
+      idempotencyKey: `view-${type}-${Date.now()}`,
+    });
   };
   /** New: ask for the title first (the field every record needs), create, open it. A refusal shows its reason in the bar; nothing fails silently. */
   const [adding, setAdding] = useState<{ name: string; busy: boolean; error?: string } | null>(null);
   const titleLabel = (def.fields.find((f) => f.key === def.titleField)?.title ?? "name").toLowerCase();
-  const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false });   // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
+  const startNew = (): void => setAdding({ name: `New ${def.title.toLowerCase()}`, busy: false }); // the prototype starts a new row with this name, selected: Enter saves, Esc cancels
   // New project from Cmd-K or the Projects +: the table opens with its new row started, once
-  useEffect(() => { if (startAtOnce) { startNew(); onStarted?.(); } }, [startAtOnce]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (startAtOnce) {
+      startNew();
+      onStarted?.();
+    }
+  }, [startAtOnce]); // eslint-disable-line react-hooks/exhaustive-deps
   const createNew = (): void => {
     if (adding === null || adding.busy) return;
     const name = adding.name.trim();
-    if (name === "") { setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` }); return; }
+    if (name === "") {
+      setAdding({ ...adding, error: `Give the ${def.title.toLowerCase()} a ${titleLabel}.` });
+      return;
+    }
     setAdding({ name, busy: true });
-    makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then((id) => {
-      setAdding(null);
-      if (id) data.nav.openRecord(id);
-    }, (e: unknown) => {
-      const x = e as { error?: { message?: string }; message?: string };
-      setAdding({ name, busy: false, error: plainError(x?.error?.message ?? x?.message, def.title.toLowerCase()) });
-    });
+    makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then(
+      (id) => {
+        setAdding(null);
+        if (id) data.nav.openRecord(id);
+      },
+      (e: unknown) => {
+        const x = e as { error?: { message?: string }; message?: string };
+        setAdding({ name, busy: false, error: plainError(x?.error?.message ?? x?.message, def.title.toLowerCase()) });
+      },
+    );
   };
   /** Export the view's rows as a CSV file in Files. What the viewer cannot see is left out by the server. */
   const [exporting, setExporting] = useState<"busy" | "done" | "failed" | null>(null);
   const exportView = (): void => {
     setExporting("busy");
-    data.call("records.export", { type, format: "csv", ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}) }).then(() => setExporting("done"), () => setExporting("failed"));
+    data
+      .call("records.export", {
+        type,
+        format: "csv",
+        ...(viewFilter === undefined ? {} : { filter: viewFilter }),
+        ...(v.sort.length ? { sort: v.sort.map((x) => ({ ...x })) } : {}),
+      })
+      .then(
+        () => setExporting("done"),
+        () => setExporting("failed"),
+      );
   };
   const nPicked = pickCount(sel, count ?? 0);
   /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
-  const [work, setWork] = useState<{ kind: "confirm"; ids: readonly string[]; every: boolean; n: number } | { kind: "busy"; text: string } | { kind: "done"; ids: readonly string[]; failed: number } | null>(null);
+  const [work, setWork] = useState<
+    | { kind: "confirm"; ids: readonly string[]; every: boolean; n: number }
+    | { kind: "busy"; text: string }
+    | { kind: "done"; ids: readonly string[]; failed: number }
+    | null
+  >(null);
   const viewFilter = filterOf(vq, def.titleField);
   const deleteNow = async (ids: readonly string[], every: boolean): Promise<void> => {
     let all = ids;
     if (every) {
       setWork({ kind: "busy", text: "Finding the records…" });
-      all = await allIds(data.call, { type, ...(viewFilter === undefined ? {} : { filter: viewFilter }), ...(v.sort.length ? { sort: v.sort } : {}) }, count ?? 0, (n) => setWork({ kind: "busy", text: `Finding the records… ${n.toLocaleString("en-US")}` }));
+      all = await allIds(
+        data.call,
+        {
+          type,
+          ...(viewFilter === undefined ? {} : { filter: viewFilter }),
+          ...(v.sort.length ? { sort: v.sort } : {}),
+        },
+        count ?? 0,
+        (n) => setWork({ kind: "busy", text: `Finding the records… ${n.toLocaleString("en-US")}` }),
+      );
     }
-    const r = await eachId(data.call, "records.delete", type, all, (done, failed) => setWork({ kind: "busy", text: `Deleting ${(done + failed).toLocaleString("en-US")} of ${all.length.toLocaleString("en-US")}…` }));
-    clearPick(); setSelected(null);
+    const r = await eachId(data.call, "records.delete", type, all, (done, failed) =>
+      setWork({
+        kind: "busy",
+        text: `Deleting ${(done + failed).toLocaleString("en-US")} of ${all.length.toLocaleString("en-US")}…`,
+      }),
+    );
+    clearPick();
+    setSelected(null);
     setWork({ kind: "done", ids: all, failed: r.failed });
   };
   const undoDelete = async (ids: readonly string[]): Promise<void> => {
-    await eachId(data.call, "records.restore", type, ids, (done, failed) => setWork({ kind: "busy", text: `Restoring ${(done + failed).toLocaleString("en-US")} of ${ids.length.toLocaleString("en-US")}…` }));
+    await eachId(data.call, "records.restore", type, ids, (done, failed) =>
+      setWork({
+        kind: "busy",
+        text: `Restoring ${(done + failed).toLocaleString("en-US")} of ${ids.length.toLocaleString("en-US")}…`,
+      }),
+    );
     setWork(null);
   };
   /** What the right-click menu and the selection bar both offer. `ids` are the picked rows; `every` means the whole table. */
@@ -639,11 +1208,22 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
     // records.query and records.export take a filter that is opaque JSON over the type's own fields: there is no "id in [...]" form in manifests/records.ts, so a hand-picked set cannot be
     // exported yet (contract request to the lead). Everything else exports the view's rows: Select all N, and a menu opened with nothing picked.
     return recordMenu(
-      { n, every, single: id !== null, starred: id !== null && starredIds.has(id), canExport: !access.on || access.can.export, nothingPicked: ids.length === 0 },
       {
-        open: () => { if (id) data.nav.openRecord(id); },
+        n,
+        every,
+        single: id !== null,
+        starred: id !== null && starredIds.has(id),
+        canExport: !access.on || access.can.export,
+        nothingPicked: ids.length === 0,
+      },
+      {
+        open: () => {
+          if (id) data.nav.openRecord(id);
+        },
         ...(id ? { star: (on: boolean) => toggleStar(id, on) } : {}),
-        ...(id && data.share && access.on && access.can.share ? { share: () => data.share?.open({ type: "record", id, name: titleOf(id), typeName: def.plural }) } : {}),
+        ...(id && data.share && access.on && access.can.share
+          ? { share: () => data.share?.open({ type: "record", id, name: titleOf(id), typeName: def.plural }) }
+          : {}),
         ...(id ? { copyLink: () => copyText(linkTo(id)) } : {}),
         exportCsv: exportView,
         remove: () => setWork({ kind: "confirm", ids, every, n }),
@@ -652,15 +1232,27 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
   };
   const rowMenu = (r: RecordRow, x: number, y: number): void => {
     const inPick = isPicked(r.id) && nPicked > 1;
-    if (!inPick) { setSelected(r.id); clearPick(); }
-    menu.show(actionEntries(inPick ? (sel.every ? [r.id] : [...sel.ids]) : [r.id], inPick && sel.every), x, y, "context", { label: inPick ? `${nPicked.toLocaleString("en-US")} selected` : "Record" });
+    if (!inPick) {
+      setSelected(r.id);
+      clearPick();
+    }
+    menu.show(
+      actionEntries(inPick ? (sel.every ? [r.id] : [...sel.ids]) : [r.id], inPick && sel.every),
+      x,
+      y,
+      "context",
+      { label: inPick ? `${nPicked.toLocaleString("en-US")} selected` : "Record" },
+    );
   };
 
   const menuRef = useRef(rowMenu);
   menuRef.current = rowMenu;
   /** Stable, so a memoised row never re-renders because the menu closure changed. */
   const onRowMenu = useCallback((r: RecordRow, x: number, y: number): void => menuRef.current(r, x, y), []);
-  const orderIds = useMemo(() => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []), [items, loaded]);
+  const orderIds = useMemo(
+    () => (items ? items.flatMap((it) => (it.g ? [] : [it.row.id])) : loaded ? loaded.rows.map((r) => r.id) : []),
+    [items, loaded],
+  );
   const scroller = useRef<ScrollHandle | null>(null);
   const [jump, setJump] = useState<string | null>(null);
   const goTo = (row: number): void => {
@@ -674,23 +1266,49 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
   };
   const onKeyDown = (ev: { key?: string; metaKey?: boolean; ctrlKey?: boolean; preventDefault?: () => void }): void => {
     const cmd = ev.metaKey === true || ev.ctrlKey === true;
-    if (cmd && ev.key === "ArrowUp") { ev.preventDefault?.(); goTo(0); const head = orderIds[0]; if (head && rowWindow(top.current, viewH, total, FLING_OVERSCAN).first === 0) setSelected(head); }
-    else if (cmd && ev.key === "ArrowDown") { ev.preventDefault?.(); goTo(total - 1); }
-    else if (cmd && (ev.key === "g" || ev.key === "G")) { ev.preventDefault?.(); setJump(""); }
-    else if (ev.key === "Escape" && picked !== "none") clearPick();
-    else if (ev.key === "ArrowDown") { ev.preventDefault?.(); move(1); }
-    else if (ev.key === "ArrowUp") { ev.preventDefault?.(); move(-1); }
-    else if ((ev.key === "Enter" || ev.key === " ") && selected) { ev.preventDefault?.(); data.nav.openRecord(selected); }
-    else if (!cmd && (ev.key === "s" || ev.key === "S") && selected) { ev.preventDefault?.(); toggleStar(selected, !starredIds.has(selected)); }
+    if (cmd && ev.key === "ArrowUp") {
+      ev.preventDefault?.();
+      goTo(0);
+      const head = orderIds[0];
+      if (head && rowWindow(top.current, viewH, total, FLING_OVERSCAN).first === 0) setSelected(head);
+    } else if (cmd && ev.key === "ArrowDown") {
+      ev.preventDefault?.();
+      goTo(total - 1);
+    } else if (cmd && (ev.key === "g" || ev.key === "G")) {
+      ev.preventDefault?.();
+      setJump("");
+    } else if (ev.key === "Escape" && picked !== "none") clearPick();
+    else if (ev.key === "ArrowDown") {
+      ev.preventDefault?.();
+      move(1);
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault?.();
+      move(-1);
+    } else if ((ev.key === "Enter" || ev.key === " ") && selected) {
+      ev.preventDefault?.();
+      data.nav.openRecord(selected);
+    } else if (!cmd && (ev.key === "s" || ev.key === "S") && selected) {
+      ev.preventDefault?.();
+      toggleStar(selected, !starredIds.has(selected));
+    }
   };
 
-  const onTap = useCallback((id: string, meta?: boolean): void => {
-    setSelected(id);
-    if (meta === true) { setSel((cur) => togglePick(cur, id)); return; }
-    setSel((cur) => (cur.every || cur.ids.size > 0 ? NO_PICK : cur));
-    const now = Date.now();
-    if (tapped.current.id === id && now - tapped.current.at < 450) { tapped.current = { id: "", at: 0 }; data.nav.openRecord(id); } else tapped.current = { id, at: now };
-  }, [data]);
+  const onTap = useCallback(
+    (id: string, meta?: boolean): void => {
+      setSelected(id);
+      if (meta === true) {
+        setSel((cur) => togglePick(cur, id));
+        return;
+      }
+      setSel((cur) => (cur.every || cur.ids.size > 0 ? NO_PICK : cur));
+      const now = Date.now();
+      if (tapped.current.id === id && now - tapped.current.at < 450) {
+        tapped.current = { id: "", at: 0 };
+        data.nav.openRecord(id);
+      } else tapped.current = { id, at: now };
+    },
+    [data],
+  );
   const onOpen = data.nav.openRecord;
 
   const idleFaces = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -698,7 +1316,12 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
     if (idleFaces.current !== null) clearTimeout(idleFaces.current);
     idleFaces.current = setTimeout(upgradeFaces, FACE_IDLE_MS);
   }, []);
-  useEffect(() => { upgradeSoon(); return () => { if (idleFaces.current !== null) clearTimeout(idleFaces.current); }; }, [loaded, upgradeSoon]);
+  useEffect(() => {
+    upgradeSoon();
+    return () => {
+      if (idleFaces.current !== null) clearTimeout(idleFaces.current);
+    };
+  }, [loaded, upgradeSoon]);
   const onScroll = (pos: { top: number; left: number }): void => {
     upgradeSoon();
     const t = scrollBlockTop(pos.top);
@@ -715,14 +1338,27 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
   const headCells: ReactElement[] = [];
   for (let i = colWin.from; i < colWin.to; i++) {
     const c = cols[i]!;
-    headCells.push(<HeadCell key={c.field.key} col={c} dir={sortKey?.field === c.field.key ? sortKey.dir : null} onSort={() => set(cycleSort(v, c.field.key))} onMenu={(x, y) => colMenu(c.field, x, y)} />);
+    headCells.push(
+      <HeadCell
+        key={c.field.key}
+        col={c}
+        dir={sortKey?.field === c.field.key ? sortKey.dir : null}
+        onSort={() => set(cycleSort(v, c.field.key))}
+        onMenu={(x, y) => colMenu(c.field, x, y)}
+      />,
+    );
   }
   function colMenu(f: FieldDef, x: number, y: number): void {
     const entries: MenuEntry[] = [];
     const editing = data.canEditSchema === true;
-    if (sortable(f)) entries.push({ label: "Sort ascending", onSelect: () => set(setSort(v, f.key, "asc")) }, { label: "Sort descending", onSelect: () => set(setSort(v, f.key, "desc")) });
+    if (sortable(f))
+      entries.push(
+        { label: "Sort ascending", onSelect: () => set(setSort(v, f.key, "asc")) },
+        { label: "Sort descending", onSelect: () => set(setSort(v, f.key, "desc")) },
+      );
     if (groupable(f)) entries.push({ label: "Group by this field", onSelect: () => set({ ...v, group: f.key }) });
-    if (f.key !== def.titleField) entries.push({ separator: true }, { label: "Hide field", onSelect: () => set(toggleHidden(v, f.key)) });
+    if (f.key !== def.titleField)
+      entries.push({ separator: true }, { label: "Hide field", onSelect: () => set(toggleHidden(v, f.key)) });
     entries.push(...fieldMenuEntries(editing, def, f, (mode) => setPanel({ field: f.key, mode })));
     menu.show(entries, x, y);
   }
@@ -734,79 +1370,264 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
         <View style={styles.crumb}>
           {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
           {slim && typeList.status === "ready" ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => {
-              const p = pointOf(e);
-              const entries: MenuEntry[] = typeMenuEntries(typeList.data.types, type, (key) => dispatch({ type: "open", key }));
-              menu.show(entries, p.x, p.y);
-            }} style={styles.typePick}>
-              <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${def.plural}, change record type`}
+              testID="records-type-pick"
+              onPress={(e) => {
+                const p = pointOf(e);
+                const entries: MenuEntry[] = typeMenuEntries(typeList.data.types, type, (key) =>
+                  dispatch({ type: "open", key }),
+                );
+                menu.show(entries, p.x, p.y);
+              }}
+              style={styles.typePick}
+            >
+              <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>
+                {def.plural}
+              </Text>
               <Glyph name="chevd" size={10} />
             </Pressable>
-          ) : <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>{def.plural}</Text>}
+          ) : (
+            <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>
+              {def.plural}
+            </Text>
+          )}
           {slim ? null : <Text style={styles.slash}>/</Text>}
-          <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
-            style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}>
-            <Text style={styles.pickText} numberOfLines={1}>{saved ? saved.title : `All ${def.plural.toLowerCase()}`}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Saved views"
+            testID="records-views"
+            onPress={(e) => {
+              const p = pointOf(e);
+              menu.show(viewEntries(), p.x, p.y, "other");
+            }}
+            style={({ hovered }: { hovered?: boolean }) => [styles.pick, hovered === true && styles.pickOver]}
+          >
+            <Text style={styles.pickText} numberOfLines={1}>
+              {saved ? saved.title : `All ${def.plural.toLowerCase()}`}
+            </Text>
             {edited ? <Text style={styles.dirty}>{"·"}</Text> : null}
             <Glyph name="chevd" size={9} />
           </Pressable>
           {edited ? (
             <View style={styles.modline} testID="records-edited">
               <Text style={styles.modText}>Edited</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Save view" testID="records-save" onPress={saveView}><Text style={styles.modLink}>Save</Text></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Reset view" testID="records-reset" onPress={() => set(base)}><Text style={styles.modLink}>Reset</Text></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Save view"
+                testID="records-save"
+                onPress={saveView}
+              >
+                <Text style={styles.modLink}>Save</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reset view"
+                testID="records-reset"
+                onPress={() => set(base)}
+              >
+                <Text style={styles.modLink}>Reset</Text>
+              </Pressable>
             </View>
           ) : null}
         </View>
         <View style={styles.grow} />
         {finding ? (
           <TextInput
-            value={v.find} onChangeText={(t) => set({ ...v, find: t })} placeholder={`Find in ${def.plural.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel="Find" testID="records-find"
-            autoFocus onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") { set({ ...v, find: "" }); setFinding(false); } }} style={styles.find}
+            value={v.find}
+            onChangeText={(t) => set({ ...v, find: t })}
+            placeholder={`Find in ${def.plural.toLowerCase()}`}
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel="Find"
+            testID="records-find"
+            autoFocus
+            onKeyPress={(e) => {
+              if (e.nativeEvent.key === "Escape") {
+                set({ ...v, find: "" });
+                setFinding(false);
+              }
+            }}
+            style={styles.find}
           />
-        ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => setFinding(true)} />}
-        <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={lit(v.clauses.length > 0)} bare={tight} testID="records-filter" onPress={keep("filter")} />
-        <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={lit(sortKey !== undefined)} bare={tight} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} />
-        <HeadButton icon="group" label="Group" detail={groupField?.title} on={lit(groupField !== undefined)} bare={tight} testID="records-group" onPress={(x, y) => menu.show(groupEntries(), x, y, "other")} />
-        <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={tight} testID="records-fields" onPress={data.canEditSchema === true ? () => setPanel({}) : keep("fields")} />
-        <HeadButton icon="colour" label="Colour" detail={colourField?.title} on={lit(colourField !== undefined)} bare={tight} testID="records-colour" onPress={keep("colour")} />
-        {access.on && access.hasShared ? <HeadButton icon="people" label="Shared with me" bare={tight} on={lit(sharedOnly)} testID="records-shared" onPress={() => setSharedOnly(!sharedOnly)} /> : null}
-        {access.on && (access.can.manage || access.can.share) ? <HeadButton icon="share" label="Share" bare={tight} testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })} /> : null}
-        {access.on && access.can.export ? <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} /> : null}
+        ) : (
+          <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => setFinding(true)} />
+        )}
+        <HeadButton
+          icon="filter"
+          label="Filter"
+          detail={v.clauses.length ? String(v.clauses.length) : undefined}
+          on={lit(v.clauses.length > 0)}
+          bare={tight}
+          testID="records-filter"
+          onPress={keep("filter")}
+        />
+        <HeadButton
+          icon="sort"
+          label="Sort"
+          detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined}
+          on={lit(sortKey !== undefined)}
+          bare={tight}
+          testID="records-sort"
+          onPress={(x, y) => menu.show(sortEntries(), x, y, "other")}
+        />
+        <HeadButton
+          icon="group"
+          label="Group"
+          detail={groupField?.title}
+          on={lit(groupField !== undefined)}
+          bare={tight}
+          testID="records-group"
+          onPress={(x, y) => menu.show(groupEntries(), x, y, "other")}
+        />
+        <HeadButton
+          icon="eye"
+          label="Fields"
+          detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined}
+          bare={tight}
+          testID="records-fields"
+          onPress={data.canEditSchema === true ? () => setPanel({}) : keep("fields")}
+        />
+        <HeadButton
+          icon="colour"
+          label="Colour"
+          detail={colourField?.title}
+          on={lit(colourField !== undefined)}
+          bare={tight}
+          testID="records-colour"
+          onPress={keep("colour")}
+        />
+        {access.on && access.hasShared ? (
+          <HeadButton
+            icon="people"
+            label="Shared with me"
+            bare={tight}
+            on={lit(sharedOnly)}
+            testID="records-shared"
+            onPress={() => setSharedOnly(!sharedOnly)}
+          />
+        ) : null}
+        {access.on && (access.can.manage || access.can.share) ? (
+          <HeadButton
+            icon="share"
+            label="Share"
+            bare={tight}
+            testID="records-share-btn"
+            onPress={() => data.share?.open({ type: "record_type", id: type, name: def.plural })}
+          />
+        ) : null}
+        {access.on && access.can.export ? (
+          <HeadButton icon="download" label="Export" bare={tight} testID="records-export-btn" onPress={exportView} />
+        ) : null}
         {headerExtra}
         <HeadButton icon="plus" label="New" bare={tight} filled testID="records-new" onPress={startNew} />
       </View>
-      {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">Offline, showing your saved copy</Text>}
+      {online ? null : (
+        <Text style={styles.offline} accessibilityRole="alert" testID="records-offline">
+          Offline, showing your saved copy
+        </Text>
+      )}
       {adding ? (
         <View style={styles.draft} accessibilityRole="toolbar" testID="records-adding">
-          <View style={[styles.rn, styles.draftGutter]}><Text style={styles.footText}>+</Text></View>
+          <View style={[styles.rn, styles.draftGutter]}>
+            <Text style={styles.footText}>+</Text>
+          </View>
           <TextInput
-            value={adding.name} onChangeText={(t) => setAdding({ name: t, busy: false })} placeholder={`New ${def.title.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel={`New ${def.title.toLowerCase()}`} testID="records-adding-input"
-            autoFocus selectTextOnFocus editable={!adding.busy} onSubmitEditing={createNew} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setAdding(null); }} style={[styles.draftInput, { width: (primary?.width ?? 240) - 14 }]}
+            value={adding.name}
+            onChangeText={(t) => setAdding({ name: t, busy: false })}
+            placeholder={`New ${def.title.toLowerCase()}`}
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel={`New ${def.title.toLowerCase()}`}
+            testID="records-adding-input"
+            autoFocus
+            selectTextOnFocus
+            editable={!adding.busy}
+            onSubmitEditing={createNew}
+            onKeyPress={(e) => {
+              if (e.nativeEvent.key === "Escape") setAdding(null);
+            }}
+            style={[styles.draftInput, { width: (primary?.width ?? 240) - 14 }]}
           />
-          {adding.error ? <Text style={[styles.footText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">{adding.error}</Text> : <Text style={styles.footText}>{adding.busy ? "Creating…" : "Enter saves, Esc cancels"}</Text>}
+          {adding.error ? (
+            <Text style={[styles.footText, styles.pickDanger]} accessibilityRole="alert" testID="records-adding-error">
+              {adding.error}
+            </Text>
+          ) : (
+            <Text style={styles.footText}>{adding.busy ? "Creating…" : "Enter saves, Esc cancels"}</Text>
+          )}
           <View style={styles.grow} />
-          <Pressable accessibilityRole="button" testID="records-adding-create" disabled={adding.busy} onPress={createNew} style={styles.pickLink}><Text style={styles.pickLinkText}>Create</Text></Pressable>
-          <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={() => setAdding(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+          <Pressable
+            accessibilityRole="button"
+            testID="records-adding-create"
+            disabled={adding.busy}
+            onPress={createNew}
+            style={styles.pickLink}
+          >
+            <Text style={styles.pickLinkText}>Create</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            testID="records-adding-cancel"
+            onPress={() => setAdding(null)}
+            style={styles.pickLink}
+          >
+            <Text style={styles.pickLinkText}>Cancel</Text>
+          </Pressable>
         </View>
       ) : null}
       {work ? (
         <View style={styles.pickBar} accessibilityRole="alert" testID="records-work">
           {work.kind === "confirm" ? (
             <>
-              <Text style={styles.pickBarText} testID="records-confirm-text">{`Delete ${recordsWord(work.n, def.title.toLowerCase(), def.plural.toLowerCase())}?`}</Text>
+              <Text
+                style={styles.pickBarText}
+                testID="records-confirm-text"
+              >{`Delete ${recordsWord(work.n, def.title.toLowerCase(), def.plural.toLowerCase())}?`}</Text>
               <View style={styles.grow} />
-              <Pressable accessibilityRole="button" testID="records-confirm-delete" onPress={() => void deleteNow(work.ids, work.every)} style={styles.pickLink}><Text style={[styles.pickLinkText, styles.pickDanger]}>Delete</Text></Pressable>
-              <Pressable accessibilityRole="button" testID="records-confirm-cancel" onPress={() => setWork(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Cancel</Text></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="records-confirm-delete"
+                onPress={() => void deleteNow(work.ids, work.every)}
+                style={styles.pickLink}
+              >
+                <Text style={[styles.pickLinkText, styles.pickDanger]}>Delete</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="records-confirm-cancel"
+                onPress={() => setWork(null)}
+                style={styles.pickLink}
+              >
+                <Text style={styles.pickLinkText}>Cancel</Text>
+              </Pressable>
             </>
           ) : work.kind === "busy" ? (
-            <Text style={styles.pickBarText} testID="records-work-text">{work.text}</Text>
+            <Text style={styles.pickBarText} testID="records-work-text">
+              {work.text}
+            </Text>
           ) : (
             <>
-              <Text style={styles.pickBarText} testID="records-work-text">{`Deleted ${recordsWord(work.ids.length - work.failed, def.title.toLowerCase(), def.plural.toLowerCase())}.${work.failed > 0 ? ` ${work.failed.toLocaleString("en-US")} could not be deleted.` : ""} They are in the Trash.`}</Text>
+              <Text
+                style={styles.pickBarText}
+                testID="records-work-text"
+              >{`Deleted ${recordsWord(work.ids.length - work.failed, def.title.toLowerCase(), def.plural.toLowerCase())}.${work.failed > 0 ? ` ${work.failed.toLocaleString("en-US")} could not be deleted.` : ""} They are in the Trash.`}</Text>
               <View style={styles.grow} />
-              <Pressable accessibilityRole="button" testID="records-undo" onPress={() => void undoDelete(work.ids)} style={styles.pickLink}><Text style={styles.pickLinkText}>Undo</Text></Pressable>
-              <Pressable accessibilityRole="button" testID="records-work-close" onPress={() => setWork(null)} style={styles.pickLink}><Text style={styles.pickLinkText}>Dismiss</Text></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="records-undo"
+                onPress={() => void undoDelete(work.ids)}
+                style={styles.pickLink}
+              >
+                <Text style={styles.pickLinkText}>Undo</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="records-work-close"
+                onPress={() => setWork(null)}
+                style={styles.pickLink}
+              >
+                <Text style={styles.pickLinkText}>Dismiss</Text>
+              </Pressable>
             </>
           )}
         </View>
@@ -814,101 +1635,275 @@ function Grid({ type, def, views, base, saved, headerExtra, startNew: startAtOnc
       {work === null && (picked !== "none" || sel.ids.size > 0) ? (
         <View style={styles.pickBar} accessibilityRole="toolbar" testID="records-pick-bar">
           <Text style={styles.pickBarText} testID="records-pick-text">
-            {sel.every ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.` : `${sel.ids.size.toLocaleString("en-US")} ${sel.ids.size === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} selected.`}
+            {sel.every
+              ? `All ${(count ?? 0).toLocaleString("en-US")} ${def.plural.toLowerCase()} are selected.`
+              : `${sel.ids.size.toLocaleString("en-US")} ${sel.ids.size === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} selected.`}
           </Text>
           {!sel.every && count !== null && count > sel.ids.size ? (
-            <Pressable accessibilityRole="button" testID="records-select-every" onPress={() => setSel({ ids: new Set(), every: true })} style={styles.pickLink}><Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              testID="records-select-every"
+              onPress={() => setSel({ ids: new Set(), every: true })}
+              style={styles.pickLink}
+            >
+              <Text style={styles.pickLinkText}>{`Select all ${count.toLocaleString("en-US")}`}</Text>
+            </Pressable>
           ) : null}
           <View style={styles.grow} />
           {/* ui-rows-lint: not a list (the bulk action buttons of the selection bar) */}
-          {actionEntries(sel.every ? [] : [...sel.ids], sel.every).filter((e) => "label" in e).map((e) => {
-            const it = e as { label: string; onSelect?: () => void; danger?: boolean };
-            const off = false;
-            return (
-              <Pressable key={it.label} accessibilityRole="button" accessibilityState={{ disabled: off }} disabled={off} testID={`records-pick-${it.label.split(" ")[0]!.toLowerCase()}`} onPress={() => it.onSelect?.()} style={({ hovered }: { hovered?: boolean }) => [styles.pickLink, hovered === true && styles.pickLinkOver]}>
-                <Text style={[styles.pickLinkText, it.danger === true && styles.pickDanger, off && styles.pickOff]}>{it.label}</Text>
-              </Pressable>
-            );
-          })}
-          <Pressable accessibilityRole="button" testID="records-pick-clear" onPress={clearPick} style={styles.pickLink}><Text style={styles.pickLinkText}>Clear</Text></Pressable>
+          {actionEntries(sel.every ? [] : [...sel.ids], sel.every)
+            .filter((e) => "label" in e)
+            .map((e) => {
+              const it = e as { label: string; onSelect?: () => void; danger?: boolean };
+              const off = false;
+              return (
+                <Pressable
+                  key={it.label}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: off }}
+                  disabled={off}
+                  testID={`records-pick-${it.label.split(" ")[0]!.toLowerCase()}`}
+                  onPress={() => it.onSelect?.()}
+                  style={({ hovered }: { hovered?: boolean }) => [
+                    styles.pickLink,
+                    hovered === true && styles.pickLinkOver,
+                  ]}
+                >
+                  <Text style={[styles.pickLinkText, it.danger === true && styles.pickDanger, off && styles.pickOff]}>
+                    {it.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          <Pressable accessibilityRole="button" testID="records-pick-clear" onPress={clearPick} style={styles.pickLink}>
+            <Text style={styles.pickLinkText}>Clear</Text>
+          </Pressable>
         </View>
       ) : null}
-      <View style={styles.sheet} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} {...({ onKeyDown } as object)}>
+      <View
+        style={styles.sheet}
+        onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+        {...({ onKeyDown } as object)}
+      >
         {count === 0 && !items?.length && adding === null ? (
-          <States kind="empty" title={sharedOnly ? "Nothing is shared with you here." : v.clauses.length > 0 || v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" {...(sharedOnly ? { action: { label: "Show all", onPress: () => setSharedOnly(false) } } : v.clauses.length > 0 || v.find ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } } : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })} />
+          <States
+            kind="empty"
+            title={
+              sharedOnly
+                ? "Nothing is shared with you here."
+                : v.clauses.length > 0 || v.find
+                  ? "Nothing matches these filters."
+                  : `No ${def.plural.toLowerCase()} yet.`
+            }
+            icon="records"
+            {...(sharedOnly
+              ? { action: { label: "Show all", onPress: () => setSharedOnly(false) } }
+              : v.clauses.length > 0 || v.find
+                ? { action: { label: "Clear filters", onPress: () => set(clearClauses(v)) } }
+                : { action: { label: `New ${def.title.toLowerCase()}`, onPress: startNew } })}
+          />
         ) : (
           <Scroller
-            handle={scroller} width={width} height={total * ROW_H} onScroll={onScroll}
-            header={(
+            handle={scroller}
+            width={width}
+            height={total * ROW_H}
+            onScroll={onScroll}
+            header={
               <View style={[styles.thr, { width }]}>
-                <View style={[styles.rn, STICKY(0), styles.headBg]}><Pressable accessibilityRole="checkbox" accessibilityLabel="Select all" aria-checked={picked !== "none" || sel.ids.size > 0} accessibilityState={{ checked: picked !== "none" || sel.ids.size > 0 }} testID="records-select-all" onPress={() => setSel((cur) => toggleHeader(cur, orderIds))} style={[styles.cb, (picked !== "none" || sel.ids.size > 0) && styles.cbOn]} /></View>
-                {primary ? <HeadCell col={primary} dir={sortKey?.field === primary.field.key ? sortKey.dir : null} first onSort={() => set(cycleSort(v, primary.field.key))} onMenu={(x, y) => colMenu(primary.field, x, y)} /> : null}
+                <View style={[styles.rn, STICKY(0), styles.headBg]}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityLabel="Select all"
+                    aria-checked={picked !== "none" || sel.ids.size > 0}
+                    accessibilityState={{ checked: picked !== "none" || sel.ids.size > 0 }}
+                    testID="records-select-all"
+                    onPress={() => setSel((cur) => toggleHeader(cur, orderIds))}
+                    style={[styles.cb, (picked !== "none" || sel.ids.size > 0) && styles.cbOn]}
+                  />
+                </View>
+                {primary ? (
+                  <HeadCell
+                    col={primary}
+                    dir={sortKey?.field === primary.field.key ? sortKey.dir : null}
+                    first
+                    onSort={() => set(cycleSort(v, primary.field.key))}
+                    onMenu={(x, y) => colMenu(primary.field, x, y)}
+                  />
+                ) : null}
                 {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
                 {headCells}
               </View>
-            )}
-            footer={!cols.some((c) => aggregateOf(c.field, loaded?.rows ?? []) !== "") ? null : (
-              <View style={[styles.tf, { width }]} testID="records-foot">
-                <View style={[styles.rn, STICKY(0), styles.headBg]} />
-                <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}>
+            }
+            footer={
+              !cols.some((c) => aggregateOf(c.field, loaded?.rows ?? []) !== "") ? null : (
+                <View style={[styles.tf, { width }]} testID="records-foot">
+                  <View style={[styles.rn, STICKY(0), styles.headBg]} />
+                  <View style={[styles.td, STICKY(GUTTER), styles.headBg, { width: primary?.width ?? 280 }]}></View>
+                  {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
+                  {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
+                  {cols.slice(colWin.from, colWin.to).map((c) => (
+                    <View
+                      key={c.field.key}
+                      style={[styles.td, styles.headBg, { width: c.width }, isNumeric(c.field) && styles.tdNum]}
+                    >
+                      <Text numberOfLines={1} style={styles.footText} testID={`agg-${c.field.key}`}>
+                        {aggregateOf(c.field, loaded?.rows ?? [])}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-                {colWin.pad > 0 ? <View style={{ width: colWin.pad }} /> : null}
-                {/* ui-rows-lint: not a list (the foot has one figure cell per column) */}
-                {cols.slice(colWin.from, colWin.to).map((c) => (
-                  <View key={c.field.key} style={[styles.td, styles.headBg, { width: c.width }, isNumeric(c.field) && styles.tdNum]}>
-                    <Text numberOfLines={1} style={styles.footText} testID={`agg-${c.field.key}`}>{aggregateOf(c.field, loaded?.rows ?? [])}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              )
+            }
           >
             <Body
-              setTop={bodyTop} top={top.current} viewH={viewH} total={total} items={items} loaded={loaded} width={width} cols={cols} colWin={colWin} selected={selected} sel={sel} hot={hot}
-              colourField={colourField} names={data.nameOf} marks={access.marks} onTap={onTap} onOpen={onOpen} onHot={setHot} onMenu={onRowMenu} onSelect={setSelected} onFold={setFolded}
+              setTop={bodyTop}
+              top={top.current}
+              viewH={viewH}
+              total={total}
+              items={items}
+              loaded={loaded}
+              width={width}
+              cols={cols}
+              colWin={colWin}
+              selected={selected}
+              sel={sel}
+              hot={hot}
+              colourField={colourField}
+              names={data.nameOf}
+              marks={access.marks}
+              onTap={onTap}
+              onOpen={onOpen}
+              onHot={setHot}
+              onMenu={onRowMenu}
+              onSelect={setSelected}
+              onFold={setFolded}
             />
           </Scroller>
         )}
       </View>
       {count === null ? null : (
         <View style={styles.statusBar} testID="records-status">
-          <Text style={styles.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
-          {exporting === null ? null : <Text style={styles.footText} accessibilityRole="alert" testID="records-export-note">{exporting === "busy" ? "  Exporting…" : exporting === "done" ? "  Exported to Files" : "  The export did not go through"}</Text>}
+          <Text
+            style={styles.footText}
+            testID="records-count"
+          >{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()} · ${v.clauses.length > 0 || v.find ? "filtered" : "every record shown"}`}</Text>
+          {exporting === null ? null : (
+            <Text style={styles.footText} accessibilityRole="alert" testID="records-export-note">
+              {exporting === "busy"
+                ? "  Exporting…"
+                : exporting === "done"
+                  ? "  Exported to Files"
+                  : "  The export did not go through"}
+            </Text>
+          )}
           <View style={styles.grow} />
           {count === 0 ? null : jump === null ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Go to row" testID="records-goto" onPress={() => setJump("")} style={styles.goto}><Text style={styles.footText}>Go to row</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go to row"
+              testID="records-goto"
+              onPress={() => setJump("")}
+              style={styles.goto}
+            >
+              <Text style={styles.footText}>Go to row</Text>
+            </Pressable>
           ) : (
             <TextInput
-              value={jump} onChangeText={(t) => setJump(t.replace(/\D/g, ""))} placeholder="Row number" placeholderTextColor="var(--ink-3)" accessibilityLabel="Go to row" testID="records-goto-input" autoFocus keyboardType="number-pad"
-              onSubmitEditing={() => { if (jump) goTo(Number(jump) - 1); setJump(null); }} onBlur={() => setJump(null)}
-              onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setJump(null); if (e.nativeEvent.key === "Enter" && jump) { goTo(Number(jump) - 1); setJump(null); } }} style={styles.gotoInput}
+              value={jump}
+              onChangeText={(t) => setJump(t.replace(/\D/g, ""))}
+              placeholder="Row number"
+              placeholderTextColor="var(--ink-3)"
+              accessibilityLabel="Go to row"
+              testID="records-goto-input"
+              autoFocus
+              keyboardType="number-pad"
+              onSubmitEditing={() => {
+                if (jump) goTo(Number(jump) - 1);
+                setJump(null);
+              }}
+              onBlur={() => setJump(null)}
+              onKeyPress={(e) => {
+                if (e.nativeEvent.key === "Escape") setJump(null);
+                if (e.nativeEvent.key === "Enter" && jump) {
+                  goTo(Number(jump) - 1);
+                  setJump(null);
+                }
+              }}
+              style={styles.gotoInput}
             />
           )}
         </View>
       )}
       {menu.element}
-      {panel ? <FieldsPanel key={`${panel.field ?? ""}:${panel.mode ?? ""}`} call={data.call} type={def} hidden={v.hidden} onToggleHidden={(field) => set(toggleHidden(v, field))} onClose={() => setPanel(null)} {...(panel.field && panel.mode ? { initial: { field: panel.field, mode: panel.mode } } : {})} /> : null}
+      {panel ? (
+        <FieldsPanel
+          key={`${panel.field ?? ""}:${panel.mode ?? ""}`}
+          call={data.call}
+          type={def}
+          hidden={v.hidden}
+          onToggleHidden={(field) => set(toggleHidden(v, field))}
+          onClose={() => setPanel(null)}
+          {...(panel.field && panel.mode ? { initial: { field: panel.field, mode: panel.mode } } : {})}
+        />
+      ) : null}
     </View>
   );
 }
 
-function HeadCell({ col, dir, first = false, onSort, onMenu }: { col: Column; dir: "asc" | "desc" | null; first?: boolean; onSort: () => void; onMenu: (x: number, y: number) => void }): ReactElement {
+function HeadCell({
+  col,
+  dir,
+  first = false,
+  onSort,
+  onMenu,
+}: {
+  col: Column;
+  dir: "asc" | "desc" | null;
+  first?: boolean;
+  onSort: () => void;
+  onMenu: (x: number, y: number) => void;
+}): ReactElement {
   const trig = menuTrigger(onMenu);
   const [over, setOver] = useState(false);
   // the label (sort) and the chevron (menu) are two sibling buttons in one cell: a button never holds another button
   return (
     <View
-      testID={`thc-${col.field.key}`} {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}
-      style={[styles.th, first && STICKY(GUTTER), styles.headBg, { width: col.width }, isNumeric(col.field) && styles.tdNum, over && styles.thOver]}
+      testID={`thc-${col.field.key}`}
+      {...({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object)}
+      style={[
+        styles.th,
+        first && STICKY(GUTTER),
+        styles.headBg,
+        { width: col.width },
+        isNumeric(col.field) && styles.tdNum,
+        over && styles.thOver,
+      ]}
     >
       <Pressable
-        accessibilityRole="button" accessibilityLabel={`${col.field.title}${dir ? `, sorted ${dir === "asc" ? "ascending" : "descending"}` : ""}`} testID={`th-${col.field.key}`} onPress={onSort}
+        accessibilityRole="button"
+        accessibilityLabel={`${col.field.title}${dir ? `, sorted ${dir === "asc" ? "ascending" : "descending"}` : ""}`}
+        testID={`th-${col.field.key}`}
+        onPress={onSort}
         {...trig}
         style={[styles.thLabel, isNumeric(col.field) && styles.tdNum]}
       >
-        <Text numberOfLines={1} style={styles.thText}>{col.field.title}</Text>
+        <Text numberOfLines={1} style={styles.thText}>
+          {col.field.title}
+        </Text>
         {dir ? <Glyph name={dir === "asc" ? "asc" : "desc"} size={11} color="var(--ink-2)" /> : null}
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${col.field.title} menu`} testID={`thm-${col.field.key}`} onPress={(e) => { const p = pointOf(e); onMenu(p.x, p.y); }} style={styles.thMore}><Glyph name="chevd" size={9} /></Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${col.field.title} menu`}
+        testID={`thm-${col.field.key}`}
+        onPress={(e) => {
+          const p = pointOf(e);
+          onMenu(p.x, p.y);
+        }}
+        style={styles.thMore}
+      >
+        <Glyph name="chevd" size={9} />
+      </Pressable>
     </View>
   );
 }
@@ -916,16 +1911,40 @@ function HeadCell({ col, dir, first = false, onSort, onMenu }: { col: Column; di
 /** The frame before data arrives: the header and rows of the real height, so nothing moves when the records land. */
 export function TableLoading(): ReactElement {
   const bars: ReactElement[] = [];
-  for (let i = 0; i < 14; i++) bars.push(<View key={i} style={styles.skRow}><View style={[styles.skBar, { width: 40 }]} /><View style={[styles.skBar, { width: `${18 + ((i * 11) % 22)}%` }]} /><View style={[styles.skBar, { width: "12%" }]} /><View style={[styles.skBar, { width: "10%" }]} /></View>);
+  for (let i = 0; i < 14; i++)
+    bars.push(
+      <View key={i} style={styles.skRow}>
+        <View style={[styles.skBar, { width: 40 }]} />
+        <View style={[styles.skBar, { width: `${18 + ((i * 11) % 22)}%` }]} />
+        <View style={[styles.skBar, { width: "12%" }]} />
+        <View style={[styles.skBar, { width: "10%" }]} />
+      </View>,
+    );
   return (
     <View style={styles.main} testID="records-table-loading" accessibilityLabel="Loading">
-      <View style={styles.head}><Text accessibilityRole="header" style={styles.h1}>Records</Text></View>
+      <View style={styles.head}>
+        <Text accessibilityRole="header" style={styles.h1}>
+          Records
+        </Text>
+      </View>
       {bars}
     </View>
   );
 }
 
-function TypeTable({ type, view, headerExtra, startNew = false, onStarted }: { type: string; view: Partial<TableViewState> | undefined; headerExtra: ReactNode; startNew?: boolean; onStarted?: (() => void) | undefined }): ReactElement {
+function TypeTable({
+  type,
+  view,
+  headerExtra,
+  startNew = false,
+  onStarted,
+}: {
+  type: string;
+  view: Partial<TableViewState> | undefined;
+  headerExtra: ReactNode;
+  startNew?: boolean;
+  onStarted?: (() => void) | undefined;
+}): ReactElement {
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
   const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", { type });
@@ -934,13 +1953,33 @@ function TypeTable({ type, view, headerExtra, startNew = false, onStarted }: { t
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
   if (!def) return <TableLoading />;
   const base: TableViewState = { ...fromSaved(saved), ...view };
-  return <Grid key={`${type}:${saved?.viewId ?? ""}`} type={type} def={def} views={list} base={base} saved={saved} headerExtra={headerExtra} startNew={startNew} onStarted={onStarted} />;
+  return (
+    <Grid
+      key={`${type}:${saved?.viewId ?? ""}`}
+      type={type}
+      def={def}
+      views={list}
+      base={base}
+      saved={saved}
+      headerExtra={headerExtra}
+      startNew={startNew}
+      onStarted={onStarted}
+    />
+  );
 }
 
 export function TableView({ type, view, headerExtra, startNew, onStarted }: TableViewProps): ReactElement {
   const data = useOptionalRecordsData();
   if (!data) return <TableLoading />;
-  return <Open type={type} view={view} headerExtra={headerExtra} startNew={startNew === true} {...(onStarted ? { onStarted } : {})} />;
+  return (
+    <Open
+      type={type}
+      view={view}
+      headerExtra={headerExtra}
+      startNew={startNew === true}
+      {...(onStarted ? { onStarted } : {})}
+    />
+  );
 }
 
 function Open({ type, view, headerExtra, startNew, onStarted }: TableViewProps): ReactElement {
@@ -949,17 +1988,46 @@ function Open({ type, view, headerExtra, startNew, onStarted }: TableViewProps):
   if (types.status !== "ready") return <TableLoading />;
   const open = type ?? effectiveType(state, typeGroups(types.data.types));
   if (!open) return <States kind="empty" title="No record types yet." icon="records" />;
-  return <TypeTable type={open} view={view} headerExtra={headerExtra} startNew={startNew === true} onStarted={onStarted} />;
+  return (
+    <TypeTable type={open} view={view} headerExtra={headerExtra} startNew={startNew === true} onStarted={onStarted} />
+  );
 }
 
 const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
+  head: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingLeft: 18,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    zIndex: 10,
+  },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
   typePick: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
-  h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
+  h1: {
+    margin: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: -0.07,
+    color: "var(--ink)" as string,
+  },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
-  pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
+  pick: {
+    height: 26,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+  },
   pickOver: { backgroundColor: "var(--hover)" as string },
   pickText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   dirty: { fontSize: 16, lineHeight: 16, color: "var(--accent)" as string },
@@ -967,26 +2035,86 @@ const styles = StyleSheet.create({
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   modLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   grow: { flex: 1 },
-  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
+  find: {
+    width: 190,
+    height: 26,
+    paddingHorizontal: 9,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+  },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingVertical: 6 },
   sheet: { flex: 1, minHeight: 0 },
   xs: { flex: 1 },
   col: { flex: 1, minHeight: 0 },
   ys: { flex: 1 },
-  thr: { height: HEAD_H, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  thr: {
+    height: HEAD_H,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   headBg: { backgroundColor: "var(--win)" as string },
   th: { height: HEAD_H, flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 10, paddingRight: 4 },
   thLabel: { flex: 1, minWidth: 0, height: HEAD_H, flexDirection: "row", alignItems: "center", gap: 5 },
   thOver: { backgroundColor: "var(--hover)" as string },
   thText: { flexShrink: 1, fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
-  thMore: { marginLeft: "auto", width: 20, height: 20, alignItems: "center", justifyContent: "center", borderRadius: 5 },
+  thMore: {
+    marginLeft: "auto",
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 5,
+  },
   cbOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   goto: { marginLeft: 14, paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },
-  gotoInput: { marginLeft: 14, width: 96, height: 22, paddingHorizontal: 6, fontSize: 12, color: "var(--ink)" as string, borderRadius: 5, borderWidth: 1, borderColor: "var(--line)" as string },
-  draft: { height: ROW_H, flexDirection: "row", alignItems: "center", gap: 10, paddingRight: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  gotoInput: {
+    marginLeft: 14,
+    width: 96,
+    height: 22,
+    paddingHorizontal: 6,
+    fontSize: 12,
+    color: "var(--ink)" as string,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  draft: {
+    height: ROW_H,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingRight: 18,
+    backgroundColor: "var(--accent-wash)" as string,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   draftGutter: { width: GUTTER, alignItems: "center", justifyContent: "center" },
-  draftInput: { height: 26, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--win)" as string, fontSize: 13, color: "var(--ink)" as string, borderWidth: 1, borderColor: "var(--accent)" as string },
-  pickBar: { height: 34, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  draftInput: {
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: "var(--win)" as string,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    borderWidth: 1,
+    borderColor: "var(--accent)" as string,
+  },
+  pickBar: {
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    backgroundColor: "var(--accent-wash)" as string,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   pickBarText: { fontSize: 12.5, color: "var(--ink)" as string },
   pickLink: { height: 24, justifyContent: "center", paddingHorizontal: 4 },
   pickLinkOver: { backgroundColor: "var(--hover)" as string },
@@ -994,8 +2122,23 @@ const styles = StyleSheet.create({
   pickOff: { color: "var(--ink-4)" as string },
   pickLinkText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   cb: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.4, borderColor: "var(--ink-4)" as string },
-  frozenLayer: { position: "sticky", left: 0, width: 0, height: 0, zIndex: 3, overflow: "visible" } as unknown as ViewStyle,
-  tr: { position: "absolute", left: 0, height: ROW_H, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  frozenLayer: {
+    position: "sticky",
+    left: 0,
+    width: 0,
+    height: 0,
+    zIndex: 3,
+    overflow: "visible",
+  } as unknown as ViewStyle,
+  tr: {
+    position: "absolute",
+    left: 0,
+    height: ROW_H,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   rn: { width: GUTTER, height: "100%", justifyContent: "center", paddingLeft: 10, zIndex: 3 },
   rnText: { fontSize: 11.5, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   td: { height: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 10, overflow: "hidden" },
@@ -1009,15 +2152,35 @@ const styles = StyleSheet.create({
   person: { flexDirection: "row", alignItems: "center", gap: 7, minWidth: 0 },
   tag: { height: 20, paddingHorizontal: 8, borderRadius: 6, justifyContent: "center", maxWidth: "100%" },
   tagText: { fontSize: 12, fontWeight: "500" },
-  xopen: { width: 22, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
+  xopen: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--hover)" as string,
+  },
   ghostBar: { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(--hover)" as string },
   group: { backgroundColor: "var(--sunk)" as string },
   groupIn: { flexDirection: "row", alignItems: "center", gap: 8 },
   groupText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   groupCount: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   chevShut: { transform: [{ rotate: "-90deg" }] },
-  statusBar: { height: 28, flexDirection: "row", alignItems: "center", paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  tf: { height: 32, flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  statusBar: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
+  tf: {
+    height: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   skRow: { flexDirection: "row", alignItems: "center", gap: 18, height: ROW_H, paddingHorizontal: 18 },
   skBar: { height: 9, borderRadius: 5, backgroundColor: "var(--hover)" as string },

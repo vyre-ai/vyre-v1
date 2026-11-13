@@ -38,19 +38,27 @@ async function fileLink(ctx: Ctx, input: unknown): Promise<{ url: string; expire
   }
   const got = (await ctx.call("files.get", { fileId })) as { file?: { label?: unknown; deletedAt?: unknown } };
   const file = got.file;
-  if (!file || (file.deletedAt !== undefined && file.deletedAt !== null)) fail(ctx, "validation.not_found", "That file does not exist.");
-  if (typeof file.label === "number" && file.label > MAX_LABEL) fail(ctx, "permission.above_clearance", "That file is too sensitive to share with an outside account.");
+  if (!file || (file.deletedAt !== undefined && file.deletedAt !== null))
+    fail(ctx, "validation.not_found", "That file does not exist.");
+  if (typeof file.label === "number" && file.label > MAX_LABEL)
+    fail(ctx, "permission.above_clearance", "That file is too sensitive to share with an outside account.");
 
   const now = ctx.now();
   const expiresAt = now + minutes * 60_000;
   const token = newToken();
   // Expired file links of this account are dropped here, so the table does not grow without bound.
   for (const m of ctx.db.all("SELECT * FROM portal_magic WHERE account_id = ?", acct.id) as Record<string, unknown>[]) {
-    if (str(m.purpose).startsWith(PURPOSE) && num(m.expires_at) <= now) ctx.db.run("DELETE FROM portal_magic WHERE token_hash = ?", str(m.token_hash));
+    if (str(m.purpose).startsWith(PURPOSE) && num(m.expires_at) <= now)
+      ctx.db.run("DELETE FROM portal_magic WHERE token_hash = ?", str(m.token_hash));
   }
   ctx.db.run(
     "INSERT INTO portal_magic (token_hash, account_id, purpose, expires_at, used_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    await sha256hex(token), acct.id, `${PURPOSE}${fileId}`, expiresAt, null, now,
+    await sha256hex(token),
+    acct.id,
+    `${PURPOSE}${fileId}`,
+    expiresAt,
+    null,
+    now,
   );
   return { url: `/portal/files/${token}`, expiresAt };
 }
@@ -72,4 +80,3 @@ export async function redeemFileLink(ctx: Ctx, token: string): Promise<{ fileId:
 export const fileLinkHandlers = {
   "portal.file_link": (ctx: Ctx, input: unknown) => fileLink(ctx, input),
 };
-

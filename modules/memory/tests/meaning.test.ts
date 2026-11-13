@@ -14,7 +14,13 @@ function world(settings: Record<string, unknown> = {}): Harness {
   seedFact(h, { id: "fct_chase", layer: "space", text: "The Chase feed didn't match", kind: "note" });
   seedFact(h, { id: "fct_hire", layer: "space", text: "We interview a candidate on Tuesday", kind: "note" });
   seedFact(h, { id: "fct_rain", layer: "space", text: "The forecast says rain on Friday", kind: "note" });
-  seedFact(h, { id: "fct_tea", layer: "person", owner: "usr_dana", text: "I take my tea with oat milk", kind: "preference" });
+  seedFact(h, {
+    id: "fct_tea",
+    layer: "person",
+    owner: "usr_dana",
+    text: "I take my tea with oat milk",
+    kind: "preference",
+  });
   return h;
 }
 const ids = (r: { hits: Array<{ factId?: string }> }): string[] => r.hits.map((x) => x.factId ?? "");
@@ -31,7 +37,11 @@ test("meaning finds a text with no word in common; keyword and trigram search ca
   try {
     const found = await search(h.ctx, { q: "bank reconciliation" });
     assert.deepEqual(contractErrors("memory.search", "out", found), []);
-    assert.deepEqual(ids(found), ["fct_chase"], "the Chase feed that did not match is what a bank reconciliation question means");
+    assert.deepEqual(
+      ids(found),
+      ["fct_chase"],
+      "the Chase feed that did not match is what a bank reconciliation question means",
+    );
     assert.equal(found.meaning?.state, "on");
     assert.equal(found.meaning?.model, "stub-concepts-v1");
     // keyword mode never asks the model
@@ -41,7 +51,9 @@ test("meaning finds a text with no word in common; keyword and trigram search ca
     // a word match still wins its place beside meaning
     const both = await search(h.ctx, { q: "Chase interview", limit: 5 });
     assert.deepEqual(new Set(ids(both)), new Set(["fct_chase", "fct_hire"]));
-  } finally { setEmbedder("local", null); }
+  } finally {
+    setEmbedder("local", null);
+  }
 });
 
 test("shared text is embedded once and kept as vectors; an edit is embedded again; a personal layer is never kept", async () => {
@@ -50,25 +62,43 @@ test("shared text is embedded once and kept as vectors; an edit is embedded agai
   setEmbedder("local", e);
   try {
     await search(h.ctx, { q: "bank reconciliation" });
-    const firstDocs = e.calls.flat().filter((t) => t.includes("Chase") || t.includes("candidate") || t.includes("forecast")).length;
+    const firstDocs = e.calls
+      .flat()
+      .filter((t) => t.includes("Chase") || t.includes("candidate") || t.includes("forecast")).length;
     assert.equal(firstDocs, 3, "the three shared facts, once");
     assert.equal(h.rows("SELECT doc_id FROM memory_vectors WHERE doc_kind = 'fact' ORDER BY doc_id").length, 3);
-    assert.ok(!h.rows("SELECT doc_id FROM memory_vectors").some((r) => r["doc_id"] === "fct_tea"), "nothing derived from personal text is stored");
+    assert.ok(
+      !h.rows("SELECT doc_id FROM memory_vectors").some((r) => r["doc_id"] === "fct_tea"),
+      "nothing derived from personal text is stored",
+    );
     assert.equal(h.rows("SELECT dim, model FROM memory_vectors LIMIT 1")[0]!["model"], "stub-concepts-v1");
     e.calls.length = 0;
     await search(h.ctx, { q: "weather" });
-    const again = e.calls.flat().filter((t) => t.includes("Chase") || t.includes("candidate") || t.includes("forecast"));
+    const again = e.calls
+      .flat()
+      .filter((t) => t.includes("Chase") || t.includes("candidate") || t.includes("forecast"));
     assert.equal(again.length, 0, "kept vectors are reused");
-    assert.ok(e.calls.flat().some((t) => t.includes("oat milk")), "the personal fact is embedded for the question and dropped");
+    assert.ok(
+      e.calls.flat().some((t) => t.includes("oat milk")),
+      "the personal fact is embedded for the question and dropped",
+    );
     // an edit changes the text, so only that fact is embedded again
     h.db.run("UPDATE memory_facts SET text = 'The ledger shows a deposit twice' WHERE id = 'fct_chase'");
     e.calls.length = 0;
     await search(h.ctx, { q: "bank" });
-    assert.deepEqual(e.calls.flat().filter((t) => !t.startsWith("bank")).filter((t) => t.includes("ledger")), ["Note The ledger shows a deposit twice"]);
+    assert.deepEqual(
+      e.calls
+        .flat()
+        .filter((t) => !t.startsWith("bank"))
+        .filter((t) => t.includes("ledger")),
+      ["Note The ledger shows a deposit twice"],
+    );
     // erase removes the vector with the fact
     await erase(h.ctx, { factIds: ["fct_chase"] });
     assert.equal(h.rows("SELECT doc_id FROM memory_vectors WHERE doc_id = 'fct_chase'").length, 0);
-  } finally { setEmbedder("local", null); }
+  } finally {
+    setEmbedder("local", null);
+  }
 });
 
 test("a trashed fact is out of meaning search too", async () => {
@@ -80,7 +110,9 @@ test("a trashed fact is out of meaning search too", async () => {
     await factsRemove(h.ctx, { factIds: ["fct_chase"] });
     assert.deepEqual(ids(await search(h.ctx, { q: "bank reconciliation" })), []);
     assert.equal(h.rows("SELECT doc_id FROM memory_vectors WHERE doc_id = 'fct_chase'").length, 0);
-  } finally { setEmbedder("local", null); }
+  } finally {
+    setEmbedder("local", null);
+  }
 });
 
 test("a model that is loading, failing or switched off leaves keyword search in charge with a plain reason", async () => {
@@ -91,7 +123,10 @@ test("a model that is loading, failing or switched off leaves keyword search in 
     e.state = "loading";
     e.detail = "Meaning search is getting ready (downloading the model).";
     const loading = await search(h.ctx, { q: "bank reconciliation" });
-    assert.deepEqual([ids(loading), loading.meaning?.state, loading.meaning?.hint], [[], "loading", "Meaning search is getting ready (downloading the model)."]);
+    assert.deepEqual(
+      [ids(loading), loading.meaning?.state, loading.meaning?.hint],
+      [[], "loading", "Meaning search is getting ready (downloading the model)."],
+    );
     e.state = "failed";
     e.detail = "The model could not be loaded.";
     assert.equal((await search(h.ctx, { q: "Chase" })).meaning?.state, "degraded");
@@ -105,7 +140,9 @@ test("a model that is loading, failing or switched off leaves keyword search in 
     const off = world({ "memory.meaning_search": "off" });
     const res = await search(off.ctx, { q: "bank reconciliation" });
     assert.deepEqual([ids(res), res.meaning?.state], [[], "off"]);
-  } finally { setEmbedder("local", null); }
+  } finally {
+    setEmbedder("local", null);
+  }
 });
 
 test("the setting switches to the memory key's provider, and the status line says what is in use", async () => {
@@ -126,12 +163,19 @@ test("the setting switches to the memory key's provider, and the status line say
     st = await meaningStatusRead(h.ctx);
     assert.deepEqual(contractErrors("memory.meaning.status", "out", st), []);
     assert.deepEqual([st.state, st.model, st.indexed], ["on", "key-model", 3]);
-  } finally { setEmbedder("local", null); setEmbedder("key", null); }
+  } finally {
+    setEmbedder("local", null);
+    setEmbedder("key", null);
+  }
 });
 
 test("texts the caller holds are ranked by meaning with nothing stored", async () => {
   const h = world();
-  const cands = [{ id: "m1", text: "The Chase feed didn't match" }, { id: "m2", text: "Rain on Friday, says the forecast" }, { id: "m3", text: "" }];
+  const cands = [
+    { id: "m1", text: "The Chase feed didn't match" },
+    { id: "m2", text: "Rain on Friday, says the forecast" },
+    { id: "m3", text: "" },
+  ];
   setEmbedder("local", null);
   const none = await meaningRank(h.ctx, { query: "bank reconciliation", candidates: cands });
   assert.deepEqual([none.scores, none.meaning.state], [[], "not_set_up"]);
@@ -139,7 +183,16 @@ test("texts the caller holds are ranked by meaning with nothing stored", async (
   try {
     const r = await meaningRank(h.ctx, { query: "bank reconciliation", candidates: cands });
     assert.deepEqual(contractErrors("memory.meaning.rank", "out", r), []);
-    assert.deepEqual(r.scores.map((x) => [x.id, x.score]), [["m1", 1], ["m2", 0], ["m3", 0]]);
+    assert.deepEqual(
+      r.scores.map((x) => [x.id, x.score]),
+      [
+        ["m1", 1],
+        ["m2", 0],
+        ["m3", 0],
+      ],
+    );
     assert.equal(h.rows("SELECT doc_id FROM memory_vectors WHERE doc_id IN ('m1', 'm2')").length, 0, "nothing stored");
-  } finally { setEmbedder("local", null); }
+  } finally {
+    setEmbedder("local", null);
+  }
 });

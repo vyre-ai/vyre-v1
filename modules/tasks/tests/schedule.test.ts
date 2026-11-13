@@ -10,15 +10,27 @@ const server = { id: "svc_host", kind: "service" as const };
 const ai = (id: string) => ({ kind: "agent" as const, id });
 
 async function planned(h: ReturnType<typeof harness>) {
-  const out = await h.call("tasks.plan", {
-    parent: { title: "Ship uploads", assigned: ai(bot.id) },
-    children: [{ key: "a", title: "Flow", assigned: ai(bot.id) }, { key: "b", title: "Tests", assigned: ai(bot2.id), dependsOn: ["a"] }],
-    idempotencyKey: "plan",
-  }, me);
+  const out = await h.call(
+    "tasks.plan",
+    {
+      parent: { title: "Ship uploads", assigned: ai(bot.id) },
+      children: [
+        { key: "a", title: "Flow", assigned: ai(bot.id) },
+        { key: "b", title: "Tests", assigned: ai(bot2.id), dependsOn: ["a"] },
+      ],
+      idempotencyKey: "plan",
+    },
+    me,
+  );
   return { parent: out.parent.id as string, a: out.children[0].taskId as string, b: out.children[1].taskId as string };
 }
-const moved = (h: ReturnType<typeof harness>, taskId: string, who: { id: string; kind?: "service" | "agent" } = server) => onTaskChanged(h.ctxFor("tasks.transition", who), { name: "task.transitioned", payload: { taskId } });
-const state = async (h: ReturnType<typeof harness>, id: string): Promise<string> => (await h.call("tasks.get", { taskId: id }, me)).task.state;
+const moved = (
+  h: ReturnType<typeof harness>,
+  taskId: string,
+  who: { id: string; kind?: "service" | "agent" } = server,
+) => onTaskChanged(h.ctxFor("tasks.transition", who), { name: "task.transitioned", payload: { taskId } });
+const state = async (h: ReturnType<typeof harness>, id: string): Promise<string> =>
+  (await h.call("tasks.get", { taskId: id }, me)).task.state;
 
 test("a parent starts with its first child, and a child does not move it twice", async () => {
   const h = harness();
@@ -53,7 +65,13 @@ test("the parent hears when every child finished, once the last one does, and no
   await h.call("tasks.transition", { taskId: p.a, to: "done" }, { id: bot.id, kind: "agent" });
   const ctx = h.ctxFor("tasks.transition", server);
   const fired: Array<{ name: string; payload: Record<string, unknown> }> = [];
-  const watch = { ...ctx, emit: (name: string, subject: never, payload: never, opts: never) => { fired.push({ name, payload }); return ctx.emit(name, subject, payload, opts); } };
+  const watch = {
+    ...ctx,
+    emit: (name: string, subject: never, payload: never, opts: never) => {
+      fired.push({ name, payload });
+      return ctx.emit(name, subject, payload, opts);
+    },
+  };
   await onTaskChanged(watch as never, { name: "task.transitioned", payload: { taskId: p.a } });
   assert.equal(fired.filter((e) => e.name === "task.children_settled").length, 0);
   await h.call("tasks.transition", { taskId: p.b, to: "doing" }, { id: bot2.id, kind: "agent" });
@@ -62,12 +80,19 @@ test("the parent hears when every child finished, once the last one does, and no
   const heard = fired.filter((e) => e.name === "task.children_settled");
   assert.equal(heard.length, 1);
   assert.equal(heard[0]!.payload["reason"], "finished");
-  assert.equal(settled(), 0);   // the harness records a capability's events; this one came from the consumer
+  assert.equal(settled(), 0); // the harness records a capability's events; this one came from the consumer
 });
 
 test("a repeating task comes back with its next date when it is done, once", async () => {
   const made: Array<Record<string, unknown>> = [];
-  const h = harness({ calls: { "tasks.create": (input) => { made.push(input as Record<string, unknown>); return { task: { id: "tsk_next" } }; } } });
+  const h = harness({
+    calls: {
+      "tasks.create": (input) => {
+        made.push(input as Record<string, unknown>);
+        return { task: { id: "tsk_next" } };
+      },
+    },
+  });
   const due = h.now() + 86_400_000;
   const t = (await h.call("tasks.create", newTask({ due, recur: { every: "week" } }), me)).task.id as string;
   await h.call("tasks.transition", { taskId: t, to: "doing" }, me);

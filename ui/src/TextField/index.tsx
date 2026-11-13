@@ -13,14 +13,33 @@ export function TextField({ style, onFocus, onBlur, placeholderTextColor, ...res
     <TextInput
       placeholderTextColor={placeholderTextColor ?? "var(--ink-4)"}
       {...rest}
-      onFocus={(e) => { setFocus(true); onFocus?.(e); }}
-      onBlur={(e) => { setFocus(false); onBlur?.(e); }}
+      onFocus={(e) => {
+        setFocus(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocus(false);
+        onBlur?.(e);
+      }}
       style={[s.input, style, focus && s.focus]}
     />
   );
 }
 
 const s = StyleSheet.create({
-  input: { height: 36, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13.5, ...(web ? ({ outlineStyle: "none" } as object) : null) },
-  focus: { borderColor: "var(--accent)" as string, ...(web ? ({ boxShadow: "0 0 0 3px var(--accent-wash)" } as object) : null) },
+  input: {
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13.5,
+    ...(web ? ({ outlineStyle: "none" } as object) : null),
+  },
+  focus: {
+    borderColor: "var(--accent)" as string,
+    ...(web ? ({ boxShadow: "0 0 0 3px var(--accent-wash)" } as object) : null),
+  },
 });

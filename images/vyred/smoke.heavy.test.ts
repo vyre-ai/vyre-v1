@@ -34,13 +34,18 @@ test("Dockerfile: Claude Code, Codex and Grok are baked at the pinned versions, 
   assert.doesNotMatch(d, /ENGINE_PACKAGES/);
   assert.match(d, /CLAUDE_CODE_DISABLE_AUTOUPDATE=1/);
   assert.equal(d.indexOf("bake-engines.ts") > d.indexOf("npm ci"), true, "after the program is copied in");
-  assert.equal(d.indexOf("bake-engines.ts") < d.indexOf("USER node"), true, "installed as root, before the daemon's user");
+  assert.equal(
+    d.indexOf("bake-engines.ts") < d.indexOf("USER node"),
+    true,
+    "installed as root, before the daemon's user",
+  );
   assert.doesNotMatch(read("docker-bake.hcl"), /ENGINE_PACKAGES/);
   const { ENGINE_PINS } = await import("../../modules/engine/engine-pins.ts");
   assert.deepEqual(Object.keys(ENGINE_PINS), ["claude", "codex", "grok"]);
   for (const pin of Object.values(ENGINE_PINS)) {
     assert.match(pin.version, /^\d+\.\d+\.\d+$/, `${pin.program} is pinned to a version`);
-    for (const arch of ["linux-x64", "linux-arm64"] as const) assert.ok(pin.builds[arch], `${pin.program} has a ${arch} build for both image architectures`);
+    for (const arch of ["linux-x64", "linux-arm64"] as const)
+      assert.ok(pin.builds[arch], `${pin.program} has a ${arch} build for both image architectures`);
   }
 });
 
@@ -61,7 +66,8 @@ test("Dockerfile: Node 24 base pinned by digest, git and tmux installed, tini as
 
 test("Dockerfile ignore file keeps secrets and local state out of the build context", () => {
   const ig = read("Dockerfile.dockerignore").split("\n");
-  for (const must of [".git", "**/node_modules", "**/.env", "**/.env.*", "**/*.pem", "**/*.key"]) assert.ok(ig.includes(must), `${must} is ignored`);
+  for (const must of [".git", "**/node_modules", "**/.env", "**/.env.*", "**/*.pem", "**/*.key"])
+    assert.ok(ig.includes(must), `${must} is ignored`);
 });
 
 test("bake file builds both architectures", () => {
@@ -78,7 +84,11 @@ test("server unit: space role, Caddy pinned and sharing vyred's network, data on
   assert.match(c, /- vyre-data:\/data/);
   assert.match(c, /VYRE_HEALTH_REQUIRE_CADDY: "1"/);
   assert.match(c, /condition: service_started/);
-  assert.doesNotMatch(c, /condition: service_healthy/, "Caddy waiting for vyred to be healthy deadlocks: vyred's health needs Caddy");
+  assert.doesNotMatch(
+    c,
+    /condition: service_healthy/,
+    "Caddy waiting for vyred to be healthy deadlocks: vyred's health needs Caddy",
+  );
   assert.match(c, /cap_drop: \[ALL\]/g);
   assert.match(c, /127\.0\.0\.1:\$\{VYRE_PORT:-8420\}:8420/);
   assert.doesNotMatch(c, /(TOKEN|SECRET|PASSWORD|KEY)\s*[:=]\s*[A-Za-z0-9]{8,}/);
@@ -87,7 +97,10 @@ test("server unit: space role, Caddy pinned and sharing vyred's network, data on
 
 test("device unit: device role, no Caddy, no public port", () => {
   const c = read("compose.device.yml");
-  const code = c.split("\n").filter((l) => !l.trim().startsWith("#")).join("\n");
+  const code = c
+    .split("\n")
+    .filter((l) => !l.trim().startsWith("#"))
+    .join("\n");
   assert.match(c, /VYRE_ROLE: device/);
   assert.doesNotMatch(code, /caddy/i);
   assert.doesNotMatch(c, /- "(80|443):/);
@@ -97,20 +110,48 @@ test("device unit: device role, no Caddy, no public port", () => {
 
 test("images carry the same host settings the daemon reads", () => {
   const d = read("Dockerfile");
-  for (const v of ["VYRE_DATA_DIR=/data", "VYRE_ROLE=space", "VYRE_HOST=0.0.0.0", "VYRE_PORT=8420"]) assert.ok(d.includes(v), v);
+  for (const v of ["VYRE_DATA_DIR=/data", "VYRE_ROLE=space", "VYRE_HOST=0.0.0.0", "VYRE_PORT=8420"])
+    assert.ok(d.includes(v), v);
   const cfg = fs.readFileSync(path.join(REPO, "host/src/daemon/config.ts"), "utf8");
-  for (const v of ["VYRE_DATA_DIR", "VYRE_ROLE", "VYRE_HOST", "VYRE_PORT", "VYRE_CADDY_ADMIN", "VYRE_SPACE", "VYRE_ADDRESS", "VYRE_RELAY_URL"]) assert.ok(cfg.includes(v), `config.ts reads ${v}`);
+  for (const v of [
+    "VYRE_DATA_DIR",
+    "VYRE_ROLE",
+    "VYRE_HOST",
+    "VYRE_PORT",
+    "VYRE_CADDY_ADMIN",
+    "VYRE_SPACE",
+    "VYRE_ADDRESS",
+    "VYRE_RELAY_URL",
+  ])
+    assert.ok(cfg.includes(v), `config.ts reads ${v}`);
 });
 
-const f = (key: string, state: string, detail = ""): { key: string; state: string; detail: string; next: string } => ({ key, state, detail, next: "" });
+const f = (key: string, state: string, detail = ""): { key: string; state: string; detail: string; next: string } => ({
+  key,
+  state,
+  detail,
+  next: "",
+});
 const report = (...findings: ReturnType<typeof f>[]): { findings: ReturnType<typeof f>[] } => ({ findings });
 
 test("healthcheck verdict: process must be healthy, container-blind checks never fail it", () => {
-  const good = report(f("daemon.process", "healthy"), f("kernel.events_db", "healthy"), f("host.disk_space", "healthy"));
+  const good = report(
+    f("daemon.process", "healthy"),
+    f("kernel.events_db", "healthy"),
+    f("host.disk_space", "healthy"),
+  );
   assert.equal(verdictOf(good).ok, true);
   assert.equal(verdictOf(report(f("daemon.process", "degraded", "vyred is not running."))).ok, false);
-  assert.equal(verdictOf(report(f("daemon.process", "healthy"), f("kernel.events_db", "down", "chain broken"))).ok, false);
-  const blind = report(f("daemon.process", "healthy"), f("host.disk_encrypted", "down"), f("host.docker", "down"), f("host.caddy", "down"));
+  assert.equal(
+    verdictOf(report(f("daemon.process", "healthy"), f("kernel.events_db", "down", "chain broken"))).ok,
+    false,
+  );
+  const blind = report(
+    f("daemon.process", "healthy"),
+    f("host.disk_encrypted", "down"),
+    f("host.docker", "down"),
+    f("host.caddy", "down"),
+  );
   assert.equal(verdictOf(blind).ok, true);
   assert.equal(verdictOf(blind, { VYRE_HEALTH_REQUIRE_CADDY: "1" }).ok, false);
   assert.equal(verdictOf({}).ok, false);
@@ -130,17 +171,40 @@ test("healthcheck checks the space doctor unless the role is device only", () =>
 // 45 s and a daemon that exits still fails at once; the roles boot one after the other so a shard never has two of its own competing, and the file keeps its 120 s cap in test/slow.json.
 const BOOT_MS = 45_000;
 
-async function bootDaemon(role: "space" | "device"): Promise<{ dir: string; child: ChildProcess; stop: () => Promise<void> }> {
+async function bootDaemon(
+  role: "space" | "device",
+): Promise<{ dir: string; child: ChildProcess; stop: () => Promise<void> }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vyred-smoke-${role}-`));
-  const args = [path.join(REPO, "host/src/daemon/main.ts"), "--role", role, "--data-dir", dir, "--port", "0", "--host", "127.0.0.1", ...(role === "space" ? ["--space", "spc_smoke"] : [])];
-  const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, VYRE_PROGRAM: "vyre-server" } });
+  const args = [
+    path.join(REPO, "host/src/daemon/main.ts"),
+    "--role",
+    role,
+    "--data-dir",
+    dir,
+    "--port",
+    "0",
+    "--host",
+    "127.0.0.1",
+    ...(role === "space" ? ["--space", "spc_smoke"] : []),
+  ];
+  const child = spawn(process.execPath, args, {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, VYRE_PROGRAM: "vyre-server" },
+  });
   let out = "";
-  child.stdout?.on("data", (b: Buffer) => { out += b.toString(); });
-  child.stderr?.on("data", (b: Buffer) => { out += b.toString(); });
+  child.stdout?.on("data", (b: Buffer) => {
+    out += b.toString();
+  });
+  child.stderr?.on("data", (b: Buffer) => {
+    out += b.toString();
+  });
   const t0 = Date.now();
   while (!fs.existsSync(path.join(dir, "vyred.json"))) {
     if (child.exitCode !== null) throw new Error(`vyred exited ${child.exitCode}: ${out}`);
-    if (Date.now() - t0 > BOOT_MS) { child.kill("SIGKILL"); throw new Error(`vyred did not start in ${BOOT_MS / 1000} s: ${out}`); }
+    if (Date.now() - t0 > BOOT_MS) {
+      child.kill("SIGKILL");
+      throw new Error(`vyred did not start in ${BOOT_MS / 1000} s: ${out}`);
+    }
     await new Promise((r) => setTimeout(r, 50));
   }
   const stop = async (): Promise<void> => {
@@ -158,12 +222,20 @@ async function bootAndCheck(role: "space" | "device"): Promise<void> {
   try {
     const up = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
     assert.equal(up.ok, true, up.why);
-    const cli = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
+    const cli = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], {
+      env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role },
+      encoding: "utf8",
+    });
     assert.equal(cli.status, 0, cli.stderr);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
   const down = await checkOf({ ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role });
   assert.equal(down.ok, false);
-  const cliDown = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], { env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role }, encoding: "utf8" });
+  const cliDown = spawnSync(process.execPath, [path.join(HERE, "healthcheck.mjs")], {
+    env: { ...process.env, VYRE_DATA_DIR: d.dir, VYRE_ROLE: role },
+    encoding: "utf8",
+  });
   assert.equal(cliDown.status, 1);
   assert.match(cliDown.stderr, /^unhealthy: /);
   fs.rmSync(d.dir, { recursive: true, force: true });
@@ -175,21 +247,31 @@ test("@heavy boot: vyred in the space and the device role starts and the contain
   await bootAndCheck("device");
 });
 
-const dockerOn = process.env["VYRE_HEAVY_DOCKER"] === "1" && spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).status === 0;
-test("@heavy docker: the image builds, boots in the device role and Docker reports it healthy", { skip: dockerOn ? false : "needs Docker and VYRE_HEAVY_DOCKER=1" }, async () => {
-  const tag = `vyred-smoke:${process.pid}`;
-  const name = `vyred-smoke-${process.pid}`;
-  const sh = (args: string[]): ReturnType<typeof spawnSync> => spawnSync("docker", args, { cwd: REPO, encoding: "utf8" });
-  try {
-    const build = sh(["build", "-f", "images/vyred/Dockerfile", "-t", tag, "."]);
-    assert.equal(build.status, 0, String(build.stderr));
-    const run = sh(["run", "-d", "--name", name, "-e", "VYRE_ROLE=device", tag]);
-    assert.equal(run.status, 0, String(run.stderr));
-    let state = "";
-    for (let i = 0; i < 40 && state !== "healthy"; i++) {
-      state = String(sh(["inspect", "--format", "{{.State.Health.Status}}", name]).stdout).trim();
-      if (state !== "healthy") await new Promise((r) => setTimeout(r, 2000));
+const dockerOn =
+  process.env["VYRE_HEAVY_DOCKER"] === "1" &&
+  spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" }).status === 0;
+test(
+  "@heavy docker: the image builds, boots in the device role and Docker reports it healthy",
+  { skip: dockerOn ? false : "needs Docker and VYRE_HEAVY_DOCKER=1" },
+  async () => {
+    const tag = `vyred-smoke:${process.pid}`;
+    const name = `vyred-smoke-${process.pid}`;
+    const sh = (args: string[]): ReturnType<typeof spawnSync> =>
+      spawnSync("docker", args, { cwd: REPO, encoding: "utf8" });
+    try {
+      const build = sh(["build", "-f", "images/vyred/Dockerfile", "-t", tag, "."]);
+      assert.equal(build.status, 0, String(build.stderr));
+      const run = sh(["run", "-d", "--name", name, "-e", "VYRE_ROLE=device", tag]);
+      assert.equal(run.status, 0, String(run.stderr));
+      let state = "";
+      for (let i = 0; i < 40 && state !== "healthy"; i++) {
+        state = String(sh(["inspect", "--format", "{{.State.Health.Status}}", name]).stdout).trim();
+        if (state !== "healthy") await new Promise((r) => setTimeout(r, 2000));
+      }
+      assert.equal(state, "healthy");
+    } finally {
+      sh(["rm", "-f", name]);
+      sh(["rmi", "-f", tag]);
     }
-    assert.equal(state, "healthy");
-  } finally { sh(["rm", "-f", name]); sh(["rmi", "-f", tag]); }
-});
+  },
+);

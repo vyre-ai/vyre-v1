@@ -20,9 +20,15 @@ export class InProcLog {
     if (!r.ok) throw new LogError(r.code as never, r.message);
     return r.event;
   }
-  async read(q: ReadQuery = {}): Promise<StoredEvent[]> { return this.store.read(q); }
-  async currentHead(): Promise<{ seq: number; hash: string }> { return this.store.head; }
-  async verify(): Promise<VerifyResult> { return this.store.verify(); }
+  async read(q: ReadQuery = {}): Promise<StoredEvent[]> {
+    return this.store.read(q);
+  }
+  async currentHead(): Promise<{ seq: number; hash: string }> {
+    return this.store.head;
+  }
+  async verify(): Promise<VerifyResult> {
+    return this.store.verify();
+  }
   idempotency() {
     return createIdempotency({
       get: (key) => this.idem.get(key, this.clock()),
@@ -30,5 +36,7 @@ export class InProcLog {
       settle: (key, principal, cap, rec) => this.idem.settle(key, principal, cap, rec, this.clock()),
     });
   }
-  async close(): Promise<void> { this.store.close(); }
+  async close(): Promise<void> {
+    this.store.close();
+  }
 }

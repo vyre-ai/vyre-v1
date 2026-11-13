@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 
 function seededDir(): string {
@@ -23,29 +29,43 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "pfail-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "pfail-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "pfail-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "pfail-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-  ...extra,
-});
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+    ...extra,
+  });
 
-const call = async (d: Daemon, p: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (
+  d: Daemon,
+  p: string,
+  body: unknown,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
-  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+  return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown): Promise<Record<string, unknown>> => {
   const r = await call(d, p, body);
@@ -67,21 +87,35 @@ type Note = { fields: { title?: string } };
 const countOf = async (d: Daemon, title: string): Promise<number> => {
   for (let tries = 0; ; tries++) {
     const r = await call(d, "/v1/records/query", { type: "note_board" });
-    if (r.status === 422 && tries < 6) { await new Promise((x) => setTimeout(x, 200)); continue; }
+    if (r.status === 422 && tries < 6) {
+      await new Promise((x) => setTimeout(x, 200));
+      continue;
+    }
     assert.equal(r.status, 200, r.text);
     return (r.data["rows"] as Note[]).filter((row) => row.fields.title === title).length;
   }
 };
 
 const hook = (d: Daemon, url: string, init: { body?: string; key?: string; method?: string } = {}): Promise<Response> =>
-  fetch(url, { method: init.method ?? "POST", headers: { "content-type": "application/json", ...(init.key ? { "idempotency-key": init.key } : {}) }, ...(init.body !== undefined ? { body: init.body } : {}), signal: AbortSignal.timeout(8_000) });
+  fetch(url, {
+    method: init.method ?? "POST",
+    headers: { "content-type": "application/json", ...(init.key ? { "idempotency-key": init.key } : {}) },
+    ...(init.body !== undefined ? { body: init.body } : {}),
+    signal: AbortSignal.timeout(8_000),
+  });
 
 test("a real POST to the webhook URL starts exactly one run, a wrong secret starts none, a rotated secret stops the old URL", async () => {
   const d = await boot(seededDir());
   try {
     const made = await ok(d, "/v1/automations/create", { idempotencyKey: "hook-create", name: "hooked" });
     const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
-    await ok(d, "/v1/automations/update", { automationId: id, definition: { triggers: [{ key: "webhook" }], nodes: [{ id: "n", key: "records.create", input: { type: "note_board", fields: { title: "From hook" } } }] } });
+    await ok(d, "/v1/automations/update", {
+      automationId: id,
+      definition: {
+        triggers: [{ key: "webhook" }],
+        nodes: [{ id: "n", key: "records.create", input: { type: "note_board", fields: { title: "From hook" } } }],
+      },
+    });
     const urlOf = async (route: string): Promise<string> => {
       const out = await ok(d, route, { automationId: id, ...(route.endsWith("rotate") ? { confirm: true } : {}) });
       return d.url + String(out["url"]).replace(/^https?:\/\/[^/]+/, "");
@@ -100,16 +134,20 @@ test("a real POST to the webhook URL starts exactly one run, a wrong secret star
     assert.equal(first.status, 200, await first.text());
     const again = await hook(d, url, { body: JSON.stringify({ order: 7 }), key: "evt-1" });
     assert.equal(again.status, 200);
-    await until("the note", 10_000, async () => (await countOf(d, "From hook")) >= 1 ? true : undefined);
+    await until("the note", 10_000, async () => ((await countOf(d, "From hook")) >= 1 ? true : undefined));
     await new Promise((r) => setTimeout(r, 800));
     assert.equal(await countOf(d, "From hook"), 1, "one POST, sent twice with one Idempotency-Key, is one run");
-    const runs = ((await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, limit: 20 }))["runs"] as unknown[]).length;
+    const runs = (
+      (await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id }, limit: 20 }))[
+        "runs"
+      ] as unknown[]
+    ).length;
     assert.equal(runs, 1);
 
     // the payload is the trigger data
     const second = await hook(d, url, { body: JSON.stringify({ order: 8 }), key: "evt-2" });
     assert.equal(second.status, 200);
-    await until("the second note", 10_000, async () => (await countOf(d, "From hook")) >= 2 ? true : undefined);
+    await until("the second note", 10_000, async () => ((await countOf(d, "From hook")) >= 2 ? true : undefined));
 
     // a wrong secret, an unknown id, a GET: no run
     const wrong = await hook(d, url.replace(/\/[^/]+$/, "/not-the-secret-at-all"), { body: "{}" });
@@ -128,7 +166,7 @@ test("a real POST to the webhook URL starts exactly one run, a wrong secret star
     assert.equal(old.status, 404);
     const now = await hook(d, fresh, { body: "{}", key: "evt-4" });
     assert.equal(now.status, 200);
-    await until("the third note", 10_000, async () => (await countOf(d, "From hook")) >= 3 ? true : undefined);
+    await until("the third note", 10_000, async () => ((await countOf(d, "From hook")) >= 3 ? true : undefined));
     await new Promise((r) => setTimeout(r, 500));
     assert.equal(await countOf(d, "From hook"), 3, "the old URL started nothing");
 
@@ -138,22 +176,46 @@ test("a real POST to the webhook URL starts exactly one run, a wrong secret star
     // deleted: 404
     await ok(d, "/v1/automations/delete", { automationId: id, idempotencyKey: "hook-del" });
     assert.equal((await hook(d, fresh, { body: "{}", key: "evt-5" })).status, 404);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("with the Space's own public address, the web request address is a whole address a person can paste, and a POST to it starts the Run", async () => {
   const dir = seededDir();
-  const d = await boot(dir, { config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://space.fresh.example"], {}, "1.2.3") });
+  const d = await boot(dir, {
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://space.fresh.example"], {}, "1.2.3"),
+  });
   try {
     const made = await ok(d, "/v1/automations/create", { idempotencyKey: "hook-addr", name: "hooked-addr" });
     const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
-    await ok(d, "/v1/automations/update", { automationId: id, definition: { triggers: [{ key: "webhook" }], nodes: [{ id: "n", key: "records.create", input: { type: "note_board", fields: { title: "From the shown address" } } }] } });
+    await ok(d, "/v1/automations/update", {
+      automationId: id,
+      definition: {
+        triggers: [{ key: "webhook" }],
+        nodes: [
+          {
+            id: "n",
+            key: "records.create",
+            input: { type: "note_board", fields: { title: "From the shown address" } },
+          },
+        ],
+      },
+    });
     const shown = String((await ok(d, "/v1/automations/webhook_url/get", { automationId: id }))["url"]);
-    assert.match(shown, /^https:\/\/space\.fresh\.example\/hooks\/automation\/aut_[a-z0-9]+\/[A-Za-z0-9_-]+$/, `the shown address is whole: ${shown}`);
+    assert.match(
+      shown,
+      /^https:\/\/space\.fresh\.example\/hooks\/automation\/aut_[a-z0-9]+\/[A-Za-z0-9_-]+$/,
+      `the shown address is whole: ${shown}`,
+    );
     await ok(d, "/v1/automations/set_enabled", { automationId: id, enabled: true });
     // the public address points at this daemon: the same path, posted here, is what an app outside reaches
     const res = await hook(d, d.url + new URL(shown).pathname, { body: JSON.stringify({ order: 1 }), key: "addr-1" });
     assert.equal(res.status, 200, await res.text());
-    await until("the Run from the shown address", 10_000, async () => (await countOf(d, "From the shown address")) === 1 ? true : undefined);
-  } finally { await d.stop(); }
+    await until("the Run from the shown address", 10_000, async () =>
+      (await countOf(d, "From the shown address")) === 1 ? true : undefined,
+    );
+  } finally {
+    await d.stop();
+  }
 });

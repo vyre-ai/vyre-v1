@@ -2,5 +2,7 @@
 // Said once here so the typecheck reads what the web build does (see scripts/typecheck-ratchet.ts).
 import "react-native";
 declare module "react-native" {
-  interface PressableStateCallbackType { readonly hovered?: boolean }
+  interface PressableStateCallbackType {
+    readonly hovered?: boolean;
+  }
 }

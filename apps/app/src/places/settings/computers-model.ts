@@ -1,9 +1,23 @@
 // Computers in Settings: the machines a person has (this computer and the servers they added), the one command that brings a server in, and the steps of the Add a server sheet.
 // Pure functions over what `computers.hosts` and `network.my_computers` answer, so the page and the tests agree.
 
-export interface HostInfo { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string }
+export interface HostInfo {
+  hostId: string;
+  kind: "this" | "space" | "server";
+  name: string;
+  online: boolean;
+  canRun: boolean;
+  runs: number;
+  reason?: string;
+}
 export interface ServerInfo {
-  serverId: string; name: string; state: "healthy" | "degraded" | "down"; enrollment: "pending" | "approved"; fingerprint?: string; lastSeenAt?: number; requestedAt?: number;
+  serverId: string;
+  name: string;
+  state: "healthy" | "degraded" | "down";
+  enrollment: "pending" | "approved";
+  fingerprint?: string;
+  lastSeenAt?: number;
+  requestedAt?: number;
   facts?: { os: string; arch: string; docker: boolean; version: string };
 }
 
@@ -33,10 +47,24 @@ export type AddressKind = "none" | "loopback" | "lan" | "public";
 export function addressKind(address: string | null | undefined): AddressKind {
   if (!address) return "none";
   let host = "";
-  try { host = new URL(/^[a-z]+:\/\//i.test(address) ? address : `https://${address}`).hostname.toLowerCase(); } catch { return "none"; }
-  if (host === "" ) return "none";
-  if (host === "localhost" || host === "[::1]" || host === "::1" || /^127\./.test(host) || host === "0.0.0.0") return "loopback";
-  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^169\.254\./.test(host) || host.endsWith(".local") || host.endsWith(".lan") || !host.includes(".")) return "lan";
+  try {
+    host = new URL(/^[a-z]+:\/\//i.test(address) ? address : `https://${address}`).hostname.toLowerCase();
+  } catch {
+    return "none";
+  }
+  if (host === "") return "none";
+  if (host === "localhost" || host === "[::1]" || host === "::1" || /^127\./.test(host) || host === "0.0.0.0")
+    return "loopback";
+  if (
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    host.endsWith(".local") ||
+    host.endsWith(".lan") ||
+    !host.includes(".")
+  )
+    return "lan";
   return "public";
 }
 
@@ -48,14 +76,20 @@ export function factsLine(f: ServerInfo["facts"]): string {
 
 /** The note under a row: how many agent computers it holds, or why it cannot hold one. */
 /** How Claude Code, Codex and Grok run on this computer, in the computer's details, where it is not the Mac's or Linux's full sandbox (owner ruling 3 Nov 2026). */
-export const PERSONAL_WINDOWS_LINE = "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.";
+export const PERSONAL_WINDOWS_LINE =
+  "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.";
 /** The line for This computer: the desktop app on Windows runs a Personal Space's CLI engines at Low integrity (sandbox/src/win). */
 export function engineLine(o: { desktop: boolean; userAgent: string }): string {
   return o.desktop && /\bWindows\b/.test(o.userAgent) ? PERSONAL_WINDOWS_LINE : "";
 }
 
 /** Where the one-time Windows sandbox setup is: not offered, offered, asked (Windows is asking for consent), done (restart to finish), or what Windows answered. */
-export type WinSandboxPhase = { kind: "hidden" } | { kind: "offer" } | { kind: "asking" } | { kind: "restart" } | { kind: "failed"; why: string };
+export type WinSandboxPhase =
+  | { kind: "hidden" }
+  | { kind: "offer" }
+  | { kind: "asking" }
+  | { kind: "restart" }
+  | { kind: "failed"; why: string };
 
 /**
  * The one-time action under This computer on Windows (RULINGS 15): team chats run in Vyre's WSL2 Linux, which needs WSL turned on once (administrator consent and a restart). Offered only when WSL
@@ -72,13 +106,28 @@ export const WIN_SANDBOX = {
 
 export function runsLine(h: Pick<HostInfo, "runs" | "canRun" | "reason">): string {
   if (h.runs > 0) return h.runs === 1 ? "1 agent computer" : `${h.runs} agent computers`;
-  return h.canRun ? "" : h.reason ?? "";
+  return h.canRun ? "" : (h.reason ?? "");
 }
 
 export type Phase = "name" | "waiting" | "compare" | "done";
 
-export interface Sheet { nickname: string; code: string | null; expiresAt: number | null; address: string | null; serverId: string | null; approved: boolean; /** a server for a Personal Space: it joins through the relay with its code, and is in once it shows among the Space's computers */ peer?: boolean }
-export const emptySheet = (): Sheet => ({ nickname: "", code: null, expiresAt: null, address: null, serverId: null, approved: false });
+export interface Sheet {
+  nickname: string;
+  code: string | null;
+  expiresAt: number | null;
+  address: string | null;
+  serverId: string | null;
+  approved: boolean;
+  /** a server for a Personal Space: it joins through the relay with its code, and is in once it shows among the Space's computers */ peer?: boolean;
+}
+export const emptySheet = (): Sheet => ({
+  nickname: "",
+  code: null,
+  expiresAt: null,
+  address: null,
+  serverId: null,
+  approved: false,
+});
 
 /**
  * Where the sheet is: naming the server, waiting for it to ask, comparing its fingerprint, or done. The server found is the one that arrived under the nickname (or, with none, the only
@@ -87,7 +136,10 @@ export const emptySheet = (): Sheet => ({ nickname: "", code: null, expiresAt: n
 export function phaseOf(sheet: Sheet, mine: readonly ServerInfo[]): { phase: Phase; arrived: ServerInfo | null } {
   if (sheet.code === null) return { phase: "name", arrived: null };
   // a Personal Space's server needs no approval: the code was the yes; it is in once it is one of the Space's computers
-  if (sheet.peer) { const got = mine.find((s) => s.enrollment === "approved" && s.name === sheet.nickname) ?? null; return got ? { phase: "done", arrived: got } : { phase: "waiting", arrived: null }; }
+  if (sheet.peer) {
+    const got = mine.find((s) => s.enrollment === "approved" && s.name === sheet.nickname) ?? null;
+    return got ? { phase: "done", arrived: got } : { phase: "waiting", arrived: null };
+  }
   const named = mine.filter((s) => s.enrollment === "pending" && (sheet.nickname === "" || s.name === sheet.nickname));
   const arrived = named[0] ?? null;
   if (sheet.approved) return { phase: "done", arrived: mine.find((s) => s.serverId === sheet.serverId) ?? arrived };

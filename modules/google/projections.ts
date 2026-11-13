@@ -24,14 +24,25 @@ export interface GoogleCtx {
   trace: { traceId: string };
   now(): number;
   db: GoogleDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
   schedule(at: number | string, cap: string, input: unknown): Promise<string>;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
 }
@@ -42,26 +53,48 @@ export type Row = Record<string, string | number | null>;
 
 export interface GoogleHost {
   /** A Google access token for `sub`, delegated from the Google_DWD key, limited to `scopes`. Throws provider.auth_failed when Google refuses. */
-  mintToken(ctx: GoogleCtx, a: { connectionId: string; sub: string; scopes: string[] }): Promise<{ token: string; expiresAt: number }>;
+  mintToken(
+    ctx: GoogleCtx,
+    a: { connectionId: string; sub: string; scopes: string[] },
+  ): Promise<{ token: string; expiresAt: number }>;
   /** Space members and the work email each has on record. */
   memberEmails(ctx: GoogleCtx): Promise<{ userId: string; email: string }[]>;
   /** The non-secret identity of the service account stored under a Vault handle. */
   serviceAccount(ctx: GoogleCtx, handle: string): Promise<{ clientId: string; clientEmail: string }>;
   /** Proves the key under a handle works, signing with it and asking Google for a token as the service account itself. No person is involved. Answers what is wrong in words an admin can act on. */
-  checkKey(ctx: GoogleCtx, handle: string): Promise<{ ok: boolean; clientId?: string; clientEmail?: string; projectId?: string; problem?: string }>;
+  checkKey(
+    ctx: GoogleCtx,
+    handle: string,
+  ): Promise<{ ok: boolean; clientId?: string; clientEmail?: string; projectId?: string; problem?: string }>;
   /** A Space file's name, type and bytes (for Gmail attachments). */
   fileBytes(ctx: GoogleCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   /** Store bytes as a blob and return its id. */
   putBlob(ctx: GoogleCtx, bytes: Uint8Array, mime: string): Promise<string>;
   /** GET a Google download address with the token and store the bytes as a blob. */
-  download(ctx: GoogleCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
+  download(
+    ctx: GoogleCtx,
+    a: { url: string; token: string; mime?: string },
+  ): Promise<{ blobId: string; size: number; mime: string }>;
   /** Send a Space file to Google as a multipart upload and return Google's JSON answer. */
-  upload(ctx: GoogleCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" }): Promise<unknown>;
+  upload(
+    ctx: GoogleCtx,
+    a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" },
+  ): Promise<unknown>;
   /** A person's own sign-in (handlers/personal.ts): the OAuth client of a Vault item, the address people come back to, the code traded for tokens, an access token from a refresh token. */
   userApp(ctx: GoogleCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean }>;
   userPublicUrl(ctx: GoogleCtx): Promise<string>;
-  userExchange(ctx: GoogleCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
-  userRefresh(ctx: GoogleCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number; /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string }>;
+  userExchange(
+    ctx: GoogleCtx,
+    a: { appHandle: string; code: string; verifier: string; redirectUri: string },
+  ): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
+  userRefresh(
+    ctx: GoogleCtx,
+    a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean },
+  ): Promise<{
+    token: string;
+    expiresAt: number;
+    /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string;
+  }>;
 }
 
 let host: GoogleHost | null = null;
@@ -77,15 +110,36 @@ export function needHost(ctx: Pick<GoogleCtx, "trace">): GoogleHost {
 // ---- constants
 
 export const SCOPE = "https://www.googleapis.com/auth/";
-export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly", "admin.directory.user.readonly"].map((s) => SCOPE + s);
+export const SCOPES = [
+  "gmail.modify",
+  "calendar",
+  "drive",
+  "spreadsheets",
+  "documents",
+  "meetings.space.readonly",
+  "admin.directory.user.readonly",
+].map((s) => SCOPE + s);
 /** What each choice in Connect your company needs from Google. The directory scope is always there: it is how people are matched and how a person who left is noticed. */
-export const DATA_SCOPES = { mail: ["gmail.modify"], calendar: ["calendar", "meetings.space.readonly"], files: ["drive", "spreadsheets", "documents"] } as const;
+export const DATA_SCOPES = {
+  mail: ["gmail.modify"],
+  calendar: ["calendar", "meetings.space.readonly"],
+  files: ["drive", "spreadsheets", "documents"],
+} as const;
 export type DataChoice = { mail: boolean; calendar: boolean; files: boolean };
 export const DIRECTORY_SCOPE = "admin.directory.user.readonly";
-export const dataOf = (cfg: Row | null): DataChoice => ({ mail: !cfg || num(cfg, "dataMail") === 1, calendar: !cfg || num(cfg, "dataCalendar") === 1, files: !cfg || num(cfg, "dataFiles") === 1 });
+export const dataOf = (cfg: Row | null): DataChoice => ({
+  mail: !cfg || num(cfg, "dataMail") === 1,
+  calendar: !cfg || num(cfg, "dataCalendar") === 1,
+  files: !cfg || num(cfg, "dataFiles") === 1,
+});
 /** The scopes this company chose, as Google spells them, in the order of SCOPES. */
 export function scopesFor(d: DataChoice): string[] {
-  const want = new Set<string>([DIRECTORY_SCOPE, ...(d.mail ? DATA_SCOPES.mail : []), ...(d.calendar ? DATA_SCOPES.calendar : []), ...(d.files ? DATA_SCOPES.files : [])]);
+  const want = new Set<string>([
+    DIRECTORY_SCOPE,
+    ...(d.mail ? DATA_SCOPES.mail : []),
+    ...(d.calendar ? DATA_SCOPES.calendar : []),
+    ...(d.files ? DATA_SCOPES.files : []),
+  ]);
   return SCOPES.filter((s) => want.has(s.slice(SCOPE.length)));
 }
 export const ADMIN_CONSOLE_URL = "https://admin.google.com/ac/owl/domainwidedelegation";
@@ -130,7 +184,16 @@ export function bad(ctx: Pick<GoogleCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql", "0005_google_user.sql", "0006_google_company.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = [
+  "0001_google_core.sql",
+  "0002_google_push.sql",
+  "0003_google_meet.sql",
+  "0004_google_calendar.sql",
+  "0005_google_user.sql",
+  "0006_google_company.sql",
+]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -169,8 +232,10 @@ export function pushToken(ctx: GoogleCtx, rotate = false): string {
   const row = first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, CONFIG_ID));
   if (row && typeof row.token === "string" && !rotate) return row.token;
   const token = `${mintUuid(ctx.now())}${mintUuid(ctx.now())}`.replaceAll("-", "");
-  if (row) ctx.db.run(`UPDATE google_push_secret SET token = ?, created_at = ? WHERE id = ?`, token, ctx.now(), CONFIG_ID);
-  else ctx.db.run(`INSERT INTO google_push_secret (id, token, created_at) VALUES (?, ?, ?)`, CONFIG_ID, token, ctx.now());
+  if (row)
+    ctx.db.run(`UPDATE google_push_secret SET token = ?, created_at = ? WHERE id = ?`, token, ctx.now(), CONFIG_ID);
+  else
+    ctx.db.run(`INSERT INTO google_push_secret (id, token, created_at) VALUES (?, ?, ?)`, CONFIG_ID, token, ctx.now());
   return token;
 }
 
@@ -200,7 +265,10 @@ export interface Call {
   open?: boolean;
 }
 
-export interface Answer { status: number; json: Record<string, unknown> }
+export interface Answer {
+  status: number;
+  json: Record<string, unknown>;
+}
 
 const tokens = new Map<string, { token: string; expiresAt: number }>();
 export const forgetTokens = (): void => tokens.clear();
@@ -223,8 +291,22 @@ export function query(q: Query | undefined): string {
 export const USER_PREFIX = "gua_";
 export const isUserConnection = (connectionId: string): boolean => connectionId.startsWith(USER_PREFIX);
 
-export interface UserAccount { accountId: string; ownerId: string; email: string; refreshSealed: string; mailboxId: string | null; fixTaskId: string | null }
-const accountOfRow = (r: Row): UserAccount => ({ accountId: str(r, "accountId"), ownerId: str(r, "ownerId"), email: str(r, "email"), refreshSealed: str(r, "refreshSealed"), mailboxId: strOrNull(r, "mailboxId"), fixTaskId: strOrNull(r, "fixTaskId") });
+export interface UserAccount {
+  accountId: string;
+  ownerId: string;
+  email: string;
+  refreshSealed: string;
+  mailboxId: string | null;
+  fixTaskId: string | null;
+}
+const accountOfRow = (r: Row): UserAccount => ({
+  accountId: str(r, "accountId"),
+  ownerId: str(r, "ownerId"),
+  email: str(r, "email"),
+  refreshSealed: str(r, "refreshSealed"),
+  mailboxId: strOrNull(r, "mailboxId"),
+  fixTaskId: strOrNull(r, "fixTaskId"),
+});
 
 /** A person's account is theirs alone; the host's own services (the poll that runs with nobody signed in) act for them. */
 function userUsable(ctx: GoogleCtx, a: UserAccount): boolean {
@@ -235,14 +317,17 @@ export function userAccount(ctx: GoogleCtx, accountId: string): UserAccount {
   ensure(ctx);
   const r = first(ctx.db.all(`SELECT * FROM google_user_account WHERE "accountId" = ?`, accountId));
   const a = r ? accountOfRow(r) : null;
-  if (!a || !userUsable(ctx, a)) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Google sign-in." });
+  if (!a || !userUsable(ctx, a))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Google sign-in." });
   return a;
 }
 
 /** The signed-in account behind a mailbox address, for the pull. */
 export function userAccountByEmail(ctx: GoogleCtx, email: string): UserAccount | null {
   ensure(ctx);
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM google_user_account WHERE email = ?`, email)).map(accountOfRow).sort((a, b) => a.accountId.localeCompare(b.accountId));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM google_user_account WHERE email = ?`, email))
+    .map(accountOfRow)
+    .sort((a, b) => a.accountId.localeCompare(b.accountId));
   return rows[0] ?? null;
 }
 
@@ -250,7 +335,10 @@ export function userAppHandle(ctx: GoogleCtx): string {
   ensure(ctx);
   const cfg = first(ctx.db.all(`SELECT "vaultItem" FROM google_user_app WHERE id = ?`, CONFIG_ID));
   const handle = strOrNull(cfg, "vaultItem");
-  if (!handle) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google sign-in is not set up. Add a Google OAuth client first." });
+  if (!handle)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "Google sign-in is not set up. Add a Google OAuth client first.",
+    });
   return handle;
 }
 
@@ -258,9 +346,19 @@ export function userAppHandle(ctx: GoogleCtx): string {
 async function userToken(ctx: GoogleCtx, accountId: string, fresh: boolean): Promise<string> {
   const a = userAccount(ctx, accountId);
   const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
-  const got = await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) });
+  const got = await needHost(ctx).userRefresh(ctx, {
+    appHandle: userAppHandle(ctx),
+    refreshToken,
+    cacheKey: accountId,
+    ...(fresh ? { fresh: true } : {}),
+  });
   // a rotated refresh token replaces the old one, sealed as before, so the sign-in does not lapse when the old one expires
-  if (got.refreshToken) ctx.db.run(`UPDATE google_user_account SET "refreshSealed" = ? WHERE "accountId" = ?`, JSON.stringify(ctx.seal.seal(new TextEncoder().encode(got.refreshToken), "google.user.refresh")), accountId);
+  if (got.refreshToken)
+    ctx.db.run(
+      `UPDATE google_user_account SET "refreshSealed" = ? WHERE "accountId" = ?`,
+      JSON.stringify(ctx.seal.seal(new TextEncoder().encode(got.refreshToken), "google.user.refresh")),
+      accountId,
+    );
   return got.token;
 }
 
@@ -269,33 +367,56 @@ export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" |
   if (isUserConnection(c.connectionId)) {
     // a person's own sign-in is one mailbox: the account's address, and nobody else's
     const a = userAccount(ctx, c.connectionId);
-    if (c.as && normalizeEmail(c.as) !== a.email) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
+    if (c.as && normalizeEmail(c.as) !== a.email)
+      throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in is for another address." });
     return a.email;
   }
   const cfg = config(ctx);
   const admin = strOrNull(cfg, "adminEmail");
   const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
-  const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
+  const own = person
+    ? strOrNull(
+        first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)),
+        "email",
+      )
+    : null;
   const target = c.as ? normalizeEmail(c.as) : own;
-  if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Google Workspace user." });
+  if (!target)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "You are not mapped to a Google Workspace user.",
+    });
   // The delegation's own probes (setup, probe, health) may act as the admin address. Nothing else names another person: not a role, not an agent working for an admin, not an automation.
   const probingAdmin = c.open === true && target === admin;
   if (c.as && target !== own && !isTrustedService(ctx.principal) && !probingAdmin) {
-    throw fail("permission.no_grant", ctx.trace.traceId, { message: "Vyre reaches a person's mail, calendar and files only for that person." });
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "Vyre reaches a person's mail, calendar and files only for that person.",
+    });
   }
   // the directory is read as the admin and touches no mailbox; anything else stops at an exclusion, the admin's too
   const held = first(ctx.db.all(`SELECT excluded FROM google_member WHERE email = ?`, target));
-  if (held && num(held, "excluded") === 1 && c.scope !== DIRECTORY_SCOPE) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That member is excluded from Google delegation." });
+  if (held && num(held, "excluded") === 1 && c.scope !== DIRECTORY_SCOPE)
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "That member is excluded from Google delegation.",
+    });
   if (c.open && target === admin) return target;
-  if (!cfg || num(cfg, "configured") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
+  if (!cfg || num(cfg, "configured") !== 1)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
   const member = first(ctx.db.all(`SELECT mapped FROM google_member WHERE email = ?`, target));
   if (target !== admin && (!member || num(member, "mapped") !== 1)) {
-    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is not a mapped Workspace user." });
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "That address is not a mapped Workspace user.",
+    });
   }
   return target;
 }
 
-async function tokenFor(ctx: GoogleCtx, connectionId: string, sub: string, scope: string, fresh: boolean): Promise<string> {
+async function tokenFor(
+  ctx: GoogleCtx,
+  connectionId: string,
+  sub: string,
+  scope: string,
+  fresh: boolean,
+): Promise<string> {
   const key = `${connectionId}|${sub}|${scope}`;
   const hit = tokens.get(key);
   if (!fresh && hit && hit.expiresAt - ctx.now() > 60_000) return hit.token;
@@ -313,12 +434,21 @@ async function tokenFor(ctx: GoogleCtx, connectionId: string, sub: string, scope
 function logCall(ctx: GoogleCtx, subject: string, cap: string, bulk: boolean): void {
   ctx.db.run(
     `INSERT INTO google_read_log (id, subject, actor, "onBehalf", cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    newId("grl", ctx.now()), subject, ctx.principal.id, ctx.actingFor ?? null, cap, bulk ? 1 : 0, ctx.now(),
+    newId("grl", ctx.now()),
+    subject,
+    ctx.principal.id,
+    ctx.actingFor ?? null,
+    cap,
+    bulk ? 1 : 0,
+    ctx.now(),
   );
 }
 
 /** The member a call acts as and a token for the scope, for transfers the host performs itself. Writes the same read log row as a call. */
-export async function bearer(ctx: GoogleCtx, c: Pick<Call, "cap" | "connectionId" | "as" | "scope" | "open" | "bulk">): Promise<{ sub: string; token: string }> {
+export async function bearer(
+  ctx: GoogleCtx,
+  c: Pick<Call, "cap" | "connectionId" | "as" | "scope" | "open" | "bulk">,
+): Promise<{ sub: string; token: string }> {
   ensure(ctx);
   const sub = subjectFor(ctx, c);
   logCall(ctx, sub, c.cap, c.bulk === true);
@@ -334,7 +464,9 @@ const stamps = new WeakMap<object, Map<string, number>>();
 export async function markWorking(ctx: GoogleCtx, connectionId: string, o: { force?: boolean } = {}): Promise<void> {
   // Only a caller the connectors module would trust makes this call: the host (its polls and checks) or someone who manages the Space connection. A member whose own mail or calendar read went
   // through the Space's delegation is neither, and a refused call on every one of their reads is noise; the host's next poll stamps it.
-  const mayTell = isTrustedService(ctx.principal) || ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect === "allow";
+  const mayTell =
+    isTrustedService(ctx.principal) ||
+    ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect === "allow";
   if (!mayTell) return;
   const now = ctx.now();
   const lastStamp = stamps.get(ctx.db) ?? new Map<string, number>();
@@ -342,8 +474,14 @@ export async function markWorking(ctx: GoogleCtx, connectionId: string, o: { for
   const last = lastStamp.get(connectionId);
   if (o.force !== true && last !== undefined && now - last < 60_000) return;
   lastStamp.set(connectionId, now);
-  try { await ctx.call("connections.mark_working", { connectionId }); }
-  catch (e) { /* tried again in a minute, not on every call */ ctx.log.warn("google could not tell its connection it works", { connectionId, code: codeOf(e) }); }
+  try {
+    await ctx.call("connections.mark_working", { connectionId });
+  } catch (e) {
+    /* tried again in a minute, not on every call */ ctx.log.warn("google could not tell its connection it works", {
+      connectionId,
+      code: codeOf(e),
+    });
+  }
 }
 
 /** The call, answered as Google gave it. A 401 mints a new token once. Never throws for an HTTP status; a network failure is provider.network. */
@@ -358,9 +496,13 @@ export async function apiRaw(ctx: GoogleCtx, c: Call): Promise<Answer & { sub: s
     if (c.body !== undefined) headers["content-type"] = "application/json";
     let res: { status: number; text(): Promise<string> };
     try {
-      res = await ctx.http(url, { method: c.method ?? "GET", headers, ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}) });
+      res = await ctx.http(url, {
+        method: c.method ?? "GET",
+        headers,
+        ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}),
+      });
     } catch (e) {
-      if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+      if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
       throw fail("provider.network", ctx.trace.traceId, { message: "Google could not be reached." });
     }
     if (res.status === 401 && attempt === 0) continue;
@@ -370,7 +512,8 @@ export async function apiRaw(ctx: GoogleCtx, c: Call): Promise<Answer & { sub: s
       const parsed = text ? (JSON.parse(text) as unknown) : {};
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Record<string, unknown>;
     } catch {
-      if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Google answered something unreadable." });
+      if (res.status < 300)
+        throw fail("provider.bad_response", ctx.trace.traceId, { message: "Google answered something unreadable." });
     }
     if (res.status < 300) await markWorking(ctx, c.connectionId);
     return { status: res.status, json, sub, token };
@@ -384,8 +527,22 @@ export async function api(ctx: GoogleCtx, c: Call): Promise<Record<string, unkno
   throw refusal(ctx, a.status, a.json);
 }
 
-const RATE = new Set(["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "dailyLimitExceeded", "RESOURCE_EXHAUSTED"]);
-const AUTH = new Set(["authError", "unauthorized_client", "insufficientPermissions", "domainPolicy", "PERMISSION_DENIED", "UNAUTHENTICATED", "forbidden"]);
+const RATE = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "quotaExceeded",
+  "dailyLimitExceeded",
+  "RESOURCE_EXHAUSTED",
+]);
+const AUTH = new Set([
+  "authError",
+  "unauthorized_client",
+  "insufficientPermissions",
+  "domainPolicy",
+  "PERMISSION_DENIED",
+  "UNAUTHENTICATED",
+  "forbidden",
+]);
 
 /** Map a Google error status and reason. Google's own message is not passed on: it can echo what the person typed. */
 export function refusal(ctx: Pick<GoogleCtx, "trace">, status: number, json: Record<string, unknown>) {
@@ -393,24 +550,36 @@ export function refusal(ctx: Pick<GoogleCtx, "trace">, status: number, json: Rec
   const reason = String(err.errors?.[0]?.reason ?? err.status ?? "");
   const details = { status, ...(reason ? { reason } : {}) };
   const t = ctx.trace.traceId;
-  if (status === 429 || RATE.has(reason)) return fail("provider.rate_limited", t, { message: "Google asked us to slow down.", details });
-  if (status === 401) return fail("provider.auth_failed", t, { message: "Google did not accept the delegated sign-in.", details });
+  if (status === 429 || RATE.has(reason))
+    return fail("provider.rate_limited", t, { message: "Google asked us to slow down.", details });
+  if (status === 401)
+    return fail("provider.auth_failed", t, { message: "Google did not accept the delegated sign-in.", details });
   if (status === 403) {
-    if (AUTH.has(reason) && reason !== "forbidden") return fail("provider.auth_failed", t, { message: "Google did not allow this account to do that. Check the delegated scopes.", details });
+    if (AUTH.has(reason) && reason !== "forbidden")
+      return fail("provider.auth_failed", t, {
+        message: "Google did not allow this account to do that. Check the delegated scopes.",
+        details,
+      });
     return fail("permission.no_grant", t, { message: "Google would not let this account reach that.", details });
   }
   if (status === 404) return fail("validation.not_found", t, { message: "Google has no such item.", details });
-  if (status === 400) return fail("validation.bad_input", t, { message: "Google could not use that request.", details });
-  if (status === 409 || status === 410 || status === 412) return fail("validation.precondition_failed", t, { message: status === 410 ? "That Google sync position has expired." : "Google refused because the item changed.", details });
+  if (status === 400)
+    return fail("validation.bad_input", t, { message: "Google could not use that request.", details });
+  if (status === 409 || status === 410 || status === 412)
+    return fail("validation.precondition_failed", t, {
+      message: status === 410 ? "That Google sync position has expired." : "Google refused because the item changed.",
+      details,
+    });
   if (status >= 500) return fail("provider.unavailable", t, { message: "Google is not answering right now.", details });
   return fail("provider.bad_response", t, { message: "Google answered something unexpected.", details });
 }
 
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 // ---- small readers shared by the handlers
 
-export const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+export const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 export const int = (v: unknown): number | undefined => {

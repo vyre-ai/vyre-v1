@@ -6,5 +6,7 @@ import { splitRefs, withFileLinks } from "../../../../../../ui/src/Viewer/index.
 import type { FileLinks } from "../../../../../../ui/src/Viewer/index.tsx";
 
 export function Prose({ text, links }: { text: string; links?: FileLinks | undefined }): ReactElement {
-  return <MarkdownText text={text} {...(links ? { renderText: (t: string) => withFileLinks(splitRefs(t), links) } : {})} />;
+  return (
+    <MarkdownText text={text} {...(links ? { renderText: (t: string) => withFileLinks(splitRefs(t), links) } : {})} />
+  );
 }

@@ -6,17 +6,45 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ComputerPopup, ComputerPopupLoading } from "./ComputerPopup.tsx";
 import type { PopupInitial } from "./ComputerPopup.tsx";
-import { createForwarder, discardRecording, giveBack, keepRecording, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
+import {
+  createForwarder,
+  discardRecording,
+  giveBack,
+  keepRecording,
+  sendRecording,
+  startRecording,
+  stopRecording,
+  takeOver,
+  wake,
+} from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
 import {
-  DEFAULT_INTENTS, DISPLAY, hostLabel, streamSrc, DOUBLE_MS, MASKED_NOTE, NO_CAPTURE, captureLine, captureParts, keyInput, mmss, options, orderedIntents, popupView, railItems, toDisplay, toggleIntent,
+  DEFAULT_INTENTS,
+  DISPLAY,
+  hostLabel,
+  streamSrc,
+  DOUBLE_MS,
+  MASKED_NOTE,
+  NO_CAPTURE,
+  captureLine,
+  captureParts,
+  keyInput,
+  mmss,
+  options,
+  orderedIntents,
+  popupView,
+  railItems,
+  toDisplay,
+  toggleIntent,
 } from "./model.ts";
 import type { Computer, Intent, Recording } from "./model.ts";
 import { COMPUTER, SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const html = (s: Sample, initial?: PopupInitial): string => clean(renderToStaticMarkup(<ComputerPopup data={s.data} {...(initial ? { initial } : {})} />));
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const html = (s: Sample, initial?: PopupInitial): string =>
+  clean(renderToStaticMarkup(<ComputerPopup data={s.data} {...(initial ? { initial } : {})} />));
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -25,7 +53,11 @@ const at = (s: string, needle: string): number => {
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const inOrder = (s: string, needles: string[]): void => {
   const idx = needles.map((n) => at(s, n));
-  assert.deepEqual([...idx].sort((a, b) => a - b), idx, `in the order ${needles.join(" > ")}`);
+  assert.deepEqual(
+    [...idx].sort((a, b) => a - b),
+    idx,
+    `in the order ${needles.join(" > ")}`,
+  );
 };
 const tagOf = (out: string, testid: string): string => {
   const i = at(out, `data-testid="${testid}"`);
@@ -40,23 +72,49 @@ const computerNow = (s: Sample): Computer => {
   assert.equal(snap.status, "ready");
   return (snap as { data: { computer: Computer } }).data.computer;
 };
-const saved = (): Recording => ({ recordingId: "rec_9", computerId: COMPUTER, agentId: "agt_intake", startedAt: SAMPLE_NOW - 23_000, endedAt: SAMPLE_NOW, durationMs: 23_000, folderPath: "Agents/Intake/work/recordings/2025-10-24-1000", state: "saved", intents: [] });
-const SHEET: PopupInitial = { sheet: { recording: saved(), capture: { clicks: 14, pages: 3, requests: 52 }, secs: 23 } };
+const saved = (): Recording => ({
+  recordingId: "rec_9",
+  computerId: COMPUTER,
+  agentId: "agt_intake",
+  startedAt: SAMPLE_NOW - 23_000,
+  endedAt: SAMPLE_NOW,
+  durationMs: 23_000,
+  folderPath: "Agents/Intake/work/recordings/2025-10-24-1000",
+  state: "saved",
+  intents: [],
+});
+const SHEET: PopupInitial = {
+  sheet: { recording: saved(), capture: { clicks: 14, pages: 3, requests: 52 }, secs: 23 },
+};
 
 test("a working computer: the veil, the window with Intake working, and four icons on the side in order", () => {
   const out = html(createSample("working"));
   assert.ok(has(out, 'role="dialog"') && has(out, "Intake's computer") && has(out, 'data-testid="popup-window"'));
   assert.ok(has(out, ">Intake is working<") && has(out, 'data-testid="desk-live"'));
-  inOrder(out, ['data-testid="popup-rail"', 'data-testid="rail-take"', 'data-testid="rail-chat"', 'data-testid="rail-close"']);
+  inOrder(out, [
+    'data-testid="popup-rail"',
+    'data-testid="rail-take"',
+    'data-testid="rail-chat"',
+    'data-testid="rail-close"',
+  ]);
   assert.ok(!has(out, 'data-testid="rail-record"'), "Record appears only once you are in control");
   assert.ok(has(out, 'aria-label="Take over"') && has(out, 'aria-label="Show chat"') && has(out, 'aria-label="Close"'));
-  assert.ok(!has(out, 'data-testid="record-sheet"') && !has(out, 'data-testid="popup-chat"') && !has(out, 'data-testid="popup-capture"'));
+  assert.ok(
+    !has(out, 'data-testid="record-sheet"') &&
+      !has(out, 'data-testid="popup-chat"') &&
+      !has(out, 'data-testid="popup-capture"'),
+  );
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
 test("asleep: the last frame is dimmed with Wake, and Take over is out of reach", () => {
   const out = html(createSample("asleep"));
-  assert.ok(has(out, ">Intake's computer is asleep<") && has(out, 'data-testid="desk-asleep"') && has(out, 'data-testid="popup-wake"') && has(out, ">Wake<"));
+  assert.ok(
+    has(out, ">Intake's computer is asleep<") &&
+      has(out, 'data-testid="desk-asleep"') &&
+      has(out, 'data-testid="popup-wake"') &&
+      has(out, ">Wake<"),
+  );
   assert.ok(has(out, "Wake Intake's computer"));
   assert.ok(has(tagOf(out, "rail-take"), 'aria-disabled="true"'), "Take over is disabled");
 });
@@ -65,7 +123,12 @@ test("in your control: the pill says so, the icon flips to Give back, Record joi
   const out = html(createSample("takeover"));
   assert.ok(has(out, ">You're in control · Intake is waiting<"));
   assert.ok(has(out, 'aria-label="Give back control"') && !has(out, 'aria-label="Take over"'));
-  inOrder(out, ['data-testid="rail-take"', 'data-testid="rail-record"', 'data-testid="rail-chat"', 'data-testid="rail-close"']);
+  inOrder(out, [
+    'data-testid="rail-take"',
+    'data-testid="rail-record"',
+    'data-testid="rail-chat"',
+    'data-testid="rail-close"',
+  ]);
   assert.ok(has(out, 'aria-label="Record"'));
 });
 
@@ -81,11 +144,19 @@ test("recording: the pill counts the time, the screen gets a red edge's counter,
 
 test("the sheet after a recording: what it holds, that secrets are masked, and four things the agent can do with it", () => {
   const out = html(createSample("takeover"), SHEET);
-  assert.ok(has(out, 'data-testid="record-sheet"') && has(out, "Recording · 0:23") && has(out, 'data-testid="sheet-dur"'));
+  assert.ok(
+    has(out, 'data-testid="record-sheet"') && has(out, "Recording · 0:23") && has(out, 'data-testid="sheet-dur"'),
+  );
   assert.ok(has(out, "Video, 14 clicks and keystrokes, 3 pages, 52 network calls.") && has(out, MASKED_NOTE));
   assert.ok(has(out, "What should Intake do with it?"));
-  inOrder(out, ['data-testid="opt-make_skill"', 'data-testid="opt-learn_routine"', 'data-testid="opt-work_out_backend_calls"', 'data-testid="opt-learn_workflow"']);
-  for (const t of ["Make a skill", "Learn a routine", "Understand the app", "Copy my workflow exactly"]) assert.ok(has(out, `>${t}<`), t);
+  inOrder(out, [
+    'data-testid="opt-make_skill"',
+    'data-testid="opt-learn_routine"',
+    'data-testid="opt-work_out_backend_calls"',
+    'data-testid="opt-learn_workflow"',
+  ]);
+  for (const t of ["Make a skill", "Learn a routine", "Understand the app", "Copy my workflow exactly"])
+    assert.ok(has(out, `>${t}<`), t);
   assert.ok(has(out, "Turn what you did into a skill Intake can run on its own, with the steps written down."));
   inOrder(out, ['data-testid="sheet-discard"', 'data-testid="sheet-save"', 'data-testid="sheet-send"']);
   assert.ok(has(out, ">Discard<") && has(out, ">Save Only<") && has(out, ">Send to Intake<"));
@@ -95,7 +166,14 @@ test("the sheet after a recording: what it holds, that secrets are masked, and f
 
 test("the chat icon opens the chat beside the screen, on the left, with the shell's conversation in it", () => {
   const s = createSample("working");
-  const out = clean(renderToStaticMarkup(<ComputerPopup data={{ ...s.data, renderChat: (a) => <span data-testid="shell-chat">{`chat with ${a.name}`}</span> }} initial={{ chat: true }} />));
+  const out = clean(
+    renderToStaticMarkup(
+      <ComputerPopup
+        data={{ ...s.data, renderChat: (a) => <span data-testid="shell-chat">{`chat with ${a.name}`}</span> }}
+        initial={{ chat: true }}
+      />,
+    ),
+  );
   inOrder(out, ['data-testid="popup-chat"', 'data-testid="shell-chat"', 'data-testid="popup-window"']);
   assert.ok(has(out, "chat with Intake") && has(out, 'aria-label="Hide chat"'));
   const bare = html(s, { chat: true });
@@ -122,7 +200,10 @@ test("Take over then Give back changes the computer's state and tells you", asyn
   assert.ok(has(html(s), "You're in control"));
   assert.equal(await giveBack(d, COMPUTER, "Intake"), true);
   assert.equal(computerNow(s).state, "working");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.take_over", "computers.give_back"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["computers.take_over", "computers.give_back"],
+  );
   assert.deepEqual(notes, ["You're in control. Intake waits.", "Control given back to Intake"]);
 });
 
@@ -143,7 +224,10 @@ test("Record starts a recording and Stop returns the saved one for the sheet", a
   const r = await stopRecording(d, COMPUTER);
   assert.ok(r && r.state === "saved" && r.durationMs === 23_000);
   assert.equal(computerNow(s).recording, false);
-  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.record_start", "computers.record_stop"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["computers.record_start", "computers.record_stop"],
+  );
   assert.equal(notes[0], "Recording. Everything you do on this screen is captured.");
 });
 
@@ -152,14 +236,22 @@ test("Send asks the agent to process the recording with any of the four intents,
   const { d, notes } = deps(s);
   await startRecording(d, COMPUTER);
   await stopRecording(d, COMPUTER);
-  const picked = toggleIntent(toggleIntent(toggleIntent(DEFAULT_INTENTS, "learn_workflow"), "work_out_backend_calls"), "learn_routine");
+  const picked = toggleIntent(
+    toggleIntent(toggleIntent(DEFAULT_INTENTS, "learn_workflow"), "work_out_backend_calls"),
+    "learn_routine",
+  );
   const intents = orderedIntents(picked, "Intake");
   assert.deepEqual(intents, ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"]);
   const task = await sendRecording(d, "rec_1", intents, "Intake");
   assert.match(task ?? "", /^tsk_rec/);
   const call = s.calls[s.calls.length - 1]!;
   assert.equal(call.cap, "computers.recording.process");
-  assert.deepEqual((call.input as { intents: Intent[] }).intents, ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"]);
+  assert.deepEqual((call.input as { intents: Intent[] }).intents, [
+    "make_skill",
+    "learn_routine",
+    "work_out_backend_calls",
+    "learn_workflow",
+  ]);
   assert.equal((call.input as { recordingId: string }).recordingId, "rec_1");
   assert.match((call.input as { idempotencyKey: string }).idempotencyKey, /^rec-rec_1-/);
   assert.equal(notes[notes.length - 1], "Sent to Intake. A task tracks it.");
@@ -200,7 +292,11 @@ test("a failed write is one quiet line, not a thrown error", async () => {
   assert.equal(await startRecording(d, COMPUTER), null);
   s.failNext("computers.recording.process");
   assert.equal(await sendRecording(d, "rec_1", ["make_skill"], "Intake"), null);
-  assert.deepEqual(notes, ["Could not take over. Try again.", "Could not start recording. Try again.", "Could not send the recording. Try again."]);
+  assert.deepEqual(notes, [
+    "Could not take over. Try again.",
+    "Could not start recording. Try again.",
+    "Could not send the recording. Try again.",
+  ]);
 });
 
 /* ---------- input while you are in control ---------- */
@@ -212,11 +308,14 @@ test("a press becomes a click at the matching point on the display; two quick pr
   await f.press(320, 200, { width: 640, height: 400 }, 1000);
   await f.press(320, 200, { width: 640, height: 400 }, 1000 + DOUBLE_MS - 1);
   await f.press(320, 200, { width: 640, height: 400 }, 5000);
-  assert.deepEqual(s.calls.map((c) => c.input), [
-    { computerId: COMPUTER, x: 640, y: 400 },
-    { computerId: COMPUTER, x: 640, y: 400, double: true },
-    { computerId: COMPUTER, x: 640, y: 400 },
-  ]);
+  assert.deepEqual(
+    s.calls.map((c) => c.input),
+    [
+      { computerId: COMPUTER, x: 640, y: 400 },
+      { computerId: COMPUTER, x: 640, y: 400, double: true },
+      { computerId: COMPUTER, x: 640, y: 400 },
+    ],
+  );
 });
 
 test("typing collects into one call; a key combination sends what was typed first, then itself", async () => {
@@ -230,11 +329,14 @@ test("typing collects into one call; a key combination sends what was typed firs
   await f.key({ key: "x" });
   await f.flush();
   await f.flush();
-  assert.deepEqual(s.calls.map((c) => [c.cap, c.input]), [
-    ["computers.screen.type", { computerId: COMPUTER, text: "hello" }],
-    ["computers.screen.key", { computerId: COMPUTER, combo: "ctrl+l" }],
-    ["computers.screen.type", { computerId: COMPUTER, text: "x" }],
-  ]);
+  assert.deepEqual(
+    s.calls.map((c) => [c.cap, c.input]),
+    [
+      ["computers.screen.type", { computerId: COMPUTER, text: "hello" }],
+      ["computers.screen.key", { computerId: COMPUTER, combo: "ctrl+l" }],
+      ["computers.screen.type", { computerId: COMPUTER, text: "x" }],
+    ],
+  );
 });
 
 test("a failed key or click is one quiet line", async () => {
@@ -270,16 +372,41 @@ test("keys: text for what you type, combinations for the rest; Escape is never f
 });
 
 test("the pill and the rail follow the computer's state", () => {
-  const base: Computer = { computerId: "c", agentId: "a", state: "working", tabs: 1, tabLimit: 8, host: "server", recording: false };
+  const base: Computer = {
+    computerId: "c",
+    agentId: "a",
+    state: "working",
+    tabs: 1,
+    tabLimit: 8,
+    host: "server",
+    recording: false,
+  };
   assert.deepEqual(popupView(base, "Intake", null), { screen: "live", pill: "Intake is working" });
-  assert.deepEqual(popupView({ ...base, state: "asleep" }, "Intake", null), { screen: "asleep", pill: "Intake's computer is asleep" });
+  assert.deepEqual(popupView({ ...base, state: "asleep" }, "Intake", null), {
+    screen: "asleep",
+    pill: "Intake's computer is asleep",
+  });
   assert.equal(popupView({ ...base, state: "takeover" }, "Intake", null).pill, "You're in control · Intake is waiting");
   assert.equal(popupView({ ...base, state: "takeover" }, "Intake", 83).pill, "Recording · 1:23");
   assert.equal(popupView({ ...base, state: "error" }, "Intake", null).screen, "error");
-  assert.deepEqual(railItems(base, null, false).map((r) => r.key), ["take", "chat", "close"]);
-  assert.deepEqual(railItems({ ...base, state: "takeover" }, null, false).map((r) => r.key), ["take", "record", "chat", "close"]);
+  assert.deepEqual(
+    railItems(base, null, false).map((r) => r.key),
+    ["take", "chat", "close"],
+  );
+  assert.deepEqual(
+    railItems({ ...base, state: "takeover" }, null, false).map((r) => r.key),
+    ["take", "record", "chat", "close"],
+  );
   const rec = railItems({ ...base, state: "takeover" }, 5, true);
-  assert.deepEqual(rec.map((r) => [r.key, r.on, r.disabled]), [["take", true, true], ["record", true, false], ["chat", true, false], ["close", false, false]]);
+  assert.deepEqual(
+    rec.map((r) => [r.key, r.on, r.disabled]),
+    [
+      ["take", true, true],
+      ["record", true, false],
+      ["chat", true, false],
+      ["close", false, false],
+    ],
+  );
   assert.equal(rec[1]?.timer, "0:05");
   assert.equal(railItems({ ...base, state: "asleep" }, null, false)[0]?.disabled, true);
   assert.equal(railItems({ ...base, state: "waking" }, null, false)[0]?.disabled, true);
@@ -289,10 +416,21 @@ test("words for the recording", () => {
   assert.equal(mmss(0), "0:00");
   assert.equal(mmss(75), "1:15");
   assert.equal(mmss(-3), "0:00");
-  assert.deepEqual(captureParts({ clicks: 1, pages: 1, requests: 1 }), ["1 click", "1 page", "1 network call", "Video"]);
+  assert.deepEqual(captureParts({ clicks: 1, pages: 1, requests: 1 }), [
+    "1 click",
+    "1 page",
+    "1 network call",
+    "Video",
+  ]);
   assert.deepEqual(captureParts(NO_CAPTURE), ["0 clicks", "1 page", "0 network calls", "Video"]);
-  assert.equal(captureLine({ clicks: 14, pages: 3, requests: 52 }), "Video, 14 clicks and keystrokes, 3 pages, 52 network calls.");
-  assert.deepEqual(options("Intake").map((o) => o.key), ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"]);
+  assert.equal(
+    captureLine({ clicks: 14, pages: 3, requests: 52 }),
+    "Video, 14 clicks and keystrokes, 3 pages, 52 network calls.",
+  );
+  assert.deepEqual(
+    options("Intake").map((o) => o.key),
+    ["make_skill", "learn_routine", "work_out_backend_calls", "learn_workflow"],
+  );
 });
 
 test("the sheet's choices: any of them, never none", () => {
@@ -308,7 +446,10 @@ test("variants exist for the screenshots", () => {
 });
 
 test("a computer on a computer that joined the Space says where it runs, and the Space's own says nothing", () => {
-  const servers = [{ serverId: "srv_a", name: "Olivia's Mac" }, { serverId: "srv_b", name: "Office PC" }];
+  const servers = [
+    { serverId: "srv_a", name: "Olivia's Mac" },
+    { serverId: "srv_b", name: "Office PC" },
+  ];
   assert.equal(hostLabel(servers, "srv_a"), "on Olivia's Mac");
   assert.equal(hostLabel(servers, undefined), null);
   assert.equal(hostLabel(servers, "srv_gone"), null);
@@ -316,9 +457,20 @@ test("a computer on a computer that joined the Space says where it runs, and the
 });
 
 test("the live view address is absolute when the Space's address is given, so the desktop app (tauri://) can load it", () => {
-  assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com"), "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1");
-  assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com/"), "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1", "no double slash");
-  assert.equal(streamSrc("http://10.0.0.5:7000/stream", "t", "https://team.example.com"), "http://10.0.0.5:7000/stream?ticket=t", "an absolute address is left alone");
+  assert.equal(
+    streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com"),
+    "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1",
+  );
+  assert.equal(
+    streamSrc("/computers/cmt_a/stream", "cpt_1", "https://team.example.com/"),
+    "https://team.example.com/computers/cmt_a/stream?ticket=cpt_1",
+    "no double slash",
+  );
+  assert.equal(
+    streamSrc("http://10.0.0.5:7000/stream", "t", "https://team.example.com"),
+    "http://10.0.0.5:7000/stream?ticket=t",
+    "an absolute address is left alone",
+  );
   assert.equal(streamSrc("/computers/cmt_a/stream", "cpt_1"), "/computers/cmt_a/stream?ticket=cpt_1");
   const s = createSample("working");
   const out = clean(renderToStaticMarkup(<ComputerPopup data={{ ...s.data, spaceUrl: "https://team.example.com" }} />));

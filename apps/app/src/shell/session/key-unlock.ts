@@ -19,29 +19,48 @@ const lineOf = (e: unknown): string => ((e as { status?: number } | null)?.statu
 export async function unlockWithPassword(baseUrl: string, token: string, password: string): Promise<void> {
   const reach = createCapCaller({ baseUrl, token: () => token });
   let got: { keys: Keys };
-  try { got = (await reach("identity.keys_get", {})) as { keys: Keys }; } catch (e) { throw new Error(lineOf(e)); }
+  try {
+    got = (await reach("identity.keys_get", {})) as { keys: Keys };
+  } catch (e) {
+    throw new Error(lineOf(e));
+  }
   const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
   let opened: Awaited<ReturnType<typeof openBundle>>;
-  try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error(WRONG_PASSWORD); }
+  try {
+    opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" });
+  } catch {
+    throw new Error(WRONG_PASSWORD);
+  }
   try {
     let held = false;
-    try { held = await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened)); } catch { throw new Error(OFFLINE_OWN); }
+    try {
+      held = await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened));
+    } catch {
+      throw new Error(OFFLINE_OWN);
+    }
     if (!held) throw new Error(VAULT_REFUSED);
     await keepKey(heldKeyOf(opened), token);
-  } finally { wipeOpened(opened); }
+  } finally {
+    wipeOpened(opened);
+  }
 }
 
 /** Whether this account has a password key to open here. "no" only when the Space answered that it has none; a Space that did not answer is "unknown", never read as no password. */
 export async function passwordKeyState(baseUrl: string, token: string): Promise<"yes" | "no" | "unknown"> {
   try {
-    const got = (await createCapCaller({ baseUrl, token: () => token })("identity.keys_get", {})) as { keys?: { personKeyByPassword?: unknown } };
+    const got = (await createCapCaller({ baseUrl, token: () => token })("identity.keys_get", {})) as {
+      keys?: { personKeyByPassword?: unknown };
+    };
     return typeof got.keys?.personKeyByPassword === "string" && got.keys.personKeyByPassword !== "" ? "yes" : "no";
-  } catch (e) { return (e as { status?: number } | null)?.status === 404 ? "no" : "unknown"; }
+  } catch (e) {
+    return (e as { status?: number } | null)?.status === 404 ? "no" : "unknown";
+  }
 }
 
 /** Whether there is a password key to open here. Kept for callers that only need yes or no. */
-export async function hasPasswordKey(baseUrl: string, token: string): Promise<boolean> { return (await passwordKeyState(baseUrl, token)) === "yes"; }
-
+export async function hasPasswordKey(baseUrl: string, token: string): Promise<boolean> {
+  return (await passwordKeyState(baseUrl, token)) === "yes";
+}
 
 /**
  * Whether the launch lock shows for a Space server (owner, 4 Nov: lock at launch, the key stays memory-only on the device and one password unlocks everything). It shows only when nobody holds the key:
@@ -54,7 +73,10 @@ export async function remoteGateState(d: {
   serverHolds(): Promise<boolean | null>;
   passwordKey(): Promise<"yes" | "no" | "unknown">;
 }): Promise<"open" | "locked"> {
-  if (d.kept()) { await d.rehand(); return "open"; }
+  if (d.kept()) {
+    await d.rehand();
+    return "open";
+  }
   const held = await d.serverHolds();
   if (held === null || held === true) return "open";
   return (await d.passwordKey()) === "yes" ? "locked" : "open";

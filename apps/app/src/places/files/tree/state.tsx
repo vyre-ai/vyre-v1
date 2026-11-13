@@ -4,10 +4,19 @@ import type { Dispatch, ReactElement, ReactNode } from "react";
 import { INITIAL_STATE, reduce } from "./model.ts";
 import type { Action, FilesState } from "./model.ts";
 
-interface StateApi { state: FilesState; dispatch: Dispatch<Action> }
+interface StateApi {
+  state: FilesState;
+  dispatch: Dispatch<Action>;
+}
 const Ctx = createContext<StateApi | null>(null);
 
-export function FilesStateProvider({ initial, children }: { initial?: Partial<FilesState>; children: ReactNode }): ReactElement {
+export function FilesStateProvider({
+  initial,
+  children,
+}: {
+  initial?: Partial<FilesState>;
+  children: ReactNode;
+}): ReactElement {
   const [state, dispatch] = useReducer(reduce, { ...INITIAL_STATE, ...initial });
   const api = useMemo<StateApi>(() => ({ state, dispatch }), [state]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

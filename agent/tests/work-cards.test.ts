@@ -4,15 +4,44 @@ import assert from "node:assert/strict";
 import { heldCard, recordWork, takeWork, workBlocks, workCardOf } from "../src/tools/work-cards.ts";
 
 test("each kind of work has a card that names it and points at it", () => {
-  assert.deepEqual(workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call Dana" } }), { key: "task:tsk_1", icon: "task", lead: "Task", title: "Call Dana", target: { type: "task", id: "tsk_1" } });
+  assert.deepEqual(workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call Dana" } }), {
+    key: "task:tsk_1",
+    icon: "task",
+    lead: "Task",
+    title: "Call Dana",
+    target: { type: "task", id: "tsk_1" },
+  });
   assert.equal(workCardOf("automations.run", { name: "Lead sweep" }, { runId: "run_1" })!.lead, "Run");
   assert.equal(workCardOf("automations.test", {}, { runId: "run_2" })!.lead, "Test");
-  const rec = workCardOf("records.create", { type: "contact" }, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox", email: "d@x.test" } } })!;
-  assert.deepEqual([rec.lead, rec.title, rec.via, rec.target], ["Record", "Dana Fox", "contact", { type: "record", id: "rec_1" }]);
-  assert.equal(workCardOf("records.update", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana" } } })!.lead, "Record");
-  assert.deepEqual(workCardOf("files.create", {}, { file: { fileId: "fil_1", name: "letter.docx" } })!.target, { type: "file", id: "fil_1" });
-  assert.equal(workCardOf("agents.routine.save", { agentId: "agt_1" }, { routine: { routineId: "rtn_1", title: "Morning sweep" } })!.lead, "Routine");
-  assert.equal(workCardOf("chat.handoff", {}, { thread: { threadId: "thr_2", title: "For Billing" } })!.lead, "Handoff");
+  const rec = workCardOf(
+    "records.create",
+    { type: "contact" },
+    { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox", email: "d@x.test" } } },
+  )!;
+  assert.deepEqual(
+    [rec.lead, rec.title, rec.via, rec.target],
+    ["Record", "Dana Fox", "contact", { type: "record", id: "rec_1" }],
+  );
+  assert.equal(
+    workCardOf("records.update", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana" } } })!.lead,
+    "Record",
+  );
+  assert.deepEqual(workCardOf("files.create", {}, { file: { fileId: "fil_1", name: "letter.docx" } })!.target, {
+    type: "file",
+    id: "fil_1",
+  });
+  assert.equal(
+    workCardOf(
+      "agents.routine.save",
+      { agentId: "agt_1" },
+      { routine: { routineId: "rtn_1", title: "Morning sweep" } },
+    )!.lead,
+    "Routine",
+  );
+  assert.equal(
+    workCardOf("chat.handoff", {}, { thread: { threadId: "thr_2", title: "For Billing" } })!.lead,
+    "Handoff",
+  );
   assert.equal(workCardOf("computers.provision", {}, { computer: { computerId: "cmt_1" } })!.lead, "Computer");
 });
 
@@ -23,31 +52,69 @@ test("a call that made nothing, or a cap that is not work, makes no card", () =>
 });
 
 test("a send waiting on a yes is a card that says so", () => {
-  assert.deepEqual(heldCard("mail.send", "tsk_9", { subject: "Your engagement letter", to: [{ address: "d@x.test" }] }), { key: "task:tsk_9", icon: "approval", lead: "Message", title: "Your engagement letter", target: { type: "task", id: "tsk_9" } });
-  assert.equal(heldCard("mail.send", "tsk_9", { to: [{ address: "d@x.test" }] }).title, "To d@x.test", "no subject: the recipient");
+  assert.deepEqual(
+    heldCard("mail.send", "tsk_9", { subject: "Your engagement letter", to: [{ address: "d@x.test" }] }),
+    {
+      key: "task:tsk_9",
+      icon: "approval",
+      lead: "Message",
+      title: "Your engagement letter",
+      target: { type: "task", id: "tsk_9" },
+    },
+  );
+  assert.equal(
+    heldCard("mail.send", "tsk_9", { to: [{ address: "d@x.test" }] }).title,
+    "To d@x.test",
+    "no subject: the recipient",
+  );
   assert.equal(heldCard("mail.send", "tsk_9").title, "Message to send");
   assert.equal(heldCard("records.delete", "tsk_8").lead, "Approval");
   // the held act in words, never the capability's name (lane f-gate saw "automations read link", 12 Nov)
-  assert.equal(heldCard("automations.read_link", "tsk_7", { url: "https://www.harborquotes.com/rates" }).title, "Open harborquotes.com");
-  for (const cap of ["records.delete", "automations.read_link", "automations.read_docs", "files.delete"]) assert.doesNotMatch(heldCard(cap, "tsk_6").title, /[._]|\b(automations|records) (read|delete)\b/, cap);
+  assert.equal(
+    heldCard("automations.read_link", "tsk_7", { url: "https://www.harborquotes.com/rates" }).title,
+    "Open harborquotes.com",
+  );
+  for (const cap of ["records.delete", "automations.read_link", "automations.read_docs", "files.delete"])
+    assert.doesNotMatch(heldCard(cap, "tsk_6").title, /[._]|\b(automations|records) (read|delete)\b/, cap);
 });
 
 test("a turn's cards come out in the order made, once each, and are gone once taken", () => {
-  recordWork("trn_a", workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana" } } }));
+  recordWork(
+    "trn_a",
+    workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana" } } }),
+  );
   recordWork("trn_a", workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call" } }));
-  recordWork("trn_a", workCardOf("records.update", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }));
+  recordWork(
+    "trn_a",
+    workCardOf("records.update", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }),
+  );
   recordWork("trn_a", null);
   recordWork(undefined, workCardOf("tasks.create", {}, { task: { id: "tsk_2", title: "x" } }));
   const blocks = workBlocks("trn_a");
-  assert.deepEqual(blocks.map((b) => (b.data as { lead: string; title: string }).lead + ":" + (b.data as { title: string }).title), ["Record:Dana Fox", "Task:Call"], "the record changed twice is one card, in its first place");
+  assert.deepEqual(
+    blocks.map((b) => (b.data as { lead: string; title: string }).lead + ":" + (b.data as { title: string }).title),
+    ["Record:Dana Fox", "Task:Call"],
+    "the record changed twice is one card, in its first place",
+  );
   assert.ok(blocks.every((b) => b.type === "link_card" && !("key" in (b.data as object))));
   assert.deepEqual(takeWork("trn_a"), []);
 });
 
 test("a message to a teammate (lane l-agentdm): sent or scheduled, the card opens the direct chat; held, it is a Message card named by its words", () => {
-  const sent = workCardOf("chat.message_person", { to: "usr_maya", body: "The draft is ready" }, { state: "sent", threadId: "thr_dm1", messageId: "msg_1" });
-  assert.deepEqual([sent?.lead, sent?.title, sent?.target], ["Sent", "The draft is ready", { type: "thread", id: "thr_dm1" }]);
-  assert.equal(workCardOf("chat.message_person", { to: "usr_maya", body: "Later" }, { state: "scheduled", threadId: "thr_dm1" })?.lead, "Scheduled");
+  const sent = workCardOf(
+    "chat.message_person",
+    { to: "usr_maya", body: "The draft is ready" },
+    { state: "sent", threadId: "thr_dm1", messageId: "msg_1" },
+  );
+  assert.deepEqual(
+    [sent?.lead, sent?.title, sent?.target],
+    ["Sent", "The draft is ready", { type: "thread", id: "thr_dm1" }],
+  );
+  assert.equal(
+    workCardOf("chat.message_person", { to: "usr_maya", body: "Later" }, { state: "scheduled", threadId: "thr_dm1" })
+      ?.lead,
+    "Scheduled",
+  );
   const held = heldCard("chat.message_person", "tsk_7", { to: "usr_maya", body: "Can you sign off on Friday?" });
   assert.deepEqual([held.icon, held.lead, held.title], ["approval", "Message", "Can you sign off on Friday?"]);
 });

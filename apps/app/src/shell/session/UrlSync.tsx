@@ -16,7 +16,10 @@ export function UrlSync({ hub }: { hub: ShellHub }): null {
     read();
     window.addEventListener("popstate", read);
     window.addEventListener("hashchange", read);
-    return () => { window.removeEventListener("popstate", read); window.removeEventListener("hashchange", read); };
+    return () => {
+      window.removeEventListener("popstate", read);
+      window.removeEventListener("hashchange", read);
+    };
   }, [hub]);
 
   useEffect(() => {

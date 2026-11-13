@@ -15,11 +15,17 @@ const MAX_BYTES = 65_536;
 
 export class CredentialFilesError extends Error {
   readonly code = "engine.account_unavailable";
-  constructor(message: string) { super(message); this.name = "CredentialFilesError"; }
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialFilesError";
+  }
 }
 
 /** The environment without the sign-in files, and the files as the item holds them. */
-export function takeCredentialFiles(env: Readonly<Record<string, string>>): { env: Record<string, string>; files: string | undefined } {
+export function takeCredentialFiles(env: Readonly<Record<string, string>>): {
+  env: Record<string, string>;
+  files: string | undefined;
+} {
   const { [CRED_FILES_ENV]: files, ...rest } = env;
   return { env: rest, files };
 }
@@ -27,14 +33,28 @@ export function takeCredentialFiles(env: Readonly<Record<string, string>>): { en
 /** A file map checked: relative paths that stay in the home, a bounded number of bounded files. */
 export function parseCredentialFiles(json: string): Record<string, string> {
   let v: unknown;
-  try { v = JSON.parse(json); } catch { throw new CredentialFilesError("The saved sign-in is not readable. Sign in again."); }
-  if (v === null || typeof v !== "object" || Array.isArray(v)) throw new CredentialFilesError("The saved sign-in is not readable. Sign in again.");
+  try {
+    v = JSON.parse(json);
+  } catch {
+    throw new CredentialFilesError("The saved sign-in is not readable. Sign in again.");
+  }
+  if (v === null || typeof v !== "object" || Array.isArray(v))
+    throw new CredentialFilesError("The saved sign-in is not readable. Sign in again.");
   const out: Record<string, string> = {};
   const entries = Object.entries(v as Record<string, unknown>);
-  if (entries.length === 0 || entries.length > MAX_FILES) throw new CredentialFilesError("The saved sign-in has no files. Sign in again.");
+  if (entries.length === 0 || entries.length > MAX_FILES)
+    throw new CredentialFilesError("The saved sign-in has no files. Sign in again.");
   for (const [rel, text] of entries) {
     const segs = rel.split("/");
-    if (typeof text !== "string" || text.length > MAX_BYTES || rel === "" || rel.startsWith("/") || rel.includes("\0") || segs.some((s) => s === "" || s === "." || s === "..")) throw new CredentialFilesError("The saved sign-in is not readable. Sign in again.");
+    if (
+      typeof text !== "string" ||
+      text.length > MAX_BYTES ||
+      rel === "" ||
+      rel.startsWith("/") ||
+      rel.includes("\0") ||
+      segs.some((s) => s === "" || s === "." || s === "..")
+    )
+      throw new CredentialFilesError("The saved sign-in is not readable. Sign in again.");
     out[rel] = text;
   }
   return out;
@@ -68,7 +88,11 @@ function readPlain(p: string): string | null {
     const st = fs.fstatSync(fd);
     if (!st.isFile() || st.size > MAX_BYTES) return null;
     return fs.readFileSync(fd, "utf8");
-  } catch { return null; } finally { if (fd !== undefined) fs.closeSync(fd); }
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
 }
 
 /** Overwrite with zeros and remove, but only a regular file: a link left in its place is removed, never followed (the daemon runs outside the sandbox). */
@@ -77,18 +101,33 @@ function wipe(p: string): void {
     const st = fs.lstatSync(p);
     if (st.isFile()) {
       const fd = fs.openSync(p, fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW ?? 0));
-      try { fs.writeSync(fd, Buffer.alloc(st.size)); } finally { fs.closeSync(fd); }
+      try {
+        fs.writeSync(fd, Buffer.alloc(st.size));
+      } finally {
+        fs.closeSync(fd);
+      }
     }
-  } catch { /* already gone */ }
-  try { fs.unlinkSync(p); } catch { /* already gone */ }
+  } catch {
+    /* already gone */
+  }
+  try {
+    fs.unlinkSync(p);
+  } catch {
+    /* already gone */
+  }
 }
 
 /** The files already in the home, when they are a sign-in of the same account as `files` and newer by its own clock: then they are kept. Null otherwise. */
 function newerOnDisk(home: string, files: Readonly<Record<string, string>>): Record<string, string> | null {
   const disk: Record<string, string> = {};
-  for (const rel of Object.keys(files)) { const t = readPlain(path.join(home, rel)); if (t === null) return null; disk[rel] = t; }
+  for (const rel of Object.keys(files)) {
+    const t = readPlain(path.join(home, rel));
+    if (t === null) return null;
+    disk[rel] = t;
+  }
   const provider = providerOfFiles(files);
-  const want = readSignin(provider, files), have = readSignin(provider, disk);
+  const want = readSignin(provider, files),
+    have = readSignin(provider, disk);
   if (!want.ok || !have.ok || want.identity !== have.identity) return null;
   return compareFresh(have.fresh, want.fresh) > 0 ? disk : null;
 }
@@ -101,7 +140,10 @@ export function placeCredentialFiles(dataDir: string, cwd: string, json: string)
   const release = (): void => {
     for (const p of written.splice(0)) {
       const left = (holders.get(p) ?? 1) - 1;
-      if (left > 0) { holders.set(p, left); continue; }
+      if (left > 0) {
+        holders.set(p, left);
+        continue;
+      }
       holders.delete(p);
       wipe(p);
     }
@@ -109,7 +151,11 @@ export function placeCredentialFiles(dataDir: string, cwd: string, json: string)
   const changed = (): Record<string, string | null> | null => {
     const now: Record<string, string | null> = {};
     let differs = false;
-    for (const [rel, text] of Object.entries(files)) { const t = readPlain(path.join(home, rel)); now[rel] = t; if (t !== text) differs = true; }
+    for (const [rel, text] of Object.entries(files)) {
+      const t = readPlain(path.join(home, rel));
+      now[rel] = t;
+      if (t !== text) differs = true;
+    }
     return differs ? now : null;
   };
   try {
@@ -119,16 +165,29 @@ export function placeCredentialFiles(dataDir: string, cwd: string, json: string)
       fs.mkdirSync(path.dirname(p), { recursive: true, mode: 0o700 });
       if (keep) {
         const fd = fs.openSync(p, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
-        try { fs.fchmodSync(fd, 0o600); } finally { fs.closeSync(fd); }
+        try {
+          fs.fchmodSync(fd, 0o600);
+        } finally {
+          fs.closeSync(fd);
+        }
       } else {
         // a link left where the file goes is removed, never followed
-        try { fs.unlinkSync(p); } catch { /* nothing there */ }
+        try {
+          fs.unlinkSync(p);
+        } catch {
+          /* nothing there */
+        }
         fs.writeFileSync(p, text, { mode: 0o600, flag: "wx" });
         fs.chmodSync(p, 0o600);
       }
       holders.set(p, (holders.get(p) ?? 0) + 1);
       written.push(p);
     }
-  } catch (e) { release(); throw e instanceof CredentialFilesError ? e : new CredentialFilesError("The sign-in files could not be put in place."); }
+  } catch (e) {
+    release();
+    throw e instanceof CredentialFilesError
+      ? e
+      : new CredentialFilesError("The sign-in files could not be put in place.");
+  }
   return { home, changed, release };
 }

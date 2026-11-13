@@ -3,12 +3,30 @@ import type { MarkKind } from "./mounts/icons.tsx";
 
 export type GoogleApp = "gdocs" | "gsheets" | "gslides" | "gdrawings" | "gforms";
 
-export const GOOGLE_APP_NAME: Readonly<Record<GoogleApp, string>> = { gdocs: "Google Docs", gsheets: "Google Sheets", gslides: "Google Slides", gdrawings: "Google Drawings", gforms: "Google Forms" };
+export const GOOGLE_APP_NAME: Readonly<Record<GoogleApp, string>> = {
+  gdocs: "Google Docs",
+  gsheets: "Google Sheets",
+  gslides: "Google Slides",
+  gdrawings: "Google Drawings",
+  gforms: "Google Forms",
+};
 
 /** What the Kind column says for a Google file. */
-export const GOOGLE_KIND_WORD: Readonly<Record<GoogleApp, string>> = { gdocs: "Google Doc", gsheets: "Google Sheet", gslides: "Google Slides", gdrawings: "Google Drawing", gforms: "Google Form" };
+export const GOOGLE_KIND_WORD: Readonly<Record<GoogleApp, string>> = {
+  gdocs: "Google Doc",
+  gsheets: "Google Sheet",
+  gslides: "Google Slides",
+  gdrawings: "Google Drawing",
+  gforms: "Google Form",
+};
 
-const NATIVE: Readonly<Record<string, GoogleApp>> = { document: "gdocs", spreadsheet: "gsheets", presentation: "gslides", drawing: "gdrawings", form: "gforms" };
+const NATIVE: Readonly<Record<string, GoogleApp>> = {
+  document: "gdocs",
+  spreadsheet: "gsheets",
+  presentation: "gslides",
+  drawing: "gdrawings",
+  form: "gforms",
+};
 
 /**
  * The Google app a file is, or null. A Google-native file keeps Google's own type (application/vnd.google-apps.document); one made before that kept the type of its export (Markdown or
@@ -17,7 +35,8 @@ const NATIVE: Readonly<Record<string, GoogleApp>> = { document: "gdocs", spreads
 export function googleAppOf(file: { kind: string; mime?: string | undefined }): GoogleApp | null {
   if (file.kind !== "google_native") return null;
   const mime = (file.mime ?? "").toLowerCase();
-  if (mime.startsWith("application/vnd.google-apps.")) return NATIVE[mime.slice("application/vnd.google-apps.".length)] ?? null;
+  if (mime.startsWith("application/vnd.google-apps."))
+    return NATIVE[mime.slice("application/vnd.google-apps.".length)] ?? null;
   if (mime.includes("spreadsheetml") || mime === "text/csv") return "gsheets";
   if (mime.includes("presentationml") || mime === "application/pdf") return "gslides";
   if (mime.startsWith("image/")) return "gdrawings";

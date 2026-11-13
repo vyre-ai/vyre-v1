@@ -6,7 +6,22 @@
 import { AI_ACCOUNTS, pickSpaceFolder, shareWithEveryone } from "../../../lib/space-folder.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { MINE_CLOSED, itemDelete, itemPut, itemUpdate, maySealMine, openFields, resealOwn } from "./items.ts";
-import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
+import {
+  atLeast,
+  bad,
+  denied,
+  ensure,
+  first,
+  isId,
+  levelOn,
+  newId,
+  num,
+  patchMeta,
+  record,
+  rowsOf,
+  statements,
+  str,
+} from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
 import { currentKeyPort } from "./crypto.ts";
@@ -19,7 +34,17 @@ import type { CatalogEntry } from "./provider-defs.ts";
 import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
 import { decideRefresh } from "../../../host/src/seams/signin-refresh.ts";
 import type { ReadBack } from "../../../host/src/seams/signin-refresh.ts";
-import { aliasesOf, identityOf, learnIdentities, liveSignins, nameForNew, olderOf, setIdentity, shownName, tidySignins } from "./signins.ts";
+import {
+  aliasesOf,
+  identityOf,
+  learnIdentities,
+  liveSignins,
+  nameForNew,
+  olderOf,
+  setIdentity,
+  shownName,
+  tidySignins,
+} from "./signins.ts";
 
 export type { CatalogEntry } from "./provider-defs.ts";
 
@@ -28,17 +53,36 @@ export const CATALOG: readonly CatalogEntry[] = builtinDefs();
 
 function customDefs(ctx: VaultCtx): CatalogEntry[] {
   ensureProviders(ctx);
-  return rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).filter(live).map((r) => ({
-    key: str(r, "key"), name: str(r, "name"), connections: [num(r, "keyless") === 1 ? "local_model" : "api_key"] as CatalogEntry["connections"], modelsSource: `${str(r, "base")}/models`,
-    engine: "custom", base: str(r, "base"), ...(num(r, "keyless") === 1 ? { keyless: true } : {}), models: JSON.parse(str(r, "models")) as string[], custom: true,
-  }));
+  return rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`))
+    .filter(live)
+    .map((r) => ({
+      key: str(r, "key"),
+      name: str(r, "name"),
+      connections: [num(r, "keyless") === 1 ? "local_model" : "api_key"] as CatalogEntry["connections"],
+      modelsSource: `${str(r, "base")}/models`,
+      engine: "custom",
+      base: str(r, "base"),
+      ...(num(r, "keyless") === 1 ? { keyless: true } : {}),
+      models: JSON.parse(str(r, "models")) as string[],
+      custom: true,
+    }));
 }
 /** The definition for a key: a built-in file, else a custom endpoint of this Space. */
-export const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
+export const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined =>
+  CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
 /** `refused`: the vendor answered 401 or 403 to the key. Only that marks an account failing (providers.test); a network error, a timeout or a 5xx is "couldn't check". */
-export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> }
+export interface ProviderProbe {
+  (p: {
+    providerKey: string;
+    connection: string;
+    caller: string;
+    apiKey?: string;
+    address?: string;
+    engine?: string;
+  }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }>;
+}
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const defsSql = readFileSync(new URL("../migrations/0004_provider_defs.sql", import.meta.url), "utf8");
@@ -47,15 +91,33 @@ const ready = new WeakSet<object>();
 export function ensureProviders(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
-  ctx.db.run(`CREATE TABLE IF NOT EXISTS vault_provider_unopenable ("providerId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)`);
-  try { ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe"); } catch { for (const s of statements(providersSql)) ctx.db.run(s); }
-  try { ctx.db.all(`SELECT "key" FROM vault_provider_def WHERE "key" = ?`, "probe"); } catch { for (const s of statements(defsSql)) ctx.db.run(s); }
-  try { ctx.db.all(`SELECT "handle" FROM vault_provider_alias WHERE "handle" = ?`, "probe"); ctx.db.all(`SELECT "providerId" FROM vault_provider_identity WHERE "providerId" = ?`, "probe"); } catch { for (const s of statements(identitySql)) ctx.db.run(s); }
+  ctx.db.run(
+    `CREATE TABLE IF NOT EXISTS vault_provider_unopenable ("providerId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)`,
+  );
+  try {
+    ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe");
+  } catch {
+    for (const s of statements(providersSql)) ctx.db.run(s);
+  }
+  try {
+    ctx.db.all(`SELECT "key" FROM vault_provider_def WHERE "key" = ?`, "probe");
+  } catch {
+    for (const s of statements(defsSql)) ctx.db.run(s);
+  }
+  try {
+    ctx.db.all(`SELECT "handle" FROM vault_provider_alias WHERE "handle" = ?`, "probe");
+    ctx.db.all(`SELECT "providerId" FROM vault_provider_identity WHERE "providerId" = ?`, "probe");
+  } catch {
+    for (const s of statements(identitySql)) ctx.db.run(s);
+  }
   ready.add(ctx.db);
 }
 
 const me = (ctx: VaultCtx): string => ctx.actingFor ?? ctx.principal.id;
-const monthStart = (now: number): number => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
+const monthStart = (now: number): number => {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+};
 const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] === undefined;
 
 function itemOf(ctx: VaultCtx, itemId: string): Row | null {
@@ -72,11 +134,21 @@ function viaOf(connection: string, scope: string): string {
 export function hasSignin(item: Row | null): boolean {
   if (!item) return true;
   let keys: unknown = [];
-  try { keys = JSON.parse(String(item["fieldKeys"] ?? "[]")); } catch { keys = []; }
+  try {
+    keys = JSON.parse(String(item["fieldKeys"] ?? "[]"));
+  } catch {
+    keys = [];
+  }
   return Array.isArray(keys) && (keys.includes("credentials") || keys.includes("setup_token"));
 }
 
-function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx), older = olderOf(ctx, str(p, "owner"))): Record<string, unknown> {
+function rowOut(
+  ctx: VaultCtx,
+  p: Row,
+  used?: { tokens: number; costCents: number },
+  spaceKey = spaceKeyProviderId(ctx),
+  older = olderOf(ctx, str(p, "owner")),
+): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
@@ -86,49 +158,95 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
   const aliases = sub ? aliasesOf(ctx, str(p, "id")) : [];
   const under = older.get(str(p, "id"));
   return {
-    ...(who?.label ? { identity: who.label } : {}), ...(sub ? { displayName: shownName(c?.name ?? str(p, "providerKey"), item ? str(item, "name") : "", who?.label || undefined) } : {}),
-    ...(aliases.length > 0 ? { aliases } : {}), ...(under ? { olderOf: under } : {}),
-    id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
-    connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
+    ...(who?.label ? { identity: who.label } : {}),
+    ...(sub
+      ? {
+          displayName: shownName(
+            c?.name ?? str(p, "providerKey"),
+            item ? str(item, "name") : "",
+            who?.label || undefined,
+          ),
+        }
+      : {}),
+    ...(aliases.length > 0 ? { aliases } : {}),
+    ...(under ? { olderOf: under } : {}),
+    id: str(p, "id"),
+    providerKey: str(p, "providerKey"),
+    name: c?.name ?? str(p, "providerKey"),
+    ...(c?.logo ? { logo: c.logo } : {}),
+    connection: str(p, "connection"),
+    via: viaOf(str(p, "connection"), str(p, "scope")),
+    scope: str(p, "scope"),
+    itemId: str(p, "itemId"),
     ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
-    ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
-    usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
-    spaceMayUse: num(p, "spaceMayUse") === 1, state: sub && str(p, "state") === "ok" && !hasSignin(item) ? "needs_sign_in" : str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
-    ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
+    ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}),
+    agentsUsing: [],
+    usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) },
+    engine: c?.engine ?? str(p, "providerKey"),
+    spaceMayUse: num(p, "spaceMayUse") === 1,
+    state: sub && str(p, "state") === "ok" && !hasSignin(item) ? "needs_sign_in" : str(p, "state"),
+    keepsNothing: keepsNothingOf(ctx, p),
+    ...(address ? { address: str(address, "address") } : {}),
+    ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
     ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
-    ...(sub && str(p, "state") === "needs_sign_in" && first(ctx.db.all(`SELECT "providerId" FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id"))) ? { unopenable: true } : {}),
+    ...(sub &&
+    str(p, "state") === "needs_sign_in" &&
+    first(ctx.db.all(`SELECT "providerId" FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id")))
+      ? { unopenable: true }
+      : {}),
   };
 }
 
 /** The provider the caller may see, or a not-found: a Mine provider is its owner's alone. */
 function mayAct(ctx: VaultCtx, p: Row, need: "use" | "manage"): void {
   if (str(p, "scope") === "mine") {
-    if (str(p, "owner") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
+    if (str(p, "owner") !== me(ctx))
+      throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
     return;
   }
   if (str(p, "owner") === me(ctx)) return;
-  if (!atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), need)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
+  if (!atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), need))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
 }
 
 function providerById(ctx: VaultCtx, id: unknown): Row {
   if (!isId("prv", id)) return bad(ctx, "Provider id is not valid.");
   const p = first(ctx.db.all(`SELECT * FROM vault_provider WHERE id = ?`, id));
-  if (!p || !live(p)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
+  if (!p || !live(p))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That provider is not in this Vault." });
   return p;
 }
 
 // ---- reads
 
 export async function catalog(ctx: VaultCtx, _input: Record<string, never>) {
-  return { providers: [...CATALOG, ...customDefs(ctx)].map((c) => ({ key: c.key, name: c.name, ...(c.logo ? { logo: c.logo } : {}), connections: c.connections, modelsSource: c.modelsSource, engine: c.engine, ...(c.custom ? { custom: true } : {}), ...(c.base ? { base: c.base } : {}) })) };
+  return {
+    providers: [...CATALOG, ...customDefs(ctx)].map((c) => ({
+      key: c.key,
+      name: c.name,
+      ...(c.logo ? { logo: c.logo } : {}),
+      connections: c.connections,
+      modelsSource: c.modelsSource,
+      engine: c.engine,
+      ...(c.custom ? { custom: true } : {}),
+      ...(c.base ? { base: c.base } : {}),
+    })),
+  };
 }
 
 /** This month's tokens and cost on an account, from the turns the engine metered on its item (the person sees their own). Zero when the engine does not answer. */
 async function usageThisMonth(ctx: VaultCtx, itemId: string): Promise<{ tokens: number; costCents: number }> {
   try {
-    const r = (await ctx.call("engine.usage.query", { by: "agent", itemId, from: monthStart(ctx.now()) })) as { totals?: { tokensIn?: number; tokensOut?: number; costMicros?: number } } | null;
-    return { tokens: (r?.totals?.tokensIn ?? 0) + (r?.totals?.tokensOut ?? 0), costCents: Math.round((r?.totals?.costMicros ?? 0) / 10_000) };
-  } catch { return { tokens: 0, costCents: 0 }; }
+    const r = (await ctx.call("engine.usage.query", { by: "agent", itemId, from: monthStart(ctx.now()) })) as {
+      totals?: { tokensIn?: number; tokensOut?: number; costMicros?: number };
+    } | null;
+    return {
+      tokens: (r?.totals?.tokensIn ?? 0) + (r?.totals?.tokensOut ?? 0),
+      costCents: Math.round((r?.totals?.costMicros ?? 0) / 10_000),
+    };
+  } catch {
+    return { tokens: 0, costCents: 0 };
+  }
 }
 
 export async function list(ctx: VaultCtx, _input: Record<string, never>) {
@@ -137,15 +255,32 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   // the Space AI key is every member's to run on, though its item is Restricted: listed for all (a handle and a name, never a value)
   const spaceKey = spaceKeyProviderId(ctx);
   // the person's own Codex and Grok sign-ins saved before accounts were named learn theirs here, while their key is open (a Claude setup token names nobody)
-  try { await learnIdentities(ctx, me(ctx)); } catch { /* the list still answers */ }
+  try {
+    await learnIdentities(ctx, me(ctx));
+  } catch {
+    /* the list still answers */
+  }
   const older = olderOf(ctx, me(ctx));
-  for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live).sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
+  for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`))
+    .filter(live)
+    .sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
-    if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
+    if (str(p, "scope") === "mine") {
+      if (str(p, "owner") !== me(ctx)) continue;
+    }
     // a Space AI account (uses set by an owner or admin) is every member's to reach through its uses, like the Space AI key: listed for all (a handle and a name, never a value)
-    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !isSpaceAccount(ctx, str(p, "id")) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
+    else if (
+      str(p, "owner") !== me(ctx) &&
+      str(p, "id") !== spaceKey &&
+      !isSpaceAccount(ctx, str(p, "id")) &&
+      !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")
+    )
+      continue;
     const used = await usageThisMonth(ctx, str(p, "itemId"));
-    out.push({ ...rowOut(ctx, p, used, spaceKey, older), ...await spaceFields(ctx, p, used.costCents, str(p, "id") === spaceKey ? spaceKeyModels(ctx) : undefined) });
+    out.push({
+      ...rowOut(ctx, p, used, spaceKey, older),
+      ...(await spaceFields(ctx, p, used.costCents, str(p, "id") === spaceKey ? spaceKeyModels(ctx) : undefined)),
+    });
   }
   return { providers: out };
 }
@@ -158,25 +293,48 @@ export async function ownPeople(ctx: VaultCtx, _input: Record<string, never>) {
     if (str(p, "scope") !== "mine" || !itemOf(ctx, str(p, "itemId"))) continue;
     by.set(str(p, "owner"), (by.get(str(p, "owner")) ?? 0) + 1);
   }
-  return { people: [...by].map(([personId, accounts]) => ({ personId, accounts })).sort((a, b) => b.accounts - a.accounts || a.personId.localeCompare(b.personId)) };
+  return {
+    people: [...by]
+      .map(([personId, accounts]) => ({ personId, accounts }))
+      .sort((a, b) => b.accounts - a.accounts || a.personId.localeCompare(b.personId)),
+  };
 }
 
 // ---- add and remove
 
 async function mineFolder(ctx: VaultCtx): Promise<string> {
-  const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).find((f) => live(f) && str(f, "scope") === "mine" && str(f, "owner") === ctx.principal.id && str(f, "name") === "AI providers");
+  const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).find(
+    (f) =>
+      live(f) &&
+      str(f, "scope") === "mine" &&
+      str(f, "owner") === ctx.principal.id &&
+      str(f, "name") === "AI providers",
+  );
   if (have) return str(have, "id");
   // The folder is announced like any other (vault.folder_created): the access module registers a folder from that event, and a folder that was never registered answers "not found" to its own owner
   // when an item is put into it (the Add to the Vault sheet offers it as Mine).
   const id = newId("vfd", ctx.now());
-  ctx.db.run(`INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, id, "AI providers", null, "mine", ctx.principal.id, "[]", ctx.now());
+  ctx.db.run(
+    `INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    "AI providers",
+    null,
+    "mine",
+    ctx.principal.id,
+    "[]",
+    ctx.now(),
+  );
   ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: "mine" }, { vis: "participants" });
   return id;
 }
 
 /** A name no live item of the folder has (a shared folder holds several people's keys for one provider): "OpenRouter", else "OpenRouter 2", and so on. */
 function freeName(ctx: VaultCtx, folderId: string, want: string): string {
-  const taken = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).filter((r) => live(r)).map((r) => str(r, "name").toLowerCase()));
+  const taken = new Set(
+    rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId))
+      .filter((r) => live(r))
+      .map((r) => str(r, "name").toLowerCase()),
+  );
   if (!taken.has(want.toLowerCase())) return want;
   for (let i = 2; ; i++) if (!taken.has(`${want} ${i}`.toLowerCase())) return `${want} ${i}`;
 }
@@ -184,28 +342,58 @@ function freeName(ctx: VaultCtx, folderId: string, want: string): string {
 /** The shared folder a Space-wide key goes in when none was chosen: pickSpaceFolder's rule over the shared folders this person can add to; "AI accounts" is made on first use and shared with
  * Everyone at Use (a Personal Space has nobody to share with, so there it is just made). */
 export async function spaceFolder(ctx: VaultCtx, idem: string): Promise<string> {
-  const shared = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter((f) => live(f) && str(f, "scope") === "shared");
-  const pick = pickSpaceFolder(shared.map((f) => ({ id: str(f, "id"), name: str(f, "name"), canAdd: str(f, "owner") === me(ctx) || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "edit") })));
+  const shared = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter(
+    (f) => live(f) && str(f, "scope") === "shared",
+  );
+  const pick = pickSpaceFolder(
+    shared.map((f) => ({
+      id: str(f, "id"),
+      name: str(f, "name"),
+      canAdd: str(f, "owner") === me(ctx) || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "edit"),
+    })),
+  );
   if (pick.id) return pick.id;
-  const id = String(((await ctx.call("vault.folders.create", { name: AI_ACCOUNTS, scope: "shared", idempotencyKey: `${idem}:ai-folder` })) as { folder: { id: string } }).folder.id);
+  const id = String(
+    (
+      (await ctx.call("vault.folders.create", {
+        name: AI_ACCOUNTS,
+        scope: "shared",
+        idempotencyKey: `${idem}:ai-folder`,
+      })) as { folder: { id: string } }
+    ).folder.id,
+  );
   // shared with Everyone at Use; a refusal is said (lib/space-folder.ts), except in a Personal Space, where there is nobody to share with
   await shareWithEveryone((cap, input) => ctx.call(cap, input), id, idem);
   return id;
 }
 
-export async function add(ctx: VaultCtx, input: { providerKey: string; connection: string; scope: string; apiKey?: string; address?: string; folderId?: string; idempotencyKey: string }) {
+export async function add(
+  ctx: VaultCtx,
+  input: {
+    providerKey: string;
+    connection: string;
+    scope: string;
+    apiKey?: string;
+    address?: string;
+    folderId?: string;
+    idempotencyKey: string;
+  },
+) {
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
   if (!c) return bad(ctx, "That provider is not known.");
-  if (input.connection !== "api_key" && input.connection !== "local_model") return bad(ctx, "Add a key or a local model here; a subscription is connected with Sign in.");
+  if (input.connection !== "api_key" && input.connection !== "local_model")
+    return bad(ctx, "Add a key or a local model here; a subscription is connected with Sign in.");
   if (!c.connections.includes(input.connection)) return bad(ctx, `${c.name} does not connect that way.`);
   if (input.scope !== "mine" && input.scope !== "shared") return bad(ctx, "A provider is Mine or Shared.");
-  if (input.connection === "api_key" && (typeof input.apiKey !== "string" || input.apiKey.trim() === "")) return bad(ctx, "Paste the key.");
+  if (input.connection === "api_key" && (typeof input.apiKey !== "string" || input.apiKey.trim() === ""))
+    return bad(ctx, "Paste the key.");
   // a custom endpoint carries its own address; a local model is told one
   const address = c.custom ? c.base : input.address;
-  if (input.connection === "local_model" && (typeof address !== "string" || !/^https?:\/\//.test(address))) return bad(ctx, "A local model needs its address, like http://localhost:11434.");
+  if (input.connection === "local_model" && (typeof address !== "string" || !/^https?:\/\//.test(address)))
+    return bad(ctx, "A local model needs its address, like http://localhost:11434.");
   if (address !== undefined) {
-    const why = addressProblem(address, input.connection === "api_key") ?? await refusedByHost(ctx, address);
+    const why = addressProblem(address, input.connection === "api_key") ?? (await refusedByHost(ctx, address));
     if (why) return bad(ctx, why);
   }
   // A key is checked with the provider before anything is written or called connected: a refused key is said so in the provider's own words and nothing is saved; a provider that cannot be reached
@@ -213,21 +401,44 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
   // run on its own) leaves the old behaviour.
   if (input.connection === "api_key") await checkKey(ctx, c, input.apiKey!.trim());
   // shared with the Space and no folder chosen: the Space's one shared folder, else "AI accounts" made now and shared with Everyone (lib/space-folder.ts)
-  const folderId = input.folderId ?? (input.scope === "shared" ? await spaceFolder(ctx, input.idempotencyKey) : await mineFolder(ctx));
-  const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
+  const folderId =
+    input.folderId ?? (input.scope === "shared" ? await spaceFolder(ctx, input.idempotencyKey) : await mineFolder(ctx));
+  const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(
+    (p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx),
+  ).length;
   const made = await itemPut(ctx, {
-    folderId, name: freeName(ctx, folderId, n === 0 ? c.name : `${c.name} ${n + 1}`), kind: input.connection === "api_key" ? "api_key" : "other",
+    folderId,
+    name: freeName(ctx, folderId, n === 0 ? c.name : `${c.name} ${n + 1}`),
+    kind: input.connection === "api_key" ? "api_key" : "other",
     fields: [
       ...(input.apiKey ? [{ key: "api_key", value: input.apiKey.trim(), secret: true }] : []),
       ...(address ? [{ key: "address", value: address.trim(), secret: false }] : []),
-    ], idempotencyKey: `${input.idempotencyKey}:item`,
+    ],
+    idempotencyKey: `${input.idempotencyKey}:item`,
   } as Parameters<typeof itemPut>[1]);
   const itemId = str((made as unknown as { item: Row }).item, "id");
   const id = newId("prv", ctx.now());
-  ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, c.key, input.connection, input.scope, me(ctx), itemId, input.scope === "shared" ? 1 : 0, "ok", ctx.now(), null);
-  if (address) ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, id, address.trim());
-  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: c.key, connection: input.connection, scope: input.scope }, { vis: "participants" });
+  ctx.db.run(
+    `INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    c.key,
+    input.connection,
+    input.scope,
+    me(ctx),
+    itemId,
+    input.scope === "shared" ? 1 : 0,
+    "ok",
+    ctx.now(),
+    null,
+  );
+  if (address)
+    ctx.db.run(`INSERT INTO vault_provider_extra ("providerId", "address") VALUES (?, ?)`, id, address.trim());
+  ctx.emit(
+    "provider.added",
+    `entity/${id}`,
+    { providerId: id, providerKey: c.key, connection: input.connection, scope: input.scope },
+    { vis: "participants" },
+  );
   return { provider: rowOut(ctx, providerById(ctx, id)) };
 }
 
@@ -236,13 +447,34 @@ async function checkKey(ctx: VaultCtx, c: CatalogEntry, apiKey: string): Promise
   const run = hostOf()?.probe;
   if (!run) return;
   let r: { ok: boolean; models: string[]; detail?: string; refused?: boolean };
-  try { r = await run({ providerKey: c.key, connection: "api_key", caller: me(ctx), apiKey, ...(c.custom && c.base ? { address: c.base } : {}), engine: c.engine }); } catch { r = { ok: false, models: [], detail: "The provider could not be reached." }; }
-  if (r.ok) return;
-  const said = (r.detail ?? "").replace(/sk-[A-Za-z0-9_-]+/g, "[key]").replace(/\s+/g, " ").trim();
-  if (r.refused === true || /accept|invalid|unauthori[sz]ed|incorrect|key/i.test(said) && !/reach|answer|time/i.test(said)) {
-    throw fail("provider.auth_failed", ctx.trace.traceId, { message: `${c.name} did not accept that key.${said && said.length <= 140 && !/^the provider did not accept this key\.?$/i.test(said) ? ` It said: ${said.replace(/\.$/, "")}.` : ""} Check the key and try again.` });
+  try {
+    r = await run({
+      providerKey: c.key,
+      connection: "api_key",
+      caller: me(ctx),
+      apiKey,
+      ...(c.custom && c.base ? { address: c.base } : {}),
+      engine: c.engine,
+    });
+  } catch {
+    r = { ok: false, models: [], detail: "The provider could not be reached." };
   }
-  throw fail("provider.unavailable", ctx.trace.traceId, { message: `Vyre could not reach ${c.name} to check the key, so it was not saved. Check this server's internet connection and try again.` });
+  if (r.ok) return;
+  const said = (r.detail ?? "")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "[key]")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (
+    r.refused === true ||
+    (/accept|invalid|unauthori[sz]ed|incorrect|key/i.test(said) && !/reach|answer|time/i.test(said))
+  ) {
+    throw fail("provider.auth_failed", ctx.trace.traceId, {
+      message: `${c.name} did not accept that key.${said && said.length <= 140 && !/^the provider did not accept this key\.?$/i.test(said) ? ` It said: ${said.replace(/\.$/, "")}.` : ""} Check the key and try again.`,
+    });
+  }
+  throw fail("provider.unavailable", ctx.trace.traceId, {
+    message: `Vyre could not reach ${c.name} to check the key, so it was not saved. Check this server's internet connection and try again.`,
+  });
 }
 
 /** The host's network guard says no (link-local always; loopback and private unless this is the caller's own computer). No host, no DNS: the syntax check stands. */
@@ -268,9 +500,17 @@ export async function usesSet(ctx: VaultCtx, input: { providerId: string; uses: 
   const p = providerById(ctx, input.providerId);
   setUses(ctx, p, input);
   // the models it serves, so a turn can tell whether it fits (a provider that does not answer leaves the list as it was)
-  if (hostOf()?.probe) { try { await test(ctx, { providerId: str(p, "id") }); } catch { /* listed again on the next test */ } }
+  if (hostOf()?.probe) {
+    try {
+      await test(ctx, { providerId: str(p, "id") });
+    } catch {
+      /* listed again on the next test */
+    }
+  }
   const used = await usageThisMonth(ctx, str(p, "itemId"));
-  return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
+  return {
+    provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...(await spaceFields(ctx, p, used.costCents)) },
+  };
 }
 
 /** providers.set_keeps_nothing: an owner or admin says whether a shared account keeps nothing of what it is sent. The capability is gated on policy.manage. */
@@ -279,7 +519,9 @@ export async function setKeepsNothingFor(ctx: VaultCtx, input: { providerId: str
   const p = providerById(ctx, input.providerId);
   setKeepsNothing(ctx, p, input.keepsNothing);
   const used = await usageThisMonth(ctx, str(p, "itemId"));
-  return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
+  return {
+    provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...(await spaceFields(ctx, p, used.costCents)) },
+  };
 }
 
 export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; allow: boolean }) {
@@ -287,63 +529,131 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
   if (typeof input.allow !== "boolean") bad(ctx, "Allow is yes or no.");
   const p = providerById(ctx, input.providerId);
   mayAct(ctx, p, "manage");
-  if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "manage")) denied(ctx, "Only the owner of a provider says whether the Space may use it.");
+  if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "manage"))
+    denied(ctx, "Only the owner of a provider says whether the Space may use it.");
   ctx.db.run(`UPDATE vault_provider SET "spaceMayUse" = ? WHERE "id" = ?`, input.allow ? 1 : 0, str(p, "id"));
-  ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), spaceMayUse: input.allow }, { vis: "participants" });
+  ctx.emit(
+    "provider.updated",
+    `entity/${str(p, "id")}`,
+    { providerId: str(p, "id"), spaceMayUse: input.allow },
+    { vis: "participants" },
+  );
   return { provider: rowOut(ctx, providerById(ctx, str(p, "id"))) };
 }
 
 // ---- subscription sign-in
 
-export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string; local?: boolean }) {
+export async function subscriptionStart(
+  ctx: VaultCtx,
+  input: { providerKey: string; idempotencyKey: string; local?: boolean },
+) {
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
-  if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
+  if (!c || !c.connections.includes("subscription"))
+    return bad(ctx, "That provider does not sign in with a subscription.");
   // a sign-in is a person's own act: it ends with a credential in their own Mine folder
-  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does. Ask them to press Sign in.");
+  if (ctx.principal.kind === "agent")
+    return bad(ctx, "Signing in is something a person does. Ask them to press Sign in.");
   const id = newId("sub", ctx.now());
   const port = hostOf()?.signin;
   if (port?.has(c.key)) {
     let started: Awaited<ReturnType<SigninPort["start"]>>;
-    try { started = await port.start({ id, provider: c.key, person: me(ctx), ...(input.local === true ? { local: true } : {}) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
-    ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
+    try {
+      started = await port.start({
+        id,
+        provider: c.key,
+        person: me(ctx),
+        ...(input.local === true ? { local: true } : {}),
+      });
+    } catch (e) {
+      return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again.");
+    }
+    ctx.db.run(
+      `INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`,
+      id,
+      me(ctx),
+      c.key,
+      ctx.now(),
+      null,
+    );
     // the sign-in on this computer (owner decision D2): read already, so finishing it saves it; there is no link to open
-    if (input.local === true) return { flowId: id, needsCode: false, instruction: `Using the ${c.name} sign-in on this computer.` };
+    if (input.local === true)
+      return { flowId: id, needsCode: false, instruction: `Using the ${c.name} sign-in on this computer.` };
     return {
-      flowId: id, url: started.url, ...(started.userCode ? { userCode: started.userCode } : {}), needsCode: started.needsCode,
-      instruction: started.needsCode ? `Open the sign-in, approve it, then paste the code ${c.name} shows.` : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace("  ", " "),
+      flowId: id,
+      url: started.url,
+      ...(started.userCode ? { userCode: started.userCode } : {}),
+      needsCode: started.needsCode,
+      instruction: started.needsCode
+        ? `Open the sign-in, approve it, then paste the code ${c.name} shows.`
+        : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace(
+            "  ",
+            " ",
+          ),
     };
   }
-  if (input.local === true) return bad(ctx, "The sign-in on this computer can be used in your Personal Space only. Sign in instead.");
-  ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
-  return { flowId: id, needsCode: false, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
+  if (input.local === true)
+    return bad(ctx, "The sign-in on this computer can be used in your Personal Space only. Sign in instead.");
+  ctx.db.run(
+    `INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`,
+    id,
+    me(ctx),
+    c.key,
+    ctx.now(),
+    null,
+  );
+  return {
+    flowId: id,
+    needsCode: false,
+    instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.`,
+  };
 }
 
 export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: string; code?: string }) {
   ensureProviders(ctx);
   if (!isId("sub", input.flowId)) bad(ctx, "Flow id is not valid.");
   const f = first(ctx.db.all(`SELECT * FROM vault_provider_flow WHERE id = ?`, input.flowId));
-  if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
+  if (!f || str(f, "person") !== me(ctx))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
   if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
   const providerKey = str(f, "providerKey");
   if (f["doneAt"] !== null) {
     // Done pressed again: the account this sign-in saved or refreshed (the one touched last)
-    const again = liveSignins(ctx, me(ctx), providerKey).sort((a, b) => num(itemOf(ctx, str(b, "itemId")), "updatedAt") - num(itemOf(ctx, str(a, "itemId")), "updatedAt"))[0];
+    const again = liveSignins(ctx, me(ctx), providerKey).sort(
+      (a, b) => num(itemOf(ctx, str(b, "itemId")), "updatedAt") - num(itemOf(ctx, str(a, "itemId")), "updatedAt"),
+    )[0];
     if (again) return { provider: rowOut(ctx, again) };
   }
   const port = hostOf()?.signin;
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
   /** The person's own sign-in saved since this flow began and not yet linked as a provider (their client saved it). */
-  const saved = (): Row | undefined => rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
-    .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
-    .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
+  const saved = (): Row | undefined =>
+    rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))
+      .filter(
+        (r) =>
+          live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")),
+      )
+      .filter(
+        (r) =>
+          num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >=
+          num(f, "startedAt"),
+      )
+      .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
   const pasted = typeof input.code === "string" && input.code.trim() !== "";
   // no code, and the sign-in is already saved in Mine by the person's client: the flow is not needed, link what they saved
   if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
   if (port?.active(input.flowId)) {
     // the credential is sealed with the person's own key: a locked key is asked for before the provider is, so a pasted code is not spent on a save that cannot happen
-    if (!(await maySealMine(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
-    const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
+    if (!(await maySealMine(me(ctx))))
+      throw fail("auth.unauthenticated", ctx.trace.traceId, {
+        message: MINE_CLOSED,
+        details: { reason: "vault_locked" },
+      });
+    const step = await port.step({
+      id: input.flowId,
+      person: me(ctx),
+      ...(pasted ? { code: input.code as string } : {}),
+    });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
     const who = step.identity ?? identityOfFields(providerKey, step.fields);
@@ -354,14 +664,37 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     return { provider: rowOut(ctx, providerById(ctx, kept)) };
   }
   const item = saved();
-  if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
+  if (!item)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "The sign-in has not finished yet. Finish it, then press Done again.",
+    });
   const id = newId("prv", ctx.now());
-  ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, providerKey, "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);
+  ctx.db.run(
+    `INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    providerKey,
+    "subscription",
+    "mine",
+    me(ctx),
+    str(item, "id"),
+    0,
+    "ok",
+    ctx.now(),
+    null,
+  );
   ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
-  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey, connection: "subscription", scope: "mine" }, { vis: "participants" });
+  ctx.emit(
+    "provider.added",
+    `entity/${id}`,
+    { providerId: id, providerKey, connection: "subscription", scope: "mine" },
+    { vis: "participants" },
+  );
   // what the client saved names its account when its files do; a second save of that account folds into the row it already had
-  try { await learnIdentities(ctx, me(ctx)); } catch { /* looked for again on the next list */ }
+  try {
+    await learnIdentities(ctx, me(ctx));
+  } catch {
+    /* looked for again on the next list */
+  }
   tidySignins(ctx, me(ctx));
   return { provider: rowOut(ctx, providerById(ctx, aliasedTo(ctx, id))) };
 }
@@ -371,9 +704,19 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
  * so nothing set up on it (a chat's account, an agent's key, a fallback, the Space's use) is left pointing at a dead copy. A sign-in that names an account matches only a row of that account; one that
  * names nobody refreshes the row that names nobody either (the newest that works). Anything else is a new row, named by its account.
  */
-async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string; label?: string } | null, fields: unknown[], flowId: string): Promise<string> {
+async function keepSignin(
+  ctx: VaultCtx,
+  providerKey: string,
+  who: { id: string; label?: string } | null,
+  fields: unknown[],
+  flowId: string,
+): Promise<string> {
   // rows saved before accounts were named learn theirs first (Codex, Grok) and copies of one account are folded, so a sign-in of the same account finds the one row that keeps it
-  try { await learnIdentities(ctx, me(ctx)); } catch { /* matched on what is known */ }
+  try {
+    await learnIdentities(ctx, me(ctx));
+  } catch {
+    /* matched on what is known */
+  }
   tidySignins(ctx, me(ctx));
   const mine = liveSignins(ctx, me(ctx), providerKey);
   const nameless = mine.filter((p) => (identityOf(ctx, str(p, "id"))?.id ?? "") === "");
@@ -381,7 +724,7 @@ async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string;
   const older = olderOf(ctx, me(ctx));
   const same = who
     ? mine.find((p) => identityOf(ctx, str(p, "id"))?.id === who.id)
-    : nameless.find((p) => !older.has(str(p, "id"))) ?? nameless[nameless.length - 1];
+    : (nameless.find((p) => !older.has(str(p, "id"))) ?? nameless[nameless.length - 1]);
   if (same) {
     // an item no key can open (saved under an older key) is REPLACED by this sign-in: the same item, handle, name and history, under the current key
     await itemUpdate(ctx, { itemId: str(same, "itemId"), fieldsSet: fields, replaceUnopenable: true });
@@ -389,7 +732,12 @@ async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string;
     if (who) setIdentity(ctx, str(same, "id"), who);
     if (str(same, "state") !== "ok") {
       ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "ok", str(same, "id"));
-      ctx.emit("provider.updated", `entity/${str(same, "id")}`, { providerId: str(same, "id"), state: "ok" }, { vis: "participants" });
+      ctx.emit(
+        "provider.updated",
+        `entity/${str(same, "id")}`,
+        { providerId: str(same, "id"), state: "ok" },
+        { vis: "participants" },
+      );
     }
     return str(same, "id");
   }
@@ -397,14 +745,36 @@ async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string;
   const c = entry(ctx, providerKey)!;
   const folderId = await mineFolder(ctx);
   // the handle comes from the provider's name alone (an email is never in a handle, which agents and logs carry); the item is then named by its account
-  const made = await itemPut(ctx, { folderId, name: nameForNew(ctx, folderId, c.name), kind: "ai_subscription", fields, idempotencyKey: `${flowId}:item` } as Parameters<typeof itemPut>[1]);
+  const made = await itemPut(ctx, {
+    folderId,
+    name: nameForNew(ctx, folderId, c.name),
+    kind: "ai_subscription",
+    fields,
+    idempotencyKey: `${flowId}:item`,
+  } as Parameters<typeof itemPut>[1]);
   const itemId = str((made as unknown as { item: Row }).item, "id");
   if (who?.label) await itemUpdate(ctx, { itemId, name: nameForNew(ctx, folderId, c.name, who.label) });
   const id = newId("prv", ctx.now());
-  ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, providerKey, "subscription", "mine", me(ctx), itemId, 0, "ok", ctx.now(), null);
+  ctx.db.run(
+    `INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    providerKey,
+    "subscription",
+    "mine",
+    me(ctx),
+    itemId,
+    0,
+    "ok",
+    ctx.now(),
+    null,
+  );
   setIdentity(ctx, id, who);
-  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey, connection: "subscription", scope: "mine" }, { vis: "participants" });
+  ctx.emit(
+    "provider.added",
+    `entity/${id}`,
+    { providerId: id, providerKey, connection: "subscription", scope: "mine" },
+    { vis: "participants" },
+  );
   return id;
 }
 
@@ -414,8 +784,13 @@ function aliasedTo(ctx: VaultCtx, providerId: string): string {
   if (!p || live(p)) return providerId;
   const holder = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "itemId" = ?`, str(p, "itemId"))).find(live);
   if (holder) return str(holder, "id");
-  const handle = str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(p, "itemId"))), "handle").toLowerCase();
-  const hit = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_alias`)).find((r) => str(r, "handle").toLowerCase() === handle);
+  const handle = str(
+    first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(p, "itemId"))),
+    "handle",
+  ).toLowerCase();
+  const hit = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_alias`)).find(
+    (r) => str(r, "handle").toLowerCase() === handle,
+  );
   return hit ? str(hit, "providerId") : providerId;
 }
 
@@ -434,8 +809,12 @@ const fileMap = (json: string | undefined): ReadBack | null => {
   try {
     const v = JSON.parse(json) as unknown;
     if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
-    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string"));
-  } catch { return null; }
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string"),
+    );
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -444,26 +823,46 @@ const fileMap = (json: string | undefined): ReadBack | null => {
  * live Codex or Grok sign-in, the files are still a sign-in of the same account, and they are newer than what the item holds now (decideRefresh). A history line and vault.item_updated say it was
  * refreshed; neither carries a value.
  */
-export async function signinRefreshed(ctx: VaultCtx, input: { ticket: string; itemId: string; asker: string }): Promise<{ saved: boolean; reason: string }> {
+export async function signinRefreshed(
+  ctx: VaultCtx,
+  input: { ticket: string; itemId: string; asker: string },
+): Promise<{ saved: boolean; reason: string }> {
   const itemId = typeof input?.itemId === "string" ? input.itemId : "";
   const prev = refreshing.get(itemId) ?? Promise.resolve();
   const run = prev.catch(() => undefined).then(() => refreshOne(ctx, input));
   refreshing.set(itemId, run);
-  try { return await run; } finally { if (refreshing.get(itemId) === run) refreshing.delete(itemId); }
+  try {
+    return await run;
+  } finally {
+    if (refreshing.get(itemId) === run) refreshing.delete(itemId);
+  }
 }
 
-async function refreshOne(ctx: VaultCtx, input: { ticket: string; itemId: string; asker: string }): Promise<{ saved: boolean; reason: string }> {
+async function refreshOne(
+  ctx: VaultCtx,
+  input: { ticket: string; itemId: string; asker: string },
+): Promise<{ saved: boolean; reason: string }> {
   ensureProviders(ctx);
-  const done = (saved: boolean, reason: string, extra: Record<string, unknown> = {}): { saved: boolean; reason: string } => {
+  const done = (
+    saved: boolean,
+    reason: string,
+    extra: Record<string, unknown> = {},
+  ): { saved: boolean; reason: string } => {
     ctx.log.info("vault.signin_refreshed", { itemId: input.itemId, saved, reason, ...extra });
     return { saved, reason };
   };
-  const held = typeof input.ticket === "string" && typeof input.itemId === "string" ? hostOf()?.refreshed?.take(input.ticket, input.itemId) ?? null : null;
+  const held =
+    typeof input.ticket === "string" && typeof input.itemId === "string"
+      ? (hostOf()?.refreshed?.take(input.ticket, input.itemId) ?? null)
+      : null;
   if (!held || held.asker !== input.asker) return done(false, "gone");
   const it = itemOf(ctx, input.itemId);
   // the person's own subscription sign-in, still live, still the item their provider row keeps
-  if (!it || str(it, "kind") !== "ai_subscription" || str(it, "scope") !== "mine" || str(it, "owner") !== held.asker) return done(false, "not_a_signin");
-  const row = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "itemId" = ?`, input.itemId)).find((p) => live(p) && str(p, "connection") === "subscription" && str(p, "owner") === held.asker);
+  if (!it || str(it, "kind") !== "ai_subscription" || str(it, "scope") !== "mine" || str(it, "owner") !== held.asker)
+    return done(false, "not_a_signin");
+  const row = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "itemId" = ?`, input.itemId)).find(
+    (p) => live(p) && str(p, "connection") === "subscription" && str(p, "owner") === held.asker,
+  );
   const providerKey = row ? str(row, "providerKey") : "";
   if (providerKey !== "codex" && providerKey !== "grok") return done(false, "not_a_signin");
   const filled = fileMap(held.filled);
@@ -472,18 +871,32 @@ async function refreshOne(ctx: VaultCtx, input: { ticket: string; itemId: string
   let why = "unchanged";
   const saved = await resealOwn(ctx, it, (fields) => {
     const current = fileMap(fields.find((f) => f.key === "credentials")?.value);
-    if (!current) { why = "unreadable"; return null; }
+    if (!current) {
+      why = "unreadable";
+      return null;
+    }
     const d = decideRefresh({ provider: providerKey, filled, current, back: held.files, known });
-    if (!d.save) { why = d.why; return null; }
+    if (!d.save) {
+      why = d.why;
+      return null;
+    }
     // a field holds up to 64 KB, as anywhere else in the Vault
-    if (JSON.stringify(held.files).length > 64 * 1024) { why = "too_large"; return null; }
+    if (JSON.stringify(held.files).length > 64 * 1024) {
+      why = "too_large";
+      return null;
+    }
     return fields.map((f) => (f.key === "credentials" ? { ...f, value: JSON.stringify(held.files) } : f));
   });
   if (!saved) return done(false, why, { providerKey });
   const name = entry(ctx, providerKey)?.name ?? providerKey;
   patchMeta(ctx, input.itemId, {});
   record(ctx, input.itemId, "edited", { field: "credentials", detail: `${name} refreshed its sign-in` });
-  ctx.emit("vault.item_updated", `vault_item/${input.itemId}`, { itemId: input.itemId, fieldsChanged: ["credentials"], settingsChanged: [] }, { vis: "participants" });
+  ctx.emit(
+    "vault.item_updated",
+    `vault_item/${input.itemId}`,
+    { itemId: input.itemId, fieldsChanged: ["credentials"], settingsChanged: [] },
+    { vis: "participants" },
+  );
   return done(true, "refreshed", { providerKey });
 }
 
@@ -498,11 +911,20 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   const extra = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
   const started = Date.now();
   const done = (ok: boolean, models: string[], detail?: string) => {
-    ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, ok ? "ok" : str(p, "connection") === "subscription" ? "needs_sign_in" : "failing", str(p, "id"));
+    ctx.db.run(
+      `UPDATE vault_provider SET "state" = ? WHERE "id" = ?`,
+      ok ? "ok" : str(p, "connection") === "subscription" ? "needs_sign_in" : "failing",
+      str(p, "id"),
+    );
     return { ok, models, latencyMs: Math.max(0, Date.now() - started), ...(detail ? { detail } : {}) };
   };
   // the vendor could not be asked (no network, a timeout, a 5xx, no way to reach it from here): nothing is known about the key, so its state stays as it was
-  const unchecked = (detail: string) => ({ ok: false, models: [] as string[], latencyMs: Math.max(0, Date.now() - started), detail: `Couldn't check: ${detail}` });
+  const unchecked = (detail: string) => ({
+    ok: false,
+    models: [] as string[],
+    latencyMs: Math.max(0, Date.now() - started),
+    detail: `Couldn't check: ${detail}`,
+  });
   if (!item) return done(false, [], "The item that holds this account is gone. Add it again.");
   if (str(p, "connection") === "subscription") {
     // a subscription is proved by a turn; here the sign-in is there and the models are the ones it offers
@@ -513,47 +935,107 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   const fields = await openFields(ctx, item);
   const value = (k: string): string | undefined => fields.find((f) => f.key === k)?.value;
   try {
-    const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}), engine: c?.engine ?? str(p, "providerKey") });
+    const r = await probe({
+      providerKey: str(p, "providerKey"),
+      connection: str(p, "connection"),
+      caller: me(ctx),
+      ...(value("api_key") ? { apiKey: value("api_key")! } : {}),
+      ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}),
+      engine: c?.engine ?? str(p, "providerKey"),
+    });
     // only the vendor refusing the key (401 or 403) marks the account failing; any other miss leaves it usable
     if (r.ok) keepModels(ctx, str(p, "id"), r.models);
     if (r.ok || r.refused === true) return done(r.ok, r.models, r.detail);
     return unchecked(r.detail ?? "The provider did not answer.");
   } catch (e) {
-    return unchecked(e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");
+    return unchecked(
+      e instanceof Error
+        ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200)
+        : "The provider did not answer.",
+    );
   }
 }
 
-
 // ---- custom OpenAI-compatible endpoints (a Space's own definitions)
 
-const slug = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "endpoint";
+const slug = (name: string): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "endpoint";
 
 function defOut(c: CatalogEntry, ctx: VaultCtx): Record<string, unknown> {
-  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && str(p, "providerKey") === c.key && str(p, "owner") === me(ctx)).length;
-  return { key: c.key, name: c.name, base: c.base ?? "", keyless: c.keyless === true, models: c.models ?? [], connected: mine };
+  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(
+    (p) => live(p) && str(p, "providerKey") === c.key && str(p, "owner") === me(ctx),
+  ).length;
+  return {
+    key: c.key,
+    name: c.name,
+    base: c.base ?? "",
+    keyless: c.keyless === true,
+    models: c.models ?? [],
+    connected: mine,
+  };
 }
 
 /** Register an endpoint that speaks Chat Completions (a gateway, vLLM, LiteLLM, a hosted model) and connect it with the caller's key. The base address is checked (https for a key; the host's network guard for the rest). */
-export async function customAdd(ctx: VaultCtx, input: { name: string; baseUrl: string; apiKey?: string; models?: string[]; scope: string; folderId?: string; idempotencyKey: string }) {
+export async function customAdd(
+  ctx: VaultCtx,
+  input: {
+    name: string;
+    baseUrl: string;
+    apiKey?: string;
+    models?: string[];
+    scope: string;
+    folderId?: string;
+    idempotencyKey: string;
+  },
+) {
   ensureProviders(ctx);
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (name === "") return bad(ctx, "Give the endpoint a name.");
   const base = typeof input.baseUrl === "string" ? input.baseUrl.trim().replace(/\/+$/, "") : "";
   const hasKey = typeof input.apiKey === "string" && input.apiKey.trim() !== "";
-  const why = addressProblem(base, hasKey) ?? await refusedByHost(ctx, base);
+  const why = addressProblem(base, hasKey) ?? (await refusedByHost(ctx, base));
   if (why) return bad(ctx, why);
-  if (input.models !== undefined && (!Array.isArray(input.models) || input.models.some((m) => typeof m !== "string" || m.trim() === ""))) return bad(ctx, "Models are a list of names.");
-  const taken = new Set([...CATALOG.map((c) => c.key), ...rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).map((r) => str(r, "key"))]);
-  const sameBase = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find((r) => live(r) && str(r, "base") === base && str(r, "name") === name);
+  if (
+    input.models !== undefined &&
+    (!Array.isArray(input.models) || input.models.some((m) => typeof m !== "string" || m.trim() === ""))
+  )
+    return bad(ctx, "Models are a list of names.");
+  const taken = new Set([
+    ...CATALOG.map((c) => c.key),
+    ...rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).map((r) => str(r, "key")),
+  ]);
+  const sameBase = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find(
+    (r) => live(r) && str(r, "base") === base && str(r, "name") === name,
+  );
   let key = sameBase ? str(sameBase, "key") : `custom-${slug(name)}`;
   if (!sameBase) for (let n = 2; taken.has(key); n++) key = `custom-${slug(name)}-${n}`;
   if (!sameBase) {
-    ctx.db.run(`INSERT INTO vault_provider_def ("key", "name", "base", "keyless", "models", "createdBy", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      key, name, base, hasKey ? 0 : 1, JSON.stringify((input.models ?? []).map((m) => m.trim())), me(ctx), ctx.now(), null);
+    ctx.db.run(
+      `INSERT INTO vault_provider_def ("key", "name", "base", "keyless", "models", "createdBy", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      key,
+      name,
+      base,
+      hasKey ? 0 : 1,
+      JSON.stringify((input.models ?? []).map((m) => m.trim())),
+      me(ctx),
+      ctx.now(),
+      null,
+    );
   }
   let added: Awaited<ReturnType<typeof add>>;
   try {
-    added = await add(ctx, { providerKey: key, connection: hasKey ? "api_key" : "local_model", scope: input.scope, ...(hasKey ? { apiKey: input.apiKey! } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), idempotencyKey: input.idempotencyKey });
+    added = await add(ctx, {
+      providerKey: key,
+      connection: hasKey ? "api_key" : "local_model",
+      scope: input.scope,
+      ...(hasKey ? { apiKey: input.apiKey! } : {}),
+      ...(input.folderId ? { folderId: input.folderId } : {}),
+      idempotencyKey: input.idempotencyKey,
+    });
   } catch (e) {
     // a key the endpoint refuses leaves nothing behind, not even the endpoint's definition made a moment ago
     if (!sameBase) ctx.db.run(`DELETE FROM vault_provider_def WHERE "key" = ?`, key);
@@ -569,11 +1051,18 @@ export async function customList(ctx: VaultCtx, _input: Record<string, never>) {
 /** Remove an endpoint definition and the caller's own connections to it. Another person's connection to it stops the removal (they remove theirs first, or the owner of the definition asks them). */
 export async function customRemove(ctx: VaultCtx, input: { key: string }) {
   ensureProviders(ctx);
-  const def = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find((r) => live(r) && str(r, "key") === input.key);
+  const def = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_def`)).find(
+    (r) => live(r) && str(r, "key") === input.key,
+  );
   if (!def) throw fail("validation.not_found", ctx.trace.traceId, { message: "That endpoint is not registered." });
   if (str(def, "createdBy") !== me(ctx)) denied(ctx, "Only the person who registered an endpoint removes it.");
-  const using = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && str(p, "providerKey") === input.key);
-  if (using.some((p) => str(p, "owner") !== me(ctx))) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Someone else still uses this endpoint. They remove their connection first." });
+  const using = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(
+    (p) => live(p) && str(p, "providerKey") === input.key,
+  );
+  if (using.some((p) => str(p, "owner") !== me(ctx)))
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "Someone else still uses this endpoint. They remove their connection first.",
+    });
   for (const p of using) await remove(ctx, { providerId: str(p, "id") });
   ctx.db.run(`UPDATE vault_provider_def SET "deleted_at" = ? WHERE "key" = ?`, ctx.now(), input.key);
   return { ok: true };
@@ -585,15 +1074,38 @@ export async function customRemove(ctx: VaultCtx, input: { key: string }) {
  */
 export function markSigninNeeded(ctx: VaultCtx, input: { handle: string; why?: string }): { marked: boolean } {
   ensureProviders(ctx);
-  const want = String(input.handle ?? "").replace(/^#/, "").split(".")[0]!.toLowerCase();
+  const want = String(input.handle ?? "")
+    .replace(/^#/, "")
+    .split(".")[0]!
+    .toLowerCase();
   if (want === "") return { marked: false };
-  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = ? AND "scope" = ?`, me(ctx), "subscription", "mine")).filter(live);
-  const p = mine.find((r) => str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(r, "itemId"))), "handle").replace(/^#/, "").toLowerCase() === want);
+  const mine = rowsOf(
+    ctx.db.all(
+      `SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = ? AND "scope" = ?`,
+      me(ctx),
+      "subscription",
+      "mine",
+    ),
+  ).filter(live);
+  const p = mine.find(
+    (r) =>
+      str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(r, "itemId"))), "handle")
+        .replace(/^#/, "")
+        .toLowerCase() === want,
+  );
   if (!p) return { marked: false };
-  if (input.why === "unopenable") { ctx.db.run(`DELETE FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id")); ctx.db.run(`INSERT INTO vault_provider_unopenable ("providerId", "at") VALUES (?, ?)`, str(p, "id"), ctx.now()); }
+  if (input.why === "unopenable") {
+    ctx.db.run(`DELETE FROM vault_provider_unopenable WHERE "providerId" = ?`, str(p, "id"));
+    ctx.db.run(`INSERT INTO vault_provider_unopenable ("providerId", "at") VALUES (?, ?)`, str(p, "id"), ctx.now());
+  }
   if (str(p, "state") !== "needs_sign_in") {
     ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "needs_sign_in", str(p, "id"));
-    ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), state: "needs_sign_in" }, { vis: "participants" });
+    ctx.emit(
+      "provider.updated",
+      `entity/${str(p, "id")}`,
+      { providerId: str(p, "id"), state: "needs_sign_in" },
+      { vis: "participants" },
+    );
   }
   return { marked: true };
 }

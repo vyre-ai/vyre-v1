@@ -36,7 +36,9 @@ function esc(value: string): string {
 }
 
 function cssVars(tokens: Record<string, string>): string {
-  return Object.entries(tokens).map(([key, value]) => `${key}:${value}`).join(";");
+  return Object.entries(tokens)
+    .map(([key, value]) => `${key}:${value}`)
+    .join(";");
 }
 
 async function batch1Body(): Promise<string> {
@@ -50,16 +52,55 @@ async function batch1Body(): Promise<string> {
   const { TabStripPlaceholder } = await import("../../ui/src/TabStrip/Placeholder.tsx");
   const { VirtualListPlaceholder } = await import("../../ui/src/VirtualList/Placeholder.tsx");
   const parts = [
-    VirtualListPlaceholder({ data: [{ title: "Inbox" }, { title: "Sent" }, { title: "Drafts" }], renderItem: () => null, rowHeight: 32 }),
+    VirtualListPlaceholder({
+      data: [{ title: "Inbox" }, { title: "Sent" }, { title: "Drafts" }],
+      renderItem: () => null,
+      rowHeight: 32,
+    }),
     MenuPlaceholder({ items: [{ label: "Open" }, { label: "Rename" }, { label: "Delete", danger: true }] }),
-    TabStripPlaceholder({ tabs: [{ key: "a", title: "Chat" }, { key: "b", title: "Files" }], active: "b", onPlus: () => {}, plusTitle: "New tab" }),
-    SidePanePlaceholder({ toggle: { open: false }, paneKey: "ask", title: "Ask", tabs: [{ key: "x", title: "Info" }, { key: "y", title: "Activity" }], activeTab: "x" }),
+    TabStripPlaceholder({
+      tabs: [
+        { key: "a", title: "Chat" },
+        { key: "b", title: "Files" },
+      ],
+      active: "b",
+      onPlus: () => {},
+      plusTitle: "New tab",
+    }),
+    SidePanePlaceholder({
+      toggle: { open: false },
+      paneKey: "ask",
+      title: "Ask",
+      tabs: [
+        { key: "x", title: "Info" },
+        { key: "y", title: "Activity" },
+      ],
+      activeTab: "x",
+    }),
     RowPlaceholder({ id: "r1", title: "Acme Law", note: "Open matter", selected: true }),
-    StatesPlaceholder({ kind: "empty", title: "No files yet", icon: "files", action: { label: "Add a file", onPress: () => {} } }),
-    StatesPlaceholder({ kind: "error", message: "Could not save", cause: "Disk full", next: "Free space and retry", retryable: true, traceId: "t-1" }),
+    StatesPlaceholder({
+      kind: "empty",
+      title: "No files yet",
+      icon: "files",
+      action: { label: "Add a file", onPress: () => {} },
+    }),
+    StatesPlaceholder({
+      kind: "error",
+      message: "Could not save",
+      cause: "Disk full",
+      next: "Free space and retry",
+      retryable: true,
+      traceId: "t-1",
+    }),
     ComposerPlaceholder(batch1ComposerSample),
     RecipientsPlaceholder({ to: [{ email: "a@x.com", name: "Ann" }], cc: ["b@x.com"] }),
-    ListSectionsPlaceholder({ type: "forms", sections: [{ name: "Personal", rows: [{ id: "1", title: "Intake" }] }, { name: "Space", rows: [{ id: "2", title: "Referral", note: "3" }] }] }),
+    ListSectionsPlaceholder({
+      type: "forms",
+      sections: [
+        { name: "Personal", rows: [{ id: "1", title: "Intake" }] },
+        { name: "Space", rows: [{ id: "2", title: "Referral", note: "3" }] },
+      ],
+    }),
   ];
   return `<main data-screen="batch1" data-screen-id="batch1">${parts.join("")}</main>`;
 }

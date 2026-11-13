@@ -5,7 +5,11 @@ export const OUT = "shots-evidence/chat-flows";
 export const askers: string[] = [];
 let release: () => void = () => undefined;
 let gate: Promise<void> = Promise.resolve();
-export const arm = (): void => { gate = new Promise<void>((r) => { release = r; }); };
+export const arm = (): void => {
+  gate = new Promise<void>((r) => {
+    release = r;
+  });
+};
 export const letGo = (): void => release();
 
 /** The model stand-in: answers in two pieces; a question that says "slowly" waits between them until the test lets it go. */

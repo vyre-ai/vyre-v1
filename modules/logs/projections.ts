@@ -28,17 +28,24 @@ export function foldEvent(tx: Tx, e: StoredEvent): void {
 }
 
 /** Every event type is indexed, so `on` answers for any name instead of listing the 598. */
-const everyEvent: Record<string, (tx: Tx, e: StoredEvent) => void> = new Proxy({} as Record<string, (tx: Tx, e: StoredEvent) => void>, {
-  get: (_target, name) => (typeof name === "string" ? foldEvent : undefined),
-});
+const everyEvent: Record<string, (tx: Tx, e: StoredEvent) => void> = new Proxy(
+  {} as Record<string, (tx: Tx, e: StoredEvent) => void>,
+  {
+    get: (_target, name) => (typeof name === "string" ? foldEvent : undefined),
+  },
+);
 
 export const logsEvents: AsyncConsumer = {
   name: "logs.events",
   version: 1,
   mode: "async",
   rebuild: "replay",
-  init(tx) { tx.exec(EVENT_DDL); },
-  reset(tx) { tx.exec("DELETE FROM logs_event"); },
+  init(tx) {
+    tx.exec(EVENT_DDL);
+  },
+  reset(tx) {
+    tx.exec("DELETE FROM logs_event");
+  },
   on: everyEvent,
 };
 

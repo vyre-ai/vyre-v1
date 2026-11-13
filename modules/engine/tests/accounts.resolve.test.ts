@@ -5,14 +5,37 @@ import { providerOfModel, resolveAccount, serverMayUse, skipReason } from "../..
 import type { AccountRow, ResolveRequest } from "../../../agent/src/accounts/index.ts";
 
 const row = (o: Partial<AccountRow> & { ref: string }): AccountRow => ({
-  driver: "anthropic", provider: "anthropic", kind: "api_key", title: o.ref, mine: false, ownerId: null, status: "ok", lastProbeAt: null, spaceMayUse: false, ...o,
+  driver: "anthropic",
+  provider: "anthropic",
+  kind: "api_key",
+  title: o.ref,
+  mine: false,
+  ownerId: null,
+  status: "ok",
+  lastProbeAt: null,
+  spaceMayUse: false,
+  ...o,
 });
 const dana = row({ ref: "#Dana_Anthropic", mine: true, ownerId: "usr_dana" });
-const danaSub = row({ ref: "sub_dana", kind: "subscription", driver: "claude_code", mine: true, ownerId: "usr_dana", spaceMayUse: true });
+const danaSub = row({
+  ref: "sub_dana",
+  kind: "subscription",
+  driver: "claude_code",
+  mine: true,
+  ownerId: "usr_dana",
+  spaceMayUse: true,
+});
 const sam = row({ ref: "#Sam_Anthropic", mine: true, ownerId: "usr_sam" });
 const team = row({ ref: "#Team_Anthropic_Key" });
 const base = (over: Partial<ResolveRequest> = {}): ResolveRequest => ({
-  starter: "usr_dana", trigger: "message", agent: { accountPolicy: "asker", provider: "anthropic" }, backupRefs: [], policy: "any", accounts: [dana, sam, team], onServer: true, ...over,
+  starter: "usr_dana",
+  trigger: "message",
+  agent: { accountPolicy: "asker", provider: "anthropic" },
+  backupRefs: [],
+  policy: "any",
+  accounts: [dana, sam, team],
+  onServer: true,
+  ...over,
 });
 const pick = (r: ReturnType<typeof resolveAccount>) => [r.accountRef, r.payer, r.reason];
 
@@ -26,8 +49,16 @@ test("whoever steers pays for the turn their message causes, on their own accoun
 });
 
 test("a wake-up runs on the starter's account whoever last spoke; a routine on its setter's", () => {
-  assert.deepEqual(pick(resolveAccount(base({ trigger: "wake", steerer: "usr_sam" }))), ["#Dana_Anthropic", "usr_dana", "starter"]);
-  assert.deepEqual(pick(resolveAccount(base({ trigger: "routine", routineOwner: "usr_sam" }))), ["#Sam_Anthropic", "usr_sam", "starter"]);
+  assert.deepEqual(pick(resolveAccount(base({ trigger: "wake", steerer: "usr_sam" }))), [
+    "#Dana_Anthropic",
+    "usr_dana",
+    "starter",
+  ]);
+  assert.deepEqual(pick(resolveAccount(base({ trigger: "routine", routineOwner: "usr_sam" }))), [
+    "#Sam_Anthropic",
+    "usr_sam",
+    "starter",
+  ]);
 });
 
 test("a subscription sign-in is preferred over a key of the same person", () => {
@@ -35,7 +66,9 @@ test("a subscription sign-in is preferred over a key of the same person", () => 
 });
 
 test("a team key: the agent points at it, usage is logged against the asker", () => {
-  const r = resolveAccount(base({ agent: { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" }, steerer: "usr_sam" }));
+  const r = resolveAccount(
+    base({ agent: { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" }, steerer: "usr_sam" }),
+  );
   assert.deepEqual(pick(r), ["#Team_Anthropic_Key", "usr_sam", "steerer"]);
 });
 
@@ -47,7 +80,9 @@ test("a thread pin beats the agent's setting; a pin to someone else's Mine accou
 });
 
 test("a signed-out or failing account is skipped, and its owner gets an Unblock even when a backup serves the turn", () => {
-  const r = resolveAccount(base({ accounts: [{ ...dana, status: "failed" }, team], backupRefs: ["#Team_Anthropic_Key"] }));
+  const r = resolveAccount(
+    base({ accounts: [{ ...dana, status: "failed" }, team], backupRefs: ["#Team_Anthropic_Key"] }),
+  );
   assert.deepEqual(pick(r), ["#Team_Anthropic_Key", "usr_dana", "backup_key"]);
   assert.equal(r.unblock?.why, "failed");
   assert.equal(r.unblock?.to, "usr_dana");
@@ -57,9 +92,14 @@ test("a signed-out or failing account is skipped, and its owner gets an Unblock 
 });
 
 test("Company only: personal keys and subscriptions are out, shared keys stay", () => {
-  const r = resolveAccount(base({ policy: "company", accounts: [dana, danaSub, team], backupRefs: ["#Team_Anthropic_Key"] }));
+  const r = resolveAccount(
+    base({ policy: "company", accounts: [dana, danaSub, team], backupRefs: ["#Team_Anthropic_Key"] }),
+  );
   assert.deepEqual(pick(r), ["#Team_Anthropic_Key", "usr_dana", "backup_key"]);
-  assert.deepEqual(r.tried.filter((t) => !t.used).map((t) => t.why), ["policy_company", "policy_company"]);
+  assert.deepEqual(
+    r.tried.filter((t) => !t.used).map((t) => t.why),
+    ["policy_company", "policy_company"],
+  );
   const none = resolveAccount(base({ policy: "company", accounts: [dana, danaSub] }));
   assert.equal(none.reason, "none");
   assert.equal(none.unblock?.why, "policy");
@@ -67,14 +107,33 @@ test("Company only: personal keys and subscriptions are out, shared keys stay", 
 
 test("a person's own sign-in answers their own turns on a server with the standing switch off; a routine or a task of theirs still needs it", () => {
   const off = { ...danaSub, spaceMayUse: false };
-  assert.equal(resolveAccount(base({ accounts: [off], onServer: true })).accountRef, "sub_dana", "her message, on the Space server, runs on her sign-in");
+  assert.equal(
+    resolveAccount(base({ accounts: [off], onServer: true })).accountRef,
+    "sub_dana",
+    "her message, on the Space server, runs on her sign-in",
+  );
   assert.equal(skipReason(off, base(), "usr_dana"), null);
-  assert.equal(resolveAccount(base({ trigger: "wake", accounts: [off], onServer: true })).accountRef, "sub_dana", "a wake of her own chat is hers too");
+  assert.equal(
+    resolveAccount(base({ trigger: "wake", accounts: [off], onServer: true })).accountRef,
+    "sub_dana",
+    "a wake of her own chat is hers too",
+  );
   assert.equal(resolveAccount(base({ accounts: [off], onServer: false })).accountRef, "sub_dana");
   // automations: the switch still decides
-  assert.equal(resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [off], onServer: true })).accountRef, null);
-  assert.equal(skipReason(off, base({ trigger: "routine", routineOwner: "usr_dana" }), "usr_dana"), "space_may_not_use");
-  assert.equal(resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [danaSub], onServer: true })).accountRef, "sub_dana", "with the switch on, her routine runs on it");
+  assert.equal(
+    resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [off], onServer: true })).accountRef,
+    null,
+  );
+  assert.equal(
+    skipReason(off, base({ trigger: "routine", routineOwner: "usr_dana" }), "usr_dana"),
+    "space_may_not_use",
+  );
+  assert.equal(
+    resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [danaSub], onServer: true }))
+      .accountRef,
+    "sub_dana",
+    "with the switch on, her routine runs on it",
+  );
   // a steerer never pays with the starter's sign-in
   assert.equal(resolveAccount(base({ steerer: "usr_sam", accounts: [off], onServer: true })).accountRef, null);
 });
@@ -87,7 +146,13 @@ test("an agent that needs another provider does not borrow the wrong account", (
 test("nothing usable: the run waits, the owner's Needs you gets an Unblock, and the attempts are listed", () => {
   const r = resolveAccount(base({ accounts: [] }));
   assert.deepEqual([r.accountRef, r.payer, r.reason, r.allowed], [null, null, "none", false]);
-  assert.deepEqual(r.unblock, { to: "usr_dana", kind: "unblock", ref: null, why: "no_account", next: [{ kind: "open_settings", label: "Open AI settings" }] });
+  assert.deepEqual(r.unblock, {
+    to: "usr_dana",
+    kind: "unblock",
+    ref: null,
+    why: "no_account",
+    next: [{ kind: "open_settings", label: "Open AI settings" }],
+  });
 });
 
 test("serverMayUse: only the owner's own turn or routine, and only with the switch on", () => {
@@ -109,20 +174,59 @@ test("providerOfModel reads router slugs and model families", () => {
 });
 
 test("a sign-in kept under the tool's own key serves a model of its maker: claude-code for a Claude model, codex for GPT, grok for Grok", () => {
-  const sub = (provider: string): AccountRow => row({ ref: `sub_${provider}`, kind: "subscription", provider, driver: provider, mine: true, ownerId: "usr_dana", spaceMayUse: true });
-  for (const [tool, model] of [["claude-code", "claude-haiku-5-5"], ["codex", "gpt-5"], ["grok", "grok-4"]] as const) {
-    const r = resolveAccount(base({ agent: { accountPolicy: "asker", provider: providerOfModel(model) as string }, accounts: [sub(tool)], onServer: false }));
+  const sub = (provider: string): AccountRow =>
+    row({
+      ref: `sub_${provider}`,
+      kind: "subscription",
+      provider,
+      driver: provider,
+      mine: true,
+      ownerId: "usr_dana",
+      spaceMayUse: true,
+    });
+  for (const [tool, model] of [
+    ["claude-code", "claude-haiku-5-5"],
+    ["codex", "gpt-5"],
+    ["grok", "grok-4"],
+  ] as const) {
+    const r = resolveAccount(
+      base({
+        agent: { accountPolicy: "asker", provider: providerOfModel(model) as string },
+        accounts: [sub(tool)],
+        onServer: false,
+      }),
+    );
     assert.equal(r.accountRef, `sub_${tool}`, `${model} runs on the ${tool} sign-in`);
   }
-  const other = resolveAccount(base({ agent: { accountPolicy: "asker", provider: providerOfModel("gemini-2.5-pro") as string }, accounts: [sub("claude-code")], onServer: false }));
+  const other = resolveAccount(
+    base({
+      agent: { accountPolicy: "asker", provider: providerOfModel("gemini-2.5-pro") as string },
+      accounts: [sub("claude-code")],
+      onServer: false,
+    }),
+  );
   assert.equal(other.allowed, false, "a Claude sign-in does not serve a Gemini model");
 });
 
 test("a person's own account answers before a Space account, whichever spelling the provider has (owner, 6 Nov)", () => {
-  const space = row({ ref: "#Space_OpenCode", driver: "opencode-go", provider: "opencode-go", spaceKey: true, models: ["glm-5"] });
-  const own = row({ ref: "#Dana_OpenCode", driver: "opencode-go", provider: "opencode-go", mine: true, ownerId: "usr_dana" });
+  const space = row({
+    ref: "#Space_OpenCode",
+    driver: "opencode-go",
+    provider: "opencode-go",
+    spaceKey: true,
+    models: ["glm-5"],
+  });
+  const own = row({
+    ref: "#Dana_OpenCode",
+    driver: "opencode-go",
+    provider: "opencode-go",
+    mine: true,
+    ownerId: "usr_dana",
+  });
   for (const wanted of ["opencode-go", "opencode_go"]) {
-    const r = resolveAccount(base({ model: "glm-5", agent: { accountPolicy: "asker", provider: wanted }, accounts: [space, own] }));
+    const r = resolveAccount(
+      base({ model: "glm-5", agent: { accountPolicy: "asker", provider: wanted }, accounts: [space, own] }),
+    );
     assert.deepEqual(pick(r), ["#Dana_OpenCode", "usr_dana", "starter"], wanted);
   }
 });

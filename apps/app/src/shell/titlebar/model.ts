@@ -44,21 +44,35 @@ export function skinSwatch(id: string): string {
   const s = skins.find((x) => x.id === id);
   if (!s) return SYSTEM_ICON;
   const p = s.palette;
-  return `<svg ${SVG_OPEN}><rect x="0.5" y="0.5" width="15" height="15" rx="4" fill="${p.win}" stroke="${p.me}" stroke-width="1"/>`
-    + `<rect x="3" y="3" width="10" height="5.5" rx="1.5" fill="${p.raised}"/><circle cx="10.5" cy="11.5" r="1.8" fill="${p.accent}"/></svg>`;
+  return (
+    `<svg ${SVG_OPEN}><rect x="0.5" y="0.5" width="15" height="15" rx="4" fill="${p.win}" stroke="${p.me}" stroke-width="1"/>` +
+    `<rect x="3" y="3" width="10" height="5.5" rx="1.5" fill="${p.raised}"/><circle cx="10.5" cy="11.5" r="1.8" fill="${p.accent}"/></svg>`
+  );
 }
 
 /** The dropdown, as the prototype draws it: "Your skin in <Space>", Vyre (the default), the dark skins, the light ones, then More in Appearance. Each skin has its swatch; the open skin is checked. */
-export function skinMenuEntries(current: string, onSkin: (id: string) => void, more?: { space?: string; onMore?: () => void }): MenuEntry[] {
+export function skinMenuEntries(
+  current: string,
+  onSkin: (id: string) => void,
+  more?: { space?: string; onMore?: () => void },
+): MenuEntry[] {
   const out: MenuEntry[] = [];
   if (more?.space) out.push({ head: `Your skin in ${more.space}` });
-  out.push({ label: system.name, icon: SYSTEM_ICON, checked: current === SYSTEM_SKIN, onSelect: () => onSkin(SYSTEM_SKIN) });
+  out.push({
+    label: system.name,
+    icon: SYSTEM_ICON,
+    checked: current === SYSTEM_SKIN,
+    onSelect: () => onSkin(SYSTEM_SKIN),
+  });
   const group = (head: string, base: "dark" | "light"): void => {
     out.push({ head });
-    for (const s of skins) if (s.base === base) out.push({ label: s.name, icon: skinSwatch(s.id), checked: s.id === current, onSelect: () => onSkin(s.id) });
+    for (const s of skins)
+      if (s.base === base)
+        out.push({ label: s.name, icon: skinSwatch(s.id), checked: s.id === current, onSelect: () => onSkin(s.id) });
   };
   group("Dark", "dark");
   group("Light", "light");
-  if (more?.onMore) out.push({ separator: true }, { label: "More in Appearance", icon: SYSTEM_ICON, onSelect: more.onMore });
+  if (more?.onMore)
+    out.push({ separator: true }, { label: "More in Appearance", icon: SYSTEM_ICON, onSelect: more.onMore });
   return out;
 }

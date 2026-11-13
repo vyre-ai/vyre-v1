@@ -20,8 +20,16 @@ export function HealthView({ health, selectedId, onSelect }: HealthViewProps): R
   const items = worstFirst(health.items);
   return (
     <View style={s.frame} testID="vault-health">
-      <Text style={s.summary} testID="health-summary" accessibilityRole="summary">{`${summaryWords(health)} · ${health.total} checked`}</Text>
-      {items.length === 0 ? <Text style={s.clear} testID="health-clear">Nothing needs attention.</Text> : (
+      <Text
+        style={s.summary}
+        testID="health-summary"
+        accessibilityRole="summary"
+      >{`${summaryWords(health)} · ${health.total} checked`}</Text>
+      {items.length === 0 ? (
+        <Text style={s.clear} testID="health-clear">
+          Nothing needs attention.
+        </Text>
+      ) : (
         <VirtualList
           data={items}
           rowHeight={HEALTH_ROW_HEIGHT}
@@ -29,8 +37,19 @@ export function HealthView({ health, selectedId, onSelect }: HealthViewProps): R
           renderItem={(raw) => {
             const it = raw as Health["items"][number];
             return (
-              <Row id={`health:${it.itemId}`} title={it.name} note={issueLine(it.issues)} selected={it.itemId === selectedId} leading={<View style={s.logo}><LogoTile name={it.name} size={30} /></View>}
-                trailing={<View style={s.dot} accessibilityLabel="Worth a look" />} onPress={() => onSelect(it.itemId)} />
+              <Row
+                id={`health:${it.itemId}`}
+                title={it.name}
+                note={issueLine(it.issues)}
+                selected={it.itemId === selectedId}
+                leading={
+                  <View style={s.logo}>
+                    <LogoTile name={it.name} size={30} />
+                  </View>
+                }
+                trailing={<View style={s.dot} accessibilityLabel="Worth a look" />}
+                onPress={() => onSelect(it.itemId)}
+              />
             );
           }}
         />

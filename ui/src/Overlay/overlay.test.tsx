@@ -16,9 +16,20 @@ function fakeDoc(): { doc: OverlayDocument; appended: OverlayElement[]; made: ()
     createElement: () => {
       made += 1;
       const attrs: Record<string, string> = {};
-      return { id: "", style: { cssText: "" }, setAttribute: (n, v) => { attrs[n] = v; } };
+      return {
+        id: "",
+        style: { cssText: "" },
+        setAttribute: (n, v) => {
+          attrs[n] = v;
+        },
+      };
     },
-    body: { appendChild: (el) => { appended.push(el); byId.set(el.id, el); } },
+    body: {
+      appendChild: (el) => {
+        appended.push(el);
+        byId.set(el.id, el);
+      },
+    },
   };
   return { doc, appended, made: () => made };
 }
@@ -42,11 +53,22 @@ test("the layer takes no room and blocks nothing: fixed, zero size, above every 
   assert.match(OVERLAY_ROOT_CSS, /width:0;height:0/);
   assert.match(OVERLAY_ROOT_CSS, /overflow:visible/);
   assert.match(OVERLAY_ROOT_CSS, /z-index:2147483000/);
-  assert.doesNotMatch(OVERLAY_ROOT_CSS, /pointer-events/, "pointer events are not switched off, so children keep theirs");
+  assert.doesNotMatch(
+    OVERLAY_ROOT_CSS,
+    /pointer-events/,
+    "pointer events are not switched off, so children keep theirs",
+  );
 });
 
 test("with no document or no body there is no layer", () => {
-  assert.equal(ensureOverlayRoot({ getElementById: () => null, createElement: () => ({ id: "", style: { cssText: "" }, setAttribute: () => {} }), body: null }), null);
+  assert.equal(
+    ensureOverlayRoot({
+      getElementById: () => null,
+      createElement: () => ({ id: "", style: { cssText: "" }, setAttribute: () => {} }),
+      body: null,
+    }),
+    null,
+  );
   assert.equal(ensureOverlayRoot(undefined), null);
 });
 
@@ -55,14 +77,26 @@ test("the menu portal and the overlay share one root", () => {
 });
 
 test("a server render draws the children in place, so tests and the static export see the plain tree", () => {
-  const html = renderToStaticMarkup(<div><Overlay><span data-x="1">inside</span></Overlay></div>);
+  const html = renderToStaticMarkup(
+    <div>
+      <Overlay>
+        <span data-x="1">inside</span>
+      </Overlay>
+    </div>,
+  );
   assert.match(html, /<div><span data-x="1">inside<\/span><\/div>/);
-  const viaMenu = renderToStaticMarkup(<MenuPortal><b>menu</b></MenuPortal>);
+  const viaMenu = renderToStaticMarkup(
+    <MenuPortal>
+      <b>menu</b>
+    </MenuPortal>,
+  );
   assert.equal(viaMenu, "<b>menu</b>");
 });
 
 test("a menu keeps its layer, backdrop and panel when drawn through the overlay", () => {
-  const html = renderToStaticMarkup(<Menu items={[{ label: "Rename" }, { label: "Delete" }]} x={20} y={30} source="context" />);
+  const html = renderToStaticMarkup(
+    <Menu items={[{ label: "Rename" }, { label: "Delete" }]} x={20} y={30} source="context" />,
+  );
   assert.match(html, /data-testid="menu-layer"/);
   assert.match(html, /aria-label="Close menu"/);
   assert.match(html, /data-testid="menu"/);

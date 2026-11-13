@@ -11,12 +11,26 @@ export function connectCdp(url: string, timeoutMs = 10_000): Promise<Cdp> {
   return new Promise<Cdp>((resolve, reject) => {
     const ws = new WebSocket(url);
     let next = 0;
-    const pending = new Map<number, { ok: (v: never) => void; fail: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+    const pending = new Map<
+      number,
+      { ok: (v: never) => void; fail: (e: Error) => void; timer: ReturnType<typeof setTimeout> }
+    >();
     const handlers = new Map<string, Array<(p: Record<string, unknown>) => void>>();
-    const opening = setTimeout(() => { reject(unavailable("the browser did not accept a connection")); try { ws.close(); } catch { /* gone */ } }, timeoutMs);
+    const opening = setTimeout(() => {
+      reject(unavailable("the browser did not accept a connection"));
+      try {
+        ws.close();
+      } catch {
+        /* gone */
+      }
+    }, timeoutMs);
 
     const dead = (why: string): void => {
-      for (const [id, w] of pending) { clearTimeout(w.timer); w.fail(unavailable(why)); pending.delete(id); }
+      for (const [id, w] of pending) {
+        clearTimeout(w.timer);
+        w.fail(unavailable(why));
+        pending.delete(id);
+      }
     };
 
     ws.addEventListener("open", () => {
@@ -25,19 +39,46 @@ export function connectCdp(url: string, timeoutMs = 10_000): Promise<Cdp> {
         send<T>(method: string, params: Record<string, unknown> = {}, ms = 30_000): Promise<T> {
           const id = ++next;
           return new Promise<T>((ok, fail) => {
-            if (ws.readyState !== 1) { fail(unavailable("the browser connection is closed")); return; }
-            const timer = setTimeout(() => { pending.delete(id); fail(new AgentError("timeout", `${method} took longer than ${Math.round(ms / 1000)} seconds`)); }, ms);
+            if (ws.readyState !== 1) {
+              fail(unavailable("the browser connection is closed"));
+              return;
+            }
+            const timer = setTimeout(() => {
+              pending.delete(id);
+              fail(new AgentError("timeout", `${method} took longer than ${Math.round(ms / 1000)} seconds`));
+            }, ms);
             pending.set(id, { ok: ok as (v: never) => void, fail, timer });
             ws.send(JSON.stringify({ id, method, params }));
           });
         },
-        on(event, f) { const l = handlers.get(event) ?? []; l.push(f); handlers.set(event, l); },
-        close() { try { ws.close(); } catch { /* already closed */ } dead("the browser connection was closed"); },
+        on(event, f) {
+          const l = handlers.get(event) ?? [];
+          l.push(f);
+          handlers.set(event, l);
+        },
+        close() {
+          try {
+            ws.close();
+          } catch {
+            /* already closed */
+          }
+          dead("the browser connection was closed");
+        },
       });
     });
     ws.addEventListener("message", (ev: MessageEvent) => {
-      let m: { id?: number; result?: unknown; error?: { message?: string }; method?: string; params?: Record<string, unknown> };
-      try { m = JSON.parse(String(ev.data)); } catch { return; }
+      let m: {
+        id?: number;
+        result?: unknown;
+        error?: { message?: string };
+        method?: string;
+        params?: Record<string, unknown>;
+      };
+      try {
+        m = JSON.parse(String(ev.data));
+      } catch {
+        return;
+      }
       if (m.id !== undefined) {
         const w = pending.get(m.id);
         if (!w) return;
@@ -49,7 +90,11 @@ export function connectCdp(url: string, timeoutMs = 10_000): Promise<Cdp> {
         for (const f of handlers.get(m.method) ?? []) f(m.params ?? {});
       }
     });
-    ws.addEventListener("error", () => { clearTimeout(opening); reject(unavailable("the browser connection failed")); dead("the browser connection failed"); });
+    ws.addEventListener("error", () => {
+      clearTimeout(opening);
+      reject(unavailable("the browser connection failed"));
+      dead("the browser connection failed");
+    });
     ws.addEventListener("close", () => dead("the browser connection closed"));
   });
 }
@@ -76,25 +121,42 @@ const PIPE_MAX = 256 * 1024 * 1024;
 export function connectPipe(write: NodeJS.WritableStream, read: NodeJS.ReadableStream): CdpPipe {
   let next = 0;
   let gone = false;
-  const pending = new Map<number, { ok: (v: never) => void; fail: (e: Error) => void; timer: ReturnType<typeof setTimeout>; session: string }>();
+  const pending = new Map<
+    number,
+    { ok: (v: never) => void; fail: (e: Error) => void; timer: ReturnType<typeof setTimeout>; session: string }
+  >();
   // handlers per session; "" is the browser target
   const handlers = new Map<string, Map<string, Array<(p: Record<string, unknown>) => void>>>();
   const on = (session: string, event: string, f: (p: Record<string, unknown>) => void): void => {
     let m = handlers.get(session);
-    if (!m) { m = new Map(); handlers.set(session, m); }
+    if (!m) {
+      m = new Map();
+      handlers.set(session, m);
+    }
     const l = m.get(event) ?? [];
     l.push(f);
     m.set(event, l);
   };
   const failSession = (session: string | null, why: string): void => {
-    for (const [id, w] of pending) if (session === null || w.session === session) { clearTimeout(w.timer); w.fail(unavailable(why)); pending.delete(id); }
+    for (const [id, w] of pending)
+      if (session === null || w.session === session) {
+        clearTimeout(w.timer);
+        w.fail(unavailable(why));
+        pending.delete(id);
+      }
   };
 
   const send = <T>(session: string, method: string, params: Record<string, unknown> = {}, ms = 30_000): Promise<T> => {
     const id = ++next;
     return new Promise<T>((ok, fail) => {
-      if (gone) { fail(unavailable("the browser connection is closed")); return; }
-      const timer = setTimeout(() => { pending.delete(id); fail(new AgentError("timeout", `${method} took longer than ${Math.round(ms / 1000)} seconds`)); }, ms);
+      if (gone) {
+        fail(unavailable("the browser connection is closed"));
+        return;
+      }
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        fail(new AgentError("timeout", `${method} took longer than ${Math.round(ms / 1000)} seconds`));
+      }, ms);
       pending.set(id, { ok: ok as (v: never) => void, fail, timer, session });
       write.write(`${JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) })}\0`);
     });
@@ -103,8 +165,19 @@ export function connectPipe(write: NodeJS.WritableStream, read: NodeJS.ReadableS
   let buf: Buffer[] = [];
   let size = 0;
   const onMessage = (text: string): void => {
-    let m: { id?: number; result?: unknown; error?: { message?: string }; method?: string; params?: Record<string, unknown>; sessionId?: string };
-    try { m = JSON.parse(text); } catch { return; }
+    let m: {
+      id?: number;
+      result?: unknown;
+      error?: { message?: string };
+      method?: string;
+      params?: Record<string, unknown>;
+      sessionId?: string;
+    };
+    try {
+      m = JSON.parse(text);
+    } catch {
+      return;
+    }
     if (m.id !== undefined) {
       const w = pending.get(m.id);
       if (!w) return;
@@ -118,19 +191,34 @@ export function connectPipe(write: NodeJS.WritableStream, read: NodeJS.ReadableS
     const session = m.sessionId ?? "";
     for (const f of handlers.get(session)?.get(m.method) ?? []) f(m.params ?? {});
     // a page that closed or crashed: what its sessions waited for ends now
-    if (m.method === "Target.detachedFromTarget" && typeof m.params?.["sessionId"] === "string") { const s = m.params["sessionId"] as string; failSession(s, "the tab closed"); handlers.delete(s); }
+    if (m.method === "Target.detachedFromTarget" && typeof m.params?.["sessionId"] === "string") {
+      const s = m.params["sessionId"] as string;
+      failSession(s, "the tab closed");
+      handlers.delete(s);
+    }
   };
   read.on("data", (chunk: Buffer) => {
     let start = 0;
     for (let i = chunk.indexOf(0); i !== -1; i = chunk.indexOf(0, start)) {
       buf.push(chunk.subarray(start, i));
       onMessage(Buffer.concat(buf).toString("utf8"));
-      buf = []; size = 0;
+      buf = [];
+      size = 0;
       start = i + 1;
     }
-    if (start < chunk.length) { buf.push(chunk.subarray(start)); size += chunk.length - start; if (size > PIPE_MAX) { buf = []; size = 0; } }
+    if (start < chunk.length) {
+      buf.push(chunk.subarray(start));
+      size += chunk.length - start;
+      if (size > PIPE_MAX) {
+        buf = [];
+        size = 0;
+      }
+    }
   });
-  const end = (): void => { gone = true; failSession(null, "the browser connection closed"); };
+  const end = (): void => {
+    gone = true;
+    failSession(null, "the browser connection closed");
+  };
   read.on("end", end);
   read.on("close", end);
   read.on("error", end);
@@ -139,7 +227,9 @@ export function connectPipe(write: NodeJS.WritableStream, read: NodeJS.ReadableS
   const browser: Cdp = {
     send: (method, params, ms) => send("", method, params, ms),
     on: (event, f) => on("", event, f),
-    close() { /* the pipe stays */ },
+    close() {
+      /* the pipe stays */
+    },
   };
 
   return {
@@ -149,7 +239,8 @@ export function connectPipe(write: NodeJS.WritableStream, read: NodeJS.ReadableS
       const session = r.sessionId;
       let open = true;
       return {
-        send: (method, params, ms) => (open ? send(session, method, params, ms) : Promise.reject(unavailable("the browser connection was closed"))),
+        send: (method, params, ms) =>
+          open ? send(session, method, params, ms) : Promise.reject(unavailable("the browser connection was closed")),
         on: (event, f) => on(session, event, f),
         close() {
           if (!open) return;

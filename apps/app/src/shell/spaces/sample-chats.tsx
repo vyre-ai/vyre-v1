@@ -12,9 +12,20 @@ import type { PlaceContext } from "./Shell.tsx";
 function ChatsBody({ spaceId }: { spaceId: string }): ReactElement {
   const parts = useMemo(() => {
     const team = spaceId === "hb" ? harbor : northwind;
-    return { sidebar: createSampleSidebar(team).data, conversation: createConversationSample("idle").data, pane: createPaneSample("northwind").data };
+    return {
+      sidebar: createSampleSidebar(team).data,
+      conversation: createConversationSample("idle").data,
+      pane: createPaneSample("northwind").data,
+    };
   }, [spaceId]);
-  return <ChatsPlace sidebar={parts.sidebar} conversation={parts.conversation} pane={parts.pane} window={{ start: 0, end: 500 }} />;
+  return (
+    <ChatsPlace
+      sidebar={parts.sidebar}
+      conversation={parts.conversation}
+      pane={parts.pane}
+      window={{ start: 0, end: 500 }}
+    />
+  );
 }
 
 /** renderPlace for the shell: Chats is the real page, every other place the sample rows. */

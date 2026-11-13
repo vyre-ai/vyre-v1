@@ -14,17 +14,24 @@ import { WORDS } from "./words.js";
 
 const enc = new TextEncoder();
 /** @param {...string} parts length-prefixed, so no two part lists give the same bytes */
-const frame = (...parts) => enc.encode(parts.map(p => `${String(p).length}:${p}`).join("\n"));
-const hex = (/** @type {Uint8Array} */ b) => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+const frame = (...parts) => enc.encode(parts.map((p) => `${String(p).length}:${p}`).join("\n"));
+const hex = (/** @type {Uint8Array} */ b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 /** @param {{ subtle?: SubtleCrypto }} o */
-const sha = async (/** @type {Uint8Array} */ bytes, o) => new Uint8Array(await (o.subtle || globalThis.crypto.subtle).digest("SHA-256", bytes));
+const sha = async (/** @type {Uint8Array} */ bytes, o) =>
+  new Uint8Array(await (o.subtle || globalThis.crypto.subtle).digest("SHA-256", bytes));
 
 /** The commitment to a nonce, sent before the other side's nonce is known. @param {string} nonce @param {{ subtle?: SubtleCrypto }} [o] @returns {Promise<string>} */
-export async function nonceCommit(nonce, o = {}) { return hex(await sha(frame("vyre-wink-pair-commit-v1", nonce), o)); }
+export async function nonceCommit(nonce, o = {}) {
+  return hex(await sha(frame("vyre-wink-pair-commit-v1", nonce), o));
+}
 /** A short tag that names which ticket a pairing used, without giving the ticket away. @param {string} ticket @param {{ subtle?: SubtleCrypto }} [o] @returns {Promise<string>} */
-export async function ticketTag(ticket, o = {}) { return hex((await sha(frame("vyre-wink-pair-ticket-v1", ticket), o)).slice(0, 12)); }
+export async function ticketTag(ticket, o = {}) {
+  return hex((await sha(frame("vyre-wink-pair-ticket-v1", ticket), o)).slice(0, 12));
+}
 /** A fresh random nonce, 16 bytes, hex. @returns {string} */
-export function newNonce() { return hex(globalThis.crypto.getRandomValues(new Uint8Array(16))); }
+export function newNonce() {
+  return hex(globalThis.crypto.getRandomValues(new Uint8Array(16)));
+}
 
 /**
  * @param {string} box the server's public key, base64url, as the ticket record names it
@@ -37,5 +44,5 @@ export async function pairWords(box, device, o) {
   if (!o || !o.nonceA || !o.nonceB) throw new Error("the pairing words need this pairing's own nonces");
   const h = await sha(frame("vyre-wink-pair-words-v2", o.ticket || "", box, device, o.nonceA, o.nonceB), o);
   const bits = (h[0] * 2 ** 24 + h[1] * 2 ** 16 + h[2] * 2 ** 8 + h[3]) * 2 ** 1 + (h[4] >> 7); // the first 33 bits
-  return [0, 1, 2].map(i => WORDS[Math.floor(bits / 2 ** (22 - 11 * i)) % 2048]).join(" ");
+  return [0, 1, 2].map((i) => WORDS[Math.floor(bits / 2 ** (22 - 11 * i)) % 2048]).join(" ");
 }

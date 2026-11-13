@@ -10,13 +10,18 @@
  */
 export function directoryResolve({ base, secret, fetch = globalThis.fetch, timeoutMs = 3000 }) {
   const root = String(base).replace(/\/$/, "");
-  return async host => {
+  return async (host) => {
     try {
-      const r = await fetch(`${root}/v1/tunnel/resolve?host=${encodeURIComponent(host)}`, { headers: { "x-vyre-relay": secret }, signal: AbortSignal.timeout(timeoutMs) });
+      const r = await fetch(`${root}/v1/tunnel/resolve?host=${encodeURIComponent(host)}`, {
+        headers: { "x-vyre-relay": secret },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       if (!r.ok) return null;
       const j = /** @type {any} */ (await r.json());
       const route = j && j.data && j.data.route;
       return typeof route === "string" ? { route } : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 }

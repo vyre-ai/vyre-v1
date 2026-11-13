@@ -11,7 +11,12 @@ import type { HostDb } from "./sqlite.ts";
 export const ADMIN_DEVICE = "local-admin";
 
 /** A live device session: whom the token speaks for, on which device, in which Space. */
-export interface DeviceSession { sessionId: string; person: string; device: string; space: string }
+export interface DeviceSession {
+  sessionId: string;
+  person: string;
+  device: string;
+  space: string;
+}
 
 export interface SessionResolver {
   /** The live session this bearer token belongs to; null when it is unknown, or its session or device is revoked. */
@@ -31,21 +36,34 @@ const sha256 = (s: string): string => sha256Hex(s);
 export function issueSessionToken(db: HostDb, sessionId: string, now: () => number = Date.now): string {
   db.exec(TABLE);
   const token = `vst_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
-  db.run("INSERT INTO host_session_token (token_hash, session_id, created_at) VALUES (?, ?, ?)", sha256(token), sessionId, now());
+  db.run(
+    "INSERT INTO host_session_token (token_hash, session_id, created_at) VALUES (?, ?, ?)",
+    sha256(token),
+    sessionId,
+    now(),
+  );
   return token;
 }
 
 /** Is this device session still signed in: its row is not revoked and its device is not revoked or deleted. */
 export function sessionLive(db: HostDb, sessionId: string): boolean {
   try {
-    return db.all(
-      `SELECT 1 AS ok FROM devices_session s JOIN devices_device d ON d.id = s.device_id WHERE s.id = ? AND s.kind = 'device' AND s.revoked_at IS NULL AND d.revokedAt IS NULL AND d.deleted_at IS NULL`,
-      sessionId,
-    ).length > 0;
-  } catch { return false; }
+    return (
+      db.all(
+        `SELECT 1 AS ok FROM devices_session s JOIN devices_device d ON d.id = s.device_id WHERE s.id = ? AND s.kind = 'device' AND s.revoked_at IS NULL AND d.revokedAt IS NULL AND d.deleted_at IS NULL`,
+        sessionId,
+      ).length > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
-interface Row { session_id: string; person: string; device_id: string }
+interface Row {
+  session_id: string;
+  person: string;
+  device_id: string;
+}
 
 export function createSessionResolver(o: { db: HostDb; space: string }): SessionResolver {
   o.db.exec(TABLE);
@@ -63,7 +81,9 @@ export function createSessionResolver(o: { db: HostDb; space: string }): Session
               AND d.revokedAt IS NULL AND d.deleted_at IS NULL AND d.person = s.person`,
           sha256(token),
         )[0] as Row | undefined;
-      } catch { return null; }   // the devices tables are not there yet: nobody can hold a device session
+      } catch {
+        return null;
+      } // the devices tables are not there yet: nobody can hold a device session
       return row ? { sessionId: row.session_id, person: row.person, device: row.device_id, space: o.space } : null;
     },
   };

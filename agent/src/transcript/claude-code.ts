@@ -31,14 +31,21 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 function personText(content: unknown): string {
   let text = "";
   if (typeof content === "string") text = content;
-  else if (Array.isArray(content)) text = content.filter((p): p is Json => isObj(p) && p["type"] === "text" && typeof p["text"] === "string").map((p) => str(p["text"])).join("\n");
+  else if (Array.isArray(content))
+    text = content
+      .filter((p): p is Json => isObj(p) && p["type"] === "text" && typeof p["text"] === "string")
+      .map((p) => str(p["text"]))
+      .join("\n");
   text = text.replace(REMINDER, "").trim();
   if (COMMAND_ECHO.test(text)) return "";
   // A rolled or switched session's first message is Vyre's seed and then the person's words: the seed repeats what the transcript already holds.
   return withoutSeed(text).trim();
 }
 
-export function importClaudeSession(source: string | Iterable<string>, o: { threadId: string; personId: string; agentId: string; engine?: string }): ClaudeImport {
+export function importClaudeSession(
+  source: string | Iterable<string>,
+  o: { threadId: string; personId: string; agentId: string; engine?: string },
+): ClaudeImport {
   const lines = typeof source === "string" ? source.split("\n") : source;
   const engine = o.engine ?? "claude_code";
   const out: ClaudeImport = { turns: [], title: null, cwd: null, bad: 0, redacted: 0 };
@@ -60,7 +67,12 @@ export function importClaudeSession(source: string | Iterable<string>, o: { thre
   for (const raw of lines) {
     if (!raw.trim()) continue;
     let o2: unknown;
-    try { o2 = JSON.parse(raw); } catch { out.bad++; continue; }
+    try {
+      o2 = JSON.parse(raw);
+    } catch {
+      out.bad++;
+      continue;
+    }
     if (!isObj(o2)) continue;
     if (o2["type"] === "custom-title") {
       if (str(o2["customTitle"]).trim()) out.title = redact(str(o2["customTitle"]).trim().slice(0, 120)).text;
@@ -77,7 +89,8 @@ export function importClaudeSession(source: string | Iterable<string>, o: { thre
       // Tool results come back on user lines; they belong to the agent turn that made the call.
       if (Array.isArray(content) && builder) {
         for (const b of content) {
-          if (isObj(b) && b["type"] === "tool_result" && str(b["tool_use_id"])) builder.toolResult(str(b["tool_use_id"]), { ok: b["is_error"] !== true, content: b["content"] });
+          if (isObj(b) && b["type"] === "tool_result" && str(b["tool_use_id"]))
+            builder.toolResult(str(b["tool_use_id"]), { ok: b["is_error"] !== true, content: b["content"] });
         }
       }
       const text = personText(content);
@@ -95,19 +108,33 @@ export function importClaudeSession(source: string | Iterable<string>, o: { thre
       if (!Array.isArray(content)) continue;
       if (!builder) {
         if (str(m["model"]) && !str(m["model"]).startsWith("<")) model = str(m["model"]).slice(0, 80);
-        builder = createTurnBuilder({ threadId: o.threadId, authorId: o.agentId, engine, model, now: () => ts, cwd: out.cwd });
+        builder = createTurnBuilder({
+          threadId: o.threadId,
+          authorId: o.agentId,
+          engine,
+          model,
+          now: () => ts,
+          cwd: out.cwd,
+        });
       }
       for (const b of content) {
         if (!isObj(b)) continue;
-        if (b["type"] === "text" && str(b["text"])) { builder.push({ type: "text", text: str(b["text"]) }); out.redacted += redact(str(b["text"])).hits.length; }
-        else if (b["type"] === "thinking" && str(b["thinking"])) builder.push({ type: "thinking", text: str(b["thinking"]) });
-        else if (b["type"] === "tool_use" && str(b["name"])) builder.push({ type: "tool_call", id: str(b["id"]), name: str(b["name"]), input: b["input"] });
+        if (b["type"] === "text" && str(b["text"])) {
+          builder.push({ type: "text", text: str(b["text"]) });
+          out.redacted += redact(str(b["text"])).hits.length;
+        } else if (b["type"] === "thinking" && str(b["thinking"]))
+          builder.push({ type: "thinking", text: str(b["thinking"]) });
+        else if (b["type"] === "tool_use" && str(b["name"]))
+          builder.push({ type: "tool_call", id: str(b["id"]), name: str(b["name"]), input: b["input"] });
       }
       const u = isObj(m["usage"]) ? m["usage"] : null;
       const id = str(m["id"]);
       if (u && id) {
         const num = (k: string): number => (typeof u[k] === "number" && (u[k] as number) >= 0 ? (u[k] as number) : 0);
-        usage.set(id, { in: num("input_tokens") + num("cache_read_input_tokens") + num("cache_creation_input_tokens"), out: num("output_tokens") });
+        usage.set(id, {
+          in: num("input_tokens") + num("cache_read_input_tokens") + num("cache_creation_input_tokens"),
+          out: num("output_tokens"),
+        });
       }
     }
   }

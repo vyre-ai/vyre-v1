@@ -2,4 +2,6 @@
 import test from "node:test";
 import { projectsShellWalk } from "./projects-shell-kit.test.ts";
 
-test("Projects shell as a member, on a phone: project tab, header and tabs", async (t) => { await projectsShellWalk(t, "member", "phone"); });
+test("Projects shell as a member, on a phone: project tab, header and tabs", async (t) => {
+  await projectsShellWalk(t, "member", "phone");
+});

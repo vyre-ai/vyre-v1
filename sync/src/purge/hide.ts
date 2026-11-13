@@ -40,7 +40,8 @@ export async function applyHides(store: ReplicaStore, hides: readonly Hide[], o:
     const held = store.read(h.entity, h.id);
     const hashes = held && o.blobHashes ? o.blobHashes(h.entity, held) : [];
     store.hide(h.entity, h.id, h.seq);
-    if (held) report.dropped += 1; else report.recorded += 1;
+    if (held) report.dropped += 1;
+    else report.recorded += 1;
     o.docs?.closeFor(h.entity, h.id);
     const prefix = `${docPrefix(h.entity, h.id)}:`;
     jobs.push(() => docExact.run([docPrefix(h.entity, h.id), prefix.length, prefix]));
@@ -50,7 +51,9 @@ export async function applyHides(store: ReplicaStore, hides: readonly Hide[], o:
       report.blobs += 1;
     }
   }
-  o.driver.transaction(() => { for (const j of jobs) j(); });
+  o.driver.transaction(() => {
+    for (const j of jobs) j();
+  });
   await o.driver.flush();
   return report;
 }

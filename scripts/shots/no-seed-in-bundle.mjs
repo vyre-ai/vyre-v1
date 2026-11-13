@@ -14,7 +14,8 @@ function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (e.name === "node_modules" || e.name === ".git" || e.name === "dist") continue;
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) walk(p, out); else out.push(p);
+    if (e.isDirectory()) walk(p, out);
+    else out.push(p);
   }
   return out;
 }
@@ -49,6 +50,9 @@ export function checkBundle(dir) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2]) {
   const bad = checkBundle(process.argv[2]);
-  if (bad.length) { console.error(`the prototype seed is in the production export: ${bad.join(", ")}`); process.exit(1); }
+  if (bad.length) {
+    console.error(`the prototype seed is in the production export: ${bad.join(", ")}`);
+    process.exit(1);
+  }
   console.log("production export is free of the prototype seed");
 }

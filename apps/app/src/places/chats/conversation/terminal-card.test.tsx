@@ -9,7 +9,10 @@ import { terminalAskOf } from "./model.ts";
 installDom();
 
 test("a question carries a terminal card only when it says so", () => {
-  assert.deepEqual(terminalAskOf({ card: { kind: "terminal", command: "sudo apt install ffmpeg", host: "device", risk: "danger" } }), { command: "sudo apt install ffmpeg", risk: "danger", host: "device" });
+  assert.deepEqual(
+    terminalAskOf({ card: { kind: "terminal", command: "sudo apt install ffmpeg", host: "device", risk: "danger" } }),
+    { command: "sudo apt install ffmpeg", risk: "danger", host: "device" },
+  );
   assert.equal(terminalAskOf({ card: { kind: "terminal", command: "" } }), null);
   assert.equal(terminalAskOf({ prompt: "Which?" }), null);
   assert.equal(terminalAskOf({ card: { kind: "terminal", command: "ls", risk: "nonsense" } })?.risk, "change");
@@ -20,7 +23,8 @@ function deps(calls: string[], states: string[] = ["idle", "running", "idle"]) {
   return {
     call: async (cap: string): Promise<unknown> => {
       calls.push(cap);
-      if (cap === "terminal.list") return { terminals: [{ terminalId: "trm_1", host: "device", state: "idle", lastActiveAt: 1 }] };
+      if (cap === "terminal.list")
+        return { terminals: [{ terminalId: "trm_1", host: "device", state: "idle", lastActiveAt: 1 }] };
       if (cap === "terminal.read") return { text: "ffmpeg installed", next: 7 };
       if (cap === "terminal.status") return { rows: [{ state: states[Math.min(i++, states.length - 1)] }] };
       return {};
@@ -34,7 +38,20 @@ test("Run in my terminal types the command, waits for Enter, answers with the ou
   const calls: string[] = [];
   const answers: unknown[] = [];
   const shown: string[] = [];
-  const root = await mount(createRoot, <TerminalCard id="blk_1" why="ffmpeg is needed to cut the clip" command="sudo apt install ffmpeg" risk="danger" host="device" deps={deps(calls)} copy={() => undefined} openTerminal={(t) => shown.push(t)} answer={(_i, a) => answers.push(a)} />);
+  const root = await mount(
+    createRoot,
+    <TerminalCard
+      id="blk_1"
+      why="ffmpeg is needed to cut the clip"
+      command="sudo apt install ffmpeg"
+      risk="danger"
+      host="device"
+      deps={deps(calls)}
+      copy={() => undefined}
+      openTerminal={(t) => shown.push(t)}
+      answer={(_i, a) => answers.push(a)}
+    />,
+  );
   assert.match(textOf(find(root, "terminal-card-command-blk_1")), /sudo apt install ffmpeg/);
   assert.ok(find(root, "risk-danger"), "the dot is red");
   await press(find(root, "terminal-card-run-blk_1"));
@@ -49,10 +66,34 @@ test("Run in my terminal types the command, waits for Enter, answers with the ou
 test("Copy and Decline answer at once", async () => {
   const answers: unknown[] = [];
   const copied: string[] = [];
-  const a = await mount(createRoot, <TerminalCard id="b" why="w" command="ls" risk="read" deps={deps([])} copy={(t) => copied.push(t)} openTerminal={() => undefined} answer={(_i, x) => answers.push(x)} />);
+  const a = await mount(
+    createRoot,
+    <TerminalCard
+      id="b"
+      why="w"
+      command="ls"
+      risk="read"
+      deps={deps([])}
+      copy={(t) => copied.push(t)}
+      openTerminal={() => undefined}
+      answer={(_i, x) => answers.push(x)}
+    />,
+  );
   assert.ok(find(a, "risk-read"));
   await press(find(a, "terminal-card-copy-b"));
-  const b = await mount(createRoot, <TerminalCard id="c" why="w" command="ls" risk="read" deps={deps([])} copy={() => undefined} openTerminal={() => undefined} answer={(_i, x) => answers.push(x)} />);
+  const b = await mount(
+    createRoot,
+    <TerminalCard
+      id="c"
+      why="w"
+      command="ls"
+      risk="read"
+      deps={deps([])}
+      copy={() => undefined}
+      openTerminal={() => undefined}
+      answer={(_i, x) => answers.push(x)}
+    />,
+  );
   await press(find(b, "terminal-card-decline-c"));
   assert.deepEqual(answers, ["copy", "decline"]);
   assert.deepEqual(copied, ["ls"]);

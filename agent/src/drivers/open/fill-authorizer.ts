@@ -17,12 +17,20 @@ export interface FillAuthorizerDeps {
 
 export function createFillAuthorizer(d: FillAuthorizerDeps): Authorizer {
   return async (account, provider) => {
-    if (account.keyless) return {};   // a local server has no key: nothing to fill, nothing to ask the Vault for
+    if (account.keyless) return {}; // a local server has no key: nothing to fill, nothing to ask the Vault for
     const got: { headers?: Record<string, string> } = {};
     const run = await runWithVault(
       { source: d.source, reportMiss: d.reportMiss },
       // account: this is the turn's own key going into the provider request, the one place the Space AI key may be filled
-      { tool: "engine_authorize", args: { headers: API_AUTH[provider](account.ref) }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where, account: true },
+      {
+        tool: "engine_authorize",
+        args: { headers: API_AUTH[provider](account.ref) },
+        traceId: d.who.traceId,
+        agentId: d.who.agentId,
+        asker: d.who.asker,
+        where: d.who.where,
+        account: true,
+      },
       async (args) => {
         // Kept for the caller only. What the executor returns goes through the scrubber, so it returns nothing.
         got.headers = (args as { headers: Record<string, string> }).headers;
@@ -30,7 +38,8 @@ export function createFillAuthorizer(d: FillAuthorizerDeps): Authorizer {
       },
     );
     if (!run.ok) throw new DriverError(fillErrorCode(run.error.code), run.error.message);
-    if (got.headers === undefined || run.used.length === 0) throw new DriverError("engine.account_unavailable", "The account's key is not in the Vault.");
+    if (got.headers === undefined || run.used.length === 0)
+      throw new DriverError("engine.account_unavailable", "The account's key is not in the Vault.");
     d.onUsed?.(run.used);
     return got.headers;
   };

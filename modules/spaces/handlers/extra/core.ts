@@ -82,7 +82,7 @@ export interface SpaceAdminDrivers {
   /** Point the Space at the relay or at an own domain (the Caddy and relay settings). The Space key does not change. */
   applyAddress(mode: "relay" | "own_domain", host: string | null): Promise<void>;
   /** Current host-observed ingress, when running on a server with a network driver. */
-  address?(): Promise<{mode: "relay" | "own_domain"; host?: string} | undefined>;
+  address?(): Promise<{ mode: "relay" | "own_domain"; host?: string } | undefined>;
   /** Remove the Space's data and stop serving it. Called once, after the name was typed correctly. */
   deleteSpace(): Promise<void>;
   /** Where the Space runs ("Vyre Server on a Mac mini", "Railway"), when the host knows. */
@@ -102,9 +102,16 @@ export function configureSpaceAdmin(d: SpaceAdminDrivers | null): void {
 // ---- errors and small readers
 
 const NEXT_LABEL: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Use another model", use_backup_key: "Use the backup key", ask_access: "Ask for access",
-  open_settings: "Open settings", reconnect: "Reconnect", edit_input: "Change what you sent", wait: "Wait a moment",
-  contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Use another model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Change what you sent",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 /** Throw a typed error from the global catalogue with the trace id and the catalogue's next steps. */
@@ -112,7 +119,10 @@ export function failWith(traceId: string, code: ErrorCode, message?: string, det
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT_LABEL[kind] })),
   };
   if (details) error.details = details;
@@ -124,14 +134,24 @@ const asRow = (v: unknown): Row | null => (v && typeof v === "object" && !Array.
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 
 function need(ctx: ExtraCtx): SpaceAdminDrivers {
-  if (!drivers) return failWith(ctx.trace.traceId, "internal.unavailable", "Space administration is not available on this server yet.", { service: "space-admin" });
+  if (!drivers)
+    return failWith(
+      ctx.trace.traceId,
+      "internal.unavailable",
+      "Space administration is not available on this server yet.",
+      { service: "space-admin" },
+    );
   return drivers;
 }
 
 function ensureSchema(ctx: ExtraCtx): void {
   for (const sql of SCHEMA) ctx.db.run(sql);
   // a table made before the Space had a time zone: add the column once
-  try { ctx.db.all("SELECT timezone FROM spaces_profile_extra LIMIT 1"); } catch { ctx.db.run("ALTER TABLE spaces_profile_extra ADD COLUMN timezone TEXT"); }
+  try {
+    ctx.db.all("SELECT timezone FROM spaces_profile_extra LIMIT 1");
+  } catch {
+    ctx.db.run("ALTER TABLE spaces_profile_extra ADD COLUMN timezone TEXT");
+  }
 }
 
 // ---- the profile
@@ -170,22 +190,49 @@ function readProfile(ctx: ExtraCtx): Profile {
   if (!extra) {
     ctx.db.run(
       "INSERT INTO spaces_profile_extra (id, legal_name, defaults_json, address_mode, address_host, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ctx.space, null, "{}", kind === "personal" ? "device" : "relay", null, ctx.now(), null,
+      ctx.space,
+      null,
+      "{}",
+      kind === "personal" ? "device" : "relay",
+      null,
+      ctx.now(),
+      null,
     );
     extra = asRow(ctx.db.all("SELECT * FROM spaces_profile_extra WHERE id = ?", ctx.space)[0]);
   }
   let defaults: Record<string, unknown> = {};
-  try { defaults = asRow(JSON.parse(String(extra?.["defaults_json"] ?? "{}"))) ?? {}; } catch { defaults = {}; }
+  try {
+    defaults = asRow(JSON.parse(String(extra?.["defaults_json"] ?? "{}"))) ?? {};
+  } catch {
+    defaults = {};
+  }
   const mode = extra?.["address_mode"];
   const host = str(extra?.["address_host"]);
-  const legalName = str(extra?.["legal_name"]), logoFileId = str(base["logo_file_id"]);
+  const legalName = str(extra?.["legal_name"]),
+    logoFileId = str(base["logo_file_id"]);
   const deletedAt = typeof extra?.["deleted_at"] === "number" ? extra["deleted_at"] : undefined;
   const due = asRow(ctx.db.all("SELECT due_at FROM spaces_deletion WHERE id = ?", ctx.space)[0]);
   const deletionAt = typeof due?.["due_at"] === "number" ? due["due_at"] : undefined;
   return {
-    id: ctx.space, name, ...(legalName ? { legalName } : {}), ...(logoFileId ? { logoFileId } : {}), kind,
-    address: { mode: mode === "relay" || mode === "own_domain" || mode === "device" ? mode : kind === "personal" ? "device" : "relay", ...(host ? { host } : {}) },
-    defaults, ...(str(extra?.["timezone"]) ? { timezone: str(extra?.["timezone"])! } : {}), createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(), ...(deletedAt !== undefined ? { deletedAt } : {}), ...(deletionAt !== undefined ? { deletionAt } : {}),
+    id: ctx.space,
+    name,
+    ...(legalName ? { legalName } : {}),
+    ...(logoFileId ? { logoFileId } : {}),
+    kind,
+    address: {
+      mode:
+        mode === "relay" || mode === "own_domain" || mode === "device"
+          ? mode
+          : kind === "personal"
+            ? "device"
+            : "relay",
+      ...(host ? { host } : {}),
+    },
+    defaults,
+    ...(str(extra?.["timezone"]) ? { timezone: str(extra?.["timezone"])! } : {}),
+    createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(),
+    ...(deletedAt !== undefined ? { deletedAt } : {}),
+    ...(deletionAt !== undefined ? { deletionAt } : {}),
   };
 }
 
@@ -193,7 +240,11 @@ function readProfile(ctx: ExtraCtx): Profile {
 async function settleZone(ctx: ExtraCtx, p: Profile): Promise<string> {
   if (p.timezone) return p.timezone;
   let zone: string | undefined;
-  try { zone = await need(ctx).ownerTimezone?.(); } catch { zone = undefined; }
+  try {
+    zone = await need(ctx).ownerTimezone?.();
+  } catch {
+    zone = undefined;
+  }
   const chosen = validZone(zone) ? zone : "UTC";
   ctx.db.run("UPDATE spaces_profile_extra SET timezone = ? WHERE id = ? AND timezone IS NULL", chosen, ctx.space);
   return chosen;
@@ -202,10 +253,27 @@ async function settleZone(ctx: ExtraCtx, p: Profile): Promise<string> {
 async function spaceRow(ctx: ExtraCtx, p: Profile) {
   const d = need(ctx);
   const timezone = await settleZone(ctx, p);
-  const [owner, fingerprint, hostedOn, madeAt, observedAddress] = await Promise.all([d.owner(), d.fingerprint(), d.hostedOn?.(), d.createdAt?.(), p.kind === 'personal' ? undefined : d.address?.()]);
+  const [owner, fingerprint, hostedOn, madeAt, observedAddress] = await Promise.all([
+    d.owner(),
+    d.fingerprint(),
+    d.hostedOn?.(),
+    d.createdAt?.(),
+    p.kind === "personal" ? undefined : d.address?.(),
+  ]);
   return {
-    id: p.id, name: p.name, ...(p.legalName ? { legalName: p.legalName } : {}), ...(p.logoFileId ? { logoFileId: p.logoFileId } : {}), kind: p.kind, owner, fingerprint,
-    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, timezone, createdAt: madeAt ?? p.createdAt, ...(p.deletionAt !== undefined ? { deletionAt: p.deletionAt } : {}),
+    id: p.id,
+    name: p.name,
+    ...(p.legalName ? { legalName: p.legalName } : {}),
+    ...(p.logoFileId ? { logoFileId: p.logoFileId } : {}),
+    kind: p.kind,
+    owner,
+    fingerprint,
+    address: observedAddress ?? p.address,
+    ...(hostedOn ? { hostedOn } : {}),
+    defaults: p.defaults,
+    timezone,
+    createdAt: madeAt ?? p.createdAt,
+    ...(p.deletionAt !== undefined ? { deletionAt: p.deletionAt } : {}),
   };
 }
 
@@ -215,7 +283,8 @@ function live(ctx: ExtraCtx): Profile {
   return p;
 }
 
-const isOwner = async (ctx: ExtraCtx): Promise<boolean> => ctx.principal.kind === "person" && ctx.principal.id === (await need(ctx).owner());
+const isOwner = async (ctx: ExtraCtx): Promise<boolean> =>
+  ctx.principal.kind === "person" && ctx.principal.id === (await need(ctx).owner());
 
 // ---- handlers
 
@@ -228,59 +297,115 @@ export async function get(ctx: ExtraCtx, _input: Record<string, unknown>) {
  * and the join and sign-in pages show the image to people who are not signed in.
  */
 async function pictureOf(ctx: ExtraCtx, fileId: string): Promise<{ mime: string; data: string }> {
-  const bad = (message: string): never => failWith(ctx.trace.traceId, "validation.bad_input", message, { errors: ["logoFileId: image"] });
+  const bad = (message: string): never =>
+    failWith(ctx.trace.traceId, "validation.bad_input", message, { errors: ["logoFileId: image"] });
   let got: { base64?: unknown; mime?: unknown; size?: unknown; truncated?: unknown };
   try {
     got = (await ctx.call("files.read", { fileId, as: "base64" })) as typeof got;
   } catch (e) {
     const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
-    if (code === "validation.too_large") return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+    if (code === "validation.too_large")
+      return bad(
+        `The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`,
+      );
     return bad("That file cannot be read. Choose an image you can open.");
   }
   const mime = typeof got.mime === "string" ? got.mime.split(";")[0]!.trim().toLowerCase() : "";
   if (!IMAGE_TYPES.includes(mime)) return bad("The Space image is a PNG, JPEG, WebP or GIF picture.");
   const data = typeof got.base64 === "string" ? got.base64 : "";
   const bytes = typeof got.size === "number" ? got.size : Math.floor((data.length * 3) / 4);
-  if (got.truncated === true) return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+  if (got.truncated === true)
+    return bad(
+      `The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`,
+    );
   if (data === "") return bad("That image is empty.");
-  if (bytes > IMAGE_MAX_BYTES) return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+  if (bytes > IMAGE_MAX_BYTES)
+    return bad(
+      `The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`,
+    );
   return { mime, data };
 }
 
-export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: string; logoFileId?: string | null; defaults?: Record<string, unknown> }) {
+export async function update(
+  ctx: ExtraCtx,
+  input: { name?: string; legalName?: string; logoFileId?: string | null; defaults?: Record<string, unknown> },
+) {
   const p = live(ctx);
   const fields: string[] = [];
   // the picture is read and checked before anything is written, so a refused image changes nothing
   // (the same file again keeps what is there: a profile save that repeats the logo never fails on it)
-  const picture = typeof input.logoFileId === "string" && input.logoFileId !== (p.logoFileId ?? null) ? await pictureOf(ctx, input.logoFileId) : null;
+  const picture =
+    typeof input.logoFileId === "string" && input.logoFileId !== (p.logoFileId ?? null)
+      ? await pictureOf(ctx, input.logoFileId)
+      : null;
   if (input.name !== undefined) {
     const name = input.name.trim();
-    if (name.length < 1 || name.length > NAME_MAX) return failWith(ctx.trace.traceId, "validation.bad_input", `The name is 1 to ${NAME_MAX} characters.`, { errors: ["name: length"] });
-    if (name !== p.name) { ctx.db.run("UPDATE spaces_profile SET name = ? WHERE id = ?", name, ctx.space); fields.push("name"); }
+    if (name.length < 1 || name.length > NAME_MAX)
+      return failWith(ctx.trace.traceId, "validation.bad_input", `The name is 1 to ${NAME_MAX} characters.`, {
+        errors: ["name: length"],
+      });
+    if (name !== p.name) {
+      ctx.db.run("UPDATE spaces_profile SET name = ? WHERE id = ?", name, ctx.space);
+      fields.push("name");
+    }
   }
   if (input.legalName !== undefined) {
     const legal = input.legalName.trim();
-    if (legal.length > LEGAL_NAME_MAX) return failWith(ctx.trace.traceId, "validation.bad_input", `The legal name is at most ${LEGAL_NAME_MAX} characters.`, { errors: ["legalName: length"] });
-    if (legal !== (p.legalName ?? "")) { ctx.db.run("UPDATE spaces_profile_extra SET legal_name = ? WHERE id = ?", legal.length > 0 ? legal : null, ctx.space); fields.push("legalName"); }
+    if (legal.length > LEGAL_NAME_MAX)
+      return failWith(
+        ctx.trace.traceId,
+        "validation.bad_input",
+        `The legal name is at most ${LEGAL_NAME_MAX} characters.`,
+        { errors: ["legalName: length"] },
+      );
+    if (legal !== (p.legalName ?? "")) {
+      ctx.db.run(
+        "UPDATE spaces_profile_extra SET legal_name = ? WHERE id = ?",
+        legal.length > 0 ? legal : null,
+        ctx.space,
+      );
+      fields.push("legalName");
+    }
   }
   if (input.logoFileId !== undefined) {
-    if (input.logoFileId !== (p.logoFileId ?? null)) { ctx.db.run("UPDATE spaces_profile SET logo_file_id = ? WHERE id = ?", input.logoFileId, ctx.space); fields.push("logoFileId"); }
+    if (input.logoFileId !== (p.logoFileId ?? null)) {
+      ctx.db.run("UPDATE spaces_profile SET logo_file_id = ? WHERE id = ?", input.logoFileId, ctx.space);
+      fields.push("logoFileId");
+    }
     if (input.logoFileId === null) ctx.db.run("DELETE FROM spaces_image WHERE id = ?", ctx.space);
     else if (picture) {
-      ctx.db.run("INSERT OR REPLACE INTO spaces_image (id, file_id, mime, data, updated_at) VALUES (?, ?, ?, ?, ?)", ctx.space, input.logoFileId, picture.mime, picture.data, ctx.now());
+      ctx.db.run(
+        "INSERT OR REPLACE INTO spaces_image (id, file_id, mime, data, updated_at) VALUES (?, ?, ?, ?, ?)",
+        ctx.space,
+        input.logoFileId,
+        picture.mime,
+        picture.data,
+        ctx.now(),
+      );
     }
   }
   if (input.defaults !== undefined) {
     // a merge: a key set to null is removed, any other value replaces the old one
     const merged: Record<string, unknown> = { ...p.defaults };
-    for (const [k, v] of Object.entries(input.defaults)) { if (v === null) delete merged[k]; else merged[k] = v; }
+    for (const [k, v] of Object.entries(input.defaults)) {
+      if (v === null) delete merged[k];
+      else merged[k] = v;
+    }
     const json = JSON.stringify(merged);
     if (Object.keys(merged).length > DEFAULTS_MAX_KEYS || json.length > DEFAULTS_MAX_BYTES) {
-      return failWith(ctx.trace.traceId, "validation.too_large", `The defaults are at most ${DEFAULTS_MAX_KEYS} keys and ${DEFAULTS_MAX_BYTES / 1024} KB.`);
+      return failWith(
+        ctx.trace.traceId,
+        "validation.too_large",
+        `The defaults are at most ${DEFAULTS_MAX_KEYS} keys and ${DEFAULTS_MAX_BYTES / 1024} KB.`,
+      );
     }
-    if (json !== JSON.stringify(p.defaults)) { ctx.db.run("UPDATE spaces_profile_extra SET defaults_json = ? WHERE id = ?", json, ctx.space); fields.push("defaults"); }
+    if (json !== JSON.stringify(p.defaults)) {
+      ctx.db.run("UPDATE spaces_profile_extra SET defaults_json = ? WHERE id = ?", json, ctx.space);
+      fields.push("defaults");
+    }
   }
-  if (fields.length > 0) ctx.emit("space.updated" as never, `entity/${ctx.principal.id}`, { fields, by: ctx.principal.id });
+  if (fields.length > 0)
+    ctx.emit("space.updated" as never, `entity/${ctx.principal.id}`, { fields, by: ctx.principal.id });
   return { space: await spaceRow(ctx, readProfile(ctx)) };
 }
 
@@ -288,7 +413,13 @@ export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: 
 export async function setTimezone(ctx: ExtraCtx, input: { timezone: string }) {
   const p = live(ctx);
   const zone = typeof input.timezone === "string" ? input.timezone.trim() : "";
-  if (!validZone(zone)) return failWith(ctx.trace.traceId, "validation.bad_input", "That is not a time zone. Pick one from the list, like America/Los_Angeles.", { errors: ["timezone: unknown"] });
+  if (!validZone(zone))
+    return failWith(
+      ctx.trace.traceId,
+      "validation.bad_input",
+      "That is not a time zone. Pick one from the list, like America/Los_Angeles.",
+      { errors: ["timezone: unknown"] },
+    );
   const was = await settleZone(ctx, p);
   if (zone !== was) {
     ctx.db.run("UPDATE spaces_profile_extra SET timezone = ? WHERE id = ?", zone, ctx.space);
@@ -300,7 +431,9 @@ export async function setTimezone(ctx: ExtraCtx, input: { timezone: string }) {
 function imageRow(ctx: ExtraCtx): { fileId: string; mime: string; data: string } | null {
   ensureSchema(ctx);
   const r = asRow(ctx.db.all("SELECT file_id, mime, data FROM spaces_image WHERE id = ?", ctx.space)[0]);
-  const fileId = str(r?.["file_id"]), mime = str(r?.["mime"]), data = str(r?.["data"]);
+  const fileId = str(r?.["file_id"]),
+    mime = str(r?.["mime"]),
+    data = str(r?.["data"]);
   return fileId && mime && data ? { fileId, mime, data } : null;
 }
 
@@ -328,14 +461,20 @@ export async function matrix(ctx: ExtraCtx, _input: Record<string, unknown>) {
   const p = live(ctx);
   return {
     kind: p.kind,
-    features: TEAM_ONLY.map((key) => (p.kind === "team" ? { key, available: true } : { key, available: false, line: TEAM_LINE })),
+    features: TEAM_ONLY.map((key) =>
+      p.kind === "team" ? { key, available: true } : { key, available: false, line: TEAM_LINE },
+    ),
   };
 }
 
 /** The owner's export is the Space-wide export of the backup module: one zip, never secret values, never other people's private chats or personal memory. */
 export async function exportAll(ctx: ExtraCtx, input: { idempotencyKey?: string }) {
   live(ctx);
-  const out = asRow(await ctx.call("backup.export_start" as never, { idempotencyKey: `spaces.export:${input.idempotencyKey ?? ctx.trace.traceId}` }));
+  const out = asRow(
+    await ctx.call("backup.export_start" as never, {
+      idempotencyKey: `spaces.export:${input.idempotencyKey ?? ctx.trace.traceId}`,
+    }),
+  );
   const runId = str(out?.["runId"]);
   if (!runId) return failWith(ctx.trace.traceId, "internal.unexpected", "The export did not start.");
   // the zip is saved when the backup call returns: this is the time Delete this Space counts
@@ -353,10 +492,17 @@ export async function exportLatest(ctx: ExtraCtx, _input: Record<string, unknown
 export async function leave(ctx: ExtraCtx, input: { confirm: boolean }) {
   const d = need(ctx);
   live(ctx);
-  if (input.confirm !== true) return failWith(ctx.trace.traceId, "validation.bad_input", "Confirm that you want to leave.");
-  if (ctx.principal.kind !== "person") return failWith(ctx.trace.traceId, "validation.precondition_failed", "Only a person can leave a Space.");
+  if (input.confirm !== true)
+    return failWith(ctx.trace.traceId, "validation.bad_input", "Confirm that you want to leave.");
+  if (ctx.principal.kind !== "person")
+    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Only a person can leave a Space.");
   const me = ctx.principal.id;
-  if (me === (await d.owner())) return failWith(ctx.trace.traceId, "validation.precondition_failed", "You own this Space. Hand it to someone else first, or delete it.");
+  if (me === (await d.owner()))
+    return failWith(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "You own this Space. Hand it to someone else first, or delete it.",
+    );
   // devices purge and the Space key epoch rotates on member.removed; the principal stops being served on principal.suspended
   ctx.emit("member.removed" as never, `entity/${me}`, { personId: me, by: me, reason: "left" });
   ctx.emit("principal.suspended" as never, `entity/${me}`, { principalId: me, reason: "left" });
@@ -367,9 +513,21 @@ export async function transferOwnership(ctx: ExtraCtx, input: { to: string }) {
   const d = need(ctx);
   live(ctx);
   const from = await d.owner();
-  if (!(await isOwner(ctx))) return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "Only the owner can hand the Space to someone else.");
-  if (input.to === from) return failWith(ctx.trace.traceId, "validation.precondition_failed", "You already own this Space.");
-  if (!(await d.isMember(input.to))) return failWith(ctx.trace.traceId, "validation.precondition_failed", "Hand the Space to someone who has joined it.", { to: input.to });
+  if (!(await isOwner(ctx)))
+    return failWith(
+      ctx.trace.traceId,
+      "permission.role_lacks_permission",
+      "Only the owner can hand the Space to someone else.",
+    );
+  if (input.to === from)
+    return failWith(ctx.trace.traceId, "validation.precondition_failed", "You already own this Space.");
+  if (!(await d.isMember(input.to)))
+    return failWith(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      "Hand the Space to someone who has joined it.",
+      { to: input.to },
+    );
   const { epoch } = await d.transferOwner(from, input.to);
   ctx.emit("space.ownership_transferred" as never, `entity/${input.to}`, { from, to: input.to });
   ctx.emit("access.changed" as never, `entity/${epoch}`, { epoch, what: "assignment", by: from });
@@ -379,10 +537,16 @@ export async function transferOwnership(ctx: ExtraCtx, input: { to: string }) {
 export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string; withoutExport?: boolean }) {
   need(ctx);
   const p = live(ctx);
-  if (!(await isOwner(ctx))) return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "Only the owner can delete the Space.");
+  if (!(await isOwner(ctx)))
+    return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "Only the owner can delete the Space.");
   // the name outsiders see is the one to type; a Space without a legal name asks for its name
   const expected = p.legalName ?? p.name;
-  if (input.confirmName !== expected) return failWith(ctx.trace.traceId, "validation.precondition_failed", `Type ${expected} exactly to delete this Space.`);
+  if (input.confirmName !== expected)
+    return failWith(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      `Type ${expected} exactly to delete this Space.`,
+    );
   // already scheduled: the same answer again, the date does not move
   if (p.deletionAt !== undefined) return { ok: true, deletionAt: p.deletionAt };
   // an export from the last day, or the owner says so: nothing is scheduled without one of the two
@@ -390,11 +554,22 @@ export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string; w
     const last = asRow(ctx.db.all("SELECT at FROM spaces_export_log ORDER BY at DESC LIMIT 1")[0]);
     const at = typeof last?.["at"] === "number" ? last["at"] : undefined;
     if (at === undefined || ctx.now() - at > EXPORT_FRESH_MS) {
-      return failWith(ctx.trace.traceId, "validation.precondition_failed", "Take an export first, or choose to delete without one.", { reason: "export_required" });
+      return failWith(
+        ctx.trace.traceId,
+        "validation.precondition_failed",
+        "Take an export first, or choose to delete without one.",
+        { reason: "export_required" },
+      );
     }
   }
   const deletionAt = ctx.now() + DELETE_DELAY_MS;
-  ctx.db.run("INSERT OR REPLACE INTO spaces_deletion (id, due_at, scheduled_at, by_person) VALUES (?, ?, ?, ?)", ctx.space, deletionAt, ctx.now(), ctx.principal.id);
+  ctx.db.run(
+    "INSERT OR REPLACE INTO spaces_deletion (id, due_at, scheduled_at, by_person) VALUES (?, ?, ?, ?)",
+    ctx.space,
+    deletionAt,
+    ctx.now(),
+    ctx.principal.id,
+  );
   ctx.emit("space.deletion_scheduled" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id, at: deletionAt });
   return { ok: true, deletionAt };
 }
@@ -402,8 +577,12 @@ export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string; w
 /** Undo a scheduled deletion: the schedule is cleared, everyone who administers the Space is told through the event. */
 export async function deleteCancel(ctx: ExtraCtx, _input: Record<string, unknown>) {
   const p = live(ctx);
-  if (ctx.principal.kind !== "person") return failWith(ctx.trace.traceId, "validation.precondition_failed", "Only a person can cancel a deletion.");
-  if (p.deletionAt === undefined) return failWith(ctx.trace.traceId, "validation.precondition_failed", "This Space is not scheduled for deletion.", { reason: "not_scheduled" });
+  if (ctx.principal.kind !== "person")
+    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Only a person can cancel a deletion.");
+  if (p.deletionAt === undefined)
+    return failWith(ctx.trace.traceId, "validation.precondition_failed", "This Space is not scheduled for deletion.", {
+      reason: "not_scheduled",
+    });
   ctx.db.run("DELETE FROM spaces_deletion WHERE id = ?", ctx.space);
   ctx.emit("space.deletion_cancelled" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id });
   return { ok: true };
@@ -411,10 +590,12 @@ export async function deleteCancel(ctx: ExtraCtx, _input: Record<string, unknown
 
 /** The host's minute job: once the date has passed, the Space's data is removed (the host driver) and the Space is marked deleted. Before the date, and with nothing scheduled, it does nothing. */
 export async function deleteDue(ctx: ExtraCtx, _input: Record<string, unknown>) {
-  if (ctx.principal.kind !== "service") return failWith(ctx.trace.traceId, "permission.no_grant", "Only the host removes a Space whose date has passed.");
+  if (ctx.principal.kind !== "service")
+    return failWith(ctx.trace.traceId, "permission.no_grant", "Only the host removes a Space whose date has passed.");
   ensureSchema(ctx);
   const row = asRow(ctx.db.all("SELECT due_at, by_person FROM spaces_deletion WHERE id = ?", ctx.space)[0]);
-  const dueAt = row?.["due_at"], by = str(row?.["by_person"]);
+  const dueAt = row?.["due_at"],
+    by = str(row?.["by_person"]);
   if (typeof dueAt !== "number" || !by || ctx.now() < dueAt) return { deleted: false };
   const profile = asRow(ctx.db.all("SELECT deleted_at FROM spaces_profile_extra WHERE id = ?", ctx.space)[0]);
   if (typeof profile?.["deleted_at"] === "number") return { deleted: false };
@@ -430,18 +611,35 @@ const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 export async function switchAddress(ctx: ExtraCtx, input: { mode: "relay" | "own_domain"; host?: string }) {
   const d = need(ctx);
   const p = live(ctx);
-  if (p.kind === "personal") return failWith(ctx.trace.traceId, "permission.needs_team", "A Personal Space lives on this computer and is reached through the relay; it has no address to move.");
+  if (p.kind === "personal")
+    return failWith(
+      ctx.trace.traceId,
+      "permission.needs_team",
+      "A Personal Space lives on this computer and is reached through the relay; it has no address to move.",
+    );
   let host: string | null = null;
   if (input.mode === "own_domain") {
     host = (input.host ?? "").trim().toLowerCase();
-    if (!HOST.test(host)) return failWith(ctx.trace.traceId, "validation.bad_input", "Use a domain name like team.example.com.", { errors: ["host: not a domain name"] });
+    if (!HOST.test(host))
+      return failWith(ctx.trace.traceId, "validation.bad_input", "Use a domain name like team.example.com.", {
+        errors: ["host: not a domain name"],
+      });
   }
-  const currentAddress = await d.address?.() ?? p.address;
+  const currentAddress = (await d.address?.()) ?? p.address;
   const same = currentAddress.mode === input.mode && (input.mode === "relay" || (currentAddress.host ?? null) === host);
   if (!same) {
     await d.applyAddress(input.mode, host);
-    ctx.db.run("UPDATE spaces_profile_extra SET address_mode = ?, address_host = ? WHERE id = ?", input.mode, host, ctx.space);
-    ctx.emit("space.address_changed" as never, `entity/${input.mode}`, { mode: input.mode, ...(host ? { host } : {}), by: ctx.principal.id });
+    ctx.db.run(
+      "UPDATE spaces_profile_extra SET address_mode = ?, address_host = ? WHERE id = ?",
+      input.mode,
+      host,
+      ctx.space,
+    );
+    ctx.emit("space.address_changed" as never, `entity/${input.mode}`, {
+      mode: input.mode,
+      ...(host ? { host } : {}),
+      by: ctx.principal.id,
+    });
   }
   // the Space key and its fingerprint do not change, so every device that pinned it keeps working and nobody is invited again
   return { space: await spaceRow(ctx, readProfile(ctx)) };

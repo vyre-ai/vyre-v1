@@ -12,7 +12,7 @@ import { webCrypto } from "../webcrypto.js";
 export const ROUTE = "abcdefghijklmnopqrstuvwxyz";
 const DHLEN = 32;
 const TAGLEN = 16;
-export const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+export const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 /** The box's half of the handshake. */
 export class Responder {
@@ -75,11 +75,21 @@ export class BoxChannel extends Channel {
   async take(bytes) {
     if (this.closed) return;
     let pt;
-    try { pt = await this.rx.decrypt(EMPTY, bytes); } catch { this.close(4400, "decrypt failed"); return; }
+    try {
+      pt = await this.rx.decrypt(EMPTY, bytes);
+    } catch {
+      this.close(4400, "decrypt failed");
+      return;
+    }
     if (this.rx.n % this.rekeyEvery === 0) await this.rx.rekey();
     if (this.closed) return;
-    if (pt.length < 5) { this.close(4400, "short frame"); return; }
-    const type = pt[0], id = new DataView(pt.buffer, pt.byteOffset).getUint32(1), payload = pt.subarray(5);
+    if (pt.length < 5) {
+      this.close(4400, "short frame");
+      return;
+    }
+    const type = pt[0],
+      id = new DataView(pt.buffer, pt.byteOffset).getUint32(1),
+      payload = pt.subarray(5);
     this.seen.push({ type, id, size: payload.length });
     if (id === 0) {
       if (type === FRAME.ping) this.frame(FRAME.pong, 0, payload.slice());
@@ -91,19 +101,36 @@ export class BoxChannel extends Channel {
       if (type !== FRAME.head) return;
       s = new Stream(this, id);
       this.streams.set(id, s);
-      try { s.head = JSON.parse(fromUtf8(payload)); } catch { s.reset("bad head"); return; }
+      try {
+        s.head = JSON.parse(fromUtf8(payload));
+      } catch {
+        s.reset("bad head");
+        return;
+      }
       this.onstream(s);
       return;
     }
     if (type === FRAME.head) {
-      try { s.onhead(JSON.parse(fromUtf8(payload))); } catch { s.reset("bad head"); }
+      try {
+        s.onhead(JSON.parse(fromUtf8(payload)));
+      } catch {
+        s.reset("bad head");
+      }
     } else if (type === FRAME.data) s.ondata(payload.slice());
-    else if (type === FRAME.end) { s.remoteEnded = true; s.onend(); s.gc(); }
-    else if (type === FRAME.reset) { this.streams.delete(id); s.onreset(fromUtf8(payload)); }
+    else if (type === FRAME.end) {
+      s.remoteEnded = true;
+      s.onend();
+      s.gc();
+    } else if (type === FRAME.reset) {
+      this.streams.delete(id);
+      s.onreset(fromUtf8(payload));
+    }
   }
 
   /** Answer a stream with a head (a response, or 101 for a WebSocket). @param {Stream} s @param {any} head */
-  respond(s, head) { this.frame(FRAME.head, s.id, utf8(JSON.stringify(head))); }
+  respond(s, head) {
+    this.frame(FRAME.head, s.id, utf8(JSON.stringify(head)));
+  }
 }
 
 /**
@@ -121,33 +148,50 @@ export function boxSide(c, transport, o) {
   let started = false;
   /** @type {{ resolve: (v: any) => void, reject: (e: any) => void }} */
   let settleReady = /** @type {any} */ (null);
-  const ready = new Promise((resolve, reject) => { settleReady = { resolve, reject }; });
+  const ready = new Promise((resolve, reject) => {
+    settleReady = { resolve, reject };
+  });
   ready.catch(() => {});
   let q = Promise.resolve();
   return {
     ready,
-    gone(reason) { if (channel) channel.close(1000, reason); else settleReady.reject(new Error(reason || "connection closed")); },
+    gone(reason) {
+      if (channel) channel.close(1000, reason);
+      else settleReady.reject(new Error(reason || "connection closed"));
+    },
     receive(bytes) {
       const b = bytes.slice();
-      q = q.then(async () => {
-        if (channel) { channel.receive(b); return; }
-        if (started) { transport.close(4400, "frame before the handshake finished"); return; }
-        started = true;
-        let hello, reply;
-        try {
-          hello = JSON.parse(fromUtf8(await hs.readMessage(b)));
-          reply = await o.admit(/** @type {Uint8Array} */ (hs.rs), hello);
-        } catch (e) {
-          const reason = String(/** @type {any} */ (e)?.message || "refused").slice(0, 120);
-          transport.close(4401, reason);
-          settleReady.reject(new Error(reason));
-          return;
-        }
-        const m2 = await hs.writeMessage(utf8(JSON.stringify(reply)));
-        transport.send(m2);
-        channel = new BoxChannel(transport, /** @type {any} */ (hs.send), /** @type {any} */ (hs.recv), { peer: /** @type {Uint8Array} */ (hs.rs), hash: /** @type {Uint8Array} */ (hs.hash), rekeyEvery: o.rekeyEvery });
-        settleReady.resolve({ channel, hello, reply });
-      }).catch(() => {});
+      q = q
+        .then(async () => {
+          if (channel) {
+            channel.receive(b);
+            return;
+          }
+          if (started) {
+            transport.close(4400, "frame before the handshake finished");
+            return;
+          }
+          started = true;
+          let hello, reply;
+          try {
+            hello = JSON.parse(fromUtf8(await hs.readMessage(b)));
+            reply = await o.admit(/** @type {Uint8Array} */ (hs.rs), hello);
+          } catch (e) {
+            const reason = String(/** @type {any} */ (e)?.message || "refused").slice(0, 120);
+            transport.close(4401, reason);
+            settleReady.reject(new Error(reason));
+            return;
+          }
+          const m2 = await hs.writeMessage(utf8(JSON.stringify(reply)));
+          transport.send(m2);
+          channel = new BoxChannel(transport, /** @type {any} */ (hs.send), /** @type {any} */ (hs.recv), {
+            peer: /** @type {Uint8Array} */ (hs.rs),
+            hash: /** @type {Uint8Array} */ (hs.hash),
+            rekeyEvery: o.rekeyEvery,
+          });
+          settleReady.resolve({ channel, hello, reply });
+        })
+        .catch(() => {});
     },
   };
 }
@@ -164,12 +208,29 @@ export async function link(c, o) {
   /** @type {{ from: string, code?: number, reason?: string }[]} */
   const closes = [];
   const mk = (/** @type {string} */ from, /** @type {"device"|"box"} */ to) => ({
-    send(/** @type {Uint8Array} */ bytes) { const b = bytes.slice(); setImmediate(() => ends[to].receive(b)); },
-    close(/** @type {number|undefined} */ code, /** @type {string|undefined} */ reason) { closes.push({ from, code, reason }); },
+    send(/** @type {Uint8Array} */ bytes) {
+      const b = bytes.slice();
+      setImmediate(() => ends[to].receive(b));
+    },
+    close(/** @type {number|undefined} */ code, /** @type {string|undefined} */ reason) {
+      closes.push({ from, code, reason });
+    },
   });
-  const box = boxSide(c, mk("box", "device"), { s: o.box, route, admit: o.admit || (async () => ({ ok: true })), rekeyEvery: o.rekeyEvery });
+  const box = boxSide(c, mk("box", "device"), {
+    s: o.box,
+    route,
+    admit: o.admit || (async () => ({ ok: true })),
+    rekeyEvery: o.rekeyEvery,
+  });
   ends.box = box;
-  const device = dial(mk("device", "box"), { crypto: c, s: o.device, box: o.box.publicKey, route, hello: o.hello || { v: 1, name: "a test device" }, rekeyEvery: o.rekeyEvery });
+  const device = dial(mk("device", "box"), {
+    crypto: c,
+    s: o.device,
+    box: o.box.publicKey,
+    route,
+    hello: o.hello || { v: 1, name: "a test device" },
+    rekeyEvery: o.rekeyEvery,
+  });
   ends.device = device;
   const [{ channel: dch, reply }, { channel: bch, hello }] = await Promise.all([device.ready, box.ready]);
   return { dch, bch, closes, reply, hello };
@@ -185,7 +246,8 @@ export function memoryBox(o) {
   const c = o.crypto || crypto;
   const route = o.route || ROUTE;
   const world = {
-    box: o.box, route,
+    box: o.box,
+    route,
     /** @type {any[]} */ sockets: [],
     pong: true,
     /** @type {any[]} */ hellos: [],
@@ -212,11 +274,37 @@ export function memoryBox(o) {
       world.urls.push(url);
       world.sockets.push(this);
       const wrongRoute = new URL(url.replace(/^ws/, "http")).searchParams.get("route") !== route;
-      this.side = boxSide(c, { send: b => this.deliver(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)), close: (code, reason) => this.drop(code, reason) },
-        { s: o.box, route, admit: async (pub, hello) => { world.hellos.push(hello); return admit(pub, hello); } });
-      this.side.ready.then(({ channel }) => { this.boxChannel = channel; world.channels.push(channel); o.serve?.(channel); }, () => {});
+      this.side = boxSide(
+        c,
+        {
+          send: (b) => this.deliver(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)),
+          close: (code, reason) => this.drop(code, reason),
+        },
+        {
+          s: o.box,
+          route,
+          admit: async (pub, hello) => {
+            world.hellos.push(hello);
+            return admit(pub, hello);
+          },
+        },
+      );
+      this.side.ready.then(
+        ({ channel }) => {
+          this.boxChannel = channel;
+          world.channels.push(channel);
+          o.serve?.(channel);
+        },
+        () => {},
+      );
       queueMicrotask(() => {
-        if (world.down || wrongRoute) { this.readyState = 3; this.onerror?.({}); this.side.gone("unreachable"); queueMicrotask(() => this.onclose?.({ code: 1006, reason: "" })); return; }
+        if (world.down || wrongRoute) {
+          this.readyState = 3;
+          this.onerror?.({});
+          this.side.gone("unreachable");
+          queueMicrotask(() => this.onclose?.({ code: 1006, reason: "" }));
+          return;
+        }
         if (this.readyState !== 0) return;
         this.readyState = 1;
         this.onopen?.({});
@@ -231,12 +319,20 @@ export function memoryBox(o) {
         return;
       }
       const b = d.slice();
-      queueMicrotask(() => { if (this.readyState === 1) this.side.receive(b); });
+      queueMicrotask(() => {
+        if (this.readyState === 1) this.side.receive(b);
+      });
     }
     /** @param {ArrayBuffer|string} data */
-    deliver(data) { queueMicrotask(() => { if (this.readyState === 1) this.onmessage?.({ data }); }); }
+    deliver(data) {
+      queueMicrotask(() => {
+        if (this.readyState === 1) this.onmessage?.({ data });
+      });
+    }
     /** @param {number} [code] @param {string} [reason] */
-    close(code = 1000, reason = "") { this.drop(code, reason); }
+    close(code = 1000, reason = "") {
+      this.drop(code, reason);
+    }
     /** The connection ends, from either side or the network. @param {number} [code] @param {string} [reason] */
     drop(code = 1006, reason = "") {
       if (this.readyState >= 2) return;
@@ -259,10 +355,10 @@ export function fakeRelay(c, o) {
 /** Collect a box-side stream's request body, then call `handle(stream, head, body)`. @param {(s: import("../channel.js").Stream, head: any, body: Buffer) => void} handle */
 export function serveWith(handle) {
   return (/** @type {BoxChannel} */ channel) => {
-    channel.onstream = s => {
+    channel.onstream = (s) => {
       /** @type {Uint8Array[]} */
       const parts = [];
-      s.ondata = ch => parts.push(ch);
+      s.ondata = (ch) => parts.push(ch);
       s.onend = () => handle(s, s.head, Buffer.from(concat(...parts)));
     };
   };
@@ -285,13 +381,20 @@ export async function settleUntil(until = () => true, ms = 10_000) {
   for (let i = 0; ; i++) {
     if (i >= 20 && until()) return;
     if (Date.now() > end) throw new Error("settle: condition never held");
-    await new Promise(r => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
   }
 }
 
 /** The offer URL a box shows as a QR code. @param {{ base?: string, relay: string, route?: string, box: Uint8Array, secret: string, name?: string }} o */
 export function offerUrl(o) {
-  const offer = { v: 1, r: o.relay, i: o.route || ROUTE, k: base64url(o.box), s: o.secret, ...(o.name ? { n: o.name } : {}) };
+  const offer = {
+    v: 1,
+    r: o.relay,
+    i: o.route || ROUTE,
+    k: base64url(o.box),
+    s: o.secret,
+    ...(o.name ? { n: o.name } : {}),
+  };
   return `${o.base || "https://vyre.run/pair"}#${base64url(utf8(JSON.stringify(offer)))}`;
 }
 
@@ -307,7 +410,10 @@ export async function ticketRecord(c, ticket, record) {
   const [loc, secret, macKey, encKey] = await Promise.all([derive("loc"), derive("sec"), derive("mac"), derive("enc")]);
   const nonce = new Uint8Array(12).fill(5);
   const key = c.aesKey ? await c.aesKey(encKey) : encKey;
-  const sealed = concat(nonce, await c.aesGcmEncrypt(key, nonce, utf8("vyre-pair-record\n1"), utf8(JSON.stringify(record))));
+  const sealed = concat(
+    nonce,
+    await c.aesGcmEncrypt(key, nonce, utf8("vyre-pair-record\n1"), utf8(JSON.stringify(record))),
+  );
   const recordText = base64url(sealed);
   const mac = base64url(await c.hmacSha256(macKey, utf8(recordText)));
   return { loc: base64url(loc), secret: base64url(secret), record: recordText, mac };

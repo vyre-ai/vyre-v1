@@ -12,14 +12,19 @@
 import { computerBy, computerOf, hostFor, raise, rowsOf } from "./projections.ts";
 import type { CompCtx, ComputerRow } from "./projections.ts";
 
-export interface ChromeData { tar: Uint8Array }
+export interface ChromeData {
+  tar: Uint8Array;
+}
 export interface MigrationPorts {
   /** The agent's workspace, made when it has none. Safe to repeat. (l-ws) */
   ensureWorkspace(ctx: CompCtx, a: { agentId: string; computerId: string }): Promise<{ workspaceId: string }>;
   /** The agent's Space browser profile, made when it has none. Safe to repeat. (l-sbrowser) */
   ensureBrowserProfile(ctx: CompCtx, a: { agentId: string; computerId: string }): Promise<{ profileId: string }>;
   /** Put Chrome's user-data (the tar of the old computer's folder) into the profile, replacing what the profile holds. The profile is not running. (l-sbrowser) */
-  importChromeData(ctx: CompCtx, a: { agentId: string; profileId: string; data: ChromeData }): Promise<{ bytes: number }>;
+  importChromeData(
+    ctx: CompCtx,
+    a: { agentId: string; profileId: string; data: ChromeData },
+  ): Promise<{ bytes: number }>;
   /** Does the agent's browser profile already hold sign-ins (made there since its browser calls went to the Space browser)? Then nothing is copied over it. Optional, but left out nothing can be told, so the move waits (not now): nothing final is recorded from a guess and nothing is overwritten. */
   /** Can the Space browser take an import now (the service can start, the image is there)? Asked before anything is read from the desktop; throws when it cannot. Optional. */
   browserReady?(ctx: CompCtx, a: { agentId: string; profileId: string }): Promise<void>;
@@ -28,10 +33,17 @@ export interface MigrationPorts {
 let ports: MigrationPorts | null = null;
 const parts: Partial<MigrationPorts> = {};
 /** All three at once (a test, or one binder that owns them all). */
-export function bindMigration(p: MigrationPorts | null): void { ports = p; }
+export function bindMigration(p: MigrationPorts | null): void {
+  ports = p;
+}
 /** One at a time, each by the lane that owns it (l-ws: ensureWorkspace; l-sbrowser: the profile and Chrome's data). The move runs once all three are bound. */
-export function bindMigrationPort<K extends keyof MigrationPorts>(k: K, f: MigrationPorts[K] | null): void { if (f) parts[k] = f; else delete parts[k]; }
-const boundPorts = (): MigrationPorts | null => ports ?? (parts.ensureWorkspace && parts.ensureBrowserProfile && parts.importChromeData ? (parts as MigrationPorts) : null);
+export function bindMigrationPort<K extends keyof MigrationPorts>(k: K, f: MigrationPorts[K] | null): void {
+  if (f) parts[k] = f;
+  else delete parts[k];
+}
+const boundPorts = (): MigrationPorts | null =>
+  ports ??
+  (parts.ensureWorkspace && parts.ensureBrowserProfile && parts.importChromeData ? (parts as MigrationPorts) : null);
 
 export const MAX_ATTEMPTS = 3;
 /** The Chrome folder is read into memory whole, so a desktop whose profile disk is bigger than this is not copied (recorded `partial`, with the reason): 512 MB is safe on a small server. */
@@ -40,9 +52,16 @@ export const MAX_COPY_BYTES = 512 * 1024 * 1024;
 export const WAIT_MS = 20_000;
 let waitMs = WAIT_MS;
 /** For tests: how long a call waits for a move in flight. */
-export function setMoveWait(ms: number | null): void { waitMs = ms ?? WAIT_MS; }
+export function setMoveWait(ms: number | null): void {
+  waitMs = ms ?? WAIT_MS;
+}
 
-export interface MigrationResult { done: number; partial: number; failed: number; waiting: number }
+export interface MigrationResult {
+  done: number;
+  partial: number;
+  failed: number;
+  waiting: number;
+}
 
 const say = (e: unknown): string => (e instanceof Error ? e.message.slice(0, 300) : "unknown");
 
@@ -59,7 +78,8 @@ export function notNow(e: unknown): boolean {
   if (x?.code === "unavailable" || x?.error?.code === "provider.unavailable" || x?.workspace === true) return true;
   return /image .* (is )?not on this server|did not answer|no room|waiting for room/i.test(say(e));
 }
-const permanent = (e: unknown): boolean => /not running on this host|outside its profile|not JSON|settings .*refused/i.test(say(e));
+const permanent = (e: unknown): boolean =>
+  /not running on this host|outside its profile|not JSON|settings .*refused/i.test(say(e));
 
 /** Not-now waits grow: a minute, five, thirty, then hourly. They use no attempt. Kept in memory (a restart tries once at once), and logged once per wait. */
 const NOW_WAITS = [60_000, 300_000, 1_800_000, 3_600_000];
@@ -72,17 +92,34 @@ function waitMore(ctx: CompCtx, c: ComputerRow, reason: string): void {
   ctx.log.warn("computers: the move waits", { computerId: c.computerId, reason, retryInMs: ms });
 }
 /** For tests: forget the not-now waits. */
-export function resetMoveState(): void { nowWaits.clear(); }
+export function resetMoveState(): void {
+  nowWaits.clear();
+}
 
 const IMPORTING = "importing: ";
 export const INTERRUPTED = "Moving its sign-ins was interrupted. It will be tried again.";
 /** A refusal that comes before the Space browser touches the profile (busy, held): the import did not start. */
-const BEFORE_TOUCH = (e: unknown): boolean => { const r = (e as { reason?: unknown } | null)?.reason; return r === "profile_held" || r === "profile_busy"; };
-function markImporting(ctx: CompCtx, c: ComputerRow, a: { workspaceId: string | null; profileId: string | null; attempts: number }, reason = ""): void {
-  record(ctx, c, "failed", { workspaceId: a.workspaceId, profileId: a.profileId, attempts: a.attempts, bytes: null, error: IMPORTING + reason });
+const BEFORE_TOUCH = (e: unknown): boolean => {
+  const r = (e as { reason?: unknown } | null)?.reason;
+  return r === "profile_held" || r === "profile_busy";
+};
+function markImporting(
+  ctx: CompCtx,
+  c: ComputerRow,
+  a: { workspaceId: string | null; profileId: string | null; attempts: number },
+  reason = "",
+): void {
+  record(ctx, c, "failed", {
+    workspaceId: a.workspaceId,
+    profileId: a.profileId,
+    attempts: a.attempts,
+    bytes: null,
+    error: IMPORTING + reason,
+  });
 }
 function clearMark(ctx: CompCtx, c: ComputerRow, prior: Record<string, unknown> | undefined): void {
-  if (prior) ctx.db.run("UPDATE computers_migration SET error = NULL WHERE computer_id = ?", c.computerId); else ctx.db.run("DELETE FROM computers_migration WHERE computer_id = ?", c.computerId);
+  if (prior) ctx.db.run("UPDATE computers_migration SET error = NULL WHERE computer_id = ?", c.computerId);
+  else ctx.db.run("DELETE FROM computers_migration WHERE computer_id = ?", c.computerId);
 }
 /** A row written before the import and kept until it ends: after a restart in the middle, the profile holds the import's own half-written folder, the one case where writing over it is right. */
 function ownImport(ctx: Pick<CompCtx, "db">, id: string): boolean {
@@ -91,7 +128,8 @@ function ownImport(ctx: Pick<CompCtx, "db">, id: string): boolean {
 }
 
 /** After a real failure: wait a minute, then an hour, then a day, and keep trying once a day. */
-export const backoffMs = (attempts: number): number => (attempts <= 1 ? 60_000 : attempts === 2 ? 3_600_000 : 86_400_000);
+export const backoffMs = (attempts: number): number =>
+  attempts <= 1 ? 60_000 : attempts === 2 ? 3_600_000 : 86_400_000;
 
 type Step = "done" | "partial" | "failed" | "retry";
 /** Moves in flight, by computer: the idle pass and an agent's first browser call never move one computer twice at once; a call waits (for a short time) for the move that is already running. */
@@ -99,7 +137,13 @@ const moving = new Map<string, Promise<Step>>();
 
 /** Has this computer's move reached its end: moved (done) or moved without its sign-ins (partial)? A failed move is never the end: it is tried again. */
 function settled(ctx: Pick<CompCtx, "db">, computerId: string): boolean {
-  return rowsOf(ctx.db, "SELECT 1 FROM computers_migration WHERE computer_id = ? AND state IN ('done', 'partial')", computerId).length > 0;
+  return (
+    rowsOf(
+      ctx.db,
+      "SELECT 1 FROM computers_migration WHERE computer_id = ? AND state IN ('done', 'partial')",
+      computerId,
+    ).length > 0
+  );
 }
 
 /** After a real failure the next try is not due yet. */
@@ -108,24 +152,39 @@ function dueAt(ctx: Pick<CompCtx, "db">, computerId: string): number {
   return r && String(r["state"]) === "failed" ? Number(r["at"]) + backoffMs(Number(r["attempts"])) : 0;
 }
 
-const MOVING_LINE = "This older desktop is being moved to the agent's workspace and Space browser. Try again in a minute.";
+const MOVING_LINE =
+  "This older desktop is being moved to the agent's workspace and Space browser. Try again in a minute.";
 
 /** A wake, a take over or any call that would start the computer waits a short while for a move in flight, then says it is being moved. The desktop is never started during its move. */
 export async function holdWhileMoving(ctx: Pick<CompCtx, "trace">, computerId: string): Promise<void> {
   const flying = moving.get(computerId);
   if (!flying) return;
-  const done = await Promise.race([flying.then(() => true, () => true), new Promise<boolean>((r) => { const t = setTimeout(() => r(false), waitMs); t.unref?.(); })]);
+  const done = await Promise.race([
+    flying.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((r) => {
+      const t = setTimeout(() => r(false), waitMs);
+      t.unref?.();
+    }),
+  ]);
   if (!done || moving.has(computerId)) raise(ctx, "validation.precondition_failed", MOVING_LINE, { moving: true });
 }
 
-const asleep = (ctx: Pick<CompCtx, "db">, computerId: string): boolean => computerBy(ctx.db, computerId)?.state === "asleep";
+const asleep = (ctx: Pick<CompCtx, "db">, computerId: string): boolean =>
+  computerBy(ctx.db, computerId)?.state === "asleep";
 
 /** Move one asleep computer. A failed step is its own row, never a throw. */
 function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step> {
   const flying = moving.get(c.computerId);
   if (flying) return flying;
   const run = (async (): Promise<Step> => {
-    const prior = rowsOf(ctx.db, "SELECT attempts, workspace_id, profile_id FROM computers_migration WHERE computer_id = ?", c.computerId)[0];
+    const prior = rowsOf(
+      ctx.db,
+      "SELECT attempts, workspace_id, profile_id FROM computers_migration WHERE computer_id = ?",
+      c.computerId,
+    )[0];
     const attempts = Number(prior?.["attempts"] ?? 0) + 1;
     let workspaceId = prior?.["workspace_id"] ? String(prior["workspace_id"]) : null;
     let profileId = prior?.["profile_id"] ? String(prior["profile_id"]) : null;
@@ -135,7 +194,16 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
       workspaceId = (await p.ensureWorkspace(ctx, { agentId: c.agentId, computerId: c.computerId })).workspaceId;
       profileId = (await p.ensureBrowserProfile(ctx, { agentId: c.agentId, computerId: c.computerId })).profileId;
       const host = hostFor(ctx, c.computerId);
-      if (!host?.chromeData) { record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's server cannot hand over its Chrome profile yet. The agent signs in again once." }); return "partial"; }
+      if (!host?.chromeData) {
+        record(ctx, c, "partial", {
+          workspaceId,
+          profileId,
+          attempts,
+          bytes: 0,
+          error: "This computer's server cannot hand over its Chrome profile yet. The agent signs in again once.",
+        });
+        return "partial";
+      }
       // the slow steps are over: the desktop must still be asleep, or its Chrome files could be torn (a wake, a take over or a tool call may have started it meanwhile)
       if (!asleep(ctx, c.computerId)) return "retry";
       // the Space browser must be able to take the import before anything is read from the desktop
@@ -144,55 +212,118 @@ function moveOne(ctx: CompCtx, p: MigrationPorts, c: ComputerRow): Promise<Step>
       // of ours that a restart cut short (the mark below). With no way to ask, nothing is decided: the move waits (not now), because nothing final may be recorded from a guess.
       ours = ownImport(ctx, c.computerId);
       if (!ours) {
-        if (!p.profileInUse) throw Object.assign(new Error("The Space browser cannot yet say whether this agent's browser profile is in use."), { code: "unavailable" });
+        if (!p.profileInUse)
+          throw Object.assign(
+            new Error("The Space browser cannot yet say whether this agent's browser profile is in use."),
+            { code: "unavailable" },
+          );
         if (await p.profileInUse(ctx, { agentId: c.agentId, profileId })) {
-          record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: `${await nameOf(ctx, c.agentId)} already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again.` });
+          record(ctx, c, "partial", {
+            workspaceId,
+            profileId,
+            attempts,
+            bytes: 0,
+            error: `${await nameOf(ctx, c.agentId)} already uses its browser on the Space, so the sign-ins from its older desktop were not copied. Open the older desktop to see them, or sign in again.`,
+          });
           return "partial";
         }
       }
-      if (ours) importStarted = true;   // a profile that was ever marked is only ever finished by a complete import
+      if (ours) importStarted = true; // a profile that was ever marked is only ever finished by a complete import
       const data = await host.chromeData(c.computerId);
       // it must have stayed asleep from before the copy to after it
       if (!asleep(ctx, c.computerId)) return "retry";
       // The computer answered that it has no Chrome folder. One that was never started has none to give, and moves with nothing to import. One that has run does have one, so "not found" means the
       // sign-ins were not handed over: that is said (partial, with the reason), never recorded as a move that carried them.
       if (data === null && c.lastActiveAt !== undefined) {
-        if (ours) throw new Error("This computer's Chrome profile was not found, so the interrupted import cannot be finished yet.");
-        record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: "This computer's Chrome profile was not found, so its sign-ins did not move. The agent signs in again once." });
-        ctx.log.warn("computers: the old computer had no Chrome profile to hand over", { computerId: c.computerId, agentId: c.agentId });
+        if (ours)
+          throw new Error(
+            "This computer's Chrome profile was not found, so the interrupted import cannot be finished yet.",
+          );
+        record(ctx, c, "partial", {
+          workspaceId,
+          profileId,
+          attempts,
+          bytes: 0,
+          error:
+            "This computer's Chrome profile was not found, so its sign-ins did not move. The agent signs in again once.",
+        });
+        ctx.log.warn("computers: the old computer had no Chrome profile to hand over", {
+          computerId: c.computerId,
+          agentId: c.agentId,
+        });
         return "partial";
       }
       // what is copied is only sign-ins and settings (no caches); that, not the disk, is measured
       if (data !== null && data.tar.length > MAX_COPY_BYTES) {
-        if (ours) throw new Error("This computer's Chrome sign-ins are too large to copy, so the interrupted import cannot be finished.");
-        record(ctx, c, "partial", { workspaceId, profileId, attempts, bytes: 0, error: `This computer's Chrome sign-ins and settings are ${Math.round(data.tar.length / 1_048_576)} MB, more than the ${MAX_COPY_BYTES / 1_048_576} MB that can be copied safely, so they did not move. The agent signs in again once.` });
+        if (ours)
+          throw new Error(
+            "This computer's Chrome sign-ins are too large to copy, so the interrupted import cannot be finished.",
+          );
+        record(ctx, c, "partial", {
+          workspaceId,
+          profileId,
+          attempts,
+          bytes: 0,
+          error: `This computer's Chrome sign-ins and settings are ${Math.round(data.tar.length / 1_048_576)} MB, more than the ${MAX_COPY_BYTES / 1_048_576} MB that can be copied safely, so they did not move. The agent signs in again once.`,
+        });
         return "partial";
       }
-      if (data !== null) { markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 }); importStarted = true; }
+      if (data !== null) {
+        markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 });
+        importStarted = true;
+      }
       const bytes = data ? (await p.importChromeData(ctx, { agentId: c.agentId, profileId, data })).bytes : 0;
       nowWaits.delete(c.computerId);
       record(ctx, c, "done", { workspaceId, profileId, attempts, bytes, error: null });
-      ctx.log.warn("computers: moved to a workspace and a browser profile", { computerId: c.computerId, agentId: c.agentId, chromeBytes: bytes });
+      ctx.log.warn("computers: moved to a workspace and a browser profile", {
+        computerId: c.computerId,
+        agentId: c.agentId,
+        chromeBytes: bytes,
+      });
       return "done";
     } catch (e) {
       // not now: no attempt is used and the wait before the next try grows. If the import had not begun nothing is recorded; if it had, its mark stays unless the Space browser refused it before touching the profile.
       if (notNow(e)) {
-        if (importStarted && (ours || !BEFORE_TOUCH(e))) { markImporting(ctx, c, { workspaceId, profileId, attempts: attempts - 1 }, say(e)); /* the mark stays: the folder may be half written */ } else if (importStarted) clearMark(ctx, c, prior);
+        if (importStarted && (ours || !BEFORE_TOUCH(e))) {
+          markImporting(
+            ctx,
+            c,
+            { workspaceId, profileId, attempts: attempts - 1 },
+            say(e),
+          ); /* the mark stays: the folder may be half written */
+        } else if (importStarted) clearMark(ctx, c, prior);
         waitMore(ctx, c, say(e));
         return "retry";
       }
       nowWaits.delete(c.computerId);
-      record(ctx, c, "failed", { workspaceId, profileId, attempts, bytes: null, error: `${importStarted ? IMPORTING : ""}${say(e)}` });
-      ctx.log.warn("computers: the move to a workspace and a browser profile failed", { computerId: c.computerId, attempts, reason: say(e) });
+      record(ctx, c, "failed", {
+        workspaceId,
+        profileId,
+        attempts,
+        bytes: null,
+        error: `${importStarted ? IMPORTING : ""}${say(e)}`,
+      });
+      ctx.log.warn("computers: the move to a workspace and a browser profile failed", {
+        computerId: c.computerId,
+        attempts,
+        reason: say(e),
+      });
       return "failed";
     }
-  })().finally(() => { moving.delete(c.computerId); });
+  })().finally(() => {
+    moving.delete(c.computerId);
+  });
   moving.set(c.computerId, run);
   return run;
 }
 
 async function nameOf(ctx: CompCtx, agentId: string): Promise<string> {
-  try { const o = (await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } }; if (o.agent?.name) return o.agent.name; } catch { /* the plain word below */ }
+  try {
+    const o = (await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } };
+    if (o.agent?.name) return o.agent.name;
+  } catch {
+    /* the plain word below */
+  }
   return "This agent";
 }
 
@@ -201,12 +332,19 @@ export async function migrateComputers(ctx: CompCtx): Promise<MigrationResult> {
   const out: MigrationResult = { done: 0, partial: 0, failed: 0, waiting: 0 };
   const p = boundPorts();
   if (!p) return out;
-  const todo = rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE computer_id NOT IN (SELECT computer_id FROM computers_migration WHERE state IN ('done', 'partial')) ORDER BY agent_id").map(computerOf);
+  const todo = rowsOf(
+    ctx.db,
+    "SELECT * FROM computers_computers WHERE computer_id NOT IN (SELECT computer_id FROM computers_migration WHERE state IN ('done', 'partial')) ORDER BY agent_id",
+  ).map(computerOf);
   for (const c of todo) {
-    if (c.state !== "asleep") { out.waiting++; continue; }
+    if (c.state !== "asleep") {
+      out.waiting++;
+      continue;
+    }
     if (ctx.now() < dueAt(ctx, c.computerId) || waitingNotNow(ctx, c.computerId)) continue;
     const r = await moveOne(ctx, p, c);
-    if (r === "done" || r === "partial" || r === "failed") out[r]++; else out.waiting++;   // a move that stopped for later is counted, never lost
+    if (r === "done" || r === "partial" || r === "failed") out[r]++;
+    else out.waiting++; // a move that stopped for later is counted, never lost
   }
   return out;
 }
@@ -226,37 +364,103 @@ export async function settleMove(ctx: CompCtx, agentId: string, o: { start?: boo
   for (const c of rowsOf(ctx.db, "SELECT * FROM computers_computers WHERE agent_id = ?", agentId).map(computerOf)) {
     if (settled(ctx, c.computerId)) continue;
     const flying = moving.get(c.computerId);
-    if (flying === undefined && (o.start === false || c.state !== "asleep" || ctx.now() < dueAt(ctx, c.computerId) || waitingNotNow(ctx, c.computerId))) return false;
+    if (
+      flying === undefined &&
+      (o.start === false ||
+        c.state !== "asleep" ||
+        ctx.now() < dueAt(ctx, c.computerId) ||
+        waitingNotNow(ctx, c.computerId))
+    )
+      return false;
     const run = flying ?? moveOne(ctx, p, c);
     if (o.start === false) return false;
-    const done = await Promise.race([run.then(() => true, () => true), new Promise<boolean>((r) => { const t = setTimeout(() => r(false), waitMs); t.unref?.(); })]);
-    if (!done) raise(ctx, "provider.unavailable", "This agent's browser is being moved from its older desktop. Try again in a minute.", { moving: true });
+    const done = await Promise.race([
+      run.then(
+        () => true,
+        () => true,
+      ),
+      new Promise<boolean>((r) => {
+        const t = setTimeout(() => r(false), waitMs);
+        t.unref?.();
+      }),
+    ]);
+    if (!done)
+      raise(
+        ctx,
+        "provider.unavailable",
+        "This agent's browser is being moved from its older desktop. Try again in a minute.",
+        { moving: true },
+      );
     if (!settled(ctx, c.computerId)) return false;
   }
   return true;
 }
 
-function record(ctx: CompCtx, c: ComputerRow, state: "done" | "partial" | "failed", a: { workspaceId: string | null; profileId: string | null; attempts: number; bytes: number | null; error: string | null }): void {
+function record(
+  ctx: CompCtx,
+  c: ComputerRow,
+  state: "done" | "partial" | "failed",
+  a: {
+    workspaceId: string | null;
+    profileId: string | null;
+    attempts: number;
+    bytes: number | null;
+    error: string | null;
+  },
+): void {
   ctx.db.run(
     "INSERT OR REPLACE INTO computers_migration (computer_id, agent_id, state, workspace_id, profile_id, chrome_bytes, attempts, error, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    c.computerId, c.agentId, state, a.workspaceId, a.profileId, a.bytes, a.attempts, a.error, ctx.now(),
+    c.computerId,
+    c.agentId,
+    state,
+    a.workspaceId,
+    a.profileId,
+    a.bytes,
+    a.attempts,
+    a.error,
+    ctx.now(),
   );
 }
 
 /** What moved, for the report a person or the doctor reads. */
-export function migrationRows(ctx: Pick<CompCtx, "db">): Array<{ computerId: string; agentId: string; state: string; workspaceId?: string; profileId?: string; chromeBytes?: number; error?: string }> {
+export function migrationRows(ctx: Pick<CompCtx, "db">): Array<{
+  computerId: string;
+  agentId: string;
+  state: string;
+  workspaceId?: string;
+  profileId?: string;
+  chromeBytes?: number;
+  error?: string;
+}> {
   return rowsOf(ctx.db, "SELECT * FROM computers_migration ORDER BY agent_id").map((r) => ({
-    computerId: String(r["computer_id"]), agentId: String(r["agent_id"]), state: String(r["state"]),
-    ...(r["workspace_id"] ? { workspaceId: String(r["workspace_id"]) } : {}), ...(r["profile_id"] ? { profileId: String(r["profile_id"]) } : {}),
-    ...(r["chrome_bytes"] !== null && r["chrome_bytes"] !== undefined ? { chromeBytes: Number(r["chrome_bytes"]) } : {}), ...(r["error"] ? { error: String(r["error"]) } : {}),
+    computerId: String(r["computer_id"]),
+    agentId: String(r["agent_id"]),
+    state: String(r["state"]),
+    ...(r["workspace_id"] ? { workspaceId: String(r["workspace_id"]) } : {}),
+    ...(r["profile_id"] ? { profileId: String(r["profile_id"]) } : {}),
+    ...(r["chrome_bytes"] !== null && r["chrome_bytes"] !== undefined
+      ? { chromeBytes: Number(r["chrome_bytes"]) }
+      : {}),
+    ...(r["error"] ? { error: String(r["error"]) } : {}),
   }));
 }
 
 /** How this computer's move ended, for the lists a person reads; absent while it is still to be tried (or being retried). */
-export function moveOf(ctx: Pick<CompCtx, "db">, computerId: string): { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined {
-  const r = rowsOf(ctx.db, "SELECT state, at, error, attempts FROM computers_migration WHERE computer_id = ?", computerId)[0];
+export function moveOf(
+  ctx: Pick<CompCtx, "db">,
+  computerId: string,
+): { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined {
+  const r = rowsOf(
+    ctx.db,
+    "SELECT state, at, error, attempts FROM computers_migration WHERE computer_id = ?",
+    computerId,
+  )[0];
   if (!r) return undefined;
   const state = String(r["state"]);
   if (state !== "done" && state !== "partial" && state !== "failed") return undefined;
-  return { state: state as "done" | "partial" | "failed", at: Number(r["at"]), ...(r["error"] ? { error: String(r["error"]).startsWith(IMPORTING) ? INTERRUPTED : String(r["error"]) } : {}) };
+  return {
+    state: state as "done" | "partial" | "failed",
+    at: Number(r["at"]),
+    ...(r["error"] ? { error: String(r["error"]).startsWith(IMPORTING) ? INTERRUPTED : String(r["error"]) } : {}),
+  };
 }

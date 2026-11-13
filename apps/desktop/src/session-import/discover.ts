@@ -31,7 +31,13 @@ async function discoverCodex(roots: string[]): Promise<SessionSource[]> {
       const match = CODEX_FILE.exec(path.basename(file));
       if (!match?.[1]) continue;
       const sessionId = match[1].toLowerCase();
-      found.push({ provider: "codex", sessionId, sessionKey: `codex:${sessionId}`, projectKey: "codex:unknown", transcriptPath: file });
+      found.push({
+        provider: "codex",
+        sessionId,
+        sessionKey: `codex:${sessionId}`,
+        projectKey: "codex:unknown",
+        transcriptPath: file,
+      });
     }
   }
   return unique(found);
@@ -50,8 +56,13 @@ async function discoverClaude(roots: string[]): Promise<SessionSource[]> {
         const project = projectFromPath(base, file);
         const extra = metadata.get(sessionId);
         found.push({
-          provider: "claude", sessionId, sessionKey: `claude:${sessionId}`, projectKey: `claude:${project}`,
-          transcriptPath: file, ...(extra?.cwd ? { cwd: extra.cwd } : {}), ...(extra?.updatedAt ? { updatedAt: extra.updatedAt } : {}),
+          provider: "claude",
+          sessionId,
+          sessionKey: `claude:${sessionId}`,
+          projectKey: `claude:${project}`,
+          transcriptPath: file,
+          ...(extra?.cwd ? { cwd: extra.cwd } : {}),
+          ...(extra?.updatedAt ? { updatedAt: extra.updatedAt } : {}),
         });
       }
     }
@@ -71,7 +82,11 @@ async function containedFiles(start: string, root: string): Promise<string[]> {
   const files: string[] = [];
   const visit = async (dir: string): Promise<void> => {
     let entries: import("node:fs").Dirent[];
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const entry of entries) {
       const candidate = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) continue;
@@ -92,7 +107,9 @@ async function realDirectory(dir: string): Promise<string | null> {
   try {
     const real = await fs.realpath(dir);
     return (await fs.stat(real)).isDirectory() ? real : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 type ClaudeMetadata = { cwd?: string; updatedAt?: string };
@@ -104,16 +121,19 @@ async function claudeMetadata(root: string): Promise<Map<string, ClaudeMetadata>
     path.join(home, "Library", "Application Support", "Claude", "claude-code-sessions"),
     path.join(home, "Library", "Application Support", "Claude", "local-agent-mode-sessions"),
   ];
-  for (const dir of candidates) for (const file of await containedFiles(dir, root)) {
-    if (!/^local_.*\.json$/i.test(path.basename(file))) continue;
-    try {
-      const value: unknown = JSON.parse(await fs.readFile(file, "utf8"));
-      if (!isRecord(value) || typeof value.sessionId !== "string") continue;
-      const cwd = typeof value.cwd === "string" ? value.cwd : undefined;
-      const updatedAt = typeof value.updatedAt === "string" ? value.updatedAt : undefined;
-      out.set(value.sessionId.toLowerCase(), { ...(cwd ? { cwd } : {}), ...(updatedAt ? { updatedAt } : {}) });
-    } catch { /* metadata is opportunistic */ }
-  }
+  for (const dir of candidates)
+    for (const file of await containedFiles(dir, root)) {
+      if (!/^local_.*\.json$/i.test(path.basename(file))) continue;
+      try {
+        const value: unknown = JSON.parse(await fs.readFile(file, "utf8"));
+        if (!isRecord(value) || typeof value.sessionId !== "string") continue;
+        const cwd = typeof value.cwd === "string" ? value.cwd : undefined;
+        const updatedAt = typeof value.updatedAt === "string" ? value.updatedAt : undefined;
+        out.set(value.sessionId.toLowerCase(), { ...(cwd ? { cwd } : {}), ...(updatedAt ? { updatedAt } : {}) });
+      } catch {
+        /* metadata is opportunistic */
+      }
+    }
   return out;
 }
 

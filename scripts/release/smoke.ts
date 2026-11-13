@@ -10,9 +10,18 @@ import { execFileSync } from "node:child_process";
 
 export type SmokeFetch = (url: string) => Promise<{ status: number; arrayBuffer(): Promise<ArrayBuffer> }>;
 
-export interface SmokeOptions { base: string; channel: "stable" | "beta" | "nightly"; publicKeyHex: string; version: string; fetch?: SmokeFetch }
+export interface SmokeOptions {
+  base: string;
+  channel: "stable" | "beta" | "nightly";
+  publicKeyHex: string;
+  version: string;
+  fetch?: SmokeFetch;
+}
 
-export interface SmokeResult { ok: boolean; steps: Array<{ step: string; ok: boolean; detail?: string }> }
+export interface SmokeResult {
+  ok: boolean;
+  steps: Array<{ step: string; ok: boolean; detail?: string }>;
+}
 
 const realFetch: SmokeFetch = async (url) => {
   const r = await globalThis.fetch(url, { redirect: "follow", signal: AbortSignal.timeout(120_000) });
@@ -23,19 +32,41 @@ export async function smokeRelease(o: SmokeOptions): Promise<SmokeResult> {
   const get = o.fetch ?? realFetch;
   const base = o.base.replace(/\/?$/, "/");
   const steps: SmokeResult["steps"] = [];
-  const step = (name: string, ok: boolean, detail?: string): boolean => { steps.push({ step: name, ok, ...(detail === undefined ? {} : { detail }) }); return ok; };
-  const text = async (name: string): Promise<string | null> => { const r = await get(`${base}${name}`); return r.status === 200 ? Buffer.from(await r.arrayBuffer()).toString("utf8") : null; };
+  const step = (name: string, ok: boolean, detail?: string): boolean => {
+    steps.push({ step: name, ok, ...(detail === undefined ? {} : { detail }) });
+    return ok;
+  };
+  const text = async (name: string): Promise<string | null> => {
+    const r = await get(`${base}${name}`);
+    return r.status === 200 ? Buffer.from(await r.arrayBuffer()).toString("utf8") : null;
+  };
 
   const manifest = await text(`${o.channel}.json`);
-  if (!step("manifest is published", manifest !== null, `${base}${o.channel}.json`) || manifest === null) return { ok: false, steps };
+  if (!step("manifest is published", manifest !== null, `${base}${o.channel}.json`) || manifest === null)
+    return { ok: false, steps };
   const sig = await text(`${o.channel}.json.sig`);
   if (!step("signature is published", sig !== null) || sig === null) return { ok: false, steps };
-  if (!step("signature verifies with the compiled-in key", verifyManifest(manifest, sig, o.publicKeyHex))) return { ok: false, steps };
+  if (!step("signature verifies with the compiled-in key", verifyManifest(manifest, sig, o.publicKeyHex)))
+    return { ok: false, steps };
 
   let doc: { v?: number; channel?: string; server?: { version?: string; tarball?: string; sha256?: string } };
-  try { doc = JSON.parse(manifest) as typeof doc; } catch { step("manifest reads", false); return { ok: false, steps }; }
+  try {
+    doc = JSON.parse(manifest) as typeof doc;
+  } catch {
+    step("manifest reads", false);
+    return { ok: false, steps };
+  }
   const server = doc.server;
-  if (!step("manifest names this version on this channel", doc.v === 1 && doc.channel === o.channel && server?.version === o.version, `${doc.channel} ${server?.version ?? "no version"}`) || !server?.tarball || !server.sha256) return { ok: false, steps };
+  if (
+    !step(
+      "manifest names this version on this channel",
+      doc.v === 1 && doc.channel === o.channel && server?.version === o.version,
+      `${doc.channel} ${server?.version ?? "no version"}`,
+    ) ||
+    !server?.tarball ||
+    !server.sha256
+  )
+    return { ok: false, steps };
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-"));
   try {
@@ -47,9 +78,12 @@ export async function smokeRelease(o: SmokeOptions): Promise<SmokeResult> {
     const members = tarList(file);
     const top = members[0]?.split("/")[0] ?? "";
     const missing = SERVER_FILES.filter((f) => !members.includes(`${top}/${f}`));
-    if (!step("tarball holds the files the installer needs", missing.length === 0, missing.join(", "))) return { ok: false, steps };
+    if (!step("tarball holds the files the installer needs", missing.length === 0, missing.join(", ")))
+      return { ok: false, steps };
     const version = execFileSync("tar", ["-xzOf", file, `${top}/VERSION`], { encoding: "utf8" }).trim();
     step("VERSION inside matches the manifest", version === server.version, version);
-  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
   return { ok: steps.every((s) => s.ok), steps };
 }

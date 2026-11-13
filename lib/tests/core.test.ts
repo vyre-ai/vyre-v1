@@ -5,7 +5,8 @@ import { canonical } from "../canonical.ts";
 import { segments, spaceOf, covers, containedPrefix } from "../urn.ts";
 
 test("ids: time-prefixed, sortable as text, version nibble 4, timeOf reads the minute back", () => {
-  const a = mintUuid(1_700_000_000_000), b = mintUuid(1_700_000_000_001);
+  const a = mintUuid(1_700_000_000_000),
+    b = mintUuid(1_700_000_000_001);
   assert.ok(isUuid(a) && isUuid(b));
   assert.ok(a.slice(0, 13) < b.slice(0, 13), "later ms sorts later");
   assert.equal(timeOf(a), 1_700_000_000_000);
@@ -41,7 +42,16 @@ test("canonical: refuses what would let two values share a hash", () => {
 test("urn: segments refuse path tricks", () => {
   assert.deepEqual(segments("vyre://s1/records/r1"), ["s1", "records", "r1"]);
   assert.equal(spaceOf("vyre://s1/files/f"), "s1");
-  for (const bad of ["http://x", "vyre://s1/../x", "vyre://s1/%2e/x", "vyre://s1//x", "vyre://s1/a\\b", "vyre://s1/a./b", "vyre://s1/a\u0000b"]) assert.equal(segments(bad), null, bad);
+  for (const bad of [
+    "http://x",
+    "vyre://s1/../x",
+    "vyre://s1/%2e/x",
+    "vyre://s1//x",
+    "vyre://s1/a\\b",
+    "vyre://s1/a./b",
+    "vyre://s1/a\u0000b",
+  ])
+    assert.equal(segments(bad), null, bad);
 });
 
 test("urn: a selector covers its own depth and below, * is exactly one segment", () => {

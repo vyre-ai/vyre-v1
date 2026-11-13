@@ -4,6 +4,6 @@ export interface Block<T = unknown> {
   v: number;
   id: string;
   data: T;
-  state?: 'live' | 'done' | 'waiting' | 'error';
+  state?: "live" | "done" | "waiting" | "error";
   traceId: string;
 }

@@ -4,7 +4,12 @@ import { render } from "./render.ts";
 import { redact } from "./sanitize.ts";
 import type { NewTurn, Summary, SwitchRow, Turn } from "./types.ts";
 
-export interface Hit { n: number; role: Turn["role"]; snippet: string; score: number }
+export interface Hit {
+  n: number;
+  role: Turn["role"];
+  snippet: string;
+  score: number;
+}
 
 export interface Transcript {
   append(t: NewTurn): Turn;
@@ -22,8 +27,16 @@ export interface Transcript {
   render(threadId: string, o?: { title?: string; from?: number }): string;
 }
 
-const words = (s: string): string[] => [...new Set(s.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 3))];
-const textOf = (t: Turn): string => t.parts.flatMap((p) => (p.kind === "text" ? [p.text] : p.kind === "tool_call" ? [p.summary] : [])).join("\n");
+const words = (s: string): string[] => [
+  ...new Set(
+    s
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}_]+/u)
+      .filter((w) => w.length >= 3),
+  ),
+];
+const textOf = (t: Turn): string =>
+  t.parts.flatMap((p) => (p.kind === "text" ? [p.text] : p.kind === "tool_call" ? [p.summary] : [])).join("\n");
 
 export function createTranscript(): Transcript {
   const byThread = new Map<string, Turn[]>();
@@ -31,13 +44,22 @@ export function createTranscript(): Transcript {
   const switchRows = new Map<string, SwitchRow[]>();
   const list = (id: string): Turn[] => {
     let t = byThread.get(id);
-    if (!t) { t = []; byThread.set(id, t); }
+    if (!t) {
+      t = [];
+      byThread.set(id, t);
+    }
     return t;
   };
   return {
     append(t) {
       const rows = list(t.threadId);
-      const turn: Turn = { ...t, n: rows.length + 1, parts: t.parts.map((p) => ({ ...p })), links: t.links.map((l) => ({ ...l })), tokens: { ...t.tokens } };
+      const turn: Turn = {
+        ...t,
+        n: rows.length + 1,
+        parts: t.parts.map((p) => ({ ...p })),
+        links: t.links.map((l) => ({ ...l })),
+        tokens: { ...t.tokens },
+      };
       rows.push(turn);
       return turn;
     },
@@ -69,7 +91,15 @@ export function createTranscript(): Transcript {
         if (matched === 0) continue;
         const at = text.toLowerCase().indexOf(q.find((w) => have.has(w)) ?? "");
         const start = Math.max(0, at - 40);
-        hits.push({ n: t.n, role: t.role, snippet: text.slice(start, start + 160).replace(/\s+/g, " ").trim(), score: matched / q.length + t.n / (rows.length * 1000) });
+        hits.push({
+          n: t.n,
+          role: t.role,
+          snippet: text
+            .slice(start, start + 160)
+            .replace(/\s+/g, " ")
+            .trim(),
+          score: matched / q.length + t.n / (rows.length * 1000),
+        });
       }
       return hits.sort((a, b) => b.score - a.score || b.n - a.n).slice(0, limit);
     },

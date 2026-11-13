@@ -12,8 +12,14 @@ import { codeOf, NOW } from "../fixtures/requestdb.ts";
 import { can, grant, world } from "../fixtures/askworld.ts";
 import type { GrantRec } from "../projections.ts";
 
-interface RegCap { name: string; output: JsonSchema }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { $defs: Record<string, JsonSchema>; capabilities: RegCap[] };
+interface RegCap {
+  name: string;
+  output: JsonSchema;
+}
+const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+};
 const outputOk = (cap: string, out: unknown): void => {
   const c = registry.capabilities.find((x) => x.name === cap)!;
   assert.deepEqual(validate(c.output, out, "", registry.$defs), [], `${cap} output`);
@@ -26,26 +32,57 @@ const itemRows = (h: ReturnType<typeof world>["h"]) => h.db.own.rows("access_rev
 
 test("a review lists every live grant and makes one Review task per reviewer, holding their whole share", async () => {
   const { h, store } = world();
-  store.grants.set("gnt_old", grant("gnt_old", "usr_other", { type: "folder", id: "fld_1" }, "view", { conditions: { expiresAt: NOW - 1 } }));
+  store.grants.set(
+    "gnt_old",
+    grant("gnt_old", "usr_other", { type: "folder", id: "fld_1" }, "view", { conditions: { expiresAt: NOW - 1 } }),
+  );
   store.bump();
   const { review } = await start(h);
   outputOk("access.reviews.start", { review });
-  assert.deepEqual([review.state, review.items, review.decided, review.openedAt], ["open", 3, 0, NOW], "the expired grant is not reviewed");
+  assert.deepEqual(
+    [review.state, review.items, review.decided, review.openedAt],
+    ["open", 3, 0, NOW],
+    "the expired grant is not reviewed",
+  );
 
   const tasks = h.calls.filter((c) => c.cap === "tasks.create");
-  assert.deepEqual(tasks.map((t) => (t.input["assigned"] as { id: string }).id), ["usr_admin", "usr_mgr"], "one task per reviewer, in a steady order");
+  assert.deepEqual(
+    tasks.map((t) => (t.input["assigned"] as { id: string }).id),
+    ["usr_admin", "usr_mgr"],
+    "one task per reviewer, in a steady order",
+  );
   assert.ok(tasks.every((t) => t.input["kind"] === "review"));
   assert.ok(tasks.every((t) => (t.input["source"] as { id: string }).id === review.id));
   assert.equal(tasks[0]!.input["title"], "Access review: 2 grants to check");
   assert.equal(tasks[1]!.input["title"], "Access review: 1 grant to check");
   assert.equal(tasks[0]!.input["due"], NOW + 14 * DAY);
   const rows = (tasks[0]!.input["blocks"] as { data: { rows: string[][] } }[])[0]!.data.rows;
-  assert.deepEqual(rows, [["mgr", "manage", "folder fld_1"], ["mgr2", "manage", "folder fld_2"]]);
+  assert.deepEqual(rows, [
+    ["mgr", "manage", "folder fld_1"],
+    ["mgr2", "manage", "folder fld_2"],
+  ]);
 
   // the Manage holder of fld_1 is the only one who can review Maya's view; the managers' own grants go to an admin
-  assert.deepEqual(itemRows(h).map((r) => [r["grant_id"], r["reviewer"]]), [["gnt_maya", "usr_mgr"], ["gnt_mgr1", "usr_admin"], ["gnt_mgr2", "usr_admin"]].sort((a, b) => (a[0]! < b[0]! ? -1 : 1)));
-  assert.equal(new Set(itemRows(h).filter((r) => r["reviewer"] === "usr_admin").map((r) => r["task_id"])).size, 1, "an admin's two items share one card");
-  assert.deepEqual(h.events, [{ name: "access_review.opened", subject: review.id, payload: { reviewId: review.id, items: 3 } }]);
+  assert.deepEqual(
+    itemRows(h).map((r) => [r["grant_id"], r["reviewer"]]),
+    [
+      ["gnt_maya", "usr_mgr"],
+      ["gnt_mgr1", "usr_admin"],
+      ["gnt_mgr2", "usr_admin"],
+    ].sort((a, b) => (a[0]! < b[0]! ? -1 : 1)),
+  );
+  assert.equal(
+    new Set(
+      itemRows(h)
+        .filter((r) => r["reviewer"] === "usr_admin")
+        .map((r) => r["task_id"]),
+    ).size,
+    1,
+    "an admin's two items share one card",
+  );
+  assert.deepEqual(h.events, [
+    { name: "access_review.opened", subject: review.id, payload: { reviewId: review.id, items: 3 } },
+  ]);
 });
 
 test("the owner of a resource reviews the grants on it", async () => {
@@ -78,35 +115,76 @@ test("remove takes the access away at once, keep leaves it, and a reviewer's car
   h.calls.length = 0;
   assert.equal(can(h, store, "usr_maya", "view", { type: "folder", id: "fld_1" }), true);
 
-  assert.deepEqual(await handlers["access.reviews.decide"](h.as("usr_mgr"), { reviewId: review.id, grantId: "gnt_maya", decision: "remove" }), { ok: true });
+  assert.deepEqual(
+    await handlers["access.reviews.decide"](h.as("usr_mgr"), {
+      reviewId: review.id,
+      grantId: "gnt_maya",
+      decision: "remove",
+    }),
+    { ok: true },
+  );
   assert.equal(can(h, store, "usr_maya", "view", { type: "folder", id: "fld_1" }), false, "Maya lost the access");
-  assert.deepEqual(h.events.map((e) => e.name), ["grant.revoked", "access.changed"]);
-  assert.deepEqual(h.events[0]!.payload, { grantId: "gnt_maya", subject: { kind: "person", id: "usr_maya" }, resource: { type: "folder", id: "fld_1" }, reason: `access review ${review.id}` });
-  assert.deepEqual(h.calls.map((c) => [c.cap, c.input["note"]]), [["tasks.transition", "Every grant decided"]], "usr_mgr had one grant, so the card is done");
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["grant.revoked", "access.changed"],
+  );
+  assert.deepEqual(h.events[0]!.payload, {
+    grantId: "gnt_maya",
+    subject: { kind: "person", id: "usr_maya" },
+    resource: { type: "folder", id: "fld_1" },
+    reason: `access review ${review.id}`,
+  });
+  assert.deepEqual(
+    h.calls.map((c) => [c.cap, c.input["note"]]),
+    [["tasks.transition", "Every grant decided"]],
+    "usr_mgr had one grant, so the card is done",
+  );
 
   h.calls.length = 0;
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_mgr1", decision: "keep" });
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: review.id,
+    grantId: "gnt_mgr1",
+    decision: "keep",
+  });
   assert.deepEqual(h.calls, [], "the admin still has a grant to decide");
   assert.equal(can(h, store, "usr_mgr", "manage", { type: "folder", id: "fld_1" }), true, "keep changes nothing");
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_mgr2", decision: "keep" });
-  assert.deepEqual(h.calls.map((c) => c.cap), ["tasks.transition"]);
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: review.id,
+    grantId: "gnt_mgr2",
+    decision: "keep",
+  });
+  assert.deepEqual(
+    h.calls.map((c) => c.cap),
+    ["tasks.transition"],
+  );
 
   const got = await handlers["access.reviews.get"](h.as("usr_admin"), { reviewId: review.id });
   outputOk("access.reviews.get", got);
   assert.deepEqual([got.review.items, got.review.decided], [3, 3]);
-  assert.deepEqual(got.items.map((i) => [(i.grant as { id: string }).id, i.decision]), [["gnt_maya", "remove"], ["gnt_mgr1", "keep"], ["gnt_mgr2", "keep"]]);
+  assert.deepEqual(
+    got.items.map((i) => [(i.grant as { id: string }).id, i.decision]),
+    [
+      ["gnt_maya", "remove"],
+      ["gnt_mgr1", "keep"],
+      ["gnt_mgr2", "keep"],
+    ],
+  );
   assert.equal((got.items[0]!.grant as { level: string }).level, "view", "a removed grant still shows what it was");
 });
 
 test("a decision can repeat, a removed grant stays removed, and unknown reviews and grants are not found", async () => {
   const { h } = world();
   const { review } = await start(h);
-  const decide = (reviewId: string, grantId: string, decision: "keep" | "remove") => handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId, grantId, decision });
+  const decide = (reviewId: string, grantId: string, decision: "keep" | "remove") =>
+    handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId, grantId, decision });
   await decide(review.id, "gnt_maya", "remove");
   h.events.length = 0;
   assert.deepEqual(await decide(review.id, "gnt_maya", "remove"), { ok: true });
   assert.equal(h.events.length, 0, "the repeat does nothing");
-  await assert.rejects(decide(review.id, "gnt_maya", "keep"), (e: unknown) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    decide(review.id, "gnt_maya", "keep"),
+    (e: unknown) => codeOf(e) === "validation.precondition_failed",
+  );
   await assert.rejects(decide(review.id, "gnt_nope", "keep"), (e: unknown) => codeOf(e) === "validation.not_found");
   await assert.rejects(decide("rvw_nope", "gnt_maya", "keep"), (e: unknown) => codeOf(e) === "validation.not_found");
 });
@@ -114,27 +192,57 @@ test("a decision can repeat, a removed grant stays removed, and unknown reviews 
 test("closing counts what stayed and what went, finishes the cards still open, and a closed review takes no more decisions", async () => {
   const { h } = world();
   const { review } = await start(h);
-  await handlers["access.reviews.decide"](h.as("usr_mgr"), { reviewId: review.id, grantId: "gnt_maya", decision: "remove" });
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_mgr1", decision: "keep" });
+  await handlers["access.reviews.decide"](h.as("usr_mgr"), {
+    reviewId: review.id,
+    grantId: "gnt_maya",
+    decision: "remove",
+  });
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: review.id,
+    grantId: "gnt_mgr1",
+    decision: "keep",
+  });
   h.events.length = 0;
   h.calls.length = 0;
   h.advance(5000);
   const closed = await handlers["access.reviews.close"](h.as("usr_admin"), { reviewId: review.id });
   outputOk("access.reviews.close", closed);
-  assert.deepEqual([closed.review.state, closed.review.closedAt, closed.review.items, closed.review.decided], ["closed", NOW + 5000, 3, 2]);
-  assert.deepEqual(h.events, [{ name: "access_review.closed", subject: review.id, payload: { reviewId: review.id, kept: 2, removed: 1 } }]);
-  assert.deepEqual(h.calls.map((c) => [c.cap, c.input["note"]]), [["tasks.transition", "Review closed"]], "only the admin's card was still open");
+  assert.deepEqual(
+    [closed.review.state, closed.review.closedAt, closed.review.items, closed.review.decided],
+    ["closed", NOW + 5000, 3, 2],
+  );
+  assert.deepEqual(h.events, [
+    { name: "access_review.closed", subject: review.id, payload: { reviewId: review.id, kept: 2, removed: 1 } },
+  ]);
+  assert.deepEqual(
+    h.calls.map((c) => [c.cap, c.input["note"]]),
+    [["tasks.transition", "Review closed"]],
+    "only the admin's card was still open",
+  );
 
   h.events.length = 0;
-  assert.deepEqual(await handlers["access.reviews.close"](h.as("usr_admin"), { reviewId: review.id }), closed, "closing again is the same answer");
+  assert.deepEqual(
+    await handlers["access.reviews.close"](h.as("usr_admin"), { reviewId: review.id }),
+    closed,
+    "closing again is the same answer",
+  );
   assert.equal(h.events.length, 0);
-  await assert.rejects(handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_mgr2", decision: "keep" }), (e: unknown) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    handlers["access.reviews.decide"](h.as("usr_admin"), {
+      reviewId: review.id,
+      grantId: "gnt_mgr2",
+      decision: "keep",
+    }),
+    (e: unknown) => codeOf(e) === "validation.precondition_failed",
+  );
 });
 
 test("the quarterly job schedules its own next run from the setting, and a manual review does not", async () => {
   const { h } = world({ "settings.get": { value: 30 } });
   await start(h, { idempotencyKey: `${QUARTERLY}1` });
-  assert.deepEqual(h.scheduled, [{ at: NOW + 30 * DAY, cap: "access.reviews.start", input: { idempotencyKey: `${QUARTERLY}${NOW + 30 * DAY}` } }]);
+  assert.deepEqual(h.scheduled, [
+    { at: NOW + 30 * DAY, cap: "access.reviews.start", input: { idempotencyKey: `${QUARTERLY}${NOW + 30 * DAY}` } },
+  ]);
 
   h.scheduled.length = 0;
   await start(h, { idempotencyKey: "idem_manual" });
@@ -154,12 +262,25 @@ test("the list filters by state, newest first, and counts decisions", async () =
   const a = await start(h, { idempotencyKey: "idem_a" });
   h.advance(1000);
   const b = await start(h, { idempotencyKey: "idem_b" });
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: a.review.id, grantId: "gnt_maya", decision: "keep" });
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: a.review.id,
+    grantId: "gnt_maya",
+    decision: "keep",
+  });
   await handlers["access.reviews.close"](h.as("usr_admin"), { reviewId: a.review.id });
   const all = await handlers["access.reviews.list"](h.as("usr_admin"), {});
   outputOk("access.reviews.list", all);
-  assert.deepEqual(all.reviews.map((r) => [r.id, r.state, r.decided]), [[b.review.id, "open", 0], [a.review.id, "closed", 1]]);
-  assert.deepEqual((await handlers["access.reviews.list"](h.as("usr_admin"), { state: "open" })).reviews.map((r) => r.id), [b.review.id]);
+  assert.deepEqual(
+    all.reviews.map((r) => [r.id, r.state, r.decided]),
+    [
+      [b.review.id, "open", 0],
+      [a.review.id, "closed", 1],
+    ],
+  );
+  assert.deepEqual(
+    (await handlers["access.reviews.list"](h.as("usr_admin"), { state: "open" })).reviews.map((r) => r.id),
+    [b.review.id],
+  );
   const first = await handlers["access.reviews.list"](h.as("usr_admin"), { limit: 1 });
   assert.deepEqual([first.total, first.next], [2, "1"]);
 });
@@ -167,24 +288,51 @@ test("the list filters by state, newest first, and counts decisions", async () =
 test("a review leaves out the grants the host keeps for an agent (its own folder, its owner's Manage there), matched exactly; a person's share on that folder is reviewed and can be removed", async () => {
   const { h, store } = world();
   const AGENT = "agt_0123456789abcdef0123456789abcdef";
-  const home = `gnt_${AGENT.slice(4)}home`, owner = `gnt_${AGENT.slice(4)}owner`;
-  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Maya's Assistant", status: "active", owner: "usr_maya", createdAt: 1 } as never);
-  store.grants.set(home, { id: home, subject: { kind: "agent", id: AGENT }, resource: { type: "folder", id: "fld_1" }, level: "edit", conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  const home = `gnt_${AGENT.slice(4)}home`,
+    owner = `gnt_${AGENT.slice(4)}owner`;
+  store.principals.set(AGENT, {
+    id: AGENT,
+    kind: "agent",
+    name: "Maya's Assistant",
+    status: "active",
+    owner: "usr_maya",
+    createdAt: 1,
+  } as never);
+  store.grants.set(home, {
+    id: home,
+    subject: { kind: "agent", id: AGENT },
+    resource: { type: "folder", id: "fld_1" },
+    level: "edit",
+    conditions: {},
+    by: "usr_admin",
+    createdAt: NOW - 1000,
+  });
   store.grants.set(owner, grant(owner, "usr_maya", { type: "folder", id: "fld_1" }, "manage"));
   // a share a person made on the agent's folder is a share like any other
   store.grants.set("gnt_byhand1", grant("gnt_byhand1", "usr_other", { type: "folder", id: "fld_1" }, "view"));
   // an id that only looks like an owner grant: for no agent of this Space, or naming the agent for someone who is not its owner
-  store.grants.set("gnt_feedbeefowner", grant("gnt_feedbeefowner", "usr_maya", { type: "folder", id: "fld_2" }, "view"));
-  store.grants.set(`gnt_${AGENT.slice(4)}x`, grant(`gnt_${AGENT.slice(4)}x`, "usr_other", { type: "folder", id: "fld_2" }, "view"));
+  store.grants.set(
+    "gnt_feedbeefowner",
+    grant("gnt_feedbeefowner", "usr_maya", { type: "folder", id: "fld_2" }, "view"),
+  );
+  store.grants.set(
+    `gnt_${AGENT.slice(4)}x`,
+    grant(`gnt_${AGENT.slice(4)}x`, "usr_other", { type: "folder", id: "fld_2" }, "view"),
+  );
   store.bump();
   const { review } = await start(h, { scope: ["folder"] });
   const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
   assert.equal(ids.includes(home), false, "the agent's hold on its own folder is not reviewed");
   assert.equal(ids.includes(owner), false, "nor its owner's Manage there");
-  for (const id of ["gnt_byhand1", "gnt_feedbeefowner", `gnt_${AGENT.slice(4)}x`]) assert.equal(ids.includes(id), true, `${id} is a share and is reviewed`);
+  for (const id of ["gnt_byhand1", "gnt_feedbeefowner", `gnt_${AGENT.slice(4)}x`])
+    assert.equal(ids.includes(id), true, `${id} is a share and is reviewed`);
   assert.equal(review.items, ids.length, "the review's count is its items");
   // and the share by hand on the agent's folder is removed like any other
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: "gnt_byhand1", decision: "remove" } as never);
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: review.id,
+    grantId: "gnt_byhand1",
+    decision: "remove",
+  } as never);
   assert.equal(store.grants.has("gnt_byhand1"), false, "removed");
   assert.equal(store.grants.has(home) && store.grants.has(owner), true, "the agent's own grants stay");
 });
@@ -192,8 +340,20 @@ test("a review leaves out the grants the host keeps for an agent (its own folder
 test("a review keeps an agent's Space reach (space, grown) and an Assistant's own (own) to decide; it leaves out home and owner, a second home's too", async () => {
   const { h, store } = world();
   const AGENT = "agt_0123456789abcdef0123456789abcdef";
-  const g = (id: string, subject: { kind: "agent" | "person"; id: string }, resource: { type: string; id: string }, level: GrantRec["level"]): GrantRec => ({ id, subject, resource, level, conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
-  store.principals.set(AGENT, { id: AGENT, kind: "agent", name: "Maya's Assistant", status: "active", owner: "usr_maya", createdAt: 1 } as never);
+  const g = (
+    id: string,
+    subject: { kind: "agent" | "person"; id: string },
+    resource: { type: string; id: string },
+    level: GrantRec["level"],
+  ): GrantRec => ({ id, subject, resource, level, conditions: {}, by: "usr_admin", createdAt: NOW - 1000 });
+  store.principals.set(AGENT, {
+    id: AGENT,
+    kind: "agent",
+    name: "Maya's Assistant",
+    status: "active",
+    owner: "usr_maya",
+    createdAt: 1,
+  } as never);
   const base = AGENT.slice(4);
   for (const x of [
     g(`gnt_${base}space`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_1" }, "edit"),
@@ -201,13 +361,25 @@ test("a review keeps an agent's Space reach (space, grown) and an Assistant's ow
     g(`gnt_${base}own`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_2" }, "edit"),
     // a second home: the first home's id followed by the new folder's 8 characters (principals.ts:159)
     g(`gnt_${base}homenewfold1`, { kind: "agent", id: AGENT }, { type: "folder", id: "fld_newfold1xx" }, "edit"),
-    g(`gnt_${base}ownernewfold1`, { kind: "person", id: "usr_maya" }, { type: "folder", id: "fld_newfold1xx" }, "manage"),
-  ]) store.grants.set(x.id, x);
+    g(
+      `gnt_${base}ownernewfold1`,
+      { kind: "person", id: "usr_maya" },
+      { type: "folder", id: "fld_newfold1xx" },
+      "manage",
+    ),
+  ])
+    store.grants.set(x.id, x);
   store.bump();
   const { review } = await start(h, { scope: ["folder"] });
   const ids = (itemRows(h) as Array<{ grant_id: string }>).map((r) => r.grant_id);
-  for (const id of [`gnt_${base}space`, `gnt_${base}grown`, `gnt_${base}own`]) assert.equal(ids.includes(id), true, `${id}: an agent's reach is reviewed`);
-  for (const id of [`gnt_${base}homenewfold1`, `gnt_${base}ownernewfold1`]) assert.equal(ids.includes(id), false, `${id}: a second home is the same kept grant`);
-  await handlers["access.reviews.decide"](h.as("usr_admin"), { reviewId: review.id, grantId: `gnt_${base}space`, decision: "remove" } as never);
+  for (const id of [`gnt_${base}space`, `gnt_${base}grown`, `gnt_${base}own`])
+    assert.equal(ids.includes(id), true, `${id}: an agent's reach is reviewed`);
+  for (const id of [`gnt_${base}homenewfold1`, `gnt_${base}ownernewfold1`])
+    assert.equal(ids.includes(id), false, `${id}: a second home is the same kept grant`);
+  await handlers["access.reviews.decide"](h.as("usr_admin"), {
+    reviewId: review.id,
+    grantId: `gnt_${base}space`,
+    decision: "remove",
+  } as never);
   assert.equal(store.grants.has(`gnt_${base}space`), false, "and the agent's Space reach can be removed in a review");
 });

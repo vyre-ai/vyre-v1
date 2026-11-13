@@ -16,13 +16,30 @@ const LOG = [
 ].join("\n");
 
 test("a job log gives the milliseconds of the files that passed; skips, failures, cached passes and other lines are left out", () => {
-  assert.deepEqual(parseLog(LOG), { "apps/app/src/a.test.tsx": 4098, "golden/steps/11-restore.test.ts": 13110, "test/held-send.live.test.ts": 12555 });
+  assert.deepEqual(parseLog(LOG), {
+    "apps/app/src/a.test.tsx": 4098,
+    "golden/steps/11-restore.test.ts": 13110,
+    "test/held-send.live.test.ts": 12555,
+  });
 });
 
 test("a refreshed table takes the new numbers, keeps files the logs do not mention and drops files that are gone", () => {
-  const prev = { "a.test.ts": { ms: 1, at: "old" }, "gone.test.ts": { ms: 2, at: "old" }, "keep.test.ts": { ms: 3, at: "old" } };
-  const next = mergeLogTimings(prev, { "a.test.ts": 500, "new.test.ts": 700, "alsogone.test.ts": 9 }, "NOW", (f) => !f.includes("gone"));
-  assert.deepEqual(next, { "a.test.ts": { ms: 500, at: "NOW" }, "keep.test.ts": { ms: 3, at: "old" }, "new.test.ts": { ms: 700, at: "NOW" } });
+  const prev = {
+    "a.test.ts": { ms: 1, at: "old" },
+    "gone.test.ts": { ms: 2, at: "old" },
+    "keep.test.ts": { ms: 3, at: "old" },
+  };
+  const next = mergeLogTimings(
+    prev,
+    { "a.test.ts": 500, "new.test.ts": 700, "alsogone.test.ts": 9 },
+    "NOW",
+    (f) => !f.includes("gone"),
+  );
+  assert.deepEqual(next, {
+    "a.test.ts": { ms: 500, at: "NOW" },
+    "keep.test.ts": { ms: 3, at: "old" },
+    "new.test.ts": { ms: 700, at: "NOW" },
+  });
   assert.deepEqual(Object.keys(next), ["a.test.ts", "keep.test.ts", "new.test.ts"], "sorted");
 });
 
@@ -30,7 +47,10 @@ test("timings from a log change how files are packed, never which files run", ()
   const files = Array.from({ length: 90 }, (_, i) => `fast/f${i}.test.ts`);
   const measured = parseLog(files.map((f, i) => `ok   ${f} ${200 + i * 90} ms`).join("\n"));
   const table = mergeLogTimings({}, measured, "NOW", () => true);
-  const run = (t: typeof table) => toMatrix(shardFiles(files, t, [])).include.flatMap((j) => j.files.split(" ")).sort();
+  const run = (t: typeof table) =>
+    toMatrix(shardFiles(files, t, []))
+      .include.flatMap((j) => j.files.split(" "))
+      .sort();
   assert.deepEqual(run(table), run({}), "same files with and without a refreshed table");
   assert.deepEqual(run(table), [...files].sort());
 });

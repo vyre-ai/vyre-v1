@@ -11,9 +11,20 @@ import type { MailCtx, Party, Row } from "../projections.ts";
 
 export const NOW = 1_760_000_000_000;
 
-export interface Candidate { recordId: string; score: number }
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Candidate {
+  recordId: string;
+  score: number;
+}
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  vis?: string;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   principal?: MailCtx["principal"];
@@ -37,7 +48,7 @@ export function harness(opts: HarnessOptions = {}) {
   const denied = opts.denied ?? new Set<string>();
   let clock = NOW;
   let linkFails = opts.linkFails === true;
-  let matched: string | undefined;   // the Workspace address the caller is matched to
+  let matched: string | undefined; // the Workspace address the caller is matched to
   let tasks = 0;
   const contacts = opts.contacts ?? {};
   const ctx: MailCtx = {
@@ -58,24 +69,32 @@ export function harness(opts: HarnessOptions = {}) {
       if (cap === "inbox.link_message") {
         if (linkFails) throw new Error("inbox is down");
         const address = String(body.address);
-        if (body.private === true) return { conversationId: `cnv_private${address.replace(/[^a-z0-9]/g, "")}`, linked: "none" };   // a private mailbox's mail never meets a record
+        if (body.private === true)
+          return { conversationId: `cnv_private${address.replace(/[^a-z0-9]/g, "")}`, linked: "none" }; // a private mailbox's mail never meets a record
         const found = contacts[address] ?? [];
         const sure = found.filter((c) => c.score >= 0.8);
         const conversationId = `cnv_${address.replace(/[^a-z0-9]/g, "")}`;
-        if (found.length === 1 && sure.length === 1) return { conversationId, contactId: sure[0]!.recordId, linked: "sure" };
+        if (found.length === 1 && sure.length === 1)
+          return { conversationId, contactId: sure[0]!.recordId, linked: "sure" };
         if (found.length > 0) return { conversationId, linked: "unsure", taskId: `tsk_needsmatch${++tasks}` };
         return { conversationId, linked: "none" };
       }
       if (cap === "google.receive_push" || cap === "ms.receive_notification") return { accepted: true };
       // the Vault's Use check (lib/vault-check.ts): a handle the caller may not use is refused, as authorize would
-      if (cap === "vault.use") { const item = String(body.item); if (NOT_YOURS.has(item.toLowerCase())) throw new Error("permission.no_grant"); return { handle: item, itemId: "vit_mail0001", fields: ["password"] }; }
-      if (cap === "google.dwd.my_account" || cap === "ms.consent.my_account") return matched === undefined ? {} : { email: matched };
+      if (cap === "vault.use") {
+        const item = String(body.item);
+        if (NOT_YOURS.has(item.toLowerCase())) throw new Error("permission.no_grant");
+        return { handle: item, itemId: "vit_mail0001", fields: ["password"] };
+      }
+      if (cap === "google.dwd.my_account" || cap === "ms.consent.my_account")
+        return matched === undefined ? {} : { email: matched };
       const answer = opts.answers?.[cap];
       if (answer) return answer(body);
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(_action, resource) {
-      if (resource.id && denied.has(resource.id)) return { effect: "deny", reason: "no_grant", decisionId: "dec_mailtest01" };
+      if (resource.id && denied.has(resource.id))
+        return { effect: "deny", reason: "no_grant", decisionId: "dec_mailtest01" };
       return { effect: "allow", reason: "ok", decisionId: "dec_mailtest01" };
     },
     vault: {
@@ -87,37 +106,89 @@ export function harness(opts: HarnessOptions = {}) {
     log: { info() {}, warn() {} },
   };
   return {
-    ctx, emitted, called, denied,
-    advance(ms: number) { clock += ms; },
-    failLinks(on: boolean) { linkFails = on; },
-    matchTo(address: string | undefined) { matched = address; },
-    rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    emitted,
+    called,
+    denied,
+    advance(ms: number) {
+      clock += ms;
+    },
+    failLinks(on: boolean) {
+      linkFails = on;
+    },
+    matchTo(address: string | undefined) {
+      matched = address;
+    },
+    rows(sql: string, ...args: unknown[]): Row[] {
+      return ctx.db.all(sql, ...args) as Row[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 /** A mailbox row without going through mail.connect: shared, agent and service mailboxes are created by a later packet. */
-export function seedMailbox(h: Harness, id: string, address: string, o: { kind?: string; provider?: string; privacy?: string; ownerId?: string | null } = {}): void {
+export function seedMailbox(
+  h: Harness,
+  id: string,
+  address: string,
+  o: { kind?: string; provider?: string; privacy?: string; ownerId?: string | null } = {},
+): void {
   ensure(h.ctx);
   h.ctx.db.run(
     `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, o.kind ?? "shared", address, address, o.ownerId ?? null, null, o.provider ?? "inbound_only", o.privacy ?? "space", "pending", null, null, 0, 1, NOW, null,
+    id,
+    o.kind ?? "shared",
+    address,
+    address,
+    o.ownerId ?? null,
+    null,
+    o.provider ?? "inbound_only",
+    o.privacy ?? "space",
+    "pending",
+    null,
+    null,
+    0,
+    1,
+    NOW,
+    null,
   );
 }
 
-export function letter(from: string, rfcMessageId: string, providerId: string, extra: Partial<IngestIn> = {}): IngestIn {
+export function letter(
+  from: string,
+  rfcMessageId: string,
+  providerId: string,
+  extra: Partial<IngestIn> = {},
+): IngestIn {
   const sender: Party = { address: from };
   return {
-    source: "google", providerId, rfcMessageId, from: sender, to: [{ address: "maya@vyre.test" }], subject: "Hello", text: "Hello there",
-    receivedAt: NOW, ...extra,
+    source: "google",
+    providerId,
+    rfcMessageId,
+    from: sender,
+    to: [{ address: "maya@vyre.test" }],
+    subject: "Hello",
+    text: "Hello there",
+    receivedAt: NOW,
+    ...extra,
   };
 }
 
-export const IMAP = { host: "replay.example", port: 993, secure: true, username: "sam@vyre.test", passwordHandle: "#Imap.Sam" };
+export const IMAP = {
+  host: "replay.example",
+  port: 993,
+  secure: true,
+  username: "sam@vyre.test",
+  passwordHandle: "#Imap.Sam",
+};
 
 /** Errors of a value against the frozen contract of a capability (its input or output schema); empty means it conforms. */
 export function contractErrors(cap: string, side: "in" | "out", value: unknown): string[] {

@@ -9,7 +9,10 @@ import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, northwind } from "./sample.ts";
 import { isAskedAccount } from "./asked-account.ts";
 
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
 
 test("the handle names the account with or without the #, and by ref, provider id or name", () => {
   assert.ok(isAskedAccount("#Dana_Codex", { ref: "#Dana_Codex" }));
@@ -21,19 +24,60 @@ test("the handle names the account with or without the #, and by ref, provider i
 async function open(account: string | undefined): Promise<{ started: string[]; marked: boolean; panel: boolean }> {
   const s = createSampleSettings(northwind);
   s.replica.put("accounts", [
-    { id: "acc_a", ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", provider: "claude-code", title: "Claude", name: "Claude, dana@example.com", mine: true, status: "ok" },
-    { id: "acc_b", ref: "#Dana_Codex", driver: "codex", kind: "subscription", provider: "codex", title: "Codex", name: "Codex, dana@example.com", mine: true, status: "expired" },
+    {
+      id: "acc_a",
+      ref: "#Dana_Claude",
+      driver: "claude_code",
+      kind: "subscription",
+      provider: "claude-code",
+      title: "Claude",
+      name: "Claude, dana@example.com",
+      mine: true,
+      status: "ok",
+    },
+    {
+      id: "acc_b",
+      ref: "#Dana_Codex",
+      driver: "codex",
+      kind: "subscription",
+      provider: "codex",
+      title: "Codex",
+      name: "Codex, dana@example.com",
+      mine: true,
+      status: "expired",
+    },
   ] as never);
   const base = s.data.call;
   const seen: string[] = [];
-  const data = { ...s.data, call: async (cap: string, input: unknown) => { if (cap === "providers.subscription_start") { seen.push((input as { providerKey: string }).providerKey); return { flowId: "f1", instruction: "Sign in.", needsCode: false }; } return base(cap, input); } };
+  const data = {
+    ...s.data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "providers.subscription_start") {
+        seen.push((input as { providerKey: string }).providerKey);
+        return { flowId: "f1", instruction: "Sign in.", needsCode: false };
+      }
+      return base(cap, input);
+    },
+  };
   const restore = installDom();
   try {
-    const root = await mount(createRoot, <SettingsDataProvider value={data as never}><SettingsPlace width={1280} initialPage="ai" {...(account ? { initialAccount: account } : {})} /></SettingsDataProvider>);
-    await flush(); await flush();
+    const root = await mount(
+      createRoot,
+      <SettingsDataProvider value={data as never}>
+        <SettingsPlace width={1280} initialPage="ai" {...(account ? { initialAccount: account } : {})} />
+      </SettingsDataProvider>,
+    );
+    await flush();
+    await flush();
     const started = seen;
-    return { started, marked: find(root as never, "account-sign-in") !== null, panel: find(root as never, "page-ai") !== null };
-  } finally { restore(); }
+    return {
+      started,
+      marked: find(root as never, "account-sign-in") !== null,
+      panel: find(root as never, "page-ai") !== null,
+    };
+  } finally {
+    restore();
+  }
 }
 
 test("Your AI opened on an account starts that account's sign-in, once; opened without one it starts nothing", async () => {
@@ -48,21 +92,58 @@ test("Your AI opened on an account starts that account's sign-in, once; opened w
 test("an account that needs a sign-in shows a Sign in again button that starts its sign-in; a working one shows none", async () => {
   const s = createSampleSettings(northwind);
   s.replica.put("accounts", [
-    { id: "acc_a", ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", provider: "claude-code", title: "Claude", name: "Claude", mine: true, status: "ok" },
-    { id: "acc_b", ref: "#Dana_Codex", driver: "codex", kind: "subscription", provider: "codex", title: "Codex", name: "Codex", mine: true, status: "expired" },
+    {
+      id: "acc_a",
+      ref: "#Dana_Claude",
+      driver: "claude_code",
+      kind: "subscription",
+      provider: "claude-code",
+      title: "Claude",
+      name: "Claude",
+      mine: true,
+      status: "ok",
+    },
+    {
+      id: "acc_b",
+      ref: "#Dana_Codex",
+      driver: "codex",
+      kind: "subscription",
+      provider: "codex",
+      title: "Codex",
+      name: "Codex",
+      mine: true,
+      status: "expired",
+    },
   ] as never);
   const base = s.data.call;
   const seen: string[] = [];
-  const data = { ...s.data, call: async (cap: string, input: unknown) => { if (cap === "providers.subscription_start") { seen.push((input as { providerKey: string }).providerKey); return { flowId: "f1", instruction: "Sign in.", needsCode: false }; } return base(cap, input); } };
+  const data = {
+    ...s.data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "providers.subscription_start") {
+        seen.push((input as { providerKey: string }).providerKey);
+        return { flowId: "f1", instruction: "Sign in.", needsCode: false };
+      }
+      return base(cap, input);
+    },
+  };
   const restore = installDom();
   try {
-    const root = await mount(createRoot, <SettingsDataProvider value={data as never}><SettingsPlace width={1280} initialPage="ai" /></SettingsDataProvider>);
-    await flush(); await flush();
+    const root = await mount(
+      createRoot,
+      <SettingsDataProvider value={data as never}>
+        <SettingsPlace width={1280} initialPage="ai" />
+      </SettingsDataProvider>,
+    );
+    await flush();
+    await flush();
     assert.equal(find(root as never, "account-sign-in-again-#Dana_Claude"), null);
     assert.deepEqual(seen, []);
     await press(find(root as never, "account-sign-in-again-#Dana_Codex"));
     await flush();
     assert.deepEqual(seen, ["codex"]);
     assert.ok(find(root as never, "account-sign-in"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

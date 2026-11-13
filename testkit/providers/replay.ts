@@ -87,7 +87,10 @@ export function loadReplay(source: string | URL): ReplayTape {
   const file = source instanceof URL ? fileURLToPath(source) : source;
   const st = fs.statSync(file);
   if (st.isDirectory()) {
-    const names = fs.readdirSync(file).filter((n) => n.endsWith(".json")).sort();
+    const names = fs
+      .readdirSync(file)
+      .filter((n) => n.endsWith(".json"))
+      .sort();
     const exchanges = names.flatMap((n) => loadReplay(path.join(file, n)).exchanges);
     return { exchanges };
   }
@@ -228,7 +231,8 @@ function asExchange(v: unknown, where: string): RecordedExchange {
   const o = v as Record<string, unknown>;
   const req = o.request;
   const res = o.response;
-  if (!req || typeof req !== "object" || !res || typeof res !== "object") throw new Error(`${where} needs request and response`);
+  if (!req || typeof req !== "object" || !res || typeof res !== "object")
+    throw new Error(`${where} needs request and response`);
   const r = req as Record<string, unknown>;
   const s = res as Record<string, unknown>;
   if (typeof r.url !== "string") throw new Error(`${where} request.url must be a string`);

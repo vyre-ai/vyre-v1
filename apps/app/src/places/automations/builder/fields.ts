@@ -41,7 +41,8 @@ function schemaType(prop: unknown): TypeRef {
   const raw = prop["type"];
   const name = Array.isArray(raw) ? raw.find((item) => item !== "null") : raw;
   if (name === "integer") return "number";
-  if (name === "string" || name === "number" || name === "boolean" || name === "object" || name === "array") return name;
+  if (name === "string" || name === "number" || name === "boolean" || name === "object" || name === "array")
+    return name;
   return "unknown";
 }
 
@@ -53,7 +54,11 @@ function enumValues(prop: unknown): string[] {
 /** Fields the schema names, including ones the step has not filled in yet. Account fields stay on the account row. */
 export function fieldsFromSchema(schema: unknown, input: Record<string, unknown>): SchemaField[] {
   if (!isRecord(schema) || !isRecord(schema["properties"])) return [];
-  const required = new Set(Array.isArray(schema["required"]) ? schema["required"].filter((name): name is string => typeof name === "string") : []);
+  const required = new Set(
+    Array.isArray(schema["required"])
+      ? schema["required"].filter((name): name is string => typeof name === "string")
+      : [],
+  );
   const out: SchemaField[] = [];
   for (const name of Object.keys(schema["properties"] as Record<string, unknown>)) {
     if (ACCOUNT.has(name)) continue;
@@ -75,7 +80,12 @@ export function asFixture(version: number, stepKey: string, output: unknown): St
 }
 
 export function isFixture(value: unknown): value is StepFixture {
-  return isRecord(value) && typeof value["definitionVersion"] === "number" && typeof value["stepKey"] === "string" && "output" in value;
+  return (
+    isRecord(value) &&
+    typeof value["definitionVersion"] === "number" &&
+    typeof value["stepKey"] === "string" &&
+    "output" in value
+  );
 }
 
 function sampleText(value: unknown): string {
@@ -86,24 +96,34 @@ function sampleText(value: unknown): string {
 }
 
 /** Trigger and prior steps, with type and missing/null/empty kept apart. A stored fixture names its definition version. */
-export function shelfLines(triggerSample: unknown, steps: readonly { id: string; title: string; output: unknown }[]): ShelfLine[] {
+export function shelfLines(
+  triggerSample: unknown,
+  steps: readonly { id: string; title: string; output: unknown }[],
+): ShelfLine[] {
   const lines: ShelfLine[] = [];
   if (triggerSample !== undefined) {
     const output = isFixture(triggerSample) ? triggerSample.output : triggerSample;
     const version = isFixture(triggerSample) ? ` version ${triggerSample.definitionVersion}` : "";
-    lines.push({ id: "trigger", text: `Trigger${version} (${typeOf(output)}, ${presenceOf(true, output)}): ${sampleText(output)}` });
+    lines.push({
+      id: "trigger",
+      text: `Trigger${version} (${typeOf(output)}, ${presenceOf(true, output)}): ${sampleText(output)}`,
+    });
   }
   for (const step of steps) {
     if (step.output === undefined) continue;
     const output = isFixture(step.output) ? step.output.output : step.output;
     const version = isFixture(step.output) ? `, version ${step.output.definitionVersion}` : "";
-    lines.push({ id: step.id, text: `${step.title}${version} (${typeOf(output)}, ${presenceOf(true, output)}): ${sampleText(output)}` });
+    lines.push({
+      id: step.id,
+      text: `${step.title}${version} (${typeOf(output)}, ${presenceOf(true, output)}): ${sampleText(output)}`,
+    });
   }
   return lines;
 }
 
 function sourceLabel(title: string, sample: unknown, trigger: boolean): string {
-  if (isFixture(sample)) return trigger ? `Trigger version ${sample.definitionVersion}` : `${title}, version ${sample.definitionVersion}`;
+  if (isFixture(sample))
+    return trigger ? `Trigger version ${sample.definitionVersion}` : `${title}, version ${sample.definitionVersion}`;
   return trigger ? "Trigger" : title;
 }
 
@@ -113,15 +133,34 @@ function rowsFor(idPrefix: string, source: string, output: unknown): ShelfRow[] 
     if (keys.length > 0) {
       return keys.map((key) => {
         const value = output[key];
-        return { id: `${idPrefix}.${key}`, source, name: key, typeName: typeOf(value), presence: presenceOf(true, value), value: sampleText(value) };
+        return {
+          id: `${idPrefix}.${key}`,
+          source,
+          name: key,
+          typeName: typeOf(value),
+          presence: presenceOf(true, value),
+          value: sampleText(value),
+        };
       });
     }
   }
-  return [{ id: idPrefix, source, name: source, typeName: typeOf(output), presence: presenceOf(true, output), value: sampleText(output) }];
+  return [
+    {
+      id: idPrefix,
+      source,
+      name: source,
+      typeName: typeOf(output),
+      presence: presenceOf(true, output),
+      value: sampleText(output),
+    },
+  ];
 }
 
 /** Typed rows from a real trigger sample and prior step outputs. An object becomes one row per key. */
-export function shelfRows(triggerSample: unknown, steps: readonly { id: string; title: string; output: unknown }[]): ShelfRow[] {
+export function shelfRows(
+  triggerSample: unknown,
+  steps: readonly { id: string; title: string; output: unknown }[],
+): ShelfRow[] {
   const rows: ShelfRow[] = [];
   if (triggerSample !== undefined) {
     const output = isFixture(triggerSample) ? triggerSample.output : triggerSample;
@@ -138,7 +177,9 @@ export function shelfRows(triggerSample: unknown, steps: readonly { id: string; 
 export function filterShelf(rows: readonly ShelfRow[], query: string): ShelfRow[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [...rows];
-  return rows.filter((row) => `${row.source} ${row.name} ${row.typeName} ${row.presence} ${row.value}`.toLowerCase().includes(needle));
+  return rows.filter((row) =>
+    `${row.source} ${row.name} ${row.typeName} ${row.presence} ${row.value}`.toLowerCase().includes(needle),
+  );
 }
 
 export function fixtureNote(version: number, stepKey: string): string {

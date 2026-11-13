@@ -9,16 +9,23 @@ import { harness } from "../fixtures/harness.ts";
 // a small deterministic generator, so a failure names its seed
 function rng(seed: number): () => number {
   let s = seed >>> 0;
-  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 2 ** 32; };
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 2 ** 32;
+  };
 }
 const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./+=:@ !?\"'&%";
-const valueOf = (r: () => number): string => Array.from({ length: 8 + Math.floor(r() * 24) }, () => ALPHABET[Math.floor(r() * ALPHABET.length)]!).join("");
-const junk = (r: () => number, n: number): string => Array.from({ length: n }, () => "the quick output "[Math.floor(r() * 17)]!).join("");
+const valueOf = (r: () => number): string =>
+  Array.from({ length: 8 + Math.floor(r() * 24) }, () => ALPHABET[Math.floor(r() * ALPHABET.length)]!).join("");
+const junk = (r: () => number, n: number): string =>
+  Array.from({ length: n }, () => "the quick output "[Math.floor(r() * 17)]!).join("");
 
 const ENCODERS: Record<string, (value: string, r: () => number) => string> = {
   plain: (v, r) => `${junk(r, 5)}${v}${junk(r, 7)}`,
-  base64: (v, r) => Buffer.from(`${junk(r, Math.floor(r() * 3) + 1)}${v}${junk(r, Math.floor(r() * 3) + 1)}`).toString("base64"),
-  base64url: (v, r) => Buffer.from(`${junk(r, Math.floor(r() * 3) + 1)}${v}${junk(r, Math.floor(r() * 3) + 1)}`).toString("base64url"),
+  base64: (v, r) =>
+    Buffer.from(`${junk(r, Math.floor(r() * 3) + 1)}${v}${junk(r, Math.floor(r() * 3) + 1)}`).toString("base64"),
+  base64url: (v, r) =>
+    Buffer.from(`${junk(r, Math.floor(r() * 3) + 1)}${v}${junk(r, Math.floor(r() * 3) + 1)}`).toString("base64url"),
   urlencoded: (v, r) => `?token=${encodeURIComponent(v)}&${junk(r, 4)}`,
   json: (v, r) => JSON.stringify({ k: junk(r, 3), secret: v }),
   hex: (v, r) => `${Buffer.from(junk(r, 3)).toString("hex")}${Buffer.from(v).toString("hex")}`,
@@ -41,15 +48,26 @@ for (const [name, encode] of Object.entries(ENCODERS)) {
 }
 
 test("scrub leaves ordinary text and short values alone", () => {
-  assert.deepEqual(scrub("nothing secret here", [{ handle: "#a", value: "sk-live-12345" }]), { text: "nothing secret here", replaced: 0 });
+  assert.deepEqual(scrub("nothing secret here", [{ handle: "#a", value: "sk-live-12345" }]), {
+    text: "nothing secret here",
+    replaced: 0,
+  });
   assert.deepEqual(scrub("the cat sat", [{ handle: "#a", value: "cat" }]), { text: "the cat sat", replaced: 0 });
-  assert.deepEqual(scrub("a ab ab", [{ handle: "#a", value: "ab" }]), { text: "a ab ab", replaced: 0 }, "a value under four characters is left alone");
+  assert.deepEqual(
+    scrub("a ab ab", [{ handle: "#a", value: "ab" }]),
+    { text: "a ab ab", replaced: 0 },
+    "a value under four characters is left alone",
+  );
 });
 
 test("two secrets in one stream both go, longest form first", () => {
-  const a = "sk-live-AAAA-1111", b = "pw:Zx9-Zx9-Zx9";
+  const a = "sk-live-AAAA-1111",
+    b = "pw:Zx9-Zx9-Zx9";
   const text = `A=${a} B=${Buffer.from(b).toString("base64")} A again ${encodeURIComponent(a)}`;
-  const cleaned = scrub(text, [{ handle: "#a", value: a }, { handle: "#b", value: b }]);
+  const cleaned = scrub(text, [
+    { handle: "#a", value: a },
+    { handle: "#b", value: b },
+  ]);
   assert.equal(cleaned.text, "A=[#a] B=[#b] A again [#a]");
   assert.equal(cleaned.replaced, 3);
 });
@@ -60,7 +78,9 @@ test("a form the scrubber does not know is a miss: leaks cannot see it, and the 
   const cleaned = scrub(`result ${reversed}`, [{ handle: "#a", value }]);
   assert.equal(cleaned.replaced, 0, "a reversed copy is not a form the scrubber knows");
   const h = harness();
-  assert.deepEqual(await reportScrubMiss(h.ctx, { itemId: "vit_abc", place: "terminal", traceId: "b".repeat(32) }), { ok: true });
+  assert.deepEqual(await reportScrubMiss(h.ctx, { itemId: "vit_abc", place: "terminal", traceId: "b".repeat(32) }), {
+    ok: true,
+  });
   assert.equal(h.named("vault.scrub_miss").length, 1);
   assert.ok(!h.everything().includes(value));
   h.cleanup();

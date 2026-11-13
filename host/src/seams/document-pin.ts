@@ -69,31 +69,39 @@ function connectPinned(req: PinnedRequest): Promise<Response> {
     }
     let request: ReturnType<typeof https.request>;
     try {
-      request = https.request({
-        host: dial,
-        family: net.isIPv6(dial) ? 6 : 4,
-        port,
-        method,
-        path: `${req.url.pathname || "/"}${req.url.search}`,
-        headers: { accept: "*/*", ...(req.headers ?? {}), host: req.url.host, ...(req.body !== undefined ? { "content-length": String(Buffer.byteLength(req.body)) } : {}) },
-        lookup: socketLookup(addresses),
-        autoSelectFamily: false,
-        agent: false,
-        signal: req.signal,
-        ...(name ? { servername: name } : {}),
-      }, (res) => {
-        const status = res.statusCode ?? 0;
-        if (status < 200 || status > 599) {
-          res.resume();
-          reject(new Error("The document did not load."));
-          return;
-        }
-        // A redirect is returned as its status. This function does not open the next address.
-        const redirect = status >= 300 && status < 400;
-        if (redirect) res.resume();
-        const body = redirect ? null : Readable.toWeb(res);
-        resolve(new Response(body, { status, headers: responseHeaders(res) }));
-      });
+      request = https.request(
+        {
+          host: dial,
+          family: net.isIPv6(dial) ? 6 : 4,
+          port,
+          method,
+          path: `${req.url.pathname || "/"}${req.url.search}`,
+          headers: {
+            accept: "*/*",
+            ...(req.headers ?? {}),
+            host: req.url.host,
+            ...(req.body !== undefined ? { "content-length": String(Buffer.byteLength(req.body)) } : {}),
+          },
+          lookup: socketLookup(addresses),
+          autoSelectFamily: false,
+          agent: false,
+          signal: req.signal,
+          ...(name ? { servername: name } : {}),
+        },
+        (res) => {
+          const status = res.statusCode ?? 0;
+          if (status < 200 || status > 599) {
+            res.resume();
+            reject(new Error("The document did not load."));
+            return;
+          }
+          // A redirect is returned as its status. This function does not open the next address.
+          const redirect = status >= 300 && status < 400;
+          if (redirect) res.resume();
+          const body = redirect ? null : Readable.toWeb(res);
+          resolve(new Response(body, { status, headers: responseHeaders(res) }));
+        },
+      );
     } catch (err) {
       reject(err);
       return;

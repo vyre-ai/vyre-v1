@@ -10,20 +10,30 @@ import type { ChildProcess } from "node:child_process";
 export const STOP_BOUND_MS = 30_000;
 
 /** Node flags that let watchStop ask the daemon for a report while it stops. */
-export const reportArgs = (reportDir: string): string[] => ["--report-on-signal", "--report-signal=SIGUSR2", `--report-directory=${reportDir}`];
+export const reportArgs = (reportDir: string): string[] => [
+  "--report-on-signal",
+  "--report-signal=SIGUSR2",
+  `--report-directory=${reportDir}`,
+];
 
 export type StopWatch = { term: () => void; stopMs: () => number | null; evidence: () => string };
 
 export function watchStop(child: ChildProcess, dataDir: string, reportDir: string): StopWatch {
-  let termAt = 0, exitAt = 0;
+  let termAt = 0,
+    exitAt = 0;
   let timer: NodeJS.Timeout | undefined;
-  child.once("exit", () => { exitAt = Date.now(); if (timer) clearTimeout(timer); });
+  child.once("exit", () => {
+    exitAt = Date.now();
+    if (timer) clearTimeout(timer);
+  });
   return {
     term: () => {
       if (termAt) return;
       termAt = Date.now();
       child.kill("SIGTERM");
-      timer = setTimeout(() => { if (!exitAt) child.kill("SIGUSR2"); }, 20_000);
+      timer = setTimeout(() => {
+        if (!exitAt) child.kill("SIGUSR2");
+      }, 20_000);
       timer.unref();
     },
     stopMs: () => (termAt && exitAt ? exitAt - termAt : null),
@@ -31,17 +41,37 @@ export function watchStop(child: ChildProcess, dataDir: string, reportDir: strin
       const out: string[] = [];
       try {
         const d = new DatabaseSync(path.join(dataDir, "logs.db"), { readOnly: true });
-        const rows = d.prepare("SELECT at, level, place, msg, attrs FROM logs WHERE at >= ? ORDER BY at").all(termAt - 500) as Array<Record<string, unknown>>;
+        const rows = d
+          .prepare("SELECT at, level, place, msg, attrs FROM logs WHERE at >= ? ORDER BY at")
+          .all(termAt - 500) as Array<Record<string, unknown>>;
         d.close();
-        out.push(`daemon log from the SIGTERM on (${rows.length} rows):`, ...rows.map((r) => `  +${Number(r.at) - termAt} ms ${String(r.place)} ${String(r.msg)} ${String(r.attrs ?? "").slice(0, 200)}`));
-      } catch (e) { out.push(`no daemon log: ${e instanceof Error ? e.message : String(e)}`); }
+        out.push(
+          `daemon log from the SIGTERM on (${rows.length} rows):`,
+          ...rows.map(
+            (r) =>
+              `  +${Number(r.at) - termAt} ms ${String(r.place)} ${String(r.msg)} ${String(r.attrs ?? "").slice(0, 200)}`,
+          ),
+        );
+      } catch (e) {
+        out.push(`no daemon log: ${e instanceof Error ? e.message : String(e)}`);
+      }
       try {
         for (const f of fs.readdirSync(reportDir)) {
-          const j = JSON.parse(fs.readFileSync(path.join(reportDir, f), "utf8")) as { javascriptStack?: { stack?: string[] }; libuv?: Array<Record<string, unknown>> };
-          out.push(`report ${f}:`, `  stack: ${(j.javascriptStack?.stack ?? []).slice(0, 15).join(" | ")}`,
-            ...(j.libuv ?? []).filter((h) => h["is_active"]).map((h) => `  handle ${String(h["type"])} ${JSON.stringify(h).slice(0, 200)}`));
+          const j = JSON.parse(fs.readFileSync(path.join(reportDir, f), "utf8")) as {
+            javascriptStack?: { stack?: string[] };
+            libuv?: Array<Record<string, unknown>>;
+          };
+          out.push(
+            `report ${f}:`,
+            `  stack: ${(j.javascriptStack?.stack ?? []).slice(0, 15).join(" | ")}`,
+            ...(j.libuv ?? [])
+              .filter((h) => h["is_active"])
+              .map((h) => `  handle ${String(h["type"])} ${JSON.stringify(h).slice(0, 200)}`),
+          );
         }
-      } catch { out.push("no report"); }
+      } catch {
+        out.push("no report");
+      }
       return out.join("\n");
     },
   };

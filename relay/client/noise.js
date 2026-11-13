@@ -59,7 +59,11 @@ async function aesHandle(c, raw) {
 export async function dh(c, priv, pub) {
   if (!(pub instanceof Uint8Array) || pub.length !== DHLEN) throw new Error("an X25519 public key is 32 bytes");
   let out;
-  try { out = await c.dh(priv, pub); } catch { throw new Error("invalid peer key"); }
+  try {
+    out = await c.dh(priv, pub);
+  } catch {
+    throw new Error("invalid peer key");
+  }
   if (!(out instanceof Uint8Array) || out.length !== DHLEN || isZero(out)) throw new Error("invalid peer key");
   return out;
 }
@@ -75,10 +79,18 @@ async function hkdf2(c, ck, ikm) {
 /** One direction's key and counter (spec 5.1). A failed decrypt does not advance the counter. */
 export class CipherState {
   /** @param {CryptoProvider} c @param {any} [k] an AES handle from the provider, or null */
-  constructor(c, k = null) { this.c = c; this.k = k; this.n = 0; }
+  constructor(c, k = null) {
+    this.c = c;
+    this.k = k;
+    this.n = 0;
+  }
   /** @param {CryptoProvider} c @param {Uint8Array} raw */
-  static async of(c, raw) { return new CipherState(c, await aesHandle(c, raw)); }
-  hasKey() { return this.k !== null; }
+  static async of(c, raw) {
+    return new CipherState(c, await aesHandle(c, raw));
+  }
+  hasKey() {
+    return this.k !== null;
+  }
   /** @param {Uint8Array} ad @param {Uint8Array} plaintext */
   async encrypt(ad, plaintext) {
     if (this.k === null) return plaintext.slice();
@@ -92,7 +104,11 @@ export class CipherState {
     if (this.n >= MAX_NONCE) throw new Error("channel exhausted; start a new session");
     if (ciphertext.length < TAGLEN) throw new Error("decrypt failed");
     let out;
-    try { out = await this.c.aesGcmDecrypt(this.k, nonceOf(this.n), ad, ciphertext); } catch { throw new Error("decrypt failed"); }
+    try {
+      out = await this.c.aesGcmDecrypt(this.k, nonceOf(this.n), ad, ciphertext);
+    } catch {
+      throw new Error("decrypt failed");
+    }
     this.n++;
     return out;
   }
@@ -106,7 +122,12 @@ export class CipherState {
 
 export class SymmetricState {
   /** @param {CryptoProvider} c */
-  constructor(c) { this.c = c; this.h = EMPTY; this.ck = EMPTY; this.cs = new CipherState(c); }
+  constructor(c) {
+    this.c = c;
+    this.h = EMPTY;
+    this.ck = EMPTY;
+    this.cs = new CipherState(c);
+  }
   async init() {
     const name = utf8(PROTOCOL);
     this.h = name.length <= HASHLEN ? concat(name, new Uint8Array(HASHLEN - name.length)) : await this.c.sha256(name);
@@ -117,7 +138,9 @@ export class SymmetricState {
     this.ck = ck;
     this.cs = await CipherState.of(this.c, k);
   }
-  async mixHash(data) { this.h = await this.c.sha256(concat(this.h, data)); }
+  async mixHash(data) {
+    this.h = await this.c.sha256(concat(this.h, data));
+  }
   async encryptAndHash(plaintext) {
     const ct = await this.cs.encrypt(this.h, plaintext);
     await this.mixHash(ct);
@@ -166,7 +189,7 @@ export class Initiator {
     await ss.init();
     await ss.mixHash(this.prologue);
     await ss.mixHash(this.rs);
-    this.e = this.e || await this.c.generateKeyPair();
+    this.e = this.e || (await this.c.generateKeyPair());
     await ss.mixHash(this.e.publicKey);
     await ss.mixKey(await dh(this.c, this.e.privateKey, this.rs));
     const s = await ss.encryptAndHash(this.s.publicKey);

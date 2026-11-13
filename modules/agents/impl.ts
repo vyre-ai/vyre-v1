@@ -3,10 +3,28 @@
 import { followGrant } from "./handlers/install.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPersonCreated, onPersonLeft, onTurn, renameOldAssistants, restoreAgentFiles, retire, upgradeStarterAgentMd } from "./handlers/crud.ts";
+import {
+  OWNER_LEFT,
+  announcePrivacy,
+  onFileVersion,
+  onDisplayNameChanged,
+  onPersonCreated,
+  onPersonLeft,
+  onTurn,
+  renameOldAssistants,
+  restoreAgentFiles,
+  retire,
+  upgradeStarterAgentMd,
+} from "./handlers/crud.ts";
 import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
-import type { FileVersionEvent, PersonLeftEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
+import type {
+  FileVersionEvent,
+  PersonLeftEvent,
+  PrincipalEvent,
+  SettingChangedEvent,
+  TurnEvent,
+} from "./handlers/crud.ts";
 import { agentOf, nextRun, noteRoutineOutcome } from "./projections.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
 import type { AgentsCtx } from "./projections.ts";
@@ -17,15 +35,35 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 
 /** The boot check: right after start, then every 15 seconds, each agent's AGENT.md and agent.toml are in its folder; a missing one is put back from the agent record (P-L5_30). */
 export const periodic = {
-  "agents.agent_files": { everyMs: 15_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx) },
+  "agents.agent_files": {
+    everyMs: 15_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => restoreAgentFiles(ctx),
+  },
   /** Once at boot (it repeats every 15 minutes in case the people list was not ready at boot; once renamed nothing matches): an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
-  "agents.assistant_names": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
+  "agents.assistant_names": {
+    everyMs: 15 * 60_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx),
+  },
   /** At boot and every 15 minutes: an AGENT.md that is still the untouched old nine-line starter gets today's default as a new version; an edited one is never touched. */
   /** At boot and hourly: a private agent made before access learnt of privacy is announced once (agent.privacy_set). */
-  "agents.privacy": { everyMs: 60 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => announcePrivacy(ctx) },
-  "agents.agent_md_upgrade": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx) },
+  "agents.privacy": {
+    everyMs: 60 * 60_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => announcePrivacy(ctx),
+  },
+  "agents.agent_md_upgrade": {
+    everyMs: 15 * 60_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx),
+  },
   /** The schedule of routines: every 10 seconds, each routine whose time has come starts once (handlers/routines.ts runDueRoutines). Runs only where the scheduled-work lease is held. */
-  "agents.routines_due": { everyMs: ROUTINES_DUE_EVERY_MS, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => runDueRoutines(ctx) },
+  "agents.routines_due": {
+    everyMs: ROUTINES_DUE_EVERY_MS,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => runDueRoutines(ctx),
+  },
 };
 
 export { restoreAgentFiles };
@@ -37,29 +75,60 @@ export const consumers = {
   /** A grant on a skill changed in access (the shared Share sheet): agents' grants and people's cards follow (handlers/install.ts). */
   "agents.skill_grants": {
     on: ["grant.created", "grant.revoked"],
-    async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown> }): Promise<void> { followGrant(ctx as never, event as never); },
+    async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      followGrant(ctx as never, event as never);
+    },
   },
   ...memoryGuideConsumers,
   /** A routine's run ended (the engine finishes it when the agent's turn ends): the routine's Last run says how it went. */
   "agents.routine_outcome": {
     on: ["run.succeeded", "run.failed", "run.stopped"],
-    run: async (ctx: AgentsCtx, event: { name: string; payload: { runId?: string; code?: string; message?: string } }): Promise<string[]> => {
+    run: async (
+      ctx: AgentsCtx,
+      event: { name: string; payload: { runId?: string; code?: string; message?: string } },
+    ): Promise<string[]> => {
       const runId = event.payload.runId;
       if (!runId) return [];
-      const ids = noteRoutineOutcome(ctx.db, runId, event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped", ctx.now());
+      const ids = noteRoutineOutcome(
+        ctx.db,
+        runId,
+        event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped",
+        ctx.now(),
+      );
       if (event.name === "run.stopped") return ids;
       for (const id of ids) {
         // three failures in a row for one reason: the routine pauses itself and says so once in its chat
-        const paused = noteRun(ctx.db, id, event.name === "run.succeeded", String(event.payload.code ?? "run.failed"), String(event.payload.message ?? ""), ctx.now());
+        const paused = noteRun(
+          ctx.db,
+          id,
+          event.name === "run.succeeded",
+          String(event.payload.code ?? "run.failed"),
+          String(event.payload.message ?? ""),
+          ctx.now(),
+        );
         if (!paused) continue;
         ctx.log.warn("a routine paused itself after repeated failed runs", { routineId: id, reason: paused.reason });
         if (paused.threadId && ctx.call) {
           try {
             // a channel's id names its main chat; the chat capabilities take that chat's own id
             let threadId = paused.threadId;
-            if (threadId.startsWith("chn_")) threadId = String(((await ctx.call("channels.get", { channelId: threadId })) as { channel?: { mainThreadId?: string } }).channel?.mainThreadId ?? threadId);
-            await ctx.call("chat.post", { threadId, body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`, mentions: [], idempotencyKey: `routine-paused:${id}:${ctx.now()}` }); }
-          catch (e) { ctx.log.warn("the routine's pause could not be said in its chat", { routineId: id, error: e instanceof Error ? e.message : String(e) }); }
+            if (threadId.startsWith("chn_"))
+              threadId = String(
+                ((await ctx.call("channels.get", { channelId: threadId })) as { channel?: { mainThreadId?: string } })
+                  .channel?.mainThreadId ?? threadId,
+              );
+            await ctx.call("chat.post", {
+              threadId,
+              body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`,
+              mentions: [],
+              idempotencyKey: `routine-paused:${id}:${ctx.now()}`,
+            });
+          } catch (e) {
+            ctx.log.warn("the routine's pause could not be said in its chat", {
+              routineId: id,
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
         }
       }
       return ids;
@@ -73,7 +142,8 @@ export const consumers = {
   /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */
   "agents.routine_resume_on_turn": {
     on: ["turn.completed"],
-    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): string[] => (event.payload.agentId ? resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId) : []),
+    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): string[] =>
+      event.payload.agentId ? resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId) : [],
   },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {
@@ -99,19 +169,32 @@ export const consumers = {
   /** A message was posted: a watcher on that channel starts a run under its owner (P-CC_34). */
   "agents.watchers": {
     on: ["message.received"],
-    run: (ctx: AgentsCtx, event: Parameters<typeof onMessageReceived>[1]): Promise<string[]> => onMessageReceived(ctx, event),
+    run: (ctx: AgentsCtx, event: Parameters<typeof onMessageReceived>[1]): Promise<string[]> =>
+      onMessageReceived(ctx, event),
   },
   "agents.turn_started": {
     on: ["turn.started"],
-    run: async (ctx: AgentsCtx, event: TurnEvent): Promise<void> => { onTurn(ctx, "started", event); },
+    run: async (ctx: AgentsCtx, event: TurnEvent): Promise<void> => {
+      onTurn(ctx, "started", event);
+    },
   },
   "agents.turn_ended": {
     on: ["turn.completed", "turn.failed", "turn.cancelled"],
-    run: async (ctx: AgentsCtx, event: TurnEvent): Promise<void> => { onTurn(ctx, "ended", event); },
+    run: async (ctx: AgentsCtx, event: TurnEvent): Promise<void> => {
+      onTurn(ctx, "ended", event);
+    },
   },
 };
 
-export { askerOf, markRoutineRan, routineLabel, routineVia, BUILTIN_SKILLS, CREATE_AGENT_SKILL, createAgentPlan } from "./projections.ts";
+export {
+  askerOf,
+  markRoutineRan,
+  routineLabel,
+  routineVia,
+  BUILTIN_SKILLS,
+  CREATE_AGENT_SKILL,
+  createAgentPlan,
+} from "./projections.ts";
 export { readTemplate, templateVersion } from "./handlers/routines.ts";
 
 /**
@@ -119,30 +202,69 @@ export { readTemplate, templateVersion } from "./handlers/routines.ts";
  * `owned_by` answers { <kind>: { count, sample } }; `reassign_owned` applies one wizard action to one kind and answers how many things it touched.
  */
 type Row = Record<string, unknown>;
-const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => { try { return ctx.db.all(sql, ...a) as Row[]; } catch { return []; } };
-const kept = (r: Row[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+const rows = (ctx: Ctx, sql: string, ...a: unknown[]): Row[] => {
+  try {
+    return ctx.db.all(sql, ...a) as Row[];
+  } catch {
+    return [];
+  }
+};
+const kept = (r: Row[], type: string, title: string) => ({
+  count: r.length,
+  sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })),
+  ids: r.slice(0, 500).map((x) => String(x["id"])),
+});
 export const hostCalls = {
   /** the folders of the agents a person owns, for the removal wizard to move their ownership with the agents (ruling 88) */
   "agents.folders_of": (ctx: Ctx, i: { person: string }): { agentId: string; folderId: string }[] =>
-    rows(ctx, `SELECT "id", "folderId" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, i.person).map((r) => ({ agentId: String(r["id"]), folderId: String(r["folderId"]) })),
+    rows(ctx, `SELECT "id", "folderId" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, i.person).map(
+      (r) => ({ agentId: String(r["id"]), folderId: String(r["folderId"]) }),
+    ),
   "agents.owned_by": (ctx: Ctx, i: { person: string }) => ({
     // the person's private assistant is theirs alone: it is not something to hand on, so the wizard does not list it (it goes with the person, below)
-    agents: kept(rows(ctx, `SELECT "id", "name" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant' AND "runtime" <> 'outside'`, i.person), "agent", "name"),
-    routines: kept(rows(ctx, `SELECT "id", "title" FROM agents_routine WHERE "ownerId" = ?`, i.person), "routine", "title"),
+    agents: kept(
+      rows(
+        ctx,
+        `SELECT "id", "name" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant' AND "runtime" <> 'outside'`,
+        i.person,
+      ),
+      "agent",
+      "name",
+    ),
+    routines: kept(
+      rows(ctx, `SELECT "id", "title" FROM agents_routine WHERE "ownerId" = ?`, i.person),
+      "routine",
+      "title",
+    ),
   }),
-  "agents.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
+  "agents.reassign_owned": async (
+    ctx: Ctx,
+    i: { person: string; kind: string; action: string; to?: string },
+  ): Promise<number> => {
     const now = ctx.now();
     try {
       if (i.kind === "agents") {
         // a private assistant is never handed on: it ends with its person (agents.person_left), whatever is done with their other agents
         // and an outside agent runs on its person's machine, so it ends with them too
         const OTHERS = `"ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant' AND "runtime" <> 'outside'`;
-        if (i.action === "reassign" && i.to) return ctx.db.run(`UPDATE agents_agent SET "ownerId" = ?, "updatedAt" = ? WHERE ${OTHERS}`, i.to, now, i.person).changes;
+        if (i.action === "reassign" && i.to)
+          return ctx.db.run(
+            `UPDATE agents_agent SET "ownerId" = ?, "updatedAt" = ? WHERE ${OTHERS}`,
+            i.to,
+            now,
+            i.person,
+          ).changes;
         const mine = rows(ctx, `SELECT * FROM agents_agent WHERE ${OTHERS}`, i.person);
         if (i.action === "pause") {
           const live = mine.filter((r) => Number(r["paused"]) === 0);
           for (const r of live) {
-            ctx.db.run(`UPDATE agents_agent SET "paused" = 1, "pausedReason" = ?, "pausedAt" = ?, "updatedAt" = ? WHERE "id" = ?`, OWNER_LEFT, now, now, String(r["id"]));
+            ctx.db.run(
+              `UPDATE agents_agent SET "paused" = 1, "pausedReason" = ?, "pausedAt" = ?, "updatedAt" = ? WHERE "id" = ?`,
+              OWNER_LEFT,
+              now,
+              now,
+              String(r["id"]),
+            );
             ctx.emit("agent.paused", String(r["id"]), { agentId: String(r["id"]), reason: OWNER_LEFT, by: i.person });
           }
           return live.length;
@@ -154,11 +276,25 @@ export const hostCalls = {
         }
       }
       if (i.kind === "routines") {
-        if (i.action === "pause") return ctx.db.run(`UPDATE agents_routine SET "enabled" = 0, "updatedAt" = ? WHERE "ownerId" = ? AND "enabled" = 1`, now, i.person).changes;
-        if (i.action === "reassign" && i.to) return ctx.db.run(`UPDATE agents_routine SET "ownerId" = ?, "updatedAt" = ? WHERE "ownerId" = ?`, i.to, now, i.person).changes;
-        if (i.action === "delete") return ctx.db.run(`DELETE FROM agents_routine WHERE "ownerId" = ?`, i.person).changes;
+        if (i.action === "pause")
+          return ctx.db.run(
+            `UPDATE agents_routine SET "enabled" = 0, "updatedAt" = ? WHERE "ownerId" = ? AND "enabled" = 1`,
+            now,
+            i.person,
+          ).changes;
+        if (i.action === "reassign" && i.to)
+          return ctx.db.run(
+            `UPDATE agents_routine SET "ownerId" = ?, "updatedAt" = ? WHERE "ownerId" = ?`,
+            i.to,
+            now,
+            i.person,
+          ).changes;
+        if (i.action === "delete")
+          return ctx.db.run(`DELETE FROM agents_routine WHERE "ownerId" = ?`, i.person).changes;
       }
-    } catch { /* no table yet: nothing to move */ }
+    } catch {
+      /* no table yet: nothing to move */
+    }
     return 0;
   },
 };

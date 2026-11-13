@@ -10,18 +10,36 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** The environment for a child test run: the parent's, without the marker that makes node:test refuse to start a run inside a test (the golden test runs this script from a test). */
-const childEnv = (): NodeJS.ProcessEnv => { const env = { ...process.env }; delete env["NODE_TEST_CONTEXT"]; return env; };
+const childEnv = (): NodeJS.ProcessEnv => {
+  const env = { ...process.env };
+  delete env["NODE_TEST_CONTEXT"];
+  return env;
+};
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The step tests in a directory, sorted: *.test.ts, not *.heavy.test.ts. */
 export function stepFiles(dir: string): string[] {
-  return fs.readdirSync(dir).filter((f) => f.endsWith(".test.ts") && !f.endsWith(".heavy.test.ts")).sort().map((f) => path.join(dir, f));
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".test.ts") && !f.endsWith(".heavy.test.ts"))
+    .sort()
+    .map((f) => path.join(dir, f));
 }
 
 /** Step tests that take long on a loaded runner (golden 2, 3, 4, 6, 9, 10, 12 and 14 and the senders flow took 20 to 96 s each in CI against about 10 s alone). They are dealt out first, one shard after the other, so
  * they never pile into one shard: in the first CI run of the split, every one of them landed in shard 2 (3m29s) and shard 1 took 30 s. */
-export const HEAVY: readonly string[] = ["02-joining", "03-changeset", "04-offline-conflict", "05-senders", "06-artifact-personal", "09-offboarding", "10-keyfail", "12-matrix", "14-purge"];
+export const HEAVY: readonly string[] = [
+  "02-joining",
+  "03-changeset",
+  "04-offline-conflict",
+  "05-senders",
+  "06-artifact-personal",
+  "09-offboarding",
+  "10-keyfail",
+  "12-matrix",
+  "14-purge",
+];
 
 /** The files of shard i of n (1-based): the heavy ones dealt round robin, then the rest round robin from where that stopped. Every file is in exactly one shard. */
 export function shardOf(files: string[], i: number, n: number): string[] {
@@ -34,33 +52,57 @@ export function shardOf(files: string[], i: number, n: number): string[] {
 export function parseShard(v: string | undefined): { i: number; n: number } | null {
   const m = /^(\d+)\/(\d+)$/.exec(v ?? "");
   if (!m) return null;
-  const i = Number(m[1]), n = Number(m[2]);
+  const i = Number(m[1]),
+    n = Number(m[2]);
   return n >= 1 && i >= 1 && i <= n ? { i, n } : null;
 }
 
-export interface GoldenOptions { dir?: string; ready?: boolean; shard?: { i: number; n: number } }
+export interface GoldenOptions {
+  dir?: string;
+  ready?: boolean;
+  shard?: { i: number; n: number };
+}
 
 /** Runs the golden steps; returns the exit code. */
 export function runGolden(o: GoldenOptions = {}): number {
   const dir = o.dir ?? path.join(ROOT, "golden", "steps");
   let files: string[] = [];
-  try { files = stepFiles(dir); } catch { /* no directory: the same failure below */ }
+  try {
+    files = stepFiles(dir);
+  } catch {
+    /* no directory: the same failure below */
+  }
   if (files.length === 0) {
     console.error(`golden: no step test found in ${dir}; the check will not pass by running nothing`);
     return 1;
   }
   if (o.shard) {
     files = shardOf(files, o.shard.i, o.shard.n);
-    if (files.length === 0) { console.error(`golden: shard ${o.shard.i}/${o.shard.n} has no step test; the check will not pass by running nothing`); return 1; }
+    if (files.length === 0) {
+      console.error(
+        `golden: shard ${o.shard.i}/${o.shard.n} has no step test; the check will not pass by running nothing`,
+      );
+      return 1;
+    }
     console.log(`golden: shard ${o.shard.i}/${o.shard.n}, ${files.length} step tests`);
   }
   // one process: the steps boot daemons and run one after another, and --test-force-exit keeps a leftover handle from holding the job until its timeout
-  const tests = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-reporter=spec", ...files], { cwd: ROOT, stdio: "inherit", env: childEnv() });
+  const tests = spawnSync(process.execPath, ["--test", "--test-force-exit", "--test-reporter=spec", ...files], {
+    cwd: ROOT,
+    stdio: "inherit",
+    env: childEnv(),
+  });
   let code = tests.status === 0 ? 0 : 1;
-  if (tests.error) { console.error(`golden: could not run node --test: ${tests.error.message}`); code = 1; }
+  if (tests.error) {
+    console.error(`golden: could not run node --test: ${tests.error.message}`);
+    code = 1;
+  }
   if (o.ready !== false) {
     // the report of flows still blocked by stub modules; with no --deadline it only reports
-    const ready = spawnSync(process.execPath, [path.join(ROOT, "scripts", "golden-ready.ts")], { cwd: ROOT, stdio: "inherit" });
+    const ready = spawnSync(process.execPath, [path.join(ROOT, "scripts", "golden-ready.ts")], {
+      cwd: ROOT,
+      stdio: "inherit",
+    });
     if (ready.status !== 0) code = 1;
   }
   console.log(code === 0 ? "golden: ok (a flow with open gaps is listed above as todo, never red)" : "golden: FAILED");
@@ -72,8 +114,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const args = process.argv.slice(2);
   const si = args.indexOf("--shard");
   const shard = si >= 0 ? parseShard(args[si + 1]) : undefined;
-  if (si >= 0 && !shard) { console.error("golden: --shard wants <i>/<n>, for example 1/2"); process.exit(2); }
+  if (si >= 0 && !shard) {
+    console.error("golden: --shard wants <i>/<n>, for example 1/2");
+    process.exit(2);
+  }
   const i = args.indexOf("--dir");
   const dir = i >= 0 ? args[i + 1] : undefined;
-  process.exit(runGolden({ ...(dir ? { dir: path.resolve(dir) } : {}), ready: !args.includes("--no-ready") && (!shard || shard.i === 1), ...(shard ? { shard } : {}) }));
+  process.exit(
+    runGolden({
+      ...(dir ? { dir: path.resolve(dir) } : {}),
+      ready: !args.includes("--no-ready") && (!shard || shard.i === 1),
+      ...(shard ? { shard } : {}),
+    }),
+  );
 }

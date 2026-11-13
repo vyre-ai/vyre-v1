@@ -8,21 +8,51 @@ import { computerWords } from "../../../apps/app/src/places/chats/rightpane/acti
 
 export const title = "Computer tab: a computer that could not start";
 
-const NO_IMAGE = "The computer could not be created: This server can't start agent computers yet.\nDetails: the agent computer image vyre/computer:1 is not on this server and could not be fetched (offline). Load it with: docker pull vyre/computer:1";
+const NO_IMAGE =
+  "The computer could not be created: This server can't start agent computers yet.\nDetails: the agent computer image vyre/computer:1 is not on this server and could not be fetched (offline). Load it with: docker pull vyre/computer:1";
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "wake-admin"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "wake-admin",
+      ),
+    [],
+  );
   const { height, width } = useWindowDimensions();
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const card = (n: ReactNode): ReactNode => (
     <View style={{ height, backgroundColor: "var(--win)" as string, alignItems: "center", paddingTop: 40 }}>
-      <View style={{ width: Math.min(360, width - 24), borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--side)" as string }}>{n}</View>
+      <View
+        style={{
+          width: Math.min(360, width - 24),
+          borderWidth: 1,
+          borderColor: "var(--line)" as string,
+          borderRadius: 12,
+          backgroundColor: "var(--side)" as string,
+        }}
+      >
+        {n}
+      </View>
     </View>
   );
   const raw = part === "wake-refused" ? "A computer reaches only the Vault channel." : NO_IMAGE;
   const admin = part !== "wake-member";
   const w = computerWords({ message: raw }, admin, "Dex");
-  const again = w.server ? (admin ? { onAgain: () => undefined, againLabel: "Open Console > Computers" } : {}) : { onAgain: () => undefined };
-  return card(<FailedBody name="Dex" reason={w.sentence} details={`Dex's computer cmp_demo\nstate: asleep\nreason: ${w.details}`} onCopy={() => undefined} {...again} />);
+  const again = w.server
+    ? admin
+      ? { onAgain: () => undefined, againLabel: "Open Console > Computers" }
+      : {}
+    : { onAgain: () => undefined };
+  return card(
+    <FailedBody
+      name="Dex"
+      reason={w.sentence}
+      details={`Dex's computer cmp_demo\nstate: asleep\nreason: ${w.details}`}
+      onCopy={() => undefined}
+      {...again}
+    />,
+  );
 }

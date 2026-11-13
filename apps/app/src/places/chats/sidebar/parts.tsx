@@ -20,7 +20,10 @@ export const ICON = {
   task: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M5.5 8.2l1.8 1.8 3.4-3.6"],
   reply: ["M6.5 4L3 7.5 6.5 11", "M3 7.5h6.5a3.5 3.5 0 013.5 3.5V12"],
   inbox: ["M2.5 9l1.8-5.5h7.4L13.5 9v3.5h-11z", "M2.5 9h3.2l.8 1.6h3l.8-1.6h3.2"],
-  project: ["M5 2.5h6A2.5 2.5 0 0113.5 5v6a2.5 2.5 0 01-2.5 2.5H5A2.5 2.5 0 012.5 11V5A2.5 2.5 0 015 2.5z", "M5.5 6h5M5.5 8.5h5M5.5 11h2.5"],
+  project: [
+    "M5 2.5h6A2.5 2.5 0 0113.5 5v6a2.5 2.5 0 01-2.5 2.5H5A2.5 2.5 0 012.5 11V5A2.5 2.5 0 015 2.5z",
+    "M5.5 6h5M5.5 8.5h5M5.5 11h2.5",
+  ],
   more: ["M3.5 8h.01", "M8 8h.01", "M12.5 8h.01"],
   arrow: ["M3 8h10M9 4l4 4-4 4"],
   alert: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M8 5v3.5M8 11h.01"],
@@ -31,13 +34,36 @@ export const ICON = {
 } as const;
 export type IconName = keyof typeof ICON;
 
-export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name: IconName; size?: number; color?: string; fill?: string }): ReactElement | null {
+export function Glyph({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+  fill,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  fill?: string;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of ICON[name]) paths.push(createElement("path", { key: d, d, fill: fill ?? "none" }));
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        strokeWidth: name === "more" ? 2.4 : 1.4,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
     ...paths,
   );
 }
@@ -46,24 +72,79 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
  * A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. State sits on the face: `pulse` is the moving ring while an agent works, `waiting` the amber ring;
  * `presence` is a steady dot (owner D23): green when the person is online, an amber ring when they set themselves away, nothing when they are not around. `online` is the old name for green.
  */
-export function Face({ name, seedId, kind, size = 18, pulse = false, waiting = false, online = false, presence }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; waiting?: boolean; online?: boolean; presence?: "online" | "away" | undefined }): ReactElement {
+export function Face({
+  name,
+  seedId,
+  kind,
+  size = 18,
+  pulse = false,
+  waiting = false,
+  online = false,
+  presence,
+}: {
+  name: string;
+  seedId?: string | undefined;
+  kind: "person" | "agent";
+  size?: number;
+  pulse?: boolean;
+  waiting?: boolean;
+  online?: boolean;
+  presence?: "online" | "away" | undefined;
+}): ReactElement {
   const mark = presence ?? (online ? "online" : undefined);
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind={kind} size={size} state={waiting ? "waiting" : pulse ? "working" : undefined} {...(waiting || pulse ? { testID: "pulse" } : {})} />
-      {mark === "online" ? <View testID="presence" style={s.presence} /> : mark === "away" ? <View testID="presence-away" style={s.away} /> : null}
+      <Avatar
+        name={name}
+        seedId={seedId}
+        kind={kind}
+        size={size}
+        state={waiting ? "waiting" : pulse ? "working" : undefined}
+        {...(waiting || pulse ? { testID: "pulse" } : {})}
+      />
+      {mark === "online" ? (
+        <View testID="presence" style={s.presence} />
+      ) : mark === "away" ? (
+        <View testID="presence-away" style={s.away} />
+      ) : null}
     </View>
   );
 }
 
 /** The faces of a group chat, up to three, each overlapping the one before. */
-export function FaceStack({ members, size = 18 }: { members: readonly { id: string; name: string }[]; size?: number }): ReactElement {
+export function FaceStack({
+  members,
+  size = 18,
+}: {
+  members: readonly { id: string; name: string }[];
+  size?: number;
+}): ReactElement {
   const shown = members.slice(0, 3);
   return (
-    <View testID="face-stack" style={{ flexDirection: "row", alignItems: "center", width: size + (shown.length - 1) * Math.round(size * 0.5), height: size, flexShrink: 0 }}>
+    <View
+      testID="face-stack"
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        width: size + (shown.length - 1) * Math.round(size * 0.5),
+        height: size,
+        flexShrink: 0,
+      }}
+    >
       {/* ui-rows-lint: not a list (overlapping avatars drawn as one face stack) */}
       {shown.map((m, i) => (
-        <View key={m.id} style={{ position: i === 0 ? "relative" : "absolute", left: i * Math.round(size * 0.5), zIndex: shown.length - i, borderRadius: Math.round(size * 0.3), boxShadow: "0 0 0 1.5px var(--side)" } as never}>
+        <View
+          key={m.id}
+          style={
+            {
+              position: i === 0 ? "relative" : "absolute",
+              left: i * Math.round(size * 0.5),
+              zIndex: shown.length - i,
+              borderRadius: Math.round(size * 0.3),
+              boxShadow: "0 0 0 1.5px var(--side)",
+            } as never
+          }
+        >
           <Face name={m.name} seedId={m.id} kind="agent" size={size} />
         </View>
       ))}
@@ -73,7 +154,11 @@ export function FaceStack({ members, size = 18 }: { members: readonly { id: stri
 
 /** A glyph in the leading slot of a channel or Needs row, the width of a face so titles line up. */
 export function LeadGlyph({ name, color }: { name: IconName; color?: string }): ReactElement {
-  return <View style={s.lead}><Glyph name={name} size={14} {...(color ? { color } : {})} /></View>;
+  return (
+    <View style={s.lead}>
+      <Glyph name={name} size={14} {...(color ? { color } : {})} />
+    </View>
+  );
 }
 
 export function UnreadDot(): ReactElement {
@@ -81,64 +166,160 @@ export function UnreadDot(): ReactElement {
 }
 
 export function Badge({ n, testID }: { n: number; testID?: string }): ReactElement {
-  return <View testID={testID} style={s.badge}><Text style={s.badgeText}>{n > 99 ? "99+" : n}</Text></View>;
+  return (
+    <View testID={testID} style={s.badge}>
+      <Text style={s.badgeText}>{n > 99 ? "99+" : n}</Text>
+    </View>
+  );
 }
 
 /** A small icon button in a section header or a row's trailing slot. */
-export function Tool({ icon, label, onPress, active = false, testID }: { icon: IconName; label: string; onPress: (x: number, y: number) => void; active?: boolean; testID?: string }): ReactElement {
+export function Tool({
+  icon,
+  label,
+  onPress,
+  active = false,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: (x: number, y: number) => void;
+  active?: boolean;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Tooltip text={label}>
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={label} testID={testID}
-      onPress={(e) => {
-        const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number }; stopPropagation?: () => void };
-        // a tool inside a row (its "...") is not a press on the row
-        ev.stopPropagation?.();
-        const box = ev.currentTarget?.getBoundingClientRect?.();
-        onPress(box ? box.left : ev.nativeEvent?.pageX ?? 0, box ? box.bottom + 4 : ev.nativeEvent?.pageY ?? 0);
-      }}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.tool, (over || active) && s.toolOver]}
-    >
-      <Glyph name={icon} size={14} color={over || active ? "var(--ink)" : "var(--ink-3)"} />
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        testID={testID}
+        onPress={(e) => {
+          const ev = e as unknown as {
+            currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+            nativeEvent?: { pageX?: number; pageY?: number };
+            stopPropagation?: () => void;
+          };
+          // a tool inside a row (its "...") is not a press on the row
+          ev.stopPropagation?.();
+          const box = ev.currentTarget?.getBoundingClientRect?.();
+          onPress(box ? box.left : (ev.nativeEvent?.pageX ?? 0), box ? box.bottom + 4 : (ev.nativeEvent?.pageY ?? 0));
+        }}
+        onHoverIn={() => setOver(true)}
+        onHoverOut={() => setOver(false)}
+        style={[s.tool, (over || active) && s.toolOver]}
+      >
+        <Glyph name={icon} size={14} color={over || active ? "var(--ink)" : "var(--ink-3)"} />
+      </Pressable>
     </Tooltip>
   );
 }
 
 /** A section header: the label with its chevron toggles the section; tools sit at the right and show while the pointer is on the header, or the section is filtered. */
-export function SectionHead({ id, label, count, open, onToggle, keep = false, children }: { id: string; label: string; count?: number | undefined; open: boolean; onToggle: () => void; keep?: boolean; children?: ReactNode }): ReactElement {
+export function SectionHead({
+  id,
+  label,
+  count,
+  open,
+  onToggle,
+  keep = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  count?: number | undefined;
+  open: boolean;
+  onToggle: () => void;
+  keep?: boolean;
+  children?: ReactNode;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const hover = { onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) };
   return (
     <View testID={`head-${id}`} style={s.head} {...hover}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count ? `, ${count}` : ""}`} accessibilityState={{ expanded: open }} onPress={onToggle} testID={`toggle-${id}`} nativeID={`toggle-${id}`} style={s.headLabel}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}${count ? `, ${count}` : ""}`}
+        accessibilityState={{ expanded: open }}
+        onPress={onToggle}
+        testID={`toggle-${id}`}
+        nativeID={`toggle-${id}`}
+        style={s.headLabel}
+      >
         <Text style={s.headText}>{label}</Text>
-        {count ? <Text testID={`count-${id}`} style={s.headCount}>{count}</Text> : null}
+        {count ? (
+          <Text testID={`count-${id}`} style={s.headCount}>
+            {count}
+          </Text>
+        ) : null}
       </Pressable>
       <View style={s.grow} />
       {/* the tools are always hit-testable and only drawn on hover, focus or keep: a hidden tool that swallowed no pointer would leave the head under the pointer, so the tool could not be pressed */}
-      <View style={[s.tools, { opacity: over || focus || keep ? 1 : 0 }]} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}>{children}</View>
+      <View
+        style={[s.tools, { opacity: over || focus || keep ? 1 : 0 }]}
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+      >
+        {children}
+      </View>
     </View>
   );
 }
 
 export function GroupLabel({ label }: { label: string }): ReactElement {
-  return <View testID={`group-${label}`} style={s.group}><Text accessibilityRole="header" style={s.groupText}>{label}</Text></View>;
+  return (
+    <View testID={`group-${label}`} style={s.group}>
+      <Text accessibilityRole="header" style={s.groupText}>
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 export function EmptyLine({ text }: { text: string }): ReactElement {
-  return <View testID="recent-empty" style={s.empty}><Text style={s.emptyText}>{text}</Text></View>;
+  return (
+    <View testID="recent-empty" style={s.empty}>
+      <Text style={s.emptyText}>{text}</Text>
+    </View>
+  );
 }
 
 export const s = StyleSheet.create({
-  presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
-  away: { position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--side)" as string, borderWidth: 2, borderColor: "var(--warn)" as string },
+  presence: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "var(--ok)" as string,
+    borderWidth: 1.5,
+    borderColor: "var(--side)" as string,
+  },
+  away: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "var(--side)" as string,
+    borderWidth: 2,
+    borderColor: "var(--warn)" as string,
+  },
   lead: { width: 18, height: 18, marginRight: 9, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  badge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: RADIUS, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--accent-wash)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
   badgeText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" as string },
   tool: { width: 24, height: 24, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },

@@ -42,21 +42,55 @@ export interface SpaceDef {
 }
 
 export const NORTHWIND: SpaceDef = {
-  spaceId: "nw", name: "Northwind", kind: "team", address: "northwind.vyre.run", role: "Owner", tint: ["#6E5CF0", "#9B6BE8"],
-  kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, invite: true,
-  counts: { chats: 7 }, dots: { inbox: true, records: true },
+  spaceId: "nw",
+  name: "Northwind",
+  kind: "team",
+  address: "northwind.vyre.run",
+  role: "Owner",
+  tint: ["#6E5CF0", "#9B6BE8"],
+  kit: "northwind",
+  skinDefault: "system",
+  starred: true,
+  needsYou: false,
+  console: true,
+  terminal: true,
+  invite: true,
+  counts: { chats: 7 },
+  dots: { inbox: true, records: true },
 };
 
 export const HARBOR: SpaceDef = {
-  spaceId: "hb", name: "Harbor Studio", kind: "team", address: "harbor.vyre.run", role: "Member", tint: ["#1F9D8B", "#3BB6A0"],
-  kit: "studio", skinDefault: "linen", starred: true, needsYou: true, console: false, terminal: false,
-  counts: { chats: 2 }, dots: { inbox: true },
+  spaceId: "hb",
+  name: "Harbor Studio",
+  kind: "team",
+  address: "harbor.vyre.run",
+  role: "Member",
+  tint: ["#1F9D8B", "#3BB6A0"],
+  kit: "studio",
+  skinDefault: "linen",
+  starred: true,
+  needsYou: true,
+  console: false,
+  terminal: false,
+  counts: { chats: 2 },
+  dots: { inbox: true },
 };
 
 export const PERSONAL: SpaceDef = {
-  spaceId: "me", name: "Personal", kind: "personal", address: "Only on this computer", role: "Owner", tint: ["#C2762B", "#E0A040"],
-  kit: "personal", skinDefault: "system", starred: false, needsYou: false, console: false, terminal: true,
-  counts: {}, dots: {},
+  spaceId: "me",
+  name: "Personal",
+  kind: "personal",
+  address: "Only on this computer",
+  role: "Owner",
+  tint: ["#C2762B", "#E0A040"],
+  kit: "personal",
+  skinDefault: "system",
+  starred: false,
+  needsYou: false,
+  console: false,
+  terminal: true,
+  counts: {},
+  dots: {},
 };
 
 /** The prototype's three seeds, in switcher order (Shift-Cmd-1..3). */

@@ -3,10 +3,33 @@
 export type Mode = "live" | "update_required" | "resync" | "purge";
 export type DeviceClass = "desktop" | "phone" | "web";
 
-export interface FieldVal { v: unknown; hlc: string; actor: string; enc?: { key: string; nonce: string } }
-export interface WireChange { seq: number; entity: string; id: string; op: "upsert" | "patch" | "delete"; fields: Record<string, FieldVal>; trace?: string }
-export interface WireHide { entity: string; id: string; seq: number }
-export interface HelloOk { serverVersion: string; epoch: number; serverHlc: string; mode: Mode; head: number; entityVersions: Record<string, number> }
+export interface FieldVal {
+  v: unknown;
+  hlc: string;
+  actor: string;
+  enc?: { key: string; nonce: string };
+}
+export interface WireChange {
+  seq: number;
+  entity: string;
+  id: string;
+  op: "upsert" | "patch" | "delete";
+  fields: Record<string, FieldVal>;
+  trace?: string;
+}
+export interface WireHide {
+  entity: string;
+  id: string;
+  seq: number;
+}
+export interface HelloOk {
+  serverVersion: string;
+  epoch: number;
+  serverHlc: string;
+  mode: Mode;
+  head: number;
+  entityVersions: Record<string, number>;
+}
 
 export interface HelloInfo {
   deviceId: string;
@@ -18,7 +41,11 @@ export interface HelloInfo {
 }
 
 /** One numbered item batch: apply it, then the manager acks `seq` and the cursor moves there. */
-export interface EventBatch { seq: number; items: WireChange[]; hide: WireHide[] }
+export interface EventBatch {
+  seq: number;
+  items: WireChange[];
+  hide: WireHide[];
+}
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
@@ -28,7 +55,14 @@ export function readHelloOk(f: unknown): HelloOk | null {
   const o = f["ok"];
   const mode = o["mode"];
   if (mode !== "live" && mode !== "update_required" && mode !== "resync" && mode !== "purge") return null;
-  if (!isInt(o["epoch"]) || !isInt(o["head"]) || typeof o["serverHlc"] !== "string" || typeof o["serverVersion"] !== "string" || !isObj(o["entityVersions"])) return null;
+  if (
+    !isInt(o["epoch"]) ||
+    !isInt(o["head"]) ||
+    typeof o["serverHlc"] !== "string" ||
+    typeof o["serverVersion"] !== "string" ||
+    !isObj(o["entityVersions"])
+  )
+    return null;
   return o as unknown as HelloOk;
 }
 

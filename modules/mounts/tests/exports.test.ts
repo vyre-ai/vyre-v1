@@ -7,6 +7,10 @@ import * as impl from "../impl.ts";
 
 test("the host runs the mounts local-change projection over the Space log", () => {
   const found = collectProjections(impl as unknown as Record<string, unknown>);
-  assert.deepEqual(found.map((p) => p.name), ["mounts.local_changes"]);
-  for (const ev of ["file.created", "file.version_added", "file.deleted", "folder.created", "folder.deleted"]) assert.ok(ev in found[0]!.on, `it listens to ${ev}`);
+  assert.deepEqual(
+    found.map((p) => p.name),
+    ["mounts.local_changes"],
+  );
+  for (const ev of ["file.created", "file.version_added", "file.deleted", "folder.created", "folder.deleted"])
+    assert.ok(ev in found[0]!.on, `it listens to ${ev}`);
 });

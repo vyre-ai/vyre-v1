@@ -10,7 +10,12 @@ import { createSampleConsole } from "../shell/sample.ts";
 import { PrincipalPicker } from "./Groups.tsx";
 import { useRead } from "./shared.tsx";
 
-const ALL = { principals: [{ id: "usr_maya", name: "Maya Lin", kind: "person" }, { id: "usr_priya", name: "Priya Rao", kind: "person" }] };
+const ALL = {
+  principals: [
+    { id: "usr_maya", name: "Maya Lin", kind: "person" },
+    { id: "usr_priya", name: "Priya Rao", kind: "person" },
+  ],
+};
 
 /** capQuery that answers each search from `answers` (a missing one is still loading). */
 function provider(answers: Record<string, unknown>): ConsoleData {
@@ -26,25 +31,55 @@ function provider(answers: Record<string, unknown>): ConsoleData {
 test("the people picker keeps its search field while a search is still being read", async () => {
   const restore = installDom();
   try {
-    const root = await mount(createRoot, <ConsoleDataProvider value={provider({})}><PrincipalPicker mode="member" selected={new Set()} onPick={() => undefined} /></ConsoleDataProvider>);
+    const root = await mount(
+      createRoot,
+      <ConsoleDataProvider value={provider({})}>
+        <PrincipalPicker mode="member" selected={new Set()} onPick={() => undefined} />
+      </ConsoleDataProvider>,
+    );
     assert.ok(find(root, "group-principal-search"), "the field is there before any answer arrives");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a list read with keepPrevious shows the last rows while the next search is read, and the next ones when they arrive", async () => {
   const restore = installDom();
   const answers: Record<string, unknown> = { "": ALL };
   const seen: Array<unknown> = [];
-  function Probe({ q }: { q: string }) { seen.push(useRead<typeof ALL>("access.principals.list", { q }, { keepPrevious: true }).data?.principals.length); return null; }
+  function Probe({ q }: { q: string }) {
+    seen.push(useRead<typeof ALL>("access.principals.list", { q }, { keepPrevious: true }).data?.principals.length);
+    return null;
+  }
   const root = createRoot();
   try {
     const data = () => provider(answers);
-    await act(async () => { root.render(<ConsoleDataProvider value={data()}><Probe q="" /></ConsoleDataProvider>); });
-    await act(async () => { root.render(<ConsoleDataProvider value={data()}><Probe q="Maya" /></ConsoleDataProvider>); });
+    await act(async () => {
+      root.render(
+        <ConsoleDataProvider value={data()}>
+          <Probe q="" />
+        </ConsoleDataProvider>,
+      );
+    });
+    await act(async () => {
+      root.render(
+        <ConsoleDataProvider value={data()}>
+          <Probe q="Maya" />
+        </ConsoleDataProvider>,
+      );
+    });
     assert.equal(seen.at(-1), 2, "the earlier rows stay while Maya is read");
     answers["Maya"] = { principals: [ALL.principals[0]] };
-    await act(async () => { root.render(<ConsoleDataProvider value={data()}><Probe q="Maya" /></ConsoleDataProvider>); });
+    await act(async () => {
+      root.render(
+        <ConsoleDataProvider value={data()}>
+          <Probe q="Maya" />
+        </ConsoleDataProvider>,
+      );
+    });
     assert.equal(seen.at(-1), 1, "and the new ones replace them");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
   void textOf;
 });

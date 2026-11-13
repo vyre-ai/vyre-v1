@@ -23,20 +23,36 @@ function parseLine(line: string): { url: string; version: string } | null {
 }
 
 function startSidecar(dataDir: string): Promise<Running> {
-  const child = spawn(process.execPath, [MAIN, "--role", "device", "--data-dir", dataDir, "--host", "127.0.0.1", "--port", "0"], { cwd: REPO, env: { ...process.env, VYRE_VERSION: "9.9.9" } });
+  const child = spawn(
+    process.execPath,
+    [MAIN, "--role", "device", "--data-dir", dataDir, "--host", "127.0.0.1", "--port", "0"],
+    { cwd: REPO, env: { ...process.env, VYRE_VERSION: "9.9.9" } },
+  );
   let out = "";
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`no listening line in 20 s: ${out}`)); }, 20_000);
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`no listening line in 20 s: ${out}`));
+    }, 20_000);
     const onData = (chunk: Buffer): void => {
       out += chunk.toString("utf8");
       for (const line of out.split("\n")) {
         const hit = parseLine(line);
-        if (hit) { clearTimeout(timer); resolve({ child, ...hit, out: () => out }); return; }
+        if (hit) {
+          clearTimeout(timer);
+          resolve({ child, ...hit, out: () => out });
+          return;
+        }
       }
     };
     child.stdout.on("data", onData);
-    child.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`sidecar exited ${String(code)}: ${out}`)); });
+    child.stderr.on("data", (c: Buffer) => {
+      out += c.toString("utf8");
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`sidecar exited ${String(code)}: ${out}`));
+    });
   });
 }
 
@@ -47,22 +63,36 @@ async function stopSidecar(r: Running, dataDir: string): Promise<void> {
   const denied = await fetch(`${r.url}/local/daemon/stop`, { method: "POST" });
   assert.equal(denied.status, 401, "the loopback shutdown endpoint needs the local admin token");
   const token = fs.readFileSync(path.join(dataDir, "admin.token"), "utf8").trim();
-  const stopped = await fetch(`${r.url}/local/daemon/stop`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+  const stopped = await fetch(`${r.url}/local/daemon/stop`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
   assert.equal(stopped.status, 202, "the loopback admin endpoint accepts a graceful shutdown");
   try {
-    await Promise.race([done, new Promise<void>((_, reject) => setTimeout(() => reject(new Error("authenticated HTTP stop did not let vyred exit naturally")), 5000))]);
+    await Promise.race([
+      done,
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error("authenticated HTTP stop did not let vyred exit naturally")), 5000),
+      ),
+    ]);
   } finally {
     if (r.child.exitCode === null) {
-      if (process.platform === "win32" && r.child.pid) spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
+      if (process.platform === "win32" && r.child.pid)
+        spawnSync("taskkill", ["/PID", String(r.child.pid), "/T", "/F"], { stdio: "ignore", timeout: 5000 });
       else r.child.kill("SIGKILL");
     }
   }
 }
 
 /** Same check as sidecar.rs: any 200 from /healthz. */
-async function healthz(url: string): Promise<{ status: number; body: { roles?: string[]; space?: string | null; version?: string } }> {
+async function healthz(
+  url: string,
+): Promise<{ status: number; body: { roles?: string[]; space?: string | null; version?: string } }> {
   const res = await fetch(`${url}/healthz`);
-  return { status: res.status, body: (await res.json()) as { roles?: string[]; space?: string | null; version?: string } };
+  return {
+    status: res.status,
+    body: (await res.json()) as { roles?: string[]; space?: string | null; version?: string },
+  };
 }
 
 test("the sidecar starts on a free loopback port, answers /healthz and keeps its data across a restart", async () => {
@@ -85,7 +115,8 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
       // POSIX mode bits are not an ACL check on Windows (Node reports synthetic
       // permission bits there); the restart token identity check below remains
       // the cross-platform persistence proof.
-      if (process.platform !== "win32") assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
+      if (process.platform !== "win32")
+        assert.equal(fs.statSync(path.join(data, "admin.token")).mode & 0o077, 0, "owner-only file");
       const info = JSON.parse(fs.readFileSync(path.join(data, "vyred.json"), "utf8")) as { url: string; pid: number };
       assert.equal(info.url, first.url);
       assert.equal(info.pid, first.child.pid);
@@ -100,7 +131,11 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
     try {
       const h = await healthz(second.url);
       assert.equal(h.status, 200);
-      assert.equal(fs.readFileSync(path.join(data, "admin.token"), "utf8").trim(), token, "same token after restart: the data directory is the identity");
+      assert.equal(
+        fs.readFileSync(path.join(data, "admin.token"), "utf8").trim(),
+        token,
+        "same token after restart: the data directory is the identity",
+      );
       assert.equal(fs.readFileSync(path.join(data, "replica-marker.txt"), "utf8"), "kept");
     } finally {
       await stopSidecar(second, data);
@@ -112,7 +147,10 @@ test("the sidecar starts on a free loopback port, answers /healthz and keeps its
 
 test("a sidecar line from another address is not trusted", () => {
   assert.equal(parseLine("vyred 1.0.0 device - listening on http://10.1.2.3:8420"), null);
-  assert.deepEqual(parseLine("vyred 1.0.0 device - listening on http://127.0.0.1:5000"), { version: "1.0.0", url: "http://127.0.0.1:5000" });
+  assert.deepEqual(parseLine("vyred 1.0.0 device - listening on http://127.0.0.1:5000"), {
+    version: "1.0.0",
+    url: "http://127.0.0.1:5000",
+  });
 });
 
 const APP = process.env["VYRE_SHELL_APP"];
@@ -134,7 +172,7 @@ async function awaitSidecarStop(url: string): Promise<void> {
 
 function requestNormalQuit(app: ChildProcess): void {
   if (process.platform === "darwin") {
-    const quit = spawnSync("osascript", ["-e", "tell application id \"ai.vyre.desktop\" to quit"], { encoding: "utf8" });
+    const quit = spawnSync("osascript", ["-e", 'tell application id "ai.vyre.desktop" to quit'], { encoding: "utf8" });
     assert.equal(quit.status, 0, `normal macOS app quit failed: ${quit.stderr}`);
     return;
   }
@@ -153,7 +191,15 @@ async function stopBuiltShell(app: ChildProcess, sidecarUrl: string | null, out:
     const stopped = new Promise<void>((resolve) => app.once("exit", () => resolve()));
     try {
       requestNormalQuit(app);
-      await Promise.race([stopped, new Promise<void>((_, reject) => setTimeout(() => reject(new Error(`built shell did not exit after normal quit:\n${out.slice(-2000)}`)), 10_000))]);
+      await Promise.race([
+        stopped,
+        new Promise<void>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`built shell did not exit after normal quit:\n${out.slice(-2000)}`)),
+            10_000,
+          ),
+        ),
+      ]);
     } catch (error) {
       app.kill("SIGKILL");
       throw error;
@@ -166,14 +212,21 @@ async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
   const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_BANNER: "1" } });
   let out = "";
   let sidecarUrl: string | null = null;
-  app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-  app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
+  app.stdout.on("data", (c: Buffer) => {
+    out += c.toString("utf8");
+  });
+  app.stderr.on("data", (c: Buffer) => {
+    out += c.toString("utf8");
+  });
   const until = async (re: RegExp, ms: number): Promise<RegExpExecArray> => {
     const end = Date.now() + ms;
     for (;;) {
       const m = re.exec(out);
       if (m) return m;
-      if (app.exitCode !== null || app.signalCode !== null) throw new Error(`built shell exited before ${String(re)} (code ${String(app.exitCode)}, signal ${String(app.signalCode)}):\n${out.slice(-2000)}`);
+      if (app.exitCode !== null || app.signalCode !== null)
+        throw new Error(
+          `built shell exited before ${String(re)} (code ${String(app.exitCode)}, signal ${String(app.signalCode)}):\n${out.slice(-2000)}`,
+        );
       if (Date.now() > end) throw new Error(`not seen: ${String(re)}\n${out.slice(-2000)}`);
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -183,12 +236,22 @@ async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
     sidecarUrl = ready[1];
     assert.equal((await healthz(sidecarUrl)).status, 200);
     if (takeLink) {
-      const opener = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
-      const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], { encoding: "utf8" });
+      const opener =
+        process.platform === "darwin"
+          ? ["open"]
+          : process.platform === "win32"
+            ? ["cmd", "/c", "start", ""]
+            : ["xdg-open"];
+      const r = spawnSync(opener[0], [...opener.slice(1), "vyre://open?address=acme.example.com"], {
+        encoding: "utf8",
+      });
       assert.equal(r.status, 0, r.stderr);
       await until(/vyre-desktop: deep link open received/, 20_000);
     }
-    const page = await until(/vyre-desktop: page rendered: (\d+) chars at (?:tauri:\/\/localhost|https?:\/\/tauri\.localhost)/, 20_000);
+    const page = await until(
+      /vyre-desktop: page rendered: (\d+) chars at (?:tauri:\/\/localhost|https?:\/\/tauri\.localhost)/,
+      20_000,
+    );
     console.log(`page: ${page[0]}`);
     if (takeLink) assert.doesNotMatch(out, /acme\.example\.com/, "link parameters never reach the log");
     // The desktop job takes its screenshot of the first running window during this hold.
@@ -199,51 +262,88 @@ async function exerciseBuiltShell(takeLink: boolean): Promise<void> {
   }
 }
 
-test("the built shell starts, reaches its sidecar and takes a vyre:// link", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
-  await exerciseBuiltShell(true);
-});
+test(
+  "the built shell starts, reaches its sidecar and takes a vyre:// link",
+  { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" },
+  async () => {
+    await exerciseBuiltShell(true);
+  },
+);
 
-test("the installed shell relaunches after a clean exit", { skip: !APP ? "VYRE_SHELL_APP is set only in the desktop job on a built app" : !RELAUNCH && "VYRE_SHELL_RELAUNCH enables the installed-app proof" }, async () => {
-  await exerciseBuiltShell(false);
-});
+test(
+  "the installed shell relaunches after a clean exit",
+  {
+    skip: !APP
+      ? "VYRE_SHELL_APP is set only in the desktop job on a built app"
+      : !RELAUNCH && "VYRE_SHELL_RELAUNCH enables the installed-app proof",
+  },
+  async () => {
+    await exerciseBuiltShell(false);
+  },
+);
 
 // The artifact viewer in the built shell (owner ruling, 4 Nov: it was blank in the Mac app). The shell opens an artifact as a child webview, a page of its own host, so the host's cookie is first-party. The
 // collector here stands for the artifact host on a.localhost: its first response sets a cookie and redirects, and it records whether the cookie came back on the redirected request. A frame under
 // tauri://localhost in WebKit never sends it back (test/artifact-frame.browser.test.ts); the child webview must.
-test("the built shell opens an artifact as a page of its own host, and the host's cookie comes back", { timeout: 150_000, skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
-  const seen: Array<{ url: string; cookie: string; host: string }> = [];
-  const http = await import("node:http");
-  const collector = http.createServer((q, r) => {
-    seen.push({ url: String(q.url), cookie: String(q.headers.cookie ?? ""), host: String(q.headers.host ?? "") });
-    if (q.url?.startsWith("/x/")) { r.writeHead(302, { location: "/sit_proof/", "set-cookie": "__vyre_a=first-party; Path=/; HttpOnly; SameSite=Lax" }); r.end(); return; }
-    r.writeHead(200, { "content-type": "text/html" });
-    r.end("<!doctype html><title>proof</title><p>proof</p>");
-  });
-  await new Promise<void>((resolve) => collector.listen(0, "127.0.0.1", resolve));
-  const port = (collector.address() as { port: number }).port;
-  const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_ARTIFACT_PROOF_URL: `http://127.0.0.1:${port}` } });
-  let out = "";
-  let sidecarUrl: string | null = null;
-  app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-  app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-  try {
-    const end = Date.now() + 120_000;
-    for (;;) {
-      sidecarUrl ??= /vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1] ?? null;
-      if (seen.some((x) => x.url.startsWith("/sit_proof/"))) break;
-      if (/artifactview: refused/.test(out)) throw new Error(`the shell refused the viewer:\n${out.slice(-1500)}`);
-      if (app.exitCode !== null || app.signalCode !== null) throw new Error(`the shell exited early:\n${out.slice(-1500)}`);
-      if (Date.now() > end) throw new Error(`the artifact page never reached its second request; seen ${JSON.stringify(seen)}\n${out.slice(-1500)}`);
-      await new Promise((r) => setTimeout(r, 250));
+test(
+  "the built shell opens an artifact as a page of its own host, and the host's cookie comes back",
+  { timeout: 150_000, skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" },
+  async () => {
+    const seen: Array<{ url: string; cookie: string; host: string }> = [];
+    const http = await import("node:http");
+    const collector = http.createServer((q, r) => {
+      seen.push({ url: String(q.url), cookie: String(q.headers.cookie ?? ""), host: String(q.headers.host ?? "") });
+      if (q.url?.startsWith("/x/")) {
+        r.writeHead(302, {
+          location: "/sit_proof/",
+          "set-cookie": "__vyre_a=first-party; Path=/; HttpOnly; SameSite=Lax",
+        });
+        r.end();
+        return;
+      }
+      r.writeHead(200, { "content-type": "text/html" });
+      r.end("<!doctype html><title>proof</title><p>proof</p>");
+    });
+    await new Promise<void>((resolve) => collector.listen(0, "127.0.0.1", resolve));
+    const port = (collector.address() as { port: number }).port;
+    const app = spawn(APP as string, [], {
+      env: { ...process.env, VYRE_SHELL_ARTIFACT_PROOF_URL: `http://127.0.0.1:${port}` },
+    });
+    let out = "";
+    let sidecarUrl: string | null = null;
+    app.stdout.on("data", (c: Buffer) => {
+      out += c.toString("utf8");
+    });
+    app.stderr.on("data", (c: Buffer) => {
+      out += c.toString("utf8");
+    });
+    try {
+      const end = Date.now() + 120_000;
+      for (;;) {
+        sidecarUrl ??= /vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1] ?? null;
+        if (seen.some((x) => x.url.startsWith("/sit_proof/"))) break;
+        if (/artifactview: refused/.test(out)) throw new Error(`the shell refused the viewer:\n${out.slice(-1500)}`);
+        if (app.exitCode !== null || app.signalCode !== null)
+          throw new Error(`the shell exited early:\n${out.slice(-1500)}`);
+        if (Date.now() > end)
+          throw new Error(
+            `the artifact page never reached its second request; seen ${JSON.stringify(seen)}\n${out.slice(-1500)}`,
+          );
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      const first = seen.find((x) => x.url.startsWith("/x/"));
+      const second = seen.find((x) => x.url.startsWith("/sit_proof/"));
+      assert.match(first?.host ?? "", /^a\.localhost:\d+$/, "the page was opened on the artifact host's name");
+      assert.equal(
+        second?.cookie,
+        "__vyre_a=first-party",
+        "the host's cookie came back on the next request: it is first-party in the child webview",
+      );
+    } finally {
+      collector.close();
+      await stopBuiltShell(app, sidecarUrl, out);
     }
-    const first = seen.find((x) => x.url.startsWith("/x/"));
-    const second = seen.find((x) => x.url.startsWith("/sit_proof/"));
-    assert.match(first?.host ?? "", /^a\.localhost:\d+$/, "the page was opened on the artifact host's name");
-    assert.equal(second?.cookie, "__vyre_a=first-party", "the host's cookie came back on the next request: it is first-party in the child webview");
-  } finally {
-    collector.close();
-    await stopBuiltShell(app, sidecarUrl, out);
-  }
-});
+  },
+);
 
 // Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.

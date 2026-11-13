@@ -27,7 +27,7 @@ const INDEX = new Map(LIST.map((w, i) => [w, i]));
 const BY_PREFIX = new Map(LIST.map((w, i) => [w.slice(0, 4), i]));
 
 /** A fresh seed. @param {import("./noise.js").CryptoProvider} crypto */
-export const newSeed = crypto => crypto.randomBytes(SEED_BYTES);
+export const newSeed = (crypto) => crypto.randomBytes(SEED_BYTES);
 
 /** The 11-bit checksum: the first 11 bits of SHA-256 of the seed. */
 async function checksum(seed, crypto) {
@@ -44,7 +44,7 @@ export async function seedToWords(seed, crypto) {
   const out = [];
   let acc = 0n;
   for (const b of seed) acc = (acc << 8n) | BigInt(b);
-  acc <<= 4n;   // 128 bits become 132: twelve groups of eleven, the last padded with four zero bits
+  acc <<= 4n; // 128 bits become 132: twelve groups of eleven, the last padded with four zero bits
   for (let i = 11; i >= 0; i--) out.push(LIST[Number((acc >> BigInt(i * 11)) & 0x7ffn)]);
   out.push(LIST[await checksum(seed, crypto)]);
   return out;
@@ -56,12 +56,15 @@ export async function seedToWords(seed, crypto) {
  * @param {string | string[]} input @param {import("./noise.js").CryptoProvider} crypto @returns {Promise<Uint8Array>}
  */
 export async function wordsToSeed(input, crypto) {
-  const words = (Array.isArray(input) ? input : String(input).split(/[\s,.\-_;]+/)).map(w => String(w).trim().toLowerCase()).filter(Boolean);
+  const words = (Array.isArray(input) ? input : String(input).split(/[\s,.\-_;]+/))
+    .map((w) => String(w).trim().toLowerCase())
+    .filter(Boolean);
   const bad = (code, message, extra = {}) => Object.assign(new Error(message), { code, ...extra });
   if (words.length !== 13) throw bad("word_count", `a pairing code is 13 words; there are ${words.length}`);
-  const idx = words.map(w => {
-    const i = INDEX.has(w) ? INDEX.get(w) : (w.length >= 4 ? BY_PREFIX.get(w.slice(0, 4)) : undefined);
-    if (i === undefined || (w.length > 4 && !INDEX.has(w) && !LIST[i].startsWith(w))) throw bad("unknown_word", `"${w}" is not in the word list`, { word: w });
+  const idx = words.map((w) => {
+    const i = INDEX.has(w) ? INDEX.get(w) : w.length >= 4 ? BY_PREFIX.get(w.slice(0, 4)) : undefined;
+    if (i === undefined || (w.length > 4 && !INDEX.has(w) && !LIST[i].startsWith(w)))
+      throw bad("unknown_word", `"${w}" is not in the word list`, { word: w });
     return /** @type {number} */ (i);
   });
   let acc = 0n;
@@ -69,13 +72,17 @@ export async function wordsToSeed(input, crypto) {
   if ((acc & 0xfn) !== 0n) throw bad("bad_checksum", "these words are not a pairing code");
   acc >>= 4n;
   const seed = new Uint8Array(SEED_BYTES);
-  for (let i = SEED_BYTES - 1; i >= 0; i--) { seed[i] = Number(acc & 0xffn); acc >>= 8n; }
-  if ((await checksum(seed, crypto)) !== idx[12]) throw bad("bad_checksum", "the last word does not match: one of the words is mistyped");
+  for (let i = SEED_BYTES - 1; i >= 0; i--) {
+    seed[i] = Number(acc & 0xffn);
+    acc >>= 8n;
+  }
+  if ((await checksum(seed, crypto)) !== idx[12])
+    throw bad("bad_checksum", "the last word does not match: one of the words is mistyped");
   return seed;
 }
 
 /** The text a QR code carries for a seed. @param {Uint8Array} seed */
-export const seedQrText = seed => QR_PREFIX + base64url(seed);
+export const seedQrText = (seed) => QR_PREFIX + base64url(seed);
 
 /**
  * A seed from whatever the person or the camera gave: the 13 words, the QR text, or the bare 22
@@ -87,8 +94,13 @@ export async function parseSeedText(text, crypto) {
   const raw = t.startsWith(QR_PREFIX) ? t.slice(QR_PREFIX.length) : /^[A-Za-z0-9_-]{22}$/.test(t) ? t : null;
   if (raw !== null) {
     let b;
-    try { b = fromBase64url(raw); } catch { b = null; }
-    if (!b || b.length !== SEED_BYTES) throw Object.assign(new Error("that is not a pairing code"), { code: "bad_seed" });
+    try {
+      b = fromBase64url(raw);
+    } catch {
+      b = null;
+    }
+    if (!b || b.length !== SEED_BYTES)
+      throw Object.assign(new Error("that is not a pairing code"), { code: "bad_seed" });
     return b;
   }
   return wordsToSeed(t, crypto);

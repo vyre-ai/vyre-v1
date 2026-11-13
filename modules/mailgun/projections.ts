@@ -18,10 +18,21 @@ export interface MailgunCtx {
   trace: { traceId: string };
   now(): number;
   db: MailgunDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -35,9 +46,15 @@ export interface MailgunHost {
   /** A Space file's name, type and bytes (for attachments). */
   fileBytes(ctx: MailgunCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   /** GET an address, with the Space's Mailgun key when the address is on Mailgun, and store the bytes as a blob. */
-  download(ctx: MailgunCtx, a: { url: string; mime?: string; auth?: boolean }): Promise<{ blobId: string; size: number; mime: string }>;
+  download(
+    ctx: MailgunCtx,
+    a: { url: string; mime?: string; auth?: boolean },
+  ): Promise<{ blobId: string; size: number; mime: string }>;
   /** POST a multipart form with the Space's Mailgun key (an email with attachments: ctx.http carries text only). Answers the status and the body as Mailgun gave them. */
-  upload(ctx: MailgunCtx, a: { url: string; fields: [string, string][]; files: { field: string; name: string; fileId: string }[] }): Promise<{ status: number; text: string }>;
+  upload(
+    ctx: MailgunCtx,
+    a: { url: string; fields: [string, string][]; files: { field: string; name: string; fileId: string }[] },
+  ): Promise<{ status: number; text: string }>;
   /** The public address of this Space, where Mailgun posts inbound mail (/hooks/mail/mailgun). */
   publicUrl(ctx: MailgunCtx): Promise<string>;
 }
@@ -48,7 +65,8 @@ export function setMailgunHost(h: MailgunHost | null): void {
   host = h;
 }
 export function needHost(ctx: Pick<MailgunCtx, "trace">): MailgunHost {
-  if (!host) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Mailgun is not set up on this server." });
+  if (!host)
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: "Mailgun is not set up on this server." });
   return host;
 }
 
@@ -66,7 +84,7 @@ export const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.i
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<MailgunCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -161,16 +179,21 @@ export async function raw(ctx: MailgunCtx, c: Call): Promise<Answer> {
     body = p.toString();
     headers["content-type"] = "application/x-www-form-urlencoded";
   }
-  return answer(ctx, () => ctx.http(`${base}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(body !== undefined ? { body } : {}) }));
+  return answer(ctx, () =>
+    ctx.http(`${base}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(body !== undefined ? { body } : {}) }),
+  );
 }
 
 /** Read the answer of one request into a status and a JSON object. */
-export async function answer(ctx: Pick<MailgunCtx, "trace">, send: () => Promise<{ status: number; text(): Promise<string> }>): Promise<Answer> {
+export async function answer(
+  ctx: Pick<MailgunCtx, "trace">,
+  send: () => Promise<{ status: number; text(): Promise<string> }>,
+): Promise<Answer> {
   let res: { status: number; text(): Promise<string> };
   try {
     res = await send();
   } catch (e) {
-    if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+    if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
     throw fail("provider.network", ctx.trace.traceId, { message: "Mailgun could not be reached." });
   }
   return parse(ctx, res.status, await res.text());
@@ -182,7 +205,8 @@ export function parse(ctx: Pick<MailgunCtx, "trace">, status: number, body: stri
     const parsed = body ? (JSON.parse(body) as unknown) : {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Json;
   } catch {
-    if (status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun answered something unreadable." });
+    if (status < 300)
+      throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun answered something unreadable." });
   }
   return { status, json };
 }
@@ -199,11 +223,22 @@ export function refusal(ctx: Pick<MailgunCtx, "trace">, status: number, send: bo
   const t = ctx.trace.traceId;
   const details = { status };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Mailgun asked us to slow down.", details });
-  if (status === 401 || status === 403) return fail("provider.auth_failed", t, { message: "Mailgun did not accept the API key, or the key may not do this. Check Mailgun_Key in the Vault and the region.", details });
+  if (status === 401 || status === 403)
+    return fail("provider.auth_failed", t, {
+      message:
+        "Mailgun did not accept the API key, or the key may not do this. Check Mailgun_Key in the Vault and the region.",
+      details,
+    });
   if (status === 404) return fail("validation.not_found", t, { message: "Mailgun has no such item.", details });
-  if (status >= 500) return fail("provider.unavailable", t, { message: "Mailgun is not answering right now.", details });
+  if (status >= 500)
+    return fail("provider.unavailable", t, { message: "Mailgun is not answering right now.", details });
   if (status === 400 || status === 402 || status === 409 || status === 422) {
-    return send ? fail("provider.bad_response", t, { message: "Mailgun could not use that email. Check the sender domain is verified.", details }) : fail("validation.bad_input", t, { message: "Mailgun could not use that request.", details });
+    return send
+      ? fail("provider.bad_response", t, {
+          message: "Mailgun could not use that email. Check the sender domain is verified.",
+          details,
+        })
+      : fail("validation.bad_input", t, { message: "Mailgun could not use that request.", details });
   }
   return fail("provider.bad_response", t, { message: "Mailgun answered something unexpected.", details });
 }

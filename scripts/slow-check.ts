@@ -5,11 +5,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Raised from 15 to 20 (P-CI_31): GitHub-hosted runners exposed real files of 20-22 s that the self-hosted pass cache had been hiding.
-export const MAX_ENTRIES = 68;   // 67 to 68: the calm live line journey in actual Chromium. 66 to 67: the first-frame theme journey in actual Chromium (stored skin and mode on the first paint). 65 to 66: the live activity line journey (thinking, real steps, trail, the Vyre mark) in actual Chromium. 63 to 65: the Personal first-hour walk and the folder Share journey, both in actual Chromium (release evidence). 62 to 63: the queued message journey in actual Chromium. 61 to 62: the /btw journey in actual Chromium. 60 to 61: the no-recall journey split out of chat streaming. 59 to 60: the chat surfaces journey in actual Chromium. 58 to 59: the work cards journey in actual Chromium. 57 to 58: the chat streaming journey in actual Chromium. 56 to 57: the Terminal pane journey in actual Chromium. 53 to 56: the CRM to Records journeys are three real-browser files with a booted daemon and a fake CRM, each a slow job of its own. 49 to 53: personal mail adds its booted-daemon live test and three real-browser journeys, each its own slow job (a daemon with two members and fake Google and Microsoft runs past 30 s). 48 to 49: the chat benchmark with the turn context runs 30 tasks on a seeded Space and takes about 30 s on a loaded runner. 40 to 48: the v1 release evidence adds booted live tests (Space switch, sync endpoint, recovery) that each need their own slow job. 24 to 40: with every shard on the self-hosted runners (no hosted minutes), daemon-boot and whole-app tests run past the 30 s fast cap under shared load; each gets its own slow job
+export const MAX_ENTRIES = 68; // 67 to 68: the calm live line journey in actual Chromium. 66 to 67: the first-frame theme journey in actual Chromium (stored skin and mode on the first paint). 65 to 66: the live activity line journey (thinking, real steps, trail, the Vyre mark) in actual Chromium. 63 to 65: the Personal first-hour walk and the folder Share journey, both in actual Chromium (release evidence). 62 to 63: the queued message journey in actual Chromium. 61 to 62: the /btw journey in actual Chromium. 60 to 61: the no-recall journey split out of chat streaming. 59 to 60: the chat surfaces journey in actual Chromium. 58 to 59: the work cards journey in actual Chromium. 57 to 58: the chat streaming journey in actual Chromium. 56 to 57: the Terminal pane journey in actual Chromium. 53 to 56: the CRM to Records journeys are three real-browser files with a booted daemon and a fake CRM, each a slow job of its own. 49 to 53: personal mail adds its booted-daemon live test and three real-browser journeys, each its own slow job (a daemon with two members and fake Google and Microsoft runs past 30 s). 48 to 49: the chat benchmark with the turn context runs 30 tasks on a seeded Space and takes about 30 s on a loaded runner. 40 to 48: the v1 release evidence adds booted live tests (Space switch, sync endpoint, recovery) that each need their own slow job. 24 to 40: with every shard on the self-hosted runners (no hosted minutes), daemon-boot and whole-app tests run past the 30 s fast cap under shared load; each gets its own slow job
 export const MAX_CAP_SEC = 120;
 export const TEST_FILE = /\.test\.(?:m?js|cjs|tsx?)$/;
 
-export type SlowEntry = { file: string; capSec: number; owner: string; reason: string; heavy?: boolean; perf?: boolean };
+export type SlowEntry = {
+  file: string;
+  capSec: number;
+  owner: string;
+  reason: string;
+  heavy?: boolean;
+  perf?: boolean;
+};
 
 /** Every problem in a slow list; an empty array means the list is valid. */
 export function checkSlow(entries: unknown): string[] {
@@ -24,7 +31,8 @@ export function checkSlow(entries: unknown): string[] {
     if (typeof e.file !== "string" || !TEST_FILE.test(e.file)) problems.push(`${at}: file must name a test file`);
     else if (seen.has(e.file)) problems.push(`${at}: listed twice`);
     else seen.add(e.file);
-    if (!Number.isInteger(e.capSec) || e.capSec <= 30 || e.capSec > MAX_CAP_SEC) problems.push(`${at}: capSec must be an integer from 31 to ${MAX_CAP_SEC}`);
+    if (!Number.isInteger(e.capSec) || e.capSec <= 30 || e.capSec > MAX_CAP_SEC)
+      problems.push(`${at}: capSec must be an integer from 31 to ${MAX_CAP_SEC}`);
     if (typeof e.owner !== "string" || !e.owner.trim()) problems.push(`${at}: owner is required`);
     if (typeof e.reason !== "string" || !e.reason.trim()) problems.push(`${at}: reason is required`);
     if (e.heavy !== undefined && typeof e.heavy !== "boolean") problems.push(`${at}: heavy must be a boolean`);

@@ -10,7 +10,10 @@ import { formPrincipal } from "../handlers/submit.ts";
 import { harness } from "../fixtures/world.ts";
 import { code, openForm, run } from "../fixtures/seed.ts";
 
-interface SubmitOut { recordId: string; thankYou?: string }
+interface SubmitOut {
+  recordId: string;
+  thankYou?: string;
+}
 const submit = (f: { slug: string; public: Ctx }, input: Record<string, unknown>) =>
   run<SubmitOut>(f.public, "forms.submit", { slug: f.slug, ...input });
 
@@ -28,9 +31,16 @@ test("a public submit creates a record as the form's service principal and fires
   assert.equal(ev.length, 1);
   assert.deepEqual(ev[0]?.payload, { formId: f.formId, recordId: out.recordId, type: "contact", matched: false });
   assert.equal(ev[0]?.subject, `form/${f.formId}`);
-  const list = await run<{ rows: { recordId: string; matched: boolean }[]; total: number }>(w.ctx, "forms.submissions", { formId: f.formId });
+  const list = await run<{ rows: { recordId: string; matched: boolean }[]; total: number }>(
+    w.ctx,
+    "forms.submissions",
+    { formId: f.formId },
+  );
   assert.equal(list.total, 1);
-  assert.deepEqual(list.rows.map((r) => [r.recordId, r.matched]), [[out.recordId, false]]);
+  assert.deepEqual(
+    list.rows.map((r) => [r.recordId, r.matched]),
+    [[out.recordId, false]],
+  );
 });
 
 test("a second submit with the same email updates that record and does not blank what is there", async () => {
@@ -41,7 +51,11 @@ test("a second submit with the same email updates that record and does not blank
   const second = await submit(f, { answers: { email: "dana@client.example", name: "Dana L", phone: "" } });
   assert.equal(second.recordId, first.recordId);
   assert.equal(w.records.size, 1);
-  assert.deepEqual(w.records.get(first.recordId)?.fields, { email: "dana@client.example", name: "Dana L", phone: "555" });
+  assert.deepEqual(w.records.get(first.recordId)?.fields, {
+    email: "dana@client.example",
+    name: "Dana L",
+    phone: "555",
+  });
   assert.equal((w.events.filter((e) => e.name === "form.submitted")[1]?.payload as { matched: boolean }).matched, true);
 });
 
@@ -70,7 +84,12 @@ test("a custom match rule uses the chosen field", async () => {
 test("questions: unknown refused, Show ignored, Hide only with a prefill key", async () => {
   const w = harness();
   const f = await openForm(w, {
-    fields: [{ field: "email", mode: "ask" }, { field: "plan", mode: "show" }, { field: "source_page", mode: "hide", prefillKey: "src" }, { field: "secret", mode: "hide" }],
+    fields: [
+      { field: "email", mode: "ask" },
+      { field: "plan", mode: "show" },
+      { field: "source_page", mode: "hide", prefillKey: "src" },
+      { field: "secret", mode: "hide" },
+    ],
   });
   assert.equal(await code(submit(f, { answers: { email: "a@x.example", nope: "x" } })), "validation.bad_input");
   assert.equal(await code(submit(f, { answers: { email: "a@x.example", secret: "x" } })), "validation.bad_input");
@@ -82,9 +101,15 @@ test("answers must be plain values and an email must look like one", async () =>
   const w = harness();
   const f = await openForm(w);
   assert.equal(await code(submit(f, { answers: { email: "not-an-email" } })), "validation.bad_input");
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example", name: { evil: true } } })), "validation.bad_input");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example", name: { evil: true } } })),
+    "validation.bad_input",
+  );
   assert.equal(await code(submit(f, { answers: [] })), "validation.bad_input");
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example", name: "x".repeat(10_001) } })), "validation.too_large");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example", name: "x".repeat(10_001) } })),
+    "validation.too_large",
+  );
   assert.equal(w.records.size, 0);
 });
 
@@ -106,7 +131,10 @@ test("one form's service principal cannot submit another form", async () => {
   const w = harness();
   const a = await openForm(w, { name: "A" });
   const b = await openForm(w, { name: "B" });
-  assert.equal(await code(run(a.public, "forms.submit", { slug: b.slug, answers: { email: "a@x.example" } })), "permission.no_grant");
+  assert.equal(
+    await code(run(a.public, "forms.submit", { slug: b.slug, answers: { email: "a@x.example" } })),
+    "permission.no_grant",
+  );
   assert.equal(w.records.size, 0);
 });
 
@@ -116,13 +144,19 @@ test("consent text: no consent, no write; consent from attribution or the reserv
   const w = harness();
   const f = await openForm(w, { consentText: "I agree to be contacted." });
   assert.equal(await code(submit(f, { answers: { email: "a@x.example" } })), "validation.bad_input");
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: false } })), "validation.bad_input");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: false } })),
+    "validation.bad_input",
+  );
   assert.equal(w.records.size, 0);
   const one = await submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true } });
   const two = await submit(f, { answers: { email: "b@x.example", consent: true } });
   const three = await submit(f, { answers: { email: "c@x.example", consent: "true" } });
   for (const r of [one, two, three]) assert.equal("consent" in (w.records.get(r.recordId)?.fields ?? {}), false);
-  assert.equal(w.db.rows("forms_submission").every((s) => s.consent === 1), true);
+  assert.equal(
+    w.db.rows("forms_submission").every((s) => s.consent === 1),
+    true,
+  );
 });
 
 test("without consent text the form still records what the visitor chose", async () => {
@@ -148,7 +182,10 @@ test("captcha on: missing and wrong tokens are refused before any write; a good 
 test("captcha on but no verifier configured fails closed; a verifier that throws is a provider error", async () => {
   const w = harness({ captcha: false });
   const f = await openForm(w, { captcha: true });
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example" }, captcha: "human" })), "validation.precondition_failed");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example" }, captcha: "human" })),
+    "validation.precondition_failed",
+  );
   const w2 = harness();
   const f2 = await openForm(w2, { captcha: true });
   w2.captcha.throws = true;
@@ -201,10 +238,16 @@ test("a failed write leaves no submission, no attribution and no event", async (
   const w = harness();
   const f = await openForm(w);
   w.state.failRecords = true;
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true, utmSource: "x" } })), "internal.unexpected");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true, utmSource: "x" } })),
+    "internal.unexpected",
+  );
   assert.equal(w.db.rows("forms_submission").length, 0);
   assert.equal(w.db.rows("forms_attribution").length, 0);
-  assert.deepEqual(w.names().filter((n) => n === "form.submitted"), []);
+  assert.deepEqual(
+    w.names().filter((n) => n === "form.submitted"),
+    [],
+  );
 });
 
 test("thank-you text or redirect comes back from the submit", async () => {
@@ -212,24 +255,44 @@ test("thank-you text or redirect comes back from the submit", async () => {
   const f = await openForm(w);
   await run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { text: "Thanks, we will call you." } });
   assert.equal((await submit(f, { answers: { email: "a@x.example" } })).thankYou, "Thanks, we will call you.");
-  await run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { text: "ignored", redirect: "https://harbor.example/thanks" } });
+  await run(w.ctx, "forms.design_set", {
+    formId: f.formId,
+    thankYou: { text: "ignored", redirect: "https://harbor.example/thanks" },
+  });
   assert.equal((await submit(f, { answers: { email: "b@x.example" } })).thankYou, "https://harbor.example/thanks");
-  assert.equal(await code(run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { redirect: "javascript:alert(1)" } })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { redirect: "//evil.example" } })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { redirect: "javascript:alert(1)" } })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.design_set", { formId: f.formId, thankYou: { redirect: "//evil.example" } })),
+    "validation.bad_input",
+  );
 });
 
 // ---- attribution ---------------------------------------------------------------------------------------------
 
 const FULL = {
-  consent: true, utmSource: "google", utmMedium: "cpc", utmCampaign: "estate-plans", clickIds: { gclid: "abc123", fbclid: "zzz" },
-  referrer: "https://www.google.com/search?q=wills", landingPage: "https://harbor.example/wills?utm_source=google", device: "mobile", location: "Roseville, US",
+  consent: true,
+  utmSource: "google",
+  utmMedium: "cpc",
+  utmCampaign: "estate-plans",
+  clickIds: { gclid: "abc123", fbclid: "zzz" },
+  referrer: "https://www.google.com/search?q=wills",
+  landingPage: "https://harbor.example/wills?utm_source=google",
+  device: "mobile",
+  location: "Roseville, US",
 };
 
 test("attribution: UTMs, click ids, referrer, landing page, device and location are captured with consent", async () => {
   const w = harness();
   const f = await openForm(w);
   const out = await submit(f, { answers: { email: "a@x.example" }, attribution: FULL });
-  const got = await run<{ first?: Record<string, unknown>; latest?: Record<string, unknown> }>(w.ctx, "forms.attribution_get", { recordId: out.recordId });
+  const got = await run<{ first?: Record<string, unknown>; latest?: Record<string, unknown> }>(
+    w.ctx,
+    "forms.attribution_get",
+    { recordId: out.recordId },
+  );
   assert.deepEqual(got.first, FULL);
   assert.deepEqual(got.latest, FULL);
 });
@@ -237,10 +300,20 @@ test("attribution: UTMs, click ids, referrer, landing page, device and location 
 test("attribution: First source is set on create only; Latest moves on every submit", async () => {
   const w = harness();
   const f = await openForm(w);
-  const first = await submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true, utmSource: "google", utmMedium: "cpc" } });
+  const first = await submit(f, {
+    answers: { email: "a@x.example" },
+    attribution: { consent: true, utmSource: "google", utmMedium: "cpc" },
+  });
   w.advance(120_000);
-  await submit(f, { answers: { email: "a@x.example", name: "A" }, attribution: { consent: true, utmSource: "newsletter", utmMedium: "email" } });
-  const got = await run<{ first?: { utmSource?: string }; latest?: { utmSource?: string } }>(w.ctx, "forms.attribution_get", { recordId: first.recordId });
+  await submit(f, {
+    answers: { email: "a@x.example", name: "A" },
+    attribution: { consent: true, utmSource: "newsletter", utmMedium: "email" },
+  });
+  const got = await run<{ first?: { utmSource?: string }; latest?: { utmSource?: string } }>(
+    w.ctx,
+    "forms.attribution_get",
+    { recordId: first.recordId },
+  );
   assert.equal(got.first?.utmSource, "google");
   assert.equal(got.latest?.utmSource, "newsletter");
   const ch = w.db.rows("forms_attribution")[0];
@@ -252,8 +325,16 @@ test("attribution is consent-aware: without consent only campaign tags and the r
   const w = harness();
   const f = await openForm(w);
   const out = await submit(f, { answers: { email: "a@x.example" }, attribution: { ...FULL, consent: false } });
-  const got = await run<{ first?: Record<string, unknown> }>(w.ctx, "forms.attribution_get", { recordId: out.recordId });
-  assert.deepEqual(got.first, { consent: false, utmSource: "google", utmMedium: "cpc", utmCampaign: "estate-plans", referrer: "www.google.com" });
+  const got = await run<{ first?: Record<string, unknown> }>(w.ctx, "forms.attribution_get", {
+    recordId: out.recordId,
+  });
+  assert.deepEqual(got.first, {
+    consent: false,
+    utmSource: "google",
+    utmMedium: "cpc",
+    utmCampaign: "estate-plans",
+    referrer: "www.google.com",
+  });
 });
 
 test("a submit with no attribution stores none; a record with none reads back empty", async () => {
@@ -266,10 +347,20 @@ test("a submit with no attribution stores none; a record with none reads back em
 test("attribution input is bounded and typed", async () => {
   const w = harness();
   const f = await openForm(w);
-  assert.equal(await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true, utmSource: 5 } })), "validation.bad_input");
+  assert.equal(
+    await code(submit(f, { answers: { email: "a@x.example" }, attribution: { consent: true, utmSource: 5 } })),
+    "validation.bad_input",
+  );
   assert.equal(await code(submit(f, { answers: { email: "a@x.example" }, attribution: "x" })), "validation.bad_input");
-  const out = await submit(f, { answers: { email: "b@x.example" }, attribution: { consent: true, utmSource: "s".repeat(900), clickIds: { "bad key!": "x", ok: "y" } } });
-  const got = await run<{ first?: { utmSource?: string; clickIds?: Record<string, string> } }>(w.ctx, "forms.attribution_get", { recordId: out.recordId });
+  const out = await submit(f, {
+    answers: { email: "b@x.example" },
+    attribution: { consent: true, utmSource: "s".repeat(900), clickIds: { "bad key!": "x", ok: "y" } },
+  });
+  const got = await run<{ first?: { utmSource?: string; clickIds?: Record<string, string> } }>(
+    w.ctx,
+    "forms.attribution_get",
+    { recordId: out.recordId },
+  );
   assert.equal(got.first?.utmSource?.length, 500);
   assert.deepEqual(got.first?.clickIds, { ok: "y" });
 });
@@ -278,13 +369,22 @@ test("Source rules map clicks to channels and the first matching rule wins; defa
   const w = harness();
   const f = await openForm(w);
   assert.deepEqual(await run(w.ctx, "source_rules.list", {}), { rules: [] });
-  await run(w.ctx, "source_rules.set", { rules: [
-    { match: { utmSource: "podcast" }, channel: "Podcast" },
-    { match: { referrer: "avvo.com" }, channel: "Directory" },
-    { match: { utmMedium: "cpc", utmSource: "bing" }, channel: "Bing ads" },
-  ] });
+  await run(w.ctx, "source_rules.set", {
+    rules: [
+      { match: { utmSource: "podcast" }, channel: "Podcast" },
+      { match: { referrer: "avvo.com" }, channel: "Directory" },
+      { match: { utmMedium: "cpc", utmSource: "bing" }, channel: "Bing ads" },
+    ],
+  });
   const listed = await run<{ rules: { channel: string; order: number }[] }>(w.ctx, "source_rules.list", {});
-  assert.deepEqual(listed.rules.map((r) => [r.order, r.channel]), [[0, "Podcast"], [1, "Directory"], [2, "Bing ads"]]);
+  assert.deepEqual(
+    listed.rules.map((r) => [r.order, r.channel]),
+    [
+      [0, "Podcast"],
+      [1, "Directory"],
+      [2, "Bing ads"],
+    ],
+  );
   const channels: string[] = [];
   const cases: Record<string, unknown>[] = [
     { consent: true, utmSource: "podcast", utmMedium: "cpc" },
@@ -300,8 +400,14 @@ test("Source rules map clicks to channels and the first matching rule wins; defa
     channels.push(String(w.db.rows("forms_attribution").find((r) => r.record_id === out.recordId)?.first_channel));
   }
   assert.deepEqual(channels, ["Podcast", "Directory", "Bing ads", "paid", "social", "referral", "direct"]);
-  assert.equal(await code(run(w.ctx, "source_rules.set", { rules: [{ match: {}, channel: "x" }] })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "source_rules.set", { rules: [{ match: { utmSource: "x" }, channel: "" }] })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "source_rules.set", { rules: [{ match: {}, channel: "x" }] })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "source_rules.set", { rules: [{ match: { utmSource: "x" }, channel: "" }] })),
+    "validation.bad_input",
+  );
   await run(w.ctx, "source_rules.set", { rules: [] });
   assert.deepEqual(await run(w.ctx, "source_rules.list", {}), { rules: [] });
 });
@@ -310,21 +416,50 @@ test("Source rules map clicks to channels and the first matching rule wins; defa
 
 test("survey results aggregate numbers and choices; only a survey has them", async () => {
   const w = harness();
-  const f = await openForm(w, { kind: "survey", name: "Pulse", fields: [{ field: "rating", mode: "ask" }, { field: "topics", mode: "ask" }, { field: "email", mode: "ask" }] });
+  const f = await openForm(w, {
+    kind: "survey",
+    name: "Pulse",
+    fields: [
+      { field: "rating", mode: "ask" },
+      { field: "topics", mode: "ask" },
+      { field: "email", mode: "ask" },
+    ],
+  });
   const rows = [
     { rating: 5, topics: ["wills", "trusts"], email: "a@x.example" },
     { rating: 3, topics: ["wills"], email: "b@x.example" },
     { rating: 4, topics: [], email: "c@x.example" },
   ];
   for (const answers of rows) await submit(f, { answers });
-  const res = await run<{ responses: number; questions: { field: string; summary: Record<string, unknown> }[] }>(w.ctx, "forms.survey_results", { formId: f.formId });
+  const res = await run<{ responses: number; questions: { field: string; summary: Record<string, unknown> }[] }>(
+    w.ctx,
+    "forms.survey_results",
+    { formId: f.formId },
+  );
   assert.equal(res.responses, 3);
   const rating = res.questions.find((q) => q.field === "rating")?.summary;
-  assert.deepEqual(rating, { kind: "number", answered: 3, average: 4, min: 3, max: 5, distribution: { "3": 1, "4": 1, "5": 1 } });
+  assert.deepEqual(rating, {
+    kind: "number",
+    answered: 3,
+    average: 4,
+    min: 3,
+    max: 5,
+    distribution: { "3": 1, "4": 1, "5": 1 },
+  });
   const topics = res.questions.find((q) => q.field === "topics")?.summary;
-  assert.deepEqual(topics, { kind: "choice", answered: 2, counts: [{ value: "wills", count: 2 }, { value: "trusts", count: 1 }] });
+  assert.deepEqual(topics, {
+    kind: "choice",
+    answered: 2,
+    counts: [
+      { value: "wills", count: 2 },
+      { value: "trusts", count: 1 },
+    ],
+  });
   const plain = await openForm(w, { name: "Plain" });
-  assert.equal(await code(run(w.ctx, "forms.survey_results", { formId: plain.formId })), "validation.precondition_failed");
+  assert.equal(
+    await code(run(w.ctx, "forms.survey_results", { formId: plain.formId })),
+    "validation.precondition_failed",
+  );
   assert.equal(w.db.rows("forms_submission").filter((s) => s.form_id === plain.formId).length, 0);
 });
 
@@ -339,31 +474,63 @@ test("a normal form keeps no copy of the answers outside the record", async () =
 
 test("definitions: create, fields, update, design, publish, list, unpublish", async () => {
   const w = harness();
-  const made = await run<{ form: { formId: string; slug: string; state: string; submissions: number } }>(w.ctx, "forms.create", { name: "Estate Intake", recordType: "contact", kind: "public" });
+  const made = await run<{ form: { formId: string; slug: string; state: string; submissions: number } }>(
+    w.ctx,
+    "forms.create",
+    { name: "Estate Intake", recordType: "contact", kind: "public" },
+  );
   assert.equal(made.form.slug, "estate-intake");
   assert.equal(made.form.state, "draft");
   const id = made.form.formId;
   assert.equal(await code(run(w.ctx, "forms.publish", { formId: id })), "validation.precondition_failed");
-  await run(w.ctx, "forms.fields_set", { formId: id, fields: [{ field: "email", mode: "ask", prefillKey: "e", step: 0 }, { field: "name", mode: "ask", step: 1 }] });
+  await run(w.ctx, "forms.fields_set", {
+    formId: id,
+    fields: [
+      { field: "email", mode: "ask", prefillKey: "e", step: 0 },
+      { field: "name", mode: "ask", step: 1 },
+    ],
+  });
   const pub = await run<{ url: string; embed: string }>(w.ctx, "forms.publish", { formId: id });
   assert.equal(pub.url, "https://harbor.example/f/estate-intake");
   assert.match(pub.embed, /^<iframe src="https:\/\/harbor\.example\/f\/estate-intake" title="Estate Intake"/);
   assert.equal(w.events.filter((e) => e.name === "form.published").length, 1);
   await run(w.ctx, "forms.publish", { formId: id });
   assert.equal(w.events.filter((e) => e.name === "form.published").length, 1, "publishing twice announces once");
-  const upd = await run<{ form: { name: string } }>(w.ctx, "forms.update", { formId: id, name: "Estate Intake 2", captcha: true, rateLimit: 5, consentText: "I agree.", matchRule: ["email", "phone"] });
+  const upd = await run<{ form: { name: string } }>(w.ctx, "forms.update", {
+    formId: id,
+    name: "Estate Intake 2",
+    captcha: true,
+    rateLimit: 5,
+    consentText: "I agree.",
+    matchRule: ["email", "phone"],
+  });
   assert.equal(upd.form.name, "Estate Intake 2");
   const row = w.db.rows("forms_form")[0];
   assert.equal(row?.captcha, 1);
   assert.equal(row?.rate_limit, 5);
   assert.equal(row?.match_rule, JSON.stringify(["email", "phone"]));
-  await run(w.ctx, "forms.design_set", { formId: id, theme: { font: "Inter" }, css: ".x { color: red }", logic: { show: [] } });
-  const got = await run<{ fields: { field: string; mode: string; prefillKey?: string }[]; theme?: unknown; logic?: unknown }>(w.ctx, "forms.get", { formId: id });
-  assert.deepEqual(got.fields, [{ field: "email", mode: "ask", prefillKey: "e", step: 0 }, { field: "name", mode: "ask", step: 1 }]);
+  await run(w.ctx, "forms.design_set", {
+    formId: id,
+    theme: { font: "Inter" },
+    css: ".x { color: red }",
+    logic: { show: [] },
+  });
+  const got = await run<{
+    fields: { field: string; mode: string; prefillKey?: string }[];
+    theme?: unknown;
+    logic?: unknown;
+  }>(w.ctx, "forms.get", { formId: id });
+  assert.deepEqual(got.fields, [
+    { field: "email", mode: "ask", prefillKey: "e", step: 0 },
+    { field: "name", mode: "ask", step: 1 },
+  ]);
   assert.deepEqual(got.theme, { font: "Inter" });
   assert.deepEqual(got.logic, { show: [] });
   const listed = await run<{ forms: { formId: string }[]; total: number }>(w.ctx, "forms.list", {});
-  assert.deepEqual(listed.forms.map((x) => x.formId), [id]);
+  assert.deepEqual(
+    listed.forms.map((x) => x.formId),
+    [id],
+  );
   assert.equal((await run<{ total: number }>(w.ctx, "forms.list", { section: "personal" })).total, 0);
   await run(w.ctx, "forms.unpublish", { formId: id });
   assert.equal((await run<{ form: { state: string } }>(w.ctx, "forms.get", { formId: id })).form.state, "closed");
@@ -371,27 +538,69 @@ test("definitions: create, fields, update, design, publish, list, unpublish", as
 
 test("definitions: bad input is refused with the field named", async () => {
   const w = harness();
-  assert.equal(await code(run(w.ctx, "forms.create", { name: "", recordType: "contact", kind: "public" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.create", { name: "x", recordType: "Bad Type", kind: "public" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.create", { name: "x", recordType: "contact", kind: "weird" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.create", { name: "x", recordType: "contact", kind: "booking" })), "validation.precondition_failed");
+  assert.equal(
+    await code(run(w.ctx, "forms.create", { name: "", recordType: "contact", kind: "public" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.create", { name: "x", recordType: "Bad Type", kind: "public" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.create", { name: "x", recordType: "contact", kind: "weird" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.create", { name: "x", recordType: "contact", kind: "booking" })),
+    "validation.precondition_failed",
+  );
   const f = await openForm(w);
   const set = (fields: unknown) => run(w.ctx, "forms.fields_set", { formId: f.formId, fields });
-  assert.equal(await code(set([{ field: "a", mode: "ask" }, { field: "a", mode: "hide" }])), "validation.bad_input");
+  assert.equal(
+    await code(
+      set([
+        { field: "a", mode: "ask" },
+        { field: "a", mode: "hide" },
+      ]),
+    ),
+    "validation.bad_input",
+  );
   assert.equal(await code(set([{ field: "a", mode: "maybe" }])), "validation.bad_input");
   assert.equal(await code(set([{ field: "a", mode: "ask", prefillKey: "Bad Key" }])), "validation.bad_input");
-  assert.equal(await code(set([{ field: "a", mode: "ask", prefillKey: "k" }, { field: "b", mode: "ask", prefillKey: "k" }])), "validation.bad_input");
+  assert.equal(
+    await code(
+      set([
+        { field: "a", mode: "ask", prefillKey: "k" },
+        { field: "b", mode: "ask", prefillKey: "k" },
+      ]),
+    ),
+    "validation.bad_input",
+  );
   assert.equal(await code(run(w.ctx, "forms.update", { formId: f.formId, rateLimit: 0 })), "validation.bad_input");
   assert.equal(await code(run(w.ctx, "forms.update", { formId: f.formId, matchRule: [] })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.design_set", { formId: f.formId, css: "@import url(//evil.example/x.css);" })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.design_set", { formId: f.formId, css: "</style><script>alert(1)</script>" })), "validation.bad_input");
+  assert.equal(
+    await code(run(w.ctx, "forms.design_set", { formId: f.formId, css: "@import url(//evil.example/x.css);" })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.design_set", { formId: f.formId, css: "</style><script>alert(1)</script>" })),
+    "validation.bad_input",
+  );
   assert.equal(await code(run(w.ctx, "forms.get", { formId: "frm_missing" })), "validation.not_found");
 });
 
 test("definitions: addresses are unique and the embed escapes the name", async () => {
   const w = harness();
-  const a = await run<{ form: { slug: string } }>(w.ctx, "forms.create", { name: "Intake", recordType: "contact", kind: "public" });
-  const b = await run<{ form: { slug: string; formId: string } }>(w.ctx, "forms.create", { name: "Intake", recordType: "contact", kind: "public" });
+  const a = await run<{ form: { slug: string } }>(w.ctx, "forms.create", {
+    name: "Intake",
+    recordType: "contact",
+    kind: "public",
+  });
+  const b = await run<{ form: { slug: string; formId: string } }>(w.ctx, "forms.create", {
+    name: "Intake",
+    recordType: "contact",
+    kind: "public",
+  });
   assert.equal(a.form.slug, "intake");
   assert.match(b.form.slug, /^intake-[a-z0-9]{3,}$/);
   await run(w.ctx, "forms.update", { formId: b.form.formId, name: 'A "quoted" <b>name</b>' });

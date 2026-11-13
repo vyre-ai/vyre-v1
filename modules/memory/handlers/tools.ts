@@ -5,7 +5,15 @@ import { raise, actorOf } from "../projections.ts";
 import { privateIntent } from "../place.ts";
 import type { Layer, MemCtx } from "../projections.ts";
 
-interface RememberIn { text: string; layer?: Layer; agentId?: string; projectId?: string; kind?: string; threadId?: string; sourceRef?: string }
+interface RememberIn {
+  text: string;
+  layer?: Layer;
+  agentId?: string;
+  projectId?: string;
+  kind?: string;
+  threadId?: string;
+  sourceRef?: string;
+}
 
 export async function remember(ctx: MemCtx, input: RememberIn) {
   const sourceKind = input.threadId ? "chat" : "manual";
@@ -16,14 +24,29 @@ export async function remember(ctx: MemCtx, input: RememberIn) {
   if (input.threadId && layer !== "person") {
     try {
       const me = actorOf(ctx);
-      const said = (((await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 8 })) as { messages?: Array<{ author?: { kind?: string; id?: string }; body?: string }> }).messages ?? [])
-        .filter((m) => m.author?.kind === "person" && m.author.id === me).at(-1);
+      const said = (
+        (
+          (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 8 })) as {
+            messages?: Array<{ author?: { kind?: string; id?: string }; body?: string }>;
+          }
+        ).messages ?? []
+      )
+        .filter((m) => m.author?.kind === "person" && m.author.id === me)
+        .at(-1);
       if (privateIntent(`${said?.body ?? ""} ${input.text}`)) layer = "person";
-    } catch { /* a chat that cannot be read gives no hint: the layer stays as asked */ }
+    } catch {
+      /* a chat that cannot be read gives no hint: the layer stays as asked */
+    }
   }
   const out = await proposeFact(ctx, {
-    text: input.text, ...(layer ? { layer } : {}), ...(agentId ? { agentId } : {}), ...(input.projectId ? { projectId: input.projectId } : {}),
-    ...(input.kind ? { kind: input.kind } : {}), ...(input.threadId ? { threadId: input.threadId } : {}), sourceKind, sourceRef: input.sourceRef ?? input.threadId ?? "tool",
+    text: input.text,
+    ...(layer ? { layer } : {}),
+    ...(agentId ? { agentId } : {}),
+    ...(input.projectId ? { projectId: input.projectId } : {}),
+    ...(input.kind ? { kind: input.kind } : {}),
+    ...(input.threadId ? { threadId: input.threadId } : {}),
+    sourceKind,
+    sourceRef: input.sourceRef ?? input.threadId ?? "tool",
   });
   // Someone asked for this to be remembered: in the asker's own layer it is current at once. A shared layer keeps its own review rule.
   if (!out.merged && out.fact.layer === "person") {

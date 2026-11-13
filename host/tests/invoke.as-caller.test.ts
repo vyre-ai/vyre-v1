@@ -7,10 +7,24 @@ import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const cap = (name: string): CapabilityDef => ({
-  v: 1, name, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "space" }, permission: null, level: "view",
-  risk: "low", effects: "read", emits: [], idempotency: "natural", surfaces: {}, examples: [],
-} as unknown as CapabilityDef);
+const cap = (name: string): CapabilityDef =>
+  ({
+    v: 1,
+    name,
+    summary: "s",
+    input: { type: "object" },
+    output: { type: "object" },
+    errors: [],
+    resource: { type: "space" },
+    permission: null,
+    level: "view",
+    risk: "low",
+    effects: "read",
+    emits: [],
+    idempotency: "natural",
+    surfaces: {},
+    examples: [],
+  }) as unknown as CapabilityDef;
 
 test("a call made asCaller is marked forwarded for the capability it reaches, and only that one", async () => {
   const s = new AccessSnapshot();
@@ -23,7 +37,10 @@ test("a call made asCaller is marked forwarded for the capability it reaches, an
     authorize: (req) => authorize(s, req),
     handler: (name: string) => async (ctx) => {
       seen[name] = (ctx as { forwarded?: boolean }).forwarded === true;
-      if (name === "example.outer") { await ctx.call("example.inner" as never, {}, { asCaller: true } as never); await ctx.call("example.plain" as never, {}); }
+      if (name === "example.outer") {
+        await ctx.call("example.inner" as never, {}, { asCaller: true } as never);
+        await ctx.call("example.plain" as never, {});
+      }
       if (name === "example.inner") await ctx.call("example.deeper" as never, {});
       return {};
     },
@@ -33,5 +50,10 @@ test("a call made asCaller is marked forwarded for the capability it reaches, an
   };
   const seed: CtxSeed = { space: "spc_1", principal: { kind: "person", id: "usr_dana" } };
   await createInvoke(deps)("example.outer", {}, seed);
-  assert.deepEqual(seen, { "example.outer": false, "example.inner": true, "example.deeper": false, "example.plain": false });
+  assert.deepEqual(seen, {
+    "example.outer": false,
+    "example.inner": true,
+    "example.deeper": false,
+    "example.plain": false,
+  });
 });

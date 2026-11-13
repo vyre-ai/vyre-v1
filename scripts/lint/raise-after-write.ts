@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { matchDelim } from "./finding.ts";
 
 export type RawFinding = { file: string; fn: string; writeLine: number; raiseLine: number; message: string };
 
@@ -22,41 +23,70 @@ export function scrub(source: string): string {
   while (i < n) {
     const c = source[i]!;
     const d = source[i + 1];
-    if (c === "/" && d === "/") { while (i < n && source[i] !== "\n") { out += " "; i++; } continue; }
+    if (c === "/" && d === "/") {
+      while (i < n && source[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      continue;
+    }
     if (c === "/" && d === "*") {
       const end = source.indexOf("*/", i + 2);
       const stop = end < 0 ? n : end + 2;
       for (; i < stop; i++) out += blank(source[i]!);
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
-      out += c; i++;
+    if (c === "'" || c === '"' || c === "`") {
+      out += c;
+      i++;
       while (i < n && source[i] !== c) {
-        if (source[i] === "\\") { out += " "; i++; if (i < n) { out += blank(source[i]!); i++; } continue; }
-        out += blank(source[i]!); i++;
+        if (source[i] === "\\") {
+          out += " ";
+          i++;
+          if (i < n) {
+            out += blank(source[i]!);
+            i++;
+          }
+          continue;
+        }
+        out += blank(source[i]!);
+        i++;
       }
-      if (i < n) { out += c; i++; }
+      if (i < n) {
+        out += c;
+        i++;
+      }
       continue;
     }
     if (c === "/") {
       const before = out.slice(-40).trimEnd();
       const last = before.slice(-1);
       if (last === "" || /[(,=:[!&|?{};]/.test(last) || /(?:^|[^\w$])return$/.test(before)) {
-        out += c; i++;
+        out += c;
+        i++;
         let inClass = false;
         while (i < n && source[i] !== "\n") {
           const r = source[i]!;
-          if (r === "\\") { out += "  "; i += 2; continue; }
+          if (r === "\\") {
+            out += "  ";
+            i += 2;
+            continue;
+          }
           if (r === "[") inClass = true;
           else if (r === "]") inClass = false;
           else if (r === "/" && !inClass) break;
-          out += " "; i++;
+          out += " ";
+          i++;
         }
-        if (i < n && source[i] === "/") { out += "/"; i++; }
+        if (i < n && source[i] === "/") {
+          out += "/";
+          i++;
+        }
         continue;
       }
     }
-    out += c; i++;
+    out += c;
+    i++;
   }
   return out;
 }
@@ -95,7 +125,10 @@ function closeOf(code: string, open: number): number {
   let depth = 0;
   for (let i = open; i < code.length; i++) {
     if (code[i] === "{") depth++;
-    else if (code[i] === "}") { depth--; if (depth === 0) return i; }
+    else if (code[i] === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
   }
   return -1;
 }
@@ -103,25 +136,97 @@ function closeOf(code: string, open: number): number {
 type Nested = { first: number; last: number; name: string | undefined; writes: boolean; refuseLine: number };
 
 // where a function body opens inside a line: after =>, after function f(...), or a method shorthand `name(...) {` (not if, for, while, switch or catch)
-const NESTED_OPEN = /(?:=>\s*|\bfunction\b[^{]*\)\s*(?::[^{]*)?|^\s*(?:async\s+)?(?!(?:if|for|while|switch|catch|return)\b)\w+\s*\([^)]*\)\s*(?::[^{]+)?)\{/;
+const NESTED_OPEN =
+  /(?:=>\s*|\bfunction\b[^{]*\)\s*(?::[^{]*)?|^\s*(?:async\s+)?(?!(?:if|for|while|switch|catch|return)\b)\w+\s*\([^)]*\)\s*(?::[^{]+)?)\{/;
+
+/** Does this line end by opening a block of statements (an `if (...) {`, `else {`, `=> {`, `case x: {`), not an object literal (`return {`, `foo({`, `const a = {`)? */
+function opensBlock(line: string): boolean {
+  if (!line.endsWith("{")) return false;
+  const before = line.slice(0, -1).trimEnd();
+  if (before === "" || /^(?:case\b|default\b)/.test(line)) return true;
+  if (/^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface|enum|namespace)\b/.test(line)) return true;
+  // a function header with a return type: `function f(): string {`, `get x(): number {`
+  if (/\)\s*:\s*[\w$.<>\[\]|&\s,]+$/.test(before)) return true;
+  return /(?:[)>]|\belse|\btry|\bfinally|\bdo|=>)$/.test(before);
+}
 
 export function checkRaiseAfterWrite(file: string, rawSource: string): RawFinding[] {
   const code = scrub(rawSource);
   const rawLines = rawSource.split("\n");
   const codeLines = code.split("\n");
   const lineStarts: number[] = [];
-  { let at = 0; for (const l of codeLines) { lineStarts.push(at); at += l.length + 1; } }
+  {
+    let at = 0;
+    for (const l of codeLines) {
+      lineStarts.push(at);
+      at += l.length + 1;
+    }
+  }
   const lineOf = (index: number): number => {
-    let lo = 0, hi = lineStarts.length - 1;
-    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid]! <= index) lo = mid; else hi = mid - 1; }
+    let lo = 0,
+      hi = lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (lineStarts[mid]! <= index) lo = mid;
+      else hi = mid - 1;
+    }
     return lo;
   };
-  const isWrite = (l: number): boolean => WRITE.test(codeLines[l]!) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "));
+  const isWrite = (l: number): boolean =>
+    WRITE.test(codeLines[l]!) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "));
+  // The one statement that is not a write left behind: `if (db.run("UPDATE ... WHERE status = 'open'").changes !== 1) raise(...)`. The update changed no row when it refuses, so nothing stays.
+  // It is exempt on one line (as it always was) and, when a formatter wraps it, to the end of the guarded statement, but only when (1) the condition tests that nothing changed
+  // (`.changes !== 1`, `=== 0`, `< 1`, `!x.changes`) and (2) the guarded statement is the refusal alone: a lone raise, refuse or fail, with no write in it and nothing after it in a block.
+  const NOTHING_CHANGED = /\.changes\s*(?:!==?\s*1\b|===?\s*0\b|<\s*1\b)|!\s*[\w$.]*(?:\([^)]*\))?\.changes\b/;
+  const LONE_REFUSAL = /^(?:(?:raise|refuse|fail)\(|throw\s+(?:fail\(|new\s))/;
+  const coverOf = (l: number): number => {
+    const w = WRITE.exec(codeLines[l]!);
+    if (!w) return l;
+    // the match starts on the character before the write (a `(` in `if (db.run(`), which is part of the condition
+    const at = lineStarts[l]! + w.index;
+    for (let i = at + (/[\w$]/.test(code[at]!) ? 0 : 1), depth = 0; i >= 0; i--) {
+      const ch = code[i - 1];
+      if (ch === ")") depth++;
+      else if (ch === "(") {
+        if (depth > 0) depth--;
+        else if (/\bif\s*$/.test(code.slice(Math.max(0, i - 13), i - 1))) {
+          const condEnd = matchDelim(code, i - 1, "(", ")");
+          if (!NOTHING_CHANGED.test(code.slice(i, condEnd))) return l;
+          let k = condEnd;
+          while (k < code.length && /\s/.test(code[k]!)) k++;
+          const braced = code[k] === "{";
+          const bodyStart = braced ? k + 1 : k;
+          let nest = 0;
+          let end = bodyStart;
+          for (; end < code.length; end++) {
+            const c = code[end]!;
+            if (c === "(" || c === "{" || c === "[") nest++;
+            else if (c === ")" || c === "}" || c === "]") {
+              if (nest === 0) break;
+              nest--;
+            } else if (c === ";" && nest === 0) break;
+          }
+          const body = code.slice(bodyStart, end).trim();
+          if (!LONE_REFUSAL.test(body) || WRITE.test(` ${body}`)) return l;
+          // a braced body holds the refusal and nothing else
+          if (braced && code.slice(end + 1, matchDelim(code, k, "{", "}") - 1).trim() !== "") return l;
+          return lineOf(Math.min(braced ? matchDelim(code, k, "{", "}") - 1 : end, code.length - 1));
+        }
+      } else if ((ch === ";" || ch === "{" || ch === "}") && depth === 0) return l;
+    }
+    return l;
+  };
   const out: RawFinding[] = [];
   const seen = new Set<string>();
   for (let h = 0; h < rawLines.length; h++) {
     let name = "";
-    for (const re of HEADERS) { const m = re.exec(rawLines[h]!); if (m && !NOT_NAMES.has(m[1]!)) { name = m[1]!; break; } }
+    for (const re of HEADERS) {
+      const m = re.exec(rawLines[h]!);
+      if (m && !NOT_NAMES.has(m[1]!)) {
+        name = m[1]!;
+        break;
+      }
+    }
     if (!name) continue;
     const open = bodyOpen(code, lineStarts[h]!);
     if (open < 0 || lineOf(open) - h > 12) continue;
@@ -140,20 +245,36 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
       const end = closeOf(code, brace);
       if (end < 0) continue;
       const lastL = lineOf(end);
-      const named = /^\s*(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::[^=]+)?=/.exec(rawLines[l]!) ?? /\bfunction\s+(\w+)/.exec(rawLines[l]!);
-      let writes = false, refuseLine = -1;
-      for (let k = l; k <= lastL; k++) { if (isWrite(k)) writes = true; if (refuseLine < 0 && REFUSE.test(codeLines[k]!)) refuseLine = k; }
+      const named =
+        /^\s*(?:export\s+)?(?:const|let)\s+(\w+)\s*(?::[^=]+)?=/.exec(rawLines[l]!) ??
+        /\bfunction\s+(\w+)/.exec(rawLines[l]!);
+      let writes = false,
+        refuseLine = -1;
+      for (let k = l; k <= lastL; k++) {
+        if (isWrite(k)) writes = true;
+        if (refuseLine < 0 && REFUSE.test(codeLines[k]!)) refuseLine = k;
+      }
       nested.push({ first: l, last: lastL, name: named?.[1], writes, refuseLine });
     }
-    const named = nested.filter((n) => n.name !== undefined).map((n) => ({ n, call: new RegExp(`(?<![\\w$.])${n.name!.replace(/\$/g, "\\$")}\\(`) }));
+    const named = nested
+      .filter((n) => n.name !== undefined)
+      .map((n) => ({ n, call: new RegExp(`(?<![\\w$.])${n.name!.replace(/\$/g, "\\$")}\\(`) }));
     let depth = 0;
-    let pending: { line: number; depth: number } | null = null;
+    let pending: { line: number; depth: number; cover: number } | null = null;
     let lastCode = "";
+    let stmtFirst = "";
+    let continued = false;
     const report = (writeLine: number, raiseLine: number): void => {
       const key = `${writeLine}:${raiseLine}`;
       if (seen.has(key)) return;
       seen.add(key);
-      out.push({ file, fn: name, writeLine: writeLine + 1, raiseLine: raiseLine + 1, message: `${name}() writes at line ${writeLine + 1} and then refuses at line ${raiseLine + 1}; a refused call keeps that write with no event` });
+      out.push({
+        file,
+        fn: name,
+        writeLine: writeLine + 1,
+        raiseLine: raiseLine + 1,
+        message: `${name}() writes at line ${writeLine + 1} and then refuses at line ${raiseLine + 1}; a refused call keeps that write with no event`,
+      });
     };
     let stop = false;
     for (let l = first; l <= last && !stop; l++) {
@@ -167,20 +288,48 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
         if (/\bcatch\b/.test(trimmed) && pending && pending.depth > lineDepth - (startsClose ? 1 : 0)) pending = null;
         // the other branch of the if that holds the write is never run after it
         if (startsClose && /^\}\s*else\b/.test(trimmed) && pending && pending.depth >= lineDepth) pending = null;
-        if (pending && REFUSE.test(text) && !(WRITE.test(text) && l === pending.line)) { report(pending.line, l); stop = true; break; }
-        if (!pending && isWrite(l) && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
+        if (
+          pending &&
+          REFUSE.test(text) &&
+          !(WRITE.test(text) && l === pending.line) &&
+          !(l > pending.line && l <= pending.cover)
+        ) {
+          report(pending.line, l);
+          stop = true;
+          break;
+        }
+        if (!pending && isWrite(l) && !/\breturn\b/.test(text))
+          pending = { line: l, depth: lineDepth, cover: coverOf(l) };
         for (const { n, call } of named) {
           if (!call.test(text) || l === n.first) continue;
-          if (n.writes && !pending && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth };
-          if (n.refuseLine >= 0 && pending) { report(pending.line, n.refuseLine); stop = true; break; }
+          if (n.writes && !pending && !/\breturn\b/.test(text)) pending = { line: l, depth: lineDepth, cover: l };
+          if (n.refuseLine >= 0 && pending) {
+            report(pending.line, n.refuseLine);
+            stop = true;
+            break;
+          }
         }
       }
-      for (const ch of text) { if (ch === "{") depth++; else if (ch === "}") depth--; }
+      for (const ch of text) {
+        if (ch === "{") depth++;
+        else if (ch === "}") depth--;
+      }
       if (pending && depth < pending.depth) {
         if (/^(?:return\b|throw\b|raise\(|refuse\(|fail\()/.test(startsClose ? lastCode : trimmed)) pending = null;
-        else pending = { line: pending.line, depth: depth };
+        else pending = { ...pending, depth: depth };
       }
-      if (trimmed !== "" && !startsClose) lastCode = trimmed;
+      // lastCode is the first line of the last statement, so a `return {` that runs over several lines still reads as a return
+      if (trimmed !== "") {
+        if (!startsClose) {
+          if (!continued) stmtFirst = trimmed;
+          lastCode = stmtFirst;
+        }
+        continued = !(
+          /[;}]$/.test(trimmed) ||
+          opensBlock(trimmed) ||
+          (/^(?:case\b|default\b)/.test(trimmed) && trimmed.endsWith(":"))
+        );
+      }
     }
   }
   return out;
@@ -194,13 +343,23 @@ function directRun(): boolean {
 if (directRun()) {
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const knownPath = path.join(repo, "scripts/lint/raise-after-write-known.json");
-  const known = fs.existsSync(knownPath) ? (JSON.parse(fs.readFileSync(knownPath, "utf8")) as Record<string, string>) : {};
-  const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" }).stdout.split("\n")
+  const known = fs.existsSync(knownPath)
+    ? (JSON.parse(fs.readFileSync(knownPath, "utf8")) as Record<string, string>)
+    : {};
+  const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" })
+    .stdout.split("\n")
     .filter((f) => /^modules\/[^/]+\/.*\.ts$/.test(f) && !/\.test\.ts$|\/tests?\/|\/fixtures\/|\/migrations\//.test(f));
   const all: RawFinding[] = [];
-  for (const f of files) all.push(...checkRaiseAfterWrite(f, fs.readFileSync(path.join(repo, f), "utf8")).filter((x) => !(`${x.file}#${x.fn}` in known)));
+  for (const f of files)
+    all.push(
+      ...checkRaiseAfterWrite(f, fs.readFileSync(path.join(repo, f), "utf8")).filter(
+        (x) => !(`${x.file}#${x.fn}` in known),
+      ),
+    );
   for (const h of all) console.log(`raise-after-write ${h.file}:${h.raiseLine}: ${h.message}`);
   const enforce = process.argv.includes("--enforce");
-  console.log(`raise-after-write: ${all.length} refusal(s) after a write in ${files.length} files${enforce ? "" : " (report mode, exit 0)"}`);
+  console.log(
+    `raise-after-write: ${all.length} refusal(s) after a write in ${files.length} files${enforce ? "" : " (report mode, exit 0)"}`,
+  );
   if (enforce && all.length) process.exit(1);
 }

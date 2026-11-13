@@ -7,16 +7,33 @@ import { createModeMachine } from "../src/handshake/index.ts";
 import type { ModeState, Resync } from "../src/handshake/index.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
-const ok = (mode: HelloOk["mode"], over: Partial<HelloOk> = {}): HelloOk => ({ serverVersion: "1.4.0", epoch: 3, serverHlc: "0000000000ff-0001-srv", mode, head: 50, entityVersions: {}, ...over });
+const ok = (mode: HelloOk["mode"], over: Partial<HelloOk> = {}): HelloOk => ({
+  serverVersion: "1.4.0",
+  epoch: 3,
+  serverHlc: "0000000000ff-0001-srv",
+  mode,
+  head: 50,
+  entityVersions: {},
+  ...over,
+});
 const errCode = (e: unknown): string | undefined => (e as { error?: { code?: string } }).error?.code;
 
 function resyncRig(failAt?: "drop" | "snapshot") {
   const log: string[] = [];
   const gate: { release: () => void } = { release: () => undefined };
-  const wait = new Promise<void>((r) => { gate.release = r; });
+  const wait = new Promise<void>((r) => {
+    gate.release = r;
+  });
   const resync: Resync = {
-    async dropReplica() { log.push("drop"); await wait; if (failAt === "drop") throw new Error("disk full"); },
-    async snapshot() { log.push("snapshot"); if (failAt === "snapshot") throw new Error("offline"); },
+    async dropReplica() {
+      log.push("drop");
+      await wait;
+      if (failAt === "drop") throw new Error("disk full");
+    },
+    async snapshot() {
+      log.push("snapshot");
+      if (failAt === "snapshot") throw new Error("offline");
+    },
   };
   return { log, resync, gate };
 }
@@ -31,13 +48,21 @@ test("live: writes are allowed, there is no banner", async () => {
 
 test("update_required: read-only with an Update banner, writes throw permission.update_required, an update lifts it", async () => {
   const seen: ModeState[] = [];
-  const m = createModeMachine({ appVersion: "1.0.0", onChange: (s) => { seen.push(s); } });
+  const m = createModeMachine({
+    appVersion: "1.0.0",
+    onChange: (s) => {
+      seen.push(s);
+    },
+  });
   const s = await m.apply(ok("update_required"));
   assert.equal(s.readOnly, true);
   assert.equal(s.banner?.title, "Update required");
   assert.equal(s.banner?.action, "Update");
   assert.match(s.banner?.body ?? "", /read everything/);
-  assert.throws(() => m.guardWrite(TRACE), (e) => errCode(e) === "permission.update_required");
+  assert.throws(
+    () => m.guardWrite(TRACE),
+    (e) => errCode(e) === "permission.update_required",
+  );
   assert.equal(seen.at(-1)?.mode, "update_required");
   // The app was updated and reconnected.
   const again = createModeMachine({ appVersion: "1.4.0" });
@@ -51,7 +76,13 @@ test("update_required: read-only with an Update banner, writes throw permission.
 test("resync drops the replica then takes the snapshot, in that order, once however often it is asked; then live", async () => {
   const r = resyncRig();
   const states: string[] = [];
-  const m = createModeMachine({ appVersion: "1.4.0", resync: r.resync, onChange: (s) => { states.push(s.mode); } });
+  const m = createModeMachine({
+    appVersion: "1.4.0",
+    resync: r.resync,
+    onChange: (s) => {
+      states.push(s.mode);
+    },
+  });
   const a = m.apply(ok("resync"));
   const b = m.apply(ok("resync"));
   assert.equal(m.state().mode, "resyncing");
@@ -91,7 +122,13 @@ test("resync with nothing to resync with is a failure the shell can show, never 
 test("purge hands over to the purge client with the epoch; a dropped connection returns to starting but never interrupts a resync or a purge", async () => {
   const purged: number[] = [];
   const r = resyncRig();
-  const m = createModeMachine({ appVersion: "1.4.0", resync: r.resync, onPurge: (e) => { purged.push(e); } });
+  const m = createModeMachine({
+    appVersion: "1.4.0",
+    resync: r.resync,
+    onPurge: (e) => {
+      purged.push(e);
+    },
+  });
   await m.apply(ok("live"));
   m.disconnected();
   assert.equal(m.state().mode, "starting");

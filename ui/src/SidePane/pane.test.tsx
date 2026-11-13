@@ -16,15 +16,22 @@ import {
 } from "./index.tsx";
 import type { WidthStorage } from "./index.tsx";
 
-const TABS = [{ key: "details", title: "Details" }, { key: "history", title: "History" }];
+const TABS = [
+  { key: "details", title: "Details" },
+  { key: "history", title: "History" },
+];
 
 function memoryStorage(): WidthStorage & { data: Map<string, string> } {
   const data = new Map<string, string>();
   return {
     data,
     getItem: (k) => data.get(k) ?? null,
-    setItem: (k, v) => { data.set(k, v); },
-    removeItem: (k) => { data.delete(k); },
+    setItem: (k, v) => {
+      data.set(k, v);
+    },
+    removeItem: (k) => {
+      data.delete(k);
+    },
   };
 }
 
@@ -54,7 +61,9 @@ test("an inner pane's toggle hides while the side pane is open, and it is still 
 });
 
 test("a side pane header has one visible toggle at the far left that says Hide the pane", () => {
-  const html = renderToStaticMarkup(<SidePane paneKey="chats" toggle={{ open: true }} title="Ask" tabs={TABS} activeTab="history" />);
+  const html = renderToStaticMarkup(
+    <SidePane paneKey="chats" toggle={{ open: true }} title="Ask" tabs={TABS} activeTab="history" />,
+  );
   assert.equal(toggleCount(html), 1);
   assert.match(html, /aria-label="Hide the pane"/);
   assert.match(html, /data-inner-toggle="shown"/);
@@ -65,12 +74,22 @@ test("a side pane header has one visible toggle at the far left that says Hide t
 
 test("a closed side pane renders nothing, so the main pane's toggle is the only one on screen", () => {
   assert.equal(renderToStaticMarkup(<SidePane paneKey="chats" toggle={{ open: false }} />), "");
-  const both = renderToStaticMarkup(<div><Pane toggle={{ open: false }} title="Main" /><SidePane paneKey="chats" toggle={{ open: false }} /></div>);
+  const both = renderToStaticMarkup(
+    <div>
+      <Pane toggle={{ open: false }} title="Main" />
+      <SidePane paneKey="chats" toggle={{ open: false }} />
+    </div>,
+  );
   assert.equal(toggleCount(both), 1);
 });
 
 test("with the side pane open there is still one toggle on screen: the side pane's", () => {
-  const both = renderToStaticMarkup(<div><Pane toggle={{ open: true }} title="Main" /><SidePane paneKey="chats" toggle={{ open: true }} /></div>);
+  const both = renderToStaticMarkup(
+    <div>
+      <Pane toggle={{ open: true }} title="Main" />
+      <SidePane paneKey="chats" toggle={{ open: true }} />
+    </div>,
+  );
   assert.equal(toggleCount(both), 2, "two headers, each with one toggle in the DOM");
   assert.equal(both.match(/display:none/g)?.length, 1, "exactly one of them is hidden");
 });
@@ -121,9 +140,15 @@ test("the width is remembered per pane key, and a reset forgets it", () => {
 
 test("storage that throws or has junk falls back without breaking", () => {
   const broken: WidthStorage = {
-    getItem: () => { throw new Error("blocked"); },
-    setItem: () => { throw new Error("blocked"); },
-    removeItem: () => { throw new Error("blocked"); },
+    getItem: () => {
+      throw new Error("blocked");
+    },
+    setItem: () => {
+      throw new Error("blocked");
+    },
+    removeItem: () => {
+      throw new Error("blocked");
+    },
   };
   const store = createPaneWidthStore(broken);
   assert.equal(store.get("chats"), null);

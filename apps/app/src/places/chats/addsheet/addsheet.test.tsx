@@ -20,14 +20,31 @@ import { SHEET, withDom, pickAndAdd } from "./addsheet.support.tsx";
 async function rightClick(root: Node, id: string): Promise<void> {
   const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
   assert.equal(typeof open, "function", id);
-  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+  await act(async () => {
+    open?.({
+      preventDefault() {},
+      nativeEvent: { pageX: 20, pageY: 20 },
+      pageX: 20,
+      pageY: 20,
+      clientX: 20,
+      clientY: 20,
+    });
+  });
   await flush();
 }
 
 /** The sample project's viewer as its Lead, so the project's menu offers Add People (it is a manager's). */
-const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> }>(data: T): T & { me: { id: string; name: string } } => ({
-  ...data, me: { id: "usr_maya", name: "Maya Chen" },
-  async call(cap: string, input: unknown) { if (cap === "stars.list") return { stars: [] }; return cap === "projects.members.list" ? { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }] } : data.call(cap, input); },
+const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> }>(
+  data: T,
+): T & { me: { id: string; name: string } } => ({
+  ...data,
+  me: { id: "usr_maya", name: "Maya Chen" },
+  async call(cap: string, input: unknown) {
+    if (cap === "stars.list") return { stars: [] };
+    return cap === "projects.members.list"
+      ? { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }] }
+      : data.call(cap, input);
+  },
 });
 
 test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
@@ -91,7 +108,10 @@ test("a channel opens the same sheet on the channel", async () => {
     assert.match(textOf(find(root, SHEET)), /to #intake/);
     // people join the channel itself
     await pickAndAdd(root, ["person:usr_omar"]);
-    assert.deepEqual(s.calls.filter((c) => c.cap === "channels.members.add").map((c) => c.input), [{ channelId: "ch_intake", personIds: ["usr_omar"], level: "use" }]);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "channels.members.add").map((c) => c.input),
+      [{ channelId: "ch_intake", personIds: ["usr_omar"], level: "use" }],
+    );
   });
 });
 
@@ -99,7 +119,17 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
   await withDom(async () => {
     for (const tab of ["threads", "crew"] as const) {
       const s = createPane("northwind", { crew: true });
-      const root = await mount(createRoot, <ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={{ start: 0, end: 500 }} paneWidth={640} />);
+      const root = await mount(
+        createRoot,
+        <ChatRightPane
+          data={s.data}
+          open
+          onToggle={() => undefined}
+          tab={tab}
+          window={{ start: 0, end: 500 }}
+          paneWidth={640}
+        />,
+      );
       await press(find(root, "row-pane-add-people"));
       await flush();
       assert.ok(find(root, SHEET), tab);
@@ -111,7 +141,12 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
 test("a project's members count opens the people popover (Manage on the Overview); Add People in the project's menu opens the Add sheet; there is no Teammates tab and no inline form", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={asLead(s.data)}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    const root = await mount(
+      createRoot,
+      <ProjectPageDataProvider value={asLead(s.data)}>
+        <ProjectPage projectId="pj_0" />
+      </ProjectPageDataProvider>,
+    );
     await flush();
     await press(find(root, "project-members"));
     await flush();
@@ -122,7 +157,8 @@ test("a project's members count opens the people popover (Manage on the Overview
     assert.equal(find(root, "people-popover"), null, "the footer closes it and shows the Overview");
     assert.equal(find(root, "tab-teammates"), null, "the Teammates list is the people popover's now");
     assert.equal(find(root, "teammate-name"), null, "no inline form");
-    await flush(); await flush();
+    await flush();
+    await flush();
     await press(find(root, "project-more"));
     await flush();
     await press(find(root, "menu-item-Add People…"));
@@ -138,23 +174,35 @@ test("the new-chat landing's With row uses the same sheet and hands the picks ba
     let api: AddSheetApi | null = null;
     const got: string[] = [];
     function Host(): JSX.Element | null {
-      api = useAddSheet({ call: s.data.call, me: s.data.me, nameOf: s.data.nameOf, newKey: s.data.newKey, toast: s.data.toast });
+      api = useAddSheet({
+        call: s.data.call,
+        me: s.data.me,
+        nameOf: s.data.nameOf,
+        newKey: s.data.newKey,
+        toast: s.data.toast,
+      });
       return api.element;
     }
     const root = await mount(createRoot, <Host />);
-    (api as AddSheetApi | null)?.pick({ name: "this new chat", onPicks: (p) => got.push(...p.map((x) => `${x.kind}:${x.id}`)) });
+    (api as AddSheetApi | null)?.pick({
+      name: "this new chat",
+      onPicks: (p) => got.push(...p.map((x) => `${x.kind}:${x.id}`)),
+    });
     await flush();
     assert.ok(find(root, SHEET));
     assert.match(textOf(find(root, SHEET)), /to this new chat/);
     const before = s.calls.length;
     await pickAndAdd(root, ["agent:agt_docs", "person:usr_maya"]);
     assert.deepEqual(got, ["agent:agt_docs", "person:usr_maya"]);
-    assert.equal(s.calls.slice(before).filter((c) => c.cap.startsWith("threads.")).length, 0, "no call yet: the chat does not exist");
+    assert.equal(
+      s.calls.slice(before).filter((c) => c.cap.startsWith("threads.")).length,
+      0,
+      "no call yet: the chat does not exist",
+    );
   });
 });
 
 /* ---------- what the picks call ---------- */
-
 
 test("the outside-agents note names the signed-in person in full, from data.me: Others see these as Irfad Imtiaz (Agent)", async () => {
   await withDom(async () => {

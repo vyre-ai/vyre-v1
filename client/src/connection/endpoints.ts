@@ -31,9 +31,15 @@ export function usable(e: Endpoint, now: number): boolean {
  * Resting endpoints come last, so a Space with one endpoint still retries it.
  */
 export function rank(list: readonly Endpoint[], now: number): Endpoint[] {
-  const key = (e: Endpoint): [number, number, number, number] => [usable(e, now) ? 0 : 1, -(e.lastOk ?? 0), e.rttMs ?? Number.MAX_SAFE_INTEGER, KIND_ORDER[e.kind]];
+  const key = (e: Endpoint): [number, number, number, number] => [
+    usable(e, now) ? 0 : 1,
+    -(e.lastOk ?? 0),
+    e.rttMs ?? Number.MAX_SAFE_INTEGER,
+    KIND_ORDER[e.kind],
+  ];
   return [...list].sort((a, b) => {
-    const ka = key(a), kb = key(b);
+    const ka = key(a),
+      kb = key(b);
     for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i]! - kb[i]!;
     return a.url < b.url ? -1 : a.url > b.url ? 1 : 0;
   });

@@ -11,28 +11,46 @@ export interface RowPresentation {
 
 function leaves(node: LayoutNode, scope: Scope, out: string[]): void {
   switch (node.t) {
-    case "text": { const v = interpolate(node.value, scope).trim(); if (v) out.push(v); return; }
+    case "text": {
+      const v = interpolate(node.value, scope).trim();
+      if (v) out.push(v);
+      return;
+    }
     case "field": {
       const base = resolvePointer(scope, node.bind);
       const v = base && typeof base === "object" ? (base as Record<string, unknown>)[node.field] : undefined;
       if (v !== undefined && v !== null && typeof v !== "object" && String(v) !== "") out.push(String(v));
       return;
     }
-    case "stack": case "row": for (const c of node.children) leaves(c, scope, out); return;
-    case "when": if (evalExpr(node.expr, scope)) leaves(node.then, scope, out); else if (node.else) leaves(node.else, scope, out); return;
-    default: return;
+    case "stack":
+    case "row":
+      for (const c of node.children) leaves(c, scope, out);
+      return;
+    case "when":
+      if (evalExpr(node.expr, scope)) leaves(node.then, scope, out);
+      else if (node.else) leaves(node.else, scope, out);
+      return;
+    default:
+      return;
   }
 }
 
 /** The first button's action under a node: what pressing a whole row does. */
 export function firstAction(node: LayoutNode): string | undefined {
   switch (node.t) {
-    case "button": return node.action;
-    case "stack": case "row":
-      for (const child of node.children) { const a = firstAction(child); if (a) return a; }
+    case "button":
+      return node.action;
+    case "stack":
+    case "row":
+      for (const child of node.children) {
+        const a = firstAction(child);
+        if (a) return a;
+      }
       return undefined;
-    case "when": return firstAction(node.then) ?? (node.else ? firstAction(node.else) : undefined);
-    default: return undefined;
+    case "when":
+      return firstAction(node.then) ?? (node.else ? firstAction(node.else) : undefined);
+    default:
+      return undefined;
   }
 }
 

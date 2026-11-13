@@ -34,7 +34,14 @@ export interface AgentDo {
 }
 export function agentMenu(f: AgentFacts, d: AgentDo): MenuEntry[] {
   // every agent has a terminal and a browser (its Computer tab): Open lands there. Wake and Sleep are only for an old desktop that still exists.
-  const computer = [d.openComputer ? item("Open Its Computer", d.openComputer) : null, f.manage && f.computer ? (f.computer.asleep ? item("Wake Its Computer", d.wake) : item("Sleep Its Computer", d.sleep)) : null];
+  const computer = [
+    d.openComputer ? item("Open Its Computer", d.openComputer) : null,
+    f.manage && f.computer
+      ? f.computer.asleep
+        ? item("Wake Its Computer", d.wake)
+        : item("Sleep Its Computer", d.sleep)
+      : null,
+  ];
   return tidy([
     item(`Message ${f.name}`, d.message, { hint: KEY.enter }),
     d.openProfile ? item("Open Profile", d.openProfile, { hint: KEY.profile }) : null,

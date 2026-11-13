@@ -9,7 +9,10 @@ export type Thread = CapMap["threads.get"]["out"]["thread"];
 export type Message = CapMap["chat.messages.list"]["out"]["messages"][number];
 export type MessageBlock = Message["blocks"][number];
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock {
+  now: number;
+  offsetMin: number;
+}
 
 export type HelperStatus = "running" | "done" | "failed";
 
@@ -19,12 +22,18 @@ export function helperStatus(t: Thread, messages: readonly Message[]): HelperSta
   return t.closedAt === undefined ? "running" : "done";
 }
 
-export interface Crumb { title: string; threadId: string; current: boolean }
+export interface Crumb {
+  title: string;
+  threadId: string;
+  current: boolean;
+}
 
 /** "Research > Firms 1-3": each part but the last links back to its thread. */
 export function addressParts(t: Thread): Crumb[] {
   const path = t.path ?? [];
-  const parts: Crumb[] = path.filter((p) => p.threadId !== t.threadId).map((p) => ({ title: p.title, threadId: p.threadId, current: false }));
+  const parts: Crumb[] = path
+    .filter((p) => p.threadId !== t.threadId)
+    .map((p) => ({ title: p.title, threadId: p.threadId, current: false }));
   parts.push({ title: t.title ?? "Helper", threadId: t.threadId, current: true });
   return parts;
 }

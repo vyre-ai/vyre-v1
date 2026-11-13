@@ -22,7 +22,13 @@ test("a crew thread gets its repository copy, the guide stays out of its commits
   fs.mkdirSync(path.join(data, "work"), { recursive: true });
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     const i = input as { threadId?: string };
-    if (cap === "engine.crew.workspace") return { workspace: i.threadId === "thr_crew" ? { jobId: "crw_1", repo, base: "main", branch: "crew/ember-1", name: "Ember" } : null };
+    if (cap === "engine.crew.workspace")
+      return {
+        workspace:
+          i.threadId === "thr_crew"
+            ? { jobId: "crw_1", repo, base: "main", branch: "crew/ember-1", name: "Ember" }
+            : null,
+      };
     if (cap === "agents.get") return { agent: { name: "Ember" } };
     if (cap === "memory.map.get") return { map: { body: "memory map" } };
     if (cap === "threads.get") return { thread: { kind: "chat" } };
@@ -31,9 +37,17 @@ test("a crew thread gets its repository copy, the guide stays out of its commits
   await prepareWorkFolder(call, data, { agent: { id: "agt_e" }, asker: "usr_a", threadId: "thr_crew" });
   const dir = workFolder(data, "usr_a", "thr_crew", "agt_e");
   assert.equal((await git(["rev-parse", "--abbrev-ref", "HEAD"], dir)).out.trim(), "crew/ember-1");
-  assert.equal(fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8"), "the project's own notes\n", "a tracked file of the repository is not overwritten");
+  assert.equal(
+    fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8"),
+    "the project's own notes\n",
+    "a tracked file of the repository is not overwritten",
+  );
   assert.ok(fs.existsSync(path.join(dir, "AGENTS.md")), "the guide the repository lacks is written");
-  assert.equal((await git(["status", "--porcelain"], dir)).out.trim(), "", "the guide is not shown as the teammate's work");
+  assert.equal(
+    (await git(["status", "--porcelain"], dir)).out.trim(),
+    "",
+    "the guide is not shown as the teammate's work",
+  );
   // a second call (the next turn) changes nothing
   fs.writeFileSync(path.join(dir, "mine.txt"), "work\n");
   await prepareWorkFolder(call, data, { agent: { id: "agt_e" }, asker: "usr_a", threadId: "thr_crew" });

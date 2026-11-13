@@ -15,11 +15,29 @@ export function memoryOutboxStore(): OutboxStore {
       return n;
     },
     queued: () => rows.filter((r) => r.state === "queued").map((r) => ({ ...r, op: structuredClone(r.op) })),
-    forRow: (entity, id) => rows.filter((r) => r.op.entity === entity && r.op.id === id).map((r) => ({ ...r, op: structuredClone(r.op) })),
-    remove(opId) { const i = rows.findIndex((r) => r.op.opId === opId); if (i >= 0) rows.splice(i, 1); },
-    setHeld(opId, taskId) { const r = find(opId); if (r) { r.state = "held"; r.lastError = taskId; } },
-    bump(opId, error) { const r = find(opId); if (r) { r.tries += 1; r.lastError = error; } },
-    reject(r) { rej.push(structuredClone(r)); },
+    forRow: (entity, id) =>
+      rows.filter((r) => r.op.entity === entity && r.op.id === id).map((r) => ({ ...r, op: structuredClone(r.op) })),
+    remove(opId) {
+      const i = rows.findIndex((r) => r.op.opId === opId);
+      if (i >= 0) rows.splice(i, 1);
+    },
+    setHeld(opId, taskId) {
+      const r = find(opId);
+      if (r) {
+        r.state = "held";
+        r.lastError = taskId;
+      }
+    },
+    bump(opId, error) {
+      const r = find(opId);
+      if (r) {
+        r.tries += 1;
+        r.lastError = error;
+      }
+    },
+    reject(r) {
+      rej.push(structuredClone(r));
+    },
     rejected: () => structuredClone(rej),
     count: () => rows.length,
   };

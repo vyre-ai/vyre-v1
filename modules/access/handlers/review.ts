@@ -16,14 +16,40 @@ export interface ReviewCtx extends AskCtx {
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
 }
 
-interface ReviewRow { id: string; state: "open" | "closed"; idem_key: string; scope_json: string | null; opened_at: number; opened_by: string; closed_at: number | null }
-interface ItemRow { review_id: string; grant_id: string; grant_json: string; reviewer: string; task_id: string | null; last_used_at: number | null; decision: "keep" | "remove" | null; decided_at: number | null }
+interface ReviewRow {
+  id: string;
+  state: "open" | "closed";
+  idem_key: string;
+  scope_json: string | null;
+  opened_at: number;
+  opened_by: string;
+  closed_at: number | null;
+}
+interface ItemRow {
+  review_id: string;
+  grant_id: string;
+  grant_json: string;
+  reviewer: string;
+  task_id: string | null;
+  last_used_at: number | null;
+  decision: "keep" | "remove" | null;
+  decided_at: number | null;
+}
 
-const reviewById = (ctx: AccessCtx, id: string): ReviewRow | undefined => ctx.db.all(`SELECT * FROM access_reviews WHERE id = ?`, id)[0] as ReviewRow | undefined;
-const itemsOf = (ctx: AccessCtx, reviewId: string): ItemRow[] => ctx.db.all(`SELECT * FROM access_review_items WHERE review_id = ?`, reviewId) as ItemRow[];
+const reviewById = (ctx: AccessCtx, id: string): ReviewRow | undefined =>
+  ctx.db.all(`SELECT * FROM access_reviews WHERE id = ?`, id)[0] as ReviewRow | undefined;
+const itemsOf = (ctx: AccessCtx, reviewId: string): ItemRow[] =>
+  ctx.db.all(`SELECT * FROM access_review_items WHERE review_id = ?`, reviewId) as ItemRow[];
 
 function reviewOut(r: ReviewRow, items: readonly ItemRow[]) {
-  return { id: r.id, state: r.state, openedAt: r.opened_at, ...(r.closed_at !== null ? { closedAt: r.closed_at } : {}), items: items.length, decided: items.filter((i) => i.decision !== null).length };
+  return {
+    id: r.id,
+    state: r.state,
+    openedAt: r.opened_at,
+    ...(r.closed_at !== null ? { closedAt: r.closed_at } : {}),
+    items: items.length,
+    decided: items.filter((i) => i.decision !== null).length,
+  };
 }
 
 function mustReview(ctx: AccessCtx, id: string): ReviewRow {
@@ -53,12 +79,17 @@ async function everyDays(ctx: ReviewCtx): Promise<number> {
 
 export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; idempotencyKey: string }) {
   const store = storeOf(ctx);
-  const again = (ctx.db.all(`SELECT * FROM access_reviews`) as ReviewRow[]).find((r) => r.idem_key === input.idempotencyKey);
+  const again = (ctx.db.all(`SELECT * FROM access_reviews`) as ReviewRow[]).find(
+    (r) => r.idem_key === input.idempotencyKey,
+  );
   if (again) return { review: reviewOut(again, itemsOf(ctx, again.id)) };
 
   const now = ctx.now();
   const live = [...store.grants.values()]
-    .filter((g) => (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined)
+    .filter(
+      (g) =>
+        (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined,
+    )
     .filter((g) => !input.scope || input.scope.length === 0 || input.scope.includes(g.resource.type))
     // the grants the host keeps for an agent (its hold on its own folder, its owner's Manage there, its Space role grants) are not shares anyone gave: a review that removed one would leave
     // an agent without its folder or a person without their Assistant's home, and the host does not write a removed one again
@@ -74,28 +105,53 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
   const taskOf = new Map<string, string>();
   for (const [reviewer, grants] of [...byReviewer].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     const made = await ctx.call("tasks.create", {
-      kind: "review", title: `Access review: ${grants.length} grant${grants.length === 1 ? "" : "s"} to check`,
-      summary: "Keep or remove each grant. Removing takes the access away at once.", why: "Access is reviewed on a schedule so nobody keeps access they no longer need.",
-      assigned: { kind: "person", id: reviewer }, source: { kind: "manual", id }, due: now + DUE_DAYS * DAY_MS, idempotencyKey: `${id}:${reviewer}`,
-      blocks: [{
-        type: "table", v: 1,
-        data: { columns: ["Who", "Level", "Resource"], rows: grants.map((g) => [store.principals.get(g.subject.id)?.name ?? g.subject.id, g.level, `${g.resource.type} ${g.resource.id}`]) },
-      }],
+      kind: "review",
+      title: `Access review: ${grants.length} grant${grants.length === 1 ? "" : "s"} to check`,
+      summary: "Keep or remove each grant. Removing takes the access away at once.",
+      why: "Access is reviewed on a schedule so nobody keeps access they no longer need.",
+      assigned: { kind: "person", id: reviewer },
+      source: { kind: "manual", id },
+      due: now + DUE_DAYS * DAY_MS,
+      idempotencyKey: `${id}:${reviewer}`,
+      blocks: [
+        {
+          type: "table",
+          v: 1,
+          data: {
+            columns: ["Who", "Level", "Resource"],
+            rows: grants.map((g) => [
+              store.principals.get(g.subject.id)?.name ?? g.subject.id,
+              g.level,
+              `${g.resource.type} ${g.resource.id}`,
+            ]),
+          },
+        },
+      ],
     });
     const task = made && typeof made === "object" ? (made as Record<string, unknown>)["task"] : undefined;
     const taskId = task && typeof task === "object" ? (task as Record<string, unknown>)["id"] : undefined;
-    if (typeof taskId !== "string") return raise(ctx.trace.traceId, "internal.unexpected", "The review task was not created.");
+    if (typeof taskId !== "string")
+      return raise(ctx.trace.traceId, "internal.unexpected", "The review task was not created.");
     taskOf.set(reviewer, taskId);
   }
   ctx.db.run(
     `INSERT INTO access_reviews (id, state, idem_key, scope_json, opened_at, opened_by) VALUES (?, ?, ?, ?, ?, ?)`,
-    id, "open", input.idempotencyKey, input.scope && input.scope.length > 0 ? JSON.stringify(input.scope) : null, now, ctx.principal.id,
+    id,
+    "open",
+    input.idempotencyKey,
+    input.scope && input.scope.length > 0 ? JSON.stringify(input.scope) : null,
+    now,
+    ctx.principal.id,
   );
   for (const [reviewer, grants] of byReviewer) {
     for (const g of grants) {
       ctx.db.run(
         `INSERT INTO access_review_items (review_id, grant_id, grant_json, reviewer, task_id) VALUES (?, ?, ?, ?, ?)`,
-        id, g.id, JSON.stringify(grantView(g)), reviewer, taskOf.get(reviewer) ?? null,
+        id,
+        g.id,
+        JSON.stringify(grantView(g)),
+        reviewer,
+        taskOf.get(reviewer) ?? null,
       );
     }
   }
@@ -108,7 +164,10 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
   return { review: reviewOut(mustReview(ctx, id), itemsOf(ctx, id)) };
 }
 
-export async function reviewsList(ctx: AccessCtx, input: { state?: "open" | "closed"; cursor?: string; limit?: number }) {
+export async function reviewsList(
+  ctx: AccessCtx,
+  input: { state?: "open" | "closed"; cursor?: string; limit?: number },
+) {
   const all = (ctx.db.all(`SELECT * FROM access_reviews`) as ReviewRow[])
     .filter((r) => !input.state || r.state === input.state)
     .sort((a, b) => b.opened_at - a.opened_at || (a.id < b.id ? -1 : 1))
@@ -123,7 +182,13 @@ export async function reviewsGet(ctx: AccessCtx, input: { reviewId: string }) {
   return {
     review: reviewOut(r, items),
     // the grant as it was when the review opened, so a removed grant still shows what was removed
-    items: items.map((i) => ({ grant: JSON.parse(i.grant_json) as unknown, reviewer: i.reviewer, ...(i.task_id ? { taskId: i.task_id } : {}), ...(i.last_used_at !== null ? { lastUsedAt: i.last_used_at } : {}), ...(i.decision ? { decision: i.decision } : {}) })),
+    items: items.map((i) => ({
+      grant: JSON.parse(i.grant_json) as unknown,
+      reviewer: i.reviewer,
+      ...(i.task_id ? { taskId: i.task_id } : {}),
+      ...(i.last_used_at !== null ? { lastUsedAt: i.last_used_at } : {}),
+      ...(i.decision ? { decision: i.decision } : {}),
+    })),
   };
 }
 
@@ -143,21 +208,30 @@ async function finishCard(ctx: ReviewCtx, taskId: string, note: string): Promise
  */
 function agentKept(store: AccessStore, g: GrantRec): boolean {
   if (g.resource.type !== "folder") return false;
-  const ids = (agentId: string, purpose: "home" | "owner"): string[] => { const base = `gnt_${agentId.slice(4)}${purpose}`; return [base, `${base}${g.resource.id.slice(4, 12)}`]; };
-  if (g.subject.kind === "agent") return store.principals.get(g.subject.id)?.kind === "agent" && ids(g.subject.id, "home").includes(g.id);
+  const ids = (agentId: string, purpose: "home" | "owner"): string[] => {
+    const base = `gnt_${agentId.slice(4)}${purpose}`;
+    return [base, `${base}${g.resource.id.slice(4, 12)}`];
+  };
+  if (g.subject.kind === "agent")
+    return store.principals.get(g.subject.id)?.kind === "agent" && ids(g.subject.id, "home").includes(g.id);
   if (g.subject.kind !== "person") return false;
-  for (const p of store.principals.values()) if (p.kind === "agent" && p.owner === g.subject.id && ids(p.id, "owner").includes(g.id)) return true;
+  for (const p of store.principals.values())
+    if (p.kind === "agent" && p.owner === g.subject.id && ids(p.id, "owner").includes(g.id)) return true;
   return false;
 }
 
-export async function reviewsDecide(ctx: ReviewCtx, input: { reviewId: string; grantId: string; decision: "keep" | "remove" }) {
+export async function reviewsDecide(
+  ctx: ReviewCtx,
+  input: { reviewId: string; grantId: string; decision: "keep" | "remove" },
+) {
   const r = mustReview(ctx, input.reviewId);
   if (r.state !== "open") raise(ctx.trace.traceId, "validation.precondition_failed", "This review is closed.");
   const items = itemsOf(ctx, r.id);
   const item = items.find((i) => i.grant_id === input.grantId);
   if (!item) return raise(ctx.trace.traceId, "validation.not_found", "That grant is not part of this review.");
   if (item.decision === input.decision) return { ok: true };
-  if (item.decision === "remove") raise(ctx.trace.traceId, "validation.precondition_failed", "That grant was already removed.");
+  if (item.decision === "remove")
+    raise(ctx.trace.traceId, "validation.precondition_failed", "That grant was already removed.");
 
   if (input.decision === "remove") {
     const store = storeOf(ctx);
@@ -165,14 +239,33 @@ export async function reviewsDecide(ctx: ReviewCtx, input: { reviewId: string; g
     if (g) {
       store.grants.delete(g.id);
       store.bump();
-      ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: `access review ${r.id}` });
+      ctx.emit("grant.revoked", g.id, {
+        grantId: g.id,
+        subject: g.subject,
+        resource: g.resource,
+        reason: `access review ${r.id}`,
+      });
       ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
-      try { store.persist(ctx.db); } catch (e) { store.grants.set(g.id, g); store.bump(); throw e; }
+      try {
+        store.persist(ctx.db);
+      } catch (e) {
+        store.grants.set(g.id, g);
+        store.bump();
+        throw e;
+      }
     }
   }
-  ctx.db.run(`UPDATE access_review_items SET decision = ?, decided_at = ? WHERE review_id = ? AND grant_id = ?`, input.decision, ctx.now(), r.id, input.grantId);
+  ctx.db.run(
+    `UPDATE access_review_items SET decision = ?, decided_at = ? WHERE review_id = ? AND grant_id = ?`,
+    input.decision,
+    ctx.now(),
+    r.id,
+    input.grantId,
+  );
   // the reviewer's card is done when their last grant is decided
-  const left = items.filter((i) => i.reviewer === item.reviewer && i.grant_id !== input.grantId && i.decision === null).length;
+  const left = items.filter(
+    (i) => i.reviewer === item.reviewer && i.grant_id !== input.grantId && i.decision === null,
+  ).length;
   if (left === 0 && item.task_id) await finishCard(ctx, item.task_id, "Every grant decided");
   return { ok: true };
 }

@@ -3,7 +3,27 @@
 // channel when someone first speaks about it.
 import { propose } from "./cascade.ts";
 import {
-  addLink, buildStages, call, clean, closesLoop, dropLink, emitP, ensure, linksOf, loadTasks, planOf, planTask, plansOf, raise, replaceStages, savePlan, sortPlan, stagesOf, tolerant, visible, writeRecord,
+  addLink,
+  buildStages,
+  call,
+  clean,
+  closesLoop,
+  dropLink,
+  emitP,
+  ensure,
+  linksOf,
+  loadTasks,
+  planOf,
+  planTask,
+  plansOf,
+  raise,
+  replaceStages,
+  savePlan,
+  sortPlan,
+  stagesOf,
+  tolerant,
+  visible,
+  writeRecord,
 } from "../projections.ts";
 import type { In, Project, ProjectsCtx, TaskView } from "../projections.ts";
 
@@ -23,7 +43,11 @@ export async function plan(ctx: ProjectsCtx, input: In): Promise<unknown> {
   const plans = plansOf(ctx.db, p.projectId);
   const rows = (await loadTasks(ctx, p))
     .map((t) => planTask(t, plans.get(t.taskId)))
-    .filter((t) => (input.stage === undefined || t.stage === input.stage) && (input.assigned === undefined || t.assigned === input.assigned));
+    .filter(
+      (t) =>
+        (input.stage === undefined || t.stage === input.stage) &&
+        (input.assigned === undefined || t.assigned === input.assigned),
+    );
   const ids = new Set(rows.map((t) => t.taskId));
   // an arrow is shown when both ends are in the view
   const links = linksOf(ctx.db, p.projectId).filter((l) => ids.has(l.from) && ids.has(l.to));
@@ -44,7 +68,13 @@ export async function stagesSet(ctx: ProjectsCtx, input: In): Promise<unknown> {
     const live = new Set((await loadTasks(ctx, p)).map((t) => t.taskId));
     for (const s of dropped) {
       const inside = [...plans.values()].filter((r) => r.stage === s.key && live.has(r.taskId)).length;
-      if (inside > 0) raise(ctx, "validation.precondition_failed", `${inside} ${inside === 1 ? "task is" : "tasks are"} still in ${s.title}. Move them first.`, { reason: "stage_in_use", stage: s.key, tasks: inside });
+      if (inside > 0)
+        raise(
+          ctx,
+          "validation.precondition_failed",
+          `${inside} ${inside === 1 ? "task is" : "tasks are"} still in ${s.title}. Move them first.`,
+          { reason: "stage_in_use", stage: s.key, tasks: inside },
+        );
     }
   }
   replaceStages(ctx.db, p.projectId, stages);
@@ -60,15 +90,24 @@ export async function reschedule(ctx: ProjectsCtx, input: In): Promise<unknown> 
   const p = visible(ctx, input.projectId, "edit");
   const { task, all } = await taskOf(ctx, p, input.taskId);
   const cur = planOf(ctx.db, p.projectId, task.taskId);
-  if (input.stage !== undefined && !stagesOf(ctx.db, p.projectId).some((s) => s.key === input.stage)) raise(ctx, "validation.bad_input", `This plan has no stage called ${input.stage}.`, { stage: input.stage });
+  if (input.stage !== undefined && !stagesOf(ctx.db, p.projectId).some((s) => s.key === input.stage))
+    raise(ctx, "validation.bad_input", `This plan has no stage called ${input.stage}.`, { stage: input.stage });
   const start: number | undefined = input.start ?? cur?.start;
   const due: number | undefined = input.due ?? task.due;
-  if (start !== undefined && due !== undefined && start > due) raise(ctx, "validation.bad_input", "A task cannot start after it is due.");
-  if (input.due !== undefined && input.due !== task.due) await call(ctx, "tasks.update", { taskId: task.taskId, due: input.due });
-  if (input.start !== undefined || input.stage !== undefined) savePlan(ctx.db, p.projectId, task.taskId, { ...(input.start !== undefined ? { start: input.start } : {}), ...(input.stage !== undefined ? { stage: input.stage } : {}) });
+  if (start !== undefined && due !== undefined && start > due)
+    raise(ctx, "validation.bad_input", "A task cannot start after it is due.");
+  if (input.due !== undefined && input.due !== task.due)
+    await call(ctx, "tasks.update", { taskId: task.taskId, due: input.due });
+  if (input.start !== undefined || input.stage !== undefined)
+    savePlan(ctx.db, p.projectId, task.taskId, {
+      ...(input.start !== undefined ? { start: input.start } : {}),
+      ...(input.stage !== undefined ? { stage: input.stage } : {}),
+    });
   // it slipped when the due date moved later; the later tasks that wait on it are proposed a move, never moved
   const slipped = input.due !== undefined && task.due !== undefined && input.due > task.due;
-  const proposal = slipped ? propose(ctx, p, all, { taskId: task.taskId, start: input.start, due: input.due }, true) : undefined;
+  const proposal = slipped
+    ? propose(ctx, p, all, { taskId: task.taskId, start: input.start, due: input.due }, true)
+    : undefined;
   const proposalId = proposal?.proposalId;
   emitP(ctx, "project.task_rescheduled", p.projectId, { taskId: task.taskId, start, due, slipped });
   return clean({ taskId: task.taskId, start, due, proposalId });
@@ -80,12 +119,18 @@ export async function linkTasks(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "edit");
   const all = await loadTasks(ctx, p);
-  for (const id of [input.fromTaskId, input.toTaskId]) if (!all.some((t) => t.taskId === id)) raise(ctx, "validation.not_found", "That task is not in this project.", { taskId: id });
+  for (const id of [input.fromTaskId, input.toTaskId])
+    if (!all.some((t) => t.taskId === id))
+      raise(ctx, "validation.not_found", "That task is not in this project.", { taskId: id });
   const l = { from: String(input.fromTaskId), to: String(input.toTaskId) };
-  if (l.from === l.to) raise(ctx, "validation.precondition_failed", "A task cannot wait on itself.", { reason: "self_link" });
+  if (l.from === l.to)
+    raise(ctx, "validation.precondition_failed", "A task cannot wait on itself.", { reason: "self_link" });
   const existing = linksOf(ctx.db, p.projectId);
   if (existing.some((k) => k.from === l.from && k.to === l.to)) return { ok: true };
-  if (closesLoop(existing, l)) raise(ctx, "validation.precondition_failed", "That arrow would make two tasks wait on each other.", { reason: "loop" });
+  if (closesLoop(existing, l))
+    raise(ctx, "validation.precondition_failed", "That arrow would make two tasks wait on each other.", {
+      reason: "loop",
+    });
   await call(ctx, "tasks.dependencies.add", { taskId: l.to, dependsOnId: l.from });
   addLink(ctx.db, p.projectId, l);
   emitP(ctx, "project.tasks_linked", p.projectId, { fromTaskId: l.from, toTaskId: l.to });
@@ -112,7 +157,12 @@ export async function openTaskThread(ctx: ProjectsCtx, input: In): Promise<unkno
   if (known) return { threadId: known };
   if (!p.threadId) raise(ctx, "validation.bad_input", "This project has no channel to open the chat in.");
   // the thread hangs under a small task card in the project channel
-  const posted = await call<{ message?: { messageId?: string } }>(ctx, "chat.post", { threadId: p.threadId, body: `Task: ${task.title}` }, { idempotencyKey: `prj-task-card:${p.projectId}:${task.taskId}` });
+  const posted = await call<{ message?: { messageId?: string } }>(
+    ctx,
+    "chat.post",
+    { threadId: p.threadId, body: `Task: ${task.title}` },
+    { idempotencyKey: `prj-task-card:${p.projectId}:${task.taskId}` },
+  );
   const messageId = posted.message?.messageId;
   if (!messageId) raise(ctx, "internal.unexpected", "The task card was not posted.");
   const made = await call<{ thread?: { threadId?: string } }>(ctx, "chat.thread", { threadId: p.threadId, messageId });

@@ -10,7 +10,13 @@ export function endOfDeadJob(call: ScheduledCall, error: unknown): ScheduledCall
   if (!RUN_DRIVERS.has(call.cap)) return null;
   const runId = (call.input as { runId?: unknown } | null)?.runId;
   if (typeof runId !== "string" || runId === "") return null;
-  const why = (error as { error?: { message?: string } } | null)?.error?.message ?? (error instanceof Error ? error.message : String(error));
+  const why =
+    (error as { error?: { message?: string } } | null)?.error?.message ??
+    (error instanceof Error ? error.message : String(error));
   const message = `It stopped after ${call.tries + 1} tries: ${why}`.slice(0, 500);
-  return { ...call, cap: "runs.finish", input: { runId, status: "failed", summary: message, error: { code: "provider.unavailable", message } } };
+  return {
+    ...call,
+    cap: "runs.finish",
+    input: { runId, status: "failed", summary: message, error: { code: "provider.unavailable", message } },
+  };
 }

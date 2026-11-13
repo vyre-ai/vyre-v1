@@ -8,7 +8,12 @@ import { LinkCard } from "./LinkCard.tsx";
 import { linkCardOf } from "./model.ts";
 import { hiddenTitle } from "./state.ts";
 
-const base = { icon: "task", lead: "Task created", title: "Settlement offer for the Rivera estate", target: { type: "task", id: "tsk_1" } };
+const base = {
+  icon: "task",
+  lead: "Task created",
+  title: "Settlement offer for the Rivera estate",
+  target: { type: "task", id: "tsk_1" },
+};
 
 test("the level the Space attached is read, and only the five known levels", () => {
   assert.equal(linkCardOf({ type: "link_card", data: { ...base, reach: "none" } })!.reach, "none");
@@ -28,7 +33,21 @@ test("a card for a thing the reader cannot open shows no name, is not a link, an
   const restore = installDom();
   try {
     let asks = 0;
-    const root = await mount(createRoot, <LinkCard id="c1" data={base} nameOf={(x) => x} hidden onOpen={() => { throw new Error("opened"); }} onAskAccess={() => { asks++; }} />);
+    const root = await mount(
+      createRoot,
+      <LinkCard
+        id="c1"
+        data={base}
+        nameOf={(x) => x}
+        hidden
+        onOpen={() => {
+          throw new Error("opened");
+        }}
+        onAskAccess={() => {
+          asks++;
+        }}
+      />,
+    );
     await flush();
     const text = textOf(root as never);
     assert.ok(!text.includes("Settlement offer"), "the thing's name is never shown");
@@ -37,18 +56,33 @@ test("a card for a thing the reader cannot open shows no name, is not a link, an
     assert.notEqual(open.props.role, "link", "plain text, not a link");
     await press(find(root, "link-card-c1-ask"));
     assert.equal(asks, 1);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a card the reader can open is a link with no Ask for access", async () => {
   const restore = installDom();
   try {
     let opened = 0;
-    const root = await mount(createRoot, <LinkCard id="c2" data={base} nameOf={(x) => x} onOpen={() => { opened++; }} onAskAccess={() => undefined} />);
+    const root = await mount(
+      createRoot,
+      <LinkCard
+        id="c2"
+        data={base}
+        nameOf={(x) => x}
+        onOpen={() => {
+          opened++;
+        }}
+        onAskAccess={() => undefined}
+      />,
+    );
     await flush();
     assert.equal(find(root, "link-card-c2-ask"), null);
     await press(find(root, "link-card-c2-open"));
     assert.equal(opened, 1);
     assert.ok(textOf(root as never).includes("Settlement offer"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

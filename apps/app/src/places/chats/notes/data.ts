@@ -49,18 +49,31 @@ export interface NotesStore {
 const PAGE = 200;
 const MAX_PAGES = 10;
 
-export function createNotesStore(call: Call, sayFirst: (text: string) => void = () => undefined, now: () => number = Date.now): NotesStore {
+export function createNotesStore(
+  call: Call,
+  sayFirst: (text: string) => void = () => undefined,
+  now: () => number = Date.now,
+): NotesStore {
   let say = sayFirst;
   let state: NotesState = { status: "loading", notes: [], labels: [], images: 0 };
   const listeners = new Set<() => void>();
   const images = new Map<string, string | "pending" | "none">();
   const linkImages = new Map<string, string | "pending" | "none">();
-  const set = (next: Partial<NotesState>): void => { state = { ...state, ...next }; for (const l of listeners) l(); };
+  const set = (next: Partial<NotesState>): void => {
+    state = { ...state, ...next };
+    for (const l of listeners) l();
+  };
   const ping = (): void => set({ images: state.images + 1 });
   const find = (id: string): Note | undefined => state.notes.find((n) => n.noteId === id);
   const put = (n: Note): void => set({ notes: upsert(state.notes, n) });
   // a change shown before the server answers; on a refusal the note goes back as it was
-  const optimistic = async (id: string, local: Partial<Note>, cap: string, input: unknown, failed: string): Promise<Note | null> => {
+  const optimistic = async (
+    id: string,
+    local: Partial<Note>,
+    cap: string,
+    input: unknown,
+    failed: string,
+  ): Promise<Note | null> => {
     const before = find(id);
     if (before) put({ ...before, ...local, updatedAt: now() });
     try {
@@ -76,14 +89,23 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
 
   const store: NotesStore = {
     get: () => state,
-    subscribe(l) { listeners.add(l); return () => { listeners.delete(l); }; },
+    subscribe(l) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
     async load() {
       try {
         const notes: Note[] = [];
         let labels: string[] = [];
         let cursor: string | undefined;
         for (let i = 0; i < MAX_PAGES; i++) {
-          const out = (await call("notes.list", { from: "all", limit: PAGE, ...(cursor ? { cursor } : {}) })) as CapMap["notes.list"]["out"];
+          const out = (await call("notes.list", {
+            from: "all",
+            limit: PAGE,
+            ...(cursor ? { cursor } : {}),
+          })) as CapMap["notes.list"]["out"];
           notes.push(...out.notes);
           if (i === 0) labels = out.labels.map((l) => l.name);
           if (!out.next) break;
@@ -95,7 +117,9 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
         if (state.status === "loading") set({ status: "failed" });
       }
     },
-    addLabel(name) { if (!state.labels.includes(name)) set({ labels: [...state.labels, name] }); },
+    addLabel(name) {
+      if (!state.labels.includes(name)) set({ labels: [...state.labels, name] });
+    },
     async create(input) {
       try {
         const out = (await call("notes.create", input)) as CapMap["notes.create"]["out"];
@@ -113,17 +137,41 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
       if (patch.title !== undefined) shown.title = patch.title;
       if (patch.body !== undefined) shown.body = patch.body;
       if (patch.color !== undefined) shown.color = patch.color;
-      if (patch.image === null) { shown.hasImage = false; images.set(noteId, "none"); }
-      if (patch.image) { shown.hasImage = true; images.set(noteId, toDataUri(patch.image.contentType, patch.image.data)); }
+      if (patch.image === null) {
+        shown.hasImage = false;
+        images.set(noteId, "none");
+      }
+      if (patch.image) {
+        shown.hasImage = true;
+        images.set(noteId, toDataUri(patch.image.contentType, patch.image.data));
+      }
       return optimistic(noteId, shown, "notes.update", { noteId, ...patch }, "Could not save the change. Try again.");
     },
-    pin(noteId, pinned) { void optimistic(noteId, { pinned }, "notes.pin", { noteId, pinned }, pinned ? "Could not pin the note." : "Could not unpin the note."); },
+    pin(noteId, pinned) {
+      void optimistic(
+        noteId,
+        { pinned },
+        "notes.pin",
+        { noteId, pinned },
+        pinned ? "Could not pin the note." : "Could not unpin the note.",
+      );
+    },
     label(noteId, name, on) {
       const n = find(noteId);
       if (!n) return;
-      const labels = on ? (n.labels.includes(name) ? n.labels : [...n.labels, name]) : n.labels.filter((l) => l !== name);
+      const labels = on
+        ? n.labels.includes(name)
+          ? n.labels
+          : [...n.labels, name]
+        : n.labels.filter((l) => l !== name);
       store.addLabel(name);
-      void optimistic(noteId, { labels }, "notes.label", { noteId, ...(on ? { add: [name] } : { remove: [name] }) }, "Could not change the labels.");
+      void optimistic(
+        noteId,
+        { labels },
+        "notes.label",
+        { noteId, ...(on ? { add: [name] } : { remove: [name] }) },
+        "Could not change the labels.",
+      );
     },
     share(noteId, patch) {
       const n = find(noteId);
@@ -133,7 +181,13 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
         people = people.filter((x) => x.personId !== p.personId);
         if (p.role !== "remove") people.push({ personId: p.personId, role: p.role });
       }
-      return optimistic(noteId, { share: { people, space: patch.space ?? n.share.space } }, "notes.share", { noteId, ...patch }, "Could not change who sees it.");
+      return optimistic(
+        noteId,
+        { share: { people, space: patch.space ?? n.share.space } },
+        "notes.share",
+        { noteId, ...patch },
+        "Could not change who sees it.",
+      );
     },
     async setOwner(noteId, personId) {
       try {
@@ -170,8 +224,12 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
     async toTask(input) {
       try {
         const out = (await call("notes.to_task", input)) as CapMap["notes.to_task"]["out"];
-        if (input.keep === false) set({ notes: state.notes.filter((n) => n.noteId !== input.noteId) }); else put(out.note);
-        const key = await Promise.resolve(call("tasks.get", { taskId: out.taskId })).then((t) => (t as CapMap["tasks.get"]["out"]).task.key, () => undefined);
+        if (input.keep === false) set({ notes: state.notes.filter((n) => n.noteId !== input.noteId) });
+        else put(out.note);
+        const key = await Promise.resolve(call("tasks.get", { taskId: out.taskId })).then(
+          (t) => (t as CapMap["tasks.get"]["out"]).task.key,
+          () => undefined,
+        );
         return { taskId: out.taskId, ...(key ? { key } : {}) };
       } catch {
         say("Could not make the task. Try again.");
@@ -181,7 +239,8 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
     async toRecord(input) {
       try {
         const out = (await call("notes.to_record", input)) as CapMap["notes.to_record"]["out"];
-        if (input.keep === false) set({ notes: state.notes.filter((n) => n.noteId !== input.noteId) }); else put(out.note);
+        if (input.keep === false) set({ notes: state.notes.filter((n) => n.noteId !== input.noteId) });
+        else put(out.note);
         return { recordId: out.recordId };
       } catch {
         say("Could not make the record. Check the fields and try again.");
@@ -196,8 +255,15 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
       if (!n || !n.hasImage) return null;
       images.set(noteId, "pending");
       void Promise.resolve(call("notes.image", { noteId })).then(
-        (o) => { const out = o as CapMap["notes.image"]["out"]; images.set(noteId, toDataUri(out.contentType, out.data)); ping(); },
-        () => { images.set(noteId, "none"); ping(); },
+        (o) => {
+          const out = o as CapMap["notes.image"]["out"];
+          images.set(noteId, toDataUri(out.contentType, out.data));
+          ping();
+        },
+        () => {
+          images.set(noteId, "none");
+          ping();
+        },
       );
       return null;
     },
@@ -209,13 +275,25 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
       if (!n?.link?.preview) return null;
       linkImages.set(noteId, "pending");
       void Promise.resolve(call("notes.image", { noteId, part: "link" })).then(
-        (o) => { const out = o as CapMap["notes.image"]["out"]; linkImages.set(noteId, toDataUri(out.contentType, out.data)); ping(); },
-        () => { linkImages.set(noteId, "none"); ping(); },
+        (o) => {
+          const out = o as CapMap["notes.image"]["out"];
+          linkImages.set(noteId, toDataUri(out.contentType, out.data));
+          ping();
+        },
+        () => {
+          linkImages.set(noteId, "none");
+          ping();
+        },
       );
       return null;
     },
-    setImage(noteId, uri) { images.set(noteId, uri ?? "none"); ping(); },
-    setSay(f) { say = f; },
+    setImage(noteId, uri) {
+      images.set(noteId, uri ?? "none");
+      ping();
+    },
+    setSay(f) {
+      say = f;
+    },
   };
   return store;
 }
@@ -225,6 +303,9 @@ const stores = new WeakMap<object, NotesStore>();
 /** One store per Space runtime, so the sidebar, the page and a note opened from search share what they hold. */
 export function notesStoreFor(rt: { call(cap: string, input: unknown): Promise<unknown> }): NotesStore {
   let s = stores.get(rt);
-  if (!s) { s = createNotesStore((cap, input) => Promise.resolve(rt.call(cap, input))); stores.set(rt, s); }
+  if (!s) {
+    s = createNotesStore((cap, input) => Promise.resolve(rt.call(cap, input)));
+    stores.set(rt, s);
+  }
   return s;
 }

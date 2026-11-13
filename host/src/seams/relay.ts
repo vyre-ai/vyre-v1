@@ -31,7 +31,10 @@ const EMPTY = new Uint8Array(0);
 const concat = (...parts: Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let o = 0;
-  for (const p of parts) { out.set(p, o); o += p.length; }
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
   return out;
 };
 const b64u = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
@@ -43,11 +46,16 @@ const isZero = (b: Uint8Array): boolean => b.every((x) => x === 0);
 const B32 = "abcdefghijklmnopqrstuvwxyz234567";
 
 function base32(buf: Uint8Array): string {
-  let out = "", value = 0, bits = 0;
+  let out = "",
+    value = 0,
+    bits = 0;
   for (const byte of buf) {
     value = (value << 8) | byte;
     bits += 8;
-    while (bits >= 5) { out += B32[(value >>> (bits - 5)) & 31]; bits -= 5; }
+    while (bits >= 5) {
+      out += B32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
   }
   if (bits > 0) out += B32[(value << (5 - bits)) & 31];
   return out;
@@ -59,19 +67,41 @@ export async function routeIdOf(pub: Uint8Array): Promise<string> {
 }
 
 /** Both keys come from the kernel's seal primitives (x25519Pair, ed25519Pair); this file only keeps them. Seeds are base64url, the public halves raw. */
-export interface Keys { routeSeed: string; routePub: Uint8Array; boxPriv: string; boxPub: Uint8Array }
+export interface Keys {
+  routeSeed: string;
+  routePub: Uint8Array;
+  boxPriv: string;
+  boxPub: Uint8Array;
+}
 
 /** The route key (signs the relay's challenge) and the box key (the static Noise key devices pin), made once and kept beside the seal key, readable by this user only. */
 export function loadRelayKeys(dir: string): Keys {
   const file = path.join(dir, "relay.key");
   try {
-    const j = JSON.parse(fs.readFileSync(file, "utf8")) as { routeSeed?: string; routePub?: string; boxPriv?: string; boxPub?: string };
-    if (typeof j.routeSeed === "string" && typeof j.routePub === "string" && typeof j.boxPriv === "string" && typeof j.boxPub === "string") {
+    const j = JSON.parse(fs.readFileSync(file, "utf8")) as {
+      routeSeed?: string;
+      routePub?: string;
+      boxPriv?: string;
+      boxPub?: string;
+    };
+    if (
+      typeof j.routeSeed === "string" &&
+      typeof j.routePub === "string" &&
+      typeof j.boxPriv === "string" &&
+      typeof j.boxPub === "string"
+    ) {
       return { routeSeed: j.routeSeed, routePub: fromB64u(j.routePub), boxPriv: j.boxPriv, boxPub: fromB64u(j.boxPub) };
     }
-  } catch { /* none yet, or unreadable: make new ones */ }
-  const route = ed25519Pair(), box = x25519Pair();
-  fs.writeFileSync(file, JSON.stringify({ v: 2, routeSeed: route.seed, routePub: route.pub, boxPriv: box.priv, boxPub: box.pub }), { mode: 0o600 });
+  } catch {
+    /* none yet, or unreadable: make new ones */
+  }
+  const route = ed25519Pair(),
+    box = x25519Pair();
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ v: 2, routeSeed: route.seed, routePub: route.pub, boxPriv: box.priv, boxPub: box.pub }),
+    { mode: 0o600 },
+  );
   return { routeSeed: route.seed, routePub: fromB64u(route.pub), boxPriv: box.priv, boxPub: fromB64u(box.pub) };
 }
 
@@ -88,7 +118,8 @@ export const INVITE_TRIES = 200;
 // ---- Noise_IK_25519_AESGCM_SHA256, responder side (revision 34)
 
 const PROTOCOL = "Noise_IK_25519_AESGCM_SHA256";
-const DHLEN = 32, TAGLEN = 16;
+const DHLEN = 32,
+  TAGLEN = 16;
 const MAX_NONCE = 2 ** 32;
 const REKEY_NONCE = new Uint8Array([0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255]);
 
@@ -107,7 +138,11 @@ async function hkdf2(ck: Uint8Array, ikm: Uint8Array): Promise<[Uint8Array, Uint
 function dh(privB64: string, pub: Uint8Array): Uint8Array {
   if (pub.length !== DHLEN) throw new Error("an X25519 public key is 32 bytes");
   let out: Uint8Array;
-  try { out = new Uint8Array(x25519Shared(privB64, b64u(pub))); } catch { throw new Error("invalid peer key"); }
+  try {
+    out = new Uint8Array(x25519Shared(privB64, b64u(pub)));
+  } catch {
+    throw new Error("invalid peer key");
+  }
   if (isZero(out)) throw new Error("invalid peer key");
   return out;
 }
@@ -122,25 +157,43 @@ const nonceOf = (n: number): Uint8Array => {
 export class CipherState {
   n = 0;
   private k: CryptoKey | null;
-  constructor(k: CryptoKey | null = null) { this.k = k; }
-  static async of(raw: Uint8Array): Promise<CipherState> { return new CipherState(await subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"])); }
+  constructor(k: CryptoKey | null = null) {
+    this.k = k;
+  }
+  static async of(raw: Uint8Array): Promise<CipherState> {
+    return new CipherState(await subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]));
+  }
   async encrypt(ad: Uint8Array, pt: Uint8Array): Promise<Uint8Array> {
     if (this.k === null) return pt.slice();
     if (this.n >= MAX_NONCE) throw new Error("channel exhausted");
-    return new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: nonceOf(this.n++), additionalData: ad, tagLength: 128 }, this.k, pt));
+    return new Uint8Array(
+      await subtle.encrypt({ name: "AES-GCM", iv: nonceOf(this.n++), additionalData: ad, tagLength: 128 }, this.k, pt),
+    );
   }
   async decrypt(ad: Uint8Array, ct: Uint8Array): Promise<Uint8Array> {
     if (this.k === null) return ct.slice();
     if (this.n >= MAX_NONCE || ct.length < TAGLEN) throw new Error("decrypt failed");
     let out: Uint8Array;
-    try { out = new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: nonceOf(this.n), additionalData: ad, tagLength: 128 }, this.k, ct)); } catch { throw new Error("decrypt failed"); }
+    try {
+      out = new Uint8Array(
+        await subtle.decrypt({ name: "AES-GCM", iv: nonceOf(this.n), additionalData: ad, tagLength: 128 }, this.k, ct),
+      );
+    } catch {
+      throw new Error("decrypt failed");
+    }
     this.n++;
     return out;
   }
   /** REKEY (spec 11.3): the next key is the first 32 bytes of the encryption of 32 zeros under nonce 2^64-1. */
   async rekey(): Promise<void> {
     if (this.k === null) return;
-    const out = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: REKEY_NONCE, additionalData: EMPTY, tagLength: 128 }, this.k, new Uint8Array(32)));
+    const out = new Uint8Array(
+      await subtle.encrypt(
+        { name: "AES-GCM", iv: REKEY_NONCE, additionalData: EMPTY, tagLength: 128 },
+        this.k,
+        new Uint8Array(32),
+      ),
+    );
     this.k = await subtle.importKey("raw", out.slice(0, 32), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
   }
 }
@@ -154,11 +207,28 @@ class SymmetricState {
     this.h = name.length <= 32 ? concat(name, new Uint8Array(32 - name.length)) : await sha256(name);
     this.ck = this.h.slice();
   }
-  async mixKey(ikm: Uint8Array): Promise<void> { const [ck, k] = await hkdf2(this.ck, ikm); this.ck = ck; this.cs = await CipherState.of(k); }
-  async mixHash(data: Uint8Array): Promise<void> { this.h = await sha256(concat(this.h, data)); }
-  async encryptAndHash(pt: Uint8Array): Promise<Uint8Array> { const ct = await this.cs.encrypt(this.h, pt); await this.mixHash(ct); return ct; }
-  async decryptAndHash(ct: Uint8Array): Promise<Uint8Array> { const pt = await this.cs.decrypt(this.h, ct); await this.mixHash(ct); return pt; }
-  async split(): Promise<[CipherState, CipherState]> { const [k1, k2] = await hkdf2(this.ck, EMPTY); return [await CipherState.of(k1), await CipherState.of(k2)]; }
+  async mixKey(ikm: Uint8Array): Promise<void> {
+    const [ck, k] = await hkdf2(this.ck, ikm);
+    this.ck = ck;
+    this.cs = await CipherState.of(k);
+  }
+  async mixHash(data: Uint8Array): Promise<void> {
+    this.h = await sha256(concat(this.h, data));
+  }
+  async encryptAndHash(pt: Uint8Array): Promise<Uint8Array> {
+    const ct = await this.cs.encrypt(this.h, pt);
+    await this.mixHash(ct);
+    return ct;
+  }
+  async decryptAndHash(ct: Uint8Array): Promise<Uint8Array> {
+    const pt = await this.cs.decrypt(this.h, ct);
+    await this.mixHash(ct);
+    return pt;
+  }
+  async split(): Promise<[CipherState, CipherState]> {
+    const [k1, k2] = await hkdf2(this.ck, EMPTY);
+    return [await CipherState.of(k1), await CipherState.of(k2)];
+  }
 }
 
 /** The box's half: -> e, es, s, ss  then  <- e, ee, se. */
@@ -172,7 +242,10 @@ export class Responder {
   hash: Uint8Array = EMPTY;
   private s: { priv: string; pub: Uint8Array };
   private prologue: Uint8Array;
-  constructor(s: { priv: string; pub: Uint8Array }, prologue: Uint8Array) { this.s = s; this.prologue = prologue; }
+  constructor(s: { priv: string; pub: Uint8Array }, prologue: Uint8Array) {
+    this.s = s;
+    this.prologue = prologue;
+  }
   async readMessage(message: Uint8Array): Promise<Uint8Array> {
     if (message.length < DHLEN + DHLEN + TAGLEN + TAGLEN) throw new Error("handshake message too short");
     const ss = this.ss;
@@ -215,7 +288,9 @@ export class Initiator {
   private prologue: Uint8Array;
   constructor(s: { priv: string; pub: Uint8Array }, rs: Uint8Array, prologue: Uint8Array) {
     if (rs.length !== DHLEN) throw new Error("the responder's static key is 32 bytes");
-    this.s = s; this.rs = rs.slice(); this.prologue = prologue;
+    this.s = s;
+    this.rs = rs.slice();
+    this.prologue = prologue;
   }
   async writeMessage(payload: Uint8Array): Promise<Uint8Array> {
     const ss = this.ss;
@@ -257,7 +332,18 @@ const MAX_STREAMS = 64;
 const MAX_BODY = 32 * 1024 * 1024;
 const MAX_WS_MESSAGE = 1 << 20;
 
-interface Stream { id: number; head: Record<string, unknown>; body: Uint8Array[]; bodyBytes: number; ended: boolean; onData?: (c: Uint8Array) => void; onEnd?: () => void; onReset?: () => void; abort?: AbortController; ws?: WebSocket }
+interface Stream {
+  id: number;
+  head: Record<string, unknown>;
+  body: Uint8Array[];
+  bodyBytes: number;
+  ended: boolean;
+  onData?: (c: Uint8Array) => void;
+  onEnd?: () => void;
+  onReset?: () => void;
+  abort?: AbortController;
+  ws?: WebSocket;
+}
 
 class Channel {
   private txq: Promise<void> = Promise.resolve();
@@ -269,39 +355,82 @@ class Channel {
   private tx: CipherState;
   private rx: CipherState;
   private onstream: (s: Stream, ch: Channel) => void;
-  constructor(transport: { send(b: Uint8Array): void; close(code: number, reason: string): void }, tx: CipherState, rx: CipherState, onstream: (s: Stream, ch: Channel) => void) {
-    this.transport = transport; this.tx = tx; this.rx = rx; this.onstream = onstream;
+  constructor(
+    transport: { send(b: Uint8Array): void; close(code: number, reason: string): void },
+    tx: CipherState,
+    rx: CipherState,
+    onstream: (s: Stream, ch: Channel) => void,
+  ) {
+    this.transport = transport;
+    this.tx = tx;
+    this.rx = rx;
+    this.onstream = onstream;
   }
   frame(type: number, id: number, payload: Uint8Array = EMPTY): void {
     if (this.closed) return;
-    if (Date.now() - this.opened > MAX_AGE) { this.close(1000, "session too old"); return; }
+    if (Date.now() - this.opened > MAX_AGE) {
+      this.close(1000, "session too old");
+      return;
+    }
     const pt = new Uint8Array(5 + payload.length);
     pt[0] = type;
     new DataView(pt.buffer).setUint32(1, id);
     pt.set(payload, 5);
-    this.txq = this.txq.then(async () => {
-      if (this.closed) return;
-      const ct = await this.tx.encrypt(EMPTY, pt);
-      if (this.tx.n % REKEY_EVERY === 0) await this.tx.rekey();
-      if (!this.closed) this.transport.send(ct);
-    }).catch((e: unknown) => this.close(1011, String((e as Error)?.message ?? e)));
+    this.txq = this.txq
+      .then(async () => {
+        if (this.closed) return;
+        const ct = await this.tx.encrypt(EMPTY, pt);
+        if (this.tx.n % REKEY_EVERY === 0) await this.tx.rekey();
+        if (!this.closed) this.transport.send(ct);
+      })
+      .catch((e: unknown) => this.close(1011, String((e as Error)?.message ?? e)));
   }
-  receive(bytes: Uint8Array): void { const b = bytes.slice(); this.rxq = this.rxq.then(() => this.take(b), () => {}); }
+  receive(bytes: Uint8Array): void {
+    const b = bytes.slice();
+    this.rxq = this.rxq.then(
+      () => this.take(b),
+      () => {},
+    );
+  }
   private async take(bytes: Uint8Array): Promise<void> {
     if (this.closed) return;
     let pt: Uint8Array;
-    try { pt = await this.rx.decrypt(EMPTY, bytes); } catch { this.close(4400, "decrypt failed"); return; }
+    try {
+      pt = await this.rx.decrypt(EMPTY, bytes);
+    } catch {
+      this.close(4400, "decrypt failed");
+      return;
+    }
     if (this.rx.n % REKEY_EVERY === 0) await this.rx.rekey();
     if (this.closed) return;
-    if (pt.length < 5) { this.close(4400, "short frame"); return; }
-    const type = pt[0]!, id = new DataView(pt.buffer, pt.byteOffset).getUint32(1), payload = pt.subarray(5);
-    if (id === 0) { if (type === FRAME.ping) this.frame(FRAME.pong, 0, payload.slice()); return; }
+    if (pt.length < 5) {
+      this.close(4400, "short frame");
+      return;
+    }
+    const type = pt[0]!,
+      id = new DataView(pt.buffer, pt.byteOffset).getUint32(1),
+      payload = pt.subarray(5);
+    if (id === 0) {
+      if (type === FRAME.ping) this.frame(FRAME.pong, 0, payload.slice());
+      return;
+    }
     let s = this.streams.get(id);
     if (!s) {
-      if (type !== FRAME.head || id % 2 === 0 || this.streams.size >= MAX_STREAMS) { if (type === FRAME.head) this.frame(FRAME.reset, id, utf8("busy")); return; }
+      if (type !== FRAME.head || id % 2 === 0 || this.streams.size >= MAX_STREAMS) {
+        if (type === FRAME.head) this.frame(FRAME.reset, id, utf8("busy"));
+        return;
+      }
       let head: unknown;
-      try { head = JSON.parse(fromUtf8(payload)); } catch { this.frame(FRAME.reset, id, utf8("bad head")); return; }
-      if (typeof head !== "object" || head === null || Array.isArray(head)) { this.frame(FRAME.reset, id, utf8("bad head")); return; }
+      try {
+        head = JSON.parse(fromUtf8(payload));
+      } catch {
+        this.frame(FRAME.reset, id, utf8("bad head"));
+        return;
+      }
+      if (typeof head !== "object" || head === null || Array.isArray(head)) {
+        this.frame(FRAME.reset, id, utf8("bad head"));
+        return;
+      }
       s = { id, head: head as Record<string, unknown>, body: [], bodyBytes: 0, ended: false };
       this.streams.set(id, s);
       this.onstream(s, this);
@@ -309,26 +438,75 @@ class Channel {
     }
     if (type === FRAME.data) {
       if (s.onData) s.onData(payload.slice());
-      else { s.bodyBytes += payload.length; if (s.bodyBytes > MAX_BODY) { this.reset(s, "too big"); return; } s.body.push(payload.slice()); }
-    } else if (type === FRAME.end) { s.ended = true; s.onEnd?.(); }
-    else if (type === FRAME.reset) { this.streams.delete(id); s.abort?.abort(); s.ws?.close(); s.onReset?.(); }
+      else {
+        s.bodyBytes += payload.length;
+        if (s.bodyBytes > MAX_BODY) {
+          this.reset(s, "too big");
+          return;
+        }
+        s.body.push(payload.slice());
+      }
+    } else if (type === FRAME.end) {
+      s.ended = true;
+      s.onEnd?.();
+    } else if (type === FRAME.reset) {
+      this.streams.delete(id);
+      s.abort?.abort();
+      s.ws?.close();
+      s.onReset?.();
+    }
   }
-  respond(s: Stream, head: Record<string, unknown>): void { this.frame(FRAME.head, s.id, utf8(JSON.stringify(head))); }
-  write(s: Stream, bytes: Uint8Array): void { for (let i = 0; i < bytes.length; i += CHUNK) this.frame(FRAME.data, s.id, bytes.subarray(i, i + CHUNK)); }
-  end(s: Stream): void { this.frame(FRAME.end, s.id); this.streams.delete(s.id); }
-  reset(s: Stream, reason: string): void { this.frame(FRAME.reset, s.id, utf8(reason)); this.streams.delete(s.id); s.abort?.abort(); s.ws?.close(); }
+  respond(s: Stream, head: Record<string, unknown>): void {
+    this.frame(FRAME.head, s.id, utf8(JSON.stringify(head)));
+  }
+  write(s: Stream, bytes: Uint8Array): void {
+    for (let i = 0; i < bytes.length; i += CHUNK) this.frame(FRAME.data, s.id, bytes.subarray(i, i + CHUNK));
+  }
+  end(s: Stream): void {
+    this.frame(FRAME.end, s.id);
+    this.streams.delete(s.id);
+  }
+  reset(s: Stream, reason: string): void {
+    this.frame(FRAME.reset, s.id, utf8(reason));
+    this.streams.delete(s.id);
+    s.abort?.abort();
+    s.ws?.close();
+  }
   close(code: number, reason: string): void {
     if (this.closed) return;
     this.closed = true;
-    for (const s of this.streams.values()) { s.abort?.abort(); try { s.ws?.close(); } catch { /* already closed */ } s.onReset?.(); }
+    for (const s of this.streams.values()) {
+      s.abort?.abort();
+      try {
+        s.ws?.close();
+      } catch {
+        /* already closed */
+      }
+      s.onReset?.();
+    }
     this.streams.clear();
-    try { this.transport.close(code, reason); } catch { /* already closed */ }
+    try {
+      this.transport.close(code, reason);
+    } catch {
+      /* already closed */
+    }
   }
 }
 
 // ---- serving a stream from the local gateway
 
-const HOP = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-authorization", "proxy-connection"]);
+const HOP = new Set([
+  "host",
+  "connection",
+  "content-length",
+  "transfer-encoding",
+  "upgrade",
+  "keep-alive",
+  "te",
+  "trailer",
+  "proxy-authorization",
+  "proxy-connection",
+]);
 const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
 function cleanHeaders(h: unknown): Record<string, string> {
@@ -349,7 +527,8 @@ const DOOR_MS = 120_000;
 const PUBLIC_METHODS = new Set(["GET", "HEAD", "POST"]);
 const DOOR_METHODS = new Set(["GET", "HEAD", "POST", "DELETE", "OPTIONS"]);
 /** The door for outside agents: /mcp and the addresses an MCP client signs in through (relay/worker/phone.js DOOR). The same list on both sides of the relay. */
-const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))(?:\?|$)/;
+const DOOR =
+  /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))(?:\?|$)/;
 
 export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096;
 
@@ -361,31 +540,63 @@ export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096
  */
 const HOOK = /^\/hooks\/automation\/aut_[a-z0-9]{1,64}\/[A-Za-z0-9_-]{8,200}$/;
 export const hookPath = (p: string): boolean => HOOK.test(p);
-export const RELAY_HOOKS = Object.freeze({ maxBody: 1024 * 1024, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 20 });
+export const RELAY_HOOKS = Object.freeze({
+  maxBody: 1024 * 1024,
+  perMinute: 120,
+  perHookPerMinute: 30,
+  perVisitorPerMinute: 20,
+  refusedPerVisitor: 20,
+});
 /**
  * Two counts a minute, the same numbers as on the relay: ACCEPTED (the daemon answered 200) for the Space, one hook, and one visitor on one hook; REFUSED (anything else) for one visitor across
  * the Space, after which that visitor gets 429 for every id until the minute ends (no answer tells a real id from a made-up one). Every map is cleared each minute; accepted maps grow only on a
  * 200 (at most 120 entries), the refusal map only on a request let through.
  */
-const hookWindow = { at: 0, n: 0, per: new Map<string, number>(), pair: new Map<string, number>(), refused: new Map<string, number>() };
+const hookWindow = {
+  at: 0,
+  n: 0,
+  per: new Map<string, number>(),
+  pair: new Map<string, number>(),
+  refused: new Map<string, number>(),
+};
 const fresh = (now: number): typeof hookWindow => {
-  if (now - hookWindow.at >= 60_000) { hookWindow.at = now; hookWindow.n = 0; hookWindow.per.clear(); hookWindow.pair.clear(); hookWindow.refused.clear(); }
+  if (now - hookWindow.at >= 60_000) {
+    hookWindow.at = now;
+    hookWindow.n = 0;
+    hookWindow.per.clear();
+    hookWindow.pair.clear();
+    hookWindow.refused.clear();
+  }
   return hookWindow;
 };
 /** May this visitor post to this hook now. */
 export function relayHookOpen(id: string, ip: string, now = Date.now()): boolean {
-  const w = fresh(now), pk = `${ip}|${id}`;
-  if (w.n >= RELAY_HOOKS.perMinute || (w.per.get(id) ?? 0) >= RELAY_HOOKS.perHookPerMinute || (w.pair.get(pk) ?? 0) >= RELAY_HOOKS.perVisitorPerMinute) return false;
+  const w = fresh(now),
+    pk = `${ip}|${id}`;
+  if (
+    w.n >= RELAY_HOOKS.perMinute ||
+    (w.per.get(id) ?? 0) >= RELAY_HOOKS.perHookPerMinute ||
+    (w.pair.get(pk) ?? 0) >= RELAY_HOOKS.perVisitorPerMinute
+  )
+    return false;
   return (w.refused.get(ip) ?? 0) < RELAY_HOOKS.refusedPerVisitor;
 }
 /** Count one answered request: accepted (200) or refused (anything but a rate limit). */
 export function relayHookAnswered(id: string, ip: string, status: number, now = Date.now()): void {
-  const w = fresh(now), pk = `${ip}|${id}`;
-  if (status === 200) { w.n += 1; w.per.set(id, (w.per.get(id) ?? 0) + 1); w.pair.set(pk, (w.pair.get(pk) ?? 0) + 1); }
-  else if (status !== 429) w.refused.set(ip, (w.refused.get(ip) ?? 0) + 1);
+  const w = fresh(now),
+    pk = `${ip}|${id}`;
+  if (status === 200) {
+    w.n += 1;
+    w.per.set(id, (w.per.get(id) ?? 0) + 1);
+    w.pair.set(pk, (w.pair.get(pk) ?? 0) + 1);
+  } else if (status !== 429) w.refused.set(ip, (w.refused.get(ip) ?? 0) + 1);
 }
 /** For tests: a fresh minute. */
-export function resetRelayHooks(): void { hookWindow.at = 0; fresh(Date.now()); hookWindow.at = 0; }
+export function resetRelayHooks(): void {
+  hookWindow.at = 0;
+  fresh(Date.now());
+  hookWindow.at = 0;
+}
 
 /** Only the public path and the door for outside agents, in plain form, ever leave this function for the gateway: never a session, and never another address on the daemon. */
 export function publicPathOk(p: string): boolean {
@@ -406,27 +617,63 @@ export function artifactPathOk(p: string): boolean {
 }
 
 /** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent (an outside agent's token on /mcp alone is the exception: it is that request's whole point), and the answer back over the control socket. */
-export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown; /** the artifact host's request: its own paths, with its own cookie going in and its Set-Cookie coming out, and its host name */ a?: unknown; host?: unknown }, body: Uint8Array, localPort: number): void {
-  const fail = (status: number): void => { send({ t: "p.res", id: m.id, status, headers: {} }); send({ t: "p.end", id: m.id }); };
-  if (typeof m.path === "string" && m.path.startsWith("/hooks/")) { serveHook(send, m, body, localPort); return; }
+export function servePublic(
+  send: (m: unknown) => void,
+  m: {
+    id: string;
+    method: string;
+    path: string;
+    ip: string;
+    headers: unknown;
+    /** the artifact host's request: its own paths, with its own cookie going in and its Set-Cookie coming out, and its host name */ a?: unknown;
+    host?: unknown;
+  },
+  body: Uint8Array,
+  localPort: number,
+): void {
+  const fail = (status: number): void => {
+    send({ t: "p.res", id: m.id, status, headers: {} });
+    send({ t: "p.end", id: m.id });
+  };
+  if (typeof m.path === "string" && m.path.startsWith("/hooks/")) {
+    serveHook(send, m, body, localPort);
+    return;
+  }
   const door = doorPath(m.path);
   // the artifact host is a different origin from the app: only its own request carries a cookie, and only for its own paths; every other request is cookie-free as ever
   const art = m.a === true && typeof m.host === "string" && /^[a-z0-9.-]{3,253}$/.test(m.host);
-  if (!(door ? DOOR_METHODS : PUBLIC_METHODS).has(m.method) || !(art ? artifactPathOk(m.path) : publicPathOk(m.path))) { fail(400); return; }
+  if (!(door ? DOOR_METHODS : PUBLIC_METHODS).has(m.method) || !(art ? artifactPathOk(m.path) : publicPathOk(m.path))) {
+    fail(400);
+    return;
+  }
   const headers = cleanHeaders(m.headers);
-  if (art) headers["host"] = m.host as string; else delete headers["cookie"];
+  if (art) headers["host"] = m.host as string;
+  else delete headers["cookie"];
   if (m.path.split("?")[0] !== "/mcp") delete headers["authorization"];
   headers["x-vyre-visitor"] = m.ip.slice(0, 64);
   if (body.length) headers["content-length"] = String(body.length);
-  const req = http.request({ host: "127.0.0.1", port: localPort, method: m.method, path: m.path, headers, timeout: door ? DOOR_MS : PUBLIC_MS }, (res) => {
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") out[k] = v;
-    if (art && res.headers["set-cookie"]?.[0]) out["set-cookie"] = res.headers["set-cookie"][0];   // the artifact session, for the artifact host only
-    send({ t: "p.res", id: m.id, status: res.statusCode ?? 502, headers: out });
-    res.on("data", (c: Buffer) => { for (let at = 0; at < c.length; at += PUBLIC_CHUNK) send({ t: "p.data", id: m.id, b: c.subarray(at, at + PUBLIC_CHUNK).toString("base64") }); });
-    res.on("end", () => send({ t: "p.end", id: m.id }));
-    res.on("error", () => send({ t: "p.err", id: m.id }));
-  });
+  const req = http.request(
+    {
+      host: "127.0.0.1",
+      port: localPort,
+      method: m.method,
+      path: m.path,
+      headers,
+      timeout: door ? DOOR_MS : PUBLIC_MS,
+    },
+    (res) => {
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") out[k] = v;
+      if (art && res.headers["set-cookie"]?.[0]) out["set-cookie"] = res.headers["set-cookie"][0]; // the artifact session, for the artifact host only
+      send({ t: "p.res", id: m.id, status: res.statusCode ?? 502, headers: out });
+      res.on("data", (c: Buffer) => {
+        for (let at = 0; at < c.length; at += PUBLIC_CHUNK)
+          send({ t: "p.data", id: m.id, b: c.subarray(at, at + PUBLIC_CHUNK).toString("base64") });
+      });
+      res.on("end", () => send({ t: "p.end", id: m.id }));
+      res.on("error", () => send({ t: "p.err", id: m.id }));
+    },
+  );
   req.on("timeout", () => req.destroy(new Error("timed out")));
   req.on("error", () => send({ t: "p.err", id: m.id }));
   req.end(body.length ? Buffer.from(body) : undefined);
@@ -434,38 +681,70 @@ export function servePublic(send: (m: unknown) => void, m: { id: string; method:
 
 /** A relayed web request trigger (see HOOK): only POST, only the exact shape, only content-type and an idempotency key go in, no visitor header of any kind; only a 200 comes back as it is,
  *  everything else is the same bare 404. */
-function serveHook(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip?: string; headers: unknown }, body: Uint8Array, localPort: number): void {
-  const notFound = (): void => { send({ t: "p.res", id: m.id, status: 404, headers: {} }); send({ t: "p.end", id: m.id }); };
-  if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) { notFound(); return; }
+function serveHook(
+  send: (m: unknown) => void,
+  m: { id: string; method: string; path: string; ip?: string; headers: unknown },
+  body: Uint8Array,
+  localPort: number,
+): void {
+  const notFound = (): void => {
+    send({ t: "p.res", id: m.id, status: 404, headers: {} });
+    send({ t: "p.end", id: m.id });
+  };
+  if (m.method !== "POST" || !hookPath(m.path) || body.length > RELAY_HOOKS.maxBody) {
+    notFound();
+    return;
+  }
   const id = m.path.split("/")[3] as string;
   const ip = typeof m.ip === "string" ? m.ip : "";
   // a rate limit is a 429 (the relay passes it on with Retry-After); it says nothing about whether the id or secret is valid
-  if (!relayHookOpen(id, ip)) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
+  if (!relayHookOpen(id, ip)) {
+    send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } });
+    send({ t: "p.end", id: m.id });
+    return;
+  }
   const given = (typeof m.headers === "object" && m.headers !== null ? m.headers : {}) as Record<string, unknown>;
   const headers: Record<string, string> = { "x-vyre-via": "relay", "content-length": String(body.length) };
   // the visitor's address as the relay saw it (cf-connecting-ip), as the one forwarded entry: the daemon's per-source limits then count each visitor, not the whole relay as 127.0.0.1, so one
   // stranger's wrong guesses cannot block every hook of the Space. sourceOf trusts the last forwarded entry only on a loopback connection, which this one is.
-  if (typeof (m as { ip?: unknown }).ip === "string" && /^[0-9A-Fa-f:.]{2,45}$/.test((m as { ip: string }).ip)) headers["x-forwarded-for"] = (m as { ip: string }).ip;
+  if (typeof (m as { ip?: unknown }).ip === "string" && /^[0-9A-Fa-f:.]{2,45}$/.test((m as { ip: string }).ip))
+    headers["x-forwarded-for"] = (m as { ip: string }).ip;
   const type = given["content-type"];
   if (typeof type === "string" && type.length <= 200) headers["content-type"] = type;
   const key = given["idempotency-key"];
   if (typeof key === "string" && key.length <= 200 && /^[\x21-\x7e]+$/.test(key)) headers["idempotency-key"] = key;
-  const req = http.request({ host: "127.0.0.1", port: localPort, method: "POST", path: m.path, headers, timeout: PUBLIC_MS }, (res) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    res.on("data", (c: Buffer) => { size += c.length; if (size <= 4096) chunks.push(c); });
-    res.on("end", () => {
-      relayHookAnswered(id, ip, res.statusCode ?? 0);
-      if (res.statusCode === 429) { send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } }); send({ t: "p.end", id: m.id }); return; }
-      if (res.statusCode !== 200) { notFound(); return; }
-      send({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "application/json" } });
-      send({ t: "p.data", id: m.id, b: Buffer.from('{"accepted":true}').toString("base64") });
-      send({ t: "p.end", id: m.id });
-    });
-    res.on("error", () => notFound());
-  });
+  const req = http.request(
+    { host: "127.0.0.1", port: localPort, method: "POST", path: m.path, headers, timeout: PUBLIC_MS },
+    (res) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on("data", (c: Buffer) => {
+        size += c.length;
+        if (size <= 4096) chunks.push(c);
+      });
+      res.on("end", () => {
+        relayHookAnswered(id, ip, res.statusCode ?? 0);
+        if (res.statusCode === 429) {
+          send({ t: "p.res", id: m.id, status: 429, headers: { "retry-after": "60" } });
+          send({ t: "p.end", id: m.id });
+          return;
+        }
+        if (res.statusCode !== 200) {
+          notFound();
+          return;
+        }
+        send({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "application/json" } });
+        send({ t: "p.data", id: m.id, b: Buffer.from('{"accepted":true}').toString("base64") });
+        send({ t: "p.end", id: m.id });
+      });
+      res.on("error", () => notFound());
+    },
+  );
   req.on("timeout", () => req.destroy(new Error("timed out")));
-  req.on("error", () => { relayHookAnswered(id, ip, 0); notFound(); });
+  req.on("error", () => {
+    relayHookAnswered(id, ip, 0);
+    notFound();
+  });
   req.end(body.length ? Buffer.from(body) : undefined);
 }
 
@@ -485,66 +764,148 @@ export function inviteScopeOk(method: string, path: string): boolean {
 }
 
 /** A channel a device opened with an invite key: open while that invite is, and the box key it may hand over once the person has joined. */
-export interface InviteScope { open(): boolean; boxKey: string }
+export interface InviteScope {
+  open(): boolean;
+  boxKey: string;
+}
 
 const refuseInvite = (s: Stream, ch: Channel): void => {
   ch.respond(s, { status: 403, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-  ch.write(s, utf8(JSON.stringify({ error: { code: "auth.invalid_code", message: "This invite link opens only the join page, and only while the invite is open." } })));
+  ch.write(
+    s,
+    utf8(
+      JSON.stringify({
+        error: {
+          code: "auth.invalid_code",
+          message: "This invite link opens only the join page, and only while the invite is open.",
+        },
+      }),
+    ),
+  );
   ch.end(s);
 };
 
 function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
-  const path0 = typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
-  if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) { ch.reset(s, "bad path"); return; }
+  const path0 =
+    typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
+  if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) {
+    ch.reset(s, "bad path");
+    return;
+  }
   const headers = cleanHeaders(s.head["headers"]);
   if (scope) {
     // signed out by construction: whatever the device sends, no session crosses an invite channel
     delete headers["authorization"];
     delete headers["cookie"];
     const m0 = typeof s.head["ws"] === "string" ? "WS" : String(s.head["method"] ?? "GET").toUpperCase();
-    if (!scope.open() || !inviteScopeOk(m0, path0)) { refuseInvite(s, ch); return; }
+    if (!scope.open() || !inviteScopeOk(m0, path0)) {
+      refuseInvite(s, ch);
+      return;
+    }
   }
   if (typeof s.head["ws"] === "string") {
     // the live socket: data frames are [1 text | 2 binary][message], one message per frame
     const WS = globalThis.WebSocket as unknown as new (url: string, init?: unknown) => WebSocket;
     let ws: WebSocket;
-    try { ws = new WS(`ws://127.0.0.1:${localPort}${path0}`, { headers }); } catch { ch.reset(s, "refused"); return; }
+    try {
+      ws = new WS(`ws://127.0.0.1:${localPort}${path0}`, { headers });
+    } catch {
+      ch.reset(s, "refused");
+      return;
+    }
     ws.binaryType = "arraybuffer";
     s.ws = ws;
     ws.onopen = () => ch.respond(s, { status: 101 });
     ws.onmessage = (e: MessageEvent) => {
-      const m = typeof e.data === "string" ? concat(new Uint8Array([1]), utf8(e.data)) : concat(new Uint8Array([2]), new Uint8Array(e.data as ArrayBuffer));
-      if (m.length + 5 + TAGLEN > 1 << 20) { ws.close(1009, "too big"); return; }
+      const m =
+        typeof e.data === "string"
+          ? concat(new Uint8Array([1]), utf8(e.data))
+          : concat(new Uint8Array([2]), new Uint8Array(e.data as ArrayBuffer));
+      if (m.length + 5 + TAGLEN > 1 << 20) {
+        ws.close(1009, "too big");
+        return;
+      }
       ch.frame(FRAME.data, s.id, m);
     };
-    ws.onerror = () => { if (ws.readyState !== 1) { ch.respond(s, { status: 502 }); ch.end(s); } };
-    ws.onclose = () => { if (ch.streams.has(s.id)) ch.end(s); };
-    s.onData = (c) => { if (c.length < 1 || c.length > MAX_WS_MESSAGE || ws.readyState !== 1) return; ws.send(c[0] === 1 ? fromUtf8(c.subarray(1)) : c.subarray(1)); };
+    ws.onerror = () => {
+      if (ws.readyState !== 1) {
+        ch.respond(s, { status: 502 });
+        ch.end(s);
+      }
+    };
+    ws.onclose = () => {
+      if (ch.streams.has(s.id)) ch.end(s);
+    };
+    s.onData = (c) => {
+      if (c.length < 1 || c.length > MAX_WS_MESSAGE || ws.readyState !== 1) return;
+      ws.send(c[0] === 1 ? fromUtf8(c.subarray(1)) : c.subarray(1));
+    };
     s.onEnd = () => ws.close(1000);
-    s.onReset = () => { try { ws.close(); } catch { /* closed */ } };
+    s.onReset = () => {
+      try {
+        ws.close();
+      } catch {
+        /* closed */
+      }
+    };
     return;
   }
   const method = String(s.head["method"] ?? "GET").toUpperCase();
-  if (!METHODS.has(method)) { ch.reset(s, "bad method"); return; }
+  if (!METHODS.has(method)) {
+    ch.reset(s, "bad method");
+    return;
+  }
   const run = async (): Promise<void> => {
     s.abort = new AbortController();
     const body = method === "GET" || method === "HEAD" ? undefined : concat(...s.body);
     let res: Response;
-    try { res = await fetch(`http://127.0.0.1:${localPort}${path0}`, { method, headers, ...(body && body.length ? { body } : {}), signal: s.abort.signal, redirect: "manual" }); }
-    catch { if (ch.streams.has(s.id)) { ch.respond(s, { status: 502, headers: {} }); ch.end(s); } return; }
+    try {
+      res = await fetch(`http://127.0.0.1:${localPort}${path0}`, {
+        method,
+        headers,
+        ...(body && body.length ? { body } : {}),
+        signal: s.abort.signal,
+        redirect: "manual",
+      });
+    } catch {
+      if (ch.streams.has(s.id)) {
+        ch.respond(s, { status: 502, headers: {} });
+        ch.end(s);
+      }
+      return;
+    }
     const rh: Record<string, string> = {};
-    res.headers.forEach((v, k) => { if (!HOP.has(k)) rh[k] = v; });
+    res.headers.forEach((v, k) => {
+      if (!HOP.has(k)) rh[k] = v;
+    });
     // the person has joined: the box key travels back inside the channel the invite key opened, so their browser can pin it and leave the invite channel behind
     delete rh["x-vyre-box"];
-    if (scope && method === "POST" && path0.split("?")[0] === "/v1/members/accept" && res.status === 200) rh["x-vyre-box"] = scope.boxKey;
+    if (scope && method === "POST" && path0.split("?")[0] === "/v1/members/accept" && res.status === 200)
+      rh["x-vyre-box"] = scope.boxKey;
     ch.respond(s, { status: res.status, headers: rh });
     if (res.body) {
       const reader = res.body.getReader();
-      try { for (;;) { const { done, value } = await reader.read(); if (done) break; if (!ch.streams.has(s.id)) { await reader.cancel(); return; } ch.write(s, value); } } catch { /* the device went away or the gateway closed */ }
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!ch.streams.has(s.id)) {
+            await reader.cancel();
+            return;
+          }
+          ch.write(s, value);
+        }
+      } catch {
+        /* the device went away or the gateway closed */
+      }
     }
     if (ch.streams.has(s.id)) ch.end(s);
   };
-  if (s.ended) void run(); else s.onEnd = () => { void run(); };
+  if (s.ended) void run();
+  else
+    s.onEnd = () => {
+      void run();
+    };
 }
 
 // ---- the link
@@ -569,7 +930,12 @@ export interface RelayBoxOptions {
   onSigninAsk?: (loc: string, s: string) => void;
 }
 /** The relay's answer to a phone-address message: `{ t: "host", op, status, name?, label? }` with the fields it knows. */
-export interface HostReply { op: string; status: string; name?: string; label?: string }
+export interface HostReply {
+  op: string;
+  status: string;
+  name?: string;
+  label?: string;
+}
 export interface RelayBox {
   /** the route id, once the keys are loaded */
   ready: Promise<{ route: string; deviceUrl: string; boxKey: string }>;
@@ -579,7 +945,10 @@ export interface RelayBox {
     release(): Promise<HostReply>;
     status(): Promise<HostReply>;
     /** The other computers of the same Personal Space that serve this name (lane l-multidevice): the relay sends a phone to whichever is awake. Only the computer that holds the name may say. */
-    members(list: readonly { route: string; label: string; kind?: "computer" | "server" }[], selfKind?: "computer" | "server"): Promise<HostReply>;
+    members(
+      list: readonly { route: string; label: string; kind?: "computer" | "server" }[],
+      selfKind?: "computer" | "server",
+    ): Promise<HostReply>;
   };
   /** The name locators this box answers sign-in asks for (signin.watch). Sent at once when the link is up, again on every reconnect and every few minutes. */
   watch(locs: readonly string[]): void;
@@ -593,7 +962,9 @@ const HOST_WAIT_MS = 15_000;
 /** The relay forgets a watch after ten minutes; renew well inside that. */
 const WATCH_RENEW_MS = 4 * 60_000;
 
-const BACKOFF_MIN = 1000, BACKOFF_MAX = 5 * 60_000, DIAL_MS = 30_000;
+const BACKOFF_MIN = 1000,
+  BACKOFF_MAX = 5 * 60_000,
+  DIAL_MS = 30_000;
 
 export function startRelayBox(o: RelayBoxOptions): RelayBox {
   const log = o.log ?? (() => {});
@@ -607,12 +978,16 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   let backoff = BACKOFF_MIN;
   let ticket = "";
   let connected = false;
-  let lastPingAt = 0, rtt: number | undefined;
+  let lastPingAt = 0,
+    rtt: number | undefined;
   const data = new Map<string, WebSocket>();
   /** phone-address asks waiting for the relay's answer, by op */
   const asking = new Map<string, Array<(r: HostReply) => void>>();
   /** visitor requests whose body is still arriving, by id */
-  const publicIn = new Map<string, { head: { id: string; method: string; path: string; ip: string; headers: unknown }; chunks: Buffer[] }>();
+  const publicIn = new Map<
+    string,
+    { head: { id: string; method: string; path: string; ip: string; headers: unknown }; chunks: Buffer[] }
+  >();
   let keys: Keys | null = null;
   let route = "";
   let watched: readonly string[] = [];
@@ -620,26 +995,46 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   const registering = new Map<string, Array<(s: 200 | 409) => void>>();
   const sendWatch = (): void => {
     if (!control || control.readyState !== 1 || !connected) return;
-    for (const loc of watched) { try { control.send(JSON.stringify({ t: "signin.watch", loc })); } catch { /* closing */ } }
+    for (const loc of watched) {
+      try {
+        control.send(JSON.stringify({ t: "signin.watch", loc }));
+      } catch {
+        /* closing */
+      }
+    }
   };
-  const state = (s: RelayState): void => { connected = s === "healthy"; o.onState({ state: s, ...(rtt !== undefined ? { rttMs: rtt } : {}), at: Date.now() }); };
+  const state = (s: RelayState): void => {
+    connected = s === "healthy";
+    o.onState({ state: s, ...(rtt !== undefined ? { rttMs: rtt } : {}), at: Date.now() });
+  };
 
   function connect(): void {
     if (stopped || !keys) return;
     const k = keys;
     const ws = new WS(`${base}/v1/box?route=${route}`);
     control = ws;
-    let missed = 0, settled = false;
+    let missed = 0,
+      settled = false;
     const dial = setTimeout(() => gone(1006, "dial timed out"), DIAL_MS);
     const gone = (code: number, reason: string): void => {
       if (settled) return;
       settled = true;
       clearTimeout(dial);
-      try { ws.close(); } catch { /* closed */ }
+      try {
+        ws.close();
+      } catch {
+        /* closed */
+      }
       if (control !== ws) return;
       control = null;
       if (pinger) clearInterval(pinger);
-      for (const d of data.values()) { try { d.close(1000, "relay link ended"); } catch { /* closed */ } }
+      for (const d of data.values()) {
+        try {
+          d.close(1000, "relay link ended");
+        } catch {
+          /* closed */
+        }
+      }
       data.clear();
       if (connected) log(`relay: control link closed (code ${code}${reason ? `, "${reason.slice(0, 80)}"` : ""})`);
       state("down");
@@ -651,13 +1046,27 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
     };
     ws.onmessage = (e: MessageEvent) => {
       if (typeof e.data !== "string") return;
-      if (e.data === "pong") { missed = 0; rtt = Date.now() - lastPingAt; state("healthy"); return; }
+      if (e.data === "pong") {
+        missed = 0;
+        rtt = Date.now() - lastPingAt;
+        state("healthy");
+        return;
+      }
       let m: { t?: string; n?: string; ticket?: string; waiting?: unknown; c?: string };
-      try { m = JSON.parse(e.data) as typeof m; } catch { return; }
+      try {
+        m = JSON.parse(e.data) as typeof m;
+      } catch {
+        return;
+      }
       if (m.t === "challenge") {
         const msg = concat(utf8(`vyre-relay-box-v1\n${route}\n`), fromB64u(String(m.n)));
         let sig: string;
-        try { sig = ed25519Sign(k.routeSeed, msg); } catch (err) { log(`relay: could not sign the challenge: ${(err as Error).message}`); return; }
+        try {
+          sig = ed25519Sign(k.routeSeed, msg);
+        } catch (err) {
+          log(`relay: could not sign the challenge: ${(err as Error).message}`);
+          return;
+        }
         if (ws === control) ws.send(JSON.stringify({ t: "auth", pub: b64u(k.routePub), sig }));
       } else if (m.t === "ready") {
         clearTimeout(dial);
@@ -666,18 +1075,40 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         state("healthy");
         if (pinger) clearInterval(pinger);
         pinger = setInterval(() => {
-          if (++missed > 2) { log("relay: no answer to two pings; reconnecting"); try { ws.close(4000, "stale"); } catch { /* closed */ } return; }
+          if (++missed > 2) {
+            log("relay: no answer to two pings; reconnecting");
+            try {
+              ws.close(4000, "stale");
+            } catch {
+              /* closed */
+            }
+            return;
+          }
           lastPingAt = Date.now();
-          try { ws.send("ping"); } catch { /* closing */ }
+          try {
+            ws.send("ping");
+          } catch {
+            /* closing */
+          }
         }, pingMs);
         pinger.unref?.();
         lastPingAt = Date.now();
-        try { ws.send("ping"); } catch { /* closing */ }
+        try {
+          ws.send("ping");
+        } catch {
+          /* closing */
+        }
         for (const c of Array.isArray(m.waiting) ? m.waiting : []) openData(String(c));
         sendWatch();
       } else if (m.t === "signin.ask") {
         const a = m as unknown as { loc?: unknown; s?: unknown };
-        if (typeof a.loc === "string" && typeof a.s === "string" && watched.includes(a.loc)) { try { o.onSigninAsk?.(a.loc, a.s); } catch { /* the asker gets nothing */ } }
+        if (typeof a.loc === "string" && typeof a.s === "string" && watched.includes(a.loc)) {
+          try {
+            o.onSigninAsk?.(a.loc, a.s);
+          } catch {
+            /* the asker gets nothing */
+          }
+        }
       } else if (m.t === "registered") {
         const r = m as unknown as { loc?: unknown; status?: unknown };
         const q = registering.get(String(r.loc));
@@ -687,10 +1118,19 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         const r = m as unknown as HostReply;
         const waiting = asking.get(String(r.op));
         const next = waiting?.shift();
-        if (next) next({ op: String(r.op), status: String(r.status), ...(typeof r.name === "string" ? { name: r.name } : {}), ...(typeof r.label === "string" ? { label: r.label } : {}) });
+        if (next)
+          next({
+            op: String(r.op),
+            status: String(r.status),
+            ...(typeof r.name === "string" ? { name: r.name } : {}),
+            ...(typeof r.label === "string" ? { label: r.label } : {}),
+          });
       } else if (m.t === "p.req" || m.t === "p.body") onPublic(ws, m as unknown as Record<string, unknown>);
       else if (m.t === "open") openData(String(m.c));
-      else if (m.t === "close") { data.get(String(m.c))?.close(1000); data.delete(String(m.c)); }
+      else if (m.t === "close") {
+        data.get(String(m.c))?.close(1000);
+        data.delete(String(m.c));
+      }
     };
     ws.onclose = (e: CloseEvent) => gone(e.code, e.reason);
     ws.onerror = () => gone(1006, "could not reach the relay");
@@ -698,9 +1138,21 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
 
   function onPublic(ws: WebSocket, m: Record<string, unknown>): void {
     const id = String(m["id"]);
-    const send = (v: unknown): void => { try { ws.send(JSON.stringify(v)); } catch { /* the link ended; the relay ends the request */ } };
+    const send = (v: unknown): void => {
+      try {
+        ws.send(JSON.stringify(v));
+      } catch {
+        /* the link ended; the relay ends the request */
+      }
+    };
     if (m["t"] === "p.req") {
-      const head = { id, method: String(m["method"]), path: String(m["path"]), ip: String(m["ip"] ?? ""), headers: m["headers"] };
+      const head = {
+        id,
+        method: String(m["method"]),
+        path: String(m["path"]),
+        ip: String(m["ip"] ?? ""),
+        headers: m["headers"],
+      };
       if (m["more"] === true) publicIn.set(id, { head, chunks: [] });
       else servePublic(send, head, EMPTY, o.localPort());
       return;
@@ -714,12 +1166,21 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   }
 
   /** A hello that the box key did not open, tried against each open invite's key. */
-  async function openInvite(k: Keys, prologue: Uint8Array, bytes: Uint8Array): Promise<{ hs: Responder; hash: string } | null> {
+  async function openInvite(
+    k: Keys,
+    prologue: Uint8Array,
+    bytes: Uint8Array,
+  ): Promise<{ hs: Responder; hash: string } | null> {
     for (const hash of (o.invites?.() ?? []).slice(0, INVITE_TRIES)) {
       if (!/^[A-Za-z0-9_+/=-]{16,128}$/.test(hash)) continue;
       const key = await inviteKeyOf(k.boxPriv, hash);
       const hs = new Responder({ priv: key.priv, pub: fromB64u(key.pub) }, prologue);
-      try { await hs.readMessage(bytes); return { hs, hash }; } catch { /* not this one */ }
+      try {
+        await hs.readMessage(bytes);
+        return { hs, hash };
+      } catch {
+        /* not this one */
+      }
     }
     return null;
   }
@@ -731,8 +1192,20 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
     ws.binaryType = "arraybuffer";
     data.set(c, ws);
     const transport = {
-      send: (b: Uint8Array): void => { try { ws.send(b); } catch { /* closing */ } },
-      close: (code: number, reason: string): void => { try { ws.close(code === 1000 || (code >= 3000 && code <= 4999) ? code : 4000, reason.slice(0, 120)); } catch { /* closed */ } },
+      send: (b: Uint8Array): void => {
+        try {
+          ws.send(b);
+        } catch {
+          /* closing */
+        }
+      },
+      close: (code: number, reason: string): void => {
+        try {
+          ws.close(code === 1000 || (code >= 3000 && code <= 4999) ? code : 4000, reason.slice(0, 120));
+        } catch {
+          /* closed */
+        }
+      },
     };
     const prologue = utf8(`vyre-relay-v1\n${route}`);
     let hs = new Responder({ priv: k.boxPriv, pub: k.boxPub }, prologue);
@@ -743,28 +1216,46 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
     ws.onmessage = (e: MessageEvent) => {
       if (typeof e.data === "string") return;
       const bytes = new Uint8Array(e.data as ArrayBuffer).slice();
-      q = q.then(async () => {
-        if (channel) { channel.receive(bytes); return; }
-        if (started) { transport.close(4400, "frame before the handshake finished"); return; }
-        started = true;
-        try {
-          try { await hs.readMessage(bytes); }   // the device's hello; who it is, is decided per request by the gateway's own token check
-          catch (e) {
-            // not the box key: one of the open invites' keys, or nothing
-            const opened = await openInvite(k, prologue, bytes);
-            if (!opened) throw e;
-            hs = opened.hs;
-            const hash = opened.hash;
-            scope = { open: () => (o.invites?.() ?? []).includes(hash), boxKey: b64u(k.boxPub) };
+      q = q
+        .then(async () => {
+          if (channel) {
+            channel.receive(bytes);
+            return;
           }
-          const m2 = await hs.writeMessage(utf8(JSON.stringify({ ok: true, v: 1, ...(scope ? { invite: true } : {}) })));
-          transport.send(m2);
-        } catch { transport.close(4401, "refused"); return; }
-        const sc = scope;
-        channel = new Channel(transport, hs.send!, hs.recv!, (s, ch) => serveStream(s, ch, o.localPort(), sc));
-      }).catch(() => {});
+          if (started) {
+            transport.close(4400, "frame before the handshake finished");
+            return;
+          }
+          started = true;
+          try {
+            try {
+              await hs.readMessage(bytes);
+            } catch (e) {
+              // the device's hello; who it is, is decided per request by the gateway's own token check
+              // not the box key: one of the open invites' keys, or nothing
+              const opened = await openInvite(k, prologue, bytes);
+              if (!opened) throw e;
+              hs = opened.hs;
+              const hash = opened.hash;
+              scope = { open: () => (o.invites?.() ?? []).includes(hash), boxKey: b64u(k.boxPub) };
+            }
+            const m2 = await hs.writeMessage(
+              utf8(JSON.stringify({ ok: true, v: 1, ...(scope ? { invite: true } : {}) })),
+            );
+            transport.send(m2);
+          } catch {
+            transport.close(4401, "refused");
+            return;
+          }
+          const sc = scope;
+          channel = new Channel(transport, hs.send!, hs.recv!, (s, ch) => serveStream(s, ch, o.localPort(), sc));
+        })
+        .catch(() => {});
     };
-    const end = (): void => { if (data.get(c) === ws) data.delete(c); channel?.close(1000, "relay closed the connection"); };
+    const end = (): void => {
+      if (data.get(c) === ws) data.delete(c);
+      channel?.close(1000, "relay closed the connection");
+    };
     ws.onclose = end;
     ws.onerror = end;
   }
@@ -783,14 +1274,29 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
     const unavailable: HostReply = { op, status: "unavailable" };
     return new Promise((resolve) => {
       let settled = false;
-      const done = (r: HostReply): void => { if (settled) return; settled = true; clearTimeout(timer); clearInterval(poll); const q = asking.get(op); if (q) { const i = q.indexOf(done); if (i >= 0) q.splice(i, 1); } resolve(r); };
+      const done = (r: HostReply): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearInterval(poll);
+        const q = asking.get(op);
+        if (q) {
+          const i = q.indexOf(done);
+          if (i >= 0) q.splice(i, 1);
+        }
+        resolve(r);
+      };
       const timer = setTimeout(() => done(unavailable), HOST_WAIT_MS);
       let sent = false;
       const trySend = (): void => {
         if (sent || stopped || !control || control.readyState !== 1 || !connected) return;
         sent = true;
         asking.set(op, [...(asking.get(op) ?? []), done]);
-        try { control.send(JSON.stringify({ t: `host.${op}`, ...extra })); } catch { done(unavailable); }
+        try {
+          control.send(JSON.stringify({ t: `host.${op}`, ...extra }));
+        } catch {
+          done(unavailable);
+        }
       };
       const poll = setInterval(trySend, 100);
       poll.unref?.();
@@ -804,32 +1310,73 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       claim: (name, label) => askHost("claim", { name, label }),
       release: () => askHost("release", {}),
       status: () => askHost("status", {}),
-      members: (list, selfKind) => askHost("members", { selfKind: selfKind ?? "computer", members: list.map((m) => ({ route: m.route, label: m.label, ...(m.kind === "server" ? { kind: "server" } : {}) })) }),
+      members: (list, selfKind) =>
+        askHost("members", {
+          selfKind: selfKind ?? "computer",
+          members: list.map((m) => ({
+            route: m.route,
+            label: m.label,
+            ...(m.kind === "server" ? { kind: "server" } : {}),
+          })),
+        }),
     },
     watch(locs) {
       watched = [...new Set(locs)].filter((l) => /^[A-Za-z0-9_-]{43}$/.test(l)).slice(0, 8);
       sendWatch();
-      if (!watchTimer && watched.length) { watchTimer = setInterval(sendWatch, WATCH_RENEW_MS); watchTimer.unref?.(); }
+      if (!watchTimer && watched.length) {
+        watchTimer = setInterval(sendWatch, WATCH_RENEW_MS);
+        watchTimer.unref?.();
+      }
     },
     ticket(t) {
       return new Promise((resolve) => {
-        if (!control || control.readyState !== 1 || !connected) { resolve("unavailable"); return; }
+        if (!control || control.readyState !== 1 || !connected) {
+          resolve("unavailable");
+          return;
+        }
         let settled = false;
-        const done = (st: 200 | 409 | "unavailable"): void => { if (settled) return; settled = true; clearTimeout(timer); const q = registering.get(t.loc); if (q) { const i = q.indexOf(done); if (i >= 0) q.splice(i, 1); if (!q.length) registering.delete(t.loc); } resolve(st); };
+        const done = (st: 200 | 409 | "unavailable"): void => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          const q = registering.get(t.loc);
+          if (q) {
+            const i = q.indexOf(done);
+            if (i >= 0) q.splice(i, 1);
+            if (!q.length) registering.delete(t.loc);
+          }
+          resolve(st);
+        };
         const timer = setTimeout(() => done("unavailable"), 5_000);
         registering.set(t.loc, [...(registering.get(t.loc) ?? []), done]);
-        try { control.send(JSON.stringify({ t: "ticket", loc: t.loc, record: t.record, mac: t.mac, exp: t.exp })); } catch { done("unavailable"); }
+        try {
+          control.send(JSON.stringify({ t: "ticket", loc: t.loc, record: t.record, mac: t.mac, exp: t.exp }));
+        } catch {
+          done("unavailable");
+        }
       });
     },
-    get open() { return data.size; },
+    get open() {
+      return data.size;
+    },
     stop() {
       stopped = true;
       if (watchTimer) clearInterval(watchTimer);
       if (retry) clearTimeout(retry);
       if (pinger) clearInterval(pinger);
-      for (const d of data.values()) { try { d.close(1000, "node stopping"); } catch { /* closed */ } }
+      for (const d of data.values()) {
+        try {
+          d.close(1000, "node stopping");
+        } catch {
+          /* closed */
+        }
+      }
       data.clear();
-      try { control?.close(1000, "node stopping"); } catch { /* closed */ }
+      try {
+        control?.close(1000, "node stopping");
+      } catch {
+        /* closed */
+      }
       control = null;
     },
   };

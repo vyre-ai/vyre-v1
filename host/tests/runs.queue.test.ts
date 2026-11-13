@@ -7,17 +7,28 @@ import { createRunsHost, MAX_DRIVES } from "../src/seams/runs.ts";
 function rig() {
   const started: string[] = [];
   const release = new Map<string, () => void>();
-  let active = 0, peak = 0;
+  let active = 0,
+    peak = 0;
   const call = (name: string, input: unknown): Promise<unknown> => {
     if (name === "runs.interrupted") return Promise.resolve(["run_old1", "run_old2"]);
     if (name !== "runs.drive_run") return Promise.resolve([]);
     const id = (input as { runId: string }).runId;
     started.push(id);
-    active += 1; peak = Math.max(peak, active);
-    return new Promise((resolve) => release.set(id, () => { active -= 1; resolve("ok"); }));
+    active += 1;
+    peak = Math.max(peak, active);
+    return new Promise((resolve) =>
+      release.set(id, () => {
+        active -= 1;
+        resolve("ok");
+      }),
+    );
   };
   const host = createRunsHost({ call });
-  const finish = async (id: string): Promise<void> => { release.get(id)?.(); release.delete(id); await new Promise((r) => setTimeout(r, 0)); };
+  const finish = async (id: string): Promise<void> => {
+    release.get(id)?.();
+    release.delete(id);
+    await new Promise((r) => setTimeout(r, 0));
+  };
   return { host, started, finish, peak: () => peak };
 }
 
@@ -55,17 +66,30 @@ test("recover queues what the last server left, and shutdown does not wait for e
 });
 
 test("a step denied because its person was removed or suspended fails the Run with the catalogued code and the reason, whatever the step's own error rule says", async () => {
-  const denied = (reason: string, code: string) => Promise.reject({ error: { code, message: "denied", retryable: true, details: { reason } } });
-  for (const [reason, code] of [["not_a_member", "auth.unauthenticated"], ["suspended", "permission.suspended"], ["revoked", "permission.revoked"]] as const) {
+  const denied = (reason: string, code: string) =>
+    Promise.reject({ error: { code, message: "denied", retryable: true, details: { reason } } });
+  for (const [reason, code] of [
+    ["not_a_member", "auth.unauthenticated"],
+    ["suspended", "permission.suspended"],
+    ["revoked", "permission.revoked"],
+  ] as const) {
     const host = createRunsHost({
       call: (name) => {
-        if (name === "automations.run_plan") return Promise.resolve({ link: { principal: { kind: "person", id: "usr_noah" }, automationId: "aut_1" }, definition: { nodes: [{ id: "a", key: "records.create", input: {}, onError: { mode: "continue" } }] } });
+        if (name === "automations.run_plan")
+          return Promise.resolve({
+            link: { principal: { kind: "person", id: "usr_noah" }, automationId: "aut_1" },
+            definition: { nodes: [{ id: "a", key: "records.create", input: {}, onError: { mode: "continue" } }] },
+          });
         return denied(reason, code);
       },
     });
     const r = await host.resolve({ id: "run_1" });
     assert.ok(r);
-    await assert.rejects(r.exec({ id: "a" }, { attempt: 1, key: "k" } as never), (e: { error?: { code?: string; details?: { reason?: string }; retryable?: boolean } }) =>
-      e.error?.code === code && e.error?.details?.reason === reason && e.error?.retryable === false, `${reason} is refused, not swallowed by "continue"`);
+    await assert.rejects(
+      r.exec({ id: "a" }, { attempt: 1, key: "k" } as never),
+      (e: { error?: { code?: string; details?: { reason?: string }; retryable?: boolean } }) =>
+        e.error?.code === code && e.error?.details?.reason === reason && e.error?.retryable === false,
+      `${reason} is refused, not swallowed by "continue"`,
+    );
   }
 });

@@ -133,7 +133,12 @@ export function planData(data: unknown): PlanData {
       ...(typeof detail === "string" ? { detail } : {}),
     };
   });
-  return { title: str(d["title"], "Plan"), state: str(d["state"], "proposed"), steps, hasDoc: str(d["docFileId"]) !== "" };
+  return {
+    title: str(d["title"], "Plan"),
+    state: str(d["state"], "proposed"),
+    steps,
+    hasDoc: str(d["docFileId"]) !== "",
+  };
 }
 
 export interface DeployData {
@@ -169,7 +174,12 @@ export interface MountData {
 export function mountData(data: unknown): MountData {
   const d = rec(data);
   const lag = d["lagSeconds"];
-  return { name: str(d["name"], "Folder"), provider: str(d["provider"], "a connected account"), state: str(d["state"], "synced"), lagSeconds: typeof lag === "number" ? lag : undefined };
+  return {
+    name: str(d["name"], "Folder"),
+    provider: str(d["provider"], "a connected account"),
+    state: str(d["state"], "synced"),
+    lagSeconds: typeof lag === "number" ? lag : undefined,
+  };
 }
 
 export interface RecordCardData {
@@ -186,5 +196,11 @@ export function recordCardData(data: unknown): RecordCardData {
     const r = rec(f);
     return { key: str(r["key"]), title: str(r["title"]), value: r["value"] };
   });
-  return { title: str(d["title"], "Record"), type: str(d["type"]), status: str(d["status"]), summary: str(d["summary"]), fields };
+  return {
+    title: str(d["title"], "Record"),
+    type: str(d["type"]),
+    status: str(d["status"]),
+    summary: str(d["summary"]),
+    fields,
+  };
 }

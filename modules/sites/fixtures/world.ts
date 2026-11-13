@@ -11,8 +11,16 @@ import { fakeDrivers } from "./fakes.ts";
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Emitted { name: string; subject: string; payload: unknown }
-export interface Filled { handle: string; kind: string; ref: string }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface Filled {
+  handle: string;
+  kind: string;
+  ref: string;
+}
 
 export function harness(o: { principal?: string; now?: number } = {}) {
   const db = new MemoryDb();
@@ -47,11 +55,20 @@ export function harness(o: { principal?: string; now?: number } = {}) {
     },
     async call(cap, input) {
       calls.push({ cap, input });
-      if (cap === "files.tree") return { roots: [{ key: "deployments", title: "Deployments", kind: "folder", folderId: "fld_deployments", count: 0 }] };
+      if (cap === "files.tree")
+        return {
+          roots: [{ key: "deployments", title: "Deployments", kind: "folder", folderId: "fld_deployments", count: 0 }],
+        };
       if (cap === "files.folder.create") {
         const inp = input as { name: string };
         if (folders.has(inp.name)) {
-          throw new VyreErr({ code: "validation.duplicate", message: "That name is already in this folder.", retryable: false, traceId: TRACE, next: [{ kind: "edit_input", label: "Fix the input" }] });
+          throw new VyreErr({
+            code: "validation.duplicate",
+            message: "That name is already in this folder.",
+            retryable: false,
+            traceId: TRACE,
+            next: [{ kind: "edit_input", label: "Fix the input" }],
+          });
         }
         folders.add(inp.name);
         seq += 1;
@@ -84,7 +101,9 @@ export function harness(o: { principal?: string; now?: number } = {}) {
     log: {
       debug() {},
       info() {},
-      warn(msg: string) { warnings.push(msg); },
+      warn(msg: string) {
+        warnings.push(msg);
+      },
       error() {},
     },
     schedule: async () => "sch_1",
@@ -92,10 +111,25 @@ export function harness(o: { principal?: string; now?: number } = {}) {
   };
 
   return {
-    ctx, db, events, filled, calls, warnings, granted, hidden, levelFor, ...fakes,
-    advance(ms: number) { clock += ms; },
-    names(): string[] { return events.map((e) => e.name); },
-    as(principal: string): Ctx { return { ...ctx, principal: { kind: "person", id: principal } }; },
+    ctx,
+    db,
+    events,
+    filled,
+    calls,
+    warnings,
+    granted,
+    hidden,
+    levelFor,
+    ...fakes,
+    advance(ms: number) {
+      clock += ms;
+    },
+    names(): string[] {
+      return events.map((e) => e.name);
+    },
+    as(principal: string): Ctx {
+      return { ...ctx, principal: { kind: "person", id: principal } };
+    },
   };
 }
 

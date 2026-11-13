@@ -6,11 +6,14 @@ import { each } from "./each.ts";
 export const SKELETON_ROWS = 8;
 
 export function SkeletonRows({ rows = SKELETON_ROWS }: { rows?: number }) {
-  const bars = each(Array.from({ length: rows }, (_, i) => i), (i) => (
-    <View key={i} style={styles.row}>
-      <View style={[styles.bar, { width: `${70 - (i % 4) * 11}%` }]} />
-    </View>
-  ));
+  const bars = each(
+    Array.from({ length: rows }, (_, i) => i),
+    (i) => (
+      <View key={i} style={styles.row}>
+        <View style={[styles.bar, { width: `${70 - (i % 4) * 11}%` }]} />
+      </View>
+    ),
+  );
   return (
     <View accessibilityLabel="Loading" accessibilityState={{ busy: true }} testID="kit-skeleton" style={styles.fill}>
       {bars}

@@ -85,7 +85,11 @@ export function loadBudgets(): Budget[] {
 }
 
 /** Primary ceiling when metric and machine match, otherwise a named `also` ceiling. */
-export function limitFor(budget: Budget, metric: string, machine = budget.machine): { p95: number; sense: Sense } | null {
+export function limitFor(
+  budget: Budget,
+  metric: string,
+  machine = budget.machine,
+): { p95: number; sense: Sense } | null {
   if (budget.metric === metric && budget.machine === machine) return { p95: budget.p95, sense: budget.sense };
   const extra = budget.also?.find((row) => row.metric === metric && (row.machine ?? budget.machine) === machine);
   if (!extra) return null;

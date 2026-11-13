@@ -11,23 +11,54 @@ import { registry } from "../generated/registry.ts";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 type Schema = { $ref?: string; properties?: Record<string, unknown>; required?: string[] };
 const defs = (registry as unknown as { $defs: Record<string, Schema> }).$defs;
-const resolve = (s: Schema): Schema => { let x = s; while (x.$ref) x = defs[x.$ref.split("/").pop()!]!; return x; };
+const resolve = (s: Schema): Schema => {
+  let x = s;
+  while (x.$ref) x = defs[x.$ref.split("/").pop()!]!;
+  return x;
+};
 const inputs = new Map(registry.capabilities.map((c) => [c.name, resolve(c.input as Schema)]));
 
 /** The doors that send the input as written: no wrapper adds a field on the way. */
-const DOOR = /\b(?:data\.call|rt\.call|action\.run|ctx\.call)\(\s*["']([a-z][a-z0-9_-]*(?:\.[a-z0-9_]+)+)["']\s*,\s*\{/g;
+const DOOR =
+  /\b(?:data\.call|rt\.call|action\.run|ctx\.call)\(\s*["']([a-z][a-z0-9_-]*(?:\.[a-z0-9_]+)+)["']\s*,\s*\{/g;
 
 /** Blank out comments and string bodies, keeping offsets, so braces and keys are read from code only. */
 export function codeOnly(src: string): string {
   let out = "";
   for (let i = 0; i < src.length; i++) {
-    const c = src[i]!, n = src[i + 1];
-    if (c === "/" && n === "/") { while (i < src.length && src[i] !== "\n") { out += " "; i++; } out += "\n"; continue; }
-    if (c === "/" && n === "*") { while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) { out += src[i] === "\n" ? "\n" : " "; i++; } out += "  "; i++; continue; }
+    const c = src[i]!,
+      n = src[i + 1];
+    if (c === "/" && n === "/") {
+      while (i < src.length && src[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      out += "\n";
+      continue;
+    }
+    if (c === "/" && n === "*") {
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) {
+        out += src[i] === "\n" ? "\n" : " ";
+        i++;
+      }
+      out += "  ";
+      i++;
+      continue;
+    }
     if (c === '"' || c === "'" || c === "`") {
-      out += c; i++;
-      while (i < src.length && src[i] !== c) { if (src[i] === "\\") { out += "  "; i += 2; continue; } out += src[i] === "\n" ? "\n" : "_"; i++; }
-      out += c; continue;
+      out += c;
+      i++;
+      while (i < src.length && src[i] !== c) {
+        if (src[i] === "\\") {
+          out += "  ";
+          i += 2;
+          continue;
+        }
+        out += src[i] === "\n" ? "\n" : "_";
+        i++;
+      }
+      out += c;
+      continue;
     }
     out += c;
   }
@@ -37,17 +68,37 @@ export function codeOnly(src: string): string {
 /** The keys of the object literal that opens at `at` (just after its `{`), or null when it spreads something in (its keys cannot be read). */
 export function keysAt(code: string, at: number, raw: string = code): string[] | null {
   const keys: string[] = [];
-  let depth = 1, expectKey = true;
+  let depth = 1,
+    expectKey = true;
   for (let i = at; i < code.length && depth > 0; i++) {
     const c = code[i]!;
-    if ("{[(".includes(c)) { depth++; expectKey = false; continue; }
-    if ("}])".includes(c)) { depth--; continue; }
+    if ("{[(".includes(c)) {
+      depth++;
+      expectKey = false;
+      continue;
+    }
+    if ("}])".includes(c)) {
+      depth--;
+      continue;
+    }
     if (depth !== 1) continue;
-    if (c === ",") { expectKey = true; continue; }
+    if (c === ",") {
+      expectKey = true;
+      continue;
+    }
     if (!expectKey || /\s/.test(c)) continue;
     if (code.startsWith("...", i)) return null;
     const m = /^([A-Za-z_$][\w$]*)\s*(\??:|,|\})/.exec(code.slice(i));
-    if (m) { keys.push(m[1]!); i += m[1]!.length - 1; } else if (/^["']/.test(c)) { const q = /^(["'])([^"']*)\1\s*:/.exec(raw.slice(i)); if (q) { keys.push(q[2]!); i += q[0].length - 1; } }
+    if (m) {
+      keys.push(m[1]!);
+      i += m[1]!.length - 1;
+    } else if (/^["']/.test(c)) {
+      const q = /^(["'])([^"']*)\1\s*:/.exec(raw.slice(i));
+      if (q) {
+        keys.push(q[2]!);
+        i += q[0].length - 1;
+      }
+    }
     expectKey = false;
   }
   return keys;
@@ -65,9 +116,12 @@ function sources(): string[] {
 }
 
 test("the key reader takes code keys, skips nested ones, comments and strings, and gives up on a spread", () => {
-  const read = (s: string): string[] | null => { const c = codeOnly(s); return keysAt(c, c.indexOf("{") + 1, s); };
+  const read = (s: string): string[] | null => {
+    const c = codeOnly(s);
+    return keysAt(c, c.indexOf("{") + 1, s);
+  };
   assert.deepEqual(read('{ a: 1, b: { c: 2 }, "d": 3, e }'), ["a", "b", "d", "e"]);
-  assert.deepEqual(read("{ // kind: no\n kind: \"ask\", list: [{ x: 1 }] }"), ["kind", "list"]);
+  assert.deepEqual(read('{ // kind: no\n kind: "ask", list: [{ x: 1 }] }'), ["kind", "list"]);
   assert.equal(read("{ a: 1, ...rest }"), null);
 });
 
@@ -79,8 +133,10 @@ test("every call written out in full names every field its contract requires, an
     if (!/\b(?:data\.call|rt\.call|action\.run|ctx\.call)\(/.test(raw)) continue;
     for (const m of raw.matchAll(DOOR)) {
       // read from the call on: the call itself is code, so a quote earlier in the file (an apostrophe in JSX text) cannot shift what counts as a string
-      const from = raw.slice(m.index!, m.index! + 4000), code = codeOnly(from);
-      const cap = m[1]!, input = inputs.get(cap);
+      const from = raw.slice(m.index!, m.index! + 4000),
+        code = codeOnly(from);
+      const cap = m[1]!,
+        input = inputs.get(cap);
       if (!input?.properties) continue;
       const keys = keysAt(code, m[0].length, from);
       if (keys === null) continue;

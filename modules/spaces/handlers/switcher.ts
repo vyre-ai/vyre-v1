@@ -6,7 +6,9 @@ const ok = { ok: true } as const;
 
 export async function switcher(ctx: SpacesCtx, _input: Record<string, never>) {
   const person = me(ctx);
-  const row = ctx.db.all(`SELECT name, logo_file_id, kind FROM spaces_profile WHERE id = ?`, ctx.space)[0] as { name: string; logo_file_id: string | null; kind: "personal" | "team" } | undefined;
+  const row = ctx.db.all(`SELECT name, logo_file_id, kind FROM spaces_profile WHERE id = ?`, ctx.space)[0] as
+    | { name: string; logo_file_id: string | null; kind: "personal" | "team" }
+    | undefined;
   if (!row) raise(ctx.trace.traceId, "validation.not_found", "this Space has no profile yet");
   const a = (await ctx.attention?.of(person)) ?? { needsYou: 0, unread: 0 };
   return {
@@ -28,7 +30,8 @@ export async function onboardingGet(ctx: SpacesCtx, _input: Record<string, never
 
 export async function onboardingComplete(ctx: SpacesCtx, input: { step: Step }) {
   const person = me(ctx);
-  if (!STEPS.some((s) => s.key === input.step)) raise(ctx.trace.traceId, "validation.bad_input", "unknown checklist step");
+  if (!STEPS.some((s) => s.key === input.step))
+    raise(ctx.trace.traceId, "validation.bad_input", "unknown checklist step");
   completeStep(ctx, person, input.step);
   return ok;
 }
@@ -52,23 +55,50 @@ function flowOf(ctx: SpacesCtx, flow: string): string {
 export async function onboardingFlow(ctx: SpacesCtx, input: { flow: string }) {
   const person = me(ctx);
   const flow = flowOf(ctx, input.flow);
-  const rows = ctx.db.all(`SELECT step, state, at FROM spaces_onboarding_flow WHERE person = ? AND flow = ? ORDER BY at`, person, flow) as { step: string; state: "done" | "later" }[];
-  const seen = ctx.db.all(`SELECT at FROM spaces_onboarding_seen WHERE person = ? AND flow = ?`, person, flow).length > 0;
+  const rows = ctx.db.all(
+    `SELECT step, state, at FROM spaces_onboarding_flow WHERE person = ? AND flow = ? ORDER BY at`,
+    person,
+    flow,
+  ) as { step: string; state: "done" | "later" }[];
+  const seen =
+    ctx.db.all(`SELECT at FROM spaces_onboarding_seen WHERE person = ? AND flow = ?`, person, flow).length > 0;
   return { seen, steps: rows.map((r) => ({ key: r.step, state: r.state })) };
 }
 
-export async function onboardingMark(ctx: SpacesCtx, input: { flow: string; step: string; state: "done" | "later" | "open" }) {
+export async function onboardingMark(
+  ctx: SpacesCtx,
+  input: { flow: string; step: string; state: "done" | "later" | "open" },
+) {
   const person = me(ctx);
   const flow = flowOf(ctx, input.flow);
   if (!STEP_KEY.test(input.step)) raise(ctx.trace.traceId, "validation.bad_input", "unknown onboarding step");
-  if (input.state === "open") ctx.db.run(`DELETE FROM spaces_onboarding_flow WHERE person = ? AND flow = ? AND step = ?`, person, flow, input.step);
-  else ctx.db.run(`INSERT OR REPLACE INTO spaces_onboarding_flow (person, flow, step, state, at) VALUES (?, ?, ?, ?, ?)`, person, flow, input.step, input.state, ctx.now());
+  if (input.state === "open")
+    ctx.db.run(
+      `DELETE FROM spaces_onboarding_flow WHERE person = ? AND flow = ? AND step = ?`,
+      person,
+      flow,
+      input.step,
+    );
+  else
+    ctx.db.run(
+      `INSERT OR REPLACE INTO spaces_onboarding_flow (person, flow, step, state, at) VALUES (?, ?, ?, ?, ?)`,
+      person,
+      flow,
+      input.step,
+      input.state,
+      ctx.now(),
+    );
   return ok;
 }
 
 export async function onboardingSeen(ctx: SpacesCtx, input: { flow: string }) {
   const person = me(ctx);
   const flow = flowOf(ctx, input.flow);
-  ctx.db.run(`INSERT OR REPLACE INTO spaces_onboarding_seen (person, flow, at) VALUES (?, ?, ?)`, person, flow, ctx.now());
+  ctx.db.run(
+    `INSERT OR REPLACE INTO spaces_onboarding_seen (person, flow, at) VALUES (?, ?, ?)`,
+    person,
+    flow,
+    ctx.now(),
+  );
   return ok;
 }

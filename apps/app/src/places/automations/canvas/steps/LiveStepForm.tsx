@@ -6,7 +6,14 @@ import { AiForm, CodeForm, HttpForm } from "./StepForms.tsx";
 import type { OpenMenu } from "./StepForms.tsx";
 import { useAgentPicks, useVaultPicks, useWhoPicks } from "./useLists.ts";
 
-interface Props { def: Definition; node: DefNode; onChange(next: Definition): void; openMenu: OpenMenu; kind: "personal" | "space"; keys: readonly KeyChoice[] }
+interface Props {
+  def: Definition;
+  node: DefNode;
+  onChange(next: Definition): void;
+  openMenu: OpenMenu;
+  kind: "personal" | "space";
+  keys: readonly KeyChoice[];
+}
 
 function Http(p: Props): ReactElement {
   const vault = useVaultPicks();
@@ -18,7 +25,20 @@ function Ai(p: Props): ReactElement {
   const who = useWhoPicks();
   const auto = useOptionalAutomationsData();
   const me = auto?.me ?? { id: "", name: "You" };
-  return <AiForm def={p.def} node={p.node} onChange={p.onChange} openMenu={p.openMenu} kind={p.kind} keys={p.keys} agents={agents} who={who} me={me} {...(auto ? { lookup: auto.name } : {})} />;
+  return (
+    <AiForm
+      def={p.def}
+      node={p.node}
+      onChange={p.onChange}
+      openMenu={p.openMenu}
+      kind={p.kind}
+      keys={p.keys}
+      agents={agents}
+      who={who}
+      me={me}
+      {...(auto ? { lookup: auto.name } : {})}
+    />
+  );
 }
 
 export function LiveStepForm(p: Props): ReactElement | null {

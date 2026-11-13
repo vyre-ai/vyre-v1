@@ -12,7 +12,11 @@ function bin(names: string[]): { dir: string; env: { PATH: string } } {
   for (const n of names) fs.writeFileSync(path.join(dir, n), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   return { dir, env: { PATH: dir } };
 }
-const bwrap = (dir: string): string => { const f = path.join(dir, "bwrap"); fs.writeFileSync(f, "#!/bin/sh\n", { mode: 0o755 }); return f; };
+const bwrap = (dir: string): string => {
+  const f = path.join(dir, "bwrap");
+  fs.writeFileSync(f, "#!/bin/sh\n", { mode: 0o755 });
+  return f;
+};
 
 test("the report finds Claude Code and Codex on the PATH and bubblewrap for the sandbox: nothing is missing", () => {
   const { dir, env } = bin(["claude", "codex"]);
@@ -26,29 +30,60 @@ test("the report says exactly what is missing, one sentence each", () => {
   const { env } = bin(["claude"]);
   const r = nodeCliReport({ platform: "linux", env, bwrapPaths: ["/nonexistent/bwrap"] });
   assert.equal(r.programs.codex, null);
-  assert.deepEqual(r.missing, ["codex is not installed on this server", "bubblewrap (bwrap) is not installed on this server"]);
-  assert.deepEqual(nodeCliReport({ platform: "darwin", env: bin(["claude", "codex"]).env }).missing, [], "a Mac sandboxes with Seatbelt");
+  assert.deepEqual(r.missing, [
+    "codex is not installed on this server",
+    "bubblewrap (bwrap) is not installed on this server",
+  ]);
+  assert.deepEqual(
+    nodeCliReport({ platform: "darwin", env: bin(["claude", "codex"]).env }).missing,
+    [],
+    "a Mac sandboxes with Seatbelt",
+  );
   // Windows: this computer's engines serve Team Space turns, which run in Vyre's WSL2 Linux (B): the Linux builds, offered only when WSL is on (it is not, on this test computer)
   const win = nodeCliReport({ platform: "win32", env: bin(["claude.exe", "codex.exe"]).env });
   assert.equal(win.sandbox.kind, "wsl");
   assert.equal(win.sandbox.ok, false, "no WSL here: no Team engine, so Automatic runs the turn on the server");
   assert.match(win.sandbox.reason ?? "", /WSL is not turned on/);
-  assert.deepEqual([win.programs.claude, win.programs.codex], [null, null], "a Windows claude.exe cannot run in the VM");
+  assert.deepEqual(
+    [win.programs.claude, win.programs.codex],
+    [null, null],
+    "a Windows claude.exe cannot run in the VM",
+  );
 });
 
 test("the launcher refuses a missing engine or sandbox with the reason, and starts a found engine only inside the sandbox", async () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-cli-data-"));
   const started: string[] = [];
-  const spawn = async (spec: { argv: readonly string[] }): Promise<never> => { started.push(spec.argv.join(" ")); return {} as never; };
+  const spawn = async (spec: { argv: readonly string[] }): Promise<never> => {
+    started.push(spec.argv.join(" "));
+    return {} as never;
+  };
   const none = bin([]);
-  const missingProgram = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn });
-  await assert.rejects(() => missingProgram.spawn({ argv: ["claude", "-p"], env: {} }), (e) => (e as { code?: string }).code === "engine.cli_missing" && /claude is not installed on this server/.test((e as Error).message));
+  const missingProgram = nodeCliLauncher(dataDir, {
+    probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] },
+    spawn,
+  });
+  await assert.rejects(
+    () => missingProgram.spawn({ argv: ["claude", "-p"], env: {} }),
+    (e) =>
+      (e as { code?: string }).code === "engine.cli_missing" &&
+      /claude is not installed on this server/.test((e as Error).message),
+  );
   const noBwrap = bin(["claude"]);
-  const missingSandbox = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: noBwrap.env, bwrapPaths: ["/nonexistent/bwrap"] }, spawn });
-  await assert.rejects(() => missingSandbox.spawn({ argv: ["claude", "-p"], env: {} }), (e) => (e as { code?: string }).code === "sandbox.unavailable" && /bubblewrap/.test((e as Error).message));
+  const missingSandbox = nodeCliLauncher(dataDir, {
+    probe: { platform: "linux", env: noBwrap.env, bwrapPaths: ["/nonexistent/bwrap"] },
+    spawn,
+  });
+  await assert.rejects(
+    () => missingSandbox.spawn({ argv: ["claude", "-p"], env: {} }),
+    (e) => (e as { code?: string }).code === "sandbox.unavailable" && /bubblewrap/.test((e as Error).message),
+  );
   assert.deepEqual(started, [], "nothing started");
   const ok = bin(["claude"]);
-  await nodeCliLauncher(dataDir, { probe: { platform: "linux", env: ok.env, bwrapPaths: [bwrap(ok.dir)] }, spawn }).spawn({ argv: ["claude", "-p"], env: {} });
+  await nodeCliLauncher(dataDir, {
+    probe: { platform: "linux", env: ok.env, bwrapPaths: [bwrap(ok.dir)] },
+    spawn,
+  }).spawn({ argv: ["claude", "-p"], env: {} });
   assert.deepEqual(started, ["claude -p"]);
 });
 
@@ -57,21 +92,58 @@ test("a server whose image lacks an engine (Grok, or any on an older image) inst
   const root = path.join(dataDir, "engines");
   const started: string[] = [];
   const asked: string[] = [];
-  const spawn = async (spec: { argv: readonly string[] }): Promise<never> => { started.push(spec.argv.join(" ")); return {} as never; };
+  const spawn = async (spec: { argv: readonly string[] }): Promise<never> => {
+    started.push(spec.argv.join(" "));
+    return {} as never;
+  };
   const installer = {
-    root, supported: (p: string) => p !== "codex",
-    ensure: async (p: string) => { asked.push(p); const at = path.join(root, "grok", "1.0.70", "grok"); fs.mkdirSync(path.dirname(at), { recursive: true }); fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 }); return at; },
+    root,
+    supported: (p: string) => p !== "codex",
+    ensure: async (p: string) => {
+      asked.push(p);
+      const at = path.join(root, "grok", "1.0.70", "grok");
+      fs.mkdirSync(path.dirname(at), { recursive: true });
+      fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 });
+      return at;
+    },
   };
   const none = bin([]);
-  const node = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer });
+  const node = nodeCliLauncher(dataDir, {
+    probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] },
+    spawn,
+    installer,
+  });
   await node.spawn({ argv: ["grok", "-p"], env: {} });
   assert.deepEqual(asked, ["grok"]);
-  assert.deepEqual(started, [`${path.join(root, "grok", "1.0.70", "grok")} -p`], "bwrap's PATH never holds the engines folder, so the full path is started");
+  assert.deepEqual(
+    started,
+    [`${path.join(root, "grok", "1.0.70", "grok")} -p`],
+    "bwrap's PATH never holds the engines folder, so the full path is started",
+  );
   await node.spawn({ argv: ["grok", "-p"], env: {} });
   assert.deepEqual(asked, ["grok"], "installed once");
-  await assert.rejects(() => node.spawn({ argv: ["codex", "exec"], env: {} }), (e) => (e as { code?: string }).code === "engine.cli_missing" && /codex is not installed on this server\.$/.test((e as Error).message), "no build here: the plain reason");
-  const failing = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer: { root: path.join(dataDir, "other"), supported: () => true, ensure: async () => { throw Object.assign(new Error("x"), {}); } } });
-  await assert.rejects(() => failing.spawn({ argv: ["claude", "-p"], env: {} }), (e) => /claude is not installed on this server \(failed\)\./.test((e as Error).message));
+  await assert.rejects(
+    () => node.spawn({ argv: ["codex", "exec"], env: {} }),
+    (e) =>
+      (e as { code?: string }).code === "engine.cli_missing" &&
+      /codex is not installed on this server\.$/.test((e as Error).message),
+    "no build here: the plain reason",
+  );
+  const failing = nodeCliLauncher(dataDir, {
+    probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] },
+    spawn,
+    installer: {
+      root: path.join(dataDir, "other"),
+      supported: () => true,
+      ensure: async () => {
+        throw Object.assign(new Error("x"), {});
+      },
+    },
+  });
+  await assert.rejects(
+    () => failing.spawn({ argv: ["claude", "-p"], env: {} }),
+    (e) => /claude is not installed on this server \(failed\)\./.test((e as Error).message),
+  );
 });
 
 test("a turn the Space sends to this computer works in the folder the sandbox accepts: the launcher names it, by this machine's layout", () => {
@@ -80,6 +152,11 @@ test("a turn the Space sends to this computer works in the folder the sandbox ac
   const f = l.workFolder("usr_olivia", "p_1");
   assert.equal(f, workFolder(dir, "usr_olivia", "p_1"));
   assert.ok(fs.statSync(f).isDirectory());
-  assert.deepEqual(workParts(dir, f), { person: "usr_olivia", threadId: "p_1", workRoot: fs.realpathSync(path.join(dir, layoutRoots().work)), personSeg: path.basename(path.dirname(f)) });
+  assert.deepEqual(workParts(dir, f), {
+    person: "usr_olivia",
+    threadId: "p_1",
+    workRoot: fs.realpathSync(path.join(dir, layoutRoots().work)),
+    personSeg: path.basename(path.dirname(f)),
+  });
   fs.rmSync(dir, { recursive: true, force: true });
 });

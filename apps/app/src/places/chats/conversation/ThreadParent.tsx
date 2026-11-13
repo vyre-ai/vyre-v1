@@ -7,43 +7,107 @@ import { Face } from "../needsyou/parts.tsx";
 import { chatWhen } from "../rightpane/model.ts";
 import type { Clock } from "../rightpane/model.ts";
 
-interface Parent { who: string; whoId: string; at?: number; body: string }
+interface Parent {
+  who: string;
+  whoId: string;
+  at?: number;
+  body: string;
+}
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-export function ThreadParent({ threadId, messageId, call, nameOf, kindOf, clock, count, writing, onOpen }: { threadId?: string | undefined; messageId?: string | undefined; call: Call; nameOf(id: string): string; kindOf?: ((id: string) => "person" | "agent") | undefined; clock?: Clock | undefined; count?: number | undefined; /** Who is writing the first reply right now: the divider says so instead of "No replies yet". */ writing?: string | undefined; onOpen?: (() => void) | undefined }): ReactElement | null {
+export function ThreadParent({
+  threadId,
+  messageId,
+  call,
+  nameOf,
+  kindOf,
+  clock,
+  count,
+  writing,
+  onOpen,
+}: {
+  threadId?: string | undefined;
+  messageId?: string | undefined;
+  call: Call;
+  nameOf(id: string): string;
+  kindOf?: ((id: string) => "person" | "agent") | undefined;
+  clock?: Clock | undefined;
+  count?: number | undefined;
+  /** Who is writing the first reply right now: the divider says so instead of "No replies yet". */ writing?:
+    | string
+    | undefined;
+  onOpen?: (() => void) | undefined;
+}): ReactElement | null {
   const [parent, setParent] = useState<Parent | null>(null);
   useEffect(() => {
     if (!threadId || !messageId) return undefined;
     let live = true;
-    void call("chat.message.get", { threadId, messageId }).then((o) => {
-      const m = (o as { message?: { author?: { id?: string }; body?: string; createdAt?: number } } | null)?.message;
-      if (live && m?.body) setParent({ who: m.author?.id ? nameOf(m.author.id) : "", whoId: m.author?.id ?? "", ...(m.createdAt !== undefined ? { at: m.createdAt } : {}), body: m.body });
-    }, () => undefined);
-    return () => { live = false; };
+    void call("chat.message.get", { threadId, messageId }).then(
+      (o) => {
+        const m = (o as { message?: { author?: { id?: string }; body?: string; createdAt?: number } } | null)?.message;
+        if (live && m?.body)
+          setParent({
+            who: m.author?.id ? nameOf(m.author.id) : "",
+            whoId: m.author?.id ?? "",
+            ...(m.createdAt !== undefined ? { at: m.createdAt } : {}),
+            body: m.body,
+          });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [threadId, messageId, call, nameOf]);
   if (!parent) return null;
   // the root as a plain message row: face, name, time, then its words; under it a "N replies" divider leads into the replies
   const words = (
     <>
       <View style={st.head}>
-        {parent.who ? <Face name={parent.who} seedId={parent.whoId} kind={kindOf?.(parent.whoId) ?? "person"} size={24} /> : null}
+        {parent.who ? (
+          <Face name={parent.who} seedId={parent.whoId} kind={kindOf?.(parent.whoId) ?? "person"} size={24} />
+        ) : null}
         {parent.who ? <Text style={st.who}>{parent.who}</Text> : null}
         {parent.at !== undefined && clock ? <Text style={st.at}>{chatWhen(parent.at, clock)}</Text> : null}
       </View>
-      <Text style={st.body} numberOfLines={8}>{parent.body}</Text>
+      <Text style={st.body} numberOfLines={8}>
+        {parent.body}
+      </Text>
     </>
   );
-  const divider = count !== undefined ? (
-    <View testID="thread-replies-divider" style={st.divider}>
-      <View style={st.rule} />
-      <Text style={st.dividerText}>{count === 0 ? (writing ? `${writing} is writing` : "No replies yet") : `${count} ${count === 1 ? "reply" : "replies"}`}</Text>
-      <View style={st.rule} />
-    </View>
-  ) : null;
-  if (!onOpen) return <View style={st.gutter}><View testID="thread-parent" style={st.box} accessibilityRole="summary">{words}</View>{divider}</View>;
+  const divider =
+    count !== undefined ? (
+      <View testID="thread-replies-divider" style={st.divider}>
+        <View style={st.rule} />
+        <Text style={st.dividerText}>
+          {count === 0
+            ? writing
+              ? `${writing} is writing`
+              : "No replies yet"
+            : `${count} ${count === 1 ? "reply" : "replies"}`}
+        </Text>
+        <View style={st.rule} />
+      </View>
+    ) : null;
+  if (!onOpen)
+    return (
+      <View style={st.gutter}>
+        <View testID="thread-parent" style={st.box} accessibilityRole="summary">
+          {words}
+        </View>
+        {divider}
+      </View>
+    );
   return (
     <View style={st.gutter}>
-      <Pressable testID="thread-parent" accessibilityRole="link" accessibilityLabel="Back to the message" accessibilityHint="Scrolls the chat to the message this thread hangs off" onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.box, hovered === true && st.over]}>
+      <Pressable
+        testID="thread-parent"
+        accessibilityRole="link"
+        accessibilityLabel="Back to the message"
+        accessibilityHint="Scrolls the chat to the message this thread hangs off"
+        onPress={onOpen}
+        style={({ hovered }: { hovered?: boolean }) => [st.box, hovered === true && st.over]}
+      >
         {words}
       </Pressable>
       {divider}
@@ -57,7 +121,15 @@ const st = StyleSheet.create({
   box: { paddingVertical: 8, gap: 6, borderRadius: 8, maxWidth: 660, alignSelf: "center", width: "100%" },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   at: { fontSize: 12, color: "var(--ink-3)" as string },
-  divider: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8, maxWidth: 660, alignSelf: "center", width: "100%" },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+    maxWidth: 660,
+    alignSelf: "center",
+    width: "100%",
+  },
   rule: { flex: 1, height: 1, backgroundColor: "var(--line)" as string },
   dividerText: { fontSize: 12, color: "var(--ink-3)" as string },
   over: { backgroundColor: "var(--hover)" as string },

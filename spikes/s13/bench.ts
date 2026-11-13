@@ -9,11 +9,22 @@ const which = process.argv[2] ?? "all";
 
 /** The ids of the 10 best vectors for a query (the retrieval check of ruling 58). */
 export function top10(q: Float32Array, corpus: readonly Float32Array[]): number[] {
-  const dotp = (a: Float32Array, b: Float32Array): number => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i]! * b[i]!; return s; };
-  return corpus.map((v, i) => ({ i, s: dotp(q, v) })).sort((a, b) => b.s - a.s || a.i - b.i).slice(0, 10).map((x) => x.i);
+  const dotp = (a: Float32Array, b: Float32Array): number => {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) s += a[i]! * b[i]!;
+    return s;
+  };
+  return corpus
+    .map((v, i) => ({ i, s: dotp(q, v) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .slice(0, 10)
+    .map((x) => x.i);
 }
 /** How many of the ten ids two lists share. */
-export const overlap = (a: readonly number[], b: readonly number[]): number => { const s = new Set(b); return a.filter((x) => s.has(x)).length; };
+export const overlap = (a: readonly number[], b: readonly number[]): number => {
+  const s = new Set(b);
+  return a.filter((x) => s.has(x)).length;
+};
 /** Fraction of linear scaling from one rate at 1 thread to a rate at n threads. */
 export const linearFraction = (one: number, n: number, rate: number): number => rate / (n * one);
 let failed = false;
@@ -27,7 +38,14 @@ const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floo
 
 function unit(seed: number, into: Float32Array): Float32Array {
   let x = (seed * 2654435761) >>> 0 || 1;
-  for (let i = 0; i < DIM; i++) { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; into[i] = (x / 0xffffffff) * 2 - 1; }
+  for (let i = 0; i < DIM; i++) {
+    x ^= x << 13;
+    x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    x >>>= 0;
+    into[i] = (x / 0xffffffff) * 2 - 1;
+  }
   return normalise(into);
 }
 
@@ -40,39 +58,102 @@ async function kernels(): Promise<void> {
   const v = new Float32Array(DIM);
   say(`node ${process.version}, ${N} vectors x ${DIM}`);
   const rss0 = process.memoryUsage();
-  for (let i = 0; i < N; i++) { unit(i + 1, v); index.set(i + 1, v); plain.set(i + 1, v); }
+  for (let i = 0; i < N; i++) {
+    unit(i + 1, v);
+    index.set(i + 1, v);
+    plain.set(i + 1, v);
+  }
   const mb = (n: number): string => (n / 1048576).toFixed(0);
   const rss1 = process.memoryUsage();
-  say(`memory after loading both indexes: rss ${mb(rss1.rss - rss0.rss)} MB, arrayBuffers ${mb(rss1.arrayBuffers - rss0.arrayBuffers)} MB (the plain float32 index is ${mb(N * DIM * 4)} MB of that; the int8 store holds ${mb(N * DIM)} MB int8 + ${mb(N * 4)} MB scales + ${mb(N * DIM * 4)} MB float32 for the rerank = ${mb(N * DIM * 5 + N * 4)} MB)`);
-  const queries = [987_654, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((s) => unit(s, new Float32Array(DIM)));
-  const time = (ix: VectorIndex): number[] => { ix.top(queries[0]!, 20); const t: number[] = []; for (let i = 0; i < 5; i++) { const t0 = performance.now(); ix.top(queries[0]!, 20); t.push(performance.now() - t0); } return t; };
-  const w = time(index), j = time(plain);
-  say(`wasm-int8 VectorIndex.top runs ${w.map((x) => x.toFixed(1)).join(", ")} ms; js runs ${j.map((x) => x.toFixed(1)).join(", ")} ms`);
+  say(
+    `memory after loading both indexes: rss ${mb(rss1.rss - rss0.rss)} MB, arrayBuffers ${mb(rss1.arrayBuffers - rss0.arrayBuffers)} MB (the plain float32 index is ${mb(N * DIM * 4)} MB of that; the int8 store holds ${mb(N * DIM)} MB int8 + ${mb(N * 4)} MB scales + ${mb(N * DIM * 4)} MB float32 for the rerank = ${mb(N * DIM * 5 + N * 4)} MB)`,
+  );
+  const queries = [987_654, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((s) =>
+    unit(s, new Float32Array(DIM)),
+  );
+  const time = (ix: VectorIndex): number[] => {
+    ix.top(queries[0]!, 20);
+    const t: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const t0 = performance.now();
+      ix.top(queries[0]!, 20);
+      t.push(performance.now() - t0);
+    }
+    return t;
+  };
+  const w = time(index),
+    j = time(plain);
+  say(
+    `wasm-int8 VectorIndex.top runs ${w.map((x) => x.toFixed(1)).join(", ")} ms; js runs ${j.map((x) => x.toFixed(1)).join(", ")} ms`,
+  );
   say(`worst wasm run ${Math.max(...w).toFixed(1)} ms; js median ${median(j).toFixed(1)} ms`);
-  let hit = 0, total = 0, identical = 0;
+  let hit = 0,
+    total = 0,
+    identical = 0;
   for (const q of queries) {
-    const a = index.top(q, 20).map((x) => x.n), b = plain.top(q, 20).map((x) => x.n);
+    const a = index.top(q, 20).map((x) => x.n),
+      b = plain.top(q, 20).map((x) => x.n);
     const set = new Set(b);
-    for (const n of a) { total++; if (set.has(n)) hit++; }
+    for (const n of a) {
+      total++;
+      if (set.has(n)) hit++;
+    }
     if (a.join() === b.join()) identical++;
   }
   const recall = hit / total;
-  say(`recall@20 over ${queries.length} queries: ${recall.toFixed(4)}; identical top 20 in order: ${identical} of ${queries.length}`);
-  if (recall < 0.99) { say("FAIL recall@20 under 0.99"); failed = true; } else say("PASS recall@20 at least 0.99");
-  if (a0same(index, plain, queries[0]!)) say("PASS the fixed query (987654) returns the identical top 20"); else { say("FAIL the fixed query returns a different top 20"); failed = true; }
+  say(
+    `recall@20 over ${queries.length} queries: ${recall.toFixed(4)}; identical top 20 in order: ${identical} of ${queries.length}`,
+  );
+  if (recall < 0.99) {
+    say("FAIL recall@20 under 0.99");
+    failed = true;
+  } else say("PASS recall@20 at least 0.99");
+  if (a0same(index, plain, queries[0]!)) say("PASS the fixed query (987654) returns the identical top 20");
+  else {
+    say("FAIL the fixed query returns a different top 20");
+    failed = true;
+  }
   budget("cosine over 200k vectors through VectorIndex.top (the production path), median of 5", median(w), 60, true);
 }
-const a0same = (a: VectorIndex, b: VectorIndex, q: Float32Array): boolean => a.top(q, 20).map((x) => x.n).join() === b.top(q, 20).map((x) => x.n).join();
+const a0same = (a: VectorIndex, b: VectorIndex, q: Float32Array): boolean =>
+  a
+    .top(q, 20)
+    .map((x) => x.n)
+    .join() ===
+  b
+    .top(q, 20)
+    .map((x) => x.n)
+    .join();
 
 async function embedder(): Promise<void> {
-  const dot = (a: Float32Array, b: Float32Array): number => { let s = 0; for (let i = 0; i < DIM; i++) s += a[i]! * b[i]!; return s; };
-  const chunk = "Please send the signed lease for the harbor warehouse before Friday so that the renewal can be filed with the property company. ".repeat(3).slice(0, 380);
+  const dot = (a: Float32Array, b: Float32Array): number => {
+    let s = 0;
+    for (let i = 0; i < DIM; i++) s += a[i]! * b[i]!;
+    return s;
+  };
+  const chunk =
+    "Please send the signed lease for the harbor warehouse before Friday so that the renewal can be filed with the property company. "
+      .repeat(3)
+      .slice(0, 380);
   const texts = Array.from({ length: 200 }, (_, i) => `${chunk} ${i}`);
-  const fixed = ["The warehouse rent is due on the first of the month.", "Monthly rent for the harbor warehouse.", "Soup, salad and bread for the team lunch.", "Send the signed lease before Friday.", "Quarterly board minutes, harbor lease discussion.", "Café déjà vu, naïve résumé", "", "x ".repeat(300)];
+  const fixed = [
+    "The warehouse rent is due on the first of the month.",
+    "Monthly rent for the harbor warehouse.",
+    "Soup, salad and bread for the team lunch.",
+    "Send the signed lease before Friday.",
+    "Quarterly board minutes, harbor lease discussion.",
+    "Café déjà vu, naïve résumé",
+    "",
+    "x ".repeat(300),
+  ];
   const rate = async (embed: (t: readonly string[]) => Promise<Float32Array[]>): Promise<number[]> => {
     await embed(texts.slice(0, 32));
     const rates: number[] = [];
-    for (let r = 0; r < 3; r++) { const s = performance.now(); await embed(texts); rates.push(texts.length / ((performance.now() - s) / 1000)); }
+    for (let r = 0; r < 3; r++) {
+      const s = performance.now();
+      await embed(texts);
+      rates.push(texts.length / ((performance.now() - s) / 1000));
+    }
     return rates;
   };
   say(`cores ${os.availableParallelism()}`);
@@ -80,8 +161,13 @@ async function embedder(): Promise<void> {
   const web = await createEmbedder({ runtime: "web", threads: 1 });
   const webV = await web(fixed);
   const [a, b, c] = webV;
-  say(`web: unit length ${dot(a!, a!).toFixed(4)}; related ${dot(a!, b!).toFixed(3)}; unrelated ${dot(a!, c!).toFixed(3)}`);
-  if (!(Math.abs(dot(a!, a!) - 1) < 1e-3 && dot(a!, b!) > dot(a!, c!) + 0.15)) { say("FAIL the embeddings do not separate related from unrelated text"); failed = true; } else say("PASS related text is closer than unrelated text");
+  say(
+    `web: unit length ${dot(a!, a!).toFixed(4)}; related ${dot(a!, b!).toFixed(3)}; unrelated ${dot(a!, c!).toFixed(3)}`,
+  );
+  if (!(Math.abs(dot(a!, a!) - 1) < 1e-3 && dot(a!, b!) > dot(a!, c!) + 0.15)) {
+    say("FAIL the embeddings do not separate related from unrelated text");
+    failed = true;
+  } else say("PASS related text is closer than unrelated text");
   say(`web, 1 thread, batch 16: chunks per second ${(await rate(web)).map((x) => x.toFixed(1)).join(", ")}`);
   // the host's runtime: native, cores - 1 threads, batches of 32 by length
   const t0 = performance.now();
@@ -92,11 +178,19 @@ async function embedder(): Promise<void> {
   let worst = 1;
   fixed.forEach((t, i) => {
     const cos = dot(hostV[i]!, webV[i]!);
-    if (t.trim() === "") { say(`  parity text ${i} (blank): skipped before the embedder, zero vectors ${hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0) ? "on both sides" : "MISMATCH"}`); if (!(hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0))) failed = true; return; }
+    if (t.trim() === "") {
+      say(
+        `  parity text ${i} (blank): skipped before the embedder, zero vectors ${hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0) ? "on both sides" : "MISMATCH"}`,
+      );
+      if (!(hostV[i]!.every((x) => x === 0) && webV[i]!.every((x) => x === 0))) failed = true;
+      return;
+    }
     say(`  parity text ${i} (${JSON.stringify(t.slice(0, 40))}, ${t.length} chars): cosine ${cos.toFixed(6)}`);
     if (cos < worst) worst = cos;
   });
-  say(`${worst >= 0.99 ? "PASS" : "FAIL"} every non-empty text has host vs web cosine at least 0.99: worst ${worst.toFixed(6)}`);
+  say(
+    `${worst >= 0.99 ? "PASS" : "FAIL"} every non-empty text has host vs web cosine at least 0.99: worst ${worst.toFixed(6)}`,
+  );
   if (!(worst >= 0.99)) failed = true;
   // retrieval overlap: the top 10 of a 60-sentence corpus for five fixed queries, host against web, at least 9 of 10 shared
   const corpus = [
@@ -162,11 +256,23 @@ async function embedder(): Promise<void> {
     "Keep the receipt for the conference registration, it is reimbursable.",
     "The kitchen renovation quote came back higher than the original estimate.",
   ];
-  const queries = ["when does the warehouse lease renew", "who needs to sign the agreement", "the insurance renewal requires proof", "budget cut for the campaign", "a new employee starting next week"];
+  const queries = [
+    "when does the warehouse lease renew",
+    "who needs to sign the agreement",
+    "the insurance renewal requires proof",
+    "budget cut for the campaign",
+    "a new employee starting next week",
+  ];
   const [wc, hc, wq, hq] = [await web(corpus), await host(corpus), await web(queries), await host(queries)];
   let minOverlap = 10;
-  queries.forEach((q, i) => { const o = overlap(top10(hq[i]!, hc), top10(wq[i]!, wc)); say(`  retrieval overlap ${JSON.stringify(q)}: ${o} of 10`); if (o < minOverlap) minOverlap = o; });
-  say(`${minOverlap >= 9 ? "PASS" : "FAIL"} top-10 retrieval overlap host vs web at least 9 of 10: worst ${minOverlap}`);
+  queries.forEach((q, i) => {
+    const o = overlap(top10(hq[i]!, hc), top10(wq[i]!, wc));
+    say(`  retrieval overlap ${JSON.stringify(q)}: ${o} of 10`);
+    if (o < minOverlap) minOverlap = o;
+  });
+  say(
+    `${minOverlap >= 9 ? "PASS" : "FAIL"} top-10 retrieval overlap host vs web at least 9 of 10: worst ${minOverlap}`,
+  );
   if (minOverlap < 9) failed = true;
   // throughput by per-thread scaling (ruling 58): 1, 2 and 3 threads; rate x 7 at least 100 and at least 0.85 linear
   const cores = os.availableParallelism();
@@ -180,9 +286,14 @@ async function embedder(): Promise<void> {
   const one = per[0]!.r;
   const last = per[per.length - 1]!;
   const linear = linearFraction(one, last.t, last.r);
-  say(`per thread ${(one).toFixed(1)}; ${last.t} threads reach ${linear.toFixed(2)} of linear`);
+  say(`per thread ${one.toFixed(1)}; ${last.t} threads reach ${linear.toFixed(2)} of linear`);
   budget("per-thread rate x 7 threads (the 8-core host), chunks per second", one * 7, 100, false);
-  budget("scaling from 1 to 2 threads, fraction of linear (0.85; 3 threads on a 4-core box share the bench's own core)", linear * 100, 85, false);
+  budget(
+    "scaling from 1 to 2 threads, fraction of linear (0.85; 3 threads on a 4-core box share the bench's own core)",
+    linear * 100,
+    85,
+    false,
+  );
 }
 
 if (import.meta.main) {

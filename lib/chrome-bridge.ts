@@ -11,7 +11,6 @@
 // login.check ...) are answered by the host's own handlers, handed in as `invoke` and `op`; without them the bridge answers "not_available" rather than guess.
 // Nothing here reads a secret: a vault.fill is answered by the vault filler, which pushes the value to the extension on the events stream itself (`push`).
 
-
 /** The parts of a Node request the bridge reads; IncomingMessage satisfies it. Structural so this module imports nothing from node. */
 export interface BridgeRequest {
   url?: string | undefined;
@@ -28,15 +27,27 @@ export interface BridgeResponse {
   flushHeaders(): void;
 }
 
-export interface AgentRef { id: string; name: string }
-export interface AgentEvent { event: string; [k: string]: unknown }
-export type Reply = { id: string; ok: true; output: unknown } | { id: string; ok: false; error: { code: string; message: string } };
+export interface AgentRef {
+  id: string;
+  name: string;
+}
+export interface AgentEvent {
+  event: string;
+  [k: string]: unknown;
+}
+export type Reply =
+  | { id: string; ok: true; output: unknown }
+  | { id: string; ok: false; error: { code: string; message: string } };
 
 export interface ChromeBridgeDeps {
   /** The daemon's admin token: every request must carry it as a Bearer token. */
   token: string;
   /** One Space capability call from the extension, as the signed-in person or (in an agent's computer) the agent. */
-  invoke?(capability: string, input: Record<string, unknown>, extra: { agent?: string; space?: string }): Promise<unknown>;
+  invoke?(
+    capability: string,
+    input: Record<string, unknown>,
+    extra: { agent?: string; space?: string },
+  ): Promise<unknown>;
   /** A bridge-level operation the host answers (hello, space.select, agents.list, login.check, ask.page, app.open). */
   op?(op: string, input: Record<string, unknown>): Promise<unknown>;
   /** An event from the extension about an agent driving a tab, to be logged under that agent. */
@@ -96,7 +107,12 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
     if (input["ok"] === true) wait.resolve(input["output"]);
     else {
       const e = isObject(input["error"]) ? input["error"] : {};
-      wait.reject(new ChromeToolError(typeof e["code"] === "string" ? e["code"] : "error", typeof e["message"] === "string" ? e["message"] : "The tool failed."));
+      wait.reject(
+        new ChromeToolError(
+          typeof e["code"] === "string" ? e["code"] : "error",
+          typeof e["message"] === "string" ? e["message"] : "The tool failed.",
+        ),
+      );
     }
     return true;
   }
@@ -133,8 +149,14 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       return fail(id, "bad_request", "Not a request this bridge understands.");
     } catch (e) {
       const err = e as { code?: unknown; error?: { code?: unknown; message?: unknown }; message?: unknown };
-      const code = typeof err.error?.code === "string" ? err.error.code : typeof err.code === "string" ? err.code : "error";
-      const message = typeof err.error?.message === "string" ? err.error.message : typeof err.message === "string" ? err.message : "Something went wrong.";
+      const code =
+        typeof err.error?.code === "string" ? err.error.code : typeof err.code === "string" ? err.code : "error";
+      const message =
+        typeof err.error?.message === "string"
+          ? err.error.message
+          : typeof err.message === "string"
+            ? err.message
+            : "Something went wrong.";
       return fail(id, code, message);
     }
   }
@@ -143,7 +165,9 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
     rpc,
     push,
     /** Extensions currently connected on the events stream. */
-    get connected(): number { return streams.size; },
+    get connected(): number {
+      return streams.size;
+    },
 
     /** Which Spaces' agents may drive the Chrome connected here (never stored by the extension), and in what mode. Also sent to every extension that connects later. */
     optIn(spaces: string[], mode: "personal" | "computer"): void {
@@ -152,27 +176,58 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
     },
 
     /** Take over from the chat's card: the extension gives the agent's tab back to the person, as the bar's button does. */
-    takeOver(agentId: string): number { return push({ type: "agent.takeover", agent: agentId }); },
+    takeOver(agentId: string): number {
+      return push({ type: "agent.takeover", agent: agentId });
+    },
     /** Watch from the chat's card: the extension brings the agent's tab to the front. */
-    watch(agentId: string): number { return push({ type: "agent.watch", agent: agentId }); },
+    watch(agentId: string): number {
+      return push({ type: "agent.watch", agent: agentId });
+    },
 
     /** The Spaces whose agents the person opened this Chrome to, and in what mode; null until the app says. */
-    get opened(): { spaces: string[]; mode: "personal" | "computer" } | null { return lastOptIn ? { spaces: [...lastOptIn.spaces], mode: lastOptIn.mode } : null; },
+    get opened(): { spaces: string[]; mode: "personal" | "computer" } | null {
+      return lastOptIn ? { spaces: [...lastOptIn.spaces], mode: lastOptIn.mode } : null;
+    },
 
     /** Run one chrome_* tool for an agent in a Space, in the extension that owns the tab. Rejects with ChromeToolError (code from the extension, or "offline" / "timeout"). */
-    callTool(call: { tool: string; input?: Record<string, unknown>; agent: AgentRef; space: string; thread?: string; timeoutMs?: number }): Promise<unknown> {
-      if (!TOOL.test(call.tool)) return Promise.reject(new ChromeToolError("unknown_tool", `${call.tool} is not a Chrome tool.`));
+    callTool(call: {
+      tool: string;
+      input?: Record<string, unknown>;
+      agent: AgentRef;
+      space: string;
+      thread?: string;
+      timeoutMs?: number;
+    }): Promise<unknown> {
+      if (!TOOL.test(call.tool))
+        return Promise.reject(new ChromeToolError("unknown_tool", `${call.tool} is not a Chrome tool.`));
       const id = `ac_${++seq}`;
       return new Promise((resolve, reject) => {
-        const timer = setTimer(() => { pending.delete(id); reject(new ChromeToolError("timeout", "The page did not answer in time.")); }, call.timeoutMs ?? timeoutMs);
+        const timer = setTimer(() => {
+          pending.delete(id);
+          reject(new ChromeToolError("timeout", "The page did not answer in time."));
+        }, call.timeoutMs ?? timeoutMs);
         pending.set(id, { resolve, reject, timer });
-        const sent = push({ type: "agent.call", id, tool: call.tool, input: call.input ?? {}, agent: { id: call.agent.id, name: call.agent.name }, space: call.space, ...(call.thread ? { thread: call.thread } : {}) });
-        if (sent === 0) { pending.delete(id); clearTimer(timer); reject(new ChromeToolError("offline", "The Vyre app is not reachable from this Chrome.")); }
+        const sent = push({
+          type: "agent.call",
+          id,
+          tool: call.tool,
+          input: call.input ?? {},
+          agent: { id: call.agent.id, name: call.agent.name },
+          space: call.space,
+          ...(call.thread ? { thread: call.thread } : {}),
+        });
+        if (sent === 0) {
+          pending.delete(id);
+          clearTimer(timer);
+          reject(new ChromeToolError("offline", "The Vyre app is not reachable from this Chrome."));
+        }
       });
     },
 
     /** The person chose Don't send on a held item's card in Vyre: the extension forgets it, so nothing can press it later. */
-    dropHeld(heldId: string): number { return push({ type: "agent.held.drop", id: heldId }); },
+    dropHeld(heldId: string): number {
+      return push({ type: "agent.held.drop", id: heldId });
+    },
 
     /** End every events stream (the daemon is stopping); the native host sees the end and exits. */
     closeStreams(): void {
@@ -183,7 +238,11 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
 
     /** Every call waiting for an answer fails (the extension disconnected for good, or the daemon is stopping). */
     failAll(code = "offline", message = "The Vyre app is not reachable from this Chrome."): void {
-      for (const [id, w] of pending) { clearTimer(w.timer); w.reject(new ChromeToolError(code, message)); pending.delete(id); }
+      for (const [id, w] of pending) {
+        clearTimer(w.timer);
+        w.reject(new ChromeToolError(code, message));
+        pending.delete(id);
+      }
     },
 
     /** The HTTP routes. Returns true when the request was for this bridge (and has been answered), false to let the daemon's other routes have it. */
@@ -192,35 +251,73 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       if (url !== "/chrome-bridge/v1/rpc" && url !== "/chrome-bridge/v1/events") return false;
       const sent = req.headers["authorization"];
       const given = typeof sent === "string" && sent.startsWith("Bearer ") ? sent.slice(7) : "";
-      if (!sameToken(given, deps.token)) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"unauthorized"}}'); return true; }
+      if (!sameToken(given, deps.token)) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end('{"error":{"code":"unauthorized"}}');
+        return true;
+      }
       if (url === "/chrome-bridge/v1/events") {
-        if (req.method !== "GET") { res.writeHead(405); res.end(); return true; }
+        if (req.method !== "GET") {
+          res.writeHead(405);
+          res.end();
+          return true;
+        }
         res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
-        res.flushHeaders();   // headers go out now: a client waits for the status before the first push, and an idle stream sends nothing else
-        const write = (text: string): void => { res.write(text); };
-        const end = (): void => { try { res.end(); } catch { /* already closed */ } };
+        res.flushHeaders(); // headers go out now: a client waits for the status before the first push, and an idle stream sends nothing else
+        const write = (text: string): void => {
+          res.write(text);
+        };
+        const end = (): void => {
+          try {
+            res.end();
+          } catch {
+            /* already closed */
+          }
+        };
         streams.add(write);
         ends.add(end);
         if (lastOptIn) write(line({ type: "agent.optin", ...lastOptIn }));
-        req.on("close", () => { streams.delete(write); ends.delete(end); });
+        req.on("close", () => {
+          streams.delete(write);
+          ends.delete(end);
+        });
         return true;
       }
-      if (req.method !== "POST") { res.writeHead(405); res.end(); return true; }
+      if (req.method !== "POST") {
+        res.writeHead(405);
+        res.end();
+        return true;
+      }
       const chunks: Uint8Array[] = [];
       let size = 0;
       req.on("data", (...a: unknown[]) => {
         const c = typeof a[0] === "string" ? new TextEncoder().encode(a[0]) : (a[0] as Uint8Array);
         size += c.length;
-        if (size > MAX_BODY) { req.destroy(); return; }
+        if (size > MAX_BODY) {
+          req.destroy();
+          return;
+        }
         chunks.push(c);
       });
       req.on("end", () => {
         let body: unknown;
         const all = new Uint8Array(size);
         let at = 0;
-        for (const c of chunks) { all.set(c, at); at += c.length; }
-        try { body = JSON.parse(new TextDecoder().decode(all)); } catch { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify(fail("", "bad_request", "Not JSON."))); return; }
-        void rpc(body).then((reply) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(reply)); });
+        for (const c of chunks) {
+          all.set(c, at);
+          at += c.length;
+        }
+        try {
+          body = JSON.parse(new TextDecoder().decode(all));
+        } catch {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify(fail("", "bad_request", "Not JSON.")));
+          return;
+        }
+        void rpc(body).then((reply) => {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify(reply));
+        });
       });
       return true;
     },
