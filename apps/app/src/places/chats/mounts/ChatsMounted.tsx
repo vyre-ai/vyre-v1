@@ -7,7 +7,7 @@ import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { PhoneProfile } from "./PhoneProfile.tsx";
@@ -215,7 +215,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, rt, act, fill]);
   const titleTab = useRef(onTitle);
   titleTab.current = onTitle;
-  useEffect(() => { if (asking?.first) titleTab.current?.(firstWords(asking.first)); }, [asking?.first]);
+  // before the first paint of the opening message, so the tab is named in the same frame
+  useLayoutEffect(() => { if (asking?.first) titleTab.current?.(firstWords(asking.first)); }, [asking?.first]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);

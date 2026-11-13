@@ -68,6 +68,7 @@ export async function relayTo(daemon: string, latency: number, startDelay: numbe
       up.on("data", (b: Buffer) => send(socket, b));
     });
     up.on("error", () => socket.destroy());
+    up.on("close", () => socket.destroy());
     socket.on("error", () => up.destroy());
     socket.on("close", () => up.destroy());
   });
@@ -236,11 +237,11 @@ export async function runAskCase(label: string, latency: number, startDelay: num
 
 const newGot = () => ({ a: [] as number[], aPaint: [] as number[], b: [] as number[], c: [] as number[], d: [] as number[], vendor: [] as number[], missing: [] as string[] });
 
-export function within(label: string, got: { a: number[]; aPaint: number[]; b: number[]; c: number[]; missing: string[] }): void {
+export function within(label: string, got: { a: number[]; aPaint: number[]; b: number[]; c: number[]; missing: string[] }, budget = BUDGET_MS): void {
   assert.deepEqual(got.missing.filter((m) => !m.endsWith(": d")), [], `${label}: every mark appeared`);
-  assert.ok((pct(got.a, 0.95) ?? Infinity) <= BUDGET_MS, `${label}: his own message is on screen within ${BUDGET_MS} ms of the key press (p95 ${pct(got.a, 0.95)} ms, p50 ${pct(got.a, 0.5)} ms)`);
-  assert.ok((pct(got.b, 0.95) ?? Infinity) <= BUDGET_MS, `${label}: the tab is the chat within ${BUDGET_MS} ms (p95 ${pct(got.b, 0.95)} ms)`);
-  assert.ok((pct(got.c, 0.95) ?? Infinity) <= BUDGET_MS, `${label}: the working mark is on screen within ${BUDGET_MS} ms (p95 ${pct(got.c, 0.95)} ms)`);
+  assert.ok((pct(got.a, 0.95) ?? Infinity) <= budget, `${label}: his own message is on screen within ${budget} ms of the key press (p95 ${pct(got.a, 0.95)} ms, p50 ${pct(got.a, 0.5)} ms)`);
+  assert.ok((pct(got.b, 0.95) ?? Infinity) <= budget, `${label}: the tab is the chat within ${budget} ms (p95 ${pct(got.b, 0.95)} ms)`);
+  assert.ok((pct(got.c, 0.95) ?? Infinity) <= budget, `${label}: the working mark is on screen within ${budget} ms (p95 ${pct(got.c, 0.95)} ms)`);
 }
 
 test("new chat kit: the percentile of ten runs is the slowest run (nearest rank), and an empty list has none", () => {
