@@ -4,3 +4,4 @@
 - "Signed in on its browser" no longer lists the browser's own address (127.0.0.1), addresses inside your Space or server, or names that are not a site; it lists the sites the agent signed in to.
 - Inside an agent's sandbox on a server, `whoami`, `id` and git now show a user name instead of "cannot find name for user ID 1000".
 - An agent's browser screenshot of a heavy page now always comes back: a picture over the 256 KB limit for a picture kept in Files is scaled down to fit and the agent is told the size it got, instead of failing with "validation.too_large". A step's picture of a heavy page is kept too, scaled down.
+- The live browser view in an agent's Computer tab no longer flickers while you are in control: each frame is painted over the last one on a single picture, so it never goes blank between frames and the box keeps its size.

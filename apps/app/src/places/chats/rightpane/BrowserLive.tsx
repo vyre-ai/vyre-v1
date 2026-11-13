@@ -1,6 +1,6 @@
 // The live view of an agent's profile in the Space browser (computers.browser.stream). Watching is MJPEG in an image. After a take-over the view reopens on the WebSocket the same call hands out, which carries
 // the frames down and the person's clicks, wheel and keys up (the ticket opens once, so the two never share one). Wire format: host/src/routes/browser-stream.ts and images/space-browser/browserd/view.ts.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, StyleSheet } from "react-native";
 
@@ -32,11 +32,54 @@ export function keyMessages(e: { key: string; ctrlKey?: boolean; metaKey?: boole
   return [{ t: "key", name: e.key, down: true }, { t: "key", name: e.key, down: false }];
 }
 
+
+/** A canvas as far as the painter needs it. */
+export interface PaintTarget { width: number; height: number; getContext(kind: "2d"): { drawImage(source: unknown, x: number, y: number): void } | null }
+export interface PaintDeps {
+  /** The canvas now, or null when it is not there. */
+  target(): PaintTarget | null;
+  /** Decode one JPEG frame. */
+  decode(jpeg: ArrayBuffer): Promise<{ width: number; height: number; close?(): void }>;
+  /** A frame was drawn at this size. */
+  drawn(size: FrameSize): void;
+}
+
+/**
+ * Draws the frames of a live view on one canvas. A frame is decoded off to the side and drawn in one step over the last one, so the picture is never blank between two frames and the canvas keeps its
+ * size (setting a canvas's size clears it, so it is set only when the page's own size changes). A frame that arrives while another is being decoded waits, and a newer one replaces it: the view skips
+ * ahead instead of falling behind. A frame that cannot be read is skipped and the last good one stays. (13 Nov 2026: the preview flickered because each frame was a new picture address.)
+ */
+export function framePainter(d: PaintDeps): (jpeg: ArrayBuffer) => void {
+  let busy = false;
+  let waiting: ArrayBuffer | null = null;
+  const draw = async (jpeg: ArrayBuffer): Promise<void> => {
+    busy = true;
+    try {
+      const bmp = await d.decode(jpeg);
+      const c = d.target();
+      if (c) {
+        if (c.width !== bmp.width || c.height !== bmp.height) { c.width = bmp.width; c.height = bmp.height; }
+        c.getContext("2d")?.drawImage(bmp, 0, 0);
+        d.drawn({ width: bmp.width, height: bmp.height });
+      }
+      bmp.close?.();
+    } catch { /* a frame that cannot be read is skipped */ }
+    busy = false;
+    const next = waiting;
+    waiting = null;
+    if (next) await draw(next);
+  };
+  return (jpeg) => { if (busy) waiting = jpeg; else void draw(jpeg); };
+}
+
 interface Opened { url: string; ws?: string; width?: number; height?: number }
 
 export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browser-live-view", onNote }: { agentId: string; control: boolean; call(cap: string, input: unknown): Promise<unknown>; spaceUrl?: string | undefined; testID?: string; onNote?: (text: string) => void }): ReactElement {
   const [opened, setOpened] = useState<Opened | null>(null);
   const [frame, setFrame] = useState<string | null>(null);
+  const canvas = useRef<PaintTarget | null>(null);
+  // on the web the frames are drawn on a canvas; elsewhere (and where a canvas or bitmap decoding is missing) each frame is a picture address
+  const canvasOk = Platform.OS === "web" && typeof (globalThis as { createImageBitmap?: unknown }).createImageBitmap === "function";
   const box = useRef({ width: 0, height: 0 });
   const socket = useRef<{ send(s: string): void; close(): void } | null>(null);
   const seq = useRef(0);
@@ -60,8 +103,14 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     const ws = new WS(socketUrl(spaceUrl, opened.ws));
     ws.binaryType = "arraybuffer";
     let last: string | null = null;
+    const paint = canvasOk ? framePainter({
+      target: () => canvas.current,
+      decode: (jpeg) => (globalThis as unknown as { createImageBitmap(b: unknown): Promise<{ width: number; height: number }> }).createImageBitmap(new Blob_([jpeg], { type: "image/jpeg" })),
+      drawn: (size) => { natural.current = size; },
+    }) : null;
     ws.onmessage = (e) => {
       if (typeof e.data === "string") { try { const m = JSON.parse(e.data) as { t?: string; reason?: string }; if (m.t === "refused" && m.reason) note(m.reason); } catch { /* not for us */ } return; }
+      if (paint) { paint(e.data as ArrayBuffer); return; }
       const next = Url.createObjectURL(new Blob_([e.data], { type: "image/jpeg" }));
       setFrame(next);
       if (last) Url.revokeObjectURL(last);
@@ -69,7 +118,7 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     };
     socket.current = ws;
     return () => { socket.current = null; ws.onmessage = null; ws.close(); if (last) Url.revokeObjectURL(last); setFrame(null); };
-  }, [control, opened, spaceUrl, note]);
+  }, [control, opened, spaceUrl, note, canvasOk]);
 
   const send = (m: Record<string, unknown>): void => { socket.current?.send(JSON.stringify({ ...m, seq: ++seq.current })); };
 
@@ -97,12 +146,17 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     send({ t: "up", n: 0 });
   };
   const wheel = Platform.OS !== "web" ? {} : { onWheel: (e: { deltaX?: number; deltaY?: number; preventDefault?: () => void }) => { if (!control) return; e.preventDefault?.(); send({ t: "scroll", dx: e.deltaX ?? 0, dy: e.deltaY ?? 0 }); } };
-  const uri = control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
+  const uri = control && canvasOk ? null : control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
+  // while you are in control the frames are painted on one canvas that fills the box and keeps the page's shape, as the picture does ("contain"): clicks are mapped the same way (pointOf)
+  const painted = control && canvasOk
+    ? createElement("canvas", { ref: (el: PaintTarget | null) => { canvas.current = el; }, "data-testid": `${testID}-image`, "aria-label": "Live view", style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", objectFit: "contain", pointerEvents: "none" } })
+    : null;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={control ? "The browser, in your control" : "The browser, live"} testID={testID} disabled={!control} onPress={onPress}
       onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }} style={st.fill} {...wheel}>
       {uri ? <Image testID={`${testID}-image`} accessibilityLabel="Live view" source={{ uri }} resizeMode="contain" style={st.fill}
         onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => { natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current; }} /> : null}
+      {painted}
     </Pressable>
   );
 }

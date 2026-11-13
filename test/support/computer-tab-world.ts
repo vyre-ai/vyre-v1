@@ -8,10 +8,13 @@ import { agentFor, fakeSpaceBrowser, scriptedTerminal } from "./computers-journe
 import { bindHost as bindTerminal } from "../../modules/terminal/impl.ts";
 import { bindWorkspaceStatus, bindWorkspaces } from "../../modules/terminal/projections.ts";
 import { bindSpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
+import { createDockerSpaceBrowser } from "../../modules/computers/sbrowser/docker.ts";
+import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { bindHost as bindComputers } from "../../modules/computers/projections.ts";
 
 /** A team world with one agent, one chat, a workspace that runs with one terminal of a person's, and a Space browser that is open. The chat's right pane is on its Computer tab. */
-export async function world(t: test.TestContext) {
+/** `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
+export async function world(t: test.TestContext, o: { realBrowser?: string } = {}) {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return null; }
   const s = await bootScreens({ kind: "team" }, env);
@@ -31,9 +34,18 @@ export async function world(t: test.TestContext) {
   const port = (picture.address() as { port: number }).port;
   // a ticket is one address for one viewer: every stream call hands out a new one, as the real service does
   browserd.sb.stream = async (a) => ({ transport: "mjpeg", url: `http://127.0.0.1:${port}/live/${a.profileId}?ticket=${++tickets}`, ws: `ws://127.0.0.1:${port}/ws?p=${a.profileId}&ticket=${tickets}` });
-  bindSpaceBrowser(browserd.sb);
+  const dockerName = `vyre-sbrowser-cw${process.pid}${Math.random().toString(36).slice(2, 6)}`;
+  const dockerHttp = unixSocketHttp();
+  const dockerApi = createDockerApi(dockerHttp);
+  const real = o.realBrowser ? createDockerSpaceBrowser({ api: dockerApi, http: dockerHttp, name: dockerName, image: o.realBrowser, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 }) : null;
+  bindSpaceBrowser(real ?? browserd.sb);
   const agentId = await agentFor(w, "team");
-  browserd.rows.set(agentId, { profileId: agentId, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false });
+  if (real) {
+    await real.tool({ profileId: agentId, tool: "chrome_open", args: { url: "about:blank" }, timeoutMs: 60_000 });
+    // a page that changes all the time, so the live view has a new frame every few milliseconds
+    await real.tool({ profileId: agentId, tool: "chrome_eval", args: { expression: "document.body.style.font = '72px monospace'; setInterval(() => { document.body.textContent = String(Date.now()); }, 40); 1" }, timeoutMs: 30_000 });
+  }
+  else browserd.rows.set(agentId, { profileId: agentId, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false });
   const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" })).thread.threadId as string;
   // the person's own terminal in the agent's workspace: "Terminal 1, a person"
   await w.owner.ok("terminal.open", { host: "agent_computer", agentId, idempotencyKey: "walk-term-1" });
@@ -48,7 +60,15 @@ export async function world(t: test.TestContext) {
     await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
     await me.page.getByTestId("tab-computer").click();
   };
-  const close = async (): Promise<void> => { picture.close(); bindSpaceBrowser(null); bindWorkspaceStatus(null); bindWorkspaces(false); bindTerminal(null); await s.close(); };
+  const close = async (): Promise<void> => {
+    if (real) {
+      await dockerApi.containerStop(dockerName, 5).catch(() => undefined);
+      await dockerApi.containerRemove(dockerName).catch(() => undefined);
+      await dockerHttp({ method: "DELETE", path: `/volumes/${dockerName}-data`, query: { force: "true" } }).catch(() => undefined);
+      await dockerHttp({ method: "DELETE", path: `/networks/${dockerName}net` }).catch(() => undefined);
+    }
+    picture.close(); bindSpaceBrowser(null); bindWorkspaceStatus(null); bindWorkspaces(false); bindTerminal(null); await s.close();
+  };
   return { s, w, me, guard, agentId, threadId, browserd, computerTab, close };
 }
 
