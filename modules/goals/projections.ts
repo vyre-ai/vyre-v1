@@ -174,7 +174,7 @@ export async function mustControl(ctx: GoalsCtx, g: Goal): Promise<AskedBy | und
   if (isOwner(ctx, g) || isSystem(ctx) || isAdmin(ctx)) return undefined;
   const asked = await ownerAsked(ctx, g.owner);
   if (asked) { askedTurn.set(ctx, asked); return asked; }
-  raise(ctx, "validation.precondition_failed", "Only the owner of this goal can do that. An agent can do it only in a turn the owner started with their own message.", { reason: "owner_only" });
+  raise(ctx, "validation.precondition_failed", "Only the owner of this goal can do that. An agent can do it only in a turn the owner started with their own message. If you were asked to, tell the owner it did not go through and ask them to say it again in their own message.", { reason: "owner_only" });
 }
 
 // ---- time in the owner's zone ----

@@ -10,3 +10,5 @@
 - An agent you asked can change a goal's words, deadline, check-in rhythm, time zone, stuck limit, linked records and a draft's plan; changing who owns it, what it may do on its own, its helpers, its lead, its project or raising its budget stays your own press on the goal's page.
 - Only a message you typed counts as you asking an agent: a poke, a line the server posts in your name, or a retry of a watcher's turn does not.
 - An agent can promote an Automation to the Space or rotate its webhook address only in a turn you started with your own message.
+- An agent you asked can slow a goal's check-ins freely, and speed them up only on a goal that has a budget cap and never past once an hour.
+- When an agent is refused a control because you did not ask it yourself, it now tells you and asks you to say it again in your own message.
