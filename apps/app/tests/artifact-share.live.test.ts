@@ -134,7 +134,10 @@ test("artifact tab: Share with a person shows it at once, the header line follow
     const shareReply = page.waitForResponse((r) => r.url().includes("/v1/access/share"));
     await page.getByRole("button", { name: "Share with Assistant" }).click();
     const reply = await shareReply;
-    fs.writeFileSync(path.join(shots, "share-reply.txt"), `${reply.status()} ${await reply.text()}\n${reply.request().postData()}\n`);
+    fs.writeFileSync(
+      path.join(shots, "share-reply.txt"),
+      `${reply.status()} ${await reply.text()}\n${reply.request().postData()}\n`,
+    );
     // the sheet closes at once; what happened is said in the top bar, and the line under the name follows without closing the tab
     await page.waitForTimeout(700);
     await page.screenshot({ path: path.join(shots, "4a-just-after.png") });
@@ -147,8 +150,15 @@ test("artifact tab: Share with a person shows it at once, the header line follow
     await page.getByTestId("as-acc-level-space").click();
     await page.screenshot({ path: path.join(shots, "5-general-menu.png") });
     await page.getByTestId("menu-item-Can view").click();
-    await page.getByText(/Shared with Everyone/i).first().waitFor({ timeout: 15_000 });
-    await page.getByRole("button", { name: "Close" }).first().click().catch(() => undefined);
+    await page
+      .getByText(/Shared with Everyone/i)
+      .first()
+      .waitFor({ timeout: 15_000 });
+    await page
+      .getByRole("button", { name: "Close" })
+      .first()
+      .click()
+      .catch(() => undefined);
     await page.waitForFunction(
       () => !/Private to you/.test(document.querySelector("[data-testid='artifact-line']")?.textContent ?? ""),
       undefined,

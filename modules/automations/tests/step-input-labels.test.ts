@@ -7,7 +7,8 @@ import { alice } from "../fixtures/seed.ts";
 
 test("every input name of every step has a label in the table, and no label contains Id", async () => {
   const h = harness();
-  const steps = (await h.call("automations.steps.list", {}, alice)).steps as {
+  // `all`: every step the server can run; without it the list holds only the apps connected for the caller
+  const steps = (await h.call("automations.steps.list", { all: true }, alice)).steps as {
     key: string;
     input?: { properties?: Record<string, unknown> };
   }[];

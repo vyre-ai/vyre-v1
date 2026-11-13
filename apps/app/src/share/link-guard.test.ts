@@ -21,6 +21,8 @@ test("no file but the link maker builds the address of a thing from location.ori
   for (const dir of ["apps/app/src", "ui/src"])
     for (const f of walk(path.join(root, dir))) {
       if (f.endsWith("apps/app/src/share/rows.ts")) continue;
+      // reviewed, 14 Nov 2026: the resolver of a pasted link. It reads the pasted address's origin to compare it with this Space's own; it builds no address
+      if (f.endsWith("apps/app/src/shell/reach/space-link.ts")) continue;
       const lines = fs.readFileSync(f, "utf8").split("\n");
       lines.forEach((l, i) => {
         // a line that takes the page's origin, or the session's base address, to make the address of a thing

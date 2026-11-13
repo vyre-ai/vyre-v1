@@ -4,7 +4,11 @@ let origin = "";
 let artifactLink: (id: string) => string = () => "";
 let copyLink: (link: string) => void = () => undefined;
 
-export const setSpaceLinkTools = (t: { origin: string; artifactLink: (id: string) => string; copy: (link: string) => void }): void => {
+export const setSpaceLinkTools = (t: {
+  origin: string;
+  artifactLink: (id: string) => string;
+  copy: (link: string) => void;
+}): void => {
   origin = t.origin;
   artifactLink = t.artifactLink;
   copyLink = t.copy;

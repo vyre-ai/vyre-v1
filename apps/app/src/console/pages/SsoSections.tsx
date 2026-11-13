@@ -231,9 +231,7 @@ export function SsoSections(): ReactElement | null {
   const list = useRead<MembersSsoListOut>("members.sso.list", {});
   const gh = useRead<{ github: { callbackUrl: string } }>("members.sign_in_github.get", {});
   if (!list.data) return list.error ? <ReadState error={list.error} retry={list.refresh} /> : null;
-  const callback =
-    gh.data?.github.callbackUrl ??
-    `${callbackOrigin()}/auth/github/callback`;
+  const callback = gh.data?.github.callbackUrl ?? `${callbackOrigin()}/auth/github/callback`;
   return (
     <>
       <SsoSection kind="google" providers={list.data.providers} callback={callback} refresh={list.refresh} />

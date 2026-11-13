@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { callbackOrigin, copyItemLink, itemLink, linkOrigin, messageLink, setLinkOrigin, withNotify } from "./rows.ts";
 import { targetOfOpen } from "../shell/reach/open-link.ts";
 import { notices } from "../shell/noticeslot/model.ts";
+import { resolveSpaceLink } from "../shell/reach/space-link.ts";
 
 test("an artifact links to its own address on the Space; every other kind to the Space's /open link, never vyre://", () => {
   const o = "https://northwind.vyre.run";
@@ -73,11 +74,18 @@ test("a link is made from the Space's own address, never from the page the app r
     copied.length = 0;
     copyItemLink("note", "not_1");
     assert.deepEqual(copied, [inApp], "a personal copy on desktop: the in-app form");
-    // an artifact has no in-app form the resolver on this branch opens: no link, said in words, never a link that opens nothing
-    assert.equal(itemLink("site", "sit_ab12"), "");
+    // an artifact's in-app form is one the resolver opens (the artifact case in shell/reach/open-link.ts, read by space-link.ts), so the maker writes it:
+    // a link the app makes is a link the app opens, and the words still say where it opens
+    const inAppArtifact = `vyre://open?address=${encodeURIComponent("http://127.0.0.1:8420")}&kind=artifact&id=sit_ab12`;
+    assert.equal(itemLink("site", "sit_ab12"), inAppArtifact);
+    assert.notEqual(
+      resolveSpaceLink(inAppArtifact, ["http://127.0.0.1:8420"]),
+      null,
+      "pasted into the new tab or the command bar, the artifact's in-app link opens the artifact",
+    );
     copied.length = 0;
     copyItemLink("site", "sit_ab12");
-    assert.deepEqual(copied, []);
+    assert.deepEqual(copied, [inAppArtifact]);
     assert.match(JSON.stringify(notices.getSnapshot()), /opens in Vyre on this computer only/);
     copied.length = 0;
     copyItemLink("note", "not_1", true);

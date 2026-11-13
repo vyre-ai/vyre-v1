@@ -94,12 +94,23 @@ test("a one-use stream ticket is never replayed: when the picture stream fails (
     const calls: string[] = [];
     const call = async (cap: string): Promise<unknown> => {
       calls.push(cap);
-      if (cap === "computers.stream") return { transport: "mjpeg", url: "/live/cmt_1", ticket: `tk${++n}`, expiresAt: 1 };
+      if (cap === "computers.stream")
+        return { transport: "mjpeg", url: "/live/cmt_1", ticket: `tk${++n}`, expiresAt: 1 };
       return {};
     };
     const root = await mount(
       createRoot,
-      <LiveScreen computerId="cmt_1" state="working" call={call} spaceUrl="https://x.example" now={() => 1} control={false} testID="ls" label="Intake's computer" style={{ width: 100, height: 60 }}>
+      <LiveScreen
+        computerId="cmt_1"
+        state="working"
+        call={call}
+        spaceUrl="https://x.example"
+        now={() => 1}
+        control={false}
+        testID="ls"
+        label="Intake's computer"
+        style={{ width: 100, height: 60 }}
+      >
         <Text>stand-in</Text>
       </LiveScreen>,
     );
@@ -113,7 +124,10 @@ test("a one-use stream ticket is never replayed: when the picture stream fails (
     };
     await fail();
     assert.equal(n, 2, "a new ticket was asked for, the first was spent");
-    assert.ok(made.some((m) => String(m._s).includes("ticket=tk2")), "and the picture is drawn from it");
+    assert.ok(
+      made.some((m) => String(m._s).includes("ticket=tk2")),
+      "and the picture is drawn from it",
+    );
     await fail();
     await fail();
     await fail();

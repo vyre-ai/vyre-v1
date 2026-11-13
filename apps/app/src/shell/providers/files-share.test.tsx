@@ -214,7 +214,11 @@ test("a share says it happened where the person still looks (a passing notice), 
     await press(find(bad.tree, "menu-item-Can view"));
     await flush();
     assert.match(said(), /Could not share with Bea\. Try again\./);
-    assert.equal(changed, 1 + 1, "the caller is told when a share and a removal went through (two), not when one failed");
+    assert.equal(
+      changed,
+      1 + 1,
+      "the caller is told when a share and a removal went through (two), not when one failed",
+    );
   } finally {
     restore();
   }
@@ -233,8 +237,16 @@ test("every place that shares a Files folder, an artifact, a note or a skill goe
 });
 
 test("an agent picked in the sheet has no level of its own: it is shared with view (use for a skill), never an empty level the server refuses", () => {
-  const agent = { resource: { type: "site", id: "sit_1" }, subject: { kind: "agent", id: "agt_1" }, level: "" } as never;
+  const agent = {
+    resource: { type: "site", id: "sit_1" },
+    subject: { kind: "agent", id: "agt_1" },
+    level: "",
+  } as never;
   assert.equal(shareLevelOf(agent, "site"), "view");
   assert.equal(shareLevelOf(agent, "skill"), "use");
-  assert.equal(shareLevelOf({ ...(agent as object), level: "edit" } as never, "site"), "edit", "a chosen level is kept");
+  assert.equal(
+    shareLevelOf({ ...(agent as object), level: "edit" } as never, "site"),
+    "edit",
+    "a chosen level is kept",
+  );
 });

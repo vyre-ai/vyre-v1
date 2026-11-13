@@ -608,9 +608,7 @@ function TryStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
   const [line, setLine] = useState("");
   const go = async (): Promise<void> => {
     const out = (await data.call("identity.sso_link", { provider })) as { start: string };
-    void Linking.openURL(
-      `${s.space ?? callbackOrigin()}${out.start}`,
-    );
+    void Linking.openURL(`${s.space ?? callbackOrigin()}${out.start}`);
     setLine("Finish in the window that opened, then press Done.");
   };
   return (

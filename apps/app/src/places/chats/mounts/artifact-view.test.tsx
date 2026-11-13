@@ -28,7 +28,8 @@ function runtime(url: string, checked = true): ShellRuntime {
     baseUrl: "https://mla.vyre.run",
     clock: () => ({ now: Date.UTC(2026, 10, 13, 12, 0), offsetMin: 0 }),
     call: (cap: string) => {
-      if (cap === "sites.artifact_open") return Promise.resolve({ path: `/x/${CODE}`, url, expiresAt: 1, ...(checked ? { checked: true } : {}) });
+      if (cap === "sites.artifact_open")
+        return Promise.resolve({ path: `/x/${CODE}`, url, expiresAt: 1, ...(checked ? { checked: true } : {}) });
       if (cap === "sites.get")
         return Promise.resolve({
           site: {
@@ -62,7 +63,13 @@ const withFetch = async (answer: Answer, run: () => Promise<void>): Promise<void
 };
 const text = (t: string): { text(): Promise<string> } => ({ text: () => Promise.resolve(t) });
 const view = (url: string, checked = true) => (
-  <ArtifactView rt={runtime(url, checked)} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />
+  <ArtifactView
+    rt={runtime(url, checked)}
+    artifactId="sit_1"
+    share={false}
+    back={() => undefined}
+    gone={() => undefined}
+  />
 );
 
 test("the host check: the marked page is the host; a relay's 404, silence and a name that does not exist are not; a refused read falls back to asking without reading", async () => {

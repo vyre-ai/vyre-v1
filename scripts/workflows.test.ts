@@ -105,7 +105,10 @@ test("shots shards the complete visual suite and publishes release evidence thro
   assert.ok(clicks, "the no-dead-buttons click-through has its own job");
   assert.deepEqual(clicks.needs, [], "the click-through starts independently");
   assert.match(clicks.text, /space: \[personal, team\]/);
-  assert.match(clicks.text, /dead-buttons\.mjs --dist apps\/app\/dist --browser webkit --csp tauri --spaces "\$\{\{ matrix\.space \}\}"/);
+  assert.match(
+    clicks.text,
+    /dead-buttons\.mjs --dist apps\/app\/dist --browser webkit --csp tauri --spaces "\$\{\{ matrix\.space \}\}"/,
+  );
   assert.match(clicks.text, /grep -q "\^done in" dead-buttons\.out/);
   assert.match(clicks.text, /timeout-minutes: 35/);
   assert.equal(clicks.continueOnError, false);

@@ -59,7 +59,12 @@ for (const skin of ["paper", "graphite"])
         .locator("body")
         .innerText({ timeout: 5000 })
         .catch(() => "");
-      for (const b of ["Couldn't draw this page", "Couldn't open Vyre", "Vyre stopped working", "Something went wrong here"])
+      for (const b of [
+        "Couldn't draw this page",
+        "Couldn't open Vyre",
+        "Vyre stopped working",
+        "Something went wrong here",
+      ])
         if (text.includes(b)) throw new Error(`crash guard: an error page is on screen ("${b}") before ${o?.path}`);
       if (crashes.length) throw new Error(`crash guard: ${crashes.join(" | ")}`);
       return shoot(o);
