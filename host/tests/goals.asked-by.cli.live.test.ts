@@ -144,3 +144,50 @@ test("goals live (CLI engine over MCP): a typed ask in another chat moves the de
     assert.equal(await deadlineNow(), later, "the poke changed nothing");
   } finally { await d.stop(); }
 });
+
+// The owner's own agent leads the goal and the owner talks to it in the goal's chat: one CLI engine process, one MCP session (the token is minted once for this chat and agent), several turns. Every call is
+// judged by the turn running when it arrives, not by the first one: two typed asks in a row both go through, and the goal's start wake-up over the same still-open session is refused.
+// (The goal is a draft while the owner talks, so no wake-up has run in this chat yet; pressing Start sends the wake.)
+test("goals live (CLI engine over MCP): one MCP session across turns: two typed asks in a row are both granted, then a goal wake over the same session is refused", { skip, timeout: 300_000 }, async () => {
+  const dir = seededDir();
+  const d = await boot(dir);
+  try {
+    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+    assert.equal(unlock.status, 204);
+    const ok = async (cap: string, input: Record<string, unknown>): Promise<any> => { const r = await call(d, cap, input); assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`); return r.data; };   // eslint-disable-line @typescript-eslint/no-explicit-any
+    const folder = await ok("vault.folders.create", { idempotencyKey: "s-folder", name: "Accounts", scope: "mine" });
+    const flow = await ok("providers.subscription_start", { idempotencyKey: "s-flow", providerKey: "claude-code" });
+    await ok("vault.item.put", { idempotencyKey: "s-item", folderId: folder.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+    const provider = await ok("providers.subscription_complete", { flowId: flow.flowId });
+    await ok("providers.set_space_use", { idempotencyKey: "s-use", providerId: provider.provider.id, allow: true });
+    const dex = (await ok("agents.create", { name: "Dex", role: "You lead goals.", idempotencyKey: "s-dex" })).agent.agentId as string;
+    await ok("engine.pool.status", {});
+    const first = Date.now() + 4 * DAY;
+    const made = await ok("goals.create", {
+      idempotencyKey: "s-goal", start: false, title: "3 registrations for Lab 8", finish: { kind: "number", line: "Lab 8 registrations reach 3", target: 3, unit: "registrations", source: { kind: "records", type: "contact", label: "Lab 8 registrations" } },
+      deadline: first, leadAgentId: dex, rhythm: { every: "hours", hours: 6 }, quiet: null, zone: "UTC", budget: { turns: 60 },
+    });
+    const goalId = made.goal.id as string, chat = made.goal.threadId as string;
+    assert.equal(made.goal.status, "draft");
+    const goalNow = async (): Promise<any> => (await ok("goals.get", { goalId })).goal;   // eslint-disable-line @typescript-eslint/no-explicit-any
+    const wakeLines = (): string[] => { const found: string[] = []; const walk = (p: string): void => { let es: fs.Dirent[] = []; try { es = fs.readdirSync(p, { withFileTypes: true }); } catch { return; } for (const e of es) { const q = path.join(p, e.name); if (e.isDirectory()) walk(q); else if (e.name === "fake-wake-result.txt") found.push(...fs.readFileSync(q, "utf8").split("\n").filter(Boolean)); } }; walk(dir); return found; };
+    const ask = async (title: string, key: string): Promise<void> => {
+      await ok("chat.post", { threadId: chat, body: `toolfind goals_update ${JSON.stringify({ goalId, title })}`, mentions: [{ kind: "agent", id: dex }], idempotencyKey: key });
+      await waitFor(async () => { await d.hooks?.pump?.(); return (await goalNow()).title === title ? true : null; }, 120_000, () => `the ask "${title}" did not go through`);
+    };
+    // two typed asks in a row, on the same engine process and the same MCP session
+    await ask("First new title", "s-ask-1");
+    await ask("Second new title", "s-ask-2");
+    assert.equal(wakeLines().length, 0, "no wake-up has run yet");
+    // the owner presses Start: the start wake-up goes to the same lead, in the same chat, over the same still-open session, and nobody asked
+    await ok("goals.confirm", { goalId });
+    await waitFor(async () => { await d.hooks?.pump?.(); return wakeLines().length >= 1 ? true : null; }, 120_000, () => hostLog(d));
+    assert.match(wakeLines()[0]!, /goals_extend refused/, String(wakeLines()[0]));
+    assert.ok(wakeLines().every((l) => !/goals_extend answered/.test(l)), "no wake-up ever got through");
+    assert.equal((await goalNow()).deadline, first, "the wake changed nothing");
+    assert.equal((await goalNow()).title, "Second new title");
+    // one session served all of it: the engine kept one process for this chat and agent
+    const sessions = fs.readdirSync(path.join(dir, "scratch")).flatMap((p) => { try { return fs.readdirSync(path.join(dir, "scratch", p, "home", ".fake-claude", "sessions")); } catch { return []; } });
+    assert.equal(sessions.length, 1, `one CLI session for the chat: ${JSON.stringify(sessions)}`);
+  } finally { await d.stop(); }
+});

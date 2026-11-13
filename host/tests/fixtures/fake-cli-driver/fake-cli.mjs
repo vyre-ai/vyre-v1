@@ -339,6 +339,31 @@ async function run(raw) {
     out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });
     return;
   }
+  // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
+  // (a resumed session is sent only the parts of its context that changed, so the goal's id may be in an earlier turn: it is kept in the folder)
+  let woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
+  const idFile = path.join(process.cwd(), "fake-goal-id.txt");
+  if (woken) { try { fs.writeFileSync(idFile, woken[1]); } catch { /* not writable */ } }
+  else if (/You were woken because/.test(raw)) { try { const id = fs.readFileSync(idFile, "utf8").trim(); if (id) woken = [id, id]; } catch { /* none kept */ } }
+  if (woken && /You were woken because/.test(raw)) {
+    // the lead tries the owner's control, then reports its check-in as a good lead does, so the next wake-up is not held back by this one
+    let said = "";
+    let mcp;
+    try {
+      mcp = await mcpOpen();
+      await mcp.call("tool_search", { query: "goals_extend" });
+      const r = await mcp.call("goals_extend", { goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 });
+      said = r?.error ? `mcp error: ${r.error.message ?? "the call failed"}` : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
+      const wakeId = /wakeId (\S+)\. End this turn/.exec(raw)?.[1];
+      await mcp.call("tool_search", { query: "goals_checkin_post" });
+      await mcp.call("goals_checkin_post", { goalId: woken[1], ...(wakeId ? { wakeId } : {}), summary: "Checked in." });
+    } catch (e) { said = said || `mcp error: ${e instanceof Error ? e.message : "the call failed"}`; } finally { mcp?.close(); }
+    // the lead's text is also left in the folder it works in, for a test to read
+    try { fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${said.replace(/\n/g, " ")}\n`); } catch { /* a folder that cannot be written is the test's to notice */ }
+    reply([said]);
+    return;
+  }
+  // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
@@ -346,14 +371,6 @@ async function run(raw) {
   // (a poke's line reads "<person> poked <agent>: toolfind ...", so the words may follow a prefix)
   const findLine = prompt.split("\n").reverse().find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
   if (findLine) { await callTool(findLine.slice(findLine.indexOf("toolfind")), true); return; }
-  // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
-  const woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
-  if (woken && /You were woken because/.test(raw)) {
-    await callTool(`toolfind goals_extend ${JSON.stringify({ goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 })}`, true);
-    // the lead's text is not posted in the goal chat, so what the tool said is also left in the folder it works in, for a test to read
-    try { fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${lastReply}\n`); } catch { /* a folder that cannot be written is the test's to notice */ }
-    return;
-  }
   if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
