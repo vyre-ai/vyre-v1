@@ -1,0 +1,1 @@
+- An agent that leads or helps with a goal no longer shows that goal to a person who may not see it: asked by someone else in a chat, it says there is no such goal.
