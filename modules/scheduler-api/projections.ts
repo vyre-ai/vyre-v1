@@ -364,14 +364,27 @@ export function splitFireId(fireId: string): { scheduleId: string; dueKey: strin
   return i > 0 ? { scheduleId: fireId.slice(0, i), dueKey: fireId.slice(i + 1) } : undefined;
 }
 /** Makes a fire due. True when this write made the row: whoever gets true goes on, whoever gets false finds it already made. */
-export function createFire(db: Db, scheduleId: string, dueKey: string, scheduledFor: number, now: number): boolean {
+export function createFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  scheduledFor: number,
+  now: number,
+  as: { state?: "due" | "skipped"; reasons?: unknown; skipReason?: string } = {},
+): boolean {
+  // ONE insert carries the state and the reasons: a kill cannot leave a stale fire without them
+  const state = as.state ?? "due";
   return (
     db.run(
-      "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, fired_at, state) VALUES (?, ?, ?, ?, 'due')",
+      "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, fired_at, state, reasons, skip_reason, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       scheduleId,
       dueKey,
       scheduledFor,
       now,
+      state,
+      as.reasons === undefined ? null : js(as.reasons),
+      nul(as.skipReason),
+      state === "skipped" ? now : null,
     ).changes === 1
   );
 }
@@ -420,12 +433,14 @@ export function reportFire(
 ): { ok: boolean; superseded?: true } {
   const moved =
     db.run(
-      `UPDATE scheduler_api_fires SET state = ?, run_id = COALESCE(?, run_id), skip_reason = COALESCE(?, skip_reason), ended_at = ?
+      `UPDATE scheduler_api_fires SET state = ?, run_id = COALESCE(?, run_id), skip_reason = COALESCE(?, skip_reason), ended_at = ?, lease_until = ?
          WHERE schedule_id = ? AND due_key = ? AND attempt = ? AND state IN ('claimed', 'running', 'waiting')`,
       state,
       nul(runId),
       nul(note),
       (ENDED as readonly string[]).includes(state) ? now : null,
+      // a fire that says running or waiting has two leases from now to show a Run: the sweep closes a Run-less one only after that, measured from this report, not from when the fire was made
+      state === "running" || state === "waiting" ? now + 2 * LEASE_MS : null,
       scheduleId,
       dueKey,
       attempt,
@@ -441,19 +456,26 @@ export function reportFire(
 /** Fires that say running or waiting. The sweep asks each one's Run how it really is. */
 export function openRunFires(
   db: Db,
-): { scheduleId: string; dueKey: string; runId?: string; state: FireState; since: number }[] {
+  after = 0,
+  limit = SWEEP_SLICE,
+): { rowid: number; scheduleId: string; dueKey: string; runId?: string; state: FireState; graceUntil: number }[] {
   return (
     db.all(
-      "SELECT schedule_id, due_key, run_id, state, fired_at FROM scheduler_api_fires WHERE state IN ('running', 'waiting') ORDER BY scheduled_for ASC, rowid ASC LIMIT 200",
+      "SELECT rowid, schedule_id, due_key, run_id, state, lease_until FROM scheduler_api_fires WHERE state IN ('running', 'waiting') AND rowid > ? ORDER BY rowid ASC LIMIT ?",
+      after,
+      limit,
     ) as Raw[]
   ).map((r) => ({
+    rowid: num(r.rowid) ?? 0,
     scheduleId: r.schedule_id as string,
     dueKey: r.due_key as string,
     ...(str(r.run_id) !== undefined ? { runId: str(r.run_id) as string } : {}),
     state: r.state as FireState,
-    since: num(r.fired_at) ?? 0,
+    graceUntil: num(r.lease_until) ?? 0,
   }));
 }
+/** How many open fires the sweep reads at a time: all of them are visited, oldest first, a slice after a slice. */
+export const SWEEP_SLICE = 200;
 /** Closes a fire the sweep found over: the Run ended, failed, was stopped or is gone. Only a running or waiting fire closes. */
 export function closeFire(
   db: Db,

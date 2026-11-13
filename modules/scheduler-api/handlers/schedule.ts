@@ -462,23 +462,15 @@ function makeDue(ctx: SchedCtx, s: Schedule): void {
   )
     missed += 1;
   const stale = missed > 1;
-  const made = createFire(ctx.db, s.id, String(at), at, now);
-  if (made && stale) {
-    ctx.db.run(
-      "UPDATE scheduler_api_fires SET reasons = ? WHERE schedule_id = ? AND due_key = ?",
-      JSON.stringify({ missed: missed - 1 }),
-      s.id,
-      String(at),
-    );
-    if (s.ifMissed === "skip")
-      ctx.db.run(
-        "UPDATE scheduler_api_fires SET state = 'skipped', skip_reason = ?, ended_at = ? WHERE schedule_id = ? AND due_key = ? AND state = 'due'",
-        `The server was off across ${missed} times; the if-missed rule is skip`,
-        now,
-        s.id,
-        String(at),
-      );
-  }
+  createFire(ctx.db, s.id, String(at), at, now, {
+    ...(stale ? { reasons: { missed: missed - 1 } } : {}),
+    ...(stale && s.ifMissed === "skip"
+      ? {
+          state: "skipped" as const,
+          skipReason: `The server was off across ${missed} times; the if-missed rule is skip`,
+        }
+      : {}),
+  });
   advance(s, Math.max(at, now));
   saveSchedule(ctx.db, s);
 }
@@ -489,35 +481,41 @@ function makeDue(ctx: SchedCtx, s: Schedule): void {
  * Run for the same key cannot come from here.
  */
 export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
-  if (!ctx.call) return { closed: 0 };
+  if (!ctx.call || !isService(ctx)) return { closed: 0 }; // only the host sees every Run, so only for the host does "not found" mean gone
   const now = ctx.now();
   let closed = 0;
-  for (const f of openRunFires(ctx.db)) {
-    let status: string | undefined;
-    if (f.runId !== undefined) {
-      try {
-        status = ((await ctx.call("runs.get", { runId: f.runId })) as { run?: { status?: string } } | null)?.run
-          ?.status;
-      } catch (e) {
-        status =
-          (e as { error?: { code?: string } } | null)?.error?.code === "validation.not_found" ? "gone" : undefined; // anything else (the runs module down): leave it for the next pass
-      }
-      if (status === undefined) continue;
-    } else if (now - f.since > 2 * LEASE_MS) status = "gone";
-    else continue;
-    const end =
-      status === "succeeded"
-        ? "done"
-        : status === "stopped"
-          ? "stopped"
-          : status === "failed" || status === "gone"
-            ? "failed"
-            : undefined;
-    if (
-      end &&
-      closeFire(ctx.db, f.scheduleId, f.dueKey, end, status === "gone" ? "Its Run is gone" : `Its Run ${status}`, now)
-    )
-      closed += 1;
+  // every open fire is visited, a slice at a time, oldest first, remembering where the slice stopped: long waits cannot fill a window and starve newer fires
+  for (let after = 0; ; ) {
+    const slice = openRunFires(ctx.db, after);
+    if (slice.length === 0) break;
+    after = slice[slice.length - 1]!.rowid;
+    for (const f of slice) {
+      let status: string | undefined;
+      if (f.runId !== undefined) {
+        try {
+          status = ((await ctx.call("runs.get", { runId: f.runId })) as { run?: { status?: string } } | null)?.run
+            ?.status;
+        } catch (e) {
+          const code = (e as { error?: { code?: string } } | null)?.error?.code;
+          status = code === "permission.not_found" || code === "validation.not_found" ? "gone" : undefined; // anything else (the runs module down): leave it for the next pass
+        }
+        if (status === undefined) continue;
+      } else if (now > f.graceUntil) status = "gone";
+      else continue;
+      const end =
+        status === "succeeded"
+          ? "done"
+          : status === "stopped"
+            ? "stopped"
+            : status === "failed" || status === "gone"
+              ? "failed"
+              : undefined;
+      if (
+        end &&
+        closeFire(ctx.db, f.scheduleId, f.dueKey, end, status === "gone" ? "Its Run is gone" : `Its Run ${status}`, now)
+      )
+        closed += 1;
+    }
   }
   return { closed };
 }

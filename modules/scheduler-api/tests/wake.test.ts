@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { codeOf, harness } from "../fixtures/db.ts";
 import { alice, bob, host, HOUR, MINUTE, DAY, NOW, newSchedule } from "../fixtures/seed.ts";
 import { fireWakes, prune, tickWakes } from "../impl.ts";
-import { createFire, dueFires, fireIdOf, openFire } from "../projections.ts";
+import { closeFire, createFire, dueFires, fireIdOf, openFire } from "../projections.ts";
 
 const AGENT = `agt_${"a".repeat(32)}`;
 const ROOM = `chn_${"c".repeat(32)}`;
@@ -678,4 +678,124 @@ test("the tick path claims a due fire, calls the routine's capability with the f
   assert.equal((await h.consumer(host, async (ctx) => fireWakes(ctx))).started, 1);
   assert.equal(state(h, { scheduleId: made.scheduleId, key: k3 })["attempt"], 2);
   assert.deepEqual(seen.filter((x) => x.dueKey === k3).length, 2, "tried twice, the same key both times: one Run");
+});
+
+// ---- the third look: the grace, the single insert, and the guards behind them ----
+
+test("a fire with no Run gets two leases to show one, counted from its running report, not from when it was made", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const f = await dueFire(h);
+  h.advance(3 * 60 * MINUTE); // the engine takes it three hours late
+  const c = await claim(h, f, "host_a");
+  await h.call("scheduler.report", { fireId: f.id, attempt: c.attempt, state: "running" }, host);
+  const sweep = () => h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  assert.equal((await sweep()).closed, 0, "one second after it said running: still open");
+  h.advance(4 * MINUTE);
+  assert.equal((await sweep()).closed, 0, "exactly two leases from the report: still its grace");
+  h.advance(1);
+  assert.equal((await sweep()).closed, 1, "one millisecond past two leases from the report");
+  assert.equal(state(h, f)["state"], "failed");
+});
+
+test("closeFire closes only a running or waiting fire; an ended fire keeps its state and its words", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const f = await dueFire(h);
+  const c = await claim(h, f, "host_a");
+  await h.call("scheduler.report", { fireId: f.id, attempt: c.attempt, state: "done", note: "as it was" }, host);
+  assert.equal(closeFire(h.db, f.scheduleId, f.key, "failed", "later", h.now()), false);
+  assert.deepEqual(
+    {
+      ...(h.db.all(
+        "SELECT state, skip_reason FROM scheduler_api_fires WHERE schedule_id = ?",
+        f.scheduleId,
+      )[0] as object),
+    },
+    { state: "done", skip_reason: "as it was" },
+  );
+});
+
+test("a stale fire is made in ONE insert, state and reasons together; an on-time fire under skip is still due; a second server never rewrites it", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 0, 30) });
+  const onTime = await h.call(
+    "scheduler.schedule",
+    wake({
+      when: { cron: "* * * * *", tz: "UTC" },
+      ifMissed: "skip",
+      owner: { kind: "agent_routine", id: "rtn_ontime" },
+    }),
+    host,
+  );
+  h.setNow(Date.UTC(2026, 0, 5, 9, 1, 10));
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  assert.equal(
+    h.db
+      .all("SELECT state FROM scheduler_api_fires WHERE schedule_id = ?", onTime.scheduleId)
+      .map((r) => (r as { state: string }).state)
+      .join(),
+    "due",
+    "on time, so due, even under skip",
+  );
+  const stale = await h.call(
+    "scheduler.schedule",
+    wake({
+      when: { cron: "* * * * *", tz: "UTC" },
+      ifMissed: "skip",
+      owner: { kind: "agent_routine", id: "rtn_stale" },
+    }),
+    host,
+  );
+  h.setNow(Date.UTC(2026, 0, 5, 9, 31, 10));
+  // a trigger on the table records every insert: the stale fire arrives whole
+  h.db.run("CREATE TEMP TABLE IF NOT EXISTS seen (n INTEGER)");
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  const row = () =>
+    h.db.all(
+      "SELECT state, reasons, skip_reason FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?",
+      stale.scheduleId,
+      String(Date.UTC(2026, 0, 5, 9, 2)),
+    )[0] as Record<string, unknown>;
+  const first = { ...row() };
+  assert.equal(first["state"], "skipped");
+  assert.equal(first["reasons"], '{"missed":29}');
+  // a second server that has not seen the move makes the same fire a minute later: nothing is rewritten
+  assert.equal(
+    createFire(
+      h.db,
+      stale.scheduleId,
+      String(Date.UTC(2026, 0, 5, 9, 2)),
+      Date.UTC(2026, 0, 5, 9, 2),
+      h.now() + MINUTE,
+      { reasons: { missed: 5 } },
+    ),
+    false,
+  );
+  assert.deepEqual({ ...row() }, first);
+});
+
+test("the sweep visits every open fire, a slice at a time, so a long wait cannot starve a newer fire", async () => {
+  const seen: string[] = [];
+  const h = harness({
+    now: Date.UTC(2026, 0, 5, 9, 1),
+    calls: {
+      "runs.get": (i) => {
+        seen.push(i.runId as string);
+        return { run: { status: "succeeded" } };
+      },
+    },
+  });
+  const made = await h.call("scheduler.schedule", wake(), host);
+  for (let i = 1; i <= 450; i++)
+    h.db.run(
+      "INSERT INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, fired_at, state, run_id, lease_until) VALUES (?, ?, ?, ?, 'waiting', ?, ?)",
+      made.scheduleId,
+      String(i),
+      i,
+      1,
+      `run_${String(i).padStart(32, "0")}`,
+      NOW * 2,
+    );
+  const out = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  assert.equal(out.closed, 450);
+  assert.equal(seen.length, 450);
+  assert.equal(seen[0], `run_${"1".padStart(32, "0")}`, "oldest first");
 });
