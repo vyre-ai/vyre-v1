@@ -8,3 +8,4 @@
 - A file an agent writes that is over the 256 KB limit is now refused with the limit named and what to do (split it into smaller files), and the file tools say the limit in their descriptions.
 - An agent that writes an input under a name the tool does not use (file_id or id for fileId, chatId for threadId) is understood; a name the tool does not have is named back to it with the names the tool does take.
 - A routine whose agent is stopped by an access limit now puts one line in Needs you for its owner, in plain words, naming the agent.
+- An agent's retried call (the same tool call delivered twice) now makes one thing, and two calls it makes on purpose make two.

@@ -208,3 +208,9 @@ test("a chat tool called with no chat is for this chat; a tool that ends a chat 
   assert.equal(arch.kind, "error", "the chat is not archived on a missing input");
   assert.match(JSON.stringify(arch.kind === "error" ? arch.result.content : ""), /threadId is missing/);
 });
+
+test("a key the model supplies itself is kept even when the call has an id", async () => {
+  const { s, sent } = session();
+  await s.call(c({ callId: "toolu_9" }), "artifact_publish", { title: "A", html: PAGE, idempotencyKey: "mine-2" });
+  assert.equal((sent[0]?.input as { idempotencyKey?: string }).idempotencyKey, "mine-2");
+});
