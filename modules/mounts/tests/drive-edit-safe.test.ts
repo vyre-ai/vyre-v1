@@ -227,3 +227,38 @@ test("belt: if the compare ever calls an edit a rename, the content edit is refu
     "Could not send this edit to Google Drive without replacing the original, so nothing was changed there.",
   );
 });
+
+// ---- Microsoft: the same outbound code (pushMoves) serves SharePoint and OneDrive, so the same fix covers them ----
+
+for (const kind of ["onedrive", "sharepoint"] as const) {
+  test(`(j) ${kind}: the second of two same-named files, edited in Vyre, is replaced in place, nothing is deleted at the provider`, async () => {
+    const w = harness();
+    w.graph.deltas.set("", {
+      changed: [
+        { id: "root", name: "root", folder: true },
+        { id: "a1", name: "Budget.pdf", size: 10, lastModifiedDateTime: "2026-10-01T00:00:00Z", parentId: "root" },
+        { id: "a2", name: "Budget.pdf", size: 10, lastModifiedDateTime: "2026-10-02T00:00:00Z", parentId: "root" },
+      ],
+      removed: [],
+      deltaLink: "dlq",
+    });
+    w.graph.deltas.set("dlq", { changed: [], removed: [], deltaLink: "dlq" });
+    const added = await call(w, "mounts.add", {
+      into: "fld_into",
+      source: { kind, connectionId: "con_m", ref: "drv1" },
+      name: "Library",
+      mode: "server_copy",
+    });
+    const mountId = String(added["mountId"]);
+    const shown = w.files.paths().filter((p) => p.startsWith("Library/")).map((p) => p.replace("Library/", ""));
+    assert.equal(shown.length, 2, w.files.paths().join(", "));
+    const second = shown.find((n) => n !== "Budget.pdf");
+    assert.ok(second, `the second of the pair has another name: ${shown.join(", ")}`);
+    const before = w.items(mountId).map((i) => [i["remote_id"], i["name"]]);
+    editInVyre(w, second, "second, edited");
+    await call(w, "mounts.sync_now", { mountId });
+    assert.deepEqual(w.graph.deleted, [], "nothing is deleted at the provider");
+    assert.deepEqual(w.graph.replaced.map((r) => r.remoteId), ["a2"], "replaced in place by its id");
+    assert.deepEqual(w.items(mountId).map((i) => [i["remote_id"], i["name"]]), before);
+  });
+}
