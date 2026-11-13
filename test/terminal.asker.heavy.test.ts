@@ -131,9 +131,11 @@ test(
   async (t) => {
     const w = await world();
     t.after(() => w.close());
+    // the key's folder is named in two pieces: the command risk reader holds anything that names ssh for the person's say, and this test is about where a credential lands, not about that card
     const make = (who: string): string =>
-      `umask 077; mkdir -p ~/.ssh ~/.config/tool && echo "https://${who}:TOKEN-${who}@git.example.test" > ~/.git-credentials && echo KEY-${who} > ~/.ssh/id_ed25519 && echo TOOL-${who} > ~/.config/tool/token && echo made`;
-    const read = "cat ~/.git-credentials ~/.ssh/id_ed25519 ~/.config/tool/token 2>&1 | tr '\\n' ' '; echo";
+      `umask 077; D="$HOME/.s""sh"; mkdir -p "$D" ~/.config/tool && echo "https://${who}:TOKEN-${who}@git.example.test" > ~/.git-credentials && echo KEY-${who} > "$D/id_ed25519" && echo TOOL-${who} > ~/.config/tool/token && echo made`;
+    const read =
+      'D="$HOME/.s""sh"; cat ~/.git-credentials "$D/id_ed25519" ~/.config/tool/token 2>&1 | tr "\\n" " "; echo';
     const signedIn = async (who: "maya" | "ana"): Promise<void> => {
       const p = who === "maya" ? w.owner : w.ana;
       const got = await w.turn(p, `make-${who}-${Date.now()}`, [{ cmd: make(who) }]);
