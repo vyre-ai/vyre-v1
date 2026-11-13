@@ -199,10 +199,12 @@ export type AccessConnectorBuilderGrantOut = {
 };
 export type AccessConnectorBuilderStatusIn = {
   agentId: string;
+  itemId?: string;
 };
 export type AccessConnectorBuilderStatusOut = {
   allowed: boolean;
   canGrant: boolean;
+  reaches?: boolean;
 };
 export type AccessDecidersIn = {
   resource: {
@@ -4271,6 +4273,7 @@ export type AutomationsSetOwnerOut = {
 };
 export type AutomationsStepsListIn = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
+  all?: boolean;
 };
 export type AutomationsStepsListOut = {
   steps: Array<{
@@ -4283,6 +4286,7 @@ export type AutomationsStepsListOut = {
       effects: "read" | "write" | "outward";
       gateAct?: string;
     }>;
+  checked?: boolean;
 };
 export type AutomationsStopIn = {
   automationId: string;
