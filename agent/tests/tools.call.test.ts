@@ -401,10 +401,16 @@ test("a goal's deadline reaches the agent with deadlineLocal in the asker's zone
   const g = loadGenerated();
   const output = { goal: { id: "gol_1", deadline: 1_793_916_000_000, nextCheckinAt: 1_793_916_000_000 } };
   const session = createToolSession({
-    catalog: g.catalog, defaults: new Set([...g.defaults, "goals_get"]), levelFor: () => null, canEngineer: () => false, traceId: () => "t", zoneOf: () => "Asia/Karachi",
+    catalog: g.catalog,
+    defaults: new Set([...g.defaults, "goals_get"]),
+    levelFor: () => null,
+    canEngineer: () => false,
+    traceId: () => "t",
+    zoneOf: () => "Asia/Karachi",
     invoke: async () => ({ status: "ok", output, traceId: "t" }),
   });
-  const goal = ((await session.call(ctx(), "goals_get", { goalId: "gol_1" })).result.content as { data: typeof output }).data.goal as Record<string, unknown>;
+  const goal = ((await session.call(ctx(), "goals_get", { goalId: "gol_1" })).result.content as { data: typeof output })
+    .data.goal as Record<string, unknown>;
   assert.equal(goal["deadline"], 1_793_916_000_000);
   assert.match(String(goal["deadlineLocal"]), /^\w+day \d+ \w+ 2026, \d\d:\d\d \(Asia\/Karachi, UTC\+5\)$/);
   assert.match(String(goal["nextCheckinAtLocal"]), /Asia\/Karachi/);

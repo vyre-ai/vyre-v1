@@ -27,7 +27,10 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 const argv = process.argv.slice(2);
-const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
+const flag = (name) => {
+  const i = argv.indexOf(name);
+  return i >= 0 ? argv[i + 1] : undefined;
+};
 const resumed = flag("--resume");
 // a sandbox has a pid namespace of its own, where pids repeat from one process to the next: a new session's id is the pid and a random part, as unique as the real CLI's
 const session = resumed ?? `fake-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
@@ -37,16 +40,28 @@ const KEYS = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "CODEX_API_KEY", "
 const secret = () => KEYS.map((k) => process.env[k]).find((v) => v !== undefined && v !== "") ?? "";
 let sendSequence = 0;
 
-if (argv.includes("--version")) { process.stdout.write("claude fake 0.0.0\n"); process.exit(0); }
-if (resumed !== undefined && !fs.existsSync(sessionFile)) { process.stderr.write(`No conversation found with session ID: ${resumed}\n`); process.exit(1); }
+if (argv.includes("--version")) {
+  process.stdout.write("claude fake 0.0.0\n");
+  process.exit(0);
+}
+if (resumed !== undefined && !fs.existsSync(sessionFile)) {
+  process.stderr.write(`No conversation found with session ID: ${resumed}\n`);
+  process.exit(1);
+}
 /** The session's file in the engine's home, with the last line of a prompt it was sent. */
 function keep(line) {
   // `--no-session-persistence` (the chat-title helper passes it) keeps no session on disk, as the real CLI does
   if (argv.includes("--no-session-persistence")) return;
-  try { fs.mkdirSync(path.dirname(sessionFile), { recursive: true }); fs.appendFileSync(sessionFile, `${line}\n`); } catch { /* a home that cannot be written is the test's to notice */ }
+  try {
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    fs.appendFileSync(sessionFile, `${line}\n`);
+  } catch {
+    /* a home that cannot be written is the test's to notice */
+  }
 }
 
-const init = () => out({ type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] });
+const init = () =>
+  out({ type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] });
 /** The first 12 hex of the SHA-256 of a text, through the platform's Web Crypto (no crypto import in a host fixture, boundary B3). */
 async function sha12(text) {
   const d = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -60,8 +75,19 @@ function reply(parts) {
   lastReply = parts.join("");
   init();
   out({ type: "stream_event", event: { type: "message_start", message: { id: `m_${Date.now()}` } } });
-  for (const text of parts) out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } } });
-  out({ type: "result", subtype: "success", is_error: false, result: parts.join(""), session_id: session, usage: { input_tokens: 11, output_tokens: 7 } });
+  for (const text of parts)
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    });
+  out({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: parts.join(""),
+    session_id: session,
+    usage: { input_tokens: 11, output_tokens: 7 },
+  });
 }
 
 // ---- MCP client, just enough to call one tool -----------------------------------------------------------------------------------------------------------------------------------------
@@ -76,7 +102,10 @@ async function mcpOpen() {
   let notify;
   let close = () => {};
   if (cfg.command) {
-    const env = { ...process.env, ...Object.fromEntries(Object.entries(cfg.env ?? {}).map(([k, v]) => [k, expand(v)])) };
+    const env = {
+      ...process.env,
+      ...Object.fromEntries(Object.entries(cfg.env ?? {}).map(([k, v]) => [k, expand(v)])),
+    };
     const child = spawn(cfg.command, cfg.args ?? [], { env, stdio: ["pipe", "pipe", "inherit"] });
     const waiting = new Map();
     let lines = "";
@@ -88,34 +117,75 @@ async function mcpOpen() {
         lines = lines.slice(at + 1);
         if (line.trim() === "") continue;
         let m;
-        try { m = JSON.parse(line); } catch { continue; }
+        try {
+          m = JSON.parse(line);
+        } catch {
+          continue;
+        }
         const w = waiting.get(m.id);
-        if (w) { waiting.delete(m.id); w(m); }
+        if (w) {
+          waiting.delete(m.id);
+          w(m);
+        }
       }
     });
-    child.on("exit", () => { for (const w of waiting.values()) w({ error: { message: "the MCP shim ended" } }); waiting.clear(); });
-    request = (method, params) => new Promise((resolve) => { const n = ++id; waiting.set(n, resolve); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: n, method, params })}\n`); });
-    notify = (method) => { child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method })}\n`); };
-    close = () => { try { child.stdin.end(); } catch { /* gone */ } };
+    child.on("exit", () => {
+      for (const w of waiting.values()) w({ error: { message: "the MCP shim ended" } });
+      waiting.clear();
+    });
+    request = (method, params) =>
+      new Promise((resolve) => {
+        const n = ++id;
+        waiting.set(n, resolve);
+        child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: n, method, params })}\n`);
+      });
+    notify = (method) => {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method })}\n`);
+    };
+    close = () => {
+      try {
+        child.stdin.end();
+      } catch {
+        /* gone */
+      }
+    };
   } else {
     let session;
-    const headers = { "content-type": "application/json", accept: "application/json, text/event-stream", ...Object.fromEntries(Object.entries(cfg.headers ?? {}).map(([k, v]) => [k.toLowerCase(), expand(v)])) };
+    const headers = {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...Object.fromEntries(Object.entries(cfg.headers ?? {}).map(([k, v]) => [k.toLowerCase(), expand(v)])),
+    };
     const post = async (body) => {
-      const r = await fetch(cfg.url, { method: "POST", headers: { ...headers, ...(session ? { "mcp-session-id": session } : {}) }, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
+      const r = await fetch(cfg.url, {
+        method: "POST",
+        headers: { ...headers, ...(session ? { "mcp-session-id": session } : {}) },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+      });
       const sid = r.headers.get("mcp-session-id");
       if (sid) session = sid;
       const text = await r.text();
       if (text.trim() === "") return null;
       if ((r.headers.get("content-type") ?? "").includes("text/event-stream")) {
-        const data = text.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim());
+        const data = text
+          .split(/\r?\n/)
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trim());
         return data.length ? JSON.parse(data[data.length - 1]) : null;
       }
       return JSON.parse(text);
     };
     request = (method, params) => post({ jsonrpc: "2.0", id: ++id, method, params });
-    notify = (method) => { void post({ jsonrpc: "2.0", method }); };
+    notify = (method) => {
+      void post({ jsonrpc: "2.0", method });
+    };
   }
-  const hello = await request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "fake-cli", version: "0.0.0" } });
+  const hello = await request("initialize", {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "fake-cli", version: "0.0.0" },
+  });
   if (hello?.error) throw new Error(hello.error.message ?? "the MCP server refused initialize");
   notify("notifications/initialized");
   return { call: (name, args) => request("tools/call", { name, arguments: args }), close };
@@ -123,20 +193,32 @@ async function mcpOpen() {
 
 async function sendMail(prompt) {
   const [, address, mailbox] = prompt.trim().split(/\s+/);
-  if (!address) { reply(["mcp error: say who to send to"]); return; }
+  if (!address) {
+    reply(["mcp error: say who to send to"]);
+    return;
+  }
   let mcp;
   try {
     mcp = await mcpOpen();
     const idempotencyKey = `fake-send-${address}-${mailbox ?? "default"}-${++sendSequence}`;
     const r = await mcp.call("mail_send", {
-      mailboxId: mailbox ?? "mbx_a1b2c3", to: [{ address }], subject: "Hello from the fake engine", text: "Sent by the fake engine.", idempotencyKey,
+      mailboxId: mailbox ?? "mbx_a1b2c3",
+      to: [{ address }],
+      subject: "Hello from the fake engine",
+      text: "Sent by the fake engine.",
+      idempotencyKey,
     });
-    if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
+    if (r?.error) {
+      reply([`mcp error: ${r.error.message ?? "the call failed"}`]);
+      return;
+    }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
     reply([`mail_send ${r?.result?.isError ? "refused" : "answered"}: ${text}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
-  } finally { mcp?.close(); }
+  } finally {
+    mcp?.close();
+  }
 }
 
 /** The turn context an engine puts in front of the message is system context a real model reads and does not act on as a command: this fake picks its scenario from the words after it. */
@@ -144,36 +226,78 @@ const withoutContext = (p) => p.replace(/^<vyre-context>[\s\S]*?<\/vyre-context>
 
 async function callTool(prompt, search = false) {
   const m = /^\s*tool(?:find)?\s+(\S+)\s*(.*)$/s.exec(prompt);
-  if (!m) { reply(["mcp error: say which tool"]); return; }
+  if (!m) {
+    reply(["mcp error: say which tool"]);
+    return;
+  }
   let args = {};
-  try { args = m[2].trim() === "" ? {} : JSON.parse(m[2]); } catch { reply(["mcp error: the arguments are not JSON"]); return; }
+  try {
+    args = m[2].trim() === "" ? {} : JSON.parse(m[2]);
+  } catch {
+    reply(["mcp error: the arguments are not JSON"]);
+    return;
+  }
   let mcp;
   try {
     mcp = await mcpOpen();
     // a tool that is not in the first list is found with tool_search first, as a CLI engine's model does
     if (search) await mcp.call("tool_search", { query: m[1] });
     const r = await mcp.call(m[1], args);
-    if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
+    if (r?.error) {
+      reply([`mcp error: ${r.error.message ?? "the call failed"}`]);
+      return;
+    }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
     reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}${search ? servedBy() : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
-  } finally { mcp?.close(); }
+  } finally {
+    mcp?.close();
+  }
 }
 
 /** What Claude Code would find of its own skills in its folder, and whether it may open one. */
 function skillsCheck() {
   const base = path.join(process.cwd(), ".claude", "skills");
   let dirs = [];
-  try { dirs = fs.readdirSync(base, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { /* none */ }
-  const walk = (d, rel = "") => { try { return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`])); } catch { return []; } };
+  try {
+    dirs = fs
+      .readdirSync(base, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    /* none */
+  }
+  const walk = (d, rel = "") => {
+    try {
+      return fs
+        .readdirSync(d, { withFileTypes: true })
+        .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`]));
+    } catch {
+      return [];
+    }
+  };
   const rows = dirs.map((n) => {
     let desc = "";
-    try { desc = (fs.readFileSync(path.join(base, n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:")) ?? "").replace(/^description:\s*/, ""); } catch { desc = "NO SKILL.md"; }
-    return `${n}=${desc}=${walk(path.join(base, n)).filter((f) => f !== "SKILL.md").sort().join(",")}`;
+    try {
+      desc = (
+        fs
+          .readFileSync(path.join(base, n, "SKILL.md"), "utf8")
+          .split("\n")
+          .find((l) => l.startsWith("description:")) ?? ""
+      ).replace(/^description:\s*/, "");
+    } catch {
+      desc = "NO SKILL.md";
+    }
+    return `${n}=${desc}=${walk(path.join(base, n))
+      .filter((f) => f !== "SKILL.md")
+      .sort()
+      .join(",")}`;
   });
   const i = argv.indexOf("--allowedTools");
-  const allowed = i >= 0 ? argv.slice(i + 1).filter((a, k, all) => !all.slice(0, k + 1).some((x) => x.startsWith("--"))) : [];
+  const allowed =
+    i >= 0 ? argv.slice(i + 1).filter((a, k, all) => !all.slice(0, k + 1).some((x) => x.startsWith("--"))) : [];
   return `skills: ${rows.join("; ") || "none"} | Skill allowed: ${allowed.includes("Skill")}`;
 }
 
@@ -187,13 +311,47 @@ const absorbed = [];
  * The init line names the model it ran on, the chat picked none; a limit reading follows, as the real one sends it.
  */
 function steps() {
-  out({ type: "system", subtype: "init", session_id: session, model: "claude-sonnet-4-5", mcp_servers: [{ name: "vyre", status: "connected" }] });
-  const usage = (n) => ({ input_tokens: 5, cache_read_input_tokens: 40_000, cache_creation_input_tokens: 100 * n, output_tokens: 20 });
-  for (let n = 1; n <= 3; n++) out({ type: "assistant", message: { id: `m_steps_${process.pid}_${n}`, model: "claude-sonnet-4-5", content: [{ type: "text", text: n === 3 ? "three requests made." : "" }], usage: usage(n) } });
-  out({ type: "rate_limit_event", rate_limit_info: { status: "allowed", rateLimitType: "five_hour", utilization: 0.42, resetsAt: Math.floor(Date.now() / 1000) + 3600 } });
   out({
-    type: "result", subtype: "success", is_error: false, result: "three requests made.", session_id: session, total_cost_usd: 0.31,
-    usage: { input_tokens: 15, cache_read_input_tokens: 120_000, cache_creation_input_tokens: 600, output_tokens: 60 }, modelUsage: { "claude-sonnet-4-5": { inputTokens: 15 } },
+    type: "system",
+    subtype: "init",
+    session_id: session,
+    model: "claude-sonnet-4-5",
+    mcp_servers: [{ name: "vyre", status: "connected" }],
+  });
+  const usage = (n) => ({
+    input_tokens: 5,
+    cache_read_input_tokens: 40_000,
+    cache_creation_input_tokens: 100 * n,
+    output_tokens: 20,
+  });
+  for (let n = 1; n <= 3; n++)
+    out({
+      type: "assistant",
+      message: {
+        id: `m_steps_${process.pid}_${n}`,
+        model: "claude-sonnet-4-5",
+        content: [{ type: "text", text: n === 3 ? "three requests made." : "" }],
+        usage: usage(n),
+      },
+    });
+  out({
+    type: "rate_limit_event",
+    rate_limit_info: {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.42,
+      resetsAt: Math.floor(Date.now() / 1000) + 3600,
+    },
+  });
+  out({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: "three requests made.",
+    session_id: session,
+    total_cost_usd: 0.31,
+    usage: { input_tokens: 15, cache_read_input_tokens: 120_000, cache_creation_input_tokens: 600, output_tokens: 60 },
+    modelUsage: { "claude-sonnet-4-5": { inputTokens: 15 } },
   });
 }
 
@@ -203,19 +361,33 @@ function steps() {
  */
 async function slow(prompt) {
   const m = /^\s*slow\s+(\d+)\s+(\d+)/.exec(prompt);
-  const n = m ? Number(m[1]) : 6, ms = m ? Number(m[2]) : 500;
+  const n = m ? Number(m[1]) : 6,
+    ms = m ? Number(m[2]) : 500;
   init();
-  const mid = `m_slow_${process.pid}_${Date.now()}`;   // the partial messages and the whole one carry the same message id, as the real CLI's do
+  const mid = `m_slow_${process.pid}_${Date.now()}`; // the partial messages and the whole one carry the same message id, as the real CLI's do
   out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
   await new Promise((res) => setTimeout(res, ms * 2));
   const words = Array.from({ length: n }, (_, i) => `word${i + 1}`);
   for (const w of words) {
-    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } },
+    });
     await new Promise((res) => setTimeout(res, ms));
   }
   const full = words.map((w) => `${w} `).join("");
-  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: n } } });
-  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: n } });
+  out({
+    type: "assistant",
+    message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: n } },
+  });
+  out({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: full,
+    session_id: session,
+    usage: { input_tokens: 9, output_tokens: n },
+  });
 }
 
 /**
@@ -229,30 +401,120 @@ async function think(prompt) {
   init();
   const mid = `m_think_${process.pid}_${Date.now()}`;
   out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
-  const thought = async (text) => { for (const w of text.split(" ")) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: `${w} ` } } }); await wait(60); } };
+  const thought = async (text) => {
+    for (const w of text.split(" ")) {
+      out({
+        type: "stream_event",
+        event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: `${w} ` } },
+      });
+      await wait(60);
+    }
+  };
   await thought("I should look at the notes first and then compare them with the plan.");
   await wait(ms);
-  out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read" } } });
+  out({
+    type: "stream_event",
+    event: {
+      type: "content_block_start",
+      index: 1,
+      content_block: { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read" },
+    },
+  });
   // the whole message arrives with the call's input, as the real CLI's does
-  out({ type: "assistant", message: { id: `m_ta_${process.pid}`, content: [{ type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read", input: { file_path: "/work/notes/model.ts" } }] } });
+  out({
+    type: "assistant",
+    message: {
+      id: `m_ta_${process.pid}`,
+      content: [
+        { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read", input: { file_path: "/work/notes/model.ts" } },
+      ],
+    },
+  });
   await wait(ms * 2);
-  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_a_${process.pid}`, content: "ok" }] } });
+  out({
+    type: "user",
+    message: { content: [{ type: "tool_result", tool_use_id: `toolu_a_${process.pid}`, content: "ok" }] },
+  });
   await thought("That covers the first part, now the second file.");
-  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch" } } });
-  out({ type: "assistant", message: { id: `m_tb_${process.pid}`, content: [{ type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch", input: { query: "stream pacing" } }] } });
+  out({
+    type: "stream_event",
+    event: {
+      type: "content_block_start",
+      index: 2,
+      content_block: { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch" },
+    },
+  });
+  out({
+    type: "assistant",
+    message: {
+      id: `m_tb_${process.pid}`,
+      content: [
+        { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch", input: { query: "stream pacing" } },
+      ],
+    },
+  });
   await wait(ms * 2);
-  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_b_${process.pid}`, content: "ok" }] } });
+  out({
+    type: "user",
+    message: { content: [{ type: "tool_result", tool_use_id: `toolu_b_${process.pid}`, content: "ok" }] },
+  });
   // a command with a secret in it: it must never be shown, only "Running a command"
-  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash" } } });
-  out({ type: "assistant", message: { id: `m_tc_${process.pid}`, content: [{ type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash", input: { command: "curl -H 'Authorization: Bearer sk-ant-FAKESECRETFAKESECRET123456' https://example.com/x?token=abc" } }] } });
+  out({
+    type: "stream_event",
+    event: {
+      type: "content_block_start",
+      index: 2,
+      content_block: { type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash" },
+    },
+  });
+  out({
+    type: "assistant",
+    message: {
+      id: `m_tc_${process.pid}`,
+      content: [
+        {
+          type: "tool_use",
+          id: `toolu_c_${process.pid}`,
+          name: "Bash",
+          input: {
+            command:
+              "curl -H 'Authorization: Bearer sk-ant-FAKESECRETFAKESECRET123456' https://example.com/x?token=abc",
+          },
+        },
+      ],
+    },
+  });
   await wait(ms * 2);
-  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_c_${process.pid}`, content: "ok" }] } });
+  out({
+    type: "user",
+    message: { content: [{ type: "tool_result", tool_use_id: `toolu_c_${process.pid}`, content: "ok" }] },
+  });
   await wait(ms);
   const words = ["The", "notes", "agree", "with", "the", "plan."];
-  for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(120); }
+  for (const w of words) {
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } },
+    });
+    await wait(120);
+  }
   const full = words.map((w) => `${w} `).join("");
-  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
-  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+  out({
+    type: "assistant",
+    message: {
+      id: mid,
+      content: [{ type: "text", text: full }],
+      usage: { input_tokens: 9, output_tokens: words.length },
+    },
+  });
+  out({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: full,
+    session_id: session,
+    usage: { input_tokens: 9, output_tokens: words.length },
+  });
 }
 
 /** "flurry <secs>": a model that works fast: for <secs> seconds it makes a tool call every 250 ms (different tools, each answered at once), then answers in words. For the calm line's proof. */
@@ -263,33 +525,78 @@ async function flurry(prompt) {
   init();
   const mid = `m_flurry_${process.pid}_${Date.now()}`;
   out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
-  const tools = [["Read", { file_path: "/work/a/one.ts" }], ["Grep", { pattern: "stream" }], ["WebSearch", { query: "calm line" }], ["Read", { file_path: "/work/a/two.ts" }], ["Glob", { pattern: "*.ts" }], ["Bash", { command: "ls" }]];
+  const tools = [
+    ["Read", { file_path: "/work/a/one.ts" }],
+    ["Grep", { pattern: "stream" }],
+    ["WebSearch", { query: "calm line" }],
+    ["Read", { file_path: "/work/a/two.ts" }],
+    ["Glob", { pattern: "*.ts" }],
+    ["Bash", { command: "ls" }],
+  ];
   const end = Date.now() + secs * 1000;
   for (let i = 0; Date.now() < end; i++) {
     const [name, input] = tools[i % tools.length];
     const id = `toolu_f${i}_${process.pid}`;
-    out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id, name } } });
-    out({ type: "assistant", message: { id: `m_f${i}_${process.pid}`, content: [{ type: "tool_use", id, name, input }] } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id, name } },
+    });
+    out({
+      type: "assistant",
+      message: { id: `m_f${i}_${process.pid}`, content: [{ type: "tool_use", id, name, input }] },
+    });
     await wait(125);
     out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: "ok" }] } });
     await wait(125);
   }
   const words = ["All", "done", "quietly."];
-  for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(100); }
+  for (const w of words) {
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } },
+    });
+    await wait(100);
+  }
   const full = words.map((w) => `${w} `).join("");
-  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
-  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+  out({
+    type: "assistant",
+    message: {
+      id: mid,
+      content: [{ type: "text", text: full }],
+      usage: { input_tokens: 9, output_tokens: words.length },
+    },
+  });
+  out({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: full,
+    session_id: session,
+    usage: { input_tokens: 9, output_tokens: words.length },
+  });
 }
 
 /** A line of a message as an instruction: a picked option reads "Answered: <label> (<key>)", and the label is what a model acts on. */
-const picked = (l) => l.trim().replace(/^Answered:\s*/, "").replace(/\s\(\w+\)$/, "");
+const picked = (l) =>
+  l
+    .trim()
+    .replace(/^Answered:\s*/, "")
+    .replace(/\s\(\w+\)$/, "");
 
 /** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
 async function askHold(prompt) {
   const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
-  if (!m) { reply(["askhold: say how long and what to ask"]); return; }
+  if (!m) {
+    reply(["askhold: say how long and what to ask"]);
+    return;
+  }
   let args = {};
-  try { args = JSON.parse(m[2].trim()); } catch { reply(["askhold: the question is not JSON"]); return; }
+  try {
+    args = JSON.parse(m[2].trim());
+  } catch {
+    reply(["askhold: the question is not JSON"]);
+    return;
+  }
   let mcp;
   try {
     mcp = await mcpOpen();
@@ -299,54 +606,129 @@ async function askHold(prompt) {
     // while it finishes its work the model reads a few files: each is a tool call and its result, a step boundary the engine looks at for steering
     const until = Date.now() + Number(m[1]);
     for (let n = 1; Date.now() < until; n++) {
-      out({ type: "assistant", message: { id: `m_step${n}`, content: [{ type: "tool_use", id: `toolu_step${n}`, name: "Read", input: { file_path: "/tmp/x" } }] } });
+      out({
+        type: "assistant",
+        message: {
+          id: `m_step${n}`,
+          content: [{ type: "tool_use", id: `toolu_step${n}`, name: "Read", input: { file_path: "/tmp/x" } }],
+        },
+      });
       await new Promise((res) => setTimeout(res, 150));
-      out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_step${n}`, content: "ok" }] } });
+      out({
+        type: "user",
+        message: { content: [{ type: "tool_result", tool_use_id: `toolu_step${n}`, content: "ok" }] },
+      });
       await new Promise((res) => setTimeout(res, 150));
     }
     holding = false;
     const merged = absorbed.splice(0, absorbed.length);
     // The real engine reads a mid-turn message at its next step and acts on it inside the turn it is running: one that carries a new instruction (askhold ...) is carried out here, before the turn's one result.
-    const next = merged.flatMap((p) => p.split("\n")).map(picked).reverse().find((l) => /^askhold\s+\d+/.test(l));
-    if (next) { mcp?.close(); mcp = undefined; await askHold(next); return; }
-    reply([r?.error || r?.result?.isError ? `ask_question refused: ${JSON.stringify(r)}` : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`]);
+    const next = merged
+      .flatMap((p) => p.split("\n"))
+      .map(picked)
+      .reverse()
+      .find((l) => /^askhold\s+\d+/.test(l));
+    if (next) {
+      mcp?.close();
+      mcp = undefined;
+      await askHold(next);
+      return;
+    }
+    reply([
+      r?.error || r?.result?.isError
+        ? `ask_question refused: ${JSON.stringify(r)}`
+        : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`,
+    ]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
-  } finally { mcp?.close(); }
+  } finally {
+    mcp?.close();
+  }
 }
 
 async function run(raw) {
   const prompt = withoutContext(raw);
   const lastLine = (prompt.trim().split("\n").at(-1) ?? "").trim();
   keep(lastLine);
-  if (lastLine === "resumecheck") { reply([`resumed=${resumed ?? "none"} session=${session}`]); return; }
-  if (lastLine === "rawecho") { reply([raw]); return; }
+  if (lastLine === "resumecheck") {
+    reply([`resumed=${resumed ?? "none"} session=${session}`]);
+    return;
+  }
+  if (lastLine === "rawecho") {
+    reply([raw]);
+    return;
+  }
   // where the engine ran (lane l-runson): FAKE_WHERE is set by the test's launcher on the person's computer; a turn that went on after the computer slept says so
   // "keycheck": which key the engine was started with, as a short hash (never the key), and where it ran: the Vault matrix (test/support/vault-matrix.ts) checks the right value was filled
-  if (lastLine === "keycheck") { reply([`key=${secret() === "" ? "none" : await sha12(secret())} ran-on=${process.env.FAKE_WHERE ?? "space"}`]); return; }
-  if (lastLine === "whereami") { reply([`ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`]); return; }
+  if (lastLine === "keycheck") {
+    reply([`key=${secret() === "" ? "none" : await sha12(secret())} ran-on=${process.env.FAKE_WHERE ?? "space"}`]);
+    return;
+  }
+  if (lastLine === "whereami") {
+    reply([
+      `ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`,
+    ]);
+    return;
+  }
   // "slowwhere": the first words at once, the rest after FAKE_SLOW_MS (default 4 s): a turn that is in the middle when its computer goes away
   if (lastLine === "slowwhere") {
     init();
     out({ type: "stream_event", event: { type: "message_start", message: { id: `m_sw_${process.pid}` } } });
-    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "first part. " } } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "first part. " } },
+    });
     await new Promise((res) => setTimeout(res, Number(process.env.FAKE_SLOW_MS ?? 4000)));
     const rest = `ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`;
-    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: rest } } });
-    out({ type: "result", subtype: "success", is_error: false, result: `first part. ${rest}`, session_id: session, usage: { input_tokens: 5, output_tokens: 5 } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: rest } },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: `first part. ${rest}`,
+      session_id: session,
+      usage: { input_tokens: 5, output_tokens: 5 },
+    });
     return;
   }
   if (/^\/compact\b/.test(prompt.trim())) {
-    out({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 42_000, post_tokens: 2_500 } });
-    out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });
+    out({
+      type: "system",
+      subtype: "compact_boundary",
+      session_id: session,
+      compact_metadata: { trigger: "manual", pre_tokens: 42_000, post_tokens: 2_500 },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "",
+      session_id: session,
+      usage: { input_tokens: 42_000, output_tokens: 700 },
+    });
     return;
   }
   // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
   // (a resumed session is sent only the parts of its context that changed, so the goal's id may be in an earlier turn: it is kept in the folder)
   let woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
   const idFile = path.join(process.cwd(), "fake-goal-id.txt");
-  if (woken) { try { fs.writeFileSync(idFile, woken[1]); } catch { /* not writable */ } }
-  else if (/You were woken because/.test(raw)) { try { const id = fs.readFileSync(idFile, "utf8").trim(); if (id) woken = [id, id]; } catch { /* none kept */ } }
+  if (woken) {
+    try {
+      fs.writeFileSync(idFile, woken[1]);
+    } catch {
+      /* not writable */
+    }
+  } else if (/You were woken because/.test(raw)) {
+    try {
+      const id = fs.readFileSync(idFile, "utf8").trim();
+      if (id) woken = [id, id];
+    } catch {
+      /* none kept */
+    }
+  }
   if (woken && /You were woken because/.test(raw)) {
     // the lead tries the owner's control, then reports its check-in as a good lead does, so the next wake-up is not held back by this one
     let said = "";
@@ -355,26 +737,51 @@ async function run(raw) {
       mcp = await mcpOpen();
       await mcp.call("tool_search", { query: "goals_extend" });
       const r = await mcp.call("goals_extend", { goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 });
-      said = r?.error ? `mcp error: ${r.error.message ?? "the call failed"}` : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
+      said = r?.error
+        ? `mcp error: ${r.error.message ?? "the call failed"}`
+        : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
       said = `${said}${servedBy()}`;
       const wakeId = /wakeId (\S+)\. End this turn/.exec(raw)?.[1];
       await mcp.call("tool_search", { query: "goals_checkin_post" });
       await mcp.call("goals_checkin_post", { goalId: woken[1], ...(wakeId ? { wakeId } : {}), summary: "Checked in." });
-    } catch (e) { said = said || `mcp error: ${e instanceof Error ? e.message : "the call failed"}`; } finally { mcp?.close(); }
+    } catch (e) {
+      said = said || `mcp error: ${e instanceof Error ? e.message : "the call failed"}`;
+    } finally {
+      mcp?.close();
+    }
     // the lead's text is also left in the folder it works in, for a test to read
-    try { fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${said.replace(/\n/g, " ")}\n`); } catch { /* a folder that cannot be written is the test's to notice */ }
+    try {
+      fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${said.replace(/\n/g, " ")}\n`);
+    } catch {
+      /* a folder that cannot be written is the test's to notice */
+    }
     reply([said]);
     return;
   }
   // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
-  const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
-  if (toolLine) { await callTool(toolLine); return; }
+  const toolLine = prompt
+    .split("\n")
+    .reverse()
+    .find((l) => /^tool\s+\S+/.test(l));
+  if (toolLine) {
+    await callTool(toolLine);
+    return;
+  }
   // "toolfind <name> <json>": the same, after tool_search found the tool (a goal tool is not in the first list)
   // (a poke's line reads "<person> poked <agent>: toolfind ...", so the words may follow a prefix)
-  const findLine = prompt.split("\n").reverse().find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
-  if (findLine) { await callTool(findLine.slice(findLine.indexOf("toolfind")), true); return; }
-  if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
+  const findLine = prompt
+    .split("\n")
+    .reverse()
+    .find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
+  if (findLine) {
+    await callTool(findLine.slice(findLine.indexOf("toolfind")), true);
+    return;
+  }
+  if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) {
+    reply([skillsCheck()]);
+    return;
+  }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
   const asked = /The question: ([^\n]*)/.exec(prompt);
@@ -383,36 +790,86 @@ async function run(raw) {
     const mid = `m_aside_${process.pid}_${Date.now()}`;
     out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
     const words = `Aside answer to ${asked[1].trim()} is short`.split(" ");
-    for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } }); await new Promise((res) => setTimeout(res, 250)); }
+    for (const w of words) {
+      out({
+        type: "stream_event",
+        event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } },
+      });
+      await new Promise((res) => setTimeout(res, 250));
+    }
     const full = words.map((w) => `${w} `).join("");
-    out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
-    out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+    out({
+      type: "assistant",
+      message: {
+        id: mid,
+        content: [{ type: "text", text: full }],
+        usage: { input_tokens: 9, output_tokens: words.length },
+      },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: full,
+      session_id: session,
+      usage: { input_tokens: 9, output_tokens: words.length },
+    });
     return;
   }
-  const holdLine = prompt.split("\n").map(picked).reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
-  if (holdLine) { await askHold(holdLine); return; }
-  if (first === "slow") { await slow(prompt.trim()); return; }
-  if (first === "steps") { steps(); return; }
-  if (first === "think") { await think(prompt.trim()); return; }
-  if (first === "flurry") { await flurry(prompt.trim()); return; }
+  const holdLine = prompt
+    .split("\n")
+    .map(picked)
+    .reverse()
+    .find((l) => /^askhold\s+\d+/.test(l)); // the instruction may follow other lines the person's messages brought
+  if (holdLine) {
+    await askHold(holdLine);
+    return;
+  }
+  if (first === "slow") {
+    await slow(prompt.trim());
+    return;
+  }
+  if (first === "steps") {
+    steps();
+    return;
+  }
+  if (first === "think") {
+    await think(prompt.trim());
+    return;
+  }
+  if (first === "flurry") {
+    await flurry(prompt.trim());
+    return;
+  }
   switch (first) {
-    case "hello": reply(["Hello", " from the fake engine."]); break;
-    case "say": reply([prompt.trim().split("\n")[0].replace(/^say\s+/, "")]); break;
+    case "hello":
+      reply(["Hello", " from the fake engine."]);
+      break;
+    case "say":
+      reply([
+        prompt
+          .trim()
+          .split("\n")[0]
+          .replace(/^say\s+/, ""),
+      ]);
+      break;
     case "envcheck": {
       const mcp = flag("--mcp-config") ?? "";
       const token = process.env.VYRE_MCP_TOKEN ?? "";
       const words = argv.join("\n");
       const heldKeys = KEYS.filter((k) => (process.env[k] ?? "") !== "");
       const argvHoldsKey = KEYS.some((k) => (process.env[k] ?? "") !== "" && words.includes(process.env[k]));
-      reply([JSON.stringify({
-        keys: heldKeys.map((k) => `${k}:${process.env[k].length}`),
-        argvHoldsKey,
-        mcpTokenInEnv: token !== "",
-        mcpTokenInArgv: token !== "" && words.includes(token),
-        mcpUrl: JSON.parse(mcp || "{}").mcpServers?.vyre?.url ?? null,
-        mcpAuth: JSON.parse(mcp || "{}").mcpServers?.vyre?.headers?.Authorization ?? null,
-        env: Object.keys(process.env).sort(),
-      })]);
+      reply([
+        JSON.stringify({
+          keys: heldKeys.map((k) => `${k}:${process.env[k].length}`),
+          argvHoldsKey,
+          mcpTokenInEnv: token !== "",
+          mcpTokenInArgv: token !== "" && words.includes(token),
+          mcpUrl: JSON.parse(mcp || "{}").mcpServers?.vyre?.url ?? null,
+          mcpAuth: JSON.parse(mcp || "{}").mcpServers?.vyre?.headers?.Authorization ?? null,
+          env: Object.keys(process.env).sort(),
+        }),
+      ]);
       break;
     }
     case "leak":
@@ -423,18 +880,32 @@ async function run(raw) {
       process.stderr.write(`boom: the engine crashed with ${secret()}\n`);
       process.exit(3);
       break;
-    case "send": await sendMail(prompt); break;
-    case "tool": await callTool(prompt); break;
+    case "send":
+      await sendMail(prompt);
+      break;
+    case "tool":
+      await callTool(prompt);
+      break;
     case "authfail":
       init();
-      out({ type: "result", subtype: "error_during_execution", is_error: true, result: "Invalid API key. Please run /login", session_id: session });
+      out({
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        result: "Invalid API key. Please run /login",
+        session_id: session,
+      });
       break;
-    default: reply([prompt]);
+    default:
+      reply([prompt]);
   }
 }
 
 // With --replay-user-messages the real engine echoes each user message when it takes it up: at the start of its turn, or, for one that arrives mid-turn, when it folds it in at a step boundary.
-const replay = (text) => { if (argv.includes("--replay-user-messages")) out({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text }] } }); };
+const replay = (text) => {
+  if (argv.includes("--replay-user-messages"))
+    out({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text }] } });
+};
 
 // Persistent engine: one JSON user message per line on stdin, answered in order.
 let buf = "";
@@ -447,9 +918,24 @@ process.stdin.on("data", (d) => {
     buf = buf.slice(at + 1);
     if (line.trim() === "") continue;
     let prompt = "";
-    try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
-    if (holding) { absorbed.push(withoutContext(prompt)); replay(prompt); continue; }
-    queue = queue.then(() => { replay(prompt); return run(prompt); });
+    try {
+      prompt = JSON.parse(line)
+        .message.content.map((c) => c.text ?? "")
+        .join("\n");
+    } catch {
+      continue;
+    }
+    if (holding) {
+      absorbed.push(withoutContext(prompt));
+      replay(prompt);
+      continue;
+    }
+    queue = queue.then(() => {
+      replay(prompt);
+      return run(prompt);
+    });
   }
 });
-process.stdin.on("end", () => { queue.then(() => process.exit(0)); });
+process.stdin.on("end", () => {
+  queue.then(() => process.exit(0));
+});
