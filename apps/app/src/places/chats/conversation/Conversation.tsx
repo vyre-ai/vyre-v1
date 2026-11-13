@@ -91,7 +91,7 @@ import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
-import { PendingOpening } from "../landing/PendingChat.tsx";
+import { OpeningGuard, PendingOpening } from "../landing/PendingChat.tsx";
 import { pendingFor, releasePending } from "../landing/pending.ts";
 import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
@@ -399,7 +399,7 @@ function ConversationView(): ReactElement {
   // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
   const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
   useEffect(() => { if (loaded) releasePending(data.threadId); }, [loaded, data.threadId]);
-  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
+  if (failed) return <OpeningGuard threadId={data.threadId}><LoadFailed what="this chat" failure={failed} testID="conversation-failed" /></OpeningGuard>;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading threadId={data.threadId} />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;

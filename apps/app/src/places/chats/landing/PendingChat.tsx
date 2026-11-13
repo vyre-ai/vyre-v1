@@ -1,6 +1,6 @@
 // A chat the person has just started, drawn before the server has answered (budget: his own words on screen within 100 ms of the key press, on any network). Nothing about showing what he wrote needs the
 // server: his message, the title the tab takes, the agent's working mark. If the start fails he sees it here, with Retry, and his words stay. The real conversation takes the place of this one when it has loaded.
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
@@ -10,7 +10,8 @@ import type { TurnStreams } from "../../../shell/session/turn-streams.ts";
 import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ActivityLine } from "../conversation/ActivityLine.tsx";
 import { each } from "../../../shell/sidebar/model.ts";
-import { pendingFor } from "./pending.ts";
+import { READABLE_GRACE_MS, pendingFor, releasePending, touchPending } from "./pending.ts";
+import { retryLoads } from "../../../../../../ui/src/States/retry.ts";
 
 export interface PendingChatProps {
   title: string;
@@ -89,6 +90,24 @@ export function PendingOpening({ threadId, lead }: { threadId: string; lead?: st
   const p = pendingFor(threadId);
   const turns = useOptionalShellRuntime()?.turns;
   return p ? <PendingChat title={p.title} text={p.text} files={p.files} lead={lead ?? p.lead} phase="sending" {...(turns ? { live: { turns, threadId } } : {})} /> : null;
+}
+
+/**
+ * A chat this window has just made, whose first read was refused or came back not found: the row is not readable on this device yet, which is not the same as "you cannot open this chat". The page keeps showing his
+ * message and asks again every 1.5 s; only after the grace has passed does it say, in its own failed state with Retry and Discard, that it could not open the chat. Discard lets go of the held message and leaves the page's own failure.
+ */
+export function OpeningGuard({ threadId, now = Date.now, grace = READABLE_GRACE_MS, children }: { threadId: string; now?: () => number; grace?: number; children: ReactElement }): ReactElement {
+  const p = pendingFor(threadId);
+  const [, tick] = useState(0);
+  const waiting = p !== undefined && now() - (p.at ?? 0) < grace;
+  useEffect(() => {
+    if (p === undefined) return undefined;
+    const again = setInterval(() => { if (now() - (p.at ?? 0) < grace) retryLoads(); tick((n) => n + 1); }, 1500);
+    return () => clearInterval(again);
+  }, [p, now, grace]);
+  if (p === undefined) return children;
+  if (waiting) return <PendingOpening threadId={threadId} />;
+  return <PendingChat title={p.title} text={p.text} files={p.files} lead={p.lead} phase="failed" note="Could not open the chat." onRetry={() => { touchPending(threadId); retryLoads(); tick((n) => n + 1); }} onDiscard={() => { releasePending(threadId); tick((n) => n + 1); }} />;
 }
 
 const st = StyleSheet.create({

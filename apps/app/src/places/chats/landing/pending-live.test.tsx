@@ -7,6 +7,7 @@ import { flush, installDom, textOf } from "../../../../../../ui/src/testing/dom.
 import { find } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { createTurnStreams } from "../../../shell/session/turn-streams.ts";
+import { View, Text } from "react-native";
 import { PendingChat } from "./PendingChat.tsx";
 
 const f = (delta: Record<string, unknown>) => ({ t: "turn", turn: "trn_1", delta: { threadId: "thr_a", agentId: "agt_x", ...delta } });
@@ -62,5 +63,45 @@ test("before the chat has an id its reply is found by who asked and when: the wo
     await act(async () => { turns.onFrame({ t: "turn", turn: "trn_new", delta: { threadId: "thr_new", agentId: "agt_x", kind: "start", asker: "usr_me" } }); turns.onFrame({ t: "turn", turn: "trn_new", delta: { threadId: "thr_new", agentId: "agt_x", kind: "delta", text: "The plan starts here" } }); });
     await flush();
     assert.match(textOf(root), /The plan starts here/);
+  } finally { await unmount(); off(); }
+});
+
+test("a chat he just made whose first read is refused (not found, permission) keeps showing his message and asks again; after the grace it is its own failed state with Retry and Discard, never the refusal screen", async () => {
+  const { OpeningGuard } = await import("./PendingChat.tsx");
+  const { holdPending, releasePending } = await import("./pending.ts");
+  const off = installDom();
+  let unmount: () => Promise<void> = async () => undefined;
+  try {
+    let clock = 100_000;
+    const realNow = Date.now;
+    Date.now = () => clock;
+    holdPending("thr_just", { title: "Plan", text: "Plan the week", files: [], lead: "Assistant" });
+    const refusal = <View testID="conversation-failed"><Text>You can't open this chat</Text></View>;
+    const r = createRoot();
+    unmount = () => act(async () => { r.unmount(); });
+    await act(async () => { r.render(<OpeningGuard threadId="thr_just" now={() => clock}>{refusal}</OpeningGuard>); });
+    const root = r.container as unknown as Node;
+    assert.ok(find(root, "msg-pending"), "his message shows");
+    assert.equal(find(root, "conversation-failed"), null, "the refusal does not show in the first seconds");
+    assert.doesNotMatch(textOf(root), /can't open/);
+    clock += 12_000;
+    await act(async () => { r.render(<OpeningGuard threadId="thr_just" now={() => clock}>{refusal}</OpeningGuard>); await new Promise((res) => setTimeout(res, 1600)); });
+    assert.ok(find(root, "landing-failed"), "after a sane wait: its own failed state");
+    assert.ok(find(root, "landing-retry") && find(root, "landing-discard"), "with Retry and Discard");
+    assert.equal(find(root, "conversation-failed"), null, "still not the refusal");
+    releasePending("thr_just");
+    Date.now = realNow;
+  } finally { await unmount(); off(); }
+});
+
+test("a chat this window did not just make shows the page's own failure as before", async () => {
+  const { OpeningGuard } = await import("./PendingChat.tsx");
+  const off = installDom();
+  let unmount: () => Promise<void> = async () => undefined;
+  try {
+    const r = createRoot();
+    unmount = () => act(async () => { r.unmount(); });
+    await act(async () => { r.render(<OpeningGuard threadId="thr_old"><View testID="conversation-failed"><Text>You can't open this chat</Text></View></OpeningGuard>); });
+    assert.ok(find(r.container as unknown as Node, "conversation-failed"));
   } finally { await unmount(); off(); }
 });

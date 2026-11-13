@@ -99,8 +99,12 @@ const RECORDER = `(() => {
   const NativeWS = window.WebSocket;
   window.WebSocket = new Proxy(NativeWS, { construct(target, args) { const ws = new target(...args); ws.addEventListener("message", (e) => { if (S.t0 && S.wsAt === undefined && S.reply && typeof e.data === "string" && e.data.includes(S.reply.slice(0, 12))) S.wsAt = performance.now() - S.t0; }); return ws; } });
   addEventListener("keydown", (e) => { if (e.key === "Enter" && S.armed && !S.t0) { S.t0 = performance.now(); S.wall0 = Date.now(); S.tab0 = (document.querySelector('[data-testid^="tab-"][data-testid$="-selected"]') || {}).textContent || ""; } }, true);
+  S.sigs = [];
+  const IDS = ["cmdk-asked", "cmdk-working", "cmdk-answer", "cmdk-continue", "cmdk-noaccess", "msg-pending", "working-mark", "landing-pending", "landing-failed", "conversation-loading", "conversation", "chats-landing", "newtab-page"];
+  const sample = (now) => { const sig = IDS.filter((i) => document.querySelector('[data-testid="' + i + '"]')).join(",") + " | tab: " + ((document.querySelector('[data-testid^="tab-"][data-testid$="-selected"]') || {}).textContent || ""); const last = S.sigs[S.sigs.length - 1]; if (!last || last.s !== sig) S.sigs.push({ t: Math.round(now), s: sig }); };
   const look = () => {
     if (!S.t0) return;
+    sample(performance.now() - S.t0);
     const now = performance.now() - S.t0, m = S.marks;
     if (m.a === undefined) { for (const el of document.querySelectorAll('[data-testid^="msg-"]')) if ((el.textContent || "").includes(S.marker)) { m.a = now; requestAnimationFrame(() => { m.aPaint = performance.now() - S.t0; }); break; } }
     const tab = document.querySelector('[data-testid^="tab-"][data-testid$="-selected"]'), tabText = tab ? (tab.textContent || "") : "";
@@ -297,6 +301,67 @@ export function tokenWithin(label: string, got: { tokenLag: number[] }, budget =
   assert.ok(got.tokenLag.length > 0, `${label}: the page saw the first words arrive`);
   assert.ok((pct(got.tokenLag, 0.95) ?? Infinity) <= budget, `${label}: the first words are on screen within ${budget} ms of reaching the page (p95 ${pct(got.tokenLag, 0.95)} ms, p50 ${pct(got.tokenLag, 0.5)} ms)`);
 }
+
+/** The Ask the new tab runs (search.ask) answered from a fixed source after `modelMs` (the model's time; a stand-in model cannot make this Space's search index hold a source for it). */
+export async function cannedAsk(page: any, modelMs: number): Promise<void> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  await page.route("**/v1/search/ask", async (route: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    await new Promise((r) => setTimeout(r, modelMs));
+    try { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { state: "answered", answer: "The Lisbon team review is on Thursday [1].", cited: [1], account: { title: "Test key", mine: true }, sources: [{ n: 1, where: "Note", kind: "note", id: "nt_lisbon", title: "Lisbon team review", snippet: "The Lisbon team review is on Thursday.", link: "vyre://note/nt_lisbon", score: 1 }] } }) }); } catch { /* the page is gone */ }
+  });
+}
+
+export interface PathRow { path: string; step: string; first_acknowledged_ms: number | null; transitions: { t: number; s: string }[] }
+
+/** The three ways the owner can start a chat: "+" in the tab strip (a new tab), "+ New chat" in the Chats sidebar, and the first screen's composer. Each: what the page shows, in order, from Enter on, and a picture at 0.2 s, 1 s, 3 s and when it settles. */
+export async function runPathProbe(label: string, latency: number, startDelay: number, path: "tabplus" | "sidebar" | "first"): Promise<PathRow[]> {
+  const out = process.env["VYRE_NEWCHAT_OUT"] ?? "/tmp/vyre-newchat";
+  const rows: PathRow[] = [];
+  await walk(label, latency, startDelay, async ({ page, web, api, v }) => {
+    const assistant = (await api("agents.list", {})).agents[0] as { agentId: string };
+    v.script.push({ text: "Heyy! The Lisbon review plan is in this chat [1]." });
+    const made = await api("chat.start", { kind: "chat", agentIds: [assistant.agentId], first: "Heyy team, here is the Lisbon review plan", title: "Lisbon review", idempotencyKey: `probe-${label}` });
+    const id = made.thread.threadId as string;
+    for (let k = 0; k < 100; k++) { const m = (await api("chat.messages.list", { threadId: id, limit: 10 })).messages as unknown[]; if (m.length >= 2) break; await new Promise((r) => setTimeout(r, 100)); }
+    // something the Ask may read and quote (a chat is not a source for it): a note about the Lisbon plan
+    await api("notes.create", { title: "Lisbon team review", body: "Heyy: the Lisbon team review is on Thursday. Elena Rivera owns the plan.", idempotencyKey: `probe-rec-${label}` });
+    for (let k = 0; k < 100; k++) { const h = (await api("search.query", { q: "Lisbon plan", limit: 5 })).hits as { kind?: string }[]; if (h.some((x) => x.kind === "note")) break; await new Promise((r) => setTimeout(r, 200)); }
+    await page.goto(path === "first" ? `${web.origin}/chat` : `${web.origin}/chat#subject=thread:${id}`, { waitUntil: "load" });
+    await page.getByTestId("composer-field").first().waitFor({ timeout: 30_000 });
+    await page.waitForFunction(() => (window as any).__nc.pending === 0, undefined, { timeout: 60_000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await page.waitForTimeout(700);
+    if (path === "tabplus") await cannedAsk(page, latency > 0 ? 2000 : 800);
+    let field;
+    if (path === "tabplus") { await page.getByTestId("tab-strip-plus").click(); field = page.getByTestId("cmdk-input"); }
+    else if (path === "sidebar") { await page.getByTestId("new-menu").click(); await page.getByText("New chat", { exact: true }).first().click(); field = page.getByTestId("composer-field").first(); }
+    else field = page.getByTestId("composer-field").first();
+    await field.waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { const S = (window as any).__nc; S.marker = "Heyy"; S.words = "Heyy"; S.reply = "Heyy! The"; S.armed = true; }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await field.fill("Heyy Lisbon team review Thursday?");
+    await field.press("Enter");
+    const shot = (n: string) => page.screenshot({ path: path_(out, `${label}-${path}-${n}.png`) });
+    await page.waitForTimeout(200); await shot("0.2s");
+    await page.waitForTimeout(800); await shot("1s");
+    await page.waitForTimeout(2000); await shot("3s");
+    await page.waitForFunction(() => !(window as any).__nc.sigs.slice(-1)[0].s.includes("cmdk-working"), undefined, { timeout: 20_000 }).catch(() => undefined); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await page.waitForTimeout(1500); await shot("settled");
+    const first = await page.evaluate(() => { const S = (window as any).__nc; return { sigs: S.sigs as { t: number; s: string }[] }; }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    rows.push({ path, step: "Enter", first_acknowledged_ms: first.sigs.length > 1 ? first.sigs[1]!.t : null, transitions: first.sigs });
+    // a new tab's Ask ends in "Continue in a chat": press it and watch the tab move onto the real chat
+    if (path === "tabplus" && await page.getByTestId("cmdk-continue").isVisible().catch(() => false)) {
+      await page.evaluate(() => { const S = (window as any).__nc; S.sigs = []; S.t0 = performance.now(); }); // eslint-disable-line @typescript-eslint/no-explicit-any
+      await page.getByTestId("cmdk-continue").click();
+      await page.waitForTimeout(200); await shot("continue-0.2s");
+      await page.waitForTimeout(800); await shot("continue-1s");
+      await page.waitForTimeout(3000); await shot("continue-settled");
+      const sec = await page.evaluate(() => (window as any).__nc.sigs as { t: number; s: string }[]); // eslint-disable-line @typescript-eslint/no-explicit-any
+      rows.push({ path, step: "Continue in a chat", first_acknowledged_ms: sec.length > 1 ? sec[1]!.t : null, transitions: sec });
+    }
+  });
+  fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path_(out, `${label}-${path}.json`), JSON.stringify(rows, null, 1));
+  return rows;
+}
+const path_ = (...a: string[]): string => path.join(...a);
 
 export function within(label: string, got: { a: number[]; aPaint: number[]; b: number[]; c: number[]; missing: string[] }, budget = BUDGET_MS): void {
   assert.deepEqual(got.missing.filter((m) => !m.endsWith(": d")), [], `${label}: every mark appeared`);

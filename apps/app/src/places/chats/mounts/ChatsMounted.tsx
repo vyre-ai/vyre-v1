@@ -51,7 +51,7 @@ import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
 import { PendingChat } from "../landing/PendingChat.tsx";
-import { firstWords } from "../landing/pending.ts";
+import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -208,7 +208,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     const found = asking.scopeType === "" ? (asking.first ? chatOpening(rt, who, asking.first, asking.heading) : chatWith(rt, who)) : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom, asking.first);
     void found.then((id) => {
       if (!live) return;
-      if (id) { if (asking.draft) fill.set(asking.draft); act({ t: "chat", threadId: id, pane: true }); }
+      if (id) { if (asking.draft) fill.set(asking.draft); if (asking.first) holdPending(id, { title: asking.heading ?? firstWords(asking.first), text: asking.first, files: [], lead: asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId) }); act({ t: "chat", threadId: id, pane: true }); }
       else { setLine("Could not open the Ask. You may not see that yet."); act({ t: "agent", agentId: who, tab: "chats" }); }
     });
     return () => { live = false; };
