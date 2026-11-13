@@ -19,6 +19,8 @@ export interface LoadOptions {
 }
 
 const LOADING: QueryState<never> = { status: "loading" };
+const CANNOT: QueryState<never> = { status: "loading", error: { message: "This Space cannot read that here." } };
+const UNABLE: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => CANNOT };
 const IDLE: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 const WAITING: Load<never> = { state: "loading" };
 
@@ -34,8 +36,8 @@ export function useLoad<T>(src: LoadSource, o: LoadOptions = {}): Load<T | null>
     if ("screen" in s) return screens.query(s.screen[0], s.screen[1], s.screen[2] ?? {}) as LiveQuery<T>;
     const capQuery = (screens as { capQuery?: <U>(cap: string, input?: Record<string, unknown>) => LiveQuery<U> })
       .capQuery;
-    // hooks that cannot answer a capability (a replica without per-capability readers) stay loading, as the Console's reads always did
-    return capQuery ? (capQuery.call(screens, s.cap, s.input ?? {}) as LiveQuery<T>) : IDLE;
+    // hooks that cannot answer a capability (a replica without per-capability readers) say so: a wait that can never end is a failure
+    return capQuery ? (capQuery.call(screens, s.cap, s.input ?? {}) as LiveQuery<T>) : UNABLE;
   }, [screens, key, enabled]);
   const snap = useSyncExternalStore(query.subscribe, query.getSnapshot, query.getSnapshot);
   const held = useRef<{ data: T } | null>(null);

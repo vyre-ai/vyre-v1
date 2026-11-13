@@ -3,16 +3,13 @@
     "load-more": 2
   },
   "apps/app/src/console/objects/pickers.tsx": {
-    "load-more": 8
+    "load-more": 4
   },
   "apps/app/src/console/pages/ai-controls.tsx": {
     "declared": 1
   },
-  "apps/app/src/console/pages/comms/common.tsx": {
-    "load-more": 1
-  },
   "apps/app/src/console/pages/comms/RecipientPicker.tsx": {
-    "load-more": 2
+    "load-more": 1
   },
   "apps/app/src/console/pages/Connections.tsx": {
     "load-more": 2
@@ -26,17 +23,11 @@
   "apps/app/src/console/pages/GateRules.tsx": {
     "load-more": 1
   },
-  "apps/app/src/console/pages/Grants.tsx": {
-    "load-more": 1
-  },
   "apps/app/src/console/pages/Groups.tsx": {
-    "load-more": 3
-  },
-  "apps/app/src/console/pages/Reviews.tsx": {
     "load-more": 1
   },
   "apps/app/src/console/pages/Roles.tsx": {
-    "load-more": 3
+    "load-more": 1
   },
   "apps/app/src/console/pages/shared.tsx": {
     "declared": 4,
@@ -46,7 +37,7 @@
     "load-more": 1
   },
   "apps/app/src/console/pages/TemplateFiles.tsx": {
-    "load-more": 2
+    "load-more": 1
   },
   "apps/app/src/console/shell/data.tsx": {
     "read-hook": 1
@@ -120,9 +111,6 @@
   },
   "apps/app/src/places/chats/mounts/Layers.tsx": {
     "declared": 1
-  },
-  "apps/app/src/places/chats/mounts/RepliesPage.tsx": {
-    "load-more": 1
   },
   "apps/app/src/places/chats/needsyou/data.tsx": {
     "read-hook": 1

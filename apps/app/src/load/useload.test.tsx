@@ -237,3 +237,15 @@ test("without a ScreensProvider the hook says what is missing", async () => {
     restore();
   }
 });
+
+test("hooks that cannot answer a capability say so, instead of waiting for ever", async () => {
+  const restore = installDom();
+  try {
+    const seen: Load<number>[] = [];
+    const Probe = probe(() => useLoad<number>({ cap: "inbox.counts" }), seen);
+    await mount(createRoot, <ScreensProvider screens={hooksOf(() => { throw new Error("not a screen"); })}><Probe /></ScreensProvider>);
+    assert.equal(last(seen).state, "failed");
+  } finally {
+    restore();
+  }
+});
