@@ -98,3 +98,14 @@ test("a failed watcher turn retried by the owner is still a routine turn, so it 
   h.ctx.db.run("UPDATE engine_thread_queue SET state = 'running' WHERE qseq = ?", retry["qseq"]);
   assert.equal(H["engine.turn.asked_by"](agentCtx(h), {}).askedBy, undefined);
 });
+
+// KNOWN GAP, open until the tool seed carries the turn (plan P1: carry turnId or qseq and key on it). The answer is keyed by (thread, agent), so a call still in flight from a wake turn the owner just
+// interrupted reads the owner's new interrupt row. This test states today's behaviour; when the seed carries the turn, it is replaced by one that expects "not asked".
+test("known gap: a call from a cancelled wake turn reads the owner's interrupt that replaced it as asked", async () => {
+  const h = harness(); say(h, "msg_int", 1, "person", PERSON, 7000);
+  const wake = run(h, { kind: "wake", from: PERSON });
+  h.ctx.db.run("UPDATE engine_thread_queue SET state = 'stopping' WHERE qseq = ?", wake);
+  const { qseq } = H["engine.turn.enqueue"](h.ctx, { threadId: T, agentId: A, kind: "interrupt", messageId: "msg_int", from: PERSON });
+  h.ctx.db.run("UPDATE engine_thread_queue SET state = 'running' WHERE qseq = ?", qseq);
+  assert.equal(H["engine.turn.asked_by"](agentCtx(h), {}).askedBy?.person, PERSON, "the gap: the cancelled turn's late call counts as asked");
+});
