@@ -14,6 +14,7 @@ const wfDir = path.join(root, ".github/workflows");
 /** Flags that gate no test: they switch a mode. */
 const MODES: Record<string, string> = {
   UPDATE_SHARED_TIME: "rewrites scripts/lint/shared-time.baseline.json; the test runs either way",
+  UPDATE_SYSTEM_WORDS: "rewrites scripts/lint/system-words.baseline.json; the test runs either way",
 };
 
 /**
