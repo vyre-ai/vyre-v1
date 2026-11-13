@@ -189,7 +189,7 @@ test("a step's second line names its recipient, the first words of its prompt, o
   const subs = Object.fromEntries(layout(def, { required }).cards.filter((c) => c.type === "step").map((c) => [c.id, c.sub]));
   assert.equal(subs["a"], "Not set up", "an AI step with no prompt");
   assert.equal(subs["b"], "Not set up", "an update with no record or fields");
-  assert.equal(subs["c"], "text Hello", "a step with all it needs reads as its fields");
+  assert.equal(subs["c"], "Text Hello", "a step with all it needs reads as its fields, named as the editor names them");
   assert.equal(subs["d"], "Not set up", "an email with no body");
   const without = Object.fromEntries(layout(def).cards.filter((c) => c.type === "step").map((c) => [c.id, c.sub]));
   assert.equal(without["a"], "Write what the AI should do", "with no catalog the old lines stand");
