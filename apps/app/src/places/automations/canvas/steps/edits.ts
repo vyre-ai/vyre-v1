@@ -273,14 +273,25 @@ export function splitTemplate(value: string): Seg[] {
 }
 export const joinTemplate = (segs: readonly Seg[]): string => segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
 
-/** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger · Name, Find rows · Count). */
+/** The fields of what started a run that people know by a plain name. The picker's own words for the trigger are "What started the run"; a field that is only an id is named for what it points at. */
+const FRIENDLY_FIELD: Readonly<Record<string, string>> = { recordId: "The record that started this", threadId: "The chat that started this", taskId: "The task that started this", fileId: "The file that started this", contactId: "The contact that started this", projectId: "The project that started this" };
+
+/** A field's name as a person reads it: its words, and never the word "id" (contactId is Contact). A field that is only "id" is named Reference. */
+function fieldWords(path: string): string {
+  const last = path.split(".").pop() ?? path;
+  const words = last.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const kept = words.length > 1 && words[words.length - 1] === "id" ? words.slice(0, -1) : words[0] === "id" && words.length === 1 ? ["reference"] : words;
+  const text = kept.join(" ");
+  return text.replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger \u00b7 Name, Find rows \u00b7 Count). Fields people know by a plain name read as that name ("The record that started this"); no field is called an id. */
 export function chipLabel(ref: string, titleOf: (stepId: string) => string): string {
-  const cap = (w: string): string => w.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
   if (ref === "trigger" || ref === "input") return "Trigger";
   const t = /^(?:trigger|input)\.(.+)$/.exec(ref);
-  if (t) return `Trigger \u00b7 ${cap(t[1]!)}`;
+  if (t) return FRIENDLY_FIELD[t[1]!] ?? `Trigger \u00b7 ${fieldWords(t[1]!)}`;
   const st = /^steps\.([^.\[]+)\.out(?:\.(.+))?$/.exec(ref);
-  if (st) return `${titleOf(st[1]!)}${st[2] ? ` \u00b7 ${cap(st[2])}` : ""}`;
+  if (st) return `${titleOf(st[1]!)}${st[2] ? ` \u00b7 ${fieldWords(st[2])}` : ""}`;
   return ref;
 }
 

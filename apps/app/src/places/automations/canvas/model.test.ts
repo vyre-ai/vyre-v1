@@ -357,10 +357,13 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
   for (const n of nodes) {
     const sub = subtitleOf(n, { step: name });
     assert.ok(!sub.includes("{{") && !sub.includes("}}"), `${n.key}: "${sub}" shows template code`);
+    assert.ok(!/\bid\b/i.test(sub), `${n.key}: "${sub}" has the word id on a card`);
   }
   // the whole layout: every card of a definition built from those steps
   const def: Definition = { triggers: [{ key: "record_change" }], start: ["a"], nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })) };
-  for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{"), `card ${c.id}: "${c.sub}"`);
+  for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{") && !/\bid\b/i.test(c.sub), `card ${c.id}: "${c.sub}"`);
+  // a reference with no friendly name falls back to the field's words, never "id"
+  assert.equal(subtitleOf({ id: "s4", key: "post_message", input: { text: "{{ trigger.contactId }} {{ steps.find.out.id }}" }, next: [] }, { step: name }), "text \u2039Trigger \u00b7 Contact\u203a \u2039Find the lead \u00b7 Reference\u203a");
 });
 
 test("an AI step whose account is gone says so in words, never with the account's id (owner, 13 Nov 2026)", () => {
