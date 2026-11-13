@@ -1864,7 +1864,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!p) {
           p = (async () => {
             const r = await spaceLog.appendResult({
-              id: `evt_res_${id}_in_${moved.parent_id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+              id: `evt_thread_home_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
               payload: moved as unknown as Record<string, unknown>,
             });
             if (!r.ok) throw new Error(`could not move the thread ${id} into its channel: ${r.message}`);

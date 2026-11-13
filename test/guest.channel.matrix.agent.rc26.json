@@ -1,0 +1,29 @@
+{
+ "public, agent in it": {
+  "read.get": "ok",
+  "read.messages": "ok",
+  "post": "ok",
+  "reply.open": "ok",
+  "reply.get": "ok",
+  "reply.post": "ok",
+  "search": "error"
+ },
+ "invite, agent in it": {
+  "read.get": "ok",
+  "read.messages": "ok",
+  "post": "ok",
+  "reply.open": "ok",
+  "reply.get": "ok",
+  "reply.post": "ok",
+  "search": "error"
+ },
+ "invite, owner not in it": {
+  "read.get": "validation.not_found",
+  "read.messages": "validation.not_found",
+  "post": "validation.not_found",
+  "reply.open": "validation.not_found",
+  "reply.get": "validation.not_found",
+  "reply.post": "validation.not_found",
+  "search": "error"
+ }
+}

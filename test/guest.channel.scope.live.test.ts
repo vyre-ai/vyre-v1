@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hostLog } from "./memory-live-kit.ts";
+import { join } from "./member-key-kit.ts";
 import { world } from "./guest-channel-kit.ts";
 
 type W = Awaited<ReturnType<typeof world>>;
@@ -84,14 +85,16 @@ test("a guest's directory and search: only themselves and the people and agents 
     const g = await w.invite(w.pub, "reply", "scope-dir@example.com", "scopedir");
     await w.o("chat.post", { threadId: w.other.mainThreadId, body: "the zebra budget is confidential" });
     await w.o("chat.post", { threadId: w.pub.mainThreadId, body: "the zebra launch is public to partners" });
+    const loner = await join(w.d, "loner", "loner@example.com");   // a member who is in no channel at all
     const dir = await g.call("access.principals.list");
     assert.equal(dir.status, 200, JSON.stringify(dir.data));
     const ids = (dir.data.principals as { id: string }[]).map((x) => x.id);
     assert.ok(ids.includes(g.personId) && ids.includes(w.agent), "the guest and the agent of the channel are named");
     assert.equal(ids.length, 3, `and the channel's one other person (the owner), nobody else: ${ids.join(",")}`);
+    assert.ok(!ids.includes(loner.personId), "nor a person who is in no channel");
     assert.ok(!ids.includes(w.maya.personId) && !ids.includes(w.otherAgent), "not Maya (in another channel) and not an agent that is in no channel of theirs");
     assert.equal((await g.call("access.principals.list", { q: "maya" })).data.principals.length, 0, "a search of the directory for a person of another channel finds no one");
-    const found = await g.call("chat.history.search", { query: "zebra" });
+    const found = await g.call("chat.history.search", { q: "zebra" });
     if (found.status === 200) {
       const bodies = JSON.stringify(found.data);
       assert.ok(!/confidential/.test(bodies), `search returns nothing said outside the guest's channels: ${bodies.slice(0, 300)}`);

@@ -1,0 +1,102 @@
+{
+ "owner / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
+ },
+ "owner / priv": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
+ },
+ "maya(in pub) / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
+ },
+ "maya(in pub) / priv": {
+  "read.get": 404,
+  "read.messages": 404,
+  "post": 404,
+  "reply.open": 404,
+  "reply.get": 404,
+  "reply.post": 404,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "noah(in priv) / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "noah(in priv) / priv": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
+ },
+ "ana(in neither) / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "ana(in neither) / priv": {
+  "read.get": 404,
+  "read.messages": 404,
+  "post": 404,
+  "reply.open": 404,
+  "reply.get": 404,
+  "reply.post": 404,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "admin(in neither) / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "admin(in neither) / priv": {
+  "read.get": 404,
+  "read.messages": 404,
+  "post": 404,
+  "reply.open": 404,
+  "reply.get": 404,
+  "reply.post": 404,
+  "search.status": 200,
+  "search.finds": false
+ }
+}
