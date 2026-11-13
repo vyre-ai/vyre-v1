@@ -199,10 +199,12 @@ export type AccessConnectorBuilderGrantOut = {
 };
 export type AccessConnectorBuilderStatusIn = {
   agentId: string;
+  itemId?: string;
 };
 export type AccessConnectorBuilderStatusOut = {
   allowed: boolean;
   canGrant: boolean;
+  reaches?: boolean;
 };
 export type AccessDecidersIn = {
   resource: {
