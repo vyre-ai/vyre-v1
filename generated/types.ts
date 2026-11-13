@@ -8282,6 +8282,18 @@ export type ChatUnpinIn = {
 export type ChatUnpinOut = {
   pinned: boolean;
 };
+export type ChatsPresenceIn = Record<string, unknown>;
+export type ChatsPresenceOut = {
+  people: Array<{
+      personId: string;
+      state: "online" | "away";
+    }>;
+  working: Array<{
+      agentId: string;
+      threadId?: string;
+      since: number;
+    }>;
+};
 export type CiCostMonthIn = {
   month?: string;
 };
@@ -29555,6 +29567,16 @@ export type NotificationsSendOut = {
   outcome: "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
   notificationId?: string;
 };
+export type NotificationsUnseenByThreadIn = {
+  threadIds?: Array<string>;
+};
+export type NotificationsUnseenByThreadOut = {
+  counts: Array<{
+      threadId: string;
+      mentions: number;
+    }>;
+  capped: boolean;
+};
 export type PluginsAgentTemplateUseIn = {
   pluginId: string;
   name: string;
@@ -45346,6 +45368,7 @@ export interface CapMap {
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
+  "chats.presence": { in: ChatsPresenceIn; out: ChatsPresenceOut };
   "ci.cost.month": { in: CiCostMonthIn; out: CiCostMonthOut };
   "ci.job.intake": { in: CiJobIntakeIn; out: CiJobIntakeOut };
   "ci.project.get": { in: CiProjectGetIn; out: CiProjectGetOut };
@@ -46506,6 +46529,7 @@ export interface CapMap {
   "notifications.rules.get": { in: NotificationsRulesGetIn; out: NotificationsRulesGetOut };
   "notifications.rules.set": { in: NotificationsRulesSetIn; out: NotificationsRulesSetOut };
   "notifications.send": { in: NotificationsSendIn; out: NotificationsSendOut };
+  "notifications.unseen_by_thread": { in: NotificationsUnseenByThreadIn; out: NotificationsUnseenByThreadOut };
   "plugins.agent_template.use": { in: PluginsAgentTemplateUseIn; out: PluginsAgentTemplateUseOut };
   "plugins.agent_templates.list": { in: PluginsAgentTemplatesListIn; out: PluginsAgentTemplatesListOut };
   "plugins.allow.list": { in: PluginsAllowListIn; out: PluginsAllowListOut };
