@@ -47,9 +47,16 @@ const RULES: { why: string; re: RegExp }[] = [
   { why: "a name falls back to a Space id", re: new RegExp(String.raw`[nN]ame\s*(?:\?\?|\|\|)\s*${ID}\b`) },
 ];
 
+/**
+ * The one screen that shows a Space id on purpose (lead's ruling, 13 Nov 2026): Console > Space > General, so an admin can read it out and quote it to support, beside a Copy button. It is also the single
+ * named opt-out of the walks' id scan (apps/app/tests/crash-guard.ts IDS_ON_PURPOSE "space-id"). Nothing else is exempt; a new entry here is a decision for the owner.
+ */
+const SPACE_ID_ON_PURPOSE = ["console/pages/InfrastructureSettings.tsx"];
+
 test("lint: no screen shows a Space id where a person reads it", () => {
   const found: string[] = [];
   for (const file of sources(ROOT)) {
+    if (SPACE_ID_ON_PURPOSE.includes(path.relative(ROOT, file))) continue;
     const text = fs.readFileSync(file, "utf8");
     for (const [i, line] of text.split("\n").entries()) {
       if (/^\s*(\/\/|\*)/.test(line)) continue;
@@ -57,6 +64,12 @@ test("lint: no screen shows a Space id where a person reads it", () => {
     }
   }
   assert.deepEqual(found, [], "Show the Space's name (spaces/space-label.ts spaceLabel), never its id");
+});
+
+test("lint: the only screen exempt from the Space id rule is the one named, and it is not a license for a second", () => {
+  assert.deepEqual(SPACE_ID_ON_PURPOSE, ["console/pages/InfrastructureSettings.tsx"]);
+  const text = fs.readFileSync(path.join(ROOT, "console/pages/InfrastructureSettings.tsx"), "utf8");
+  assert.ok(text.includes("space-id-value"), "the exempt screen is the Space ID row with its Copy button");
 });
 
 test("lint: the rule catches what it is for", () => {
