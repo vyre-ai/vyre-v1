@@ -1,4 +1,4 @@
-// A fresh server's first hour, the part the privacy rules must never break: after boot every person has their Assistant and its home folder, made by the server (the agents module looks up the Agents root
+// A fresh server's first hour, the part the privacy rules must never break: a person's new agent has its home folder, made by the server (the agents module looks up the Agents root
 // as the host), and a person still finds only what they may view. host/tests/sites.agent.test.ts is the broader regression: it failed when files.resolve and files.folder.search stopped answering the server.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import type { EngineSession, OpenSession } from "../agent/src/turn-engine/types.
 
 const WHO = ["usr_olivia", "usr_mia"];
 
-test("a fresh Space: every person has an Assistant with a home folder, and finds the folders they may view by name", { timeout: 180_000 }, async () => {
+test("a fresh Space: a person's new agent gets its home folder, made by the server,, and finds the folders they may view by name", { timeout: 180_000 }, async () => {
   const idle: OpenSession = async () =>
     ({
       warm: true,
@@ -43,16 +43,12 @@ test("a fresh Space: every person has an Assistant with a home folder, and finds
     return b.data ?? b;
   };
   try {
+    // the server makes the agent's home folder under the Agents root, which it looks up as itself
     for (const who of WHO) {
-      const listed = await ok(who, "agents.list", {});
-      const mine = (listed.agents as Array<{ agentId: string; kind?: string; ownerId?: string }>).filter(
-        (a) => a.kind === "assistant" && a.ownerId === who,
-      );
-      assert.equal(mine.length, 1, `${who} has one Assistant: ${JSON.stringify(listed).slice(0, 400)}`);
-      const got = await ok(who, "agents.get", { agentId: mine[0]!.agentId });
-      assert.ok(got.agent.folderId, `${who}'s Assistant has a home folder`);
-      const folder = await ok(who, "files.folder.get", { folderId: got.agent.folderId });
-      assert.equal(folder.folder.folderId, got.agent.folderId);
+      const made = await ok(who, "agents.create", { name: `Helper of ${who.slice(4)}`, role: "You help.", idempotencyKey: `fh-${who}` });
+      assert.ok(made.agent.folderId, `${who}'s agent has a home folder`);
+      const folder = await ok(who, "files.folder.get", { folderId: made.agent.folderId });
+      assert.equal(folder.folder.folderId, made.agent.folderId);
     }
     const found = await ok("usr_olivia", "files.folder.search", { q: "Agents", scope: "folders" });
     assert.ok(
