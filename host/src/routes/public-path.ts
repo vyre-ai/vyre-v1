@@ -179,10 +179,16 @@ export async function serve(
     } catch (e) {
       // a file that lives at its provider (a Drive folder) and cannot be fetched right now is not "not found": the page is there, the provider is not reachable
       const code =
-        (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
+        (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+        (e as { code?: string } | null)?.code;
       if (!/^(provider\.|timeout\.|auth\.|rate_limit\.)/.test(String(code))) throw e;
       res.setHeader("retry-after", "30");
-      page(res, 503, "Temporarily unavailable", "This page is stored with another service that cannot be reached right now. Try again in a minute.");
+      page(
+        res,
+        503,
+        "Temporarily unavailable",
+        "This page is stored with another service that cannot be reached right now. Try again in a minute.",
+      );
       return;
     }
     if (!got) {

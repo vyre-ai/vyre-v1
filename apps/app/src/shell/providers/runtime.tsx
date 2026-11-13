@@ -1,3 +1,4 @@
+import { BlobUrlProvider } from "../../../../../ui/src/BlobImage/index.tsx";
 import type { AiHome } from "../../ai-signin/own-ai.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import type { RecordsPreviewTicket, RecordsPreviewReader } from "../../../../../client/src/gateway/records-preview.ts";
@@ -91,7 +92,11 @@ export { allows, GATE } from "../session/gates.ts";
 export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime; children: ReactNode }): ReactElement {
   // The assistant wears the Vyre mark in every face below; say which agent it is before they draw.
   setAssistantId(value.assistant.id, value.assistant.name);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <BlobUrlProvider fetcher={value.fetchBlobUrl}>{children}</BlobUrlProvider>
+    </Ctx.Provider>
+  );
 }
 
 /** The runtime of the open Space, or null before the shell has opened the replica (a place then draws its loading frame). */

@@ -1,5 +1,6 @@
 // Reserved sizes (ARCH 9, "No layout shift"): a thing that arrives later (an image, an avatar, the text of a message) has its box before it arrives, the size of the final content, so nothing
 // below it moves when it lands. Images carry their width and height; an avatar is a fixed square; a skeleton is exactly the lines the text will take.
+import { BlobImage } from "../BlobImage/index.tsx";
 import { memo } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import { Avatar } from "../Avatar/index.tsx";
@@ -39,7 +40,7 @@ export const ReservedImage = memo(function ReservedImage({
       testID={testID}
       style={[styles.imageBox, { maxWidth: width, aspectRatio: width / height, borderRadius: radius }]}
     >
-      <Image accessibilityLabel={label} source={{ uri }} resizeMode="cover" style={styles.imageFill} />
+      <BlobImage accessibilityLabel={label} uri={uri} resizeMode="cover" style={styles.imageFill} />
     </View>
   );
 });

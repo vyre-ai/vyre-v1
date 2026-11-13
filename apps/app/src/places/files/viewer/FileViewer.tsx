@@ -189,28 +189,6 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         : [],
     [ready, kind, text, app, office],
   );
-  // a picture the Space serves needs the person's token, which an image element does not send: it is fetched with it and drawn from the result (an address that is not the Space's is used as it is)
-  const previewUrl = ready?.data.previewUrl;
-  const [drawable, setDrawable] = useState<{ from: string; url: string } | null>(null);
-  useEffect(() => {
-    if (!previewUrl || !previewUrl.startsWith("/spaces/") || !d.blobUrl) return undefined;
-    let live = true;
-    void d.blobUrl(previewUrl).then(
-      (url) => live && setDrawable({ from: previewUrl, url }),
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [d, previewUrl]);
-  const imageSrc =
-    previewUrl === undefined
-      ? undefined
-      : !previewUrl.startsWith("/spaces/") || !d.blobUrl
-        ? previewUrl
-        : drawable?.from === previewUrl
-          ? drawable.url
-          : undefined;
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
@@ -472,7 +450,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(office
           ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." }
           : {})}
-        {...(kind === "image" && imageSrc ? { src: imageSrc } : {})}
+        {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
         boxes={boxes}
         strokes={strokes}
         blocks={shownBlocks}

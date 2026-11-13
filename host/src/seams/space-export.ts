@@ -267,7 +267,9 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
         await read("files.read", { fileId: id, as: "base64", offset: 0, length: 1 });
         file = (await read("files.get", { fileId: id })).file ?? file;
       } catch (e) {
-        const code = (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
+        const code =
+          (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+          (e as { code?: string } | null)?.code;
         if (/^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(String(code)))
           throw new SpaceExportError(
             `${String(file.name ?? id)} lives in ${String(file.source.provider ?? "its provider")} and could not be fetched, so no archive was made. Try again when it can be reached.`,

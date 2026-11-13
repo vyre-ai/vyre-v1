@@ -495,7 +495,13 @@ test("a file that lives at its provider and was never opened: the archive holds 
         if (cap === "files.get") return { file: { ...out.file, name: "Plan.pdf", size: b.length, version: 2 } };
         if (cap === "files.versions") return { versions: [{ versionId: "ver_2", n: 2, at: 1, by: "usr_owner" }] };
         if (cap === "files.read")
-          return { base64: b.toString("base64"), size: b.length, version: 2, mime: "application/pdf", truncated: false };
+          return {
+            base64: b.toString("base64"),
+            size: b.length,
+            version: 2,
+            mime: "application/pdf",
+            truncated: false,
+          };
       }
       return out;
     };
@@ -516,5 +522,4 @@ test("a file that lives at its provider and was never opened: the archive holds 
   const ok = (await run(() => "fetch", "real pdf bytes")) as { entries?: { path: string; bytes?: Uint8Array }[] };
   const entry = ok.entries?.find((e) => e.path === "files/fil_shared/versions/ver_2.bin");
   assert.equal(Buffer.from(entry?.bytes ?? []).toString(), "real pdf bytes", "the archive holds the fetched bytes");
-
 });

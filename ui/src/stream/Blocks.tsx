@@ -1,5 +1,6 @@
 // The blocks of a reply beyond paragraphs and lists: code with colour, a language label, Copy and Wrap; diagrams in a sandboxed frame with a fallback to the source; math; charts drawn by our own SVG with a table
 // view and Copy as CSV; callouts; collapsibles; images that enlarge; footnotes. Each is a plain component of the skin's colours (CSS variables on web). The big libraries load only when a message uses them (loaders.ts).
+import { BlobImg } from "../BlobImage/index.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -383,7 +384,7 @@ export function ImageBlock({ src, alt, id }: { src: string; alt: string; id: str
   const [big, setBig] = useState(false);
   const img = (style: Record<string, unknown>): ReactNode =>
     web ? (
-      createElement("img", { src, alt, style, referrerPolicy: "no-referrer", loading: "lazy" })
+      createElement(BlobImg, { src, alt, style, referrerPolicy: "no-referrer", loading: "lazy" })
     ) : (
       <Text style={st.alt}>{alt}</Text>
     );

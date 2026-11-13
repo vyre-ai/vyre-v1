@@ -21,8 +21,6 @@ export interface FilesViewerData {
   openFile?(fileId: string): void;
   /** Open an address outside Vyre (a mounted file in its provider's editor); without it the viewer shows no Open in button. */
   openUrl?(url: string): void;
-  /** A picture or preview the Space serves, fetched with the person's token into an address the page can draw (an image element sends no token). Absent: the address is used as it is. */
-  blobUrl?(path: string): Promise<string>;
   /** A file named in the words opens in a tab of its own; `background` leaves the person where they are (Cmd-click, middle click). */
   openFileTab?(fileId: string, background: boolean): void;
   /** Share the file with people (the same sheet as in the Files list). Absent where there is no one to share with: a Personal Space, a sample. */

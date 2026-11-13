@@ -4,6 +4,7 @@
 // the focused change. A diff tab is a tab like any file; the caller keeps its state while it is closed.
 // Lists use the shared Row; the reply field is the shared CommentReply; menus use the shared Menu. Colours are skin tokens (CSS variables on web).
 
+import { BlobImage } from "../BlobImage/index.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -688,11 +689,11 @@ export function ImageDiff({
         <View style={styles.imageSide}>
           <View style={styles.imageCol}>
             <Text style={styles.imageLabel}>Before</Text>
-            <Image source={{ uri: before }} style={styles.image} resizeMode="contain" accessibilityLabel="Before" />
+            <BlobImage uri={before} style={styles.image} resizeMode="contain" accessibilityLabel="Before" />
           </View>
           <View style={styles.imageCol}>
             <Text style={styles.imageLabel}>After</Text>
-            <Image source={{ uri: after }} style={styles.image} resizeMode="contain" accessibilityLabel="After" />
+            <BlobImage uri={after} style={styles.image} resizeMode="contain" accessibilityLabel="After" />
           </View>
         </View>
       ) : (
@@ -719,10 +720,10 @@ export function ImageDiff({
             },
           })}
         >
-          <Image source={{ uri: after }} style={styles.sliderImage} resizeMode="contain" accessibilityLabel="After" />
+          <BlobImage uri={after} style={styles.sliderImage} resizeMode="contain" accessibilityLabel="After" />
           <View style={[styles.sliderClip, { width: `${pos}%` }]}>
-            <Image
-              source={{ uri: before }}
+            <BlobImage
+              uri={before}
               style={[styles.sliderImage, { width }]}
               resizeMode="contain"
               accessibilityLabel="Before"

@@ -6,6 +6,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { BlobImage } from "../BlobImage/index.tsx";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
@@ -947,10 +948,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onResponderRelease={(e) => pointer("up", e)}
       >
         {props.src !== undefined ? (
-          <Image
+          <BlobImage
             accessibilityIgnoresInvertColors
             accessibilityLabel={props.title}
-            source={{ uri: props.src }}
+            uri={props.src}
             resizeMode="cover"
             style={s.pictureImg}
             testID="vw-picture"
