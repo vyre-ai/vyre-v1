@@ -106,6 +106,14 @@ test("production Automations: missing input in words, and a step menu with only 
     assert.match(items, /Send an email/, "this is the step menu");
     for (const app of ["Microsoft", "GitHub", "Google"])
       assert.equal(items.includes(app), false, `${app} is in the menu`);
+    // the same card in the Graphite skin: the title is whole and the chip is under it
+    await page.keyboard.press("Escape");
+    const dark = new URL(page.url());
+    dark.searchParams.set("skin", "graphite");
+    await page.goto(dark.toString(), { waitUntil: "load" });
+    await page.getByTestId("chip-n1").waitFor({ timeout: 20_000 });
+    await shoot("step-missing-file-dark");
+    assert.equal(await page.getByTestId("card-n1").getByText("Send for signature", { exact: true }).count(), 1);
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

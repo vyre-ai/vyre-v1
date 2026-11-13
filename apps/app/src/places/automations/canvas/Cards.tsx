@@ -122,26 +122,33 @@ export function StepCard({
         <Text numberOfLines={1} style={c.title}>
           {card.title}
         </Text>
-        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>
-          {card.sub}
-        </Text>
+        {/* the chip sits under the title, beside the second line, so the title keeps its room */}
+        <View style={c.subRow}>
+          <Text
+            numberOfLines={1}
+            testID={`card-sub-${card.id}`}
+            style={[c.sub, c.subFlex, card.sub === NOT_SET_UP && c.subWarn]}
+          >
+            {card.sub}
+          </Text>
+          {card.chip ? (
+            <View
+              testID={`chip-${card.id}`}
+              style={[
+                c.status,
+                card.chip === "error" && c.statusBad,
+                card.chip === "waiting" && c.statusWait,
+                card.chip === "tested" && c.statusOk,
+              ]}
+            >
+              <Text style={c.statusText}>{chipText(card.chip, card.issues, card.state)}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
           <Glyph name="warn" size={14} color={errors.length > 0 ? "var(--danger)" : "var(--warn)"} />
-        </View>
-      ) : null}
-      {card.chip ? (
-        <View
-          testID={`chip-${card.id}`}
-          style={[
-            c.status,
-            card.chip === "error" && c.statusBad,
-            card.chip === "waiting" && c.statusWait,
-            card.chip === "tested" && c.statusOk,
-          ]}
-        >
-          <Text style={c.statusText}>{chipText(card.chip, card.issues, card.state)}</Text>
         </View>
       ) : null}
       {runWord ? (
@@ -395,6 +402,8 @@ export const c = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
+  subRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  subFlex: { flexShrink: 1, minWidth: 0 },
   subWarn: { color: "var(--warn)" as string },
   status: {
     borderRadius: 6,
@@ -403,6 +412,7 @@ export const c = StyleSheet.create({
     borderWidth: 1,
     borderColor: "var(--line)" as string,
     backgroundColor: "var(--hover)" as string,
+    flexShrink: 0,
   },
   statusOk: { borderColor: "var(--ok)" as string },
   statusWait: { borderColor: "var(--warn)" as string },
