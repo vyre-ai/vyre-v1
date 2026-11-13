@@ -1,6 +1,7 @@
 // chat.post and the delivery every message shares (spec 2.5, 3.2, 4.6; ARCH 6.1, 7.2).
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
+import { agentStanding } from "../../../lib/agent-asker.ts";
 import {
   MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, addAgent, agentsOf, askerOf, channelBy, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
 } from "../projections.ts";
@@ -63,8 +64,8 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
   const channel = root.channelId === undefined ? null : channelBy(ctx.db, root.channelId);
   if (!channel || channel.visibility !== "invite") return true;
   if (isTrustedService(ctx.principal)) return true;
-  // an agent is in when it was added to the channel or its thread, or when the person it acts for is in
-  if (ctx.principal.kind === "agent" && (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))) return true;
+  // an agent is in when it was added to the channel or its thread and it acts for nobody; asked by a person, the person's own place in the channel decides (lib/agent-asker.ts)
+  if (ctx.principal.kind === "agent" && agentStanding(ctx, () => false) && (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))) return true;
   return isMember(ctx.db, root.id, asker) || root.starter === asker;
 }
 
@@ -75,7 +76,8 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
   if (!isPrivateRoot(root)) return true;
   if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
-  if (ctx.principal.kind === "agent") return agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id);
+  // an agent sitting in the chat works in it for the people in it and for nobody; asked by someone who is not in the chat it brings nothing out of it (lib/agent-asker.ts)
+  if (ctx.principal.kind === "agent" && agentStanding(ctx, () => false)) return agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id);
   return false;
 }
 
