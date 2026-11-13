@@ -227,15 +227,31 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     try { const s = (await exec("status", {})) as { profiles?: ProfileRow[] }; return !(s.profiles ?? []).some((p) => p.busy || p.takeover); } catch { return true; }
   }
 
+  /**
+   * An Engine call that fails with an error this adapter did not expect (a socket reset, a 5xx, a Docker message) is a typed, retryable `unavailable` with plain words, never a raw error that the
+   * agent's call would turn into internal.unexpected (13 Nov, B6a). `gone` names the answers that mean the step's work is already done (a 404 for what is already removed, "already started").
+   */
+  async function engineStep<T>(what: string, f: () => Promise<T>, gone?: RegExp): Promise<T | undefined> {
+    try { return await f(); } catch (e) {
+      if (e instanceof ToolError) throw e;
+      const said = e instanceof Error ? e.message : String(e);
+      if (gone?.test(said)) return undefined;
+      throw new ToolError("unavailable", `The Space browser could not ${what}: ${said.replace(/\s+/g, " ").slice(0, 160)}. It will be tried again on the next call.`);
+    }
+  }
+  const GONE = /no such container|404|not found|removal of container .* is already in progress|already in progress|409/i;
+  const EXISTS = /already in use|already exists|409|conflict/i;
+  const STARTED = /already started|already running|304/i;
+
   /** The container exists, is of this release, and runs; made and started on first use, with browserd answering. Calls that arrive together share one check. */
   function ensureUp(): Promise<void> {
     up ??= (async () => {
-      const running = await o.api.containerRunning(name);
+      const running = (await engineStep("look at its container", () => o.api.containerRunning(name))) === true;
       // without raw Engine access nothing can be compared: a running container is used as it is
       if (running && (current || !o.http || Date.now() < recheckAt)) { if (subnet === null) await learnNetwork(); return; }
       // the image first (it does not depend on the network): a server without it makes nothing
       const config = browserContainerConfig(o);
-      if (!(await o.api.imageExists(config.Image))) {
+      if (!(await engineStep("look for its image", () => o.api.imageExists(config.Image)))) {
         // a server that has never run one fetches the image itself (the runner allows only this image)
         let why = "";
         // a local name (vyre/...) is never asked of a registry: Docker would look on Docker Hub, which is not Vyre's (sandbox/src/docker.ts fetchableImage)
@@ -246,9 +262,9 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
           const query = byDigest ? { fromImage: config.Image } : { fromImage: config.Image.slice(0, at), tag: config.Image.slice(at + 1) };
           try { const r = await o.http({ method: "POST", path: "/images/create", query, timeoutMs: 15 * 60_000 }); if (r.status !== 200) why = bodyText(r.body); } catch (e) { why = e instanceof Error ? e.message : "no answer"; }
         }
-        if (!(await o.api.imageExists(config.Image))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
+        if (!(await engineStep("look for its image", () => o.api.imageExists(config.Image)))) throw new ToolError("unavailable", `The Space browser image ${config.Image} is not on this server${why ? ` and could not be fetched (${why.slice(0, 80)})` : ""}. Update the server to fetch it.`);
       }
-      const net = await makeNetwork();
+      const net = await engineStep("make its network", () => makeNetwork());
       const full = browserContainerConfig(o, net);
       const wrong = reviewComputerConfig(full);
       if (wrong.length > 0) throw new ToolError("unavailable", `The Space browser's container config is outside its profile: ${wrong.join(", ")}`);
@@ -262,12 +278,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         }
         log("replacing the container of an earlier release with this release's (the profiles and their sign-ins stay on the volume)");
         await o.api.containerStop(name, 10).catch(() => undefined);
-        await o.api.containerRemove(name);
+        // already gone, or already being removed, is what the step wanted
+        await engineStep("remove the container of the earlier release", () => o.api.containerRemove(name), GONE);
       } else if (release === "same" && running) { current = true; return; }
       // unknown: the running container is used as it is and looked at again later, never replaced on an error
       else if (release === null && running && o.http) { recheckAt = Date.now() + (o.recheckMs ?? 30_000); if (subnet === null) await learnNetwork(); return; }
-      try { await o.api.containerCreate(name, full); } catch (e) { if (!/already in use|409|conflict/i.test(e instanceof Error ? e.message : "")) throw e; }
-      await o.api.containerStart(name);
+      await engineStep("make its container", () => o.api.containerCreate(name, full), EXISTS);
+      await engineStep("start its container", () => o.api.containerStart(name), STARTED);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
         try { await exec("status", {}); current = release !== null; return; } catch (e) {
