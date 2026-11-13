@@ -428,17 +428,36 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
 
 export function Activity({ data, me, nameOf, now, zones, openTask, call }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void; call?: Call }): ReactElement {
   const viewer = { me, nameOf, offsetMin: 0, zone: zones.space };
-  // goals.get carries the latest rows only: earlier ones are read through goals.activity as the list is scrolled to its end, and kept while the page re-reads
+  // goals.get carries the latest rows only: earlier ones are read through goals.activity as the list is scrolled to its end, and kept while the page re-reads.
+  // Pages end only after the last row of their oldest moment, so the latest page and the earlier rows never share a row and no row can be told apart wrongly: `earlier` holds rows strictly older than the latest page.
   const [earlier, setEarlier] = useState<GoalPageData["activity"]>([]);
   const [end, setEnd] = useState(false);
   const busy = useRef(false);
+  const edge = useRef<number | undefined>(undefined);   // the oldest moment of the latest page when `earlier` last joined it
+  const goalId = data.goal.id;
   const oldest = data.activity[data.activity.length - 1];
-  // rows arrived so fast that the latest page no longer reaches back to what was loaded: start the earlier rows again rather than leave a gap
-  useEffect(() => { if (earlier.length > 0 && oldest && earlier[0] && oldest.at > earlier[0].at) { setEarlier([]); setEnd(false); } }, [oldest?.at]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const all = useMemo(() => {
-    const seen = new Set<string>();
-    return [...data.activity, ...earlier].filter((a) => { const k = `${a.at}|${a.kind}|${a.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
-  }, [data.activity, earlier]);
+  useEffect(() => { setEarlier([]); setEnd(false); edge.current = undefined; }, [goalId]);
+  // New rows move the latest page forward. What loaded stays, and the rows that fell between the two are read, so nothing is lost and the list does not jump back to the top.
+  useEffect(() => {
+    if (!oldest) return;
+    const was = edge.current;
+    edge.current = oldest.at;
+    if (was === undefined || oldest.at <= was || earlier.length === 0 || !call) return;
+    void (async () => {
+      const got: GoalPageData["activity"] = [];
+      let cursor = oldest.at;
+      for (let i = 0; i < 20; i++) {
+        const rows = ((await call("goals.activity", { goalId, before: cursor, limit: 50 })) as { activity?: GoalPageData["activity"] }).activity ?? [];
+        if (rows.length === 0) break;
+        got.push(...rows.filter((r) => r.at >= was));
+        const lastAt = rows[rows.length - 1]!.at;
+        if (lastAt < was) break;
+        cursor = lastAt;
+      }
+      if (got.length > 0) setEarlier((e) => [...got, ...e]);
+    })().catch(() => undefined);
+  }, [oldest?.at]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const all = useMemo(() => (oldest ? [...data.activity, ...earlier.filter((a) => a.at < oldest.at)] : data.activity), [data.activity, earlier, oldest?.at]);   // eslint-disable-line react-hooks/exhaustive-deps
   const loadEarlier = (): void => {
     const last = all[all.length - 1];
     if (!call || busy.current || end || !last) return;
@@ -449,6 +468,7 @@ export function Activity({ data, me, nameOf, now, zones, openTask, call }: { dat
     }, () => undefined).finally(() => { busy.current = false; });
   };
   const days = byDay(all, now, zones);
+  const seen = new Map<string, number>();
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
     <ScrollView testID="goal-activity" contentContainerStyle={st.pad} scrollEventThrottle={100}
@@ -460,10 +480,13 @@ export function Activity({ data, me, nameOf, now, zones, openTask, call }: { dat
           {/* ui-rows-lint: not a list (each item is a ui/Row; the TimePop around it only adds the hover card with both zones) */}
           {d.items.map((a) => {
             const line = formatActivity(a, viewer);
+            // two rows can share a moment and a kind: the second is told from the first by its place among them
+            const base = `${a.at}-${a.kind}`, nth = seen.get(base) ?? 0;
+            seen.set(base, nth + 1);
             // a list of times: each reads in the Space zone only; yours is on hover, so the list stays quiet
             return (
-              <TimePop key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} at={a.at}>
-                <Row id={`ga-${a.at}`} title={line.text} note={`${whenIn(a.at, now, zones).text}${line.credit ? ` · ${line.credit}` : ""}`}
+              <TimePop key={`${base}-${nth}`} at={a.at}>
+                <Row id={`ga-${base}-${nth}`} title={line.text} note={`${whenIn(a.at, now, zones).text}${line.credit ? ` · ${line.credit}` : ""}`}
                   {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
               </TimePop>
             );
