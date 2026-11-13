@@ -34,7 +34,11 @@ test("two steps of one turn that both call 'gcall_0' make two keys and run twice
   await r.run("trn_1", "gcall_0", page("Weekly report"));
   await r.run("trn_1", "gcall_0", page("Another"));
   assert.equal(r.sent.length, 3, "three handler runs");
-  assert.deepEqual(r.keys(), ["ag:trn_1:0:gcall_0", "ag:trn_1:1:gcall_0", "ag:trn_1:2:gcall_0"]);
+  const k = r.keys();
+  assert.match(k[0] ?? "", /^ag:trn_1:[0-9a-f]{8}\.0:gcall_0$/);
+  assert.match(k[1] ?? "", /^ag:trn_1:[0-9a-f]{8}\.1:gcall_0$/);
+  assert.match(k[2] ?? "", /^ag:trn_1:[0-9a-f]{8}\.2:gcall_0$/);
+  assert.equal(new Set(k).size, 3);
 });
 
 test("another turn counts from its own start, and a call with no id gets a random key", async () => {
@@ -43,8 +47,8 @@ test("another turn counts from its own start, and a call with no id gets a rando
   await r.run("trn_2", "call_0", page("A"));
   await r.run("trn_3", "", page("A"));
   const k = r.keys();
-  assert.equal(k[0], "ag:trn_1:0:call_0");
-  assert.equal(k[1], "ag:trn_2:0:call_0");
+  assert.match(k[0] ?? "", /^ag:trn_1:[0-9a-f]{8}\.0:call_0$/);
+  assert.match(k[1] ?? "", /^ag:trn_2:[0-9a-f]{8}\.0:call_0$/);
   assert.match(k[2] ?? "", /^ag:r:/);
 });
 
@@ -56,4 +60,12 @@ test("a very long call id is hashed to a fixed length, and the same long id give
   const [a, b] = r.keys();
   assert.ok((a ?? "").length < 80, a);
   assert.equal((a ?? "").split(":").at(-1), (b ?? "").split(":").at(-1));
+});
+
+test("a turn run again after a restart (a new process) never meets the keys of the run before it", async () => {
+  const before = rig();
+  const after = rig();
+  await before.run("trn_1", "gcall_0", page("Weekly report"));
+  await after.run("trn_1", "gcall_0", page("Weekly report"));
+  assert.notEqual(before.keys()[0], after.keys()[0]);
 });

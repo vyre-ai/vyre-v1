@@ -74,12 +74,14 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
   /** How many tool calls each turn has made so far in this process. A provider's call id is not unique inside a turn (Google numbers its calls from 0 at every step; OpenAI falls back to the call's index), so the key
    * of a call is its position in the turn and the provider's id together. A turn that is run again after a restart counts from 0 again: its calls are new calls, as they were when a model made up its own key. */
   const calledIn = new Map<string, number>();
+  /** Names this process: the position counter starts again at 0 after a restart, so a rerun of the same turn must not meet the keys of the run before it (the store keeps them 30 days and would swallow or refuse its calls). */
+  const boot = globalThis.crypto.randomUUID().slice(0, 8);
   const nextCallId = (turnId: string | undefined, id: string): string | undefined => {
     if (!turnId || !id) return undefined;
     const n = calledIn.get(turnId) ?? 0;
     calledIn.set(turnId, n + 1);
     if (calledIn.size > 500) calledIn.delete(calledIn.keys().next().value as string);
-    return `${n}:${id}`;
+    return `${boot}.${n}:${id}`;
   };
   const ctxFor = (threadId: string, agentId: string, asker: string, turnId?: string, callId?: string): ToolCtx => {
     const rules = d.rules?.(agentId);
