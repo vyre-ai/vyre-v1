@@ -3,6 +3,7 @@ import { sessionTheme } from "./space-theme.ts";
 import { sessionCatalogue } from "./space-catalog.ts";
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { REFUSED_CHAT_TAB, staleRefusalTab } from "../tabs/titles.ts";
 import { osShell } from "../notifications/os-shell.ts";
 import { windowFocused } from "../notifications/os-banner.ts";
 import { OpenLink } from "../reach/OpenLink.tsx";
@@ -432,7 +433,15 @@ export function ShellHost({
     return followAllTabs(
       session,
       { tabs: () => hub.session().tabs.state().tabs, subscribe: (l) => hub.subscribe(l) },
-      (key, t, empty) => hub.retitle(key, t, empty),
+      (key, t, empty) => {
+        hub.retitle(key, t, empty);
+        // a refused link reuses the one refusal tab instead of adding another
+        if (t === REFUSED_CHAT_TAB) {
+          const now = hub.session().tabs.state();
+          const drop = staleRefusalTab(now.tabs, key, now.active);
+          if (drop !== null) hub.session().tabs.close(drop);
+        }
+      },
     );
   }, [session, hub]);
 

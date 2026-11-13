@@ -449,3 +449,30 @@ test("the Activity tab keeps what it loaded when new rows arrive, fills in the r
   assert.equal(count(/Fresh/g), 5);
   assert.equal(count(/Twin [AB]/g), 2);
 });
+
+test("a goal the person cannot open says so in plain words and offers no Retry (K9, 13 Nov)", async () => {
+  installDom();
+  const refuse = async (): Promise<unknown> => {
+    throw Object.assign(new Error("That goal does not exist."), { code: "validation.not_found" });
+  };
+  const root = await mount(
+    createRoot as never,
+    <GoalPage
+      goalId="gol_x"
+      call={refuse}
+      changes={undefined}
+      me="usr_irfad"
+      nameOf={(id) => id}
+      clock={() => ({ now: NOW, offsetMin: 300 })}
+      conversationFor={() => ({}) as ConversationData}
+      openTask={() => undefined}
+      openAgent={() => undefined}
+    />,
+  );
+  await flush();
+  await flush();
+  const text = textOf(find(root!, "goal-refused"));
+  assert.match(text, /You can't open this goal/);
+  assert.doesNotMatch(text, /does not exist/);
+  assert.equal(find(root!, "state-retry"), null, "a refusal never offers Retry");
+});

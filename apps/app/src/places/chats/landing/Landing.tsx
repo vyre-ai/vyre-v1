@@ -12,12 +12,13 @@ import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/
 import type { AccessPick } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
+import { useCutTip } from "../../../../../../ui/src/Row/index.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
-import { needsRow } from "./needs-row.ts";
+import { needsLine, needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { prettyModel, useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
@@ -391,6 +392,9 @@ function NeedRow({
     );
   };
   const kind = kindOf(row.requester);
+  const sub = needsLine(row, nameOf);
+  // the row's text is cut to one line: hovering it gives the whole of it in the app's one tooltip, and opening the row shows it in full in Needs you
+  const cut = useCutTip(`${row.title}\n${sub}`);
   return (
     <View
       testID={`landing-need-${row.id}`}
@@ -406,12 +410,19 @@ function NeedRow({
       >
         <Avatar {...avatarOf({ id: row.requester, name: nameOf(row.requester), kind })} size={28} state="waiting" />
       </Pressable>
-      <Pressable role="button" aria-label={row.title} onPress={() => openNeed(row.id)} style={st.needText}>
+      <Pressable
+        role="button"
+        aria-label={row.title}
+        onPress={() => openNeed(row.id)}
+        style={st.needText}
+        {...{ onMouseEnter: cut.onMouseEnter, onFocus: cut.onFocus }}
+        {...(cut.title !== undefined ? ({ title: cut.title } as object) : {})}
+      >
         <Text numberOfLines={1} style={st.needTitle}>
           {row.title}
         </Text>
         <Text numberOfLines={1} style={st.needSub}>
-          {[row.kind, nameOf(row.requester), row.sub].filter(Boolean).join(" · ")}
+          {sub}
         </Text>
       </Pressable>
       <View style={st.needActs}>
