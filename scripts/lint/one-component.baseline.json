@@ -51,6 +51,9 @@
   "apps/app/src/mobile/sheets/Sheet.tsx": {
     "declared": 1
   },
+  "apps/app/src/places/apps/shell/AppsPlace.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/apps/shell/data.tsx": {
     "read-hook": 1
   },
@@ -169,6 +172,9 @@
   "apps/app/src/places/inbox/sidebar/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/records/projectpage/overview/OverviewPage.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/records/projectpage/overview/Properties.tsx": {
     "declared": 1
   },
@@ -198,6 +204,9 @@
   },
   "apps/app/src/places/vault/layout/data.tsx": {
     "read-hook": 1
+  },
+  "apps/app/src/places/vault/layout/index.tsx": {
+    "declared": 1
   },
   "apps/app/src/places/vault/layout/Sheet.tsx": {
     "declared": 1

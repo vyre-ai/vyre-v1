@@ -1,6 +1,6 @@
 // One component for one job (contract P3, the screen set). A new one-off copy of a shared piece fails here, and the old copies only go down.
 // It counts, per file in the app (apps/app/src) and the shared UI (ui/src), five kinds of copy:
-//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, Field, Sheet, FormSheet, Status, StatusLabel, StatusDot) outside its home folder;
+//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, Field, Sheet, FormSheet, Status, StatusLabel, StatusDot, Page) outside its home folder;
 //   read-hook   a declared `useScreenQuery` or `useRead`: the one data hook is `useLoad` (App/load, client/src/query);
 //   load-more   the words "Load more" by hand: the paging row of `useLoadList` draws them;
 //   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now(); one named timer is excused in EXCEPTIONS below): a watched read replaces the timer;
@@ -9,7 +9,7 @@
 // Out of scope: tests and test kits, the Join entry kit (apps/app/src/join: it draws before any skin or session exists, so it keeps its own pieces), ui/src/ListSections (a different job), and each piece's home folder.
 // Out of reach, honestly: an object method (`{ Switch() {} }`), `Object.assign(Toggle, ...)` and a string built by concatenation ("Load " + "more") are not found: they need types or running code, and a name list cannot see them.
 // A plain rename (a component called Toggle) is not caught: the check knows names, not shapes. It also lets a file swap one copy for another at the same count.
-// Not counted yet (later steps of the contract, with the piece they need): the word "Loading" (Loadable), a Row with no press, menu or inert (Row menu), more than seven tabs in a Page (Page), Chip as a status (it needs a rule that tells a status from a tag).
+// Not counted yet (later steps of the contract, with the piece they need): the word "Loading" (Loadable), a Row with no press, menu or inert (Row menu), Chip as a status (it needs a rule that tells a status from a tag).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -36,6 +36,7 @@ const PIECES: ReadonlyArray<{ names: readonly string[]; home: string; use: strin
     use: "ui/Field and its controls (TextBox, Select, NumberBox)",
   },
   { names: ["Segmented"], home: "ui/src/Segmented/", use: "ui/Segmented" },
+  { names: ["Page"], home: "ui/src/Page/", use: "ui/Page (one head, tabs, one scroll column)" },
   {
     names: ["Status", "StatusLabel", "StatusDot"],
     home: "ui/src/Status/",
