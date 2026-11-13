@@ -200,7 +200,7 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
 /** How to turn WSL on, as the chat says it: the same steps as sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS (status.test.ts keeps them equal). */
 export const TURN_ON_WSL_TEXT = "To turn on WSL: open the Start menu, type PowerShell, and choose Run as administrator. Run: wsl --install --no-distribution. Then restart the computer. Vyre sets up its sandbox by itself on the next Claude Code, Codex or Grok reply.";
 
-export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void, open?: { pickModel?: () => void }): Promise<void> {
+export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void, open?: { pickModel?: () => void; spaceKey?: () => void }): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
     await data.call("engine.placement.set", { threadId: data.threadId, target: "space", once: true } satisfies CapMap["engine.placement.set"]["in"]);
@@ -213,6 +213,8 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // "Set a Space AI key" on a reply that could not start for lack of an AI account (an owner or admin): Console, AI
+  if (key === "set_space_key") { if (open?.spaceKey) open.spaceKey(); else say("Set the Space AI key in Console, under AI."); return; }
   // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)
   if (key.startsWith("continue_turn:")) { await retryTurn(data, key.slice("continue_turn:".length)); return; }
   // the Model menu opens (a turn that had no model to run on says "Pick a model for <account>"); without a menu to open it says where it is

@@ -294,3 +294,13 @@ test("engine.policy_model says the Space only allows certain models and opens th
   assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
   assert.equal(w.retryable, false);
 });
+
+test("a reply with no AI account offers the other way out by who reads it: a member is told to ask an admin, an admin gets the action", async () => {
+  const { spaceKeyWay } = await import("./status.ts");
+  for (const code of ["no_account", "engine.no_account"]) {
+    assert.deepEqual(spaceKeyWay(code, false), { line: "Or ask an admin to add a Space AI key." });
+    assert.deepEqual(spaceKeyWay(code, true), { line: "", action: { key: "set_space_key", label: "Set a Space AI key" } });
+  }
+  assert.deepEqual(spaceKeyWay("host_lost", true), { line: "" });
+  assert.deepEqual(spaceKeyWay("provider.unavailable", false), { line: "" });
+});

@@ -393,6 +393,14 @@ function ConversationView(): ReactElement {
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   // which open questions have their own card on screen: the island docks the ones that do not (a hook, so before the early returns)
   const cardsInView = useCardsInView(messagesQ.status === "loading" ? NO_IDS : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id));
+  // an owner or admin (with a Console to open) is offered "Set a Space AI key" on a reply that had no account; anyone else is told to ask an admin
+  const [spaceKeyAdmin, setSpaceKeyAdmin] = useState(false);
+  useEffect(() => {
+    if (!data.nav.openSpaceAiKey) return undefined;
+    let live = true;
+    void new Promise<unknown>((r) => r(data.call("providers.space_key.get", {}))).then((k) => { if (live) setSpaceKeyAdmin((k as { mayManage?: boolean } | null)?.mayManage === true); }, () => undefined);
+    return () => { live = false; };
+  }, [data.call, data.nav.openSpaceAiKey]);
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
@@ -635,7 +643,8 @@ function ConversationView(): ReactElement {
     markUnreadFrom: (seq) => void act.markUnreadFrom(data, seq).then(() => say("Marked unread from that message."), fail("Could not mark it unread.")),
     turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
-    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
+    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say, data.nav.openSpaceAiKey ? { spaceKey: data.nav.openSpaceAiKey } : undefined).catch(fail("Could not do that.")),
+    canSetSpaceKey: spaceKeyAdmin,
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
