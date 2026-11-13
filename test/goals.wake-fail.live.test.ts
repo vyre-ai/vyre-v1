@@ -180,7 +180,7 @@ test(
       assert.equal(goal.blocked.cause, "person");
       const needs = (await needsYou(w.d)).filter((x) => x.title.includes(TITLE));
       assert.equal(needs.length, 1, JSON.stringify(needs));
-      assert.equal(needs[0]!.title, `Check-ins paused: ${TITLE}`);
+      assert.equal(needs[0]!.title, `Vault locked: check-ins paused on ${TITLE}`);
       assert.match(
         needs[0]!.summary,
         new RegExp(
@@ -196,7 +196,7 @@ test(
       assert.ok(!lines.some((l) => /Stuck|no words|engine\.|Asking once more/.test(l)), JSON.stringify(lines));
       assert.match(
         JSON.stringify(await ok(w.d, "notifications.list", {})),
-        /Check-ins paused/,
+        /check-ins paused on/,
         "a notification, when they have them on",
       );
 

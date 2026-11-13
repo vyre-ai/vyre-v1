@@ -15,6 +15,7 @@ import type { EngineAgent } from "../../../agent/src/turn-engine/types.ts";
 import { ensure, sqlMessages, withMessageId } from "../projections.ts";
 import { automationMark, isOutsideTrigger } from "../../../lib/automation-content.ts";
 import type { EngineCtx } from "../projections.ts";
+import { failureWhy } from "../../../lib/words/failure.ts";
 
 type Obj = Record<string, unknown>;
 export interface Who {
@@ -827,7 +828,11 @@ export interface TurnEnd {
   type: "turn.completed" | "turn.failed" | "turn.cancelled";
   threadId: string;
   agentId: string;
+  /** why a failed turn failed (the engine's code) */
+  code?: string;
 }
+/** Why the last turn of a task's holder failed, so the person it goes to is told the cause in words: kept while this server runs (after a restart the item says only that the agent stopped). */
+const lastFailure = new Map<string, string>();
 
 const nudgeMinutesOf = (t: BatonTask): number => {
   const n = Number(t.workingNotes["baton.nudge_minutes"]);
@@ -878,8 +883,9 @@ export async function onTurnEnded(
       result = "moved";
       continue;
     }
-    // a helper's answer is its hand-in: it runs one turn and the chat that started it has the result
-    if (on.task.workingNotes["worker.kind"] === "helper") {
+    if (ev.type === "turn.failed" && ev.code) lastFailure.set(on.task.id, ev.code);
+    // a helper's answer is its hand-in: it runs one turn and the chat that started it has the result. A turn that failed handed in nothing: it is not "finished" (it goes the way of any stopped agent, to a person, with the cause)
+    if (on.task.workingNotes["worker.kind"] === "helper" && ev.type === "turn.completed") {
       await host.call("tasks.submit", { taskId: on.task.id, summary: "The helper finished." }).catch((e: unknown) =>
         host.log?.("a helper's task could not be handed in", {
           taskId: on.task.id,
@@ -998,6 +1004,16 @@ export async function sweepBaton(
   return out;
 }
 
+/** What the Needs you item says: when the agent's last turn failed for a cause Vyre has words for, that cause and what to do; else that it stopped. */
+function stoppedWords(taskId: string, role: string, minutes: number): string {
+  const code = lastFailure.get(taskId);
+  const why = code ? failureWhy(code) : undefined;
+  const who = role === "assigned" ? "The agent doing it" : `The ${role}`;
+  if (why && why.cause !== "other")
+    return `${who} could not work on it: ${why.what[0]!.toLowerCase()}${why.what.slice(1)}${why.fix ? ` ${why.fix}` : ""} Then press "Done, continue" to start it again.`;
+  return `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then press "Done, continue" to start it again.`;
+}
+
 /** A person task in Needs you for work an agent stopped on. Its answer wakes the agent again, through the same path as any finished question. */
 async function escalate(
   ctx: Pick<EngineCtx, "db">,
@@ -1031,7 +1047,7 @@ async function escalate(
     await host.call("tasks.create", {
       kind: "unblock",
       title: `An agent stopped on "${task.title}"`,
-      summary: `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then press "Done, continue" to start it again.`,
+      summary: stoppedWords(task.id, role, minutes),
       assigned: to,
       parentTaskId: task.id,
       ...(task.recordId ? { recordId: task.recordId } : {}),

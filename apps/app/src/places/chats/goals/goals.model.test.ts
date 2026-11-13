@@ -38,6 +38,29 @@ const line = (over: Partial<GoalLine> = {}): GoalLine => ({
   ...over,
 });
 
+test("a goal whose check-ins cannot run says so first, in a few words, whoever looks", () => {
+  const blocked = {
+    cause: "person" as const,
+    what: "Your Vault key is not on this server.",
+    fix: "Open Vyre on your computer and unlock your Vault.",
+    short: "Vault locked",
+    since: NOW - HOUR,
+    missed: 1,
+  };
+  const held = line({ status: "waiting", blocked });
+  assert.deepEqual(rowNote(held, NOW, PKT, "usr_irfad"), {
+    lead: "Not being worked",
+    tone: "need",
+    text: "Vault locked",
+  });
+  assert.deepEqual(rowNote(held, NOW, PKT, "usr_aliza"), {
+    lead: "Not being worked",
+    tone: "need",
+    text: "Vault locked",
+  });
+  assert.equal(statusOf(held, "usr_irfad").word, "Not being worked");
+});
+
 test("a goal's row says what changes what you do first, else the number and the next check-in", () => {
   assert.deepEqual(rowNote(line(), NOW, PKT, "usr_irfad"), { text: "212 / 300 · Check-in Tomorrow 9:00 AM" });
   assert.deepEqual(rowNote(line({ status: "waiting" }), NOW, PKT, "usr_irfad"), {

@@ -907,7 +907,11 @@ function heldWords(why: Why, b: Pick<Block, "until">, at: (t: number) => string)
       fix: `${lifts} The check-in runs then. To go on sooner, let the agent use another AI account.`,
     };
   }
-  if (why.fix !== "") return { what: why.what, fix: why.fix };
+  if (why.fix !== "")
+    return {
+      what: why.what,
+      fix: why.cause === "person" ? `${why.fix} The check-in runs when that is done.` : why.fix,
+    };
   return {
     what: why.what,
     fix: "It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.",
@@ -927,6 +931,10 @@ async function leadName(ctx: GoalsCtx, g: Goal): Promise<string> {
   return typeof n === "string" && n !== "" && n !== g.leadAgentId ? n : "The lead agent";
 }
 
+/** A few words for a row: a passing trouble that kept coming back reads "Server kept failing". */
+const shortOf = (why: Why): string =>
+  why.cause === "transient" || (why.cause === "other" && why.fix === "") ? "Server kept failing" : why.short;
+
 /** What a held goal shows on its row and its page: the cause in plain words, the one thing to do, and when it goes on by itself. */
 export function blockedOut(g: Goal, b: Block, held: boolean): Record<string, unknown> | undefined {
   if (!held) return undefined;
@@ -936,6 +944,7 @@ export function blockedOut(g: Goal, b: Block, held: boolean): Record<string, unk
     cause: why.cause,
     what: w.what,
     fix: w.fix,
+    short: shortOf(why),
     since: b.since,
     until: b.until,
     missed: b.missed,
@@ -993,7 +1002,7 @@ async function tellOwner(ctx: GoalsCtx, g: Goal, b: Block, words: { what: string
   const name = await leadName(ctx, g);
   const r = await tryCall<{ task?: { id?: string } }>(ctx, "tasks.create", {
     kind: "unblock",
-    title: `Check-ins paused: ${g.title}`,
+    title: `${shortOf(failureWhy(b.code))}: check-ins paused on ${g.title}`,
     summary: `${name} could not check in on ${g.title}: ${lower(words.what)} ${words.fix}`,
     assigned: { kind: "person", id: g.owner },
     notes: { "goal.id": g.id, "goal.title": g.title },

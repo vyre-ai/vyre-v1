@@ -120,6 +120,7 @@ type Out = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -173,6 +174,7 @@ type Out = {
         "code": "example",
         "fix": "example",
         "missed": 1,
+        "short": "example",
         "since": 1760000000000,
         "until": 1760000000000,
         "what": "example"

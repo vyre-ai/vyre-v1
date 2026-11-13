@@ -727,6 +727,28 @@ function Notice({
 }): ReactElement | null {
   const g = data.goal;
   const b = budgetOf(g);
+  if (
+    g.blocked &&
+    (g.status === "waiting" || g.status === "active" || g.status === "planning" || g.status === "stuck")
+  ) {
+    const k = g.blocked;
+    // a usage limit says when it resets in the viewer's own words (the Space's zone, theirs beside it when it differs); every other cause says its one thing to do
+    const resets = k.until !== undefined ? whenWords(k.until - 60_000, now, zones) : undefined;
+    const body =
+      k.cause === "limit"
+        ? `${k.what} ${resets ? `It resets ${resets}.` : "It has not said when it resets."} The check-in runs then. To go on sooner, let the agent use another AI account.`
+        : `${k.what} ${k.fix}`;
+    return (
+      <Card testID="goal-blocked" tone="need" icon="warn" title={`Not being worked: ${k.short}`}>
+        <Text style={st.body}>{body}</Text>
+        {k.missed > 0 ? (
+          <Text
+            style={st.small}
+          >{`${k.missed} check-in${k.missed === 1 ? "" : "s"} did not run. They are not replayed: the next one covers them.`}</Text>
+        ) : null}
+      </Card>
+    );
+  }
   if (g.status === "stuck") {
     return (
       <Card

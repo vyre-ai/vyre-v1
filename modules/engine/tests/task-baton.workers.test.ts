@@ -125,6 +125,22 @@ test("a helper already bound gets a baton row and no second turn, and its answer
   );
 });
 
+test("a helper whose turn failed handed in nothing: it is not 'finished'", async () => {
+  const t = task({ workerThread: "thr_t1", workingNotes: { "worker.kind": "helper" } });
+  const s = scene(t);
+  await s.event("task.created");
+  assert.equal(
+    await onTurnEnded(s.h.ctx, s.host, s.engine, {
+      type: "turn.failed",
+      threadId: "thr_t1",
+      agentId: DOER,
+      code: "provider.rate_limited",
+    }),
+    "waiting",
+  );
+  assert.deepEqual(caps(s, "tasks.submit"), [], "a failed helper turn is not a hand-in");
+});
+
 test("after a restart a task nobody started is started, and one that waits or is a person's is left", async () => {
   const t = task();
   const waits = task({ id: "tsk_wait", blocked: true }),

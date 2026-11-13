@@ -13,41 +13,58 @@ export interface Why {
   what: string;
   /** the one thing that fixes it, a sentence; empty when nothing the person does fixes it */
   fix: string;
+  /** a few words for a row that has no room for a sentence: "Vault locked" */
+  short: string;
 }
 
-const W = (cause: Cause, what: string, fix = ""): Why => ({ cause, what, fix });
+const W = (cause: Cause, what: string, fix = "", short = "Check-ins paused"): Why => ({ cause, what, fix, short });
 const SIGN_IN = "Sign in to it again in Settings, under AI accounts.";
 export const FAILURE_WORDS: Readonly<Record<string, Why>> = {
   "engine.vault_locked": W(
     "person",
     "Your Vault key is not on this server.",
-    "Open Vyre on your computer and unlock your Vault. It goes on by itself.",
+    "Open Vyre on your computer and unlock your Vault.",
+    "Vault locked",
   ),
-  "engine.signin_missing": W("person", "Your sign-in for this AI is missing.", SIGN_IN),
+  "engine.signin_missing": W("person", "Your sign-in for this AI is missing.", SIGN_IN, "AI sign-in missing"),
   "engine.signin_unopenable": W(
     "person",
     "Your AI sign-in can't be opened on this device.",
     "Sign in to it again to replace it.",
+    "AI sign-in needs redoing",
   ),
-  "provider.auth_failed": W("person", "Your AI account needs you to sign in again.", SIGN_IN),
-  "engine.no_account": W("person", "Connect your AI to get replies.", "Connect an AI account in Settings."),
+  "provider.auth_failed": W("person", "Your AI account needs you to sign in again.", SIGN_IN, "AI sign-in needed"),
+  "engine.no_account": W(
+    "person",
+    "Connect your AI to get replies.",
+    "Connect an AI account in Settings.",
+    "No AI account",
+  ),
   "engine.account_unavailable": W(
     "person",
     "Your AI account could not be reached just now.",
     "Check your AI account in Settings.",
+    "AI account unreachable",
   ),
-  "engine.no_model": W("person", "No model is set for this chat.", "Pick a model for the agent in its settings."),
+  "engine.no_model": W(
+    "person",
+    "No model is set for this chat.",
+    "Pick a model for the agent in its settings.",
+    "No model set",
+  ),
   "engine.no_model_works": W(
     "person",
     "None of your AI accounts can answer right now.",
     "Check your AI accounts in Settings.",
+    "No AI account works",
   ),
   "provider.rate_limited": W(
     "limit",
     "Your AI account reached its usage limit.",
     "Wait for it to reset, or let the agent use another AI account.",
+    "AI plan at its limit",
   ),
-  host_lost: W("transient", "The server stopped while this was running."),
+  host_lost: W("transient", "The server stopped while this was running.", "", "The server kept failing"),
   "provider.unavailable": W("transient", "Your AI provider is busy or down just now."),
   "provider.overloaded": W("transient", "Your AI provider is busy just now."),
   "provider.network": W("transient", "Your AI provider could not be reached."),

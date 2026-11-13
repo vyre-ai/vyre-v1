@@ -13,6 +13,7 @@ import { load } from "./handlers/accounts.ts";
 import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
+import { failureWhy } from "../../lib/words/failure.ts";
 import { providerOfDriver } from "./runtime.ts";
 import { PROVIDER_DEFAULT_DRIVERS, PROVIDER_DEFAULT_WORDS, providerDefaultBlocked } from "./handlers/extra/config.ts";
 import { defaultModelFor } from "./first-model.ts";
@@ -72,10 +73,26 @@ interface FactsOut {
   facts?: Array<{ text?: string; layer?: string }>;
 }
 
+/** Causes only the person can fix (the Vault is locked, a sign-in is missing): a step is never tried again for them, and it says which one in the words a chat and a goal use. */
+const PERSON_CAUSES: ReadonlySet<string> = new Set([
+  "engine.vault_locked",
+  "engine.signin_missing",
+  "engine.signin_unopenable",
+]);
+const personWords = (code: string): string | undefined => {
+  if (!PERSON_CAUSES.has(code)) return undefined;
+  const w = failureWhy(code);
+  return `${w.what} ${w.fix}`;
+};
 const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
   if (code === "provider.rate_limited" || code === "provider.overloaded") return { code, retryable: true };
   if (code.startsWith("provider.") || code.startsWith("timeout.")) return { code, retryable: false };
-  if (code === "auth.expired" || code === "engine.no_account" || code === "engine.account_unsupported")
+  if (
+    code === "auth.expired" ||
+    code === "engine.no_account" ||
+    code === "engine.account_unsupported" ||
+    PERSON_CAUSES.has(code)
+  )
     return { code: "provider.auth_failed", retryable: false };
   if (code === "engine.timeout") return { code: "timeout.deadline", retryable: false };
   return { code: "provider.unavailable", retryable: true };
@@ -353,7 +370,9 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     const c = (e as { code?: unknown } | null)?.code;
     if (c === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(typeof c === "string" ? c : "");
-    raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "open_failed" });
+    raise(ctx, mapped.code as never, (typeof c === "string" ? personWords(c) : undefined) ?? whyOf(mapped.code), {
+      reason: "open_failed",
+    });
   });
   let reply = "";
   let tokensIn = 0;
@@ -413,7 +432,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     if (failure.code === "engine.no_model")
       raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(failure.code);
-    raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
+    raise(ctx, mapped.code as never, personWords(failure.code) ?? whyOf(mapped.code), { reason: "engine" });
   }
   const out: StepTurnOut = {
     text: reply,

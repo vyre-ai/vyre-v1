@@ -8,6 +8,27 @@
       "note": "Tasks, Mine: While you were away on top; Needs you holds a review handed to Irfad, work sent back by Omar's private agent (named Omar Reyes (Agent)), a team task with Take and a question; then Now, Next and Waiting on others, where a team task shows Taken by Sara Khan."
     },
     {
+      "id": "TASKS_01-paused-vault",
+      "route": "/m/TASKS_01?view=list&paused=vault",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item a goal leaves when its check-in cannot run because the Vault is locked, with the one thing to do."
+    },
+    {
+      "id": "TASKS_01-paused-limit",
+      "route": "/m/TASKS_01?view=list&paused=limit",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item when the AI plan is at its limit, with when it resets and the choice."
+    },
+    {
+      "id": "TASKS_01-paused-kept",
+      "route": "/m/TASKS_01?view=list&paused=kept",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item when the server kept failing."
+    },
+    {
       "id": "TASKS_01-review",
       "route": "/m/TASKS_01?view=review",
       "proto": "chat,{skin}",

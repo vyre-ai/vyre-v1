@@ -253,6 +253,23 @@ test("a vendor error comes back by its catalogued code and carries neither the p
   await assert.rejects(run(auth.h), (e) => codeOf(e) === "provider.auth_failed");
 });
 
+test("a step whose person cannot be reached by the Vault says so in the words a chat uses, and is not tried again", async () => {
+  for (const code of ["engine.vault_locked", "engine.signin_missing"]) {
+    const { h } = scene({ script: [{ type: "error", code, message: "locked" }] });
+    await assert.rejects(run(h), (e) => {
+      assert.equal(codeOf(e), "provider.auth_failed", "not 'the provider could not answer', and not a retryable error");
+      const said = String((e as { message?: unknown }).message ?? "");
+      assert.match(
+        said,
+        code === "engine.vault_locked"
+          ? /^Your Vault key is not on this server\. Open Vyre on your computer and unlock your Vault\.$/
+          : /^Your sign-in for this AI is missing\. Sign in to it again in Settings, under AI accounts\.$/,
+      );
+      return true;
+    });
+  }
+});
+
 test("a tool request is refused: the step gives the model none", async () => {
   const { h, provider } = scene({
     script: [{ type: "tool_call", id: "c1", name: "mail.send", input: {} }, { type: "done" }],

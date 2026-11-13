@@ -132,6 +132,7 @@ const blocked = t.obj({
   cause: t.enm("person", "limit", "transient", "other"),
   what: t.str(),
   fix: t.str(),
+  short: t.str(),
   since: t.ts(),
   until: t.opt(t.ts()),
   missed: t.int({ minimum: 0 }),

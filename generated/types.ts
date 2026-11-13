@@ -16456,6 +16456,7 @@ export type GoalsChecklistTickOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -16584,6 +16585,7 @@ export type GoalsConfirmOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -16787,6 +16789,7 @@ export type GoalsCreateOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -16915,6 +16918,7 @@ export type GoalsExtendOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17028,6 +17032,7 @@ export type GoalsFinishOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17148,6 +17153,7 @@ export type GoalsGetOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17271,6 +17277,7 @@ export type GoalsListOut = {
         cause: "person" | "limit" | "transient" | "other";
         what: string;
         fix: string;
+        short: string;
         since: number;
         until?: number;
         missed: number;
@@ -17371,6 +17378,7 @@ export type GoalsMarkStuckOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17484,6 +17492,7 @@ export type GoalsNumberSetOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17597,6 +17606,7 @@ export type GoalsPauseOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17778,6 +17788,7 @@ export type GoalsResumeOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -17943,6 +17954,7 @@ export type GoalsStopOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
@@ -18138,6 +18150,7 @@ export type GoalsUpdateOut = {
       cause: "person" | "limit" | "transient" | "other";
       what: string;
       fix: string;
+      short: string;
       since: number;
       until?: number;
       missed: number;
