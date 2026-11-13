@@ -107,6 +107,16 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     await page.getByTestId("live-people").scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(shots, "project-overview-people.png") });
 
+    // 2b. an ordinary channel with a message and a reply thread: search indexes its main thread as a chat, and the command bar shows the channel ONCE; the reply thread stays its own row
+    const room = await call("channels.create", { name: "standup-room", visibility: "public" });
+    const roomThread = (room.channel?.mainThreadId ?? room.mainThreadId) as string;
+    const first = (await call("chat.post", { threadId: roomThread, body: "Notes for the standup go here" }))
+      .message as { messageId: string };
+    const reply = (await call("chat.thread", { threadId: roomThread, messageId: first.messageId })).thread as {
+      threadId: string;
+    };
+    await call("chat.post", { threadId: reply.threadId, body: "Replies about the standup agenda" });
+
     // 3. the command bar: "launch" lists each thing once and shows no id
     await page.keyboard.press("Control+K");
     await page.getByTestId("cmdk-input").waitFor({ timeout: 10_000 });
@@ -126,6 +136,35 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     const titles = rows.filter((r) => /^(Spring launch|launch-week|#launch-week)$/i.test(r));
     assert.ok(titles.length >= 2, `the list has the project and the channel: ${JSON.stringify(rows)}`);
     assert.deepEqual([...new Set(titles)], titles, `no row twice: ${JSON.stringify(rows)}`);
+    // the channel by its name: one row, and its reply thread beside it
+    await page.getByTestId("cmdk-input").fill("standup");
+    await page.waitForFunction(
+      () =>
+        (document.querySelector("[data-testid=cmdk-list]")?.textContent ?? "").includes(
+          "Replies about the standup agenda",
+        ),
+      undefined,
+      { timeout: 30_000 },
+    );
+    const roomRows = (await page.getByTestId("cmdk-list").innerText())
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    // the channel's own thread must not also be a row under Chats (the channel row is the one that stays)
+    const heads = ["Chats", "Channels", "Tasks", "Records", "Files", "People", "Agents", "Ask"];
+    const after = roomRows.indexOf("Chats") < 0 ? [] : roomRows.slice(roomRows.indexOf("Chats") + 1);
+    const end = after.findIndex((r) => heads.includes(r));
+    const chatTitles = end < 0 ? after : after.slice(0, end);
+    assert.ok(
+      !chatTitles.some((r) => /^#?standup-room$/i.test(r)),
+      `the channel's main thread is not a second row under Chats: ${JSON.stringify(roomRows)}`,
+    );
+    assert.ok(roomRows.includes("Channels"), `the channel row stays: ${JSON.stringify(roomRows)}`);
+    assert.ok(
+      roomRows.some((r) => r.includes("Replies about the standup agenda")),
+      `its reply thread is its own row: ${JSON.stringify(roomRows)}`,
+    );
+    await page.getByTestId("cmdk-input").fill("launch");
     await guard.check("the command bar, launch");
     await page.screenshot({ path: path.join(shots, "command-bar-launch.png") });
     await page.keyboard.press("Escape");
