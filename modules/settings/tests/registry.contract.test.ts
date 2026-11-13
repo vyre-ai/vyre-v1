@@ -13,10 +13,28 @@ import type { Harness } from "../fixtures/db.ts";
 import { handlers } from "../impl.ts";
 import type { SettingsCtx } from "../handlers/index.ts";
 
-interface RegCap { name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[]; examples: { name: string; input: unknown; output: unknown }[] }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+interface RegCap {
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
+  examples: { name: string; input: unknown; output: unknown }[];
+}
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "settings");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "settings").map((e) => [e.name, e.payload]));
@@ -55,17 +73,25 @@ async function worldFor(cap: string): Promise<{ h: Harness; ctx: SettingsCtx }> 
   if (cap === "settings.reset") await run("settings.set", ctx, INPUTS["settings.set"]);
   if (cap === "settings.reset_space") await run("settings.set_space", ctx, INPUTS["settings.set_space"]);
   if (cap.startsWith("settings.contact.")) {
-    h.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", usable: true, scope: "space", provider: "resend" }] }));
-    h.callee("mail.send", (i) => { sent.text = String(i["text"]); return { status: "queued", suppressed: [] }; });
+    h.callee("comms.senders.list", () => ({
+      senders: [{ id: "mbx_space", usable: true, scope: "space", provider: "resend" }],
+    }));
+    h.callee("mail.send", (i) => {
+      sent.text = String(i["text"]);
+      return { status: "queued", suppressed: [] };
+    });
     await run("settings.set", ctx, { key: "profile.contact", value: { email: "maya@example.com" } });
-    if (cap === "settings.contact.verify_confirm") { await run("settings.contact.verify_start", ctx, { channel: "email" }); INPUTS["settings.contact.verify_confirm"] = { channel: "email", code: /(\d{6})/.exec(sent.text)![1]! }; }
+    if (cap === "settings.contact.verify_confirm") {
+      await run("settings.contact.verify_start", ctx, { channel: "email" });
+      INPUTS["settings.contact.verify_confirm"] = { channel: "email", code: /(\d{6})/.exec(sent.text)![1]! };
+    }
   }
   h.events.length = 0;
   return { h, ctx };
 }
 
 test("a real handler exists for exactly the capabilities the registry declares for settings", () => {
-  assert.equal(caps.length, 18);   // settings.public_of (l-agentdm): a teammate's own time zone and hours; settings.contact.* (l-chrome2a): verify my email and phone
+  assert.equal(caps.length, 18); // settings.public_of (l-agentdm): a teammate's own time zone and hours; settings.contact.* (l-chrome2a): verify my email and phone
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 
@@ -78,7 +104,10 @@ for (const cap of caps) {
     assert.deepEqual(validate(cap.input, input, "", defs), [], "input is valid");
     const out = await run(cap.name, ctx, input);
     assert.deepEqual(validate(cap.output, out, "", defs), [], "output");
-    assert.deepEqual([...new Set(h.events.map((e) => e.name))].sort(), cap.emits.filter((e) => !ON_FAILURE.has(e) && !ON_CONTACT_CHANGE.has(e)).sort());
+    assert.deepEqual(
+      [...new Set(h.events.map((e) => e.name))].sort(),
+      cap.emits.filter((e) => !ON_FAILURE.has(e) && !ON_CONTACT_CHANGE.has(e)).sort(),
+    );
     for (const e of h.events) {
       assert.ok(cap.emits.includes(e.name), `${e.name} is declared in emits of ${cap.name}`);
       const schema = eventSchemas.get(e.name);

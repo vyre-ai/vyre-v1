@@ -15,18 +15,37 @@ test("a role given and taken back after a join step failed is not given by the r
     const ana = await join(d, "ana");
     const ben = await join(d, "ben");
     const failedAt = Date.now() - 60_000;
-    const failStep = (person: string) => d.db!.run("UPDATE members_joins SET steps = ?, state = ? WHERE person_id = ?",
-      JSON.stringify([{ k: `role:${admin}`, state: "failed", tries: 1, error: "internal.unavailable", seen: "false", failedAt }]), "pending", person);
+    const failStep = (person: string) =>
+      d.db!.run(
+        "UPDATE members_joins SET steps = ?, state = ? WHERE person_id = ?",
+        JSON.stringify([
+          { k: `role:${admin}`, state: "failed", tries: 1, error: "internal.unavailable", seen: "false", failedAt },
+        ]),
+        "pending",
+        person,
+      );
     failStep(ana.personId);
     failStep(ben.personId);
     // after Ana's step failed, an admin gave her the role and took it back
     await ok(d, d.token, "access.roles.assign", { subject: { kind: "person", id: ana.personId }, roleId: admin });
     await ok(d, d.token, "access.roles.unassign", { subject: { kind: "person", id: ana.personId }, roleId: admin });
-    const rolesOf = async (id: string) => ((await ok(d, d.token, "access.principals.get", { principal: { kind: "person", id } })).principal as { roles: string[] }).roles;
+    const rolesOf = async (id: string) =>
+      (
+        (await ok(d, d.token, "access.principals.get", { principal: { kind: "person", id } })).principal as {
+          roles: string[];
+        }
+      ).roles;
     await ok(d, d.token, "members.joins.retry", { personId: ana.personId });
     assert.equal((await rolesOf(ana.personId)).includes(admin), false, "the admin's change stands");
-    const listed = (await ok(d, d.token, "members.joins.list", {})).joins as Array<{ personId: string; steps: Array<{ key: string; error: string }> }>;
-    assert.match(listed.find((j) => j.personId === ana.personId)?.steps.find((s) => s.key === `role:${admin}`)?.error ?? "", /changed this after they joined/, "shown to admins as needing them");
+    const listed = (await ok(d, d.token, "members.joins.list", {})).joins as Array<{
+      personId: string;
+      steps: Array<{ key: string; error: string }>;
+    }>;
+    assert.match(
+      listed.find((j) => j.personId === ana.personId)?.steps.find((s) => s.key === `role:${admin}`)?.error ?? "",
+      /changed this after they joined/,
+      "shown to admins as needing them",
+    );
     await ok(d, d.token, "members.joins.retry", { personId: ben.personId });
     assert.equal((await rolesOf(ben.personId)).includes(admin), true, "nobody touched Ben's: the retry gives it");
   } finally {

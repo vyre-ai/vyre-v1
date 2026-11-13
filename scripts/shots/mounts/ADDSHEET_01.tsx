@@ -11,5 +11,9 @@ export const title = "Add people and agents";
 export default function Mount(): ReactNode {
   const sample = useMemo(() => createSample("idle"), []);
   const height = useWindowDimensions().height;
-  return <View style={{ height, backgroundColor: "var(--win)" as string }}><Conversation data={sample.data} /></View>;
+  return (
+    <View style={{ height, backgroundColor: "var(--win)" as string }}>
+      <Conversation data={sample.data} />
+    </View>
+  );
 }

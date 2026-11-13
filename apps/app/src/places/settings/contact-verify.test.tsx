@@ -13,21 +13,32 @@ installDom();
 type St = { verified: boolean; canVerify: boolean; pending: boolean };
 function world(over: { email?: Partial<St>; phone?: Partial<St>; wrong?: boolean } = {}) {
   const s = createSampleSettings(northwind);
-  const calls: { cap: string; input: any }[] = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const st = { email: { verified: false, canVerify: true, pending: false, ...over.email } as St, phone: { verified: false, canVerify: false, pending: false, ...over.phone } as St };
+  const calls: { cap: string; input: any }[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const st = {
+    email: { verified: false, canVerify: true, pending: false, ...over.email } as St,
+    phone: { verified: false, canVerify: false, pending: false, ...over.phone } as St,
+  };
   s.data.call = async (cap: string, input: unknown) => {
     calls.push({ cap, input: input as never });
     if (cap === "settings.contact.status") return { ...st };
-    if (cap === "settings.contact.verify_start") { st.email.pending = true; return { sent: true, verified: false, expiresAt: 1 }; }
+    if (cap === "settings.contact.verify_start") {
+      st.email.pending = true;
+      return { sent: true, verified: false, expiresAt: 1 };
+    }
     if (cap === "settings.contact.verify_confirm") {
       if (over.wrong) throw new Error("That is not the code.");
-      st.email.verified = true; return { verified: true };
+      st.email.verified = true;
+      return { verified: true };
     }
     return {};
   };
   return { s, calls, st };
 }
-const view = (w: ReturnType<typeof world>, channel: "email" | "phone", value: string) => <SettingsDataProvider value={w.s.data}><ContactVerify channel={channel} value={value} /></SettingsDataProvider>;
+const view = (w: ReturnType<typeof world>, channel: "email" | "phone", value: string) => (
+  <SettingsDataProvider value={w.s.data}>
+    <ContactVerify channel={channel} value={value} />
+  </SettingsDataProvider>
+);
 
 test("Not verified with a Verify button; Verify sends the code; the tick shows only after Confirm", async () => {
   const w = world();
@@ -43,7 +54,10 @@ test("Not verified with a Verify button; Verify sends the code; the tick shows o
   await typeInto(find(root, "verify-code-email")!, "123456");
   await press(find(root, "verify-confirm-email"));
   await flush();
-  assert.deepEqual(w.calls.find((c) => c.cap === "settings.contact.verify_confirm")?.input, { channel: "email", code: "123456" });
+  assert.deepEqual(w.calls.find((c) => c.cap === "settings.contact.verify_confirm")?.input, {
+    channel: "email",
+    code: "123456",
+  });
   assert.ok(find(root, "verified-email"), "now the tick");
   assert.match(textOf(root), /Verified/);
   assert.ok(!textOf(root).includes("Not verified"));
@@ -53,9 +67,11 @@ test("a wrong code is said in the module's words and the tick stays away", async
   const w = world({ wrong: true });
   const root = await mount(createRoot, view(w, "email", "ana@example.com"));
   await flush();
-  await press(find(root, "verify-open-email")); await flush();
+  await press(find(root, "verify-open-email"));
+  await flush();
   await typeInto(find(root, "verify-code-email")!, "000000");
-  await press(find(root, "verify-confirm-email")); await flush();
+  await press(find(root, "verify-confirm-email"));
+  await flush();
   assert.match(textOf(find(root, "verify-note-email")), /That is not the code\./);
   assert.equal(find(root, "verified-email"), null);
 });

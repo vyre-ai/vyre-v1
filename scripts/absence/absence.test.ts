@@ -15,7 +15,14 @@ function rulesHit(path: string, text?: string): string[] {
 }
 
 test("every excluded item has a rule", () => {
-  assert.deepEqual(RULES.map((r) => r.id).sort(), ["autofill", "billing", "lumen", "mac-windows-control", "passkeys", "voice-agents"]);
+  assert.deepEqual(RULES.map((r) => r.id).sort(), [
+    "autofill",
+    "billing",
+    "lumen",
+    "mac-windows-control",
+    "passkeys",
+    "voice-agents",
+  ]);
 });
 
 test("fails when a forbidden path is imported: Lumen, Mac/Windows control, voice, billing, AutoFill, passkeys", () => {
@@ -34,16 +41,31 @@ test("fails when a forbidden path is imported: Lumen, Mac/Windows control, voice
   ];
   for (const [rule, text, expected] of cases) {
     const found = checkAbsence([{ path: "modules/vault/impl.ts", text }]);
-    assert.ok(found.some((f) => f.rule === expected && f.kind === "import"), `${rule}: ${text}`);
+    assert.ok(
+      found.some((f) => f.rule === expected && f.kind === "import"),
+      `${rule}: ${text}`,
+    );
   }
   const lines = formatFindings(checkAbsence([{ path: "modules/vault/impl.ts", text: "import '../lumen/x.ts';" }]));
   assert.match(lines[0] ?? "", /not-in-v1 lumen: modules\/vault\/impl\.ts imports "\.\.\/lumen\/x\.ts"/);
 });
 
 test("fails on a forbidden path even when nothing imports it", () => {
-  for (const path of ["local/hands-mac/index.ts", "modules/voice-agent/index.ts", "apps/app/src/passkey/create.tsx", "modules/billing/plans.ts", "client/src/autofill.ts", "modules/lumen/index.ts", "apps/app/vault-android/x.ts", "modules/meeting-bot/join.ts"]) {
+  for (const path of [
+    "local/hands-mac/index.ts",
+    "modules/voice-agent/index.ts",
+    "apps/app/src/passkey/create.tsx",
+    "modules/billing/plans.ts",
+    "client/src/autofill.ts",
+    "modules/lumen/index.ts",
+    "apps/app/vault-android/x.ts",
+    "modules/meeting-bot/join.ts",
+  ]) {
     assert.ok(rulesHit(path).length > 0, path);
-    assert.ok(checkAbsence([{ path }]).every((f) => f.kind === "path"), path);
+    assert.ok(
+      checkAbsence([{ path }]).every((f) => f.kind === "path"),
+      path,
+    );
   }
 });
 
@@ -60,7 +82,14 @@ test("passes what is in v1: Softphone, Stripe connector, plain words that only c
 });
 
 test("frozen contract text, docs and this check's own files are out of scope", () => {
-  for (const path of ["generated/docs/capabilities/identity.passkey_register.md", "manifests/identity.ts", "packages/contracts/src/passkey.ts", "docs/spec/V1-SPEC.md", "scripts/absence/absence.test.ts", "modules/lumen/README.md"]) {
+  for (const path of [
+    "generated/docs/capabilities/identity.passkey_register.md",
+    "manifests/identity.ts",
+    "packages/contracts/src/passkey.ts",
+    "docs/spec/V1-SPEC.md",
+    "scripts/absence/absence.test.ts",
+    "modules/lumen/README.md",
+  ]) {
     assert.equal(inScope(path), false, path);
     assert.deepEqual(checkAbsence([{ path, text: "import '../lumen/x.ts';" }]), [], path);
   }
@@ -68,16 +97,30 @@ test("frozen contract text, docs and this check's own files are out of scope", (
 });
 
 test("importSpecifiers reads static, export-from, side-effect, dynamic and require forms", () => {
-  const text = "import a from './a.ts';\nimport type { B } from \"./b.ts\";\nexport * from './c.ts';\nimport './d.ts';\nconst e = await import('./e.ts');\nconst f = require('./f.cjs');";
+  const text =
+    "import a from './a.ts';\nimport type { B } from \"./b.ts\";\nexport * from './c.ts';\nimport './d.ts';\nconst e = await import('./e.ts');\nconst f = require('./f.cjs');";
   assert.deepEqual(importSpecifiers(text).sort(), ["./a.ts", "./b.ts", "./c.ts", "./d.ts", "./e.ts", "./f.cjs"]);
 });
 
 test("ADR index: lists every file, no gaps, no dead links, names checked", () => {
   const index = "| [0001](0001-first.md) | a |\n| [0002](0002-second.md) | b |";
   assert.deepEqual(checkAdrIndex({ files: ["README.md", "0001-first.md", "0002-second.md"], index }), []);
-  assert.ok(checkAdrIndex({ files: ["README.md", "0001-first.md", "0002-second.md", "0003-third.md"], index }).some((e) => e.includes("0003-third.md is not linked")));
-  assert.ok(checkAdrIndex({ files: ["README.md", "0001-first.md"], index }).some((e) => e.includes("links 0002-second.md, which does not exist")));
-  assert.ok(checkAdrIndex({ files: ["README.md", "0001-first.md", "0003-third.md"], index: index + "\n[0003](0003-third.md)" }).some((e) => e.includes("without gaps")));
+  assert.ok(
+    checkAdrIndex({ files: ["README.md", "0001-first.md", "0002-second.md", "0003-third.md"], index }).some((e) =>
+      e.includes("0003-third.md is not linked"),
+    ),
+  );
+  assert.ok(
+    checkAdrIndex({ files: ["README.md", "0001-first.md"], index }).some((e) =>
+      e.includes("links 0002-second.md, which does not exist"),
+    ),
+  );
+  assert.ok(
+    checkAdrIndex({
+      files: ["README.md", "0001-first.md", "0003-third.md"],
+      index: index + "\n[0003](0003-third.md)",
+    }).some((e) => e.includes("without gaps")),
+  );
   assert.ok(checkAdrIndex({ files: ["README.md", "notes.md"], index: "" }).some((e) => e.includes("not named NNNN")));
 });
 
@@ -99,20 +142,29 @@ test("a repo that imports a forbidden path fails the run, and the CLI exits non-
   writeFileSync(join(dir, "docs/adr/README.md"), "# ADRs\n");
   git("add", "-A");
   const bad = checkRepo(dir, { runGen: false });
-  assert.ok(bad.errors.some((e) => e.startsWith("not-in-v1 passkeys: modules/vault/impl.ts imports")), bad.errors.join("\n"));
+  assert.ok(
+    bad.errors.some((e) => e.startsWith("not-in-v1 passkeys: modules/vault/impl.ts imports")),
+    bad.errors.join("\n"),
+  );
   writeFileSync(join(dir, "modules/vault/impl.ts"), "export const ok = 1;\n");
   assert.deepEqual(checkRepo(dir, { runGen: false }).errors, []);
-  const cli = spawnSync(process.execPath, [join(repoRoot, "scripts/absence/run.ts")], { cwd: repoRoot, encoding: "utf8" });
+  const cli = spawnSync(process.execPath, [join(repoRoot, "scripts/absence/run.ts")], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
   assert.equal(cli.status, 0, cli.stdout + cli.stderr);
 });
 
 test("the Chrome extension's Vault fill is allowed; a phone AutoFill provider is not", () => {
   const files = [
     { path: "apps/chrome/src/content/autofill.js", text: "export const fill = 1;" },
-    { path: "apps/chrome/tests/ext-core.fill.test.ts", text: "import { fill } from \"../src/content/autofill.js\";" },
+    { path: "apps/chrome/tests/ext-core.fill.test.ts", text: 'import { fill } from "../src/content/autofill.js";' },
     { path: "client/src/autofill.ts", text: "" },
-    { path: "client/src/vault.ts", text: "import { p } from \"./autofill/provider.ts\";" },
+    { path: "client/src/vault.ts", text: 'import { p } from "./autofill/provider.ts";' },
   ];
-  const found = checkAbsence(files).filter((f) => f.rule === "autofill").map((f) => f.file).sort();
+  const found = checkAbsence(files)
+    .filter((f) => f.rule === "autofill")
+    .map((f) => f.file)
+    .sort();
   assert.deepEqual(found, ["client/src/autofill.ts", "client/src/vault.ts"]);
 });

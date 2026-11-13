@@ -8,8 +8,13 @@ import type { SlowEntry } from "./slow-check.ts";
 
 const slowEntry = (file: string, capSec = 90): SlowEntry => ({ file, capSec, owner: "t", reason: "t" });
 const mk = (n: number, sec: number, prefix = "f"): { files: string[]; timings: Timings } => {
-  const files: string[] = [], timings: Timings = {};
-  for (let i = 0; i < n; i++) { const f = `${prefix}${i}.test.ts`; files.push(f); timings[f] = { ms: sec * 1000 }; }
+  const files: string[] = [],
+    timings: Timings = {};
+  for (let i = 0; i < n; i++) {
+    const f = `${prefix}${i}.test.ts`;
+    files.push(f);
+    timings[f] = { ms: sec * 1000 };
+  }
   return { files, timings };
 };
 
@@ -23,7 +28,14 @@ test("shard count is min(24, ceil(total/25))", () => {
 });
 
 test("greedy longest-first: balanced bins, every file once, deterministic", () => {
-  const timings: Timings = { "a.test.ts": { ms: 10000 }, "b.test.ts": { ms: 9000 }, "c.test.ts": { ms: 8000 }, "d.test.ts": { ms: 7000 }, "e.test.ts": { ms: 6000 }, "f.test.ts": { ms: 5000 } };
+  const timings: Timings = {
+    "a.test.ts": { ms: 10000 },
+    "b.test.ts": { ms: 9000 },
+    "c.test.ts": { ms: 8000 },
+    "d.test.ts": { ms: 7000 },
+    "e.test.ts": { ms: 6000 },
+    "f.test.ts": { ms: 5000 },
+  };
   const files = Object.keys(timings);
   const s = shardFiles(files, timings, []);
   assert.equal(s.count, 1);
@@ -39,7 +51,10 @@ test("slow files only in slow shards; the fast critical path ignores them", () =
   const slow = slowFiles.map((f) => slowEntry(f, 120));
   const withSlow = shardFiles([...files, ...slowFiles], timings, slow);
   const without = shardFiles(files, timings, []);
-  assert.deepEqual(withSlow.slow.map((j) => j.file), slowFiles);
+  assert.deepEqual(
+    withSlow.slow.map((j) => j.file),
+    slowFiles,
+  );
   for (const b of withSlow.fast) for (const f of slowFiles) assert.ok(!b.files.includes(f));
   assert.equal(withSlow.count, without.count);
   assert.equal(withSlow.makespanSec, without.makespanSec);
@@ -58,7 +73,11 @@ test("a slow file never extends the fast critical path even when it is the longe
 });
 
 test("a file missing from timings gets the median; none known gets the fallback", () => {
-  const s = shardFiles(["x.test.ts", "y.test.ts", "z.test.ts"], { "x.test.ts": { ms: 4000 }, "y.test.ts": { ms: 6000 } }, []);
+  const s = shardFiles(
+    ["x.test.ts", "y.test.ts", "z.test.ts"],
+    { "x.test.ts": { ms: 4000 }, "y.test.ts": { ms: 6000 } },
+    [],
+  );
   assert.equal(s.totalSec, 4 + 6 + 6);
   const none = shardFiles(["a.test.ts"], {}, []);
   assert.equal(none.totalSec, 3);
@@ -83,7 +102,10 @@ test("many files cap at 24 shards and stay balanced", () => {
 });
 
 test("shards scale with the file count: about 40 files per shard, at least 1, at most 24", () => {
-  const n = (k: number) => { const { files, timings } = mk(k, 1); return shardFiles(files, timings, []).count; };
+  const n = (k: number) => {
+    const { files, timings } = mk(k, 1);
+    return shardFiles(files, timings, []).count;
+  };
   assert.equal(n(1), 1);
   assert.equal(n(FILES_PER_SHARD), 1);
   assert.equal(n(FILES_PER_SHARD + 1), 2);
@@ -102,23 +124,52 @@ test("a small selection takes few jobs: 5 files give 1 fast shard, 12 plain slow
   assert.equal(plain.length, 2);
   assert.ok(plain.every((j) => j.files.split(" ").length <= 8));
   assert.deepEqual(plain.flatMap((j) => j.files.split(" ")).sort(), [...slowNames].sort());
-  assert.deepEqual(m.filter((j) => j.runner === "v1-perf").map((j) => j.files).sort(), perf);
+  assert.deepEqual(
+    m
+      .filter((j) => j.runner === "v1-perf")
+      .map((j) => j.files)
+      .sort(),
+    perf,
+  );
   assert.equal(m.length, 5);
 });
 
 test("a heavy test gets a job to itself on the v1 runners; plain slow files still share jobs", () => {
-  const slow = [slowEntry("images/vyred/smoke.heavy.test.ts", 120), slowEntry("a.test.ts", 60), slowEntry("b.test.ts", 60), { ...slowEntry("c.test.ts", 60), heavy: true }];
-  const m = toMatrix(shardFiles(["images/vyred/smoke.heavy.test.ts", "a.test.ts", "b.test.ts", "c.test.ts"], {}, slow)).include;
-  assert.deepEqual(m.filter((j) => j.name.startsWith("heavy-")).map((j) => j.files).sort(), ["c.test.ts", "images/vyred/smoke.heavy.test.ts"]);
-  assert.deepEqual(m.filter((j) => j.name.startsWith("slow-")).map((j) => j.files), ["a.test.ts b.test.ts"]);
+  const slow = [
+    slowEntry("images/vyred/smoke.heavy.test.ts", 120),
+    slowEntry("a.test.ts", 60),
+    slowEntry("b.test.ts", 60),
+    { ...slowEntry("c.test.ts", 60), heavy: true },
+  ];
+  const m = toMatrix(
+    shardFiles(["images/vyred/smoke.heavy.test.ts", "a.test.ts", "b.test.ts", "c.test.ts"], {}, slow),
+  ).include;
+  assert.deepEqual(
+    m
+      .filter((j) => j.name.startsWith("heavy-"))
+      .map((j) => j.files)
+      .sort(),
+    ["c.test.ts", "images/vyred/smoke.heavy.test.ts"],
+  );
+  assert.deepEqual(
+    m.filter((j) => j.name.startsWith("slow-")).map((j) => j.files),
+    ["a.test.ts b.test.ts"],
+  );
   assert.ok(m.filter((j) => j.slow).every((j) => j.runner === "v1"));
 });
 
 test("golden steps are slow by pattern: each lands in a slow job without being listed in test/slow.json", () => {
   const steps = ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts", "golden/steps/nested/x.test.ts"];
   const m = toMatrix(shardFiles([...steps, "lib/x.test.ts"], {}, [])).include;
-  const slowFiles = m.filter((j) => j.slow).flatMap((j) => j.files.split(" ")).sort();
-  assert.deepEqual(slowFiles, ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts"], "a nested path is not a step");
+  const slowFiles = m
+    .filter((j) => j.slow)
+    .flatMap((j) => j.files.split(" "))
+    .sort();
+  assert.deepEqual(
+    slowFiles,
+    ["golden/steps/01-lead.test.ts", "golden/steps/guest.test.ts"],
+    "a nested path is not a step",
+  );
   assert.ok(m.filter((j) => !j.slow).every((j) => !/golden\/steps\/(01|guest)/.test(j.files)));
 });
 
@@ -126,7 +177,8 @@ test("a test that boots a daemon is slow by rule: *.live.test, *.booted.test, an
   const src: Record<string, string> = {
     "host/tests/portal.live.test.ts": "test('x', () => {});",
     "modules/identity/tests/lockout.booted.test.ts": "test('x', () => {});",
-    "host/tests/blobs.test.ts": 'import { startDaemon } from "../src/daemon/daemon.ts";\\ntest("x", async () => { await startDaemon({}); });',
+    "host/tests/blobs.test.ts":
+      'import { startDaemon } from "../src/daemon/daemon.ts";\\ntest("x", async () => { await startDaemon({}); });',
     "host/tests/seed.grants.test.ts": 'import { startSeeded } from "../../fixtures/seed/small/build.ts";',
     "test/backup.list.after.run.test.mjs": 'import { bootFlowSpace } from "../golden/steps/02-space.ts";',
     "lib/plain.test.ts": 'test("x", () => {});',
@@ -134,40 +186,98 @@ test("a test that boots a daemon is slow by rule: *.live.test, *.booted.test, an
   };
   const files = Object.keys(src);
   const m = toMatrix(shardFiles(files, {}, [], { read: (f) => src[f]! })).include;
-  const slowFiles = m.filter((j) => j.slow).flatMap((j) => j.files.split(" ")).sort();
-  assert.deepEqual(slowFiles, ["host/tests/blobs.test.ts", "host/tests/portal.live.test.ts", "host/tests/seed.grants.test.ts", "modules/identity/tests/lockout.booted.test.ts", "test/backup.list.after.run.test.mjs"]);
-  assert.deepEqual(m.filter((j) => !j.slow).flatMap((j) => j.files.split(" ")).sort(), ["fixtures/seed/small/build.ts", "lib/plain.test.ts"], "a non-test source that exports the helper stays fast");
+  const slowFiles = m
+    .filter((j) => j.slow)
+    .flatMap((j) => j.files.split(" "))
+    .sort();
+  assert.deepEqual(slowFiles, [
+    "host/tests/blobs.test.ts",
+    "host/tests/portal.live.test.ts",
+    "host/tests/seed.grants.test.ts",
+    "modules/identity/tests/lockout.booted.test.ts",
+    "test/backup.list.after.run.test.mjs",
+  ]);
+  assert.deepEqual(
+    m
+      .filter((j) => !j.slow)
+      .flatMap((j) => j.files.split(" "))
+      .sort(),
+    ["fixtures/seed/small/build.ts", "lib/plain.test.ts"],
+    "a non-test source that exports the helper stays fast",
+  );
 });
 
 test("quick heavy files (measured at most 15 s) share jobs; an unmeasured, a slow and a *.heavy.test file keep a job to themselves", () => {
   const h = (f: string) => ({ ...slowEntry(f, 120), heavy: true });
-  const slow = [h("q1.test.ts"), h("q2.test.ts"), h("q3.test.ts"), h("slowish.test.ts"), h("unmeasured.test.ts"), slowEntry("images/vyred/smoke.heavy.test.ts", 120)];
-  const timings = { "q1.test.ts": { ms: 400 }, "q2.test.ts": { ms: 2000 }, "q3.test.ts": { ms: 1500 }, "slowish.test.ts": { ms: 21000 }, "images/vyred/smoke.heavy.test.ts": { ms: 500 } };
+  const slow = [
+    h("q1.test.ts"),
+    h("q2.test.ts"),
+    h("q3.test.ts"),
+    h("slowish.test.ts"),
+    h("unmeasured.test.ts"),
+    slowEntry("images/vyred/smoke.heavy.test.ts", 120),
+  ];
+  const timings = {
+    "q1.test.ts": { ms: 400 },
+    "q2.test.ts": { ms: 2000 },
+    "q3.test.ts": { ms: 1500 },
+    "slowish.test.ts": { ms: 21000 },
+    "images/vyred/smoke.heavy.test.ts": { ms: 500 },
+  };
   const files = slow.map((e) => e.file);
-  const m = toMatrix(shardFiles(files, timings, slow)).include.filter((j) => j.name.startsWith("heavy-")).map((j) => j.files.split(" ").sort());
-  assert.deepEqual(m.filter((g) => g.length > 1), [["q1.test.ts", "q2.test.ts", "q3.test.ts"]]);
-  assert.deepEqual(m.filter((g) => g.length === 1).flat().sort(), ["images/vyred/smoke.heavy.test.ts", "slowish.test.ts", "unmeasured.test.ts"]);
+  const m = toMatrix(shardFiles(files, timings, slow))
+    .include.filter((j) => j.name.startsWith("heavy-"))
+    .map((j) => j.files.split(" ").sort());
+  assert.deepEqual(
+    m.filter((g) => g.length > 1),
+    [["q1.test.ts", "q2.test.ts", "q3.test.ts"]],
+  );
+  assert.deepEqual(
+    m
+      .filter((g) => g.length === 1)
+      .flat()
+      .sort(),
+    ["images/vyred/smoke.heavy.test.ts", "slowish.test.ts", "unmeasured.test.ts"],
+  );
 });
 
 test("a quick heavy job holds at most 8 files and 60 s of measured time", () => {
   const slow = Array.from({ length: 20 }, (_, i) => ({ ...slowEntry(`q${i}.test.ts`, 120), heavy: true }));
   const timings = Object.fromEntries(slow.map((e, i) => [e.file, { ms: i < 5 ? 14000 : 300 }]));
-  const jobs = toMatrix(shardFiles(slow.map((e) => e.file), timings, slow)).include.filter((j) => j.name.startsWith("heavy-"));
+  const jobs = toMatrix(
+    shardFiles(
+      slow.map((e) => e.file),
+      timings,
+      slow,
+    ),
+  ).include.filter((j) => j.name.startsWith("heavy-"));
   for (const j of jobs) {
     const fs_ = j.files.split(" ");
     assert.ok(fs_.length <= 8, `${j.name} holds ${fs_.length} files`);
-    assert.ok(fs_.reduce((n, f) => n + (timings[f]!.ms / 1000), 0) <= 60, `${j.name} holds more than 60 s`);
+    assert.ok(fs_.reduce((n, f) => n + timings[f]!.ms / 1000, 0) <= 60, `${j.name} holds more than 60 s`);
   }
 });
 
 test("the set of test files run is the same with and without timings: none dropped, none run twice", () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const slowList = JSON.parse(fs.readFileSync(path.join(root, "test/slow.json"), "utf8")) as { file: string; capSec: number; perf?: boolean; heavy?: boolean }[];
-  const real = JSON.parse(fs.readFileSync(path.join(root, "test/timings.json"), "utf8")) as Record<string, { ms: number }>;
+  const slowList = JSON.parse(fs.readFileSync(path.join(root, "test/slow.json"), "utf8")) as {
+    file: string;
+    capSec: number;
+    perf?: boolean;
+    heavy?: boolean;
+  }[];
+  const real = JSON.parse(fs.readFileSync(path.join(root, "test/timings.json"), "utf8")) as Record<
+    string,
+    { ms: number }
+  >;
   const fast = Array.from({ length: 130 }, (_, i) => `fast/f${i}.test.ts`);
   const files = [...slowList.map((e) => e.file), ...fast, "golden/steps/a.test.ts", "host/tests/x.live.test.ts"];
-  const flat = (t: Record<string, { ms: number }>) => toMatrix(shardFiles(files, t, slowList)).include.flatMap((j) => j.files.split(" ")).sort();
-  const without = flat({}), withReal = flat({ ...real, ...Object.fromEntries(fast.map((f, i) => [f, { ms: 500 + i * 40 }])) });
+  const flat = (t: Record<string, { ms: number }>) =>
+    toMatrix(shardFiles(files, t, slowList))
+      .include.flatMap((j) => j.files.split(" "))
+      .sort();
+  const without = flat({}),
+    withReal = flat({ ...real, ...Object.fromEntries(fast.map((f, i) => [f, { ms: 500 + i * 40 }])) });
   assert.deepEqual(withReal, without, "same files in the same count");
   assert.deepEqual(without, [...new Set(files)].sort(), "every selected file runs once");
   assert.equal(new Set(withReal).size, withReal.length, "none twice");

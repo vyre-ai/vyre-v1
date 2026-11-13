@@ -12,10 +12,18 @@ import { createSampleAutomations, northwind } from "./sample.ts";
 
 installDom();
 // the test window has no size; give it one so the menu is not squeezed into the corner
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
 
 type Listener = (e: unknown) => void;
-const flat = (style: unknown): Record<string, unknown> => (Array.isArray(style) ? Object.assign({}, ...style.map(flat)) : style && typeof style === "object" ? (style as Record<string, unknown>) : {});
+const flat = (style: unknown): Record<string, unknown> =>
+  Array.isArray(style)
+    ? Object.assign({}, ...style.map(flat))
+    : style && typeof style === "object"
+      ? (style as Record<string, unknown>)
+      : {};
 
 test("resolveMenuPoint keeps a real point and replaces a missing one with the control that was pressed", () => {
   resetAnchor();
@@ -24,7 +32,10 @@ test("resolveMenuPoint keeps a real point and replaces a missing one with the co
   noteAnchor({ getBoundingClientRect: () => ({ left: 240, bottom: 96 }) });
   assert.deepEqual(resolveMenuPoint(-1, -1), { x: 240, y: 100 }, "under the pressed control, a few pixels below");
   assert.deepEqual(resolveMenuPoint(0, 0), { x: 0, y: 0 }, "a real pointer position is never replaced");
-  noteAnchor({ closest: () => ({ getBoundingClientRect: () => ({ left: 10, bottom: 20 }) }), getBoundingClientRect: () => ({ left: 0, bottom: 0 }) });
+  noteAnchor({
+    closest: () => ({ getBoundingClientRect: () => ({ left: 10, bottom: 20 }) }),
+    getBoundingClientRect: () => ({ left: 0, bottom: 0 }),
+  });
   assert.deepEqual(resolveMenuPoint(NaN, 5), { x: 10, y: 24 }, "the nearest button wins over the glyph inside it");
 });
 
@@ -32,15 +43,26 @@ test("pressing the plus beside Personal opens New blank automation under the plu
   resetAnchor();
   const listeners: Record<string, Listener[]> = {};
   const doc = (globalThis as unknown as { document: { addEventListener: (t: string, f: Listener) => void } }).document;
-  doc.addEventListener = (t, f) => { (listeners[t] ??= []).push(f); };
+  doc.addEventListener = (t, f) => {
+    (listeners[t] ??= []).push(f);
+  };
   const s = createSampleAutomations(northwind);
-  const root = await mount(createRoot, <AutomationsDataProvider value={s.data}><AutomationsSidebar shared={s.shared} reasons={s.space.reasons} /></AutomationsDataProvider>);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <AutomationsSidebar shared={s.shared} reasons={s.space.reasons} />
+    </AutomationsDataProvider>,
+  );
   await flush();
   const plus = find(root, "add-personal");
   assert.ok(plus, "the plus beside Personal is drawn");
-  assert.ok((listeners["pointerdown"] ?? []).length > 0, "the Menu listens for presses once a menu surface is on screen");
+  assert.ok(
+    (listeners["pointerdown"] ?? []).length > 0,
+    "the Menu listens for presses once a menu surface is on screen",
+  );
   // the browser fires pointerdown on the button before the click
-  for (const f of listeners["pointerdown"] ?? []) f({ target: { closest: () => ({ getBoundingClientRect: () => ({ left: 233, bottom: 140 }) }) } });
+  for (const f of listeners["pointerdown"] ?? [])
+    f({ target: { closest: () => ({ getBoundingClientRect: () => ({ left: 233, bottom: 140 }) }) } });
   await press(plus);
   await flush();
   const menu = find(root, "menu");

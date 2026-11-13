@@ -17,15 +17,32 @@ import path from "node:path";
 import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 export type NativeSkillDriver = "claude_code" | "codex";
-export interface NativeSkillsDeps { call(cap: string, input: unknown, as?: string): Promise<unknown>; log?(msg: string, attrs?: Record<string, unknown>): void }
+export interface NativeSkillsDeps {
+  call(cap: string, input: unknown, as?: string): Promise<unknown>;
+  log?(msg: string, attrs?: Record<string, unknown>): void;
+}
 
 /** Where each CLI looks for skills inside its work folder. */
-export const SKILL_BASES: Readonly<Record<NativeSkillDriver, string>> = { claude_code: ".claude/skills", codex: ".agents/skills" };
+export const SKILL_BASES: Readonly<Record<NativeSkillDriver, string>> = {
+  claude_code: ".claude/skills",
+  codex: ".agents/skills",
+};
 /** The file beside the written skills that says which folders Vyre wrote and for which set. */
 export const NATIVE_MANIFEST = ".vyre-skills.json";
 
-interface Row { name?: unknown; tier?: unknown; source?: unknown; hash?: unknown; shadowedBy?: unknown; broken?: unknown; enabled?: unknown }
-interface Manifest { fingerprint: string; dirs: string[] }
+interface Row {
+  name?: unknown;
+  tier?: unknown;
+  source?: unknown;
+  hash?: unknown;
+  shadowedBy?: unknown;
+  broken?: unknown;
+  enabled?: unknown;
+}
+interface Manifest {
+  fingerprint: string;
+  dirs: string[];
+}
 
 /** Windows' reserved device names: a file or folder named one of them (with any extension) opens the device, not a file. */
 const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\.|$)/i;
@@ -36,7 +53,13 @@ const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout
  */
 export function skillDir(name: string, platform: NodeJS.Platform = process.platform): string {
   const max = platform === "win32" ? 40 : 64;
-  let d = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, max) || "skill";
+  let d =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, max) || "skill";
   if (platform === "win32") d = d.replace(/-+$/, "") || "skill";
   return RESERVED.test(d) ? `${d.slice(0, max - 6)}-skill` : d;
 }
@@ -50,10 +73,12 @@ export function skillFile(rel: string, platform: NodeJS.Platform = process.platf
   const win = platform === "win32";
   const parts = rel.split(win ? /[\\/]+/ : /\/+/).filter((p) => p !== "" && p !== ".");
   if (parts.length === 0 || parts.some((p) => p === "..")) return null;
-  const clean = win ? parts.map((p) => {
-    const q = p.replace(/[\u0000-\u001f:*?"<>|]/g, "_").replace(/[. ]+$/, "") || "_";
-    return RESERVED.test(q) ? `_${q}` : q;
-  }) : parts;
+  const clean = win
+    ? parts.map((p) => {
+        const q = p.replace(/[\u0000-\u001f:*?"<>|]/g, "_").replace(/[. ]+$/, "") || "_";
+        return RESERVED.test(q) ? `_${q}` : q;
+      })
+    : parts;
   const out = clean.join(win ? "\\" : "/");
   if (out.toLowerCase() === "skill.md") return null;
   return out;
@@ -72,8 +97,15 @@ export function fitsPath(file: string, platform: NodeJS.Platform = process.platf
 function readManifest(base: string): Manifest | null {
   try {
     const m = JSON.parse(fs.readFileSync(path.join(base, NATIVE_MANIFEST), "utf8")) as Partial<Manifest>;
-    return typeof m.fingerprint === "string" && Array.isArray(m.dirs) ? { fingerprint: m.fingerprint, dirs: m.dirs.filter((d): d is string => typeof d === "string" && skillDir(d) === d) } : null;
-  } catch { return null; }
+    return typeof m.fingerprint === "string" && Array.isArray(m.dirs)
+      ? {
+          fingerprint: m.fingerprint,
+          dirs: m.dirs.filter((d): d is string => typeof d === "string" && skillDir(d) === d),
+        }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Keeps the written folders out of a git work folder's changes (a crew teammate's copy of a repository). Idempotent. */
@@ -82,7 +114,11 @@ function excludeFromGit(work: string, rel: string[]): void {
   if (!fs.existsSync(git) || !fs.statSync(git).isDirectory()) return;
   const file = path.join(git, "info", "exclude");
   let have = "";
-  try { have = fs.readFileSync(file, "utf8"); } catch { /* none yet */ }
+  try {
+    have = fs.readFileSync(file, "utf8");
+  } catch {
+    /* none yet */
+  }
   const lines = new Set(have.split("\n"));
   const add = rel.map((r) => `/${r}`).filter((l) => !lines.has(l));
   if (add.length === 0) return;
@@ -94,32 +130,68 @@ function excludeFromGit(work: string, rel: string[]): void {
  * Writes the skills this agent uses for this person into `work` for `driver`. Returns what it did: "same" when the set had not changed (nothing written), or the folder names written.
  * Throws only when the list cannot be read; the caller logs it and the turn goes on with the index and load_skill.
  */
-export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillDriver, agentId: string, asker: string, work: string): Promise<{ written: string[] } | "same"> {
-  const rows = (((await d.call("skills.list", { agentId }, asker)) as { skills?: Row[] } | null)?.skills ?? [])
-    .filter((r) => typeof r.name === "string" && r.name !== "" && r.tier !== "builtin" && !String(r.source ?? "").startsWith("plugin:") && r.shadowedBy === undefined && r.broken === undefined && r.enabled !== false);
+export async function syncNativeSkills(
+  d: NativeSkillsDeps,
+  driver: NativeSkillDriver,
+  agentId: string,
+  asker: string,
+  work: string,
+): Promise<{ written: string[] } | "same"> {
+  const rows = (((await d.call("skills.list", { agentId }, asker)) as { skills?: Row[] } | null)?.skills ?? []).filter(
+    (r) =>
+      typeof r.name === "string" &&
+      r.name !== "" &&
+      r.tier !== "builtin" &&
+      !String(r.source ?? "").startsWith("plugin:") &&
+      r.shadowedBy === undefined &&
+      r.broken === undefined &&
+      r.enabled !== false,
+  );
   const fingerprint = sha256b64(JSON.stringify(rows.map((r) => [r.name, r.hash ?? ""]).sort())).slice(0, 24);
   const base = path.join(work, SKILL_BASES[driver]);
   const before = readManifest(base);
   if (before?.fingerprint === fingerprint) return "same";
-  if (rows.length === 0 && before === null) return "same";   // no skills and none written before: the folder is left as it is, with nothing added
+  if (rows.length === 0 && before === null) return "same"; // no skills and none written before: the folder is left as it is, with nothing added
   fs.mkdirSync(base, { recursive: true });
   // the folders Vyre wrote last time go; anything else in the folder is the repository's or the person's, and stays
   for (const dir of before?.dirs ?? []) fs.rmSync(path.join(base, dir), { recursive: true, force: true });
   const written: string[] = [];
   for (const r of rows) {
     const dir = skillDir(String(r.name));
-    if (written.includes(dir) || fs.existsSync(path.join(base, dir))) continue;   // a folder of that name that Vyre did not write is not replaced
-    let skill: { text?: string; body?: string; description?: string; name?: string; files?: Array<{ path: string; text: string }> } | undefined;
-    try { skill = ((await d.call("skills.load", { name: r.name, agentId }, asker)) as { skill?: typeof skill }).skill; } catch { continue; }
+    if (written.includes(dir) || fs.existsSync(path.join(base, dir))) continue; // a folder of that name that Vyre did not write is not replaced
+    let skill:
+      | {
+          text?: string;
+          body?: string;
+          description?: string;
+          name?: string;
+          files?: Array<{ path: string; text: string }>;
+        }
+      | undefined;
+    try {
+      skill = ((await d.call("skills.load", { name: r.name, agentId }, asker)) as { skill?: typeof skill }).skill;
+    } catch {
+      continue;
+    }
     if (!skill) continue;
     const root = path.join(base, dir);
-    const text = typeof skill.text === "string" && skill.text !== "" ? skill.text : `---\nname: ${dir}\ndescription: ${JSON.stringify(skill.description ?? "")}\n---\n\n${skill.body ?? ""}`;
+    const text =
+      typeof skill.text === "string" && skill.text !== ""
+        ? skill.text
+        : `---\nname: ${dir}\ndescription: ${JSON.stringify(skill.description ?? "")}\n---\n\n${skill.body ?? ""}`;
     // each write on its own: a file the disk refuses (a name, a path too long, a full disk) loses that file, or that one skill when it is SKILL.md, and never the others
     try {
       if (!fitsPath(path.join(root, "SKILL.md"))) throw new Error("the path is too long for Windows");
       fs.mkdirSync(root, { recursive: true });
       fs.writeFileSync(path.join(root, "SKILL.md"), text, { mode: 0o644 });
-    } catch (e) { d.log?.("a skill could not be written for the engine", { skill: dir, error: e instanceof Error ? e.message : String(e) }); fs.rmSync(root, { recursive: true, force: true }); continue; }
+    } catch (e) {
+      d.log?.("a skill could not be written for the engine", {
+        skill: dir,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      fs.rmSync(root, { recursive: true, force: true });
+      continue;
+    }
     for (const f of skill.files ?? []) {
       const rel = typeof f.path === "string" ? skillFile(f.path) : null;
       if (rel === null || typeof f.text !== "string") continue;
@@ -127,13 +199,28 @@ export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillD
       try {
         if (!fitsPath(abs)) throw new Error("the path is too long for Windows");
         fs.mkdirSync(path.dirname(abs), { recursive: true });
-        fs.writeFileSync(abs, f.text, { mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644 });
-      } catch (e) { d.log?.("a skill's file could not be written for the engine", { skill: dir, file: rel, error: e instanceof Error ? e.message : String(e) }); }
+        fs.writeFileSync(abs, f.text, {
+          mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644,
+        });
+      } catch (e) {
+        d.log?.("a skill's file could not be written for the engine", {
+          skill: dir,
+          file: rel,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
     written.push(dir);
   }
-  fs.writeFileSync(path.join(base, NATIVE_MANIFEST), JSON.stringify({ fingerprint, dirs: written } satisfies Manifest), { mode: 0o644 });
-  excludeFromGit(work, [...written.map((w) => `${SKILL_BASES[driver]}/${w}/`), `${SKILL_BASES[driver]}/${NATIVE_MANIFEST}`]);
+  fs.writeFileSync(
+    path.join(base, NATIVE_MANIFEST),
+    JSON.stringify({ fingerprint, dirs: written } satisfies Manifest),
+    { mode: 0o644 },
+  );
+  excludeFromGit(work, [
+    ...written.map((w) => `${SKILL_BASES[driver]}/${w}/`),
+    `${SKILL_BASES[driver]}/${NATIVE_MANIFEST}`,
+  ]);
   return { written };
 }
 
@@ -146,22 +233,32 @@ const nativeDriver = (spec: SessionSpec): NativeSkillDriver | null => {
  * An OpenSession whose Claude Code and Codex sessions get the agent's skills written into their work folder before every turn (the opener writes them once as the engine starts). Only a change writes:
  * the fingerprint is read first. A failure never holds the turn.
  */
-export function withNativeSkills(open: OpenSession, d: NativeSkillsDeps & { workOf(spec: SessionSpec): string | null }): OpenSession {
+export function withNativeSkills(
+  open: OpenSession,
+  d: NativeSkillsDeps & { workOf(spec: SessionSpec): string | null },
+): OpenSession {
   return async (spec) => {
     const session = await open(spec);
     const driver = nativeDriver(spec);
     if (!driver) return session;
     return Object.create(session, {
       send: {
-        value: (input: TurnInput) => (async function* () {
-          try {
-            const work = d.workOf(spec);
-            if (work) await syncNativeSkills(d, driver, input.agent.id, input.asker, work);
-          } catch (e) { d.log?.("the skills could not be written for the engine", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); }
-          yield* session.send(input);
-        })(),
+        value: (input: TurnInput) =>
+          (async function* () {
+            try {
+              const work = d.workOf(spec);
+              if (work) await syncNativeSkills(d, driver, input.agent.id, input.asker, work);
+            } catch (e) {
+              d.log?.("the skills could not be written for the engine", {
+                threadId: input.threadId,
+                error: e instanceof Error ? e.message : String(e),
+              });
+            }
+            yield* session.send(input);
+          })(),
         // a wrapper around this one (a Proxy) may replace send in turn
-        writable: true, configurable: true,
+        writable: true,
+        configurable: true,
       },
     }) as EngineSession;
   };

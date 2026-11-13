@@ -18,7 +18,9 @@ interface TableDef {
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function readMigration(): string {
-  return ["0001_email_builder.sql", "0002_saved_blocks.sql"].map((f) => readFileSync(join(here, "../migrations", f), "utf8")).join("\n");
+  return ["0001_email_builder.sql", "0002_saved_blocks.sql"]
+    .map((f) => readFileSync(join(here, "../migrations", f), "utf8"))
+    .join("\n");
 }
 
 function parseDefault(text: string): unknown {
@@ -82,7 +84,12 @@ export class MemoryDb {
     return { def, rows };
   }
 
-  private predicate(def: TableDef, where: string | undefined, args: unknown[], at: { i: number }): (row: Row) => boolean {
+  private predicate(
+    def: TableDef,
+    where: string | undefined,
+    args: unknown[],
+    at: { i: number },
+  ): (row: Row) => boolean {
     if (!where) return () => true;
     const preds: ((row: Row) => boolean)[] = [];
     for (const part of where.split(" AND ")) {
@@ -124,7 +131,8 @@ export class MemoryDb {
     if (ins && ins[1] && ins[2] && ins[3]) {
       const { def, rows } = this.table(ins[1]);
       const cols = ins[2].split(",").map((c) => c.trim());
-      if (ins[3].split(",").length !== cols.length || args.length !== cols.length) throw new Error(`value count does not match columns: ${text}`);
+      if (ins[3].split(",").length !== cols.length || args.length !== cols.length)
+        throw new Error(`value count does not match columns: ${text}`);
       const row: Row = {};
       for (const c of def.columns) row[c] = def.defaults.has(c) ? def.defaults.get(c) : null;
       cols.forEach((c, i) => {

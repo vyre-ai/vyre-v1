@@ -49,15 +49,21 @@ export const RULES: readonly AbsenceRule[] = [
   },
   {
     id: "mac-windows-control",
-    reason: "Mac and Windows control (computer use on the person's own machine) is not in v1; agent computers on the Space server stay in",
+    reason:
+      "Mac and Windows control (computer use on the person's own machine) is not in v1; agent computers on the Space server stay in",
     path: /(^|\/)local\/hands(-|\/|$)|(^|\/)hands-(mac|windows|win|desktop)(?=[/.\-_]|$)/i,
     spec: /(^|\/)local\/hands(-|\/|$)|(^|\/)hands-(mac|windows|win|desktop)(?=[/.\-_]|$)/i,
   },
   {
     id: "voice-agents",
-    reason: "Voice agents answering calls and the meeting bot are not in v1 (agents own a number for texts and voicemail)",
+    reason:
+      "Voice agents answering calls and the meeting bot are not in v1 (agents own a number for texts and voicemail)",
     path: word("voice-agents?", "voiceagents?", "voice_agents?", "meeting-bot", "meetingbot", "meeting_bot"),
-    spec: new RegExp(specWord("voice-agents?", "voiceagents?", "voice_agents?", "meeting-bot", "meetingbot", "meeting_bot").source + "|@elevenlabs/|@vapi-ai/|retell-sdk", "i"),
+    spec: new RegExp(
+      specWord("voice-agents?", "voiceagents?", "voice_agents?", "meeting-bot", "meetingbot", "meeting_bot").source +
+        "|@elevenlabs/|@vapi-ai/|retell-sdk",
+      "i",
+    ),
   },
   {
     id: "billing",
@@ -71,19 +77,37 @@ export const RULES: readonly AbsenceRule[] = [
     path: word("autofill", "auto-fill-provider", "credential-provider"),
     // Phone providers only: the Chrome extension's Vault fill (apps/chrome/) is in v1 (owner, 24 Oct).
     except: /^apps\/chrome\//,
-    spec: specWord("autofill", "auto-fill-provider", "credential-provider") ,
+    spec: specWord("autofill", "auto-fill-provider", "credential-provider"),
   },
   {
     id: "passkeys",
     reason: "Vault passkeys, WebAuthn interception and passkey sign-in are not in v1 (owner, 24 Oct)",
     path: word("passkeys?", "webauthn", "vault-apple", "vault-android"),
-    spec: new RegExp(specWord("passkeys?", "webauthn", "vault-apple", "vault-android").source + "|@simplewebauthn/|react-native-passkey", "i"),
+    spec: new RegExp(
+      specWord("passkeys?", "webauthn", "vault-apple", "vault-android").source +
+        "|@simplewebauthn/|react-native-passkey",
+      "i",
+    ),
   },
 ];
 
 /** Roots the check reads (the layer packages and apps). Contracts, generated output, docs and manifests are not code. */
 export const SCAN_ROOTS: readonly string[] = [
-  "lib/", "kernel/", "host/", "sync/", "agent/", "sandbox/", "client/", "ui/", "apps/", "relay/", "kits/", "modules/", "connectors/", "testkit/", "local/",
+  "lib/",
+  "kernel/",
+  "host/",
+  "sync/",
+  "agent/",
+  "sandbox/",
+  "client/",
+  "ui/",
+  "apps/",
+  "relay/",
+  "kits/",
+  "modules/",
+  "connectors/",
+  "testkit/",
+  "local/",
 ];
 
 /** Never scanned, even under a root: tests of this check name every forbidden word on purpose. */
@@ -115,10 +139,12 @@ export function checkAbsence(files: readonly SourceFile[], rules: readonly Absen
     if (!inScope(file.path)) continue;
     for (const rule of rules) {
       if (rule.except?.test(file.path)) continue;
-      if (rule.path.test(file.path)) found.push({ rule: rule.id, file: file.path, kind: "path", detail: file.path, reason: rule.reason });
+      if (rule.path.test(file.path))
+        found.push({ rule: rule.id, file: file.path, kind: "path", detail: file.path, reason: rule.reason });
       if (file.text === undefined || !SOURCE.test(file.path)) continue;
       for (const spec of importSpecifiers(file.text)) {
-        if (rule.spec.test(spec)) found.push({ rule: rule.id, file: file.path, kind: "import", detail: spec, reason: rule.reason });
+        if (rule.spec.test(spec))
+          found.push({ rule: rule.id, file: file.path, kind: "import", detail: spec, reason: rule.reason });
       }
     }
   }
@@ -126,7 +152,10 @@ export function checkAbsence(files: readonly SourceFile[], rules: readonly Absen
 }
 
 export function formatFindings(findings: readonly AbsenceFinding[]): string[] {
-  return findings.map((f) => `not-in-v1 ${f.rule}: ${f.file} ${f.kind === "import" ? `imports "${f.detail}"` : "is a forbidden path"} (${f.reason})`);
+  return findings.map(
+    (f) =>
+      `not-in-v1 ${f.rule}: ${f.file} ${f.kind === "import" ? `imports "${f.detail}"` : "is a forbidden path"} (${f.reason})`,
+  );
 }
 
 export interface AdrIndexInput {
@@ -153,11 +182,15 @@ export function checkAdrIndex(input: AdrIndexInput): string[] {
     if (!input.index.includes(`(${file})`)) errors.push(`adr: ${file} is not linked from docs/adr/README.md`);
   }
   numbers.forEach((n, i) => {
-    if (n !== i + 1) errors.push(`adr: numbers must run 0001, 0002, ... without gaps or repeats (found ${String(n).padStart(4, "0")} at position ${i + 1})`);
+    if (n !== i + 1)
+      errors.push(
+        `adr: numbers must run 0001, 0002, ... without gaps or repeats (found ${String(n).padStart(4, "0")} at position ${i + 1})`,
+      );
   });
   for (const m of input.index.matchAll(/\]\(([^)\s]+\.md)\)/g)) {
     const target = m[1];
-    if (target !== undefined && !target.includes("/") && !input.files.includes(target)) errors.push(`adr: README.md links ${target}, which does not exist`);
+    if (target !== undefined && !target.includes("/") && !input.files.includes(target))
+      errors.push(`adr: README.md links ${target}, which does not exist`);
   }
   return errors;
 }

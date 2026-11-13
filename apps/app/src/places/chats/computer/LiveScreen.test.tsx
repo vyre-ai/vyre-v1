@@ -13,7 +13,22 @@ function rig(state: string, control: boolean) {
     if (cap === "computers.stream") return { transport: "mjpeg", url: "/live/cmt_1", ticket: "tk", expiresAt: 1 };
     return {};
   };
-  const el = <LiveScreen computerId="cmt_1" state={state} call={call} spaceUrl="https://x.example" now={() => 1} control={control} onIdlePress={() => void calls.push({ cap: "idle", input: null })} testID="ls" label="Intake's computer" style={{ width: 100, height: 60 }}><Text>stand-in</Text></LiveScreen>;
+  const el = (
+    <LiveScreen
+      computerId="cmt_1"
+      state={state}
+      call={call}
+      spaceUrl="https://x.example"
+      now={() => 1}
+      control={control}
+      onIdlePress={() => void calls.push({ cap: "idle", input: null })}
+      testID="ls"
+      label="Intake's computer"
+      style={{ width: 100, height: 60 }}
+    >
+      <Text>stand-in</Text>
+    </LiveScreen>
+  );
   return { el, calls };
 }
 
@@ -31,7 +46,9 @@ test("a working computer shows the stream over the stand-in; a sleeping one asks
     await flush();
     assert.ok(!asleep.calls.some((c) => c.cap === "computers.stream"));
     assert.equal(find(root2, "ls-stream"), null);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a press reaches the desktop only in control; otherwise it is the idle press", async () => {
@@ -47,7 +64,12 @@ test("a press reaches the desktop only in control; otherwise it is the idle pres
     const root2 = await mount(createRoot, mine.el);
     await flush();
     await press(find(root2, "ls"));
-    assert.ok(mine.calls.some((c) => c.cap.startsWith("computers.screen")), "the click went to the agent's desktop");
+    assert.ok(
+      mine.calls.some((c) => c.cap.startsWith("computers.screen")),
+      "the click went to the agent's desktop",
+    );
     assert.ok(!mine.calls.some((c) => c.cap === "idle"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

@@ -23,24 +23,56 @@ const PEOPLE: Principal[] = [
   { id: "agt_intake", name: "Intake", kind: "agent" },
 ];
 
-function runtime(kind: "personal" | "team"): { rt: ShellRuntime; asked: string[]; calls: string[]; opened: ShellTarget[] } {
+function runtime(kind: "personal" | "team"): {
+  rt: ShellRuntime;
+  asked: string[];
+  calls: string[];
+  opened: ShellTarget[];
+} {
   const side = createSampleSidebar();
   const conv = createSample("idle");
   const asked: string[] = [];
   const calls: string[] = [];
   const opened: ShellTarget[] = [];
-  const screens: ScreenHooks = { query: (id, name, state) => { asked.push(`${id}/${name}`); return (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state); } };
-  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: PEOPLE }) };
+  const screens: ScreenHooks = {
+    query: (id, name, state) => {
+      asked.push(`${id}/${name}`);
+      return (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state);
+    },
+  };
+  const principals: LiveQuery<Principal[]> = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({ status: "ready", data: PEOPLE }),
+  };
   const rt: ShellRuntime = {
-    screens, call: async (cap, input) => { calls.push(cap); return conv.data.call(cap, input); }, connection: conv.data.connection, principals,
-    recordTitle: () => undefined, me: PEOPLE[0]!, clock: conv.data.clock,
-    space: { id: "s1", kind, name: kind === "personal" ? "Irfad" : "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
-    open: (t) => void opened.push(t), openUrl: () => undefined,
+    screens,
+    call: async (cap, input) => {
+      calls.push(cap);
+      return conv.data.call(cap, input);
+    },
+    connection: conv.data.connection,
+    principals,
+    recordTitle: () => undefined,
+    me: PEOPLE[0]!,
+    clock: conv.data.clock,
+    space: { id: "s1", kind, name: kind === "personal" ? "Irfad" : "Northwind" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    aiConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
+    calendarConnected: true,
+    open: (t) => void opened.push(t),
+    openUrl: () => undefined,
   };
   return { rt, asked, calls, opened };
 }
 
-const html = (rt: ShellRuntime): string => renderToStaticMarkup(<ShellRuntimeProvider value={rt}><ChatsPlace /></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+const html = (rt: ShellRuntime): string =>
+  renderToStaticMarkup(
+    <ShellRuntimeProvider value={rt}>
+      <ChatsPlace />
+    </ShellRuntimeProvider>,
+  ).replaceAll("<!-- -->", "");
 
 test("a Personal Space mount never asks for computers.list and draws no computer button", () => {
   const { rt, asked, calls } = runtime("personal");
@@ -62,8 +94,17 @@ function goFor(kind: "personal" | "team", fail?: unknown, computers: { agentId: 
   const { rt, calls, opened } = runtime(kind);
   const said: { text: string; action?: LineAction }[] = [];
   const acts: Act[] = [];
-  rt.call = async (cap) => { calls.push(cap); if (fail !== undefined) throw fail; return { computers }; };
-  const go = createGo(rt, (a) => void acts.push(a), (id) => (id === "agt_intake" ? "Intake" : id), (text, action) => void said.push({ text, ...(action ? { action } : {}) }));
+  rt.call = async (cap) => {
+    calls.push(cap);
+    if (fail !== undefined) throw fail;
+    return { computers };
+  };
+  const go = createGo(
+    rt,
+    (a) => void acts.push(a),
+    (id) => (id === "agt_intake" ? "Intake" : id),
+    (text, action) => void said.push({ text, ...(action ? { action } : {}) }),
+  );
   return { go, said, calls, opened, acts };
 }
 

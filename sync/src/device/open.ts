@@ -62,13 +62,17 @@ export async function openDeviceReplica(o: OpenDeviceReplica): Promise<DeviceRep
   let driver: SqlDriver;
   try {
     if (choice.engine === "sqlcipher-expo") {
-      if (!o.openers.sqlcipher) throw new ReplicaError("engine_missing", "the SQLCipher opener is not wired on this device");
+      if (!o.openers.sqlcipher)
+        throw new ReplicaError("engine_missing", "the SQLCipher opener is not wired on this device");
       driver = openSqlCipher({ open: o.openers.sqlcipher.open, file, key });
     } else if (choice.engine === "sqlite3mc-opfs") {
       if (!o.openers.sqlite3mc) throw new ReplicaError("engine_missing", "the sqlite3mc module is not loaded");
       driver = openCipherOpfs({ ...o.openers.sqlite3mc, file, key });
     } else {
-      throw new ReplicaError("engine_missing", `${choice.engine} is the recorded fallback (${choice.reason}) and is not wired on this device`);
+      throw new ReplicaError(
+        "engine_missing",
+        `${choice.engine} is the recorded fallback (${choice.reason}) and is not wired on this device`,
+      );
     }
   } finally {
     key.fill(0);

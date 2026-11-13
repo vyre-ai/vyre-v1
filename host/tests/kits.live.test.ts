@@ -18,21 +18,52 @@ import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { createKitsHost } from "../src/seams/kits.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 const KIT = {
-  key: "livekit", title: "Live Kit", version: "1.0.0", channel: "stable", description: "One record type, to prove install and apply on a booted daemon.",
-  items: [{
-    key: "rt.live_note", content: "structure", type: "record_type", title: "Live note", recordType: "live_note",
-    apply: {
-      cap: "schema.apply",
-      input: {
-        ops: [{ op: "type.create", type: "live_note", def: { title: "Live note", plural: "Live notes", icon: "note", group: "Notes", label: "internal", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] } }],
-        idempotencyKey: "kit.livekit.rt.live_note", reason: "Kit install",
+  key: "livekit",
+  title: "Live Kit",
+  version: "1.0.0",
+  channel: "stable",
+  description: "One record type, to prove install and apply on a booted daemon.",
+  items: [
+    {
+      key: "rt.live_note",
+      content: "structure",
+      type: "record_type",
+      title: "Live note",
+      recordType: "live_note",
+      apply: {
+        cap: "schema.apply",
+        input: {
+          ops: [
+            {
+              op: "type.create",
+              type: "live_note",
+              def: {
+                title: "Live note",
+                plural: "Live notes",
+                icon: "note",
+                group: "Notes",
+                label: "internal",
+                titleField: "title",
+                fields: [{ key: "title", type: "text", title: "Title", required: true }],
+              },
+            },
+          ],
+          idempotencyKey: "kit.livekit.rt.live_note",
+          reason: "Kit install",
+        },
       },
     },
-  }],
+  ],
 };
 
 function seededDir(): string {
@@ -55,13 +86,16 @@ function codeRootWithKitsLive(): string {
   for (const name of fs.readdirSync(path.join(CODE_ROOT, "host"))) {
     if (name !== "modules.json") fs.symlinkSync(path.join(CODE_ROOT, "host", name), path.join(root, "host", name));
   }
-  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const list = JSON.parse(fs.readFileSync(path.join(CODE_ROOT, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   const kits = list.modules.find((m) => m.id === "kits");
   assert.ok(kits, "kits is in host/modules.json");
   kits.status = "live";
   fs.writeFileSync(path.join(root, "host/modules.json"), JSON.stringify(list));
   fs.mkdirSync(path.join(root, "kits"));
-  for (const name of fs.readdirSync(path.join(CODE_ROOT, "kits"))) fs.symlinkSync(path.join(CODE_ROOT, "kits", name), path.join(root, "kits", name));
+  for (const name of fs.readdirSync(path.join(CODE_ROOT, "kits")))
+    fs.symlinkSync(path.join(CODE_ROOT, "kits", name), path.join(root, "kits", name));
   fs.mkdirSync(path.join(root, "kits", KIT.key));
   fs.writeFileSync(path.join(root, "kits", KIT.key, "kit.json"), JSON.stringify(KIT));
   return root;
@@ -72,7 +106,9 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot,
     platform: fakePlatform({
-      os: "linux", hostname: "kits-live", free: 80e9,
+      os: "linux",
+      hostname: "kits-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -84,8 +120,13 @@ async function boot(dir: string, codeRoot: string): Promise<Daemon> {
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
@@ -114,14 +155,19 @@ test("kits live: a booted daemon wires setKitsHost, reports nothing as not set u
   try {
     assert.ok(d.seams?.wired.includes("setKitsHost"), "setKitsHost is wired by the generic loader and daemon");
     assert.deepEqual(d.seams?.missing, [], "no module is left without its driver");
-    const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? null) as { detail: string } | null;
+    const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? null) as {
+      detail: string;
+    } | null;
     assert.equal(row, null, "health lists nothing as not set up");
 
     const listed = await call(d, "kits.list", {});
     assert.equal(listed.status, 200, JSON.stringify(listed.data));
     const keys = (listed.data.kits as { key: string }[]).map((k) => k.key);
-    for (const k of ["default", "harbor-studio", "livekit"]) assert.ok(keys.includes(k), `${k} is shipped on this server`);
-    const kit = (listed.data.kits as { key: string; kitId: string; installed: boolean }[]).find((k) => k.key === "livekit")!;
+    for (const k of ["default", "harbor-studio", "livekit"])
+      assert.ok(keys.includes(k), `${k} is shipped on this server`);
+    const kit = (listed.data.kits as { key: string; kitId: string; installed: boolean }[]).find(
+      (k) => k.key === "livekit",
+    )!;
     assert.equal(kit.installed, false);
 
     const sheet = await call(d, "kits.install_sheet", { kitId: kit.kitId });
@@ -139,22 +185,40 @@ test("kits live: a booted daemon wires setKitsHost, reports nothing as not set u
 
     const read = await call(d, "kits.get", { kitId: kit.kitId });
     assert.equal(read.data.kit.installed, true, "kits.get reads the install back");
-    const applied = d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", kit.kitId) as { item_key: string }[];
-    assert.deepEqual(applied.map((a) => a.item_key), ["rt.live_note"], "the ledger records the applied item");
+    const applied = d.db!.all("SELECT item_key FROM kits_applied WHERE kit_id = ?", kit.kitId) as {
+      item_key: string;
+    }[];
+    assert.deepEqual(
+      applied.map((a) => a.item_key),
+      ["rt.live_note"],
+      "the ledger records the applied item",
+    );
     const types = await call(d, "schema.types.list", {});
     assert.equal(types.status, 200, JSON.stringify(types.data));
     assert.ok(JSON.stringify(types.data).includes("live_note"), "the Kit's step created its record type in the Space");
 
     const events = await d.log!.read({ type: "kit.installed" });
     assert.equal(events.length, 1, "kit.installed was emitted once");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("kits live: each Kit becomes one resource in the access projection, once, and a reboot neither repeats it nor loses it", async () => {
   const dir = seededDir();
   const root = codeRootWithKitsLive();
   const kitResources = async (d: Daemon): Promise<string[]> =>
-    (await d.log!.read({ type: "resource.created" })).map((e) => (e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload) as { id: string; type: string }).filter((p) => p.type === "kit").map((p) => p.id).sort();
+    (await d.log!.read({ type: "resource.created" }))
+      .map(
+        (e) =>
+          (e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload) as {
+            id: string;
+            type: string;
+          },
+      )
+      .filter((p) => p.type === "kit")
+      .map((p) => p.id)
+      .sort();
   let first: string[] = [];
   const a = await boot(dir, root);
   try {
@@ -165,7 +229,9 @@ test("kits live: each Kit becomes one resource in the access projection, once, a
     assert.deepEqual([...new Set(first)], first, "no Kit twice");
     await call(a, "kits.list", {});
     assert.deepEqual(await kitResources(a), first, "listing again adds none");
-  } finally { await a.stop(); }
+  } finally {
+    await a.stop();
+  }
   const b = await boot(dir, root);
   try {
     const listed = await call(b, "kits.list", {});
@@ -173,5 +239,7 @@ test("kits live: each Kit becomes one resource in the access projection, once, a
     const kit = (listed.data.kits as { kitId: string }[])[0]!;
     const got = await call(b, "kits.get", { kitId: kit.kitId });
     assert.equal(got.status, 200, "and the Kit is still visible to authorize after the reboot");
-  } finally { await b.stop(); }
+  } finally {
+    await b.stop();
+  }
 });

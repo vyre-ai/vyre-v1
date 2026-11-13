@@ -82,15 +82,35 @@ export const SAVE_PAUSE_MS = 800;
 /** The header's words for the save state. */
 export function statusWords(h: Pick<AgentFileHeader, "status" | "version" | "error">): string {
   switch (h.status) {
-    case "saving": case "dirty": return "Saving…";
-    case "saved": return `Saved · v${h.version}`;
-    case "draft": return "Draft, not in use yet";
-    case "error": return "Not saved";
-    default: return `v${h.version}`;
+    case "saving":
+    case "dirty":
+      return "Saving…";
+    case "saved":
+      return `Saved · v${h.version}`;
+    case "draft":
+      return "Draft, not in use yet";
+    case "error":
+      return "Not saved";
+    default:
+      return `v${h.version}`;
   }
 }
 
-export function AgentFileEditor({ fileId, name, saved, version, density = "regular", onSaved, start, above, mode = "edit", onReviewPane, reviewRequired = false, onHeader, apiRef }: AgentFileEditorProps): ReactElement {
+export function AgentFileEditor({
+  fileId,
+  name,
+  saved,
+  version,
+  density = "regular",
+  onSaved,
+  start,
+  above,
+  mode = "edit",
+  onReviewPane,
+  reviewRequired = false,
+  onHeader,
+  apiRef,
+}: AgentFileEditorProps): ReactElement {
   const data = useReviewData();
   const isToml = name.endsWith(".toml");
   const [view, setView] = useState<EditView>(start?.view ?? "text");
@@ -102,8 +122,15 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   // the draft, its autosave and Undo are one hook: the same rule for every editor of a file. The checks run on the draft it holds, so what blocks a save is read through a ref.
   const checks = useRef({ red: false, amber: false });
   const fa = useFileAutosave({
-    call: data.call, fileId, saved, version, ...(start?.draft !== undefined ? { startDraft: start.draft } : {}), manual: reviewRequired || start?.review === true,
-    blocked: () => (checks.current.red ? "Not saved yet: fix the red checks first." : null), acceptWarnings: () => checks.current.amber, ...(onSaved ? { onSaved } : {}),
+    call: data.call,
+    fileId,
+    saved,
+    version,
+    ...(start?.draft !== undefined ? { startDraft: start.draft } : {}),
+    manual: reviewRequired || start?.review === true,
+    blocked: () => (checks.current.red ? "Not saved yet: fix the red checks first." : null),
+    acceptWarnings: () => checks.current.amber,
+    ...(onSaved ? { onSaved } : {}),
   });
   const { draft, base, auto, line, setLine } = fa;
   const lint = useCap("files.lint", { fileId, text: draft });
@@ -111,8 +138,15 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   const [folderId, setFolderId] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void (data.call("files.get", { fileId }) as Promise<{ file: { folderId: string } }>).then((o) => { if (live) setFolderId(o.file.folderId); }, () => undefined);
-    return () => { live = false; };
+    void (data.call("files.get", { fileId }) as Promise<{ file: { folderId: string } }>).then(
+      (o) => {
+        if (live) setFolderId(o.file.folderId);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, fileId]);
   const links = useFileLinks(data, folderId !== null ? { folderId } : null, mode === "view" && !isToml ? draft : "");
   const red = lint.status === "ready" && saveBlocked(lint.data);
@@ -122,14 +156,23 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   const diff = useMemo(() => draftDiff(name, base.text, draft), [name, base.text, draft]);
   const note = useMemo(() => diffNote(base.text, draft), [base.text, draft]);
 
-  const edit = useCallback((t: string): void => {
-    fa.edit(t);
-    if (reviewRequired && review) setReview(false);
-  }, [fa.edit, reviewRequired, review]);
+  const edit = useCallback(
+    (t: string): void => {
+      fa.edit(t);
+      if (reviewRequired && review) setReview(false);
+    },
+    [fa.edit, reviewRequired, review],
+  );
   const flush = fa.flush;
-  const doJump = (n: number): void => { setView("text"); setJump({ line: n, n: (jump?.n ?? 0) + 1 }); };
+  const doJump = (n: number): void => {
+    setView("text");
+    setJump({ line: n, n: (jump?.n ?? 0) + 1 });
+  };
   const undo = fa.undo;
-  const discard = useCallback((): void => { fa.discard(); setReview(false); }, [fa.discard]);
+  const discard = useCallback((): void => {
+    fa.discard();
+    setReview(false);
+  }, [fa.discard]);
 
   // the save after a review
   const saveReviewed = (): void => {
@@ -148,66 +191,193 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   saveNow.current = saveReviewed;
   const reviewing = review && changed;
   useEffect(() => {
-    onReviewPane?.(reviewing ? (
-      <View style={st.pane} testID="agent-file-diff">
-        {diff.hunks.length === 0 ? <Text style={st.same} testID="agent-file-nochange">No changes</Text> : <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density="compact" bare />}
-        {note ? <Text style={st.same} testID="agent-file-diff-note">{note}</Text> : null}
-        <View style={st.reason}>
-          <TextField value={reason} onChange={setReason} label="Why this change" placeholder="Why? (optional)" onSubmit={() => saveNow.current()} onEscape={() => setReview(false)} testID="agent-file-reason" />
-          <View style={st.reasonRow}>
-            <Btn label="Keep editing" small onPress={() => setReview(false)} testID="agent-file-keep" />
-            <Btn label="Save version" primary small disabled={saving || red} hint="Fix the errors the checks show first" onPress={() => saveNow.current()} testID="agent-file-save" />
+    onReviewPane?.(
+      reviewing ? (
+        <View style={st.pane} testID="agent-file-diff">
+          {diff.hunks.length === 0 ? (
+            <Text style={st.same} testID="agent-file-nochange">
+              No changes
+            </Text>
+          ) : (
+            <DiffTab
+              title={name}
+              layout="unified"
+              wordMarks
+              files={[diff]}
+              comments={[]}
+              selectedPath={name}
+              density="compact"
+              bare
+            />
+          )}
+          {note ? (
+            <Text style={st.same} testID="agent-file-diff-note">
+              {note}
+            </Text>
+          ) : null}
+          <View style={st.reason}>
+            <TextField
+              value={reason}
+              onChange={setReason}
+              label="Why this change"
+              placeholder="Why? (optional)"
+              onSubmit={() => saveNow.current()}
+              onEscape={() => setReview(false)}
+              testID="agent-file-reason"
+            />
+            <View style={st.reasonRow}>
+              <Btn label="Keep editing" small onPress={() => setReview(false)} testID="agent-file-keep" />
+              <Btn
+                label="Save version"
+                primary
+                small
+                disabled={saving || red}
+                hint="Fix the errors the checks show first"
+                onPress={() => saveNow.current()}
+                testID="agent-file-save"
+              />
+            </View>
           </View>
         </View>
-      </View>
-    ) : null);
+      ) : null,
+    );
   }, [onReviewPane, reviewing, diff, note, name, reason, saving, red]);
   // The page keeps no diff of a file that is gone.
   useEffect(() => () => onReviewPane?.(null), [onReviewPane]);
 
   // what the page's header shows
   const status: AgentFileHeader["status"] = reviewRequired && draft !== base.text ? "draft" : auto.status;
-  const header: AgentFileHeader = { status, version: reviewRequired ? base.version : auto.version, error: auto.error, canUndo: auto.undoTo !== null && !reviewRequired, view: mdView, reviewRequired, changed: reviewRequired && draft !== base.text };
+  const header: AgentFileHeader = {
+    status,
+    version: reviewRequired ? base.version : auto.version,
+    error: auto.error,
+    canUndo: auto.undoTo !== null && !reviewRequired,
+    view: mdView,
+    reviewRequired,
+    changed: reviewRequired && draft !== base.text,
+  };
   const headerKey = JSON.stringify(header);
-  useEffect(() => { onHeader?.(header); }, [headerKey, onHeader]);
+  useEffect(() => {
+    onHeader?.(header);
+  }, [headerKey, onHeader]);
   useEffect(() => {
     if (!apiRef) return undefined;
-    apiRef.current = { undo, review: () => { if (draft !== base.text) setReview(true); }, discard, setView: setMdView };
-    return () => { apiRef.current = null; };
+    apiRef.current = {
+      undo,
+      review: () => {
+        if (draft !== base.text) setReview(true);
+      },
+      discard,
+      setView: setMdView,
+    };
+    return () => {
+      apiRef.current = null;
+    };
   }, [apiRef, undo, discard, draft, base.text]);
   const quiet = onHeader === undefined;
 
   return (
     <View style={st.wrap} testID="agent-file-editor">
-      <LintBar fileId={fileId} name={name} text={draft} {...(isToml ? { view, onView: setView } : {})} onJump={doJump} {...(folderId !== null && data.openFileTab ? { onOpenName: (n: string, background: boolean) => void openByName(data, folderId, n, background) } : {})} />
+      <LintBar
+        fileId={fileId}
+        name={name}
+        text={draft}
+        {...(isToml ? { view, onView: setView } : {})}
+        onJump={doJump}
+        {...(folderId !== null && data.openFileTab
+          ? { onOpenName: (n: string, background: boolean) => void openByName(data, folderId, n, background) }
+          : {})}
+      />
       {above}
       {mode === "view" && !(isToml && view === "form") ? (
-        <View style={st.body} testID="agent-file-view">{isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} links={links} />}</View>
+        <View style={st.body} testID="agent-file-view">
+          {isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} links={links} />}
+        </View>
       ) : isToml && view === "form" ? (
         <TomlForm text={draft} onChange={edit} issues={lint.status === "ready" ? lint.data.problems : []} />
       ) : isToml ? (
         <View style={st.body}>
-          <TextField multiline mono rows={14} value={draft} onChange={edit} label={`Text of ${name}`} testID="agent-file-text" {...(jump ? { selection: lineRange(draft, jump.line) } : {})} />
+          <TextField
+            multiline
+            mono
+            rows={14}
+            value={draft}
+            onChange={edit}
+            label={`Text of ${name}`}
+            testID="agent-file-text"
+            {...(jump ? { selection: lineRange(draft, jump.line) } : {})}
+          />
         </View>
       ) : (
         <View style={st.editor}>
-          <MarkdownEditor value={draft} onChange={edit} view={mdView} onView={setMdView} toggle={false} label={`Text of ${name}`} density={density === "compact" ? "compact" : "regular"} jump={jump} onSave={flush} testID="agent-file-text" placeholder="Write the instructions" />
+          <MarkdownEditor
+            value={draft}
+            onChange={edit}
+            view={mdView}
+            onView={setMdView}
+            toggle={false}
+            label={`Text of ${name}`}
+            density={density === "compact" ? "compact" : "regular"}
+            jump={jump}
+            onSave={flush}
+            testID="agent-file-text"
+            placeholder="Write the instructions"
+          />
         </View>
       )}
       {reviewing && !onReviewPane ? (
         <View style={st.diff} testID="agent-file-diff">
-          {diff.hunks.length === 0 ? <Text style={st.same} testID="agent-file-nochange">No changes</Text> : <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density={density} bare />}
-          {note ? <Text style={st.same} testID="agent-file-diff-note">{note}</Text> : null}
+          {diff.hunks.length === 0 ? (
+            <Text style={st.same} testID="agent-file-nochange">
+              No changes
+            </Text>
+          ) : (
+            <DiffTab
+              title={name}
+              layout="unified"
+              wordMarks
+              files={[diff]}
+              comments={[]}
+              selectedPath={name}
+              density={density}
+              bare
+            />
+          )}
+          {note ? (
+            <Text style={st.same} testID="agent-file-diff-note">
+              {note}
+            </Text>
+          ) : null}
           <View style={st.reason}>
-            <TextField value={reason} onChange={setReason} label="Why this change" placeholder="Why? (optional)" onSubmit={saveReviewed} onEscape={() => setReview(false)} testID="agent-file-reason" />
+            <TextField
+              value={reason}
+              onChange={setReason}
+              label="Why this change"
+              placeholder="Why? (optional)"
+              onSubmit={saveReviewed}
+              onEscape={() => setReview(false)}
+              testID="agent-file-reason"
+            />
             <View style={st.reasonRow}>
               <Btn label="Keep editing" small onPress={() => setReview(false)} testID="agent-file-keep" />
-              <Btn label="Save version" primary small disabled={saving || red} hint="Fix the errors the checks show first" onPress={saveReviewed} testID="agent-file-save" />
+              <Btn
+                label="Save version"
+                primary
+                small
+                disabled={saving || red}
+                hint="Fix the errors the checks show first"
+                onPress={saveReviewed}
+                testID="agent-file-save"
+              />
             </View>
           </View>
         </View>
       ) : null}
-      {quiet && mode === "edit" ? <Text style={st.status} testID="agent-file-status">{statusWords(header)}</Text> : null}
+      {quiet && mode === "edit" ? (
+        <Text style={st.status} testID="agent-file-status">
+          {statusWords(header)}
+        </Text>
+      ) : null}
       {line ? <Note text={line.text} kind={line.kind} /> : null}
       {auto.status === "error" && auto.error ? <Note text={auto.error} kind="error" /> : null}
     </View>

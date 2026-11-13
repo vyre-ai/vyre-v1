@@ -49,7 +49,14 @@ export function createCdp(dbg) {
         // Only the first can be used: ask the tab something small, and if it answers the attach was ours.
         const message = String(/** @type {any} */ (e)?.message ?? e);
         let ours = false;
-        if (/already attached/i.test(message)) { try { await dbg.sendCommand({ tabId }, "Runtime.evaluate", { expression: "1" }); ours = true; } catch { ours = false; } }
+        if (/already attached/i.test(message)) {
+          try {
+            await dbg.sendCommand({ tabId }, "Runtime.evaluate", { expression: "1" });
+            ours = true;
+          } catch {
+            ours = false;
+          }
+        }
         if (!ours) fail("debugger_denied", message.slice(0, 120));
       }
       attached.add(tabId);
@@ -63,7 +70,9 @@ export function createCdp(dbg) {
     attach,
     /** @param {number} tabId */
     isAttached: (tabId) => attached.has(tabId),
-    get attachedTabs() { return [...attached]; },
+    get attachedTabs() {
+      return [...attached];
+    },
     /**
      * One protocol command in a tab, attaching first if needed. A failed command becomes an AgentFailure with the protocol's own words.
      * @param {number} tabId @param {string} method @param {object} [params]
@@ -74,19 +83,32 @@ export function createCdp(dbg) {
         return await dbg.sendCommand({ tabId }, method, params);
       } catch (e) {
         const message = String(/** @type {any} */ (e)?.message ?? e);
-        if (/detached|not attached|no tab with given id|target closed/i.test(message)) { attached.delete(tabId); throw new AgentFailure("no_tab", "The tab went away."); }
+        if (/detached|not attached|no tab with given id|target closed/i.test(message)) {
+          attached.delete(tabId);
+          throw new AgentFailure("no_tab", "The tab went away.");
+        }
         throw new AgentFailure("error", message.slice(0, 200));
       }
     },
     /** @param {number} tabId */
     async detach(tabId) {
       if (!attached.delete(tabId)) return;
-      try { await dbg.detach({ tabId }); } catch { /* the tab closed first */ }
+      try {
+        await dbg.detach({ tabId });
+      } catch {
+        /* the tab closed first */
+      }
     },
     /** @param {EventHandler} h @returns {() => void} */
-    onEvent(h) { listeners.add(h); return () => listeners.delete(h); },
+    onEvent(h) {
+      listeners.add(h);
+      return () => listeners.delete(h);
+    },
     /** @param {DetachHandler} h @returns {() => void} */
-    onDetach(h) { detachHandlers.add(h); return () => detachHandlers.delete(h); },
+    onDetach(h) {
+      detachHandlers.add(h);
+      return () => detachHandlers.delete(h);
+    },
     /**
      * Resolve with the first event for `tabId` that `match` accepts, or null after `ms`.
      * @param {number} tabId @param {(method: string, params: any) => boolean} match @param {number} ms
@@ -101,10 +123,21 @@ export function createCdp(dbg) {
         let timer = null;
         let off = () => {};
         /** @type {EventHandler} */
-        const h = (id, method, params) => { if (id === tabId && match(method, params)) { clearT(timer); off(); resolve({ method, params }); } };
+        const h = (id, method, params) => {
+          if (id === tabId && match(method, params)) {
+            clearT(timer);
+            off();
+            resolve({ method, params });
+          }
+        };
         listeners.add(h);
-        off = () => { listeners.delete(h); };
-        timer = setT(() => { off(); resolve(null); }, ms);
+        off = () => {
+          listeners.delete(h);
+        };
+        timer = setT(() => {
+          off();
+          resolve(null);
+        }, ms);
       });
     },
   };

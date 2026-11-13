@@ -61,14 +61,17 @@ export function itemsOfAgent(agentId, entries) {
 export function createAgentSession(o) {
   if (!AGENT_ID.test(o.agentId)) throw new AgentRefusal("bad_agent", "the agent id is not an agent id");
   if (!SPACE_ID.test(o.spaceId)) throw new AgentRefusal("bad_space", "the Space id is not valid");
-  if (typeof o.token !== "string" || o.token.length < 16) throw new AgentRefusal("bad_token", "the agent token is missing or too short");
+  if (typeof o.token !== "string" || o.token.length < 16)
+    throw new AgentRefusal("bad_token", "the agent token is missing or too short");
   if (!FOLDER_ID.test(o.recipesFolderId)) throw new AgentRefusal("bad_folder", "the recipes folder id is not valid");
   const { agentId, spaceId, recipesFolderId, link } = o;
   const token = o.token;
   const as = /** @type {const} */ ({ kind: "agent", id: agentId });
 
   return {
-    agentId, spaceId, recipesFolderId,
+    agentId,
+    spaceId,
+    recipesFolderId,
     /** What this session is, for the popup-less status line and the logs. Never the token. */
     describe: () => ({ kind: "agent", agentId, spaceId }),
     toJSON: () => ({ kind: "agent", agentId, spaceId }),
@@ -77,7 +80,8 @@ export function createAgentSession(o) {
      * @param {string} capability @param {Record<string, any>} [input]
      */
     async invoke(capability, input = {}) {
-      if (!(capability in AGENT_CAPABILITIES)) throw new AgentRefusal("not_allowed", `the extension in an agent's computer may not call ${capability}`);
+      if (!(capability in AGENT_CAPABILITIES))
+        throw new AgentRefusal("not_allowed", `the extension in an agent's computer may not call ${capability}`);
       for (const k of ["space", "spaceId", "as", "actor", "principal", "token"]) {
         if (k in input) throw new AgentRefusal("not_allowed", `${k} is set by the session, not by the caller`);
       }

@@ -4,7 +4,22 @@ import { isSystemCall } from "../../../lib/trust.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { DeviceClass, DevicesCtx, EpochReason } from "../projections.ts";
 import {
-  bumpEpoch, deviceById, deviceOut, devicesOf, epochOf, mayTouch, me, meRead, mustDevice, nid, pageOf, raise, revokeDevice, sessionOut, sessionsOf, sessionsOfDevice,
+  bumpEpoch,
+  deviceById,
+  deviceOut,
+  devicesOf,
+  epochOf,
+  mayTouch,
+  me,
+  meRead,
+  mustDevice,
+  nid,
+  pageOf,
+  raise,
+  revokeDevice,
+  sessionOut,
+  sessionsOf,
+  sessionsOfDevice,
   endSession,
 } from "../projections.ts";
 import type { DeviceRec, SessionRec } from "../projections.ts";
@@ -33,16 +48,28 @@ export async function mine(ctx: DevicesCtx, _input: Record<string, never>) {
 export async function list(ctx: DevicesCtx, input: { person?: string; class?: DeviceClass } & Page) {
   const conds = ["deleted_at IS NULL"];
   const args: unknown[] = [];
-  if (input.person) { conds.push("person = ?"); args.push(input.person); }
-  if (input.class) { conds.push("class = ?"); args.push(input.class); }
-  const rows = ctx.db.all(`SELECT * FROM devices_device WHERE ${conds.join(" AND ")} ORDER BY lastSeenAt DESC, id DESC`, ...args) as DeviceRec[];
+  if (input.person) {
+    conds.push("person = ?");
+    args.push(input.person);
+  }
+  if (input.class) {
+    conds.push("class = ?");
+    args.push(input.class);
+  }
+  const rows = ctx.db.all(
+    `SELECT * FROM devices_device WHERE ${conds.join(" AND ")} ORDER BY lastSeenAt DESC, id DESC`,
+    ...args,
+  ) as DeviceRec[];
   const p = pageOf(rows, input.cursor, input.limit);
   return { devices: p.items.map((d) => deviceOut(d, ctx.device)), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function get(ctx: DevicesCtx, input: { deviceId: string }) {
   const d = mustDevice(ctx, input.deviceId);
-  return { device: deviceOut(d, ctx.device), sessions: sessionsOfDevice(ctx, d.id).map((s) => sessionOut(s, ctx.device)) };
+  return {
+    device: deviceOut(d, ctx.device),
+    sessions: sessionsOfDevice(ctx, d.id).map((s) => sessionOut(s, ctx.device)),
+  };
 }
 
 export async function rename(ctx: DevicesCtx, input: { deviceId: string; name: string }) {
@@ -53,14 +80,20 @@ export async function rename(ctx: DevicesCtx, input: { deviceId: string; name: s
   const name = input.name.trim();
   if (name.length === 0 || name.length > 80) raise(ctx, "validation.bad_input", "a device name is 1 to 80 characters");
   const now = ctx.now();
-  ctx.db.run(`UPDATE devices_device SET name = ?, version = ?, updated_at = ? WHERE id = ?`, name, d.version + 1, now, d.id);
+  ctx.db.run(
+    `UPDATE devices_device SET name = ?, version = ?, updated_at = ? WHERE id = ?`,
+    name,
+    d.version + 1,
+    now,
+    d.id,
+  );
   return { device: deviceOut({ ...d, name, version: d.version + 1 }, ctx.device) };
 }
 
 export async function revoke(ctx: RevokeCtx, input: { deviceId: string }) {
   const d = mustDevice(ctx, input.deviceId);
   revokeDevice(ctx, d);
-  await purgeOnSync(ctx, d);   // also when it was already revoked: a retry after a failed bump heals
+  await purgeOnSync(ctx, d); // also when it was already revoked: a retry after a failed bump heals
   return ok;
 }
 
@@ -69,7 +102,10 @@ export async function revokeOthers(ctx: RevokeCtx, _input: Record<string, never>
   let n = 0;
   for (const d of devicesOf(ctx, person, true)) {
     if (d.id === ctx.device) continue;
-    if (revokeDevice(ctx, d)) { n++; await purgeOnSync(ctx, d); }
+    if (revokeDevice(ctx, d)) {
+      n++;
+      await purgeOnSync(ctx, d);
+    }
   }
   return { revoked: n };
 }
@@ -78,7 +114,11 @@ export async function sessionsList(ctx: DevicesCtx, input: { person?: string } &
   const person = input.person ?? me(ctx);
   if (!mayTouch(ctx, person)) raise(ctx, "permission.no_grant", "you may list your own sessions only");
   const p = pageOf(sessionsOf(ctx, person), input.cursor, input.limit);
-  return { sessions: p.items.map((s) => sessionOut(s, ctx.device)), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return {
+    sessions: p.items.map((s) => sessionOut(s, ctx.device)),
+    ...(p.next ? { next: p.next } : {}),
+    total: p.total,
+  };
 }
 
 export async function sessionsRevoke(ctx: DevicesCtx, input: { sessionId: string }) {
@@ -101,11 +141,36 @@ export async function register(ctx: DevicesCtx, input: { person: string; name: s
   const epoch = epochOf(ctx, `person:${input.person}`);
   ctx.db.run(
     `INSERT INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, input.person, input.name.trim() || "Unnamed device", input.class, epoch, now, null, null, 0, now, null);
+    id,
+    input.person,
+    input.name.trim() || "Unnamed device",
+    input.class,
+    epoch,
+    now,
+    null,
+    null,
+    0,
+    now,
+    null,
+  );
   ctx.db.run(
     `INSERT INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    sessionId, input.person, "device", "person", id, now, now, null, null);
-  ctx.emit("device.registered", id, { deviceId: id, person: input.person, class: input.class, name: input.name.trim() || "Unnamed device" });
+    sessionId,
+    input.person,
+    "device",
+    "person",
+    id,
+    now,
+    now,
+    null,
+    null,
+  );
+  ctx.emit("device.registered", id, {
+    deviceId: id,
+    person: input.person,
+    class: input.class,
+    name: input.name.trim() || "Unnamed device",
+  });
   ctx.emit("session.started", sessionId, { sessionId, person: input.person, deviceId: id });
   return { device: deviceOut(deviceById(ctx, id)!, ctx.device), sessionId };
 }
@@ -123,17 +188,43 @@ export async function touch(ctx: TouchCtx, input: { deviceId?: string; location?
   const id = input.deviceId ?? ctx.device;
   if (!id) raise(ctx, "validation.bad_input", "name the device");
   const d = deviceById(ctx, id);
-  if (!d || (d.person !== ctx.principal.id && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // a person touches only their own devices; a stranger's reads as missing
+  if (!d || (d.person !== ctx.principal.id && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device"); // a person touches only their own devices; a stranger's reads as missing
   if (d.revokedAt !== null) raise(ctx, "auth.device_revoked");
   const now = ctx.now();
-  if (d.lastSeenAt !== null && now - d.lastSeenAt < TOUCH_QUIET_MS && (input.location === undefined || input.location === d.location)) return { ...ok, lastSeenAt: d.lastSeenAt };
+  if (
+    d.lastSeenAt !== null &&
+    now - d.lastSeenAt < TOUCH_QUIET_MS &&
+    (input.location === undefined || input.location === d.location)
+  )
+    return { ...ok, lastSeenAt: d.lastSeenAt };
   const before = lastSeenOf(ctx, d.person);
-  ctx.db.run(`UPDATE devices_device SET lastSeenAt = ?, location = ?, updated_at = ? WHERE id = ?`, now, input.location ?? d.location, now, d.id);
-  for (const s of sessionsOfDevice(ctx, d.id)) ctx.db.run(`UPDATE devices_session SET last_seen_at = ?, location = ? WHERE id = ?`, now, input.location ?? s.location, s.id);
+  ctx.db.run(
+    `UPDATE devices_device SET lastSeenAt = ?, location = ?, updated_at = ? WHERE id = ?`,
+    now,
+    input.location ?? d.location,
+    now,
+    d.id,
+  );
+  for (const s of sessionsOfDevice(ctx, d.id))
+    ctx.db.run(
+      `UPDATE devices_session SET last_seen_at = ?, location = ? WHERE id = ?`,
+      now,
+      input.location ?? s.location,
+      s.id,
+    );
   let back = false;
-  if (before !== null && now - before >= ABSENCE_MS && d.person === ctx.principal.id && typeof ctx.call === "function") {
+  if (
+    before !== null &&
+    now - before >= ABSENCE_MS &&
+    d.person === ctx.principal.id &&
+    typeof ctx.call === "function"
+  ) {
     back = true;
-    try { await ctx.call("home.away_digest" as never, { since: before }); } catch { /* the digest is a courtesy: last seen is what was asked */ }
+    try {
+      await ctx.call("home.away_digest" as never, { since: before });
+    } catch {
+      /* the digest is a courtesy: last seen is what was asked */
+    }
   }
   return { ...ok, lastSeenAt: now, ...(back ? { back: true } : {}) };
 }
@@ -141,7 +232,8 @@ export async function touch(ctx: TouchCtx, input: { deviceId?: string; location?
 /** The newest contact over a person's live devices, or null when none has been seen. */
 function lastSeenOf(ctx: DevicesCtx, person: string): number | null {
   let at: number | null = null;
-  for (const d of devicesOf(ctx, person, true)) if (d.lastSeenAt !== null && (at === null || d.lastSeenAt > at)) at = d.lastSeenAt;
+  for (const d of devicesOf(ctx, person, true))
+    if (d.lastSeenAt !== null && (at === null || d.lastSeenAt > at)) at = d.lastSeenAt;
   return at;
 }
 
@@ -150,20 +242,26 @@ type Presence = { personId: string; state: "online" | "away" | "offline"; lastSe
 /** Who is around (D23: on, a steady dot, Appear away): for each person with a device, online when a device was seen in the last ONLINE_MS, away when they set themselves away
  * (notifications.away.who), else offline. Every member may read it; it says when, never where or on what. */
 export async function presence(ctx: TouchCtx, input: { people?: string[] }) {
-  if (!ctx.principal || (ctx.principal.kind !== "person" && ctx.principal.kind !== "agent" && !isSystemCall(ctx))) raise(ctx, "auth.unauthenticated");
+  if (!ctx.principal || (ctx.principal.kind !== "person" && ctx.principal.kind !== "agent" && !isSystemCall(ctx)))
+    raise(ctx, "auth.unauthenticated");
   const now = ctx.now();
   const seen = new Map<string, number | null>();
   for (const d of ctx.db.all(`SELECT * FROM devices_device WHERE deleted_at IS NULL`) as DeviceRec[]) {
     if (d.revokedAt !== null) continue;
     const was = seen.get(d.person);
-    if (was === undefined || (d.lastSeenAt !== null && (was === null || d.lastSeenAt > was))) seen.set(d.person, d.lastSeenAt);
+    if (was === undefined || (d.lastSeenAt !== null && (was === null || d.lastSeenAt > was)))
+      seen.set(d.person, d.lastSeenAt);
   }
   const away = new Map<string, number>();
   if (typeof ctx.call === "function") {
     try {
-      const out = (await ctx.call("notifications.away.who" as never, {})) as { people?: { person: string; until: number }[] } | null;
+      const out = (await ctx.call("notifications.away.who" as never, {})) as {
+        people?: { person: string; until: number }[];
+      } | null;
       for (const a of out?.people ?? []) away.set(a.person, a.until);
-    } catch { /* nobody reads as away when the list cannot be read */ }
+    } catch {
+      /* nobody reads as away when the list cannot be read */
+    }
   }
   const want = input.people ? new Set(input.people) : null;
   for (const p of away.keys()) if (!seen.has(p)) seen.set(p, null);
@@ -171,8 +269,14 @@ export async function presence(ctx: TouchCtx, input: { people?: string[] }) {
   for (const [personId, at] of seen) {
     if (want && !want.has(personId)) continue;
     const until = away.get(personId);
-    const state: Presence["state"] = until !== undefined ? "away" : at !== null && now - at < ONLINE_MS ? "online" : "offline";
-    people.push({ personId, state, ...(at !== null ? { lastSeenAt: at } : {}), ...(until !== undefined ? { awayUntil: until } : {}) });
+    const state: Presence["state"] =
+      until !== undefined ? "away" : at !== null && now - at < ONLINE_MS ? "online" : "offline";
+    people.push({
+      personId,
+      state,
+      ...(at !== null ? { lastSeenAt: at } : {}),
+      ...(until !== undefined ? { awayUntil: until } : {}),
+    });
   }
   people.sort((a, b) => a.personId.localeCompare(b.personId));
   return { people };
@@ -181,18 +285,23 @@ export async function presence(ctx: TouchCtx, input: { people?: string[] }) {
 export async function epoch(ctx: DevicesCtx, _input: Record<string, never>) {
   const person = me(ctx);
   const d = ctx.device ? deviceById(ctx, ctx.device) : undefined;
-  return { personEpoch: epochOf(ctx, `person:${person}`), spaceEpoch: epochOf(ctx, "space"), revoked: !!d && d.revokedAt !== null };
+  return {
+    personEpoch: epochOf(ctx, `person:${person}`),
+    spaceEpoch: epochOf(ctx, "space"),
+    revoked: !!d && d.revokedAt !== null,
+  };
 }
 
 export async function epochBump(ctx: DevicesCtx, input: { person: string; reason: EpochReason }) {
   // advancing a person's epoch purges their devices: only the server and other modules (members.suspend, a password reset) may, never a direct call from someone else
-  if (!isSystemCall(ctx) && input.person !== ctx.principal.id) raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
+  if (!isSystemCall(ctx) && input.person !== ctx.principal.id)
+    raise(ctx, "permission.no_grant", "This is for the server and for other modules, not for a direct call.");
   return { epoch: bumpEpoch(ctx, "person", input.person, input.reason) };
 }
 
 export async function purgeAck(ctx: DevicesCtx, input: { deviceId: string }) {
   const d = deviceById(ctx, input.deviceId);
-  if (!d || (!mayTouch(ctx, d.person) && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // the person the device belongs to, or whoever manages access when that person was removed, says it is clean
+  if (!d || (!mayTouch(ctx, d.person) && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device"); // the person the device belongs to, or whoever manages access when that person was removed, says it is clean
   if (d.revokedAt === null) raise(ctx, "validation.precondition_failed", "only a revoked device is purged");
   if (ctx.db.all(`SELECT device_id FROM devices_purge WHERE device_id = ?`, d.id).length === 0) {
     ctx.db.run(`INSERT INTO devices_purge (device_id, acked_at) VALUES (?, ?)`, d.id, ctx.now());
@@ -200,4 +309,3 @@ export async function purgeAck(ctx: DevicesCtx, input: { deviceId: string }) {
   }
   return ok;
 }
-

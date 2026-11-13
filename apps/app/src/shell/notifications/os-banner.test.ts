@@ -11,29 +11,57 @@ import { routeDesktopLink } from "../session/desktop.ts";
 import type { Notification } from "./model.ts";
 
 const ADDRESS = "https://northwind.example";
-const n = (id: string, over: Partial<Notification> = {}): Notification => ({
-  id, kind: "mention", level: "interrupt", place: "chats", title: "Dana mentioned you in #intake", body: "the private words of the message", count: 1, at: 1, actions: [], spaceId: "spc_1",
-  subject: { type: "thread", id: `thr_${id}` }, ...over,
-}) as Notification;
+const n = (id: string, over: Partial<Notification> = {}): Notification =>
+  ({
+    id,
+    kind: "mention",
+    level: "interrupt",
+    place: "chats",
+    title: "Dana mentioned you in #intake",
+    body: "the private words of the message",
+    count: 1,
+    at: 1,
+    actions: [],
+    spaceId: "spc_1",
+    subject: { type: "thread", id: `thr_${id}` },
+    ...over,
+  }) as Notification;
 let clock = 1_000_000;
-const away = (over: Partial<BannerView> = {}): BannerView => ({ focused: false, address: ADDRESS, spaceName: "Northwind", now: clock, ...over });
+const away = (over: Partial<BannerView> = {}): BannerView => ({
+  focused: false,
+  address: ADDRESS,
+  spaceName: "Northwind",
+  now: clock,
+  ...over,
+});
 const start = (): BannerMemory => osBanners([], null, away()).memory;
 
 test("nothing is bannered for what was already there when the app opened; a new notice gets one banner, which says only who needs you", () => {
   const first = osBanners([n("a")], null, away());
   assert.deepEqual(first.banners, [], "the first read only remembers");
   const second = osBanners([n("a"), n("b")], first.memory, away());
-  assert.deepEqual(second.banners.map((b) => [b.title, b.body]), [["Northwind needs you", ""]]);
+  assert.deepEqual(
+    second.banners.map((b) => [b.title, b.body]),
+    [["Northwind needs you", ""]],
+  );
   assert.ok(!JSON.stringify(second.banners).includes("Dana"), "no words of the notice: not the line, not the body");
   assert.ok(!JSON.stringify(second.banners).includes("private words"));
-  assert.deepEqual(osBanners([n("a"), n("b")], second.memory, away()).banners, [], "the same notice again is not bannered again");
+  assert.deepEqual(
+    osBanners([n("a"), n("b")], second.memory, away()).banners,
+    [],
+    "the same notice again is not bannered again",
+  );
 });
 
 test("no banner while the window is in front, whichever place it shows; a notice that came while it was in front is not bannered later", () => {
   const m = start();
   const r = osBanners([n("a", { subject: undefined, place: "inbox" }), n("b")], m, away({ focused: true }));
   assert.deepEqual(r.banners, []);
-  assert.deepEqual(osBanners([n("a", { subject: undefined, place: "inbox" }), n("b")], r.memory, away()).banners, [], "seen in the app, not news to the system later");
+  assert.deepEqual(
+    osBanners([n("a", { subject: undefined, place: "inbox" }), n("b")], r.memory, away()).banners,
+    [],
+    "seen in the app, not news to the system later",
+  );
 });
 
 test("a count rise (a burst collapsed into one row, an agent repeating itself) is not another banner", () => {
@@ -44,19 +72,37 @@ test("a count rise (a burst collapsed into one row, an agent repeating itself) i
 test("one banner per read: one notice opens its own thing; several open the Inbox", () => {
   const one = osBanners([n("a")], start(), away()).banners;
   assert.equal(one.length, 1);
-  assert.equal(routeDesktopLink({ action: "open", params: Object.fromEntries(new URL(one[0]!.link).searchParams) })?.kind, "signin");
+  assert.equal(
+    routeDesktopLink({ action: "open", params: Object.fromEntries(new URL(one[0]!.link).searchParams) })?.kind,
+    "signin",
+  );
   assert.match(one[0]!.link, /kind=thread&id=thr_a$/);
-  const many = osBanners(["a", "b", "c", "d", "e"].map((id) => n(id, { at: id.charCodeAt(0) })), start(), away()).banners;
-  assert.deepEqual(many.map((b) => [b.title, b.body]), [["Northwind needs you", ""]]);
+  const many = osBanners(
+    ["a", "b", "c", "d", "e"].map((id) => n(id, { at: id.charCodeAt(0) })),
+    start(),
+    away(),
+  ).banners;
+  assert.deepEqual(
+    many.map((b) => [b.title, b.body]),
+    [["Northwind needs you", ""]],
+  );
   assert.match(many[0]!.link, /kind=place&id=inbox$/);
 });
 
 test("over time: three a minute, then one summary a minute, then three again once the minute has rolled", () => {
   let m = start();
   const shown: string[] = [];
-  const at = (t: number, id: string): void => { const r = osBanners([n(id)], m, away({ now: t })); m = r.memory; for (const b of r.banners) shown.push(`${t}:${b.tag === "ntf:summary" ? "summary" : "one"}`); };
+  const at = (t: number, id: string): void => {
+    const r = osBanners([n(id)], m, away({ now: t }));
+    m = r.memory;
+    for (const b of r.banners) shown.push(`${t}:${b.tag === "ntf:summary" ? "summary" : "one"}`);
+  };
   for (let i = 0; i < 6; i++) at(clock + i * 1000, `x${i}`);
-  assert.deepEqual(shown, [`${clock}:one`, `${clock + 1000}:one`, `${clock + 2000}:one`, `${clock + 3000}:summary`], "three, then one summary, then quiet");
+  assert.deepEqual(
+    shown,
+    [`${clock}:one`, `${clock + 1000}:one`, `${clock + 2000}:one`, `${clock + 3000}:summary`],
+    "three, then one summary, then quiet",
+  );
   assert.match(String(shown.at(-1)), /summary/);
   at(clock + 40_000, "y1");
   assert.equal(shown.length, 4, "still inside the summary's minute");
@@ -68,9 +114,17 @@ test("a notice pushed out of the list and back (more than the twenty shown) is n
   let m = start();
   m = osBanners([n("a")], m, away()).memory;
   m = osBanners([n("b")], m, away({ now: clock + 61_000 })).memory;
-  assert.deepEqual(osBanners([n("a")], m, away({ now: clock + 122_000 })).banners, [], "a came back into the list: not bannered again");
+  assert.deepEqual(
+    osBanners([n("a")], m, away({ now: clock + 122_000 })).banners,
+    [],
+    "a came back into the list: not bannered again",
+  );
   let big = start();
-  big = osBanners(Array.from({ length: MEMORY_LIMIT + 50 }, (_, i) => n(`m${i}`)), big, away({ focused: true })).memory;
+  big = osBanners(
+    Array.from({ length: MEMORY_LIMIT + 50 }, (_, i) => n(`m${i}`)),
+    big,
+    away({ focused: true }),
+  ).memory;
   assert.ok(big.ids.size <= MEMORY_LIMIT);
   assert.ok(BANNERS_PER_MINUTE === 3);
 });
@@ -80,9 +134,21 @@ test("a kind the person keeps off the desktop (phone only) gets no banner", () =
 });
 
 test("the link: a thing through the desktop link the app already routes (then reach); a place opens that place; a subject no link opens falls back to the row's place", () => {
-  assert.deepEqual(routeDesktopLink({ action: "open", params: Object.fromEntries(new URL(bannerLink(n("a"), ADDRESS)).searchParams) }), { kind: "signin", address: ADDRESS, item: { kind: "thread", id: "thr_a" } });
-  assert.deepEqual(routeDesktopLink({ action: "open", params: Object.fromEntries(new URL(bannerLink({ place: "inbox" }, ADDRESS)).searchParams) }), { kind: "signin", address: ADDRESS, item: { kind: "place", id: "inbox" } });
-  assert.match(bannerLink({ subject: { type: "space", id: "spc_1" }, place: "console" }, ADDRESS), /kind=place&id=console$/);
+  assert.deepEqual(
+    routeDesktopLink({ action: "open", params: Object.fromEntries(new URL(bannerLink(n("a"), ADDRESS)).searchParams) }),
+    { kind: "signin", address: ADDRESS, item: { kind: "thread", id: "thr_a" } },
+  );
+  assert.deepEqual(
+    routeDesktopLink({
+      action: "open",
+      params: Object.fromEntries(new URL(bannerLink({ place: "inbox" }, ADDRESS)).searchParams),
+    }),
+    { kind: "signin", address: ADDRESS, item: { kind: "place", id: "inbox" } },
+  );
+  assert.match(
+    bannerLink({ subject: { type: "space", id: "spc_1" }, place: "console" }, ADDRESS),
+    /kind=place&id=console$/,
+  );
 });
 
 test("the window counts as focused only when it is visible and has focus", () => {
@@ -96,11 +162,30 @@ test("the shell door: notify and set_badge (once per change, 0 clears); only a r
   assert.equal(osShell({}), null, "a browser has no shell");
   const calls: Array<[string, Record<string, unknown> | undefined]> = [];
   let fail: string | null = null;
-  const shell = osShell({ __TAURI__: { core: { invoke: async (cmd: string, args?: Record<string, unknown>) => { calls.push([cmd, args]); if (cmd === "notify" && fail) throw fail; return null; } } } })!;
-  shell.badge(3); shell.badge(3); shell.badge(0);
+  const shell = osShell({
+    __TAURI__: {
+      core: {
+        invoke: async (cmd: string, args?: Record<string, unknown>) => {
+          calls.push([cmd, args]);
+          if (cmd === "notify" && fail) throw fail;
+          return null;
+        },
+      },
+    },
+  })!;
+  shell.badge(3);
+  shell.badge(3);
+  shell.badge(0);
   shell.notify({ title: "Northwind needs you", body: "", link: "vyre://open?address=x" });
   await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(calls.map(([c, a]) => `${c}:${JSON.stringify(a)}`), ['set_badge:{"count":3}', 'set_badge:{"count":0}', 'notify:{"title":"Northwind needs you","body":"","link":"vyre://open?address=x"}']);
+  assert.deepEqual(
+    calls.map(([c, a]) => `${c}:${JSON.stringify(a)}`),
+    [
+      'set_badge:{"count":3}',
+      'set_badge:{"count":0}',
+      'notify:{"title":"Northwind needs you","body":"","link":"vyre://open?address=x"}',
+    ],
+  );
   fail = "a notification link must be a vyre://open link";
   shell.notify({ title: "t", body: "", link: "bad" });
   await new Promise((r) => setTimeout(r, 0));

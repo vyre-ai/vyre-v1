@@ -39,7 +39,16 @@ export interface BlockSpecA {
   opens?: BlockOpensSpec;
 }
 
-export const PART_ONE_TYPES = ["terminal", "changeset", "question", "plan", "deploy", "mount", "record_card", "artifact"] as const;
+export const PART_ONE_TYPES = [
+  "terminal",
+  "changeset",
+  "question",
+  "plan",
+  "deploy",
+  "mount",
+  "record_card",
+  "artifact",
+] as const;
 export type PartOneType = (typeof PART_ONE_TYPES)[number];
 
 /** The actions and tab each block declares in the manifests. A test compares this table with generated/registry.json. */
@@ -56,14 +65,26 @@ export const BLOCK_SPECS_A: Readonly<Record<PartOneType, BlockSpecA>> = {
     type: "changeset",
     actions: [
       { key: "approve", label: "Allow and commit", cap: "changesets.approve", input: { changesetId: "/changesetId" } },
-      { key: "request_changes", label: "Request changes", cap: "changesets.request_changes", input: { changesetId: "/changesetId" } },
+      {
+        key: "request_changes",
+        label: "Request changes",
+        cap: "changesets.request_changes",
+        input: { changesetId: "/changesetId" },
+      },
       { key: "discard", label: "Discard", cap: "changesets.discard", input: { changesetId: "/changesetId" } },
     ],
     opens: { tab: "diff", input: { changesetId: "/changesetId" } },
   },
   question: {
     type: "question",
-    actions: [{ key: "answer", label: "Answer", cap: "chat.answer_block", input: { threadId: "/threadId", blockId: "/blockId" } }],
+    actions: [
+      {
+        key: "answer",
+        label: "Answer",
+        cap: "chat.answer_block",
+        input: { threadId: "/threadId", blockId: "/blockId" },
+      },
+    ],
   },
   plan: {
     type: "plan",
@@ -124,7 +145,13 @@ export function resolveInput(data: unknown, input: Readonly<Record<string, strin
 }
 
 /** Calls the capability a block action declares, with the block's own ids and any extra input (an answer, a note, edits). */
-export async function runAction(host: BlockHost, type: PartOneType, key: string, data: unknown, extra: Record<string, unknown> = {}): Promise<boolean> {
+export async function runAction(
+  host: BlockHost,
+  type: PartOneType,
+  key: string,
+  data: unknown,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
   const spec = actionSpec(type, key);
   if (spec === undefined) return false;
   await host.invoke(spec.cap, { ...resolveInput(data, spec.input), ...extra });
@@ -237,7 +264,11 @@ export function answerLine(options: readonly { key: string; label: string }[], a
   const label = (key: unknown): string => options.find((o) => o.key === key)?.label ?? String(key);
   if (typeof answer === "string") return answer;
   // the stored shape: a list of keys, typed text as { other }
-  if (Array.isArray(answer)) return answer.map((a) => (typeof a === "object" && a !== null ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "").join(", ");
+  if (Array.isArray(answer))
+    return answer
+      .map((a) => (typeof a === "object" && a !== null ? String((a as { other?: unknown }).other ?? "") : label(a)))
+      .filter((x) => x !== "")
+      .join(", ");
   if (typeof answer !== "object" || answer === null) return "";
   const rec = answer as { keys?: unknown; text?: unknown; other?: unknown };
   if (typeof rec.other === "string") return rec.other;
@@ -268,7 +299,11 @@ export interface StepEdit {
 }
 
 /** The edits to send with Approve: a changed text, or a removed step. Unchanged steps are left out. */
-export function planEdits(steps: readonly PlanStepData[], texts: Readonly<Record<string, string>>, removed: ReadonlySet<string>): StepEdit[] {
+export function planEdits(
+  steps: readonly PlanStepData[],
+  texts: Readonly<Record<string, string>>,
+  removed: ReadonlySet<string>,
+): StepEdit[] {
   const out: StepEdit[] = [];
   for (const step of steps) {
     if (removed.has(step.stepId)) {
@@ -276,7 +311,8 @@ export function planEdits(steps: readonly PlanStepData[], texts: Readonly<Record
       continue;
     }
     const text = texts[step.stepId];
-    if (text !== undefined && text.trim() !== "" && text.trim() !== step.text) out.push({ stepId: step.stepId, text: text.trim() });
+    if (text !== undefined && text.trim() !== "" && text.trim() !== step.text)
+      out.push({ stepId: step.stepId, text: text.trim() });
   }
   return out;
 }
@@ -291,7 +327,12 @@ export function planTitle(title: string, steps: number): string {
   return `${title} · ${steps} ${steps === 1 ? "step" : "steps"}`;
 }
 
-export const STEP_MARK: Readonly<Record<PlanStepData["state"], string>> = { todo: "○", doing: "◐", done: "●", skipped: "–" };
+export const STEP_MARK: Readonly<Record<PlanStepData["state"], string>> = {
+  todo: "○",
+  doing: "◐",
+  done: "●",
+  skipped: "–",
+};
 
 /** Approve, Edit and Reject show while the plan waits. After that the card shows its state. */
 export function planWaiting(state: string): boolean {
@@ -303,13 +344,29 @@ export function planWaiting(state: string): boolean {
 export type DeployState = "queued" | "building" | "ready" | "failed" | "stopped";
 
 export function deployLine(env: string, state: DeployState): string {
-  const word = state === "ready" ? "is live" : state === "building" ? "is building" : state === "queued" ? "is queued" : state === "failed" ? "failed" : "was stopped";
+  const word =
+    state === "ready"
+      ? "is live"
+      : state === "building"
+        ? "is building"
+        : state === "queued"
+          ? "is queued"
+          : state === "failed"
+            ? "failed"
+            : "was stopped";
   return `Deploy ${env} ${word}`;
 }
 
 /** Promote needs a ready deploy that may be promoted; Roll back needs one that went live or failed. */
-export function deployActions(state: DeployState, canPromote: boolean, env: string): { promote: boolean; rollback: boolean } {
-  return { promote: state === "ready" && canPromote && env !== "production", rollback: (state === "ready" || state === "failed") && env === "production" };
+export function deployActions(
+  state: DeployState,
+  canPromote: boolean,
+  env: string,
+): { promote: boolean; rollback: boolean } {
+  return {
+    promote: state === "ready" && canPromote && env !== "production",
+    rollback: (state === "ready" || state === "failed") && env === "production",
+  };
 }
 
 export function checksLine(checks: readonly { name: string; ok: boolean }[]): string {
@@ -344,11 +401,18 @@ export function fieldText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return value.map((v) => fieldText(v)).filter((v) => v !== "").join(", ");
+  if (Array.isArray(value))
+    return value
+      .map((v) => fieldText(v))
+      .filter((v) => v !== "")
+      .join(", ");
   return "";
 }
 
-export function visibleFields<F extends { key: string; title: string; value: unknown }>(fields: readonly F[], max = 4): (F & { text: string })[] {
+export function visibleFields<F extends { key: string; title: string; value: unknown }>(
+  fields: readonly F[],
+  max = 4,
+): (F & { text: string })[] {
   const out: (F & { text: string })[] = [];
   for (const field of fields) {
     const text = fieldText(field.value);

@@ -25,12 +25,24 @@ const SECRET = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan
 const API_KEY = "sk-ant-api03-APIkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
 const ACCESS = "codex-access-token-LIVE-0123456789abcdef"; // secret-scan: fake
 const GROK_TOKEN = "grok-session-token-LIVE-0123456789abcdef"; // secret-scan: fake
-const CODEX_FILES = JSON.stringify({ ".codex/auth.json": JSON.stringify({ tokens: { access_token: ACCESS, refresh_token: "refresh-token-LIVE-0123456789" } }) });
+const CODEX_FILES = JSON.stringify({
+  ".codex/auth.json": JSON.stringify({
+    tokens: { access_token: ACCESS, refresh_token: "refresh-token-LIVE-0123456789" },
+  }),
+});
 const GROK_FILES = JSON.stringify({ ".grok/auth.json": JSON.stringify({ token: GROK_TOKEN }) });
-const SIGNIN_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-driver/fake-signin-cli.mjs", import.meta.url));
+const SIGNIN_CLI = fileURLToPath(
+  new URL("../../host/tests/fixtures/fake-cli-driver/fake-signin-cli.mjs", import.meta.url),
+);
 const TRACE = "a".repeat(32);
 
-const value = (v: string, itemId: string): Lookup => ({ kind: "value", itemId, value: v, spaceOnly: false, injectIntoDeployments: false });
+const value = (v: string, itemId: string): Lookup => ({
+  kind: "value",
+  itemId,
+  value: v,
+  spaceOnly: false,
+  injectIntoDeployments: false,
+});
 
 /** What the Vault knows, by handle. The subscription account names the item; the engine's setup-token field is the handle that is filled. */
 const VAULT: Record<string, Lookup> = {
@@ -62,15 +74,36 @@ interface Rig {
   launches: string[][];
   envs: Array<Readonly<Record<string, string>>>;
   pids: number[];
-  minted: Array<{ principal: string; actingFor: string; threadId: string; traceId: string; sessionId: string; token: string }>;
+  minted: Array<{
+    principal: string;
+    actingFor: string;
+    threadId: string;
+    traceId: string;
+    sessionId: string;
+    token: string;
+  }>;
   closed: string[];
   misses: unknown[];
   used: unknown[];
 }
 
 function rig(over: Partial<SessionOpenerDeps> = {}, callTool?: ToolRunner): Rig {
-  const r = { launches: [] as string[][], envs: [] as Array<Readonly<Record<string, string>>>, pids: [] as number[], minted: [] as Rig["minted"], closed: [] as string[], misses: [] as unknown[], used: [] as unknown[] };
-  const local = createLocalLauncher({ wrap: (argv) => { r.launches.push([...argv]); return [process.execPath, FAKE_CLI, ...argv]; }, baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  const r = {
+    launches: [] as string[][],
+    envs: [] as Array<Readonly<Record<string, string>>>,
+    pids: [] as number[],
+    minted: [] as Rig["minted"],
+    closed: [] as string[],
+    misses: [] as unknown[],
+    used: [] as unknown[],
+  };
+  const local = createLocalLauncher({
+    wrap: (argv) => {
+      r.launches.push([...argv]);
+      return [process.execPath, FAKE_CLI, ...argv];
+    },
+    baseEnv: { PATH: process.env["PATH"] ?? "" },
+  });
   const launcher: Launcher = {
     async spawn(spec) {
       r.envs.push(spec.env);
@@ -86,13 +119,30 @@ function rig(over: Partial<SessionOpenerDeps> = {}, callTool?: ToolRunner): Rig 
       n += 1;
       const row = { ...i, sessionId: `ses_${n}`, token: `vys_token_${n}_0123456789abcdef0123456789` };
       r.minted.push(row);
-      return { sessionId: row.sessionId, sessionToken: row.token, url: "http://127.0.0.1:41800/mcp", expiresAt: 9_999_999_999_999 };
+      return {
+        sessionId: row.sessionId,
+        sessionToken: row.token,
+        url: "http://127.0.0.1:41800/mcp",
+        expiresAt: 9_999_999_999_999,
+      };
     },
-    async close(id) { r.closed.push(id); },
+    async close(id) {
+      r.closed.push(id);
+    },
   };
   const opener = createSessionOpener({
-    source, reportMiss: (m) => { r.misses.push(m); }, launcher, mcp, apiContext: () => ctx(), cli: { graceMs: 400 },
-    onUsed: (e) => { r.used.push(e.used); }, ...over,
+    source,
+    reportMiss: (m) => {
+      r.misses.push(m);
+    },
+    launcher,
+    mcp,
+    apiContext: () => ctx(),
+    cli: { graceMs: 400 },
+    onUsed: (e) => {
+      r.used.push(e.used);
+    },
+    ...over,
   });
   // The engine's side of the contract: the account the accounts module resolved, and the turn's ids, ride on the spec.
   const engine = createTurnEngine({
@@ -100,28 +150,63 @@ function rig(over: Partial<SessionOpenerDeps> = {}, callTool?: ToolRunner): Rig 
     ...(callTool ? { callTool } : {}),
     openSession: (spec: SessionSpec) => {
       const account = spec.agent.accountRef === undefined ? undefined : ACCOUNTS[spec.agent.accountRef];
-      return opener.openSession({ ...spec, ...(account ? { account } : {}), turnId: "turn_1", traceId: TRACE } as SessionSpec);
+      return opener.openSession({
+        ...spec,
+        ...(account ? { account } : {}),
+        turnId: "turn_1",
+        traceId: TRACE,
+      } as SessionSpec);
     },
   });
   return { ...r, opener, engine };
 }
 
-const agent = (accountRef: string | undefined, over: Partial<EngineAgent> = {}): EngineAgent => ({ id: "intake", mode: "lead", model: "sonnet", ...(accountRef ? { accountRef } : {}), ...over });
+const agent = (accountRef: string | undefined, over: Partial<EngineAgent> = {}): EngineAgent => ({
+  id: "intake",
+  mode: "lead",
+  model: "sonnet",
+  ...(accountRef ? { accountRef } : {}),
+  ...over,
+});
 
-async function ask(g: Rig, body: string, a: EngineAgent, thread = "T1", starter = "dana"): Promise<{ turn: TurnRow; reply: string }> {
+async function ask(
+  g: Rig,
+  body: string,
+  a: EngineAgent,
+  thread = "T1",
+  starter = "dana",
+): Promise<{ turn: TurnRow; reply: string }> {
   g.engine.openThread({ id: thread, kind: "chat", starter, agents: [a] });
   g.engine.receive({ threadId: thread, author: { kind: "person", id: starter }, body });
   await g.engine.idle(thread);
   const turn = g.engine.turns(thread).at(-1);
   assert.ok(turn, "a turn ran");
-  const reply = g.engine.messages(thread).filter((m) => m.author.kind === "agent").at(-1)?.body ?? "";
+  const reply =
+    g.engine
+      .messages(thread)
+      .filter((m) => m.author.kind === "agent")
+      .at(-1)?.body ?? "";
   return { turn, reply };
 }
 
 const everything = (g: Rig, threads: string[]): string =>
-  JSON.stringify({ events: g.engine.events(), turns: g.engine.turns(), messages: threads.map((t) => g.engine.messages(t)), misses: g.misses, used: g.used, minted: g.minted.map((m) => ({ ...m, token: undefined })) });
+  JSON.stringify({
+    events: g.engine.events(),
+    turns: g.engine.turns(),
+    messages: threads.map((t) => g.engine.messages(t)),
+    misses: g.misses,
+    used: g.used,
+    minted: g.minted.map((m) => ({ ...m, token: undefined })),
+  });
 
-const alive = (pid: number): boolean => { try { process.kill(pid, 0); return true; } catch { return false; } };
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
 async function until(cond: () => boolean, ms = 4000): Promise<void> {
   const end = Date.now() + ms;
   while (!cond()) {
@@ -138,7 +223,10 @@ test("a CLI turn on a subscription account streams the engine's reply into the t
   assert.equal(turn.tokensIn, 11);
   assert.equal(turn.tokensOut, 7);
   assert.equal(turn.asker, "dana");
-  assert.ok(g.engine.events("T1").some((e) => e.type === "turn.block" && e.kind === "text"), "the reply left as blocks while it streamed");
+  assert.ok(
+    g.engine.events("T1").some((e) => e.type === "turn.block" && e.kind === "text"),
+    "the reply left as blocks while it streamed",
+  );
   assert.ok(g.engine.events("T1").some((e) => e.type === "turn.completed"));
   await g.opener.close();
 });
@@ -148,23 +236,53 @@ test("the key reaches the engine process through its environment and nowhere els
   const g = rig();
   const { reply } = await ask(g, "envcheck", agent("#Dana_Claude"));
   delete process.env["HOST_SENTINEL"];
-  const seen = JSON.parse(reply) as { keys: string[]; argvHoldsKey: boolean; mcpTokenInEnv: boolean; mcpTokenInArgv: boolean; mcpUrl: string; mcpAuth: string; env: string[] };
-  assert.deepEqual(seen.keys, [`CLAUDE_CODE_OAUTH_TOKEN:${SECRET.length}`], "the setup-token variable, and no other key variable");
+  const seen = JSON.parse(reply) as {
+    keys: string[];
+    argvHoldsKey: boolean;
+    mcpTokenInEnv: boolean;
+    mcpTokenInArgv: boolean;
+    mcpUrl: string;
+    mcpAuth: string;
+    env: string[];
+  };
+  assert.deepEqual(
+    seen.keys,
+    [`CLAUDE_CODE_OAUTH_TOKEN:${SECRET.length}`],
+    "the setup-token variable, and no other key variable",
+  );
   assert.equal(seen.argvHoldsKey, false);
   assert.equal(seen.mcpTokenInEnv, true);
   assert.equal(seen.mcpTokenInArgv, false);
   assert.equal(seen.mcpUrl, "http://127.0.0.1:41800/mcp");
-  assert.equal(seen.mcpAuth, "Bearer ${VYRE_MCP_TOKEN}", "the command line names the variable; it never holds the token");
+  assert.equal(
+    seen.mcpAuth,
+    "Bearer ${VYRE_MCP_TOKEN}",
+    "the command line names the variable; it never holds the token",
+  );
   assert.ok(!seen.env.includes("HOST_SENTINEL"), "the host's own environment is not passed through");
 
   assert.equal(g.launches.length, 1);
-  for (const word of g.launches[0] ?? []) { assert.ok(!word.includes(SECRET)); assert.ok(!word.includes(g.minted[0]?.token ?? "?")); }
-  assert.equal(g.envs[0]?.["CLAUDE_CODE_OAUTH_TOKEN"], SECRET, "the one place the value exists is the process environment");
+  for (const word of g.launches[0] ?? []) {
+    assert.ok(!word.includes(SECRET));
+    assert.ok(!word.includes(g.minted[0]?.token ?? "?"));
+  }
+  assert.equal(
+    g.envs[0]?.["CLAUDE_CODE_OAUTH_TOKEN"],
+    SECRET,
+    "the one place the value exists is the process environment",
+  );
   assert.equal(g.envs[0]?.["VYRE_MCP_TOKEN"], g.minted[0]?.token);
 
   assert.equal(g.minted.length, 1);
-  assert.deepEqual({ ...g.minted[0], sessionId: undefined, token: undefined }, { principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE, sessionId: undefined, token: undefined });
-  assert.deepEqual(g.used, [[{ handle: "#Dana_Claude.setup_token", itemId: "vit_claude" }]], "the audit gets the item id and the handle");
+  assert.deepEqual(
+    { ...g.minted[0], sessionId: undefined, token: undefined },
+    { principal: "intake", actingFor: "dana", threadId: "T1", traceId: TRACE, sessionId: undefined, token: undefined },
+  );
+  assert.deepEqual(
+    g.used,
+    [[{ handle: "#Dana_Claude.setup_token", itemId: "vit_claude" }]],
+    "the audit gets the item id and the handle",
+  );
   await g.opener.close();
 });
 
@@ -172,12 +290,17 @@ test("the key is absent from events, messages, turn rows, miss reports and error
   const g = rig();
   const leaked = await ask(g, "leak", agent("#Dana_Claude"), "T1");
   assert.equal(leaked.turn.state, "completed");
-  assert.equal(leaked.reply, "The key is [#Dana_Claude.setup_token] ok", "the value became the handle's marker while it was still a stream");
+  assert.equal(
+    leaked.reply,
+    "The key is [#Dana_Claude.setup_token] ok",
+    "the value became the handle's marker while it was still a stream",
+  );
   const died = await ask(g, "die", agent("#Dana_Claude"), "T2");
   assert.equal(died.turn.state, "failed");
   assert.match(died.turn.error?.message ?? "", /boom: the engine crashed with \[#Dana_Claude\.setup_token\]/);
   const all = everything(g, ["T1", "T2"]);
-  for (const forbidden of [SECRET, Buffer.from(SECRET).toString("base64"), ...g.minted.map((m) => m.token)]) assert.ok(!all.includes(forbidden), "no secret in anything the engine, the thread or the audit kept");
+  for (const forbidden of [SECRET, Buffer.from(SECRET).toString("base64"), ...g.minted.map((m) => m.token)])
+    assert.ok(!all.includes(forbidden), "no secret in anything the engine, the thread or the audit kept");
   assert.deepEqual(g.misses, [], "the scrubber caught every spelling, so there is nothing to report");
   await g.opener.close();
 });
@@ -186,7 +309,11 @@ test("a turn ends by giving its session back warm; the next turn on the thread r
   const g = rig();
   await ask(g, "hello", agent("#Dana_Claude"));
   const first = g.opener.pool.status().sessions.find((s) => s.driver === "claude_code");
-  assert.deepEqual({ warm: first?.warm, busy: first?.busy }, { warm: 1, busy: 0 }, "no session is left leased after the turn");
+  assert.deepEqual(
+    { warm: first?.warm, busy: first?.busy },
+    { warm: 1, busy: 0 },
+    "no session is left leased after the turn",
+  );
   assert.equal(g.closed.length, 0, "a warm session keeps its MCP token");
 
   g.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "hello" });
@@ -205,13 +332,24 @@ test("a turn ends by giving its session back warm; the next turn on the thread r
 
 test("two people never share a warm session, even on the same account and agent", async () => {
   const g = rig();
-  const spec = (asker: string): SessionSpec => ({ threadId: "T1", agent: agent("#Dana_Claude"), asker, account: ACCOUNTS["#Dana_Claude"], turnId: "t", traceId: TRACE } as SessionSpec);
+  const spec = (asker: string): SessionSpec =>
+    ({
+      threadId: "T1",
+      agent: agent("#Dana_Claude"),
+      asker,
+      account: ACCOUNTS["#Dana_Claude"],
+      turnId: "t",
+      traceId: TRACE,
+    }) as SessionSpec;
   const a = await g.opener.openSession(spec("dana"));
   await a.close();
   const b = await g.opener.openSession(spec("sam"));
   await b.close();
   assert.equal(g.launches.length, 2);
-  assert.deepEqual(g.minted.map((m) => m.actingFor), ["dana", "sam"]);
+  assert.deepEqual(
+    g.minted.map((m) => m.actingFor),
+    ["dana", "sam"],
+  );
   await g.opener.close();
 });
 
@@ -222,7 +360,11 @@ test("a failing engine is a clear error state with a code the accounts module un
   assert.equal(bad.turn.error?.code, "provider.auth_failed");
   assert.match(bad.turn.error?.message ?? "", /Invalid API key/);
   assert.ok(g.engine.events("T1").some((e) => e.type === "turn.failed" && e.code === "provider.auth_failed"));
-  assert.equal(g.engine.messages("T1").filter((m) => m.author.kind === "agent").length, 0, "a failed turn posts no reply");
+  assert.equal(
+    g.engine.messages("T1").filter((m) => m.author.kind === "agent").length,
+    0,
+    "a failed turn posts no reply",
+  );
 
   const crashed = await ask(g, "die", agent("#Dana_Claude"), "T2");
   assert.equal(crashed.turn.state, "failed");
@@ -244,7 +386,11 @@ for (const [what, ref, code] of REFUSED) {
     assert.equal(turn.state, "failed");
     assert.equal(turn.error?.code, code);
     assert.equal(g.launches.length, 0);
-    assert.deepEqual(g.minted.map((m) => m.sessionId).sort(), g.closed.slice().sort(), "a token minted for a session that never started is revoked");
+    assert.deepEqual(
+      g.minted.map((m) => m.sessionId).sort(),
+      g.closed.slice().sort(),
+      "a token minted for a session that never started is revoked",
+    );
     await g.opener.close();
   });
 }
@@ -252,7 +398,11 @@ for (const [what, ref, code] of REFUSED) {
 test("an API-key account runs on the HTTP driver; the key is in the request header and nowhere in the thread", async () => {
   const f = fakeFetch(() => ({ chunks: chunked(fixture("anthropic-text"), 64) }));
   const g = rig({ fetch: f.fetch, clock: fakeClock() });
-  const { turn, reply } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
+  const { turn, reply } = await ask(
+    g,
+    "who are my newest leads?",
+    agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }),
+  );
   assert.equal(turn.state, "completed");
   assert.equal(reply, "Hello there, Dana. Café ready.");
   assert.equal(f.requests.length, 1);
@@ -266,31 +416,58 @@ test("an API-key account runs on the HTTP driver; the key is in the request head
 
 function toolRig(rules?: { deny?: string[] }) {
   const t = makeSession();
-  const name = [...t.loaded.defaults].find((n) => { const d = t.loaded.catalog.byName(n); return d !== undefined && d.effects === "read" && d.local === "none" && n !== "tool_search"; });
+  const name = [...t.loaded.defaults].find((n) => {
+    const d = t.loaded.catalog.byName(n);
+    return d !== undefined && d.effects === "read" && d.local === "none" && n !== "tool_search";
+  });
   assert.ok(name, "the default tool set has a plain read tool");
-  const tools = createApiTools({ session: t.session, space: "spc_1", system: () => [{ text: "You are Intake.", stable: true }], ...(rules ? { rules: () => rules } : {}) });
-  const f = fakeFetch((_r, n) => ({ chunks: chunked(fixture(n === 0 ? "anthropic-tool" : "anthropic-tool-answer").replaceAll("records_list", name), 64) }));
+  const tools = createApiTools({
+    session: t.session,
+    space: "spc_1",
+    system: () => [{ text: "You are Intake.", stable: true }],
+    ...(rules ? { rules: () => rules } : {}),
+  });
+  const f = fakeFetch((_r, n) => ({
+    chunks: chunked(fixture(n === 0 ? "anthropic-tool" : "anthropic-tool-answer").replaceAll("records_list", name), 64),
+  }));
   const g = rig({ fetch: f.fetch, clock: fakeClock(), apiContext: tools.context }, tools.runner);
   return { g, f, name, invokes: t.calls };
 }
 
 test("an API-key turn is offered the agent's tools, runs a call as the agent for the asker, and gives the model the result", async () => {
   const { g, f, name, invokes } = toolRig();
-  const { turn, reply } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
+  const { turn, reply } = await ask(
+    g,
+    "who are my newest leads?",
+    agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }),
+  );
   assert.equal(turn.state, "completed");
   assert.equal(reply, "Let me look.\n\nFound 3 leads.", "text after a tool step is a new paragraph");
-  assert.ok(((f.requests[0]?.body as { tools?: Array<{ name: string }> }).tools ?? []).some((x) => x.name === name), "the tool was advertised");
+  assert.ok(
+    ((f.requests[0]?.body as { tools?: Array<{ name: string }> }).tools ?? []).some((x) => x.name === name),
+    "the tool was advertised",
+  );
   assert.equal(invokes.length, 1);
-  assert.deepEqual({ principal: invokes[0]?.principal, actingFor: invokes[0]?.actingFor }, { principal: "intake", actingFor: "dana" });
+  assert.deepEqual(
+    { principal: invokes[0]?.principal, actingFor: invokes[0]?.actingFor },
+    { principal: "intake", actingFor: "dana" },
+  );
   assert.equal(f.requests.length, 2, "the result went back to the model");
-  assert.ok(g.engine.events("T1").some((e) => e.type === "turn.block" && e.kind === "tool_call"), "the call shows as a tool block");
+  assert.ok(
+    g.engine.events("T1").some((e) => e.type === "turn.block" && e.kind === "tool_call"),
+    "the call shows as a tool block",
+  );
   await g.opener.close();
 });
 
 test("a tool the agent may not use is refused in the pipeline's words and never invoked; the turn goes on", async () => {
   const probe = toolRig();
   const { g, f, invokes } = toolRig({ deny: [probe.name] });
-  const { turn } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
+  const { turn } = await ask(
+    g,
+    "who are my newest leads?",
+    agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }),
+  );
   assert.equal(turn.state, "completed");
   assert.equal(invokes.length, 0);
   assert.match(JSON.stringify(f.requests[1]?.body), /agent_denied/);
@@ -301,20 +478,29 @@ test("a tool the agent may not use is refused in the pipeline's words and never 
 
 /** The engine side of a sign-in kept in files, in one place: the files in VYRE_CRED_FILES go in a home for this process, the variable is removed, and the stand-in CLI reads them from there. */
 function filesLauncher(seen: Array<Readonly<Record<string, string>>>, homes: string[]): Launcher {
-  const base = createLocalLauncher({ wrap: (argv) => [process.execPath, SIGNIN_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  const base = createLocalLauncher({
+    wrap: (argv) => [process.execPath, SIGNIN_CLI, ...argv],
+    baseEnv: { PATH: process.env["PATH"] ?? "" },
+  });
   return {
     async spawn(spec) {
       seen.push(spec.env);
       const { VYRE_CRED_FILES: files, ...env } = spec.env as Record<string, string>;
       const home = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-open-home-"));
       homes.push(home);
-      for (const [rel, text] of Object.entries(JSON.parse(files ?? "{}") as Record<string, string>)) { fs.mkdirSync(path.dirname(path.join(home, rel)), { recursive: true }); fs.writeFileSync(path.join(home, rel), text, { mode: 0o600 }); }
+      for (const [rel, text] of Object.entries(JSON.parse(files ?? "{}") as Record<string, string>)) {
+        fs.mkdirSync(path.dirname(path.join(home, rel)), { recursive: true });
+        fs.writeFileSync(path.join(home, rel), text, { mode: 0o600 });
+      }
       return base.spawn({ ...spec, argv: spec.argv, env: { ...env, HOME: home } });
     },
   };
 }
 
-for (const [driver, ref, token, tool] of [["codex", "#CodexSignin", ACCESS, "codex"], ["grok", "#GrokSignin", GROK_TOKEN, "grok"]] as const) {
+for (const [driver, ref, token, tool] of [
+  ["codex", "#CodexSignin", ACCESS, "codex"],
+  ["grok", "#GrokSignin", GROK_TOKEN, "grok"],
+] as const) {
   test(`a ${driver} turn runs on its sign-in: the files are filled from the Vault into VYRE_CRED_FILES, the engine finds them, and the token is in no reply`, async () => {
     const seen: Array<Readonly<Record<string, string>>> = [];
     const homes: string[] = [];
@@ -322,8 +508,16 @@ for (const [driver, ref, token, tool] of [["codex", "#CodexSignin", ACCESS, "cod
     const found = await ask(g, "authcheck", agent(ref, { model: driver === "codex" ? "gpt-5-codex" : "grok-4" }));
     assert.equal(found.turn.state, "completed", JSON.stringify(found.turn.error));
     assert.match(found.reply, new RegExp(`^${tool} signed in as [0-9]+:.{4} mode 600 env none$`));
-    assert.equal(seen[0]?.["VYRE_CRED_FILES"], driver === "codex" ? CODEX_FILES : GROK_FILES, "the one place the value exists on the way in is the launcher's environment");
-    assert.equal(seen[0]?.["CODEX_API_KEY"] ?? seen[0]?.["XAI_API_KEY"], undefined, "no API key variable is set for a sign-in");
+    assert.equal(
+      seen[0]?.["VYRE_CRED_FILES"],
+      driver === "codex" ? CODEX_FILES : GROK_FILES,
+      "the one place the value exists on the way in is the launcher's environment",
+    );
+    assert.equal(
+      seen[0]?.["CODEX_API_KEY"] ?? seen[0]?.["XAI_API_KEY"],
+      undefined,
+      "no API key variable is set for a sign-in",
+    );
     assert.equal(everything(g, ["T1"]).includes(token), false, "the token is in no event, turn, message or record");
     await g.opener.close();
     for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
@@ -344,7 +538,13 @@ test("Codex on an OpenAI API key: the Codex CLI runs with the key in its environ
   const seen: Array<Readonly<Record<string, string>>> = [];
   const homes: string[] = [];
   const argvs: string[][] = [];
-  const base = createLocalLauncher({ wrap: (argv) => { argvs.push([...argv]); return [process.execPath, SIGNIN_CLI, ...argv]; }, baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  const base = createLocalLauncher({
+    wrap: (argv) => {
+      argvs.push([...argv]);
+      return [process.execPath, SIGNIN_CLI, ...argv];
+    },
+    baseEnv: { PATH: process.env["PATH"] ?? "" },
+  });
   const launcher: Launcher = {
     async spawn(spec) {
       seen.push(spec.env);
@@ -361,8 +561,13 @@ test("Codex on an OpenAI API key: the Codex CLI runs with the key in its environ
   assert.equal(seen[0]?.["VYRE_CRED_FILES"], undefined, "no sign-in files for an API key");
   assert.match(found.reply, /^codex /);
   assert.equal(everything(g, ["T1"]).includes(API_KEY), false, "the key is in no event, turn, message or record");
-  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
-  for (const h of homes) for (const f of walk(h)) assert.equal(fs.readFileSync(f, "utf8").includes(API_KEY), false, `the key was written to ${f}`);
+  const walk = (d: string): string[] =>
+    fs
+      .readdirSync(d, { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  for (const h of homes)
+    for (const f of walk(h))
+      assert.equal(fs.readFileSync(f, "utf8").includes(API_KEY), false, `the key was written to ${f}`);
   await g.opener.close();
   for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
 });
@@ -374,14 +579,23 @@ test("a Codex sign-in whose files the Vault does not hold fails the turn with en
   assert.equal(turn.error?.code, "engine.account_unavailable");
   assert.equal(g.launches.length, 0);
   await g.opener.close();
-  assert.deepEqual(g.minted.map((m) => m.sessionId).sort(), g.closed.slice().sort(), "a token minted for a session that never started is revoked");
+  assert.deepEqual(
+    g.minted.map((m) => m.sessionId).sort(),
+    g.closed.slice().sort(),
+    "a token minted for a session that never started is revoked",
+  );
 });
 
 // ---- a sign-in the CLI refreshed during its turn goes back to the item it was filled from
 
 test("the files a Codex turn refreshed are handed to the host's save with the item they were filled from, the person the turn ran for and what the fill gave; a Claude turn hands nothing", async () => {
   const backs: Array<boolean> = [];
-  const saved: Array<{ itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }> = [];
+  const saved: Array<{
+    itemId: string;
+    asker: string;
+    filled: string;
+    files: Readonly<Record<string, string | null>>;
+  }> = [];
   const homes: string[] = [];
   const inner = filesLauncher([], homes);
   // the engine's launcher (modules/engine/session.ts spawnCli) reads the files back when the process ends and calls signinBack; this one does the same from its stand-in home
@@ -392,24 +606,50 @@ test("the files a Codex turn refreshed are handed to the host's save with the it
       const home = homes.at(-1)!;
       void p.exited.then(() => {
         const files = JSON.parse(spec.env["VYRE_CRED_FILES"] ?? "{}") as Record<string, string>;
-        const now = Object.fromEntries(Object.keys(files).map((rel) => [rel, fs.existsSync(path.join(home, rel)) ? fs.readFileSync(path.join(home, rel), "utf8") : null]));
+        const now = Object.fromEntries(
+          Object.keys(files).map((rel) => [
+            rel,
+            fs.existsSync(path.join(home, rel)) ? fs.readFileSync(path.join(home, rel), "utf8") : null,
+          ]),
+        );
         if (Object.keys(files).some((rel) => now[rel] !== files[rel])) void spec.signinBack?.(now);
       });
       return p;
     },
   };
-  const NEW = `${ACCESS}-r1`;   // what the stand-in refreshes to on "authrefresh r1"
-  const g = rig({ launcher, saveSignin: async (r) => { saved.push(r); } });
+  const NEW = `${ACCESS}-r1`; // what the stand-in refreshes to on "authrefresh r1"
+  const g = rig({
+    launcher,
+    saveSignin: async (r) => {
+      saved.push(r);
+    },
+  });
   const { turn } = await ask(g, "authrefresh r1", agent("#CodexSignin", { model: "gpt-5-codex" }));
   assert.equal(turn.state, "completed", JSON.stringify(turn.error));
   await g.opener.close();
   await until(() => saved.length === 1);
   assert.deepEqual([saved[0]!.itemId, saved[0]!.asker, saved[0]!.filled], ["vit_codex", "dana", CODEX_FILES]);
-  assert.equal((JSON.parse(saved[0]!.files[".codex/auth.json"]!) as { tokens: { access_token: string } }).tokens.access_token, NEW);
+  assert.equal(
+    (JSON.parse(saved[0]!.files[".codex/auth.json"]!) as { tokens: { access_token: string } }).tokens.access_token,
+    NEW,
+  );
   assert.equal(everything(g, ["T1"]).includes(NEW), false, "the refreshed token is in no event, turn or message");
 
   const plain: boolean[] = [];
-  const claudeLauncher = rig({ launcher: { async spawn(spec) { plain.push(spec.signinBack !== undefined); return createLocalLauncher({ wrap: (argv) => [process.execPath, FAKE_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } }).spawn(spec); } }, saveSignin: async (r) => { saved.push(r); } });
+  const claudeLauncher = rig({
+    launcher: {
+      async spawn(spec) {
+        plain.push(spec.signinBack !== undefined);
+        return createLocalLauncher({
+          wrap: (argv) => [process.execPath, FAKE_CLI, ...argv],
+          baseEnv: { PATH: process.env["PATH"] ?? "" },
+        }).spawn(spec);
+      },
+    },
+    saveSignin: async (r) => {
+      saved.push(r);
+    },
+  });
   await ask(claudeLauncher, "hello", agent("#Dana_Claude"));
   assert.deepEqual([backs, plain], [[true], [false]], "only a sign-in kept in files is handed back");
   assert.equal(saved.length, 1);

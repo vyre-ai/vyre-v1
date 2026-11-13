@@ -22,8 +22,17 @@ export function nextDue(from: number, every: "day" | "week" | "month", n = 1): n
 function readyAfter(ctx: TasksCtx, finished: string): string[] {
   const idx = openIndex(ctx.db);
   const out: string[] = [];
-  for (const waiter of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled') AND m.depends_on LIKE ?", `%${finished}%`).slice(0, MAX_WAITERS)) {
-    if (!waiter.dependsOn.includes(finished) || waiter.dependsOn.some((d) => idx.open.has(d)) || idx.unblockParents.has(waiter.id)) continue;
+  for (const waiter of allTasks(
+    ctx.db,
+    "c.state NOT IN ('done', 'canceled') AND m.depends_on LIKE ?",
+    `%${finished}%`,
+  ).slice(0, MAX_WAITERS)) {
+    if (
+      !waiter.dependsOn.includes(finished) ||
+      waiter.dependsOn.some((d) => idx.open.has(d)) ||
+      idx.unblockParents.has(waiter.id)
+    )
+      continue;
     emitTask(ctx, ctx.db, "task.ready", waiter, {}, { type: "ready", by: ctx.principal.id });
     out.push(waiter.id);
   }
@@ -31,7 +40,14 @@ function readyAfter(ctx: TasksCtx, finished: string): string[] {
 }
 
 function settle(ctx: TasksCtx, parent: Task, reason: "finished" | "blocked" | "asked", childId?: string): void {
-  emitTask(ctx, ctx.db, "task.children_settled", parent, { reason, ...(childId ? { childId } : {}) }, { type: "children_settled", by: ctx.principal.id, note: reason });
+  emitTask(
+    ctx,
+    ctx.db,
+    "task.children_settled",
+    parent,
+    { reason, ...(childId ? { childId } : {}) },
+    { type: "children_settled", by: ctx.principal.id, note: reason },
+  );
 }
 
 /** Should the parent hear about this? Only when all its children are finished, or when a child stopped for a person. */
@@ -40,7 +56,8 @@ function rollUp(ctx: TasksCtx, t: Task): void {
   if ((t.kind === "answer" || t.kind === "unblock") && isOpen(t.state) && t.parentTaskId) {
     const child = findTask(ctx.db, t.parentTaskId);
     const parent = child?.parentTaskId ? findTask(ctx.db, child.parentTaskId) : undefined;
-    if (child && parent && parent.kind === "work" && isOpen(parent.state)) settle(ctx, parent, t.kind === "answer" ? "asked" : "blocked", child.id);
+    if (child && parent && parent.kind === "work" && isOpen(parent.state))
+      settle(ctx, parent, t.kind === "answer" ? "asked" : "blocked", child.id);
     return;
   }
   if (t.kind !== "work" || isOpen(t.state) || !t.parentTaskId) return;
@@ -63,7 +80,8 @@ function startParent(ctx: TasksCtx, t: Task): string[] {
 }
 
 /** The notes a repeat carries: what the work is, not what was done or said about the last one. */
-const LAST_TIME = /^(outputs|summary|fixes|asked|answer|done_ticks|baton\..*|run\..*|plan\..*|worker\..*|crew\..*|quiet\..*|thread\.origin|decision_id|payload_hash)$/;
+const LAST_TIME =
+  /^(outputs|summary|fixes|asked|answer|done_ticks|baton\..*|run\..*|plan\..*|worker\..*|crew\..*|quiet\..*|thread\.origin|decision_id|payload_hash)$/;
 function carried(t: Task): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(t.workingNotes)) if (!LAST_TIME.test(k)) out[k] = v;
@@ -72,18 +90,35 @@ function carried(t: Task): Record<string, string> {
 
 async function comeBack(ctx: TasksCtx, t: Task): Promise<void> {
   if (!t.recur || t.state !== "done" || !ctx.call) return;
-  const every = t.recur.every, n = t.recur.n ?? 1;
+  const every = t.recur.every,
+    n = t.recur.n ?? 1;
   const base = t.due ?? ctx.now();
   const made = await ctx.call("tasks.create", {
-    title: t.title, ...(t.summary ? { summary: t.summary } : {}), ...(t.why ? { why: t.why } : {}), assigned: t.assigned, ...(t.reviewer ? { reviewer: t.reviewer } : {}), ...(t.approver ? { approver: t.approver } : {}),
-    due: nextDue(base, every, n), ...(t.start !== undefined ? { start: nextDue(t.start, every, n) } : {}), ...(t.effort !== undefined ? { effort: t.effort } : {}), ...(t.priority ? { priority: t.priority } : {}), labels: t.labels, fields: t.fields, recur: t.recur,
-    ...(t.recordId ? { recordId: t.recordId } : {}), ...(t.parentTaskId ? { parentTaskId: t.parentTaskId } : {}), idempotencyKey: `recur:${t.id}`,
+    title: t.title,
+    ...(t.summary ? { summary: t.summary } : {}),
+    ...(t.why ? { why: t.why } : {}),
+    assigned: t.assigned,
+    ...(t.reviewer ? { reviewer: t.reviewer } : {}),
+    ...(t.approver ? { approver: t.approver } : {}),
+    due: nextDue(base, every, n),
+    ...(t.start !== undefined ? { start: nextDue(t.start, every, n) } : {}),
+    ...(t.effort !== undefined ? { effort: t.effort } : {}),
+    ...(t.priority ? { priority: t.priority } : {}),
+    labels: t.labels,
+    fields: t.fields,
+    recur: t.recur,
+    ...(t.recordId ? { recordId: t.recordId } : {}),
+    ...(t.parentTaskId ? { parentTaskId: t.parentTaskId } : {}),
+    idempotencyKey: `recur:${t.id}`,
     // the next one starts with the same brief, what done means, the working notes and the files; never what was handed in last time
-    ...(Object.keys(carried(t)).length > 0 ? { notes: carried(t) } : {}), ...(t.fileIds.length > 0 ? { fileIds: t.fileIds } : {}),
+    ...(Object.keys(carried(t)).length > 0 ? { notes: carried(t) } : {}),
+    ...(t.fileIds.length > 0 ? { fileIds: t.fileIds } : {}),
   });
   // who followed it follows the next one
   const nextId = (made as { task?: { id?: string } } | null)?.task?.id;
-  if (nextId) for (const f of t.followers) await ctx.call("tasks.followers.add", { taskId: nextId, follower: f }).catch(() => undefined);
+  if (nextId)
+    for (const f of t.followers)
+      await ctx.call("tasks.followers.add", { taskId: nextId, follower: f }).catch(() => undefined);
 }
 
 /** One task event. Returns the tasks it moved, for the log and the tests. */
@@ -93,7 +128,10 @@ export async function onTaskChanged(ctx: TasksCtx, event: Ev): Promise<string[]>
   if (event.name === "task.deleted") return readyAfter(ctx, id);
   const t = findTask(ctx.db, id);
   if (!t) return [];
-  if (event.name === "task.created") { if (t.kind === "answer" || t.kind === "unblock") rollUp(ctx, t); return []; }
+  if (event.name === "task.created") {
+    if (t.kind === "answer" || t.kind === "unblock") rollUp(ctx, t);
+    return [];
+  }
   if (event.name === "task.transitioned" && t.state === "doing") return startParent(ctx, t);
   if (isOpen(t.state)) return [];
   rollUp(ctx, t);
@@ -105,10 +143,17 @@ export async function onTaskChanged(ctx: TasksCtx, event: Ev): Promise<string[]>
 export async function onRunStopped(ctx: TasksCtx, event: Ev): Promise<string[]> {
   const runId = typeof event.payload.runId === "string" ? event.payload.runId : "";
   if (runId === "") return [];
-  const note = event.name === "run.failed" ? "The automation that asked for this failed." : "The automation that asked for this was stopped.";
+  const note =
+    event.name === "run.failed"
+      ? "The automation that asked for this failed."
+      : "The automation that asked for this was stopped.";
   // one task at a time: the withdraw of a whole source takes requests only, and this takes the Run's plain work too
   const out: string[] = [];
-  for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled') AND m.source_kind = 'run' AND m.source_id = ?", runId)) {
+  for (const t of allTasks(
+    ctx.db,
+    "c.state NOT IN ('done', 'canceled') AND m.source_kind = 'run' AND m.source_id = ?",
+    runId,
+  )) {
     await withdraw(ctx, { taskId: t.id, note });
     out.push(t.id);
   }
@@ -122,7 +167,8 @@ export async function onCrewMerged(ctx: TasksCtx, event: Ev): Promise<string[]> 
   const out: string[] = [];
   for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled') AND m.working_notes LIKE ?", `%${jobId}%`)) {
     if (t.workingNotes["crew.job"] !== jobId) continue;
-    const to = t.state === "todo" || t.state === "doing" ? submitTarget(t) : t.state === "in_review" ? afterReview(t) : "done";
+    const to =
+      t.state === "todo" || t.state === "doing" ? submitTarget(t) : t.state === "in_review" ? afterReview(t) : "done";
     if (t.state === "todo" && to === "done") applyMove(ctx, t, "doing");
     applyMove(ctx, t, to, { note: "The branch was merged." });
     out.push(t.id);

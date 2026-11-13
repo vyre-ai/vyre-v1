@@ -15,15 +15,33 @@ import { onboardingScreen } from "./screen-context.ts";
 import type { StepAsk as Ask } from "./said.ts";
 import { StepAsk } from "./StepAsk.tsx";
 
-const ChatsConversation = lazy(() => import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
+const ChatsConversation = lazy(() =>
+  import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })),
+);
 
 /** The person's private assistant, found the way the Console assistant finds it: their own personal agent of kind assistant. */
 export async function findAssistant(rt: Pick<ShellRuntime, "call">, person: string): Promise<string | null> {
-  const out = (await rt.call("agents.list", { section: "personal", limit: 100 })) as { agents: { agentId: string; ownerId: string; kind?: string; role?: string }[] };
+  const out = (await rt.call("agents.list", { section: "personal", limit: 100 })) as {
+    agents: { agentId: string; ownerId: string; kind?: string; role?: string }[];
+  };
   return out.agents.find((a) => a.ownerId === person && isAssistantRow(a))?.agentId ?? null;
 }
 
-export function AssistantThread({ rt, person, flow, step, progress, ask }: { rt: ShellRuntime; person: string; flow: FlowKind; step: string | null; progress: Progress; ask: Ask }): ReactElement {
+export function AssistantThread({
+  rt,
+  person,
+  flow,
+  step,
+  progress,
+  ask,
+}: {
+  rt: ShellRuntime;
+  person: string;
+  flow: FlowKind;
+  step: string | null;
+  progress: Progress;
+  ask: Ask;
+}): ReactElement {
   const [thread, setThread] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const key = useRef(`onboarding-${person}-${flow}`);
@@ -34,19 +52,61 @@ export function AssistantThread({ rt, person, flow, step, progress, ask }: { rt:
     void (async () => {
       const agentId = await findAssistant(rt, person);
       if (!agentId) throw new Error("no assistant");
-      const started = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "onboarding", scopeId: flow, title: "Setting up", idempotencyKey: key.current })) as { thread: { threadId: string } };
-      if (live) { noteThreadKind(started.thread.threadId, "ask"); setThread(started.thread.threadId); }
-    })().catch(() => { if (live) setError(true); });
-    return () => { live = false; };
+      const started = (await rt.call("chat.start", {
+        kind: "ask",
+        agentIds: [agentId],
+        scopeType: "onboarding",
+        scopeId: flow,
+        title: "Setting up",
+        idempotencyKey: key.current,
+      })) as { thread: { threadId: string } };
+      if (live) {
+        noteThreadKind(started.thread.threadId, "ask");
+        setThread(started.thread.threadId);
+      }
+    })().catch(() => {
+      if (live) setError(true);
+    });
+    return () => {
+      live = false;
+    };
   }, [rt, person, flow]);
   // where the person is, for every message they send here; ids only
-  useEffect(() => { setScreenContext(onboardingScreen(flow, step, progress)); }, [flow, step, progress]);
+  useEffect(() => {
+    setScreenContext(onboardingScreen(flow, step, progress));
+  }, [flow, step, progress]);
   const data = useMemo(() => {
     if (!thread) return null;
     const people = rt.principals.getSnapshot();
-    const base = conversationData(rt, { openThread: (id) => rt.open({ subject: { type: "thread", id } }), togglePane: () => undefined, fillComposer: (t: string) => fill.current.set(t), openAgentChat: (id) => rt.open({ subject: { type: "agent", id } }) }, thread, people.status === "ready" ? people.data : [], fill.current);
-    return { ...base, head: <StepAsk ask={ask} onPick={(t) => fill.current.set(t)} />, placeholder: "Ask about this step" };
+    const base = conversationData(
+      rt,
+      {
+        openThread: (id) => rt.open({ subject: { type: "thread", id } }),
+        togglePane: () => undefined,
+        fillComposer: (t: string) => fill.current.set(t),
+        openAgentChat: (id) => rt.open({ subject: { type: "agent", id } }),
+      },
+      thread,
+      people.status === "ready" ? people.data : [],
+      fill.current,
+    );
+    return {
+      ...base,
+      head: <StepAsk ask={ask} onPick={(t) => fill.current.set(t)} />,
+      placeholder: "Ask about this step",
+    };
   }, [rt, thread, ask]);
-  if (error) return <Text testID="assistant-error" style={{ fontSize: 13, color: "var(--ink-3)" as string }}>I could not open the chat. The steps still work.</Text>;
-  return data ? <Suspense fallback={null}><ChatsConversation data={data} compact /></Suspense> : <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>Opening your assistant</Text>;
+  if (error)
+    return (
+      <Text testID="assistant-error" style={{ fontSize: 13, color: "var(--ink-3)" as string }}>
+        I could not open the chat. The steps still work.
+      </Text>
+    );
+  return data ? (
+    <Suspense fallback={null}>
+      <ChatsConversation data={data} compact />
+    </Suspense>
+  ) : (
+    <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>Opening your assistant</Text>
+  );
 }

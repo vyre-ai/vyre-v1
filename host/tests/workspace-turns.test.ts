@@ -37,5 +37,16 @@ test("a crew helper's turn counts for the parent's workspace it has a tab in, no
 });
 
 test("tables it cannot read: unknown (the 90 s wait), never no", () => {
-  assert.equal(workspaceInTurn({ all: () => { throw new Error("no such table"); } }, "agt_p", NOW), undefined);
+  assert.equal(
+    workspaceInTurn(
+      {
+        all: () => {
+          throw new Error("no such table");
+        },
+      },
+      "agt_p",
+      NOW,
+    ),
+    undefined,
+  );
 });

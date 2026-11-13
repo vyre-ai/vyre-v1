@@ -7,10 +7,14 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { createVaultExportRoute } from "../src/routes/vault-export.ts";
 
-const ENV = "STRIPE_KEY=\"sk_live_abc\"\nRESEND_KEY=\"re_123\"\n";
+const ENV = 'STRIPE_KEY="sk_live_abc"\nRESEND_KEY="re_123"\n';
 const NOW = 1_760_000_000_000;
 
-interface Row { token: string; expiresAt: number; revoked: boolean }
+interface Row {
+  token: string;
+  expiresAt: number;
+  revoked: boolean;
+}
 
 async function boot() {
   const rows = new Map<string, Row>([
@@ -29,10 +33,25 @@ async function boot() {
     },
     log: (e) => logged.push(e),
   });
-  const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end("other"); } });
+  const server = http.createServer((req, res) => {
+    if (!route.handle(req, res)) {
+      res.writeHead(404);
+      res.end("other");
+    }
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { rows, logged, pulls: () => pulls, get: (p: string, init?: RequestInit) => fetch(`${base}${p}`, init), close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+  return {
+    rows,
+    logged,
+    pulls: () => pulls,
+    get: (p: string, init?: RequestInit) => fetch(`${base}${p}`, init),
+    close: () =>
+      new Promise<void>((r) => {
+        server.closeAllConnections();
+        server.close(() => r());
+      }),
+  };
 }
 
 test("a link is used once: the first pull gets the .env with no-store headers, the second is refused", async (t) => {
@@ -62,9 +81,17 @@ test("an expired link and a revoked link are refused", async (t) => {
 test("every refusal looks the same, and a wrong token does not use the link up", async (t) => {
   const w = await boot();
   t.after(w.close);
-  const bodies = await Promise.all([
-    w.get("/exports/vex_good?token=wrong"), w.get("/exports/vex_nobody?token=x"), w.get("/exports/vex_old?token=tok_old"), w.get("/exports/vex_good"),
-  ].map(async (p) => { const r = await p; return `${r.status} ${r.headers.get("cache-control")} ${await r.text()}`; }));
+  const bodies = await Promise.all(
+    [
+      w.get("/exports/vex_good?token=wrong"),
+      w.get("/exports/vex_nobody?token=x"),
+      w.get("/exports/vex_old?token=tok_old"),
+      w.get("/exports/vex_good"),
+    ].map(async (p) => {
+      const r = await p;
+      return `${r.status} ${r.headers.get("cache-control")} ${await r.text()}`;
+    }),
+  );
   assert.equal(new Set(bodies).size, 1);
   assert.match(bodies[0] as string, /^404 no-store /);
   assert.equal((await w.get("/exports/vex_good?token=tok_good")).status, 200, "the real holder still gets it");
@@ -73,7 +100,11 @@ test("every refusal looks the same, and a wrong token does not use the link up",
 test("two pulls at once get one answer", async (t) => {
   const w = await boot();
   t.after(w.close);
-  const codes = (await Promise.all([w.get("/exports/vex_good?token=tok_good"), w.get("/exports/vex_good?token=tok_good")])).map((r) => r.status).sort();
+  const codes = (
+    await Promise.all([w.get("/exports/vex_good?token=tok_good"), w.get("/exports/vex_good?token=tok_good")])
+  )
+    .map((r) => r.status)
+    .sort();
   assert.deepEqual(codes, [200, 404]);
 });
 
@@ -92,6 +123,9 @@ test("nothing is logged but the export id and the outcome", async (t) => {
   t.after(w.close);
   await w.get("/exports/vex_good?token=tok_good");
   await w.get("/exports/vex_good?token=tok_good");
-  assert.deepEqual(w.logged, [{ exportId: "vex_good", outcome: "pulled" }, { exportId: "vex_good", outcome: "refused" }]);
+  assert.deepEqual(w.logged, [
+    { exportId: "vex_good", outcome: "pulled" },
+    { exportId: "vex_good", outcome: "refused" },
+  ]);
   assert.ok(!JSON.stringify(w.logged).includes("tok_good") && !JSON.stringify(w.logged).includes("sk_live"));
 });

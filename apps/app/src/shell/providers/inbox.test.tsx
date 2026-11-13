@@ -15,17 +15,40 @@ function runtime(): { rt: ShellRuntime; opened: ShellTarget[] } {
   const s = createSampleInbox();
   const opened: ShellTarget[] = [];
   const me: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
-  const principals: LiveQuery<Principal[]> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [me] }) };
+  const principals: LiveQuery<Principal[]> = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => ({ status: "ready", data: [me] }),
+  };
   const rt: ShellRuntime = {
-    screens: s.data.screens, call: s.data.call, connection: s.data.connection, principals, recordTitle: () => undefined, me, clock: s.data.clock,
-    space: { id: "northwind", kind: "team", name: "Northwind" }, assistant: { id: "agt_assistant", name: "Assistant" }, aiConnected: true, deferredModules: new Set<string>(), isDeferred: () => false, calendarConnected: true,
-    open: (t) => void opened.push(t), openUrl: () => undefined,
+    screens: s.data.screens,
+    call: s.data.call,
+    connection: s.data.connection,
+    principals,
+    recordTitle: () => undefined,
+    me,
+    clock: s.data.clock,
+    space: { id: "northwind", kind: "team", name: "Northwind" },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    aiConnected: true,
+    deferredModules: new Set<string>(),
+    isDeferred: () => false,
+    calendarConnected: true,
+    open: (t) => void opened.push(t),
+    openUrl: () => undefined,
   };
   return { rt, opened };
 }
 
 const html = (rt: ShellRuntime | null): string =>
-  renderToStaticMarkup(rt ? <ShellRuntimeProvider value={rt}><InboxPlace /></ShellRuntimeProvider> : <InboxPlace />).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    rt ? (
+      <ShellRuntimeProvider value={rt}>
+        <InboxPlace />
+      </ShellRuntimeProvider>
+    ) : (
+      <InboxPlace />
+    ),
+  ).replaceAll("<!-- -->", "");
 
 test("inbox: with a runtime the sidebar and the contact list draw the Space's contacts", () => {
   const out = html(runtime().rt);
@@ -57,27 +80,56 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.openCall("call_1");
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
-  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }], "New message stays in the Inbox (the Ask pane)");
+  assert.deepEqual(
+    opened,
+    [{ subject: { type: "call", id: "call_1" } }],
+    "New message stays in the Inbox (the Ask pane)",
+  );
 });
 
 test("inbox: Match to a record opens the Unmatched screen in the Inbox body, not the contact list", () => {
   const { rt, opened } = runtime();
   inboxData(rt, () => undefined).nav.openMatch("elena");
-  assert.deepEqual(opened, [{ screen: "inbox.unmatched", args: { conversationId: "elena" } }], "the row's Match writes the screen id");
-  const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="screen=inbox.unmatched&conversationId=elena" opened={() => undefined}><InboxPlace /></PlaceHashProvider></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+  assert.deepEqual(
+    opened,
+    [{ screen: "inbox.unmatched", args: { conversationId: "elena" } }],
+    "the row's Match writes the screen id",
+  );
+  const out = renderToStaticMarkup(
+    <ShellRuntimeProvider value={rt}>
+      <PlaceHashProvider hash="screen=inbox.unmatched&conversationId=elena" opened={() => undefined}>
+        <InboxPlace />
+      </PlaceHashProvider>
+    </ShellRuntimeProvider>,
+  ).replaceAll("<!-- -->", "");
   assert.ok(out.includes('data-testid="inbox-place"'));
   assert.ok(!out.includes("Marcus Pruitt"), "the contact list is not the body");
 });
 
 test("inbox: an open conversation is the conversation with the call bar, so a call to this contact shows its bar and its ended strip", () => {
   const { rt } = runtime();
-  const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><PlaceHashProvider hash="subject=conversation:elena" opened={() => undefined}><InboxPlace /></PlaceHashProvider></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(
+    <ShellRuntimeProvider value={rt}>
+      <PlaceHashProvider hash="subject=conversation:elena" opened={() => undefined}>
+        <InboxPlace />
+      </PlaceHashProvider>
+    </ShellRuntimeProvider>,
+  ).replaceAll("<!-- -->", "");
   assert.ok(out.includes('data-testid="call-conversation"'), "the call conversation wraps the contact tab");
 });
 
 test("inbox: the Calendar's free and busy menu lists the Space's people, as ids the availability capability takes", () => {
-  assert.deepEqual(calendarTeam([
-    { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }, { id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "agt_intake", name: "Intake", kind: "agent" },
-  ]), [{ email: "usr_irfad", name: "Irfad Imtiaz" }, { email: "usr_maya", name: "Maya Chen" }], "people only: an agent has no calendar");
+  assert.deepEqual(
+    calendarTeam([
+      { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+      { id: "usr_maya", name: "Maya Chen", kind: "person" },
+      { id: "agt_intake", name: "Intake", kind: "agent" },
+    ]),
+    [
+      { email: "usr_irfad", name: "Irfad Imtiaz" },
+      { email: "usr_maya", name: "Maya Chen" },
+    ],
+    "people only: an agent has no calendar",
+  );
   assert.deepEqual(calendarTeam([]), []);
 });

@@ -7,11 +7,16 @@ import type { Harness } from "../fixtures/db.ts";
 import { DAY, engine, newRun } from "../fixtures/seed.ts";
 
 const count = (h: Harness, table: string): number => (h.db.all(`SELECT * FROM ${table}`) as unknown[]).length;
-const ids = (h: Harness): string[] => (h.db.all(`SELECT id FROM runs_items ORDER BY id`) as { id: string }[]).map((r) => r.id);
+const ids = (h: Harness): string[] =>
+  (h.db.all(`SELECT id FROM runs_items ORDER BY id`) as { id: string }[]).map((r) => r.id);
 
 async function finished(h: Harness, name: string, secret?: string): Promise<string> {
   const run = (await h.call("runs.start", newRun({ name }), engine)).runId as string;
-  await h.call("runs.record_step", { runId: run, step: "send", attempt: 1, state: "succeeded", ...(secret ? { input: { note: secret } } : {}) }, engine);
+  await h.call(
+    "runs.record_step",
+    { runId: run, step: "send", attempt: 1, state: "succeeded", ...(secret ? { input: { note: secret } } : {}) },
+    engine,
+  );
   await h.call("runs.finish", { runId: run, status: "succeeded" }, engine);
   return run;
 }
@@ -25,8 +30,16 @@ test("erase removes one Run whole and leaves the others", async () => {
   assert.deepEqual(out, { erased: true });
   assert.deepEqual(ids(h), [keep]);
   assert.equal(count(h, "runs_steps"), 1);
-  assert.ok(!JSON.stringify([h.db.all(`SELECT * FROM runs_items`), h.db.all(`SELECT * FROM runs_steps`), h.events]).includes("divorcing"), "the words are gone");
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["run.erased", { runId: gone }]]);
+  assert.ok(
+    !JSON.stringify([h.db.all(`SELECT * FROM runs_items`), h.db.all(`SELECT * FROM runs_steps`), h.events]).includes(
+      "divorcing",
+    ),
+    "the words are gone",
+  );
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload]),
+    [["run.erased", { runId: gone }]],
+  );
   assert.deepEqual(await h.call("runs.erase", { runId: gone, idempotencyKey: "k2" }, engine), { erased: false });
 });
 
@@ -49,6 +62,12 @@ test("purge removes ended Runs older than the cutoff in batches, oldest first, a
   assert.deepEqual(second, { removed: 1, more: false });
   assert.deepEqual(ids(h).sort(), [active, young].sort());
   assert.ok(!ids(h).includes(c));
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["runs.purged", { removed: 1 }]]);
-  assert.deepEqual(await h.call("runs.purge", { before: cutoff, idempotencyKey: "p3" }, engine), { removed: 0, more: false });
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload]),
+    [["runs.purged", { removed: 1 }]],
+  );
+  assert.deepEqual(await h.call("runs.purge", { before: cutoff, idempotencyKey: "p3" }, engine), {
+    removed: 0,
+    more: false,
+  });
 });

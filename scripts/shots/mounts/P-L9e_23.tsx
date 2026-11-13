@@ -12,9 +12,18 @@ const GROUPS: readonly GroupKey[] = ["sites", "forms", "templates", "domains"];
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  const sample = useMemo(() => (q ? createSampleApps({ team: q.get("team") !== "0", gate: q.get("gate") === "1" }) : null), [q]);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
+  const sample = useMemo(
+    () => (q ? createSampleApps({ team: q.get("team") !== "0", gate: q.get("gate") === "1" }) : null),
+    [q],
+  );
   if (!q || !sample) return null;
   const group = GROUPS.find((g) => g === q.get("group")) ?? "forms";
-  return <View style={{ flex: 1, height: "100%" as unknown as number, backgroundColor: "var(--win)" as string }}><Apps data={sample.data} start={{ group, ...(q.get("open") === "1" ? { open: true } : {}) }} /></View>;
+  return (
+    <View style={{ flex: 1, height: "100%" as unknown as number, backgroundColor: "var(--win)" as string }}>
+      <Apps data={sample.data} start={{ group, ...(q.get("open") === "1" ? { open: true } : {}) }} />
+    </View>
+  );
 }

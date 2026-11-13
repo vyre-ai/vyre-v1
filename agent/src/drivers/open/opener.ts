@@ -31,14 +31,26 @@ import { createGuardedFetch } from "../../../../lib/net-guard.ts";
 import type { FillLauncherDeps, FillWho } from "./fill-launcher.ts";
 
 /** The account a turn runs on, as the accounts module resolved it (SessionSpec.account, agent/src/turn-engine/types.ts). `ref` is a Vault handle, never a value. */
-export interface OpenAccount { ref: string; driver: string; kind: CredentialKind; payer?: string; base?: string; keyless?: boolean }
+export interface OpenAccount {
+  ref: string;
+  driver: string;
+  kind: CredentialKind;
+  payer?: string;
+  base?: string;
+  keyless?: boolean;
+}
 
 /** A session spec as the opener reads it: the engine adds the account and the turn's ids. A spec without an account never opens. */
 export type OpenerSpec = SessionSpec & { account?: OpenAccount; turnId?: string; traceId?: string };
 
 /** The loopback MCP sessions of CLI engines, as the host offers them (mcp.session.mint and mcp.session.close through the invoke pipeline). */
 export interface McpPort {
-  mint(i: { principal: string; actingFor: string; threadId: string; traceId: string }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
+  mint(i: {
+    principal: string;
+    actingFor: string;
+    threadId: string;
+    traceId: string;
+  }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
   close(sessionId: string): Promise<void>;
 }
 
@@ -52,7 +64,10 @@ export interface SessionOpenerDeps {
    * Sandboxed engines (ruling 61): called after the MCP session is minted; returns the stdio command the engine runs as its Vyre MCP server (a shim that talks to a socket bind-mounted into the
    * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted, or answering null: the engine uses the loopback URL.
    */
-  mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> } | null>;
+  mcpBridge?(
+    m: { url: string; token: string },
+    spec: OpenerSpec,
+  ): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> } | null>;
   /** Before a CLI engine starts: put what it reads from its folder in place (the memory guide as CLAUDE.md and AGENTS.md). A failure never stops the session. */
   prepare?(spec: OpenerSpec): Promise<void>;
   /** Plugins installed on the agent, written into a Claude Code or Codex engine's own config in its work folder (modules/engine/plugin-native.ts). A secret goes by Vault handle through the fill. */
@@ -68,7 +83,10 @@ export interface SessionOpenerDeps {
   own?(person: string): boolean;
   clock?: Clock;
   api?: Pick<ApiDriverDeps, "summarize" | "retry" | "idleMs" | "maxSteps" | "random">;
-  cli?: Pick<CliDriverDeps, "system" | "workFolder" | "env" | "planMode" | "resume" | "checkpoint" | "idleMs" | "graceMs" | "prewarm">;
+  cli?: Pick<
+    CliDriverDeps,
+    "system" | "workFolder" | "env" | "planMode" | "resume" | "checkpoint" | "idleMs" | "graceMs" | "prewarm"
+  >;
   pool?: Pick<PoolOptions, "maxPerDriver" | "maxPerPerson" | "maxTotal" | "idleMs" | "now">;
   /** A Vault item was used for a session: ids and handles only (audit and usage records). */
   onUsed?(e: { spec: OpenerSpec; used: readonly Used[] }): void;
@@ -99,14 +117,27 @@ function need(spec: SessionSpec): OpenerSpec & { account: OpenAccount } {
 
 export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
   const where = d.where ?? "host";
-  const whoOf = (s: OpenerSpec): FillWho => ({ agentId: s.agent.id, asker: s.asker, where, traceId: s.traceId ?? s.turnId ?? s.threadId });
-  const used = (spec: OpenerSpec) => (u: readonly Used[]): void => d.onUsed?.({ spec, used: u });
+  const whoOf = (s: OpenerSpec): FillWho => ({
+    agentId: s.agent.id,
+    asker: s.asker,
+    where,
+    traceId: s.traceId ?? s.turnId ?? s.threadId,
+  });
+  const used =
+    (spec: OpenerSpec) =>
+    (u: readonly Used[]): void =>
+      d.onUsed?.({ spec, used: u });
   /** token to MCP session id, so closing a session revokes exactly its token. */
   const minted = new Map<string, string>();
   const sockets = new Map<string, () => Promise<void>>();
 
   async function mcpFor(spec: OpenerSpec): Promise<McpEndpoint> {
-    const m = await d.mcp.mint({ principal: spec.agent.id, actingFor: spec.asker, threadId: spec.threadId, traceId: spec.traceId ?? spec.turnId ?? spec.threadId });
+    const m = await d.mcp.mint({
+      principal: spec.agent.id,
+      actingFor: spec.asker,
+      threadId: spec.threadId,
+      traceId: spec.traceId ?? spec.turnId ?? spec.threadId,
+    });
     minted.set(m.sessionToken, m.sessionId);
     if (!d.mcpBridge) return { url: m.url, token: m.sessionToken };
     const bridge = await d.mcpBridge({ url: m.url, token: m.sessionToken }, spec);
@@ -121,38 +152,93 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     const closeSocket = sockets.get(endpoint.token);
     sockets.delete(endpoint.token);
     await closeSocket?.().catch(() => undefined);
-    if (id !== undefined) await d.mcp.close(id).catch(() => undefined);   // best effort: the token also expires by itself
+    if (id !== undefined) await d.mcp.close(id).catch(() => undefined); // best effort: the token also expires by itself
   }
 
   const cliDriver = (id: CliId): PoolDriver => ({
-    id, kind: "cli",
+    id,
+    kind: "cli",
     async open(spec0) {
       const spec = need(spec0);
       const slot = cliCredential(id, spec.account.kind, spec.account.ref);
-      if (!slot) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
+      if (!slot)
+        throw new DriverError(
+          "engine.account_unsupported",
+          `${id} cannot run on this kind of account yet. Use an API key for it.`,
+        );
       // a Claude sign-in taken from this computer is kept as files, not a setup token (owner decision D2)
-      const cred = id === "claude_code" && spec.account.kind === "subscription"
-        ? await claudeSigninSlot(slot, spec.account.ref, async (handle) => (await d.source.lookup(handle, { ...whoOf(spec), account: true }).catch(() => ({ kind: "unknown" as const }))).kind === "value")
-        : slot;
+      const cred =
+        id === "claude_code" && spec.account.kind === "subscription"
+          ? await claudeSigninSlot(
+              slot,
+              spec.account.ref,
+              async (handle) =>
+                (
+                  await d.source
+                    .lookup(handle, { ...whoOf(spec), account: true })
+                    .catch(() => ({ kind: "unknown" as const }))
+                ).kind === "value",
+            )
+          : slot;
       // a lean one-shot gets no guide in its folder and no plugins: its own system prompt is all it reads
-      if (spec.lean !== true) { try { await d.prepare?.(spec); } catch { /* the engine runs without the guide */ } }
-      const native = spec.lean !== true && (id === "claude_code" || id === "codex") ? (await d.nativePlugins?.(spec, id)) ?? null : null;
-      const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) }, onUsed: used(spec), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) });
-      const driver = createCliDriver(CLI_ADAPTERS[id], { ...d.cli, launcher, ...(native ? { plugins: () => native } : {}), mcp: () => mcpFor(spec), mcpClose: (_s, endpoint) => mcpRevoke(endpoint) });
+      if (spec.lean !== true) {
+        try {
+          await d.prepare?.(spec);
+        } catch {
+          /* the engine runs without the guide */
+        }
+      }
+      const native =
+        spec.lean !== true && (id === "claude_code" || id === "codex")
+          ? ((await d.nativePlugins?.(spec, id)) ?? null)
+          : null;
+      const launcher = createFillLauncher({
+        inner: d.launcher,
+        source: d.source,
+        reportMiss: d.reportMiss,
+        who: whoOf(spec),
+        env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) },
+        onUsed: used(spec),
+        ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}),
+      });
+      const driver = createCliDriver(CLI_ADAPTERS[id], {
+        ...d.cli,
+        launcher,
+        ...(native ? { plugins: () => native } : {}),
+        mcp: () => mcpFor(spec),
+        mcpClose: (_s, endpoint) => mcpRevoke(endpoint),
+      });
       return driver.open(spec);
     },
   });
 
   const apiDriver = (id: ApiId): PoolDriver => ({
-    id, kind: "api",
+    id,
+    kind: "api",
     async open(spec0) {
       const spec = need(spec0);
       // An address a person typed (local, custom) is reached only through the network guard (lib/net-guard.ts); a test that hands in its own fetch bypasses it.
-      const guarded = (id === "local" || id === "custom") && !d.fetch ? { fetch: createGuardedFetch({ own: d.own?.(spec.asker) ?? false }) as Fetch } : d.fetch ? { fetch: d.fetch } : {};
+      const guarded =
+        (id === "local" || id === "custom") && !d.fetch
+          ? { fetch: createGuardedFetch({ own: d.own?.(spec.asker) ?? false }) as Fetch }
+          : d.fetch
+            ? { fetch: d.fetch }
+            : {};
       const driver = createApiDriver(ADAPTERS[id], {
-        ...d.api, context: d.apiContext, ...guarded, ...(d.clock ? { clock: d.clock } : {}),
-        authorize: createFillAuthorizer({ source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), onUsed: used(spec) }),
-        accountOf: (s) => { const a = need(s).account; return { ref: a.ref, ...(a.base ? { base: a.base } : {}), ...(a.keyless ? { keyless: true } : {}) }; },
+        ...d.api,
+        context: d.apiContext,
+        ...guarded,
+        ...(d.clock ? { clock: d.clock } : {}),
+        authorize: createFillAuthorizer({
+          source: d.source,
+          reportMiss: d.reportMiss,
+          who: whoOf(spec),
+          onUsed: used(spec),
+        }),
+        accountOf: (s) => {
+          const a = need(s).account;
+          return { ref: a.ref, ...(a.base ? { base: a.base } : {}), ...(a.keyless ? { keyless: true } : {}) };
+        },
       });
       return driver.open(spec);
     },
@@ -161,14 +247,32 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
   /** The thread part of the work folder a model list runs in: one per person, never a chat's own. */
   const LIST_THREAD = "model-list";
   async function models(account: OpenAccount, asker: string, o: { timeoutMs?: number } = {}): Promise<LiveModel[]> {
-    if (!(CLI_IDS as readonly string[]).includes(account.driver)) throw new DriverError("engine.unknown_driver", `${account.driver} is not a CLI engine.`);
+    if (!(CLI_IDS as readonly string[]).includes(account.driver))
+      throw new DriverError("engine.unknown_driver", `${account.driver} is not a CLI engine.`);
     const id = account.driver as CliId;
     const cred = cliCredential(id, account.kind, account.ref);
     if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet.`);
-    const spec = { threadId: LIST_THREAD, asker, agent: { id: "model-list", name: "Model list", mode: "lead" }, account } as unknown as OpenerSpec;
-    const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: { agentId: "model-list", asker, where, traceId: "0".repeat(32) }, env: { [cred.env]: cred.handle }, onUsed: used(spec), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) });
+    const spec = {
+      threadId: LIST_THREAD,
+      asker,
+      agent: { id: "model-list", name: "Model list", mode: "lead" },
+      account,
+    } as unknown as OpenerSpec;
+    const launcher = createFillLauncher({
+      inner: d.launcher,
+      source: d.source,
+      reportMiss: d.reportMiss,
+      who: { agentId: "model-list", asker, where, traceId: "0".repeat(32) },
+      env: { [cred.env]: cred.handle },
+      onUsed: used(spec),
+      ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}),
+    });
     const cwd = d.cli?.workFolder?.(spec) ?? null;
-    return listCliModels(launcher, id, { ...(cwd !== null ? { cwd } : {}), env: CLI_ADAPTERS[id].env(), ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}) });
+    return listCliModels(launcher, id, {
+      ...(cwd !== null ? { cwd } : {}),
+      env: CLI_ADAPTERS[id].env(),
+      ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}),
+    });
   }
 
   const drivers: PoolDriver[] = [...CLI_IDS.map(cliDriver), ...API_IDS.map(apiDriver)];
@@ -177,10 +281,19 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
 
   const resolve: ResolveSpec = (spec): PoolSpec => {
     const s = need(spec);
-    if (!known.has(s.account.driver)) throw new DriverError("engine.unknown_driver", `There is no engine called ${s.account.driver}.`);
+    if (!known.has(s.account.driver))
+      throw new DriverError("engine.unknown_driver", `There is no engine called ${s.account.driver}.`);
     return {
-      key: { driver: s.account.driver, accountRef: s.account.ref, model: s.agent.model ?? "", sandboxId: null, mcpProfile: `${s.agent.id}|${s.asker}${s.tools === "none" ? "|none" : ""}${s.mode !== undefined ? `|mode:${s.mode}` : ""}${s.agent.effort !== undefined ? `|effort:${s.agent.effort}` : ""}` },
-      threadId: s.threadId, person: s.asker, session: spec,
+      key: {
+        driver: s.account.driver,
+        accountRef: s.account.ref,
+        model: s.agent.model ?? "",
+        sandboxId: null,
+        mcpProfile: `${s.agent.id}|${s.asker}${s.tools === "none" ? "|none" : ""}${s.mode !== undefined ? `|mode:${s.mode}` : ""}${s.agent.effort !== undefined ? `|effort:${s.agent.effort}` : ""}`,
+      },
+      threadId: s.threadId,
+      person: s.asker,
+      session: spec,
     };
   };
   const open = poolOpenSession(pool, resolve);

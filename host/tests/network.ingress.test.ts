@@ -28,10 +28,18 @@ async function boot(caddy: FakeCaddy, address: string | null): Promise<{ daemon:
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
   let port = 0;
-  const network = managedNetworkPort({ adminUrl: ADMIN, space: "spc_core", upstream: () => `127.0.0.1:${port}`, ingressHost: () => address, relayReady: () => false, fetch: caddy.fetch });
+  const network = managedNetworkPort({
+    adminUrl: ADMIN,
+    space: "spc_core",
+    upstream: () => `127.0.0.1:${port}`,
+    ingressHost: () => address,
+    relayReady: () => false,
+    fetch: caddy.fetch,
+  });
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", ...(address ? ["--address", address] : [])], {}, "1.2.3"),
-    network, platform: fakePlatform({ os: "linux", free: 80e9 }),
+    network,
+    platform: fakePlatform({ os: "linux", free: 80e9 }),
     intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: HOUR, tick: HOUR },
   });
   port = daemon.port;
@@ -41,18 +49,39 @@ async function boot(caddy: FakeCaddy, address: string | null): Promise<{ daemon:
 test("the address forms Caddy fronts become a host; the local URL, ports and IP addresses do not", () => {
   assert.equal(ingressHostOf("mla.vyre.run"), "mla.vyre.run");
   assert.equal(ingressHostOf("https://MLA.vyre.run/"), "mla.vyre.run");
-  for (const a of [null, "", "http://0.0.0.0:8420", "http://mla.vyre.run", "https://mla.vyre.run:8443", "203.0.113.7", "https://u:p@mla.vyre.run", "https://mla.vyre.run/app"]) assert.equal(ingressHostOf(a), null, String(a));
+  for (const a of [
+    null,
+    "",
+    "http://0.0.0.0:8420",
+    "http://mla.vyre.run",
+    "https://mla.vyre.run:8443",
+    "203.0.113.7",
+    "https://u:p@mla.vyre.run",
+    "https://mla.vyre.run/app",
+  ])
+    assert.equal(ingressHostOf(a), null, String(a));
 });
 
 test("a fresh boot with an address gets its ingress route; a second tick does not rewrite it; a route deleted later comes back", async () => {
   const caddy = new FakeCaddy();
   const { daemon, dir } = await boot(caddy, HOST);
   try {
-    await daemon.ensureIngress();   // waits for the boot write
-    const router = new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: ADMIN, fetch: caddy.fetch }), space: "spc_core" });
-    assert.deepEqual((await router.hosts()).sort(), [`a.${HOST}`, HOST].sort(), "the boot wrote the route, and the artifact host's own");
+    await daemon.ensureIngress(); // waits for the boot write
+    const router = new CaddyRouter({
+      admin: new CaddyAdmin({ baseUrl: ADMIN, fetch: caddy.fetch }),
+      space: "spc_core",
+    });
+    assert.deepEqual(
+      (await router.hosts()).sort(),
+      [`a.${HOST}`, HOST].sort(),
+      "the boot wrote the route, and the artifact host's own",
+    );
     const route = routesOf(caddy.config ?? undefined).find((r) => r["@id"] === routeId(HOST));
-    assert.equal(JSON.stringify(route?.handle), JSON.stringify([{ handler: "reverse_proxy", upstreams: [{ dial: `127.0.0.1:${daemon.port}` }] }]), "to the gateway, with no auth in front");
+    assert.equal(
+      JSON.stringify(route?.handle),
+      JSON.stringify([{ handler: "reverse_proxy", upstreams: [{ dial: `127.0.0.1:${daemon.port}` }] }]),
+      "to the gateway, with no auth in front",
+    );
     const after = writes(caddy);
 
     await daemon.ensureIngress();
@@ -65,7 +94,10 @@ test("a fresh boot with an address gets its ingress route; a second tick does no
     await daemon.ensureIngress();
     assert.deepEqual((await router.hosts()).sort(), [`a.${HOST}`, HOST].sort(), "the missing route came back");
     assert.equal(writes(caddy), removed + 1, "one append, nothing else");
-  } finally { await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("Caddy not up at boot: the daemon starts anyway and the next slow tick writes the route", async () => {
@@ -80,8 +112,16 @@ test("Caddy not up at boot: the daemon starts anyway and the next slow tick writ
     await res.arrayBuffer();
     caddy.down = false;
     await daemon.ensureIngress();
-    assert.deepEqual(routesOf(caddy.config ?? undefined).map((r) => r.match[0]?.host[0]).sort(), [`a.${HOST}`, HOST].sort());
-  } finally { await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.deepEqual(
+      routesOf(caddy.config ?? undefined)
+        .map((r) => r.match[0]?.host[0])
+        .sort(),
+      [`a.${HOST}`, HOST].sort(),
+    );
+  } finally {
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("with no address nothing is written to Caddy", async () => {
@@ -91,5 +131,8 @@ test("with no address nothing is written to Caddy", async () => {
     await daemon.ensureIngress();
     await daemon.ensureIngress();
     assert.deepEqual(caddy.calls, [], "a Space without an address never touches Caddy for ingress");
-  } finally { await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

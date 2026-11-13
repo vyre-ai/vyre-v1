@@ -4,7 +4,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { handlers } from "../impl.ts";
-import { capsSet, isPaused, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "../handlers/spend.ts";
+import {
+  capsSet,
+  isPaused,
+  pauseAll,
+  raiseLimit,
+  recordUsage,
+  resumeAll,
+  spendGet,
+  usageQuery,
+} from "../handlers/spend.ts";
 import { ensure } from "../projections.ts";
 import { assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -27,18 +36,31 @@ function holding() {
     beforeEvent: async (i, _ev, spec) => {
       if (i !== 0) return;
       let n = seen.get(spec);
-      if (n === undefined) { n = seen.size; seen.set(spec, n); }
+      if (n === undefined) {
+        n = seen.size;
+        seen.set(spec, n);
+      }
       const g = gates[n] ?? (gates[n] = gate());
       await g.wait;
     },
   });
-  return { provider, release(n: number) { (gates[n] ?? (gates[n] = gate())).open(); } };
+  return {
+    provider,
+    release(n: number) {
+      (gates[n] ?? (gates[n] = gate())).open();
+    },
+  };
 }
 
 async function start(h: Harness) {
   const hold = holding();
   const engine = h.runtime({ openSession: hold.provider.openSession, schedule: NO_BEAT });
-  engine.openThread({ id: THREAD, kind: "chat", starter: "usr_dana", agents: [{ id: AGENT, mode: "lead", model: "claude-sonnet-5-5" }] });
+  engine.openThread({
+    id: THREAD,
+    kind: "chat",
+    starter: "usr_dana",
+    agents: [{ id: AGENT, mode: "lead", model: "claude-sonnet-5-5" }],
+  });
   const next = async (): Promise<string> => {
     const before = engine.turns(THREAD).length;
     engine.receive({ threadId: THREAD, author: DANA, body: "go on" });
@@ -48,7 +70,8 @@ async function start(h: Harness) {
   return { engine, hold, next };
 }
 
-const use = (h: Harness, turnId: string, costMicros: number) => recordUsage(h.ctx, { turnId, tokensIn: 100, tokensOut: 20, costMicros });
+const use = (h: Harness, turnId: string, costMicros: number) =>
+  recordUsage(h.ctx, { turnId, tokensIn: 100, tokensOut: 20, costMicros });
 
 // ---- caps, pause
 
@@ -61,13 +84,33 @@ test("caps are saved per scope, read back with the day's use, and a person or ag
 
   const agent = capsSet(h.ctx, { scope: "agent", scopeId: AGENT, caps: { dayMicros: 1_000_000, turnsPerDay: 20 } });
   assert.deepEqual(agent.caps, { dayMicros: 1_000_000, turnsPerDay: 20 });
-  assert.throws(() => capsSet(h.ctx, { scope: "agent", scopeId: AGENT, caps: { dayMicros: 9_000_000 } }), (e) => codeOf(e) === "validation.bad_input");
-  assert.throws(() => capsSet(h.ctx, { scope: "agent", caps: { dayMicros: 1 } }), (e) => codeOf(e) === "validation.bad_input", "an agent cap names its agent");
-  assert.throws(() => capsSet(h.ctx, { scope: "person", scopeId: "usr_sam", caps: { dayMicros: -1 } }), (e) => codeOf(e) === "validation.bad_input");
-  assert.deepEqual(capsSet(h.ctx, { scope: "person", caps: { dayMicros: 2_000_000 } }).caps, { dayMicros: 2_000_000 }, "a person cap without an id is the caller's");
+  assert.throws(
+    () => capsSet(h.ctx, { scope: "agent", scopeId: AGENT, caps: { dayMicros: 9_000_000 } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  assert.throws(
+    () => capsSet(h.ctx, { scope: "agent", caps: { dayMicros: 1 } }),
+    (e) => codeOf(e) === "validation.bad_input",
+    "an agent cap names its agent",
+  );
+  assert.throws(
+    () => capsSet(h.ctx, { scope: "person", scopeId: "usr_sam", caps: { dayMicros: -1 } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  assert.deepEqual(
+    capsSet(h.ctx, { scope: "person", caps: { dayMicros: 2_000_000 } }).caps,
+    { dayMicros: 2_000_000 },
+    "a person cap without an id is the caller's",
+  );
 
   const got = spendGet(h.ctx, { scope: "agent", scopeId: AGENT });
-  assert.deepEqual(got, { caps: { dayMicros: 1_000_000, turnsPerDay: 20 }, todayMicros: 0, monthMicros: 0, turnsToday: 0, paused: false });
+  assert.deepEqual(got, {
+    caps: { dayMicros: 1_000_000, turnsPerDay: 20 },
+    todayMicros: 0,
+    monthMicros: 0,
+    turnsToday: 0,
+    paused: false,
+  });
   assert.deepEqual(contractErrors("engine.spend.get", "out", got), []);
   assert.deepEqual(spendGet(h.ctx, { scope: "person" }).caps, { dayMicros: 2_000_000 });
   assert.deepEqual(assertEventsConform(h), []);
@@ -106,12 +149,27 @@ test("cap reached raises the Needs you card Raise once or Stop, stops the turn, 
   const card = h.calls("tasks.create")[0]?.input as Record<string, unknown>;
   assert.equal(h.calls("tasks.create").length, 1);
   assert.equal(card["kind"], "unblock");
-  assert.equal(card["title"], "An agent hit its daily limit", "an agent nobody can name reads as a plain word, never its id");
+  assert.equal(
+    card["title"],
+    "An agent hit its daily limit",
+    "an agent nobody can name reads as a plain word, never its id",
+  );
   assert.deepEqual(card["assigned"], { kind: "person", id: "usr_dana" }, "the card goes to the person who pays");
-  assert.deepEqual((card["actions"] as Array<{ key: string; label: string }>).map((a) => a.label), ["Raise once", "Stop"]);
+  assert.deepEqual(
+    (card["actions"] as Array<{ key: string; label: string }>).map((a) => a.label),
+    ["Raise once", "Stop"],
+  );
   assert.deepEqual(card["source"], { kind: "chat", id: THREAD });
   const limit = h.named("agent.limit_hit")[0]?.payload;
-  assert.deepEqual(limit, { agentId: AGENT, threadId: THREAD, turnId: t1, limit: "day", used: 1100, cap: 1000, taskId: "tsk_card1" });
+  assert.deepEqual(limit, {
+    agentId: AGENT,
+    threadId: THREAD,
+    turnId: t1,
+    limit: "day",
+    used: 1100,
+    cap: 1000,
+    taskId: "tsk_card1",
+  });
   assert.equal(spendGet(h.ctx, { scope: "agent", scopeId: AGENT }).todayMicros, 1100);
 
   // The turn keeps reporting while it winds down: one card only.
@@ -139,8 +197,15 @@ test("raise for good changes the cap: double by default, or the amount given", (
   assert.equal(spendGet(h.ctx, { scope: "agent", scopeId: AGENT }).caps.dayMicros, 2000);
   raiseLimit(h.ctx, { scope: "agent", scopeId: AGENT, limit: "turns", mode: "permanent", amountMicros: 10 });
   assert.equal(spendGet(h.ctx, { scope: "agent", scopeId: AGENT }).caps.turnsPerDay, 10);
-  assert.throws(() => raiseLimit(h.ctx, { scope: "agent", scopeId: AGENT, limit: "month", mode: "permanent" }), (e) => codeOf(e) === "validation.precondition_failed", "no month cap to raise");
-  assert.throws(() => raiseLimit(h.ctx, { scope: "agent", scopeId: AGENT, limit: "day", mode: "once", amountMicros: 0 }), (e) => codeOf(e) === "validation.bad_input");
+  assert.throws(
+    () => raiseLimit(h.ctx, { scope: "agent", scopeId: AGENT, limit: "month", mode: "permanent" }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+    "no month cap to raise",
+  );
+  assert.throws(
+    () => raiseLimit(h.ctx, { scope: "agent", scopeId: AGENT, limit: "day", mode: "once", amountMicros: 0 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
@@ -221,8 +286,14 @@ test("record_usage refuses a turn this host does not know and bad numbers", asyn
   const h = harness();
   const { engine, hold, next } = await start(h);
   const t1 = await next();
-  await assert.rejects(recordUsage(h.ctx, { turnId: "trn_nothere", tokensIn: 1, tokensOut: 1, costMicros: 1 }), (e) => codeOf(e) === "validation.not_found");
-  await assert.rejects(recordUsage(h.ctx, { turnId: t1, tokensIn: -1, tokensOut: 1, costMicros: 1 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    recordUsage(h.ctx, { turnId: "trn_nothere", tokensIn: 1, tokensOut: 1, costMicros: 1 }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
+  await assert.rejects(
+    recordUsage(h.ctx, { turnId: t1, tokensIn: -1, tokensOut: 1, costMicros: 1 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(await use(h, t1, 7), {}, "no caps set: metering only");
   assert.equal(spendGet(h.ctx, { scope: "space" }).todayMicros, 7);
   hold.release(0);
@@ -232,65 +303,172 @@ test("record_usage refuses a turn this host does not know and bad numbers", asyn
 // ---- usage
 
 /** A ctx whose agents.get names the agents the asker may see (here: these ids, each named by its id); any other agent is someone's private one and is refused, as agents.get does. */
-const seeing = (h: ReturnType<typeof harness>, ids: string[]) => ({ ...h.ctx, async call(cap: string, input: unknown) {
-  const b = input as { agentId?: string };
-  if (cap === "agents.get" && b.agentId && ids.includes(b.agentId)) return { agent: { agentId: b.agentId, name: b.agentId } };
-  throw new Error("not found");
-} });
+const seeing = (h: ReturnType<typeof harness>, ids: string[]) => ({
+  ...h.ctx,
+  async call(cap: string, input: unknown) {
+    const b = input as { agentId?: string };
+    if (cap === "agents.get" && b.agentId && ids.includes(b.agentId))
+      return { agent: { agentId: b.agentId, name: b.agentId } };
+    throw new Error("not found");
+  },
+});
 
 test("usage groups by day, person, agent or model; a person without ai.spend sees only their own", async () => {
   const h = harness();
   ensure(h.db);
   const DAY = 86_400_000;
   const put = (turn: string, agent: string, person: string, model: string, at: number, cost: number): void => {
-    h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", turn, THREAD, agent, person, model, at, 100, 10, cost);
+    h.db.run(
+      "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      turn,
+      THREAD,
+      agent,
+      person,
+      model,
+      at,
+      100,
+      10,
+      cost,
+    );
   };
   put("trn_a", AGENT, "usr_dana", "claude-sonnet-5-5", 1_760_000_000_000, 500);
   put("trn_b", "agt_docs", "usr_dana", "gpt-5", 1_760_000_000_000 + 1000, 300);
   put("trn_c", AGENT, "usr_sam", "claude-sonnet-5-5", 1_760_000_000_000 + DAY, 200);
 
-  const byAgent = (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" }));
-  assert.deepEqual(byAgent.rows.map((r) => [r.key, r.totals.turns, r.totals.costMicros]), [["agt_docs", 1, 300], ["agt_intake", 2, 700]]);
+  const byAgent = await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" });
+  assert.deepEqual(
+    byAgent.rows.map((r) => [r.key, r.totals.turns, r.totals.costMicros]),
+    [
+      ["agt_docs", 1, 300],
+      ["agt_intake", 2, 700],
+    ],
+  );
   assert.deepEqual(byAgent.totals, { turns: 3, tokensIn: 300, tokensOut: 30, costMicros: 1000, cachedIn: 0 });
   assert.deepEqual(contractErrors("engine.usage.query", "out", byAgent), []);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "day" })).rows.map((r) => [r.key, r.totals.costMicros]), [["2025-10-10", 200], ["2025-10-09", 800]]);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "model" })).rows.map((r) => r.key), ["claude-sonnet-5-5", "gpt-5"]);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => [r.key, r.totals.costMicros]), [["usr_sam", 200]]);
-  assert.deepEqual((await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", from: 1_760_000_000_000 + DAY })).totals.costMicros, 200, "from limits the range");
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "day" })).rows.map((r) => [r.key, r.totals.costMicros]),
+    [
+      ["2025-10-10", 200],
+      ["2025-10-09", 800],
+    ],
+  );
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "model" })).rows.map((r) => r.key),
+    ["claude-sonnet-5-5", "gpt-5"],
+  );
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => [r.key, r.totals.costMicros]),
+    [["usr_sam", 200]],
+  );
+  assert.deepEqual(
+    (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", from: 1_760_000_000_000 + DAY })).totals
+      .costMicros,
+    200,
+    "from limits the range",
+  );
 
   h.setManager(false);
-  const mine = (await usageQuery(h.ctx, { by: "person" }));
-  assert.deepEqual(mine.rows.map((r) => [r.key, r.totals.costMicros]), [["usr_dana", 800]], "only my own");
-  assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => r.key), ["usr_dana"], "asking for someone else still gives my own");
+  const mine = await usageQuery(h.ctx, { by: "person" });
+  assert.deepEqual(
+    mine.rows.map((r) => [r.key, r.totals.costMicros]),
+    [["usr_dana", 800]],
+    "only my own",
+  );
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => r.key),
+    ["usr_dana"],
+    "asking for someone else still gives my own",
+  );
 });
 
 test("usage by agent and by person names them, with the agent's face; an agent the asker may not see folds into People's own agents, never named", async () => {
   const h = harness();
-  await usageQuery(h.ctx, { by: "day" });   // makes the tables
-  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n1", THREAD, AGENT, "usr_dana", "m", 1_760_000_000_000, 10, 1, 5);
-  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n2", THREAD, "agt_gone", "usr_sam", "m", 1_760_000_000_000, 10, 1, 5);
-  const ctx = { ...h.ctx, async call(cap: string, input: unknown) {
-    const b = input as { agentId?: string; principal?: { id: string } };
-    if (cap === "agents.get" && b.agentId === AGENT) return { agent: { agentId: AGENT, name: "Intake", face: "scout" } };
-    if (cap === "access.principals.get" && b.principal?.id === "usr_dana") return { principal: { id: "usr_dana", name: "Dana Reyes" } };
-    if (cap === "access.principals.get" && b.principal?.id === "agt_simba") return { principal: { id: "agt_simba", name: "Olivia Reyes (Agent)" } };
-    throw new Error("not found");
-  } };
-  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n3", THREAD, "agt_simba", "usr_olivia", "m", 1_760_000_000_000, 10, 1, 5);
+  await usageQuery(h.ctx, { by: "day" }); // makes the tables
+  h.db.run(
+    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "trn_n1",
+    THREAD,
+    AGENT,
+    "usr_dana",
+    "m",
+    1_760_000_000_000,
+    10,
+    1,
+    5,
+  );
+  h.db.run(
+    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "trn_n2",
+    THREAD,
+    "agt_gone",
+    "usr_sam",
+    "m",
+    1_760_000_000_000,
+    10,
+    1,
+    5,
+  );
+  const ctx = {
+    ...h.ctx,
+    async call(cap: string, input: unknown) {
+      const b = input as { agentId?: string; principal?: { id: string } };
+      if (cap === "agents.get" && b.agentId === AGENT)
+        return { agent: { agentId: AGENT, name: "Intake", face: "scout" } };
+      if (cap === "access.principals.get" && b.principal?.id === "usr_dana")
+        return { principal: { id: "usr_dana", name: "Dana Reyes" } };
+      if (cap === "access.principals.get" && b.principal?.id === "agt_simba")
+        return { principal: { id: "agt_simba", name: "Olivia Reyes (Agent)" } };
+      throw new Error("not found");
+    },
+  };
+  h.db.run(
+    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "trn_n3",
+    THREAD,
+    "agt_simba",
+    "usr_olivia",
+    "m",
+    1_760_000_000_000,
+    10,
+    1,
+    5,
+  );
   const agents = await usageQuery(ctx, { by: "agent" });
   // a private agent the asker may not see is not named, not even through the principal directory: it folds into one line (owner ruling 4 Nov)
-  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null, r.totals.turns]).sort(), [[AGENT, "Intake", "scout", 1], ["personal", "People's own agents", null, 2]].sort());
-  assert.ok(!JSON.stringify(agents).includes("Olivia") && !JSON.stringify(agents).includes("agt_simba") && !JSON.stringify(agents).includes("agt_gone"), "no private agent's name or id");
-  assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]).sort(), [["usr_dana", "Dana Reyes"], ["usr_olivia", "usr_olivia"], ["usr_sam", "usr_sam"]]);
+  assert.deepEqual(
+    agents.rows.map((r) => [r.key, r.title, r.face ?? null, r.totals.turns]).sort(),
+    [
+      [AGENT, "Intake", "scout", 1],
+      ["personal", "People's own agents", null, 2],
+    ].sort(),
+  );
+  assert.ok(
+    !JSON.stringify(agents).includes("Olivia") &&
+      !JSON.stringify(agents).includes("agt_simba") &&
+      !JSON.stringify(agents).includes("agt_gone"),
+    "no private agent's name or id",
+  );
+  assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]).sort(), [
+    ["usr_dana", "Dana Reyes"],
+    ["usr_olivia", "usr_olivia"],
+    ["usr_sam", "usr_sam"],
+  ]);
   assert.deepEqual(contractErrors("engine.usage.query", "out", agents), []);
 });
 
 test("the handler table covers the spend capabilities", () => {
-  for (const name of ["engine.spend.get", "engine.spend.caps.set", "engine.spend.pause_all", "engine.spend.resume_all", "engine.spend.raise", "engine.usage.query", "engine.turn.record_usage"]) {
+  for (const name of [
+    "engine.spend.get",
+    "engine.spend.caps.set",
+    "engine.spend.pause_all",
+    "engine.spend.resume_all",
+    "engine.spend.raise",
+    "engine.usage.query",
+    "engine.turn.record_usage",
+  ]) {
     assert.equal(typeof handlers[name], "function", name);
   }
 });
-
 
 // ---- usage by Vault item (P-CC_36) ----
 
@@ -298,29 +476,83 @@ test("record_usage keeps the Vault item a turn ran on, usage.query filters by it
   const h = harness();
   const { engine, hold, next } = await start(h);
   const t1 = await next();
-  assert.deepEqual(await recordUsage(h.ctx, { turnId: t1, tokensIn: 10, tokensOut: 5, costMicros: 3, itemId: "vit_aaaaaaaaaaaa" }), {});
-  assert.deepEqual(h.db.all("SELECT turn_id, item_id FROM engine_usage_item"), [{ turn_id: t1, item_id: "vit_aaaaaaaaaaaa" }]);
+  assert.deepEqual(
+    await recordUsage(h.ctx, { turnId: t1, tokensIn: 10, tokensOut: 5, costMicros: 3, itemId: "vit_aaaaaaaaaaaa" }),
+    {},
+  );
+  assert.deepEqual(h.db.all("SELECT turn_id, item_id FROM engine_usage_item"), [
+    { turn_id: t1, item_id: "vit_aaaaaaaaaaaa" },
+  ]);
   await recordUsage(h.ctx, { turnId: t1, tokensIn: 1, tokensOut: 1, costMicros: 1, itemId: "vit_bbbbbbbbbbbb" });
-  assert.deepEqual(h.db.all("SELECT item_id FROM engine_usage_item"), [{ item_id: "vit_aaaaaaaaaaaa" }], "the first key seen for a turn stays");
-  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_other", THREAD, "agt_docs", "usr_sam", "gpt-5", 1_760_000_000_000, 7, 7, 1);
+  assert.deepEqual(
+    h.db.all("SELECT item_id FROM engine_usage_item"),
+    [{ item_id: "vit_aaaaaaaaaaaa" }],
+    "the first key seen for a turn stays",
+  );
+  h.db.run(
+    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "trn_other",
+    THREAD,
+    "agt_docs",
+    "usr_sam",
+    "gpt-5",
+    1_760_000_000_000,
+    7,
+    7,
+    1,
+  );
   // Worked out from the inputs, not read off a run: record_usage adds each call to the turn's row (ON CONFLICT ... tokens_in + excluded.tokens_in), so t1 holds (10 + 1) in and (5 + 1) out,
   // 11 + 6 = 17 tokens. trn_other is a different turn on a different key and is not counted.
-  const onKey = (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", itemId: "vit_aaaaaaaaaaaa" }));
-  assert.deepEqual(onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]), [[AGENT, 1, 17]], "only the turns on that key");
+  const onKey = await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", itemId: "vit_aaaaaaaaaaaa" });
+  assert.deepEqual(
+    onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]),
+    [[AGENT, 1, 17]],
+    "only the turns on that key",
+  );
   assert.equal((await usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" })).totals.turns, 0);
-  assert.equal((await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" })).totals.turns, 2, "without the filter every turn counts");
+  assert.equal(
+    (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" })).totals.turns,
+    2,
+    "without the filter every turn counts",
+  );
   h.setManager(false);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" })).rows.map((r) => r.key).every((k) => k === h.ctx.principal.id), true, "a person sees only their own turns on the key");
+  assert.deepEqual(
+    (await usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" })).rows
+      .map((r) => r.key)
+      .every((k) => k === h.ctx.principal.id),
+    true,
+    "a person sees only their own turns on the key",
+  );
   hold.release(0);
   await engine.idle(THREAD);
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 
-test('spend reads cannot expose another person or Space totals without spend-management authority',()=>{
- const h=harness();ensure(h.db);h.db.run('INSERT INTO engine_usage (turn_id,thread_id,agent_id,person_id,model,at,tokens_in,tokens_out,cost_micros) VALUES (?,?,?,?,?,?,?,?,?)','trn_privatespend',THREAD,AGENT,'usr_sam','fixture-model',h.ctx.now(),10,5,7310000);h.setManager(false);
-  assert.throws(()=>spendGet(h.ctx,{scope:'person',scopeId:'usr_sam'}),error=>codeOf(error)==='permission.no_grant');
-  assert.throws(()=>spendGet(h.ctx,{scope:'space'}),error=>codeOf(error)==='permission.no_grant');
-  assert.equal(spendGet(h.ctx,{scope:'person'}).monthMicros,0);
+test("spend reads cannot expose another person or Space totals without spend-management authority", () => {
+  const h = harness();
+  ensure(h.db);
+  h.db.run(
+    "INSERT INTO engine_usage (turn_id,thread_id,agent_id,person_id,model,at,tokens_in,tokens_out,cost_micros) VALUES (?,?,?,?,?,?,?,?,?)",
+    "trn_privatespend",
+    THREAD,
+    AGENT,
+    "usr_sam",
+    "fixture-model",
+    h.ctx.now(),
+    10,
+    5,
+    7310000,
+  );
+  h.setManager(false);
+  assert.throws(
+    () => spendGet(h.ctx, { scope: "person", scopeId: "usr_sam" }),
+    (error) => codeOf(error) === "permission.no_grant",
+  );
+  assert.throws(
+    () => spendGet(h.ctx, { scope: "space" }),
+    (error) => codeOf(error) === "permission.no_grant",
+  );
+  assert.equal(spendGet(h.ctx, { scope: "person" }).monthMicros, 0);
 });
 
 test("Settings > AI usage is this person's own turns this month: an admin who manages AI spend asking with their own id and the start of the month gets only their rows", async () => {
@@ -329,20 +561,41 @@ test("Settings > AI usage is this person's own turns this month: an admin who ma
   const DAY = 86_400_000;
   const monthStart = 1_760_000_000_000;
   const put = (turn: string, person: string, model: string, at: number, cost: number): void => {
-    h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", turn, THREAD, AGENT, person, model, at, 100, 10, cost);
+    h.db.run(
+      "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      turn,
+      THREAD,
+      AGENT,
+      person,
+      model,
+      at,
+      100,
+      10,
+      cost,
+    );
   };
-  put("trn_old", "usr_dana", "claude-sonnet-5-5", monthStart - 3 * DAY, 900);   // last month
+  put("trn_old", "usr_dana", "claude-sonnet-5-5", monthStart - 3 * DAY, 900); // last month
   put("trn_mine", "usr_dana", "claude-sonnet-5-5", monthStart + DAY, 500);
-  put("trn_sam", "usr_sam", "gpt-5", monthStart + DAY, 300);                    // another member
+  put("trn_sam", "usr_sam", "gpt-5", monthStart + DAY, 300); // another member
   const everything = await usageQuery(h.ctx, { by: "model" });
-  assert.equal(everything.totals.costMicros, 1700, "without the scope, a manager is handed the whole Space for all time: this was the bug");
+  assert.equal(
+    everything.totals.costMicros,
+    1700,
+    "without the scope, a manager is handed the whole Space for all time: this was the bug",
+  );
   const mine = await usageQuery(h.ctx, { by: "model", personId: "usr_dana", from: monthStart });
-  assert.deepEqual(mine.rows.map((r) => [r.key, r.totals.costMicros]), [["claude-sonnet-5-5", 500]], "only the admin's own rows, this month");
+  assert.deepEqual(
+    mine.rows.map((r) => [r.key, r.totals.costMicros]),
+    [["claude-sonnet-5-5", 500]],
+    "only the admin's own rows, this month",
+  );
   assert.equal(mine.totals.costMicros, 500);
 });
 
 test("the Settings usage screen forwards the person and the start of the month to engine.usage.query", () => {
-  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { screens: { id: string; queries: Record<string, { cap: string; input: Record<string, string> }> }[] };
+  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+    screens: { id: string; queries: Record<string, { cap: string; input: Record<string, string> }> }[];
+  };
   const q = reg.screens.find((s) => s.id === "settings.models-usage")!.queries["usage"]!;
   assert.equal(q.cap, "engine.usage.query");
   assert.deepEqual(Object.keys(q.input).sort(), ["by", "from", "personId", "to"]);

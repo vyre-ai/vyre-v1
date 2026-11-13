@@ -18,7 +18,16 @@ test("the index exports the walled starters and neither unwalled one", () => {
   assert.equal(typeof sandbox.startWalledDockerSandbox, "function");
   assert.equal(typeof sandbox.startWalledBwrapSandbox, "function");
   // The pieces the walled starters and their callers need are still there.
-  for (const n of ["containerConfig", "createDockerApi", "createEgressProxy", "seatbeltCommand", "validateSpec", "chooseSandbox", "confinementProbe"]) assert.ok(names.includes(n), n);
+  for (const n of [
+    "containerConfig",
+    "createDockerApi",
+    "createEgressProxy",
+    "seatbeltCommand",
+    "validateSpec",
+    "chooseSandbox",
+    "confinementProbe",
+  ])
+    assert.ok(names.includes(n), n);
 });
 
 function sources(dir: string, out: string[] = []): string[] {
@@ -33,13 +42,20 @@ function sources(dir: string, out: string[] = []): string[] {
 
 test("no source outside the sandbox package takes an unwalled starter from the package index", () => {
   const bad: string[] = [];
-  for (const file of [...sources(path.join(root, "modules")), ...sources(path.join(root, "agent")), ...sources(path.join(root, "host")), ...sources(path.join(root, "apps")), ...sources(path.join(root, "kernel"))]) {
+  for (const file of [
+    ...sources(path.join(root, "modules")),
+    ...sources(path.join(root, "agent")),
+    ...sources(path.join(root, "host")),
+    ...sources(path.join(root, "apps")),
+    ...sources(path.join(root, "kernel")),
+  ]) {
     if (file.endsWith("tools.sandbox.test.ts")) continue;
     const text = fs.readFileSync(file, "utf8");
     const rel = path.relative(root, file);
     // Naming the unwalled starter in an import from the package index.
     for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*["'][^"']*sandbox\/src\/index\.ts["']/g)) {
-      if (/\b(startDockerSandbox|bwrapCommand)\b/.test(m[1] ?? "")) bad.push(`${rel}: imports an unwalled starter from the index`);
+      if (/\b(startDockerSandbox|bwrapCommand)\b/.test(m[1] ?? ""))
+        bad.push(`${rel}: imports an unwalled starter from the index`);
     }
   }
   assert.deepEqual(bad, []);

@@ -13,7 +13,10 @@ import { SandboxError } from "../types.ts";
 export const LOWRUN_SOURCE = fileURLToPath(new URL("./lowrun.cs", import.meta.url).href);
 
 /** The compiler that ships with Windows (.NET Framework 4), 64-bit first. */
-export function cscPath(env: Readonly<Record<string, string | undefined>> = process.env, exists: (p: string) => boolean = fs.existsSync): string | null {
+export function cscPath(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  exists: (p: string) => boolean = fs.existsSync,
+): string | null {
   const win = env["WINDIR"] ?? env["SystemRoot"] ?? "C:\\Windows";
   for (const fw of ["Framework64", "Framework"]) {
     const p = path.win32.join(win, "Microsoft.NET", fw, "v4.0.30319", "csc.exe");
@@ -25,11 +28,17 @@ export function cscPath(env: Readonly<Record<string, string | undefined>> = proc
 /** Can this computer run engines at Low integrity? It can when the helper is built, or the compiler to build it is there. */
 export function lowrunPossible(binDir: string, exists: (p: string) => boolean = fs.existsSync): boolean {
   if (cscPath(process.env, exists) !== null) return true;
-  try { return fs.readdirSync(binDir).some((n) => /^vyre-lowrun-[0-9a-f]{12}\.exe$/.test(n)); } catch { return false; }
+  try {
+    return fs.readdirSync(binDir).some((n) => /^vyre-lowrun-[0-9a-f]{12}\.exe$/.test(n));
+  } catch {
+    return false;
+  }
 }
 
 async function sourceHash(src: string): Promise<string> {
-  return Buffer.from(await globalThis.crypto.subtle.digest("SHA-256", fs.readFileSync(src))).toString("hex").slice(0, 12);
+  return Buffer.from(await globalThis.crypto.subtle.digest("SHA-256", fs.readFileSync(src)))
+    .toString("hex")
+    .slice(0, 12);
 }
 
 /**
@@ -52,32 +61,56 @@ async function buildLowrun(binDir: string, o: { source?: string; csc?: string | 
   const exe = path.join(binDir, `vyre-lowrun-${await sourceHash(src)}.exe`);
   if (fs.existsSync(exe)) return exe;
   const csc = o.csc === undefined ? cscPath() : o.csc;
-  if (csc === null) throw new SandboxError("sandbox.unavailable", "this Windows has no .NET Framework compiler to set up the engine's sandbox");
+  if (csc === null)
+    throw new SandboxError(
+      "sandbox.unavailable",
+      "this Windows has no .NET Framework compiler to set up the engine's sandbox",
+    );
   fs.mkdirSync(binDir, { recursive: true });
   const part = `${exe}.${process.pid}-${Date.now().toString(36)}.part`;
   const r = await new Promise<{ code: number | null; out: string }>((resolve) => {
-    const p = spawn(csc, ["/nologo", "/optimize+", "/platform:anycpu", "/target:exe", `/out:${part}`, src], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn(csc, ["/nologo", "/optimize+", "/platform:anycpu", "/target:exe", `/out:${part}`, src], {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let out = "";
-    p.stdout.setEncoding("utf8").on("data", (d: string) => { out += d; });
-    p.stderr.setEncoding("utf8").on("data", (d: string) => { out += d; });
+    p.stdout.setEncoding("utf8").on("data", (d: string) => {
+      out += d;
+    });
+    p.stderr.setEncoding("utf8").on("data", (d: string) => {
+      out += d;
+    });
     p.once("error", (e) => resolve({ code: null, out: e.message }));
     p.once("close", (code) => resolve({ code, out }));
   });
   if (r.code !== 0 || !fs.existsSync(part)) {
     fs.rmSync(part, { force: true });
-    if (fs.existsSync(exe)) return exe;   // another process finished the same build
-    throw new SandboxError("sandbox.unavailable", `the engine's sandbox could not be built: ${r.out.trim().split(/\r?\n/).slice(-2).join(" ")}`);
+    if (fs.existsSync(exe)) return exe; // another process finished the same build
+    throw new SandboxError(
+      "sandbox.unavailable",
+      `the engine's sandbox could not be built: ${r.out.trim().split(/\r?\n/).slice(-2).join(" ")}`,
+    );
   }
-  try { fs.renameSync(part, exe); }
-  catch (e) { fs.rmSync(part, { force: true }); if (!fs.existsSync(exe)) throw e; }   // the other process's copy is the same build
+  try {
+    fs.renameSync(part, exe);
+  } catch (e) {
+    fs.rmSync(part, { force: true });
+    if (!fs.existsSync(exe)) throw e;
+  } // the other process's copy is the same build
   return exe;
 }
 
 const labelled = new Set<string>();
-type Runner = (cmd: string, args: readonly string[], o: { encoding: "utf8"; windowsHide: boolean; timeout: number }) => { status: number | null; stdout?: string | Buffer | null; stderr?: string | Buffer | null };
+type Runner = (
+  cmd: string,
+  args: readonly string[],
+  o: { encoding: "utf8"; windowsHide: boolean; timeout: number },
+) => { status: number | null; stdout?: string | Buffer | null; stderr?: string | Buffer | null };
 let runner: Runner = (cmd, args, o) => spawnSync(cmd, [...args], o);
 /** Tests: what runs icacls and the helper's --label. */
-export function setLabelRunner(r: Runner | null): void { runner = r ?? ((cmd, args, o) => spawnSync(cmd, [...args], o)); }
+export function setLabelRunner(r: Runner | null): void {
+  runner = r ?? ((cmd, args, o) => spawnSync(cmd, [...args], o));
+}
 
 /**
  * Labels a folder Low, with inheritance, so a Low process may write in it and in everything under it. Once per folder per process: true when it labelled it now. `icacls /setintegritylevel` needs no admin on a folder the
@@ -87,22 +120,53 @@ export function labelLow(dir: string): boolean {
   const key = dir.toLowerCase();
   if (labelled.has(key)) return false;
   fs.mkdirSync(dir, { recursive: true });
-  const r = runner("icacls.exe", [dir, "/setintegritylevel", "(OI)(CI)low", "/T", "/C", "/Q"], { encoding: "utf8", windowsHide: true, timeout: 120_000 });
-  if (r.status !== 0) throw new SandboxError("sandbox.policy", `Windows did not let Vyre mark ${dir} for the engine: ${String(r.stdout ?? "").trim().split(/\r?\n/).slice(-1)[0] ?? ""}`);
+  const r = runner("icacls.exe", [dir, "/setintegritylevel", "(OI)(CI)low", "/T", "/C", "/Q"], {
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: 120_000,
+  });
+  if (r.status !== 0)
+    throw new SandboxError(
+      "sandbox.policy",
+      `Windows did not let Vyre mark ${dir} for the engine: ${
+        String(r.stdout ?? "")
+          .trim()
+          .split(/\r?\n/)
+          .slice(-1)[0] ?? ""
+      }`,
+    );
   labelled.add(key);
   return true;
 }
 /** Forget which folders were labelled (tests). */
-export function forgetLabels(): void { labelled.clear(); }
+export function forgetLabels(): void {
+  labelled.clear();
+}
 
 /**
  * The argv that starts `argv` at Low integrity with `env` added. `agentRelay`: the helper serves `pipe` (labelled Low, this user only) for the life of the job, passes each connection on to the
  * SSH agent's `target` pipe, and points SSH_AUTH_SOCK at it.
  */
-export function lowrunArgv(helper: string, argv: readonly string[], env: Readonly<Record<string, string>>, o: { agentRelay?: { pipe: string; target: string } } = {}): string[] {
-  const pairs = Object.entries(env).map(([k, v]) => `${k}=${v}`).join("\0");
-  const relay = o.agentRelay && PIPE_NAME.test(o.agentRelay.pipe) && PIPE_NAME.test(o.agentRelay.target) ? ["--agent-relay", o.agentRelay.pipe, o.agentRelay.target] : [];
-  return [helper, ...(pairs !== "" ? ["--env", Buffer.from(pairs, "utf8").toString("base64")] : []), ...relay, "--", ...argv];
+export function lowrunArgv(
+  helper: string,
+  argv: readonly string[],
+  env: Readonly<Record<string, string>>,
+  o: { agentRelay?: { pipe: string; target: string } } = {},
+): string[] {
+  const pairs = Object.entries(env)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\0");
+  const relay =
+    o.agentRelay && PIPE_NAME.test(o.agentRelay.pipe) && PIPE_NAME.test(o.agentRelay.target)
+      ? ["--agent-relay", o.agentRelay.pipe, o.agentRelay.target]
+      : [];
+  return [
+    helper,
+    ...(pairs !== "" ? ["--env", Buffer.from(pairs, "utf8").toString("base64")] : []),
+    ...relay,
+    "--",
+    ...argv,
+  ];
 }
 
 /** A pipe's own name (what follows \\.\pipe\): letters, digits, dot, dash, underscore. */
@@ -119,7 +183,10 @@ export function pipeName(sock: string | undefined): string | null {
  * Made once per helper version.
  */
 export function ensureSshShim(helper: string, dir: string): string {
-  const version = path.basename(helper).replace(/^vyre-lowrun-/, "").replace(/\.exe$/i, "");
+  const version = path
+    .basename(helper)
+    .replace(/^vyre-lowrun-/, "")
+    .replace(/\.exe$/i, "");
   const shim = path.join(dir, `vyre-ssh-${version}.exe`);
   if (fs.existsSync(shim)) return shim;
   fs.mkdirSync(dir, { recursive: true });
@@ -138,15 +205,28 @@ export function ensureSshShim(helper: string, dir: string): string {
  *   readFile one file readable, not writable, inside a private folder: ~/.ssh's known_hosts and config, which git's ssh reads, beside the private keys it may not.
  * Each is set protected and reset over what is already there. The folders an engine may change are labelled Low afterwards (labelLow).
  */
-export const LABELS = { private: "S:(ML;OIIO;NRNW;;;ME)", read: "S:(ML;OICI;NW;;;ME)", file: "S:(ML;;NRNW;;;ME)", readFile: "S:(ML;;NW;;;ME)" } as const;
+export const LABELS = {
+  private: "S:(ML;OIIO;NRNW;;;ME)",
+  read: "S:(ML;OICI;NW;;;ME)",
+  file: "S:(ML;;NRNW;;;ME)",
+  readFile: "S:(ML;;NW;;;ME)",
+} as const;
 
 /**
  * The person's key stores on this computer (engine-access.ts homeDenies: Credential Manager, DPAPI's master keys, the browsers' profiles, Firefox, 1Password, ~/.ssh and the CLIs' sign-ins):
  * folders labelled private, single files labelled file, and the files inside them an engine's tools must still read (~/.ssh's known_hosts and config) labelled readFile.
  */
-export interface KeyStores { dirs: readonly string[]; files: readonly string[]; readable: readonly string[] }
+export interface KeyStores {
+  dirs: readonly string[];
+  files: readonly string[];
+  readable: readonly string[];
+}
 
-const within = (p: string, d: string): boolean => { const a = p.toLowerCase().replace(/\\+$/, ""); const b = d.toLowerCase().replace(/\\+$/, ""); return a === b || a.startsWith(`${b}\\`); };
+const within = (p: string, d: string): boolean => {
+  const a = p.toLowerCase().replace(/\\+$/, "");
+  const b = d.toLowerCase().replace(/\\+$/, "");
+  return a === b || a.startsWith(`${b}\\`);
+};
 
 /**
  * Labels the key stores so an engine at Low integrity cannot read them, as Vyre's own files are kept (protectVyreData): all of them, or (after labelLow over `near`) those inside or around
@@ -163,5 +243,14 @@ export function labelKeyStores(helper: string, ks: KeyStores, near?: readonly st
 export function setLabel(helper: string, dir: string, label: keyof typeof LABELS, run: Runner = runner): void {
   if (label === "private" || label === "read") fs.mkdirSync(dir, { recursive: true });
   const r = run(helper, ["--label", dir, LABELS[label]], { encoding: "utf8", windowsHide: true, timeout: 300_000 });
-  if (r.status !== 0) throw new SandboxError("sandbox.policy", `Windows did not let Vyre protect ${dir}: ${String(r.stderr ?? "").trim().split(/\r?\n/).slice(-1)[0] ?? ""}`);
+  if (r.status !== 0)
+    throw new SandboxError(
+      "sandbox.policy",
+      `Windows did not let Vyre protect ${dir}: ${
+        String(r.stderr ?? "")
+          .trim()
+          .split(/\r?\n/)
+          .slice(-1)[0] ?? ""
+      }`,
+    );
 }

@@ -3,28 +3,67 @@
 // and this capability turns the waiting owner principal into a signed-in person. The code is stored hashed, works once and lasts 24 hours.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
-  MIN_SECRET, RESET_TTL_MS, USERNAME, accountById, accountByName, burnVerify, issueSession, mustAccount, provisionAccount, putCode, raise, randomBytes, setKeys, sha, spendCode, validBundle,
+  MIN_SECRET,
+  RESET_TTL_MS,
+  USERNAME,
+  accountById,
+  accountByName,
+  burnVerify,
+  issueSession,
+  mustAccount,
+  provisionAccount,
+  putCode,
+  raise,
+  randomBytes,
+  setKeys,
+  sha,
+  spendCode,
+  validBundle,
 } from "../projections.ts";
 
 /** Anonymous caller. Everything that can be refused is checked before the code is spent, so a mistyped username leaves the link usable. */
 export async function claimOwner(
-  ctx: IdentityCtx, input: Device & { code: string; spaceId: string; username: string; displayName?: string; password: string; keys: KeyBundle },
+  ctx: IdentityCtx,
+  input: Device & {
+    code: string;
+    spaceId: string;
+    username: string;
+    displayName?: string;
+    password: string;
+    keys: KeyBundle;
+  },
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   const code = input.code.trim();
-  const row = ctx.db.all(`SELECT person_id, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, sha(`claim:${code}`))[0] as { person_id: string; expires_at: number; used_at: number | null } | undefined;
-  if (!row || row.used_at !== null) { await burnVerify(input.password); raise(tid, "auth.invalid_code"); }
+  const row = ctx.db.all(
+    `SELECT person_id, expires_at, used_at FROM identity_codes WHERE code_hash = ?`,
+    sha(`claim:${code}`),
+  )[0] as { person_id: string; expires_at: number; used_at: number | null } | undefined;
+  if (!row || row.used_at !== null) {
+    await burnVerify(input.password);
+    raise(tid, "auth.invalid_code");
+  }
   if (row.expires_at <= ctx.now()) raise(tid, "auth.expired");
   if (input.spaceId !== ctx.space) raise(tid, "validation.bad_input", "that link is for a different Space");
   const username = input.username.trim().toLowerCase();
-  if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+  if (!USERNAME.test(username))
+    raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
   if (accountByName(ctx, username)) raise(tid, "validation.duplicate", "that username is taken");
   if (input.password.length < MIN_SECRET) raise(tid, "validation.bad_input", "password is too short");
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   if (accountById(ctx, row.person_id)) raise(tid, "auth.invalid_code");
   const personId = spendCode(ctx, "claim", code).personId;
-  await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
-  ctx.emit("principal.created",personId,{principalId:personId,kind:"person",name:input.displayName?.trim()||username});
+  await provisionAccount(ctx, {
+    personId,
+    username,
+    name: input.displayName?.trim() || username,
+    secret: input.password,
+  });
+  ctx.emit("principal.created", personId, {
+    principalId: personId,
+    kind: "person",
+    name: input.displayName?.trim() || username,
+  });
   setKeys(ctx, personId, input.keys, "first_device");
   return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
 }

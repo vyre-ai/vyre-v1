@@ -21,9 +21,23 @@ export default function Mount() {
   const { width } = useWindowDimensions();
   const phone = width < 640;
   return (
-    <View style={{ flex: 1, justifyContent: "flex-end", paddingHorizontal: phone ? 12 : 28, paddingBottom: phone ? 12 : 18 }}>
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "flex-end",
+        paddingHorizontal: phone ? 12 : 28,
+        paddingBottom: phone ? 12 : 18,
+      }}
+    >
       <View style={{ width: "100%", maxWidth: 720, alignSelf: "center" }}>
-        <Composer whoWillAnswer="Aliza, Rubab and Sol will reply" lead="Aliza" label="Message" density={phone ? "compact" : "regular"} value={DRAFT} lists={{ agents: ["Aliza", "Rubab", "Sol"], people: [] }} />
+        <Composer
+          whoWillAnswer="Aliza, Rubab and Sol will reply"
+          lead="Aliza"
+          label="Message"
+          density={phone ? "compact" : "regular"}
+          value={DRAFT}
+          lists={{ agents: ["Aliza", "Rubab", "Sol"], people: [] }}
+        />
       </View>
     </View>
   );

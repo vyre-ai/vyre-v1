@@ -2,7 +2,11 @@
 // A version is MAJOR.MINOR.PATCH with an optional leading v and an optional pre-release tag (1.4.0-rc.1). The patch and the tag never matter for support.
 export const SUPPORTED_MINORS = 2;
 
-export interface Version { major: number; minor: number; patch: number }
+export interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+}
 
 export function parseVersion(text: string): Version | null {
   const m = /^v?(\d{1,6})\.(\d{1,6})\.(\d{1,6})(?:[-+][0-9A-Za-z.+-]*)?$/.exec(text.trim());
@@ -20,7 +24,8 @@ export function parseVersion(text: string): Version | null {
 export type Support = "current" | "supported" | "too_old" | "newer" | "unknown";
 
 export function supportOf(appVersion: string, serverVersion: string, window = SUPPORTED_MINORS): Support {
-  const app = parseVersion(appVersion), srv = parseVersion(serverVersion);
+  const app = parseVersion(appVersion),
+    srv = parseVersion(serverVersion);
   if (!app || !srv) return "unknown";
   if (app.major < srv.major) return "too_old";
   if (app.major > srv.major) return "newer";
@@ -32,7 +37,8 @@ export function supportOf(appVersion: string, serverVersion: string, window = SU
 
 /** How many minor versions the app is behind the server (0 when level or ahead, Infinity for an older major). For the update banner. */
 export function minorsBehind(appVersion: string, serverVersion: string): number {
-  const app = parseVersion(appVersion), srv = parseVersion(serverVersion);
+  const app = parseVersion(appVersion),
+    srv = parseVersion(serverVersion);
   if (!app || !srv) return 0;
   if (app.major < srv.major) return Number.POSITIVE_INFINITY;
   return Math.max(0, srv.minor - app.minor);

@@ -2,7 +2,15 @@
 // The Claude Code side is a session file read through importClaudeSession; the API side is a fake driver behind the turn engine that answers from what its first message holds.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTranscript, createTurnBuilder, importClaudeSession, personTurn, switchEngine, withoutSeed, SEED_OPEN } from "../src/transcript/index.ts";
+import {
+  createTranscript,
+  createTurnBuilder,
+  importClaudeSession,
+  personTurn,
+  switchEngine,
+  withoutSeed,
+  SEED_OPEN,
+} from "../src/transcript/index.ts";
 import type { EngineRef, Transcript } from "../src/transcript/index.ts";
 import { FAKE_KEY, northwindSession } from "../src/transcript/fixtures/claude-session.ts";
 import { blockErrors, eventErrors } from "../src/transcript/fixtures/contract.ts";
@@ -30,13 +38,23 @@ test("switch Claude Code to an API driver mid-thread keeps context; the model_sw
   const tr = loaded();
   assert.equal(tr.count(T), 4, "two requests and two answers came out of the session file");
 
-  const res = await switchEngine({ transcript: tr, now: () => NOW }, { threadId: T, agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" });
+  const res = await switchEngine(
+    { transcript: tr, now: () => NOW },
+    { threadId: T, agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" },
+  );
 
   // The quiet line, the event and the block.
   assert.equal(res.quietLine, "Switched to Anthropic, picked up from the last 4 turns");
   assert.equal(res.handoffTurns, 4);
   assert.equal(res.returning, false);
-  assert.deepEqual(res.event, { threadId: T, agentId: "agt_intake", from: "claude_code", to: "anthropic", handoffTurns: 4, by: "usr_alex" });
+  assert.deepEqual(res.event, {
+    threadId: T,
+    agentId: "agt_intake",
+    from: "claude_code",
+    to: "anthropic",
+    handoffTurns: 4,
+    by: "usr_alex",
+  });
   assert.deepEqual(eventErrors("turn.engine_switched", res.event), []);
   assert.equal(res.block.type, "model_switch");
   assert.equal(res.block.v, 1);
@@ -46,7 +64,10 @@ test("switch Claude Code to an API driver mid-thread keeps context; the model_sw
   assert.deepEqual(res.block.data.from, { provider: "anthropic", model: "claude-sonnet-4-5" });
   assert.deepEqual(res.block.data.to, { provider: "anthropic", model: "claude-sonnet-5-5", effort: "high" });
   assert.equal(res.block.data.scope, "thread");
-  assert.deepEqual(tr.switches(T).map((r) => [r.from.driver, r.to.driver, r.atTurn, r.handoffTurns]), [["claude_code", "anthropic", 4, 4]]);
+  assert.deepEqual(
+    tr.switches(T).map((r) => [r.from.driver, r.to.driver, r.atTurn, r.handoffTurns]),
+    [["claude_code", "anthropic", 4, 4]],
+  );
 
   // What the new engine is handed.
   const seed = res.seed.text;
@@ -62,14 +83,27 @@ test("switch Claude Code to an API driver mid-thread keeps context; the model_sw
   assert.match(seed, /\[Stripe key redacted …ke12\]/);
   assert.ok(!seed.includes("Read the component first"), "thinking is the old engine's own");
   assert.ok(!seed.includes("subagent chatter"), "a subagent's lines are not the conversation");
-  assert.equal(withoutSeed(`${seed}\n\nAnd the follow up?`), "And the follow up?", "the person's words are found after the seed");
+  assert.equal(
+    withoutSeed(`${seed}\n\nAnd the follow up?`),
+    "And the follow up?",
+    "the person's words are found after the seed",
+  );
 
   // The new engine, behind the turn engine, answers a question only the old engine's work can answer.
   const driver = scriptedProvider({
-    script: (input) => [{ type: "text", text: model([{ role: "user", content: `${seed}\n\n${input.trigger?.body ?? ""}` }]) }, { type: "usage", inputTokens: 900, outputTokens: 8 }, { type: "done" }],
+    script: (input) => [
+      { type: "text", text: model([{ role: "user", content: `${seed}\n\n${input.trigger?.body ?? ""}` }]) },
+      { type: "usage", inputTokens: 900, outputTokens: 8 },
+      { type: "done" },
+    ],
   });
   const engine = createTurnEngine({ holder: "host:s", openSession: driver.openSession });
-  engine.openThread({ id: T, kind: "chat", starter: "usr_alex", agents: [{ id: "agt_intake", mode: "lead", model: API.model }] });
+  engine.openThread({
+    id: T,
+    kind: "chat",
+    starter: "usr_alex",
+    agents: [{ id: "agt_intake", mode: "lead", model: API.model }],
+  });
   engine.receive({ threadId: T, author: { kind: "person", id: "usr_alex" }, body: "Which commit fixed it?" });
   await engine.idle(T);
   const answer = engine.messages(T).find((m) => m.author.kind === "agent");
@@ -79,23 +113,46 @@ test("switch Claude Code to an API driver mid-thread keeps context; the model_sw
 
   // The API driver writes its own turn into the same transcript, in the same shape.
   tr.append(personTurn({ threadId: T, authorId: "usr_alex", text: "Which commit fixed it?", at: NOW + 1000 }));
-  const b = createTurnBuilder({ threadId: T, authorId: "agt_intake", engine: API.driver, model: API.model, now: () => NOW + 2000 });
+  const b = createTurnBuilder({
+    threadId: T,
+    authorId: "agt_intake",
+    engine: API.driver,
+    model: API.model,
+    now: () => NOW + 2000,
+  });
   b.push({ type: "text", text: "The fix is commit a1b2c3d." });
   b.push({ type: "usage", inputTokens: 900, outputTokens: 8 });
   const written = tr.append(b.build());
-  assert.deepEqual([written.n, written.engine, written.model, written.tokens], [6, "anthropic", "claude-sonnet-5-5", { in: 900, out: 8 }]);
+  assert.deepEqual(
+    [written.n, written.engine, written.model, written.tokens],
+    [6, "anthropic", "claude-sonnet-5-5", { in: 900, out: 8 }],
+  );
   assert.deepEqual(written.links, [{ kind: "commit", ref: "a1b2c3d" }], "the commit it names is a link");
 });
 
 test("switching back hands the first engine what was said while it was away", async () => {
   const tr = loaded();
-  await switchEngine({ transcript: tr, now: () => NOW }, { threadId: T, agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" });
-  tr.append(personTurn({ threadId: T, authorId: "usr_alex", text: "Add a unit test for an empty cart.", at: NOW + 10 }));
-  const b = createTurnBuilder({ threadId: T, authorId: "agt_intake", engine: "anthropic", model: API.model, now: () => NOW + 20 });
+  await switchEngine(
+    { transcript: tr, now: () => NOW },
+    { threadId: T, agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" },
+  );
+  tr.append(
+    personTurn({ threadId: T, authorId: "usr_alex", text: "Add a unit test for an empty cart.", at: NOW + 10 }),
+  );
+  const b = createTurnBuilder({
+    threadId: T,
+    authorId: "agt_intake",
+    engine: "anthropic",
+    model: API.model,
+    now: () => NOW + 20,
+  });
   b.push({ type: "text", text: "Added OrderForm.empty.test.js; it passes." });
   tr.append(b.build());
 
-  const back = await switchEngine({ transcript: tr, now: () => NOW + 30 }, { threadId: T, agentId: "agt_intake", from: API, to: CLAUDE_CODE, by: "usr_alex" });
+  const back = await switchEngine(
+    { transcript: tr, now: () => NOW + 30 },
+    { threadId: T, agentId: "agt_intake", from: API, to: CLAUDE_CODE, by: "usr_alex" },
+  );
   assert.equal(back.returning, true);
   assert.equal(back.handoffTurns, 2, "only what was said since it left");
   assert.equal(back.quietLine, "Switched back to Claude Code, caught up on 2 turns since it left");
@@ -104,20 +161,35 @@ test("switching back hands the first engine what was said while it was away", as
   assert.match(back.seed.text, /OrderForm\.empty\.test\.js/);
   assert.ok(!back.seed.text.includes("Fix the order form"), "what it already knew is not repeated");
   assert.deepEqual(blockErrors("model_switch", back.block.data), []);
-  assert.deepEqual(tr.switches(T).map((r) => r.to.driver), ["anthropic", "claude_code"]);
+  assert.deepEqual(
+    tr.switches(T).map((r) => r.to.driver),
+    ["anthropic", "claude_code"],
+  );
 });
 
 test("a thread with no turns switches without a hand-over, and a summarizer that fails does not stop the switch", async () => {
   const tr = createTranscript();
-  const empty = await switchEngine({ transcript: tr }, { threadId: "thr_new", agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" });
+  const empty = await switchEngine(
+    { transcript: tr },
+    { threadId: "thr_new", agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" },
+  );
   assert.equal(empty.quietLine, "Switched to Anthropic");
   assert.equal(empty.handoffTurns, 0);
   assert.ok(empty.seed.text.startsWith(SEED_OPEN));
 
   const long = createTranscript();
-  for (let i = 1; i <= 30; i++) long.append(personTurn({ threadId: T, authorId: "usr_alex", text: `request number ${i} about the bakery`, at: NOW + i }));
+  for (let i = 1; i <= 30; i++)
+    long.append(
+      personTurn({ threadId: T, authorId: "usr_alex", text: `request number ${i} about the bakery`, at: NOW + i }),
+    );
   const res = await switchEngine(
-    { transcript: long, now: () => NOW, summarize: async () => { throw new Error("the cheap model is down"); } },
+    {
+      transcript: long,
+      now: () => NOW,
+      summarize: async () => {
+        throw new Error("the cheap model is down");
+      },
+    },
     { threadId: T, agentId: "agt_intake", from: CLAUDE_CODE, to: API, by: "usr_alex" },
   );
   assert.equal(res.handoffTurns, 20);

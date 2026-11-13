@@ -21,9 +21,19 @@ export interface HandshakeDeps {
   now(): number;
 }
 
-export interface HelloWho { person: string; device: string }
+export interface HelloWho {
+  person: string;
+  device: string;
+}
 
-export interface SeenDevice { person: string; device: string; appVersion: string; registryHash: string; mode: Mode; at: number }
+export interface SeenDevice {
+  person: string;
+  device: string;
+  appVersion: string;
+  registryHash: string;
+  mode: Mode;
+  at: number;
+}
 
 export interface Handshake {
   /** Validate and answer a hello, and remember the answer. A malformed hello throws validation.bad_input. */
@@ -39,16 +49,28 @@ export interface Handshake {
   guardPushDeps(deps: PushDeps): PushDeps;
 }
 
-const DDL = "CREATE TABLE IF NOT EXISTS sync_hello (person TEXT NOT NULL, device TEXT NOT NULL, app_version TEXT NOT NULL, registry_hash TEXT NOT NULL, mode TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID;";
+const DDL =
+  "CREATE TABLE IF NOT EXISTS sync_hello (person TEXT NOT NULL, device TEXT NOT NULL, app_version TEXT NOT NULL, registry_hash TEXT NOT NULL, mode TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID;";
 
 export function createHandshake(d: HandshakeDeps): Handshake {
   const ready = { done: false };
-  const ensure = (): void => { if (!ready.done) { d.db.exec(DDL); ready.done = true; } };
+  const ensure = (): void => {
+    if (!ready.done) {
+      d.db.exec(DDL);
+      ready.done = true;
+    }
+  };
 
   const seen = (person: string, device: string): SeenDevice | undefined => {
     ensure();
-    const r = d.db.get<{ app_version: string; registry_hash: string; mode: string; at: number }>("SELECT app_version, registry_hash, mode, at FROM sync_hello WHERE person = ? AND device = ?", person, device);
-    return r ? { person, device, appVersion: r.app_version, registryHash: r.registry_hash, mode: r.mode as Mode, at: r.at } : undefined;
+    const r = d.db.get<{ app_version: string; registry_hash: string; mode: string; at: number }>(
+      "SELECT app_version, registry_hash, mode, at FROM sync_hello WHERE person = ? AND device = ?",
+      person,
+      device,
+    );
+    return r
+      ? { person, device, appVersion: r.app_version, registryHash: r.registry_hash, mode: r.mode as Mode, at: r.at }
+      : undefined;
   };
   const canWrite = (person: string, device: string): boolean => seen(person, device)?.mode !== "update_required";
   const assertCanWrite = (person: string, device: string, traceId: string): void => {
@@ -59,23 +81,48 @@ export function createHandshake(d: HandshakeDeps): Handshake {
   return {
     hello(who, raw, traceId) {
       const p = parseHello(raw);
-      if (!p.ok) throw new VyreErr({ code: "validation.bad_input", message: "The hello is not valid.", retryable: false, traceId, next: [{ kind: "update_app", label: "Update the app" }], details: { why: p.error } });
+      if (!p.ok)
+        throw new VyreErr({
+          code: "validation.bad_input",
+          message: "The hello is not valid.",
+          retryable: false,
+          traceId,
+          next: [{ kind: "update_app", label: "Update the app" }],
+          details: { why: p.error },
+        });
       const h: Hello = p.value;
-      if (h.deviceId !== who.device) throw new VyreErr({ code: "validation.bad_input", message: "The hello names a different device than the session.", retryable: false, traceId, next: [{ kind: "reconnect", label: "Sign in again on this device" }] });
+      if (h.deviceId !== who.device)
+        throw new VyreErr({
+          code: "validation.bad_input",
+          message: "The hello names a different device than the session.",
+          retryable: false,
+          traceId,
+          next: [{ kind: "reconnect", label: "Sign in again on this device" }],
+        });
       const res = decideHello(h, d.state(who), d.releases?.() ?? []);
       ensure();
       // A purge leaves no ledger row: the device is about to wipe itself and its next hello starts fresh.
-      if (res.ok.mode === "purge") d.db.run("DELETE FROM sync_hello WHERE person = ? AND device = ?", who.person, who.device);
-      else d.db.run(
-        "INSERT INTO sync_hello (person, device, app_version, registry_hash, mode, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET app_version = excluded.app_version, registry_hash = excluded.registry_hash, mode = excluded.mode, at = excluded.at",
-        who.person, who.device, h.appVersion, h.registryHash, res.ok.mode, d.now(),
-      );
+      if (res.ok.mode === "purge")
+        d.db.run("DELETE FROM sync_hello WHERE person = ? AND device = ?", who.person, who.device);
+      else
+        d.db.run(
+          "INSERT INTO sync_hello (person, device, app_version, registry_hash, mode, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET app_version = excluded.app_version, registry_hash = excluded.registry_hash, mode = excluded.mode, at = excluded.at",
+          who.person,
+          who.device,
+          h.appVersion,
+          h.registryHash,
+          res.ok.mode,
+          d.now(),
+        );
       return res;
     },
     canWrite,
     assertCanWrite,
     seen,
-    forget(person, device) { ensure(); d.db.run("DELETE FROM sync_hello WHERE person = ? AND device = ?", person, device); },
+    forget(person, device) {
+      ensure();
+      d.db.run("DELETE FROM sync_hello WHERE person = ? AND device = ?", person, device);
+    },
     guardPushDeps(deps) {
       return {
         ...deps,

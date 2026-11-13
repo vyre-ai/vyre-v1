@@ -18,15 +18,34 @@ let seq = 0;
 const key = (): string => `u-${++seq}`;
 
 async function folder(h: Harness, scope: "mine" | "shared" = "shared"): Promise<string> {
-  return String(out(out(await v.foldersCreate(h.ctx, { name: `${scope} ${key()}`, scope, idempotencyKey: key() })).folder).id);
+  return String(
+    out(out(await v.foldersCreate(h.ctx, { name: `${scope} ${key()}`, scope, idempotencyKey: key() })).folder).id,
+  );
 }
 async function put(h: Harness, folderId: string, name: string, secret = SECRET): Promise<string> {
-  const made = out(await v.itemPut(h.ctx, { folderId, name, kind: "api_key", fields: [{ key: "username", value: "dana" }, { key: "api_key", value: secret }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]));
+  const made = out(
+    await v.itemPut(h.ctx, {
+      folderId,
+      name,
+      kind: "api_key",
+      fields: [
+        { key: "username", value: "dana" },
+        { key: "api_key", value: secret },
+      ],
+      idempotencyKey: key(),
+    } as Parameters<typeof v.itemPut>[1]),
+  );
   return String(out(made.item).id);
 }
 function sinks() {
   const got: { value: string; ref: string; handle: string; field: string }[] = [];
-  u.configureVault({ sinks: { env: (f) => { got.push(f); } } });
+  u.configureVault({
+    sinks: {
+      env: (f) => {
+        got.push(f);
+      },
+    },
+  });
   return got;
 }
 
@@ -45,7 +64,11 @@ test("use by name answers a handle and field names, never a value, and leaves a 
   assert.equal(used[0]?.payload["purpose"], "sync contacts");
   assert.ok(!h.everything().includes(SECRET));
   h.actAs("person", ROB);
-  assert.equal(await refusedWith(u.use(h.ctx, { item: "Dana Lawmatics" })), "validation.not_found", "someone with no access cannot even tell it exists");
+  assert.equal(
+    await refusedWith(u.use(h.ctx, { item: "Dana Lawmatics" })),
+    "validation.not_found",
+    "someone with no access cannot even tell it exists",
+  );
   h.grant(ROB, id, "use");
   assert.equal(out(await u.use(h.ctx, { item: "Dana Lawmatics" })).handle, "#Dana_Lawmatics");
   h.cleanup();
@@ -55,18 +78,36 @@ test("values leave the vault only through fill: the sink gets the value once, th
   const h = harness();
   const got = sinks();
   await put(h, await folder(h), "Dana Lawmatics");
-  const r = out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "proc_1/LAWMATICS_KEY" } }));
+  const r = out(
+    await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "proc_1/LAWMATICS_KEY" } }),
+  );
   assert.deepEqual(contractErrors("vault.fill", "out", r), []);
   assert.deepEqual([r.filled, r.field, r.where, "value" in r], [true, "api_key", "host", false]);
-  assert.deepEqual(got.map((g) => [g.value, g.ref, g.handle, g.field]), [[SECRET, "proc_1/LAWMATICS_KEY", "#Dana_Lawmatics", "api_key"]]);
+  assert.deepEqual(
+    got.map((g) => [g.value, g.ref, g.handle, g.field]),
+    [[SECRET, "proc_1/LAWMATICS_KEY", "#Dana_Lawmatics", "api_key"]],
+  );
   assert.ok(!h.everything().includes(SECRET), "not in the database, events, calls or logs");
   assert.equal(h.named("vault.used")[0]?.payload["field"], "api_key");
   // without a field the one secret field is meant
-  assert.equal(out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics", target: { kind: "env", ref: "p" } })).field, "api_key");
+  assert.equal(
+    out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics", target: { kind: "env", ref: "p" } })).field,
+    "api_key",
+  );
   assert.equal(got.length, 2);
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "Dana", target: { kind: "env", ref: "p" } })), "validation.bad_input");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.nope", target: { kind: "env", ref: "p" } })), "validation.bad_input");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "terminal", ref: "t" } })), "internal.unavailable", "no place registered for that kind");
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "Dana", target: { kind: "env", ref: "p" } })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.nope", target: { kind: "env", ref: "p" } })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "terminal", ref: "t" } })),
+    "internal.unavailable",
+    "no place registered for that kind",
+  );
   assert.equal(got.length, 2, "a refused fill delivered nothing");
   u.configureVault(null);
   h.cleanup();
@@ -81,14 +122,35 @@ test("returnValue is for a person at View level; an agent at Use fills but never
   const filled = out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" } }));
   assert.equal(filled.filled, true);
   assert.equal(got.length, 1);
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant");
+  assert.equal(
+    await refusedWith(
+      u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+    ),
+    "permission.no_grant",
+  );
   h.grant(AGENT, id, "view");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant", "not even at View");
+  assert.equal(
+    await refusedWith(
+      u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+    ),
+    "permission.no_grant",
+    "not even at View",
+  );
   h.actAs("person", ROB);
   h.grant(ROB, id, "use");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant");
+  assert.equal(
+    await refusedWith(
+      u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+    ),
+    "permission.no_grant",
+  );
   h.grant(ROB, id, "view");
-  assert.equal(out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })).value, SECRET);
+  assert.equal(
+    out(
+      await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+    ).value,
+    SECRET,
+  );
   u.configureVault(null);
   h.cleanup();
 });
@@ -97,8 +159,13 @@ test("a fill with no sink and no returnValue refuses instead of claiming it fill
   const h = harness();
   u.configureVault(null);
   await put(h, await folder(h), "Dana Lawmatics");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" } })), "internal.unavailable");
-  const r = out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }));
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" } })),
+    "internal.unavailable",
+  );
+  const r = out(
+    await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+  );
   assert.deepEqual([r.filled, r.value], [false, SECRET]);
   h.cleanup();
 });
@@ -110,8 +177,17 @@ test("inject_env names the keys and handles of a folder, never a value", async (
   await put(h, f, "Dana Lawmatics");
   const r = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
   assert.deepEqual(contractErrors("vault.inject_env", "out", r), []);
-  assert.deepEqual(r.handles, ["#Dana_Lawmatics.username", "#Dana_Lawmatics.api_key", "#Stripe_live.username", "#Stripe_live.api_key"]);
-  assert.deepEqual(r.keys, ["username", "api_key", "Stripe_live__username", "Stripe_live__api_key"], "a second item with the same field names gets its own name in front");
+  assert.deepEqual(r.handles, [
+    "#Dana_Lawmatics.username",
+    "#Dana_Lawmatics.api_key",
+    "#Stripe_live.username",
+    "#Stripe_live.api_key",
+  ]);
+  assert.deepEqual(
+    r.keys,
+    ["username", "api_key", "Stripe_live__username", "Stripe_live__api_key"],
+    "a second item with the same field names gets its own name in front",
+  );
   assert.equal(r.handles.length, r.keys.length);
   assert.equal(h.named("vault.used").length, 2);
   assert.ok(!h.everything().includes("sk-stripe-AAAA") && !h.everything().includes(SECRET));
@@ -121,11 +197,24 @@ test("inject_env names the keys and handles of a folder, never a value", async (
 test("inject_env refuses, naming both items, when the prefixed name is taken too", async () => {
   const h = harness();
   const f = await folder(h);
-  const mk = (name: string, fieldKey: string) => v.itemPut(h.ctx, { folderId: f, name, kind: "api_key", fields: [{ key: fieldKey, value: "value-" + name }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+  const mk = (name: string, fieldKey: string) =>
+    v.itemPut(h.ctx, {
+      folderId: f,
+      name,
+      kind: "api_key",
+      fields: [{ key: fieldKey, value: "value-" + name }],
+      idempotencyKey: key(),
+    } as Parameters<typeof v.itemPut>[1]);
   await mk("Aa", "k");
   await mk("Bb", "Cc__k");
   await mk("Cc", "k"); // Cc's second "k" would become Cc__k, which Bb already holds
-  await assert.rejects(u.injectEnv(h.ctx, { folderId: f }), (e) => (e as { error?: { code?: string; message?: string } }).error?.code === "validation.precondition_failed" && /#Cc/.test(String((e as { error: { message: string } }).error.message)) && /#Bb/.test(String((e as { error: { message: string } }).error.message)));
+  await assert.rejects(
+    u.injectEnv(h.ctx, { folderId: f }),
+    (e) =>
+      (e as { error?: { code?: string; message?: string } }).error?.code === "validation.precondition_failed" &&
+      /#Cc/.test(String((e as { error: { message: string } }).error.message)) &&
+      /#Bb/.test(String((e as { error: { message: string } }).error.message)),
+  );
   h.cleanup();
 });
 
@@ -135,12 +224,23 @@ test("each value `vyre run --env` fetches (fill with returnValue) is a use in th
   const id = await put(h, f, "Dana Lawmatics");
   u.configureVault(null);
   const inj = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
-  for (const handle of inj.handles as string[]) await u.fill(h.ctx, { handle, target: { kind: "env", ref: "vyre-run" }, returnValue: true });
+  for (const handle of inj.handles as string[])
+    await u.fill(h.ctx, { handle, target: { kind: "env", ref: "vyre-run" }, returnValue: true });
   const hist = out(await v.itemHistory(h.ctx, { itemId: id })).entries as Json[];
   const used = hist.filter((e) => e.action === "used");
   assert.ok(used.length >= 3, "one for the injection and one per field fetched");
-  assert.deepEqual([...new Set(used.map((e) => JSON.stringify(e.actor)))], [JSON.stringify({ kind: "person", id: MAYA })], "the person is the actor");
-  assert.deepEqual(used.map((e) => e.field).filter(Boolean).sort(), ["api_key", "username"]);
+  assert.deepEqual(
+    [...new Set(used.map((e) => JSON.stringify(e.actor)))],
+    [JSON.stringify({ kind: "person", id: MAYA })],
+    "the person is the actor",
+  );
+  assert.deepEqual(
+    used
+      .map((e) => e.field)
+      .filter(Boolean)
+      .sort(),
+    ["api_key", "username"],
+  );
   assert.equal(h.named("vault.used").length, 3);
   assert.ok(!h.everything().includes(SECRET), "no value in the database, events or logs");
   h.cleanup();
@@ -158,7 +258,13 @@ test("a shared item at Use is usable by the person and not viewable: the sink ge
   assert.equal(r.filled, true);
   assert.equal(got[0]?.value, SECRET, "the place got the value");
   assert.equal("value" in r, false, "and the answer holds none");
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant", "no value back below View");
+  assert.equal(
+    await refusedWith(
+      u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true }),
+    ),
+    "permission.no_grant",
+    "no value back below View",
+  );
   assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "permission.no_grant", "reveal needs View");
   h.cleanup();
 });
@@ -170,7 +276,8 @@ test("search finds an item by name, handle, kind, field name or folder across Mi
   const a = await put(h, shared, "Dana Lawmatics");
   const b = await put(h, mine, "Claude sign in");
   h.grant(ROB, a, "use");
-  const find = async (q: string): Promise<string[]> => (out(await v.itemsList(h.ctx, { q })).items as Json[]).map((i) => String(i.id)).sort();
+  const find = async (q: string): Promise<string[]> =>
+    (out(await v.itemsList(h.ctx, { q })).items as Json[]).map((i) => String(i.id)).sort();
   assert.deepEqual(await find("lawmatics"), [a]);
   assert.deepEqual(await find("#Dana_Lawmatics"), [a], "by handle");
   assert.deepEqual(await find("claude"), [b], "a Mine item is found with the others");
@@ -190,20 +297,36 @@ test("export_env seals a .env under the filler, keeps only the token hash, expir
   await put(h, f, "Dana Lawmatics");
   u.configureVault({ sinks: {}, origin: () => "https://vault.example.test/" });
   const r = out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h", idempotencyKey: key() }));
-  assert.ok(String(r.pullUrl).startsWith(`https://vault.example.test/exports/${String(r.exportId)}?token=`), "the link points at the server's own address");
+  assert.ok(
+    String(r.pullUrl).startsWith(`https://vault.example.test/exports/${String(r.exportId)}?token=`),
+    "the link points at the server's own address",
+  );
   u.configureVault(null);
   assert.deepEqual(contractErrors("vault.export_env", "out", r), []);
   assert.equal(r.expiresAt, h.ctx.now() + 3_600_000);
   const token = new URL(String(r.pullUrl)).searchParams.get("token") ?? "";
   assert.ok(token.length >= 30);
-  assert.deepEqual(h.named("vault.exported")[0]?.payload, { exportId: r.exportId, folderId: f, itemCount: 1, expiresAt: r.expiresAt });
+  assert.deepEqual(h.named("vault.exported")[0]?.payload, {
+    exportId: r.exportId,
+    folderId: f,
+    itemCount: 1,
+    expiresAt: r.expiresAt,
+  });
   const row = h.rows(`SELECT * FROM vault_export`)[0] ?? {};
-  assert.ok(!JSON.stringify(row).includes(SECRET) && !JSON.stringify(row).includes(token), "the database holds neither the value nor the token");
+  assert.ok(
+    !JSON.stringify(row).includes(SECRET) && !JSON.stringify(row).includes(token),
+    "the database holds neither the value nor the token",
+  );
   const env = u.exportPull(h.ctx, { exportId: String(r.exportId), token });
   assert.equal(env, `username="dana"\napi_key=${JSON.stringify(SECRET)}\n`);
-  assert.throws(() => u.exportPull(h.ctx, { exportId: String(r.exportId), token }), "a link is single use: the second pull is refused");
+  assert.throws(
+    () => u.exportPull(h.ctx, { exportId: String(r.exportId), token }),
+    "a link is single use: the second pull is refused",
+  );
   assert.throws(() => u.exportPull(h.ctx, { exportId: String(r.exportId), token: "wrong" }));
-  assert.deepEqual(out(await u.exportsList(h.ctx, { folderId: f })).exports, [{ id: r.exportId, folderId: f, by: MAYA, expiresAt: r.expiresAt, pulled: true }]);
+  assert.deepEqual(out(await u.exportsList(h.ctx, { folderId: f })).exports, [
+    { id: r.exportId, folderId: f, by: MAYA, expiresAt: r.expiresAt, pulled: true },
+  ]);
   assert.deepEqual(contractErrors("vault.exports.list", "out", await u.exportsList(h.ctx, {})), []);
   assert.deepEqual(await u.exportsRevoke(h.ctx, { exportId: String(r.exportId) }), { ok: true });
   assert.equal(h.named("vault.export_revoked").length, 1);
@@ -211,7 +334,14 @@ test("export_env seals a .env under the filler, keeps only the token hash, expir
   assert.deepEqual(out(await u.exportsList(h.ctx, {})).exports, []);
   const second = out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1d", idempotencyKey: key() }));
   h.advance(86_400_001);
-  assert.throws(() => u.exportPull(h.ctx, { exportId: String(second.exportId), token: new URL(String(second.pullUrl)).searchParams.get("token") ?? "" }), "an expired link is closed");
+  assert.throws(
+    () =>
+      u.exportPull(h.ctx, {
+        exportId: String(second.exportId),
+        token: new URL(String(second.pullUrl)).searchParams.get("token") ?? "",
+      }),
+    "an expired link is closed",
+  );
   assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "2d" })), "validation.bad_input");
   h.cleanup();
 });
@@ -224,26 +354,43 @@ test("an export is recorded in the item's history, and a person with no access t
   const hist = out(await v.itemHistory(h.ctx, { itemId: id }));
   assert.ok((hist.entries as Json[]).some((e) => e.action === "exported"));
   h.actAs("person", ROB);
-  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "permission.no_grant", "no access to the folder");
+  assert.equal(
+    await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })),
+    "permission.no_grant",
+    "no access to the folder",
+  );
   h.cleanup();
 });
 
 test("report_scrub_miss raises vault.scrub_miss with the place and trace, and nothing else", async () => {
   const h = harness();
   const id = await put(h, await folder(h), "Dana Lawmatics");
-  assert.deepEqual(await u.reportScrubMiss(h.ctx, { itemId: id, place: "terminal", traceId: "a".repeat(32) }), { ok: true });
+  assert.deepEqual(await u.reportScrubMiss(h.ctx, { itemId: id, place: "terminal", traceId: "a".repeat(32) }), {
+    ok: true,
+  });
   assert.deepEqual(h.named("vault.scrub_miss")[0]?.payload, { itemId: id, place: "terminal", traceId: "a".repeat(32) });
-  assert.equal(await refusedWith(u.reportScrubMiss(h.ctx, { itemId: id, place: "moon" as never, traceId: "a".repeat(32) })), "validation.bad_input");
+  assert.equal(
+    await refusedWith(u.reportScrubMiss(h.ctx, { itemId: id, place: "moon" as never, traceId: "a".repeat(32) })),
+    "validation.bad_input",
+  );
   h.cleanup();
 });
 
 test("the handler map is exactly the manifest's capabilities, and each deferred one refuses in one voice (ruling 60)", async () => {
-  const mine = registry.capabilities.filter((c) => c.module === "vault").map((c) => c.name).sort();
+  const mine = registry.capabilities
+    .filter((c) => c.module === "vault")
+    .map((c) => c.name)
+    .sort();
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   const h = harness();
   for (const cap of DEFERRED) {
     const run = handlers[cap]!;
-    const err = await Promise.resolve().then(() => run(h.ctx as never, {})).then(() => null, (e: unknown) => e as { error: { code: string; message: string } });
+    const err = await Promise.resolve()
+      .then(() => run(h.ctx as never, {}))
+      .then(
+        () => null,
+        (e: unknown) => e as { error: { code: string; message: string } },
+      );
     assert.deepEqual([err?.error.code, err?.error.message], ["internal.unavailable", "Not in this version yet"], cap);
   }
   h.cleanup();
@@ -271,7 +418,11 @@ test("an agent acting for the owner may use a Mine item, an agent acting for som
   const id = await put(h, await folder(h, "mine"), "Maya Claude");
   h.actAs("agent", AGENT);
   h.ctx.actingFor = ROB;
-  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "acting for someone else");
+  assert.equal(
+    await refusedWith(u.use(h.ctx, { item: "Maya Claude" })),
+    "validation.not_found",
+    "acting for someone else",
+  );
   delete h.ctx.actingFor;
   assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "acting for no one");
   h.ctx.actingFor = MAYA;
@@ -279,12 +430,24 @@ test("an agent acting for the owner may use a Mine item, an agent acting for som
   assert.equal(out(await u.use(h.ctx, { item: id })).itemId, id, "by id too");
   assert.ok(!JSON.stringify(await v.itemsList(h.ctx, {})).includes(id), "the agent cannot list it");
   const got = sinks();
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Maya_Claude.api_key", target: { kind: "env", ref: "p" } })), "validation.not_found", "fill is not for a turn");
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "#Maya_Claude.api_key", target: { kind: "env", ref: "p" } })),
+    "validation.not_found",
+    "fill is not for a turn",
+  );
   assert.equal(got.length, 0, "the sink was never called");
-  assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "validation.not_found", "view and reveal stay the owner's");
+  assert.equal(
+    await refusedWith(v.itemReveal(h.ctx, { itemId: id })),
+    "validation.not_found",
+    "view and reveal stay the owner's",
+  );
   h.actAs("person", ROB);
   h.ctx.actingFor = MAYA;
-  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya Claude" })), "validation.not_found", "a person acting for someone gets no change");
+  assert.equal(
+    await refusedWith(u.use(h.ctx, { item: "Maya Claude" })),
+    "validation.not_found",
+    "a person acting for someone gets no change",
+  );
   h.cleanup();
 });
 
@@ -299,53 +462,109 @@ test("an assistant acting for A uses A's Mine key and finds nothing of B's, and 
   h.actAs("agent", AGENT);
   h.ctx.actingFor = MAYA;
   assert.equal(out(await u.use(h.ctx, { item: "Maya AI key" })).itemId, maya, "for Maya: her own key");
-  assert.equal(await refusedWith(u.use(h.ctx, { item: "Rob AI key" })), "validation.not_found", "for Maya: Rob's key is not there");
+  assert.equal(
+    await refusedWith(u.use(h.ctx, { item: "Rob AI key" })),
+    "validation.not_found",
+    "for Maya: Rob's key is not there",
+  );
   assert.equal(await refusedWith(u.use(h.ctx, { item: rob })), "validation.not_found", "by id too");
   h.ctx.actingFor = ROB;
   assert.equal(out(await u.use(h.ctx, { item: "Rob AI key" })).itemId, rob, "for Rob: his own key");
-  assert.equal(await refusedWith(u.use(h.ctx, { item: "Maya AI key" })), "validation.not_found", "for Rob: Maya's key is not there");
+  assert.equal(
+    await refusedWith(u.use(h.ctx, { item: "Maya AI key" })),
+    "validation.not_found",
+    "for Rob: Maya's key is not there",
+  );
   assert.equal(await refusedWith(u.use(h.ctx, { item: maya })), "validation.not_found", "by id too");
   h.cleanup();
 });
 
-test('a use grant revoked during asynchronous field opening cannot reach a fill sink',async()=>{
- const h=harness();const got=sinks();const id=await put(h,await folder(h),'Revocation fixture');h.grant(ROB,id,'use');h.actAs('person',ROB);
- const filling=u.fill(h.ctx,{handle:'#Revocation_fixture.api_key',target:{kind:'env',ref:'fixture-revocation'}});
- h.ctx.authorize=()=>({effect:'deny',reason:'revoked',decisionId:'dec_fixture'});
- assert.equal(await refusedWith(filling),'permission.no_grant');assert.equal(got.length,0);u.configureVault(null);h.cleanup();
+test("a use grant revoked during asynchronous field opening cannot reach a fill sink", async () => {
+  const h = harness();
+  const got = sinks();
+  const id = await put(h, await folder(h), "Revocation fixture");
+  h.grant(ROB, id, "use");
+  h.actAs("person", ROB);
+  const filling = u.fill(h.ctx, {
+    handle: "#Revocation_fixture.api_key",
+    target: { kind: "env", ref: "fixture-revocation" },
+  });
+  h.ctx.authorize = () => ({ effect: "deny", reason: "revoked", decisionId: "dec_fixture" });
+  assert.equal(await refusedWith(filling), "permission.no_grant");
+  assert.equal(got.length, 0);
+  u.configureVault(null);
+  h.cleanup();
 });
 
 test("the host port reads the asker's own Mine item with their key, a Shared item for anyone, and never another person's Mine item", async () => {
   const h = harness();
   try {
-    const mineFolder = await folder(h, "mine"), sharedFolder = await folder(h, "shared");
+    const mineFolder = await folder(h, "mine"),
+      sharedFolder = await folder(h, "shared");
     await put(h, mineFolder, "Mine Engine Key", "mine-secret-value");
     await put(h, sharedFolder, "Shared Engine Key", "shared-secret-value");
     const port = u.secretPort(h.ctx.db);
     assert.equal(await port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), "mine-secret-value");
     assert.equal(await port.secret("#Shared_Engine_Key.api_key", "spc_vault"), "shared-secret-value");
-    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault"), /no shared item/, "without an asker only Shared items come out");
-    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", ROB), /no shared item/, "another person's Mine item is never read");
+    await assert.rejects(
+      () => port.secret("#Mine_Engine_Key.api_key", "spc_vault"),
+      /no shared item/,
+      "without an asker only Shared items come out",
+    );
+    await assert.rejects(
+      () => port.secret("#Mine_Engine_Key.api_key", "spc_vault", ROB),
+      /no shared item/,
+      "another person's Mine item is never read",
+    );
     h.lock(MAYA);
-    await assert.rejects(() => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA), /Vault key is not on this server/, "no key on the node opens nothing");
-  } finally { h.cleanup(); }
+    await assert.rejects(
+      () => port.secret("#Mine_Engine_Key.api_key", "spc_vault", MAYA),
+      /Vault key is not on this server/,
+      "no key on the node opens nothing",
+    );
+  } finally {
+    h.cleanup();
+  }
 });
 
 test("a Shared item with the same handle never shadows the asker's own Mine item", async () => {
   const h = harness();
   try {
-    const mineFolder = await folder(h, "mine"), sharedFolder = await folder(h, "shared");
+    const mineFolder = await folder(h, "mine"),
+      sharedFolder = await folder(h, "shared");
     const mine = await put(h, mineFolder, "Engine Key", "my-own-key");
-    const shared = await put(h, sharedFolder, "Engine Key", "attacker-key");   // another member's Shared item named alike
+    const shared = await put(h, sharedFolder, "Engine Key", "attacker-key"); // another member's Shared item named alike
     const handles = h.rows(`SELECT id, handle FROM vault_meta`).filter((r) => r["id"] === mine || r["id"] === shared);
-    assert.notEqual(handles[0]!["handle"], handles[1]!["handle"], "the Vault gives the second item a handle of its own");
+    assert.notEqual(
+      handles[0]!["handle"],
+      handles[1]!["handle"],
+      "the Vault gives the second item a handle of its own",
+    );
     // even if two rows ever carry one handle (an import, an old row), the person's own Mine item is the one a turn reads
-    h.ctx.db.run(`UPDATE vault_meta SET handle = ? WHERE id = ?`, String(handles.find((r) => r["id"] === mine)!["handle"]), shared);
+    h.ctx.db.run(
+      `UPDATE vault_meta SET handle = ? WHERE id = ?`,
+      String(handles.find((r) => r["id"] === mine)!["handle"]),
+      shared,
+    );
     const port = u.secretPort(h.ctx.db);
-    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault", MAYA), "my-own-key", "the asker's Mine item wins");
-    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault", ROB), "attacker-key", "someone with no Mine item of that name gets the Shared one");
-    assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault"), "attacker-key", "with no asker only Shared is read");
-  } finally { h.cleanup(); }
+    assert.equal(
+      await port.secret("#Engine_Key.api_key", "spc_vault", MAYA),
+      "my-own-key",
+      "the asker's Mine item wins",
+    );
+    assert.equal(
+      await port.secret("#Engine_Key.api_key", "spc_vault", ROB),
+      "attacker-key",
+      "someone with no Mine item of that name gets the Shared one",
+    );
+    assert.equal(
+      await port.secret("#Engine_Key.api_key", "spc_vault"),
+      "attacker-key",
+      "with no asker only Shared is read",
+    );
+  } finally {
+    h.cleanup();
+  }
 });
 
 // ---- a pull link hands over values, so it follows the rules a reveal follows ----
@@ -357,17 +576,29 @@ test("export leaves out what the caller may only use, what is set to the Space o
   const hidden = await put(h, f, "Use only", "value-hidden-2");
   const local = await put(h, f, "Stays here", "value-local-3");
   await v.itemUpdate(h.ctx, { itemId: local, spaceOnly: true });
-  const openFor = (r: Json): string => u.exportPull(h.ctx, { exportId: String(r.exportId), token: new URL(String(r.pullUrl)).searchParams.get("token") ?? "" });
+  const openFor = (r: Json): string =>
+    u.exportPull(h.ctx, {
+      exportId: String(r.exportId),
+      token: new URL(String(r.pullUrl)).searchParams.get("token") ?? "",
+    });
   const text = openFor(out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })));
   assert.ok(text.includes("value-seen-1") && text.includes("value-hidden-2"), "the owner sees all of it");
   assert.ok(!text.includes("value-local-3"), "an item set to the Space only does not leave in a file");
   h.actAs("person", ROB);
   h.grant(ROB, f, "use");
   h.grant(ROB, hidden, "use");
-  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "validation.precondition_failed", "use is not view: the value does not leave");
+  assert.equal(
+    await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })),
+    "validation.precondition_failed",
+    "use is not view: the value does not leave",
+  );
   h.actAs("agent", AGENT);
   h.grant(AGENT, f, "manage");
-  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "permission.no_grant", "an agent never holds a link to values");
+  assert.equal(
+    await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })),
+    "permission.no_grant",
+    "an agent never holds a link to values",
+  );
   h.cleanup();
 });
 
@@ -413,9 +644,29 @@ test("a company key is for the server alone: no agent fills, injects, exports or
     const f = await folder(h);
     await put(h, f, name);
     const handle = `#${name.replace(/ /g, "_")}`;
-    const agent = { ...h.ctx, principal: { kind: "agent" as const, id: AGENT }, actingFor: MAYA, authorize: () => ({ effect: "allow" as const, reason: "ok", decisionId: "d" }) };   // even one that was given Use
-    assert.equal(await refusedWith(u.fill(agent, { handle, target: { kind: "env", ref: "p" } })), "permission.no_grant", name);
-    assert.equal(await refusedWith(v.share(h.ctx, { resource: { type: "vault_item", id: String(out(await u.use(h.ctx, { item: name })).itemId) }, subject: { kind: "agent", id: AGENT }, level: "use", idempotencyKey: key() })), "validation.precondition_failed", `${name} is never shared with an agent`);
+    const agent = {
+      ...h.ctx,
+      principal: { kind: "agent" as const, id: AGENT },
+      actingFor: MAYA,
+      authorize: () => ({ effect: "allow" as const, reason: "ok", decisionId: "d" }),
+    }; // even one that was given Use
+    assert.equal(
+      await refusedWith(u.fill(agent, { handle, target: { kind: "env", ref: "p" } })),
+      "permission.no_grant",
+      name,
+    );
+    assert.equal(
+      await refusedWith(
+        v.share(h.ctx, {
+          resource: { type: "vault_item", id: String(out(await u.use(h.ctx, { item: name })).itemId) },
+          subject: { kind: "agent", id: AGENT },
+          level: "use",
+          idempotencyKey: key(),
+        }),
+      ),
+      "validation.precondition_failed",
+      `${name} is never shared with an agent`,
+    );
     assert.deepEqual(out(await u.injectEnv(agent, { folderId: f })).handles, []);
     assert.equal(got.length, 0, "no value left the Vault");
   }

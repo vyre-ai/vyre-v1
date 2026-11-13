@@ -24,11 +24,16 @@ export interface LocalSocket {
   remove(): void;
 }
 
-const randomHex = (bytes: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+const randomHex = (bytes: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 /** A pipe name nobody else is likely to hold: \\.\pipe\vyre-<tag>-<16 hex>. */
 export function pipeName(tag: string): string {
-  const t = tag.replace(/[^a-z0-9-]/gi, "").toLowerCase().slice(0, 16) || "sock";
+  const t =
+    tag
+      .replace(/[^a-z0-9-]/gi, "")
+      .toLowerCase()
+      .slice(0, 16) || "sock";
   return `\\\\.\\pipe\\vyre-${t}-${randomHex(8)}`;
 }
 
@@ -37,11 +42,16 @@ export function shortTempRoot(tmp: string = os.tmpdir()): string {
   try {
     const real = fs.realpathSync(tmp);
     if (Buffer.byteLength(real) <= 40) return real;
-  } catch { /* a temp folder that is not there: /tmp */ }
+  } catch {
+    /* a temp folder that is not there: /tmp */
+  }
   return fs.realpathSync("/tmp");
 }
 
-export interface SocketOptions { platform?: NodeJS.Platform; tmp?: string }
+export interface SocketOptions {
+  platform?: NodeJS.Platform;
+  tmp?: string;
+}
 
 /** The socket `name` in `dir` (made if it is not there), or a pipe on Windows. `tag` names the pipe. */
 export function localSocket(dir: string, name: string, tag: string, o: SocketOptions = {}): LocalSocket {
@@ -52,15 +62,35 @@ export function localSocket(dir: string, name: string, tag: string, o: SocketOpt
   }
   fs.mkdirSync(dir, { recursive: true });
   const real = path.join(fs.realpathSync(dir), name);
-  const rmSock = (): void => { try { fs.rmSync(real, { force: true }); } catch { /* gone */ } };
+  const rmSock = (): void => {
+    try {
+      fs.rmSync(real, { force: true });
+    } catch {
+      /* gone */
+    }
+  };
   if (Buffer.byteLength(real) <= MAX_SOCKET_PATH) return { listen: real, connect: real, real, remove: rmSock };
   const alias = fs.mkdtempSync(path.join(shortTempRoot(o.tmp), "vyre-"));
-  const rmAlias = (): void => { try { fs.rmSync(alias, { recursive: true, force: true }); } catch { /* gone */ } };
+  const rmAlias = (): void => {
+    try {
+      fs.rmSync(alias, { recursive: true, force: true });
+    } catch {
+      /* gone */
+    }
+  };
   const short = path.join(alias, "s", name);
   if (Buffer.byteLength(short) > MAX_SOCKET_PATH) {
     rmAlias();
     throw new SandboxError("sandbox.net", `the socket path is too long for a unix socket: ${short.length} characters`);
   }
   fs.symlinkSync(path.dirname(real), path.join(alias, "s"));
-  return { listen: short, connect: short, real, remove: () => { rmSock(); rmAlias(); } };
+  return {
+    listen: short,
+    connect: short,
+    real,
+    remove: () => {
+      rmSock();
+      rmAlias();
+    },
+  };
 }

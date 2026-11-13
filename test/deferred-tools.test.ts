@@ -9,30 +9,62 @@ import { createEngineApiTools } from "../modules/engine/api-tools.ts";
 import { loadGenerated } from "../modules/mcp/projections.ts";
 
 const DORMANT = ["sites_build", "sites_previews", "sites_table_create", "sites_staging_password_set"];
-const ctx = { space: "spc_1", agentId: "agt_1", asker: "per_1", thread: { threadId: "T1", kind: "chat" as const, planMode: false } };
+const ctx = {
+  space: "spc_1",
+  agentId: "agt_1",
+  asker: "per_1",
+  thread: { threadId: "T1", kind: "chat" as const, planMode: false },
+};
 const offered = (): { names: string[]; searchable: ReturnType<typeof toolsFor>["searchable"] } => {
   const g = loadGenerated();
-  const set = toolsFor({ catalog: g.catalog, defaults: g.defaults, levelFor: () => null, canEngineer: () => true }, ctx);
+  const set = toolsFor(
+    { catalog: g.catalog, defaults: g.defaults, levelFor: () => null, canEngineer: () => true },
+    ctx,
+  );
   return { names: [...set.listed, ...set.searchable].map((t) => t.name), searchable: set.searchable };
 };
 const inTurn = async (): Promise<string[]> => {
-  const tools = createEngineApiTools({ invoke: (async () => ({ status: "ok", output: {}, traceId: "t" })) as never, space: "spc_1", system: async () => [] });
+  const tools = createEngineApiTools({
+    invoke: (async () => ({ status: "ok", output: {}, traceId: "t" })) as never,
+    space: "spc_1",
+    system: async () => [],
+  });
   const spec = { threadId: "T1", agent: { id: "agt_1" }, asker: "per_1", turnId: "turn_1", traceId: "t" };
-  return (await tools.context(spec as never, { threadId: "T1", turnId: "turn_1", agent: spec.agent, trigger: null, history: [], listeners: [] } as never)).tools.map((t) => t.name);
+  return (
+    await tools.context(
+      spec as never,
+      { threadId: "T1", turnId: "turn_1", agent: spec.agent, trigger: null, history: [], listeners: [] } as never,
+    )
+  ).tools.map((t) => t.name);
 };
 
 test("the MCP list and tool search leave out every capability that only refuses, and keep the rest", () => {
   const { names, searchable } = offered();
-  assert.ok(DEFERRED_CAPS.has("sites.build") && DEFERRED_CAPS.has("vault.import"), "this test needs the deferred handlers registered");
-  assert.deepEqual(names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")), []);
-  assert.deepEqual(searchTools(searchable, "site deploy staging", 50).filter((t) => DORMANT.includes(t.name)), []);
-  assert.ok(names.includes("sites_promote") && names.includes("artifact_publish") && names.includes("sites_deploy"), "what ships is offered");
+  assert.ok(
+    DEFERRED_CAPS.has("sites.build") && DEFERRED_CAPS.has("vault.import"),
+    "this test needs the deferred handlers registered",
+  );
+  assert.deepEqual(
+    names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")),
+    [],
+  );
+  assert.deepEqual(
+    searchTools(searchable, "site deploy staging", 50).filter((t) => DORMANT.includes(t.name)),
+    [],
+  );
+  assert.ok(
+    names.includes("sites_promote") && names.includes("artifact_publish") && names.includes("sites_deploy"),
+    "what ships is offered",
+  );
   assert.ok(names.includes("forms_publish"), "a real tool stays");
 });
 
 test("a turn is not offered them either", async () => {
   const names = await inTurn();
-  assert.deepEqual(names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")), []);
+  assert.deepEqual(
+    names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")),
+    [],
+  );
   assert.ok(names.length > 0, "the turn has tools");
 });
 
@@ -41,7 +73,9 @@ test("the list follows the deferred set: a capability that goes live comes back 
   try {
     assert.ok(offered().names.includes("sites_build"));
     assert.ok((await inTurn()).includes("sites_build"));
-  } finally { DEFERRED_CAPS.add("sites.build"); }
+  } finally {
+    DEFERRED_CAPS.add("sites.build");
+  }
   assert.ok(!offered().names.includes("sites_build"));
 });
 

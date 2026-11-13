@@ -20,7 +20,10 @@ const isItem = (e: MenuEntry): e is MenuItem => "label" in e;
 export function ActionSheet({ entries, onClose }: { entries: readonly MenuEntry[]; onClose(): void }): ReactElement {
   // the rows between separators, each group drawn under a rule
   const groups: MenuItem[][] = [[]];
-  for (const e of entries) { if (isItem(e)) groups[groups.length - 1]!.push(e); else if (groups[groups.length - 1]!.length) groups.push([]); }
+  for (const e of entries) {
+    if (isItem(e)) groups[groups.length - 1]!.push(e);
+    else if (groups[groups.length - 1]!.length) groups.push([]);
+  }
   return (
     <View style={s.sheetLayer} testID="note-action-sheet" {...dom({ dataSet: { nlayer: "true" } })}>
       <Pressable accessibilityLabel="Close" onPress={onClose} style={s.scrim} testID="note-action-scrim" />
@@ -30,9 +33,20 @@ export function ActionSheet({ entries, onClose }: { entries: readonly MenuEntry[
           <View key={gi} style={gi > 0 ? s.dv : null}>
             {g.map((e) => (
               <Row
-                key={e.label} id={`note-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`} title={e.label}
-                leading={<View style={s.sheetIcon}>{e.icon ? <MenuIcon icon={e.icon} size={18} color={e.danger ? "var(--danger)" : "var(--ink-3)"} /> : null}</View>}
-                onPress={() => { onClose(); e.onSelect?.(); }}
+                key={e.label}
+                id={`note-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
+                title={e.label}
+                leading={
+                  <View style={s.sheetIcon}>
+                    {e.icon ? (
+                      <MenuIcon icon={e.icon} size={18} color={e.danger ? "var(--danger)" : "var(--ink-3)"} />
+                    ) : null}
+                  </View>
+                }
+                onPress={() => {
+                  onClose();
+                  e.onSelect?.();
+                }}
               />
             ))}
           </View>
@@ -55,7 +69,21 @@ export interface PhoneNoteActions {
   openFrom(threadId: string, messageId: string): void;
 }
 
-export function PhoneNote({ n, image, who, edited, from, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; a: PhoneNoteActions }): ReactElement {
+export function PhoneNote({
+  n,
+  image,
+  who,
+  edited,
+  from,
+  a,
+}: {
+  n: Note;
+  image: string | null;
+  who: Who;
+  edited: string;
+  from?: ReturnType<typeof fromLine>;
+  a: PhoneNoteActions;
+}): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
   const words = shareWords(n, who);
@@ -63,36 +91,123 @@ export function PhoneNote({ n, image, who, edited, from, a }: { n: Note; image: 
   return (
     <View style={[s.page, { backgroundColor: fill }]} testID="note-phone-page">
       <View style={s.nav}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to Notes" onPress={a.back} style={s.back} testID="note-phone-back">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to Notes"
+          onPress={a.back}
+          style={s.back}
+          testID="note-phone-back"
+        >
           <Ico name="back" size={18} color="var(--accent)" />
           <Text style={s.backText}>Notes</Text>
         </Pressable>
         <View style={{ flex: 1 }} />
-        <IconBtn icon={n.pinned ? "pinf" : "pin"} label={n.pinned ? "Unpin" : "Pin"} size={40} iconSize={20} color="var(--ink-2)" onPress={() => a.pin()} testID="note-phone-pin" />
-        {n.mine ? <IconBtn icon="share" label="Share" size={40} iconSize={20} color="var(--ink-2)" onPress={() => a.share()} testID="note-phone-share" /> : null}
+        <IconBtn
+          icon={n.pinned ? "pinf" : "pin"}
+          label={n.pinned ? "Unpin" : "Pin"}
+          size={40}
+          iconSize={20}
+          color="var(--ink-2)"
+          onPress={() => a.pin()}
+          testID="note-phone-pin"
+        />
+        {n.mine ? (
+          <IconBtn
+            icon="share"
+            label="Share"
+            size={40}
+            iconSize={20}
+            color="var(--ink-2)"
+            onPress={() => a.share()}
+            testID="note-phone-share"
+          />
+        ) : null}
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.body}>
-        {n.hasImage ? <View style={s.bleed}><Picture uri={image} alt="Note image" /></View> : null}
-        <TextInput value={title} editable={n.canEdit} onChangeText={(v) => { setTitle(v); a.title(v); }} placeholder="Title" placeholderTextColor="var(--ink-3)" accessibilityLabel="Title" style={s.title} testID="note-phone-title" />
-        <MarkdownEditor testID="note-phone-body" label="Note" value={body} mode={n.canEdit ? "edit" : "read"} onChange={(v) => { setBody(v); a.body(v); }} placeholder="Note" bare density="compact" minHeight={100} />
+        {n.hasImage ? (
+          <View style={s.bleed}>
+            <Picture uri={image} alt="Note image" />
+          </View>
+        ) : null}
+        <TextInput
+          value={title}
+          editable={n.canEdit}
+          onChangeText={(v) => {
+            setTitle(v);
+            a.title(v);
+          }}
+          placeholder="Title"
+          placeholderTextColor="var(--ink-3)"
+          accessibilityLabel="Title"
+          style={s.title}
+          testID="note-phone-title"
+        />
+        <MarkdownEditor
+          testID="note-phone-body"
+          label="Note"
+          value={body}
+          mode={n.canEdit ? "edit" : "read"}
+          onChange={(v) => {
+            setBody(v);
+            a.body(v);
+          }}
+          placeholder="Note"
+          bare
+          density="compact"
+          minHeight={100}
+        />
         {n.clip?.selection?.trim() ? <Quote text={n.clip.selection.trim()} big /> : null}
         {n.link ? <LinkCard link={n.link} noteId={n.noteId} /> : null}
         {from ? (
           <View style={s.metaRow} testID="note-from">
             <Ico name="chat" size={14} color="var(--ink-3)" />
-            <Text numberOfLines={1} style={[s.metaText, { flexShrink: 1 }]}>{from.text}</Text>
-            {from.open ? <Pressable accessibilityRole="link" onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)} testID="note-from-open"><Text style={s.fromOpen}>Open message</Text></Pressable> : null}
+            <Text numberOfLines={1} style={[s.metaText, { flexShrink: 1 }]}>
+              {from.text}
+            </Text>
+            {from.open ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)}
+                testID="note-from-open"
+              >
+                <Text style={s.fromOpen}>Open message</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
         <View style={s.meta}>
-          <View style={s.metaRow}><Ico name="tag" size={14} color="var(--ink-3)" /><Text style={s.metaText}>{n.labels.join(", ") || "No labels"}</Text></View>
-          <View style={s.metaRow}><Ico name={words.icon} size={14} color="var(--ink-3)" /><Text style={s.metaText}>{words.long}</Text></View>
+          <View style={s.metaRow}>
+            <Ico name="tag" size={14} color="var(--ink-3)" />
+            <Text style={s.metaText}>{n.labels.join(", ") || "No labels"}</Text>
+          </View>
+          <View style={s.metaRow}>
+            <Ico name={words.icon} size={14} color="var(--ink-3)" />
+            <Text style={s.metaText}>{words.long}</Text>
+          </View>
         </View>
       </ScrollView>
       <View style={[s.bar, { backgroundColor: fill }]}>
-        {n.canEdit ? <IconBtn icon="palette" label="Colour" size={40} iconSize={22} onPress={a.colour} testID="note-phone-colour" /> : null}
+        {n.canEdit ? (
+          <IconBtn
+            icon="palette"
+            label="Colour"
+            size={40}
+            iconSize={22}
+            onPress={a.colour}
+            testID="note-phone-colour"
+          />
+        ) : null}
         <IconBtn icon="tag" label="Labels" size={40} iconSize={22} onPress={a.labels} testID="note-phone-labels" />
-        {n.canEdit ? <IconBtn icon="image" label="Add an image" size={40} iconSize={22} onPress={() => a.image()} testID="note-phone-image" /> : null}
+        {n.canEdit ? (
+          <IconBtn
+            icon="image"
+            label="Add an image"
+            size={40}
+            iconSize={22}
+            onPress={() => a.image()}
+            testID="note-phone-image"
+          />
+        ) : null}
         <View style={{ flex: 1 }} />
         <Text style={s.ed}>{edited}</Text>
         <View style={{ flex: 1 }} />
@@ -109,17 +224,49 @@ const s = StyleSheet.create({
   backText: { fontSize: 16, color: "var(--accent)" as string },
   body: { paddingHorizontal: 20, paddingBottom: 120 },
   bleed: { marginHorizontal: -20, marginBottom: 12 },
-  title: { fontSize: 22, lineHeight: 28, fontWeight: "700", letterSpacing: -0.3, color: "var(--ink)" as string, marginTop: 6, marginBottom: 8, ...(web ? ({ outlineStyle: "none" } as object) : null) },
-  text: { fontSize: 16, lineHeight: 25, color: "var(--ink)" as string, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
+  title: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+    color: "var(--ink)" as string,
+    marginTop: 6,
+    marginBottom: 8,
+    ...(web ? ({ outlineStyle: "none" } as object) : null),
+  },
+  text: {
+    fontSize: 16,
+    lineHeight: 25,
+    color: "var(--ink)" as string,
+    ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null),
+  },
   meta: { gap: 6, marginTop: 18 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   fromOpen: { fontSize: 13, color: "var(--accent)" as string },
   metaText: { fontSize: 13, color: "var(--ink-3)" as string },
-  bar: { height: 84, flexDirection: "row", alignItems: "flex-start", gap: 4, paddingTop: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  bar: {
+    height: 84,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 4,
+    paddingTop: 8,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   ed: { fontSize: 12, color: "var(--ink-3)" as string, alignSelf: "center", marginTop: -26 },
   sheetLayer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 30 },
   scrim: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "var(--n-scrim)" as string },
-  sheet: { position: "absolute", left: 8, right: 8, bottom: 8, borderRadius: 22, backgroundColor: "var(--raised)" as string, padding: 8, ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null) },
+  sheet: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+    borderRadius: 22,
+    backgroundColor: "var(--raised)" as string,
+    padding: 8,
+    ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null),
+  },
   sheetIcon: { width: 22, height: 46, marginRight: 12, alignItems: "center", justifyContent: "center" },
   dv: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 4, paddingTop: 4 },
 });

@@ -47,12 +47,26 @@ export interface CardProps {
   children?: ReactNode;
 }
 
-
 /** Keys on the web arrive as DOM events on the View; a native build has none, so the handler is only attached where the event has a `key`. */
-export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => void) | undefined): ((e: { key?: string; target?: { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null }; stopPropagation?(): void; metaKey?: boolean; ctrlKey?: boolean }) => void) | undefined {
+export function keyHandler(
+  onEnter: (() => void) | undefined,
+  onCancel: (() => void) | undefined,
+):
+  | ((e: {
+      key?: string;
+      target?: { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null };
+      stopPropagation?(): void;
+      metaKey?: boolean;
+      ctrlKey?: boolean;
+    }) => void)
+  | undefined {
   if (!onEnter && !onCancel) return undefined;
   return (e) => {
-    if (e.key === "Escape" && onCancel) { e.stopPropagation?.(); onCancel(); return; }
+    if (e.key === "Escape" && onCancel) {
+      e.stopPropagation?.();
+      onCancel();
+      return;
+    }
     if (e.key !== "Enter" || !onEnter) return;
     const tag = String(e.target?.tagName ?? "").toLowerCase();
     // a button keeps its own Enter; a multi-line field keeps its newline unless Cmd or Ctrl is down
@@ -64,21 +78,45 @@ export function keyHandler(onEnter: (() => void) | undefined, onCancel: (() => v
   };
 }
 
-export function Card({ kind, tone = "neutral", size = "full", flush = false, testID, label, onEnter, onCancel, children }: CardProps): ReactElement {
+export function Card({
+  kind,
+  tone = "neutral",
+  size = "full",
+  flush = false,
+  testID,
+  label,
+  onEnter,
+  onCancel,
+  children,
+}: CardProps): ReactElement {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-card", CARD_CSS);
   const key = keyHandler(onEnter, onCancel);
   return (
     <View
-      testID={testID} accessibilityRole={kind === "status" && tone === "error" ? "alert" : "summary"} accessibilityLabel={label}
+      testID={testID}
+      accessibilityRole={kind === "status" && tone === "error" ? "alert" : "summary"}
+      accessibilityLabel={label}
       {...(key ? ({ onKeyDown: key } as object) : {})}
-      style={[s.card, kind === "status" ? s.sunk : s.raised, { maxWidth: CARD_WIDTH[size] }, size === "compact" && s.compact, flush && s.flush]}
+      style={[
+        s.card,
+        kind === "status" ? s.sunk : s.raised,
+        { maxWidth: CARD_WIDTH[size] },
+        size === "compact" && s.compact,
+        flush && s.flush,
+      ]}
     >
       {children}
     </View>
   );
 }
 
-const MARK_INK: Record<CardTone, string> = { neutral: "var(--ink-3)", info: "var(--accent)", warn: "var(--warn)", error: "var(--danger)", ok: "var(--ok)" };
+const MARK_INK: Record<CardTone, string> = {
+  neutral: "var(--ink-3)",
+  info: "var(--accent)",
+  warn: "var(--warn)",
+  error: "var(--danger)",
+  ok: "var(--ok)",
+};
 
 export interface CardHeadProps {
   /** A face, a glyph, a site initial: whatever leads the title. */
@@ -93,13 +131,27 @@ export interface CardHeadProps {
   testID?: string;
 }
 
-export function CardHead({ lead, title, meta, metaTestID, trailing, tone = "neutral", testID }: CardHeadProps): ReactElement {
+export function CardHead({
+  lead,
+  title,
+  meta,
+  metaTestID,
+  trailing,
+  tone = "neutral",
+  testID,
+}: CardHeadProps): ReactElement {
   return (
     <View style={s.head} testID={testID}>
       {lead ? <View style={s.lead}>{lead}</View> : null}
       <View style={s.titles}>
-        <Text style={[s.title, tone === "neutral" ? null : { color: "var(--ink)" }]} numberOfLines={2}>{title}</Text>
-        {meta ? <Text style={s.meta} numberOfLines={2} testID={metaTestID}>{meta}</Text> : null}
+        <Text style={[s.title, tone === "neutral" ? null : { color: "var(--ink)" }]} numberOfLines={2}>
+          {title}
+        </Text>
+        {meta ? (
+          <Text style={s.meta} numberOfLines={2} testID={metaTestID}>
+            {meta}
+          </Text>
+        ) : null}
       </View>
       {trailing ? <View style={s.trailing}>{trailing}</View> : null}
     </View>
@@ -110,21 +162,47 @@ export function CardHead({ lead, title, meta, metaTestID, trailing, tone = "neut
 export const toneInk = (tone: CardTone): string => MARK_INK[tone];
 
 /** What the card says: a sunk panel by default (an excerpt, a diff), or bare text when `bare`. */
-export function CardBody({ children, bare = false, testID }: { children?: ReactNode; bare?: boolean; testID?: string }): ReactElement {
-  return <View testID={testID} style={bare ? s.bodyBare : s.body}>{children}</View>;
+export function CardBody({
+  children,
+  bare = false,
+  testID,
+}: {
+  children?: ReactNode;
+  bare?: boolean;
+  testID?: string;
+}): ReactElement {
+  return (
+    <View testID={testID} style={bare ? s.bodyBare : s.body}>
+      {children}
+    </View>
+  );
 }
 
 /** Label and value rows: the fields a card shows (To, Subject, When). */
 export function CardFields({ children, testID }: { children?: ReactNode; testID?: string }): ReactElement {
-  return <View testID={testID} style={s.fields}>{children}</View>;
+  return (
+    <View testID={testID} style={s.fields}>
+      {children}
+    </View>
+  );
 }
 
-export function CardRow({ label, children, testID }: { label: string; children?: ReactNode; testID?: string }): ReactElement {
+export function CardRow({
+  label,
+  children,
+  testID,
+}: {
+  label: string;
+  children?: ReactNode;
+  testID?: string;
+}): ReactElement {
   return (
     // ui-rows-lint: not a list (the labelled fields of one card)
     <View testID={testID} style={s.row}>
       <Text style={s.label}>{label}</Text>
-      <View style={s.value}>{typeof children === "string" ? <Text style={s.valueText}>{children}</Text> : children}</View>
+      <View style={s.value}>
+        {typeof children === "string" ? <Text style={s.valueText}>{children}</Text> : children}
+      </View>
     </View>
   );
 }
@@ -148,20 +226,55 @@ export interface CardFieldProps {
 }
 
 /** A labelled input. The line under it is always one line tall, so a hint turning into an error moves nothing. */
-export function CardField({ label, value, onChange, multiline = false, placeholder, hint, error, secure = false, testID, disabled = false, autoFocus = false, accessLabel }: CardFieldProps): ReactElement {
+export function CardField({
+  label,
+  value,
+  onChange,
+  multiline = false,
+  placeholder,
+  hint,
+  error,
+  secure = false,
+  testID,
+  disabled = false,
+  autoFocus = false,
+  accessLabel,
+}: CardFieldProps): ReactElement {
   const [focus, setFocus] = useState(false);
   const bad = Boolean(error);
   return (
     <View style={s.fieldWrap}>
       <Text style={s.label}>{label}</Text>
       <TextInput
-        accessibilityLabel={accessLabel ?? label} testID={testID} value={value} onChangeText={onChange} editable={!disabled} autoFocus={autoFocus}
-        multiline={multiline} secureTextEntry={secure} {...(secure ? { autoCapitalize: "none", autoCorrect: false } : {})} {...(placeholder ? { placeholder } : {})} placeholderTextColor="var(--ink-4)"
-        onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+        accessibilityLabel={accessLabel ?? label}
+        testID={testID}
+        value={value}
+        onChangeText={onChange}
+        editable={!disabled}
+        autoFocus={autoFocus}
+        multiline={multiline}
+        secureTextEntry={secure}
+        {...(secure ? { autoCapitalize: "none", autoCorrect: false } : {})}
+        {...(placeholder ? { placeholder } : {})}
+        placeholderTextColor="var(--ink-4)"
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
         {...(bad ? { "aria-invalid": true } : {})}
-        style={[s.input, multiline && s.inputMulti, focus && s.inputFocus, bad && s.inputBad, disabled && { opacity: 0.5 }]}
+        style={[
+          s.input,
+          multiline && s.inputMulti,
+          focus && s.inputFocus,
+          bad && s.inputBad,
+          disabled && { opacity: 0.5 },
+        ]}
       />
-      <Text accessibilityRole={bad ? "alert" : "text"} style={[s.under, bad && { color: "var(--danger)" }]} numberOfLines={2}>{error || hint || " "}</Text>
+      <Text
+        accessibilityRole={bad ? "alert" : "text"}
+        style={[s.under, bad && { color: "var(--danger)" }]}
+        numberOfLines={2}
+      >
+        {error || hint || " "}
+      </Text>
     </View>
   );
 }
@@ -193,18 +306,33 @@ export interface CardActionsProps {
   testID?: string;
 }
 
-export function CardActions({ primary, secondary = [], busy = false, error, note, testID }: CardActionsProps): ReactElement {
+export function CardActions({
+  primary,
+  secondary = [],
+  busy = false,
+  error,
+  note,
+  testID,
+}: CardActionsProps): ReactElement {
   return (
     <View testID={testID} style={s.actionsWrap}>
       <View style={s.actions}>
         <View style={s.buttons}>
-          {primary ? <CardButton {...primary} primary busy={busy} disabled={busy || primary.disabled === true} /> : null}
+          {primary ? (
+            <CardButton {...primary} primary busy={busy} disabled={busy || primary.disabled === true} />
+          ) : null}
           {/* ui-rows-lint: not a list (the card's action buttons, side by side) */}
-          {secondary.map((a) => <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />)}
+          {secondary.map((a) => (
+            <CardButton key={a.label} {...a} disabled={busy || a.disabled === true} />
+          ))}
         </View>
         {note ? <View style={s.note}>{note}</View> : null}
       </View>
-      {error ? <Text accessibilityRole="alert" style={s.error} testID={testID ? `${testID}-error` : undefined}>{error}</Text> : null}
+      {error ? (
+        <Text accessibilityRole="alert" style={s.error} testID={testID ? `${testID}-error` : undefined}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -214,26 +342,74 @@ export interface CardButtonProps extends CardActionSpec {
   busy?: boolean;
 }
 
-export function CardButton({ label, onPress, testID, disabled = false, icon, danger = false, primary = false, busy = false, link = false }: CardButtonProps): ReactElement {
+export function CardButton({
+  label,
+  onPress,
+  testID,
+  disabled = false,
+  icon,
+  danger = false,
+  primary = false,
+  busy = false,
+  link = false,
+}: CardButtonProps): ReactElement {
   const { width } = useWindowDimensions();
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const tall = width < PHONE_UNDER;
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, busy }} disabled={disabled} testID={testID} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-      style={[s.btn, tall && s.btnTall, primary && !danger ? s.btnPrimary : link ? s.btnLink : over && s.btnOver, focus && s.btnFocus, disabled && !busy && { opacity: 0.5 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled, busy }}
+      disabled={disabled}
+      testID={testID}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      onFocus={() => setFocus(true)}
+      onBlur={() => setFocus(false)}
+      style={[
+        s.btn,
+        tall && s.btnTall,
+        primary && !danger ? s.btnPrimary : link ? s.btnLink : over && s.btnOver,
+        focus && s.btnFocus,
+        disabled && !busy && { opacity: 0.5 },
+      ]}
     >
       {icon ? <View>{icon}</View> : null}
-      <Text style={[s.btnText, primary && !danger && s.btnTextPrimary, link && s.btnTextLink, danger && { color: "var(--danger)" }]}>{label}</Text>
-      {busy ? <View {...({ dataSet: { cardRing: "" } } as object)} style={[s.ring, { borderColor: danger ? "var(--danger)" : "var(--accent-ink)" }]} /> : null}
+      <Text
+        style={[
+          s.btnText,
+          primary && !danger && s.btnTextPrimary,
+          link && s.btnTextLink,
+          danger && { color: "var(--danger)" },
+        ]}
+      >
+        {label}
+      </Text>
+      {busy ? (
+        <View
+          {...({ dataSet: { cardRing: "" } } as object)}
+          style={[s.ring, { borderColor: danger ? "var(--danger)" : "var(--accent-ink)" }]}
+        />
+      ) : null}
     </Pressable>
   );
 }
 
 /** The one line an answered card folds to: "Allowed · edit Q4 pricing.docx", "Sent to Aliza · 04:38", "Not sent". */
-export function CardDone({ ok = true, text, glyph, testID }: { ok?: boolean; text: string; glyph?: ReactNode; testID?: string }): ReactElement {
+export function CardDone({
+  ok = true,
+  text,
+  glyph,
+  testID,
+}: {
+  ok?: boolean;
+  text: string;
+  glyph?: ReactNode;
+  testID?: string;
+}): ReactElement {
   return (
     <View testID={testID} style={s.done} accessibilityRole="text">
       {glyph ? <View>{glyph}</View> : null}
@@ -259,7 +435,13 @@ export function CardDeny({ onDeny, onBack, busy = false, ids, label = "Deny" }: 
   return (
     <View style={s.deny}>
       <TextInput
-        accessibilityLabel="Why not (optional)" testID={ids.reason} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline
+        accessibilityLabel="Why not (optional)"
+        testID={ids.reason}
+        value={reason}
+        onChangeText={setReason}
+        placeholder="Reason (optional)"
+        placeholderTextColor="var(--ink-4)"
+        multiline
         style={[s.input, s.inputMulti]}
       />
       <CardActions
@@ -291,7 +473,17 @@ export const s = StyleSheet.create({
   value: { flex: 1, minWidth: 0 },
   valueText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   fieldWrap: { gap: 4 },
-  input: { minHeight: 34, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
+  input: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+  },
   inputMulti: { minHeight: 56, paddingTop: 8 },
   inputFocus: { borderColor: "var(--accent)" as string },
   inputBad: { borderColor: "var(--danger)" as string },
@@ -301,7 +493,17 @@ export const s = StyleSheet.create({
   note: { flexShrink: 1, marginLeft: "auto" },
   buttons: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   error: { fontSize: 12.5, lineHeight: 17, color: "var(--danger)" as string },
-  btn: { height: 32, paddingHorizontal: 12, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, borderWidth: 1, borderColor: "transparent" },
+  btn: {
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
   btnTall: { height: 44 },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
@@ -310,7 +512,17 @@ export const s = StyleSheet.create({
   btnText: { fontSize: 13, fontWeight: "400", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string, fontWeight: "600" },
   btnTextLink: { color: "var(--accent)" as string, fontWeight: "400" },
-  ring: { width: 11, height: 11, borderRadius: 6, borderWidth: 2, borderTopColor: "transparent", animationName: "vyre-card-ring", animationDuration: "0.8s", animationIterationCount: "infinite", animationTimingFunction: "linear" } as object,
+  ring: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderTopColor: "transparent",
+    animationName: "vyre-card-ring",
+    animationDuration: "0.8s",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "linear",
+  } as object,
   done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   deny: { gap: 8 },

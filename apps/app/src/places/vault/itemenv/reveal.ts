@@ -57,12 +57,17 @@ export function createRevealStore(deps: RevealDeps): RevealStore {
   let state: RevealState = { shown: new Map(), agreed: false, asking: null, busy: false, error: null };
   const listeners = new Set<() => void>();
   const timers = new Map<string, unknown>();
-  const set = (next: Partial<RevealState>): void => { state = { ...state, ...next }; for (const l of [...listeners]) l(); };
+  const set = (next: Partial<RevealState>): void => {
+    state = { ...state, ...next };
+    for (const l of [...listeners]) l();
+  };
 
   async function fetchKeys(keys: string[]): Promise<Map<string, string>> {
     set({ busy: true, error: null });
     try {
-      const out = (await deps.call("vault.item.reveal", { itemId: deps.itemId, fields: keys })) as { fields: { key: string; value: string }[] };
+      const out = (await deps.call("vault.item.reveal", { itemId: deps.itemId, fields: keys })) as {
+        fields: { key: string; value: string }[];
+      };
       const got = new Map<string, string>();
       for (const f of out.fields) got.set(f.key, f.value);
       return got;
@@ -78,17 +83,28 @@ export function createRevealStore(deps: RevealDeps): RevealStore {
       shown.set(k, v);
       const old = timers.get(k);
       if (old !== undefined) clearT(old);
-      timers.set(k, setT(() => store.hide([k]), ms));
+      timers.set(
+        k,
+        setT(() => store.hide([k]), ms),
+      );
     }
     set({ shown, busy: false });
   }
 
   async function run(keys: string[], then: "show" | "copy"): Promise<void> {
     let got: Map<string, string>;
-    try { got = await fetchKeys(keys); } catch { return; }
+    try {
+      got = await fetchKeys(keys);
+    } catch {
+      return;
+    }
     if (then === "copy") {
       const text = keys.map((k) => got.get(k) ?? "").join("\n");
-      try { await deps.copy(text); } catch { set({ error: "Could not copy. Select the value and copy it by hand." }); }
+      try {
+        await deps.copy(text);
+      } catch {
+        set({ error: "Could not copy. Select the value and copy it by hand." });
+      }
       // a copy does not leave the value on screen
       set({ busy: false });
       return;
@@ -98,11 +114,17 @@ export function createRevealStore(deps: RevealDeps): RevealStore {
 
   const store: RevealStore = {
     get: () => state,
-    subscribe(l) { listeners.add(l); return () => void listeners.delete(l); },
+    subscribe(l) {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
     async reveal(keys, then = "show") {
       if (keys.length === 0) return;
       if (then === "show" && keys.every((k) => state.shown.has(k))) return;
-      if (!state.agreed) { set({ asking: { keys, then }, error: null }); return; }
+      if (!state.agreed) {
+        set({ asking: { keys, then }, error: null });
+        return;
+      }
       await run(keys, then);
     },
     async agree() {
@@ -111,15 +133,31 @@ export function createRevealStore(deps: RevealDeps): RevealStore {
       set({ agreed: true, asking: null });
       await run(ask.keys, ask.then);
     },
-    decline() { set({ asking: null }); },
+    decline() {
+      set({ asking: null });
+    },
     hide(keys) {
       const shown = new Map(state.shown);
-      for (const k of keys ?? [...shown.keys()]) { shown.delete(k); const t = timers.get(k); if (t !== undefined) { clearT(t); timers.delete(k); } }
+      for (const k of keys ?? [...shown.keys()]) {
+        shown.delete(k);
+        const t = timers.get(k);
+        if (t !== undefined) {
+          clearT(t);
+          timers.delete(k);
+        }
+      }
       set({ shown });
     },
     async copy(key) {
       const have = state.shown.get(key);
-      if (have !== undefined) { try { await deps.copy(have); } catch { set({ error: "Could not copy. Select the value and copy it by hand." }); } return; }
+      if (have !== undefined) {
+        try {
+          await deps.copy(have);
+        } catch {
+          set({ error: "Could not copy. Select the value and copy it by hand." });
+        }
+        return;
+      }
       await store.reveal([key], "copy");
     },
     dispose() {

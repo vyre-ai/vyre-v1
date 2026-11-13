@@ -9,8 +9,32 @@ import { choiceByKey, choicesOf } from "./choices.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { Attribution, FormKind, Row } from "../projections.ts";
 import {
-  attributionOf, cleanAttribution, DEFAULT_RATE_LIMIT, fail, fieldsOf, flag, formsConfig, isRec, many, matchRuleOf, mustForm, nid, num, optStr,
-  isNull, one, pageOf, parseJson, publishedBySlug, rateLimit, rec, recordAttribution, reqStr, sha256hex, sourceRules, str,
+  attributionOf,
+  cleanAttribution,
+  DEFAULT_RATE_LIMIT,
+  fail,
+  fieldsOf,
+  flag,
+  formsConfig,
+  isRec,
+  many,
+  matchRuleOf,
+  mustForm,
+  nid,
+  num,
+  optStr,
+  isNull,
+  one,
+  pageOf,
+  parseJson,
+  publishedBySlug,
+  rateLimit,
+  rec,
+  recordAttribution,
+  reqStr,
+  sha256hex,
+  sourceRules,
+  str,
 } from "../projections.ts";
 import { answerableFields, consumeLink, releaseLink, resolveLink } from "./links.ts";
 
@@ -32,7 +56,8 @@ function cleanAnswer(ctx: Ctx, key: string, v: unknown): Answer {
   if (v === null || typeof v === "boolean") return v;
   if (typeof v === "number") return Number.isFinite(v) ? v : bad();
   if (typeof v === "string") {
-    if (v.length > TEXT_ANSWER_MAX) fail(ctx, "validation.too_large", "That answer is too long.", { field: `answers.${key}` });
+    if (v.length > TEXT_ANSWER_MAX)
+      fail(ctx, "validation.too_large", "That answer is too long.", { field: `answers.${key}` });
     return v;
   }
   if (Array.isArray(v)) {
@@ -43,23 +68,32 @@ function cleanAnswer(ctx: Ctx, key: string, v: unknown): Answer {
   return bad();
 }
 
-const isEmptyAnswer = (v: unknown): boolean => v === null || v === undefined || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+const isEmptyAnswer = (v: unknown): boolean =>
+  v === null || v === undefined || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
 
 // ---- conditional logic -----------------------------------------------------------------------------------------
 // forms.design_set stores `logic` as { rules: [{ when, show?, hide?, require? }] }. `when` is { field, op, value? } or { all: [...] } / { any: [...] } / { not: ... }; ops are
 // eq, ne, in, contains, empty, not_empty, gt, gte, lt, lte. A question named in any rule's `show` starts hidden and appears while a rule that shows it matches; a matching `hide` rule
 // hides it again; a matching `require` rule makes it required while it is visible. The public page runs the same rules in the browser; this is the one that counts.
 
-export interface LogicRule { when: unknown; show?: string[]; hide?: string[]; require?: string[] }
+export interface LogicRule {
+  when: unknown;
+  show?: string[];
+  hide?: string[];
+  require?: string[];
+}
 
 const LOGIC_PASSES = 8;
-const nameList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+const nameList = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
 function rulesOf(logic: unknown): LogicRule[] {
   const list = isRec(logic) && Array.isArray(logic.rules) ? logic.rules : [];
   return list.filter(isRec).map((r) => {
     const rule: LogicRule = { when: r.when };
-    const show = nameList(r.show), hide = nameList(r.hide), require = nameList(r.require);
+    const show = nameList(r.show),
+      hide = nameList(r.hide),
+      require = nameList(r.require);
     if (show.length > 0) rule.show = show;
     if (hide.length > 0) rule.hide = hide;
     if (require.length > 0) rule.require = require;
@@ -67,7 +101,14 @@ function rulesOf(logic: unknown): LogicRule[] {
   });
 }
 
-const textOf = (v: unknown): string => (Array.isArray(v) ? v.join(",") : v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const textOf = (v: unknown): string =>
+  Array.isArray(v)
+    ? v.join(",")
+    : v === null || v === undefined
+      ? ""
+      : typeof v === "object"
+        ? JSON.stringify(v)
+        : String(v);
 
 function holds(cond: unknown, answers: Record<string, unknown>): boolean {
   if (!isRec(cond)) return false;
@@ -77,23 +118,37 @@ function holds(cond: unknown, answers: Record<string, unknown>): boolean {
   const have = answers[str(cond.field)];
   const want = cond.value;
   switch (cond.op) {
-    case "empty": return isEmptyAnswer(have);
-    case "not_empty": return !isEmptyAnswer(have);
-    case "eq": return Array.isArray(have) ? have.includes(textOf(want)) : textOf(have) === textOf(want);
-    case "ne": return Array.isArray(have) ? !have.includes(textOf(want)) : textOf(have) !== textOf(want);
-    case "in": return Array.isArray(want) && want.map(textOf).includes(textOf(have));
-    case "contains": return textOf(have).toLowerCase().includes(textOf(want).toLowerCase());
-    case "gt": case "gte": case "lt": case "lte": {
-      const a = Number(have), b = Number(want);
+    case "empty":
+      return isEmptyAnswer(have);
+    case "not_empty":
+      return !isEmptyAnswer(have);
+    case "eq":
+      return Array.isArray(have) ? have.includes(textOf(want)) : textOf(have) === textOf(want);
+    case "ne":
+      return Array.isArray(have) ? !have.includes(textOf(want)) : textOf(have) !== textOf(want);
+    case "in":
+      return Array.isArray(want) && want.map(textOf).includes(textOf(have));
+    case "contains":
+      return textOf(have).toLowerCase().includes(textOf(want).toLowerCase());
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte": {
+      const a = Number(have),
+        b = Number(want);
       if (isEmptyAnswer(have) || !Number.isFinite(a) || !Number.isFinite(b)) return false;
       return cond.op === "gt" ? a > b : cond.op === "gte" ? a >= b : cond.op === "lt" ? a < b : a <= b;
     }
-    default: return false;
+    default:
+      return false;
   }
 }
 
 /** Which questions are hidden and which are required for these answers. A hidden question's answer does not feed a rule, so the rules are settled in a few passes. */
-export function logicState(logic: unknown, answers: Record<string, unknown>): { hidden: Set<string>; required: Set<string> } {
+export function logicState(
+  logic: unknown,
+  answers: Record<string, unknown>,
+): { hidden: Set<string>; required: Set<string> } {
   const rules = rulesOf(logic);
   const startsHidden = new Set(rules.flatMap((r) => r.show ?? []));
   let hidden = new Set(startsHidden);
@@ -122,18 +177,25 @@ export function logicState(logic: unknown, answers: Record<string, unknown>): { 
 }
 
 /** Check the answers against the form: unknown questions are refused, read-only (Show) questions are ignored, email-like fields are tidied, questions the logic hides are dropped and the ones it requires must be filled. */
-export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<string, unknown>): Record<string, Answer> {
+export function checkAnswers(
+  ctx: Ctx,
+  form: Row,
+  link: Row | null,
+  raw: Record<string, unknown>,
+): Record<string, Answer> {
   const allowed = answerableFields(ctx, form, link);
   const modes = new Map(fieldsOf(ctx, str(form.id)).map((f) => [str(f.field), str(f.mode)]));
   const out: Record<string, Answer> = {};
   for (const [key, value] of Object.entries(raw)) {
     if (RESERVED.has(key)) continue;
     if (modes.get(key) === "show") continue;
-    if (!allowed.has(key)) fail(ctx, "validation.bad_input", "That question is not on this form.", { field: `answers.${key}` });
+    if (!allowed.has(key))
+      fail(ctx, "validation.bad_input", "That question is not on this form.", { field: `answers.${key}` });
     let a = cleanAnswer(ctx, key, value);
     if (key === "email" && typeof a === "string") {
       a = a.trim().toLowerCase();
-      if (a.length > 0 && (a.length > 254 || !EMAIL.test(a))) fail(ctx, "validation.bad_input", "That does not look like an email address.", { field: `answers.${key}` });
+      if (a.length > 0 && (a.length > 254 || !EMAIL.test(a)))
+        fail(ctx, "validation.bad_input", "That does not look like an email address.", { field: `answers.${key}` });
     }
     out[key] = a;
   }
@@ -142,59 +204,116 @@ export function checkAnswers(ctx: Ctx, form: Row, link: Row | null, raw: Record<
     const { hidden, required } = logicState(logic, out);
     for (const key of hidden) delete out[key];
     for (const key of required) {
-      if (allowed.has(key) && isEmptyAnswer(out[key])) fail(ctx, "validation.bad_input", "This question needs an answer.", { field: `answers.${key}` });
+      if (allowed.has(key) && isEmptyAnswer(out[key]))
+        fail(ctx, "validation.bad_input", "This question needs an answer.", { field: `answers.${key}` });
     }
   }
   return out;
 }
 
 /** Type checks run before any record write; relation IDs need explicit publication authority. */
-export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, Answer>, link: Row | null = null): Promise<Record<string, Answer>> {
-  const reader=formsConfig().schemaFields;
-  if(!reader)return answers;
-  const schema=await reader(str(form.record_type)), known=new Map(schema.map((field)=>[field.key,field]));
-  const out={...answers}, modes=fieldsOf(ctx,str(form.id)), state=logicState(parseJson(form.logic),out), allowed=answerableFields(ctx,form,link);
-  for(const item of modes){
-    const key=str(item.field),field=known.get(key);
-    if(str(item.mode)!=='ask'||state.hidden.has(key)||!allowed.has(key))continue;
-    if(!field)fail(ctx,'validation.bad_input','This form question is no longer available.',{field:`answers.${key}`});
-    const value=out[key];
-    if(isEmptyAnswer(value)){if(field.required||state.required.has(key))fail(ctx,'validation.bad_input','This question needs an answer.',{field:`answers.${key}`});delete out[key];continue;}
-    const bad=(message:string):never=>fail(ctx,'validation.bad_input',message,{field:`answers.${key}`});
-    if((field.type==='files'||field.type==='file')&&(!value||typeof value!=='object'||Array.isArray(value)||!('fileId' in value)))bad('Choose a file uploaded through this form.');
-    if(field.type==='relation'||field.type==='person'){
-      // only a choice the publisher published for this question: an opaque key, looked up here and checked again as the publisher who set it
-      const source=formsConfig().choiceSource;
-      if(!source)bad('This question requires publisher-approved record choices. Ask the form owner for help.');
-      // a person is one pick; a relation may take several, each a published key, never more than the published list
-      const keys=field.type==='person'?(typeof value==='string'?[value]:[]):typeof value==='string'?[value]:Array.isArray(value)?[...new Set(value)]:[];
-      if(keys.length===0||keys.length>200)bad('Choose one of the listed options.');
-      const ids:string[]=[];
-      for(const k of keys){
-        const choice=choiceByKey(ctx,str(form.id),key,k);
-        if(!choice)bad('Choose one of the listed options.');
-        const info=await source!.describe(choice!.setBy,field,choice!.refId);
-        if(!info.ok)bad('That choice is no longer available.');
-        ids.push(choice!.refId);
-      }
-      out[key]=field.type==='person'?ids[0]!:{[RELATE]:ids};
+export async function typedAnswers(
+  ctx: Ctx,
+  form: Row,
+  answers: Record<string, Answer>,
+  link: Row | null = null,
+): Promise<Record<string, Answer>> {
+  const reader = formsConfig().schemaFields;
+  if (!reader) return answers;
+  const schema = await reader(str(form.record_type)),
+    known = new Map(schema.map((field) => [field.key, field]));
+  const out = { ...answers },
+    modes = fieldsOf(ctx, str(form.id)),
+    state = logicState(parseJson(form.logic), out),
+    allowed = answerableFields(ctx, form, link);
+  for (const item of modes) {
+    const key = str(item.field),
+      field = known.get(key);
+    if (str(item.mode) !== "ask" || state.hidden.has(key) || !allowed.has(key)) continue;
+    if (!field)
+      fail(ctx, "validation.bad_input", "This form question is no longer available.", { field: `answers.${key}` });
+    const value = out[key];
+    if (isEmptyAnswer(value)) {
+      if (field.required || state.required.has(key))
+        fail(ctx, "validation.bad_input", "This question needs an answer.", { field: `answers.${key}` });
+      delete out[key];
       continue;
     }
-    if(['number','integer','currency','percent','rating'].includes(field.type)){
-      const n=typeof value==='number'?value:typeof value==='string'&&value.trim()?Number(value):NaN;
-      if(!Number.isFinite(n)||field.type==='integer'&&!Number.isInteger(n))bad('Enter a valid number.');
-      if(field.type==='rating'&&(!Number.isInteger(n)||n<Number(field.options?.min??1)||n>Number(field.options?.max??5)))bad('That rating is outside the allowed range.');out[key]=n;
-    }else if(['boolean','bool','checkbox'].includes(field.type)){
-      if(value===true||value==='true'||value==='on')out[key]=true;else if(value===false||value==='false')out[key]=false;else bad('Choose yes or no.');
-    }else if(field.type==='choice'||field.type==='status'||field.type==='multichoice'){
-      const published=field.type==='relation'||field.type==='person'?choicesOf(ctx,str(form.id),field.key).map((c)=>({key:c.key,title:c.label})):[];
-    const raw=field.options?.[field.type==='status'?'stages':'choices'];const choices=new Set(Array.isArray(raw)?raw.flatMap((item)=>typeof item==='string'?[item]:isRec(item)&&typeof item.key==='string'?[item.key]:[]):[]);
-      if(field.type==='multichoice'){if(!Array.isArray(value)||value.some((item)=>typeof item!=='string'||!choices.has(item)))bad('Choose only the listed options.');}
-      else if(typeof value!=='string'||!choices.has(value))bad('Choose one of the listed options.');
-    }else if(field.type==='date'){
-      if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)bad('Enter a valid date.');
-    }else if(field.type==='datetime'&&(typeof value!=='string'||!Number.isFinite(Date.parse(value))))bad('Enter a valid date and time.');
-    else if(field.type==='email'&&(typeof value!=='string'||!EMAIL.test(value)))bad('Enter a valid email address.');
+    const bad = (message: string): never => fail(ctx, "validation.bad_input", message, { field: `answers.${key}` });
+    if (
+      (field.type === "files" || field.type === "file") &&
+      (!value || typeof value !== "object" || Array.isArray(value) || !("fileId" in value))
+    )
+      bad("Choose a file uploaded through this form.");
+    if (field.type === "relation" || field.type === "person") {
+      // only a choice the publisher published for this question: an opaque key, looked up here and checked again as the publisher who set it
+      const source = formsConfig().choiceSource;
+      if (!source) bad("This question requires publisher-approved record choices. Ask the form owner for help.");
+      // a person is one pick; a relation may take several, each a published key, never more than the published list
+      const keys =
+        field.type === "person"
+          ? typeof value === "string"
+            ? [value]
+            : []
+          : typeof value === "string"
+            ? [value]
+            : Array.isArray(value)
+              ? [...new Set(value)]
+              : [];
+      if (keys.length === 0 || keys.length > 200) bad("Choose one of the listed options.");
+      const ids: string[] = [];
+      for (const k of keys) {
+        const choice = choiceByKey(ctx, str(form.id), key, k);
+        if (!choice) bad("Choose one of the listed options.");
+        const info = await source!.describe(choice!.setBy, field, choice!.refId);
+        if (!info.ok) bad("That choice is no longer available.");
+        ids.push(choice!.refId);
+      }
+      out[key] = field.type === "person" ? ids[0]! : { [RELATE]: ids };
+      continue;
+    }
+    if (["number", "integer", "currency", "percent", "rating"].includes(field.type)) {
+      const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+      if (!Number.isFinite(n) || (field.type === "integer" && !Number.isInteger(n))) bad("Enter a valid number.");
+      if (
+        field.type === "rating" &&
+        (!Number.isInteger(n) || n < Number(field.options?.min ?? 1) || n > Number(field.options?.max ?? 5))
+      )
+        bad("That rating is outside the allowed range.");
+      out[key] = n;
+    } else if (["boolean", "bool", "checkbox"].includes(field.type)) {
+      if (value === true || value === "true" || value === "on") out[key] = true;
+      else if (value === false || value === "false") out[key] = false;
+      else bad("Choose yes or no.");
+    } else if (field.type === "choice" || field.type === "status" || field.type === "multichoice") {
+      const published =
+        field.type === "relation" || field.type === "person"
+          ? choicesOf(ctx, str(form.id), field.key).map((c) => ({ key: c.key, title: c.label }))
+          : [];
+      const raw = field.options?.[field.type === "status" ? "stages" : "choices"];
+      const choices = new Set(
+        Array.isArray(raw)
+          ? raw.flatMap((item) =>
+              typeof item === "string" ? [item] : isRec(item) && typeof item.key === "string" ? [item.key] : [],
+            )
+          : [],
+      );
+      if (field.type === "multichoice") {
+        if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !choices.has(item)))
+          bad("Choose only the listed options.");
+      } else if (typeof value !== "string" || !choices.has(value)) bad("Choose one of the listed options.");
+    } else if (field.type === "date") {
+      if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+        !Number.isFinite(Date.parse(value)) ||
+        new Date(value).toISOString().slice(0, 10) !== value
+      )
+        bad("Enter a valid date.");
+    } else if (field.type === "datetime" && (typeof value !== "string" || !Number.isFinite(Date.parse(value))))
+      bad("Enter a valid date and time.");
+    else if (field.type === "email" && (typeof value !== "string" || !EMAIL.test(value)))
+      bad("Enter a valid email address.");
   }
   return out;
 }
@@ -204,12 +323,22 @@ export async function typedAnswers(ctx: Ctx, form: Row, answers: Record<string, 
 // extensions (".pdf"); `maxBytes` is the most one file may be. The policy covers every answer that is a file ({ fileId }), whatever the question; `fields` names the questions the public
 // page draws as a file chooser. The size and type checked are the ones the upload route measured and recorded (forms_upload), not what the browser claimed, and a file answer is an upload id the form itself issued, never a Space file id.
 
-export interface UploadPolicy { fields: string[]; maxBytes?: number; types: string[]; /** the Files folder public uploads land in; without it the page offers no file chooser */ folderId?: string }
+export interface UploadPolicy {
+  fields: string[];
+  maxBytes?: number;
+  types: string[];
+  /** the Files folder public uploads land in; without it the page offers no file chooser */ folderId?: string;
+}
 
 export function uploadPolicyOf(form: Row): UploadPolicy | undefined {
   const p = parseJson(form.upload_policy);
   if (!isRec(p)) return undefined;
-  const out: UploadPolicy = { fields: nameList(p.fields), types: nameList(p.types).map((t) => t.trim().toLowerCase()).filter((t) => t.length > 0) };
+  const out: UploadPolicy = {
+    fields: nameList(p.fields),
+    types: nameList(p.types)
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length > 0),
+  };
   if (typeof p.folderId === "string" && p.folderId.length > 0) out.folderId = p.folderId;
   if (typeof p.maxBytes === "number" && Number.isFinite(p.maxBytes) && p.maxBytes >= 0) out.maxBytes = p.maxBytes;
   return out;
@@ -220,7 +349,9 @@ export function typeAllowed(types: readonly string[], mime: string, name: string
   if (types.length === 0) return true;
   const m = mime.toLowerCase();
   const n = name.toLowerCase();
-  return types.some((t) => (t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t));
+  return types.some((t) =>
+    t.startsWith(".") ? n.endsWith(t) : t.endsWith("/*") ? m.startsWith(t.slice(0, -1)) : m === t,
+  );
 }
 
 const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
@@ -232,10 +363,20 @@ export function reserveUpload(ctx: Ctx, slug: string): { formId: string; folderI
   const form = publishedBySlug(ctx, slug, ["public", "one_use", "survey"]);
   const folderId = uploadPolicyOf(form)?.folderId;
   if (folderId === undefined) fail(ctx, "validation.not_found", "That form is not open.");
-  if(formsConfig().canUpload?.(str(form.created_by),str(form.id),folderId)===false)fail(ctx,'permission.no_grant','The form owner no longer has access to its upload folder. Ask the form owner for help.');
+  if (formsConfig().canUpload?.(str(form.created_by), str(form.id), folderId) === false)
+    fail(
+      ctx,
+      "permission.no_grant",
+      "The form owner no longer has access to its upload folder. Ask the form owner for help.",
+    );
   const since = ctx.now() - UPLOAD_TTL_MS;
-  if (many(ctx, "SELECT * FROM forms_upload WHERE form_id = ?", str(form.id)).filter((u) => num(u.created_at) > since).length >= UPLOADS_PER_FORM_PER_DAY) {
-    fail(ctx, "rate_limit.exceeded", "This form has taken all the files it accepts today. Try again tomorrow.", { retryAfterSeconds: 3600 });
+  if (
+    many(ctx, "SELECT * FROM forms_upload WHERE form_id = ?", str(form.id)).filter((u) => num(u.created_at) > since)
+      .length >= UPLOADS_PER_FORM_PER_DAY
+  ) {
+    fail(ctx, "rate_limit.exceeded", "This form has taken all the files it accepts today. Try again tomorrow.", {
+      retryAfterSeconds: 3600,
+    });
   }
   return { formId: str(form.id), folderId };
 }
@@ -244,12 +385,24 @@ export function reserveUpload(ctx: Ctx, slug: string): { formId: string; folderI
  * The upload route stored a file in the form's folder as the host; this records it against the form and the visitor (ctx.principal: the act_anon_* actor) and returns the id the page puts
  * in its answer. The visitor never sees the Space file id, and forms.submit takes nothing else.
  */
-export async function recordUpload(ctx: Ctx, f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined }): Promise<string> {
+export async function recordUpload(
+  ctx: Ctx,
+  f: { slug: string; fileId: string; name: string; mime: string; size: number; token?: string | undefined },
+): Promise<string> {
   const form = publishedBySlug(ctx, f.slug, ["public", "one_use", "survey"]);
   const id = nid(ctx, "upl");
   ctx.db.run(
     "INSERT INTO forms_upload (id, form_id, actor, token_hash, file_id, name, mime, size, created_at, used_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, str(form.id), ctx.principal.id, f.token !== undefined && f.token.length > 0 ? await sha256hex(f.token) : null, f.fileId, f.name, f.mime, f.size, ctx.now(), null,
+    id,
+    str(form.id),
+    ctx.principal.id,
+    f.token !== undefined && f.token.length > 0 ? await sha256hex(f.token) : null,
+    f.fileId,
+    f.name,
+    f.mime,
+    f.size,
+    ctx.now(),
+    null,
   );
   return id;
 }
@@ -258,22 +411,47 @@ export async function recordUpload(ctx: Ctx, f: { slug: string; fileId: string; 
  * Turn each file answer ({ fileId: <upload id> }) into the file it stands for. An upload counts only if this form took it from this visitor (and the same signed link), it is unused and under a
  * day old, and it fits the form's policy. A Space file id the visitor makes up is not an upload id and is refused. Returns the answers with the Space file ids, and the upload ids to mark used.
  */
-export function checkUploads(ctx: Ctx, form: Row, answers: Record<string, Answer>, tokenHash: string | null, visitor: string): { answers: Record<string, Answer>; used: string[] } {
+export function checkUploads(
+  ctx: Ctx,
+  form: Row,
+  answers: Record<string, Answer>,
+  tokenHash: string | null,
+  visitor: string,
+): { answers: Record<string, Answer>; used: string[] } {
   const policy = uploadPolicyOf(form);
   const out: Record<string, Answer> = { ...answers };
   const used: string[] = [];
   for (const [key, a] of Object.entries(answers)) {
-    if (a === null || typeof a !== "object" || Array.isArray(a) || RELATE in a) continue;   // a relation pick is not a file: it was made from a published choice and carries no upload id
+    if (a === null || typeof a !== "object" || Array.isArray(a) || RELATE in a) continue; // a relation pick is not a file: it was made from a published choice and carries no upload id
     const field = `answers.${key}`;
-    const bad = (): never => fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
-    if(policy?.folderId&&formsConfig().canUpload?.(str(form.created_by),str(form.id),policy.folderId)===false)fail(ctx,'permission.no_grant','The form owner no longer has access to its upload folder. Ask the form owner for help.',{field});
+    const bad = (): never =>
+      fail(ctx, "validation.bad_input", "That file could not be found. Choose it again.", { field });
+    if (policy?.folderId && formsConfig().canUpload?.(str(form.created_by), str(form.id), policy.folderId) === false)
+      fail(
+        ctx,
+        "permission.no_grant",
+        "The form owner no longer has access to its upload folder. Ask the form owner for help.",
+        { field },
+      );
     const row = one(ctx, "SELECT * FROM forms_upload WHERE id = ?", a.fileId);
-    if (!row || row.form_id !== form.id || row.actor !== visitor || !isNull(row.used_at) || num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS) return bad();
-    if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy) return bad();
+    if (
+      !row ||
+      row.form_id !== form.id ||
+      row.actor !== visitor ||
+      !isNull(row.used_at) ||
+      num(row.created_at) <= ctx.now() - UPLOAD_TTL_MS
+    )
+      return bad();
+    if ((isNull(row.token_hash) ? null : str(row.token_hash)) !== tokenHash || used.includes(a.fileId) || !policy)
+      return bad();
     if (policy.maxBytes !== undefined && num(row.size) > policy.maxBytes) {
-      fail(ctx, "validation.too_large", `That file is over the ${Math.floor(policy.maxBytes / 1024)} KB limit.`, { field, maxBytes: policy.maxBytes });
+      fail(ctx, "validation.too_large", `That file is over the ${Math.floor(policy.maxBytes / 1024)} KB limit.`, {
+        field,
+        maxBytes: policy.maxBytes,
+      });
     }
-    if (!typeAllowed(policy.types, str(row.mime), str(row.name))) fail(ctx, "validation.bad_input", "That kind of file is not accepted here.", { field, types: policy.types });
+    if (!typeAllowed(policy.types, str(row.mime), str(row.name)))
+      fail(ctx, "validation.bad_input", "That kind of file is not accepted here.", { field, types: policy.types });
     out[key] = { fileId: str(row.file_id) };
     used.push(a.fileId);
   }
@@ -289,7 +467,9 @@ const VISITOR_ID = /^act_(anon|pending)_[0-9a-f]{16}$/;
  * any `visitor` the client sent); from any other principal the field is ignored, so no gateway caller can borrow another visitor's uploads.
  */
 export function visitorOf(ctx: Ctx, o: Record<string, unknown>): string {
-  return ctx.principal.id === HOST_PRINCIPAL && typeof o.visitor === "string" && VISITOR_ID.test(o.visitor) ? o.visitor : ctx.principal.id;
+  return ctx.principal.id === HOST_PRINCIPAL && typeof o.visitor === "string" && VISITOR_ID.test(o.visitor)
+    ? o.visitor
+    : ctx.principal.id;
 }
 
 export function principalOk(ctx: Ctx, form: Row): void {
@@ -311,7 +491,8 @@ async function digestOf(form: Row, link: Row | null, answers: Record<string, Ans
 
 /** A relation answer on its way to the write: the record to link, applied with records.relate after the record exists (it keeps both ends of a relation right, whatever the field's shape). */
 const RELATE = "__relate" as const;
-const relationPick = (v: unknown): string[] | null => (isRec(v) && Array.isArray(v[RELATE]) ? (v[RELATE] as string[]) : null);
+const relationPick = (v: unknown): string[] | null =>
+  isRec(v) && Array.isArray(v[RELATE]) ? (v[RELATE] as string[]) : null;
 /** A survey keeps what the visitor answered: a relation pick is stored as the label they saw, not the record id behind it, so results read naturally and carry no id. */
 function surveyAnswers(ctx: Ctx, formId: string, answers: Record<string, Answer>): Record<string, Answer> {
   const out: Record<string, Answer> = {};
@@ -337,22 +518,44 @@ const unwrapId = (v: unknown): string => {
  * Write answers to a record as the form's service principal. With a link the link's record is updated. Without one the match rule decides:
  * no match creates, one match updates, several matches create a record and put the doubt in Needs you (nothing is merged by guess).
  */
-export async function writeAnswers(ctx: Ctx, form: Row, picked: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
+export async function writeAnswers(
+  ctx: Ctx,
+  form: Row,
+  picked: Record<string, Answer>,
+  link: Row | null,
+  key: string,
+): Promise<WriteResult> {
   const type = str(form.record_type);
-  const answers: Record<string, Answer> = {}, relations: [string, string[]][] = [];
-  for (const [k, v] of Object.entries(picked)) { const ids = relationPick(v); if (ids) relations.push([k, ids]); else answers[k] = v; }
+  const answers: Record<string, Answer> = {},
+    relations: [string, string[]][] = [];
+  for (const [k, v] of Object.entries(picked)) {
+    const ids = relationPick(v);
+    if (ids) relations.push([k, ids]);
+    else answers[k] = v;
+  }
   // the link goes in with the create, so a required relation is satisfied; relate then fills the other end of a two-way relation
   const schema = relations.length > 0 ? await formsConfig().schemaFields?.(type) : undefined;
   for (const [field, toIds] of relations) {
     const target = schema?.find((f) => f.key === field)?.options?.["target"];
-    if (typeof target === "string") (answers as Record<string, unknown>)[field] = toIds.map((toId) => ({ urn: `vyre://${ctx.space}/${target}/${toId}` }));
+    if (typeof target === "string")
+      (answers as Record<string, unknown>)[field] = toIds.map((toId) => ({
+        urn: `vyre://${ctx.space}/${target}/${toId}`,
+      }));
   }
   const written = await writeFields(ctx, form, type, answers, link, key);
-  for (const [field, toIds] of relations) for (const toId of toIds) await ctx.call("records.relate", { type, recordId: written.recordId, field, toId });
+  for (const [field, toIds] of relations)
+    for (const toId of toIds) await ctx.call("records.relate", { type, recordId: written.recordId, field, toId });
   return written;
 }
 
-async function writeFields(ctx: Ctx, form: Row, type: string, answers: Record<string, Answer>, link: Row | null, key: string): Promise<WriteResult> {
+async function writeFields(
+  ctx: Ctx,
+  form: Row,
+  type: string,
+  answers: Record<string, Answer>,
+  link: Row | null,
+  key: string,
+): Promise<WriteResult> {
   if (link) {
     const recordId = str(link.record_id);
     if (Object.keys(answers).length > 0) await ctx.call("records.update", { type, recordId, patch: answers });
@@ -372,7 +575,9 @@ async function writeFields(ctx: Ctx, form: Row, type: string, answers: Record<st
     if (Object.keys(patch).length > 0) await ctx.call("records.update", { type, recordId: found[0], patch });
     return { recordId: found[0], created: false, matched: true };
   }
-  const made = unwrapId(await ctx.call("records.create", { idempotencyKey: `${key}:records.create`, type, fields: answers }));
+  const made = unwrapId(
+    await ctx.call("records.create", { idempotencyKey: `${key}:records.create`, type, fields: answers }),
+  );
   if (made === "") fail(ctx, "internal.unexpected", "The record could not be created.");
   if (found.length > 1) {
     await ctx.call("tasks.create", {
@@ -391,19 +596,34 @@ async function writeFields(ctx: Ctx, form: Row, type: string, answers: Record<st
  * The checks every public write shares: the per-form rate limit, the consent statement and the captcha. Returns whether consent was given.
  * Nothing is written before these pass. `scope` keeps submit and booking counts apart.
  */
-export async function publicChecks(ctx: Ctx, form: Row, rawAnswers: Record<string, unknown>, o: Record<string, unknown>, scope: "submit" | "book"): Promise<boolean> {
-  rateLimit(ctx, `${scope}:${str(form.id)}`, "*", num(form.rate_limit) > 0 ? num(form.rate_limit) : DEFAULT_RATE_LIMIT, 60_000);
+export async function publicChecks(
+  ctx: Ctx,
+  form: Row,
+  rawAnswers: Record<string, unknown>,
+  o: Record<string, unknown>,
+  scope: "submit" | "book",
+): Promise<boolean> {
+  rateLimit(
+    ctx,
+    `${scope}:${str(form.id)}`,
+    "*",
+    num(form.rate_limit) > 0 ? num(form.rate_limit) : DEFAULT_RATE_LIMIT,
+    60_000,
+  );
 
   const consentText = str(form.consent_text).trim();
   const consent = consentOf(rawAnswers, o.attribution);
-  if (consentText.length > 0 && !consent) fail(ctx, "validation.bad_input", "Please accept the consent statement to continue.", { field: "consent" });
+  if (consentText.length > 0 && !consent)
+    fail(ctx, "validation.bad_input", "Please accept the consent statement to continue.", { field: "consent" });
 
   if (flag(form.captcha)) {
     // forms.submit has a captcha input; bookings.book does not, so a booking page reads it from the reserved answer key
     const inAnswers = rawAnswers.captcha;
-    const captcha = optStr(ctx, o, "captcha") ?? (typeof inAnswers === "string" && inAnswers.length > 0 ? inAnswers : undefined);
+    const captcha =
+      optStr(ctx, o, "captcha") ?? (typeof inAnswers === "string" && inAnswers.length > 0 ? inAnswers : undefined);
     const verifier = formsConfig().captcha;
-    if (!verifier) fail(ctx, "validation.precondition_failed", "This form needs a captcha check that is not set up on this server.");
+    if (!verifier)
+      fail(ctx, "validation.precondition_failed", "This form needs a captcha check that is not set up on this server.");
     if (!captcha) fail(ctx, "auth.invalid_code", "Complete the captcha to continue.");
     let human = false;
     try {
@@ -424,34 +644,46 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   principalOk(ctx, form);
   const rawAnswers = o.answers;
   if (!isRec(rawAnswers)) fail(ctx, "validation.bad_input", "The answers are not valid.", { field: "answers" });
-  if (new TextEncoder().encode(JSON.stringify(rawAnswers)).length > ANSWERS_MAX_BYTES) fail(ctx, "validation.too_large", "Those answers are too large.");
+  if (new TextEncoder().encode(JSON.stringify(rawAnswers)).length > ANSWERS_MAX_BYTES)
+    fail(ctx, "validation.too_large", "Those answers are too large.");
 
   const consent = await publicChecks(ctx, form, rawAnswers, o, "submit");
 
   const token = optStr(ctx, o, "token") ?? optStr(ctx, o, "code");
   let link: Row | null = null;
   if (token !== undefined) link = await resolveLink(ctx, form, token);
-  else if (form.kind === "one_use") fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
+  else if (form.kind === "one_use")
+    fail(ctx, "auth.invalid_code", "This form opens only from the link that was sent to you.");
 
   const checked = await typedAnswers(ctx, form, checkAnswers(ctx, form, link, rawAnswers), link);
-  const { answers, used } = checkUploads(ctx, form, checked, token !== undefined ? await sha256hex(token) : null, visitorOf(ctx, o));
-  const schemaReader=formsConfig().schemaFields;
-  if(schemaReader){
-    const schema=await schemaReader(str(form.record_type));
-    for(const field of schema)if(field.type==='files'){
-      const value=answers[field.key];
-      if(value&&typeof value==='object'&&!Array.isArray(value)&&'fileId' in value)answers[field.key]=[value.fileId];
-    }
+  const { answers, used } = checkUploads(
+    ctx,
+    form,
+    checked,
+    token !== undefined ? await sha256hex(token) : null,
+    visitorOf(ctx, o),
+  );
+  const schemaReader = formsConfig().schemaFields;
+  if (schemaReader) {
+    const schema = await schemaReader(str(form.record_type));
+    for (const field of schema)
+      if (field.type === "files") {
+        const value = answers[field.key];
+        if (value && typeof value === "object" && !Array.isArray(value) && "fileId" in value)
+          answers[field.key] = [value.fileId];
+      }
   }
   const attribution = cleanAttribution(ctx, o.attribution, consent);
 
   const digest = await digestOf(form, link, answers);
   const now = ctx.now();
   for (const s of many(ctx, "SELECT * FROM forms_submission WHERE form_id = ?", formId)) {
-    if (s.digest === digest && num(s.at) > now - DUPLICATE_WINDOW_MS) fail(ctx, "validation.duplicate", "This was already sent.");
+    if (s.digest === digest && num(s.at) > now - DUPLICATE_WINDOW_MS)
+      fail(ctx, "validation.duplicate", "This was already sent.");
   }
 
-  if (link && !consumeLink(ctx, link)) fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
+  if (link && !consumeLink(ctx, link))
+    fail(ctx, "auth.invalid_code", "This link is not valid any more. Ask for a new one.");
   let written: WriteResult;
   try {
     written = await writeAnswers(ctx, form, answers, link, `forms.submit:${formId}:${digest}:${ctx.trace.traceId}`);
@@ -463,17 +695,43 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   for (const u of used) ctx.db.run("UPDATE forms_upload SET used_at = ? WHERE id = ?", now, u);
   ctx.db.run(
     "INSERT INTO forms_submission (id, form_id, record_id, at, matched, principal, link_id, consent, digest, answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    nid(ctx, "sub"), formId, written.recordId, now, written.matched ? 1 : 0, formPrincipal(formId), link ? str(link.id) : null, consent ? 1 : 0, digest,
+    nid(ctx, "sub"),
+    formId,
+    written.recordId,
+    now,
+    written.matched ? 1 : 0,
+    formPrincipal(formId),
+    link ? str(link.id) : null,
+    consent ? 1 : 0,
+    digest,
     form.kind === "survey" ? JSON.stringify(surveyAnswers(ctx, formId, answers)) : null,
   );
   if (attribution) recordAttribution(ctx, written.recordId, attribution, written.created);
-  if (link) ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", null, null, null, str(link.id));
-  ctx.emit("form.submitted", `form/${formId}`, { formId, recordId: written.recordId, type: str(form.record_type), matched: written.matched, ...(str(form.kind) === "booking" ? { booking: true } : {}) });
+  if (link)
+    ctx.db.run(
+      "UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?",
+      null,
+      null,
+      null,
+      str(link.id),
+    );
+  ctx.emit("form.submitted", `form/${formId}`, {
+    formId,
+    recordId: written.recordId,
+    type: str(form.record_type),
+    matched: written.matched,
+    ...(str(form.kind) === "booking" ? { booking: true } : {}),
+  });
 
   const thanks = parseJson(form.thank_you);
   const out: { recordId: string; thankYou?: string } = { recordId: written.recordId };
   if (isRec(thanks)) {
-    const t = typeof thanks.redirect === "string" && thanks.redirect.length > 0 ? thanks.redirect : typeof thanks.text === "string" ? thanks.text : "";
+    const t =
+      typeof thanks.redirect === "string" && thanks.redirect.length > 0
+        ? thanks.redirect
+        : typeof thanks.text === "string"
+          ? thanks.text
+          : "";
     if (t.length > 0) out.thankYou = t;
   }
   return out;
@@ -486,7 +744,16 @@ export interface PublicFormView {
   kind: FormKind;
   name: string;
   /** the questions a visitor sees, in order: Ask, plus Hide ones that a link or the page address fills (prefillKey) */
-  fields: { field: string; hidden: boolean; prefillKey?: string; step: number; title?: string; type?: string; required?: boolean; choices?: { key: string; title: string }[] }[];
+  fields: {
+    field: string;
+    hidden: boolean;
+    prefillKey?: string;
+    step: number;
+    title?: string;
+    type?: string;
+    required?: boolean;
+    choices?: { key: string; title: string }[];
+  }[];
   theme?: Record<string, unknown>;
   css?: string;
   /** the author's HTML template and script (lib/form-source.ts); the page checks them again before it serves them */
@@ -514,7 +781,11 @@ export function publicFormView(ctx: Ctx, slug: string, page: "form" | "booking")
     fields: fieldsOf(ctx, str(form.id))
       .filter((f) => f.mode === "ask" || (f.mode === "hide" && !isNull(f.prefill_key)))
       .map((f) => {
-        const row: PublicFormView["fields"][number] = { field: str(f.field), hidden: f.mode === "hide", step: isNull(f.step) ? 0 : num(f.step) };
+        const row: PublicFormView["fields"][number] = {
+          field: str(f.field),
+          hidden: f.mode === "hide",
+          step: isNull(f.step) ? 0 : num(f.step),
+        };
         if (!isNull(f.prefill_key)) row.prefillKey = str(f.prefill_key);
         return row;
       }),
@@ -544,13 +815,20 @@ export function publicFormView(ctx: Ctx, slug: string, page: "form" | "booking")
   return view;
 }
 
-async function submissions(ctx: Ctx, input: unknown): Promise<{ rows: { recordId: string; at: number; matched: boolean }[]; next?: string; total: number }> {
+async function submissions(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ rows: { recordId: string; at: number; matched: boolean }[]; next?: string; total: number }> {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   const { offset, limit } = pageOf(ctx, o);
-  const rows = many(ctx, "SELECT * FROM forms_submission WHERE form_id = ?", str(form.id)).sort((a, b) => num(b.at) - num(a.at) || str(b.id).localeCompare(str(a.id)));
+  const rows = many(ctx, "SELECT * FROM forms_submission WHERE form_id = ?", str(form.id)).sort(
+    (a, b) => num(b.at) - num(a.at) || str(b.id).localeCompare(str(a.id)),
+  );
   const out: { rows: { recordId: string; at: number; matched: boolean }[]; next?: string; total: number } = {
-    rows: rows.slice(offset, offset + limit).map((r) => ({ recordId: str(r.record_id), at: num(r.at), matched: flag(r.matched) })),
+    rows: rows
+      .slice(offset, offset + limit)
+      .map((r) => ({ recordId: str(r.record_id), at: num(r.at), matched: flag(r.matched) })),
     total: rows.length,
   };
   if (offset + limit < rows.length) out.next = String(offset + limit);
@@ -558,45 +836,94 @@ async function submissions(ctx: Ctx, input: unknown): Promise<{ rows: { recordId
 }
 
 /** Async production seam: only approved form questions receive actual schema metadata; never relation records. */
-export async function publicFormViewTyped(ctx: Ctx, slug: string, page: "form"|"booking"): Promise<PublicFormView> {
-  const view=publicFormView(ctx,slug,page),reader=formsConfig().schemaFields;
-  if(!reader)return view;
-  const form=publishedBySlug(ctx,slug,page==='booking'?['booking']:['public','one_use','survey']);
-  const schema=await reader(str(form.record_type)),known=new Map(schema.map((field)=>[field.key,field]));
-  if(view.upload?.folderId&&formsConfig().canUpload?.(str(form.created_by),str(form.id),view.upload.folderId)===false)delete view.upload;
-  view.fields=view.fields.flatMap((item)=>{const field=known.get(item.field);if(!field)return [];
-    const raw=field.options?.[field.type==='status'?'stages':'choices'];
-    const choices=Array.isArray(raw)?raw.slice(0,200).flatMap((choice)=>typeof choice==='string'?[{key:choice,title:choice}]:isRec(choice)&&typeof choice.key==='string'?[{key:choice.key,title:typeof choice.title==='string'?choice.title:choice.key}]:[]):[];
-    const published=field.type==='relation'||field.type==='person'?choicesOf(ctx,str(form.id),field.key).map((c)=>({key:c.key,title:c.label})):[];
-    const offered=published.length?published:choices;
-    return [{...item,title:field.title,type:field.type,...(field.required?{required:true}:{}),...(offered.length?{choices:offered}: {})}];});
+export async function publicFormViewTyped(ctx: Ctx, slug: string, page: "form" | "booking"): Promise<PublicFormView> {
+  const view = publicFormView(ctx, slug, page),
+    reader = formsConfig().schemaFields;
+  if (!reader) return view;
+  const form = publishedBySlug(ctx, slug, page === "booking" ? ["booking"] : ["public", "one_use", "survey"]);
+  const schema = await reader(str(form.record_type)),
+    known = new Map(schema.map((field) => [field.key, field]));
+  if (
+    view.upload?.folderId &&
+    formsConfig().canUpload?.(str(form.created_by), str(form.id), view.upload.folderId) === false
+  )
+    delete view.upload;
+  view.fields = view.fields.flatMap((item) => {
+    const field = known.get(item.field);
+    if (!field) return [];
+    const raw = field.options?.[field.type === "status" ? "stages" : "choices"];
+    const choices = Array.isArray(raw)
+      ? raw
+          .slice(0, 200)
+          .flatMap((choice) =>
+            typeof choice === "string"
+              ? [{ key: choice, title: choice }]
+              : isRec(choice) && typeof choice.key === "string"
+                ? [{ key: choice.key, title: typeof choice.title === "string" ? choice.title : choice.key }]
+                : [],
+          )
+      : [];
+    const published =
+      field.type === "relation" || field.type === "person"
+        ? choicesOf(ctx, str(form.id), field.key).map((c) => ({ key: c.key, title: c.label }))
+        : [];
+    const offered = published.length ? published : choices;
+    return [
+      {
+        ...item,
+        title: field.title,
+        type: field.type,
+        ...(field.required ? { required: true } : {}),
+        ...(offered.length ? { choices: offered } : {}),
+      },
+    ];
+  });
   return view;
 }
 
-async function surveyResults(ctx: Ctx, input: unknown): Promise<{ responses: number; questions: { field: string; summary: unknown }[] }> {
+async function surveyResults(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ responses: number; questions: { field: string; summary: unknown }[] }> {
   const o = rec(ctx, input);
   const form = mustForm(ctx, reqStr(ctx, o, "formId"));
   if (form.kind !== "survey") fail(ctx, "validation.precondition_failed", "Only a survey has results.");
   const subs = many(ctx, "SELECT * FROM forms_submission WHERE form_id = ?", str(form.id));
   const parsed = subs.map((s) => parseJson(s.answers)).filter(isRec);
-  const questions = fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask").map((f) => {
-    const field = str(f.field);
-    const values = parsed.map((a) => a[field]).filter((v) => !isEmptyAnswer(v));
-    const nums = values.filter((v): v is number => typeof v === "number");
-    if (values.length > 0 && nums.length === values.length) {
-      const dist: Record<string, number> = {};
-      for (const n of nums) dist[String(n)] = (dist[String(n)] ?? 0) + 1;
-      const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
-      return { field, summary: { kind: "number", answered: nums.length, average: Math.round(avg * 100) / 100, min: Math.min(...nums), max: Math.max(...nums), distribution: dist } };
-    }
-    const counts = new Map<string, number>();
-    for (const v of values) for (const item of Array.isArray(v) ? v : [v]) {
-      const key = typeof item === "string" ? item : JSON.stringify(item);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 50).map(([value, count]) => ({ value, count }));
-    return { field, summary: { kind: "choice", answered: values.length, counts: top } };
-  });
+  const questions = fieldsOf(ctx, str(form.id))
+    .filter((f) => f.mode === "ask")
+    .map((f) => {
+      const field = str(f.field);
+      const values = parsed.map((a) => a[field]).filter((v) => !isEmptyAnswer(v));
+      const nums = values.filter((v): v is number => typeof v === "number");
+      if (values.length > 0 && nums.length === values.length) {
+        const dist: Record<string, number> = {};
+        for (const n of nums) dist[String(n)] = (dist[String(n)] ?? 0) + 1;
+        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+        return {
+          field,
+          summary: {
+            kind: "number",
+            answered: nums.length,
+            average: Math.round(avg * 100) / 100,
+            min: Math.min(...nums),
+            max: Math.max(...nums),
+            distribution: dist,
+          },
+        };
+      }
+      const counts = new Map<string, number>();
+      for (const v of values)
+        for (const item of Array.isArray(v) ? v : [v]) {
+          const key = typeof item === "string" ? item : JSON.stringify(item);
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      const top = [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 50)
+        .map(([value, count]) => ({ value, count }));
+      return { field, summary: { kind: "choice", answered: values.length, counts: top } };
+    });
   return { responses: subs.length, questions };
 }
 
@@ -605,24 +932,36 @@ async function attributionGet(ctx: Ctx, input: unknown): Promise<{ first?: Attri
   return attributionOf(ctx, reqStr(ctx, o, "recordId"));
 }
 
-async function sourceRulesList(ctx: Ctx, _input: unknown): Promise<{ rules: { ruleId: string; match: Record<string, unknown>; channel: string; order: number }[] }> {
+async function sourceRulesList(
+  ctx: Ctx,
+  _input: unknown,
+): Promise<{ rules: { ruleId: string; match: Record<string, unknown>; channel: string; order: number }[] }> {
   return { rules: sourceRules(ctx) };
 }
 
 async function sourceRulesSet(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const o = rec(ctx, input);
   const rules = o.rules;
-  if (!Array.isArray(rules) || rules.length > 200) fail(ctx, "validation.bad_input", "The rules are not valid.", { field: "rules" });
+  if (!Array.isArray(rules) || rules.length > 200)
+    fail(ctx, "validation.bad_input", "The rules are not valid.", { field: "rules" });
   const clean: { match: Record<string, unknown>; channel: string }[] = [];
   rules.forEach((r, i) => {
-    if (!isRec(r) || !isRec(r.match) || Object.keys(r.match).length === 0) fail(ctx, "validation.bad_input", "A rule needs something to match.", { field: `rules.${i}.match` });
+    if (!isRec(r) || !isRec(r.match) || Object.keys(r.match).length === 0)
+      fail(ctx, "validation.bad_input", "A rule needs something to match.", { field: `rules.${i}.match` });
     const channel = typeof r.channel === "string" ? r.channel.trim() : "";
-    if (channel.length === 0 || channel.length > 60) fail(ctx, "validation.bad_input", "A rule needs a channel name.", { field: `rules.${i}.channel` });
+    if (channel.length === 0 || channel.length > 60)
+      fail(ctx, "validation.bad_input", "A rule needs a channel name.", { field: `rules.${i}.channel` });
     clean.push({ match: r.match, channel });
   });
   ctx.db.run("DELETE FROM forms_source_rule");
   clean.forEach((r, i) => {
-    ctx.db.run("INSERT INTO forms_source_rule (id, position, match_json, channel) VALUES (?, ?, ?, ?)", nid(ctx, "srl"), i, JSON.stringify(r.match), r.channel);
+    ctx.db.run(
+      "INSERT INTO forms_source_rule (id, position, match_json, channel) VALUES (?, ?, ?, ?)",
+      nid(ctx, "srl"),
+      i,
+      JSON.stringify(r.match),
+      r.channel,
+    );
   });
   return { ok: true };
 }

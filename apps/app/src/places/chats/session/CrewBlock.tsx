@@ -26,12 +26,22 @@ const CSS = [
 export function blockTitle(t: CrewTotals): string {
   if (t.members === 0) return "";
   const tail = t.elapsedMs > 0 ? ` · ${durationWords(t.elapsedMs)}` : "";
-  if (t.working === 0 && t.needsYou === 0) return `${t.done} of ${t.members} done${t.failed > 0 ? ` · ${t.failed} failed` : ""}${t.stopped > 0 ? ` · ${t.stopped} stopped` : ""}${tail}`;
+  if (t.working === 0 && t.needsYou === 0)
+    return `${t.done} of ${t.members} done${t.failed > 0 ? ` · ${t.failed} failed` : ""}${t.stopped > 0 ? ` · ${t.stopped} stopped` : ""}${tail}`;
   return `${t.members === 1 ? "1 helper" : `${t.members} helpers`} · ${t.needsYou > 0 ? `${t.needsYou} needs you` : "working"}${tail}`;
 }
 
 /** What a row says on the right: one word. A spinner only while it works. */
-export const statusWord = (s: CrewMember["state"]): string => (s === "working" ? "Working" : s === "needs_you" ? "Waiting on you" : s === "done" ? "Done" : s === "failed" ? "Failed" : "Stopped");
+export const statusWord = (s: CrewMember["state"]): string =>
+  s === "working"
+    ? "Working"
+    : s === "needs_you"
+      ? "Waiting on you"
+      : s === "done"
+        ? "Done"
+        : s === "failed"
+          ? "Failed"
+          : "Stopped";
 
 /** Who the row is: the helper's name and, beside it, what it was asked (when that is not the same words). */
 export function whoOf(m: Pick<CrewMember, "name" | "title">): { name: string; task: string } {
@@ -40,7 +50,11 @@ export function whoOf(m: Pick<CrewMember, "name" | "title">): { name: string; ta
 }
 
 /** The last three steps of a helper, read from its own chat while its row is open. */
-export function useLastSteps(call: Call | undefined, member: Pick<CrewMember, "id" | "state">, open: boolean): HelperStep[] {
+export function useLastSteps(
+  call: Call | undefined,
+  member: Pick<CrewMember, "id" | "state">,
+  open: boolean,
+): HelperStep[] {
   const [steps, setSteps] = useState<HelperStep[]>([]);
   const live = member.state === "working" || member.state === "needs_you";
   useEffect(() => {
@@ -49,20 +63,60 @@ export function useLastSteps(call: Call | undefined, member: Pick<CrewMember, "i
     let retry: ReturnType<typeof setTimeout> | undefined;
     // a finished helper is read once; a read that fails (a busy server) is tried again, a few times, so the row is never left without its steps for good
     const read = (tries = 0): void => {
-      void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
-        if (dead) return;
-        setSteps(stepsOf(((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks)).slice(-3));
-      }, () => { if (!dead && !live && tries < 4) { retry = setTimeout(() => read(tries + 1), 1500 * (tries + 1)); (retry as { unref?: () => void }).unref?.(); } });
+      void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then(
+        (r) => {
+          if (dead) return;
+          setSteps(
+            stepsOf(
+              (
+                (
+                  r as
+                    | {
+                        messages?: Array<{
+                          blocks: Array<{ id: string; type: string; data?: unknown; state?: string }>;
+                        }>;
+                      }
+                    | undefined
+                )?.messages ?? []
+              ).flatMap((m) => m.blocks),
+            ).slice(-3),
+          );
+        },
+        () => {
+          if (!dead && !live && tries < 4) {
+            retry = setTimeout(() => read(tries + 1), 1500 * (tries + 1));
+            (retry as { unref?: () => void }).unref?.();
+          }
+        },
+      );
     };
     read();
     const t = live ? setInterval(read, 2500) : undefined;
     (t as { unref?: () => void } | undefined)?.unref?.();
-    return () => { dead = true; if (t) clearInterval(t); if (retry) clearTimeout(retry); };
+    return () => {
+      dead = true;
+      if (t) clearInterval(t);
+      if (retry) clearTimeout(retry);
+    };
   }, [call, member.id, live, open]);
   return steps;
 }
 
-function HelperRow({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember; now: number; call: Call | undefined; selected: boolean; onPeek: (m: CrewMember) => void; onRetry?: ((m: CrewMember) => void) | undefined }): ReactElement {
+function HelperRow({
+  m,
+  now,
+  call,
+  selected,
+  onPeek,
+  onRetry,
+}: {
+  m: CrewMember;
+  now: number;
+  call: Call | undefined;
+  selected: boolean;
+  onPeek: (m: CrewMember) => void;
+  onRetry?: ((m: CrewMember) => void) | undefined;
+}): ReactElement {
   const [open, setOpen] = useState(false);
   const id = `crew-chip-${m.id}`;
   const { name, task } = whoOf(m);
@@ -72,35 +126,92 @@ function HelperRow({ m, now, call, selected, onPeek, onRetry }: { m: CrewMember;
   return (
     <View testID={id} {...(web ? { dataSet: { state: m.state } } : {})}>
       <Row
-        id={`${id}-toggle`} title={name} onPress={() => setOpen((o) => !o)}
-        leading={<Pressable accessibilityRole="link" accessibilityLabel={`Open ${name}`} testID={`${id}-name`} onPress={() => onPeek(m)}><Avatar name={name} seedId={faceSeed(m)} kind="agent" size={20} /></Pressable>}
-        trailing={(
+        id={`${id}-toggle`}
+        title={name}
+        onPress={() => setOpen((o) => !o)}
+        leading={
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${name}`}
+            testID={`${id}-name`}
+            onPress={() => onPeek(m)}
+          >
+            <Avatar name={name} seedId={faceSeed(m)} kind="agent" size={20} />
+          </Pressable>
+        }
+        trailing={
           <View style={st.trail}>
-            {task !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>{task}</Text> : null}
-            {m.state === "working" && web ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" }) : null}
-            <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>{statusWord(m.state)}</Text>
-            {canRetry ? <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}><Text style={st.retryText}>Retry</Text></Pressable> : <Text testID={`${id}-time`} style={st.time}>{m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}</Text>}
+            {task !== "" ? (
+              <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>
+                {task}
+              </Text>
+            ) : null}
+            {m.state === "working" && web
+              ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" })
+              : null}
+            <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>
+              {statusWord(m.state)}
+            </Text>
+            {canRetry ? (
+              <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}>
+                <Text style={st.retryText}>Retry</Text>
+              </Pressable>
+            ) : (
+              <Text testID={`${id}-time`} style={st.time}>
+                {m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}
+              </Text>
+            )}
           </View>
-        )}
+        }
         selected={selected}
       />
       {open ? (
         <View testID={`${id}-steps`} style={st.steps}>
-          {steps.length > 0
-            ? steps.map((x) => <Row key={x.id} id={`${id}-step-${x.id}`} title={`${x.title}${x.sub ? ` · ${x.sub}` : ""}`} inert />)
-            : last ? <Text numberOfLines={1} testID={`${id}-line`} style={st.step}>{last}</Text> : <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>}
-          {steps.length > 0 && m.state === "done" && m.found ? <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>{m.found}</Text> : null}
-          <Pressable accessibilityRole="link" testID={`${id}-open`} onPress={() => onPeek(m)}><Text style={st.open}>Open in the pane</Text></Pressable>
+          {steps.length > 0 ? (
+            steps.map((x) => (
+              <Row key={x.id} id={`${id}-step-${x.id}`} title={`${x.title}${x.sub ? ` · ${x.sub}` : ""}`} inert />
+            ))
+          ) : last ? (
+            <Text numberOfLines={1} testID={`${id}-line`} style={st.step}>
+              {last}
+            </Text>
+          ) : (
+            <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>
+          )}
+          {steps.length > 0 && m.state === "done" && m.found ? (
+            <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>
+              {m.found}
+            </Text>
+          ) : null}
+          <Pressable accessibilityRole="link" testID={`${id}-open`} onPress={() => onPeek(m)}>
+            <Text style={st.open}>Open in the pane</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
   );
 }
 
-export function CrewBlock({ members, totals, call, selectedId, merge, onPeek, onStopAll, onOpenPane, onRetry }: {
-  members: readonly CrewMember[]; totals: CrewTotals; call?: Call | undefined; selectedId?: string | null | undefined;
+export function CrewBlock({
+  members,
+  totals,
+  call,
+  selectedId,
+  merge,
+  onPeek,
+  onStopAll,
+  onOpenPane,
+  onRetry,
+}: {
+  members: readonly CrewMember[];
+  totals: CrewTotals;
+  call?: Call | undefined;
+  selectedId?: string | null | undefined;
   merge?: { state: "working" | "ready" | "merged"; onReview(): void; onMerge(): void } | undefined;
-  onPeek: (m: CrewMember) => void; onStopAll?: (() => void) | undefined; onOpenPane?: (() => void) | undefined; onRetry?: ((m: CrewMember) => void) | undefined;
+  onPeek: (m: CrewMember) => void;
+  onStopAll?: (() => void) | undefined;
+  onOpenPane?: (() => void) | undefined;
+  onRetry?: ((m: CrewMember) => void) | undefined;
 }): ReactElement | null {
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
@@ -112,19 +223,66 @@ export function CrewBlock({ members, totals, call, selectedId, merge, onPeek, on
     <View testID="crew-strip" accessibilityRole="summary" {...(web ? { dataSet: { tone } } : {})} style={st.block}>
       <View style={st.head}>
         <Text style={st.headLead}>Crew</Text>
-        <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>{blockTitle(totals)}</Text>
+        <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>
+          {blockTitle(totals)}
+        </Text>
         {merge && merge.state === "ready" ? (
           <>
-            {reviewed ? <Text testID="crew-strip-reviewed" style={st.action}>Reviewed</Text> : <Pressable accessibilityRole="button" testID="crew-strip-review" onPress={() => { setReviewed(true); merge.onReview(); }}><Text style={st.action}>Review all</Text></Pressable>}
-            <Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge}><Text style={[st.action, reviewed && st.primary]}>Merge</Text></Pressable>
+            {reviewed ? (
+              <Text testID="crew-strip-reviewed" style={st.action}>
+                Reviewed
+              </Text>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                testID="crew-strip-review"
+                onPress={() => {
+                  setReviewed(true);
+                  merge.onReview();
+                }}
+              >
+                <Text style={st.action}>Review all</Text>
+              </Pressable>
+            )}
+            <Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge}>
+              <Text style={[st.action, reviewed && st.primary]}>Merge</Text>
+            </Pressable>
           </>
         ) : null}
-        {merge && merge.state === "merged" ? <Text testID="crew-strip-merged" style={st.action}>Merged</Text> : null}
-        {live && onStopAll ? <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll}><Text style={st.action}>Stop all</Text></Pressable> : null}
-        {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.pane}><Glyph name="pane" size={14} /></Pressable> : null}
+        {merge && merge.state === "merged" ? (
+          <Text testID="crew-strip-merged" style={st.action}>
+            Merged
+          </Text>
+        ) : null}
+        {live && onStopAll ? (
+          <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll}>
+            <Text style={st.action}>Stop all</Text>
+          </Pressable>
+        ) : null}
+        {onOpenPane ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open Crew"
+            testID="crew-strip-pane"
+            onPress={onOpenPane}
+            style={st.pane}
+          >
+            <Glyph name="pane" size={14} />
+          </Pressable>
+        ) : null}
       </View>
       {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
-      {members.map((m) => <HelperRow key={m.id} m={m} now={now} call={call} selected={selectedId === m.id} onPeek={onPeek} onRetry={onRetry} />)}
+      {members.map((m) => (
+        <HelperRow
+          key={m.id}
+          m={m}
+          now={now}
+          call={call}
+          selected={selectedId === m.id}
+          onPeek={onPeek}
+          onRetry={onRetry}
+        />
+      ))}
     </View>
   );
 }
@@ -137,7 +295,15 @@ const st = StyleSheet.create({
   action: { fontSize: 12, color: "var(--ink-3)" as string },
   primary: { color: "var(--accent)" as string, fontWeight: "600" },
   pane: { height: 24, paddingHorizontal: 4, justifyContent: "center" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 36,
+    paddingHorizontal: 8,
+    marginHorizontal: -8,
+    borderRadius: 12,
+  },
   hover: { backgroundColor: "var(--hover)" as string },
   name: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   task: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
@@ -145,7 +311,13 @@ const st = StyleSheet.create({
   status: { flexDirection: "row", alignItems: "center", gap: 6 },
   statusText: { fontSize: 12, color: "var(--ink-3)" as string },
   wait: { color: "var(--warn)" as string },
-  time: { minWidth: 40, textAlign: "right", fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
+  time: {
+    minWidth: 40,
+    textAlign: "right",
+    fontSize: 12,
+    color: "var(--ink-4)" as string,
+    fontVariant: ["tabular-nums"],
+  },
   retry: { height: 24, paddingHorizontal: 8, borderRadius: 12, justifyContent: "center" },
   retryText: { fontSize: 12, fontWeight: "600", color: "var(--ink)" as string },
   steps: { gap: 4, marginLeft: 20, marginTop: 4, marginBottom: 8 },

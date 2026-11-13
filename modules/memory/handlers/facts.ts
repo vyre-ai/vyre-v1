@@ -24,10 +24,50 @@ import { erasePage } from "./pages.ts";
 import { excerpt } from "../../../lib/md.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import {
-  actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
-  str, tokens, seenByOthers, factTitle, tokOf, personalLocked, LOCKED_LINE, gramVec, trigramScorer, trigramSim } from "../projections.ts";
+  actorOf,
+  autoMergeKinds,
+  bm25,
+  ensure,
+  factOut,
+  liveNow,
+  loadFact,
+  makeAccess,
+  mintId,
+  num,
+  orNull,
+  ownerOfLayer,
+  pageOf,
+  raise,
+  readFact,
+  recencyBoost,
+  rowsOf,
+  sealText,
+  snippet,
+  sourceLinkOf,
+  str,
+  tokens,
+  seenByOthers,
+  factTitle,
+  tokOf,
+  personalLocked,
+  LOCKED_LINE,
+  gramVec,
+  trigramScorer,
+  trigramSim,
+} from "../projections.ts";
 import { audienceFrom, chatAudience, othersRead } from "../../../lib/audience.ts";
-import type { Access, DocTok, Ghost, GramVec, Fact, FactStatus, Layer, MemCtx, Row, SourceKind } from "../projections.ts";
+import type {
+  Access,
+  DocTok,
+  Ghost,
+  GramVec,
+  Fact,
+  FactStatus,
+  Layer,
+  MemCtx,
+  Row,
+  SourceKind,
+} from "../projections.ts";
 import { currentPersonFacts, indexOf, openFactText } from "../personal.ts";
 import type { PersonIndex } from "../personal.ts";
 
@@ -38,11 +78,21 @@ type Page = { cursor?: string; limit?: number };
 // ---- shared pieces
 
 /** A live or waiting fact with the same text in the same place, so saving it twice does nothing. */
-function duplicateOf(ctx: MemCtx, layer: Layer, owner: string, agentId: string | null, projectId: string | null, text: string): Fact | null {
+function duplicateOf(
+  ctx: MemCtx,
+  layer: Layer,
+  owner: string,
+  agentId: string | null,
+  projectId: string | null,
+  text: string,
+): Fact | null {
   const rows = rowsOf(
     ctx.db,
     "SELECT * FROM memory_facts WHERE layer = ? AND owner_ref = ? AND COALESCE(agent_id, '') = ? AND COALESCE(project_id, '') = ? AND status IN ('proposed', 'current')",
-    layer, owner, agentId ?? "", projectId ?? "",
+    layer,
+    owner,
+    agentId ?? "",
+    projectId ?? "",
   );
   const want = normal(text);
   for (const r of rows) {
@@ -84,7 +134,15 @@ async function readableFacts(ctx: MemCtx, access: Access, rows: Row[]): Promise<
 // ---- propose
 
 interface ProposeIn {
-  layer?: Layer; agentId?: string; projectId?: string; text: string; validFrom?: number; sourceKind: SourceKind; sourceRef: string; threadId?: string; kind?: string;
+  layer?: Layer;
+  agentId?: string;
+  projectId?: string;
+  text: string;
+  validFrom?: number;
+  sourceKind: SourceKind;
+  sourceRef: string;
+  threadId?: string;
+  kind?: string;
 }
 
 export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
@@ -96,13 +154,27 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   const access = makeAccess(ctx, { write: true });
   const agentId = input.agentId ?? null;
   const projectId = input.projectId ?? null;
-  const layer: Layer = input.layer ?? (input.sourceKind === "channel" && projectId ? "project" : input.sourceKind === "run" || input.sourceKind === "journey" ? "agent" : "person");
+  const layer: Layer =
+    input.layer ??
+    (input.sourceKind === "channel" && projectId
+      ? "project"
+      : input.sourceKind === "run" || input.sourceKind === "journey"
+        ? "agent"
+        : "person");
   if (layer === "agent" && !agentId) raise(ctx, "validation.bad_input", "Name the agent this fact belongs to.");
   if (layer === "project" && !projectId) raise(ctx, "validation.bad_input", "Name the project this fact belongs to.");
   const owner = ownerOfLayer(ctx, layer, actor, agentId, projectId);
-  if (!(await access.can(layer, owner, agentId, projectId, "view"))) raise(ctx, "permission.no_grant", "You cannot add to this memory.");
+  if (!(await access.can(layer, owner, agentId, projectId, "view")))
+    raise(ctx, "permission.no_grant", "You cannot add to this memory.");
 
-  const dup = duplicateOf(ctx, layer, owner, layer === "project" ? null : agentId, layer === "project" ? projectId : null, text);
+  const dup = duplicateOf(
+    ctx,
+    layer,
+    owner,
+    layer === "project" ? null : agentId,
+    layer === "project" ? projectId : null,
+    text,
+  );
   if (dup) return { fact: factOut(dup), merged: dup.status === "current" };
 
   const low = input.kind !== undefined && (await autoMergeKinds(ctx)).includes(input.kind);
@@ -112,20 +184,36 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   const byAgent = ctx.principal.kind === "agent";
   const autoSave = mode === "auto" && byAgent;
   let status: FactStatus = "proposed";
-  if (autoSave) status = layer === "person" || (await access.can(layer, owner, agentId, projectId, "edit")) ? "current" : "proposed";
+  if (autoSave)
+    status =
+      layer === "person" || (await access.can(layer, owner, agentId, projectId, "edit")) ? "current" : "proposed";
   else if (input.sourceKind === "run" || input.sourceKind === "journey") status = "proposed";
   else if (layer === "project" && input.sourceKind === "channel") status = "current";
-  else if (layer === "person") status = low || (input.sourceKind === "manual" && ctx.principal.kind === "person") ? "current" : "proposed";
+  else if (layer === "person")
+    status = low || (input.sourceKind === "manual" && ctx.principal.kind === "person") ? "current" : "proposed";
   else if (low && (await access.can(layer, owner, agentId, projectId, "edit"))) status = "current";
   // "Require review for shared memory": what an agent learns for the Space or a project waits in Proposed. A person typing a fact in themselves is not held back.
-  if (status === "current" && byAgent && (await reviewRequired(ctx, layer, layer === "project" ? projectId : null))) status = "proposed";
+  if (status === "current" && byAgent && (await reviewRequired(ctx, layer, layer === "project" ? projectId : null)))
+    status = "proposed";
 
   // shared memory saved from a chat other people read is kept for those people (agent-visibility gap 4): it never comes back in a chat whose people are not all among them
   const from = input.threadId ?? (byAgent ? ctx.thread : undefined);
-  const heard = layer !== "person" && from !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), from) : null;
+  const heard =
+    layer !== "person" && from !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), from) : null;
   const common = {
-    layer, ownerRef: owner, agentId: layer === "project" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: input.kind ?? null, text,
-    validFrom: input.validFrom ?? ctx.now(), sourceKind: input.sourceKind, sourceRef: input.sourceRef, sourcePerson: actor, proposedBy: ctx.principal.id, status, lowRisk: low,
+    layer,
+    ownerRef: owner,
+    agentId: layer === "project" ? null : agentId,
+    projectId: layer === "project" ? projectId : null,
+    kind: input.kind ?? null,
+    text,
+    validFrom: input.validFrom ?? ctx.now(),
+    sourceKind: input.sourceKind,
+    sourceRef: input.sourceRef,
+    sourcePerson: actor,
+    proposedBy: ctx.principal.id,
+    status,
+    lowRisk: low,
     ...(input.threadId ? { links: [["thread", input.threadId]] as Array<[string, string]> } : {}),
     ...(byAgent ? { how: "learn" as const } : {}),
   };
@@ -134,15 +222,38 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
   if (heard && from !== undefined) {
     const msg = input.sourceKind === "chat" || input.sourceKind === "channel" ? input.sourceRef : undefined;
-    const w = await writeShared(ctx, { ...common, threadId: from, heard, ...(msg && msg !== from && msg.startsWith("msg_") ? { msgId: msg, span: text } : {}) });
+    const w = await writeShared(ctx, {
+      ...common,
+      threadId: from,
+      heard,
+      ...(msg && msg !== from && msg.startsWith("msg_") ? { msgId: msg, span: text } : {}),
+    });
     if (w.deduped) return { fact: factOut(w.fact), merged: w.fact.status === "current" };
-    f = w.fact; note = w;
+    f = w.fact;
+    note = w;
   } else f = insertFact(ctx, common);
   emitProposed(ctx, f);
   if (status === "current") emitAccepted(ctx, f, true);
   if (byAgent) emitLearned(ctx, f, status === "current");
   // rule 4: an agent's memory in a place other people share is said in it, with Undo. A person's own "remember this" already leaves its card (chat.remember).
-  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor)) await postNoted(ctx, { threadId: from, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: f.sourcePerson, at: f.learnedAt } } } : {}) });
+  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor))
+    await postNoted(ctx, {
+      threadId: from,
+      factId: f.id,
+      kind: kindOf(f.kind),
+      text: f.text,
+      ...(note.replaced ? { replaces: note.replaced.id } : {}),
+      ...(note.disputedWith ? { disputed: true } : {}),
+      ...(note.questionId && note.disputedWith
+        ? {
+            question: {
+              questionId: note.questionId,
+              a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt },
+              b: { text: f.text, by: f.sourcePerson, at: f.learnedAt },
+            },
+          }
+        : {}),
+    });
   return { fact: factOut(f), merged: status === "current" };
 }
 
@@ -152,9 +263,17 @@ export async function factAccept(ctx: MemCtx, input: { factId: string }) {
   ensure(ctx.db);
   const f = needFact(ctx, input.factId);
   await needEdit(ctx, makeAccess(ctx), f);
-  if (f.status !== "proposed") raise(ctx, "validation.precondition_failed", "Only a proposed fact can be accepted.", { status: f.status });
+  if (f.status !== "proposed")
+    raise(ctx, "validation.precondition_failed", "Only a proposed fact can be accepted.", { status: f.status });
   ctx.db.run("UPDATE memory_facts SET status = 'current' WHERE id = ?", f.id);
-  trail(ctx, { action: "accept", factId: f.id, layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId });
+  trail(ctx, {
+    action: "accept",
+    factId: f.id,
+    layer: f.layer,
+    ownerRef: f.ownerRef,
+    agentId: f.agentId,
+    projectId: f.projectId,
+  });
   emitAccepted(ctx, f, false);
   return { fact: factOut({ ...f, status: "current" }) };
 }
@@ -163,7 +282,8 @@ export async function factReject(ctx: MemCtx, input: { factId: string }) {
   ensure(ctx.db);
   const f = needFact(ctx, input.factId);
   await needEdit(ctx, makeAccess(ctx), f);
-  if (f.status !== "proposed") raise(ctx, "validation.bad_input", "Only a proposed fact can be rejected.", { status: f.status });
+  if (f.status !== "proposed")
+    raise(ctx, "validation.bad_input", "Only a proposed fact can be rejected.", { status: f.status });
   trashFact(ctx, f, { reason: "rejected", action: "reject" });
   ctx.emit("memory.fact_rejected", f.id, { factId: f.id, by: actorOf(ctx) });
   return { fact: factOut({ ...f, status: "removed", closedAt: ctx.now() }) };
@@ -175,20 +295,38 @@ export async function factCorrect(ctx: MemCtx, input: { factId: string; text: st
   await needEdit(ctx, makeAccess(ctx), old);
   const text = input.text.trim();
   if (text === "") raise(ctx, "validation.bad_input", "A fact needs some text.");
-  if (old.status !== "current" && old.status !== "proposed") raise(ctx, "validation.bad_input", "Only a live fact can be corrected.", { status: old.status });
+  if (old.status !== "current" && old.status !== "proposed")
+    raise(ctx, "validation.bad_input", "Only a live fact can be corrected.", { status: old.status });
   const now = ctx.now();
   ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, old.id);
   const fresh = insertFact(ctx, {
-    layer: old.layer, ownerRef: old.ownerRef, agentId: old.agentId, projectId: old.projectId, noteId: old.noteId, kind: old.kind, text, validFrom: input.validFrom ?? now,
-    sourceKind: "manual", sourceRef: old.id, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status: "current", lowRisk: false, replaces: old.id,
-    how: "edit", why: "corrected",
+    layer: old.layer,
+    ownerRef: old.ownerRef,
+    agentId: old.agentId,
+    projectId: old.projectId,
+    noteId: old.noteId,
+    kind: old.kind,
+    text,
+    validFrom: input.validFrom ?? now,
+    sourceKind: "manual",
+    sourceRef: old.id,
+    sourcePerson: actorOf(ctx),
+    proposedBy: ctx.principal.id,
+    status: "current",
+    lowRisk: false,
+    replaces: old.id,
+    how: "edit",
+    why: "corrected",
   });
   carryPlace(ctx, old.id, fresh);
   ctx.emit("memory.fact_corrected", fresh.id, { factId: fresh.id, closedFactId: old.id, by: actorOf(ctx) });
   return { fact: factOut(fresh), closed: factOut({ ...old, status: "closed", validTo: now, closedAt: now }) };
 }
 
-export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scope?: { layer: Layer; agentId?: string; fromMe?: boolean } }) {
+export async function factsRemove(
+  ctx: MemCtx,
+  input: { factIds?: string[]; scope?: { layer: Layer; agentId?: string; fromMe?: boolean } },
+) {
   ensure(ctx.db);
   const access = makeAccess(ctx);
   const me = actorOf(ctx);
@@ -199,9 +337,18 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
     const s = input.scope;
     const args: unknown[] = [s.layer];
     let sql = "SELECT * FROM memory_facts WHERE layer = ? AND status IN ('proposed', 'current')";
-    if (s.layer === "person") { sql += " AND owner_ref = ?"; args.push(me); }
-    if (s.agentId) { sql += " AND agent_id = ?"; args.push(s.agentId); }
-    if (s.fromMe) { sql += " AND source_person = ?"; args.push(me); }
+    if (s.layer === "person") {
+      sql += " AND owner_ref = ?";
+      args.push(me);
+    }
+    if (s.agentId) {
+      sql += " AND agent_id = ?";
+      args.push(s.agentId);
+    }
+    if (s.fromMe) {
+      sql += " AND source_person = ?";
+      args.push(me);
+    }
     rows = rowsOf(ctx.db, sql, ...args);
   } else raise(ctx, "validation.bad_input", "Name the facts to remove, or a layer.");
   const removed: string[] = [];
@@ -219,7 +366,15 @@ export async function factsRemove(ctx: MemCtx, input: { factIds?: string[]; scop
   return { removed: removed.length };
 }
 
-export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: string[]; scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string }; reason?: string }) {
+export async function erase(
+  ctx: MemCtx,
+  input: {
+    factIds?: string[];
+    pageIds?: string[];
+    scope?: { layer: Layer; agentId?: string; sourceRef?: string; subject?: string };
+    reason?: string;
+  },
+) {
   ensure(ctx.db);
   const me = actorOf(ctx);
   const access = makeAccess(ctx);
@@ -228,7 +383,8 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
   for (const id of input.pageIds ?? []) {
     const page = loadPage(ctx, id);
     if (!page) continue;
-    if (!(access.isAdmin() || (page.layer === "person" && page.ownerRef === me))) raise(ctx, "permission.no_grant", "Only an admin, or the owner of a personal page, can erase it.");
+    if (!(access.isAdmin() || (page.layer === "person" && page.ownerRef === me)))
+      raise(ctx, "permission.no_grant", "Only an admin, or the owner of a personal page, can erase it.");
     erasePage(ctx, page, input.reason);
     pagesErased++;
   }
@@ -243,9 +399,18 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     const s = input.scope;
     const args: unknown[] = [s.layer];
     let sql = "SELECT * FROM memory_facts WHERE layer = ?";
-    if (s.agentId) { sql += " AND agent_id = ?"; args.push(s.agentId); }
-    if (s.sourceRef) { sql += " AND source_ref = ?"; args.push(s.sourceRef); }
-    if (s.subject) { sql += " AND (subject = ? OR source_ref = ?)"; args.push(s.subject, s.subject); }
+    if (s.agentId) {
+      sql += " AND agent_id = ?";
+      args.push(s.agentId);
+    }
+    if (s.sourceRef) {
+      sql += " AND source_ref = ?";
+      args.push(s.sourceRef);
+    }
+    if (s.subject) {
+      sql += " AND (subject = ? OR source_ref = ?)";
+      args.push(s.subject, s.subject);
+    }
     rows = rowsOf(ctx.db, sql, ...args);
   } else raise(ctx, "validation.bad_input", "Name the facts to erase, or a layer.");
   // Open to the source person or an admin. Nothing is read here, so an admin can erase a person-layer row without ever opening it.
@@ -255,15 +420,22 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     const mine = str(r["source_person"]) === me || str(r["owner_ref"]) === me;
     if (mine || admin) ids.push(str(r["id"]));
   }
-  if (rows.length > 0 && ids.length === 0) raise(ctx, "permission.no_grant", "Only the person the fact came from, or an admin, can erase it.");
+  if (rows.length > 0 && ids.length === 0)
+    raise(ctx, "permission.no_grant", "Only the person the fact came from, or an admin, can erase it.");
   // A promoted copy goes with its source, and every earlier version of it (the rows it replaced, which still hold the old words) goes with it too.
   const all = new Set(ids);
-  for (let grew = true; grew;) {
+  for (let grew = true; grew; ) {
     grew = false;
     for (const id of [...all]) {
-      const linked = [...rowsOf(ctx.db, "SELECT id FROM memory_facts WHERE promoted_from = ?", id), ...rowsOf(ctx.db, "SELECT replaces AS id FROM memory_facts WHERE id = ? AND replaces IS NOT NULL", id)];
+      const linked = [
+        ...rowsOf(ctx.db, "SELECT id FROM memory_facts WHERE promoted_from = ?", id),
+        ...rowsOf(ctx.db, "SELECT replaces AS id FROM memory_facts WHERE id = ? AND replaces IS NOT NULL", id),
+      ];
       for (const c of linked) {
-        if (!all.has(str(c["id"]))) { all.add(str(c["id"])); grew = true; }
+        if (!all.has(str(c["id"]))) {
+          all.add(str(c["id"]));
+          grew = true;
+        }
       }
     }
   }
@@ -271,7 +443,16 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     // The line the trail keeps says that a fact was erased, by whom, when and where it lived. It never holds the words.
     const r = rowsOf(ctx.db, "SELECT layer, owner_ref, agent_id, project_id FROM memory_facts WHERE id = ?", id)[0];
     trail(ctx, {
-      action: "erase", factId: id, ...(r ? { layer: str(r["layer"]) as Layer, ownerRef: str(r["owner_ref"]), agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]) } : {}),
+      action: "erase",
+      factId: id,
+      ...(r
+        ? {
+            layer: str(r["layer"]) as Layer,
+            ownerRef: str(r["owner_ref"]),
+            agentId: orNull(r["agent_id"]),
+            projectId: orNull(r["project_id"]),
+          }
+        : {}),
       ...(input.reason ? { reason: input.reason } : {}),
     });
     ctx.db.run("DELETE FROM memory_fact_links WHERE fact_id = ?", id);
@@ -280,10 +461,18 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     ctx.db.run("DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?", id, id);
     // where recall quoted it: the per-message record behind "Used N memories" and the thread's pointer log (the recall log is made on first use, so it may not be there yet)
     ctx.db.run("DELETE FROM memory_pointer_log WHERE ref = ?", id);
-    try { ctx.db.run("DELETE FROM memory_recall_log WHERE kind = 'fact' AND ref = ?", id); } catch { /* no recall yet */ }
+    try {
+      ctx.db.run("DELETE FROM memory_recall_log WHERE kind = 'fact' AND ref = ?", id);
+    } catch {
+      /* no recall yet */
+    }
     ctx.db.run("DELETE FROM memory_facts WHERE id = ?", id);
   }
-  ctx.emit("memory.erased", me, { count: all.size + pagesErased, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });
+  ctx.emit("memory.erased", me, {
+    count: all.size + pagesErased,
+    by: me,
+    ...(input.scope ? { scope: input.scope.layer } : {}),
+  });
   return { erased: all.size + pagesErased };
 }
 
@@ -299,7 +488,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
   touchIfTrashed(ctx, f);
   const history: Fact[] = [];
   const seen = new Set<string>([f.id]);
-  for (let cur = f.replaces; cur && !seen.has(cur);) {
+  for (let cur = f.replaces; cur && !seen.has(cur); ) {
     seen.add(cur);
     const prev = loadFact(ctx, cur);
     if (!prev) break;
@@ -311,7 +500,15 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
 
 export async function factsList(
   ctx: MemCtx,
-  input: Page & { layer?: Layer; agentId?: string; projectId?: string; status?: FactStatus[]; fromMe?: boolean; q?: string; kind?: string },
+  input: Page & {
+    layer?: Layer;
+    agentId?: string;
+    projectId?: string;
+    status?: FactStatus[];
+    fromMe?: boolean;
+    q?: string;
+    kind?: string;
+  },
 ) {
   ensure(ctx.db);
   const me = actorOf(ctx);
@@ -319,11 +516,26 @@ export async function factsList(
   const args: unknown[] = [];
   let sql = `SELECT * FROM memory_facts WHERE status IN (${status.map(() => "?").join(", ")}) AND (layer != 'person' OR owner_ref = ?)`;
   args.push(...status, me);
-  if (input.layer) { sql += " AND layer = ?"; args.push(input.layer); }
-  if (input.agentId) { sql += " AND agent_id = ?"; args.push(input.agentId); }
-  if (input.projectId) { sql += " AND project_id = ?"; args.push(input.projectId); }
-  if (input.fromMe) { sql += " AND source_person = ?"; args.push(me); }
-  if (input.kind) { sql += " AND kind = ?"; args.push(input.kind); }
+  if (input.layer) {
+    sql += " AND layer = ?";
+    args.push(input.layer);
+  }
+  if (input.agentId) {
+    sql += " AND agent_id = ?";
+    args.push(input.agentId);
+  }
+  if (input.projectId) {
+    sql += " AND project_id = ?";
+    args.push(input.projectId);
+  }
+  if (input.fromMe) {
+    sql += " AND source_person = ?";
+    args.push(me);
+  }
+  if (input.kind) {
+    sql += " AND kind = ?";
+    args.push(input.kind);
+  }
   sql += " ORDER BY learned_at DESC, id";
   let facts = await readableFacts(ctx, makeAccess(ctx), rowsOf(ctx.db, sql, ...args));
   if (input.q && input.q.trim() !== "") {
@@ -331,21 +543,38 @@ export async function factsList(
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total, ...lockedFor(ctx, input.layer) };
+  return {
+    facts: factRows(ctx, p.page),
+    ...(p.next ? { next: p.next } : {}),
+    total: p.total,
+    ...lockedFor(ctx, input.layer),
+  };
 }
 
 /** `locked` for an answer that may hold the asker's own memory: set when it is sealed under their key and the key is not held here, so the empty part is explained. */
 function lockedFor(ctx: MemCtx, layer: Layer | undefined): { locked?: string } {
-  return (layer === undefined || layer === "person") && personalLocked(ctx, actorOf(ctx)) ? { locked: LOCKED_LINE } : {};
+  return (layer === undefined || layer === "person") && personalLocked(ctx, actorOf(ctx))
+    ? { locked: LOCKED_LINE }
+    : {};
 }
 
-export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agentId?: string; layer?: Layer; q?: string }) {
+export async function factsAsOf(
+  ctx: MemCtx,
+  input: Page & { date: number; agentId?: string; layer?: Layer; q?: string },
+) {
   ensure(ctx.db);
   const me = actorOf(ctx);
   const args: unknown[] = [input.date, input.date, me];
-  let sql = "SELECT * FROM memory_facts WHERE status IN ('current', 'closed') AND valid_from <= ? AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
-  if (input.layer) { sql += " AND layer = ?"; args.push(input.layer); }
-  if (input.agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(input.agentId); }
+  let sql =
+    "SELECT * FROM memory_facts WHERE status IN ('current', 'closed') AND valid_from <= ? AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
+  if (input.layer) {
+    sql += " AND layer = ?";
+    args.push(input.layer);
+  }
+  if (input.agentId) {
+    sql += " AND (agent_id = ? OR layer IN ('project', 'space'))";
+    args.push(input.agentId);
+  }
   sql += " ORDER BY valid_from DESC, id";
   let facts = await readableFacts(ctx, makeAccess(ctx), rowsOf(ctx.db, sql, ...args));
   if (input.q && input.q.trim() !== "") {
@@ -353,7 +582,12 @@ export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agent
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total, ...lockedFor(ctx, input.layer) };
+  return {
+    facts: factRows(ctx, p.page),
+    ...(p.next ? { next: p.next } : {}),
+    total: p.total,
+    ...lockedFor(ctx, input.layer),
+  };
 }
 
 export async function layersList(ctx: MemCtx, input: { agentId?: string; projectId?: string }) {
@@ -363,15 +597,29 @@ export async function layersList(ctx: MemCtx, input: { agentId?: string; project
   ];
   if (input.agentId) {
     out.push({
-      layer: "agent", title: "Agent", readable: await access.can("agent", input.agentId, input.agentId, null, "view"), writable: await access.can("agent", input.agentId, input.agentId, null, "edit"), private: false,
+      layer: "agent",
+      title: "Agent",
+      readable: await access.can("agent", input.agentId, input.agentId, null, "view"),
+      writable: await access.can("agent", input.agentId, input.agentId, null, "edit"),
+      private: false,
     });
   }
   if (input.projectId) {
     out.push({
-      layer: "project", title: "Project", readable: await access.can("project", input.projectId, null, input.projectId, "view"), writable: await access.can("project", input.projectId, null, input.projectId, "edit"), private: false,
+      layer: "project",
+      title: "Project",
+      readable: await access.can("project", input.projectId, null, input.projectId, "view"),
+      writable: await access.can("project", input.projectId, null, input.projectId, "edit"),
+      private: false,
     });
   }
-  out.push({ layer: "space", title: "Space", readable: await access.can("space", ctx.space, null, null, "view"), writable: await access.can("space", ctx.space, null, null, "edit"), private: false });
+  out.push({
+    layer: "space",
+    title: "Space",
+    readable: await access.can("space", ctx.space, null, null, "view"),
+    writable: await access.can("space", ctx.space, null, null, "edit"),
+    private: false,
+  });
   return { layers: out };
 }
 
@@ -382,7 +630,8 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
   const rows = rowsOf(
     ctx.db,
     "SELECT * FROM memory_facts WHERE agent_id = ? AND layer IN ('person', 'agent') AND status IN ('current', 'proposed') AND (layer != 'person' OR owner_ref = ?)",
-    input.agentId, me,
+    input.agentId,
+    me,
   );
   const facts = await readableFacts(ctx, access, rows);
   const now = ctx.now();
@@ -398,34 +647,87 @@ export async function counts(ctx: MemCtx, input: { agentId: string }) {
 export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
   ensure(ctx.db);
   // The server itself reads the map to keep the agent's CLAUDE.md and AGENTS.md in step with it (modules/agents/memory-guide.ts); it is the agent layer only, never a person's memory.
-  if (!isHostService(ctx.principal) && !(await makeAccess(ctx).can("agent", input.agentId, input.agentId, null, "view"))) raise(ctx, "permission.no_grant", "You cannot read this agent's memory.");
+  if (
+    !isHostService(ctx.principal) &&
+    !(await makeAccess(ctx).can("agent", input.agentId, input.agentId, null, "view"))
+  )
+    raise(ctx, "permission.no_grant", "You cannot read this agent's memory.");
   const r = rowsOf(ctx.db, "SELECT body, lines, updated_at FROM memory_maps WHERE agent_id = ?", input.agentId)[0];
   return r ? { map: { body: str(r["body"]), lines: Number(r["lines"]), updatedAt: Number(r["updated_at"]) } } : {};
 }
 
 // ---- search
 
-interface Doc { kind: "fact" | "note" | "page"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean; tok?: DocTok; /** rule 1-3: where it was learned, who said it and what state it is in */ place?: { kind: string; id: string; parentKind: string | null; parentId: string | null }; by?: string; msgId?: string; state?: string; /** a replaced statement: what replaced it, so a question about the old value is answered with the new one */ newId?: string; oldText?: string; newText?: string }
+interface Doc {
+  kind: "fact" | "note" | "page";
+  id: string;
+  title: string;
+  text: string;
+  layer: Layer;
+  path: string | null;
+  since: number | null;
+  link: string | null;
+  learnedAt: number;
+  shared: boolean;
+  tok?: DocTok;
+  /** rule 1-3: where it was learned, who said it and what state it is in */ place?: {
+    kind: string;
+    id: string;
+    parentKind: string | null;
+    parentId: string | null;
+  };
+  by?: string;
+  msgId?: string;
+  state?: string;
+  /** a replaced statement: what replaced it, so a question about the old value is answered with the new one */ newId?: string;
+  oldText?: string;
+  newText?: string;
+}
 
 /** The notes the caller may read, as documents. Person-layer notes are indexed by sealed title only. */
-async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Array<Doc & { noteId: string }>> {
+async function noteDocs(
+  ctx: MemCtx,
+  access: Access,
+  agentId: string | undefined,
+  projectId: string | undefined,
+): Promise<Array<Doc & { noteId: string }>> {
   const me = actorOf(ctx);
   const out: Array<Doc & { noteId: string }> = [];
   const args: unknown[] = [me];
   let sql = "SELECT * FROM memory_notes WHERE (layer != 'person' OR owner_ref = ?)";
-  if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
-  if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
+  if (agentId) {
+    sql += " AND (agent_id = ? OR layer IN ('project', 'space'))";
+    args.push(agentId);
+  }
+  if (projectId) {
+    sql += " AND (project_id = ? OR layer != 'project')";
+    args.push(projectId);
+  }
   for (const r of rowsOf(ctx.db, sql, ...args)) {
     const layer = str(r["layer"]) as Layer;
-    if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "view"))) continue;
+    if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "view")))
+      continue;
     let title = str(r["title"]);
     const sealed = orNull(r["sealed_title"]);
     if (layer === "person" && sealed) {
-      try { title = readTitle(ctx, sealed); } catch { continue; }
+      try {
+        title = readTitle(ctx, sealed);
+      } catch {
+        continue;
+      }
     }
     out.push({
-      kind: "note", id: str(r["note_id"]), noteId: str(r["note_id"]), title, text: layer === "person" ? "" : str(r["body"]), layer, path: str(r["path"]), since: null, link: `/files/${str(r["file_id"])}`,
-      learnedAt: num(r["updated_at"]), shared: layer !== "person",
+      kind: "note",
+      id: str(r["note_id"]),
+      noteId: str(r["note_id"]),
+      title,
+      text: layer === "person" ? "" : str(r["body"]),
+      layer,
+      path: str(r["path"]),
+      since: null,
+      link: `/files/${str(r["file_id"])}`,
+      learnedAt: num(r["updated_at"]),
+      shared: layer !== "person",
     });
   }
   return out;
@@ -436,21 +738,46 @@ function readTitle(ctx: MemCtx, sealed: string): string {
 }
 
 /** The pages the caller may read, as documents: the title and the Notes. A personal page is the owner's alone and is indexed by its opened Notes only for them. */
-async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
+async function pageDocs(
+  ctx: MemCtx,
+  access: Access,
+  agentId: string | undefined,
+  projectId: string | undefined,
+): Promise<Doc[]> {
   const me = actorOf(ctx);
   const args: unknown[] = [me];
   let sql = "SELECT * FROM memory_pages WHERE trashed_at IS NULL AND (layer != 'person' OR owner_ref = ?)";
-  if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
-  if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
+  if (agentId) {
+    sql += " AND (agent_id = ? OR layer IN ('project', 'space'))";
+    args.push(agentId);
+  }
+  if (projectId) {
+    sql += " AND (project_id = ? OR layer != 'project')";
+    args.push(projectId);
+  }
   const out: Doc[] = [];
   const memo = new Map<string, boolean>();
   for (const r of rowsOf(ctx.db, sql, ...args)) {
     const p = readPage(ctx, r);
     const key = `${p.layer}|${p.ownerRef}|${p.agentId ?? ""}|${p.projectId ?? ""}`;
     let ok = memo.get(key);
-    if (ok === undefined) { ok = await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"); memo.set(key, ok); }
+    if (ok === undefined) {
+      ok = await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view");
+      memo.set(key, ok);
+    }
     if (!ok) continue;
-    out.push({ kind: "page", id: p.id, title: p.title, text: p.notes, layer: p.layer, path: null, since: null, link: `/memory/pages/${p.id}`, learnedAt: p.updatedAt, shared: p.layer !== "person" });
+    out.push({
+      kind: "page",
+      id: p.id,
+      title: p.title,
+      text: p.notes,
+      layer: p.layer,
+      path: null,
+      since: null,
+      link: `/memory/pages/${p.id}`,
+      learnedAt: p.updatedAt,
+      shared: p.layer !== "person",
+    });
   }
   return out;
 }
@@ -459,7 +786,13 @@ async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined
  * `only`: the query's words, when the caller ranks by words alone (the pointer): a personal fact that holds none of them is not made into a document, only counted in `ghost` so BM25 scores
  * the rest exactly as if it were there.
  */
-async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined, only?: { words: string[]; ghost: Ghost }): Promise<Doc[]> {
+async function factDocs(
+  ctx: MemCtx,
+  access: Access,
+  agentId: string | undefined,
+  projectId: string | undefined,
+  only?: { words: string[]; ghost: Ghost },
+): Promise<Doc[]> {
   const now = ctx.now();
   const me = actorOf(ctx);
   // the asker's own facts come from their in-memory index while their key is held (no scan of their rows, no sealed value read); otherwise from the table as before
@@ -468,20 +801,33 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
   const args: unknown[] = [now, me];
   // with the index: shared layers, plus the asker's own plain person-layer rows (a fact on their public profile); without it: everything the asker may read
   let sql = `SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, COALESCE(NULLIF(text, ''), (SELECT s.text FROM memory_facts s WHERE s.id = memory_facts.promoted_from AND memory_facts.state = 'marker' AND s.status = 'current' AND s.trashed_at IS NULL AND s.layer <> 'person'), '') AS text, enc, valid_from, learned_at, source_link, audience, place_kind, place_id, parent_kind, parent_id, source_person, msg_id, state FROM memory_facts WHERE status = 'current' AND (state IS NULL OR state <> 'source_removed') AND (valid_to IS NULL OR valid_to > ?) AND ${mine ? "(layer IN ('agent', 'project', 'space') OR (layer = 'person' AND owner_ref = ? AND enc <> 2))" : "(layer != 'person' OR owner_ref = ?)"}`;
-  if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
-  if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
+  if (agentId) {
+    sql += " AND (agent_id = ? OR layer IN ('project', 'space'))";
+    args.push(agentId);
+  }
+  if (projectId) {
+    sql += " AND (project_id = ? OR layer != 'project')";
+    args.push(projectId);
+  }
   const paths = new Map<string, string | null>();
   const pathOf = (noteId: string | null): string | null => {
     if (!noteId) return null;
-    if (!paths.has(noteId)) paths.set(noteId, orNull(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", noteId)[0]?.["path"]));
+    if (!paths.has(noteId))
+      paths.set(noteId, orNull(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", noteId)[0]?.["path"]));
     return paths.get(noteId) ?? null;
   };
   const allowed = new Map<string, boolean>();
   const docs: Doc[] = [];
   const missing: Doc[] = [];
   const take = (doc: Doc, plain = false): void => {
-    if (doc.layer !== "person" || plain) { if (doc.text !== "") docs.push(doc); return; }
-    if (doc.text === "") { missing.push(doc); return; }
+    if (doc.layer !== "person" || plain) {
+      if (doc.text !== "") docs.push(doc);
+      return;
+    }
+    if (doc.text === "") {
+      missing.push(doc);
+      return;
+    }
     if (ix) doc.tok = personalTok(ix, doc);
     docs.push(doc);
   };
@@ -502,42 +848,106 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
     const kept = audienceFrom(r["audience"]);
     if (kept && !(await access.can(layer, owner, agent, project, "view", kept))) continue;
     const id = str(r["id"]);
-    take({
-      kind: "fact", id, title: `${factTitle(orNull(r["kind"]))}${orNull(r["state"]) === "disputed" ? " (disputed: two people disagree, not settled)" : ""}`, text: num(r["enc"]) === 2 ? ix?.texts.get(id) ?? "" : str(r["text"]), layer, path: pathOf(orNull(r["note_id"])), since: num(r["valid_from"]),
-      link: orNull(r["source_link"]), learnedAt: num(r["learned_at"]), shared: layer !== "person",
-      ...(orNull(r["place_id"]) ? { place: { kind: str(r["place_kind"]), id: str(r["place_id"]), parentKind: orNull(r["parent_kind"]), parentId: orNull(r["parent_id"]) } } : {}),
-      ...(layer !== "person" ? { by: str(r["source_person"]) } : {}), ...(orNull(r["msg_id"]) ? { msgId: str(r["msg_id"]) } : {}), ...(orNull(r["state"]) ? { state: str(r["state"]) } : {}),
-    }, num(r["enc"]) !== 2);
+    take(
+      {
+        kind: "fact",
+        id,
+        title: `${factTitle(orNull(r["kind"]))}${orNull(r["state"]) === "disputed" ? " (disputed: two people disagree, not settled)" : ""}`,
+        text: num(r["enc"]) === 2 ? (ix?.texts.get(id) ?? "") : str(r["text"]),
+        layer,
+        path: pathOf(orNull(r["note_id"])),
+        since: num(r["valid_from"]),
+        link: orNull(r["source_link"]),
+        learnedAt: num(r["learned_at"]),
+        shared: layer !== "person",
+        ...(orNull(r["place_id"])
+          ? {
+              place: {
+                kind: str(r["place_kind"]),
+                id: str(r["place_id"]),
+                parentKind: orNull(r["parent_kind"]),
+                parentId: orNull(r["parent_id"]),
+              },
+            }
+          : {}),
+        ...(layer !== "person" ? { by: str(r["source_person"]) } : {}),
+        ...(orNull(r["msg_id"]) ? { msgId: str(r["msg_id"]) } : {}),
+        ...(orNull(r["state"]) ? { state: str(r["state"]) } : {}),
+      },
+      num(r["enc"]) !== 2,
+    );
   }
   // rule 5 and 7: a question about a value that was replaced ("are we still on Postgres?") must meet what replaced it, never silence and never the old value as if it held
-  for (const r of rowsOf(ctx.db,
+  for (const r of rowsOf(
+    ctx.db,
     "SELECT o.id, o.layer, o.owner_ref, o.agent_id, o.project_id, o.text, o.valid_from, o.source_link, o.audience, o.place_kind, o.place_id, o.parent_kind, o.parent_id, o.msg_id, n.id AS new_id, n.text AS new_text, n.source_person AS new_by, n.learned_at AS new_at " +
-    "FROM memory_facts o JOIN memory_facts n ON n.replaces = o.id AND n.status = 'current' AND n.trashed_at IS NULL " +
-    "WHERE o.status = 'closed' AND o.place_id IS NOT NULL AND o.layer <> 'person' AND o.trashed_at IS NULL AND (o.state IS NULL OR o.state <> 'source_removed')")) {
-    const layer = r["layer"] as Layer, owner = str(r["owner_ref"]), agent = orNull(r["agent_id"]), project = orNull(r["project_id"]);
+      "FROM memory_facts o JOIN memory_facts n ON n.replaces = o.id AND n.status = 'current' AND n.trashed_at IS NULL " +
+      "WHERE o.status = 'closed' AND o.place_id IS NOT NULL AND o.layer <> 'person' AND o.trashed_at IS NULL AND (o.state IS NULL OR o.state <> 'source_removed')",
+  )) {
+    const layer = r["layer"] as Layer,
+      owner = str(r["owner_ref"]),
+      agent = orNull(r["agent_id"]),
+      project = orNull(r["project_id"]);
     if (agentId && layer === "agent" && agent !== agentId) continue;
     if (projectId && layer === "project" && project !== projectId) continue;
     const kept = audienceFrom(r["audience"]);
     if (!(await access.can(layer, owner, agent, project, "view", kept))) continue;
     docs.push({
-      kind: "fact", id: str(r["id"]), title: "Replaced", text: `Replaced: "${str(r["text"])}" is no longer true. Now: ${str(r["new_text"])}`, layer, path: null, since: num(r["valid_from"]), link: orNull(r["source_link"]),
-      learnedAt: num(r["new_at"]), shared: true, place: { kind: str(r["place_kind"]), id: str(r["place_id"]), parentKind: orNull(r["parent_kind"]), parentId: orNull(r["parent_id"]) },
-      by: str(r["new_by"]), state: "replaced", newId: str(r["new_id"]), oldText: str(r["text"]), newText: str(r["new_text"]),
+      kind: "fact",
+      id: str(r["id"]),
+      title: "Replaced",
+      text: `Replaced: "${str(r["text"])}" is no longer true. Now: ${str(r["new_text"])}`,
+      layer,
+      path: null,
+      since: num(r["valid_from"]),
+      link: orNull(r["source_link"]),
+      learnedAt: num(r["new_at"]),
+      shared: true,
+      place: {
+        kind: str(r["place_kind"]),
+        id: str(r["place_id"]),
+        parentKind: orNull(r["parent_kind"]),
+        parentId: orNull(r["parent_id"]),
+      },
+      by: str(r["new_by"]),
+      state: "replaced",
+      newId: str(r["new_id"]),
+      oldText: str(r["text"]),
+      newText: str(r["new_text"]),
     });
   }
   for (const m of mine ?? []) {
     if ((m.validTo !== null && m.validTo <= now) || (agentId && m.agentId !== agentId)) continue;
-    const known = only && ix ? ix.toks.get(m.id) as DocTok | undefined : undefined;
+    const known = only && ix ? (ix.toks.get(m.id) as DocTok | undefined) : undefined;
     // a lesson is not matched against the words of the question: it is for every turn of the agent it was kept by
-    if (known && only && m.kind !== LESSON && !only.words.some((w) => known.tf.has(w))) { only.ghost.n++; only.ghost.len += known.len; continue; }
+    if (known && only && m.kind !== LESSON && !only.words.some((w) => known.tf.has(w))) {
+      only.ghost.n++;
+      only.ghost.len += known.len;
+      continue;
+    }
     take({
-      kind: "fact", id: m.id, title: factTitle(m.kind), text: ix?.texts.get(m.id) ?? "", layer: "person", path: pathOf(m.noteId), since: m.validFrom, link: m.sourceLink, learnedAt: m.learnedAt, shared: false,
+      kind: "fact",
+      id: m.id,
+      title: factTitle(m.kind),
+      text: ix?.texts.get(m.id) ?? "",
+      layer: "person",
+      path: pathOf(m.noteId),
+      since: m.validFrom,
+      link: m.sourceLink,
+      learnedAt: m.learnedAt,
+      shared: false,
     });
   }
   // personal facts the index does not have yet (first use after unlock, or the old server seal): opened once, then kept in memory while the key is held
   for (let i = 0; i < missing.length; i += 400) {
     const part = missing.slice(i, i + 400);
-    const sealedOf = new Map(rowsOf(ctx.db, `SELECT id, sealed FROM memory_facts WHERE id IN (${part.map(() => "?").join(",")})`, ...part.map((d) => d.id)).map((r) => [str(r["id"]), orNull(r["sealed"])]));
+    const sealedOf = new Map(
+      rowsOf(
+        ctx.db,
+        `SELECT id, sealed FROM memory_facts WHERE id IN (${part.map(() => "?").join(",")})`,
+        ...part.map((d) => d.id),
+      ).map((r) => [str(r["id"]), orNull(r["sealed"])]),
+    );
     for (const d of part) {
       const sealed = sealedOf.get(d.id);
       if (!sealed) continue;
@@ -561,7 +971,14 @@ function personalTok(ix: PersonIndex, d: Doc): DocTok {
 
 export async function search(
   ctx: MemCtx,
-  input: { q: string; layers?: Layer[]; agentId?: string; projectId?: string; mode?: "keyword" | "semantic" | "hybrid"; limit?: number },
+  input: {
+    q: string;
+    layers?: Layer[];
+    agentId?: string;
+    projectId?: string;
+    mode?: "keyword" | "semantic" | "hybrid";
+    limit?: number;
+  },
 ) {
   const t0 = performance.now();
   ensure(ctx.db);
@@ -569,16 +986,28 @@ export async function search(
   if (q === "") raise(ctx, "validation.bad_input", "Ask for something to look up.");
   const access = makeAccess(ctx);
   const layers = new Set<Layer>(input.layers && input.layers.length > 0 ? input.layers : LAYERS);
-  const privateLeaks = ctx.principal.kind === "agent" && ctx.thread !== undefined && await seenByOthers(ctx, ctx.thread);
+  const privateLeaks =
+    ctx.principal.kind === "agent" && ctx.thread !== undefined && (await seenByOthers(ctx, ctx.thread));
   if (privateLeaks) layers.delete("person");
   const locked = layers.has("person") && personalLocked(ctx, actorOf(ctx));
-  const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId)), ...(await pageDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
+  const docs = [
+    ...(await factDocs(ctx, access, input.agentId, input.projectId)),
+    ...(await noteDocs(ctx, access, input.agentId, input.projectId)),
+    ...(await pageDocs(ctx, access, input.agentId, input.projectId)),
+  ].filter((d) => layers.has(d.layer));
   const mode = input.mode ?? "hybrid";
   const ranked = bm25(docs, q);
   const top = Math.max(0, ...ranked.map((r) => r.score));
   const now = ctx.now();
   // Meaning: the question against each document by a small embedding model, when one is ready. Keyword mode never asks for it.
-  const meaning = mode === "keyword" ? null : await meaningScores(ctx, docs.map((d) => ({ kind: d.kind, id: d.id, text: `${d.title} ${d.text}`, shared: d.shared })), q);
+  const meaning =
+    mode === "keyword"
+      ? null
+      : await meaningScores(
+          ctx,
+          docs.map((d) => ({ kind: d.kind, id: d.id, text: `${d.title} ${d.text}`, shared: d.shared })),
+          q,
+        );
   const cos = (d: Doc): number | undefined => meaning?.scores?.get(`${d.kind}:${d.id}`);
   const hits: Array<{ doc: Doc; score: number }> = [];
   // trigrams of the question are made once; a personal fact's are kept in its owner's in-memory index; keyword mode does not use them
@@ -587,7 +1016,10 @@ export async function search(
   const gramsOf = (d: Doc): GramVec => {
     if (d.layer !== "person" || d.kind !== "fact" || !own) return gramVec(`${d.title} ${d.text}`);
     let g = own.grams.get(d.id) as GramVec | undefined;
-    if (!g) { g = gramVec(`${d.title} ${d.text}`); own.grams.set(d.id, g); }
+    if (!g) {
+      g = gramVec(`${d.title} ${d.text}`);
+      own.grams.set(d.id, g);
+    }
     return g;
   };
   docs.forEach((d, i) => {
@@ -599,7 +1031,8 @@ export async function search(
     else if (mode === "semantic") score = mean !== undefined ? mean : sim >= 0.12 ? sim : 0;
     else if (mean !== undefined) {
       // blend: BM25 (words), trigrams (spelling) and meaning; a word match or a close meaning admits a document
-      if (r.matched > 0 || sim >= 0.25 || mean > 0) score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * mean;
+      if (r.matched > 0 || sim >= 0.25 || mean > 0)
+        score = (top > 0 ? 0.45 * (r.score / top) : 0) + 0.15 * sim + 0.4 * mean;
     } else if (r.matched > 0 || sim >= 0.25) score = (top > 0 ? 0.65 * (r.score / top) : 0) + 0.35 * sim;
     if (score > 0 && d.kind === "fact") score += recencyBoost(d.learnedAt, now) * (mode === "keyword" ? top / 10 : 0.1);
     if (score > 0) hits.push({ doc: d, score });
@@ -607,23 +1040,82 @@ export async function search(
   hits.sort((a, b) => b.score - a.score || a.doc.id.localeCompare(b.doc.id));
   const limit = input.limit ?? 10;
   const shown = hits.slice(0, limit);
-  const extra = extrasFor(ctx, shown.filter((h) => h.doc.kind === "fact").map((h) => loadFact(ctx, h.doc.id)).filter((f): f is Fact => f !== null).map((f) => (f.text === "" ? { ...f, text: shown.find((h) => h.doc.id === f.id)?.doc.text ?? "" } : f)));
+  const extra = extrasFor(
+    ctx,
+    shown
+      .filter((h) => h.doc.kind === "fact")
+      .map((h) => loadFact(ctx, h.doc.id))
+      .filter((f): f is Fact => f !== null)
+      .map((f) => (f.text === "" ? { ...f, text: shown.find((h) => h.doc.id === f.id)?.doc.text ?? "" } : f)),
+  );
   return {
     hits: shown.map(({ doc, score }) => ({
       kind: doc.kind,
       ...(doc.kind === "fact" ? { factId: doc.id } : doc.kind === "page" ? { pageId: doc.id } : { noteId: doc.id }),
-      title: doc.title, text: snippet(doc.text || doc.title, q), ...(doc.path ? { path: doc.path } : {}), ...(doc.since !== null ? { trueSince: doc.since } : {}), layer: doc.layer,
-      ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000, ...(doc.kind === "fact" ? extra.get(doc.id) ?? {} : {}),
+      title: doc.title,
+      text: snippet(doc.text || doc.title, q),
+      ...(doc.path ? { path: doc.path } : {}),
+      ...(doc.since !== null ? { trueSince: doc.since } : {}),
+      layer: doc.layer,
+      ...(doc.link ? { sourceLink: doc.link } : {}),
+      score: Math.round(score * 10_000) / 10_000,
+      ...(doc.kind === "fact" ? (extra.get(doc.id) ?? {}) : {}),
     })),
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
     ...(locked ? { locked: LOCKED_LINE } : {}),
-    ...(meaning ? { meaning: { state: meaning.status.state, ...(meaning.status.model ? { model: meaning.status.model } : {}), ...(meaning.status.hint ? { hint: meaning.status.hint } : {}) } } : {}),
+    ...(meaning
+      ? {
+          meaning: {
+            state: meaning.status.state,
+            ...(meaning.status.model ? { model: meaning.status.model } : {}),
+            ...(meaning.status.hint ? { hint: meaning.status.hint } : {}),
+          },
+        }
+      : {}),
   };
 }
 
 // ---- pointer block
 
-const ACK = new Set(["ok", "okay", "k", "thanks", "thank", "thx", "ty", "yes", "yep", "yeah", "yup", "sure", "great", "cool", "nice", "done", "perfect", "good", "fine", "nope", "no", "got", "it", "sounds", "right", "alright", "lgtm", "please", "you", "much", "lot", "very", "so", "that", "works", "will", "do"]);
+const ACK = new Set([
+  "ok",
+  "okay",
+  "k",
+  "thanks",
+  "thank",
+  "thx",
+  "ty",
+  "yes",
+  "yep",
+  "yeah",
+  "yup",
+  "sure",
+  "great",
+  "cool",
+  "nice",
+  "done",
+  "perfect",
+  "good",
+  "fine",
+  "nope",
+  "no",
+  "got",
+  "it",
+  "sounds",
+  "right",
+  "alright",
+  "lgtm",
+  "please",
+  "you",
+  "much",
+  "lot",
+  "very",
+  "so",
+  "that",
+  "works",
+  "will",
+  "do",
+]);
 /** A line is shown only when it covers enough of the question and what it matches is not just common words. The 50-question proof set tuned these. */
 export const POINTER_MIN_COVERAGE = 0.3;
 export const POINTER_MIN_MASS = 0.8;
@@ -635,38 +1127,70 @@ export const POINTER_MAX_LINES = 5;
 export const POINTER_MAX_LESSONS = 3;
 export const POINTER_MAX_TOKENS = 350;
 
-export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string; ref?: string }
-export interface PointerOut { lines: PointerLine[]; tokens: number; skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate"; locked?: string }
+export interface PointerLine {
+  title: string;
+  fact?: string;
+  trueSince?: number;
+  path: string;
+  sourceLink?: string;
+  ref?: string;
+}
+export interface PointerOut {
+  lines: PointerLine[];
+  tokens: number;
+  skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
+  locked?: string;
+}
 
-export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: string; text: string; sinceIdx?: number }): Promise<PointerOut> {
+export async function pointer(
+  ctx: MemCtx,
+  input: { threadId: string; agentId: string; text: string; sinceIdx?: number },
+): Promise<PointerOut> {
   ensure(ctx.db);
   const text = input.text.trim();
   const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
-  if (text.length < 3 || (words.length <= 4 && words.every((w) => ACK.has(w)))) return { lines: [], tokens: 0, skipped: "short_ack" as const };
+  if (text.length < 3 || (words.length <= 4 && words.every((w) => ACK.has(w))))
+    return { lines: [], tokens: 0, skipped: "short_ack" as const };
   // The engine passes the index of the message a pointer is for; the same index again means a tool-loop step of the same turn.
   if (input.sinceIdx !== undefined) {
     const last = rowsOf(ctx.db, "SELECT last_idx FROM memory_pointer_state WHERE thread_id = ?", input.threadId)[0];
-    if (last && num(last["last_idx"]) === input.sinceIdx) return { lines: [], tokens: 0, skipped: "mid_tool_loop" as const };
-    ctx.db.run("INSERT OR REPLACE INTO memory_pointer_state (thread_id, last_idx) VALUES (?, ?)", input.threadId, input.sinceIdx);
+    if (last && num(last["last_idx"]) === input.sinceIdx)
+      return { lines: [], tokens: 0, skipped: "mid_tool_loop" as const };
+    ctx.db.run(
+      "INSERT OR REPLACE INTO memory_pointer_state (thread_id, last_idx) VALUES (?, ?)",
+      input.threadId,
+      input.sinceIdx,
+    );
   }
   // read as the chat this message is in: what one person told their agent never reaches a chat other people read (hole 8), and shared memory only what everyone in it may open
   const access = makeAccess(ctx, { thread: input.threadId });
   const only = { words: [...new Set(tokens(text))], ghost: { n: 0, len: 0 } };
-  const everything = [...(await factDocs(ctx, access, input.agentId, undefined, only)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
+  const everything = [
+    ...(await factDocs(ctx, access, input.agentId, undefined, only)),
+    ...(await noteDocs(ctx, access, input.agentId, undefined)),
+  ];
   // what one person told their agent never reaches a chat other people read (hole 8)
-  const hidePersonal = (everything.some((d) => d.layer === "person") || only.ghost.n > 0) && await seenByOthers(ctx, input.threadId);
+  const hidePersonal =
+    (everything.some((d) => d.layer === "person") || only.ghost.n > 0) && (await seenByOthers(ctx, input.threadId));
   const docs = hidePersonal ? everything.filter((d) => d.layer !== "person") : everything;
   const ghost = hidePersonal ? { n: 0, len: 0 } : only.ghost;
   // the asker's own memory is sealed under their key and the key is not held here: say so in a private chat, so the agent does not take "nothing recalled" for "nothing known"
-  const lock: { locked?: string } = personalLocked(ctx, actorOf(ctx)) && !(await seenByOthers(ctx, input.threadId)) ? { locked: LOCKED_LINE } : {};
+  const lock: { locked?: string } =
+    personalLocked(ctx, actorOf(ctx)) && !(await seenByOthers(ctx, input.threadId)) ? { locked: LOCKED_LINE } : {};
   // rule 2: the place first, then the places linked to it, then the Space. Memory from an unrelated place is not recalled here even where the asker could open it.
   const here = await placeOf(ctx, input.threadId);
   const rel = (d: Doc): number => {
     const p = d.place;
     if (!p) return 1;
     if (p.kind === here.kind && p.id === here.id) return 1.6;
-    const up = here.parent, hup = p.parentKind && p.parentId ? { kind: p.parentKind, id: p.parentId } : undefined;
-    if ((up && up.kind === p.kind && up.id === p.id) || (hup && hup.kind === here.kind && hup.id === here.id) || (up && hup && up.kind === hup.kind && up.id === hup.id)) return 1.25;
+    const up = here.parent,
+      hup = p.parentKind && p.parentId ? { kind: p.parentKind, id: p.parentId } : undefined;
+    if (
+      (up && up.kind === p.kind && up.id === p.id) ||
+      (hup && hup.kind === here.kind && hup.id === here.id) ||
+      (up && hup && up.kind === hup.kind && up.id === hup.id)
+    )
+      return 1.25;
     return 0.5;
   };
   const ranked = bm25(docs, text, ghost).map((r, i) => ({ ...r, score: r.score * rel(docs[i]!) }));
@@ -674,20 +1198,36 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
   const matched = docs
     .map((d, i) => ({ d, r: ranked[i]! }))
     // what was decided in this very place (or one linked to it) needs less to be worth a line than a fact from anywhere: its words are the room's own, so a question's words are mostly the ones the whole place uses
-    .filter(({ d, r }) => !isLesson(d) && r.matched >= 1 && r.coverage >= POINTER_MIN_COVERAGE && r.mass >= (rel(d) >= 1.25 ? POINTER_MIN_MASS_HERE : POINTER_MIN_MASS))
+    .filter(
+      ({ d, r }) =>
+        !isLesson(d) &&
+        r.matched >= 1 &&
+        r.coverage >= POINTER_MIN_COVERAGE &&
+        r.mass >= (rel(d) >= 1.25 ? POINTER_MIN_MASS_HERE : POINTER_MIN_MASS),
+    )
     .sort((a, b) => b.r.score - a.r.score || a.d.id.localeCompare(b.d.id));
   // the asker's lessons for this agent come first, newest first, whatever the question says (a switch turned off keeps none of them out: they stop being made, and Forget removes them)
-  const lessons = docs.filter(isLesson).sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id)).slice(0, POINTER_MAX_LESSONS).map((d) => ({ d }));
+  const lessons = docs
+    .filter(isLesson)
+    .sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id))
+    .slice(0, POINTER_MAX_LESSONS)
+    .map((d) => ({ d }));
   // When no word of the question lines up with anything (a "carrier" asked of a decision about "shipping"), the room's own settled things are still the first place to look: the two nearest by spelling and word forms,
   // when they are near at all. Only what was learned here or in a place linked to it; a question about nothing in particular gets nothing.
   if (matched.length === 0) {
-    const near = docs.filter((d) => d.kind === "fact" && d.place !== undefined && rel(d) >= 1.25 && !isLesson(d))
-      .map((d) => ({ d, sim: trigramSim(text, d.text) })).filter((x) => x.sim >= POINTER_NEAR_FLOOR).sort((a, b) => b.sim - a.sim || a.d.id.localeCompare(b.d.id)).slice(0, 2);
+    const near = docs
+      .filter((d) => d.kind === "fact" && d.place !== undefined && rel(d) >= 1.25 && !isLesson(d))
+      .map((d) => ({ d, sim: trigramSim(text, d.text) }))
+      .filter((x) => x.sim >= POINTER_NEAR_FLOOR)
+      .sort((a, b) => b.sim - a.sim || a.d.id.localeCompare(b.d.id))
+      .slice(0, 2);
     for (const x of near) matched.push({ d: x.d, r: { score: x.sim, matched: 0, terms: 0, coverage: 0, mass: 0 } });
   }
   const order = [...lessons, ...matched];
   if (order.length === 0) return { lines: [], tokens: 0, skipped: "no_match" as const, ...lock };
-  const shown = new Set(rowsOf(ctx.db, "SELECT ref FROM memory_pointer_log WHERE thread_id = ?", input.threadId).map((r) => str(r["ref"])));
+  const shown = new Set(
+    rowsOf(ctx.db, "SELECT ref FROM memory_pointer_log WHERE thread_id = ?", input.threadId).map((r) => str(r["ref"])),
+  );
   const lines: PointerLine[] = [];
   let tokenCount = 0;
   for (const { d } of order) {
@@ -697,69 +1237,150 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     // a question that matched a replaced statement is answered with what replaced it, once
     if (d.state === "replaced") {
       if (lines.some((l) => l.ref === d.newId)) continue;
-      const line: PointerLine = { title: "Current (replaced an earlier statement)", fact: `${d.newText} (it replaced an earlier statement, "${d.oldText}", which is no longer true; said by ${d.by})`, ...(d.since !== null ? { trueSince: d.since } : {}), path: `memory/${d.layer}`, ...(d.link ? { sourceLink: d.link } : {}), ref: d.newId as string };
+      const line: PointerLine = {
+        title: "Current (replaced an earlier statement)",
+        fact: `${d.newText} (it replaced an earlier statement, "${d.oldText}", which is no longer true; said by ${d.by})`,
+        ...(d.since !== null ? { trueSince: d.since } : {}),
+        path: `memory/${d.layer}`,
+        ...(d.link ? { sourceLink: d.link } : {}),
+        ref: d.newId as string,
+      };
       tokenCount += Math.ceil((line.title.length + line.fact!.length + line.path.length + 12) / 4);
-      lines.push(line); shown.add(ref);
-      ctx.db.run("INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)", input.threadId, ref, ctx.now());
+      lines.push(line);
+      shown.add(ref);
+      ctx.db.run(
+        "INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)",
+        input.threadId,
+        ref,
+        ctx.now(),
+      );
       continue;
     }
-    const line: PointerLine = d.kind === "fact"
-      ? { title: d.title, fact: `${d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text}${d.place && d.by ? ` (said by ${d.by}${d.msgId ? `, ${d.msgId}` : ""}${d.state === "disputed" ? "; DISPUTED, do not state as settled" : ""})` : ""}`, ...(d.since !== null ? { trueSince: d.since } : {}), path: d.path ?? `memory/${d.layer}`, ...(d.link ? { sourceLink: d.link } : {}), ref: d.id }
-      : { title: d.title, path: d.path ?? `memory/${d.layer}` };
+    const line: PointerLine =
+      d.kind === "fact"
+        ? {
+            title: d.title,
+            fact: `${d.text.length > 160 ? `${d.text.slice(0, 157)}...` : d.text}${d.place && d.by ? ` (said by ${d.by}${d.msgId ? `, ${d.msgId}` : ""}${d.state === "disputed" ? "; DISPUTED, do not state as settled" : ""})` : ""}`,
+            ...(d.since !== null ? { trueSince: d.since } : {}),
+            path: d.path ?? `memory/${d.layer}`,
+            ...(d.link ? { sourceLink: d.link } : {}),
+            ref: d.id,
+          }
+        : { title: d.title, path: d.path ?? `memory/${d.layer}` };
     const cost = Math.ceil((line.title.length + (line.fact?.length ?? 0) + line.path.length + 12) / 4);
     if (tokenCount + cost > POINTER_MAX_TOKENS && lines.length > 0) break;
     tokenCount += cost;
     lines.push(line);
     shown.add(ref);
-    ctx.db.run("INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)", input.threadId, ref, ctx.now());
+    ctx.db.run(
+      "INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)",
+      input.threadId,
+      ref,
+      ctx.now(),
+    );
   }
   if (lines.length === 0) return { lines: [], tokens: 0, skipped: "duplicate" as const, ...lock };
   // the agent can only say who said it if it is told a name: resolved as the asker reads people (a name the asker may not see stays an id)
   const names = new Map<string, string>();
-  for (const l of lines) for (const m of l.fact?.matchAll(/said by (usr_[a-z0-9]+)/g) ?? []) {
-    if (!names.has(m[1]!)) {
-      try { const t = ((await ctx.call("search.resolve", { kind: "person", itemId: m[1] })) as { hit?: { title?: string } }).hit?.title; if (t) names.set(m[1]!, t); } catch { /* the id stays */ }
+  for (const l of lines)
+    for (const m of l.fact?.matchAll(/said by (usr_[a-z0-9]+)/g) ?? []) {
+      if (!names.has(m[1]!)) {
+        try {
+          const t = (
+            (await ctx.call("search.resolve", { kind: "person", itemId: m[1] })) as { hit?: { title?: string } }
+          ).hit?.title;
+          if (t) names.set(m[1]!, t);
+        } catch {
+          /* the id stays */
+        }
+      }
     }
-  }
-  if (names.size > 0) for (const l of lines) if (l.fact) l.fact = l.fact.replace(/said by (usr_[a-z0-9]+)/g, (_x, id: string) => `said by ${names.get(id) ?? id}`);
+  if (names.size > 0)
+    for (const l of lines)
+      if (l.fact)
+        l.fact = l.fact.replace(/said by (usr_[a-z0-9]+)/g, (_x, id: string) => `said by ${names.get(id) ?? id}`);
   return { lines, tokens: tokenCount, ...lock };
 }
 
 // ---- notes: list, read, versions, restore
 
-function noteRowOut(ctx: MemCtx, r: Row): { noteId: string; path: string; title: string; layer: Layer; agentId?: string; updatedAt: number } | null {
+function noteRowOut(
+  ctx: MemCtx,
+  r: Row,
+): { noteId: string; path: string; title: string; layer: Layer; agentId?: string; updatedAt: number } | null {
   const layer = str(r["layer"]) as Layer;
   let title = str(r["title"]);
   const sealed = orNull(r["sealed_title"]);
   if (layer === "person") {
     if (str(r["owner_ref"]) !== actorOf(ctx) || !sealed) return null;
-    try { title = readTitle(ctx, sealed); } catch { return null; }
+    try {
+      title = readTitle(ctx, sealed);
+    } catch {
+      return null;
+    }
   }
   const agentId = orNull(r["agent_id"]);
-  return { noteId: str(r["note_id"]), path: str(r["path"]), title, layer, ...(agentId ? { agentId } : {}), updatedAt: num(r["updated_at"]) };
+  return {
+    noteId: str(r["note_id"]),
+    path: str(r["path"]),
+    title,
+    layer,
+    ...(agentId ? { agentId } : {}),
+    updatedAt: num(r["updated_at"]),
+  };
 }
 
 async function readableNote(ctx: MemCtx, access: Access, noteId: string, missing: ErrorKind): Promise<Row> {
   const r = rowsOf(ctx.db, "SELECT * FROM memory_notes WHERE note_id = ?", noteId)[0];
   if (!r) raise(ctx, missing, "There is no such note.", { noteId });
   const layer = str(r["layer"]) as Layer;
-  if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "view"))) raise(ctx, missing, "There is no such note.", { noteId });
+  if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "view")))
+    raise(ctx, missing, "There is no such note.", { noteId });
   return r;
 }
 
-export async function notesList(ctx: MemCtx, input: Page & { agentId?: string; projectId?: string; layer?: Layer; area?: "notes" | "proposed" | "recipes" | "journal" }) {
+export async function notesList(
+  ctx: MemCtx,
+  input: Page & {
+    agentId?: string;
+    projectId?: string;
+    layer?: Layer;
+    area?: "notes" | "proposed" | "recipes" | "journal";
+  },
+) {
   ensure(ctx.db);
   const access = makeAccess(ctx);
   const args: unknown[] = [actorOf(ctx)];
   let sql = "SELECT * FROM memory_notes WHERE (layer != 'person' OR owner_ref = ?)";
-  if (input.agentId) { sql += " AND agent_id = ?"; args.push(input.agentId); }
-  if (input.projectId) { sql += " AND project_id = ?"; args.push(input.projectId); }
-  if (input.layer) { sql += " AND layer = ?"; args.push(input.layer); }
-  if (input.area) { sql += " AND area = ?"; args.push(input.area); }
+  if (input.agentId) {
+    sql += " AND agent_id = ?";
+    args.push(input.agentId);
+  }
+  if (input.projectId) {
+    sql += " AND project_id = ?";
+    args.push(input.projectId);
+  }
+  if (input.layer) {
+    sql += " AND layer = ?";
+    args.push(input.layer);
+  }
+  if (input.area) {
+    sql += " AND area = ?";
+    args.push(input.area);
+  }
   sql += " ORDER BY updated_at DESC, note_id";
   const notes: NonNullable<ReturnType<typeof noteRowOut>>[] = [];
   for (const r of rowsOf(ctx.db, sql, ...args)) {
-    if (!(await access.can(str(r["layer"]) as Layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "view"))) continue;
+    if (
+      !(await access.can(
+        str(r["layer"]) as Layer,
+        str(r["owner_ref"]),
+        orNull(r["agent_id"]),
+        orNull(r["project_id"]),
+        "view",
+      ))
+    )
+      continue;
     const row = noteRowOut(ctx, r);
     if (row) notes.push(row);
   }
@@ -784,8 +1405,19 @@ export async function readNote(ctx: MemCtx, input: { noteId: string }) {
 export async function versions(ctx: MemCtx, input: { noteId: string }) {
   ensure(ctx.db);
   const r = await readableNote(ctx, makeAccess(ctx), input.noteId, "validation.not_found");
-  const out = (await ctx.call("files.versions", { fileId: str(r["file_id"]) })) as { versions: Array<{ versionId: string; n: number; by: string; at: number; reason?: string; name?: string }> };
-  return { versions: out.versions.map((v) => ({ versionId: v.versionId, n: v.n, by: v.by, at: v.at, ...(v.reason ? { reason: v.reason } : {}), ...(v.name ? { name: v.name } : {}) })) };
+  const out = (await ctx.call("files.versions", { fileId: str(r["file_id"]) })) as {
+    versions: Array<{ versionId: string; n: number; by: string; at: number; reason?: string; name?: string }>;
+  };
+  return {
+    versions: out.versions.map((v) => ({
+      versionId: v.versionId,
+      n: v.n,
+      by: v.by,
+      at: v.at,
+      ...(v.reason ? { reason: v.reason } : {}),
+      ...(v.name ? { name: v.name } : {}),
+    })),
+  };
 }
 
 export async function restoreVersion(ctx: MemCtx, input: { noteId: string; versionId: string }) {
@@ -795,14 +1427,19 @@ export async function restoreVersion(ctx: MemCtx, input: { noteId: string; versi
   const layer = str(r["layer"]) as Layer;
   // Shared memory only: a person's own notes have no owner or admin above them to restore for.
   if (layer === "person") raise(ctx, "permission.no_grant", "Personal memory is restored by its owner in Files.");
-  if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "edit"))) raise(ctx, "permission.no_grant", "Owners and admins restore shared memory.");
+  if (!(await access.can(layer, str(r["owner_ref"]), orNull(r["agent_id"]), orNull(r["project_id"]), "edit")))
+    raise(ctx, "permission.no_grant", "Owners and admins restore shared memory.");
   // The answer is built, and may refuse, before the first write: a refused call leaves the note as it was.
   const at = ctx.now();
   const note = noteRowOut(ctx, { ...r, updated_at: at });
   if (!note) raise(ctx, "validation.not_found", "There is no such note.", { noteId: input.noteId });
   await ctx.call("files.restore_version", { fileId: str(r["file_id"]), versionId: input.versionId });
   ctx.db.run("UPDATE memory_notes SET updated_at = ? WHERE note_id = ?", at, input.noteId);
-  ctx.emit("memory.note_restored", str(r["file_id"]), { noteId: input.noteId, versionId: input.versionId, by: actorOf(ctx) });
+  ctx.emit("memory.note_restored", str(r["file_id"]), {
+    noteId: input.noteId,
+    versionId: input.versionId,
+    by: actorOf(ctx),
+  });
   return { note };
 }
 
@@ -810,16 +1447,28 @@ export async function findBySubject(ctx: MemCtx, input: Page & { subject: string
   ensure(ctx.db);
   const subject = input.subject.trim();
   if (subject === "") raise(ctx, "validation.bad_input", "Name the subject to look for.");
-  if (!makeAccess(ctx).isAdmin()) raise(ctx, "permission.role_lacks_permission", "Looking up a subject across memory needs the memory admin permission.");
+  if (!makeAccess(ctx).isAdmin())
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Looking up a subject across memory needs the memory admin permission.",
+    );
   const like = `%${subject.toLowerCase().replace(/[%_]/g, "")}%`;
   // Personal layers are private from admins too: only identifiers a person's rows carry (their subject and source) can match them, and their text never leaves.
   const rows = rowsOf(
     ctx.db,
     "SELECT * FROM memory_facts WHERE status IN ('current', 'proposed', 'closed') AND (subject = ? OR source_ref = ? OR (enc = 0 AND LOWER(text) LIKE ?)) ORDER BY learned_at DESC, id",
-    subject, subject, like,
+    subject,
+    subject,
+    like,
   );
   const facts: Fact[] = rows.map((r) => readFact(ctx, r)).map((f) => (f.layer === "person" ? { ...f, text: "" } : f));
-  const noteRows = rowsOf(ctx.db, "SELECT * FROM memory_notes WHERE layer != 'person' AND (LOWER(title) LIKE ? OR LOWER(body) LIKE ?) ORDER BY updated_at DESC", like, like);
+  const noteRows = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_notes WHERE layer != 'person' AND (LOWER(title) LIKE ? OR LOWER(body) LIKE ?) ORDER BY updated_at DESC",
+    like,
+    like,
+  );
   const notes = noteRows.map((r) => noteRowOut(ctx, r)).filter((n): n is NonNullable<typeof n> => n !== null);
   const p = pageOf(facts, input.cursor, input.limit);
   return { facts: factRows(ctx, p.page), notes, ...(p.next ? { next: p.next } : {}), total: p.total };
@@ -828,12 +1477,31 @@ export async function findBySubject(ctx: MemCtx, input: Page & { subject: string
 // ---- promotion
 
 type ToLayer = "agent" | "project" | "space";
-interface Promotion { id: string; factId: string; toLayer: ToLayer; agentId: string | null; projectId: string | null; taskId: string | null; status: string; requestedBy: string; requestedAt: number; newFactId: string | null }
+interface Promotion {
+  id: string;
+  factId: string;
+  toLayer: ToLayer;
+  agentId: string | null;
+  projectId: string | null;
+  taskId: string | null;
+  status: string;
+  requestedBy: string;
+  requestedAt: number;
+  newFactId: string | null;
+}
 
 function readPromotion(r: Row): Promotion {
   return {
-    id: str(r["id"]), factId: str(r["fact_id"]), toLayer: str(r["to_layer"]) as ToLayer, agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]), taskId: orNull(r["task_id"]),
-    status: str(r["status"]), requestedBy: str(r["requested_by"]), requestedAt: num(r["requested_at"]), newFactId: orNull(r["new_fact_id"]),
+    id: str(r["id"]),
+    factId: str(r["fact_id"]),
+    toLayer: str(r["to_layer"]) as ToLayer,
+    agentId: orNull(r["agent_id"]),
+    projectId: orNull(r["project_id"]),
+    taskId: orNull(r["task_id"]),
+    status: str(r["status"]),
+    requestedBy: str(r["requested_by"]),
+    requestedAt: num(r["requested_at"]),
+    newFactId: orNull(r["new_fact_id"]),
   };
 }
 
@@ -844,7 +1512,12 @@ function needPromotion(ctx: MemCtx, id: string): Promotion {
 }
 
 /** Who gets the task: the agent's owner, the project's lead, else the Space admins. */
-async function approverFor(ctx: MemCtx, to: ToLayer, agentId: string | null, projectId: string | null): Promise<{ id: string; kind: "person" | "role" }> {
+async function approverFor(
+  ctx: MemCtx,
+  to: ToLayer,
+  agentId: string | null,
+  projectId: string | null,
+): Promise<{ id: string; kind: "person" | "role" }> {
   try {
     if (to === "agent" && agentId) {
       const owner = ((await ctx.call("agents.get", { agentId })) as { agent?: { ownerId?: string } }).agent?.ownerId;
@@ -854,7 +1527,9 @@ async function approverFor(ctx: MemCtx, to: ToLayer, agentId: string | null, pro
       const lead = ((await ctx.call("projects.get", { projectId })) as { project?: { lead?: string } }).project?.lead;
       if (lead) return { id: lead, kind: "person" };
     }
-  } catch { /* the Space admins take it */ }
+  } catch {
+    /* the Space admins take it */
+  }
   return { id: "admin", kind: "role" };
 }
 
@@ -862,45 +1537,119 @@ async function approverFor(ctx: MemCtx, to: ToLayer, agentId: string | null, pro
 function applyPromotion(ctx: MemCtx, p: Promotion, by: string): Fact {
   const src = needFact(ctx, p.factId);
   // The person asked for the promotion, so their sealed text may be opened here to make the shared copy; nothing else leaves the sealed row.
-  const text = src.text !== "" ? src.text : readFact({ seal: ctx.seal, principal: { kind: "person", id: src.ownerRef } }, rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", src.id)[0]!).text;
+  const text =
+    src.text !== ""
+      ? src.text
+      : readFact(
+          { seal: ctx.seal, principal: { kind: "person", id: src.ownerRef } },
+          rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", src.id)[0]!,
+        ).text;
   // rule 6: a decision learned in a shared place goes wider as a marker that points back to it, never as a second copy of its words; it ends with its source
   const marker = src.layer !== "person" && src.placeId !== null;
-  const copy = insertFact(ctx, marker ? {
-    layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
-    kind: src.kind, text: "", validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
-    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote", state: "marker",
-    place: { kind: src.placeKind!, id: src.placeId! }, ...(src.msgId ? { msgId: src.msgId } : {}),
-  } : {
-    layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
-    kind: src.kind, text, validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
-    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote",
+  const copy = insertFact(
+    ctx,
+    marker
+      ? {
+          layer: p.toLayer,
+          ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId),
+          agentId: p.toLayer === "agent" ? p.agentId : null,
+          projectId: p.toLayer === "project" ? p.projectId : null,
+          kind: src.kind,
+          text: "",
+          validFrom: src.validFrom,
+          sourceKind: src.sourceKind,
+          sourceRef: src.sourceRef,
+          sourcePerson: src.sourcePerson,
+          proposedBy: p.requestedBy,
+          status: "current",
+          lowRisk: src.lowRisk,
+          promotedFrom: src.id,
+          promotedBy: by,
+          promotedAt: ctx.now(),
+          links: [["promoted_from", src.id]],
+          how: "promote",
+          state: "marker",
+          place: { kind: src.placeKind!, id: src.placeId! },
+          ...(src.msgId ? { msgId: src.msgId } : {}),
+        }
+      : {
+          layer: p.toLayer,
+          ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId),
+          agentId: p.toLayer === "agent" ? p.agentId : null,
+          projectId: p.toLayer === "project" ? p.projectId : null,
+          kind: src.kind,
+          text,
+          validFrom: src.validFrom,
+          sourceKind: src.sourceKind,
+          sourceRef: src.sourceRef,
+          sourcePerson: src.sourcePerson,
+          proposedBy: p.requestedBy,
+          status: "current",
+          lowRisk: src.lowRisk,
+          promotedFrom: src.id,
+          promotedBy: by,
+          promotedAt: ctx.now(),
+          links: [["promoted_from", src.id]],
+          how: "promote",
+        },
+  );
+  ctx.db.run(
+    "UPDATE memory_promotions SET status = 'approved', decided_by = ?, decided_at = ?, new_fact_id = ? WHERE id = ?",
+    by,
+    ctx.now(),
+    copy.id,
+    p.id,
+  );
+  ctx.emit("memory.promoted", copy.id, {
+    promotionId: p.id,
+    factId: src.id,
+    newFactId: copy.id,
+    toLayer: p.toLayer,
+    by,
   });
-  ctx.db.run("UPDATE memory_promotions SET status = 'approved', decided_by = ?, decided_at = ?, new_fact_id = ? WHERE id = ?", by, ctx.now(), copy.id, p.id);
-  ctx.emit("memory.promoted", copy.id, { promotionId: p.id, factId: src.id, newFactId: copy.id, toLayer: p.toLayer, by });
   return copy;
 }
 
 /** Close the approver's task once the request is decided. A task module that is away must not undo the decision. */
 async function closeTask(ctx: MemCtx, taskId: string | null, to: "done" | "canceled", note: string): Promise<void> {
   if (!taskId) return;
-  try { await ctx.call("tasks.transition", { taskId, to, note }); } catch (e) { ctx.log.warn("the promotion task could not be closed", { taskId, reason: e instanceof Error ? e.name : "error" }); }
+  try {
+    await ctx.call("tasks.transition", { taskId, to, note });
+  } catch (e) {
+    ctx.log.warn("the promotion task could not be closed", { taskId, reason: e instanceof Error ? e.name : "error" });
+  }
 }
 
-export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToLayer; agentId?: string; projectId?: string; note?: string }): Promise<{ promotionId: string; promoted: boolean; taskId?: string }> {
+export async function promote(
+  ctx: MemCtx,
+  input: { factId: string; toLayer: ToLayer; agentId?: string; projectId?: string; note?: string },
+): Promise<{ promotionId: string; promoted: boolean; taskId?: string }> {
   ensure(ctx.db);
   const me = actorOf(ctx);
   const access = makeAccess(ctx);
   const f = needFact(ctx, input.factId);
-  if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) raise(ctx, "permission.no_grant", "You cannot see this fact.");
-  if (f.status !== "current") raise(ctx, "validation.bad_input", "Only a current fact can be promoted.", { status: f.status });
-  const agentId = input.toLayer === "agent" ? input.agentId ?? f.agentId : null;
-  const projectId = input.toLayer === "project" ? input.projectId ?? null : null;
-  if (input.toLayer === "agent" && !agentId) raise(ctx, "validation.bad_input", "Name the agent whose memory this goes to.");
-  if (input.toLayer === "project" && !projectId) raise(ctx, "validation.bad_input", "Name the project whose memory this goes to.");
+  if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view")))
+    raise(ctx, "permission.no_grant", "You cannot see this fact.");
+  if (f.status !== "current")
+    raise(ctx, "validation.bad_input", "Only a current fact can be promoted.", { status: f.status });
+  const agentId = input.toLayer === "agent" ? (input.agentId ?? f.agentId) : null;
+  const projectId = input.toLayer === "project" ? (input.projectId ?? null) : null;
+  if (input.toLayer === "agent" && !agentId)
+    raise(ctx, "validation.bad_input", "Name the agent whose memory this goes to.");
+  if (input.toLayer === "project" && !projectId)
+    raise(ctx, "validation.bad_input", "Name the project whose memory this goes to.");
   const owner = ownerOfLayer(ctx, input.toLayer, me, agentId, projectId);
-  if (f.layer === input.toLayer && f.ownerRef === owner) raise(ctx, "validation.bad_input", "The fact is already in that layer.");
+  if (f.layer === input.toLayer && f.ownerRef === owner)
+    raise(ctx, "validation.bad_input", "The fact is already in that layer.");
 
-  const waiting = rowsOf(ctx.db, "SELECT * FROM memory_promotions WHERE fact_id = ? AND to_layer = ? AND COALESCE(agent_id, '') = ? AND COALESCE(project_id, '') = ? AND status = 'pending'", f.id, input.toLayer, agentId ?? "", projectId ?? "")[0];
+  const waiting = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_promotions WHERE fact_id = ? AND to_layer = ? AND COALESCE(agent_id, '') = ? AND COALESCE(project_id, '') = ? AND status = 'pending'",
+    f.id,
+    input.toLayer,
+    agentId ?? "",
+    projectId ?? "",
+  )[0];
   if (waiting) {
     const w = readPromotion(waiting);
     return { promotionId: w.id, promoted: false, ...(w.taskId ? { taskId: w.taskId } : {}) };
@@ -909,7 +1658,14 @@ export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToL
   const allowed = await access.can(input.toLayer, owner, agentId, projectId, "edit");
   ctx.db.run(
     "INSERT INTO memory_promotions (id, fact_id, to_layer, agent_id, project_id, task_id, status, requested_by, requested_at, decided_by, decided_at, new_fact_id, note) VALUES (?, ?, ?, ?, ?, NULL, 'pending', ?, ?, NULL, NULL, NULL, ?)",
-    id, f.id, input.toLayer, agentId, projectId, me, ctx.now(), input.note ?? null,
+    id,
+    f.id,
+    input.toLayer,
+    agentId,
+    projectId,
+    me,
+    ctx.now(),
+    input.note ?? null,
   );
   const p = needPromotion(ctx, id);
   if (allowed) {
@@ -923,8 +1679,16 @@ export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToL
   try {
     const text = f.text.length > 200 ? `${f.text.slice(0, 197)}...` : f.text;
     const res = (await ctx.call("tasks.create", {
-      title: `Add to ${input.toLayer} memory`, kind: "approve", assigned: approver, summary: `${me} proposes adding this to the ${input.toLayer} memory: ${text}`,
-      actions: [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", note: "optional" }], source: { kind: "manual", id }, idempotencyKey: `memprom:${id}`,
+      title: `Add to ${input.toLayer} memory`,
+      kind: "approve",
+      assigned: approver,
+      summary: `${me} proposes adding this to the ${input.toLayer} memory: ${text}`,
+      actions: [
+        { key: "approve", label: "Allow" },
+        { key: "reject", label: "Deny", note: "optional" },
+      ],
+      source: { kind: "manual", id },
+      idempotencyKey: `memprom:${id}`,
     })) as { task?: { id?: string } };
     taskId = res.task?.id ?? null;
   } catch {
@@ -932,7 +1696,13 @@ export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToL
     raise(ctx, "internal.unexpected", "The request for approval could not be created. Nothing was changed.");
   }
   ctx.db.run("UPDATE memory_promotions SET task_id = ? WHERE id = ?", taskId, id);
-  ctx.emit("memory.promotion_requested", f.id, { promotionId: id, factId: f.id, toLayer: input.toLayer, ...(taskId ? { taskId } : {}), by: me });
+  ctx.emit("memory.promotion_requested", f.id, {
+    promotionId: id,
+    factId: f.id,
+    toLayer: input.toLayer,
+    ...(taskId ? { taskId } : {}),
+    by: me,
+  });
   return { promotionId: id, promoted: false, ...(taskId ? { taskId } : {}) };
 }
 
@@ -940,9 +1710,11 @@ export async function promotionApprove(ctx: MemCtx, input: { promotionId: string
   ensure(ctx.db);
   const me = actorOf(ctx);
   const p = needPromotion(ctx, input.promotionId);
-  if (p.status !== "pending") raise(ctx, "validation.precondition_failed", "This request was already decided.", { status: p.status });
+  if (p.status !== "pending")
+    raise(ctx, "validation.precondition_failed", "This request was already decided.", { status: p.status });
   const owner = ownerOfLayer(ctx, p.toLayer, me, p.agentId, p.projectId);
-  if (!(await makeAccess(ctx).can(p.toLayer, owner, p.agentId, p.projectId, "edit"))) raise(ctx, "permission.no_grant", "Only someone who can edit this memory can approve it.");
+  if (!(await makeAccess(ctx).can(p.toLayer, owner, p.agentId, p.projectId, "edit")))
+    raise(ctx, "permission.no_grant", "Only someone who can edit this memory can approve it.");
   const copy = applyPromotion(ctx, p, me);
   await closeTask(ctx, p.taskId, "done", "Approved");
   return { fact: factOut(copy) };
@@ -952,11 +1724,20 @@ export async function promotionReject(ctx: MemCtx, input: { promotionId: string;
   ensure(ctx.db);
   const me = actorOf(ctx);
   const p = needPromotion(ctx, input.promotionId);
-  if (p.status !== "pending") raise(ctx, "validation.bad_input", "This request was already decided.", { status: p.status });
+  if (p.status !== "pending")
+    raise(ctx, "validation.bad_input", "This request was already decided.", { status: p.status });
   const owner = ownerOfLayer(ctx, p.toLayer, me, p.agentId, p.projectId);
-  const mayDecide = p.requestedBy === me || (await makeAccess(ctx).can(p.toLayer, owner, p.agentId, p.projectId, "edit"));
-  if (!mayDecide) raise(ctx, "permission.no_grant", "Only the requester or someone who can edit this memory can reject it.");
-  ctx.db.run("UPDATE memory_promotions SET status = 'rejected', decided_by = ?, decided_at = ?, note = COALESCE(?, note) WHERE id = ?", me, ctx.now(), input.note ?? null, p.id);
+  const mayDecide =
+    p.requestedBy === me || (await makeAccess(ctx).can(p.toLayer, owner, p.agentId, p.projectId, "edit"));
+  if (!mayDecide)
+    raise(ctx, "permission.no_grant", "Only the requester or someone who can edit this memory can reject it.");
+  ctx.db.run(
+    "UPDATE memory_promotions SET status = 'rejected', decided_by = ?, decided_at = ?, note = COALESCE(?, note) WHERE id = ?",
+    me,
+    ctx.now(),
+    input.note ?? null,
+    p.id,
+  );
   ctx.emit("memory.promotion_rejected", p.factId, { promotionId: p.id, factId: p.factId, by: me });
   await closeTask(ctx, p.taskId, "canceled", input.note ?? "Rejected");
   return { ok: true };
@@ -966,23 +1747,57 @@ export async function promotionUndo(ctx: MemCtx, input: { promotionId: string })
   ensure(ctx.db);
   const me = actorOf(ctx);
   const p = needPromotion(ctx, input.promotionId);
-  if (p.status !== "approved" || !p.newFactId) raise(ctx, "validation.bad_input", "Only a finished promotion can be undone.", { status: p.status });
+  if (p.status !== "approved" || !p.newFactId)
+    raise(ctx, "validation.bad_input", "Only a finished promotion can be undone.", { status: p.status });
   const owner = ownerOfLayer(ctx, p.toLayer, me, p.agentId, p.projectId);
   const mayUndo = p.requestedBy === me || (await makeAccess(ctx).can(p.toLayer, owner, p.agentId, p.projectId, "edit"));
-  if (!mayUndo) raise(ctx, "permission.no_grant", "Only the person who promoted it or someone who can edit this memory can undo it.");
+  if (!mayUndo)
+    raise(
+      ctx,
+      "permission.no_grant",
+      "Only the person who promoted it or someone who can edit this memory can undo it.",
+    );
   const now = ctx.now();
-  ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'", now, now, p.newFactId);
+  ctx.db.run(
+    "UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ? AND status = 'current'",
+    now,
+    now,
+    p.newFactId,
+  );
   const copy = loadFact(ctx, p.newFactId);
-  trail(ctx, { action: "edit", factId: p.newFactId, ...(copy ? { layer: copy.layer, ownerRef: copy.ownerRef, agentId: copy.agentId, projectId: copy.projectId } : {}), reason: "promotion undone", detail: { promotionId: p.id } });
-  ctx.db.run("UPDATE memory_promotions SET status = 'undone', decided_by = ?, decided_at = ? WHERE id = ?", me, now, p.id);
+  trail(ctx, {
+    action: "edit",
+    factId: p.newFactId,
+    ...(copy ? { layer: copy.layer, ownerRef: copy.ownerRef, agentId: copy.agentId, projectId: copy.projectId } : {}),
+    reason: "promotion undone",
+    detail: { promotionId: p.id },
+  });
+  ctx.db.run(
+    "UPDATE memory_promotions SET status = 'undone', decided_by = ?, decided_at = ? WHERE id = ?",
+    me,
+    now,
+    p.id,
+  );
   ctx.emit("memory.promotion_undone", p.factId, { promotionId: p.id, factId: p.factId, by: me });
   return { ok: true };
 }
 
 // ---- capture at chat end
 
-export interface CaptureMessage { messageId: string; author: { kind: string; id: string }; body: string; enc?: unknown; /** system and quiet lines (a Noted line, a card) are the product talking, never something a person said */ kind?: string }
-export interface Candidate { person: string; text: string; kind: string; messageId: string; index: number }
+export interface CaptureMessage {
+  messageId: string;
+  author: { kind: string; id: string };
+  body: string;
+  enc?: unknown;
+  /** system and quiet lines (a Noted line, a card) are the product talking, never something a person said */ kind?: string;
+}
+export interface Candidate {
+  person: string;
+  text: string;
+  kind: string;
+  messageId: string;
+  index: number;
+}
 export type Extractor = (messages: CaptureMessage[]) => Promise<Candidate[]> | Candidate[];
 
 const PATTERNS: Array<{ kind: string; re: RegExp }> = [
@@ -1001,7 +1816,10 @@ export function heuristicExtract(messages: CaptureMessage[]): Candidate[] {
   const out: Candidate[] = [];
   for (const m of messages) {
     if (m.author.kind !== "person" || sealed(m)) continue;
-    const sentences = m.body.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => s.length >= 8 && s.length <= 300 && !s.endsWith("?"));
+    const sentences = m.body
+      .split(/(?<=[.!?])\s+|\n+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 8 && s.length <= 300 && !s.endsWith("?"));
     sentences.forEach((s, index) => {
       const hit = PATTERNS.find((p) => p.re.test(s));
       if (hit) out.push({ person: m.author.id, text: s, kind: hit.kind, messageId: m.messageId, index });
@@ -1016,7 +1834,16 @@ export function setCaptureExtractor(fn: Extractor | null): void {
   extractor = fn ?? heuristicExtract;
 }
 
-interface ThreadOut { thread: { kind: string; starter?: string; scopeType?: string; scopeId?: string; parentThreadId?: string; agents: Array<{ agentId: string; mode: string }> } }
+interface ThreadOut {
+  thread: {
+    kind: string;
+    starter?: string;
+    scopeType?: string;
+    scopeId?: string;
+    parentThreadId?: string;
+    agents: Array<{ agentId: string; mode: string }>;
+  };
+}
 
 type CaptureMode = "auto" | "propose" | "auto_low_risk" | "off";
 
@@ -1025,10 +1852,15 @@ async function captureModeOf(ctx: MemCtx, agentId: string): Promise<CaptureMode 
     const out = (await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } };
     const m = out.agent?.captureMode;
     return m === "off" || m === "propose" || m === "auto_low_risk" || m === "auto" ? m : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-export async function capture(ctx: MemCtx, input: { threadId: string; reason: "closed" | "idle" } | LearnIn): Promise<LearnOut> {
+export async function capture(
+  ctx: MemCtx,
+  input: { threadId: string; reason: "closed" | "idle" } | LearnIn,
+): Promise<LearnOut> {
   ensure(ctx.db);
   // after every turn: the model pass on the asker's own account (learn.ts); at chat end or when quiet, the rules below over what no turn pass read
   if (input.reason === "turn") return learnTurn(ctx, input);
@@ -1036,7 +1868,9 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   if (!shouldLearn(ctx, input.threadId)) return { proposed: 0, merged: 0 };
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as ThreadOut).thread;
   if (!shouldLearn(ctx, input.threadId, t as LearnThread)) return { proposed: 0, merged: 0 };
-  const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as { messages: Array<CaptureMessage & { threadSeq?: number }> };
+  const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as {
+    messages: Array<CaptureMessage & { threadSeq?: number }>;
+  };
   // who read the words: shared memory learned where more than one person reads is kept for those people only (agent-visibility gap 4). A public channel is the Space's.
   const heard = await chatAudience((cap, i) => ctx.call(cap, i), input.threadId);
   // rule 1: what is learned where other people read is that place's memory and is read against who may open the place NOW, even when the place holds one person today
@@ -1048,9 +1882,12 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
       const p = ((await ctx.call("threads.get", { threadId: up })) as ThreadOut).thread;
       agentId = (p.agents.find((a) => a.mode === "lead") ?? p.agents[0])?.agentId ?? null;
       up = p.parentThreadId;
-    } catch { break; }
+    } catch {
+      break;
+    }
   }
-  const shared = t.kind === "channel" || t.kind === "thread" || (t.kind === "chat" && (heard.space || heard.people.length > 1));
+  const shared =
+    t.kind === "channel" || t.kind === "thread" || (t.kind === "chat" && (heard.space || heard.people.length > 1));
   const fromRun = t.kind === "run";
   const projectId = shared && t.scopeType === "project" && t.scopeId ? t.scopeId : null;
   // The lead agent's captureMode decides what a chat may leave behind: auto (the default) saves everything it learns and shows it in the Learned feed with Undo, propose leaves every fact for a person
@@ -1065,45 +1902,124 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   let merged = 0;
   // an imported session's first message (the preamble and the transcript it carries) is history to read, not something the person said: nothing is learned from it
   // a private chat that gained people: what was said before it was shared stays the starter's and is never learned into the room's memory (rule 8). A thread has no such time: its second person joins when they reply
-  const sharedAt = typeof (t as { sharedAt?: unknown }).sharedAt === "number" ? (t as { sharedAt: number }).sharedAt : null;
-  const unread = page.messages.filter((m) => m.kind !== "system" && m.kind !== "quiet" && !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq, m.messageId)
-    && (sharedAt === null || !shared || t.kind === "thread" || Number((m as { createdAt?: unknown }).createdAt ?? sharedAt) >= sharedAt));
-  const joinCut = Math.max(0, ...Object.values((t as { joinedAt?: Record<string, number> }).joinedAt ?? {}).map((n) => Number(n) || 0));
+  const sharedAt =
+    typeof (t as { sharedAt?: unknown }).sharedAt === "number" ? (t as { sharedAt: number }).sharedAt : null;
+  const unread = page.messages.filter(
+    (m) =>
+      m.kind !== "system" &&
+      m.kind !== "quiet" &&
+      !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) &&
+      !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq, m.messageId) &&
+      (sharedAt === null ||
+        !shared ||
+        t.kind === "thread" ||
+        Number((m as { createdAt?: unknown }).createdAt ?? sharedAt) >= sharedAt),
+  );
+  const joinCut = Math.max(
+    0,
+    ...Object.values((t as { joinedAt?: Record<string, number> }).joinedAt ?? {}).map((n) => Number(n) || 0),
+  );
   for (const c of await extractor(unread)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
     let layer: Layer = "person";
     let status: FactStatus = auto || kinds.includes(c.kind) ? "current" : "proposed";
     let sourceKind: SourceKind = "chat";
-    if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
+    if (fromRun) {
+      layer = "agent";
+      status = auto ? "current" : "proposed";
+      sourceKind = "run";
+    }
     // when the person said it is for them only it is theirs, in their own layer, in any kind of place
     const said = String(page.messages.find((m) => m.messageId === c.messageId)?.body ?? "");
     // a line said before a person now in the place joined is not theirs to read: it stays in its author's own layer
-    const early = Number((page.messages.find((m) => m.messageId === c.messageId) as { createdAt?: unknown } | undefined)?.createdAt ?? Infinity) < joinCut;
+    const early =
+      Number(
+        (page.messages.find((m) => m.messageId === c.messageId) as { createdAt?: unknown } | undefined)?.createdAt ??
+          Infinity,
+      ) < joinCut;
     const mine = privateIntent(said) || (early && shared);
-    if (mine && !fromRun) { layer = "person"; status = auto || kinds.includes(c.kind) ? "current" : "proposed"; }
-    else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
+    if (mine && !fromRun) {
+      layer = "person";
+      status = auto || kinds.includes(c.kind) ? "current" : "proposed";
+    } else if (shared) {
+      sourceKind = "channel";
+      if (projectId) {
+        layer = "project";
+        status = "current";
+      } else {
+        layer = agentId ? "agent" : "space";
+        status = auto ? "current" : "proposed";
+      }
+    }
     // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
     if (status === "current" && (await reviewRequired(ctx, layer, projectId))) status = "proposed";
-    const owner = layer === "person" ? c.person : layer === "agent" ? agentId ?? "" : layer === "project" ? projectId ?? "" : ctx.space;
+    const owner =
+      layer === "person"
+        ? c.person
+        : layer === "agent"
+          ? (agentId ?? "")
+          : layer === "project"
+            ? (projectId ?? "")
+            : ctx.space;
     const base = {
-      layer, ownerRef: owner, agentId: layer === "project" || layer === "space" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: c.kind, text: c.text, validFrom: ctx.now(),
-      sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key] as [string, string]], how: "learn" as const, who,
-      msgId: c.messageId, span: c.text,
+      layer,
+      ownerRef: owner,
+      agentId: layer === "project" || layer === "space" ? null : agentId,
+      projectId: layer === "project" ? projectId : null,
+      kind: c.kind,
+      text: c.text,
+      validFrom: ctx.now(),
+      sourceKind,
+      sourceRef: input.threadId,
+      sourcePerson: c.person,
+      proposedBy: ctx.principal.id,
+      status,
+      lowRisk: kinds.includes(c.kind),
+      links: [["capture", key] as [string, string]],
+      how: "learn" as const,
+      who,
+      msgId: c.messageId,
+      span: c.text,
     };
     let f: Fact;
     let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
     if (layer !== "person") {
       const w = await writeShared(ctx, { ...base, threadId: input.threadId, heard });
       if (w.deduped) continue;
-      f = w.fact; note = w;
+      f = w.fact;
+      note = w;
     } else f = insertFact(ctx, base);
     emitProposed(ctx, f);
     emitLearned(ctx, f, status === "current", who);
     proposed++;
-    if (status === "current") { emitAccepted(ctx, f, true); merged++; }
+    if (status === "current") {
+      emitAccepted(ctx, f, true);
+      merged++;
+    }
     // rule 4: nothing is remembered silently in a place other people share
-    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1)) await postNoted(ctx, { threadId: input.threadId, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: f.sourcePerson, at: f.learnedAt } } } : {}) });
+    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1))
+      await postNoted(ctx, {
+        threadId: input.threadId,
+        factId: f.id,
+        kind: kindOf(f.kind),
+        text: f.text,
+        ...(note.replaced ? { replaces: note.replaced.id } : {}),
+        ...(note.disputedWith ? { disputed: true } : {}),
+        ...(note.questionId && note.disputedWith
+          ? {
+              question: {
+                questionId: note.questionId,
+                a: {
+                  text: note.disputedWith.text,
+                  by: note.disputedWith.sourcePerson,
+                  at: note.disputedWith.learnedAt,
+                },
+                b: { text: f.text, by: f.sourcePerson, at: f.learnedAt },
+              },
+            }
+          : {}),
+      });
   }
   ctx.emit("memory.captured", input.threadId, { threadId: input.threadId, proposed, merged });
   return { proposed, merged };

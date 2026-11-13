@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { parseExpr, evalExpr, exprNames } from "../expr/expr.ts";
 import { LanguageError } from "../expr/errors.ts";
 
-const run = (src: string, values: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => evalExpr(parseExpr(src), { values, ...extra });
+const run = (src: string, values: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) =>
+  evalExpr(parseExpr(src), { values, ...extra });
 
 test("literals, arithmetic and precedence", () => {
   assert.equal(run("1 + 2 * 3"), 7);
@@ -61,14 +62,27 @@ test("exprNames lists the first segment of each path", () => {
 
 test("syntax errors are LanguageError with a stable code", () => {
   for (const bad of ["", "   ", "1 +", "(1", "foo(1)", "a and", "'open", "1.2.3", "a $ b", "[1, 2", "and"]) {
-    assert.throws(() => parseExpr(bad), (e: unknown) => e instanceof LanguageError && /^expr_(syntax|limit)$/.test(e.code), `should refuse ${JSON.stringify(bad)}`);
+    assert.throws(
+      () => parseExpr(bad),
+      (e: unknown) => e instanceof LanguageError && /^expr_(syntax|limit)$/.test(e.code),
+      `should refuse ${JSON.stringify(bad)}`,
+    );
   }
 });
 
 test("limits: length, nesting and node count", () => {
-  assert.throws(() => parseExpr("1".repeat(2001)), (e: unknown) => e instanceof LanguageError && e.code === "expr_limit");
-  assert.throws(() => parseExpr("(".repeat(30) + "1" + ")".repeat(30)), (e: unknown) => e instanceof LanguageError && e.code === "expr_limit");
-  assert.throws(() => parseExpr(Array(300).fill("1").join(" + ")), (e: unknown) => e instanceof LanguageError && e.code === "expr_limit");
+  assert.throws(
+    () => parseExpr("1".repeat(2001)),
+    (e: unknown) => e instanceof LanguageError && e.code === "expr_limit",
+  );
+  assert.throws(
+    () => parseExpr("(".repeat(30) + "1" + ")".repeat(30)),
+    (e: unknown) => e instanceof LanguageError && e.code === "expr_limit",
+  );
+  assert.throws(
+    () => parseExpr(Array(300).fill("1").join(" + ")),
+    (e: unknown) => e instanceof LanguageError && e.code === "expr_limit",
+  );
 });
 
 test("nothing is evaluated as code", () => {

@@ -26,7 +26,12 @@ export function threadMessages(input: TurnInput): Msg[] {
   for (const r of rows) {
     const mine = r.author.kind === "agent" && r.author.id === self;
     if (r.body.trim() === "") continue;
-    pushMerged(out, mine ? { role: "assistant", text: r.body, calls: [] } : { role: "user", text: named ? `${speaker(input.context, r.author.id)}: ${r.body}` : r.body });
+    pushMerged(
+      out,
+      mine
+        ? { role: "assistant", text: r.body, calls: [] }
+        : { role: "user", text: named ? `${speaker(input.context, r.author.id)}: ${r.body}` : r.body },
+    );
   }
   const first = out[0];
   // Every provider wants the conversation to open with the user.
@@ -34,7 +39,10 @@ export function threadMessages(input: TurnInput): Msg[] {
   if (input.resumed) {
     const r = input.resumed;
     const body = typeof r.result.content === "string" ? r.result.content : JSON.stringify(r.result.content ?? null);
-    pushMerged(out, { role: "user", text: `(tool ${r.toolName} ${r.approved ? "was approved" : "was declined"}; ${r.result.ok ? "result" : "error"}: ${cap(body)})` });
+    pushMerged(out, {
+      role: "user",
+      text: `(tool ${r.toolName} ${r.approved ? "was approved" : "was declined"}; ${r.result.ok ? "result" : "error"}: ${cap(body)})`,
+    });
   }
   // a note a hook left for the model (the hooks layer, lane l-hooks): read with the message it is about
   if (input.notice) pushMerged(out, { role: "user", text: `(Vyre: ${input.notice})` });
@@ -45,8 +53,14 @@ export function threadMessages(input: TurnInput): Msg[] {
 
 export function pushMerged(out: Msg[], m: Msg): void {
   const last = out[out.length - 1];
-  if (last && last.role === "user" && m.role === "user") { out[out.length - 1] = { role: "user", text: `${last.text}\n\n${m.text}` }; return; }
-  if (last && last.role === "assistant" && last.calls.length === 0 && m.role === "assistant" && m.calls.length === 0) { out[out.length - 1] = { role: "assistant", text: `${last.text}\n\n${m.text}`, calls: [] }; return; }
+  if (last && last.role === "user" && m.role === "user") {
+    out[out.length - 1] = { role: "user", text: `${last.text}\n\n${m.text}` };
+    return;
+  }
+  if (last && last.role === "assistant" && last.calls.length === 0 && m.role === "assistant" && m.calls.length === 0) {
+    out[out.length - 1] = { role: "assistant", text: `${last.text}\n\n${m.text}`, calls: [] };
+    return;
+  }
   out.push(m);
 }
 
@@ -57,10 +71,16 @@ export function cap(text: string, max: number = TOOL_RESULT_CHARS): string {
 export function msgTokens(m: Msg): number {
   if (m.role === "user") return tokens(m.text) + 4;
   if (m.role === "tool") return tokens(m.content) + 8;
-  return tokens(m.text) + 4 + m.calls.reduce((n, c) => n + tokens(c.name) + tokens(JSON.stringify(c.input ?? {})) + 8, 0);
+  return (
+    tokens(m.text) + 4 + m.calls.reduce((n, c) => n + tokens(c.name) + tokens(JSON.stringify(c.input ?? {})) + 8, 0)
+  );
 }
 
-export function promptTokens(system: readonly SystemBlock[], tools: readonly ApiTool[], messages: readonly Msg[]): number {
+export function promptTokens(
+  system: readonly SystemBlock[],
+  tools: readonly ApiTool[],
+  messages: readonly Msg[],
+): number {
   let n = 0;
   for (const b of system) n += tokens(b.text);
   for (const t of tools) n += tokens(t.name) + tokens(t.description) + tokens(JSON.stringify(t.inputSchema ?? null));
@@ -83,18 +103,29 @@ export function extractive(dropped: readonly Msg[]): string {
     if (m.role === "tool") continue;
     const words = m.text.replace(/\s+/g, " ").trim();
     if (words === "") continue;
-    lines.push(`${m.role === "user" ? "Asked" : "Answered"}: ${words.length > 200 ? `${words.slice(0, 200)}...` : words}`);
+    lines.push(
+      `${m.role === "user" ? "Asked" : "Answered"}: ${words.length > 200 ? `${words.slice(0, 200)}...` : words}`,
+    );
   }
   return lines.join("\n");
 }
 
-export interface Compacted { messages: Msg[]; dropped: number }
+export interface Compacted {
+  messages: Msg[];
+  dropped: number;
+}
 
 /**
  * If the prompt is over 80% of the window, replace the oldest messages with a summary and keep the newest ones that fit in 40%.
  * The cut falls on a user message so a tool call is never separated from its results. `keep` ("Keep this every time" of the chat) heads the summary, word for word, and goes to the summarizer.
  */
-export async function compact(fixed: number, messages: readonly Msg[], window: number, summarize?: Summarize, keep?: string): Promise<Compacted> {
+export async function compact(
+  fixed: number,
+  messages: readonly Msg[],
+  window: number,
+  summarize?: Summarize,
+  keep?: string,
+): Promise<Compacted> {
   let total = fixed;
   for (const m of messages) total += msgTokens(m);
   if (total <= window * COMPACT_AT) return { messages: [...messages], dropped: 0 };
@@ -116,9 +147,18 @@ export async function compact(fixed: number, messages: readonly Msg[], window: n
   if (dropped.length === 0) return { messages: [...messages], dropped: 0 };
   let summary = "";
   const kept = keep?.trim() ?? "";
-  if (summarize) { try { summary = await summarize(dropped, kept === "" ? undefined : kept); } catch { summary = ""; } }
+  if (summarize) {
+    try {
+      summary = await summarize(dropped, kept === "" ? undefined : kept);
+    } catch {
+      summary = "";
+    }
+  }
   if (summary.trim() === "") summary = extractive(dropped);
-  const head: Msg = { role: "user", text: `Earlier in this conversation (shortened to fit the model's window; ${dropped.length} messages):\n${kept === "" ? "" : `The person asked to keep this through every compaction: ${kept}\n`}${summary}` };
+  const head: Msg = {
+    role: "user",
+    text: `Earlier in this conversation (shortened to fit the model's window; ${dropped.length} messages):\n${kept === "" ? "" : `The person asked to keep this through every compaction: ${kept}\n`}${summary}`,
+  };
   // Two user messages in a row are fine on every provider, so the kept tail is not touched.
   return { messages: [head, ...messages.slice(from)], dropped: dropped.length };
 }

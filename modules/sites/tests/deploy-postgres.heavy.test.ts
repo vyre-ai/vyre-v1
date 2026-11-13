@@ -19,7 +19,11 @@ test("postgres: add one, the app uses it across a redeploy, and a dump imports",
   assert.equal(one.hits, 1);
   assert.equal(one.imported, false);
   // import a plain SQL dump from Files
-  w.files.set("fil_dump", { name: "railway.sql", folder: "fld_x", bytes: Buffer.from("create table imported (id int);\ninsert into imported values (7);\n") });
+  w.files.set("fil_dump", {
+    name: "railway.sql",
+    folder: "fld_x",
+    bytes: Buffer.from("create table imported (id int);\ninsert into imported values (7);\n"),
+  });
   const imp = await w.h["sites.db_import"](w.ctx, { siteId: site.siteId, fileId: "fil_dump" });
   assert.equal(imp.ok, true, imp.detail);
   // a redeploy keeps the data
@@ -30,5 +34,9 @@ test("postgres: add one, the app uses it across a redeploy, and a dump imports",
   assert.equal(two.imported, true);
   const row = (await w.h["sites.get"](w.ctx, { siteId: site.siteId })).site;
   assert.deepEqual(row.addons, [{ kind: "postgres", state: "ready", envName: "DATABASE_URL" }]);
-  assert.deepEqual((await w.h["sites.env_list"](w.ctx, { siteId: site.siteId })).wanted, ["GREETING"], "DATABASE_URL comes from the Postgres; GREETING is still not set");
+  assert.deepEqual(
+    (await w.h["sites.env_list"](w.ctx, { siteId: site.siteId })).wanted,
+    ["GREETING"],
+    "DATABASE_URL comes from the Postgres; GREETING is still not set",
+  );
 });

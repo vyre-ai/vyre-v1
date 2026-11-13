@@ -10,11 +10,35 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
-import { ENC_MINE, ENC_MINE_SEALED, currentFiller, currentKeyPort, openMine, openMineSealed, wrapKeyFromPersonKey } from "./crypto.ts";
+import {
+  ENC_MINE,
+  ENC_MINE_SEALED,
+  currentFiller,
+  currentKeyPort,
+  openMine,
+  openMineSealed,
+  wrapKeyFromPersonKey,
+} from "./crypto.ts";
 import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
 import { aliasTarget } from "./signins.ts";
 import {
-  atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
+  atLeast,
+  bad,
+  denied,
+  ensure,
+  first,
+  isId,
+  levelOn,
+  liveFolder,
+  newId,
+  num,
+  obj,
+  parseJson,
+  patchMeta,
+  record,
+  rowsOf,
+  statements,
+  str,
 } from "../projections.ts";
 import type { Row, VaultCtx, VaultDb } from "../projections.ts";
 import type { ProviderProbe } from "./providers.ts";
@@ -28,7 +52,19 @@ const EXPIRIES: readonly Expiry[] = ["1h", "1d", "7d"];
 // ---- the host's places (sinks)
 
 /** What a sink receives: the value, where it goes (the caller's own reference: a process, a header, a field) and which handle it came from. A sink must not log or keep the value. */
-export interface FillSink { (f: { value: string; ref: string; handle: string; field: string; itemId: string }, execution?: { space:string; principal:{kind:string;id:string}; actingFor?:string; traceId:string; parentSpanId?:string; depth:number }): Promise<void> | void }
+export interface FillSink {
+  (
+    f: { value: string; ref: string; handle: string; field: string; itemId: string },
+    execution?: {
+      space: string;
+      principal: { kind: string; id: string };
+      actingFor?: string;
+      traceId: string;
+      parentSpanId?: string;
+      depth: number;
+    },
+  ): Promise<void> | void;
+}
 /** What the host's seams (connectors, sources, import) read: a Shared item's value by handle, for one call, and RS256 signing with a key that never leaves the vault. */
 export interface SecretPort {
   /** `asker`: the person a turn runs for; their own Mine item is read with their key on this node. Without it, Shared items only. */
@@ -52,7 +88,12 @@ export interface VaultHost {
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
   /** Sign-in files a CLI rewrote during a turn (host/src/seams/signin-refresh.ts), held by the host under a single-use ticket for vault.signin_refreshed. The values come only this way, never as call input. */
-  refreshed?: { take(ticket: string, itemId: string): { asker: string; filled: string; files: Readonly<Record<string, string | null>> } | null };
+  refreshed?: {
+    take(
+      ticket: string,
+      itemId: string,
+    ): { asker: string; filled: string; files: Readonly<Record<string, string | null>> } | null;
+  };
 }
 
 export interface SigninPort {
@@ -60,9 +101,22 @@ export interface SigninPort {
   /** True while the host holds this flow (it is lost when the server restarts). */
   active(id: string): boolean;
   /** `local`: the sign-in already on this computer (Personal Space only): the flow is done at once and has no link. */
-  start(p: { id: string; provider: string; person: string; local?: boolean }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
+  start(p: {
+    id: string;
+    provider: string;
+    person: string;
+    local?: boolean;
+  }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
   /** `identity` names the account the provider says this is (an id compared, a label shown); absent when the answer names nobody. */
-  step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[]; identity?: { id: string; label?: string } } | { state: "failed"; message: string }>;
+  step(p: { id: string; person: string; code?: string }): Promise<
+    | { state: "waiting" }
+    | {
+        state: "done";
+        fields: { key: string; value: string; secret: boolean }[];
+        identity?: { id: string; label?: string };
+      }
+    | { state: "failed"; message: string }
+  >;
   cancel(id: string): void;
 }
 let host: VaultHost | null = null;
@@ -79,7 +133,7 @@ export function secretPort(db: VaultDb): SecretPort {
     ensure({ db });
     // by item id (vit_<id> or vit_<id>.<field>): exactly that item, for a send a person approved for that item (a held key read). The same rule as a handle: a Mine item only for its owner.
     const byId = /^(vit_[a-z0-9]+)(?:\.([A-Za-z][A-Za-z0-9_]*))?$/.exec(handle);
-    const m = byId ? ["", "", byId[2]] as const : HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
+    const m = byId ? (["", "", byId[2]] as const) : HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
     if (!m) throw new Error("A handle looks like #Name or #Name.field.");
     let meta: Row | undefined;
     if (byId) {
@@ -87,13 +141,21 @@ export function secretPort(db: VaultDb): SecretPort {
       if (meta && str(meta, "scope") === "mine" && str(meta, "owner") !== asker) meta = undefined;
       if (!meta) throw new Error("That Vault item is gone, or it is not one this read may open.");
     } else {
-      const byHandle = (h: string): Row[] => rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === h.toLowerCase());
+      const byHandle = (h: string): Row[] =>
+        rowsOf(db.all(`SELECT * FROM vault_meta`)).filter(
+          (r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === h.toLowerCase(),
+        );
       let named = byHandle(`#${m[1]!}`);
       // a handle of a sign-in that was folded into another row of the same account leads to that row's item (signins.ts)
-      if (named.length === 0) { const to = aliasTarget(db, m[1]!); if (to) named = byHandle(to); }
+      if (named.length === 0) {
+        const to = aliasTarget(db, m[1]!);
+        if (to) named = byHandle(to);
+      }
       // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
       // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
-      meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
+      meta =
+        (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ??
+        named.find((r) => str(r, "scope") === "shared");
       if (!meta) throw new Error(`The Vault has no shared item ${handle}.`);
     }
     const row = first(db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, str(meta, "id")));
@@ -104,11 +166,22 @@ export function secretPort(db: VaultDb): SecretPort {
       if (str(meta, "scope") === "mine") {
         const key = await currentKeyPort()?.personKey(str(meta, "owner"));
         // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
-        if (!key) throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
-        const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
+        if (!key)
+          throw new Error(
+            "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.",
+          );
+        const sealed = {
+          keyId: str(row, "keyId"),
+          box,
+          rev: num(row, "rev"),
+          wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }),
+        };
         if (num(row, "enc") === ENC_MINE_SEALED) {
           const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
-          if (!priv) throw new Error("Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
+          if (!priv)
+            throw new Error(
+              "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.",
+            );
           fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
         } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
       } else {
@@ -118,16 +191,35 @@ export function secretPort(db: VaultDb): SecretPort {
       }
     } catch (e) {
       // a refusal above (the key is not on this node) keeps its own words; a value no key this Space has can open is said as itself, so the person is told to sign in again
-      if (e instanceof Error && /Vault key is not on this server|vault service is not running|Vault is not live/.test(e.message)) throw e;
-      throw Object.assign(new Error("This sign-in can't be opened on this device. Sign in again."), { code: "vault.item_unopenable", name: "ItemUnopenable" });
+      if (
+        e instanceof Error &&
+        /Vault key is not on this server|vault service is not running|Vault is not live/.test(e.message)
+      )
+        throw e;
+      throw Object.assign(new Error("This sign-in can't be opened on this device. Sign in again."), {
+        code: "vault.item_unopenable",
+        name: "ItemUnopenable",
+      });
     }
-    const hit = m[2] ? fields.find((x) => x.key === m[2]) : fields.length === 1 ? fields[0] : fields.filter((x) => x.secret).length === 1 ? fields.find((x) => x.secret) : undefined;
+    const hit = m[2]
+      ? fields.find((x) => x.key === m[2])
+      : fields.length === 1
+        ? fields[0]
+        : fields.filter((x) => x.secret).length === 1
+          ? fields.find((x) => x.secret)
+          : undefined;
     if (!hit) throw new Error(`Name a field after ${handle}.`);
     return hit.value;
   };
   const edge = (): VaultCtx => ({
-    space: "", principal: { kind: "service", id: "svc_host" }, trace: { traceId: "0".repeat(32) }, now: Date.now, db,
-    emit: () => null, call: () => Promise.reject(new Error("the export route makes no calls")), authorize: () => ({ effect: "deny", reason: "edge", decisionId: "edge" }),
+    space: "",
+    principal: { kind: "service", id: "svc_host" },
+    trace: { traceId: "0".repeat(32) },
+    now: Date.now,
+    db,
+    emit: () => null,
+    call: () => Promise.reject(new Error("the export route makes no calls")),
+    authorize: () => ({ effect: "deny", reason: "edge", decisionId: "edge" }),
     log: { info: () => undefined, warn: () => undefined },
   });
   return {
@@ -136,7 +228,12 @@ export function secretPort(db: VaultDb): SecretPort {
     signRs256: async (handle, _space, data) => {
       const raw = await read(handle);
       let key = raw;
-      try { const j = JSON.parse(raw) as { private_key?: unknown }; if (typeof j.private_key === "string") key = j.private_key; } catch { /* the field is the PEM itself */ }
+      try {
+        const j = JSON.parse(raw) as { private_key?: unknown };
+        if (typeof j.private_key === "string") key = j.private_key;
+      } catch {
+        /* the field is the PEM itself */
+      }
       return crypto.createSign("RSA-SHA256").update(data).sign(key).toString("base64url");
     },
   };
@@ -149,7 +246,11 @@ const ready = new WeakSet<object>();
 function ensureExports(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
-  try { ctx.db.all(`SELECT "id" FROM vault_export WHERE "id" = ?`, "probe"); } catch { for (const s of statements(exportsSql)) ctx.db.run(s); }
+  try {
+    ctx.db.all(`SELECT "id" FROM vault_export WHERE "id" = ?`, "probe");
+  } catch {
+    for (const s of statements(exportsSql)) ctx.db.run(s);
+  }
   ready.add(ctx.db);
 }
 
@@ -160,12 +261,22 @@ function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
   const want = ref.replace(/^#/, "").toLowerCase();
   // a handle that can name two items resolves the same way everywhere: the asker's own Mine item first, then a Shared one (as secretPort.read and the host's resolver do), never table order
   const asker = ctx.actingFor ?? ctx.principal.id;
-  const rank = (r: Row): number => (str(r, "scope") === "mine" && str(r, "owner") === asker ? 0 : str(r, "scope") === "shared" ? 1 : 2);
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r))).sort((a, b) => rank(a) - rank(b));
-  const byHandle = (w: string): Row | undefined => rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
-  const folded = (): Row | undefined => { const to = aliasTarget(ctx.db, want); return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined; };
+  const rank = (r: Row): number =>
+    str(r, "scope") === "mine" && str(r, "owner") === asker ? 0 : str(r, "scope") === "shared" ? 1 : 2;
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))
+    .filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)))
+    .sort((a, b) => rank(a) - rank(b));
+  const byHandle = (w: string): Row | undefined =>
+    rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
+  const folded = (): Row | undefined => {
+    const to = aliasTarget(ctx.db, want);
+    return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined;
+  };
   const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase()) ?? folded();
-  if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it. Ask its owner to share it with you." });
+  if (!hit)
+    throw fail("validation.not_found", ctx.trace.traceId, {
+      message: "That item is not in this Vault, or you cannot use it. Ask its owner to share it with you.",
+    });
   return reachable(ctx, str(hit, "id"), "use", { forTurn });
 }
 
@@ -174,9 +285,22 @@ const viaOf = (r: Row): "device" | "host" => (str(r, "scope") === "mine" ? "devi
 
 export function touch(ctx: VaultCtx, r: Row, o: { field?: string; purpose?: string }): void {
   const id = str(r, "id");
-  record(ctx, id, "used", { ...(o.field ? { field: o.field } : {}), ...(o.purpose ? { detail: o.purpose.slice(0, 200) } : {}) });
+  record(ctx, id, "used", {
+    ...(o.field ? { field: o.field } : {}),
+    ...(o.purpose ? { detail: o.purpose.slice(0, 200) } : {}),
+  });
   patchMeta(ctx, id, { lastUsedAt: ctx.now() });
-  ctx.emit("vault.used", `vault_item/${id}`, { itemId: id, ...(o.field ? { field: o.field } : {}), via: viaOf(r), ...(o.purpose ? { purpose: o.purpose.slice(0, 200) } : {}) }, { vis: "participants" });
+  ctx.emit(
+    "vault.used",
+    `vault_item/${id}`,
+    {
+      itemId: id,
+      ...(o.field ? { field: o.field } : {}),
+      via: viaOf(r),
+      ...(o.purpose ? { purpose: o.purpose.slice(0, 200) } : {}),
+    },
+    { vis: "participants" },
+  );
 }
 
 // ---- vault.use
@@ -188,7 +312,8 @@ export async function use(ctx: VaultCtx, input: { item: string; fields?: string[
   const r = itemBy(ctx, input.item, true);
   const have = keysOf(r);
   const wanted = input.fields ?? have;
-  if (!Array.isArray(wanted) || wanted.some((f) => typeof f !== "string" || !FIELD_KEY.test(f))) bad(ctx, "Field keys are not valid.");
+  if (!Array.isArray(wanted) || wanted.some((f) => typeof f !== "string" || !FIELD_KEY.test(f)))
+    bad(ctx, "Field keys are not valid.");
   const unknown = wanted.filter((k) => !have.includes(k));
   if (unknown.length) bad(ctx, `This item has no field ${unknown[0]}.`);
   touch(ctx, r, input.purpose ? { purpose: input.purpose } : {});
@@ -214,38 +339,73 @@ function pick(ctx: VaultCtx, r: Row, fields: Field[], name?: string): Field {
   return bad(ctx, `Name a field after the handle, like ${str(r, "handle")}.${fields[0]?.key ?? "key"}.`);
 }
 
-export async function fill(ctx: VaultCtx, input: { handle: string; target: { kind: string; ref: string }; returnValue?: boolean }) {
+export async function fill(
+  ctx: VaultCtx,
+  input: { handle: string; target: { kind: string; ref: string }; returnValue?: boolean },
+) {
   ensure(ctx);
   const h = parseHandle(ctx, input.handle);
   const t = obj(input.target);
-  if (typeof t["kind"] !== "string" || t["kind"] === "" || typeof t["ref"] !== "string" || t["ref"] === "") bad(ctx, "Say where the value goes: a kind and a reference.");
-  const kind = t["kind"] as string, ref = t["ref"] as string;
+  if (typeof t["kind"] !== "string" || t["kind"] === "" || typeof t["ref"] !== "string" || t["ref"] === "")
+    bad(ctx, "Say where the value goes: a kind and a reference.");
+  const kind = t["kind"] as string,
+    ref = t["ref"] as string;
   const r = itemBy(ctx, h.name);
-  if (isCompanyKey(str(r, "handle")) && ctx.principal.kind !== "person") return denied(ctx, "This key is for the server alone. Agents and automations never get it, not even by handle.");
+  if (isCompanyKey(str(r, "handle")) && ctx.principal.kind !== "person")
+    return denied(ctx, "This key is for the server alone. Agents and automations never get it, not even by handle.");
   const f = pick(ctx, r, await openFields(ctx, r), h.field);
   const level = levelOn(ctx, "vault_item", str(r, "id"));
   const owner = str(r, "owner") === ctx.principal.id;
-  if (input.returnValue === true && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view")))) return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
+  if (input.returnValue === true && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view"))))
+    return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
   const sink = host?.sinks[kind];
-  if (!sink && input.returnValue !== true) throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
+  if (!sink && input.returnValue !== true)
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
   reachable(ctx, str(r, "id"), "use"); // recheck after asynchronous Mine-key decryption
-  if (sink) await sink({ value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") }, { space:ctx.space, principal:ctx.principal, ...(ctx.actingFor?{actingFor:ctx.actingFor}:{}), traceId:ctx.trace.traceId, ...(ctx.trace.parent?{parentSpanId:ctx.trace.parent}:{}), depth:ctx.depth??0 });
+  if (sink)
+    await sink(
+      { value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") },
+      {
+        space: ctx.space,
+        principal: ctx.principal,
+        ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}),
+        traceId: ctx.trace.traceId,
+        ...(ctx.trace.parent ? { parentSpanId: ctx.trace.parent } : {}),
+        depth: ctx.depth ?? 0,
+      },
+    );
   touch(ctx, r, { field: f.key });
-  return { filled: sink !== undefined, field: f.key, where: viaOf(r), ...(input.returnValue === true ? { value: f.value } : {}) };
+  return {
+    filled: sink !== undefined,
+    field: f.key,
+    where: viaOf(r),
+    ...(input.returnValue === true ? { value: f.value } : {}),
+  };
 }
 
 // ---- vault.inject_env
 
 function folderItems(ctx: VaultCtx, folderId: string): Row[] {
-  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).filter((r) => visible(ctx, r) && atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "use"))
-    .sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));
+  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId))
+    .filter(
+      (r) =>
+        visible(ctx, r) &&
+        atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "use"),
+    )
+    .sort(
+      (a, b) =>
+        str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||
+        str(a, "id").localeCompare(str(b, "id")),
+    );
 }
 
 function folderAt(ctx: VaultCtx, folderId: unknown, need: "use" | "view"): Row {
   if (!isId("vfd", folderId)) bad(ctx, "Folder id is not valid.");
   const f = liveFolder(ctx, folderId);
-  if (str(f, "scope") === "mine" && str(f, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
-  if (str(f, "owner") !== ctx.principal.id && !atLeast(levelOn(ctx, "vault_folder", str(f, "id")), need)) return denied(ctx, `That needs ${need} access to the folder.`);
+  if (str(f, "scope") === "mine" && str(f, "owner") !== ctx.principal.id)
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
+  if (str(f, "owner") !== ctx.principal.id && !atLeast(levelOn(ctx, "vault_folder", str(f, "id")), need))
+    return denied(ctx, `That needs ${need} access to the folder.`);
   return f;
 }
 
@@ -253,8 +413,12 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
   ensure(ctx);
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
   const f = folderAt(ctx, input.folderId, "use");
-  const items = folderItems(ctx, str(f, "id")).filter((r) => ctx.principal.kind === "person" || !isCompanyKey(str(r, "handle")));
-  const handles: string[] = [], keys: string[] = [], owner = new Map<string, string>();
+  const items = folderItems(ctx, str(f, "id")).filter(
+    (r) => ctx.principal.kind === "person" || !isCompanyKey(str(r, "handle")),
+  );
+  const handles: string[] = [],
+    keys: string[] = [],
+    owner = new Map<string, string>();
   // Two items in the folder with the same field name: the first keeps the plain name, a later one gets its own item's name in front (API_KEY, then Dana_Lawmatics__API_KEY),
   // the same rule an exported .env uses. If that name is taken too, nothing is injected and the answer names both items.
   for (const r of items) {
@@ -262,9 +426,13 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
       const item = str(r, "handle");
       let name = k;
       if (owner.has(name)) name = `${item.replace(/^#/, "")}__${k}`;
-      if (owner.has(name)) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `${item} and ${owner.get(name)} both end up as ${name} in the environment. Rename one of the two fields.` });
+      if (owner.has(name))
+        throw fail("validation.precondition_failed", ctx.trace.traceId, {
+          message: `${item} and ${owner.get(name)} both end up as ${name} in the environment. Rename one of the two fields.`,
+        });
       owner.set(name, item);
-      handles.push(`${item}.${k}`); keys.push(name);
+      handles.push(`${item}.${k}`);
+      keys.push(name);
     }
     touch(ctx, r, input.purpose ? { purpose: input.purpose } : {});
   }
@@ -279,11 +447,15 @@ async function expiryCap(ctx: VaultCtx): Promise<Expiry> {
     const row = first(ctx.db.all(`SELECT * FROM vault_policy WHERE "id" = ?`, "space"));
     const max = parseJson<{ pullExpiryMax?: unknown }>(row?.["value"], {}).pullExpiryMax;
     if (typeof max === "string" && (EXPIRIES as readonly string[]).includes(max)) return max as Expiry;
-  } catch { /* no policy table yet: nothing was ever saved */ }
+  } catch {
+    /* no policy table yet: nothing was ever saved */
+  }
   try {
     const v = obj(obj(await ctx.call("settings.get", { key: "vault.export_expiry_max" }))["row"])["value"];
     if (typeof v === "string" && (EXPIRIES as readonly string[]).includes(v)) return v as Expiry;
-  } catch { /* the setting is not readable: the default life */ }
+  } catch {
+    /* the setting is not readable: the default life */
+  }
   return "1d";
 }
 
@@ -294,30 +466,54 @@ async function mayExport(ctx: VaultCtx, folder: Row): Promise<boolean> {
   if (who.some((s) => s.kind === ctx.principal.kind && s.id === ctx.principal.id)) return true;
   if (!who.some((s) => s.kind === "group" || s.kind === "role")) return false;
   try {
-    const me = obj(obj(await ctx.call("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } }))["principal"]);
-    const mine = new Set([...(Array.isArray(me["roles"]) ? me["roles"] : []), ...(Array.isArray(me["groups"]) ? me["groups"] : [])].map(String));
+    const me = obj(
+      obj(await ctx.call("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } }))[
+        "principal"
+      ],
+    );
+    const mine = new Set(
+      [...(Array.isArray(me["roles"]) ? me["roles"] : []), ...(Array.isArray(me["groups"]) ? me["groups"] : [])].map(
+        String,
+      ),
+    );
     return who.some((s) => s.id !== undefined && mine.has(s.id));
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 const sha = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");
 
-export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expiresIn: string; itemIds?: string[]; idempotencyKey?: string }) {
+export async function exportEnv(
+  ctx: VaultCtx,
+  input: { folderId: string; expiresIn: string; itemIds?: string[]; idempotencyKey?: string },
+) {
   ensureExports(ctx);
-  if (!(EXPIRIES as readonly string[]).includes(input.expiresIn)) bad(ctx, "A pull link lasts 1 hour, 1 day or 7 days.");
-  if (input.itemIds !== undefined && (!Array.isArray(input.itemIds) || input.itemIds.some((i) => !isId("vit", i)))) bad(ctx, "Item ids are not valid.");
+  if (!(EXPIRIES as readonly string[]).includes(input.expiresIn))
+    bad(ctx, "A pull link lasts 1 hour, 1 day or 7 days.");
+  if (input.itemIds !== undefined && (!Array.isArray(input.itemIds) || input.itemIds.some((i) => !isId("vit", i))))
+    bad(ctx, "Item ids are not valid.");
   const cap = await expiryCap(ctx);
-  if (EXPIRIES.indexOf(input.expiresIn as Expiry) > EXPIRIES.indexOf(cap)) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `This Space limits pull links to ${cap}.` });
+  if (EXPIRIES.indexOf(input.expiresIn as Expiry) > EXPIRIES.indexOf(cap))
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: `This Space limits pull links to ${cap}.`,
+    });
   // a pull link hands over the values themselves: an agent never holds one, and neither does anyone below View, who may use a value but may not see it
   if (ctx.principal.kind === "agent") return denied(ctx, "Agents use values by handle; they never see them.");
   const f = folderAt(ctx, input.folderId, "use");
   if (!(await mayExport(ctx, f))) return denied(ctx, "This folder names who may export it.");
-  const seeable = folderItems(ctx, str(f, "id")).filter((r) => atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"));
+  const seeable = folderItems(ctx, str(f, "id")).filter((r) =>
+    atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"),
+  );
   // an item set to fill on the Space only stays on the Space: a .env file is exactly what that rules out
   let items = seeable.filter((r) => num(r, "spaceOnly") !== 1 && !isCompanyKey(str(r, "handle")));
   if (input.itemIds) items = items.filter((r) => input.itemIds!.includes(str(r, "id")));
-  if (items.length === 0) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Nothing here can be exported by you." });
-  const lines: string[] = [], used = new Set<string>();
+  if (items.length === 0)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "Nothing here can be exported by you.",
+    });
+  const lines: string[] = [],
+    used = new Set<string>();
   for (const r of items) {
     for (const fld of await openFields(ctx, r)) {
       const name = used.has(fld.key) ? `${str(r, "handle").replace(/^#/, "")}__${fld.key}` : fld.key;
@@ -325,38 +521,85 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
       lines.push(`${name}=${JSON.stringify(fld.value)}`);
     }
   }
-  const id = newId("vex", ctx.now()), token = crypto.randomBytes(24).toString("base64url");
-  const sealed = filler(ctx).seal(id, [{ key: "env", value: lines.join("\n") + (lines.length ? "\n" : ""), secret: true }]);
+  const id = newId("vex", ctx.now()),
+    token = crypto.randomBytes(24).toString("base64url");
+  const sealed = filler(ctx).seal(id, [
+    { key: "env", value: lines.join("\n") + (lines.length ? "\n" : ""), secret: true },
+  ]);
   const expiresAt = ctx.now() + EXPIRY_MS[input.expiresIn as Expiry];
   ctx.db.run(
     `INSERT INTO vault_export ("id", "folderId", "by", "createdAt", "expiresAt", "tokenHash", "box", "keyId", "itemCount", "pulledAt", "revokedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, str(f, "id"), ctx.principal.id, ctx.now(), expiresAt, sha(token), JSON.stringify(sealed.box), sealed.keyId, items.length, null, null,
+    id,
+    str(f, "id"),
+    ctx.principal.id,
+    ctx.now(),
+    expiresAt,
+    sha(token),
+    JSON.stringify(sealed.box),
+    sealed.keyId,
+    items.length,
+    null,
+    null,
   );
   for (const r of items) record(ctx, str(r, "id"), "exported", { detail: `pull link ${input.expiresIn}` });
-  ctx.emit("vault.exported", `vault_folder/${str(f, "id")}`, { exportId: id, folderId: str(f, "id"), itemCount: items.length, expiresAt }, { vis: "participants" });
-  return { exportId: id, pullUrl: `${(host?.origin?.() ?? "https://vault.invalid").replace(/\/$/, "")}/exports/${id}?token=${token}`, expiresAt };
+  ctx.emit(
+    "vault.exported",
+    `vault_folder/${str(f, "id")}`,
+    { exportId: id, folderId: str(f, "id"), itemCount: items.length, expiresAt },
+    { vis: "participants" },
+  );
+  return {
+    exportId: id,
+    pullUrl: `${(host?.origin?.() ?? "https://vault.invalid").replace(/\/$/, "")}/exports/${id}?token=${token}`,
+    expiresAt,
+  };
 }
 
 /** The pull route calls this with the id and token from the link: the .env text once, then never again (lead decision: a link is single use, durably). pulledAt is written in the same step as the read. */
 export function exportPull(ctx: VaultCtx, input: { exportId: string; token: string }): string {
   ensureExports(ctx);
-  const gone = (): never => { throw fail("validation.not_found", ctx.trace.traceId, { message: "This link is closed or has expired." }); };
+  const gone = (): never => {
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "This link is closed or has expired." });
+  };
   const r = first(ctx.db.all(`SELECT * FROM vault_export WHERE "id" = ?`, String(input.exportId)));
   if (!r || r["revokedAt"] !== null || r["pulledAt"] !== null || num(r, "expiresAt") <= ctx.now()) return gone();
-  const a = Buffer.from(sha(String(input.token))), b = Buffer.from(str(r, "tokenHash"));
+  const a = Buffer.from(sha(String(input.token))),
+    b = Buffer.from(str(r, "tokenHash"));
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return gone();
-  const fields = filler(ctx).open(str(r, "id"), { enc: 1, keyId: str(r, "keyId"), box: parseJson(r["box"], { iv: "", ct: "", tag: "" }), rev: 1 });
+  const fields = filler(ctx).open(str(r, "id"), {
+    enc: 1,
+    keyId: str(r, "keyId"),
+    box: parseJson(r["box"], { iv: "", ct: "", tag: "" }),
+    rev: 1,
+  });
   // claim the link first: the UPDATE only matches an unpulled row, so two pulls at once cannot both read it
-  if (ctx.db.run(`UPDATE vault_export SET "pulledAt" = ? WHERE "id" = ? AND "pulledAt" IS NULL`, ctx.now(), str(r, "id")).changes !== 1) return gone();
+  if (
+    ctx.db.run(`UPDATE vault_export SET "pulledAt" = ? WHERE "id" = ? AND "pulledAt" IS NULL`, ctx.now(), str(r, "id"))
+      .changes !== 1
+  )
+    return gone();
   return fields[0]?.value ?? "";
 }
 
 export async function exportsList(ctx: VaultCtx, input: { folderId?: string }) {
   ensureExports(ctx);
   if (input.folderId !== undefined && !isId("vfd", input.folderId)) bad(ctx, "Folder id is not valid.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_export`)).filter((r) => r["revokedAt"] === null && num(r, "expiresAt") > ctx.now() && (input.folderId === undefined || str(r, "folderId") === input.folderId));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_export`)).filter(
+    (r) =>
+      r["revokedAt"] === null &&
+      num(r, "expiresAt") > ctx.now() &&
+      (input.folderId === undefined || str(r, "folderId") === input.folderId),
+  );
   rows.sort((a, b) => num(b, "createdAt") - num(a, "createdAt") || str(a, "id").localeCompare(str(b, "id")));
-  return { exports: rows.map((r) => ({ id: str(r, "id"), folderId: str(r, "folderId"), by: str(r, "by"), expiresAt: num(r, "expiresAt"), pulled: r["pulledAt"] !== null })) };
+  return {
+    exports: rows.map((r) => ({
+      id: str(r, "id"),
+      folderId: str(r, "folderId"),
+      by: str(r, "by"),
+      expiresAt: num(r, "expiresAt"),
+      pulled: r["pulledAt"] !== null,
+    })),
+  };
 }
 
 export async function exportsRevoke(ctx: VaultCtx, input: { exportId: string }) {
@@ -366,7 +609,12 @@ export async function exportsRevoke(ctx: VaultCtx, input: { exportId: string }) 
   if (!r) throw fail("validation.not_found", ctx.trace.traceId, { message: "That export does not exist." });
   if (r["revokedAt"] === null) {
     ctx.db.run(`UPDATE vault_export SET "revokedAt" = ? WHERE "id" = ?`, ctx.now(), input.exportId);
-    ctx.emit("vault.export_revoked", `vault_folder/${str(r, "folderId")}`, { exportId: input.exportId, folderId: str(r, "folderId") }, { vis: "participants" });
+    ctx.emit(
+      "vault.export_revoked",
+      `vault_folder/${str(r, "folderId")}`,
+      { exportId: input.exportId, folderId: str(r, "folderId") },
+      { vis: "participants" },
+    );
   }
   return { ok: true };
 }
@@ -375,12 +623,18 @@ export async function exportsRevoke(ctx: VaultCtx, input: { exportId: string }) 
 
 export async function reportScrubMiss(ctx: VaultCtx, input: { itemId: string; place: string; traceId: string }) {
   ensure(ctx);
-  if (!isSystemCall(ctx)) denied(ctx, "Only the filler reports a value it could not scrub.");   // a member could otherwise raise false scrub-miss alarms on any item
+  if (!isSystemCall(ctx)) denied(ctx, "Only the filler reports a value it could not scrub."); // a member could otherwise raise false scrub-miss alarms on any item
   if (!isId("vit", input.itemId)) bad(ctx, "Item id is not valid.");
   if (!["terminal", "http", "browser", "file", "chat"].includes(input.place)) bad(ctx, "That place is not known.");
-  if (typeof input.traceId !== "string" || !/^[0-9a-f]{32}$/.test(input.traceId)) bad(ctx, "The trace id is not valid.");
+  if (typeof input.traceId !== "string" || !/^[0-9a-f]{32}$/.test(input.traceId))
+    bad(ctx, "The trace id is not valid.");
   ctx.log.warn("vault.scrub_miss", { itemId: input.itemId, place: input.place, traceId: input.traceId });
-  ctx.emit("vault.scrub_miss", `vault_item/${input.itemId}`, { itemId: input.itemId, place: input.place, traceId: input.traceId }, { vis: "participants" });
+  ctx.emit(
+    "vault.scrub_miss",
+    `vault_item/${input.itemId}`,
+    { itemId: input.itemId, place: input.place, traceId: input.traceId },
+    { vis: "participants" },
+  );
   return { ok: true };
 }
 
@@ -391,23 +645,36 @@ export function forms(value: string): string[] {
   const out = new Set<string>([value]);
   const buf = Buffer.from(value, "utf8");
   for (let pad = 0; pad < 3; pad++) {
-    const core = Buffer.concat([Buffer.alloc(pad), buf]).toString("base64").replace(/=+$/, "");
+    const core = Buffer.concat([Buffer.alloc(pad), buf])
+      .toString("base64")
+      .replace(/=+$/, "");
     // the characters that mix the padding bytes, or the next byte of the stream, with ours depend on the neighbours: the middle is what an embedded copy always contains
-    const head = pad === 0 ? 0 : Math.ceil((pad * 8) / 6), tail = (buf.length + pad) % 3 === 0 ? 0 : 1;
+    const head = pad === 0 ? 0 : Math.ceil((pad * 8) / 6),
+      tail = (buf.length + pad) % 3 === 0 ? 0 : 1;
     const mid = core.slice(head, core.length - tail);
-    if (mid.length >= 6) { out.add(mid); out.add(mid.replace(/\+/g, "-").replace(/\//g, "_")); }
+    if (mid.length >= 6) {
+      out.add(mid);
+      out.add(mid.replace(/\+/g, "-").replace(/\//g, "_"));
+    }
   }
-  out.add(buf.toString("base64")); out.add(buf.toString("base64url"));
-  out.add(encodeURIComponent(value)); out.add(encodeURIComponent(value).toLowerCase());
+  out.add(buf.toString("base64"));
+  out.add(buf.toString("base64url"));
+  out.add(encodeURIComponent(value));
+  out.add(encodeURIComponent(value).toLowerCase());
   out.add(JSON.stringify(value).slice(1, -1));
-  out.add(buf.toString("hex")); out.add(buf.toString("hex").toUpperCase());
+  out.add(buf.toString("hex"));
+  out.add(buf.toString("hex").toUpperCase());
   return [...out].filter((s) => s.length >= 4).sort((a, b) => b.length - a.length);
 }
 
-export interface Scrubbed { text: string; replaced: number }
+export interface Scrubbed {
+  text: string;
+  replaced: number;
+}
 /** Replace every form of every secret in `text`. Values shorter than 4 characters are not scrubbed (they would eat ordinary words). */
 export function scrub(text: string, secrets: readonly { handle: string; value: string }[]): Scrubbed {
-  let out = text, replaced = 0;
+  let out = text,
+    replaced = 0;
   for (const s of secrets) {
     if (s.value.length < 4) continue;
     for (const form of forms(s.value)) {
@@ -422,6 +689,7 @@ export function scrub(text: string, secrets: readonly { handle: string; value: s
 
 /** The handles whose value (in a form the scrubber knows) is still in `text`: a non-empty answer is a vault.scrub_miss to report. */
 export function leaks(text: string, secrets: readonly { handle: string; value: string }[]): string[] {
-  return secrets.filter((s) => s.value.length >= 4 && forms(s.value).some((f) => text.includes(f))).map((s) => s.handle);
+  return secrets
+    .filter((s) => s.value.length >= 4 && forms(s.value).some((f) => text.includes(f)))
+    .map((s) => s.handle);
 }
-

@@ -11,7 +11,12 @@ export const projections = { inline: {}, consumers: {} };
 
 /** Join steps that did not work (a channel add, a group, the company mail and calendar match) are tried again every two minutes, as the system; each is idempotent, so a step that worked is never run twice. */
 export const periodic = {
-  "members.join_retry": { everyMs: 120_000, run: async (ctx: Ctx) => { await drainJoins(ctx as unknown as MembersCtx, undefined, { periodic: true }); } },
+  "members.join_retry": {
+    everyMs: 120_000,
+    run: async (ctx: Ctx) => {
+      await drainJoins(ctx as unknown as MembersCtx, undefined, { periodic: true });
+    },
+  },
 };
 export const codecs = {};
 
@@ -29,13 +34,22 @@ export const consumers = {
       const person = String((project ? p["principal"] : p["personId"]) ?? "");
       const place = String((project ? p["projectId"] : p["channelId"]) ?? "");
       if (!person.startsWith("usr_") || !place) return;
-      await supersedeJoinStep(ctx as unknown as MembersCtx, person, `${project ? "project" : "channel"}:${place}`, `changed by ${event.actor} after the join`);
+      await supersedeJoinStep(
+        ctx as unknown as MembersCtx,
+        person,
+        `${project ? "project" : "channel"}:${place}`,
+        `changed by ${event.actor} after the join`,
+      );
     },
   },
 };
 
 /** Host calls (host/src/daemon/consumers.ts): what identity's ctx.invites runs, with this module's ctx (members_* tables). */
 export const hostCalls = {
-  "members.invite_peek": (ctx: Ctx, input: { code: string }) => invitesSeam(ctx as unknown as MembersCtx).peek(input.code),
-  "members.invite_accept": (ctx: Ctx, input: { inviteId: string; personId: string }) => { invitesSeam(ctx as unknown as MembersCtx).accept(input.inviteId, input.personId); return null; },
+  "members.invite_peek": (ctx: Ctx, input: { code: string }) =>
+    invitesSeam(ctx as unknown as MembersCtx).peek(input.code),
+  "members.invite_accept": (ctx: Ctx, input: { inviteId: string; personId: string }) => {
+    invitesSeam(ctx as unknown as MembersCtx).accept(input.inviteId, input.personId);
+    return null;
+  },
 };

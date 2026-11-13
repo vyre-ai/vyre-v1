@@ -9,16 +9,35 @@ import path from "node:path";
 import { test } from "node:test";
 import { createSitesRunner } from "./server.ts";
 
-const SITE = "sit_01abc", HEX = "01abc";
+const SITE = "sit_01abc",
+  HEX = "01abc";
 const good = (o: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
-  Image: `vyre-site/${HEX}:dpl1`, Env: ["PORT=3000"], Labels: { "vyre.site": SITE, "vyre.kind": "app" }, ...o,
-  HostConfig: { NetworkMode: `vyre-site-${HEX}`, NanoCpus: 1e9, Memory: 512 * 1024 * 1024, MemorySwap: 512 * 1024 * 1024, PidsLimit: 512, CapDrop: ["ALL"], CapAdd: ["NET_BIND_SERVICE"], SecurityOpt: ["no-new-privileges"], ...h },
+  Image: `vyre-site/${HEX}:dpl1`,
+  Env: ["PORT=3000"],
+  Labels: { "vyre.site": SITE, "vyre.kind": "app" },
+  ...o,
+  HostConfig: {
+    NetworkMode: `vyre-site-${HEX}`,
+    NanoCpus: 1e9,
+    Memory: 512 * 1024 * 1024,
+    MemorySwap: 512 * 1024 * 1024,
+    PidsLimit: 512,
+    CapDrop: ["ALL"],
+    CapAdd: ["NET_BIND_SERVICE"],
+    SecurityOpt: ["no-new-privileges"],
+    ...h,
+  },
 });
 
 async function world() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runner-test-"));
   const seen: Array<{ method: string; url: string; body: string }> = [];
-  const labels: Record<string, Record<string, string>> = { site1: { "vyre.site": SITE, "vyre.kind": "postgres" }, site2: { "vyre.site": "sit_02zzz", "vyre.kind": "app" }, vyred: { "com.docker.compose.service": "vyred", "vyre.ingress": "1" }, other: { "com.docker.compose.service": "postgres" } };
+  const labels: Record<string, Record<string, string>> = {
+    site1: { "vyre.site": SITE, "vyre.kind": "postgres" },
+    site2: { "vyre.site": "sit_02zzz", "vyre.kind": "app" },
+    vyred: { "com.docker.compose.service": "vyred", "vyre.ingress": "1" },
+    other: { "com.docker.compose.service": "postgres" },
+  };
   // the containers on each network, as Docker's network inspect lists them
   const onNet: Record<string, string[]> = {};
   const fake = http.createServer((q, s) => {
@@ -27,34 +46,86 @@ async function world() {
     q.on("end", () => {
       seen.push({ method: q.method ?? "", url: q.url ?? "", body: b });
       const insp = /^\/containers\/([^/]+)\/json$/.exec(q.url ?? "");
-      if (insp) { const l = labels[insp[1] as string]; s.writeHead(l ? 200 : 404); s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } })); return; }
-      if (/\/exec$/.test(q.url ?? "")) { s.writeHead(201); s.end(JSON.stringify({ Id: "e".repeat(64) })); return; }
+      if (insp) {
+        const l = labels[insp[1] as string];
+        s.writeHead(l ? 200 : 404);
+        s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } }));
+        return;
+      }
+      if (/\/exec$/.test(q.url ?? "")) {
+        s.writeHead(201);
+        s.end(JSON.stringify({ Id: "e".repeat(64) }));
+        return;
+      }
       const net = /^(?:\/v[\d.]+)?\/networks\/([^/]+)$/.exec(q.url ?? "");
-      if (net && q.method === "GET") { s.writeHead(200); s.end(JSON.stringify({ Name: net[1], Containers: Object.fromEntries((onNet[net[1] as string] ?? []).map((c) => [c, { Name: c }])) })); return; }
-      s.writeHead(q.url?.includes("/containers/create") ? 201 : 200); s.end(JSON.stringify({ Id: "c".repeat(64) }));
+      if (net && q.method === "GET") {
+        s.writeHead(200);
+        s.end(
+          JSON.stringify({
+            Name: net[1],
+            Containers: Object.fromEntries((onNet[net[1] as string] ?? []).map((c) => [c, { Name: c }])),
+          }),
+        );
+        return;
+      }
+      s.writeHead(q.url?.includes("/containers/create") ? 201 : 200);
+      s.end(JSON.stringify({ Id: "c".repeat(64) }));
     });
   });
   await new Promise<void>((r) => fake.listen(path.join(dir, "docker.sock"), r));
-  const runner = createSitesRunner({ dockerSocket: path.join(dir, "docker.sock"), listen: path.join(dir, "runner.sock"), token: "t0ken" });
-  await runner.listening;
-  const call = (method: string, p: string, body?: unknown, token = "t0ken") => new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-    const r = http.request({ socketPath: path.join(dir, "runner.sock"), method, path: p, headers: { authorization: `Bearer ${token}`, ...(data ? { "content-type": "application/json", "content-length": data.length } : {}) } }, (res) => { let t = ""; res.on("data", (c) => (t += c)); res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t })); });
-    r.on("error", reject); r.end(data);
+  const runner = createSitesRunner({
+    dockerSocket: path.join(dir, "docker.sock"),
+    listen: path.join(dir, "runner.sock"),
+    token: "t0ken",
   });
-  const close = async (): Promise<void> => { await runner.close(); fake.close(); fs.rmSync(dir, { recursive: true, force: true }); };
+  await runner.listening;
+  const call = (method: string, p: string, body?: unknown, token = "t0ken") =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
+      const r = http.request(
+        {
+          socketPath: path.join(dir, "runner.sock"),
+          method,
+          path: p,
+          headers: {
+            authorization: `Bearer ${token}`,
+            ...(data ? { "content-type": "application/json", "content-length": data.length } : {}),
+          },
+        },
+        (res) => {
+          let t = "";
+          res.on("data", (c) => (t += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t }));
+        },
+      );
+      r.on("error", reject);
+      r.end(data);
+    });
+  const close = async (): Promise<void> => {
+    await runner.close();
+    fake.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  };
   return { call, seen, close, onNet };
 }
 
 test("refusals: privileged, host folders, host network, other labels, capabilities, other images, namespaces, ports", async (t) => {
   const w = await world();
   t.after(w.close);
-  const create = (body: unknown, name = `vyre-site-${HEX}-dpl1`) => w.call("POST", `/v1.47/containers/create?name=${name}`, body);
+  const create = (body: unknown, name = `vyre-site-${HEX}-dpl1`) =>
+    w.call("POST", `/v1.47/containers/create?name=${name}`, body);
   const refused: Array<[string, unknown, string?]> = [
     ["privileged", good({}, { Privileged: true }), "privileged"],
     ["a host folder", good({}, { Binds: ["/etc:/host-etc"] }), "host folders"],
     ["a host folder by Mounts", good({}, { Mounts: [{ Type: "bind", Source: "/", Target: "/h" }] }), "Mounts"],
-    ["another site's volume", good({ Labels: { "vyre.site": SITE, "vyre.kind": "postgres" }, Image: "postgres:16-alpine" }, { Binds: ["vyre-site-zzz-postgres-data:/var/lib/postgresql/data"] }), "host folders"],
+    [
+      "another site's volume",
+      good(
+        { Labels: { "vyre.site": SITE, "vyre.kind": "postgres" }, Image: "postgres:16-alpine" },
+        { Binds: ["vyre-site-zzz-postgres-data:/var/lib/postgresql/data"] },
+      ),
+      "host folders",
+    ],
     ["the host network", good({}, { NetworkMode: "host" }), "network"],
     ["another site's network", good({}, { NetworkMode: "vyre-site-zzz" }), "network"],
     ["the ingress label", good({ Labels: { "vyre.site": SITE, "vyre.kind": "app", "vyre.ingress": "1" } }), "ingress"],
@@ -91,25 +162,95 @@ test("refusals: containers that are not a site's, execs, networks, volumes, pull
   t.after(w.close);
   assert.equal((await w.call("GET", "/_ping", undefined, "wrong")).status, 401);
   assert.equal((await w.call("GET", "/_ping")).status, 200);
-  for (const [m, p] of [["POST", "/containers/vyred/exec"], ["POST", "/containers/vyred/stop"], ["DELETE", "/containers/vyred"], ["GET", "/containers/vyred/logs"]] as const) {
+  for (const [m, p] of [
+    ["POST", "/containers/vyred/exec"],
+    ["POST", "/containers/vyred/stop"],
+    ["DELETE", "/containers/vyred"],
+    ["GET", "/containers/vyred/logs"],
+  ] as const) {
     const r = await w.call(m, p, m === "POST" ? { Cmd: ["sh"] } : undefined);
     assert.equal(r.status, 403, `${m} ${p}: ${r.body}`);
   }
-  assert.equal((await w.call("POST", "/containers/site1/exec", { Cmd: ["sh"], Privileged: true })).status, 403, "a privileged exec");
-  assert.equal((await w.call("POST", "/containers/site1/exec", { Cmd: ["sh"], User: "root" })).status, 403, "an exec as another user");
+  assert.equal(
+    (await w.call("POST", "/containers/site1/exec", { Cmd: ["sh"], Privileged: true })).status,
+    403,
+    "a privileged exec",
+  );
+  assert.equal(
+    (await w.call("POST", "/containers/site1/exec", { Cmd: ["sh"], User: "root" })).status,
+    403,
+    "an exec as another user",
+  );
   const ex = await w.call("POST", "/containers/site1/exec", { Cmd: ["pg_isready"], AttachStdout: true });
   assert.equal(ex.status, 201, ex.body);
-  assert.equal((await w.call("POST", `/exec/${"f".repeat(64)}/start`, {})).status, 403, "an exec the runner did not make");
+  assert.equal(
+    (await w.call("POST", `/exec/${"f".repeat(64)}/start`, {})).status,
+    403,
+    "an exec the runner did not make",
+  );
   assert.equal((await w.call("POST", `/exec/${"e".repeat(64)}/start`, {})).status, 200);
   assert.equal((await w.call("PUT", "/containers/site1/archive?path=/etc")).status, 403, "a file anywhere but /tmp");
   // networks: a site's own, joined only by its containers and the ingress
   // a site's network has one /28 of 10.213.0.0/16 (12 Nov: Docker's own pools hold about 31 networks for the whole host)
   const SUB = { IPAM: { Config: [{ Subnet: "10.213.0.16/28" }] } };
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "bridge", Labels: { "vyre.site": SITE }, ...SUB })).status, 200);
-  assert.deepEqual(JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body), { Name: `vyre-site-${HEX}`, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": SITE }, IPAM: { Config: [{ Subnet: "10.213.0.16/28" }] } }, "what reaches Docker");
-  assert.equal((await w.call("POST", "/networks/create", { Name: "vyre-site-zzz", Driver: "bridge", Labels: { "vyre.site": SITE }, ...SUB })).status, 403, "a network named for another site");
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "macvlan", Labels: { "vyre.site": SITE }, ...SUB })).status, 403, "not a bridge");
-  assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Labels: { "vyre.site": SITE }, Options: { "com.docker.network.bridge.name": "eth0" }, ...SUB })).status, 403, "driver options");
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: `vyre-site-${HEX}`,
+        Driver: "bridge",
+        Labels: { "vyre.site": SITE },
+        ...SUB,
+      })
+    ).status,
+    200,
+  );
+  assert.deepEqual(
+    JSON.parse(w.seen.filter((x) => x.url.includes("/networks/create")).at(-1)!.body),
+    {
+      Name: `vyre-site-${HEX}`,
+      Driver: "bridge",
+      CheckDuplicate: true,
+      Labels: { "vyre.site": SITE },
+      IPAM: { Config: [{ Subnet: "10.213.0.16/28" }] },
+    },
+    "what reaches Docker",
+  );
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: "vyre-site-zzz",
+        Driver: "bridge",
+        Labels: { "vyre.site": SITE },
+        ...SUB,
+      })
+    ).status,
+    403,
+    "a network named for another site",
+  );
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: `vyre-site-${HEX}`,
+        Driver: "macvlan",
+        Labels: { "vyre.site": SITE },
+        ...SUB,
+      })
+    ).status,
+    403,
+    "not a bridge",
+  );
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: `vyre-site-${HEX}`,
+        Labels: { "vyre.site": SITE },
+        Options: { "com.docker.network.bridge.name": "eth0" },
+        ...SUB,
+      })
+    ).status,
+    403,
+    "driver options",
+  );
   for (const [why, ipam] of [
     ["no subnet named", undefined],
     ["outside the site range", { Config: [{ Subnet: "10.0.0.0/28" }] }],
@@ -121,24 +262,93 @@ test("refusals: containers that are not a site's, execs, networks, volumes, pull
     ["an address range", { Config: [{ Subnet: "10.213.0.16/28", IPRange: "10.213.0.16/29" }] }],
     ["two subnets", { Config: [{ Subnet: "10.213.0.16/28" }, { Subnet: "10.213.0.32/28" }] }],
     ["an IPAM driver", { Driver: "other", Config: [{ Subnet: "10.213.0.16/28" }] }],
-  ] as const) assert.equal((await w.call("POST", "/networks/create", { Name: `vyre-site-${HEX}`, Driver: "bridge", Labels: { "vyre.site": SITE }, ...(ipam ? { IPAM: ipam } : {}) })).status, 403, why);
+  ] as const)
+    assert.equal(
+      (
+        await w.call("POST", "/networks/create", {
+          Name: `vyre-site-${HEX}`,
+          Driver: "bridge",
+          Labels: { "vyre.site": SITE },
+          ...(ipam ? { IPAM: ipam } : {}),
+        })
+      ).status,
+      403,
+      why,
+    );
   // the ingress may leave a site's network (to make an old one again in the site range); nothing else may make anyone leave
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status, 200, "the ingress leaves a network no site container is on");
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status,
+    200,
+    "the ingress leaves a network no site container is on",
+  );
   // never while it serves: with a container of the site on it, the runner itself refuses (fifth look V4)
   w.onNet[`vyre-site-${HEX}`] = ["vyred", "site1"];
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status, 403, "the ingress does not leave while a site container is on it");
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "vyred" })).status,
+    403,
+    "the ingress does not leave while a site container is on it",
+  );
   w.onNet[`vyre-site-${HEX}`] = [];
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "site1" })).status, 403, "a site's own container is not made to leave");
-  assert.equal((await w.call("POST", "/networks/vyre-workspaces/disconnect", { Container: "vyred" })).status, 403, "only a site's network");
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site1" })).status, 200, "the site's own container");
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "vyred" })).status, 200, "the ingress");
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site2" })).status, 403, "another site's container");
-  assert.equal((await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "other" })).status, 403, "a container that is not a site's");
-  for (const [m, p] of [["POST", "/networks/vyre-sites/connect"], ["GET", "/networks/bridge"], ["POST", "/networks/bridge/connect"], ["POST", `/networks/vyre-site-${HEX}/disconnect`], ["DELETE", "/volumes/mydata"], ["POST", "/images/create?fromImage=alpine&tag=latest"], ["DELETE", "/images/alpine:latest"], ["POST", "/containers/prune"], ["GET", "/containers/json"], ["POST", "/swarm/init"], ["GET", "/info"], ["POST", "/build?t=evil:1"], ["POST", `/build?t=vyre-site/${HEX}:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}&networkmode=host`], ["POST", `/build?t=vyre-site/zzz:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}`]] as const) {
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/disconnect`, { Container: "site1" })).status,
+    403,
+    "a site's own container is not made to leave",
+  );
+  assert.equal(
+    (await w.call("POST", "/networks/vyre-workspaces/disconnect", { Container: "vyred" })).status,
+    403,
+    "only a site's network",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site1" })).status,
+    200,
+    "the site's own container",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "vyred" })).status,
+    200,
+    "the ingress",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "site2" })).status,
+    403,
+    "another site's container",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/vyre-site-${HEX}/connect`, { Container: "other" })).status,
+    403,
+    "a container that is not a site's",
+  );
+  for (const [m, p] of [
+    ["POST", "/networks/vyre-sites/connect"],
+    ["GET", "/networks/bridge"],
+    ["POST", "/networks/bridge/connect"],
+    ["POST", `/networks/vyre-site-${HEX}/disconnect`],
+    ["DELETE", "/volumes/mydata"],
+    ["POST", "/images/create?fromImage=alpine&tag=latest"],
+    ["DELETE", "/images/alpine:latest"],
+    ["POST", "/containers/prune"],
+    ["GET", "/containers/json"],
+    ["POST", "/swarm/init"],
+    ["GET", "/info"],
+    ["POST", "/build?t=evil:1"],
+    [
+      "POST",
+      `/build?t=vyre-site/${HEX}:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}&networkmode=host`,
+    ],
+    ["POST", `/build?t=vyre-site/zzz:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}`],
+  ] as const) {
     assert.equal((await w.call(m, p)).status, 403, `${m} ${p}`);
   }
-  assert.equal((await w.call("POST", "/images/create?fromImage=postgres&tag=16-alpine")).status, 200, "the database images may be fetched");
-  const b = await w.call("POST", `/build?t=vyre-site/${HEX}:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}&memory=999999999999`);
+  assert.equal(
+    (await w.call("POST", "/images/create?fromImage=postgres&tag=16-alpine")).status,
+    200,
+    "the database images may be fetched",
+  );
+  const b = await w.call(
+    "POST",
+    `/build?t=vyre-site/${HEX}:d1&labels=${encodeURIComponent(JSON.stringify({ "vyre.site": SITE }))}&memory=999999999999`,
+  );
   assert.equal(b.status, 200, b.body);
   const q = new URL(`http://x${w.seen.at(-1)!.url}`).searchParams;
   assert.equal(q.get("memory"), String(4 * 1024 ** 3), "the build's memory is capped");

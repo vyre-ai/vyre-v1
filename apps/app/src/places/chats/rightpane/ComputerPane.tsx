@@ -9,5 +9,9 @@ import { WorkSections, usesWorkModel } from "./WorkSections.tsx";
 
 export function ComputerPane({ deps, window }: { deps: PaneDeps; window?: VirtualWindow | undefined }): ReactElement {
   const data = usePaneData();
-  return usesWorkModel(data) ? <WorkSections deps={deps} {...(window ? { window } : {})} /> : <ComputerTab deps={deps} {...(window ? { window } : {})} />;
+  return usesWorkModel(data) ? (
+    <WorkSections deps={deps} {...(window ? { window } : {})} />
+  ) : (
+    <ComputerTab deps={deps} {...(window ? { window } : {})} />
+  );
 }

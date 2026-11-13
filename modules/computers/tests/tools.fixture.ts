@@ -11,11 +11,16 @@ import type { Harness, HarnessOptions } from "../fixtures/harness.ts";
 
 export const tool = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-export interface ToolCall { computerId: string; tool: string; args: ToolArgs; timeoutMs: number }
+export interface ToolCall {
+  computerId: string;
+  tool: string;
+  args: ToolArgs;
+  timeoutMs: number;
+}
 export type Answer = (args: ToolArgs, call: ToolCall) => ToolAnswer | Promise<ToolAnswer>;
 
 export const PNG = "iVBORw0KGgo=";
-const page = { url: "https://example.com/", title: "Example", };
+const page = { url: "https://example.com/", title: "Example" };
 
 /** What a healthy agentd answers for every tool, by mcpName. */
 export const ANSWERS: Record<string, Answer> = {
@@ -30,7 +35,11 @@ export const ANSWERS: Record<string, Answer> = {
   chrome_screenshot: () => ({ png: PNG, width: 800, height: 600 }),
   chrome_eval: () => ({ result: 42 }),
   chrome_console: () => ({ messages: [{ level: "log", text: "hello", at: 1_760_000_000_000 }] }),
-  chrome_net: () => ({ requests: [{ method: "POST", url: "https://example.com/api", status: 200, ms: 12, body: '{"token":"abc123","ok":true}' }] }),
+  chrome_net: () => ({
+    requests: [
+      { method: "POST", url: "https://example.com/api", status: 200, ms: 12, body: '{"token":"abc123","ok":true}' },
+    ],
+  }),
   chrome_inspect: () => ({ element: { role: "button", text: "Submit" } }),
   chrome_state: () => ({ ...page, loading: false }),
   chrome_status: () => ({ connected: true, paused: false, held: [] }),
@@ -38,8 +47,15 @@ export const ANSWERS: Record<string, Answer> = {
   chrome_resume: () => ({ resumed: true }),
   chrome_send: () => ({ sent: true }),
   chrome_plan: () => ({ ok: true }),
-  chrome_api: () => ({ status: 200, headers: { "content-type": "application/json", "set-cookie": "sid=1" }, body: { ok: true, session: "abc" } }),
-  chrome_sources: () => ({ scripts: ["https://example.com/app.js"], endpoints: [{ method: "GET", url: "https://example.com/api/items" }] }),
+  chrome_api: () => ({
+    status: 200,
+    headers: { "content-type": "application/json", "set-cookie": "sid=1" },
+    body: { ok: true, session: "abc" },
+  }),
+  chrome_sources: () => ({
+    scripts: ["https://example.com/app.js"],
+    endpoints: [{ method: "GET", url: "https://example.com/api/items" }],
+  }),
   screen_screenshot: () => ({ png: PNG, width: 1280, height: 800 }),
   screen_click: () => ({ ok: true }),
   screen_move: () => ({ ok: true }),
@@ -48,7 +64,12 @@ export const ANSWERS: Record<string, Answer> = {
   screen_key: () => ({ ok: true }),
   screen_scroll: () => ({ ok: true }),
   screen_wait: () => ({ ok: true }),
-  computer_files_list: () => ({ entries: [{ name: "notes.md", kind: "file", size: 3, modifiedAt: 1_760_000_000_000 }, { name: "work", kind: "folder" }] }),
+  computer_files_list: () => ({
+    entries: [
+      { name: "notes.md", kind: "file", size: 3, modifiedAt: 1_760_000_000_000 },
+      { name: "work", kind: "folder" },
+    ],
+  }),
   computer_files_read: () => ({ content: "abc", encoding: "utf8", truncated: false }),
   computer_files_write: () => ({ ok: true, versionId: "ver_1" }),
   computer_files_move: () => ({ ok: true }),
@@ -73,11 +94,21 @@ export function agentd(h: Harness, answers: Record<string, Answer> = {}) {
   };
   bindHost(host);
   return {
-    host, calls, table,
-    refuse(name: string, code: ToolCode, message = "refused by agentd"): void { refusals.set(name, new ToolError(code, message)); },
-    allow(name: string): void { refusals.delete(name); },
-    named(name: string): ToolCall[] { return calls.filter((c) => c.tool === name); },
-    rebind(): void { bindHost(host); },
+    host,
+    calls,
+    table,
+    refuse(name: string, code: ToolCode, message = "refused by agentd"): void {
+      refusals.set(name, new ToolError(code, message));
+    },
+    allow(name: string): void {
+      refusals.delete(name);
+    },
+    named(name: string): ToolCall[] {
+      return calls.filter((c) => c.tool === name);
+    },
+    rebind(): void {
+      bindHost(host);
+    },
   };
 }
 export type Agentd = ReturnType<typeof agentd>;
@@ -91,9 +122,14 @@ export async function world(o: { asleep?: boolean; answers?: Record<string, Answ
   if (o.asleep !== true) await wake(h.ctx, { computerId: id });
   /** The agent that owns the computer, calling a tool without naming it. One harness for the whole test, so its emitted events and the capabilities it called are in one place. */
   let owner: Harness | null = null;
-  const agent = (): Harness => { owner ??= asPerson(h, { kind: "agent", id: INTAKE }); d.rebind(); return owner; };
+  const agent = (): Harness => {
+    owner ??= asPerson(h, { kind: "agent", id: INTAKE });
+    d.rebind();
+    return owner;
+  };
   return { h, id, d, agent };
 }
 export type World = Awaited<ReturnType<typeof world>>;
 
-export const steps = (h: Harness): Array<Record<string, unknown>> => h.rows("SELECT * FROM computers_timeline ORDER BY idx");
+export const steps = (h: Harness): Array<Record<string, unknown>> =>
+  h.rows("SELECT * FROM computers_timeline ORDER BY idx");

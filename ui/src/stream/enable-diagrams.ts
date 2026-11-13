@@ -13,7 +13,17 @@ setDiagramLoader(async () => {
       startOnLoad: false,
       securityLevel: "strict",
       theme: theme.dark ? "dark" : "neutral",
-      themeVariables: { background: "transparent", primaryColor: theme.sunk, primaryBorderColor: theme.line, primaryTextColor: theme.ink, lineColor: theme.ink, textColor: theme.ink, secondaryColor: theme.sunk, tertiaryColor: theme.win, fontFamily: "inherit" },
+      themeVariables: {
+        background: "transparent",
+        primaryColor: theme.sunk,
+        primaryBorderColor: theme.line,
+        primaryTextColor: theme.ink,
+        lineColor: theme.ink,
+        textColor: theme.ink,
+        secondaryColor: theme.sunk,
+        tertiaryColor: theme.win,
+        fontFamily: "inherit",
+      },
     });
     const out = await mermaid.render(`vyre-diagram-${++n}`, source);
     return out.svg;

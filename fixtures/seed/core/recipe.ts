@@ -34,7 +34,12 @@ export const AGENTS = [
 export const CLEARANCE: Record<string, number> = { owner: 3, admin: 3, manager: 2, member: 1, temp: 0 };
 
 /** The level each role holds on the Space itself. Temp is absent: no grant until someone gives one. */
-export const ROLE_SPACE_LEVEL: readonly (readonly [string, "manage" | "edit"])[] = [["owner", "manage"], ["admin", "manage"], ["manager", "edit"], ["member", "edit"]];
+export const ROLE_SPACE_LEVEL: readonly (readonly [string, "manage" | "edit"])[] = [
+  ["owner", "manage"],
+  ["admin", "manage"],
+  ["manager", "edit"],
+  ["member", "edit"],
+];
 
 export const RECORD_TYPE = "rt_contact";
 export const CHANNEL = "chn_general";
@@ -47,7 +52,15 @@ export const FOLDERS = [
 
 let n = 0;
 const ev = (type: string, entity: string, entityId: string, payload: unknown): NewEvent => ({
-  id: `evt_seed_${String(++n).padStart(4, "0")}`, type, sv: 1, trace_id: TRACE, actor: "svc_seed", vis: "space", entity, entity_id: entityId, payload,
+  id: `evt_seed_${String(++n).padStart(4, "0")}`,
+  type,
+  sv: 1,
+  trace_id: TRACE,
+  actor: "svc_seed",
+  vis: "space",
+  entity,
+  entity_id: entityId,
+  payload,
 });
 
 /** The recipe: the same list every call, in order. */
@@ -55,30 +68,135 @@ export function coreEvents(): NewEvent[] {
   n = 0;
   const out: NewEvent[] = [];
   out.push(ev("space.created", "space", CORE_SPACE, { id: CORE_SPACE, name: "Core" }));
-  for (const role of ROLE_IDS) out.push(ev("role.defined", "role", role, { id: role, clearance: CLEARANCE[role], perms: [...SEED_ROLE_PERMS[role]], name: role }));
+  for (const role of ROLE_IDS)
+    out.push(
+      ev("role.defined", "role", role, {
+        id: role,
+        clearance: CLEARANCE[role],
+        perms: [...SEED_ROLE_PERMS[role]],
+        name: role,
+      }),
+    );
   for (const p of PEOPLE) {
     out.push(ev("principal.created", "principal", p.id, { id: p.id, kind: "person", status: "active", name: p.name }));
     out.push(ev("principal.role_set", "principal", p.id, { holder: p.id, role: p.role }));
   }
   for (const a of AGENTS) {
-    out.push(ev("principal.created", "principal", a.id, { id: a.id, kind: "agent", owner: a.owner, status: "active", name: a.name }));
+    out.push(
+      ev("principal.created", "principal", a.id, {
+        id: a.id,
+        kind: "agent",
+        owner: a.owner,
+        status: "active",
+        name: a.name,
+      }),
+    );
     out.push(ev("principal.role_set", "principal", a.id, { holder: a.id, role: "member" }));
   }
   for (const g of GROUPS) {
     out.push(ev("group.created", "group", g.id, { id: g.id, name: g.name }));
     for (const m of g.members) out.push(ev("group.member_added", "group", g.id, { group: g.id, member: m }));
   }
-  out.push(ev("resource.created", "resource", CORE_SPACE, { id: CORE_SPACE, type: "space", parent_id: null, label: 0, owner_id: "usr_olivia", holds: 0 }));
-  out.push(ev("resource.created", "resource", RECORD_TYPE, { id: RECORD_TYPE, type: "record_type", parent_id: CORE_SPACE, label: 0, owner_id: "usr_olivia", holds: 0 }));
-  out.push(ev("resource.created", "resource", CHANNEL, { id: CHANNEL, type: "channel", parent_id: CORE_SPACE, label: 0, owner_id: "usr_olivia", holds: 0 }));
-  for (const f of FOLDERS) out.push(ev("resource.created", "resource", f.id, { id: f.id, type: "folder", parent_id: f.parent, label: 0, owner_id: "usr_olivia", holds: 0 }));
+  out.push(
+    ev("resource.created", "resource", CORE_SPACE, {
+      id: CORE_SPACE,
+      type: "space",
+      parent_id: null,
+      label: 0,
+      owner_id: "usr_olivia",
+      holds: 0,
+    }),
+  );
+  out.push(
+    ev("resource.created", "resource", RECORD_TYPE, {
+      id: RECORD_TYPE,
+      type: "record_type",
+      parent_id: CORE_SPACE,
+      label: 0,
+      owner_id: "usr_olivia",
+      holds: 0,
+    }),
+  );
+  out.push(
+    ev("resource.created", "resource", CHANNEL, {
+      id: CHANNEL,
+      type: "channel",
+      parent_id: CORE_SPACE,
+      label: 0,
+      owner_id: "usr_olivia",
+      holds: 0,
+    }),
+  );
+  for (const f of FOLDERS)
+    out.push(
+      ev("resource.created", "resource", f.id, {
+        id: f.id,
+        type: "folder",
+        parent_id: f.parent,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      }),
+    );
   // role grants on the Space (P-H_17): what holding a role means. Owner and Admin manage, Manager and Member edit, Temp holds none (a temporary person is given things by name).
   // The agents get their own edit grant; an agent still acts for its owner, so its reach is the intersection of the two (ARCH 4.5 rule 5).
-  for (const [role, level] of ROLE_SPACE_LEVEL) out.push(ev("grant.created", "grant", `gr_role_${role}`, { id: `gr_role_${role}`, subject_kind: "role", subject_id: role, resource_type: "space", resource_id: CORE_SPACE, level, by: "usr_olivia" }));
-  for (const a of AGENTS) out.push(ev("grant.created", "grant", `gr_${a.id}`, { id: `gr_${a.id}`, subject_kind: "actor", subject_id: a.id, resource_type: "space", resource_id: CORE_SPACE, level: "edit", by: "usr_olivia" }));
+  for (const [role, level] of ROLE_SPACE_LEVEL)
+    out.push(
+      ev("grant.created", "grant", `gr_role_${role}`, {
+        id: `gr_role_${role}`,
+        subject_kind: "role",
+        subject_id: role,
+        resource_type: "space",
+        resource_id: CORE_SPACE,
+        level,
+        by: "usr_olivia",
+      }),
+    );
+  for (const a of AGENTS)
+    out.push(
+      ev("grant.created", "grant", `gr_${a.id}`, {
+        id: `gr_${a.id}`,
+        subject_kind: "actor",
+        subject_id: a.id,
+        resource_type: "space",
+        resource_id: CORE_SPACE,
+        level: "edit",
+        by: "usr_olivia",
+      }),
+    );
   // sharing: Staff edit the Shared tree; the lead team manages Clients; the temp person sees one folder
-  out.push(ev("grant.created", "grant", "gr_staff_shared", { id: "gr_staff_shared", subject_kind: "group", subject_id: "grp_staff", resource_type: "folder", resource_id: "fld_root", level: "edit", by: "usr_olivia" }));
-  out.push(ev("grant.created", "grant", "gr_leads_clients", { id: "gr_leads_clients", subject_kind: "group", subject_id: "grp_leads", resource_type: "folder", resource_id: "fld_clients", level: "manage", by: "usr_olivia" }));
-  out.push(ev("grant.created", "grant", "gr_tess_acme", { id: "gr_tess_acme", subject_kind: "actor", subject_id: "usr_tess", resource_type: "folder", resource_id: "fld_acme", level: "view", by: "usr_mia" }));
+  out.push(
+    ev("grant.created", "grant", "gr_staff_shared", {
+      id: "gr_staff_shared",
+      subject_kind: "group",
+      subject_id: "grp_staff",
+      resource_type: "folder",
+      resource_id: "fld_root",
+      level: "edit",
+      by: "usr_olivia",
+    }),
+  );
+  out.push(
+    ev("grant.created", "grant", "gr_leads_clients", {
+      id: "gr_leads_clients",
+      subject_kind: "group",
+      subject_id: "grp_leads",
+      resource_type: "folder",
+      resource_id: "fld_clients",
+      level: "manage",
+      by: "usr_olivia",
+    }),
+  );
+  out.push(
+    ev("grant.created", "grant", "gr_tess_acme", {
+      id: "gr_tess_acme",
+      subject_kind: "actor",
+      subject_id: "usr_tess",
+      resource_type: "folder",
+      resource_id: "fld_acme",
+      level: "view",
+      by: "usr_mia",
+    }),
+  );
   return out;
 }

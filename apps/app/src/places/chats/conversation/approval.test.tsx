@@ -5,12 +5,47 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { ApprovalCard } from "./approval.tsx";
-import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, verbPhrase, wantsLine, wantsPhrase } from "./approval-model.ts";
+import {
+  denyNote,
+  diffLines,
+  doneLine,
+  excerptLines,
+  heldOf,
+  outcomeOf,
+  verbPhrase,
+  wantsLine,
+  wantsPhrase,
+} from "./approval-model.ts";
 
 installDom();
 
 const task = (state = "awaiting_approval") => ({
-  task: { id: "tsk_1", kind: "approve", title: "Approve: Allow this step", state, blocks: [{ type: "doc_excerpt", v: 1, data: { act: "approve", cap: "files.write", input: { fileId: "fil_1", content: { text: "Q4 pricing\nBasic 49" }, reason: "Agent edit", idempotencyKey: "k" } } }], actions: [{ key: "approve", label: "Approve" }, { key: "reject", label: "Send back", note: "required" }] },
+  task: {
+    id: "tsk_1",
+    kind: "approve",
+    title: "Approve: Allow this step",
+    state,
+    blocks: [
+      {
+        type: "doc_excerpt",
+        v: 1,
+        data: {
+          act: "approve",
+          cap: "files.write",
+          input: {
+            fileId: "fil_1",
+            content: { text: "Q4 pricing\nBasic 49" },
+            reason: "Agent edit",
+            idempotencyKey: "k",
+          },
+        },
+      },
+    ],
+    actions: [
+      { key: "approve", label: "Approve" },
+      { key: "reject", label: "Send back", note: "required" },
+    ],
+  },
 });
 
 function data(calls: { cap: string; input: unknown }[], state?: string) {
@@ -44,7 +79,10 @@ test("the words: who wants what, the excerpt without ids and keys, the done line
 
 test("Allow approves the task and the card collapses to one line", async () => {
   const calls: { cap: string; input: unknown }[] = [];
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls)} />);
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls)} />,
+  );
   assert.match(textOf(root), /Intake wants to edit Q4 pricing\.docx/);
   assert.match(textOf(find(root, "approval-diff-tsk_1")), /Basic 49/);
   await press(find(root, "approval-allow-tsk_1"));
@@ -56,20 +94,37 @@ test("Allow approves the task and the card collapses to one line", async () => {
 
 test("Deny asks for an optional reason and sends it back with the task", async () => {
   const calls: { cap: string; input: unknown }[] = [];
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls)} />);
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls)} />,
+  );
   await press(find(root, "approval-deny-tsk_1"));
   await typeInto(find(root, "approval-reason-tsk_1"), "Wait for Maya");
   await press(find(root, "approval-deny-go-tsk_1"));
   await flush();
-  assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, { taskId: "tsk_1", action: "reject", note: "Wait for Maya" });
+  assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, {
+    taskId: "tsk_1",
+    action: "reject",
+    note: "Wait for Maya",
+  });
   assert.match(textOf(find(root, "approval-done-tsk_1")), /Denied/);
 });
 
 test("a hold already answered somewhere else shows the one-line row at once, and a failed answer says so and keeps the buttons", async () => {
   const calls: { cap: string; input: unknown }[] = [];
-  const done = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls, "done")} />);
+  const done = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data(calls, "done")} />,
+  );
   assert.match(textOf(find(done, "approval-done-tsk_1")), /Allowed/);
-  const failing = { call: async (cap: string) => { if (cap === "tasks.act") throw new Error("down"); if (cap === "tasks.get") return task(); return { file: { name: "x" } }; }, nav: { openBeside: () => undefined } } as never;
+  const failing = {
+    call: async (cap: string) => {
+      if (cap === "tasks.act") throw new Error("down");
+      if (cap === "tasks.get") return task();
+      return { file: { name: "x" } };
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={failing} />);
   await press(find(root, "approval-allow-tsk_1"));
   await flush();
@@ -78,7 +133,14 @@ test("a hold already answered somewhere else shows the one-line row at once, and
 });
 
 test("an edit of an existing file shows what is taken out and put in", async () => {
-  assert.deepEqual(diffLines("a\nb\nc", "a\nB\nc\nd"), { lines: [{ kind: "del", text: "b" }, { kind: "add", text: "B" }, { kind: "add", text: "d" }], more: 0 });
+  assert.deepEqual(diffLines("a\nb\nc", "a\nB\nc\nd"), {
+    lines: [
+      { kind: "del", text: "b" },
+      { kind: "add", text: "B" },
+      { kind: "add", text: "d" },
+    ],
+    more: 0,
+  });
   assert.deepEqual(diffLines("x", "x"), { lines: [], more: 0 });
   assert.equal(diffLines("", Array.from({ length: 12 }, (_, i) => `l${i}`).join("\n"), 8).more, 4);
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data([])} />);
@@ -89,9 +151,18 @@ test("an edit of an existing file shows what is taken out and put in", async () 
 });
 
 test("a change through an outside hub reads as the app and the action, with where it runs", () => {
-  const input = { agentId: "agt_1", server: "composio", tool: "SLACK_SEND_MESSAGE", input: { channel: "general", text: "hello" } };
+  const input = {
+    agentId: "agt_1",
+    server: "composio",
+    tool: "SLACK_SEND_MESSAGE",
+    input: { channel: "general", text: "hello" },
+  };
   assert.equal(wantsLine("Ops", "engine.mcp.call", undefined, input), "Ops wants to send a message in Slack");
-  assert.deepEqual(excerptLines(input, 5, "engine.mcp.call"), [{ label: "Channel", text: "general" }, { label: "Text", text: "hello" }, { label: "Runs through", text: "Composio" }]);
+  assert.deepEqual(excerptLines(input, 5, "engine.mcp.call"), [
+    { label: "Channel", text: "general" },
+    { label: "Text", text: "hello" },
+    { label: "Runs through", text: "Composio" },
+  ]);
   assert.equal(doneLine("allowed", "engine.mcp.call", undefined, input), "Allowed · send a message in Slack");
 });
 
@@ -110,25 +181,65 @@ test("a name with no wording of its own never reaches the person as a raw capabi
 
 test("Always allow keeps a rule for this agent in this chat, then allows; an act that needs an admin has no such button", async () => {
   const calls: { cap: string; input: unknown }[] = [];
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={{ ...data(calls), threadId: "thr_1" } as never} />);
+  const root = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_1"
+      agent="Intake"
+      agentId="agt_1"
+      data={{ ...data(calls), threadId: "thr_1" } as never}
+    />,
+  );
   await flush();
   await press(find(root, "approval-always-tsk_1"));
   await flush();
-  assert.deepEqual(calls.map((c) => c.cap).filter((c) => c === "gate.allow.set" || c === "tasks.act"), ["gate.allow.set", "tasks.act"], "the rule is kept first, then this one is allowed");
-  assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, { act: "approve", target: "files.write", agentId: "agt_1", threadId: "thr_1" });
+  assert.deepEqual(
+    calls.map((c) => c.cap).filter((c) => c === "gate.allow.set" || c === "tasks.act"),
+    ["gate.allow.set", "tasks.act"],
+    "the rule is kept first, then this one is allowed",
+  );
+  assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, {
+    act: "approve",
+    target: "files.write",
+    agentId: "agt_1",
+    threadId: "thr_1",
+  });
 });
 
 /** The Space's live tick, as the session gives it to a card. */
 function stream() {
   const ears = new Set<() => void>();
-  return { changes: { subscribe: (l: () => void) => { ears.add(l); return () => { ears.delete(l); }; } }, tick: () => { for (const l of [...ears]) l(); }, listening: () => ears.size };
+  return {
+    changes: {
+      subscribe: (l: () => void) => {
+        ears.add(l);
+        return () => {
+          ears.delete(l);
+        };
+      },
+    },
+    tick: () => {
+      for (const l of [...ears]) l();
+    },
+    listening: () => ears.size,
+  };
 }
 
 test("decided in Needs you, the open card follows on the next tick and takes its buttons away, with no timer", async () => {
   const s = stream();
   let state = "awaiting_approval";
   let reads = 0;
-  const live = { ...(data([]) as object), call: async (cap: string) => { if (cap === "tasks.get") { reads += 1; return task(state); } return cap === "files.get" ? { file: { name: "Q4 pricing.docx" } } : { text: "x" }; }, changes: s.changes } as never;
+  const live = {
+    ...(data([]) as object),
+    call: async (cap: string) => {
+      if (cap === "tasks.get") {
+        reads += 1;
+        return task(state);
+      }
+      return cap === "files.get" ? { file: { name: "Q4 pricing.docx" } } : { text: "x" };
+    },
+    changes: s.changes,
+  } as never;
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={live} />);
   assert.ok(find(root, "approval-allow-tsk_1"));
   state = "done";
@@ -144,13 +255,26 @@ test("decided in Needs you, the open card follows on the next tick and takes its
 });
 
 test("a held call sent back reads as denied, in Needs you's words or the chat's", async () => {
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data([], "doing")} />);
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data([], "doing")} />,
+  );
   assert.match(textOf(find(root, "approval-done-tsk_1")), /Denied/);
 });
 
 test("a press that comes too late hears it was decided, and the card shows the decision", async () => {
   let state = "awaiting_approval";
-  const late = { call: async (cap: string) => { if (cap === "tasks.act") { state = "done"; throw Object.assign(new Error("Already decided."), { code: "validation.precondition_failed" }); } if (cap === "tasks.get") return task(state); return { file: { name: "x" } }; }, nav: { openBeside: () => undefined } } as never;
+  const late = {
+    call: async (cap: string) => {
+      if (cap === "tasks.act") {
+        state = "done";
+        throw Object.assign(new Error("Already decided."), { code: "validation.precondition_failed" });
+      }
+      if (cap === "tasks.get") return task(state);
+      return { file: { name: "x" } };
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={late} />);
   await press(find(root, "approval-allow-tsk_1"));
   await flush();
@@ -159,16 +283,49 @@ test("a press that comes too late hears it was decided, and the card shows the d
 });
 
 test("an outside agent asking its person (docs/ask-the-person.md): who asks, what happens, that it runs as you, and every input; no Always allow", async () => {
-  const provider = { key: "google", clientId: "8812.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret" };
+  const provider = {
+    key: "google",
+    clientId: "8812.apps.googleusercontent.com",
+    clientSecretHandle: "#Google_Client_Secret",
+  };
   const ask = {
-    task: { id: "tsk_ask", kind: "approve", title: "Simba asks", state: "awaiting_approval", actions: [{ key: "approve", label: "Approve" }, { key: "reject", label: "Send back", note: "required" }], blocks: [
-      { type: "pairs", v: 1, data: { pairs: [["What happens", "Add or change an OIDC provider"]], act: "signin_change", cap: "members.sso.set", input: { provider }, ask: { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" } } },
-      { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: [["provider", JSON.stringify(provider)]] } },
-    ] },
+    task: {
+      id: "tsk_ask",
+      kind: "approve",
+      title: "Simba asks",
+      state: "awaiting_approval",
+      actions: [
+        { key: "approve", label: "Approve" },
+        { key: "reject", label: "Send back", note: "required" },
+      ],
+      blocks: [
+        {
+          type: "pairs",
+          v: 1,
+          data: {
+            pairs: [["What happens", "Add or change an OIDC provider"]],
+            act: "signin_change",
+            cap: "members.sso.set",
+            input: { provider },
+            ask: { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" },
+          },
+        },
+        { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: [["provider", JSON.stringify(provider)]] } },
+      ],
+    },
   };
   const calls: { cap: string; input: unknown }[] = [];
-  const d = { call: async (cap: string, input: unknown) => { calls.push({ cap, input }); return cap === "tasks.get" ? ask : {}; }, nav: { openBeside: () => undefined } } as never;
-  const root = await mount(createRoot, <ApprovalCard taskId="tsk_ask" agent="Simba (Claude Code)" agentId="agt_out" data={d} />);
+  const d = {
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      return cap === "tasks.get" ? ask : {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_ask" agent="Simba (Claude Code)" agentId="agt_out" data={d} />,
+  );
   const text = textOf(root);
   assert.match(text, /Simba \(Claude Code\) asks you to: add or change an OIDC provider/);
   assert.match(text, /Runs as/);
@@ -181,13 +338,38 @@ test("an outside agent asking its person (docs/ask-the-person.md): who asks, wha
 });
 
 test("a held link read says what it opens, shows the link as a link, and names no module or raw field", async () => {
-  const d = { call: async (cap: string) => (cap === "tasks.get" ? { task: { id: "tsk_1", kind: "approve", title: "Approve: Open example.com", state: "awaiting_approval", blocks: [{ type: "approval_preview", v: 1, data: { act: "send", cap: "automations.read_link", input: { url: "https://www.example.com/pricing" } } }] } } : {}), nav: { openBeside: () => undefined } } as never;
+  const d = {
+    call: async (cap: string) =>
+      cap === "tasks.get"
+        ? {
+            task: {
+              id: "tsk_1",
+              kind: "approve",
+              title: "Approve: Open example.com",
+              state: "awaiting_approval",
+              blocks: [
+                {
+                  type: "approval_preview",
+                  v: 1,
+                  data: {
+                    act: "send",
+                    cap: "automations.read_link",
+                    input: { url: "https://www.example.com/pricing" },
+                  },
+                },
+              ],
+            },
+          }
+        : {},
+    nav: { openBeside: () => undefined },
+  } as never;
   const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Assistant" agentId="agt_a" data={d} />);
   const t = textOf(root);
   assert.match(t, /Assistant wants to open example\.com/);
   assert.match(t, /Link/);
   assert.ok(t.includes("example.com/pricing"), "the link is shown");
-  for (const bad of ["automations", "Url", "read link", "Send a message"]) assert.ok(!t.includes(bad), `${bad} is not on the card`);
+  for (const bad of ["automations", "Url", "read link", "Send a message"])
+    assert.ok(!t.includes(bad), `${bad} is not on the card`);
 });
 
 test("two other held acts that are not messages read in plain words", async () => {
@@ -199,23 +381,84 @@ test("two other held acts that are not messages read in plain words", async () =
 
 test("a held install draws as a card: what it is, what it does, what it needs, the exact commit and who gets it", async () => {
   const { wantsLine, excerptLines } = await import("./approval-model.ts");
-  const input = { planId: "ins_1", for: "space", card: { name: "pdf-tools", kind: "skill", summary: "Reads, splits and fills in PDF forms for your agents.", commit: "a41f9c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", needs: { domains: ["api.example.com"], vaultKeys: [], files: [] } } };
+  const input = {
+    planId: "ins_1",
+    for: "space",
+    card: {
+      name: "pdf-tools",
+      kind: "skill",
+      summary: "Reads, splits and fills in PDF forms for your agents.",
+      commit: "a41f9c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      needs: { domains: ["api.example.com"], vaultKeys: [], files: [] },
+    },
+  };
   assert.equal(wantsLine("Assistant", "install.apply", undefined, input), "Assistant wants to install pdf-tools");
   assert.deepEqual(excerptLines(input, 5, "install.apply"), [
-    { label: "What", text: "pdf-tools (a skill)" }, { label: "It does", text: "Reads, splits and fills in PDF forms for your agents." },
-    { label: "Needs", text: "Network: api.example.com. Vault: none." }, { label: "Pinned to", text: "a41f9c2" }, { label: "For", text: "Everyone in the Space" },
+    { label: "What", text: "pdf-tools (a skill)" },
+    { label: "It does", text: "Reads, splits and fills in PDF forms for your agents." },
+    { label: "Needs", text: "Network: api.example.com. Vault: none." },
+    { label: "Pinned to", text: "a41f9c2" },
+    { label: "For", text: "Everyone in the Space" },
   ]);
-  assert.equal(excerptLines({ planId: "ins_1", for: "me", card: { name: "tasks-mcp", kind: "mcp_remote", summary: "x", commit: "", needs: { domains: [], vaultKeys: [], files: [] } } }, 5, "install.apply")[3]!.text, "Not pinned. It is their server.");
+  assert.equal(
+    excerptLines(
+      {
+        planId: "ins_1",
+        for: "me",
+        card: {
+          name: "tasks-mcp",
+          kind: "mcp_remote",
+          summary: "x",
+          commit: "",
+          needs: { domains: [], vaultKeys: [], files: [] },
+        },
+      },
+      5,
+      "install.apply",
+    )[3]!.text,
+    "Not pinned. It is their server.",
+  );
 });
 
 test("a held test read of a Vault key names the key the server resolved, and Always allow approves that item and host", async () => {
   const calls: { cap: string; input: unknown }[] = [];
-  const held = { task: { id: "tsk_k", kind: "approve", title: "Approve", state: "awaiting_approval", blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "automations.try_read", input: { method: "GET", path: "/v1/ping", domains: ["api.notely.example"], vaultItemId: "vit_abc123.api_key" } } }], actions: [] } };
+  const held = {
+    task: {
+      id: "tsk_k",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "send",
+            cap: "automations.try_read",
+            input: {
+              method: "GET",
+              path: "/v1/ping",
+              domains: ["api.notely.example"],
+              vaultItemId: "vit_abc123.api_key",
+            },
+          },
+        },
+      ],
+      actions: [],
+    },
+  };
   const d = {
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "tasks.get") return held;
-      if (cap === "automations.key_hosts.pending") return { found: true, itemId: "vit_abc123", handle: "#Notely", name: "Notely API key", host: "api.notely.example" };
+      if (cap === "automations.key_hosts.pending")
+        return {
+          found: true,
+          itemId: "vit_abc123",
+          handle: "#Notely",
+          name: "Notely API key",
+          host: "api.notely.example",
+        };
       return {};
     },
     nav: { openBeside: () => undefined },
@@ -225,5 +468,8 @@ test("a held test read of a Vault key names the key the server resolved, and Alw
   assert.match(textOf(root), /Scout wants to send #Notely \(Notely API key\) to api\.notely\.example/);
   await press(find(root, "approval-always-tsk_k"));
   await flush();
-  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, { vaultItemId: "vit_abc123", host: "api.notely.example" });
+  assert.deepEqual(calls.find((c) => c.cap === "automations.key_hosts.allow")?.input, {
+    vaultItemId: "vit_abc123",
+    host: "api.notely.example",
+  });
 });

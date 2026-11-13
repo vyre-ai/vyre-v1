@@ -41,11 +41,12 @@ test("the socket dials the vetted address when a later lookup of the name would 
   assert.deepEqual(lookupOpts[0], { host: "docs.example", all: true, verbatim: true });
 
   await assert.rejects(
-    () => deps.connect({
-      url: new URL("https://docs.example/guide.txt"),
-      addresses,
-      signal: AbortSignal.timeout(1_000),
-    }),
+    () =>
+      deps.connect({
+        url: new URL("https://docs.example/guide.txt"),
+        addresses,
+        signal: AbortSignal.timeout(1_000),
+      }),
     /stub/,
   );
 
@@ -55,12 +56,21 @@ test("the socket dials the vetted address when a later lookup of the name would 
   assert.equal(dialed[0]!.servername, "docs.example");
   assert.equal(dialed[0]!.port, 443);
   assert.deepEqual(fromSocket, [["1.2.3.4", "1.2.3.4"]]);
-  assert.equal(dialed.some((row) => row.host === "127.0.0.1"), false);
-  assert.equal(fromSocket.some((rows) => rows.includes("127.0.0.1")), false);
+  assert.equal(
+    dialed.some((row) => row.host === "127.0.0.1"),
+    false,
+  );
+  assert.equal(
+    fromSocket.some((rows) => rows.includes("127.0.0.1")),
+    false,
+  );
 
   const again = await deps.lookup("docs.example");
   assert.deepEqual(again, ["127.0.0.1"]);
-  assert.equal(dialed.some((row) => row.host === "127.0.0.1" || row.servername === "127.0.0.1"), false);
+  assert.equal(
+    dialed.some((row) => row.host === "127.0.0.1" || row.servername === "127.0.0.1"),
+    false,
+  );
 });
 
 test("connect fails when there is no address and does not dial", async (t) => {
@@ -70,11 +80,12 @@ test("connect fails when there is no address and does not dial", async (t) => {
     throw new Error("stub");
   });
   await assert.rejects(
-    () => documentPin().connect({
-      url: new URL("https://docs.example/guide.txt"),
-      addresses: [],
-      signal: AbortSignal.timeout(1_000),
-    }),
+    () =>
+      documentPin().connect({
+        url: new URL("https://docs.example/guide.txt"),
+        addresses: [],
+        signal: AbortSignal.timeout(1_000),
+      }),
     /No address/,
   );
   assert.equal(dialed, 0);

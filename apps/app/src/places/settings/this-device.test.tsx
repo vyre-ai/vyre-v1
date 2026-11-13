@@ -8,7 +8,11 @@ import { createSampleSettings, northwind } from "./sample.ts";
 
 test("This device draws my machines first, then Phone access, and the old Computers page is gone", () => {
   const s = createSampleSettings(northwind);
-  const out = renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ThisDevicePage /></SettingsDataProvider>).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(
+    <SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}>
+      <ThisDevicePage />
+    </SettingsDataProvider>,
+  ).replaceAll("<!-- -->", "");
   assert.ok(out.includes('data-testid="machines"'), "the shared Machines component");
   assert.ok(out.includes("Loading computers"), "it reads the machines through machines.list");
   assert.ok(!out.includes("Needs a Team Space"));
@@ -17,7 +21,12 @@ test("This device draws my machines first, then Phone access, and the old Comput
 test("asked for from the Space menu or an agent's page, This device opens with the Add a server sheet, once", async () => {
   const { requestAddServer, addServerAsked, takeAddServerRequest } = await import("../../shell/computers-available.ts");
   const s = createSampleSettings(northwind);
-  const draw = (): string => renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ThisDevicePage /></SettingsDataProvider>);
+  const draw = (): string =>
+    renderToStaticMarkup(
+      <SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}>
+        <ThisDevicePage />
+      </SettingsDataProvider>,
+    );
   assert.ok(!draw().includes('data-testid="add-server-sheet"'), "nothing asked, no sheet");
   requestAddServer();
   assert.equal(addServerAsked(), true);

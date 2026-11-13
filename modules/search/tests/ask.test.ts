@@ -10,12 +10,35 @@ const ACCOUNTS = [
   { ref: "#Team", driver: "anthropic", kind: "api_key", title: "Team AI", mine: false, status: "ok", spaceKey: true },
   { ref: "#Mine", driver: "claude_code", kind: "subscription", title: "Claude Code", mine: true, status: "ok" },
 ];
-function rig(accounts: unknown[] = ACCOUNTS, text = "The deposit is 4200 dollars [1]."): { h: Harness; sent: Array<Record<string, unknown>> } {
+function rig(
+  accounts: unknown[] = ACCOUNTS,
+  text = "The deposit is 4200 dollars [1].",
+): { h: Harness; sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
-  const h = harness({ respond: { "engine.accounts.list": () => ({ accounts }), "engine.complete": (i) => { sent.push(i); return { text, tokensIn: 1, tokensOut: 1 }; }, "chat.messages.list": () => ({ messages: [] }), "threads.get": (i) => ({ thread: { threadId: i["threadId"], kind: "channel" } }) } });
-  seed(h, { id: "thr_a", title: "Rivera channel", kind: "chat", body: "The Rivera lease deposit is 4200 dollars, due Thursday." });
+  const h = harness({
+    respond: {
+      "engine.accounts.list": () => ({ accounts }),
+      "engine.complete": (i) => {
+        sent.push(i);
+        return { text, tokensIn: 1, tokensOut: 1 };
+      },
+      "chat.messages.list": () => ({ messages: [] }),
+      "threads.get": (i) => ({ thread: { threadId: i["threadId"], kind: "channel" } }),
+    },
+  });
+  seed(h, {
+    id: "thr_a",
+    title: "Rivera channel",
+    kind: "chat",
+    body: "The Rivera lease deposit is 4200 dollars, due Thursday.",
+  });
   seed(h, { id: "rec_secret", title: "Rivera settlement terms", kind: "record", body: "settlement 9100000" });
-  seed(h, { id: "mem_x", title: "Rivera nickname", kind: "memory", body: "my private nickname for the Rivera lease is Skylark" });
+  seed(h, {
+    id: "mem_x",
+    title: "Rivera nickname",
+    kind: "memory",
+    body: "my private nickname for the Rivera lease is Skylark",
+  });
   h.deny("record:rec_secret");
   return { h, sent };
 }
@@ -43,7 +66,9 @@ test("with nothing the asker may read, the answer is the no-access line and no m
 });
 
 test("no AI account to answer on: the sources still come back and nothing is sent", async () => {
-  const { h, sent } = rig([{ ref: "#Old", driver: "anthropic", kind: "api_key", title: "Old", mine: true, status: "expired" }]);
+  const { h, sent } = rig([
+    { ref: "#Old", driver: "anthropic", kind: "api_key", title: "Old", mine: true, status: "expired" },
+  ]);
   const out = await ask(h.ctx, { q: "Rivera lease deposit" });
   assert.equal(out.state, "no_account");
   assert.ok(out.sources.length > 0);
@@ -52,8 +77,21 @@ test("no AI account to answer on: the sources still come back and nothing is sen
 
 test("a model that says it sees nothing, or fails, never shows an invented answer", async () => {
   const none = rig(undefined, `${NO_ACCESS}`);
-  assert.deepEqual([(await ask(none.h.ctx, { q: "Rivera lease deposit" })).state, (await ask(none.h.ctx, { q: "Rivera lease deposit" })).sources], ["no_access", []]);
-  const h = harness({ respond: { "engine.accounts.list": () => ({ accounts: ACCOUNTS }), "engine.complete": () => { throw new Error("limit"); } } });
+  assert.deepEqual(
+    [
+      (await ask(none.h.ctx, { q: "Rivera lease deposit" })).state,
+      (await ask(none.h.ctx, { q: "Rivera lease deposit" })).sources,
+    ],
+    ["no_access", []],
+  );
+  const h = harness({
+    respond: {
+      "engine.accounts.list": () => ({ accounts: ACCOUNTS }),
+      "engine.complete": () => {
+        throw new Error("limit");
+      },
+    },
+  });
   seed(h, { id: "fil_a", title: "Rivera deposit.md", kind: "file", body: "Rivera lease deposit 4200" });
   const out = await ask(h.ctx, { q: "Rivera lease deposit" });
   assert.deepEqual([out.state, out.answer], ["failed", undefined]);
@@ -68,12 +106,29 @@ test("citations keep only marks that name a listed source, in the order first ci
 
 test("Ask the Space searches as an agent does: a redacted word in a file is neither found, quoted nor sent to the model, though the person's own search finds it", async () => {
   const { h, sent } = rig();
-  seed(h, { id: "fil_knee", title: "knee-notes.txt", kind: "file", body: "The meniscus tear needs surgery in March.", path: "Clinic/knee-notes.txt", agent: { title: "knee-notes.txt", path: "Clinic/knee-notes.txt", body: "The [REDACTED] tear needs surgery in March." } });
+  seed(h, {
+    id: "fil_knee",
+    title: "knee-notes.txt",
+    kind: "file",
+    body: "The meniscus tear needs surgery in March.",
+    path: "Clinic/knee-notes.txt",
+    agent: {
+      title: "knee-notes.txt",
+      path: "Clinic/knee-notes.txt",
+      body: "The [REDACTED] tear needs surgery in March.",
+    },
+  });
   const person = await query(h.ctx, { q: "meniscus" });
-  assert.ok(person.hits.some((x) => x.id === "fil_knee"), "a person's search keeps the whole text");
+  assert.ok(
+    person.hits.some((x) => x.id === "fil_knee"),
+    "a person's search keeps the whole text",
+  );
   const gone = await ask(h.ctx, { q: "what does the knee note say about the meniscus" });
   assert.deepEqual([gone.state, gone.sources.some((x) => x.id === "fil_knee")], ["no_access", false]);
-  assert.ok(sent.every((i) => !/meniscus/i.test(`${i["prompt"]}`)), "the word never reaches the model");
+  assert.ok(
+    sent.every((i) => !/meniscus/i.test(`${i["prompt"]}`)),
+    "the word never reaches the model",
+  );
   const other = await ask(h.ctx, { q: "what does the knee note say about surgery" });
   assert.equal(other.state, "answered");
   const prompt = String(sent[sent.length - 1]!["prompt"]);

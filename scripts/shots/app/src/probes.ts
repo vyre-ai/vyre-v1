@@ -29,9 +29,14 @@ export function watchLayoutShift(): () => void {
   if (typeof PerformanceObserver !== "function") return () => {};
   const po = new PerformanceObserver((list) => {
     let sum = store().layout_shift ?? 0;
-    for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean }[]) if (!e.hadRecentInput) sum += e.value;
+    for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean }[])
+      if (!e.hadRecentInput) sum += e.value;
     setProbe("layout_shift", sum);
   });
-  try { po.observe({ type: "layout-shift", buffered: true }); } catch { return () => {}; }
+  try {
+    po.observe({ type: "layout-shift", buffered: true });
+  } catch {
+    return () => {};
+  }
   return () => po.disconnect();
 }

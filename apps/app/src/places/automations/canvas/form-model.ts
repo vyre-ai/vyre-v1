@@ -15,7 +15,12 @@ export function present(v: unknown): boolean {
   return true;
 }
 
-export const humanize = (k: string): string => k.replace(/([A-Z])/g, " $1").replace(/[_.]+/g, " ").replace(/^./, (x) => x.toUpperCase()).trim();
+export const humanize = (k: string): string =>
+  k
+    .replace(/([A-Z])/g, " $1")
+    .replace(/[_.]+/g, " ")
+    .replace(/^./, (x) => x.toUpperCase())
+    .trim();
 
 // ---------------------------------------------------------------- schemas
 
@@ -40,7 +45,9 @@ export function resolveSchema(schema: unknown, defs: Record<string, unknown> | u
 }
 
 export function requiredOf(schema: unknown): string[] {
-  return isRec(schema) && Array.isArray(schema["required"]) ? schema["required"].filter((x): x is string => typeof x === "string") : [];
+  return isRec(schema) && Array.isArray(schema["required"])
+    ? schema["required"].filter((x): x is string => typeof x === "string")
+    : [];
 }
 
 // ---------------------------------------------------------------- step controls
@@ -61,7 +68,18 @@ export interface Control {
 }
 
 const ACCOUNT = new Set(["connectionId", "mailboxId", "numberId", "connector"]);
-const LONG = new Set(["body", "text", "prompt", "description", "message", "summary", "source", "html", "agenda", "content"]);
+const LONG = new Set([
+  "body",
+  "text",
+  "prompt",
+  "description",
+  "message",
+  "summary",
+  "source",
+  "html",
+  "agenda",
+  "content",
+]);
 
 function typeName(prop: Record<string, unknown>): string {
   const raw = prop["type"];
@@ -86,7 +104,8 @@ export function controlsFor(schema: unknown): Control[] {
     const options = Array.isArray(prop["enum"]) ? prop["enum"].filter((x): x is string => typeof x === "string") : [];
     const examples = Array.isArray(prop["examples"]) ? prop["examples"] : [];
     const example = typeof examples[0] === "string" ? examples[0] : "";
-    const description = typeof prop["description"] === "string" && prop["description"] !== "Any JSON value" ? prop["description"] : "";
+    const description =
+      typeof prop["description"] === "string" && prop["description"] !== "Any JSON value" ? prop["description"] : "";
     const items = isRec(prop["items"]) ? prop["items"] : {};
     const itemType = typeName(items);
     let kind: ControlKind = "json";
@@ -96,9 +115,22 @@ export function controlsFor(schema: unknown): Control[] {
     else if (t === "string") kind = LONG.has(name) ? "multiline" : "text";
     else if (t === "integer" || t === "number") kind = "number";
     else if (t === "boolean") kind = "toggle";
-    else if (t === "array" && (itemType === "string" || itemType === "integer" || itemType === "number") && !Array.isArray(items["enum"])) { kind = "list"; numeric = itemType !== "string"; }
+    else if (
+      t === "array" &&
+      (itemType === "string" || itemType === "integer" || itemType === "number") &&
+      !Array.isArray(items["enum"])
+    ) {
+      kind = "list";
+      numeric = itemType !== "string";
+    }
     out.push({
-      name, label: humanize(name), kind, required: required.has(name), options, account: ACCOUNT.has(name), numeric,
+      name,
+      label: humanize(name),
+      kind,
+      required: required.has(name),
+      options,
+      account: ACCOUNT.has(name),
+      numeric,
       placeholder: example || (kind === "list" ? "One per line or separated by commas" : kind === "json" ? "JSON" : ""),
       hint: description,
     });
@@ -117,7 +149,8 @@ export function controlText(c: Control, v: unknown): string {
 /** What typing `text` into a control writes. `undefined` removes the key. A problem keeps the old value and says why. */
 export function controlValue(c: Control, text: string): { value: unknown } | { problem: string } {
   const t = text.trim();
-  if (c.kind === "text" || c.kind === "multiline" || c.kind === "choice") return { value: text === "" ? undefined : text };
+  if (c.kind === "text" || c.kind === "multiline" || c.kind === "choice")
+    return { value: text === "" ? undefined : text };
   if (c.kind === "toggle") return { value: t === "" ? undefined : t === "true" };
   if (c.kind === "number") {
     if (t === "") return { value: undefined };
@@ -126,17 +159,28 @@ export function controlValue(c: Control, text: string): { value: unknown } | { p
     return Number.isFinite(n) ? { value: n } : { problem: `${c.label} must be a number.` };
   }
   if (c.kind === "list") {
-    const parts = t.split(/[\n,]/).map((x) => x.trim()).filter((x) => x !== "");
+    const parts = t
+      .split(/[\n,]/)
+      .map((x) => x.trim())
+      .filter((x) => x !== "");
     if (parts.length === 0) return { value: undefined };
     if (!c.numeric) return { value: parts };
     const nums = parts.map(Number);
     return nums.every((n) => Number.isFinite(n)) ? { value: nums } : { problem: `${c.label} must be numbers.` };
   }
   if (t === "") return { value: undefined };
-  try { return { value: JSON.parse(t) as unknown }; } catch { return { problem: "That is not valid JSON." }; }
+  try {
+    return { value: JSON.parse(t) as unknown };
+  } catch {
+    return { problem: "That is not valid JSON." };
+  }
 }
 
-export function writeControl(input: Record<string, unknown>, c: Control, text: string): { input: Record<string, unknown> } | { problem: string } {
+export function writeControl(
+  input: Record<string, unknown>,
+  c: Control,
+  text: string,
+): { input: Record<string, unknown> } | { problem: string } {
   const out = controlValue(c, text);
   if ("problem" in out) return out;
   const next = { ...input };
@@ -156,11 +200,19 @@ const ALSO_REQUIRED: Record<string, readonly string[]> = {
 /** Lanes and paths live on the step, not in its input. */
 const ON_THE_STEP = new Set(["paths", "branches"]);
 
-export function missingFor(key: string, input: Record<string, unknown>, required: readonly string[], branches: number): string[] {
+export function missingFor(
+  key: string,
+  input: Record<string, unknown>,
+  required: readonly string[],
+  branches: number,
+): string[] {
   const out: string[] = [];
   for (const name of [...required, ...(ALSO_REQUIRED[key] ?? [])]) {
     if (out.includes(name)) continue;
-    if (ON_THE_STEP.has(name)) { if (branches === 0) out.push(name); continue; }
+    if (ON_THE_STEP.has(name)) {
+      if (branches === 0) out.push(name);
+      continue;
+    }
     if (!present(input[name])) out.push(name);
   }
   return out;
@@ -183,43 +235,96 @@ export interface TriggerField {
   placeholder?: string;
   help?: string;
 }
-export interface TriggerSpec { fields: readonly TriggerField[]; note?: string }
+export interface TriggerSpec {
+  fields: readonly TriggerField[];
+  note?: string;
+}
 
-const NAME: TriggerField = { name: "label", label: "Name", kind: "text", in: "config", placeholder: "Shown on the card and the tab", help: "Optional. Tell triggers of one kind apart." };
-const f = (name: string, label: string, extra: Partial<TriggerField> = {}): TriggerField => ({ name, label, kind: "text", in: "filter", ...extra });
+const NAME: TriggerField = {
+  name: "label",
+  label: "Name",
+  kind: "text",
+  in: "config",
+  placeholder: "Shown on the card and the tab",
+  help: "Optional. Tell triggers of one kind apart.",
+};
+const f = (name: string, label: string, extra: Partial<TriggerField> = {}): TriggerField => ({
+  name,
+  label,
+  kind: "text",
+  in: "filter",
+  ...extra,
+});
 
 /** Every trigger in the catalog has an entry; the test fails when one is added without. The fields are the keys the trigger consumer matches (modules/automations/handlers/triggers.ts). */
 export const TRIGGER_SPECS: Record<string, TriggerSpec> = {
-  record_change: { fields: [
-    f("type", "Record type", { kind: "pick", from: "types", required: true, placeholder: "contact" }),
-    f("op", "When it is", { kind: "choice", options: ["created", "updated", "deleted"], help: "Leave empty for any change." }),
-    f("fields", "Only when these fields change", { kind: "list", placeholder: "One field name per line" }),
-    f("where", "Only when values match", { kind: "json", placeholder: '{"status":"new"}', help: "Optional. Field values the record must have." }),
-  ] },
+  record_change: {
+    fields: [
+      f("type", "Record type", { kind: "pick", from: "types", required: true, placeholder: "contact" }),
+      f("op", "When it is", {
+        kind: "choice",
+        options: ["created", "updated", "deleted"],
+        help: "Leave empty for any change.",
+      }),
+      f("fields", "Only when these fields change", { kind: "list", placeholder: "One field name per line" }),
+      f("where", "Only when values match", {
+        kind: "json",
+        placeholder: '{"status":"new"}',
+        help: "Optional. Field values the record must have.",
+      }),
+    ],
+  },
   schedule: { fields: [] },
   webhook: { fields: [], note: "Starts when something sends a request to this address, once the Automation is on." },
   form_submit: { fields: [f("formId", "Form", { kind: "pick", from: "forms", help: "Leave empty for any form." })] },
-  email_received: { fields: [f("mailboxId", "Mailbox", { placeholder: "mbx_...", help: "Leave empty for any mailbox." }), f("from", "From", { placeholder: "name@example.com", help: "Leave empty for anyone." })] },
+  email_received: {
+    fields: [
+      f("mailboxId", "Mailbox", { placeholder: "mbx_...", help: "Leave empty for any mailbox." }),
+      f("from", "From", { placeholder: "name@example.com", help: "Leave empty for anyone." }),
+    ],
+  },
   chat_message: { fields: [f("threadId", "Chat", { placeholder: "thr_...", help: "Leave empty for any chat." })] },
-  spreadsheet_row: { fields: [
-    f("fileId", "Spreadsheet", { required: true, placeholder: "fil_..." }),
-    f("sheet", "Sheet", { help: "Leave empty for any sheet." }),
-    f("op", "When a row is", { kind: "choice", options: ["added", "changed"], help: "Leave empty for either." }),
-    f("columns", "Only when these columns change", { kind: "list", placeholder: "One column per line" }),
-  ] },
-  ci_check: { fields: [
-    f("repo", "Repository", { placeholder: "owner/name" }),
-    f("branch", "Branch"),
-    f("conclusion", "Result", { kind: "choice", options: ["success", "failure", "cancelled", "neutral"], help: "Leave empty for any result." }),
-  ] },
+  spreadsheet_row: {
+    fields: [
+      f("fileId", "Spreadsheet", { required: true, placeholder: "fil_..." }),
+      f("sheet", "Sheet", { help: "Leave empty for any sheet." }),
+      f("op", "When a row is", { kind: "choice", options: ["added", "changed"], help: "Leave empty for either." }),
+      f("columns", "Only when these columns change", { kind: "list", placeholder: "One column per line" }),
+    ],
+  },
+  ci_check: {
+    fields: [
+      f("repo", "Repository", { placeholder: "owner/name" }),
+      f("branch", "Branch"),
+      f("conclusion", "Result", {
+        kind: "choice",
+        options: ["success", "failure", "cancelled", "neutral"],
+        help: "Leave empty for any result.",
+      }),
+    ],
+  },
   meeting_transcript_ready: { fields: [f("source", "Meeting source", { help: "Leave empty for any source." })] },
-  journey_stage_entered: { fields: [f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }), f("stage", "Stage", { help: "Leave empty for any stage." })] },
-  journey_stage_left: { fields: [f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }), f("stage", "Stage", { help: "Leave empty for any stage." })] },
+  journey_stage_entered: {
+    fields: [
+      f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }),
+      f("stage", "Stage", { help: "Leave empty for any stage." }),
+    ],
+  },
+  journey_stage_left: {
+    fields: [
+      f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }),
+      f("stage", "Stage", { help: "Leave empty for any stage." }),
+    ],
+  },
   button: { fields: [], note: "Starts when someone presses its button. Give it a name so people know what it does." },
   manual: { fields: [], note: "Starts when you press Run now at the top of the page." },
 };
 
-export interface TriggerLike { key: string; config?: Record<string, unknown> | undefined; filter?: unknown }
+export interface TriggerLike {
+  key: string;
+  config?: Record<string, unknown> | undefined;
+  filter?: unknown;
+}
 
 export function specOf(key: string): TriggerSpec {
   return TRIGGER_SPECS[key] ?? { fields: [] };
@@ -243,28 +348,45 @@ export function triggerText(field: TriggerField, v: unknown): string {
 }
 
 /** Write one field of a trigger. Empty removes it, and an empty filter is removed with it so "any event" stays a trigger with no filter. */
-export function writeTriggerField<T extends TriggerLike>(t: T, field: TriggerField, text: string): T | { problem: string } {
+export function writeTriggerField<T extends TriggerLike>(
+  t: T,
+  field: TriggerField,
+  text: string,
+): T | { problem: string } {
   let value: unknown;
   const s = text.trim();
-  if (field.kind === "list") { const parts = s.split(/[\n,]/).map((x) => x.trim()).filter((x) => x !== ""); value = parts.length > 0 ? parts : undefined; }
-  else if (field.kind === "json") {
+  if (field.kind === "list") {
+    const parts = s
+      .split(/[\n,]/)
+      .map((x) => x.trim())
+      .filter((x) => x !== "");
+    value = parts.length > 0 ? parts : undefined;
+  } else if (field.kind === "json") {
     if (s === "") value = undefined;
     else {
-      try { value = JSON.parse(s) as unknown; } catch { return { problem: "That is not valid JSON." }; }
-      if (!isRec(value)) return { problem: "Write it as an object, such as {\"status\":\"new\"}." };
+      try {
+        value = JSON.parse(s) as unknown;
+      } catch {
+        return { problem: "That is not valid JSON." };
+      }
+      if (!isRec(value)) return { problem: 'Write it as an object, such as {"status":"new"}.' };
     }
   } else value = s === "" ? undefined : s;
   if (field.in === "config") {
     const config = { ...(t.config ?? {}) };
-    if (value === undefined) delete config[field.name]; else config[field.name] = value;
+    if (value === undefined) delete config[field.name];
+    else config[field.name] = value;
     const next = { ...t } as T;
-    if (Object.keys(config).length === 0) delete (next as TriggerLike).config; else (next as TriggerLike).config = config;
+    if (Object.keys(config).length === 0) delete (next as TriggerLike).config;
+    else (next as TriggerLike).config = config;
     return next;
   }
   const filter: Record<string, unknown> = isRec(t.filter) ? { ...t.filter } : {};
-  if (value === undefined) delete filter[field.name]; else filter[field.name] = value;
+  if (value === undefined) delete filter[field.name];
+  else filter[field.name] = value;
   const next = { ...t } as T;
-  if (Object.keys(filter).length === 0) delete (next as TriggerLike).filter; else (next as TriggerLike).filter = filter;
+  if (Object.keys(filter).length === 0) delete (next as TriggerLike).filter;
+  else (next as TriggerLike).filter = filter;
   return next;
 }
 
@@ -273,10 +395,16 @@ export function triggerMissing(t: TriggerLike): string[] {
     const cron = t.config?.["cron"];
     return typeof cron === "string" && parseCron(cron) ? [] : ["cron"];
   }
-  return specOf(t.key).fields.filter((x) => x.required && !present(triggerValue(t, x))).map((x) => x.name);
+  return specOf(t.key)
+    .fields.filter((x) => x.required && !present(triggerValue(t, x)))
+    .map((x) => x.name);
 }
 
-export interface RefNames { type?(key: string): string; form?(id: string): string; journey?(id: string): string }
+export interface RefNames {
+  type?(key: string): string;
+  form?(id: string): string;
+  journey?(id: string): string;
+}
 
 const OPS: Record<string, string> = { created: "is created", updated: "is updated", deleted: "is deleted" };
 
@@ -289,44 +417,79 @@ export function triggerSummary(t: TriggerLike, names: RefNames = {}, zone?: stri
   const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
   switch (t.key) {
     case "schedule": {
-      const tz = typeof t.config?.["timezone"] === "string" && validTimeZone(t.config["timezone"]) ? t.config["timezone"] : (zone ?? deviceTimeZone());
+      const tz =
+        typeof t.config?.["timezone"] === "string" && validTimeZone(t.config["timezone"])
+          ? t.config["timezone"]
+          : (zone ?? deviceTimeZone());
       return { text: scheduleWords(String(t.config?.["cron"]), tz) ?? bad.text, ok: true };
     }
-    case "manual": return { text: "Starts when you press Run now", ok: true };
-    case "button": return { text: "Starts when someone presses it", ok: true };
-    case "webhook": return { text: "Starts on a web request", ok: true };
+    case "manual":
+      return { text: "Starts when you press Run now", ok: true };
+    case "button":
+      return { text: "Starts when someone presses it", ok: true };
+    case "webhook":
+      return { text: "Starts on a web request", ok: true };
     case "record_change": {
       const type = str(flt["type"]);
       const label = names.type?.(type) ?? type;
       const op = str(flt["op"]);
       const fields = list(flt["fields"]);
       const where = flt["where"];
-      const extra = fields.length > 0 ? `, when ${fields.join(", ")} change${fields.length === 1 ? "s" : ""}` : typeof where === "string" && where ? `, only when ${where}` : isRec(where) && Object.keys(where).length > 0 ? `, only when ${Object.entries(where).map(([k, v]) => `${k} is ${String(v)}`).join(" and ")}` : "";
-      return { text: `A ${label} ${op ? OPS[op] ?? "changes" : "changes"}${extra}`, ok: true };
+      const extra =
+        fields.length > 0
+          ? `, when ${fields.join(", ")} change${fields.length === 1 ? "s" : ""}`
+          : typeof where === "string" && where
+            ? `, only when ${where}`
+            : isRec(where) && Object.keys(where).length > 0
+              ? `, only when ${Object.entries(where)
+                  .map(([k, v]) => `${k} is ${String(v)}`)
+                  .join(" and ")}`
+              : "";
+      return { text: `A ${label} ${op ? (OPS[op] ?? "changes") : "changes"}${extra}`, ok: true };
     }
-    case "form_submit": { const id = str(flt["formId"]); return { text: id ? `Form: ${names.form?.(id) ?? id}` : "Any form is submitted", ok: true }; }
+    case "form_submit": {
+      const id = str(flt["formId"]);
+      return { text: id ? `Form: ${names.form?.(id) ?? id}` : "Any form is submitted", ok: true };
+    }
     case "email_received": {
-      const from = str(flt["from"]), mailbox = str(flt["mailboxId"]);
+      const from = str(flt["from"]),
+        mailbox = str(flt["mailboxId"]);
       return { text: from ? `Email from ${from}` : mailbox ? `Email to ${mailbox}` : "Any email arrives", ok: true };
     }
-    case "chat_message": return { text: str(flt["threadId"]) ? `A message in ${str(flt["threadId"])}` : "Any chat message", ok: true };
+    case "chat_message":
+      return { text: str(flt["threadId"]) ? `A message in ${str(flt["threadId"])}` : "Any chat message", ok: true };
     case "spreadsheet_row": {
       const op = str(flt["op"]);
-      return { text: `A row is ${op || "added or changed"}${str(flt["sheet"]) ? ` in ${str(flt["sheet"])}` : ""}`, ok: true };
+      return {
+        text: `A row is ${op || "added or changed"}${str(flt["sheet"]) ? ` in ${str(flt["sheet"])}` : ""}`,
+        ok: true,
+      };
     }
     case "ci_check": {
       const bits = [str(flt["repo"]), str(flt["branch"])].filter((x) => x !== "").join(" on ");
       const result = str(flt["conclusion"]);
-      return { text: `A check${result ? ` ${result === "success" ? "passes" : result === "failure" ? "fails" : `is ${result}`}` : " finishes"}${bits ? ` for ${bits}` : ""}`, ok: true };
+      return {
+        text: `A check${result ? ` ${result === "success" ? "passes" : result === "failure" ? "fails" : `is ${result}`}` : " finishes"}${bits ? ` for ${bits}` : ""}`,
+        ok: true,
+      };
     }
-    case "meeting_transcript_ready": return { text: str(flt["source"]) ? `A transcript from ${str(flt["source"])}` : "Any transcript is ready", ok: true };
+    case "meeting_transcript_ready":
+      return {
+        text: str(flt["source"]) ? `A transcript from ${str(flt["source"])}` : "Any transcript is ready",
+        ok: true,
+      };
     case "journey_stage_entered":
     case "journey_stage_left": {
-      const j = str(flt["journeyId"]), stage = str(flt["stage"]);
+      const j = str(flt["journeyId"]),
+        stage = str(flt["stage"]);
       const verb = t.key === "journey_stage_entered" ? "enters" : "leaves";
-      return { text: `${j ? `${names.journey?.(j) ?? j}: ` : ""}A record ${verb} ${stage ? stage : "a stage"}`, ok: true };
+      return {
+        text: `${j ? `${names.journey?.(j) ?? j}: ` : ""}A record ${verb} ${stage ? stage : "a stage"}`,
+        ok: true,
+      };
     }
-    default: return { text: "Starts a run", ok: true };
+    default:
+      return { text: "Starts a run", ok: true };
   }
 }
 

@@ -20,26 +20,54 @@ test("connect_provider puts the member's primary Google calendar in Calendar, ow
   const out = await connectProvider(h.ctx, { ...ARGS });
   assert.deepEqual(contractErrors("calendar.connect_provider", "out", out), []);
   assert.equal(out.created, true);
-  assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendarId}`, { calendarId: out.calendarId, provider: "google", ownerId: MAYA, private: true }]]);
+  assert.deepEqual(
+    h.named("calendar.created").map((e) => [e.subject, e.payload]),
+    [[`calendar/${out.calendarId}`, { calendarId: out.calendarId, provider: "google", ownerId: MAYA, private: true }]],
+  );
   const row = h.rows(`SELECT * FROM calendar_list WHERE id = ?`, out.calendarId!)[0]!;
-  assert.deepEqual([row.provider, row.ownerId, row.connectionId, row.remoteId, row.title, row.personal, row.state], ["google", MAYA, "con_g01", "primary", "maya@vyre.test", 0, "syncing"], "named for the account it is read as");
-  assert.deepEqual(h.rows(`SELECT * FROM calendar_account`), [{ calendarId: out.calendarId, account: "maya@vyre.test" }]);
+  assert.deepEqual(
+    [row.provider, row.ownerId, row.connectionId, row.remoteId, row.title, row.personal, row.state],
+    ["google", MAYA, "con_g01", "primary", "maya@vyre.test", 0, "syncing"],
+    "named for the account it is read as",
+  );
+  assert.deepEqual(h.rows(`SELECT * FROM calendar_account`), [
+    { calendarId: out.calendarId, account: "maya@vyre.test" },
+  ]);
   const again = await connectProvider(h.ctx, { ...ARGS });
   assert.deepEqual(again, { calendarId: out.calendarId, created: false });
   assert.equal(h.named("calendar.created").length, 1, "the same calendar is born once");
   assert.equal(h.rows(`SELECT id FROM calendar_list`).length, 1);
   // the member sees it as theirs; nobody else is told it exists
   const mine = await listCalendars(h.as({ kind: "person", id: MAYA }), {});
-  assert.deepEqual(mine.calendars.map((c) => [c.id, c.provider, c.ownerId]), [[out.calendarId, "google", MAYA]]);
+  assert.deepEqual(
+    mine.calendars.map((c) => [c.id, c.provider, c.ownerId]),
+    [[out.calendarId, "google", MAYA]],
+  );
 });
 
 test("a Microsoft default calendar has no remote id of its own, and refusals name the bad input", async () => {
   const h = admin();
-  const ms = await connectProvider(h.ctx, { provider: "microsoft", ownerId: MAYA, account: "maya@vyre.test", connectionId: "con_m01" });
-  assert.equal(h.rows(`SELECT "remoteId", title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.remoteId, "default");
+  const ms = await connectProvider(h.ctx, {
+    provider: "microsoft",
+    ownerId: MAYA,
+    account: "maya@vyre.test",
+    connectionId: "con_m01",
+  });
+  assert.equal(
+    h.rows(`SELECT "remoteId", title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.remoteId,
+    "default",
+  );
   assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.title, "maya@vyre.test");
-  for (const bad of [{ ...ARGS, provider: "icloud" }, { ...ARGS, ownerId: "maya" }, { ...ARGS, account: "nobody" }, { ...ARGS, connectionId: "g1" }]) {
-    await assert.rejects(() => connectProvider(h.ctx, bad as never), (e) => codeOf(e) === "validation.bad_input");
+  for (const bad of [
+    { ...ARGS, provider: "icloud" },
+    { ...ARGS, ownerId: "maya" },
+    { ...ARGS, account: "nobody" },
+    { ...ARGS, connectionId: "g1" },
+  ]) {
+    await assert.rejects(
+      () => connectProvider(h.ctx, bad as never),
+      (e) => codeOf(e) === "validation.bad_input",
+    );
   }
 });
 
@@ -51,20 +79,33 @@ test("a calendar connected while it was still called Google Calendar takes its a
   assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, calendarId!)[0]!.title, "maya@vyre.test");
   h.ctx.db.run(`UPDATE calendar_list SET title = ? WHERE id = ?`, "Work", calendarId!);
   await connectProvider(h.ctx, { ...ARGS });
-  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, calendarId!)[0]!.title, "Work", "a name the person chose is theirs");
-  const named = await connectProvider(h.ctx, { ...ARGS, ownerId: "usr_omar01", account: "omar@vyre.test", title: "Consults" });
+  assert.equal(
+    h.rows(`SELECT title FROM calendar_list WHERE id = ?`, calendarId!)[0]!.title,
+    "Work",
+    "a name the person chose is theirs",
+  );
+  const named = await connectProvider(h.ctx, {
+    ...ARGS,
+    ownerId: "usr_omar01",
+    account: "omar@vyre.test",
+    title: "Consults",
+  });
   assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, named.calendarId!)[0]!.title, "Consults");
 });
 
 test("a member may sync their own connected calendar now, with no grant: it is theirs", async () => {
   const h = admin();
   const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
-  h.denied.add(`calendar:${calendarId!}`);   // no grant at all: owning it is enough
+  h.denied.add(`calendar:${calendarId!}`); // no grant at all: owning it is enough
   h.google.pages = [{ events: [], nextSyncToken: "s1" }];
   const out = await syncNow(h.as({ kind: "person", id: MAYA }), { calendarId: calendarId! });
   assert.deepEqual(contractErrors("calendar.sync_now", "out", out), []);
   assert.equal(h.calls("google.calendar.list_events").length, 1);
-  await assert.rejects(() => syncNow(h.as({ kind: "person", id: "usr_omar01" }), { calendarId: calendarId! }), (e) => codeOf(e) === "permission.no_grant", "someone else's private calendar is not theirs to sync");
+  await assert.rejects(
+    () => syncNow(h.as({ kind: "person", id: "usr_omar01" }), { calendarId: calendarId! }),
+    (e) => codeOf(e) === "permission.no_grant",
+    "someone else's private calendar is not theirs to sync",
+  );
 });
 
 test("a provider calendar has no last sync until a pull works, then carries when; a failed pull keeps the last good time", async () => {
@@ -82,23 +123,48 @@ test("a provider calendar has no last sync until a pull works, then carries when
   h.ctx.db.run(`UPDATE calendar_list SET "remoteId" = ? WHERE id = ?`, null, calendarId!);
   await syncNow(maya, { calendarId: calendarId! });
   const after = await read();
-  assert.deepEqual([after.state, after.lastSyncAt], ["error", first.lastSyncAt], "the failure is the state; the last good pull is still when it was");
+  assert.deepEqual(
+    [after.state, after.lastSyncAt],
+    ["error", first.lastSyncAt],
+    "the failure is the state; the last good pull is still when it was",
+  );
 });
 
 test("the Google pull is made as the calendar's account, even when the server runs it", async () => {
   const h = admin();
   const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
-  h.google.pages = [{ events: [{ id: "g1", status: "confirmed", summary: "Intake", start: { dateTime: iso(at(1, 10)) }, end: { dateTime: iso(at(1, 11)) } }], nextSyncToken: "s1" }];
+  h.google.pages = [
+    {
+      events: [
+        {
+          id: "g1",
+          status: "confirmed",
+          summary: "Intake",
+          start: { dateTime: iso(at(1, 10)) },
+          end: { dateTime: iso(at(1, 11)) },
+        },
+      ],
+      nextSyncToken: "s1",
+    },
+  ];
   await syncNow(h.ctx, { calendarId: calendarId! });
   const asked = h.calls("google.calendar.list_events");
   assert.equal(asked.length, 1);
-  assert.deepEqual([asked[0]!.input.connectionId, asked[0]!.input.calendarId, asked[0]!.input.as], ["con_g01", "primary", "maya@vyre.test"]);
+  assert.deepEqual(
+    [asked[0]!.input.connectionId, asked[0]!.input.calendarId, asked[0]!.input.as],
+    ["con_g01", "primary", "maya@vyre.test"],
+  );
   assert.equal(h.rows(`SELECT title FROM calendar_event WHERE "calendarId" = ?`, calendarId!)[0]!.title, "Intake");
 });
 
 test("the Microsoft pull is made as the account and names no calendar for the default one", async () => {
   const h = admin();
-  const { calendarId } = await connectProvider(h.ctx, { provider: "microsoft", ownerId: MAYA, account: "maya@vyre.test", connectionId: "con_m01" });
+  const { calendarId } = await connectProvider(h.ctx, {
+    provider: "microsoft",
+    ownerId: MAYA,
+    account: "maya@vyre.test",
+    connectionId: "con_m01",
+  });
   await syncNow(h.ctx, { calendarId: calendarId! });
   const asked = h.calls("ms.calendar.delta");
   assert.equal(asked.length, 1);
@@ -109,7 +175,20 @@ test("the Microsoft pull is made as the account and names no calendar for the de
 test("an excluded member's calendar and its events leave Calendar; including them again makes a fresh one", async () => {
   const h = admin();
   const first = await connectProvider(h.ctx, { ...ARGS });
-  h.google.pages = [{ events: [{ id: "g1", status: "confirmed", summary: "Intake", start: { dateTime: iso(at(1, 10)) }, end: { dateTime: iso(at(1, 11)) } }], nextSyncToken: "s1" }];
+  h.google.pages = [
+    {
+      events: [
+        {
+          id: "g1",
+          status: "confirmed",
+          summary: "Intake",
+          start: { dateTime: iso(at(1, 10)) },
+          end: { dateTime: iso(at(1, 11)) },
+        },
+      ],
+      nextSyncToken: "s1",
+    },
+  ];
   await syncNow(h.ctx, { calendarId: first.calendarId! });
   assert.equal(h.rows(`SELECT id FROM calendar_event WHERE deleted_at IS NULL`).length, 1);
 
@@ -118,7 +197,7 @@ test("an excluded member's calendar and its events leave Calendar; including the
   assert.equal(h.rows(`SELECT id FROM calendar_list WHERE deleted_at IS NULL`).length, 0);
   assert.equal(h.rows(`SELECT id FROM calendar_event WHERE deleted_at IS NULL`).length, 0);
   assert.equal(h.named("calendar_event.deleted").length, 1);
-  assert.deepEqual(await connectProvider(h.ctx, { ...ARGS, connected: false }), { created: false });   // already gone: nothing to remove
+  assert.deepEqual(await connectProvider(h.ctx, { ...ARGS, connected: false }), { created: false }); // already gone: nothing to remove
 
   const back = await connectProvider(h.ctx, { ...ARGS });
   assert.equal(back.created, true);

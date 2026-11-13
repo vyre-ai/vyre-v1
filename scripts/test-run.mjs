@@ -16,41 +16,73 @@ import { ensureDeps } from "./shots/ensure-deps.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER_VERSION = "2";
-const MAX_SLOW = 68;   // keep equal to MAX_ENTRIES in slow-check.ts (scripts/slow-check.test.ts fails when they differ)
+const MAX_SLOW = 68; // keep equal to MAX_ENTRIES in slow-check.ts (scripts/slow-check.test.ts fails when they differ)
 const arg = (n) => process.argv.includes(n);
-const val = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+const val = (n) => {
+  const i = process.argv.indexOf(n);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
 
 const read = (f) => fs.readFileSync(path.join(REPO, f), "utf8");
-const tracked = new Set(spawnSync("git", ["ls-files"], { cwd: REPO, encoding: "utf8" }).stdout.split("\n").filter(Boolean));
+const tracked = new Set(
+  spawnSync("git", ["ls-files"], { cwd: REPO, encoding: "utf8" }).stdout.split("\n").filter(Boolean),
+);
 const slow = JSON.parse(read("test/slow.json"));
 const counted = slow.filter((s) => s.perf !== true).length;
-if (counted > MAX_SLOW) { console.error(`test/slow.json has ${counted} entries, cap is ${MAX_SLOW}`); process.exit(1); }
+if (counted > MAX_SLOW) {
+  console.error(`test/slow.json has ${counted} entries, cap is ${MAX_SLOW}`);
+  process.exit(1);
+}
 const slowBy = new Map(slow.map((s) => [s.file, s]));
-for (const s of slow) if (!(s.capSec <= 120) || !s.owner || !s.reason) { console.error(`slow entry ${s.file} needs capSec<=120, owner, reason`); process.exit(1); }
+for (const s of slow)
+  if (!(s.capSec <= 120) || !s.owner || !s.reason) {
+    console.error(`slow entry ${s.file} needs capSec<=120, owner, reason`);
+    process.exit(1);
+  }
 
 let files;
 if (arg("--files")) files = process.argv.slice(process.argv.indexOf("--files") + 1).filter((a) => !a.startsWith("--"));
 else if (arg("--affected")) {
-  const sel = spawnSync("node", [path.join(REPO, "scripts/ci-select.mjs"), val("--affected") || "origin/main"], { cwd: REPO, encoding: "utf8" });
-  if (sel.status !== 0) { process.stderr.write(sel.stderr); process.exit(1); }
+  const sel = spawnSync("node", [path.join(REPO, "scripts/ci-select.mjs"), val("--affected") || "origin/main"], {
+    cwd: REPO,
+    encoding: "utf8",
+  });
+  if (sel.status !== 0) {
+    process.stderr.write(sel.stderr);
+    process.exit(1);
+  }
   const r = JSON.parse(sel.stdout);
   console.log(`select: ${r.all ? "all" : r.files.length + " files"} ${r.why.join("; ")}`);
   files = r.all ? [...tracked].filter((f) => TEST.test(f)) : r.files;
 } else files = [...tracked].filter((f) => TEST.test(f));
 files = files.filter((f) => TEST.test(f) && tracked.has(f)).sort();
-for (const e of withPatternSlow(files, slow, read)) slowBy.set(e.file, e);   // slow by pattern (golden steps) as well as by list
+for (const e of withPatternSlow(files, slow, read)) slowBy.set(e.file, e); // slow by pattern (golden steps) as well as by list
 files = files.filter((f) => (arg("--slow") ? slowBy.has(f) : !slowBy.has(f)));
 
 // Perf files (test/slow.json "perf": true) run only where speed is measured: skipped in every other shard, one line each.
-{ const sp = splitPerf(files, slow, process.env); for (const f of sp.skipped) console.log(`skip (perf) ${f}`); files = sp.run; }
+{
+  const sp = splitPerf(files, slow, process.env);
+  for (const f of sp.skipped) console.log(`skip (perf) ${f}`);
+  files = sp.run;
+}
 
 const shard = (val("--shard") || "1/1").split("/").map(Number);
 files = files.filter((_, i) => i % shard[1] === shard[0] - 1);
 
 const cacheDir = (() => {
-  for (const d of [process.env.VYRE_PASS_CACHE, "/var/lib/ci-run/pass-cache-v1", path.join(os.tmpdir(), "pass-cache-v1")]) {
+  for (const d of [
+    process.env.VYRE_PASS_CACHE,
+    "/var/lib/ci-run/pass-cache-v1",
+    path.join(os.tmpdir(), "pass-cache-v1"),
+  ]) {
     if (!d) continue;
-    try { fs.mkdirSync(d, { recursive: true }); fs.accessSync(d, fs.constants.W_OK); return d; } catch { /* next */ }
+    try {
+      fs.mkdirSync(d, { recursive: true });
+      fs.accessSync(d, fs.constants.W_OK);
+      return d;
+    } catch {
+      /* next */
+    }
   }
   return null;
 })();
@@ -61,49 +93,82 @@ const env = { node: process.version, runner: RUNNER_VERSION, tag: process.env.VY
 const needsTsx = (f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(read(f));
 const tsxArgs = ["--import", "tsx", "--import", path.join(REPO, "scripts/shots/rn-alias.mjs")];
 if (files.some(needsTsx)) await ensureDeps(REPO);
-const nocache = (f) => noCache(read(f));   // @nocache, or a test that lists a directory (scripts/lib/graph.mjs)
+const nocache = (f) => noCache(read(f)); // @nocache, or a test that lists a directory (scripts/lib/graph.mjs)
 
 /** A file whose every test was skipped (it ran nothing): the first skip's reason. Null when any test ran. A skip is not a pass (same rule as test-run.ts allSkipped). */
 const allSkipped = (out) => {
   const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
-  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0) return null;
+  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0)
+    return null;
   return /^\s*﹣ .*? # (.+)$/m.exec(out)?.[1]?.trim() ?? "no reason given";
 };
 
-const run = (f) => new Promise((resolve) => {
-  const cap = (slowBy.get(f)?.capSec ?? 30) * 1000 /* ruling 52: 30 s fast cap, was 20 */, t0 = Date.now();
-  const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
-  const marker = key && path.join(cacheDir, key);
-  if (marker && fs.existsSync(marker)) return resolve({ f, ok: true, cached: true, ms: 0 });
-  endGroupsOnExit();
-  const p = spawnGroup(process.execPath, [...(needsTsx(f) ? tsxArgs : []), "--test", `--test-timeout=${cap}`, f], { cwd: REPO, env: needsTsx(f) ? { ...process.env, TSX_TSCONFIG_PATH: path.join(REPO, "tsconfig.base.json") } : process.env, stdio: ["ignore", "pipe", "pipe"] });
-  let out = "";
-  p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
-  // the watchdog ends the file's whole process group (scripts/lib/proc-group.mjs), and so does the file's end: nothing it started outlives it
-  const dog = setTimeout(() => { out += `\nwatchdog: ${f} exceeded ${cap / 1000} s\n`; void killGroup(p); }, cap + 2000);
-  p.on("close", async (code) => {
-    clearTimeout(dog);
-    if (!(await killGroup(p))) out += `\n${f}: some of its processes were still there 5 s after the file ended\n`;
-    const ms = Date.now() - t0, ok = code === 0;
-    const skip = ok ? allSkipped(out) : null;
-    if (ok && !skip && marker) { try { fs.writeFileSync(marker, JSON.stringify({ key, durationMs: ms, file: f })); } catch { /* cache is best effort */ } }
-    resolve({ f, ok, cached: false, ms, out, skip });
+const run = (f) =>
+  new Promise((resolve) => {
+    const cap = (slowBy.get(f)?.capSec ?? 30) * 1000 /* ruling 52: 30 s fast cap, was 20 */,
+      t0 = Date.now();
+    const key = useCache && !nocache(f) ? cacheKey(f, fwd, read, env) : null;
+    const marker = key && path.join(cacheDir, key);
+    if (marker && fs.existsSync(marker)) return resolve({ f, ok: true, cached: true, ms: 0 });
+    endGroupsOnExit();
+    const p = spawnGroup(process.execPath, [...(needsTsx(f) ? tsxArgs : []), "--test", `--test-timeout=${cap}`, f], {
+      cwd: REPO,
+      env: needsTsx(f) ? { ...process.env, TSX_TSCONFIG_PATH: path.join(REPO, "tsconfig.base.json") } : process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (out += d));
+    // the watchdog ends the file's whole process group (scripts/lib/proc-group.mjs), and so does the file's end: nothing it started outlives it
+    const dog = setTimeout(() => {
+      out += `\nwatchdog: ${f} exceeded ${cap / 1000} s\n`;
+      void killGroup(p);
+    }, cap + 2000);
+    p.on("close", async (code) => {
+      clearTimeout(dog);
+      if (!(await killGroup(p))) out += `\n${f}: some of its processes were still there 5 s after the file ended\n`;
+      const ms = Date.now() - t0,
+        ok = code === 0;
+      const skip = ok ? allSkipped(out) : null;
+      if (ok && !skip && marker) {
+        try {
+          fs.writeFileSync(marker, JSON.stringify({ key, durationMs: ms, file: f }));
+        } catch {
+          /* cache is best effort */
+        }
+      }
+      resolve({ f, ok, cached: false, ms, out, skip });
+    });
   });
-});
 
 const jobs = Number(val("--jobs")) || Math.max(2, Math.floor(os.cpus().length / 2));
-const results = [], queue = [...files];
+const results = [],
+  queue = [...files];
 const t0 = Date.now();
-await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) results.push(await run(queue.shift())); }));
+await Promise.all(
+  Array.from({ length: Math.min(jobs, queue.length) }, async () => {
+    while (queue.length) results.push(await run(queue.shift()));
+  }),
+);
 for (const r of results.sort((a, b) => a.f.localeCompare(b.f))) {
-  if (r.skip) { console.log(`skip ${r.f} (${r.skip})`); continue; }
+  if (r.skip) {
+    console.log(`skip ${r.f} (${r.skip})`);
+    continue;
+  }
   console.log(`${r.ok ? "ok  " : "FAIL"} ${r.f} ${r.cached ? "(cached)" : r.ms + " ms"}`);
   if (!r.ok) console.log(r.out);
 }
 const failed = results.filter((r) => !r.ok);
 const cachedN = results.filter((r) => r.cached).length;
-console.log(`${results.length} files, ${cachedN} cached, ${failed.length} failed, ${results.filter((r) => r.skip).length} skipped, ${Date.now() - t0} ms, shard ${shard.join("/")}`);
+console.log(
+  `${results.length} files, ${cachedN} cached, ${failed.length} failed, ${results.filter((r) => r.skip).length} skipped, ${Date.now() - t0} ms, shard ${shard.join("/")}`,
+);
 // a cached pass did not run this time: say how many, on the run page too, so a green shard of replayed passes is visible
-console.log(`pass cache: ${cachedN} of ${results.length} files in shard ${shard.join("/")} were served from a cached pass and did not run`);
-if (process.env.GITHUB_ACTIONS === "true") console.log(`::notice title=pass cache::${cachedN} of ${results.length} files in this job were served from a cached pass and did not run`);
+console.log(
+  `pass cache: ${cachedN} of ${results.length} files in shard ${shard.join("/")} were served from a cached pass and did not run`,
+);
+if (process.env.GITHUB_ACTIONS === "true")
+  console.log(
+    `::notice title=pass cache::${cachedN} of ${results.length} files in this job were served from a cached pass and did not run`,
+  );
 process.exit(failed.length ? 1 : 0);

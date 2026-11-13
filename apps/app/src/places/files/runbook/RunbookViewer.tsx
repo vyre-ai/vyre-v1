@@ -17,7 +17,23 @@ import { Glyph } from "./icons.tsx";
 import { Prose } from "./Prose.tsx";
 import { RunsList } from "./RunbookHistory.tsx";
 import {
-  SERVER, activeAll, allSummary, blockIds, fmtDuration, fmtTime, hasOutputPanel, highlight, isActive, latestByBlock, outputText, progressLine, runnableCount, sameTarget, splitRunbook, statusWords, targetName,
+  SERVER,
+  activeAll,
+  allSummary,
+  blockIds,
+  fmtDuration,
+  fmtTime,
+  hasOutputPanel,
+  highlight,
+  isActive,
+  latestByBlock,
+  outputText,
+  progressLine,
+  runnableCount,
+  sameTarget,
+  splitRunbook,
+  statusWords,
+  targetName,
 } from "./model.ts";
 import type { BlockRow, BlockStatus, Parse, RunRow, Segment, Target, TargetRow, Tok } from "./model.ts";
 import { Dot, OutputPre, Spinner, Tile, webProps } from "./parts.tsx";
@@ -72,7 +88,13 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
   const run = (b: BlockRow): void => {
     setNotice(null);
     setBusy((x) => ({ ...x, [b.blockId]: true }));
-    void runBlock(data.call, { fileId, blockId: b.blockId, target, ...(versionId ? { versionId } : {}), at: data.clock().now }).then((r) => {
+    void runBlock(data.call, {
+      fileId,
+      blockId: b.blockId,
+      target,
+      ...(versionId ? { versionId } : {}),
+      at: data.clock().now,
+    }).then((r) => {
       setBusy((x) => ({ ...x, [b.blockId]: false }));
       setShut((x) => ({ ...x, [b.blockId]: false }));
       say(r);
@@ -86,18 +108,33 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
 
   const chooseTarget = (t: Target): void => {
     setPicked(t);
-    void setTarget(data.call, fileId, t).then((r) => { if (!r.ok) { setPicked(null); say(r); } });
+    void setTarget(data.call, fileId, t).then((r) => {
+      if (!r.ok) {
+        setPicked(null);
+        say(r);
+      }
+    });
   };
   const whereMenu = (e: unknown): void => {
-    const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+    const ev = e as {
+      currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+      nativeEvent?: { pageX?: number; pageY?: number };
+    };
     const box = ev.currentTarget?.getBoundingClientRect?.();
-    const x = box ? box.left : ev.nativeEvent?.pageX ?? 0;
-    const y = box ? box.bottom + 4 : ev.nativeEvent?.pageY ?? 0;
+    const x = box ? box.left : (ev.nativeEvent?.pageX ?? 0);
+    const y = box ? box.bottom + 4 : (ev.nativeEvent?.pageY ?? 0);
     const computers = targets.filter((t) => t.target.kind === "computer");
-    const items: MenuEntry[] = [{ label: "Space server", checked: sameTarget(target, SERVER), onSelect: () => chooseTarget(SERVER) }];
+    const items: MenuEntry[] = [
+      { label: "Space server", checked: sameTarget(target, SERVER), onSelect: () => chooseTarget(SERVER) },
+    ];
     if (computers.length) {
       items.push({ separator: true }, { head: "An agent's computer" });
-      for (const t of computers) items.push({ label: t.online ? t.name : `${t.name} (offline)`, checked: sameTarget(target, t.target), ...(t.online ? { onSelect: () => chooseTarget(t.target) } : {}) });
+      for (const t of computers)
+        items.push({
+          label: t.online ? t.name : `${t.name} (offline)`,
+          checked: sameTarget(target, t.target),
+          ...(t.online ? { onSelect: () => chooseTarget(t.target) } : {}),
+        });
     }
     menu.show(items, x, y, "other");
   };
@@ -110,7 +147,11 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
       const hidden = shut[b.blockId] === true;
       const id = b.blockId;
       const runId = s.runId;
-      items.push({ separator: true }, { label: hidden ? "Show Output" : "Hide Output", onSelect: () => setShut((m) => ({ ...m, [id]: !hidden })) }, { label: "Clear Output", onSelect: () => setCleared((m) => ({ ...m, [id]: runId })) });
+      items.push(
+        { separator: true },
+        { label: hidden ? "Show Output" : "Hide Output", onSelect: () => setShut((m) => ({ ...m, [id]: !hidden })) },
+        { label: "Clear Output", onSelect: () => setCleared((m) => ({ ...m, [id]: runId })) },
+      );
     }
     menu.show(items, x, y, "context");
   };
@@ -118,7 +159,10 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
   const pieces: ReactElement[] = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i] as Segment;
-    if (seg.kind === "prose") { pieces.push(<Prose key={i} text={seg.text} />); continue; }
+    if (seg.kind === "prose") {
+      pieces.push(<Prose key={i} text={seg.text} />);
+      continue;
+    }
     const b = seg.runIndex === null ? undefined : byIndex.get(seg.runIndex);
     const s = b ? latest.get(b.blockId) : undefined;
     const shown = s !== undefined && b !== undefined && cleared[b.blockId] !== s.runId ? s : undefined;
@@ -136,9 +180,15 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
         where={shown ? targetName(shown.target, targets) : where}
         now={c.now}
         offsetMin={c.offsetMin}
-        onRun={() => { if (b) run(b); }}
-        onStop={() => { if (shown) stop(shown.runId); }}
-        onToggle={() => { if (b) setShut((x) => ({ ...x, [b.blockId]: !x[b.blockId] })); }}
+        onRun={() => {
+          if (b) run(b);
+        }}
+        onStop={() => {
+          if (shown) stop(shown.runId);
+        }}
+        onToggle={() => {
+          if (b) setShut((x) => ({ ...x, [b.blockId]: !x[b.blockId] }));
+        }}
         onMenu={(x, y) => blockMenu(b, seg.code, shown, x, y)}
       />,
     );
@@ -149,35 +199,70 @@ export function RunbookViewer({ fileId, versionId, text, withRuns = true }: Runb
       {count > 0 ? (
         <View style={st.bar} testID="runbook-bar">
           <Text style={st.barLabel}>Runs on</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Runs on ${where}`} onPress={whereMenu} testID="runbook-where" style={st.where} {...webProps({ "aria-haspopup": "menu", title: "Where the commands run" })}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Runs on ${where}`}
+            onPress={whereMenu}
+            testID="runbook-where"
+            style={st.where}
+            {...webProps({ "aria-haspopup": "menu", title: "Where the commands run" })}
+          >
             {target.kind === "server" ? <Glyph name="server" size={14} /> : <Tile name={where} size={16} />}
-            <Text numberOfLines={1} style={st.whereText}>{where}</Text>
+            <Text numberOfLines={1} style={st.whereText}>
+              {where}
+            </Text>
             <Glyph name="chevd" size={11} />
           </Pressable>
           <View style={st.grow} />
           {going ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={progressLine(going, order)} onPress={() => stop(going.runId)} testID="runbook-stop-all" style={st.hm}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={progressLine(going, order)}
+              onPress={() => stop(going.runId)}
+              testID="runbook-stop-all"
+              style={st.hm}
+            >
               <Glyph name="stop" size={11} color="var(--ink-2)" />
               <Text style={st.hmText}>{progressLine(going, order)}</Text>
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Run all" accessibilityState={{ disabled: anyActive || blocks.length === 0 }} disabled={anyActive || blocks.length === 0} onPress={runEverything} testID="runbook-run-all" style={[st.hm, (anyActive || blocks.length === 0) && st.dim]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Run all"
+              accessibilityState={{ disabled: anyActive || blocks.length === 0 }}
+              disabled={anyActive || blocks.length === 0}
+              onPress={runEverything}
+              testID="runbook-run-all"
+              style={[st.hm, (anyActive || blocks.length === 0) && st.dim]}
+            >
               <Glyph name="play" size={11} color="var(--ink-2)" />
               <Text style={st.hmText}>Run all</Text>
             </Pressable>
           )}
         </View>
       ) : (
-        <Text style={st.quiet} testID="runbook-empty">No shell blocks in this file</Text>
+        <Text style={st.quiet} testID="runbook-empty">
+          No shell blocks in this file
+        </Text>
       )}
-      {notice ? <Text accessibilityRole="alert" role="alert" style={st.notice} testID="runbook-notice">{notice}</Text> : null}
-      {summary && count > 0 ? <Text accessibilityRole="summary" style={[st.summary, failedSummary && st.summaryBad]} testID="runbook-summary">{summary}</Text> : null}
+      {notice ? (
+        <Text accessibilityRole="alert" role="alert" style={st.notice} testID="runbook-notice">
+          {notice}
+        </Text>
+      ) : null}
+      {summary && count > 0 ? (
+        <Text accessibilityRole="summary" style={[st.summary, failedSummary && st.summaryBad]} testID="runbook-summary">
+          {summary}
+        </Text>
+      ) : null}
 
       {pieces}
 
       {withRuns && runs.length ? (
         <View style={st.runs}>
-          <Text accessibilityRole="header" style={st.runsHead}>Runs</Text>
+          <Text accessibilityRole="header" style={st.runsHead}>
+            Runs
+          </Text>
           <RunsList runs={runs} order={order} targets={targets} />
         </View>
       ) : null}
@@ -206,7 +291,12 @@ interface CodeBlockProps {
   onMenu(x: number, y: number): void;
 }
 
-const TOK_COLOR: Record<Tok["kind"], string> = { k: "var(--accent)", s: "var(--ok)", c: "var(--ink-3)", t: "var(--ink)" };
+const TOK_COLOR: Record<Tok["kind"], string> = {
+  k: "var(--accent)",
+  s: "var(--ok)",
+  c: "var(--ink-3)",
+  t: "var(--ink)",
+};
 
 function CodeBlock(p: CodeBlockProps): ReactElement {
   const [over, setOver] = useState(false);
@@ -219,9 +309,18 @@ function CodeBlock(p: CodeBlockProps): ReactElement {
     const parts = highlight(lines[i] as string);
     for (let j = 0; j < parts.length; j++) {
       const t = parts[j] as Tok;
-      toks.push(<Text key={j} style={{ color: TOK_COLOR[t.kind] as string }}>{t.text}</Text>);
+      toks.push(
+        <Text key={j} style={{ color: TOK_COLOR[t.kind] as string }}>
+          {t.text}
+        </Text>,
+      );
     }
-    codeLines.push(<Text key={i}>{toks}{i < lines.length - 1 ? "\n" : ""}</Text>);
+    codeLines.push(
+      <Text key={i}>
+        {toks}
+        {i < lines.length - 1 ? "\n" : ""}
+      </Text>,
+    );
   }
   return (
     <Pressable
@@ -251,28 +350,70 @@ function CodeBlock(p: CodeBlockProps): ReactElement {
           </Pressable>
         ) : null}
       </View>
-      <Text selectable style={st.code} testID="block-code">{codeLines}</Text>
-      {p.status && p.block ? <BlockOutput blockId={p.block.blockId} status={p.status} shut={p.shut} where={p.where} now={p.now} offsetMin={p.offsetMin} onToggle={p.onToggle} /> : null}
+      <Text selectable style={st.code} testID="block-code">
+        {codeLines}
+      </Text>
+      {p.status && p.block ? (
+        <BlockOutput
+          blockId={p.block.blockId}
+          status={p.status}
+          shut={p.shut}
+          where={p.where}
+          now={p.now}
+          offsetMin={p.offsetMin}
+          onToggle={p.onToggle}
+        />
+      ) : null}
     </Pressable>
   );
 }
 
-function BlockOutput({ blockId, status, shut, where, now, offsetMin, onToggle }: { blockId: string; status: BlockStatus; shut: boolean; where: string; now: number; offsetMin: number; onToggle: () => void }): ReactElement {
+function BlockOutput({
+  blockId,
+  status,
+  shut,
+  where,
+  now,
+  offsetMin,
+  onToggle,
+}: {
+  blockId: string;
+  status: BlockStatus;
+  shut: boolean;
+  where: string;
+  now: number;
+  offsetMin: number;
+  onToggle: () => void;
+}): ReactElement {
   const panel = hasOutputPanel(status);
   const out = useRunbookQuery<GetOut>("output", { runId: status.runId, blockId }, panel && !shut);
   const words = statusWords(status);
-  if (!panel) return <Text style={st.skipped} testID={`output-${blockId}`}>{words.text}</Text>;
+  if (!panel)
+    return (
+      <Text style={st.skipped} testID={`output-${blockId}`}>
+        {words.text}
+      </Text>
+    );
   const text = out.status === "ready" ? outputText(out.data.output, blockId) : "";
   return (
     <View style={st.out} testID={`output-${blockId}`}>
       <View style={st.outHead}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${shut ? "Show" : "Hide"} output`} aria-expanded={!shut} onPress={onToggle} testID={`toggle-${blockId}`} style={st.tog}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${shut ? "Show" : "Hide"} output`}
+          aria-expanded={!shut}
+          onPress={onToggle}
+          testID={`toggle-${blockId}`}
+          style={st.tog}
+        >
           <Glyph name={shut ? "chevr" : "chevd"} size={12} />
         </Pressable>
         <View style={st.statusWrap} accessibilityRole="status">
           {words.tone === "run" ? <Spinner size={12} /> : <Dot tone={words.tone} />}
           <Text style={[st.statusText, words.tone === "bad" && st.statusBad]}>{words.text}</Text>
-          {status.ms !== undefined && words.tone !== "run" ? <Text style={st.statusMs}>{fmtDuration(status.ms)}</Text> : null}
+          {status.ms !== undefined && words.tone !== "run" ? (
+            <Text style={st.statusMs}>{fmtDuration(status.ms)}</Text>
+          ) : null}
         </View>
         <View style={st.grow} />
         <View style={st.who}>
@@ -287,9 +428,26 @@ function BlockOutput({ blockId, status, shut, where, now, offsetMin, onToggle }:
 
 const st = StyleSheet.create({
   page: { width: "100%", maxWidth: 720 },
-  bar: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   barLabel: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  where: { height: 28, paddingHorizontal: 8, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 7, maxWidth: 260 },
+  where: {
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    maxWidth: 260,
+  },
   whereText: { flexShrink: 1, fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   grow: { flex: 1 },
   hm: { height: 28, paddingHorizontal: 8, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
@@ -299,13 +457,30 @@ const st = StyleSheet.create({
   notice: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string, marginBottom: 10 },
   summary: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginBottom: 10 },
   summaryBad: { color: "var(--warn)" as string },
-  block: { marginTop: 10, marginBottom: 16, borderRadius: 10, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
+  block: {
+    marginTop: 10,
+    marginBottom: 16,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+    overflow: "hidden",
+  },
   blockHead: { flexDirection: "row", alignItems: "center", minHeight: 30, paddingLeft: 14, paddingRight: 6 },
-  lang: { fontFamily: "ui-monospace, Menlo, \"JetBrains Mono\", monospace" as string, fontSize: 11, color: "var(--ink-3)" as string },
+  lang: {
+    fontFamily: 'ui-monospace, Menlo, "JetBrains Mono", monospace' as string,
+    fontSize: 11,
+    color: "var(--ink-3)" as string,
+  },
   runBtn: { height: 24, paddingHorizontal: 9, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 },
   runText: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   runTextWarm: { color: "var(--accent)" as string },
-  code: { fontFamily: "ui-monospace, Menlo, \"JetBrains Mono\", monospace" as string, fontSize: 12.5, lineHeight: 20, color: "var(--ink)" as string, paddingHorizontal: 16, paddingBottom: 14 },
+  code: {
+    fontFamily: 'ui-monospace, Menlo, "JetBrains Mono", monospace' as string,
+    fontSize: 12.5,
+    lineHeight: 20,
+    color: "var(--ink)" as string,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
   out: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   outHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 32, paddingLeft: 6, paddingRight: 12 },
   tog: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
@@ -317,5 +492,11 @@ const st = StyleSheet.create({
   whoText: { flexShrink: 1, fontSize: 12, color: "var(--ink-3)" as string },
   skipped: { paddingHorizontal: 14, paddingBottom: 10, fontSize: 12, color: "var(--ink-3)" as string },
   runs: { marginTop: 8 },
-  runsHead: { marginHorizontal: 8, marginBottom: 4, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  runsHead: {
+    marginHorizontal: 8,
+    marginBottom: 4,
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "var(--ink-3)" as string,
+  },
 });

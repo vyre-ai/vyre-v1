@@ -5,7 +5,8 @@ import { actorOf, ensure, factOut, makeAccess, orNull, readFact, rowsOf, str, nu
 import type { MemCtx } from "../projections.ts";
 import { findQuotes } from "./quotes.ts";
 
-const TABLE = "CREATE TABLE IF NOT EXISTS memory_recall_log (thread_id TEXT NOT NULL, message_id TEXT NOT NULL, agent_id TEXT, asker TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, PRIMARY KEY (thread_id, message_id, kind, ref))";
+const TABLE =
+  "CREATE TABLE IF NOT EXISTS memory_recall_log (thread_id TEXT NOT NULL, message_id TEXT NOT NULL, agent_id TEXT, asker TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL, PRIMARY KEY (thread_id, message_id, kind, ref))";
 const INDEX = "CREATE INDEX IF NOT EXISTS memory_recall_log_at ON memory_recall_log (thread_id, at)";
 const ready = new WeakSet<object>();
 function tables(ctx: MemCtx): void {
@@ -18,13 +19,25 @@ function tables(ctx: MemCtx): void {
 
 type Line = { kind: "fact" | "quote"; ref: string };
 
-export async function recallRecord(ctx: MemCtx, input: { threadId: string; messageId: string; agentId?: string; lines: Line[] }) {
+export async function recallRecord(
+  ctx: MemCtx,
+  input: { threadId: string; messageId: string; agentId?: string; lines: Line[] },
+) {
   tables(ctx);
   const me = actorOf(ctx);
   const now = ctx.now();
   let n = 0;
   for (const l of input.lines.slice(0, 50)) {
-    ctx.db.run("INSERT OR IGNORE INTO memory_recall_log (thread_id, message_id, agent_id, asker, at, kind, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", input.threadId, input.messageId, input.agentId ?? null, me, now, l.kind, l.ref);
+    ctx.db.run(
+      "INSERT OR IGNORE INTO memory_recall_log (thread_id, message_id, agent_id, asker, at, kind, ref) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      input.threadId,
+      input.messageId,
+      input.agentId ?? null,
+      me,
+      now,
+      l.kind,
+      l.ref,
+    );
     n++;
   }
   return { recorded: n };
@@ -33,12 +46,31 @@ export async function recallRecord(ctx: MemCtx, input: { threadId: string; messa
 /** The message the recall was for: the one asked about, or (for the agent's reply) the person's message before it. */
 async function triggerOf(ctx: MemCtx, threadId: string, messageId: string): Promise<{ id: string; at: number } | null> {
   const me = actorOf(ctx);
-  const own = rowsOf(ctx.db, "SELECT at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? LIMIT 1", threadId, messageId, me)[0];
+  const own = rowsOf(
+    ctx.db,
+    "SELECT at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? LIMIT 1",
+    threadId,
+    messageId,
+    me,
+  )[0];
   if (own) return { id: messageId, at: num(own["at"]) };
   let created = 0;
-  try { created = Number(((await ctx.call("chat.message.get", { threadId, messageId })) as { message?: { createdAt?: number } }).message?.createdAt ?? 0); } catch { return null; }
+  try {
+    created = Number(
+      ((await ctx.call("chat.message.get", { threadId, messageId })) as { message?: { createdAt?: number } }).message
+        ?.createdAt ?? 0,
+    );
+  } catch {
+    return null;
+  }
   if (created === 0) return null;
-  const prior = rowsOf(ctx.db, "SELECT message_id, MAX(at) AS at FROM memory_recall_log WHERE thread_id = ? AND asker = ? AND at <= ? GROUP BY message_id ORDER BY at DESC LIMIT 1", threadId, me, created)[0];
+  const prior = rowsOf(
+    ctx.db,
+    "SELECT message_id, MAX(at) AS at FROM memory_recall_log WHERE thread_id = ? AND asker = ? AND at <= ? GROUP BY message_id ORDER BY at DESC LIMIT 1",
+    threadId,
+    me,
+    created,
+  )[0];
   return prior ? { id: str(prior["message_id"]), at: num(prior["at"]) } : null;
 }
 
@@ -47,9 +79,17 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
   const t = await triggerOf(ctx, input.threadId, input.messageId);
   if (!t) return { messageId: input.messageId, facts: [], quotes: [] };
   const me = actorOf(ctx);
-  const rows = rowsOf(ctx.db, "SELECT kind, ref, agent_id, at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? ORDER BY rowid", input.threadId, t.id, me);
+  const rows = rowsOf(
+    ctx.db,
+    "SELECT kind, ref, agent_id, at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? ORDER BY rowid",
+    input.threadId,
+    t.id,
+    me,
+  );
   const access = makeAccess(ctx);
-  const facts: Array<ReturnType<typeof factOut> & { kind?: string; agentId?: string; sourceTitle?: string; by?: string; byKind?: string }> = [];
+  const facts: Array<
+    ReturnType<typeof factOut> & { kind?: string; agentId?: string; sourceTitle?: string; by?: string; byKind?: string }
+  > = [];
   const titles = new Map<string, string | undefined>();
   const quotes: Awaited<ReturnType<typeof findQuotes>> = [];
   for (const r of rows) {
@@ -61,14 +101,32 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
       const a = orNull(r["agent_id"]);
       let title: string | undefined;
       if ((f.sourceKind === "chat" || f.sourceKind === "channel") && f.sourceRef) {
-        if (!titles.has(f.sourceRef)) { try { titles.set(f.sourceRef, ((await ctx.call("threads.get", { threadId: f.sourceRef })) as { thread?: { title?: string } }).thread?.title); } catch { titles.set(f.sourceRef, undefined); } }
+        if (!titles.has(f.sourceRef)) {
+          try {
+            titles.set(
+              f.sourceRef,
+              ((await ctx.call("threads.get", { threadId: f.sourceRef })) as { thread?: { title?: string } }).thread
+                ?.title,
+            );
+          } catch {
+            titles.set(f.sourceRef, undefined);
+          }
+        }
         title = titles.get(f.sourceRef);
       }
-      facts.push({ ...factOut(f), ...(f.layer !== "person" && f.sourcePerson ? { by: f.sourcePerson, byKind: f.sourcePerson.startsWith("agt_") ? "agent" : "person" } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(a ? { agentId: a } : {}), ...(title ? { sourceTitle: title } : {}) });
+      facts.push({
+        ...factOut(f),
+        ...(f.layer !== "person" && f.sourcePerson
+          ? { by: f.sourcePerson, byKind: f.sourcePerson.startsWith("agt_") ? "agent" : "person" }
+          : {}),
+        ...(f.kind ? { kind: f.kind } : {}),
+        ...(a ? { agentId: a } : {}),
+        ...(title ? { sourceTitle: title } : {}),
+      });
     } else {
-      for (const q of await findQuotes(ctx, { ref: str(r["ref"]) })) if (await access.showsFrom(q.threadId)) quotes.push(q);
+      for (const q of await findQuotes(ctx, { ref: str(r["ref"]) }))
+        if (await access.showsFrom(q.threadId)) quotes.push(q);
     }
   }
   return { messageId: t.id, at: t.at, facts, quotes };
 }
-

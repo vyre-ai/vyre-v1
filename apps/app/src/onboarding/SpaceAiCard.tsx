@@ -31,9 +31,21 @@ export function setupConsoleData(call: CapCall, me: { id: string; name: string }
   };
 }
 
-export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", name: "" }, initial = "space", home = "here" }: {
-  team: CapCall; /** the Personal Space on this device, when there is one */ personal: CapCall | null; onConnected(providerId: string): void;
-  gate?(save: (() => Promise<boolean>) | null): void; me?: { id: string; name: string }; initial?: SpaceAiChoice;
+export function SpaceAiCard({
+  team,
+  personal,
+  onConnected,
+  gate,
+  me = { id: "", name: "" },
+  initial = "space",
+  home = "here",
+}: {
+  team: CapCall;
+  /** the Personal Space on this device, when there is one */ personal: CapCall | null;
+  onConnected(providerId: string): void;
+  gate?(save: (() => Promise<boolean>) | null): void;
+  me?: { id: string; name: string };
+  initial?: SpaceAiChoice;
   /** Where the Space runs, for the words of a refused save (ai-signin/own-ai.ts). */
   home?: AiHome;
 }): ReactElement {
@@ -45,8 +57,14 @@ export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", 
   useEffect(() => {
     if (!personal) return undefined;
     let off = false;
-    void copyableAccounts(personal).then((a) => { if (!off) setAccounts(a); }).catch(() => undefined);
-    return () => { off = true; };
+    void copyableAccounts(personal)
+      .then((a) => {
+        if (!off) setAccounts(a);
+      })
+      .catch(() => undefined);
+    return () => {
+      off = true;
+    };
   }, [personal]);
   useEffect(() => {
     if (!gate) return undefined;
@@ -55,27 +73,52 @@ export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", 
   }, [gate, spaceKey, mine]);
   const data = useMemo(() => setupConsoleData(team, me), [team, me.id, me.name]);
   const onState = useCallback((set: boolean) => setSpaceKey(set), []);
-  const connected = (id: string): void => { setMine(true); onConnected(id); };
+  const connected = (id: string): void => {
+    setMine(true);
+    onConnected(id);
+  };
   // the offer comes first and alone; the sign-in choices appear after "No, add a different one"
   const offered = !!personal && accounts.length > 0 && !mine && !different;
   return (
     <View testID="space-ai" style={s.col}>
       <Segmented<SpaceAiChoice>
-        label="Which AI" testID="space-ai-choice" value={choice} onChange={setChoice}
-        options={[{ id: "space", label: "A key for everyone", hint: "One key the whole Space runs on" }, { id: "mine", label: "Your own account", hint: "Only you use it" }]}
+        label="Which AI"
+        testID="space-ai-choice"
+        value={choice}
+        onChange={setChoice}
+        options={[
+          { id: "space", label: "A key for everyone", hint: "One key the whole Space runs on" },
+          { id: "mine", label: "Your own account", hint: "Only you use it" },
+        ]}
       />
       {choice === "space" ? (
         <View testID="space-ai-key" style={s.col}>
-          <ConsoleDataProvider value={data}><SpaceKey onState={onState} /></ConsoleDataProvider>
+          <ConsoleDataProvider value={data}>
+            <SpaceKey onState={onState} />
+          </ConsoleDataProvider>
         </View>
       ) : (
         <View testID="space-ai-mine" style={s.col}>
-          <Text style={s.lead}>Sign in with your Claude, ChatGPT or Grok subscription, or add a personal key. Only you use it.</Text>
-          {offered ? <SameAccountOffer personal={personal!} team={team} accounts={accounts} onCopied={connected} onDeclined={() => setDifferent(true)} /> : null}
+          <Text style={s.lead}>
+            Sign in with your Claude, ChatGPT or Grok subscription, or add a personal key. Only you use it.
+          </Text>
+          {offered ? (
+            <SameAccountOffer
+              personal={personal!}
+              team={team}
+              accounts={accounts}
+              onCopied={connected}
+              onDeclined={() => setDifferent(true)}
+            />
+          ) : null}
           {offered ? null : <ConnectAiCard home={home} call={team} connected={mine} onConnected={connected} />}
         </View>
       )}
-      {spaceKey && choice === "mine" ? <Text testID="space-ai-key-set" style={s.lead}>The Space already has a key for everyone.</Text> : null}
+      {spaceKey && choice === "mine" ? (
+        <Text testID="space-ai-key-set" style={s.lead}>
+          The Space already has a key for everyone.
+        </Text>
+      ) : null}
     </View>
   );
 }

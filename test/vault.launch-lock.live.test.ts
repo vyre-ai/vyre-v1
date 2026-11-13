@@ -21,24 +21,53 @@ const SPACE_URL = "https://team.firm.test";
 test("launch lock on a Space server: held, goes straight in; relaunched with the key lost, locked; Not now leaves her chat on the Space key with its one line; Unlock brings her Mine sign-in back", async () => {
   const stub = await vendor();
   const dir = seededDir();
-  const start = (): Promise<Daemon> => boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+  const start = (): Promise<Daemon> =>
+    boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
   let d = await start();
   const realFetch = globalThis.fetch;
   // the app reaches the Space at its https address; here that address is the daemon, as Caddy hands it on
   const through = (): void => {
-    globalThis.fetch = ((url: unknown, init?: RequestInit) => realFetch(String(url).replace(SPACE_URL, d.url), { ...init, headers: { ...(init?.headers as Record<string, string>), "x-forwarded-proto": "https", "x-forwarded-for": "203.0.113.7" } })) as typeof fetch;
+    globalThis.fetch = ((url: unknown, init?: RequestInit) =>
+      realFetch(String(url).replace(SPACE_URL, d.url), {
+        ...init,
+        headers: {
+          ...(init?.headers as Record<string, string>),
+          "x-forwarded-proto": "https",
+          "x-forwarded-for": "203.0.113.7",
+        },
+      })) as typeof fetch;
   };
-  const gate = (token: string) => remoteGateState({
-    kept: keyIsKept, rehand: () => rehandKey(SPACE_URL, token),
-    serverHolds: async () => { const k = await serverKeyState(SPACE_URL, token); return k === null ? null : k.held; },
-    passwordKey: () => passwordKeyState(SPACE_URL, token),
-  });
+  const gate = (token: string) =>
+    remoteGateState({
+      kept: keyIsKept,
+      rehand: () => rehandKey(SPACE_URL, token),
+      serverHolds: async () => {
+        const k = await serverKeyState(SPACE_URL, token);
+        return k === null ? null : k.held;
+      },
+      passwordKey: () => passwordKeyState(SPACE_URL, token),
+    });
   try {
     through();
-    assert.equal((await realFetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }) })).status, 204);
-    const ep = await ok(d, d.token, "providers.custom_add", { name: "Stub Go", baseUrl: stub.base, apiKey: SPACE_KEY, scope: "mine" });
+    assert.equal(
+      (
+        await realFetch(`${d.url}/local/vault/key/unlock`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+          body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }),
+        })
+      ).status,
+      204,
+    );
+    const ep = await ok(d, d.token, "providers.custom_add", {
+      name: "Stub Go",
+      baseUrl: stub.base,
+      apiKey: SPACE_KEY,
+      scope: "mine",
+    });
     await ok(d, d.token, "providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
-    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent.agentId as string;
+    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent
+      .agentId as string;
 
     // 1. Sara signs in with her password on this device: the key reaches the server, her Mine Claude answers, and the launch check goes straight in
     const sara = await join(d, "sara");
@@ -53,16 +82,27 @@ test("launch lock on a Space server: held, goes straight in; relaunched with the
     d = await start();
     through();
     forgetKey();
-    assert.equal(await gate(sara.token), "locked", "relaunched, the server lost it, nobody holds it, she has a password: the lock shows");
+    assert.equal(
+      await gate(sara.token),
+      "locked",
+      "relaunched, the server lost it, nobody holds it, she has a password: the lock shows",
+    );
     // Not now: her Mine sign-in stays closed and the chat is answered by the Space AI key, under the one line that says why
     const closed = await ask(d, agentId, sara, "not now");
     assert.equal(closed.reply, `ran for ${sara.personId} on the space key`);
-    const lines = ((await api(d, sara.token, "chat.messages.list", { threadId: closed.threadId })).data.messages as Array<{ blocks?: Array<{ data?: { text?: string } }> }>).flatMap((m) => (m.blocks ?? []).map((b) => b.data?.text ?? ""));
+    const lines = (
+      (await api(d, sara.token, "chat.messages.list", { threadId: closed.threadId })).data.messages as Array<{
+        blocks?: Array<{ data?: { text?: string } }>;
+      }>
+    ).flatMap((m) => (m.blocks ?? []).map((b) => b.data?.text ?? ""));
     assert.ok(lines.includes(LOCKED_SPACE_KEY_LINE), `the chat says why in one line: ${JSON.stringify(lines)}`);
 
     // the refusal reads as a locked key, in plain words, and never as a sign-out
     const items = (await api(d, sara.token, "vault.items.list", {})).data.items as Array<{ id: string }>;
-    const revealed = await api(d, sara.token, "vault.item.reveal", { itemId: items[0]!.id, idempotencyKey: "reveal-locked" });
+    const revealed = await api(d, sara.token, "vault.item.reveal", {
+      itemId: items[0]!.id,
+      idempotencyKey: "reveal-locked",
+    });
     assert.equal(revealed.status, 401);
     const err = (revealed.data as { error?: { message?: string; details?: { reason?: string } } }).error!;
     assert.equal(err.message, MINE_CLOSED);
@@ -73,7 +113,11 @@ test("launch lock on a Space server: held, goes straight in; relaunched with the
     await unlockWithPassword(SPACE_URL, sara.token, PASSWORD);
     assert.equal(keyIsKept(), true);
     assert.equal(((await (await door(d, sara.token, "status")).json()) as { held: boolean }).held, true);
-    assert.match(hostLog(d), /vault\.wrap_made/, "the unlock wrote the server's wrap of her key (it opens again after a Google or Microsoft sign-in without asking)");
+    assert.match(
+      hostLog(d),
+      /vault\.wrap_made/,
+      "the unlock wrote the server's wrap of her key (it opens again after a Google or Microsoft sign-in without asking)",
+    );
     assert.equal((await ask(d, agentId, sara, "unlocked")).reply, mine, "her Mine sign-in answers after Unlock");
     assert.equal(await gate(sara.token), "open");
   } finally {

@@ -26,7 +26,10 @@ export interface RvCtx {
   /** The capability API: gap_check reads the rules from the schema module, records.view reads the saved view from it. */
   call?: (cap: string, input: unknown) => Promise<unknown>;
   /** The host decision for the caller on one thing; the relations map leaves out what they may not see. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string }, resource: { type: string; id: string | null }) => { effect: string };
+  authorize?: (
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string },
+    resource: { type: string; id: string | null },
+  ) => { effect: string };
 }
 
 export interface RvDeps {
@@ -40,30 +43,81 @@ export interface RvDeps {
 }
 
 export type SourceKind = "agent" | "person" | "form" | "automation" | "sync" | "import";
-export interface ValueSource { kind: SourceKind; actor: string; at: number; state: "counted" | "needs_review" | "rejected"; link?: string }
-export interface GapRuleIn { ruleId: string; field: string; when: "missing" | "stale"; staleAfterDays?: number; route: "ai_field" | "agent_lookup" | "task" | "form"; enabled?: boolean }
-export interface Gap { recordId: string; field: string; reason: "missing" | "stale"; route: GapRuleIn["route"] }
+export interface ValueSource {
+  kind: SourceKind;
+  actor: string;
+  at: number;
+  state: "counted" | "needs_review" | "rejected";
+  link?: string;
+}
+export interface GapRuleIn {
+  ruleId: string;
+  field: string;
+  when: "missing" | "stale";
+  staleAfterDays?: number;
+  route: "ai_field" | "agent_lookup" | "task" | "form";
+  enabled?: boolean;
+}
+export interface Gap {
+  recordId: string;
+  field: string;
+  reason: "missing" | "stale";
+  route: GapRuleIn["route"];
+}
 
 export interface ReviewHandlers {
-  "records.changes"(ctx: RvCtx, input: { type: string; since: number; limit?: number }): Promise<{ changes: { seq: number; id: string; op: "upsert" | "patch" | "delete" }[]; next: number }>;
-  "records.completeness"(ctx: RvCtx, input: { type: string; recordId: string }): Promise<{ filled: number; total: number; missing: { field: string; title: string }[] }>;
+  "records.changes"(
+    ctx: RvCtx,
+    input: { type: string; since: number; limit?: number },
+  ): Promise<{ changes: { seq: number; id: string; op: "upsert" | "patch" | "delete" }[]; next: number }>;
+  "records.completeness"(
+    ctx: RvCtx,
+    input: { type: string; recordId: string },
+  ): Promise<{ filled: number; total: number; missing: { field: string; title: string }[] }>;
   "records.gap_check"(ctx: RvCtx, input: { type: string; recordId?: string }): Promise<{ gaps: Gap[] }>;
-  "records.relate"(ctx: RvCtx, input: { type: string; recordId: string; field: string; toId: string; unlink?: boolean }): Promise<{ record: RecordRow }>;
-  "records.value_source"(ctx: RvCtx, input: { type: string; recordId: string; field: string }): Promise<{ source: ValueSource }>;
-  "records.values.pending"(ctx: RvCtx, input: { type: string; cursor?: string; limit?: number }): Promise<{ values: { recordId: string; type: string; field: string; value?: unknown; source: ValueSource }[]; next?: string; total?: number }>;
-  "records.values.review"(ctx: RvCtx, input: { type: string; recordId: string; field: string; decision: "accept" | "reject"; note?: string }): Promise<{ record: RecordRow }>;
+  "records.relate"(
+    ctx: RvCtx,
+    input: { type: string; recordId: string; field: string; toId: string; unlink?: boolean },
+  ): Promise<{ record: RecordRow }>;
+  "records.value_source"(
+    ctx: RvCtx,
+    input: { type: string; recordId: string; field: string },
+  ): Promise<{ source: ValueSource }>;
+  "records.values.pending"(
+    ctx: RvCtx,
+    input: { type: string; cursor?: string; limit?: number },
+  ): Promise<{
+    values: { recordId: string; type: string; field: string; value?: unknown; source: ValueSource }[];
+    next?: string;
+    total?: number;
+  }>;
+  "records.values.review"(
+    ctx: RvCtx,
+    input: { type: string; recordId: string; field: string; decision: "accept" | "reject"; note?: string },
+  ): Promise<{ record: RecordRow }>;
 }
 
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 export function fail(ctx: Pick<RvCtx, "trace">, code: ErrorCode, message: string): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   throw new VyreErr(error);
@@ -92,7 +146,8 @@ export function ensureReviewTables(tx: Tx): void {
   ready.add(tx);
 }
 
-export const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
 export async function needType(store: Store, type: string): Promise<TypeDef> {
   if (!NAME.test(type)) throw new StoreError("unknown_type", `no type ${type}`);
@@ -102,7 +157,11 @@ export async function needType(store: Store, type: string): Promise<TypeDef> {
 }
 
 export const metaOf = (tx: Tx, type: string, id: string): { label: number; holds: number } =>
-  tx.get<{ label: number; holds: number }>("SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?", type, id) ?? { label: 0, holds: 0 };
+  tx.get<{ label: number; holds: number }>(
+    "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+    type,
+    id,
+  ) ?? { label: 0, holds: 0 };
 
 export const rowOf = (tx: Tx, r: StoredRecord): RecordRow => toRow(r, metaOf(tx, r.type, r.id));
 
@@ -143,8 +202,19 @@ const empty = (v: unknown): boolean => {
 };
 
 /** A field a person fills: not derived (formula, lookup, rollup, counters, stamps, buttons). */
-const DERIVED_FTYPES = new Set(["formula", "lookup", "rollup", "autonumber", "created_time", "modified_time", "created_by", "modified_by", "button"]);
-const fillable = (f: FieldDef): boolean => f["derived"] !== true && !(typeof f["ftype"] === "string" && DERIVED_FTYPES.has(f["ftype"]));
+const DERIVED_FTYPES = new Set([
+  "formula",
+  "lookup",
+  "rollup",
+  "autonumber",
+  "created_time",
+  "modified_time",
+  "created_by",
+  "modified_by",
+  "button",
+]);
+const fillable = (f: FieldDef): boolean =>
+  f["derived"] !== true && !(typeof f["ftype"] === "string" && DERIVED_FTYPES.has(f["ftype"]));
 
 /** Types whose facts the system keeps, not a person: nobody is asked to fill them in. */
 export const SYSTEM_TYPES: ReadonlySet<string> = new Set(["agent", "task", "report", "envelope", "project"]);
@@ -166,7 +236,9 @@ function changedAt(tx: Tx, type: string, id: string, field: string, fallback: nu
     const row = tx.get<{ hlc: string }>(`SELECT hlc FROM "rt_${type}__fm" WHERE id = ? AND field = ?`, id, field);
     const h = row ? parseHlc(row.hlc) : null;
     if (h) return h.ms;
-  } catch { /* the clock table is made with the first record of a type */ }
+  } catch {
+    /* the clock table is made with the first record of a type */
+  }
   return fallback;
 }
 
@@ -179,21 +251,48 @@ function kindOfActor(actor: string): SourceKind {
   return "person";
 }
 
-interface SourceDb { type: string; id: string; field: string; kind: SourceKind; actor: string; at: number; link: string | null; state: ValueSource["state"]; note: string | null }
-const sourceOf = (r: SourceDb): ValueSource => ({ kind: r.kind, actor: r.actor, at: r.at, state: r.state, ...(r.link ? { link: r.link } : {}) });
+interface SourceDb {
+  type: string;
+  id: string;
+  field: string;
+  kind: SourceKind;
+  actor: string;
+  at: number;
+  link: string | null;
+  state: ValueSource["state"];
+  note: string | null;
+}
+const sourceOf = (r: SourceDb): ValueSource => ({
+  kind: r.kind,
+  actor: r.actor,
+  at: r.at,
+  state: r.state,
+  ...(r.link ? { link: r.link } : {}),
+});
 
 /** Fold a `record.value_proposed` event (the consumer in impl.ts calls this once per event). */
 export function propose(tx: Tx, p: Record<string, unknown>, now: () => number = Date.now): void {
   ensureReviewTables(tx);
-  const type = p["type"], recordId = p["recordId"], field = p["field"], source = p["source"];
+  const type = p["type"],
+    recordId = p["recordId"],
+    field = p["field"],
+    source = p["source"];
   if (typeof type !== "string" || typeof recordId !== "string" || typeof field !== "string" || !isObj(source)) return;
-  const kind = (["agent", "person", "form", "automation", "sync", "import"] as const).find((k) => k === source["kind"]) ?? "agent";
+  const kind =
+    (["agent", "person", "form", "automation", "sync", "import"] as const).find((k) => k === source["kind"]) ?? "agent";
   const at = typeof source["at"] === "number" ? source["at"] : now();
   const state = p["reviewRequired"] === true ? "needs_review" : "counted";
   tx.run(
     `INSERT INTO records_value_sources (type, id, field, kind, actor, at, link, state, note, reviewer, reviewed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
      ON CONFLICT(type, id, field) DO UPDATE SET kind = excluded.kind, actor = excluded.actor, at = excluded.at, link = excluded.link, state = excluded.state, note = NULL, reviewer = NULL, reviewed_at = NULL`,
-    type, recordId, field, kind, typeof source["actor"] === "string" ? source["actor"] : "unknown", at, typeof source["link"] === "string" ? source["link"] : null, state,
+    type,
+    recordId,
+    field,
+    kind,
+    typeof source["actor"] === "string" ? source["actor"] : "unknown",
+    at,
+    typeof source["link"] === "string" ? source["link"] : null,
+    state,
   );
 }
 
@@ -201,7 +300,12 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
   const { tx, store } = deps;
   const now = (): number => (deps.now ?? Date.now)();
   const guard = async <T>(ctx: RvCtx, run: () => Promise<T>): Promise<T> => {
-    try { ensureReviewTables(tx); return await run(); } catch (e) { return mapError(ctx as WriteCtx, e); }
+    try {
+      ensureReviewTables(tx);
+      return await run();
+    } catch (e) {
+      return mapError(ctx as WriteCtx, e);
+    }
   };
   const need = async (type: string, id: string): Promise<StoredRecord> => {
     const r = await store.get(type, id);
@@ -213,7 +317,8 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
     if (!f) throw new StoreError("unknown_field", `${def.name} has no field ${name}`);
     return f;
   };
-  const refFor = (type: string, id: string, bare: boolean): unknown => (bare ? id : { urn: `vyre://${deps.space}/${type}/${id}` });
+  const refFor = (type: string, id: string, bare: boolean): unknown =>
+    bare ? id : { urn: `vyre://${deps.space}/${type}/${id}` };
 
   /** The relation value after linking or unlinking `id`; undefined when nothing changes. */
   const relinked = (f: FieldDef, current: unknown, target: string, id: string, unlink: boolean): unknown => {
@@ -227,156 +332,264 @@ export function createReviewHandlers(deps: RvDeps): ReviewHandlers {
   };
 
   async function pendingRow(ctx: RvCtx, type: string, id: string, field: string): Promise<SourceDb> {
-    const row = tx.get<SourceDb>("SELECT * FROM records_value_sources WHERE type = ? AND id = ? AND field = ?", type, id, field);
-    if (!row || row.state !== "needs_review") return fail(ctx, "validation.not_found", `${field} of ${type} ${id} is not waiting for review.`);
+    const row = tx.get<SourceDb>(
+      "SELECT * FROM records_value_sources WHERE type = ? AND id = ? AND field = ?",
+      type,
+      id,
+      field,
+    );
+    if (!row || row.state !== "needs_review")
+      return fail(ctx, "validation.not_found", `${field} of ${type} ${id} is not waiting for review.`);
     return row;
   }
 
   return {
-    "records.changes": (ctx, input) => guard(ctx, async () => {
-      await needType(store, input.type);
-      const limit = Math.min(Math.max(input.limit ?? PAGE, 1), PAGE_MAX);
-      const rows = tx.all<{ cursor: number; id: string; kind: string }>("SELECT cursor, id, kind FROM rs_changes WHERE type = ? AND cursor > ? ORDER BY cursor LIMIT ?", input.type, input.since, limit);
-      const op = (k: string): "upsert" | "patch" | "delete" => (k === "removed" ? "delete" : k === "updated" ? "patch" : "upsert");
-      return { changes: rows.map((r) => ({ seq: r.cursor, id: r.id, op: op(r.kind) })), next: rows.length ? rows[rows.length - 1]!.cursor : input.since };
-    }),
-
-    "records.completeness": (ctx, input) => guard(ctx, async () => {
-      const def = await needType(store, input.type);
-      const rec = await need(input.type, input.recordId);
-      const asked = askedFields(def);
-      const missing = asked.filter((f) => empty(rec.data[f.name])).map((f) => ({ field: f.name, title: f.label ?? f.name }));
-      return { filled: asked.length - missing.length, total: asked.length, missing };
-    }),
-
-    "records.gap_check": (ctx, input) => guard(ctx, async () => {
-      if (!ctx.call) return fail(ctx, "internal.unavailable", "The rules of this type cannot be read: the schema module is not reachable from here.");
-      const def = await needType(store, input.type);
-      const answer = (await ctx.call("schema.gap_rules.list", { type: input.type })) as { rules?: GapRuleIn[] };
-      const rules = (answer.rules ?? []).filter((r) => r.enabled !== false && def.fields.some((f) => f.name === r.field));
-      if (!rules.length) return { gaps: [] };
-      const records: StoredRecord[] = [];
-      if (input.recordId !== undefined) records.push(await need(input.type, input.recordId));
-      else {
-        let cursor: string | undefined;
-        do {
-          const page = await store.query(input.type, { page: { limit: PAGE_MAX, ...(cursor ? { cursor } : {}) } });
-          records.push(...page.rows);
-          cursor = page.next_cursor;
-        } while (cursor && records.length < SCAN_MAX);
-      }
-      const gaps: Gap[] = [];
-      const t = now();
-      for (const rec of records) {
-        const found = new Map<string, string[]>();
-        for (const rule of rules) {
-          const value = rec.data[rule.field];
-          let reason: Gap["reason"] | null = null;
-          if (rule.when === "missing") { if (empty(value)) reason = "missing"; }
-          else if (rule.staleAfterDays !== undefined && t - changedAt(tx, input.type, rec.id, rule.field, rec.updated_at) > rule.staleAfterDays * DAY) reason = "stale";
-          if (!reason) continue;
-          gaps.push({ recordId: rec.id, field: rule.field, reason, route: rule.route });
-          found.set(rule.ruleId, [...(found.get(rule.ruleId) ?? []), rule.field]);
-        }
-        for (const [ruleId, fields] of found) ctx.emit("record.gaps_found", `record/${rec.id}`, { recordId: rec.id, type: input.type, fields, ruleId });
-      }
-      return { gaps };
-    }),
-
-    "records.relate": (ctx, input) => guard(ctx, async () => {
-      const def = await needType(store, input.type);
-      const f = fieldOf(def, input.field);
-      if (!isRelation(f)) return fail(ctx, "validation.bad_input", `${input.field} is not a relation field.`);
-      const target = targetOf(f);
-      if (!target) return fail(ctx, "validation.bad_input", `${input.field} does not name the type it links to.`);
-      const targetDef = await needType(store, target);
-      // To link, the caller (who the pipeline checked for edit on the record they are changing) must be able to see the other record; one they cannot see answers like one that is not there.
-      // The back-reference on the other record is the system's consequence of the link, so it needs no edit there.
-      if (!isHostService(ctx.principal) && ctx.authorize?.({ perm: null, level: "view" }, { type: "record", id: input.toId }).effect !== "allow") return fail(ctx, "validation.not_found", `no ${target} ${input.toId}`);
-      const there = await need(target, input.toId);
-      const here = await need(input.type, input.recordId);
-      const unlink = input.unlink === true;
-      const near = relinked(f, here.data[f.name], target, input.toId, unlink);
-      // The other end of a two-way relation moves with this one.
-      const invName = inverseOf(f);
-      const invField = invName ? targetDef.fields.find((x) => x.name === invName && isRelation(x)) : undefined;
-      const far = invField ? relinked(invField, there.data[invField.name], input.type, input.recordId, unlink) : undefined;
-      let current = here;
-      if (near !== undefined) {
-        await deps.writes["records.update"](ctx as unknown as WriteCtx, { type: input.type, recordId: input.recordId, patch: { [f.name]: near } });
-        current = await need(input.type, input.recordId);
-      }
-      if (far !== undefined && invField) {
-        await deps.writes["records.update"](ctx as unknown as WriteCtx, { type: target, recordId: input.toId, patch: { [invField.name]: far } });
-      }
-      return { record: rowOf(tx, current) };
-    }),
-
-    "records.value_source": (ctx, input) => guard(ctx, async () => {
-      const def = await needType(store, input.type);
-      fieldOf(def, input.field);
-      const rec = await need(input.type, input.recordId);
-      const row = tx.get<SourceDb>("SELECT * FROM records_value_sources WHERE type = ? AND id = ? AND field = ?", input.type, input.recordId, input.field);
-      if (row) return { source: sourceOf(row) };
-      // No proposal on record: whoever the field clock names wrote it, and it counts.
-      let actor = "unknown";
-      let at = rec.updated_at;
-      try {
-        const c = tx.get<{ hlc: string; actor: string }>(`SELECT hlc, actor FROM "rt_${input.type}__fm" WHERE id = ? AND field = ?`, input.recordId, input.field);
-        if (c) { actor = c.actor; at = parseHlc(c.hlc)?.ms ?? at; }
-      } catch { /* no clock table yet */ }
-      return { source: { kind: kindOfActor(actor), actor, at, state: "counted" } };
-    }),
-
-    "records.values.pending": (ctx, input) => guard(ctx, async () => {
-      await needType(store, input.type);
-      const limit = Math.min(Math.max(input.limit ?? PAGE, 1), PAGE_MAX);
-      const start = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
-      const total = tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM records_value_sources WHERE type = ? AND state = 'needs_review'", input.type)?.n ?? 0;
-      const rows = tx.all<SourceDb>("SELECT * FROM records_value_sources WHERE type = ? AND state = 'needs_review' ORDER BY at, rowid LIMIT ? OFFSET ?", input.type, limit, start);
-      const values: { recordId: string; type: string; field: string; value?: unknown; source: ValueSource }[] = [];
-      for (const r of rows) {
-        const rec = await store.get(r.type, r.id);
-        if (!rec) continue;   // the record went to Trash; its proposal waits there
-        const v = rec.data[r.field];
-        values.push({ recordId: r.id, type: r.type, field: r.field, ...(v !== undefined ? { value: v } : {}), source: sourceOf(r) });
-      }
-      return { values, total, ...(start + rows.length < total ? { next: String(start + rows.length) } : {}) };
-    }),
-
-    "records.values.review": (ctx, input) => guard(ctx, async () => {
-      const def = await needType(store, input.type);
-      fieldOf(def, input.field);
-      const row = await pendingRow(ctx, input.type, input.recordId, input.field);
-      const rec = await need(input.type, input.recordId);
-      const by = ctx.principal?.id ?? "unknown";
-      let current = rec;
-      if (input.decision === "reject") {
-        // Put back what the field held before the proposal; the rejected value stays in history.
-        const prev = tx.get<{ value: string | null }>(
-          "SELECT value FROM records_field_history WHERE type = ? AND id = ? AND field = ? AND reason = 'previous' ORDER BY seq DESC, rowid DESC LIMIT 1", input.type, input.recordId, input.field,
+    "records.changes": (ctx, input) =>
+      guard(ctx, async () => {
+        await needType(store, input.type);
+        const limit = Math.min(Math.max(input.limit ?? PAGE, 1), PAGE_MAX);
+        const rows = tx.all<{ cursor: number; id: string; kind: string }>(
+          "SELECT cursor, id, kind FROM rs_changes WHERE type = ? AND cursor > ? ORDER BY cursor LIMIT ?",
+          input.type,
+          input.since,
+          limit,
         );
-        let back: unknown = null;
-        if (prev?.value) {
-          try { const parsed = JSON.parse(prev.value) as unknown; back = isObj(parsed) && parsed["masked"] === true ? null : parsed; } catch { back = null; }
+        const op = (k: string): "upsert" | "patch" | "delete" =>
+          k === "removed" ? "delete" : k === "updated" ? "patch" : "upsert";
+        return {
+          changes: rows.map((r) => ({ seq: r.cursor, id: r.id, op: op(r.kind) })),
+          next: rows.length ? rows[rows.length - 1]!.cursor : input.since,
+        };
+      }),
+
+    "records.completeness": (ctx, input) =>
+      guard(ctx, async () => {
+        const def = await needType(store, input.type);
+        const rec = await need(input.type, input.recordId);
+        const asked = askedFields(def);
+        const missing = asked
+          .filter((f) => empty(rec.data[f.name]))
+          .map((f) => ({ field: f.name, title: f.label ?? f.name }));
+        return { filled: asked.length - missing.length, total: asked.length, missing };
+      }),
+
+    "records.gap_check": (ctx, input) =>
+      guard(ctx, async () => {
+        if (!ctx.call)
+          return fail(
+            ctx,
+            "internal.unavailable",
+            "The rules of this type cannot be read: the schema module is not reachable from here.",
+          );
+        const def = await needType(store, input.type);
+        const answer = (await ctx.call("schema.gap_rules.list", { type: input.type })) as { rules?: GapRuleIn[] };
+        const rules = (answer.rules ?? []).filter(
+          (r) => r.enabled !== false && def.fields.some((f) => f.name === r.field),
+        );
+        if (!rules.length) return { gaps: [] };
+        const records: StoredRecord[] = [];
+        if (input.recordId !== undefined) records.push(await need(input.type, input.recordId));
+        else {
+          let cursor: string | undefined;
+          do {
+            const page = await store.query(input.type, { page: { limit: PAGE_MAX, ...(cursor ? { cursor } : {}) } });
+            records.push(...page.rows);
+            cursor = page.next_cursor;
+          } while (cursor && records.length < SCAN_MAX);
         }
-        if (!same(rec.data[input.field], back)) {
-          await deps.writes["records.update"](ctx as unknown as WriteCtx, { type: input.type, recordId: input.recordId, patch: { [input.field]: back } });
+        const gaps: Gap[] = [];
+        const t = now();
+        for (const rec of records) {
+          const found = new Map<string, string[]>();
+          for (const rule of rules) {
+            const value = rec.data[rule.field];
+            let reason: Gap["reason"] | null = null;
+            if (rule.when === "missing") {
+              if (empty(value)) reason = "missing";
+            } else if (
+              rule.staleAfterDays !== undefined &&
+              t - changedAt(tx, input.type, rec.id, rule.field, rec.updated_at) > rule.staleAfterDays * DAY
+            )
+              reason = "stale";
+            if (!reason) continue;
+            gaps.push({ recordId: rec.id, field: rule.field, reason, route: rule.route });
+            found.set(rule.ruleId, [...(found.get(rule.ruleId) ?? []), rule.field]);
+          }
+          for (const [ruleId, fields] of found)
+            ctx.emit("record.gaps_found", `record/${rec.id}`, { recordId: rec.id, type: input.type, fields, ruleId });
+        }
+        return { gaps };
+      }),
+
+    "records.relate": (ctx, input) =>
+      guard(ctx, async () => {
+        const def = await needType(store, input.type);
+        const f = fieldOf(def, input.field);
+        if (!isRelation(f)) return fail(ctx, "validation.bad_input", `${input.field} is not a relation field.`);
+        const target = targetOf(f);
+        if (!target) return fail(ctx, "validation.bad_input", `${input.field} does not name the type it links to.`);
+        const targetDef = await needType(store, target);
+        // To link, the caller (who the pipeline checked for edit on the record they are changing) must be able to see the other record; one they cannot see answers like one that is not there.
+        // The back-reference on the other record is the system's consequence of the link, so it needs no edit there.
+        if (
+          !isHostService(ctx.principal) &&
+          ctx.authorize?.({ perm: null, level: "view" }, { type: "record", id: input.toId }).effect !== "allow"
+        )
+          return fail(ctx, "validation.not_found", `no ${target} ${input.toId}`);
+        const there = await need(target, input.toId);
+        const here = await need(input.type, input.recordId);
+        const unlink = input.unlink === true;
+        const near = relinked(f, here.data[f.name], target, input.toId, unlink);
+        // The other end of a two-way relation moves with this one.
+        const invName = inverseOf(f);
+        const invField = invName ? targetDef.fields.find((x) => x.name === invName && isRelation(x)) : undefined;
+        const far = invField
+          ? relinked(invField, there.data[invField.name], input.type, input.recordId, unlink)
+          : undefined;
+        let current = here;
+        if (near !== undefined) {
+          await deps.writes["records.update"](ctx as unknown as WriteCtx, {
+            type: input.type,
+            recordId: input.recordId,
+            patch: { [f.name]: near },
+          });
           current = await need(input.type, input.recordId);
         }
-      }
-      tx.run(
-        "UPDATE records_value_sources SET state = ?, note = ?, reviewer = ?, reviewed_at = ? WHERE type = ? AND id = ? AND field = ?",
-        input.decision === "accept" ? "counted" : "rejected", input.note ?? null, by, now(), row.type, row.id, row.field,
-      );
-      ctx.emit("record.value_reviewed", `record/${input.recordId}`, { recordId: input.recordId, type: input.type, field: input.field, decision: input.decision === "accept" ? "accepted" : "rejected", by });
-      return { record: rowOf(tx, current) };
-    }),
+        if (far !== undefined && invField) {
+          await deps.writes["records.update"](ctx as unknown as WriteCtx, {
+            type: target,
+            recordId: input.toId,
+            patch: { [invField.name]: far },
+          });
+        }
+        return { record: rowOf(tx, current) };
+      }),
+
+    "records.value_source": (ctx, input) =>
+      guard(ctx, async () => {
+        const def = await needType(store, input.type);
+        fieldOf(def, input.field);
+        const rec = await need(input.type, input.recordId);
+        const row = tx.get<SourceDb>(
+          "SELECT * FROM records_value_sources WHERE type = ? AND id = ? AND field = ?",
+          input.type,
+          input.recordId,
+          input.field,
+        );
+        if (row) return { source: sourceOf(row) };
+        // No proposal on record: whoever the field clock names wrote it, and it counts.
+        let actor = "unknown";
+        let at = rec.updated_at;
+        try {
+          const c = tx.get<{ hlc: string; actor: string }>(
+            `SELECT hlc, actor FROM "rt_${input.type}__fm" WHERE id = ? AND field = ?`,
+            input.recordId,
+            input.field,
+          );
+          if (c) {
+            actor = c.actor;
+            at = parseHlc(c.hlc)?.ms ?? at;
+          }
+        } catch {
+          /* no clock table yet */
+        }
+        return { source: { kind: kindOfActor(actor), actor, at, state: "counted" } };
+      }),
+
+    "records.values.pending": (ctx, input) =>
+      guard(ctx, async () => {
+        await needType(store, input.type);
+        const limit = Math.min(Math.max(input.limit ?? PAGE, 1), PAGE_MAX);
+        const start = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
+        const total =
+          tx.get<{ n: number }>(
+            "SELECT COUNT(*) AS n FROM records_value_sources WHERE type = ? AND state = 'needs_review'",
+            input.type,
+          )?.n ?? 0;
+        const rows = tx.all<SourceDb>(
+          "SELECT * FROM records_value_sources WHERE type = ? AND state = 'needs_review' ORDER BY at, rowid LIMIT ? OFFSET ?",
+          input.type,
+          limit,
+          start,
+        );
+        const values: { recordId: string; type: string; field: string; value?: unknown; source: ValueSource }[] = [];
+        for (const r of rows) {
+          const rec = await store.get(r.type, r.id);
+          if (!rec) continue; // the record went to Trash; its proposal waits there
+          const v = rec.data[r.field];
+          values.push({
+            recordId: r.id,
+            type: r.type,
+            field: r.field,
+            ...(v !== undefined ? { value: v } : {}),
+            source: sourceOf(r),
+          });
+        }
+        return { values, total, ...(start + rows.length < total ? { next: String(start + rows.length) } : {}) };
+      }),
+
+    "records.values.review": (ctx, input) =>
+      guard(ctx, async () => {
+        const def = await needType(store, input.type);
+        fieldOf(def, input.field);
+        const row = await pendingRow(ctx, input.type, input.recordId, input.field);
+        const rec = await need(input.type, input.recordId);
+        const by = ctx.principal?.id ?? "unknown";
+        let current = rec;
+        if (input.decision === "reject") {
+          // Put back what the field held before the proposal; the rejected value stays in history.
+          const prev = tx.get<{ value: string | null }>(
+            "SELECT value FROM records_field_history WHERE type = ? AND id = ? AND field = ? AND reason = 'previous' ORDER BY seq DESC, rowid DESC LIMIT 1",
+            input.type,
+            input.recordId,
+            input.field,
+          );
+          let back: unknown = null;
+          if (prev?.value) {
+            try {
+              const parsed = JSON.parse(prev.value) as unknown;
+              back = isObj(parsed) && parsed["masked"] === true ? null : parsed;
+            } catch {
+              back = null;
+            }
+          }
+          if (!same(rec.data[input.field], back)) {
+            await deps.writes["records.update"](ctx as unknown as WriteCtx, {
+              type: input.type,
+              recordId: input.recordId,
+              patch: { [input.field]: back },
+            });
+            current = await need(input.type, input.recordId);
+          }
+        }
+        tx.run(
+          "UPDATE records_value_sources SET state = ?, note = ?, reviewer = ?, reviewed_at = ? WHERE type = ? AND id = ? AND field = ?",
+          input.decision === "accept" ? "counted" : "rejected",
+          input.note ?? null,
+          by,
+          now(),
+          row.type,
+          row.id,
+          row.field,
+        );
+        ctx.emit("record.value_reviewed", `record/${input.recordId}`, {
+          recordId: input.recordId,
+          type: input.type,
+          field: input.field,
+          decision: input.decision === "accept" ? "accepted" : "rejected",
+          by,
+        });
+        return { record: rowOf(tx, current) };
+      }),
   };
 }
 
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if ((a === null || a === undefined) && (b === null || b === undefined)) return true;
-  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }

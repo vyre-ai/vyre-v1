@@ -13,17 +13,28 @@ const FOLDERS = "https://graph.microsoft.com/v1.0/users/maya%40vyre.test/mailFol
 test("an Automation service acts as the member it runs for, and as no one else", async () => {
   const h = harness({ principal: SVC, actingFor: "usr_maya01" });
   ensure(h.ctx);
-  seedConsent(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: "sam@vyre.test", userId: "usr_sam01" }] });
+  seedConsent(h, {
+    members: [
+      { email: MAYA, userId: "usr_maya01" },
+      { email: "sam@vyre.test", userId: "usr_sam01" },
+    ],
+  });
   h.on("GET", FOLDERS, { body: { value: [] } });
   await mailFolders(h.ctx, { connectionId: CONN });
   assert.ok(h.requests.at(-1)!.url.startsWith(FOLDERS));
-  await assert.rejects(() => mailFolders(h.ctx, { connectionId: CONN, as: "sam@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    () => mailFolders(h.ctx, { connectionId: CONN, as: "sam@vyre.test" }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
 });
 
 test("an Automation that belongs to an excluded member reads nothing", async () => {
   const h = harness({ principal: SVC, actingFor: "usr_maya01" });
   ensure(h.ctx);
   seedConsent(h, { members: [{ email: MAYA, userId: "usr_maya01", excluded: true }] });
-  await assert.rejects(() => mailFolders(h.ctx, { connectionId: CONN }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    () => mailFolders(h.ctx, { connectionId: CONN }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
   assert.equal(h.requests.length, 0);
 });

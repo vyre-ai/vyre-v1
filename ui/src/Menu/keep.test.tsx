@@ -25,20 +25,26 @@ test("a kept row runs and the menu stays; update draws the new rows in place; a 
     { label: "Lab 8", keep: true, checked: on, count: 3, onSelect: () => ran.push("tick") },
     { label: "Clear the filter", hint: "Esc", onSelect: () => ran.push("clear") },
   ];
-  await act(async () => { api!.show(rows(false), 10, 10, "other"); });
+  await act(async () => {
+    api!.show(rows(false), 10, 10, "other");
+  });
   await flush();
   assert.ok(find(root, "menu"));
   assert.match(textOf(find(root, "menu-hint-Clear the filter")), /Esc/, "the hint sits in its own column");
   await press(find(root, "menu-item-Lab 8"));
   assert.deepEqual(ran, ["tick"]);
   assert.ok(find(root, "menu"), "a kept row leaves the menu open");
-  await act(async () => { api!.update(rows(true)); });
+  await act(async () => {
+    api!.update(rows(true));
+  });
   assert.equal(find(root, "menu-item-Lab 8")?.props["aria-checked"], true, "the open menu shows the new rows");
   await press(find(root, "menu-item-Clear the filter"));
   await flush();
   assert.deepEqual(ran, ["tick", "clear"]);
   assert.equal(find(root, "menu"), null, "a plain row closes the menu");
-  await act(async () => { api!.update(rows(false)); });
+  await act(async () => {
+    api!.update(rows(false));
+  });
   assert.equal(find(root, "menu"), null, "update with no menu open opens nothing");
 });
 
@@ -46,7 +52,12 @@ test("a menu with a search tells its surface what was typed", async () => {
   installDom();
   const root = await mount(createRoot, <Host />);
   const typed: string[] = [];
-  await act(async () => { api!.show([{ label: "Lab 8", keep: true }], 10, 10, "other", undefined, { search: "Find or make a label", onSearch: (q) => typed.push(q) }); });
+  await act(async () => {
+    api!.show([{ label: "Lab 8", keep: true }], 10, 10, "other", undefined, {
+      search: "Find or make a label",
+      onSearch: (q) => typed.push(q),
+    });
+  });
   await flush();
   await typeInto(find(root, "menu-search"), "Partners");
   assert.deepEqual(typed, ["Partners"]);

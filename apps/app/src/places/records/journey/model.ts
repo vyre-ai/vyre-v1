@@ -9,7 +9,10 @@ export const JOURNEYS_GROUP = "Journeys";
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 
 /** The stages of a Journey type as the record type holds them: option keys and titles, in order. */
-export interface StageOption { key: string; title: string }
+export interface StageOption {
+  key: string;
+  title: string;
+}
 
 /** What a Journey board needs on top of an ordinary board: the stage field to run on, and the three things that differ (move, add, the lane menu). */
 export interface JourneyBinding {
@@ -41,7 +44,12 @@ export async function journeyOfType(call: Call, type: string): Promise<{ id: str
 }
 
 /** A field a stage is waiting on before a record may move. */
-export interface MissingField { key: string; title: string; stage: string; when: "enter" | "leave" }
+export interface MissingField {
+  key: string;
+  title: string;
+  stage: string;
+  when: "enter" | "leave";
+}
 
 /** The refusal of a move that is waiting on fields. It carries the list, so a sheet can ask for exactly those. */
 export class GateError extends Error {
@@ -58,10 +66,20 @@ export class GateError extends Error {
 /** The fields a refusal names, from the error the gateway throws (details on it or under `error`), or null when the refusal is about something else. */
 export function gateOf(e: unknown): GateError | null {
   if (e instanceof GateError) return e;
-  const x = e as { details?: Record<string, unknown>; error?: { details?: Record<string, unknown> } } | null | undefined;
+  const x = e as
+    | { details?: Record<string, unknown>; error?: { details?: Record<string, unknown> } }
+    | null
+    | undefined;
   const d = x?.details ?? x?.error?.details;
   if (!d || d["reason"] !== "fields_required" || !Array.isArray(d["fields"])) return null;
-  const missing = (d["fields"] as Partial<MissingField>[]).filter((m) => typeof m.key === "string").map((m) => ({ key: m.key!, title: m.title ?? m.key!, stage: m.stage ?? "", when: m.when === "leave" ? "leave" as const : "enter" as const }));
+  const missing = (d["fields"] as Partial<MissingField>[])
+    .filter((m) => typeof m.key === "string")
+    .map((m) => ({
+      key: m.key!,
+      title: m.title ?? m.key!,
+      stage: m.stage ?? "",
+      when: m.when === "leave" ? ("leave" as const) : ("enter" as const),
+    }));
   return missing.length > 0 ? new GateError(missing, typeof d["toStage"] === "string" ? d["toStage"] : "") : null;
 }
 
@@ -76,22 +94,51 @@ export function moveWords(e: unknown): string {
 
 export async function moveInJourney(call: Call, journeyId: string, row: RecordRow, stage: string): Promise<boolean> {
   if (row.fields["stage"] === stage) return false;
-  try { await call("journeys.move_stage", { journeyId, recordId: row.id, toStage: stage, reason: "Moved on the board" }); } catch (e) { throw gateOf(e) ?? new Error(moveWords(e)); }
+  try {
+    await call("journeys.move_stage", { journeyId, recordId: row.id, toStage: stage, reason: "Moved on the board" });
+  } catch (e) {
+    throw gateOf(e) ?? new Error(moveWords(e));
+  }
   return true;
 }
 
 /** A type with stages that is not a Journey moves a record by writing its stage field; the records module holds the gates. */
-export async function movePlain(call: Call, type: string, row: RecordRow, field: string, stage: string): Promise<boolean> {
+export async function movePlain(
+  call: Call,
+  type: string,
+  row: RecordRow,
+  field: string,
+  stage: string,
+): Promise<boolean> {
   if (row.fields[field] === stage) return false;
-  try { await call("records.update", { type, recordId: row.id, patch: { [field]: stage }, baseVersion: row.version }); } catch (e) { throw gateOf(e) ?? new Error(moveWords(e)); }
+  try {
+    await call("records.update", { type, recordId: row.id, patch: { [field]: stage }, baseVersion: row.version });
+  } catch (e) {
+    throw gateOf(e) ?? new Error(moveWords(e));
+  }
   return true;
 }
 
 /** Whether a type's stage field belongs to a Journey (only the Journeys module writes it). */
-export const isJourneyManaged = (f: Pick<FieldDef, "writeOnlyBy"> | undefined): boolean => f?.writeOnlyBy?.some((w) => w.startsWith("journeys.")) === true;
+export const isJourneyManaged = (f: Pick<FieldDef, "writeOnlyBy"> | undefined): boolean =>
+  f?.writeOnlyBy?.some((w) => w.startsWith("journeys.")) === true;
 
-export async function startInJourney(call: Call, journeyId: string, subjectRecordId: string, stage: string): Promise<void> {
-  try { await call("journeys.start", { journeyId, subjectRecordId, startStage: stage, idempotencyKey: `board-start-${journeyId}-${subjectRecordId}` }); } catch (e) { throw new Error(moveWords(e)); }
+export async function startInJourney(
+  call: Call,
+  journeyId: string,
+  subjectRecordId: string,
+  stage: string,
+): Promise<void> {
+  try {
+    await call("journeys.start", {
+      journeyId,
+      subjectRecordId,
+      startStage: stage,
+      idempotencyKey: `board-start-${journeyId}-${subjectRecordId}`,
+    });
+  } catch (e) {
+    throw new Error(moveWords(e));
+  }
 }
 
 /** How many subject records the add menu offers. */
@@ -101,8 +148,15 @@ export const ADD_CHOICES = 30;
 export async function subjectTitles(call: Call, subjectType: string): Promise<{ id: string; title: string }[]> {
   const d = (await call("schema.describe", { type: subjectType })) as CapMap["schema.describe"]["out"];
   const titleField = d.types.find((t) => t.key === subjectType)?.titleField ?? "name";
-  const q = (await call("records.query", { type: subjectType, offset: 0, limit: ADD_CHOICES })) as CapMap["records.query"]["out"];
-  return (q.rows as unknown as RecordRow[]).map((r) => ({ id: r.id, title: String(r.fields[titleField] ?? "") || "Untitled" }));
+  const q = (await call("records.query", {
+    type: subjectType,
+    offset: 0,
+    limit: ADD_CHOICES,
+  })) as CapMap["records.query"]["out"];
+  return (q.rows as unknown as RecordRow[]).map((r) => ({
+    id: r.id,
+    title: String(r.fields[titleField] ?? "") || "Untitled",
+  }));
 }
 
 // ---------------------------------------------------------------- gates: fill what is missing, then move
@@ -111,8 +165,14 @@ export type Entered = Record<string, string | boolean>;
 export type FillResult = { ok: true } | { ok: false; message: string; missing?: readonly MissingField[] };
 
 /** The value a typed answer becomes for one field, or the words for what is wrong with it. Empty is not an answer. */
-function answerOf(f: FieldDef, got: string | boolean | undefined): { ok: true; value: unknown } | { ok: false; message: string } {
-  if (editKind(f) === "checkbox") return typeof got === "boolean" ? { ok: true, value: got } : { ok: false, message: `${f.title}: choose Yes or No.` };
+function answerOf(
+  f: FieldDef,
+  got: string | boolean | undefined,
+): { ok: true; value: unknown } | { ok: false; message: string } {
+  if (editKind(f) === "checkbox")
+    return typeof got === "boolean"
+      ? { ok: true, value: got }
+      : { ok: false, message: `${f.title}: choose Yes or No.` };
   const text = typeof got === "string" ? got : "";
   if (text.trim() === "") return { ok: false, message: `${f.title} needs an answer.` };
   const parsed = parseInput(f, text);
@@ -123,7 +183,19 @@ function answerOf(f: FieldDef, got: string | boolean | undefined): { ok: true; v
  * Write the answers to the record, then ask for the move again: one step for the person. Nothing is written when any answer is missing or wrong. If the stage wants more than was asked
  * (a field filled by someone since, or a second gate), the new list comes back for the sheet to show.
  */
-export async function fillAndMove(call: Call, o: { journeyId?: string; plainField?: string; type: string; row: RecordRow; def: Pick<TypeDef, "fields">; missing: readonly MissingField[]; entered: Entered; toStage: string }): Promise<FillResult> {
+export async function fillAndMove(
+  call: Call,
+  o: {
+    journeyId?: string;
+    plainField?: string;
+    type: string;
+    row: RecordRow;
+    def: Pick<TypeDef, "fields">;
+    missing: readonly MissingField[];
+    entered: Entered;
+    toStage: string;
+  },
+): Promise<FillResult> {
   const patch: Record<string, unknown> = {};
   for (const m of o.missing) {
     const f = o.def.fields.find((x) => x.key === m.key);
@@ -134,7 +206,14 @@ export async function fillAndMove(call: Call, o: { journeyId?: string; plainFiel
   }
   if (o.plainField) {
     // a type with stages, no Journey: one update fills the fields and changes the stage, and the records module checks both together
-    try { await call("records.update", { type: o.type, recordId: o.row.id, patch: { ...patch, [o.plainField]: o.toStage }, baseVersion: o.row.version }); } catch (e) {
+    try {
+      await call("records.update", {
+        type: o.type,
+        recordId: o.row.id,
+        patch: { ...patch, [o.plainField]: o.toStage },
+        baseVersion: o.row.version,
+      });
+    } catch (e) {
       const gate = gateOf(e);
       return gate ? { ok: false, message: gate.message, missing: gate.missing } : { ok: false, message: moveWords(e) };
     }
@@ -142,9 +221,16 @@ export async function fillAndMove(call: Call, o: { journeyId?: string; plainFiel
   }
   try {
     await call("records.update", { type: o.type, recordId: o.row.id, patch, baseVersion: o.row.version });
-  } catch (e) { return { ok: false, message: e instanceof Error && e.message ? e.message : "Could not save those fields." }; }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error && e.message ? e.message : "Could not save those fields." };
+  }
   try {
-    await call("journeys.move_stage", { journeyId: o.journeyId!, recordId: o.row.id, toStage: o.toStage, reason: "Moved after filling the required fields" });
+    await call("journeys.move_stage", {
+      journeyId: o.journeyId!,
+      recordId: o.row.id,
+      toStage: o.toStage,
+      reason: "Moved after filling the required fields",
+    });
   } catch (e) {
     const gate = gateOf(e);
     return gate ? { ok: false, message: gate.message, missing: gate.missing } : { ok: false, message: moveWords(e) };

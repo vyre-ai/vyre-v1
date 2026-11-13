@@ -9,7 +9,14 @@ import { View, useWindowDimensions } from "react-native";
 import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
 import { createSampleFiles, harbor, northwind } from "../../../apps/app/src/places/files/list/sample.ts";
 import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
-import { SidebarBack, SidebarContent, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../../../apps/app/src/shell/sidebar/index.ts";
+import {
+  SidebarBack,
+  SidebarContent,
+  SidebarExpand,
+  SidebarSlot,
+  SidebarSlotProvider,
+  useSidebarSlot,
+} from "../../../apps/app/src/shell/sidebar/index.ts";
 import type { FilesState, SortKey, Where } from "../../../apps/app/src/places/files/tree/index.ts";
 
 export const title = "Files";
@@ -24,17 +31,28 @@ function whereOf(v: string | null): Where {
 }
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  const q = useMemo(
+    () => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""),
+    [],
+  );
   const bulk = Math.min(20_000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSampleFiles(space, { bulk, subjects: q.get("subjects") === "1" }), [space, bulk]);
   const initial = useMemo<Partial<FilesState>>(() => {
     const sort = SORTS.find((x) => x === q.get("sort"));
-    const where: Where = space === harbor && !q.get("where") ? { kind: "folder", id: "fld_h_clients" } : whereOf(q.get("where"));
+    const where: Where =
+      space === harbor && !q.get("where") ? { kind: "folder", id: "fld_h_clients" } : whereOf(q.get("where"));
     const first = q.get("quicklook") === "1" ? "file:fil_deck" : null;
     return {
-      where, view: q.get("view") === "grid" ? "grid" as const : "list" as const, ...(sort ? { sort, dir: sort === "updated" ? "desc" as const : "asc" as const } : {}),
-      ...(q.get("select") === "1" ? { selection: ["file:fil_deck", "file:fil_logo"], anchor: "file:fil_deck" } : first ? { selection: [first], anchor: first } : {}), quickLook: first,
+      where,
+      view: q.get("view") === "grid" ? ("grid" as const) : ("list" as const),
+      ...(sort ? { sort, dir: sort === "updated" ? ("desc" as const) : ("asc" as const) } : {}),
+      ...(q.get("select") === "1"
+        ? { selection: ["file:fil_deck", "file:fil_logo"], anchor: "file:fil_deck" }
+        : first
+          ? { selection: [first], anchor: first }
+          : {}),
+      quickLook: first,
     };
   }, [q, space]);
   const width = useWindowDimensions().width;
@@ -47,7 +65,15 @@ export default function Mount(): ReactNode {
   }, [q]);
   const store = { getItem: () => null, setItem: () => undefined };
   return (
-    <SidebarSlotProvider deviceId="d1" personId="p1" spaceId={space.id} place="files" epoch={1} compact={compact} storage={store}>
+    <SidebarSlotProvider
+      deviceId="d1"
+      personId="p1"
+      spaceId={space.id}
+      place="files"
+      epoch={1}
+      compact={compact}
+      storage={store}
+    >
       <FilesDataProvider value={sample.data}>
         <FilesStateProvider initial={initial}>
           <Body />
@@ -68,7 +94,9 @@ function Body(): ReactNode {
         <SidebarBack />
         <SidebarExpand />
         <FilesList />
-        <SidebarContent title="Files" searchPlaceholder="Search files">{(query, sl) => <FilesTree query={query} slot={sl} />}</SidebarContent>
+        <SidebarContent title="Files" searchPlaceholder="Search files">
+          {(query, sl) => <FilesTree query={query} slot={sl} />}
+        </SidebarContent>
       </View>
     </View>
   );

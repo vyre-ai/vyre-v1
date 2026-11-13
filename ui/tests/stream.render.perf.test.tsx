@@ -6,8 +6,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  AVATAR_SIZE, AvatarSlot, BODY_LINE, CARET, HEADER_HEIGHT, MarkdownBlocks, ReservedImage, SkeletonMessage, StreamText, createCoalescer, createIncrementalMarkdown, createStreamStore, isAtEnd,
-  messageHeight, parseChunk, parseInline,
+  AVATAR_SIZE,
+  AvatarSlot,
+  BODY_LINE,
+  CARET,
+  HEADER_HEIGHT,
+  MarkdownBlocks,
+  ReservedImage,
+  SkeletonMessage,
+  StreamText,
+  createCoalescer,
+  createIncrementalMarkdown,
+  createStreamStore,
+  isAtEnd,
+  messageHeight,
+  parseChunk,
+  parseInline,
 } from "../src/stream/index.ts";
 import type { FrameScheduler } from "../src/stream/index.ts";
 
@@ -17,8 +31,14 @@ function manualFrames() {
   let next = 1;
   let clock = 0;
   const scheduler: FrameScheduler = {
-    request(cb) { const h = next++; waiting.set(h, cb); return h; },
-    cancel(h) { waiting.delete(h); },
+    request(cb) {
+      const h = next++;
+      waiting.set(h, cb);
+      return h;
+    },
+    cancel(h) {
+      waiting.delete(h);
+    },
   };
   return {
     scheduler,
@@ -29,7 +49,9 @@ function manualFrames() {
       for (const [, cb] of due) cb(clock);
       return due.length > 0;
     },
-    get pending() { return waiting.size; },
+    get pending() {
+      return waiting.size;
+    },
   };
 }
 
@@ -63,7 +85,9 @@ test("stream_render: 100 deltas a second through the store are one notification 
   const f = manualFrames();
   const store = createStreamStore(f.scheduler);
   let seen = 0;
-  store.subscribe(() => { seen++; });
+  store.subscribe(() => {
+    seen++;
+  });
   const words = DOC.split(/(?<= )/);
   const FRAMES = 180;
   const times: number[] = [];
@@ -83,5 +107,8 @@ test("stream_render: 100 deltas a second through the store are one notification 
   assert.equal(store.getSnapshot().version, FRAMES);
   times.sort((a, b) => a - b);
   const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Infinity;
-  assert.ok(p95 < 4, `the per-frame work (coalesce, parse the open block, notify) has p95 ${p95.toFixed(2)} ms, far under the 16.7 ms frame`);
+  assert.ok(
+    p95 < 4,
+    `the per-frame work (coalesce, parse the open block, notify) has p95 ${p95.toFixed(2)} ms, far under the 16.7 ms frame`,
+  );
 });

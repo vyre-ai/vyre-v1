@@ -2,7 +2,11 @@
 // grow its cap with every new one), a rule makes a file slow with the golden cap. The sharder and both runners add these entries to the list.
 //   by path     golden/steps/*.test.*, any *.live.test.* and any *.booted.test.*
 //   by content  a test that calls the daemon boot helpers (startDaemon, startSeeded, bootDaemon, bootFlowSpace, bootSmall, bootPerf, bootPrototype)
-export const SLOW_PATTERNS = [/^golden\/steps\/[^/]+\.test\.[cm]?[jt]sx?$/, /\.live\.test\.[cm]?[jt]sx?$/, /\.booted\.test\.[cm]?[jt]sx?$/];
+export const SLOW_PATTERNS = [
+  /^golden\/steps\/[^/]+\.test\.[cm]?[jt]sx?$/,
+  /\.live\.test\.[cm]?[jt]sx?$/,
+  /\.booted\.test\.[cm]?[jt]sx?$/,
+];
 export const BOOT_HELPERS = /\b(?:startDaemon|startSeeded|bootDaemon|bootFlowSpace|bootSmall|bootPerf|bootPrototype)\b/;
 export const PATTERN_CAP_SEC = 120;
 
@@ -16,9 +20,19 @@ export function withPatternSlow(files, slow, read) {
   const listed = new Set(slow.map((s) => s.file));
   const booted = (f) => {
     if (!read || !isTest(f)) return false;
-    try { return BOOT_HELPERS.test(read(f)); } catch { return false; }
+    try {
+      return BOOT_HELPERS.test(read(f));
+    } catch {
+      return false;
+    }
   };
-  const extra = [...new Set(files)].filter((f) => !listed.has(f) && (SLOW_PATTERNS.some((re) => re.test(f)) || booted(f)))
-    .map((file) => ({ file, capSec: PATTERN_CAP_SEC, owner: "L11", reason: "boots a daemon (slow by rule, scripts/lib/slow-list.mjs)" }));
+  const extra = [...new Set(files)]
+    .filter((f) => !listed.has(f) && (SLOW_PATTERNS.some((re) => re.test(f)) || booted(f)))
+    .map((file) => ({
+      file,
+      capSec: PATTERN_CAP_SEC,
+      owner: "L11",
+      reason: "boots a daemon (slow by rule, scripts/lib/slow-list.mjs)",
+    }));
   return extra.length ? [...slow, ...extra] : slow;
 }

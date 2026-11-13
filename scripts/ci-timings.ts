@@ -30,7 +30,12 @@ export function parseLog(text: string): Record<string, number> {
 }
 
 /** The old table with the measured files replaced (stamped `at`) and the files that are gone from the repo removed. */
-export function mergeLogTimings(prev: Timings, measured: Record<string, number>, at: string, exists: (file: string) => boolean): Timings {
+export function mergeLogTimings(
+  prev: Timings,
+  measured: Record<string, number>,
+  at: string,
+  exists: (file: string) => boolean,
+): Timings {
   const next: Timings = {};
   for (const [f, v] of Object.entries(prev)) if (exists(f)) next[f] = v;
   for (const [f, ms] of Object.entries(measured)) if (exists(f)) next[f] = { ms, at };
@@ -44,34 +49,47 @@ function gh(args: string[]): string {
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const repo = path.resolve(path.dirname(self), "..");
-  const val = (n: string): string | undefined => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+  const val = (n: string): string | undefined => {
+    const i = process.argv.indexOf(n);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  };
   const texts: string[] = [];
   let at = val("--at") ?? new Date().toISOString();
   if (val("--logs")) {
     const dir = val("--logs")!;
     for (const f of fs.readdirSync(dir)) texts.push(fs.readFileSync(path.join(dir, f), "utf8"));
   } else if (val("--run")) {
-    const slug = val("--repo") ?? "vyre-ai/vyre-v1", run = val("--run")!;
+    const slug = val("--repo") ?? "vyre-ai/vyre-v1",
+      run = val("--run")!;
     const info = JSON.parse(gh(["api", `repos/${slug}/actions/runs/${run}`])) as { created_at?: string };
     if (info.created_at && !val("--at")) at = info.created_at;
     const jobs: { id: number; name: string }[] = [];
     for (let page = 1; ; page++) {
-      const p = JSON.parse(gh(["api", `repos/${slug}/actions/runs/${run}/jobs?per_page=100&page=${page}`])) as { jobs: { id: number; name: string }[] };
+      const p = JSON.parse(gh(["api", `repos/${slug}/actions/runs/${run}/jobs?per_page=100&page=${page}`])) as {
+        jobs: { id: number; name: string }[];
+      };
       jobs.push(...p.jobs);
       if (p.jobs.length < 100) break;
     }
     for (const j of jobs.filter((x) => /^(fast|slow|heavy|perf)-\d+$/.test(x.name))) {
-      try { texts.push(gh(["api", `repos/${slug}/actions/jobs/${j.id}/logs`])); } catch (e) { console.error(`no log for ${j.name}: ${String((e as Error).message).split("\n")[0]}`); }
+      try {
+        texts.push(gh(["api", `repos/${slug}/actions/jobs/${j.id}/logs`]));
+      } catch (e) {
+        console.error(`no log for ${j.name}: ${String((e as Error).message).split("\n")[0]}`);
+      }
     }
   } else {
     console.error("usage: node scripts/ci-timings.ts (--run <id> [--repo owner/name] | --logs <dir>) [--write]");
     process.exit(2);
   }
   const measured: Record<string, number> = {};
-  for (const t of texts) for (const [f, ms] of Object.entries(parseLog(t))) if (ms > (measured[f] ?? 0)) measured[f] = ms;
+  for (const t of texts)
+    for (const [f, ms] of Object.entries(parseLog(t))) if (ms > (measured[f] ?? 0)) measured[f] = ms;
   const tf = path.join(repo, "test/timings.json");
   const prev = JSON.parse(fs.readFileSync(tf, "utf8")) as Timings;
   const next = mergeLogTimings(prev, measured, at, (f) => fs.existsSync(path.join(repo, f)));
-  console.log(`${texts.length} logs, ${Object.keys(measured).length} files measured, ${Object.keys(next).length} in the table (was ${Object.keys(prev).length})`);
+  console.log(
+    `${texts.length} logs, ${Object.keys(measured).length} files measured, ${Object.keys(next).length} in the table (was ${Object.keys(prev).length})`,
+  );
   if (process.argv.includes("--write")) fs.writeFileSync(tf, JSON.stringify(next, null, 2) + "\n");
 }

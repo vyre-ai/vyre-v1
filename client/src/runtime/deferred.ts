@@ -10,10 +10,18 @@ export interface DeferredSet {
   isModuleDeferred(module: string): boolean;
 }
 
-export function createDeferred(deferredCaps: readonly string[] = [], deferredModules: readonly string[] = []): DeferredSet {
+export function createDeferred(
+  deferredCaps: readonly string[] = [],
+  deferredModules: readonly string[] = [],
+): DeferredSet {
   const caps = new Set(deferredCaps);
   const modules = new Set(deferredModules);
-  return { caps, deferredModules: modules, isDeferred: (cap) => caps.has(cap), isModuleDeferred: (m) => modules.has(m) };
+  return {
+    caps,
+    deferredModules: modules,
+    isDeferred: (cap) => caps.has(cap),
+    isModuleDeferred: (m) => modules.has(m),
+  };
 }
 
 /** Nothing deferred: what a client has before the bootstrap answers, or against a host that sends no list. */

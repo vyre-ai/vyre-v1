@@ -7,10 +7,24 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { FolderNode } from "../../../../../../ui/src/FolderTree/index.tsx";
 import type { KnowRoute } from "../memory/know.ts";
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 /** The capabilities the list reads live that no screen declares. */
-export type LiveCap = "files.list" | "files.recent" | "files.shared_with_me" | "files.knowledge" | "files.trash.list" | "files.tree" | "changesets.list" | "stars.list" | "files.viewer_data" | "memory.learned" | "memory.trash.search";
+export type LiveCap =
+  | "files.list"
+  | "files.recent"
+  | "files.shared_with_me"
+  | "files.knowledge"
+  | "files.trash.list"
+  | "files.tree"
+  | "changesets.list"
+  | "stars.list"
+  | "files.viewer_data"
+  | "memory.learned"
+  | "memory.trash.search";
 
 /** Where a click goes. The shell supplies these (tabs, the viewer, the share sheet, the Knowledge screens); Files never decides how a thing opens. */
 export interface FilesNav {
@@ -49,7 +63,10 @@ export interface FilesNav {
 }
 
 /** The side pane that belongs to this place: the list shows its toggle in the header. */
-export interface PaneControl { open: boolean; toggle(): void }
+export interface PaneControl {
+  open: boolean;
+  toggle(): void;
+}
 
 export interface FilesData {
   screens: ScreenHooks;
@@ -95,13 +112,19 @@ export function useFilesData(): FilesData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useFilesData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
 /** A live capability query. The input is compared by value. */
 /** A query that is never asked: it stays loading and sends nothing (a read that needs an id it doesn't have yet). */
-const IDLE: { subscribe: (cb: () => void) => () => void; getSnapshot: () => QueryState<never> } = { subscribe: () => () => undefined, getSnapshot: (): QueryState<never> => IDLE_STATE };
+const IDLE: { subscribe: (cb: () => void) => () => void; getSnapshot: () => QueryState<never> } = {
+  subscribe: () => () => undefined,
+  getSnapshot: (): QueryState<never> => IDLE_STATE,
+};
 const IDLE_STATE: QueryState<never> = { status: "loading" };
 
 /** A live read. With `input` null nothing is sent: the server is never asked with an empty id. */
@@ -124,8 +147,14 @@ export function useOnline(): boolean {
 }
 
 /** What a list source answers: files, and folders where the source has them. */
-export interface ListOut { files: CapMap["files.list"]["out"]["files"]; folders?: CapMap["files.list"]["out"]["folders"] }
-export interface Source { cap: LiveCap; input: Record<string, unknown> }
+export interface ListOut {
+  files: CapMap["files.list"]["out"]["files"];
+  folders?: CapMap["files.list"]["out"]["folders"];
+}
+export interface Source {
+  cap: LiveCap;
+  input: Record<string, unknown>;
+}
 
 /** A live list over any source the list can show. The source is compared by value. */
 export function useSource(src: Source): QueryState<ListOut> {

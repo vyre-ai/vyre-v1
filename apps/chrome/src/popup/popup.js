@@ -28,7 +28,9 @@ let agents = [];
 function ask(msg) {
   return new Promise((resolve) => {
     try {
-      ext.runtime.sendMessage(msg, (/** @type {any} */ r) => resolve(r || { error: { code: "error", message: "Something went wrong. Try again." } }));
+      ext.runtime.sendMessage(msg, (/** @type {any} */ r) =>
+        resolve(r || { error: { code: "error", message: "Something went wrong. Try again." } }),
+      );
     } catch {
       resolve({ error: { code: "error", message: "Something went wrong. Try again." } });
     }
@@ -53,8 +55,15 @@ function showNote(text, action = null) {
 
 /** @param {string} id */
 async function onNoteAction(id) {
-  if (id === "openWeb") { await ask({ type: "popup.openWeb" }); window.close(); return; }
-  if (id === "fillOn") { await ask({ type: "popup.neverFill", on: false }); await load(); }
+  if (id === "openWeb") {
+    await ask({ type: "popup.openWeb" });
+    window.close();
+    return;
+  }
+  if (id === "fillOn") {
+    await ask({ type: "popup.neverFill", on: false });
+    await load();
+  }
 }
 
 function render() {
@@ -82,12 +91,19 @@ function render() {
     trail.textContent = r.trail;
     li.append(lead, name, trail);
     li.addEventListener("click", () => void doFill(i, { signIn: false }));
-    li.addEventListener("mousemove", () => { if (selected !== i) select(i); });
-    li.addEventListener(RIGHT_CLICK, (e) => { e.preventDefault(); select(i); openRowMenu(i, e.clientX, e.clientY); });
+    li.addEventListener("mousemove", () => {
+      if (selected !== i) select(i);
+    });
+    li.addEventListener(RIGHT_CLICK, (e) => {
+      e.preventDefault();
+      select(i);
+      openRowMenu(i, e.clientX, e.clientY);
+    });
     list.append(li);
   });
   $("logins").hidden = v.rows.length === 0;
-  if (v.note) showNote(v.note.text, v.note.action ?? null); else $("note").hidden = true;
+  if (v.note) showNote(v.note.text, v.note.action ?? null);
+  else $("note").hidden = true;
   /** @type {HTMLInputElement} */ ($("q")).disabled = !v.canAsk;
   $("face-letter").textContent = agent ? (agent.name[0] || "V").toUpperCase() : "V";
 }
@@ -100,7 +116,8 @@ function select(i) {
     /** @type {HTMLElement} */ (el).tabIndex = n === i ? 0 : -1;
   });
   const row = /** @type {HTMLElement | undefined} */ (document.querySelectorAll("#logins .row")[i]);
-  if (row && document.activeElement !== row && !(document.activeElement instanceof HTMLInputElement)) row.focus({ preventScroll: false });
+  if (row && document.activeElement !== row && !(document.activeElement instanceof HTMLInputElement))
+    row.focus({ preventScroll: false });
 }
 
 /** @param {number} i @param {{ signIn: boolean, code?: boolean }} how */
@@ -112,9 +129,23 @@ async function doFill(i, how) {
   const trail = /** @type {HTMLElement} */ (el.querySelector(".trail"));
   trail.textContent = "Filling";
   const login = (state.rows || []).find((/** @type {any} */ r) => r.id === row.id);
-  const r = await ask({ type: "popup.fill", itemId: row.id, kind: how.code || row.kind === "totp" ? "otp" : row.kind === "card" ? "card" : "login", signIn: row.kind === "card" ? false : how.signIn, usernameField: login && login.usernameField ? login.usernameField : undefined });
-  if (r.error) { trail.textContent = ""; showNote(r.error.message); return; }
-  if (!r.data.filled.length) { trail.textContent = ""; showNote("Vyre found no field to fill on this page."); return; }
+  const r = await ask({
+    type: "popup.fill",
+    itemId: row.id,
+    kind: how.code || row.kind === "totp" ? "otp" : row.kind === "card" ? "card" : "login",
+    signIn: row.kind === "card" ? false : how.signIn,
+    usernameField: login && login.usernameField ? login.usernameField : undefined,
+  });
+  if (r.error) {
+    trail.textContent = "";
+    showNote(r.error.message);
+    return;
+  }
+  if (!r.data.filled.length) {
+    trail.textContent = "";
+    showNote("Vyre found no field to fill on this page.");
+    return;
+  }
   el.classList.add("done");
   trail.textContent = "Filled";
   setTimeout(() => window.close(), 650);
@@ -129,7 +160,12 @@ let menuReturn = null;
 function openMenu(items, x, y, pick) {
   menu.textContent = "";
   for (const it of items) {
-    if (it.sep) { const s = document.createElement("div"); s.className = "sep"; menu.append(s); continue; }
+    if (it.sep) {
+      const s = document.createElement("div");
+      s.className = "sep";
+      menu.append(s);
+      continue;
+    }
     const b = document.createElement("button");
     b.type = "button";
     b.setAttribute("role", "menuitem");
@@ -137,11 +173,15 @@ function openMenu(items, x, y, pick) {
     const label = document.createElement("span");
     label.textContent = it.label || "";
     b.append(label);
-    b.addEventListener("click", () => { closeMenu(); pick(String(it.id)); });
+    b.addEventListener("click", () => {
+      closeMenu();
+      pick(String(it.id));
+    });
     menu.append(b);
   }
   menu.hidden = false;
-  const w = menu.offsetWidth, h = menu.offsetHeight;
+  const w = menu.offsetWidth,
+    h = menu.offsetHeight;
   menu.style.left = `${Math.max(4, Math.min(x, document.documentElement.clientWidth - w - 4))}px`;
   menu.style.top = `${Math.max(4, Math.min(y, Math.max(document.documentElement.clientHeight, h + 8) - h - 4))}px`;
   menuReturn = /** @type {HTMLElement | null} */ (document.activeElement);
@@ -172,24 +212,43 @@ function openRowMenu(i, x, y) {
 }
 
 $("space").addEventListener("click", () => {
-  if (!menu.hidden) { closeMenu(); return; }
+  if (!menu.hidden) {
+    closeMenu();
+    return;
+  }
   const r = $("space").getBoundingClientRect();
   $("space").setAttribute("aria-expanded", "true");
   const spaces = state && state.spaces ? state.spaces : [];
-  openMenu(spaces.map((/** @type {any} */ s) => ({ id: s.id, label: s.name, check: s.id === state.active })), r.left, r.bottom + 2, (id) => {
-    void ask({ type: "popup.selectSpace", id }).then(() => load());
-  });
+  openMenu(
+    spaces.map((/** @type {any} */ s) => ({ id: s.id, label: s.name, check: s.id === state.active })),
+    r.left,
+    r.bottom + 2,
+    (id) => {
+      void ask({ type: "popup.selectSpace", id }).then(() => load());
+    },
+  );
 });
 
 $("face").addEventListener("click", async () => {
-  if (!agents.length) { const r = await ask({ type: "popup.agents" }); if (r.data) { agents = r.data.agents || []; if (!agent && r.data.suggested) agent = r.data.suggested; } }
+  if (!agents.length) {
+    const r = await ask({ type: "popup.agents" });
+    if (r.data) {
+      agents = r.data.agents || [];
+      if (!agent && r.data.suggested) agent = r.data.suggested;
+    }
+  }
   if (!agents.length) return;
   const r = $("face").getBoundingClientRect();
-  openMenu(agents.map((a) => ({ id: a.id, label: a.name, check: agent ? a.id === agent.id : false })), r.left, r.top - 8 - agents.length * 30, (id) => {
-    agent = agents.find((a) => a.id === id) ?? agent;
-    render();
-    $("q").focus();
-  });
+  openMenu(
+    agents.map((a) => ({ id: a.id, label: a.name, check: agent ? a.id === agent.id : false })),
+    r.left,
+    r.top - 8 - agents.length * 30,
+    (id) => {
+      agent = agents.find((a) => a.id === id) ?? agent;
+      render();
+      $("q").focus();
+    },
+  );
 });
 
 $("ask").addEventListener("submit", async (e) => {
@@ -199,25 +258,44 @@ $("ask").addEventListener("submit", async (e) => {
   if (!question) return;
   input.disabled = true;
   const r = await ask({ type: "popup.ask", question, agentId: agent ? agent.id : null });
-  if (r.error) { input.disabled = false; showNote(r.error.message); return; }
+  if (r.error) {
+    input.disabled = false;
+    showNote(r.error.message);
+    return;
+  }
   showNote("Sent.");
   setTimeout(() => window.close(), 500);
 });
 
-$("vault").addEventListener("click", async () => { await ask({ type: "popup.openVault" }); window.close(); });
+$("vault").addEventListener("click", async () => {
+  await ask({ type: "popup.openVault" });
+  window.close();
+});
 
 document.addEventListener("keydown", (e) => {
   const where = { inInput: e.target instanceof HTMLInputElement, menuOpen: !menu.hidden };
   if (!menu.hidden) {
     const buttons = Array.from(menu.querySelectorAll("button"));
     const at = buttons.indexOf(/** @type {HTMLButtonElement} */ (document.activeElement));
-    if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
-    else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); buttons[move(at, e.key, buttons.length)]?.focus(); }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenu();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      buttons[move(at, e.key, buttons.length)]?.focus();
+    }
     return;
   }
   const act = keyAction(e, where);
-  if (act === "close") { window.close(); return; }
-  if (act === "focusAsk") { e.preventDefault(); $("q").focus(); return; }
+  if (act === "close") {
+    window.close();
+    return;
+  }
+  if (act === "focusAsk") {
+    e.preventDefault();
+    $("q").focus();
+    return;
+  }
   const count = state ? viewOf(state).rows.length : 0;
   if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Home" || e.key === "End") {
     if (where.inInput && e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -225,25 +303,49 @@ document.addEventListener("keydown", (e) => {
     select(move(selected, e.key, count));
     return;
   }
-  if (act === "fill" || act === "fillSignIn") { if (selected >= 0) { e.preventDefault(); void doFill(selected, { signIn: act === "fillSignIn" }); } return; }
+  if (act === "fill" || act === "fillSignIn") {
+    if (selected >= 0) {
+      e.preventDefault();
+      void doFill(selected, { signIn: act === "fillSignIn" });
+    }
+    return;
+  }
   if (act === "menu" && selected >= 0) {
     e.preventDefault();
     const el = document.querySelectorAll("#logins .row")[selected];
-    if (el) { const r = el.getBoundingClientRect(); openRowMenu(selected, r.left + 24, r.bottom); }
+    if (el) {
+      const r = el.getBoundingClientRect();
+      openRowMenu(selected, r.left + 24, r.bottom);
+    }
   }
 });
 
-document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(/** @type {Node} */ (e.target)) && e.target !== $("space")) closeMenu(); });
+document.addEventListener("click", (e) => {
+  if (!menu.hidden && !menu.contains(/** @type {Node} */ (e.target)) && e.target !== $("space")) closeMenu();
+});
 
 async function load() {
   const r = await ask({ type: "popup.state" });
-  state = r.data || { page: null, spaces: [], active: null, status: "offline", rows: [], blocked: null, error: r.error || null };
+  state = r.data || {
+    page: null,
+    spaces: [],
+    active: null,
+    status: "offline",
+    rows: [],
+    blocked: null,
+    error: r.error || null,
+  };
   selected = viewOf(state).rows.length ? Math.max(0, Math.min(selected, viewOf(state).rows.length - 1)) : -1;
   render();
-  if (selected >= 0) /** @type {HTMLElement | undefined} */ (document.querySelectorAll("#logins .row")[selected])?.focus();
+  if (selected >= 0)
+    /** @type {HTMLElement | undefined} */ (document.querySelectorAll("#logins .row")[selected])?.focus();
   if (state.status === "online" && !agent) {
     const a = await ask({ type: "popup.agents" });
-    if (a.data) { agents = a.data.agents || []; agent = a.data.suggested || agents[0] || null; render(); }
+    if (a.data) {
+      agents = a.data.agents || [];
+      agent = a.data.suggested || agents[0] || null;
+      render();
+    }
   }
 }
 

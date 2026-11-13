@@ -32,16 +32,27 @@ const TRACE = "c0ffee00c0ffee00c0ffee00c0ffee00";
 const ROLES = ["owner", "admin", "developer", "member", "guest"] as const;
 const CLEARANCE: Record<(typeof ROLES)[number], number> = { owner: 3, admin: 3, developer: 2, member: 2, guest: 1 };
 const KEYS = {
-  personKeyByPassword: "d3JhcHBlZA==", publicKey: "cHVibGlj", privateKeyWrapped: "d3JhcHBlZA==",
+  personKeyByPassword: "d3JhcHBlZA==",
+  publicKey: "cHVibGlj",
+  privateKeyWrapped: "d3JhcHBlZA==",
   spaceKeys: [{ epoch: 0, wrapped: "d3JhcHBlZA==" }],
 };
 
 /** The files whose content defines the template. */
 export const PROTO_SOURCES: readonly string[] = [path.join(HERE, "seed.ts"), path.join(HERE, "build.ts")];
 let memo: string | undefined;
-export const registryHash = (): string => (memo ??= crypto.createHash("sha256").update(fs.readFileSync(path.join(REPO, "generated/registry.json"))).digest("hex"));
+export const registryHash = (): string =>
+  (memo ??= crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(path.join(REPO, "generated/registry.json")))
+    .digest("hex"));
 
-export interface BootOptions { cache?: string; scratch?: string; sources?: readonly string[]; registry?: string }
+export interface BootOptions {
+  cache?: string;
+  scratch?: string;
+  sources?: readonly string[];
+  registry?: string;
+}
 export interface PrototypeSpace extends SeedIds {
   key: SpaceKey;
   space: string;
@@ -54,16 +65,45 @@ export interface PrototypeSpace extends SeedIds {
   close(): void;
 }
 
-interface Invite { id: string; code: string; role: string; username: string; createdBy: string; state: "open" | "accepted" }
-interface Who { id: string; kind: "person" | "actor"; preAuth?: boolean }
+interface Invite {
+  id: string;
+  code: string;
+  role: string;
+  username: string;
+  createdBy: string;
+  state: "open" | "accepted";
+}
+interface Who {
+  id: string;
+  kind: "person" | "actor";
+  preAuth?: boolean;
+}
 
-const dropUndef = (o: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+const dropUndef = (o: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 function toNew(e: EventEnvelope): NewEvent {
   return dropUndef({
-    id: e.id, type: e.type, sv: e.sv, hlc: e.hlc, trace_id: e.traceId, span_id: e.spanId, actor: e.actor, on_behalf: e.onBehalf,
-    device: e.device, run_id: e.runId, cause: e.cause, origin: e.origin, depth: e.depth, entity: e.entity, entity_id: e.entityId,
-    fields: e.fields, label: e.label, vis: e.vis, enc: e.enc, payload: e.payload,
+    id: e.id,
+    type: e.type,
+    sv: e.sv,
+    hlc: e.hlc,
+    trace_id: e.traceId,
+    span_id: e.spanId,
+    actor: e.actor,
+    on_behalf: e.onBehalf,
+    device: e.device,
+    run_id: e.runId,
+    cause: e.cause,
+    origin: e.origin,
+    depth: e.depth,
+    entity: e.entity,
+    entity_id: e.entityId,
+    fields: e.fields,
+    label: e.label,
+    vis: e.vis,
+    enc: e.enc,
+    payload: e.payload,
   }) as NewEvent;
 }
 
@@ -72,14 +112,21 @@ function payloadOf(ev: StoredEvent): Record<string, unknown> {
 }
 
 export function idsFrom(events: readonly StoredEvent[]): SeedIds & { invited: number; joined: number } {
-  const people: string[] = [], agents: string[] = [], clients: string[] = [], companies: string[] = [];
-  let invited = 0, joined = 0;
+  const people: string[] = [],
+    agents: string[] = [],
+    clients: string[] = [],
+    companies: string[] = [];
+  let invited = 0,
+    joined = 0;
   for (const ev of events) {
     const p = payloadOf(ev);
-    if (ev.type === "principal.created" && p["kind"] === "person" && typeof p["principalId"] === "string") people.push(p["principalId"]);
+    if (ev.type === "principal.created" && p["kind"] === "person" && typeof p["principalId"] === "string")
+      people.push(p["principalId"]);
     if (ev.type === "agent.created" && typeof p["agentId"] === "string") agents.push(p["agentId"]);
-    if (ev.type === "record.created" && p["type"] === "contact" && typeof p["recordId"] === "string") clients.push(p["recordId"]);
-    if (ev.type === "record.created" && p["type"] === "company" && typeof p["recordId"] === "string") companies.push(p["recordId"]);
+    if (ev.type === "record.created" && p["type"] === "contact" && typeof p["recordId"] === "string")
+      clients.push(p["recordId"]);
+    if (ev.type === "record.created" && p["type"] === "company" && typeof p["recordId"] === "string")
+      companies.push(p["recordId"]);
     if (ev.type === "member.invited") invited += 1;
     if (ev.type === "member.joined") joined += 1;
   }
@@ -98,7 +145,9 @@ export function idColumns(proto: readonly string[], seeded: readonly string[]): 
 function accessFor(spec: SeedSpace, ownerId: string, ownerName: string): AccessSnapshot {
   const s = new AccessSnapshot();
   for (const role of ROLES) {
-    const perms = Object.entries(roleDefaults).filter(([, d]) => d[role] === true).map(([k]) => k);
+    const perms = Object.entries(roleDefaults)
+      .filter(([, d]) => d[role] === true)
+      .map(([k]) => k);
     s.putRole({ id: role, clearance: CLEARANCE[role], perms, name: role });
   }
   s.putPrincipal({ id: ownerId, kind: "person", status: "active", name: ownerName });
@@ -106,7 +155,14 @@ function accessFor(spec: SeedSpace, ownerId: string, ownerName: string): AccessS
   s.putResource({ id: spec.spaceId, type: "space", parent_id: null, label: 0, owner_id: ownerId, holds: 0 });
   s.putResource({ id: "contact", type: "record_type", parent_id: spec.spaceId, label: 0, owner_id: ownerId, holds: 0 });
   s.putResource({ id: "company", type: "record_type", parent_id: spec.spaceId, label: 0, owner_id: ownerId, holds: 0 });
-  s.putGrant({ id: "gnt_owner", subject_kind: "role", subject_id: "owner", resource_type: "space", resource_id: spec.spaceId, level: "manage" });
+  s.putGrant({
+    id: "gnt_owner",
+    subject_kind: "role",
+    subject_id: "owner",
+    resource_type: "space",
+    resource_id: spec.spaceId,
+    level: "manage",
+  });
   return s;
 }
 
@@ -122,18 +178,45 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
   const onInvite: Handler = (ctx, input: any) => {
     const email = input.email;
     const person: SeedPerson | undefined = typeof email === "string" ? byEmail.get(email) : undefined;
-    if (!person || person.role === "owner") throw fail("validation.bad_input", ctx.trace.traceId, { details: { errors: ["/email: no such person to invite"] } });
-    if (typeof input.role !== "string" || input.role !== `rol_${person.role}`) throw fail("validation.bad_input", ctx.trace.traceId, { details: { errors: ["/role: does not match the seed"] } });
+    if (!person || person.role === "owner")
+      throw fail("validation.bad_input", ctx.trace.traceId, {
+        details: { errors: ["/email: no such person to invite"] },
+      });
+    if (typeof input.role !== "string" || input.role !== `rol_${person.role}`)
+      throw fail("validation.bad_input", ctx.trace.traceId, {
+        details: { errors: ["/role: does not match the seed"] },
+      });
     const code = person.id;
-    if (invites.has(code) || people.has(personId(person.id))) throw fail("validation.duplicate", ctx.trace.traceId, { details: { username: person.id } });
-    const invite: Invite = { id: `inv_${person.id}`, code, role: input.role, username: person.id, createdBy: ctx.principal.id, state: "open" };
+    if (invites.has(code) || people.has(personId(person.id)))
+      throw fail("validation.duplicate", ctx.trace.traceId, { details: { username: person.id } });
+    const invite: Invite = {
+      id: `inv_${person.id}`,
+      code,
+      role: input.role,
+      username: person.id,
+      createdBy: ctx.principal.id,
+      state: "open",
+    };
     invites.set(code, invite);
     const at = ctx.now();
-    ctx.emit("member.invited", `entity/${invite.id}`, { inviteId: invite.id, role: invite.role, expiresAt: at + 7 * 86_400_000 });
+    ctx.emit("member.invited", `entity/${invite.id}`, {
+      inviteId: invite.id,
+      role: invite.role,
+      expiresAt: at + 7 * 86_400_000,
+    });
     return {
       invite: {
-        id: invite.id, role: invite.role, groups: [], agents: [], projects: [], channels: [], email, expiresAt: at + 7 * 86_400_000,
-        createdBy: invite.createdBy, state: "open", createdAt: at,
+        id: invite.id,
+        role: invite.role,
+        groups: [],
+        agents: [],
+        projects: [],
+        channels: [],
+        email,
+        expiresAt: at + 7 * 86_400_000,
+        createdBy: invite.createdBy,
+        state: "open",
+        createdAt: at,
       },
       link: `https://${spec.domain}/join/${code}`,
     };
@@ -143,30 +226,56 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     const code = input.code;
     const username = input.username;
     const invite = typeof code === "string" ? invites.get(code) : undefined;
-    if (!invite || invite.state !== "open" || username !== invite.username) throw fail("auth.invalid_code", ctx.trace.traceId, { message: "That invite code is not open." });
+    if (!invite || invite.state !== "open" || username !== invite.username)
+      throw fail("auth.invalid_code", ctx.trace.traceId, { message: "That invite code is not open." });
     const id = personId(invite.username);
     if (people.has(id)) throw fail("validation.duplicate", ctx.trace.traceId, { details: { personId: id } });
     people.add(id);
     invite.state = "accepted";
-    ctx.emit("member.joined", `entity/${id}`, { personId: id, inviteId: invite.id, role: invite.role, invitedBy: invite.createdBy });
+    ctx.emit("member.joined", `entity/${id}`, {
+      personId: id,
+      inviteId: invite.id,
+      role: invite.role,
+      invitedBy: invite.createdBy,
+    });
     ctx.emit("principal.created", `entity/${id}`, { principalId: id, kind: "person" });
     return { personId: id, sessionId: `ses_${invite.username}`, token: `seed-${invite.username}`, epoch: 0 };
   };
 
   const onAgent: Handler = (ctx, input: any) => {
     const name = input.name;
-    if (typeof name !== "string" || name.length === 0) throw fail("validation.bad_input", ctx.trace.traceId, { details: { errors: ["/name: required"] } });
+    if (typeof name !== "string" || name.length === 0)
+      throw fail("validation.bad_input", ctx.trace.traceId, { details: { errors: ["/name: required"] } });
     const id = agentId(name);
     const owner = typeof input.ownerId === "string" ? input.ownerId : ctx.principal.id;
     if (agents.has(id)) throw fail("validation.duplicate", ctx.trace.traceId, { details: { agentId: id } });
     agents.add(id);
     const slug = name.toLowerCase();
-    ctx.emit("agent.created", `agent/${id}`, { agentId: id, name, ownerId: owner, folderId: `fld_${slug}`, templateVersion: 1 });
+    ctx.emit("agent.created", `agent/${id}`, {
+      agentId: id,
+      name,
+      ownerId: owner,
+      folderId: `fld_${slug}`,
+      templateVersion: 1,
+    });
     return {
       agent: {
-        agentId: id, name, face: typeof input.face === "string" ? input.face : slug, status: "awake", ownerId: owner, folderId: `fld_${slug}`,
-        accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false,
-        templateVersion: 1, createdAt: ctx.now(),
+        agentId: id,
+        name,
+        face: typeof input.face === "string" ? input.face : slug,
+        status: "awake",
+        ownerId: owner,
+        folderId: `fld_${slug}`,
+        accountPolicy: "asker",
+        accountFallback: [],
+        toolsAllowed: [],
+        toolsDenied: [],
+        vaultKeys: [],
+        limits: {},
+        captureMode: "auto",
+        hasComputer: false,
+        templateVersion: 1,
+        createdAt: ctx.now(),
       },
     };
   };
@@ -180,7 +289,10 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     if (type === "company" && typeof fields["name"] === "string") client = byOrg.get(fields["name"]);
     if (client && type === "contact") id = clientId(client.id);
     if (client && type === "company") id = companyId(client.id);
-    if (!id || (type !== "contact" && type !== "company")) throw fail("validation.bad_input", ctx.trace.traceId, { details: { errors: ["/type: the seed knows contact and company rows from VyreSeed"] } });
+    if (!id || (type !== "contact" && type !== "company"))
+      throw fail("validation.bad_input", ctx.trace.traceId, {
+        details: { errors: ["/type: the seed knows contact and company rows from VyreSeed"] },
+      });
     if (records.has(id)) throw fail("validation.duplicate", ctx.trace.traceId, { details: { recordId: id } });
     records.add(id);
     const at = ctx.now();
@@ -188,18 +300,34 @@ function handlersFor(spec: SeedSpace, ownerId: string): Record<string, Handler> 
     return { record: { id, type, version: 1, label: 1, fields, createdAt: at, updatedAt: at, holds: 0 } };
   };
 
-  return { "members.invites.create": onInvite, "members.accept": onAccept, "agents.create": onAgent, "records.create": onRecord };
+  return {
+    "members.invites.create": onInvite,
+    "members.accept": onAccept,
+    "agents.create": onAgent,
+    "records.create": onRecord,
+  };
 }
 
 async function fill(store: LogStore, spec: SeedSpace): Promise<void> {
   const owner = spec.people.find((p) => p.role === "owner");
-  if (!owner || spec.people.filter((p) => p.role === "owner").length !== 1) throw new Error(`${spec.name} needs one owner`);
+  if (!owner || spec.people.filter((p) => p.role === "owner").length !== 1)
+    throw new Error(`${spec.name} needs one owner`);
   const ownerId = personId(owner.id);
-  if (spec.kind === "personal" && (spec.people.length !== 1 || spec.clients.length !== 0)) throw new Error(`${spec.name} seeds its owner and agents only`);
-  const genesis = store.appendBatch([{
-    id: `evt_seed_${spec.key}_owner`, type: "principal.created", sv: 1, trace_id: TRACE, actor: "svc_seed", vis: "space",
-    entity: "entity", entity_id: ownerId, payload: { principalId: ownerId, kind: "person" },
-  }]);
+  if (spec.kind === "personal" && (spec.people.length !== 1 || spec.clients.length !== 0))
+    throw new Error(`${spec.name} seeds its owner and agents only`);
+  const genesis = store.appendBatch([
+    {
+      id: `evt_seed_${spec.key}_owner`,
+      type: "principal.created",
+      sv: 1,
+      trace_id: TRACE,
+      actor: "svc_seed",
+      vis: "space",
+      entity: "entity",
+      entity_id: ownerId,
+      payload: { principalId: ownerId, kind: "person" },
+    },
+  ]);
   const g = genesis[0];
   if (!g?.ok) throw new Error(`owner seed refused: ${g && !g.ok ? g.message : "missing result"}`);
 
@@ -208,7 +336,8 @@ async function fill(store: LogStore, spec: SeedSpace): Promise<void> {
   const handlers = handlersFor(spec, ownerId);
   const invoke = createInvoke({
     caps: indexCapabilities(registry.capabilities),
-    validateInput, validateEvent,
+    validateInput,
+    validateEvent,
     authorize: (req) => authorize(access, req),
     handler: (cap) => handlers[cap],
     commit: async (b) => {
@@ -216,21 +345,37 @@ async function fill(store: LogStore, spec: SeedSpace): Promise<void> {
       const results = store.appendBatch(b.events.map(toNew));
       for (let i = 0; i < results.length; i++) {
         const r = results[i];
-        if (!r?.ok) throw fail("internal.unexpected", b.events[i]?.traceId ?? TRACE, { details: { message: r && !r.ok ? r.message : "missing append result", cap: b.cap } });
+        if (!r?.ok)
+          throw fail("internal.unexpected", b.events[i]?.traceId ?? TRACE, {
+            details: { message: r && !r.ok ? r.message : "missing append result", cap: b.cap },
+          });
       }
       return b.events;
     },
-    idem: createIdempotency({ get: (key) => mem.get(key) ?? null, put: (key, _p, _c, rec) => { mem.set(key, rec); } }),
+    idem: createIdempotency({
+      get: (key) => mem.get(key) ?? null,
+      put: (key, _p, _c, rec) => {
+        mem.set(key, rec);
+      },
+    }),
     rate: createRateLimiter(),
     now: () => NOW,
   });
 
   const call = async (cap: string, input: unknown, who: Who): Promise<Record<string, unknown>> => {
-    const seed: CtxSeed = { space: spec.spaceId, principal: { kind: who.kind, id: who.id }, ...(who.preAuth ? { preAuth: true } : {}) };
+    const seed: CtxSeed = {
+      space: spec.spaceId,
+      principal: { kind: who.kind, id: who.id },
+      ...(who.preAuth ? { preAuth: true } : {}),
+    };
     let result;
-    try { result = await invoke(cap, input, seed); }
-    catch (e) {
-      if (e instanceof HostError) throw new Error(`${cap} refused: ${e.error.code}${e.error.details ? ` ${JSON.stringify(e.error.details)}` : ""}`);
+    try {
+      result = await invoke(cap, input, seed);
+    } catch (e) {
+      if (e instanceof HostError)
+        throw new Error(
+          `${cap} refused: ${e.error.code}${e.error.details ? ` ${JSON.stringify(e.error.details)}` : ""}`,
+        );
       throw e;
     }
     if (result.status !== "ok") throw new Error(`${cap} held`);
@@ -243,23 +388,47 @@ async function fill(store: LogStore, spec: SeedSpace): Promise<void> {
   if (spec.kind === "team") {
     for (const p of spec.people) {
       if (p.role === "owner") continue;
-      const created = await call("members.invites.create", { role: `rol_${p.role}`, email: p.email, idempotencyKey: `invite:${p.id}` }, asOwner);
+      const created = await call(
+        "members.invites.create",
+        { role: `rol_${p.role}`, email: p.email, idempotencyKey: `invite:${p.id}` },
+        asOwner,
+      );
       const link = created["link"];
       if (typeof link !== "string") throw new Error("members.invites.create returned no link");
       const code = link.slice(link.lastIndexOf("/") + 1);
-      await call("members.accept", {
-        code, username: p.id, displayName: p.name, password: "seed-password", deviceName: "Seed", deviceClass: "desktop", keys: KEYS,
-      }, { id: "act_join", kind: "actor", preAuth: true });
+      await call(
+        "members.accept",
+        {
+          code,
+          username: p.id,
+          displayName: p.name,
+          password: "seed-password",
+          deviceName: "Seed",
+          deviceClass: "desktop",
+          keys: KEYS,
+        },
+        { id: "act_join", kind: "actor", preAuth: true },
+      );
     }
   }
   for (const name of spec.agents) {
-    await call("agents.create", { name, face: name.toLowerCase(), ownerId, idempotencyKey: `agent:${agentId(name)}` }, asOwner);
+    await call(
+      "agents.create",
+      { name, face: name.toLowerCase(), ownerId, idempotencyKey: `agent:${agentId(name)}` },
+      asOwner,
+    );
   }
   for (const c of spec.clients) {
     await call("records.create", { type: "company", fields: { name: c.org }, idempotencyKey: `co:${c.id}` }, asOwner);
-    await call("records.create", {
-      type: "contact", fields: { name: c.name, email: c.email, phone: c.phone, company: [companyId(c.id)] }, idempotencyKey: `contact:${c.id}`,
-    }, asOwner);
+    await call(
+      "records.create",
+      {
+        type: "contact",
+        fields: { name: c.name, email: c.email, phone: c.phone, company: [companyId(c.id)] },
+        idempotencyKey: `contact:${c.id}`,
+      },
+      asOwner,
+    );
   }
 }
 
@@ -269,7 +438,9 @@ export async function buildInto(file: string, spec: SeedSpace): Promise<void> {
   try {
     await fill(store, spec);
     store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
-  } finally { store.close(); }
+  } finally {
+    store.close();
+  }
 }
 
 /** The template file for one Space, built through capabilities when missing. */
@@ -278,8 +449,14 @@ export async function ensurePrototype(dir: string, key: SpaceKey, hash: string):
   const file = path.join(dir, `prototype-${key}-${hash}.db`);
   if (fs.existsSync(file)) return { path: file, hit: true };
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
-  try { await buildInto(tmp, spec); fs.renameSync(tmp, file); }
-  finally { fs.rmSync(tmp, { force: true }); fs.rmSync(`${tmp}-wal`, { force: true }); fs.rmSync(`${tmp}-shm`, { force: true }); }
+  try {
+    await buildInto(tmp, spec);
+    fs.renameSync(tmp, file);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+    fs.rmSync(`${tmp}-wal`, { force: true });
+    fs.rmSync(`${tmp}-shm`, { force: true });
+  }
   return { path: file, hit: false };
 }
 
@@ -293,7 +470,18 @@ export async function bootPrototype(key: SpaceKey, o: BootOptions = {}): Promise
   const verified = store.verify();
   const ids = idsFrom(store.read({ limit: 500 }));
   return {
-    key, space: VYRE_SEED[key].spaceId, hit: tpl.hit, template: tpl.path, file, ...ids, verified: verified.ok,
-    close: () => { store.close(); fs.rmSync(file, { force: true }); fs.rmSync(`${file}-wal`, { force: true }); fs.rmSync(`${file}-shm`, { force: true }); },
+    key,
+    space: VYRE_SEED[key].spaceId,
+    hit: tpl.hit,
+    template: tpl.path,
+    file,
+    ...ids,
+    verified: verified.ok,
+    close: () => {
+      store.close();
+      fs.rmSync(file, { force: true });
+      fs.rmSync(`${file}-wal`, { force: true });
+      fs.rmSync(`${file}-shm`, { force: true });
+    },
   };
 }

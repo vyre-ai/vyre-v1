@@ -11,7 +11,20 @@ import { emitLearned, insertFact, normal } from "../factcore.ts";
 import { readPage, saveNotes } from "../pages.ts";
 import { reviewRequired, upkeepCapMicros } from "../policy.ts";
 import { trail, UPKEEP } from "../trail.ts";
-import { actorOf, ensure, loadFact, makeAccess, mintId, num, pageOf, raise, readFact, rowsOf, str, trigramSim } from "../projections.ts";
+import {
+  actorOf,
+  ensure,
+  loadFact,
+  makeAccess,
+  mintId,
+  num,
+  pageOf,
+  raise,
+  readFact,
+  rowsOf,
+  str,
+  trigramSim,
+} from "../projections.ts";
 import type { Fact, Layer, MemCtx, Row } from "../projections.ts";
 import { canSee, trashFact } from "./lifecycle.ts";
 
@@ -20,9 +33,25 @@ type Page = { cursor?: string; limit?: number };
 
 // ---- the model seam
 
-export interface UpkeepScope { layer: Layer; ownerRef: string; agentId: string | null; projectId: string | null }
-export interface UpkeepFactIn { id: string; text: string; kind: string | null; learnedAt: number; sourceKind: string; sourceRef: string }
-export interface UpkeepPageIn { id: string; title: string; notes: string }
+export interface UpkeepScope {
+  layer: Layer;
+  ownerRef: string;
+  agentId: string | null;
+  projectId: string | null;
+}
+export interface UpkeepFactIn {
+  id: string;
+  text: string;
+  kind: string | null;
+  learnedAt: number;
+  sourceKind: string;
+  sourceRef: string;
+}
+export interface UpkeepPageIn {
+  id: string;
+  title: string;
+  notes: string;
+}
 export interface UpkeepRequest {
   tasks: Array<"semantic_duplicates" | "patterns" | "corrections" | "tidy_pages">;
   scope: UpkeepScope;
@@ -38,30 +67,49 @@ export type UpkeepAction =
   | { type: "correct"; id: string; text: string; reason?: string }
   | { type: "delete"; id: string; reason?: string }
   | { type: "tidy_page"; pageId: string; notes: string; reason?: string };
-export interface UpkeepUsage { inTokens: number; outTokens: number; costMicros?: number }
-export interface UpkeepResult { actions: UpkeepAction[]; usage: UpkeepUsage }
+export interface UpkeepUsage {
+  inTokens: number;
+  outTokens: number;
+  costMicros?: number;
+}
+export interface UpkeepResult {
+  actions: UpkeepAction[];
+  usage: UpkeepUsage;
+}
 /** Resolve the key for the request's scope and ask the model. Answer null when the scope has no key; the run then stays rule-based for it. */
 export type UpkeepModel = (req: UpkeepRequest, ctx: MemCtx) => Promise<UpkeepResult | null>;
 
 /** A model bound by a test or a host that runs its own. Without one, upkeep asks memory.key.resolve for the scope's account and runs the model through engine.complete on it. */
 let model: UpkeepModel | null = null;
-export function setUpkeepModel(fn: UpkeepModel | null): void { model = fn; }
+export function setUpkeepModel(fn: UpkeepModel | null): void {
+  model = fn;
+}
 
 // ---- the default model: the scope's own key, through the engine
 
-const SYSTEM = "You tidy a shared memory for a team. You are given facts (id, text, kind), recent corrections and pages. Answer with one JSON object {\"actions\": [...]} and nothing else. Each action is one of: " +
-  "{\"type\":\"merge\",\"keep\":id,\"drop\":[ids],\"text\":optional merged wording,\"reason\":why} for facts that say the same thing in different words; " +
-  "{\"type\":\"create\",\"text\":a new fact,\"kind\":\"pattern\"|\"preference\",\"from\":[ids it comes from],\"reason\":why} only for something that holds across three or more facts; " +
-  "{\"type\":\"correct\",\"id\":id,\"text\":the right wording,\"reason\":why} when a recent correction shows a similar fact is wrong; " +
-  "{\"type\":\"delete\",\"id\":id,\"reason\":why} for a fact that is clearly obsolete; " +
-  "{\"type\":\"tidy_page\",\"pageId\":id,\"notes\":the page notes, fixed and tidied, every [[link]] kept,\"reason\":why}. " +
-  "Use only ids you were given. When nothing needs doing answer {\"actions\":[]}.";
+const SYSTEM =
+  'You tidy a shared memory for a team. You are given facts (id, text, kind), recent corrections and pages. Answer with one JSON object {"actions": [...]} and nothing else. Each action is one of: ' +
+  '{"type":"merge","keep":id,"drop":[ids],"text":optional merged wording,"reason":why} for facts that say the same thing in different words; ' +
+  '{"type":"create","text":a new fact,"kind":"pattern"|"preference","from":[ids it comes from],"reason":why} only for something that holds across three or more facts; ' +
+  '{"type":"correct","id":id,"text":the right wording,"reason":why} when a recent correction shows a similar fact is wrong; ' +
+  '{"type":"delete","id":id,"reason":why} for a fact that is clearly obsolete; ' +
+  '{"type":"tidy_page","pageId":id,"notes":the page notes, fixed and tidied, every [[link]] kept,"reason":why}. ' +
+  'Use only ids you were given. When nothing needs doing answer {"actions":[]}.';
 
 export function promptOf(req: UpkeepRequest): string {
   const lines = [`Tasks: ${req.tasks.join(", ")}.`, `Place: ${req.scope.layer} memory.`, "", "Facts:"];
-  for (const f of req.facts) lines.push(`- ${f.id} [${f.kind ?? "fact"}, ${new Date(f.learnedAt).toISOString().slice(0, 10)}] ${f.text.replace(/\s+/g, " ")}`);
-  if (req.corrections.length > 0) { lines.push("", "Recent corrections:"); for (const c of req.corrections) lines.push(`- ${c.factId}: was "${c.was}" now "${c.now}"`); }
-  if (req.pages.length > 0) { lines.push("", "Pages:"); for (const p of req.pages) lines.push(`## ${p.id} ${p.title}`, p.notes); }
+  for (const f of req.facts)
+    lines.push(
+      `- ${f.id} [${f.kind ?? "fact"}, ${new Date(f.learnedAt).toISOString().slice(0, 10)}] ${f.text.replace(/\s+/g, " ")}`,
+    );
+  if (req.corrections.length > 0) {
+    lines.push("", "Recent corrections:");
+    for (const c of req.corrections) lines.push(`- ${c.factId}: was "${c.was}" now "${c.now}"`);
+  }
+  if (req.pages.length > 0) {
+    lines.push("", "Pages:");
+    for (const p of req.pages) lines.push(`## ${p.id} ${p.title}`, p.notes);
+  }
   return lines.join("\n");
 }
 
@@ -72,17 +120,37 @@ export function parseActions(text: string): UpkeepAction[] {
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return [];
   let obj: unknown;
-  try { obj = JSON.parse(text.slice(start, end + 1)); } catch { return []; }
+  try {
+    obj = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return [];
+  }
   const list = (obj as { actions?: unknown }).actions;
   if (!Array.isArray(list)) return [];
   const out: UpkeepAction[] = [];
   for (const a of list as Array<Record<string, unknown>>) {
     const reason = isStr(a["reason"]) ? { reason: a["reason"] } : {};
-    if (a["type"] === "merge" && isStr(a["keep"]) && Array.isArray(a["drop"]) && (a["drop"] as unknown[]).every(isStr)) out.push({ type: "merge", keep: a["keep"], drop: a["drop"] as string[], ...(isStr(a["text"]) ? { text: a["text"] } : {}), ...reason });
-    else if (a["type"] === "create" && isStr(a["text"])) out.push({ type: "create", text: a["text"], ...(isStr(a["kind"]) ? { kind: a["kind"] } : {}), ...(Array.isArray(a["from"]) ? { from: (a["from"] as unknown[]).filter(isStr) } : {}), ...reason });
-    else if (a["type"] === "correct" && isStr(a["id"]) && isStr(a["text"])) out.push({ type: "correct", id: a["id"], text: a["text"], ...reason });
+    if (a["type"] === "merge" && isStr(a["keep"]) && Array.isArray(a["drop"]) && (a["drop"] as unknown[]).every(isStr))
+      out.push({
+        type: "merge",
+        keep: a["keep"],
+        drop: a["drop"] as string[],
+        ...(isStr(a["text"]) ? { text: a["text"] } : {}),
+        ...reason,
+      });
+    else if (a["type"] === "create" && isStr(a["text"]))
+      out.push({
+        type: "create",
+        text: a["text"],
+        ...(isStr(a["kind"]) ? { kind: a["kind"] } : {}),
+        ...(Array.isArray(a["from"]) ? { from: (a["from"] as unknown[]).filter(isStr) } : {}),
+        ...reason,
+      });
+    else if (a["type"] === "correct" && isStr(a["id"]) && isStr(a["text"]))
+      out.push({ type: "correct", id: a["id"], text: a["text"], ...reason });
     else if (a["type"] === "delete" && isStr(a["id"])) out.push({ type: "delete", id: a["id"], ...reason });
-    else if (a["type"] === "tidy_page" && isStr(a["pageId"]) && isStr(a["notes"])) out.push({ type: "tidy_page", pageId: a["pageId"], notes: a["notes"], ...reason });
+    else if (a["type"] === "tidy_page" && isStr(a["pageId"]) && isStr(a["notes"]))
+      out.push({ type: "tidy_page", pageId: a["pageId"], notes: a["notes"], ...reason });
   }
   return out;
 }
@@ -90,10 +158,24 @@ export function parseActions(text: string): UpkeepAction[] {
 async function keyedModel(req: UpkeepRequest, ctx: MemCtx): Promise<UpkeepResult | null> {
   let key: { accountRef?: string; model?: string } | undefined;
   try {
-    key = ((await ctx.call("memory.key.resolve", { layer: req.scope.layer, ownerRef: req.scope.ownerRef, ...(req.scope.agentId ? { agentId: req.scope.agentId } : {}), ...(req.scope.projectId ? { projectId: req.scope.projectId } : {}) })) as { key?: typeof key }).key;
-  } catch { return null; }   // no key capability, or the key cannot be resolved for this caller: rules only
+    key = (
+      (await ctx.call("memory.key.resolve", {
+        layer: req.scope.layer,
+        ownerRef: req.scope.ownerRef,
+        ...(req.scope.agentId ? { agentId: req.scope.agentId } : {}),
+        ...(req.scope.projectId ? { projectId: req.scope.projectId } : {}),
+      })) as { key?: typeof key }
+    ).key;
+  } catch {
+    return null;
+  } // no key capability, or the key cannot be resolved for this caller: rules only
   if (!key?.accountRef) return null;
-  const out = (await ctx.call("engine.complete", { accountRef: key.accountRef, ...(key.model ? { model: key.model } : {}), system: SYSTEM, prompt: promptOf(req) })) as { text: string; tokensIn: number; tokensOut: number };
+  const out = (await ctx.call("engine.complete", {
+    accountRef: key.accountRef,
+    ...(key.model ? { model: key.model } : {}),
+    system: SYSTEM,
+    prompt: promptOf(req),
+  })) as { text: string; tokensIn: number; tokensOut: number };
   return { actions: parseActions(out.text), usage: { inTokens: out.tokensIn, outTokens: out.tokensOut } };
 }
 
@@ -104,10 +186,20 @@ export const estimateMicros = (u: UpkeepUsage): number => u.costMicros ?? Math.r
 
 /** Subject, field and value of a sentence shaped "Dana's timezone is Pacific" or "The retainer is 4000", or null. */
 export function claimOf(text: string): { subject: string; field: string; value: string } | null {
-  const t = text.trim().replace(/[.!]+$/, "").replace(/\s+/g, " ");
-  const m = /^(?:(?:the|my|our)\s+)?(?:(.{1,40}?)['’]s\s+)?([a-z][a-z0-9 -]{1,40}?)\s+(?:is|are|was|will be|=|:)\s+(.{1,120})$/i.exec(t);
+  const t = text
+    .trim()
+    .replace(/[.!]+$/, "")
+    .replace(/\s+/g, " ");
+  const m =
+    /^(?:(?:the|my|our)\s+)?(?:(.{1,40}?)['’]s\s+)?([a-z][a-z0-9 -]{1,40}?)\s+(?:is|are|was|will be|=|:)\s+(.{1,120})$/i.exec(
+      t,
+    );
   if (!m) return null;
-  const clean = (s: string): string => s.toLowerCase().replace(/^(?:the|a|an)\s+/, "").trim();
+  const clean = (s: string): string =>
+    s
+      .toLowerCase()
+      .replace(/^(?:the|a|an)\s+/, "")
+      .trim();
   const field = clean(m[2] ?? "");
   const value = clean(m[3] ?? "");
   if (field === "" || value === "" || field.split(" ").length > 4) return null;
@@ -115,10 +207,21 @@ export function claimOf(text: string): { subject: string; field: string; value: 
 }
 
 /** Days after which a fact of this kind is worth asking about again. */
-export const STALE_DAYS: Readonly<Record<string, number>> = { deadline: 30, decision: 365, preference: 540, profile: 540, note: 365 };
+export const STALE_DAYS: Readonly<Record<string, number>> = {
+  deadline: 30,
+  decision: 365,
+  preference: 540,
+  profile: 540,
+  note: 365,
+};
 export const STALE_DEFAULT_DAYS = 365;
 
-const words = (s: string): Set<string> => new Set(normal(s).split(/[^a-z0-9]+/).filter((w) => w.length > 1));
+const words = (s: string): Set<string> =>
+  new Set(
+    normal(s)
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 1),
+  );
 const overlap = (a: string, b: string): number => {
   const x = words(a);
   const y = words(b);
@@ -131,22 +234,67 @@ const overlap = (a: string, b: string): number => {
 export const isNearDuplicate = (a: string, b: string): boolean => trigramSim(a, b) >= 0.88 && overlap(a, b) >= 0.75;
 
 const placeOf = (f: Fact): string => `${f.layer}|${f.ownerRef}|${f.agentId ?? ""}|${f.projectId ?? ""}`;
-const scopeOfFact = (f: Fact): UpkeepScope => ({ layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId });
+const scopeOfFact = (f: Fact): UpkeepScope => ({
+  layer: f.layer,
+  ownerRef: f.ownerRef,
+  agentId: f.agentId,
+  projectId: f.projectId,
+});
 
-interface Counters { merged: number; flagged: number; stale: number; created: number; corrected: number; deleted: number; tidied: number }
+interface Counters {
+  merged: number;
+  flagged: number;
+  stale: number;
+  created: number;
+  corrected: number;
+  deleted: number;
+  tidied: number;
+}
 const zero = (): Counters => ({ merged: 0, flagged: 0, stale: 0, created: 0, corrected: 0, deleted: 0, tidied: 0 });
 
 function openQuestion(ctx: MemCtx, kind: "contradiction" | "stale", a: Fact, b: Fact | null, runId: string): boolean {
   const q = b
-    ? rowsOf(ctx.db, "SELECT id FROM memory_questions WHERE kind = ? AND ((fact_a = ? AND fact_b = ?) OR (fact_a = ? AND fact_b = ?))", kind, a.id, b.id, b.id, a.id)[0]
-    : rowsOf(ctx.db, "SELECT id FROM memory_questions WHERE kind = ? AND fact_a = ? AND (status = 'open' OR resolved_at > ?)", kind, a.id, ctx.now() - (STALE_DAYS[a.kind ?? ""] ?? STALE_DEFAULT_DAYS) * DAY)[0];
+    ? rowsOf(
+        ctx.db,
+        "SELECT id FROM memory_questions WHERE kind = ? AND ((fact_a = ? AND fact_b = ?) OR (fact_a = ? AND fact_b = ?))",
+        kind,
+        a.id,
+        b.id,
+        b.id,
+        a.id,
+      )[0]
+    : rowsOf(
+        ctx.db,
+        "SELECT id FROM memory_questions WHERE kind = ? AND fact_a = ? AND (status = 'open' OR resolved_at > ?)",
+        kind,
+        a.id,
+        ctx.now() - (STALE_DAYS[a.kind ?? ""] ?? STALE_DEFAULT_DAYS) * DAY,
+      )[0];
   if (q) return false;
   const id = mintId("qst", ctx.now());
   ctx.db.run(
     "INSERT INTO memory_questions (id, kind, fact_a, fact_b, layer, owner_ref, agent_id, project_id, status, created_at, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)",
-    id, kind, a.id, b?.id ?? null, a.layer, a.ownerRef, a.agentId, a.projectId, ctx.now(), runId,
+    id,
+    kind,
+    a.id,
+    b?.id ?? null,
+    a.layer,
+    a.ownerRef,
+    a.agentId,
+    a.projectId,
+    ctx.now(),
+    runId,
   );
-  trail(ctx, { action: "flag", factId: a.id, ...scopeOfFact(a), who: UPKEEP, source: "upkeep:rule", reason: kind === "contradiction" ? "two values for one subject and field" : "old for its kind", runId, detail: { questionId: id, ...(b ? { other: b.id } : {}) } });
+  trail(ctx, {
+    action: "flag",
+    factId: a.id,
+    ...scopeOfFact(a),
+    who: UPKEEP,
+    source: "upkeep:rule",
+    reason: kind === "contradiction" ? "two values for one subject and field" : "old for its kind",
+    runId,
+    detail: { questionId: id, ...(b ? { other: b.id } : {}) },
+  });
   return true;
 }
 
@@ -157,7 +305,19 @@ function ruleUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters): voi
   for (const f of facts) groups.set(placeOf(f), [...(groups.get(placeOf(f)) ?? []), f]);
   const gone = new Set<string>();
   const merge = (keep: Fact, drop: Fact, why: string): void => {
-    if (trashFact(ctx, drop, { reason: why, action: "merge", mergedInto: keep.id, who: UPKEEP, source: "upkeep:rule", runId })) { gone.add(drop.id); c.merged++; }
+    if (
+      trashFact(ctx, drop, {
+        reason: why,
+        action: "merge",
+        mergedInto: keep.id,
+        who: UPKEEP,
+        source: "upkeep:rule",
+        runId,
+      })
+    ) {
+      gone.add(drop.id);
+      c.merged++;
+    }
   };
   for (const g of groups.values()) {
     // exact duplicates: the earliest stays
@@ -165,7 +325,8 @@ function ruleUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters): voi
     for (const f of g) {
       const k = normal(f.text);
       const keep = first.get(k);
-      if (keep) merge(keep, f, "duplicate"); else first.set(k, f);
+      if (keep) merge(keep, f, "duplicate");
+      else first.set(k, f);
     }
     // near duplicates: of the same kind, the earlier stays (bounded so a huge place stays fast)
     const live = g.filter((f) => !gone.has(f.id)).slice(0, 400);
@@ -190,7 +351,8 @@ function ruleUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters): voi
     for (const list of claims.values()) {
       const base = list[0];
       if (!base) continue;
-      for (const other of list.slice(1)) if (other.value !== base.value && openQuestion(ctx, "contradiction", base.f, other.f, runId)) c.flagged++;
+      for (const other of list.slice(1))
+        if (other.value !== base.value && openQuestion(ctx, "contradiction", base.f, other.f, runId)) c.flagged++;
     }
     // stale: old for its kind
     for (const f of g) {
@@ -203,10 +365,18 @@ function ruleUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters): voi
 
 // ---- model actions
 
-function applyActions(ctx: MemCtx, scope: UpkeepScope, byId: Map<string, Fact>, actions: UpkeepAction[], runId: string, c: Counters, review: boolean): void {
+function applyActions(
+  ctx: MemCtx,
+  scope: UpkeepScope,
+  byId: Map<string, Fact>,
+  actions: UpkeepAction[],
+  runId: string,
+  c: Counters,
+  review: boolean,
+): void {
   const known = (id: string): Fact | undefined => {
     const f = byId.get(id);
-    return f && f.status === "current" ? loadFact(ctx, id) ?? undefined : undefined;
+    return f && f.status === "current" ? (loadFact(ctx, id) ?? undefined) : undefined;
   };
   for (const a of actions) {
     const why = (a as { reason?: string }).reason ?? "tidying";
@@ -217,7 +387,18 @@ function applyActions(ctx: MemCtx, scope: UpkeepScope, byId: Map<string, Fact>, 
       if (a.text && normal(a.text) !== normal(keep.text)) stays = replaceFact(ctx, keep, a.text, runId, why);
       for (const d of a.drop) {
         const f = d === a.keep ? undefined : known(d);
-        if (f && trashFact(ctx, f, { reason: why, action: "merge", mergedInto: stays.id, who: UPKEEP, source: "upkeep:model", runId })) c.merged++;
+        if (
+          f &&
+          trashFact(ctx, f, {
+            reason: why,
+            action: "merge",
+            mergedInto: stays.id,
+            who: UPKEEP,
+            source: "upkeep:model",
+            runId,
+          })
+        )
+          c.merged++;
       }
     } else if (a.type === "create") {
       const text = a.text.trim();
@@ -227,8 +408,24 @@ function applyActions(ctx: MemCtx, scope: UpkeepScope, byId: Map<string, Fact>, 
       const status = review ? "proposed" : "current";
       const from = (a.from ?? []).filter((id) => byId.has(id));
       const f = insertFact(ctx, {
-        layer: scope.layer, ownerRef: scope.ownerRef, agentId: scope.agentId, projectId: scope.projectId, kind: a.kind ?? "pattern", text, validFrom: ctx.now(), sourceKind: "manual", sourceRef: `upkeep_${runId}`,
-        sourcePerson: "upkeep", proposedBy: "upkeep", status, lowRisk: false, links: from.map((id) => ["derived_from", id] as [string, string]), how: "learn", who: UPKEEP, why, runId,
+        layer: scope.layer,
+        ownerRef: scope.ownerRef,
+        agentId: scope.agentId,
+        projectId: scope.projectId,
+        kind: a.kind ?? "pattern",
+        text,
+        validFrom: ctx.now(),
+        sourceKind: "manual",
+        sourceRef: `upkeep_${runId}`,
+        sourcePerson: "upkeep",
+        proposedBy: "upkeep",
+        status,
+        lowRisk: false,
+        links: from.map((id) => ["derived_from", id] as [string, string]),
+        how: "learn",
+        who: UPKEEP,
+        why,
+        runId,
       });
       emitLearned(ctx, f, status === "current", UPKEEP);
       c.created++;
@@ -239,7 +436,8 @@ function applyActions(ctx: MemCtx, scope: UpkeepScope, byId: Map<string, Fact>, 
       c.corrected++;
     } else if (a.type === "delete") {
       const f = known(a.id);
-      if (f && trashFact(ctx, f, { reason: why, action: "delete", who: UPKEEP, source: "upkeep:model", runId })) c.deleted++;
+      if (f && trashFact(ctx, f, { reason: why, action: "delete", who: UPKEEP, source: "upkeep:model", runId }))
+        c.deleted++;
     } else if (a.type === "tidy_page") {
       const r = rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE page_id = ? AND trashed_at IS NULL", a.pageId)[0];
       if (!r) continue;
@@ -256,8 +454,25 @@ function replaceFact(ctx: MemCtx, old: Fact, text: string, runId: string, why: s
   const now = ctx.now();
   ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, old.id);
   const fresh = insertFact(ctx, {
-    layer: old.layer, ownerRef: old.ownerRef, agentId: old.agentId, projectId: old.projectId, noteId: old.noteId, kind: old.kind, text, validFrom: now, sourceKind: "manual", sourceRef: old.id,
-    sourcePerson: "upkeep", proposedBy: "upkeep", status: "current", lowRisk: false, replaces: old.id, how: "edit", who: UPKEEP, why, runId,
+    layer: old.layer,
+    ownerRef: old.ownerRef,
+    agentId: old.agentId,
+    projectId: old.projectId,
+    noteId: old.noteId,
+    kind: old.kind,
+    text,
+    validFrom: now,
+    sourceKind: "manual",
+    sourceRef: old.id,
+    sourcePerson: "upkeep",
+    proposedBy: "upkeep",
+    status: "current",
+    lowRisk: false,
+    replaces: old.id,
+    how: "edit",
+    who: UPKEEP,
+    why,
+    runId,
   });
   ctx.emit("memory.fact_corrected", fresh.id, { factId: fresh.id, closedFactId: old.id, by: "upkeep" });
   return fresh;
@@ -266,19 +481,40 @@ function replaceFact(ctx: MemCtx, old: Fact, text: string, runId: string, why: s
 const MAX_FACTS_PER_CALL = 120;
 const NOTE_CHARS = 4000;
 
-async function modelUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counters, run: { tokensIn: number; tokensOut: number; cost: number; stopped: string | null; used: boolean }): Promise<void> {
+async function modelUpkeep(
+  ctx: MemCtx,
+  facts: Fact[],
+  runId: string,
+  c: Counters,
+  run: { tokensIn: number; tokensOut: number; cost: number; stopped: string | null; used: boolean },
+): Promise<void> {
   const cap = await upkeepCapMicros(ctx);
   const month = monthOf(ctx.now());
-  const before = num(rowsOf(ctx.db, "SELECT COALESCE(SUM(cost_micros), 0) AS s FROM memory_upkeep_runs WHERE month = ?", month)[0]?.["s"]);
+  const before = num(
+    rowsOf(ctx.db, "SELECT COALESCE(SUM(cost_micros), 0) AS s FROM memory_upkeep_runs WHERE month = ?", month)[0]?.[
+      "s"
+    ],
+  );
   const groups = new Map<string, Fact[]>();
   for (const f of facts) groups.set(placeOf(f), [...(groups.get(placeOf(f)) ?? []), f]);
   let withoutKey = 0;
   let asked = 0;
   for (const g of groups.values()) {
-    if (before + run.cost >= cap) { run.stopped = "cap"; return; }
+    if (before + run.cost >= cap) {
+      run.stopped = "cap";
+      return;
+    }
     const scope = scopeOfFact(g[0]!);
     const recent = g.slice(-MAX_FACTS_PER_CALL);
-    const pageRows = scope.layer === "person" ? [] : rowsOf(ctx.db, "SELECT * FROM memory_pages WHERE layer = ? AND owner_ref = ? AND trashed_at IS NULL AND notes != '' ORDER BY updated_at DESC LIMIT 20", scope.layer, scope.ownerRef);
+    const pageRows =
+      scope.layer === "person"
+        ? []
+        : rowsOf(
+            ctx.db,
+            "SELECT * FROM memory_pages WHERE layer = ? AND owner_ref = ? AND trashed_at IS NULL AND notes != '' ORDER BY updated_at DESC LIMIT 20",
+            scope.layer,
+            scope.ownerRef,
+          );
     const corrections: UpkeepRequest["corrections"] = [];
     for (const f of recent) {
       if (!f.replaces || ctx.now() - f.learnedAt > 30 * DAY) continue;
@@ -287,13 +523,40 @@ async function modelUpkeep(ctx: MemCtx, facts: Fact[], runId: string, c: Counter
     }
     if (recent.length < 2 && pageRows.length === 0 && corrections.length === 0) continue;
     const req: UpkeepRequest = {
-      tasks: ["semantic_duplicates", "patterns", "corrections", ...(pageRows.length > 0 ? ["tidy_pages" as const] : [])],
-      scope, facts: recent.map((f) => ({ id: f.id, text: f.text, kind: f.kind, learnedAt: f.learnedAt, sourceKind: f.sourceKind, sourceRef: f.sourceRef })), corrections,
-      pages: pageRows.map((r) => ({ id: str(r["page_id"]), title: str(r["title"]), notes: str(r["notes"]).slice(0, NOTE_CHARS) })), now: ctx.now(),
+      tasks: [
+        "semantic_duplicates",
+        "patterns",
+        "corrections",
+        ...(pageRows.length > 0 ? ["tidy_pages" as const] : []),
+      ],
+      scope,
+      facts: recent.map((f) => ({
+        id: f.id,
+        text: f.text,
+        kind: f.kind,
+        learnedAt: f.learnedAt,
+        sourceKind: f.sourceKind,
+        sourceRef: f.sourceRef,
+      })),
+      corrections,
+      pages: pageRows.map((r) => ({
+        id: str(r["page_id"]),
+        title: str(r["title"]),
+        notes: str(r["notes"]).slice(0, NOTE_CHARS),
+      })),
+      now: ctx.now(),
     };
     let res: UpkeepResult | null;
-    try { res = await (model ?? keyedModel)(req, ctx); } catch (e) { ctx.log.warn("memory upkeep model failed for a place", { reason: e instanceof Error ? e.name : "error" }); continue; }
-    if (res === null) { withoutKey++; continue; }
+    try {
+      res = await (model ?? keyedModel)(req, ctx);
+    } catch (e) {
+      ctx.log.warn("memory upkeep model failed for a place", { reason: e instanceof Error ? e.name : "error" });
+      continue;
+    }
+    if (res === null) {
+      withoutKey++;
+      continue;
+    }
     asked++;
     run.used = true;
     run.tokensIn += res.usage.inTokens;
@@ -314,7 +577,9 @@ const MAP_LINES = 190;
 function mapBody(agentId: string, notes: Row[], facts: Fact[], at: number): string {
   const head = [`# Memory map`, ``, `Agent: ${agentId}`, `Updated: ${new Date(at).toISOString().slice(0, 10)}`, ``];
   const noteLines = notes.map((n) => `- ${str(n["title"])} (${str(n["path"])})`);
-  const factLines = facts.map((f) => `- ${excerpt(f.text, 140)} (since ${new Date(f.validFrom).toISOString().slice(0, 10)})`);
+  const factLines = facts.map(
+    (f) => `- ${excerpt(f.text, 140)} (since ${new Date(f.validFrom).toISOString().slice(0, 10)})`,
+  );
   const room = Math.max(0, MAP_LINES - head.length - 4);
   const noteShare = Math.min(noteLines.length, Math.ceil(room / 2));
   const keptNotes = noteLines.slice(0, noteShare);
@@ -328,14 +593,22 @@ export async function maintain(ctx: MemCtx, input: { agentId?: string; rulesOnly
   const only = input.agentId ?? null;
   const runId = mintId("upk", now);
   const month = monthOf(now);
-  ctx.db.run("INSERT INTO memory_upkeep_runs (id, started_at, month, trigger_by) VALUES (?, ?, ?, ?)", runId, now, month, actorOf(ctx));
+  ctx.db.run(
+    "INSERT INTO memory_upkeep_runs (id, started_at, month, trigger_by) VALUES (?, ?, ?, ?)",
+    runId,
+    now,
+    month,
+    actorOf(ctx),
+  );
   // Close what ran past its end date.
   const closed = ctx.db.run(
     `UPDATE memory_facts SET status = 'closed', closed_at = ? WHERE status = 'current' AND valid_to IS NOT NULL AND valid_to <= ?${only ? " AND agent_id = ?" : ""}`,
     ...(only ? [now, now, only] : [now, now]),
   ).changes;
   // Vectors of facts that are no longer current are not needed.
-  ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id NOT IN (SELECT id FROM memory_facts WHERE status = 'current')");
+  ctx.db.run(
+    "DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id NOT IN (SELECT id FROM memory_facts WHERE status = 'current')",
+  );
   // What upkeep may read: shared text, and the caller's own personal facts when a person runs it.
   const me = actorOf(ctx);
   const rows = rowsOf(
@@ -348,43 +621,111 @@ export async function maintain(ctx: MemCtx, input: { agentId?: string; rulesOnly
   ruleUpkeep(ctx, facts, runId, c);
   const run = { tokensIn: 0, tokensOut: 0, cost: 0, stopped: null as string | null, used: false };
   if (!input.rulesOnly) {
-    const left = facts.filter((f) => rowsOf(ctx.db, "SELECT 1 AS x FROM memory_facts WHERE id = ? AND status = 'current'", f.id).length > 0);
+    const left = facts.filter(
+      (f) => rowsOf(ctx.db, "SELECT 1 AS x FROM memory_facts WHERE id = ? AND status = 'current'", f.id).length > 0,
+    );
     await modelUpkeep(ctx, left, runId, c, run);
   }
   // MAP.md for each agent: its notes and current facts, under 200 lines. Personal layers never go in.
   const agents = new Set<string>();
   if (only) agents.add(only);
   else {
-    for (const r of rowsOf(ctx.db, "SELECT DISTINCT agent_id FROM memory_facts WHERE layer = 'agent' AND agent_id IS NOT NULL")) agents.add(str(r["agent_id"]));
-    for (const r of rowsOf(ctx.db, "SELECT DISTINCT agent_id FROM memory_notes WHERE layer = 'agent' AND agent_id IS NOT NULL")) agents.add(str(r["agent_id"]));
+    for (const r of rowsOf(
+      ctx.db,
+      "SELECT DISTINCT agent_id FROM memory_facts WHERE layer = 'agent' AND agent_id IS NOT NULL",
+    ))
+      agents.add(str(r["agent_id"]));
+    for (const r of rowsOf(
+      ctx.db,
+      "SELECT DISTINCT agent_id FROM memory_notes WHERE layer = 'agent' AND agent_id IS NOT NULL",
+    ))
+      agents.add(str(r["agent_id"]));
   }
   let maps = 0;
   for (const a of [...agents].sort()) {
-    const notes = rowsOf(ctx.db, "SELECT title, path, file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) NOT LIKE '%/map.md' ORDER BY title", a);
+    const notes = rowsOf(
+      ctx.db,
+      "SELECT title, path, file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) NOT LIKE '%/map.md' ORDER BY title",
+      a,
+    );
     // MAP.md goes in front of every turn in every chat: a fact kept for one channel's people (audience) stays out of it
-    const agentFacts = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = 'agent' AND agent_id = ? AND status = 'current' AND audience IS NULL ORDER BY learned_at DESC, id", a).map((r) => readFact(ctx, r));
+    const agentFacts = rowsOf(
+      ctx.db,
+      "SELECT * FROM memory_facts WHERE layer = 'agent' AND agent_id = ? AND status = 'current' AND audience IS NULL ORDER BY learned_at DESC, id",
+      a,
+    ).map((r) => readFact(ctx, r));
     const body = mapBody(a, notes, agentFacts, now);
     const lines = body.split("\n").length;
-    const known = rowsOf(ctx.db, "SELECT file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) LIKE '%/map.md'", a)[0];
+    const known = rowsOf(
+      ctx.db,
+      "SELECT file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) LIKE '%/map.md'",
+      a,
+    )[0];
     const fileId = known ? str(known["file_id"]) : null;
     if (fileId) {
-      try { await ctx.call("files.write", { fileId, content: { text: body }, reason: "Nightly memory map" }); } catch { ctx.log.warn("MAP.md could not be written", { agentId: a }); }
+      try {
+        await ctx.call("files.write", { fileId, content: { text: body }, reason: "Nightly memory map" });
+      } catch {
+        ctx.log.warn("MAP.md could not be written", { agentId: a });
+      }
     }
-    ctx.db.run("INSERT OR REPLACE INTO memory_maps (agent_id, file_id, body, lines, updated_at) VALUES (?, ?, ?, ?, ?)", a, fileId, body, lines, now);
+    ctx.db.run(
+      "INSERT OR REPLACE INTO memory_maps (agent_id, file_id, body, lines, updated_at) VALUES (?, ?, ?, ?, ?)",
+      a,
+      fileId,
+      body,
+      lines,
+      now,
+    );
     ctx.emit("memory.map_rewritten", a, { agentId: a, lines });
     maps++;
   }
   ctx.db.run(
     "UPDATE memory_upkeep_runs SET finished_at = ?, model_used = ?, merged = ?, flagged = ?, stale = ?, created = ?, corrected = ?, deleted = ?, tidied = ?, tokens_in = ?, tokens_out = ?, cost_micros = ?, stopped = ? WHERE id = ?",
-    ctx.now(), run.used ? 1 : 0, c.merged, c.flagged, c.stale, c.created, c.corrected, c.deleted, c.tidied, run.tokensIn, run.tokensOut, run.cost, run.stopped, runId,
+    ctx.now(),
+    run.used ? 1 : 0,
+    c.merged,
+    c.flagged,
+    c.stale,
+    c.created,
+    c.corrected,
+    c.deleted,
+    c.tidied,
+    run.tokensIn,
+    run.tokensOut,
+    run.cost,
+    run.stopped,
+    runId,
   );
   ctx.emit("memory.upkeep_ran", runId, {
-    runId, merged: c.merged, flagged: c.flagged, stale: c.stale, created: c.created, corrected: c.corrected, deleted: c.deleted, tidied: c.tidied, modelUsed: run.used, costMicros: run.cost,
+    runId,
+    merged: c.merged,
+    flagged: c.flagged,
+    stale: c.stale,
+    created: c.created,
+    corrected: c.corrected,
+    deleted: c.deleted,
+    tidied: c.tidied,
+    modelUsed: run.used,
+    costMicros: run.cost,
     ...(run.stopped ? { stopped: run.stopped } : {}),
   });
   return {
-    merged: c.merged, closed, maps, runId, flagged: c.flagged, stale: c.stale, created: c.created, corrected: c.corrected, deleted: c.deleted, tidied: c.tidied, modelUsed: run.used, costMicros: run.cost,
-    tokensIn: run.tokensIn, tokensOut: run.tokensOut, ...(run.stopped ? { stopped: run.stopped as "cap" | "no_key" } : {}),
+    merged: c.merged,
+    closed,
+    maps,
+    runId,
+    flagged: c.flagged,
+    stale: c.stale,
+    created: c.created,
+    corrected: c.corrected,
+    deleted: c.deleted,
+    tidied: c.tidied,
+    modelUsed: run.used,
+    costMicros: run.cost,
+    tokensIn: run.tokensIn,
+    tokensOut: run.tokensOut,
+    ...(run.stopped ? { stopped: run.stopped as "cap" | "no_key" } : {}),
   };
 }
 
@@ -394,33 +735,90 @@ export async function upkeepStatus(ctx: MemCtx, input: { limit?: number }) {
   ensure(ctx.db);
   if (!makeAccess(ctx).isAdmin()) raise(ctx, "permission.role_lacks_permission", "Upkeep spend is for memory admins.");
   const month = monthOf(ctx.now());
-  const spent = num(rowsOf(ctx.db, "SELECT COALESCE(SUM(cost_micros), 0) AS s FROM memory_upkeep_runs WHERE month = ?", month)[0]?.["s"]);
+  const spent = num(
+    rowsOf(ctx.db, "SELECT COALESCE(SUM(cost_micros), 0) AS s FROM memory_upkeep_runs WHERE month = ?", month)[0]?.[
+      "s"
+    ],
+  );
   const cap = await upkeepCapMicros(ctx);
-  const runs = rowsOf(ctx.db, "SELECT * FROM memory_upkeep_runs ORDER BY started_at DESC, rowid DESC LIMIT ?", input.limit ?? 30).map((r) => ({
-    runId: str(r["id"]), startedAt: num(r["started_at"]), ...(r["finished_at"] === null ? {} : { finishedAt: num(r["finished_at"]) }), modelUsed: num(r["model_used"]) === 1,
-    merged: num(r["merged"]), flagged: num(r["flagged"]), stale: num(r["stale"]), created: num(r["created"]), corrected: num(r["corrected"]), deleted: num(r["deleted"]), tidied: num(r["tidied"]),
-    tokensIn: num(r["tokens_in"]), tokensOut: num(r["tokens_out"]), costMicros: num(r["cost_micros"]), ...(r["stopped"] ? { stopped: str(r["stopped"]) as "cap" | "no_key" } : {}),
+  const runs = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_upkeep_runs ORDER BY started_at DESC, rowid DESC LIMIT ?",
+    input.limit ?? 30,
+  ).map((r) => ({
+    runId: str(r["id"]),
+    startedAt: num(r["started_at"]),
+    ...(r["finished_at"] === null ? {} : { finishedAt: num(r["finished_at"]) }),
+    modelUsed: num(r["model_used"]) === 1,
+    merged: num(r["merged"]),
+    flagged: num(r["flagged"]),
+    stale: num(r["stale"]),
+    created: num(r["created"]),
+    corrected: num(r["corrected"]),
+    deleted: num(r["deleted"]),
+    tidied: num(r["tidied"]),
+    tokensIn: num(r["tokens_in"]),
+    tokensOut: num(r["tokens_out"]),
+    costMicros: num(r["cost_micros"]),
+    ...(r["stopped"] ? { stopped: str(r["stopped"]) as "cap" | "no_key" } : {}),
   }));
   const open = num(rowsOf(ctx.db, "SELECT COUNT(*) AS n FROM memory_questions WHERE status = 'open'")[0]?.["n"]);
   // spend per night (UTC day), newest first, for the last 30 nights that had a run
   const nights = rowsOf(
     ctx.db,
     "SELECT substr(datetime(started_at / 1000, 'unixepoch'), 1, 10) AS day, COUNT(*) AS runs, COALESCE(SUM(cost_micros), 0) AS cost, COALESCE(SUM(tokens_in), 0) AS tin, COALESCE(SUM(tokens_out), 0) AS tout FROM memory_upkeep_runs GROUP BY day ORDER BY day DESC LIMIT 30",
-  ).map((r) => ({ day: str(r["day"]), runs: num(r["runs"]), costMicros: num(r["cost"]), tokensIn: num(r["tin"]), tokensOut: num(r["tout"]) }));
-  return { month, spentMicros: spent, capMicros: cap, capReached: spent >= cap, modelAvailable: true, openQuestions: open, runs, nights, ...(nights[0] ? { lastNight: nights[0] } : {}) };
+  ).map((r) => ({
+    day: str(r["day"]),
+    runs: num(r["runs"]),
+    costMicros: num(r["cost"]),
+    tokensIn: num(r["tin"]),
+    tokensOut: num(r["tout"]),
+  }));
+  return {
+    month,
+    spentMicros: spent,
+    capMicros: cap,
+    capReached: spent >= cap,
+    modelAvailable: true,
+    openQuestions: open,
+    runs,
+    nights,
+    ...(nights[0] ? { lastNight: nights[0] } : {}),
+  };
 }
 
 // ---- questions: a contradiction or a stale fact, answered with one click
 
-export async function questionsList(ctx: MemCtx, input: Page & { status?: "open" | "resolved"; kind?: "contradiction" | "stale"; layer?: Layer; agentId?: string; projectId?: string }) {
+export async function questionsList(
+  ctx: MemCtx,
+  input: Page & {
+    status?: "open" | "resolved";
+    kind?: "contradiction" | "stale";
+    layer?: Layer;
+    agentId?: string;
+    projectId?: string;
+  },
+) {
   ensure(ctx.db);
   const access = makeAccess(ctx);
   const args: unknown[] = [input.status ?? "open"];
   let sql = "SELECT * FROM memory_questions WHERE status = ?";
-  if (input.kind) { sql += " AND kind = ?"; args.push(input.kind); }
-  if (input.layer) { sql += " AND layer = ?"; args.push(input.layer); }
-  if (input.agentId) { sql += " AND agent_id = ?"; args.push(input.agentId); }
-  if (input.projectId) { sql += " AND project_id = ?"; args.push(input.projectId); }
+  if (input.kind) {
+    sql += " AND kind = ?";
+    args.push(input.kind);
+  }
+  if (input.layer) {
+    sql += " AND layer = ?";
+    args.push(input.layer);
+  }
+  if (input.agentId) {
+    sql += " AND agent_id = ?";
+    args.push(input.agentId);
+  }
+  if (input.projectId) {
+    sql += " AND project_id = ?";
+    args.push(input.projectId);
+  }
   sql += " ORDER BY created_at DESC, rowid DESC";
   const out: Array<Record<string, unknown>> = [];
   for (const q of rowsOf(ctx.db, sql, ...args)) {
@@ -429,7 +827,12 @@ export async function questionsList(ctx: MemCtx, input: Page & { status?: "open"
     if (!a || (q["fact_b"] && !b)) continue;
     if (!(await canSee(ctx, access, a))) continue;
     out.push({
-      questionId: str(q["id"]), kind: str(q["kind"]), status: str(q["status"]), createdAt: num(q["created_at"]), layer: str(q["layer"]), facts: factRows(ctx, b ? [a, b] : [a]),
+      questionId: str(q["id"]),
+      kind: str(q["kind"]),
+      status: str(q["status"]),
+      createdAt: num(q["created_at"]),
+      layer: str(q["layer"]),
+      facts: factRows(ctx, b ? [a, b] : [a]),
       ...(q["resolution"] ? { resolution: str(q["resolution"]) } : {}),
     });
   }
@@ -438,7 +841,10 @@ export async function questionsList(ctx: MemCtx, input: Page & { status?: "open"
 }
 
 /** Answer a question. Contradiction: keep_a, keep_b (the other goes to Trash) or keep_both. Stale: keep_a (still true; asked again after its period) or drop. */
-export async function questionResolve(ctx: MemCtx, input: { questionId: string; resolution: "keep_a" | "keep_b" | "keep_both" | "drop" }) {
+export async function questionResolve(
+  ctx: MemCtx,
+  input: { questionId: string; resolution: "keep_a" | "keep_b" | "keep_both" | "drop" },
+) {
   ensure(ctx.db);
   const q = rowsOf(ctx.db, "SELECT * FROM memory_questions WHERE id = ?", input.questionId)[0];
   if (!q) raise(ctx, "validation.not_found", "There is no such question.", { questionId: input.questionId });
@@ -447,8 +853,12 @@ export async function questionResolve(ctx: MemCtx, input: { questionId: string; 
   const b = q["fact_b"] ? loadFact(ctx, str(q["fact_b"])) : null;
   if (!a) raise(ctx, "validation.not_found", "The fact is gone.");
   const access = makeAccess(ctx);
-  if (!(await canSee(ctx, access, a))) raise(ctx, "validation.not_found", "There is no such question.", { questionId: input.questionId });
-  const mayEdit = a.layer === "person" ? a.ownerRef === actorOf(ctx) : await access.can(a.layer, a.ownerRef, a.agentId, a.projectId, "edit");
+  if (!(await canSee(ctx, access, a)))
+    raise(ctx, "validation.not_found", "There is no such question.", { questionId: input.questionId });
+  const mayEdit =
+    a.layer === "person"
+      ? a.ownerRef === actorOf(ctx)
+      : await access.can(a.layer, a.ownerRef, a.agentId, a.projectId, "edit");
   if (!mayEdit) raise(ctx, "permission.no_grant", "You cannot change this memory.");
   const kind = str(q["kind"]);
   const r = input.resolution;
@@ -460,9 +870,24 @@ export async function questionResolve(ctx: MemCtx, input: { questionId: string; 
     if (r === "keep_b" || r === "keep_both") raise(ctx, "validation.bad_input", "Choose keep_a or drop.");
     if (r === "drop") trashFact(ctx, a, { reason: "stale", action: "delete", source: "question" });
   }
-  ctx.db.run("UPDATE memory_questions SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ? WHERE id = ?", ctx.now(), actorOf(ctx), r, input.questionId);
+  ctx.db.run(
+    "UPDATE memory_questions SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ? WHERE id = ?",
+    ctx.now(),
+    actorOf(ctx),
+    r,
+    input.questionId,
+  );
   // a dispute is over once someone answered it: what stays is no longer disputed
   ctx.db.run("UPDATE memory_facts SET state = NULL WHERE state = 'disputed' AND id IN (?, ?)", a.id, b?.id ?? a.id);
-  trail(ctx, { action: "resolve", factId: a.id, layer: a.layer, ownerRef: a.ownerRef, agentId: a.agentId, projectId: a.projectId, reason: r, detail: { questionId: input.questionId, kind } });
+  trail(ctx, {
+    action: "resolve",
+    factId: a.id,
+    layer: a.layer,
+    ownerRef: a.ownerRef,
+    agentId: a.agentId,
+    projectId: a.projectId,
+    reason: r,
+    detail: { questionId: input.questionId, kind },
+  });
   return { ok: true, resolution: r };
 }

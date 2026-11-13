@@ -15,11 +15,28 @@ const docCount = (h: Harness): number => Number(h.rows("SELECT count(*) AS c FRO
 
 function populated(): Harness {
   // chat's own rule: she can open every chat here except the invite-only one (thr_closed)
-  const h = harness({ respond: { "chat.messages.list": (i) => (i["threadId"] === "thr_closed" ? notFound() : { messages: [] }), "channels.get": (i) => (i["channelId"] === "ch_closed" ? notFound() : { channel: {} }) } });
+  const h = harness({
+    respond: {
+      "chat.messages.list": (i) => (i["threadId"] === "thr_closed" ? notFound() : { messages: [] }),
+      "channels.get": (i) => (i["channelId"] === "ch_closed" ? notFound() : { channel: {} }),
+    },
+  });
   seed(h, { id: "rec_pub", title: "Harbor lease plan", kind: "record", recordType: "client" });
   seed(h, { id: "rec_secret", title: "Harbor lease settlement terms", kind: "record", recordType: "client" });
-  seed(h, { id: "fil_open", title: "Harbor lease draft.md", kind: "file", body: "Harbor lease draft with the rent schedule", path: "Clients/Harbor/Harbor lease draft.md" });
-  seed(h, { id: "fil_hidden", title: "Harbor lease board minutes.md", kind: "file", body: "Harbor lease board discussion", path: "Board/Harbor lease board minutes.md" });
+  seed(h, {
+    id: "fil_open",
+    title: "Harbor lease draft.md",
+    kind: "file",
+    body: "Harbor lease draft with the rent schedule",
+    path: "Clients/Harbor/Harbor lease draft.md",
+  });
+  seed(h, {
+    id: "fil_hidden",
+    title: "Harbor lease board minutes.md",
+    kind: "file",
+    body: "Harbor lease board discussion",
+    path: "Board/Harbor lease board minutes.md",
+  });
   seed(h, { id: "thr_team", title: "Harbor lease channel", kind: "chat", body: "Who owns the harbor lease renewal" });
   seed(h, { id: "agt_intake", title: "Harbor intake", kind: "agent", body: "Takes harbor lease enquiries" });
   return h;
@@ -30,7 +47,11 @@ test("a result never includes a row the asker cannot read, whatever the page siz
   h.deny("record:rec_secret");
   h.deny("file:fil_hidden");
   const all = await query(h.ctx, { q: "harbor lease" });
-  assert.deepEqual(ids(all), ["agt_intake", "fil_open", "rec_pub", "thr_team"], "the two rows she cannot read are not there");
+  assert.deepEqual(
+    ids(all),
+    ["agt_intake", "fil_open", "rec_pub", "thr_team"],
+    "the two rows she cannot read are not there",
+  );
   assert.deepEqual(contractErrors("search.query", "out", all), []);
   // paging cannot be used to find a hidden row either: every page is filtered, and the total of the pages is the same four rows
   const seen: string[] = [];
@@ -44,19 +65,36 @@ test("a result never includes a row the asker cannot read, whatever the page siz
   assert.deepEqual([...seen].sort(), ["agt_intake", "fil_open", "rec_pub", "thr_team"]);
   // a type filter, a prefix of the title and the semantic mode all go through the same gate
   assert.deepEqual(ids(await query(h.ctx, { q: "harbor", types: ["record"] })), ["rec_pub"]);
-  assert.ok(!(await query(h.ctx, { q: "settlement" })).hits.some((x) => x.id === "rec_secret"), "a word only the hidden row has finds nothing");
+  assert.ok(
+    !(await query(h.ctx, { q: "settlement" })).hits.some((x) => x.id === "rec_secret"),
+    "a word only the hidden row has finds nothing",
+  );
   assert.ok(!(await query(h.ctx, { q: "board minutes", mode: "semantic" })).hits.some((x) => x.id === "fil_hidden"));
-  assert.ok(!(await query(h.ctx, { q: "ha" })).hits.some((x) => x.id === "rec_secret" || x.id === "fil_hidden"), "type-ahead too");
+  assert.ok(
+    !(await query(h.ctx, { q: "ha" })).hits.some((x) => x.id === "rec_secret" || x.id === "fil_hidden"),
+    "type-ahead too",
+  );
 });
 
 test("an invite-only chat or channel is not shown to someone who was not invited, though the Space's view grant covers it", async () => {
   const h = populated();
-  seed(h, { id: "thr_closed", title: "Harbor lease founders", kind: "chat", body: "the harbor lease buyout price is confidential" });
+  seed(h, {
+    id: "thr_closed",
+    title: "Harbor lease founders",
+    kind: "chat",
+    body: "the harbor lease buyout price is confidential",
+  });
   seed(h, { id: "ch_closed", title: "Harbor lease founders", kind: "channel", body: "harbor lease" });
   const all = await query(h.ctx, { q: "harbor lease" });
-  assert.ok(!all.hits.some((x) => x.id === "thr_closed" || x.id === "ch_closed"), "not in the results, the snippet nor the count");
-  assert.ok(all.hits.some((x) => x.id === "thr_team"), "a chat she can open is there");
-  assert.deepEqual((await resolveItem(h.ctx, { kind: "chat", itemId: "thr_closed" })), {});
+  assert.ok(
+    !all.hits.some((x) => x.id === "thr_closed" || x.id === "ch_closed"),
+    "not in the results, the snippet nor the count",
+  );
+  assert.ok(
+    all.hits.some((x) => x.id === "thr_team"),
+    "a chat she can open is there",
+  );
+  assert.deepEqual(await resolveItem(h.ctx, { kind: "chat", itemId: "thr_closed" }), {});
   assert.deepEqual(await resolveItem(h.ctx, { kind: "channel", itemId: "ch_closed" }), {});
 });
 
@@ -74,19 +112,40 @@ test("two people on one Space see their own rows", async () => {
 test("end-to-end content is never in the index: private chats, Ask panes, Restricted rows and encrypted messages", async () => {
   const h = harness({
     respond: {
-      "threads.get": (i) => ({ thread: { threadId: i["threadId"], kind: i["threadId"] === "thr_priv" ? "chat" : i["threadId"] === "thr_ask" ? "ask" : "channel", title: `Title of ${String(i["threadId"])}` } }),
-      "chat.messages.list": (i) => ({
-        messages: i["threadId"] === "thr_chan"
-          ? [{ messageId: "msg_1", body: "the quarterly numbers look good", enc: 0 }, { messageId: "msg_2", body: "private aside never indexed", enc: 2 }]
-          : [{ messageId: "msg_3", body: "private diary line", enc: 2 }],
+      "threads.get": (i) => ({
+        thread: {
+          threadId: i["threadId"],
+          kind: i["threadId"] === "thr_priv" ? "chat" : i["threadId"] === "thr_ask" ? "ask" : "channel",
+          title: `Title of ${String(i["threadId"])}`,
+        },
       }),
-      "records.get": (i) => ({ record: { id: i["recordId"], type: "client", label: i["recordId"] === "rec_restricted" ? 3 : 1, fields: { name: "Acme", notes: "Wire instructions" }, updatedAt: 1 } }),
+      "chat.messages.list": (i) => ({
+        messages:
+          i["threadId"] === "thr_chan"
+            ? [
+                { messageId: "msg_1", body: "the quarterly numbers look good", enc: 0 },
+                { messageId: "msg_2", body: "private aside never indexed", enc: 2 },
+              ]
+            : [{ messageId: "msg_3", body: "private diary line", enc: 2 }],
+      }),
+      "records.get": (i) => ({
+        record: {
+          id: i["recordId"],
+          type: "client",
+          label: i["recordId"] === "rec_restricted" ? 3 : 1,
+          fields: { name: "Acme", notes: "Wire instructions" },
+          updatedAt: 1,
+        },
+      }),
       "schema.types.get": () => ({ type: { titleField: "name" } }),
-      "files.get": (i) => ({ file: { fileId: i["fileId"], name: "payroll.csv", kind: "text", label: 3, folderId: "fld_hr" } }),
+      "files.get": (i) => ({
+        file: { fileId: i["fileId"], name: "payroll.csv", kind: "text", label: 3, folderId: "fld_hr" },
+      }),
     },
   });
   let seq = 1;
-  const apply = (entity: string, id: string): Promise<{ indexed: boolean }> => indexApply(h.ctx, { entity, id, op: "upsert", seq: seq++ });
+  const apply = (entity: string, id: string): Promise<{ indexed: boolean }> =>
+    indexApply(h.ctx, { entity, id, op: "upsert", seq: seq++ });
 
   assert.deepEqual(await apply("thread", "thr_chan"), { indexed: true }, "a channel is indexed");
   assert.deepEqual(await apply("thread", "thr_priv"), { indexed: false }, "a private chat is not");
@@ -96,27 +155,57 @@ test("end-to-end content is never in the index: private chats, Ask panes, Restri
   assert.deepEqual(await apply("record:client", "rec_open"), { indexed: true });
 
   const stored = h.rows("SELECT id, body FROM search_docs ORDER BY id");
-  assert.deepEqual(stored.map((r) => r["id"]), ["rec_open", "thr_chan"]);
+  assert.deepEqual(
+    stored.map((r) => r["id"]),
+    ["rec_open", "thr_chan"],
+  );
   const chan = stored.find((r) => r["id"] === "thr_chan")!;
   assert.match(String(chan["body"]), /quarterly numbers/);
   assert.doesNotMatch(String(chan["body"]), /private aside/, "an encrypted message of an indexed channel is left out");
   for (const word of ["diary", "aside", "payroll", "restricted"]) {
     assert.equal((await query(h.ctx, { q: word })).hits.length, 0, `"${word}" finds nothing`);
-    assert.equal(h.rows("SELECT rowid FROM search_fts WHERE search_fts MATCH ?", `"${word}"*`).length, 0, `the full text table holds no "${word}"`);
+    assert.equal(
+      h.rows("SELECT rowid FROM search_fts WHERE search_fts MATCH ?", `"${word}"*`).length,
+      0,
+      `the full text table holds no "${word}"`,
+    );
   }
   // a thread that was a channel and became private is taken out when its event is read
   h.respond["threads.get"] = (i) => ({ thread: { threadId: i["threadId"], kind: "chat", title: "now private" } });
   assert.deepEqual(await apply("thread", "thr_chan"), { indexed: false });
   assert.equal(docCount(h), 1);
   assert.equal(h.rows("SELECT rowid FROM search_fts WHERE search_fts MATCH ?", '"quarterly"*').length, 0);
-  assert.equal(h.calls("chat.messages.list").filter((c) => c.input["threadId"] === "thr_priv").length, 0, "the messages of a private chat are not even read");
+  assert.equal(
+    h.calls("chat.messages.list").filter((c) => c.input["threadId"] === "thr_priv").length,
+    0,
+    "the messages of a private chat are not even read",
+  );
 });
 
 test("an event for an end-to-end row is not followed, and the watched events are real", () => {
-  assert.equal(targetOf({ type: "message.received", seq: 5, enc: 2, payload: { threadId: "thr_x" } }), null, "enc = 2 is never indexed");
-  assert.deepEqual(targetOf({ type: "message.received", seq: 5, enc: 0, payload: { threadId: "thr_x" } }), { entity: "thread", id: "thr_x", op: "upsert", seq: 5 });
-  assert.deepEqual(targetOf({ type: "record.updated", seq: 6, payload: { recordId: "rec_a", type: "client" } }), { entity: "record:client", id: "rec_a", op: "upsert", seq: 6 });
-  assert.deepEqual(targetOf({ type: "file.purged", seq: 7, payload: { fileId: "fil_a" } }), { entity: "file", id: "fil_a", op: "delete", seq: 7 });
+  assert.equal(
+    targetOf({ type: "message.received", seq: 5, enc: 2, payload: { threadId: "thr_x" } }),
+    null,
+    "enc = 2 is never indexed",
+  );
+  assert.deepEqual(targetOf({ type: "message.received", seq: 5, enc: 0, payload: { threadId: "thr_x" } }), {
+    entity: "thread",
+    id: "thr_x",
+    op: "upsert",
+    seq: 5,
+  });
+  assert.deepEqual(targetOf({ type: "record.updated", seq: 6, payload: { recordId: "rec_a", type: "client" } }), {
+    entity: "record:client",
+    id: "rec_a",
+    op: "upsert",
+    seq: 6,
+  });
+  assert.deepEqual(targetOf({ type: "file.purged", seq: 7, payload: { fileId: "fil_a" } }), {
+    entity: "file",
+    id: "fil_a",
+    op: "delete",
+    seq: 7,
+  });
   assert.equal(targetOf({ type: "turn.started", seq: 8, payload: {} }), null, "an event the index does not follow");
   const events = new Map(registry.events.map((e) => [e.name, e]));
   for (const [name, w] of Object.entries(WATCHED)) {
@@ -133,76 +222,165 @@ test("a repeated or late event changes nothing; a delete keeps its place so an o
   let reads = 0;
   const h = harness({
     respond: {
-      "agents.get": (i) => { reads++; return { agent: { agentId: i["agentId"], name: `Agent v${reads}`, role: "Takes intake" } }; },
+      "agents.get": (i) => {
+        reads++;
+        return { agent: { agentId: i["agentId"], name: `Agent v${reads}`, role: "Takes intake" } };
+      },
     },
   });
   assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 10 }), { indexed: true });
-  assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 10 }), { indexed: false }, "the same event again");
-  assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 9 }), { indexed: false }, "an older event");
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 10 }),
+    { indexed: false },
+    "the same event again",
+  );
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 9 }),
+    { indexed: false },
+    "an older event",
+  );
   assert.equal(reads, 1, "neither was read");
   assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "delete", seq: 12 }), { indexed: true });
   assert.equal(docCount(h), 0);
-  assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 11 }), { indexed: false }, "an upsert older than the delete");
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 11 }),
+    { indexed: false },
+    "an upsert older than the delete",
+  );
   assert.equal(docCount(h), 0);
-  assert.deepEqual(await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 13 }), { indexed: true }, "a newer upsert brings it back");
-  assert.deepEqual(contractErrors("search.index.apply", "in", { entity: "agent", id: "agt_a", op: "upsert", seq: 13 }), []);
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "agent", id: "agt_a", op: "upsert", seq: 13 }),
+    { indexed: true },
+    "a newer upsert brings it back",
+  );
+  assert.deepEqual(
+    contractErrors("search.index.apply", "in", { entity: "agent", id: "agt_a", op: "upsert", seq: 13 }),
+    [],
+  );
 });
 
 test("a row that is gone or hidden leaves the index; a source that fails is counted as lag and retried", async () => {
   let fail = true;
   const h = harness({
     respond: {
-      "tasks.get": (i) => { if (i["taskId"] === "tsk_gone") return notFound(); if (fail) throw new Error("tasks is restarting"); return { task: { id: i["taskId"], title: "Send the lease", summary: "Before Friday" } }; },
+      "tasks.get": (i) => {
+        if (i["taskId"] === "tsk_gone") return notFound();
+        if (fail) throw new Error("tasks is restarting");
+        return { task: { id: i["taskId"], title: "Send the lease", summary: "Before Friday" } };
+      },
     },
   });
   seed(h, { id: "tsk_gone", title: "Old task", kind: "task" });
-  assert.deepEqual(await indexApply(h.ctx, { entity: "task", id: "tsk_gone", op: "upsert", seq: 1 }), { indexed: false });
+  assert.deepEqual(await indexApply(h.ctx, { entity: "task", id: "tsk_gone", op: "upsert", seq: 1 }), {
+    indexed: false,
+  });
   assert.equal(docCount(h), 0, "a task that no longer exists is taken out");
   await assert.rejects(() => indexApply(h.ctx, { entity: "task", id: "tsk_a", op: "upsert", seq: 2 }), /restarting/);
   assert.equal(h.rows("SELECT count(*) AS c FROM search_failed")[0]!["c"], 1, "the failure is recorded");
   fail = false;
-  assert.deepEqual(await indexApply(h.ctx, { entity: "task", id: "tsk_a", op: "upsert", seq: 2 }), { indexed: true }, "the same event succeeds on retry");
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "task", id: "tsk_a", op: "upsert", seq: 2 }),
+    { indexed: true },
+    "the same event succeeds on retry",
+  );
   assert.equal(h.rows("SELECT count(*) AS c FROM search_failed")[0]!["c"], 0);
-  assert.deepEqual(await indexApply(h.ctx, { entity: "mystery", id: "x_1", op: "upsert", seq: 3 }), { indexed: false }, "an entity nobody can read is ignored");
+  assert.deepEqual(
+    await indexApply(h.ctx, { entity: "mystery", id: "x_1", op: "upsert", seq: 3 }),
+    { indexed: false },
+    "an entity nobody can read is ignored",
+  );
 });
 
 test("a merge takes the merged-away record out of the index and reads the survivor again", async () => {
   let survivorTitle = "Acme Corp";
   const h = harness({
     respond: {
-      "records.get": (i) => (i["recordId"] === "rec_gone" ? notFound() : { record: { id: i["recordId"], type: "client", label: 1, fields: { name: survivorTitle, notes: "merged notes" }, updatedAt: 5 } }),
+      "records.get": (i) =>
+        i["recordId"] === "rec_gone"
+          ? notFound()
+          : {
+              record: {
+                id: i["recordId"],
+                type: "client",
+                label: 1,
+                fields: { name: survivorTitle, notes: "merged notes" },
+                updatedAt: 5,
+              },
+            },
       "schema.types.get": () => ({ type: { titleField: "name" } }),
     },
   });
-  seed(h, { id: "rec_gone", title: "Acme Corporation duplicate", kind: "record", entity: "record:client", recordType: "client" });
+  seed(h, {
+    id: "rec_gone",
+    title: "Acme Corporation duplicate",
+    kind: "record",
+    entity: "record:client",
+    recordType: "client",
+  });
   seed(h, { id: "rec_keep", title: "Acme Corp", kind: "record", entity: "record:client", recordType: "client" });
-  const event = { type: "record.merged", seq: 40, payload: { survivorId: "rec_keep", mergedId: "rec_gone", type: "client" } };
+  const event = {
+    type: "record.merged",
+    seq: 40,
+    payload: { survivorId: "rec_keep", mergedId: "rec_gone", type: "client" },
+  };
   assert.deepEqual(targetsOf(event), [
     { entity: "record:client", id: "rec_gone", op: "delete", seq: 40 },
     { entity: "record:client", id: "rec_keep", op: "upsert", seq: 40 },
   ]);
   survivorTitle = "Acme Corp (merged)";
   for (const t of targetsOf(event)) await indexApply(h.ctx, t);
-  assert.deepEqual(h.rows("SELECT id, title FROM search_docs ORDER BY id").map((r) => [r["id"], r["title"]]), [["rec_keep", "Acme Corp (merged)"]], "the merged-away record left, the survivor was read again");
+  assert.deepEqual(
+    h.rows("SELECT id, title FROM search_docs ORDER BY id").map((r) => [r["id"], r["title"]]),
+    [["rec_keep", "Acme Corp (merged)"]],
+    "the merged-away record left, the survivor was read again",
+  );
   assert.deepEqual((await query(h.ctx, { q: "duplicate" })).hits, [], "the merged-away record is not found");
-  assert.deepEqual((await query(h.ctx, { q: "merged notes" })).hits.map((x) => x.id), ["rec_keep"], "the survivor is found by what the merge brought");
+  assert.deepEqual(
+    (await query(h.ctx, { q: "merged notes" })).hits.map((x) => x.id),
+    ["rec_keep"],
+    "the survivor is found by what the merge brought",
+  );
   // the consumer does the same from the event
-  const h2 = harness({ respond: { "records.get": () => ({ record: { id: "rec_keep", type: "client", label: 1, fields: { name: "Acme" } } }), "schema.types.get": () => ({ type: { titleField: "name" } }) } });
+  const h2 = harness({
+    respond: {
+      "records.get": () => ({ record: { id: "rec_keep", type: "client", label: 1, fields: { name: "Acme" } } }),
+      "schema.types.get": () => ({ type: { titleField: "name" } }),
+    },
+  });
   seed(h2, { id: "rec_gone", title: "Dup", kind: "record", entity: "record:client", recordType: "client" });
   await consumers["search.fts"].run(h2.ctx, event);
-  assert.deepEqual(h2.rows("SELECT id FROM search_docs ORDER BY id").map((r) => r["id"]), ["rec_keep"]);
+  assert.deepEqual(
+    h2.rows("SELECT id FROM search_docs ORDER BY id").map((r) => r["id"]),
+    ["rec_keep"],
+  );
 });
 
 test("the host's event shape (name and subject) reaches the index as the stored shape does", async () => {
   const { indexEventOf } = await import("../impl.ts");
-  assert.deepEqual(targetOf(indexEventOf({ name: "record.created", seq: 7, subject: "record/rec_a", payload: { recordId: "rec_a", type: "contact" } })), { entity: "record:contact", id: "rec_a", op: "upsert", seq: 7 });
+  assert.deepEqual(
+    targetOf(
+      indexEventOf({
+        name: "record.created",
+        seq: 7,
+        subject: "record/rec_a",
+        payload: { recordId: "rec_a", type: "contact" },
+      }),
+    ),
+    { entity: "record:contact", id: "rec_a", op: "upsert", seq: 7 },
+  );
   const stored = { type: "file.purged", seq: 9, payload: { fileId: "fil_a" } };
   assert.equal(indexEventOf(stored), stored, "the stored shape passes through");
   assert.equal(targetOf(indexEventOf({ name: "turn.started", seq: 1, payload: {} })), null);
 });
 
 test("a deleted task leaves search; one restored or handed to someone is read again (l-tasks)", () => {
-  assert.deepEqual(targetsOf({ type: "task.deleted", seq: 50, payload: { taskId: "tsk_gone", title: "Old" } }), [{ entity: "task", id: "tsk_gone", op: "delete", seq: 50 }]);
-  assert.deepEqual(targetsOf({ type: "task.restored", seq: 51, payload: { taskId: "tsk_gone" } }), [{ entity: "task", id: "tsk_gone", op: "upsert", seq: 51 }]);
-  assert.deepEqual(targetsOf({ type: "task.assigned", seq: 52, payload: { taskId: "tsk_two" } }), [{ entity: "task", id: "tsk_two", op: "upsert", seq: 52 }]);
+  assert.deepEqual(targetsOf({ type: "task.deleted", seq: 50, payload: { taskId: "tsk_gone", title: "Old" } }), [
+    { entity: "task", id: "tsk_gone", op: "delete", seq: 50 },
+  ]);
+  assert.deepEqual(targetsOf({ type: "task.restored", seq: 51, payload: { taskId: "tsk_gone" } }), [
+    { entity: "task", id: "tsk_gone", op: "upsert", seq: 51 },
+  ]);
+  assert.deepEqual(targetsOf({ type: "task.assigned", seq: 52, payload: { taskId: "tsk_two" } }), [
+    { entity: "task", id: "tsk_two", op: "upsert", seq: 52 },
+  ]);
 });

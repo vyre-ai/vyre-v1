@@ -24,18 +24,39 @@ test("however many are asked for, the waiting ones stay bounded and the newest s
   assert.equal(t.spend(last), "tok4999");
 });
 
-function press(route: ReturnType<typeof createLiveTicketRoute>, method: string, url: string, auth?: string): { handled: boolean; status: number; body: string; headers: Record<string, string> } {
+function press(
+  route: ReturnType<typeof createLiveTicketRoute>,
+  method: string,
+  url: string,
+  auth?: string,
+): { handled: boolean; status: number; body: string; headers: Record<string, string> } {
   const out = { handled: false, status: 0, body: "", headers: {} as Record<string, string> };
   const req = Object.assign(new EventEmitter(), { method, url, headers: auth ? { authorization: auth } : {} });
-  const res = { writeHead(s: number, h: Record<string, string>) { out.status = s; out.headers = h; }, end(b: string) { out.body = b; } };
+  const res = {
+    writeHead(s: number, h: Record<string, string>) {
+      out.status = s;
+      out.headers = h;
+    },
+    end(b: string) {
+      out.body = b;
+    },
+  };
   out.handled = route.handle(req as never, res as never);
   return out;
 }
 
 test("the route gives a ticket to a live session in a header, and nobody else", () => {
   const tickets = createLiveTickets({ now: () => 1 });
-  const route = createLiveTicketRoute({ tickets, known: (t) => t === "good", bearer: (h) => h?.replace(/^Bearer /, "") ?? null });
-  assert.equal(press(route, "GET", "/sync/v1/ticket", "Bearer good").handled, false, "only a POST: a link cannot make one");
+  const route = createLiveTicketRoute({
+    tickets,
+    known: (t) => t === "good",
+    bearer: (h) => h?.replace(/^Bearer /, "") ?? null,
+  });
+  assert.equal(
+    press(route, "GET", "/sync/v1/ticket", "Bearer good").handled,
+    false,
+    "only a POST: a link cannot make one",
+  );
   assert.equal(press(route, "POST", "/sync/v1/other", "Bearer good").handled, false);
   assert.equal(press(route, "POST", "/sync/v1/ticket").status, 401);
   assert.equal(press(route, "POST", "/sync/v1/ticket", "Bearer bad").status, 401);

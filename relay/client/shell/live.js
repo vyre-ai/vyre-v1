@@ -22,18 +22,39 @@ export function createLive(o) {
       let b = bridges.get(source.id);
       if (!b) {
         b = createWsBridge({
-          open: path => { const c = o.conn(); if (!c) throw new Error("no connection"); return c.socket(path); },
-          post: msg => { try { source.postMessage({ vyreWs: msg }); } catch { /* the page is gone */ } },
-          allowed: PAGE_STREAMS, maxSockets: MAX_PAGE_SOCKETS,
+          open: (path) => {
+            const c = o.conn();
+            if (!c) throw new Error("no connection");
+            return c.socket(path);
+          },
+          post: (msg) => {
+            try {
+              source.postMessage({ vyreWs: msg });
+            } catch {
+              /* the page is gone */
+            }
+          },
+          allowed: PAGE_STREAMS,
+          maxSockets: MAX_PAGE_SOCKETS,
         });
         bridges.set(source.id, b);
       }
       b.fromPage(m);
     },
     /** A page went away. @param {string} id */
-    gone(id) { const b = bridges.get(id); if (b) { b.closeAll(); bridges.delete(id); } },
+    gone(id) {
+      const b = bridges.get(id);
+      if (b) {
+        b.closeAll();
+        bridges.delete(id);
+      }
+    },
     /** Close the sockets of every page that is no longer open. @param {string[]} ids the pages that are */
-    keep(ids) { for (const id of [...bridges.keys()]) if (!ids.includes(id)) this.gone(id); },
-    get pages() { return bridges.size; },
+    keep(ids) {
+      for (const id of [...bridges.keys()]) if (!ids.includes(id)) this.gone(id);
+    },
+    get pages() {
+      return bridges.size;
+    },
   };
 }

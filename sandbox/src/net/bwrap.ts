@@ -17,7 +17,15 @@ import { GUEST_BRIDGE, GUEST_CONNECT, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from
 import { startNetWall } from "./host.ts";
 import type { NetWall, NetWallOptions } from "./host.ts";
 
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
+const SYSTEM_RO: readonly string[] = [
+  "/usr",
+  "/etc/ssl",
+  "/etc/ca-certificates",
+  "/etc/resolv.conf",
+  "/etc/hosts",
+  "/etc/nsswitch.conf",
+  "/etc/localtime",
+];
 const HOME = "/home/agent";
 /** bwrap is started with an empty environment, so it must be found by path (an empty PATH finds nothing). */
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"].find((p) => fs.existsSync(p)) ?? "bwrap";
@@ -56,7 +64,13 @@ function nodePrefix(node: string): string | undefined {
   return path.posix.basename(bin) === "bin" ? path.posix.dirname(bin) : bin;
 }
 
-export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly string[], o: BwrapWallOptions, policy?: PolicyOptions): WalledCommand {
+export function bwrapWallCommand(
+  spec: SandboxSpec,
+  roots: Roots,
+  argv: readonly string[],
+  o: BwrapWallOptions,
+  policy?: PolicyOptions,
+): WalledCommand {
   if (argv.length === 0) throw new SandboxError("sandbox.policy", "nothing to run");
   const checked = validateSpec(spec, roots, policy);
   const node = o.node ?? process.execPath;
@@ -65,10 +79,25 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   const prefix = nodePrefix(node);
   for (const p of [...SYSTEM_RO, ...(prefix ? [prefix] : []), ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
   if (o.splitUsr === true) for (const p of ["/bin", "/sbin", "/lib", "/lib64"]) a.push("--ro-bind-try", p, p);
-  else a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
+  else
+    a.push(
+      "--symlink",
+      "usr/bin",
+      "/bin",
+      "--symlink",
+      "usr/sbin",
+      "/sbin",
+      "--symlink",
+      "usr/lib",
+      "/lib",
+      "--symlink",
+      "usr/lib64",
+      "/lib64",
+    );
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");
   if (o.home !== undefined) {
-    if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}/`))) throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
+    if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}/`)))
+      throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
     a.push("--bind", o.home, HOME);
   } else a.push("--tmpfs", HOME);
   const acc = o.access;
@@ -78,7 +107,8 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
     const opened = [...acc.rw, ...(o.programRead ?? [])];
     for (const d of acc.deny) {
       if (!opened.some((r) => d === r || d.startsWith(`${r}/`) || r.startsWith(`${d}/`)) || !fs.existsSync(d)) continue;
-      if (fs.statSync(d).isDirectory()) a.push("--tmpfs", d); else a.push("--ro-bind", "/dev/null", d);
+      if (fs.statSync(d).isDirectory()) a.push("--tmpfs", d);
+      else a.push("--ro-bind", "/dev/null", d);
     }
     for (const p of acc.roFiles) a.push("--ro-bind-try", p, p);
     if (acc.sshAuthSock && fs.existsSync(acc.sshAuthSock)) a.push("--bind", acc.sshAuthSock, acc.sshAuthSock);
@@ -88,19 +118,43 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   a.push("--ro-bind", o.wallDir, GUEST_DIR);
   const basePath = o.basePath ?? `${prefix ? `${prefix}/bin:` : ""}/usr/local/bin:/usr/bin:/bin`;
   const env: Record<string, string> = {
-    ...(spec.env ?? {}), ...(acc?.env ?? {}), ...(acc?.sshAuthSock ? { SSH_AUTH_SOCK: acc.sshAuthSock } : {}), HOME, PATH: [...(acc?.pathAdd ?? []), basePath].join(":"), LANG: "C.UTF-8",
+    ...(spec.env ?? {}),
+    ...(acc?.env ?? {}),
+    ...(acc?.sshAuthSock ? { SSH_AUTH_SOCK: acc.sshAuthSock } : {}),
+    HOME,
+    PATH: [...(acc?.pathAdd ?? []), basePath].join(":"),
+    LANG: "C.UTF-8",
     // the proxy for every tool, and git+ssh through the bridge's CONNECT helper (the wall has no other way out)
-    ...toolProxyEnv(`http://127.0.0.1:${GUEST_PORT}`, { node, helper: GUEST_CONNECT, port: GUEST_PORT, ...sshFiles(acc, `${HOME}/.vyre-known-hosts`) }),
+    ...toolProxyEnv(`http://127.0.0.1:${GUEST_PORT}`, {
+      node,
+      helper: GUEST_CONNECT,
+      port: GUEST_PORT,
+      ...sshFiles(acc, `${HOME}/.vyre-known-hosts`),
+    }),
   };
   // bwrap builds the new root as a writable tmpfs; nothing may be written on it. The binds above are their own mounts and stay as asked.
   a.push("--remount-ro", "/");
   a.push("--clearenv");
   for (const [k, v] of Object.entries(env)) a.push("--setenv", k, v);
-  a.push("--chdir", checked.mounts[0]?.host ?? HOME, "--", node, GUEST_BRIDGE, GUEST_SOCKET, String(GUEST_PORT), "--", ...argv);
+  a.push(
+    "--chdir",
+    checked.mounts[0]?.host ?? HOME,
+    "--",
+    node,
+    GUEST_BRIDGE,
+    GUEST_SOCKET,
+    String(GUEST_PORT),
+    "--",
+    ...argv,
+  );
   return { cmd: "bwrap", args: a, env: {}, enforcement: { files: "kernel", network: "kernel" } };
 }
 
-export type WalledBwrapSandbox = Sandbox & { readonly network: "wall"; readonly enforcement: WalledCommand["enforcement"]; readonly proxyPort: number };
+export type WalledBwrapSandbox = Sandbox & {
+  readonly network: "wall";
+  readonly enforcement: WalledCommand["enforcement"];
+  readonly proxyPort: number;
+};
 
 export interface WalledBwrapDeps {
   roots: Roots;
@@ -117,30 +171,65 @@ export interface WalledBwrapDeps {
 export async function startWalledBwrapSandbox(spec: SandboxSpec, deps: WalledBwrapDeps): Promise<WalledBwrapSandbox> {
   if (spec.kind !== "bwrap") throw new SandboxError("sandbox.policy", "this is the bwrap sandbox");
   validateSpec(spec, deps.roots, deps.policy);
-  const wall: NetWall = await startNetWall({ allow: spec.egressHosts, ...(spec.egressRule ? { rule: spec.egressRule } : {}), ...(deps.egress ? { egress: deps.egress } : {}), ...(deps.baseDir ? { baseDir: deps.baseDir } : {}) });
+  const wall: NetWall = await startNetWall({
+    allow: spec.egressHosts,
+    ...(spec.egressRule ? { rule: spec.egressRule } : {}),
+    ...(deps.egress ? { egress: deps.egress } : {}),
+    ...(deps.baseDir ? { baseDir: deps.baseDir } : {}),
+  });
   const bwrap = deps.bwrap ?? BWRAP;
-  const opts: BwrapWallOptions = { wallDir: wall.dir, ...(deps.node ? { node: deps.node } : {}), ...(deps.programRead ? { programRead: deps.programRead } : {}) };
+  const opts: BwrapWallOptions = {
+    wallDir: wall.dir,
+    ...(deps.node ? { node: deps.node } : {}),
+    ...(deps.programRead ? { programRead: deps.programRead } : {}),
+  };
   let stopped = false;
   const proxyEnvVars = proxyEnv(`http://127.0.0.1:${GUEST_PORT}`);
   const sandbox: WalledBwrapSandbox = {
-    id: spec.id, kind: "bwrap", network: "wall", enforcement: { files: "kernel", network: "kernel" }, proxyPort: wall.proxyPort,
+    id: spec.id,
+    kind: "bwrap",
+    network: "wall",
+    enforcement: { files: "kernel", network: "kernel" },
+    proxyPort: wall.proxyPort,
     env: () => ({ ...(spec.env ?? {}), HOME, ...proxyEnvVars }),
     exec(e: ExecSpec): Promise<ExecResult> {
       if (stopped) return Promise.reject(new SandboxError("sandbox.stopped", "the sandbox is stopped"));
       if (e.argv.length === 0) return Promise.reject(new SandboxError("sandbox.policy", "nothing to run"));
-      const w = bwrapWallCommand({ ...spec, env: { ...(spec.env ?? {}), ...(e.env ?? {}) } }, deps.roots, e.argv, opts, deps.policy);
+      const w = bwrapWallCommand(
+        { ...spec, env: { ...(spec.env ?? {}), ...(e.env ?? {}) } },
+        deps.roots,
+        e.argv,
+        opts,
+        deps.policy,
+      );
       return new Promise((resolve) => {
         // bwrap itself is started with an empty environment: a process inside can read pid 1's, which is bwrap's own.
         const p = spawn(bwrap, w.args, { env: w.env, stdio: ["ignore", "pipe", "pipe"] });
-        let stdout = "", stderr = "", timedOut = false;
+        let stdout = "",
+          stderr = "",
+          timedOut = false;
         p.stdout.on("data", (d) => (stdout += d));
         p.stderr.on("data", (d) => (stderr += d));
-        const t = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, e.timeoutMs ?? 600_000);
-        p.on("error", (err) => { clearTimeout(t); resolve({ exitCode: null, stdout, stderr: `${stderr}${err.message}`, timedOut }); });
-        p.on("close", (code) => { clearTimeout(t); resolve({ exitCode: code, stdout, stderr, timedOut }); });
+        const t = setTimeout(() => {
+          timedOut = true;
+          p.kill("SIGKILL");
+        }, e.timeoutMs ?? 600_000);
+        p.on("error", (err) => {
+          clearTimeout(t);
+          resolve({ exitCode: null, stdout, stderr: `${stderr}${err.message}`, timedOut });
+        });
+        p.on("close", (code) => {
+          clearTimeout(t);
+          resolve({ exitCode: code, stdout, stderr, timedOut });
+        });
       });
     },
-    async putCredentials(_files: readonly CredentialFile[]): Promise<void> { throw new SandboxError("sandbox.unsupported", "credentials go to a bwrap sandbox through the credential store, not here"); },
+    async putCredentials(_files: readonly CredentialFile[]): Promise<void> {
+      throw new SandboxError(
+        "sandbox.unsupported",
+        "credentials go to a bwrap sandbox through the credential store, not here",
+      );
+    },
     async wipeCredentials(): Promise<void> {},
     async stop(): Promise<void> {
       if (stopped) return;

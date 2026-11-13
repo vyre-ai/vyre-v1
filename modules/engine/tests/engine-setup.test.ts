@@ -11,19 +11,34 @@ function rig(o: { supported?: string[]; here?: string[]; fail?: boolean } = {}) 
   const asked: string[] = [];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-connect-"));
   for (const p of o.here ?? []) fs.writeFileSync(path.join(dir, p), "#!/bin/sh\n", { mode: 0o755 });
-  const installer = { supported: (p: string) => (o.supported ?? ["claude", "codex", "grok"]).includes(p), ensure: async (p: string) => { asked.push(p); if (o.fail) throw new Error("offline"); return `/e/${p}`; } };
+  const installer = {
+    supported: (p: string) => (o.supported ?? ["claude", "codex", "grok"]).includes(p),
+    ensure: async (p: string) => {
+      asked.push(p);
+      if (o.fail) throw new Error("offline");
+      return `/e/${p}`;
+    },
+  };
   return { asked, installer, probe: { platform: "linux" as const, env: { PATH: dir }, enginesRoot: null } };
 }
 
 test("a sign-in for an engine this computer lacks starts its install at once, without waiting for it", async () => {
-  for (const [key, program] of [["codex", "codex"], ["claude-code", "claude"], ["grok", "grok"]] as const) {
+  for (const [key, program] of [
+    ["codex", "codex"],
+    ["claude-code", "claude"],
+    ["grok", "grok"],
+  ] as const) {
     const r = rig();
     assert.deepEqual(installOnConnect(key, { installer: r.installer, probe: r.probe }), [program]);
     assert.deepEqual(r.asked, [program]);
   }
   const logged: string[] = [];
   const failing = rig({ fail: true });
-  assert.deepEqual(installOnConnect("codex", { installer: failing.installer, probe: failing.probe, log: (m) => logged.push(m) }), ["codex"], "the event is answered at once; the install fails later, in the log");
+  assert.deepEqual(
+    installOnConnect("codex", { installer: failing.installer, probe: failing.probe, log: (m) => logged.push(m) }),
+    ["codex"],
+    "the event is answered at once; the install fails later, in the log",
+  );
   await new Promise((r) => setImmediate(r));
   assert.equal(logged.length, 1);
 });
@@ -38,6 +53,10 @@ test("an API key, a program already here, a computer with no build, or an instal
   assert.deepEqual(installOnConnect("codex", { installer: here.installer, probe: here.probe }), []);
   const none = rig({ supported: [] });
   assert.deepEqual(installOnConnect("grok", { installer: none.installer, probe: none.probe }), []);
-  assert.deepEqual(installOnConnect("grok", { installer: null, probe: none.probe }), [], "a test daemon has no installer");
+  assert.deepEqual(
+    installOnConnect("grok", { installer: null, probe: none.probe }),
+    [],
+    "a test daemon has no installer",
+  );
   assert.deepEqual([...here.asked, ...none.asked], []);
 });

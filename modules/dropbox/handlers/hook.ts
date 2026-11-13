@@ -9,7 +9,9 @@ import type { DropboxCtx } from "../projections.ts";
 const utf8 = (v: string) => new TextEncoder().encode(v);
 
 async function hmacHex(secret: string, data: string): Promise<string> {
-  const key = await globalThis.crypto.subtle.importKey("raw", utf8(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await globalThis.crypto.subtle.importKey("raw", utf8(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   return Buffer.from(new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", key, utf8(data)))).toString("hex");
 }
 
@@ -21,19 +23,32 @@ export async function signatureMatches(secret: string, body: string, signature: 
   const want = await hmacHex(secret, body);
   if (want.length !== signature.length) return false;
   let diff = 0;
-  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ signature.charCodeAt(i);   // the whole string is read whatever the first difference
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ signature.charCodeAt(i); // the whole string is read whatever the first difference
   return diff === 0;
 }
 
-export type Verified = { ok: true; input: { eventId: string; accounts: string[]; at: number } } | { ok: false; reason: "no_signature" | "bad_signature" | "bad_body" };
+export type Verified =
+  | { ok: true; input: { eventId: string; accounts: string[]; at: number } }
+  | { ok: false; reason: "no_signature" | "bad_signature" | "bad_body" };
 
-export async function verifyWebhook(secret: string, headers: Readonly<Record<string, string | undefined>>, body: string, now: number): Promise<Verified> {
+export async function verifyWebhook(
+  secret: string,
+  headers: Readonly<Record<string, string | undefined>>,
+  body: string,
+  now: number,
+): Promise<Verified> {
   const signature = headers["x-dropbox-signature"];
   if (!signature) return { ok: false, reason: "no_signature" };
   if (!(await signatureMatches(secret, body, signature))) return { ok: false, reason: "bad_signature" };
   let parsed: Record<string, unknown>;
-  try { parsed = obj(JSON.parse(body)); } catch { return { ok: false, reason: "bad_body" }; }
-  const accounts = list(obj(parsed["list_folder"])["accounts"]).filter((a): a is string => typeof a === "string" && a !== "");
+  try {
+    parsed = obj(JSON.parse(body));
+  } catch {
+    return { ok: false, reason: "bad_body" };
+  }
+  const accounts = list(obj(parsed["list_folder"])["accounts"]).filter(
+    (a): a is string => typeof a === "string" && a !== "",
+  );
   if (accounts.length === 0 && !("list_folder" in parsed)) return { ok: false, reason: "bad_body" };
   return { ok: true, input: { eventId: (await sha256Hex(body)).slice(0, 32), accounts, at: now } };
 }
@@ -59,9 +74,14 @@ export async function receiveWebhook(ctx: DropboxCtx, input: unknown) {
   ctx.db.run(`DELETE FROM dropbox_event WHERE "at" < ?`, ctx.now() - 24 * 3600_000);
   ctx.emit("dropbox.changes_received", `entity/${eventId}`, { eventId, accounts });
   for (const account of accounts) {
-    try { await ctx.call("mounts.nudge", { source: "dropbox", channelId: `dbx:${account}` }); } catch (e) { ctx.log.warn("dropbox change did not wake its mounts", { code: codeOf(e) }); }
+    try {
+      await ctx.call("mounts.nudge", { source: "dropbox", channelId: `dbx:${account}` });
+    } catch (e) {
+      ctx.log.warn("dropbox change did not wake its mounts", { code: codeOf(e) });
+    }
   }
   return { accepted: true };
 }
 
-export const refuseUnsigned = (traceId: string) => fail("auth.bad_credentials", traceId, { message: "That request was not signed by Dropbox." });
+export const refuseUnsigned = (traceId: string) =>
+  fail("auth.bad_credentials", traceId, { message: "That request was not signed by Dropbox." });

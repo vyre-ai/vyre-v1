@@ -14,11 +14,16 @@ test("express: an API with env from the Vault, its log, and who is asking", { sk
   const log = await w.buildLog(site.siteId);
   assert.match(log, /looks for a Postgres database/, "the build log says what the app looks for");
   const env = await w.h["sites.env_list"](w.ctx, { siteId: site.siteId });
-  assert.deepEqual(env.entries.map((e: { name: string }) => e.name), ["GREETING"]);
+  assert.deepEqual(
+    env.entries.map((e: { name: string }) => e.name),
+    ["GREETING"],
+  );
   assert.deepEqual(env.wanted, ["DATABASE_URL"], "what .env.example names and nothing gives yet");
   const cookie = await w.signIn(site.slug, site.siteId, "usr_anem");
   assert.deepEqual(JSON.parse((await w.get(site.slug, "/api/env", { cookie })).body), { greeting: "hi-express" });
-  assert.deepEqual(JSON.parse((await w.get(site.slug, "/api/whoami", { cookie: `${cookie}; theirs=1` })).body), { user: "usr_anem" });
+  assert.deepEqual(JSON.parse((await w.get(site.slug, "/api/whoami", { cookie: `${cookie}; theirs=1` })).body), {
+    user: "usr_anem",
+  });
   assert.equal(JSON.parse((await w.get(site.slug, "/api/db", { cookie })).body).db, "none");
   const running = await w.h["sites.logs"](w.ctx, { siteId: site.siteId, tail: 50 });
   assert.ok(Array.isArray(running.lines));

@@ -9,13 +9,35 @@ import type { ToolDef } from "../tools/types.ts";
 const OFF_TOOLSETS: ReadonlySet<string> = new Set(["vault", "terminal", "computer"]);
 
 /** Families of capability only a person changes. Reading them stays open when the person may read them. */
-const PERSON_ONLY: ReadonlySet<string> = new Set(["mcp", "identity", "members", "devices", "access", "gate", "connections", "connectors", "dropbox", "network", "spaces", "updates", "backup", "governance", "billing"]);
+const PERSON_ONLY: ReadonlySet<string> = new Set([
+  "mcp",
+  "identity",
+  "members",
+  "devices",
+  "access",
+  "gate",
+  "connections",
+  "connectors",
+  "dropbox",
+  "network",
+  "spaces",
+  "updates",
+  "backup",
+  "governance",
+  "billing",
+]);
 /** The company's own connections, inside a family that is otherwise work: a person's tools for the mail in it stay. */
-const PERSON_ONLY_CAPS = /^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)|^settings\.(set_space|floor_set|reset_space|copy_profile|kit\.set_space)$|^agents\.(delete|pause|resume|update|role_line\.set|config\.)/;
+const PERSON_ONLY_CAPS =
+  /^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)|^settings\.(set_space|floor_set|reset_space|copy_profile|kit\.set_space)$|^agents\.(delete|pause|resume|update|role_line\.set|config\.)/;
 /** Asking is never a way past a person: this opens a question they answer. */
 const ASKS: ReadonlySet<string> = new Set(["access.request"]);
 /** Finding tools is not a power. */
-const ALWAYS: ReadonlySet<string> = new Set(["mcp.tool.search", "mcp.tool.describe", "mcp.toolsets.list", "mcp.tools.list"]);
+const ALWAYS: ReadonlySet<string> = new Set([
+  "mcp.tool.search",
+  "mcp.tool.describe",
+  "mcp.toolsets.list",
+  "mcp.tools.list",
+]);
 
 /** A tool that needs a person to press something, whoever else may use it. */
 export function isPersonOnly(cap: string, effects: string): boolean {
@@ -52,35 +74,67 @@ export function outsideAllows(t: Pick<ToolDef, "cap" | "toolset" | "effects" | "
  * and putting keys in the Vault. Outside it, and for anything that goes out (sends, posts, payments), nothing changes. Never here: access, the Gate's rules, agents, MCP sign-ins, devices, the network,
  * reading a secret back, sharing a Vault item: an agent cannot give itself or another agent more than it has.
  */
-const SETUP_FAMILIES = /^(members|company|settings|connections|connectors|import)\.|^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)/;
+const SETUP_FAMILIES =
+  /^(members|company|settings|connections|connectors|import)\.|^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)/;
 /** Loading up a company Space (lead review, 3 Nov): the Space itself, numbers, record types, groups and roles of people, journeys and automations, skills, channels, projects, members' calendars. */
-const SETUP_PREFIXED = /^(telephony\.number\.(import|assign|list|get|search|set_hours|set_recording|set_route)|telephony\.registration\.(get|save|refresh)|schema\.(apply|layout\.set|set_label|gap_rules\.set|restore_field|describe|diff|infer|types\.|layout\.get|field_types|view_kinds|map|changes\.list|gap_rules\.list|trash\.list|sensitivity\.scan)|journeys\.(create|design|rename|rules\.set|start|move_stage|get|list|versions|stage_counts|preview_migrate|migrate)|automations\.(create|update|promote|preview_promote|set_enabled|validate|get|list|versions|steps\.list|triggers\.list|templates\.|groups\.|dependencies)|skills\.(add|remove|set_enabled|list)|channels\.(create|update|members\.|get|list|archive|unarchive)|projects\.(create|members\.set|members\.list|get|list|stages\.set|templates\.list|overview)|calendar\.(connect_provider|sync_now|list_calendars))/;
+const SETUP_PREFIXED =
+  /^(telephony\.number\.(import|assign|list|get|search|set_hours|set_recording|set_route)|telephony\.registration\.(get|save|refresh)|schema\.(apply|layout\.set|set_label|gap_rules\.set|restore_field|describe|diff|infer|types\.|layout\.get|field_types|view_kinds|map|changes\.list|gap_rules\.list|trash\.list|sensitivity\.scan)|journeys\.(create|design|rename|rules\.set|start|move_stage|get|list|versions|stage_counts|preview_migrate|migrate)|automations\.(create|update|promote|preview_promote|set_enabled|validate|get|list|versions|steps\.list|triggers\.list|templates\.|groups\.|dependencies)|skills\.(add|remove|set_enabled|list)|channels\.(create|update|members\.|get|list|archive|unarchive)|projects\.(create|members\.set|members\.list|get|list|stages\.set|templates\.list|overview)|calendar\.(connect_provider|sync_now|list_calendars))/;
 const SETUP_CAPS: ReadonlySet<string> = new Set([
-  "vault.item.put", "vault.item.update", "vault.folders.create", "vault.folders.update", "vault.folders.list", "vault.items.list", "vault.request",
+  "vault.item.put",
+  "vault.item.update",
+  "vault.folders.create",
+  "vault.folders.update",
+  "vault.folders.list",
+  "vault.items.list",
+  "vault.request",
   // sharing a Vault item with people, a group of people or a role (never with an agent: setupRefusal), as the person would press Share
-  "vault.share", "vault.unshare",
-  "providers.add", "providers.list", "providers.catalog", "providers.test", "providers.set_space_use", "providers.remove",
+  "vault.share",
+  "vault.unshare",
+  "providers.add",
+  "providers.list",
+  "providers.catalog",
+  "providers.test",
+  "providers.set_space_use",
+  "providers.remove",
   // the Space AI key (owner ruling 3 Nov: the setup grant covers the Space's AI key); the person's own role decides, as in Console
-  "providers.space_key.get", "providers.space_key.set",
+  "providers.space_key.get",
+  "providers.space_key.set",
   // Space AI accounts (owner ruling 9): what each shared key pays for and its cap
   "providers.uses.set",
-  "spaces.update", "spaces.get",
+  "spaces.update",
+  "spaces.get",
   // groups and roles, for people only: every subject is checked by setupRefusal
-  "access.groups.create", "access.groups.update", "access.groups.add_member", "access.groups.remove_member", "access.groups.delete", "access.groups.list", "access.groups.get",
-  "access.roles.assign", "access.roles.unassign", "access.roles.list", "access.roles.get",
+  "access.groups.create",
+  "access.groups.update",
+  "access.groups.add_member",
+  "access.groups.remove_member",
+  "access.groups.delete",
+  "access.groups.list",
+  "access.groups.get",
+  "access.roles.assign",
+  "access.roles.unassign",
+  "access.roles.list",
+  "access.roles.get",
 ]);
 /** Within the scope, what never is: a step that hands an agent something, or reads one back. */
-const SETUP_NEVER = /^(connectors\.(run|publish)|connections\.set_secret|automations\.(connector_share|connector_offer)|members\.sign_in_github\.get)/;
+const SETUP_NEVER =
+  /^(connectors\.(run|publish)|connections\.set_secret|automations\.(connector_share|connector_offer)|members\.sign_in_github\.get)/;
 export function setupCovers(t: Pick<ToolDef, "cap" | "effects" | "local">): boolean {
   if (t.effects === "outward" || t.local !== "none" || SETUP_NEVER.test(t.cap)) return false;
   return SETUP_CAPS.has(t.cap) || SETUP_FAMILIES.test(t.cap) || SETUP_PREFIXED.test(t.cap);
 }
 
 /** The calls whose subjects are checked: a group or a role goes to people only under the setup grant. */
-const PEOPLE_ONLY: ReadonlySet<string> = new Set(["access.groups.create", "access.groups.update", "access.groups.add_member", "access.roles.assign"]);
+const PEOPLE_ONLY: ReadonlySet<string> = new Set([
+  "access.groups.create",
+  "access.groups.update",
+  "access.groups.add_member",
+  "access.roles.assign",
+]);
 const subjectsOf = (input: unknown): Array<{ kind?: unknown; id?: unknown }> => {
   const i = (input ?? {}) as Record<string, unknown>;
-  const list = (v: unknown): Array<{ kind?: unknown; id?: unknown }> => (Array.isArray(v) ? v : v !== undefined ? [v] : []) as Array<{ kind?: unknown; id?: unknown }>;
+  const list = (v: unknown): Array<{ kind?: unknown; id?: unknown }> =>
+    (Array.isArray(v) ? v : v !== undefined ? [v] : []) as Array<{ kind?: unknown; id?: unknown }>;
   return [...list(i["members"]), ...list(i["managers"]), ...list(i["member"]), ...list(i["subject"])];
 };
 /**
@@ -90,10 +144,16 @@ const subjectsOf = (input: unknown): Array<{ kind?: unknown; id?: unknown }> => 
 export function setupRefusal(t: Pick<ToolDef, "cap">, input: unknown): string | null {
   // a Vault item is shared with people, a group of them or a role, as the person would; giving an agent, an actor or a service a key stays with the person
   if (t.cap === "vault.share") {
-    const to = subjectsOf(input).find((x) => x === null || typeof x !== "object" || (x.kind !== "person" && x.kind !== "group" && x.kind !== "role"));
-    return to === undefined ? null : "The setup grant shares Vault items with people, groups and roles only. Giving a key to an agent stays with a person: they press Share on the item in Vyre.";
+    const to = subjectsOf(input).find(
+      (x) => x === null || typeof x !== "object" || (x.kind !== "person" && x.kind !== "group" && x.kind !== "role"),
+    );
+    return to === undefined
+      ? null
+      : "The setup grant shares Vault items with people, groups and roles only. Giving a key to an agent stays with a person: they press Share on the item in Vyre.";
   }
   if (!PEOPLE_ONLY.has(t.cap)) return null;
   const bad = subjectsOf(input).find((s) => s === null || typeof s !== "object" || s.kind !== "person");
-  return bad === undefined ? null : "The setup grant gives groups and roles to people only. Putting an agent, actor, service or group in a group or a role stays with a person.";
+  return bad === undefined
+    ? null
+    : "The setup grant gives groups and roles to people only. Putting an agent, actor, service or group in a group or a role stays with a person.";
 }

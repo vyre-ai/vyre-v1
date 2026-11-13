@@ -8,7 +8,16 @@ import type { ReplicaStore, SqlDriver } from "../replica/types.ts";
 import type { FolderPort, KeychainPort, OpenDocs, PurgeReason, PurgeStatus } from "./ports.ts";
 
 /** Client-only tables (CLIENT_SQL) that hold anything about the Space. `rejected` is the archive and is spared for an active person. */
-const CLIENT_TABLES = ["pending_ops", "conflicts_local", "doc_local", "fts", "blob_cache", "hide_seq", "replica_keep", "rejected"] as const;
+const CLIENT_TABLES = [
+  "pending_ops",
+  "conflicts_local",
+  "doc_local",
+  "fts",
+  "blob_cache",
+  "hide_seq",
+  "replica_keep",
+  "rejected",
+] as const;
 const HASH_KEY = "registry_hash";
 
 export interface PurgeOpts {
@@ -61,20 +70,41 @@ const message = (e: unknown): string => (e instanceof Error ? e.message : String
 export async function purgeReplica(o: PurgeOpts): Promise<PurgeReport> {
   const now = (o.now ?? Date.now)();
   const report: PurgeReport = {
-    reason: o.reason, epoch: o.epoch, personActive: o.personActive, tables: 0, archived: null,
-    docsClosed: false, keychain: false, folder: false, errors: [],
+    reason: o.reason,
+    epoch: o.epoch,
+    personActive: o.personActive,
+    tables: 0,
+    archived: null,
+    docsClosed: false,
+    keychain: false,
+    folder: false,
+    errors: [],
   };
   o.status?.({ state: "purging", reason: o.reason, epoch: o.epoch });
   const attempt = async (name: string, run: () => void | Promise<void>): Promise<boolean> => {
-    try { await run(); return true; } catch (e) { report.errors.push(`${name}: ${message(e)}`); return false; }
+    try {
+      await run();
+      return true;
+    } catch (e) {
+      report.errors.push(`${name}: ${message(e)}`);
+      return false;
+    }
   };
 
-  await attempt("open documents", () => { o.docs?.closeAll(); report.docsClosed = o.docs !== undefined; });
+  await attempt("open documents", () => {
+    o.docs?.closeAll();
+    report.docsClosed = o.docs !== undefined;
+  });
 
   await attempt("replica", async () => {
     const d = o.driver;
-    try { d.exec("PRAGMA secure_delete = ON"); } catch { /* an engine without the pragma still deletes */ }
-    if (o.personActive && d.sync) report.archived = Number(d.prepare("SELECT count(*) AS n FROM pending_ops").get([])?.n ?? 0);
+    try {
+      d.exec("PRAGMA secure_delete = ON");
+    } catch {
+      /* an engine without the pragma still deletes */
+    }
+    if (o.personActive && d.sync)
+      report.archived = Number(d.prepare("SELECT count(*) AS n FROM pending_ops").get([])?.n ?? 0);
     const tables = replicaTables().filter((t) => !(o.personActive && t === "rejected"));
     d.transaction(() => {
       if (o.personActive) {
@@ -96,19 +126,44 @@ export async function purgeReplica(o: PurgeOpts): Promise<PurgeReport> {
     });
     await d.flush();
     // Free pages so deleted rows do not stay readable in the file (best effort: an engine that refuses still has the rows deleted).
-    try { d.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* not a WAL file */ }
-    if (d.kind !== "wa") { try { d.exec("VACUUM"); } catch { /* inside an outer transaction or read-only */ } }
+    try {
+      d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    } catch {
+      /* not a WAL file */
+    }
+    if (d.kind !== "wa") {
+      try {
+        d.exec("VACUUM");
+      } catch {
+        /* inside an outer transaction or read-only */
+      }
+    }
     await d.flush();
   });
 
-  if (o.keychain) { const k = o.keychain; report.keychain = await attempt("keychain", () => k.removeAll()); }
-  if (o.folder) { const f = o.folder; report.folder = await attempt("local folder", () => f.wipe()); }
-  if (o.store) { const s = o.store; await attempt("close", () => s.close()); }
+  if (o.keychain) {
+    const k = o.keychain;
+    report.keychain = await attempt("keychain", () => k.removeAll());
+  }
+  if (o.folder) {
+    const f = o.folder;
+    report.folder = await attempt("local folder", () => f.wipe());
+  }
+  if (o.store) {
+    const s = o.store;
+    await attempt("close", () => s.close());
+  }
 
   if (report.errors.length) {
     o.status?.({ state: "failed", reason: o.reason, epoch: o.epoch, errors: report.errors });
     throw new PurgeError(report);
   }
-  o.status?.({ state: "purged", reason: o.reason, epoch: o.epoch, personActive: o.personActive, archived: report.archived });
+  o.status?.({
+    state: "purged",
+    reason: o.reason,
+    epoch: o.epoch,
+    personActive: o.personActive,
+    archived: report.archived,
+  });
   return report;
 }

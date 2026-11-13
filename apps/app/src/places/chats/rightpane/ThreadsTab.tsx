@@ -30,7 +30,14 @@ export function ThreadsTab({ deps, window }: { deps: PaneDeps; window?: VirtualW
     helpers.status === "ready" ? helpers.data.helpers : [],
     chats.status === "ready" ? chats.data.threads : [],
   );
-  const side = (t: { threadId: string }): ReactElement => <Tool icon="expand" label="Open to the Side" onPress={() => data.nav.openThread(t.threadId, "side")} testID={`side-${t.threadId}`} />;
+  const side = (t: { threadId: string }): ReactElement => (
+    <Tool
+      icon="expand"
+      label="Open to the Side"
+      onPress={() => data.nav.openThread(t.threadId, "side")}
+      testID={`side-${t.threadId}`}
+    />
+  );
   const menu = (t: { threadId: string }) => [
     { label: "Open", onSelect: () => data.nav.openThread(t.threadId, "here") },
     { label: "Open to the Side", onSelect: () => data.nav.openThread(t.threadId, "side") },
@@ -41,15 +48,67 @@ export function ThreadsTab({ deps, window }: { deps: PaneDeps; window?: VirtualW
   const entries: Entry[] = [addRow];
   if (g.worked.length > 0) {
     entries.push({ key: "l-worked", type: "label", text: "Threads it worked in" });
-    for (const t of g.worked as Thread[]) entries.push({ key: `t-${t.threadId}`, type: "row", title: t.title ?? "Thread", note: workedNote(t, clock), leading: <LeadIcon name="reply" />, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `thread-${t.threadId}` });
+    for (const t of g.worked as Thread[])
+      entries.push({
+        key: `t-${t.threadId}`,
+        type: "row",
+        title: t.title ?? "Thread",
+        note: workedNote(t, clock),
+        leading: <LeadIcon name="reply" />,
+        onPress: () => data.nav.openThread(t.threadId, "here"),
+        trailing: (over) => (over ? side(t) : null),
+        menu: menu(t),
+        testID: `thread-${t.threadId}`,
+      });
   }
   if (g.helpers.length > 0) {
     entries.push({ key: "l-helpers", type: "label", text: "Helpers" });
-    for (const h of g.helpers as Helper[]) entries.push({ key: `h-${h.threadId}`, type: "row", title: h.title, note: helperNote(h, clock), leading: <LeadIcon name="helper" color={h.status === "running" ? "var(--accent)" : "var(--ink-3)"} />, onPress: () => data.nav.openHelper(h.threadId), menu: [{ label: "Open", onSelect: () => data.nav.openHelper(h.threadId) }, { label: "Open to the Side", onSelect: () => data.nav.openThread(h.threadId, "side") }], testID: `helper-${h.threadId}` });
+    for (const h of g.helpers as Helper[])
+      entries.push({
+        key: `h-${h.threadId}`,
+        type: "row",
+        title: h.title,
+        note: helperNote(h, clock),
+        leading: <LeadIcon name="helper" color={h.status === "running" ? "var(--accent)" : "var(--ink-3)"} />,
+        onPress: () => data.nav.openHelper(h.threadId),
+        menu: [
+          { label: "Open", onSelect: () => data.nav.openHelper(h.threadId) },
+          { label: "Open to the Side", onSelect: () => data.nav.openThread(h.threadId, "side") },
+        ],
+        testID: `helper-${h.threadId}`,
+      });
   }
   entries.push({ key: "l-chats", type: "label", text: "Its chats" });
-  if (g.chats.length === 0) entries.push({ key: "no-chats", type: "empty", text: "No chats yet.", testID: "chats-empty" });
-  for (const t of g.chats) entries.push({ key: `c-${t.threadId}`, type: "row", title: t.title ?? "New chat", note: chatWhen(t.createdAt, clock), leading: <LeadFace><Face name={data.agent.name} seedId={data.agent.agentId} size={22} /></LeadFace>, selected: t.threadId === data.threadId, onPress: () => data.nav.openThread(t.threadId, "here"), trailing: (over) => (over ? side(t) : null), menu: menu(t), testID: `chat-${t.threadId}` });
-  if (g.worked.length === 0 && g.helpers.length === 0) entries.splice(1, 0, { key: "none-worked", type: "empty", text: `${data.agent.name} has not worked in a thread here yet.`, testID: "threads-empty" });
-  return <><PaneList entries={entries} {...(window ? { window } : {})} testID="threads-list" />{add.element}</>;
+  if (g.chats.length === 0)
+    entries.push({ key: "no-chats", type: "empty", text: "No chats yet.", testID: "chats-empty" });
+  for (const t of g.chats)
+    entries.push({
+      key: `c-${t.threadId}`,
+      type: "row",
+      title: t.title ?? "New chat",
+      note: chatWhen(t.createdAt, clock),
+      leading: (
+        <LeadFace>
+          <Face name={data.agent.name} seedId={data.agent.agentId} size={22} />
+        </LeadFace>
+      ),
+      selected: t.threadId === data.threadId,
+      onPress: () => data.nav.openThread(t.threadId, "here"),
+      trailing: (over) => (over ? side(t) : null),
+      menu: menu(t),
+      testID: `chat-${t.threadId}`,
+    });
+  if (g.worked.length === 0 && g.helpers.length === 0)
+    entries.splice(1, 0, {
+      key: "none-worked",
+      type: "empty",
+      text: `${data.agent.name} has not worked in a thread here yet.`,
+      testID: "threads-empty",
+    });
+  return (
+    <>
+      <PaneList entries={entries} {...(window ? { window } : {})} testID="threads-list" />
+      {add.element}
+    </>
+  );
 }

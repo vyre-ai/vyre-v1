@@ -16,20 +16,45 @@ test("navigate: 20 screens open under 50 ms first paint and 90 percent were pref
   assert.equal(chosen.length, 20, "the generated index has at least 20 screens with a live query");
   const index = new Map(chosen.map((s) => [s.id, s]));
   const defs = new Map<string, ReturnType<typeof asQuery>>();
-  for (const s of chosen) for (const q of Object.values(s.queries)) {
-    if (q.live) defs.set(q.cap, asQuery<unknown, unknown[]>({ cap: q.cap, entities: ["row"], run: (db) => db.all("SELECT id, title FROM row ORDER BY id LIMIT 200", []) }));
-  }
+  for (const s of chosen)
+    for (const q of Object.values(s.queries)) {
+      if (q.live)
+        defs.set(
+          q.cap,
+          asQuery<unknown, unknown[]>({
+            cap: q.cap,
+            entities: ["row"],
+            run: (db) => db.all("SELECT id, title FROM row ORDER BY id LIMIT 200", []),
+          }),
+        );
+    }
   const sched = manualScheduler();
   const p = createPrefetcher({ client, screens: index, defs, scheduler: sched });
 
   const paints: number[] = [];
   chosen.forEach((s, i) => {
-    if (i % 2 === 0) { p.hover(s.id); sched.advance(60); } else p.focus(s.id);
+    if (i % 2 === 0) {
+      p.hover(s.id);
+      sched.advance(60);
+    } else p.focus(s.id);
     paints.push(p.open(s.id).firstPaintMs);
   });
   // one screen opened cold, as from a deep link
   const cold = screens.filter((s) => Object.values(s.queries).some((q) => q.live))[20];
-  if (cold) { for (const q of Object.values(cold.queries)) if (q.live && !defs.has(q.cap)) defs.set(q.cap, asQuery<unknown, unknown[]>({ cap: q.cap, entities: ["row"], run: (db) => db.all("SELECT id FROM row LIMIT 200", []) })); index.set(cold.id, cold); paints.push(p.open(cold.id).firstPaintMs); }
+  if (cold) {
+    for (const q of Object.values(cold.queries))
+      if (q.live && !defs.has(q.cap))
+        defs.set(
+          q.cap,
+          asQuery<unknown, unknown[]>({
+            cap: q.cap,
+            entities: ["row"],
+            run: (db) => db.all("SELECT id FROM row LIMIT 200", []),
+          }),
+        );
+    index.set(cold.id, cold);
+    paints.push(p.open(cold.id).firstPaintMs);
+  }
 
   const st = p.stats();
   paints.sort((a, b) => a - b);

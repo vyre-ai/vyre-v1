@@ -7,7 +7,10 @@ import path from "node:path";
 import { dialPort } from "../seams/port-fetch.ts";
 import type { PortRequest } from "../seams/port-fetch.ts";
 
-export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string | Uint8Array; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
+export type NodeFetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body: string | Uint8Array; signal?: AbortSignal },
+) => Promise<{ status: number; json(): Promise<unknown> }>;
 
 export interface NodeDeps {
   server: string;
@@ -55,20 +58,33 @@ const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
 /** The environment variable a spawn carries its network rule in (sandbox/src/egress-policy.ts RULE_ENV); kept as a string here, the host does not import the sandbox. */
 export const RULE_ENV = "VYRE_EGRESS_RULE";
 /** A person or thread id as a folder name, the way the engine's sandbox names them (modules/engine/sandbox.ts part). */
-const safePart = (id: string): string => { const s = id.replace(/[^a-zA-Z0-9_-]/g, "_"); return s === "" || s === "." || s === ".." ? "node" : s; };
+const safePart = (id: string): string => {
+  const s = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return s === "" || s === "." || s === ".." ? "node" : s;
+};
 /** The Space's address as "host:port", the way a rule's `space` holds it. */
 export function spaceTargetOf(server: string): string | null {
   try {
     const u = new URL(server);
     if (u.protocol !== "https:" && u.protocol !== "http:") return null;
     return `${u.hostname.toLowerCase()}:${u.port !== "" ? u.port : u.protocol === "https:" ? "443" : "80"}`;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 /** The turn's network rule with the Space's own address added (or the default, anything public, with it). A rule that is not JSON is left as it is: the sandbox refuses it and the turn says why. */
 export function withSpace(rule: string | undefined, server: string): string {
   const space = spaceTargetOf(server);
   let r: Record<string, unknown> = { egress: "public" };
-  if (rule !== undefined && rule !== "") { try { const v = JSON.parse(rule) as unknown; if (v === null || typeof v !== "object" || Array.isArray(v)) return rule; r = v as Record<string, unknown>; } catch { return rule; } }
+  if (rule !== undefined && rule !== "") {
+    try {
+      const v = JSON.parse(rule) as unknown;
+      if (v === null || typeof v !== "object" || Array.isArray(v)) return rule;
+      r = v as Record<string, unknown>;
+    } catch {
+      return rule;
+    }
+  }
   return JSON.stringify(space === null ? r : { ...r, space });
 }
 const MAX_PROCS = 16;
@@ -88,7 +104,9 @@ export function withServerOrigin(input: unknown, server: string): unknown {
   try {
     const u = new URL(o["fillUrl"]);
     return { ...o, fillUrl: `${server.replace(/\/+$/, "")}${u.pathname}${u.search}` };
-  } catch { return input; }
+  } catch {
+    return input;
+  }
 }
 
 /** The part of a WebSocket the live view uses. */
@@ -102,8 +120,10 @@ export interface NodeSocket {
 }
 
 interface PlatformSocket {
-  binaryType: string; readonly bufferedAmount: number;
-  send(data: string | Uint8Array): void; close(): void;
+  binaryType: string;
+  readonly bufferedAmount: number;
+  send(data: string | Uint8Array): void;
+  close(): void;
   addEventListener(type: string, f: (ev: { data?: unknown }) => void): void;
 }
 export function platformSocket(url: string, headers?: Record<string, string>): NodeSocket {
@@ -111,11 +131,33 @@ export function platformSocket(url: string, headers?: Record<string, string>): N
   const ws = new WS(url, headers ? { headers } : undefined);
   ws.binaryType = "arraybuffer";
   return {
-    send: (data) => ws.send(data), close: () => { try { ws.close(); } catch { /* already closed */ } },
-    get bufferedAmount() { return ws.bufferedAmount; },
+    send: (data) => ws.send(data),
+    close: () => {
+      try {
+        ws.close();
+      } catch {
+        /* already closed */
+      }
+    },
+    get bufferedAmount() {
+      return ws.bufferedAmount;
+    },
     onOpen: (f) => ws.addEventListener("open", () => f()),
-    onMessage: (f) => ws.addEventListener("message", (ev) => f(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data as ArrayBuffer))),
-    onClose: (f) => { let done = false; const once = (): void => { if (!done) { done = true; f(); } }; ws.addEventListener("close", once); ws.addEventListener("error", once); },
+    onMessage: (f) =>
+      ws.addEventListener("message", (ev) =>
+        f(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data as ArrayBuffer)),
+      ),
+    onClose: (f) => {
+      let done = false;
+      const once = (): void => {
+        if (!done) {
+          done = true;
+          f();
+        }
+      };
+      ws.addEventListener("close", once);
+      ws.addEventListener("error", once);
+    },
   };
 }
 
@@ -127,7 +169,14 @@ const MAX_LIVE_VIEWS = 8;
 const VIEW_BACKLOG = 2 * 1024 * 1024;
 
 /** A job in a poll answer. The token is the job's own: it reaches this computer's home, as this agent, for the length of the job. */
-export interface NodeJob { jobId: string; computerId: string; agentId: string; kind: string; input: unknown; token: string }
+export interface NodeJob {
+  jobId: string;
+  computerId: string;
+  agentId: string;
+  kind: string;
+  input: unknown;
+  token: string;
+}
 
 /** The home mirror's way back to the Space: a call on Files as the agent, and bytes to an upload slot. Both ride the token of the job being run, so neither works outside one. */
 export interface HomeLink {
@@ -136,7 +185,13 @@ export interface HomeLink {
 }
 
 /** What the node keeps about each job: it was started, and how it ended. A job it has an answer for is never run again; one it started and has no answer for is reported as interrupted, not repeated. */
-interface JobRecord { state: "started" | "done" | "failed"; result?: unknown; error?: string; reported: boolean; at: number }
+interface JobRecord {
+  state: "started" | "done" | "failed";
+  result?: unknown;
+  error?: string;
+  reported: boolean;
+  at: number;
+}
 const JOB_KEEP_MS = 24 * 3_600_000;
 const JOB_KEEP_MAX = 500;
 
@@ -150,29 +205,68 @@ export async function fingerprintOf(publicKey: string): Promise<string> {
   return `${chars.slice(0, 4)}-${chars.slice(4)}`;
 }
 
-interface KeyFile { privateKey: string; publicKey: string }
-interface StateFile { serverId: string; fingerprint: string; credential?: string }
+interface KeyFile {
+  privateKey: string;
+  publicKey: string;
+}
+interface StateFile {
+  serverId: string;
+  fingerprint: string;
+  credential?: string;
+}
 
-function readJson<T>(file: string): T | null { try { return JSON.parse(fs.readFileSync(file, "utf8")) as T; } catch { return null; } }
-function writePrivate(file: string, value: unknown): void { fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 }); fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 }); }
+function readJson<T>(file: string): T | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+function writePrivate(file: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 });
+}
 
 async function loadKey(dir: string): Promise<{ key: KeyFile; sign(text: string): Promise<string> }> {
   const file = path.join(dir, "compute-key.json");
   let key = readJson<KeyFile>(file);
   if (!key) {
     const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair;
-    key = { privateKey: b64(await crypto.subtle.exportKey("pkcs8", pair.privateKey)), publicKey: b64(await crypto.subtle.exportKey("raw", pair.publicKey)) };
+    key = {
+      privateKey: b64(await crypto.subtle.exportKey("pkcs8", pair.privateKey)),
+      publicKey: b64(await crypto.subtle.exportKey("raw", pair.publicKey)),
+    };
     writePrivate(file, key);
   }
-  const priv = await crypto.subtle.importKey("pkcs8", Buffer.from(key.privateKey, "base64"), { name: "Ed25519" }, false, ["sign"]);
-  return { key, sign: async (text) => b64(await crypto.subtle.sign({ name: "Ed25519" }, priv, new TextEncoder().encode(text))) };
+  const priv = await crypto.subtle.importKey(
+    "pkcs8",
+    Buffer.from(key.privateKey, "base64"),
+    { name: "Ed25519" },
+    false,
+    ["sign"],
+  );
+  return {
+    key,
+    sign: async (text) => b64(await crypto.subtle.sign({ name: "Ed25519" }, priv, new TextEncoder().encode(text))),
+  };
 }
 
 /**
  * The engine processes a Space starts on this machine over its live socket (cli_spawn, cli_in, cli_end, cli_kill), shared by a server that joined (runComputeNode) and a person's own computer
  * (device-link.ts). `person`, when given, is the only person whose turns this machine runs: a spawn naming anyone else is refused here, the second lock after the Space's own.
  */
-export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: string; log(line: string): void; person?: () => string | null }): { frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void; killAll(): void; stopAll(): Promise<void>; running(): number } {
+export function cliRelay(o: {
+  launcher?: NodeLauncher;
+  dataDir: string;
+  server: string;
+  log(line: string): void;
+  person?: () => string | null;
+}): {
+  frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void;
+  killAll(): void;
+  stopAll(): Promise<void>;
+  running(): number;
+} {
   const procs = new Map<string, NodeProc>();
   // every engine's run, from its spawn to its folder removed: stopAll waits for them all
   const runs = new Set<Promise<void>>();
@@ -183,18 +277,39 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
     const proc = typeof m["proc"] === "string" && /^prc_[a-f0-9]{24}$/.test(m["proc"]) ? m["proc"] : "";
     if (!proc) return;
     if (m["t"] === "cli_spawn") {
-      const argv = Array.isArray(m["argv"]) ? (m["argv"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
+      const argv = Array.isArray(m["argv"])
+        ? (m["argv"] as unknown[]).filter((x): x is string => typeof x === "string")
+        : [];
       const envIn = m["env"] && typeof m["env"] === "object" ? (m["env"] as Record<string, unknown>) : {};
       const env: Record<string, string> = {};
       for (const [k, v] of Object.entries(envIn)) if (typeof v === "string") env[k] = toSpace(v);
       if (o.person) {
         const mine = o.person();
-        if (mine === null || m["person"] !== mine) { say({ t: "cli_failed", proc, code: "permission.no_grant", reason: "This computer runs only its own person's chats." }); return; }
+        if (mine === null || m["person"] !== mine) {
+          say({
+            t: "cli_failed",
+            proc,
+            code: "permission.no_grant",
+            reason: "This computer runs only its own person's chats.",
+          });
+          return;
+        }
       }
       // the engine reaches Vyre's tools at the Space's own address: the turn's network rule always lets it reach exactly that address and port (sandbox/src/egress-policy.ts `space`)
       env[RULE_ENV] = withSpace(env[RULE_ENV], o.server);
-      if (!o.launcher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer cannot run an engine right now." }); return; }
-      if (stopping) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer is stopping." }); return; }
+      if (!o.launcher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) {
+        say({
+          t: "cli_failed",
+          proc,
+          code: "engine.cli_failed",
+          reason: "This computer cannot run an engine right now.",
+        });
+        return;
+      }
+      if (stopping) {
+        say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer is stopping." });
+        return;
+      }
       const launcher = o.launcher;
       const run = (async () => {
         try {
@@ -204,13 +319,23 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
           const who = typeof m["person"] === "string" && m["person"] !== "" ? m["person"] : "node";
           let cwd: string;
           if (launcher.workFolder) cwd = launcher.workFolder(who, proc);
-          else { cwd = path.join(o.dataDir, "work", safePart(who), proc); fs.mkdirSync(cwd, { recursive: true, mode: 0o700 }); }
+          else {
+            cwd = path.join(o.dataDir, "work", safePart(who), proc);
+            fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
+          }
           const p = await launcher.spawn({ argv: argv.map(toSpace), cwd, env });
           procs.set(proc, p);
-          if (stopping) p.kill("SIGKILL");   // started while this computer was stopping: it ends at once
+          if (stopping) p.kill("SIGKILL"); // started while this computer was stopping: it ends at once
           o.log(`engine ${proc} started: ${path.basename(String(argv[0]))}`);
           say({ t: "cli_started", proc, ...(p.pid !== undefined ? { pid: p.pid } : {}) });
-          const out = (async () => { for await (const chunk of p.stdout) say({ t: "cli_out", proc, data: Buffer.from(typeof chunk === "string" ? chunk : chunk).toString("base64") }); })();
+          const out = (async () => {
+            for await (const chunk of p.stdout)
+              say({
+                t: "cli_out",
+                proc,
+                data: Buffer.from(typeof chunk === "string" ? chunk : chunk).toString("base64"),
+              });
+          })();
           const exit = await p.exited;
           await out.catch(() => undefined);
           const tail = p.stderrTail();
@@ -221,8 +346,17 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
           say({ t: "cli_exit", proc, code: exit.code, signal: exit.signal });
         } catch (e) {
           procs.delete(proc);
-          const code = typeof (e as { code?: unknown }).code === "string" && String((e as { code: string }).code).startsWith("engine.") ? (e as { code: string }).code : "engine.cli_failed";
-          say({ t: "cli_failed", proc, code, reason: (e instanceof Error ? e.message : "The engine could not start.").slice(0, 300) });
+          const code =
+            typeof (e as { code?: unknown }).code === "string" &&
+            String((e as { code: string }).code).startsWith("engine.")
+              ? (e as { code: string }).code
+              : "engine.cli_failed";
+          say({
+            t: "cli_failed",
+            proc,
+            code,
+            reason: (e instanceof Error ? e.message : "The engine could not start.").slice(0, 300),
+          });
         }
       })();
       runs.add(run);
@@ -231,38 +365,77 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
     }
     const p = procs.get(proc);
     if (!p) return;
-    if (m["t"] === "cli_in" && typeof m["data"] === "string") void p.write(Buffer.from(m["data"], "base64").toString("utf8")).catch(() => undefined);
+    if (m["t"] === "cli_in" && typeof m["data"] === "string")
+      void p.write(Buffer.from(m["data"], "base64").toString("utf8")).catch(() => undefined);
     else if (m["t"] === "cli_end") p.endInput();
     else if (m["t"] === "cli_kill") p.kill(m["signal"] === "SIGKILL" ? "SIGKILL" : "SIGTERM");
   }
-  const killAll = (): void => { for (const p of procs.values()) p.kill("SIGKILL"); };
+  const killAll = (): void => {
+    for (const p of procs.values()) p.kill("SIGKILL");
+  };
   return {
-    frame, killAll, running: () => procs.size,
+    frame,
+    killAll,
+    running: () => procs.size,
     /** Ends every engine and waits until each has exited and its work folder is gone; no new one starts after. */
-    async stopAll() { stopping = true; killAll(); while (runs.size > 0) await Promise.all([...runs]); },
+    async stopAll() {
+      stopping = true;
+      killAll();
+      while (runs.size > 0) await Promise.all([...runs]);
+    },
   };
 }
 
 export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   const server = d.server.replace(/\/+$/, "");
   const pollMs = d.pollMs ?? 3_000;
-  const post = async (p: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; data: any }> => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const r = await d.fetch(`${server}${p}`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body), signal: d.signal });
+  const post = async (
+    p: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; data: any }> => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    const r = await d.fetch(`${server}${p}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      signal: d.signal,
+    });
     const j = (await r.json().catch(() => ({}))) as { data?: unknown };
     return { status: r.status, data: j.data ?? j };
   };
   const stateFile = path.join(d.dataDir, "compute-state.json");
   const { key, sign } = await loadKey(d.dataDir);
   let state = readJson<StateFile>(stateFile);
-  const forget = (): void => { try { fs.rmSync(stateFile, { force: true }); fs.rmSync(path.join(d.dataDir, "compute-key.json"), { force: true }); } catch { /* nothing to forget */ } };
+  const forget = (): void => {
+    try {
+      fs.rmSync(stateFile, { force: true });
+      fs.rmSync(path.join(d.dataDir, "compute-key.json"), { force: true });
+    } catch {
+      /* nothing to forget */
+    }
+  };
 
   if (!state) {
-    if (!d.join) throw new Error("this computer has not joined a Space yet: give --join with the one-time code from Console, Network, Add a computer");
-    const asked = await post("/v1/network/enroll", { code: d.join, publicKey: key.publicKey, name: d.name, facts: d.facts() });
-    if (asked.status !== 200) throw new Error(`the Space did not accept the join code (${asked.status}): ${String(asked.data?.error?.message ?? "the code is wrong, used or expired")}`);
+    if (!d.join)
+      throw new Error(
+        "this computer has not joined a Space yet: give --join with the one-time code from Console, Network, Add a computer",
+      );
+    const asked = await post("/v1/network/enroll", {
+      code: d.join,
+      publicKey: key.publicKey,
+      name: d.name,
+      facts: d.facts(),
+    });
+    if (asked.status !== 200)
+      throw new Error(
+        `the Space did not accept the join code (${asked.status}): ${String(asked.data?.error?.message ?? "the code is wrong, used or expired")}`,
+      );
     state = { serverId: String(asked.data.serverId), fingerprint: String(asked.data.fingerprint) };
     writePrivate(stateFile, state);
-    d.log(`Asked to join as "${d.name}". Fingerprint ${state.fingerprint}. Waiting for a person to approve it in Console, Network.`);
+    d.log(
+      `Asked to join as "${d.name}". Fingerprint ${state.fingerprint}. Waiting for a person to approve it in Console, Network.`,
+    );
   } else if (!state.credential) {
     d.log(`Waiting for approval. Fingerprint ${state.fingerprint}.`);
   }
@@ -271,17 +444,33 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   while (!state.credential) {
     if (d.signal.aborted) return "stopped";
     const at = d.now();
-    const r = await post("/v1/network/enroll_status", { serverId: state.serverId, at, signature: await sign(`vyre-enroll:${state.serverId}:${at}`) }).catch(() => null);
+    const r = await post("/v1/network/enroll_status", {
+      serverId: state.serverId,
+      at,
+      signature: await sign(`vyre-enroll:${state.serverId}:${at}`),
+    }).catch(() => null);
     if (r && r.status === 200) {
-      if (r.data.state === "declined") { d.log("The Space turned this computer away."); forget(); return "declined"; }
-      if (r.data.state === "revoked") { d.log("This computer was removed from the Space."); forget(); return "removed"; }
+      if (r.data.state === "declined") {
+        d.log("The Space turned this computer away.");
+        forget();
+        return "declined";
+      }
+      if (r.data.state === "revoked") {
+        d.log("This computer was removed from the Space.");
+        forget();
+        return "removed";
+      }
       if (r.data.state === "approved" && typeof r.data.credential === "string") {
         state = { ...state, credential: r.data.credential };
         writePrivate(stateFile, state);
         d.log("Approved. This computer is part of the Space now.");
         break;
       }
-    } else if (r && r.status >= 400 && r.status < 500) { d.log("The Space does not know this computer any more."); forget(); return "removed"; }
+    } else if (r && r.status >= 400 && r.status < 500) {
+      d.log("The Space does not know this computer any more.");
+      forget();
+      return "removed";
+    }
     await d.sleep(pollMs, d.signal).catch(() => undefined);
   }
 
@@ -291,7 +480,8 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   const records = new Map<string, JobRecord>(Object.entries(readJson<Record<string, JobRecord>>(jobsFile) ?? {}));
   const saveRecords = (): void => {
     const at = d.now();
-    for (const [id, r] of records) if (r.state !== "started" && r.reported && at - r.at > JOB_KEEP_MS) records.delete(id);
+    for (const [id, r] of records)
+      if (r.state !== "started" && r.reported && at - r.at > JOB_KEEP_MS) records.delete(id);
     while (records.size > JOB_KEEP_MAX) records.delete(records.keys().next().value as string);
     const tmp = `${jobsFile}.tmp`;
     fs.mkdirSync(d.dataDir, { recursive: true, mode: 0o700 });
@@ -299,11 +489,19 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     fs.renameSync(tmp, jobsFile);
   };
   const als = new AsyncLocalStorage<{ token: string; computerId: string }>();
-  const door = (): { token: string; computerId: string } => { const at = als.getStore(); if (!at) throw new Error("the home is reachable only from inside a job"); return at; };
+  const door = (): { token: string; computerId: string } => {
+    const at = als.getStore();
+    if (!at) throw new Error("the home is reachable only from inside a job");
+    return at;
+  };
   const link: HomeLink = {
     async call(_agentId, cap, input) {
       const at = door();
-      const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap, input }, { authorization: `Bearer ${credential}` });
+      const r = await post(
+        "/compute/home",
+        { token: at.token, computerId: at.computerId, cap, input },
+        { authorization: `Bearer ${credential}` },
+      );
       if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused ${cap} (${r.status})`));
       return r.data.output;
     },
@@ -312,53 +510,116 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
       if (bytes.length > INLINE_PUT) {
         // too big for a JSON home call: a recording's video goes raw to the recording route, which only a saveRecording job may use
         const q = new URLSearchParams({ token: at.token, computerId: at.computerId, url });
-        const r = await d.fetch(`${server}/compute/recording?${q}`, { method: "POST", headers: { "content-type": "application/octet-stream", authorization: `Bearer ${credential}` }, body: bytes as never, signal: d.signal });
+        const r = await d.fetch(`${server}/compute/recording?${q}`, {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream", authorization: `Bearer ${credential}` },
+          body: bytes as never,
+          signal: d.signal,
+        });
         if (r.status !== 200) throw new Error(`the Space refused the upload (${r.status})`);
         return;
       }
-      const r = await post("/compute/home", { token: at.token, computerId: at.computerId, cap: "put_upload", input: { url, base64: Buffer.from(bytes).toString("base64") } }, { authorization: `Bearer ${credential}` });
-      if (r.status !== 200) throw new Error(String(r.data?.error?.message ?? `the Space refused the upload (${r.status})`));
+      const r = await post(
+        "/compute/home",
+        {
+          token: at.token,
+          computerId: at.computerId,
+          cap: "put_upload",
+          input: { url, base64: Buffer.from(bytes).toString("base64") },
+        },
+        { authorization: `Bearer ${credential}` },
+      );
+      if (r.status !== 200)
+        throw new Error(String(r.data?.error?.message ?? `the Space refused the upload (${r.status})`));
     },
   };
   const host = d.makeHost?.(link);
   const wipeMirror = (agentId: string): void => {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(agentId)) return;
-    try { fs.rmSync(path.join(d.dataDir, "computers", agentId), { recursive: true, force: true }); } catch { /* a copy that could not be wiped is wiped at the next sleep */ }
+    try {
+      fs.rmSync(path.join(d.dataDir, "computers", agentId), { recursive: true, force: true });
+    } catch {
+      /* a copy that could not be wiped is wiped at the next sleep */
+    }
   };
-  const forgetAll = (): void => { forget(); try { fs.rmSync(jobsFile, { force: true }); fs.rmSync(path.join(d.dataDir, "computers"), { recursive: true, force: true }); } catch { /* nothing left to wipe */ } };
+  const forgetAll = (): void => {
+    forget();
+    try {
+      fs.rmSync(jobsFile, { force: true });
+      fs.rmSync(path.join(d.dataDir, "computers"), { recursive: true, force: true });
+    } catch {
+      /* nothing left to wipe */
+    }
+  };
   const inflight = new Set<string>();
-  const lanes = new Map<string, Promise<void>>();   // one computer's jobs run one after another
+  const lanes = new Map<string, Promise<void>>(); // one computer's jobs run one after another
   let removed = false;
 
   /** Tell the Space how a job ended. A reply that is lost leaves the record unreported; it is sent again next cycle, and the Space keeps the first answer only. */
   async function report(jobId: string): Promise<void> {
     const r = records.get(jobId);
     if (!r || r.state === "started") return;
-    const sent = await post("/compute/result", { jobId, ok: r.state === "done", ...(r.state === "done" ? { result: r.result ?? null } : { error: r.error ?? "The computer could not do that." }) }, { authorization: `Bearer ${credential}` }).catch(() => null);
-    if (sent && sent.status === 401) { removed = true; return; }
-    if (sent && (sent.status === 200 || sent.status === 404)) { r.reported = true; saveRecords(); }
+    const sent = await post(
+      "/compute/result",
+      {
+        jobId,
+        ok: r.state === "done",
+        ...(r.state === "done"
+          ? { result: r.result ?? null }
+          : { error: r.error ?? "The computer could not do that." }),
+      },
+      { authorization: `Bearer ${credential}` },
+    ).catch(() => null);
+    if (sent && sent.status === 401) {
+      removed = true;
+      return;
+    }
+    if (sent && (sent.status === 200 || sent.status === 404)) {
+      r.reported = true;
+      saveRecords();
+    }
   }
   async function run(job: NodeJob): Promise<void> {
     try {
       if (!host) throw new Error("This computer does not take jobs yet.");
-      const result = await als.run({ token: job.token, computerId: job.computerId }, () => host.run(job.kind, withServerOrigin(job.input, server)));
+      const result = await als.run({ token: job.token, computerId: job.computerId }, () =>
+        host.run(job.kind, withServerOrigin(job.input, server)),
+      );
       // The copy of an agent's home on this machine is a working mirror: Files holds the truth. It is wiped when the computer sleeps, but only after the sync that closed the session finished (a pass
       // that left anything undone keeps it, and the next wake syncs it), and always when the computer is removed.
-      if ((job.kind === "stop" && (result as { homeSynced?: unknown } | null)?.homeSynced === true) || job.kind === "remove") wipeMirror(job.agentId);
+      if (
+        (job.kind === "stop" && (result as { homeSynced?: unknown } | null)?.homeSynced === true) ||
+        job.kind === "remove"
+      )
+        wipeMirror(job.agentId);
       records.set(job.jobId, { state: "done", result, reported: false, at: d.now() });
     } catch (e) {
-      records.set(job.jobId, { state: "failed", error: (e instanceof Error ? e.message : "The computer could not do that.").slice(0, 400), reported: false, at: d.now() });
+      records.set(job.jobId, {
+        state: "failed",
+        error: (e instanceof Error ? e.message : "The computer could not do that.").slice(0, 400),
+        reported: false,
+        at: d.now(),
+      });
     }
     saveRecords();
     inflight.delete(job.jobId);
     await report(job.jobId);
   }
   function take(job: NodeJob): void {
-    if (inflight.has(job.jobId)) return;   // still running: this poll keeps its lease
+    if (inflight.has(job.jobId)) return; // still running: this poll keeps its lease
     const known = records.get(job.jobId);
-    if (known && known.state !== "started") { void report(job.jobId); return; }   // answered already (the reply was lost): say it again, never run it again
-    if (known && known.state === "started") {   // started and never answered: this process died in the middle; whatever it did is not done twice
-      records.set(job.jobId, { state: "failed", error: "This computer stopped in the middle of that, so it was not run again.", reported: false, at: d.now() });
+    if (known && known.state !== "started") {
+      void report(job.jobId);
+      return;
+    } // answered already (the reply was lost): say it again, never run it again
+    if (known && known.state === "started") {
+      // started and never answered: this process died in the middle; whatever it did is not done twice
+      records.set(job.jobId, {
+        state: "failed",
+        error: "This computer stopped in the middle of that, so it was not run again.",
+        reported: false,
+        at: d.now(),
+      });
       saveRecords();
       void report(job.jobId);
       return;
@@ -368,15 +629,22 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     inflight.add(job.jobId);
     const lane = (lanes.get(job.computerId) ?? Promise.resolve()).then(() => run(job));
     lanes.set(job.computerId, lane);
-    void lane.finally(() => { if (lanes.get(job.computerId) === lane) lanes.delete(job.computerId); });
+    void lane.finally(() => {
+      if (lanes.get(job.computerId) === lane) lanes.delete(job.computerId);
+    });
   }
 
   // ---- the live view: one outbound socket to the Space, over which the Space asks for a computer's view and sends the person's input. The frames come from agentd's own stream server on this machine
   // (its address stays here); they go up the one socket, tagged with the view the Space named. This machine hosts only the computers it made, so a view of any other is refused by its own host.
-  let ended = false;   // the node's loop has returned: the view socket goes with it
+  let ended = false; // the node's loop has returned: the view socket goes with it
   const openSocket = d.socket ?? platformSocket;
   // ---- engine processes: a turn pinned to this computer runs its CLI here, through the launcher this machine was given
-  const engines = cliRelay({ ...(d.cliLauncher ? { launcher: d.cliLauncher } : {}), dataDir: d.dataDir, server, log: d.log });
+  const engines = cliRelay({
+    ...(d.cliLauncher ? { launcher: d.cliLauncher } : {}),
+    dataDir: d.dataDir,
+    server,
+    log: d.log,
+  });
   const cli = (m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void => engines.frame(m, say);
   /** One request to a port on a computer here: the address comes from this machine's own Docker, never from the Space. */
   function portReq(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
@@ -384,14 +652,28 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     const computerId = String(m["computerId"]);
     const port = Number(m["port"]);
     const fail = (reason: string): void => say({ t: "port_fail", id, reason });
-    if (!host || !COMPUTER_ID.test(computerId) || !Number.isInteger(port) || port < 1 || port > 65535) { fail("This computer cannot do that."); return; }
+    if (!host || !COMPUTER_ID.test(computerId) || !Number.isInteger(port) || port < 1 || port > 65535) {
+      fail("This computer cannot do that.");
+      return;
+    }
     void (async () => {
       const address = (await host!.run("address", { computerId })) as string | null;
-      if (!address) { fail("The computer it runs on is asleep."); return; }
-      const request: PortRequest = { method: String(m["method"]), path: String(m["path"]), headers: (m["headers"] ?? {}) as Record<string, string>, ...(typeof m["body"] === "string" ? { body: new Uint8Array(Buffer.from(m["body"], "base64")) } : {}) };
+      if (!address) {
+        fail("The computer it runs on is asleep.");
+        return;
+      }
+      const request: PortRequest = {
+        method: String(m["method"]),
+        path: String(m["path"]),
+        headers: (m["headers"] ?? {}) as Record<string, string>,
+        ...(typeof m["body"] === "string" ? { body: new Uint8Array(Buffer.from(m["body"], "base64")) } : {}),
+      };
       dialPort(address, port, request, {
         head: (status, headers) => say({ t: "port_res", id, status, headers }),
-        data: (c) => { for (let at = 0; at < c.length; at += PORT_CHUNK) say({ t: "port_data", id, b: c.subarray(at, at + PORT_CHUNK).toString("base64") }); },
+        data: (c) => {
+          for (let at = 0; at < c.length; at += PORT_CHUNK)
+            say({ t: "port_data", id, b: c.subarray(at, at + PORT_CHUNK).toString("base64") });
+        },
         end: () => say({ t: "port_end", id }),
         fail,
       });
@@ -403,48 +685,119 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     const kind = String(m["kind"]);
     if (kind === "fix" && d.fix) {
       const x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
-      d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }));
+      d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then(
+        (result) => say({ t: "ask_res", id, ok: true, result }),
+        (e: unknown) =>
+          say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }),
+      );
       return;
     }
-    if (!host || !ASKS.has(kind)) { say({ t: "ask_res", id, ok: false, reason: "This computer cannot do that." }); return; }
-    host.run(kind, m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not say." }));
+    if (!host || !ASKS.has(kind)) {
+      say({ t: "ask_res", id, ok: false, reason: "This computer cannot do that." });
+      return;
+    }
+    host.run(kind, m["input"]).then(
+      (result) => say({ t: "ask_res", id, ok: true, result }),
+      (e: unknown) =>
+        say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not say." }),
+    );
   }
 
   async function liveView(): Promise<void> {
     const url = `${server.replace(/^http/, "ws")}/compute/stream`;
     const up = openSocket(url, { authorization: `Bearer ${credential}` });
     const local = new Map<string, NodeSocket>();
-    const send = (data: string | Uint8Array): void => { try { up.send(data); } catch { /* the socket is going away */ } };
+    const send = (data: string | Uint8Array): void => {
+      try {
+        up.send(data);
+      } catch {
+        /* the socket is going away */
+      }
+    };
     const say = (m: Record<string, unknown>): void => send(JSON.stringify(m));
     await new Promise<void>((resolve) => {
       let hb: ReturnType<typeof setInterval> | undefined;
       let watch: ReturnType<typeof setInterval> | undefined;
       let rp: ReturnType<typeof setInterval> | undefined;
-      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (rp) clearInterval(rp); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      const end = (): void => {
+        engines.killAll();
+        if (hb) clearInterval(hb);
+        if (rp) clearInterval(rp);
+        if (watch) clearInterval(watch);
+        d.signal.removeEventListener("abort", end);
+        for (const s of local.values()) s.close();
+        local.clear();
+        up.close();
+        resolve();
+      };
       d.signal.addEventListener("abort", end, { once: true });
-      watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
+      watch = setInterval(() => {
+        if (removed || ended) end();
+      }, 500);
+      watch.unref?.();
       up.onOpen(() => {
-        hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
+        hb = setInterval(() => say({ t: "hb" }), 15_000);
+        hb.unref?.();
         if (d.report) {
-          const send = (): void => { try { say({ t: "report", report: d.report!({ turns: engines.running() }) }); } catch { /* skipped; the next is in 30 s */ } };
+          const send = (): void => {
+            try {
+              say({ t: "report", report: d.report!({ turns: engines.running() }) });
+            } catch {
+              /* skipped; the next is in 30 s */
+            }
+          };
           send();
-          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
+          rp = setInterval(send, d.reportMs ?? 30_000);
+          rp.unref?.();
         }
       });
       up.onClose(end);
       up.onMessage((data) => {
         if (typeof data !== "string") return;
         let m: { t?: unknown; view?: unknown; computerId?: unknown; data?: unknown };
-        try { m = JSON.parse(data) as typeof m; } catch { return; }
+        try {
+          m = JSON.parse(data) as typeof m;
+        } catch {
+          return;
+        }
         const view = typeof m.view === "string" && VIEW_ID.test(m.view) ? m.view : "";
-        if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
-        if (m.t === "port_req") { portReq(m as Record<string, unknown>, say); return; }
-        if (m.t === "ask") { ask(m as Record<string, unknown>, say); return; }
-        if (m.t === "ping") { say({ t: "pong", at: (m as { at?: unknown }).at }); return; }
-        if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
-        if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
-        if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;
-        if (local.size >= MAX_LIVE_VIEWS || !host) { say({ t: "failed", view, reason: "This computer cannot show another view right now." }); return; }
+        if (typeof m.t === "string" && m.t.startsWith("cli_")) {
+          cli(m as Record<string, unknown>, say);
+          return;
+        }
+        if (m.t === "port_req") {
+          portReq(m as Record<string, unknown>, say);
+          return;
+        }
+        if (m.t === "ask") {
+          ask(m as Record<string, unknown>, say);
+          return;
+        }
+        if (m.t === "ping") {
+          say({ t: "pong", at: (m as { at?: unknown }).at });
+          return;
+        }
+        if (m.t === "close" && view) {
+          local.get(view)?.close();
+          local.delete(view);
+          return;
+        }
+        if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) {
+          local.get(view)?.send(m.data);
+          return;
+        }
+        if (
+          m.t !== "open" ||
+          !view ||
+          typeof m.computerId !== "string" ||
+          !COMPUTER_ID.test(m.computerId) ||
+          local.has(view)
+        )
+          return;
+        if (local.size >= MAX_LIVE_VIEWS || !host) {
+          say({ t: "failed", view, reason: "This computer cannot show another view right now." });
+          return;
+        }
         const computerId = m.computerId;
         void (async () => {
           try {
@@ -457,12 +810,26 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
             local.set(view, s);
             s.onOpen(() => say({ t: "opened", view }));
             s.onMessage((frame) => {
-              if (typeof frame === "string") { say({ t: "msg", view, data: frame }); return; }
-              if (up.bufferedAmount > VIEW_BACKLOG) return;   // the Space is behind: a viewer sees fewer frames, never old ones
+              if (typeof frame === "string") {
+                say({ t: "msg", view, data: frame });
+                return;
+              }
+              if (up.bufferedAmount > VIEW_BACKLOG) return; // the Space is behind: a viewer sees fewer frames, never old ones
               send(Buffer.concat([prefix, frame]));
             });
-            s.onClose(() => { if (local.get(view) === s) { local.delete(view); say({ t: "ended", view }); } });
-          } catch (e) { say({ t: "failed", view, reason: (e instanceof Error ? e.message : "The computer could not open its view.").slice(0, 200) }); }
+            s.onClose(() => {
+              if (local.get(view) === s) {
+                local.delete(view);
+                say({ t: "ended", view });
+              }
+            });
+          } catch (e) {
+            say({
+              t: "failed",
+              view,
+              reason: (e instanceof Error ? e.message : "The computer could not open its view.").slice(0, 200),
+            });
+          }
         })();
       });
     });
@@ -477,15 +844,41 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
 
   try {
     for (;;) {
-      if (d.signal.aborted || removed) { if (removed) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; } return "stopped"; }
-      for (const [id, rec] of records) if (rec.state !== "started" && !rec.reported && !inflight.has(id)) await report(id);
+      if (d.signal.aborted || removed) {
+        if (removed) {
+          d.log("This computer was removed from the Space. Its credential no longer works.");
+          forgetAll();
+          return "removed";
+        }
+        return "stopped";
+      }
+      for (const [id, rec] of records)
+        if (rec.state !== "started" && !rec.reported && !inflight.has(id)) await report(id);
       const f = d.facts();
-      const r = await post("/compute/poll", { docker: f.docker, version: f.version, running: [...inflight] }, { authorization: `Bearer ${credential}` }).catch(() => null);
-      if (r && r.status === 401) { d.log("This computer was removed from the Space. Its credential no longer works."); forgetAll(); return "removed"; }
+      const r = await post(
+        "/compute/poll",
+        { docker: f.docker, version: f.version, running: [...inflight] },
+        { authorization: `Bearer ${credential}` },
+      ).catch(() => null);
+      if (r && r.status === 401) {
+        d.log("This computer was removed from the Space. Its credential no longer works.");
+        forgetAll();
+        return "removed";
+      }
       const jobs = r && r.status === 200 && Array.isArray(r.data.jobs) ? (r.data.jobs as NodeJob[]) : [];
-      for (const job of jobs) if (job && typeof job.jobId === "string" && typeof job.computerId === "string" && typeof job.kind === "string" && typeof job.token === "string") take(job);
+      for (const job of jobs)
+        if (
+          job &&
+          typeof job.jobId === "string" &&
+          typeof job.computerId === "string" &&
+          typeof job.kind === "string" &&
+          typeof job.token === "string"
+        )
+          take(job);
       const busy = jobs.length > 0 || inflight.size > 0;
       await d.sleep(busy ? Math.min(pollMs, 400) : pollMs, d.signal).catch(() => undefined);
     }
-  } finally { ended = true; }
+  } finally {
+    ended = true;
+  }
 }

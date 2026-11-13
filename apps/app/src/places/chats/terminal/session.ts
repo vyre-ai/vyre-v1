@@ -23,13 +23,21 @@ export interface Attached {
   expiresAt: number;
 }
 
-interface AttachOut { ticket: string; expiresAt: number; replay: string }
+interface AttachOut {
+  ticket: string;
+  expiresAt: number;
+  replay: string;
+}
 
 /** terminal.attach for the replay and ticket, then the cursor the live output continues from. */
 export async function attach(d: SessionDeps, terminalId: string, everyMs?: number): Promise<Attached> {
   const a = (await d.call("terminal.attach", { terminalId })) as AttachOut;
   const at = (await d.call("terminal.read", { terminalId, lines: 1 })) as ReadOut;
-  const source = pollSource((since) => d.call("terminal.read", { terminalId, since }) as Promise<ReadOut>, at.next, everyMs);
+  const source = pollSource(
+    (since) => d.call("terminal.read", { terminalId, since }) as Promise<ReadOut>,
+    at.next,
+    everyMs,
+  );
   return { replay: a.replay, source, ticket: a.ticket, expiresAt: a.expiresAt };
 }
 
@@ -41,17 +49,28 @@ export interface Sender {
   interrupt(): Promise<boolean>;
 }
 
-export function createSender(d: SessionDeps, terminalId: string, onFail: (what: string) => void = () => undefined): Sender {
+export function createSender(
+  d: SessionDeps,
+  terminalId: string,
+  onFail: (what: string) => void = () => undefined,
+): Sender {
   let chain: Promise<unknown> = Promise.resolve();
   let sent = "";
   const run = (cap: string, input: unknown, what: string): Promise<boolean> => {
     const p = chain.then(() => d.call(cap, input));
     chain = p.catch(() => undefined);
-    return p.then(() => true, () => { onFail(what); return false; });
+    return p.then(
+      () => true,
+      () => {
+        onFail(what);
+        return false;
+      },
+    );
   };
   return {
     // Ctrl-C reaches the shell through terminal.interrupt, so the byte itself is not sent a second time.
-    input: (data) => (data === "\x03" ? Promise.resolve(true) : run("terminal.input", inputPayload(terminalId, data), "Not sent")),
+    input: (data) =>
+      data === "\x03" ? Promise.resolve(true) : run("terminal.input", inputPayload(terminalId, data), "Not sent"),
     resize: (cols, rows) => {
       const p = resizePayload(terminalId, cols, rows);
       const key = `${p.cols}x${p.rows}`;
@@ -64,10 +83,17 @@ export function createSender(d: SessionDeps, terminalId: string, onFail: (what: 
 }
 
 /** A new session on a host. An agent computer needs the agent (or its computer); the Space server needs server.services and answers with a refusal without it. */
-export async function openSession(d: SessionDeps, host: TerminalHost, who: { agentId?: string; computerId?: string }): Promise<TerminalRow> {
+export async function openSession(
+  d: SessionDeps,
+  host: TerminalHost,
+  who: { agentId?: string; computerId?: string },
+): Promise<TerminalRow> {
   const c = openCall(host, who, d.newKey());
   // a terminal on this computer names it: the device the person is signed in on
-  if (host === "device" && c.cap === "terminal.open") { const id = await thisDeviceId(d.call); if (id) c.input.deviceId = id; }
+  if (host === "device" && c.cap === "terminal.open") {
+    const id = await thisDeviceId(d.call);
+    if (id) c.input.deviceId = id;
+  }
   const out = (await d.call(c.cap, c.input)) as { terminal: TerminalRow };
   return out.terminal;
 }
@@ -85,7 +111,12 @@ export async function toggleStar(d: SessionDeps, terminalId: string, on: boolean
 /** "Ask for access": a request for the right to use the Space server's shell, which the Space's owners and Developers can grant. */
 export async function askServerAccess(d: SessionDeps, spaceId: string): Promise<boolean> {
   try {
-    await d.call("access.request", { resource: { type: "space", id: spaceId }, level: "use", note: "Terminal on the Space server (server.services)", idempotencyKey: d.newKey() });
+    await d.call("access.request", {
+      resource: { type: "space", id: spaceId },
+      level: "use",
+      note: "Terminal on the Space server (server.services)",
+      idempotencyKey: d.newKey(),
+    });
     return true;
   } catch {
     return false;
@@ -93,11 +124,21 @@ export async function askServerAccess(d: SessionDeps, spaceId: string): Promise<
 }
 
 export async function renameSession(d: SessionDeps, terminalId: string, name: string): Promise<boolean> {
-  try { await d.call("terminal.rename", { terminalId, name }); return true; } catch { return false; }
+  try {
+    await d.call("terminal.rename", { terminalId, name });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function closeSession(d: SessionDeps, terminalId: string): Promise<boolean> {
-  try { await d.call("terminal.close", { terminalId }); return true; } catch { return false; }
+  try {
+    await d.call("terminal.close", { terminalId });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Save the person's rules. What comes back is what the module kept: an entry on two lists stays only on the stronger one. */

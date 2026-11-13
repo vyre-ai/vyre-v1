@@ -5,7 +5,15 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
 
-export interface SpaceTile { id: string; name: string; addr: string; kind: "personal" | "team"; role: string; needsYou: number; current: boolean }
+export interface SpaceTile {
+  id: string;
+  name: string;
+  addr: string;
+  kind: "personal" | "team";
+  role: string;
+  needsYou: number;
+  current: boolean;
+}
 
 export interface SettingsNav {
   openVault(): void;
@@ -29,13 +37,30 @@ export interface SettingsNav {
   /** Puts a look on the window and keeps it on this device. */
   applyLook?(look: import("./look.ts").Look): void;
   /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
-  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery" | "link", spaceId: string): void;
+  manageSecurity?(
+    kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery" | "link",
+    spaceId: string,
+  ): void;
 }
 
 /** What one Space asks of this person's sign-in: its second factor, passkeys, the floor its admins set and single sign-on. */
-export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; floor: string; floorBy: string; sso: string; devices: number }
+export interface SpaceSecurity {
+  totp: boolean;
+  passkeys: readonly string[];
+  floor: string;
+  floorBy: string;
+  sso: string;
+  devices: number;
+}
 /** The sign-in that is the same for every Space: the password and a linked GitHub account. */
-export interface AccountSecurity { passwordChanged: string; github: string | null; /** rc.17: sign-ins from another Space's page that brought this account there, newest first */ carried?: ReadonlyArray<{ host: string; day: string }> }
+export interface AccountSecurity {
+  passwordChanged: string;
+  github: string | null;
+  /** rc.17: sign-ins from another Space's page that brought this account there, newest first */ carried?: ReadonlyArray<{
+    host: string;
+    day: string;
+  }>;
+}
 
 /** The desktop app's own updates (startup/update/store.ts). Only the desktop shell supplies it; the web app and the phone are the new version as soon as they load. */
 export type DesktopUpdater = DesktopUpdates;
@@ -83,7 +108,10 @@ export function useSettingsData(): SettingsData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useSettingsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

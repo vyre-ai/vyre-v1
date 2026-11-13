@@ -11,6 +11,9 @@ test("the queue line draws on the page: After this for someone else's turn, Goes
     const out = renderToStaticMarkup(<Conversation data={waiting(own)} />);
     // the waiting list is asked of the engine after mount, so the first frame holds the message ids: the line is there from the start
     assert.ok(out.includes('data-testid="queue-note"'), "the line is drawn");
-    assert.ok(out.includes(own ? "Goes in at the next step" : "After this: it goes in when this turn ends"), own ? "your own turn" : "someone else's turn");
+    assert.ok(
+      out.includes(own ? "Goes in at the next step" : "After this: it goes in when this turn ends"),
+      own ? "your own turn" : "someone else's turn",
+    );
   }
 });

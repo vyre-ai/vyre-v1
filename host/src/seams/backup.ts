@@ -13,22 +13,48 @@ import { LogClient } from "../../../kernel/src/log/client.ts";
 import { openDb } from "../daemon/sqlite.ts";
 import type { SeamFetch, VaultPort } from "./ports.ts";
 
-export interface Tombstone { kind: string; subject: string; at: number }
-export interface SnapshotEntry { path: string; bytes: Uint8Array }
-export interface SpaceSnapshot { fromSeq: number; toSeq: number; headHash: string; entries: SnapshotEntry[] }
-export interface ApplyResult { checkedEvents: number; chainOk: boolean; replayed: number }
+export interface Tombstone {
+  kind: string;
+  subject: string;
+  at: number;
+}
+export interface SnapshotEntry {
+  path: string;
+  bytes: Uint8Array;
+}
+export interface SpaceSnapshot {
+  fromSeq: number;
+  toSeq: number;
+  headHash: string;
+  entries: SnapshotEntry[];
+}
+export interface ApplyResult {
+  checkedEvents: number;
+  chainOk: boolean;
+  replayed: number;
+}
 
 export interface BackupSource {
   head(): Promise<{ seq: number; hash: string }>;
   snapshot(): Promise<SpaceSnapshot>;
   tombstones(): Promise<Tombstone[]>;
-  restore(snapshot: SpaceSnapshot, tombstones: Tombstone[], mode: "scratch" | "live", traceId?: string): Promise<ApplyResult>;
+  restore(
+    snapshot: SpaceSnapshot,
+    tombstones: Tombstone[],
+    mode: "scratch" | "live",
+    traceId?: string,
+  ): Promise<ApplyResult>;
   exportEntries(): Promise<SnapshotEntry[]>;
   /** The person who owns the Space, from the access layer: only they may take a full export (P-SEC_07). */
   owner(): Promise<string>;
   secretValues(): Promise<string[]>;
 }
-export type S3Transport = (req: { method: string; url: string; headers: Record<string, string>; body?: Uint8Array }) => Promise<{ status: number; body: Uint8Array }>;
+export type S3Transport = (req: {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: Uint8Array;
+}) => Promise<{ status: number; body: Uint8Array }>;
 export interface BackupHostSeam {
   source: BackupSource;
   exports: { save(name: string, bytes: Uint8Array): Promise<{ fileId: string }> };
@@ -45,7 +71,21 @@ export interface BackupHostDeps {
   /** the data directory (events.db, modules.db, blobs/) */
   root: string;
   space: string;
-  log: { currentHead(): Promise<{ seq: number; hash: string }>; read(q: { after?: number; limit?: number }): Promise<{ seq: number; id: string; type: string; at: number; vis: string; enc: number; label: number; payload: Uint8Array }[]> };
+  log: {
+    currentHead(): Promise<{ seq: number; hash: string }>;
+    read(q: { after?: number; limit?: number }): Promise<
+      {
+        seq: number;
+        id: string;
+        type: string;
+        at: number;
+        vis: string;
+        enc: number;
+        label: number;
+        payload: Uint8Array;
+      }[]
+    >;
+  };
   /** the Space owner from the access layer, or null when it has none; with none, every full export refuses (P-SEC_07) */
   owner: () => string | null;
   /** the cap-call a host service makes as itself (governance.tombstones.list) */
@@ -60,11 +100,16 @@ export interface BackupHostDeps {
 
 function walk(dir: string, rel = ""): string[] {
   let names: fs.Dirent[];
-  try { names = fs.readdirSync(path.join(dir, rel), { withFileTypes: true }); } catch { return []; }
+  try {
+    names = fs.readdirSync(path.join(dir, rel), { withFileTypes: true });
+  } catch {
+    return [];
+  }
   const out: string[] = [];
   for (const n of names.sort((a, b) => a.name.localeCompare(b.name))) {
     const r = rel ? `${rel}/${n.name}` : n.name;
-    if (n.isDirectory()) out.push(...walk(dir, r)); else if (n.isFile()) out.push(r);
+    if (n.isDirectory()) out.push(...walk(dir, r));
+    else if (n.isFile()) out.push(r);
   }
   return out;
 }
@@ -83,7 +128,10 @@ function vacuumCopy(file: string): Uint8Array | null {
   try {
     db.exec(`VACUUM INTO '${out.replaceAll("'", "''")}'`);
     return new Uint8Array(fs.readFileSync(out));
-  } finally { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
+  } finally {
+    db.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
@@ -96,7 +144,8 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       const bytes = vacuumCopy(path.join(deps.root, name));
       if (bytes) entries.push({ path: name, bytes });
     }
-    for (const rel of walk(blobDir)) entries.push({ path: `blobs/${rel}`, bytes: new Uint8Array(fs.readFileSync(path.join(blobDir, rel))) });
+    for (const rel of walk(blobDir))
+      entries.push({ path: `blobs/${rel}`, bytes: new Uint8Array(fs.readFileSync(path.join(blobDir, rel))) });
     const head = await deps.log.currentHead();
     return { fromSeq: before.seq === 0 ? 0 : 1, toSeq: head.seq, headHash: head.hash, entries };
   }
@@ -112,8 +161,12 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       client = await LogClient.open({ path: file, space: deps.space });
       const r = await client.verify();
       return r.ok ? { ok: true, events: r.seq } : { ok: false, events: Math.max(0, r.at - 1) };
-    } catch { return { ok: false, events: 0 }; }
-    finally { if (client) await client.close().catch(() => {}); fs.rmSync(dir, { recursive: true, force: true }); }
+    } catch {
+      return { ok: false, events: 0 };
+    } finally {
+      if (client) await client.close().catch(() => {});
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 
   return {
@@ -121,7 +174,9 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       head: () => deps.log.currentHead(),
       snapshot,
       async tombstones() {
-        const r = (await deps.system("governance.tombstones.list", { limit: 500 })) as { tombstones?: { kind: string; id: string; at: number }[] };
+        const r = (await deps.system("governance.tombstones.list", { limit: 500 })) as {
+          tombstones?: { kind: string; id: string; at: number }[];
+        };
         return (r.tombstones ?? []).map((t) => ({ kind: t.kind, subject: t.id, at: t.at }));
       },
       async restore(snap, tombstones, mode, traceId) {
@@ -136,7 +191,10 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
             fs.writeFileSync(path.join(stage, rel), e.bytes);
           }
           // the full rows, read from the Space as it is now: the restored database predates the erasures made since the backup and does not have them (spec 2.26, ARCH 7.10)
-          fs.writeFileSync(path.join(stage, "tombstones.json"), JSON.stringify({ ...(traceId ? { traceId } : {}), tombstones: currentTombstones(deps.root, tombstones) }));   // the trace of the restore call, so the replay at the next start is part of the same story
+          fs.writeFileSync(
+            path.join(stage, "tombstones.json"),
+            JSON.stringify({ ...(traceId ? { traceId } : {}), tombstones: currentTombstones(deps.root, tombstones) }),
+          ); // the trace of the restore call, so the replay at the next start is part of the same story
         }
         // governance.tombstones.reapply runs after the restored Space opens (it needs the restored tables), so nothing is replayed here
         return { checkedEvents: chain.events, chainOk: chain.ok, replayed: 0 };
@@ -144,13 +202,21 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       async exportEntries() {
         // records and shared chats only: events other people may read (vis space), in the clear, with no label. Private chats and personal memory are never vis space.
         const lines: string[] = [];
-        for (let after = 0;;) {
+        for (let after = 0; ; ) {
           const page = await deps.log.read({ after, limit: 1000 });
           if (page.length === 0) break;
           for (const e of page) {
             after = e.seq;
             if (e.vis !== "space" || e.enc !== 0 || e.label !== 0) continue;
-            lines.push(JSON.stringify({ seq: e.seq, id: e.id, type: e.type, at: e.at, payload: JSON.parse(new TextDecoder().decode(e.payload)) as unknown }));
+            lines.push(
+              JSON.stringify({
+                seq: e.seq,
+                id: e.id,
+                type: e.type,
+                at: e.at,
+                payload: JSON.parse(new TextDecoder().decode(e.payload)) as unknown,
+              }),
+            );
           }
         }
         return [{ path: "records/events.jsonl", bytes: new TextEncoder().encode(lines.join("\n")) }];
@@ -161,11 +227,17 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
     },
     exports: {
       async save(name, bytes) {
-        return { fileId: await deps.blobs.put(bytes, name.endsWith(".zip") ? "application/zip" : "application/octet-stream") };
+        return {
+          fileId: await deps.blobs.put(bytes, name.endsWith(".zip") ? "application/zip" : "application/octet-stream"),
+        };
       },
     },
     transport: async (req) => {
-      const r = await deps.fetch(req.url, { method: req.method, headers: req.headers, ...(req.body ? { body: req.body } : {}) });
+      const r = await deps.fetch(req.url, {
+        method: req.method,
+        headers: req.headers,
+        ...(req.body ? { body: req.body } : {}),
+      });
       return { status: r.status, body: new Uint8Array(await r.arrayBuffer()) };
     },
     credentials: async (vaultName) => {
@@ -179,7 +251,15 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
   };
 }
 
-export interface TombstoneRow { id: string; kind: string; subjectType: string; subjectId: string; at: number; by: string; findingId?: string }
+export interface TombstoneRow {
+  id: string;
+  kind: string;
+  subjectType: string;
+  subjectId: string;
+  at: number;
+  by: string;
+  findingId?: string;
+}
 const KEPT = "restore-tombstones.json";
 
 /** Every tombstone the live Space holds, whole, read before the restore replaces its database. A Space with no governance table has none. */
@@ -188,8 +268,14 @@ function currentTombstones(root: string, _listed: unknown): TombstoneRow[] {
   if (!fs.existsSync(file)) return [];
   const db = openDb(file, { readOnly: true });
   try {
-    return db.all(`SELECT "id", "kind", "subjectType", "subjectId", "at", "by", "findingId" FROM governance_tombstone`) as unknown as TombstoneRow[];
-  } catch { return []; } finally { db.close(); }
+    return db.all(
+      `SELECT "id", "kind", "subjectType", "subjectId", "at", "by", "findingId" FROM governance_tombstone`,
+    ) as unknown as TombstoneRow[];
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
 }
 
 /** The tombstones a restore kept for the first start after it, with the trace of the restore call, or none. */
@@ -198,11 +284,18 @@ export function readRestoredTombstones(root: string): { tombstones: TombstoneRow
   if (!fs.existsSync(file)) return null;
   try {
     const j = JSON.parse(fs.readFileSync(file, "utf8")) as { tombstones?: unknown; traceId?: unknown };
-    return { tombstones: Array.isArray(j.tombstones) ? (j.tombstones as TombstoneRow[]) : [], ...(typeof j.traceId === "string" && /^[0-9a-f]{32}$/.test(j.traceId) ? { traceId: j.traceId } : {}) };
-  } catch { return { tombstones: [] }; }
+    return {
+      tombstones: Array.isArray(j.tombstones) ? (j.tombstones as TombstoneRow[]) : [],
+      ...(typeof j.traceId === "string" && /^[0-9a-f]{32}$/.test(j.traceId) ? { traceId: j.traceId } : {}),
+    };
+  } catch {
+    return { tombstones: [] };
+  }
 }
 /** Once they are replayed and recorded in the restored database, the file goes. */
-export function clearRestoredTombstones(root: string): void { fs.rmSync(path.join(root, KEPT), { force: true }); }
+export function clearRestoredTombstones(root: string): void {
+  fs.rmSync(path.join(root, KEPT), { force: true });
+}
 
 /** At the start, before any database is open: move a staged restore into place. The files it replaces are kept in restore-previous/. Returns the files moved. */
 export function applyPendingRestore(root: string): string[] {
@@ -218,7 +311,10 @@ export function applyPendingRestore(root: string): string[] {
       if (fs.existsSync(cur)) fs.renameSync(cur, path.join(prev, name + suffix));
     }
     const staged = path.join(stage, name);
-    if (fs.existsSync(staged)) { fs.renameSync(staged, path.join(root, name)); moved.push(name); }
+    if (fs.existsSync(staged)) {
+      fs.renameSync(staged, path.join(root, name));
+      moved.push(name);
+    }
   }
   if (fs.existsSync(path.join(stage, "blobs"))) {
     if (fs.existsSync(path.join(root, "blobs"))) fs.renameSync(path.join(root, "blobs"), path.join(prev, "blobs"));
@@ -226,7 +322,8 @@ export function applyPendingRestore(root: string): string[] {
     moved.push("blobs");
   }
   // the tombstones outlive the stage: the Space replays them once it is open (readRestoredTombstones), because the restored database does not have the erasures made after the backup
-  if (fs.existsSync(path.join(stage, "tombstones.json"))) fs.copyFileSync(path.join(stage, "tombstones.json"), path.join(root, KEPT));
+  if (fs.existsSync(path.join(stage, "tombstones.json")))
+    fs.copyFileSync(path.join(stage, "tombstones.json"), path.join(root, KEPT));
   fs.rmSync(stage, { recursive: true, force: true });
   return moved;
 }

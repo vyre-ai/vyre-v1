@@ -47,7 +47,10 @@ export interface ChatsNav {
   openSubject?(subject: { type: string; id: string }): void;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface ChatsSidebarData {
   screens: ScreenHooks;
@@ -57,7 +60,12 @@ export interface ChatsSidebarData {
   changes?: { subscribe(listener: () => void): () => void } | undefined;
   connection: Connection;
   /** The Space's name and whether another Space needs you (the red dot). */
-  space: { name: string; otherNeedsYou: boolean; /** A Personal Space: no channels */ personal?: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };
+  space: {
+    name: string;
+    otherNeedsYou: boolean;
+    /** A Personal Space: no channels */ personal?: boolean;
+    /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string };
+  };
   nav: ChatsNav;
   /** The Space's people, for the People section. */
   people?: readonly { id: string; name: string }[];
@@ -70,7 +78,13 @@ export interface ChatsSidebarData {
 
 const Ctx = createContext<ChatsSidebarData | null>(null);
 
-export function ChatsSidebarDataProvider({ value, children }: { value: ChatsSidebarData; children: ReactNode }): ReactElement {
+export function ChatsSidebarDataProvider({
+  value,
+  children,
+}: {
+  value: ChatsSidebarData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -88,7 +102,10 @@ export function useSidebarData(): ChatsSidebarData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useSidebarData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

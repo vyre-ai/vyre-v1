@@ -8,17 +8,51 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { createSitesRunner } from "./server.ts";
-import { SBROWSER_NAME, SBROWSER_NET, SBROWSER_VOLUME, computerName, computerNet, isSbrowserImage, sbrowserAllows } from "./computers-policy.ts";
+import {
+  SBROWSER_NAME,
+  SBROWSER_NET,
+  SBROWSER_VOLUME,
+  computerName,
+  computerNet,
+  isSbrowserImage,
+  sbrowserAllows,
+} from "./computers-policy.ts";
 
 const A = "cmt_01a1b2c3-d4e5-4f60-8a7b-0123456789ab";
 const SECCOMP = JSON.stringify({ defaultAction: "SCMP_ACT_ERRNO", syscalls: [] });
 const good = (over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
-  Image: "vyre/space-browser:1", Hostname: SBROWSER_NAME, User: "", WorkingDir: "/home/browser", Cmd: [], Env: ["VYRE_BROWSER_MAX_RUNNING=6", "VYRE_BROWSER_IDLE_MINUTES=10"],
-  Labels: { "vyre.sbrowser": "1" }, StopTimeout: 10, ...over,
+  Image: "vyre/space-browser:1",
+  Hostname: SBROWSER_NAME,
+  User: "",
+  WorkingDir: "/home/browser",
+  Cmd: [],
+  Env: ["VYRE_BROWSER_MAX_RUNNING=6", "VYRE_BROWSER_IDLE_MINUTES=10"],
+  Labels: { "vyre.sbrowser": "1" },
+  StopTimeout: 10,
+  ...over,
   HostConfig: {
-    Binds: [`${SBROWSER_VOLUME}:/data:rw`], ReadonlyRootfs: false, Tmpfs: { "/tmp": "rw,size=512m", "/dev/shm": "rw,size=1g" }, CapDrop: ["ALL"], CapAdd: [],
-    SecurityOpt: ["no-new-privileges:true", `seccomp=${SECCOMP}`], Privileged: false, NetworkMode: SBROWSER_NET, PidMode: "", IpcMode: "private", UsernsMode: "", Devices: [], PidsLimit: 2048,
-    Memory: 3 * 1024 ** 3, MemorySwap: 3 * 1024 ** 3, NanoCpus: 2e9, Init: true, AutoRemove: false, Ulimits: [{ Name: "nofile", Soft: 16384, Hard: 32768 }], ExtraHosts: [], Dns: [], ...h,
+    Binds: [`${SBROWSER_VOLUME}:/data:rw`],
+    ReadonlyRootfs: false,
+    Tmpfs: { "/tmp": "rw,size=512m", "/dev/shm": "rw,size=1g" },
+    CapDrop: ["ALL"],
+    CapAdd: [],
+    SecurityOpt: ["no-new-privileges:true", `seccomp=${SECCOMP}`],
+    Privileged: false,
+    NetworkMode: SBROWSER_NET,
+    PidMode: "",
+    IpcMode: "private",
+    UsernsMode: "",
+    Devices: [],
+    PidsLimit: 2048,
+    Memory: 3 * 1024 ** 3,
+    MemorySwap: 3 * 1024 ** 3,
+    NanoCpus: 2e9,
+    Init: true,
+    AutoRemove: false,
+    Ulimits: [{ Name: "nofile", Soft: 16384, Hard: 32768 }],
+    ExtraHosts: [],
+    Dns: [],
+    ...h,
   },
 });
 
@@ -26,7 +60,11 @@ async function world() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runner-sbr-"));
   const seen: Array<{ method: string; url: string; body: string }> = [];
   const labels: Record<string, Record<string, string>> = {
-    [SBROWSER_NAME]: { "vyre.sbrowser": "1" }, [computerName(A)]: { "vyre.computer": A, "vyre.agent": "agt_1" }, site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" }, vyred: { "vyre.ingress": "1" }, other: {},
+    [SBROWSER_NAME]: { "vyre.sbrowser": "1" },
+    [computerName(A)]: { "vyre.computer": A, "vyre.agent": "agt_1" },
+    site1: { "vyre.site": "sit_01abc", "vyre.kind": "app" },
+    vyred: { "vyre.ingress": "1" },
+    other: {},
   };
   const fake = http.createServer((q, s) => {
     let b = "";
@@ -34,20 +72,59 @@ async function world() {
     q.on("end", () => {
       seen.push({ method: q.method ?? "", url: q.url ?? "", body: b });
       const insp = /^\/containers\/([^/]+)\/json$/.exec(q.url ?? "");
-      if (insp) { const l = labels[insp[1] as string]; s.writeHead(l ? 200 : 404); s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } })); return; }
-      if (/\/exec$/.test(q.url ?? "")) { s.writeHead(201); s.end(JSON.stringify({ Id: "e".repeat(64) })); return; }
-      s.writeHead(q.url?.includes("/containers/create") ? 201 : 200); s.end(JSON.stringify({ Id: "c".repeat(64) }));
+      if (insp) {
+        const l = labels[insp[1] as string];
+        s.writeHead(l ? 200 : 404);
+        s.end(JSON.stringify({ Id: insp[1], Config: { Labels: l ?? {} } }));
+        return;
+      }
+      if (/\/exec$/.test(q.url ?? "")) {
+        s.writeHead(201);
+        s.end(JSON.stringify({ Id: "e".repeat(64) }));
+        return;
+      }
+      s.writeHead(q.url?.includes("/containers/create") ? 201 : 200);
+      s.end(JSON.stringify({ Id: "c".repeat(64) }));
     });
   });
   await new Promise<void>((r) => fake.listen(path.join(dir, "docker.sock"), r));
-  const runner = createSitesRunner({ dockerSocket: path.join(dir, "docker.sock"), listen: path.join(dir, "runner.sock"), token: "t0ken" });
-  await runner.listening;
-  const call = (method: string, p: string, body?: unknown) => new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-    const r = http.request({ socketPath: path.join(dir, "runner.sock"), method, path: p, headers: { authorization: "Bearer t0ken", ...(data ? { "content-type": "application/json", "content-length": data.length } : {}) } }, (res) => { let t = ""; res.on("data", (c) => (t += c)); res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t })); });
-    r.on("error", reject); r.end(data);
+  const runner = createSitesRunner({
+    dockerSocket: path.join(dir, "docker.sock"),
+    listen: path.join(dir, "runner.sock"),
+    token: "t0ken",
   });
-  return { call, seen, close: async () => { await runner.close(); fake.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  await runner.listening;
+  const call = (method: string, p: string, body?: unknown) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
+      const r = http.request(
+        {
+          socketPath: path.join(dir, "runner.sock"),
+          method,
+          path: p,
+          headers: {
+            authorization: "Bearer t0ken",
+            ...(data ? { "content-type": "application/json", "content-length": data.length } : {}),
+          },
+        },
+        (res) => {
+          let t = "";
+          res.on("data", (c) => (t += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: t }));
+        },
+      );
+      r.on("error", reject);
+      r.end(data);
+    });
+  return {
+    call,
+    seen,
+    close: async () => {
+      await runner.close();
+      fake.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
+  };
 }
 
 test("the Space browser container is refused when it asks for anything it is never given, and nothing refused reaches Docker", async (t) => {
@@ -70,7 +147,14 @@ test("the Space browser container is refused when it asks for anything it is nev
     ["capabilities not dropped", good({}, { CapDrop: [] }), "capabilit"],
     ["new privileges allowed", good({}, { SecurityOpt: [`seccomp=${SECCOMP}`] }), "privileges"],
     ["seccomp off", good({}, { SecurityOpt: ["no-new-privileges:true", "seccomp=unconfined"] }), "seccomp"],
-    ["a seccomp profile that allows all", good({}, { SecurityOpt: ["no-new-privileges:true", `seccomp=${JSON.stringify({ defaultAction: "SCMP_ACT_ALLOW" })}`] }), "seccomp"],
+    [
+      "a seccomp profile that allows all",
+      good(
+        {},
+        { SecurityOpt: ["no-new-privileges:true", `seccomp=${JSON.stringify({ defaultAction: "SCMP_ACT_ALLOW" })}`] },
+      ),
+      "seccomp",
+    ],
     ["no memory cap", good({}, { Memory: 0 }), "memory"],
     ["too much memory", good({}, { Memory: 64 * 1024 ** 3, MemorySwap: 64 * 1024 ** 3 }), "memory"],
     ["swap", good({}, { MemorySwap: 8 * 1024 ** 3 }), "swap"],
@@ -95,12 +179,24 @@ test("the Space browser container is refused when it asks for anything it is nev
   }
   assert.equal((await create(good(), "vyre-sbrowser2")).status, 403, "another name");
   assert.equal((await create(good(), "vyred")).status, 403, "the ingress's name");
-  assert.equal((await create(good(), computerName(A))).status, 403, "a computer's name with the Space browser's config");
+  assert.equal(
+    (await create(good(), computerName(A))).status,
+    403,
+    "a computer's name with the Space browser's config",
+  );
   assert.equal(w.seen.filter((s) => s.url.includes("/containers/create")).length, 0, "nothing refused reached Docker");
   const ok = await create(good());
   assert.equal(ok.status, 201, ok.body);
   const sent = JSON.parse(w.seen.at(-1)!.body) as { HostConfig: Record<string, unknown> };
-  assert.deepEqual([sent.HostConfig["CapDrop"], sent.HostConfig["CapAdd"], sent.HostConfig["Privileged"], sent.HostConfig["LogConfig"]], [["ALL"], [], false, { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } }]);
+  assert.deepEqual(
+    [
+      sent.HostConfig["CapDrop"],
+      sent.HostConfig["CapAdd"],
+      sent.HostConfig["Privileged"],
+      sent.HostConfig["LogConfig"],
+    ],
+    [["ALL"], [], false, { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } }],
+  );
   const withDigest = await create(good({ Image: `ghcr.io/vyre-ai/space-browser@sha256:${"a".repeat(64)}` }));
   assert.equal(withDigest.status, 201, "the registry copy by digest");
   const released = await create(good({ Image: `ghcr.io/vyre-ai/vyre-browser@sha256:${"c".repeat(64)}` }));
@@ -110,16 +206,73 @@ test("the Space browser container is refused when it asks for anything it is nev
 test("the Space browser's network is its own, joined only by its container and the ingress", async (t) => {
   const w = await world();
   t.after(w.close);
-  assert.equal((await w.call("POST", "/networks/create", { Name: SBROWSER_NET, Driver: "bridge", Labels: { "vyre.sbrowser": "1" } })).status, 200);
-  assert.equal((await w.call("POST", "/networks/create", { Name: SBROWSER_NET, Driver: "bridge", Labels: {} })).status, 403, "no label");
-  assert.equal((await w.call("POST", "/networks/create", { Name: "vyre-sbrowsernet2", Driver: "bridge", Labels: { "vyre.sbrowser": "1" } })).status, 403, "another name");
-  assert.equal((await w.call("POST", "/networks/create", { Name: SBROWSER_NET, Driver: "host", Labels: { "vyre.sbrowser": "1" } })).status, 403, "not a bridge");
-  assert.equal((await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: SBROWSER_NAME })).status, 200, "its own container");
-  assert.equal((await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: "vyred", EndpointConfig: { Aliases: ["vyre-host"] } })).status, 200, "the ingress");
-  assert.equal((await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: computerName(A) })).status, 403, "an agent computer");
-  assert.equal((await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: "site1" })).status, 403, "a site's container");
-  assert.equal((await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: "other" })).status, 403, "anything else");
-  assert.equal((await w.call("POST", `/networks/${computerNet(A)}/connect`, { Container: SBROWSER_NAME })).status, 403, "the Space browser does not join a computer's network");
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: SBROWSER_NET,
+        Driver: "bridge",
+        Labels: { "vyre.sbrowser": "1" },
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await w.call("POST", "/networks/create", { Name: SBROWSER_NET, Driver: "bridge", Labels: {} })).status,
+    403,
+    "no label",
+  );
+  assert.equal(
+    (
+      await w.call("POST", "/networks/create", {
+        Name: "vyre-sbrowsernet2",
+        Driver: "bridge",
+        Labels: { "vyre.sbrowser": "1" },
+      })
+    ).status,
+    403,
+    "another name",
+  );
+  assert.equal(
+    (await w.call("POST", "/networks/create", { Name: SBROWSER_NET, Driver: "host", Labels: { "vyre.sbrowser": "1" } }))
+      .status,
+    403,
+    "not a bridge",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: SBROWSER_NAME })).status,
+    200,
+    "its own container",
+  );
+  assert.equal(
+    (
+      await w.call("POST", `/networks/${SBROWSER_NET}/connect`, {
+        Container: "vyred",
+        EndpointConfig: { Aliases: ["vyre-host"] },
+      })
+    ).status,
+    200,
+    "the ingress",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: computerName(A) })).status,
+    403,
+    "an agent computer",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: "site1" })).status,
+    403,
+    "a site's container",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/${SBROWSER_NET}/connect`, { Container: "other" })).status,
+    403,
+    "anything else",
+  );
+  assert.equal(
+    (await w.call("POST", `/networks/${computerNet(A)}/connect`, { Container: SBROWSER_NAME })).status,
+    403,
+    "the Space browser does not join a computer's network",
+  );
   assert.equal((await w.call("GET", `/networks/${SBROWSER_NET}`)).status, 200);
   assert.equal((await w.call("DELETE", `/networks/${SBROWSER_NET}`)).status, 200);
 });
@@ -127,20 +280,68 @@ test("the Space browser's network is its own, joined only by its container and t
 test("the Space browser's container may be read, started, stopped, removed and run browserd in, and take Chrome's data into one profile's folder; never read out or waited on", async (t) => {
   const w = await world();
   t.after(w.close);
-  for (const [m, p] of [["GET", `/containers/${SBROWSER_NAME}/json`], ["POST", `/containers/${SBROWSER_NAME}/start`], ["POST", `/containers/${SBROWSER_NAME}/stop?t=10`], ["DELETE", `/containers/${SBROWSER_NAME}`], ["GET", `/containers/${SBROWSER_NAME}/logs?stdout=1&tail=50`]] as const) {
+  for (const [m, p] of [
+    ["GET", `/containers/${SBROWSER_NAME}/json`],
+    ["POST", `/containers/${SBROWSER_NAME}/start`],
+    ["POST", `/containers/${SBROWSER_NAME}/stop?t=10`],
+    ["DELETE", `/containers/${SBROWSER_NAME}`],
+    ["GET", `/containers/${SBROWSER_NAME}/logs?stdout=1&tail=50`],
+  ] as const) {
     assert.equal((await w.call(m, p)).status, 200, `${m} ${p}`);
   }
-  assert.equal((await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, { Cmd: ["/opt/browserd/ctl", "status", "{}"], Env: [], AttachStdout: true, Privileged: true })).status, 403, "an exec is never privileged");
-  assert.equal((await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, { Cmd: ["/opt/browserd/ctl", "status", "{}"], Env: [], AttachStdout: true, Tty: true })).status, 403, "and never a TTY");
-  const exec = await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, { Cmd: ["/opt/browserd/ctl", "status", "{}"], Env: [], AttachStdout: true, AttachStderr: true });
+  assert.equal(
+    (
+      await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, {
+        Cmd: ["/opt/browserd/ctl", "status", "{}"],
+        Env: [],
+        AttachStdout: true,
+        Privileged: true,
+      })
+    ).status,
+    403,
+    "an exec is never privileged",
+  );
+  assert.equal(
+    (
+      await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, {
+        Cmd: ["/opt/browserd/ctl", "status", "{}"],
+        Env: [],
+        AttachStdout: true,
+        Tty: true,
+      })
+    ).status,
+    403,
+    "and never a TTY",
+  );
+  const exec = await w.call("POST", `/containers/${SBROWSER_NAME}/exec`, {
+    Cmd: ["/opt/browserd/ctl", "status", "{}"],
+    Env: [],
+    AttachStdout: true,
+    AttachStderr: true,
+  });
   assert.equal(exec.status, 201, exec.body);
-  const sent = JSON.parse(w.seen.filter((s) => s.url.endsWith("/exec")).at(-1)!.body) as { Tty: boolean; Privileged: boolean };
+  const sent = JSON.parse(w.seen.filter((s) => s.url.endsWith("/exec")).at(-1)!.body) as {
+    Tty: boolean;
+    Privileged: boolean;
+  };
   assert.deepEqual([sent.Tty, sent.Privileged], [false, false]);
-  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data`, {})).status, 403, "no archive over the whole volume");
+  assert.equal(
+    (await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data`, {})).status,
+    403,
+    "no archive over the whole volume",
+  );
   assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/../x`, {})).status, 403);
   assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/etc`, {})).status, 403);
-  assert.equal((await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`)).status, 403, "nothing is read out");
-  assert.equal((await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`, {})).status, 200, "Chrome's data goes into one profile's folder");
+  assert.equal(
+    (await w.call("GET", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`)).status,
+    403,
+    "nothing is read out",
+  );
+  assert.equal(
+    (await w.call("PUT", `/containers/${SBROWSER_NAME}/archive?path=/data/profiles/agt_dex`, {})).status,
+    200,
+    "Chrome's data goes into one profile's folder",
+  );
   assert.equal((await w.call("POST", `/containers/${SBROWSER_NAME}/wait`)).status, 403, "no wait");
   assert.equal((await w.call("POST", `/containers/other/start`)).status, 403, "a container that is not Vyre's");
   assert.equal(sbrowserAllows("exec", "POST", new URLSearchParams()), true);
@@ -151,19 +352,52 @@ test("the Space browser's container may be read, started, stopped, removed and r
 test("the Space browser image may be fetched and read, by tag or by digest, and no other; its volume may be removed and no other", async (t) => {
   const w = await world();
   t.after(w.close);
-  assert.equal((await w.call("POST", "/images/create?fromImage=vyre/space-browser&tag=1")).status, 403, "a bare vyre/... name would be looked for on Docker Hub, which is not Vyre's: never fetched");
-  assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/space-browser&tag=1.0.0-rc.23")).status, 200);
-  assert.equal((await w.call("POST", `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/space-browser@sha256:${"b".repeat(64)}`)}`)).status, 200, "by digest");
+  assert.equal(
+    (await w.call("POST", "/images/create?fromImage=vyre/space-browser&tag=1")).status,
+    403,
+    "a bare vyre/... name would be looked for on Docker Hub, which is not Vyre's: never fetched",
+  );
+  assert.equal(
+    (await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/space-browser&tag=1.0.0-rc.23")).status,
+    200,
+  );
+  assert.equal(
+    (
+      await w.call(
+        "POST",
+        `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/space-browser@sha256:${"b".repeat(64)}`)}`,
+      )
+    ).status,
+    200,
+    "by digest",
+  );
   assert.equal((await w.call("POST", "/images/create?fromImage=evil/space-browser&tag=1")).status, 403);
   assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/space-browser-evil&tag=1")).status, 403);
-  assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/vyre-browser&tag=1.0.0-rc.23")).status, 200, "the release's registry copy");
-  assert.equal((await w.call("POST", `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/vyre-browser@sha256:${"d".repeat(64)}`)}`)).status, 200, "the release's copy by digest");
+  assert.equal(
+    (await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/vyre-browser&tag=1.0.0-rc.23")).status,
+    200,
+    "the release's registry copy",
+  );
+  assert.equal(
+    (
+      await w.call(
+        "POST",
+        `/images/create?fromImage=${encodeURIComponent(`ghcr.io/vyre-ai/vyre-browser@sha256:${"d".repeat(64)}`)}`,
+      )
+    ).status,
+    200,
+    "the release's copy by digest",
+  );
   assert.equal((await w.call("POST", "/images/create?fromImage=ghcr.io/vyre-ai/vyre-browser-evil&tag=1")).status, 403);
   assert.equal((await w.call("GET", `/images/${encodeURIComponent("vyre/space-browser:1")}/json`)).status, 200);
   assert.equal((await w.call("GET", `/images/${encodeURIComponent("alpine:latest")}/json`)).status, 403);
   assert.equal((await w.call("DELETE", `/volumes/${SBROWSER_VOLUME}?force=true`)).status, 200);
   assert.equal((await w.call("DELETE", `/volumes/${SBROWSER_VOLUME}2`)).status, 403);
-  assert.equal((await w.call("DELETE", `/volumes/vyre-comp-${A.replace(/^cmt_/, "")}-profile`)).status, 200, "a computer's profile volume still goes by its own rule");
+  assert.equal(
+    (await w.call("DELETE", `/volumes/vyre-comp-${A.replace(/^cmt_/, "")}-profile`)).status,
+    200,
+    "a computer's profile volume still goes by its own rule",
+  );
   assert.equal(isSbrowserImage("vyre/space-browser:1"), true);
   assert.equal(isSbrowserImage("vyre/agent-computer:1"), false);
 });
@@ -175,18 +409,35 @@ test("the Space browser's memory and task caps follow this host (4, 8, 16 and 64
   const GB = 1024 ** 3;
   const MB = 1024 ** 2;
   // fifth look: never above the host less its headroom, so a 4 GB or 8 GB host is not offered the old 8 GB
-  for (const [gb, memMb] of [[4, 4096 - 1536], [8, 8192 - 1536], [16, 16384 - 1536], [64, 65536 - 1536]] as const) {
+  for (const [gb, memMb] of [
+    [4, 4096 - 1536],
+    [8, 8192 - 1536],
+    [16, 16384 - 1536],
+    [64, 65536 - 1536],
+  ] as const) {
     const host = { memoryBytes: gb * GB };
     const b = sbrowserBounds(host);
     assert.equal(b.memory, memMb * MB, `${gb} GB: memory less what the system keeps, never more`);
     const browsers = Math.floor((memMb - 512) / 256);
-    assert.equal(b.pids, Math.max(2048, 100 + 120 * browsers + 256), `${gb} GB: the task cap the browsers of that memory need, with a margin`);
+    assert.equal(
+      b.pids,
+      Math.max(2048, 100 + 120 * browsers + 256),
+      `${gb} GB: the task cap the browsers of that memory need, with a margin`,
+    );
     // exactly at the bound: allowed
-    assert.ok("body" in sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory, MemorySwap: b.memory, PidsLimit: b.pids }), host), `${gb} GB at the bound`);
+    assert.ok(
+      "body" in
+        sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory, MemorySwap: b.memory, PidsLimit: b.pids }), host),
+      `${gb} GB at the bound`,
+    );
     // above it: refused with a plain reason, though the daemon asked for it
     const memOver = sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory + MB, MemorySwap: b.memory + MB }), host);
     assert.ok("why" in memOver && /memory cap of at most/.test(memOver.why), JSON.stringify(memOver));
-    const pidsOver = sbrowserBody(SBROWSER_NAME, good({}, { Memory: b.memory, MemorySwap: b.memory, PidsLimit: b.pids + 1 }), host);
+    const pidsOver = sbrowserBody(
+      SBROWSER_NAME,
+      good({}, { Memory: b.memory, MemorySwap: b.memory, PidsLimit: b.pids + 1 }),
+      host,
+    );
     assert.ok("why" in pidsOver && /process cap of at most/.test(pidsOver.why), JSON.stringify(pidsOver));
   }
   // the host is the runner's own reading: a 16 GB body on an 8 GB host is refused, the same body on a 64 GB host is not

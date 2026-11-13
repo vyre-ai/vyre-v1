@@ -17,8 +17,18 @@ import { find, flush, installDom, mount, press, textOf } from "../../../ui/src/t
 import { shellKey } from "../src/shell/spaces/keys.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const live = <T,>(data: T) => ({ subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready" as const, data }) });
-const hit = (kind: Hit["kind"], id: string, title: string, extra: Partial<Hit> = {}): Hit => ({ kind, id, title, link: `vyre://${kind}/${id}`, score: 1, ...extra });
+const live = <T,>(data: T) => ({
+  subscribe: () => () => undefined,
+  getSnapshot: () => ({ status: "ready" as const, data }),
+});
+const hit = (kind: Hit["kind"], id: string, title: string, extra: Partial<Hit> = {}): Hit => ({
+  kind,
+  id,
+  title,
+  link: `vyre://${kind}/${id}`,
+  score: 1,
+  ...extra,
+});
 
 function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const calls: { cap: string; input: unknown }[] = [];
@@ -26,18 +36,42 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const serverHits = [hit("file", "fil_ref", "Referral policy.docx", { score: 0.9 })];
   const rt = {
     space: { id: "spc_nw", kind: "team", name: "Northwind" },
-    principals: live([{ id: "usr_maya", name: "Maya Chen", kind: "person" }, { id: "agt_intake", name: "Intake", kind: "agent" }, { id: "grp_all", name: "Everyone", kind: "group" }]),
-    screens: { query: (screen: string) => live(screen === "chats.sidebar"
-      ? { starred: [], today: [{ threadId: "thr_ref", title: "Referral questions", kind: "chat" }], yesterday: [], earlier: [] }
-      : {}) },
+    principals: live([
+      { id: "usr_maya", name: "Maya Chen", kind: "person" },
+      { id: "agt_intake", name: "Intake", kind: "agent" },
+      { id: "grp_all", name: "Everyone", kind: "group" },
+    ]),
+    screens: {
+      query: (screen: string) =>
+        live(
+          screen === "chats.sidebar"
+            ? {
+                starred: [],
+                today: [{ threadId: "thr_ref", title: "Referral questions", kind: "chat" }],
+                yesterday: [],
+                earlier: [],
+              }
+            : {},
+        ),
+    },
     connection: { get: () => (opts.online === false ? "offline" : "online"), subscribe: () => () => undefined },
     assistant: { id: "agt_assistant", name: "Assistant" },
     open: (target: unknown) => void opened.push(target),
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
-      if (cap === "search.ask") return { state: "answered", answer: "The deposit is 4200 dollars [1].", sources: [{ ...hit("file", "fil_dep", "Lease.docx"), n: 1, where: "File" }], cited: [1], account: { title: "Claude", mine: true } };
+      if (cap === "search.ask")
+        return {
+          state: "answered",
+          answer: "The deposit is 4200 dollars [1].",
+          sources: [{ ...hit("file", "fil_dep", "Lease.docx"), n: 1, where: "File" }],
+          cited: [1],
+          account: { title: "Claude", mine: true },
+        };
       if (cap === "chat.start") return { thread: { threadId: "thr_new" } };
-      if (cap === "search.query") { if (opts.fail) throw new Error("down"); return { hits: serverHits, tookMs: 3 }; }
+      if (cap === "search.query") {
+        if (opts.fail) throw new Error("down");
+        return { hits: serverHits, tookMs: 3 };
+      }
       if (cap === "search.recent.list") return { hits: [hit("record", "rec_a", "Recent record")] };
       return { ok: true };
     },
@@ -46,7 +80,10 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const log: string[] = [];
   const nav: GateNav = {
     go: (place, hash) => void went.push(hash === undefined ? { place } : { place, hash }),
-    newTab: () => { log.push("newTab"); return null; },
+    newTab: () => {
+      log.push("newTab");
+      return null;
+    },
     flash: (t) => void log.push(`flash:${t}`),
     setAway: (on) => void log.push(`away:${on}`),
     setOnline: (on) => void log.push(`online:${on}`),
@@ -57,7 +94,8 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   return { data, calls, went, log, state, opened };
 }
 
-const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : []));
+const titles = (c: CmdKController): string[] =>
+  c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : []));
 
 test("Cmd-K opens the search and Cmd-T a new tab (the shell's key map)", () => {
   assert.deepEqual(shellKey({ key: "k", metaKey: true }), { type: "search" });
@@ -76,14 +114,26 @@ test("local hits come from the replica in the keystroke's task and search.query 
   const after = titles(c);
   assert.ok(after.includes("Referral policy.docx"), "the server hit merged in");
   assert.deepEqual(after.slice(0, first.length), first, "the local rows did not move");
-  assert.deepEqual(calls.filter((x) => x.cap === "search.query").map((x) => (x.input as { q: string }).q), ["ref"]);
+  assert.deepEqual(
+    calls.filter((x) => x.cap === "search.query").map((x) => (x.input as { q: string }).q),
+    ["ref"],
+  );
   c.dispose();
 });
 
 test("people and agents are searchable from the replica; groups are not", () => {
   const { data } = setup();
-  assert.deepEqual(data.local("", null).map((h) => h.title).sort(), ["Intake", "Maya Chen", "Referral questions"]);
-  assert.deepEqual(data.local("ma", ["person"]).map((h) => h.title), ["Maya Chen"]);
+  assert.deepEqual(
+    data
+      .local("", null)
+      .map((h) => h.title)
+      .sort(),
+    ["Intake", "Maya Chen", "Referral questions"],
+  );
+  assert.deepEqual(
+    data.local("ma", ["person"]).map((h) => h.title),
+    ["Maya Chen"],
+  );
 });
 
 test("a window offline searches the device only and says so", async () => {
@@ -130,7 +180,10 @@ test("choosing a hit opens its place; Cmd-Enter opens it in a new tab; the open 
   assert.equal(hashOfHit(h), "subject=record:rec_a");
   data.open(h, { newTab: false });
   data.open(h, { newTab: true });
-  assert.deepEqual(went, [{ place: "records", hash: "subject=record:rec_a" }, { place: "records", hash: "subject=record:rec_a" }]);
+  assert.deepEqual(went, [
+    { place: "records", hash: "subject=record:rec_a" },
+    { place: "records", hash: "subject=record:rec_a" },
+  ]);
   assert.deepEqual(log, ["newTab"]);
   data.recordOpened(h);
   assert.deepEqual(calls.at(-1), { cap: "search.recent.record", input: { kind: "record", itemId: "rec_a" } });
@@ -147,7 +200,12 @@ function asPackaged<T>(run: () => T): T {
   const had = "__TAURI__" in g;
   const before = g.__TAURI__;
   g.__TAURI__ = { core: { invoke: async () => undefined } };
-  try { return run(); } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; }
+  try {
+    return run();
+  } finally {
+    if (had) g.__TAURI__ = before;
+    else delete g.__TAURI__;
+  }
 }
 
 test("Close search is a visible button in the sheet that closes it; the dim area is not a second labelled Close search", async () => {
@@ -155,7 +213,15 @@ test("Close search is a visible button in the sheet that closes it; the dim area
   try {
     const { data } = setup();
     let closed = 0;
-    const root = await mount(createRoot, <CmdK data={data} onClose={() => { closed++; }} />);
+    const root = await mount(
+      createRoot,
+      <CmdK
+        data={data}
+        onClose={() => {
+          closed++;
+        }}
+      />,
+    );
     await flush();
     assert.ok(find(root, "cmdk-veil"), "the sheet is open");
     const closeBtn = find(root, "cmdk-close");
@@ -166,26 +232,46 @@ test("Close search is a visible button in the sheet that closes it; the dim area
     assert.equal(closed, 1, "pressing Close search closes the sheet");
     assert.equal(find(root, "cmdk-veil"), null, "and it is gone");
     const all = renderToStaticMarkup(<CmdK data={data} />);
-    assert.equal((all.match(/aria-label="Close search"/g) ?? []).length, 1, "one button is called Close search, not the backdrop too");
-  } finally { restore(); }
+    assert.equal(
+      (all.match(/aria-label="Close search"/g) ?? []).length,
+      1,
+      "one button is called Close search, not the backdrop too",
+    );
+  } finally {
+    restore();
+  }
 });
 
 test("the packaged shell with no stored Space opens on the three doors once the window is read, and never offers tauri as a host", async () => {
   // the static page and the first client render are the browser's frame; the desktop app's doors draw right after mount, so the test mounts and waits for that frame
   const restore = installDom();
   const g = globalThis as { __TAURI__?: unknown };
-  const had = "__TAURI__" in g, before = g.__TAURI__;
+  const had = "__TAURI__" in g,
+    before = g.__TAURI__;
   g.__TAURI__ = { core: { invoke: async () => undefined } };
   try {
     const root = await mount(createRoot, <SessionGate baseUrl={null} />);
-    await flush(); await flush();
+    await flush();
+    await flush();
     const text = textOf(root);
     assert.ok(text.includes("Welcome to Vyre"), "the first launch screen");
     for (const door of ["door-me", "door-invited", "door-team"]) assert.ok(find(root, door), `${door} is offered`);
-    for (const [door, words] of [["door-me", "Just me"], ["door-invited", "I was invited"], ["door-team", "My team"]]) assert.ok(text.includes(words), `${door} reads ${words}`);
-    assert.ok(!find(root, "door-server") && !find(root, "door-get-app"), "a desktop has no server door and no Get Vyre door");
+    for (const [door, words] of [
+      ["door-me", "Just me"],
+      ["door-invited", "I was invited"],
+      ["door-team", "My team"],
+    ])
+      assert.ok(text.includes(words), `${door} reads ${words}`);
+    assert.ok(
+      !find(root, "door-server") && !find(root, "door-get-app"),
+      "a desktop has no server door and no Get Vyre door",
+    );
     assert.ok(!text.includes("tauri"), "tauri is never offered as a host");
-  } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; restore(); }
+  } finally {
+    if (had) g.__TAURI__ = before;
+    else delete g.__TAURI__;
+    restore();
+  }
 });
 
 test("a browser with no stored Space is offered to join or set up a server, and tauri is not offered as a host", async () => {
@@ -193,15 +279,20 @@ test("a browser with no stored Space is offered to join or set up a server, and 
   const restore = installDom();
   try {
     const root = await mount(createRoot, <SessionGate baseUrl={null} />);
-    await flush(); await flush();
+    await flush();
+    await flush();
     assert.ok(find(root, "door-invited") && find(root, "door-server"));
     assert.ok(!find(root, "door-me"), "no Just me door without the app");
     assert.ok(!textOf(root).includes("tauri"));
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("the Connect a Space screen behind Sign in still takes a Space address, with a sign-in action and no tauri", () => {
-  const out = renderToStaticMarkup(<ConnectSpaceWelcome onConnect={() => undefined} onGetStarted={() => undefined} />).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(
+    <ConnectSpaceWelcome onConnect={() => undefined} onGetStarted={() => undefined} />,
+  ).replaceAll("<!-- -->", "");
   assert.ok(out.includes("Sign in"));
   assert.ok(out.includes('data-testid="space-address"'), "a desktop can enter the Space address");
   assert.ok(out.includes('data-testid="resolve-space"'), "the address has a sign-in action");
@@ -209,7 +300,14 @@ test("the Connect a Space screen behind Sign in still takes a Space address, wit
 });
 
 test("discovery options do not expose inert GitHub or SSO controls", () => {
-  const invite = signInInvite("https://northwind.test", { name: "Northwind", fingerprint: "display-only", password: true, github: true, sso: [{ key: "google", title: "Google" }], secondFactorRequired: false });
+  const invite = signInInvite("https://northwind.test", {
+    name: "Northwind",
+    fingerprint: "display-only",
+    password: true,
+    github: true,
+    sso: [{ key: "google", title: "Google" }],
+    secondFactorRequired: false,
+  });
   const out = renderToStaticMarkup(<JoinFlow invite={invite} initial={{ stage: "signin" }} hold />);
   assert.match(out, /Sign in to Northwind/);
   assert.doesNotMatch(out, /Single sign-on|GitHub|Google/);
@@ -222,7 +320,10 @@ test("Ask the Space in the real shell: the question goes to search.ask as typed,
   assert.equal(c.getState().rows[c.getState().active]?.type, "ask");
   c.choose();
   await wait(30);
-  assert.deepEqual(calls.filter((x) => x.cap === "search.ask").map((x) => x.input), [{ q: "what is the lease deposit" }]);
+  assert.deepEqual(
+    calls.filter((x) => x.cap === "search.ask").map((x) => x.input),
+    [{ q: "what is the lease deposit" }],
+  );
   assert.equal(c.getState().ask?.phase, "answered");
   c.copyAnswer();
   assert.ok(log.includes("flash:Answer copied"));
@@ -230,7 +331,10 @@ test("Ask the Space in the real shell: the question goes to search.ask as typed,
   await wait(20);
   const start = calls.find((x) => x.cap === "chat.start")!.input as Record<string, unknown>;
   assert.deepEqual([start["kind"], start["agentIds"]], ["chat", ["agt_assistant"]]);
-  assert.match(String(start["first"]), /^what is the lease deposit\n\nWhat the Space says:\nThe deposit is 4200 dollars \[1\]\./);
+  assert.match(
+    String(start["first"]),
+    /^what is the lease deposit\n\nWhat the Space says:\nThe deposit is 4200 dollars \[1\]\./,
+  );
   assert.deepEqual(opened, [{ subject: { type: "thread", id: "thr_new" } }]);
   void went;
 });

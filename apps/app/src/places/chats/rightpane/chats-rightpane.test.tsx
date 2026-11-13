@@ -9,20 +9,75 @@ import { RightPaneDataProvider } from "./data.tsx";
 import { FilesTab, treeOrder } from "./FilesTab.tsx";
 import { ComputerNone, ComputerTab } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure, computerWords,
+  accept,
+  correct,
+  deleteRoutine,
+  duplicateRoutine,
+  reasonOf,
+  reject,
+  removeFact,
+  renameRoutine,
+  saveInstructions,
+  setRoutine,
+  signOut,
+  takeOver,
+  giveBack,
+  wake,
+  wakeFailure,
+  computerWords,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
-  CURRENT, TABS, agoLabel, parseMap, chatWhen, workedNote, isWatcher, shortSchedule, nextDay, learnedWhen, MAP_LIMIT, backTo, changeByAsking, computerView, cronWords, enter, factNote, filePath, folderEntries, formatSize, groupThreads, isDefaultFilter, nextLabel,
-  routineFile, routineNote, showingLine, sortRoutines, splitFacts, statusFor,
+  CURRENT,
+  TABS,
+  agoLabel,
+  parseMap,
+  chatWhen,
+  workedNote,
+  isWatcher,
+  shortSchedule,
+  nextDay,
+  learnedWhen,
+  MAP_LIMIT,
+  backTo,
+  changeByAsking,
+  computerView,
+  cronWords,
+  enter,
+  factNote,
+  filePath,
+  folderEntries,
+  formatSize,
+  groupThreads,
+  isDefaultFilter,
+  nextLabel,
+  routineFile,
+  routineNote,
+  showingLine,
+  sortRoutines,
+  splitFacts,
+  statusFor,
 } from "./model.ts";
 import type { Fact, Routine, TabKey } from "./model.ts";
 import { SAMPLE_NOW, createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
 const ALL = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const html = (s: Sample, tab: TabKey, paneWidth?: number): string => clean(renderToStaticMarkup(<ChatRightPane data={s.data} open onToggle={() => undefined} tab={tab} window={ALL} {...(paneWidth ? { paneWidth } : {})} />));
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const html = (s: Sample, tab: TabKey, paneWidth?: number): string =>
+  clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={s.data}
+        open
+        onToggle={() => undefined}
+        tab={tab}
+        window={ALL}
+        {...(paneWidth ? { paneWidth } : {})}
+      />,
+    ),
+  );
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
   assert.ok(i >= 0, `expected ${needle}`);
@@ -31,7 +86,11 @@ const at = (s: string, needle: string): number => {
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const inOrder = (s: string, needles: string[]): void => {
   const idx = needles.map((n) => at(s, n));
-  assert.deepEqual([...idx].sort((a, b) => a - b), idx, `in the order ${needles.join(" > ")}`);
+  assert.deepEqual(
+    [...idx].sort((a, b) => a - b),
+    idx,
+    `in the order ${needles.join(" > ")}`,
+  );
 };
 const tagOf = (out: string, testid: string): string => {
   const i = at(out, `data-testid="${testid}"`);
@@ -46,7 +105,10 @@ const routinesNow = (s: Sample): Routine[] => s.replica.rows("routines") as unkn
 const tabs: TabKey[] = ["about", "computer", "threads", "files", "memory", "routines"];
 
 test("five tabs in order under one pane toggle at the far left", () => {
-  assert.deepEqual(TABS.map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
+  assert.deepEqual(
+    TABS.map((t) => t.title),
+    ["About", "Computer", "Chats", "Files", "Knows", "Routines"],
+  );
   const out = html(createSample(), "computer", 640);
   assert.equal(out.split('data-pane-toggle="far-left"').length - 1, 1, "exactly one toggle");
   assert.ok(has(out, 'data-toggle-count="1"'));
@@ -57,7 +119,9 @@ test("five tabs in order under one pane toggle at the far left", () => {
 
 test("a closed pane draws nothing; the shell owns the toggle's state", () => {
   const s = createSample();
-  const out = clean(renderToStaticMarkup(<ChatRightPane data={s.data} open={false} onToggle={() => undefined} window={ALL} />));
+  const out = clean(
+    renderToStaticMarkup(<ChatRightPane data={s.data} open={false} onToggle={() => undefined} window={ALL} />),
+  );
   assert.ok(!has(out, "chats-right-pane") && !has(out, "side-pane"));
 });
 
@@ -70,21 +134,40 @@ test("switching sections keeps the width: the edge is the pane's, not the tab's"
 
 test("the pane follows the agent of the open chat", () => {
   const nw = html(createSample(), "threads");
-  assert.ok(has(nw, 'data-testid="face-Intake"') && has(nw, "Agent · books first calls and follows up on cold inquiries"));
+  assert.ok(
+    has(nw, 'data-testid="face-Intake"') && has(nw, "Agent · books first calls and follows up on cold inquiries"),
+  );
   const personal = html(createSample("personal"), "threads");
-  assert.ok(has(personal, 'data-testid="face-Assistant"') && has(personal, "Agent · your assistant for anything in this Space"));
+  assert.ok(
+    has(personal, 'data-testid="face-Assistant"') && has(personal, "Agent · your assistant for anything in this Space"),
+  );
   assert.ok(!has(personal, "Rivera intake"), "another agent's chats do not leak in");
 });
 
 test("Computer, working: the live caption, steps in order, and the sites it is signed in to", () => {
   const out = html(createSample(), "computer");
   assert.ok(has(out, "Awake · Filling the county records form"), "the state is one chip");
-  assert.ok(has(out, 'data-testid="computer-screen"') && has(out, 'data-testid="computer-take"') && has(out, "Open Intake&#x27;s computer".replace("&#x27;", "'")), "the picture is the open");
-  for (const gone of ["computer-open", "computer-sleep", "computer-terminal", "computer-pop", "computer-more"]) assert.ok(!has(out, `data-testid="${gone}"`), `${gone} is not drawn: the picture opens, the header's menu sleeps`);
-  assert.ok(has(out, 'data-testid="computer-runs-on"') && has(out, "On ") && has(out, " of 8 tabs"), "where it runs is one footer line");
+  assert.ok(
+    has(out, 'data-testid="computer-screen"') &&
+      has(out, 'data-testid="computer-take"') &&
+      has(out, "Open Intake&#x27;s computer".replace("&#x27;", "'")),
+    "the picture is the open",
+  );
+  for (const gone of ["computer-open", "computer-sleep", "computer-terminal", "computer-pop", "computer-more"])
+    assert.ok(!has(out, `data-testid="${gone}"`), `${gone} is not drawn: the picture opens, the header's menu sleeps`);
+  assert.ok(
+    has(out, 'data-testid="computer-runs-on"') && has(out, "On ") && has(out, " of 8 tabs"),
+    "where it runs is one footer line",
+  );
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
   const session = out.slice(at(out, ">Session<"));
-  inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
+  inOrder(session, [
+    "Opened the county records site",
+    "Searched for Rivera, Elena",
+    "Saved the 2019 deed to Files",
+    "Checked the filing date",
+    "Filling the county records form",
+  ]);
   assert.ok(has(out, "Chrome · just now") && has(out, "Chrome · 9 min ago"));
   inOrder(out, ["Signed in on its computer", "Google Workspace", "Web form inbox", "Calendar"]);
   assert.ok(has(out, "intake@northwind.example · since 2 Oct"));
@@ -93,7 +176,9 @@ test("Computer, working: the live caption, steps in order, and the sites it is s
 
 test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes on click", () => {
   const out = html(createSample("asleep"), "computer");
-  assert.ok(has(out, "Asleep · wakes when needed") && has(out, ">Last session<") && !has(out, 'data-testid="computer-sleep"'));
+  assert.ok(
+    has(out, "Asleep · wakes when needed") && has(out, ">Last session<") && !has(out, 'data-testid="computer-sleep"'),
+  );
   assert.ok(has(out, "Wake Intake's computer"));
   assert.ok(!has(out, 'data-testid="computer-take"'), "Take over is for a working computer");
 });
@@ -101,25 +186,65 @@ test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes o
 test("Computer, a Personal Space with a capable host (a server, or Docker here) offers no desktop either: an agent with none is shown About, with nothing to set up", () => {
   const s = createSample("personal");
   const withHost: Sample = { ...s, data: { ...s.data, space: { ...s.data.space, computers: true } } };
-  const out = clean(renderToStaticMarkup(<ChatRightPane data={withHost.data} open onToggle={() => undefined} tab="computer" window={ALL} />));
-  assert.ok(!has(out, 'data-testid="computer-none"') && !has(out, "Checking where its computer can run") && !has(out, "computer-provision"), "no pane that waits for a host to say it can make a computer");
+  const out = clean(
+    renderToStaticMarkup(
+      <ChatRightPane data={withHost.data} open onToggle={() => undefined} tab="computer" window={ALL} />,
+    ),
+  );
+  assert.ok(
+    !has(out, 'data-testid="computer-none"') &&
+      !has(out, "Checking where its computer can run") &&
+      !has(out, "computer-provision"),
+    "no pane that waits for a host to say it can make a computer",
+  );
   assert.ok(!has(out, "Needs a Team Space"));
 });
 
 test("Computer, in a Personal Space there is no Computer tab and the pane opens on About; an agent with no computer is shown About, with nothing to set up", () => {
   const personal = html(createSample("personal"), "computer");
-  assert.ok(!has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"), "no Computer tab in a Personal Space");
+  assert.ok(
+    !has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"),
+    "no Computer tab in a Personal Space",
+  );
   assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows About");
   const s = createSample();
-  const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" window={ALL} />));
-  assert.ok(has(bare, 'data-testid="about-no-computer"') && !has(bare, "its own computer") && !has(bare, 'data-testid="computer-provision"') && !has(bare, "Set up its computer"), "no offer to make a computer, whatever host there is");
+  const bare = clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }}
+        open
+        onToggle={() => undefined}
+        tab="computer"
+        window={ALL}
+      />,
+    ),
+  );
+  assert.ok(
+    has(bare, 'data-testid="about-no-computer"') &&
+      !has(bare, "its own computer") &&
+      !has(bare, 'data-testid="computer-provision"') &&
+      !has(bare, "Set up its computer"),
+    "no offer to make a computer, whatever host there is",
+  );
 });
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
   const out = html(createSample(), "threads");
-  inOrder(out, ["Threads it worked in", "#intake · Omar Haddad", ">Helpers<", "County mirrors", "Firms 1–3", "Its chats", "Rivera intake", "Weekly lead report"]);
+  inOrder(out, [
+    "Threads it worked in",
+    "#intake · Omar Haddad",
+    ">Helpers<",
+    "County mirrors",
+    "Firms 1–3",
+    "Its chats",
+    "Rivera intake",
+    "Weekly lead report",
+  ]);
   assert.ok(has(out, "Working now") && has(out, "5 replies · last 9:34"));
-  assert.ok(has(out, ">9:31<") && has(out, ">Mon<"), "its chats say when as the prototype does: the clock time today, the weekday this week");
+  assert.ok(
+    has(out, ">9:31<") && has(out, ">Mon<"),
+    "its chats say when as the prototype does: the clock time today, the weekday this week",
+  );
   assert.ok(!has(out, "Lead follow-ups") && !has(out, "Retainer question"), "only what the prototype lists");
   assert.ok(has(tagOf(out, "row-chat-c1"), "background-color:var(--sel)"), "the open chat reads as selected");
   assert.ok(!has(tagOf(out, "row-thread-th_a"), "background-color:var(--sel)"), "a thread is not selected");
@@ -129,40 +254,114 @@ test("Threads: the threads it worked in, its helpers (running first), and its ow
 test("Files: a tree, files first then folders in the prototype's order; counts on the right, locks on what Vyre owns; memory and routines open", () => {
   const out = html(createSample(), "files");
   assert.ok(has(out, "Intake's folder") && has(out, "Mounted as ~/Vyre"));
-  inOrder(out, [">AGENT.md<", ">agent.toml<", ">memory<", ">MAP.md<", ">notes<", ">proposed<", ">recipes<", ">journal<", ">skills<", ">routines<", ">morning_lead_sweep.md<", ">knowledge<", ">inbox<", ">work<", ">downloads<", ">logs<", ">chats<"]);
+  inOrder(out, [
+    ">AGENT.md<",
+    ">agent.toml<",
+    ">memory<",
+    ">MAP.md<",
+    ">notes<",
+    ">proposed<",
+    ">recipes<",
+    ">journal<",
+    ">skills<",
+    ">routines<",
+    ">morning_lead_sweep.md<",
+    ">knowledge<",
+    ">inbox<",
+    ">work<",
+    ">downloads<",
+    ">logs<",
+    ">chats<",
+  ]);
   assert.ok(has(out, "2 KB · updated 22 Oct") && has(out, "940 B"));
-  assert.ok(out.includes('data-testid="lock-fld_logs"') && out.includes('data-testid="lock-fld_chats"'), "Vyre owns logs and chats");
+  assert.ok(
+    out.includes('data-testid="lock-fld_logs"') && out.includes('data-testid="lock-fld_chats"'),
+    "Vyre owns logs and chats",
+  );
   assert.ok(!out.includes('data-testid="lock-fld_memory"') && !out.includes('data-testid="lock-fld_skills"'));
   assert.ok(has(out, "People write AGENT.md. Only the owner changes agent.toml. Vyre owns logs and chats."));
 });
 
 test("Files: the tree order and the counts", () => {
-  assert.deepEqual(treeOrder([{ name: "logs" }, { name: "zeta" }, { name: "memory" }, { name: "chats" }, { name: "alpha" }, { name: "skills" }]).map((x) => x.name), ["memory", "skills", "logs", "chats", "alpha", "zeta"]);
+  assert.deepEqual(
+    treeOrder([
+      { name: "logs" },
+      { name: "zeta" },
+      { name: "memory" },
+      { name: "chats" },
+      { name: "alpha" },
+      { name: "skills" },
+    ]).map((x) => x.name),
+    ["memory", "skills", "logs", "chats", "alpha", "zeta"],
+  );
   const out = html(createSample(), "files");
   const count = (id: string): string => (new RegExp(`data-testid="count-${id}"[^>]*>(\\d+)<`).exec(out) ?? [])[1] ?? "";
-  assert.deepEqual([count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")], ["5", "2", "3", "2"]);
+  assert.deepEqual(
+    [count("fld_memory"), count("fld_skills"), count("fld_routines"), count("fld_knowledge")],
+    ["5", "2", "3", "2"],
+  );
 });
 
 test("Files: Vyre's own .index and .vyre are not listed in the agent's folder; the agent's own dot files are (review O5)", () => {
-  const folders = [{ folderId: "f1", parentId: "root", name: "memory" }, { folderId: "f2", parentId: "root", name: ".index" }, { folderId: "f3", parentId: "root", name: ".vyre" }];
-  const files = [{ fileId: "a", folderId: "root", name: "AGENT.md" }, { fileId: "b", folderId: "root", name: ".env" }, { fileId: "c", folderId: "root", name: ".gitignore" }];
-  const out = folderEntries([...folders, { folderId: "f4", parentId: "root", name: ".github" }] as never, files as never, "root");
-  assert.deepEqual(out.folders.map((f) => f.name), [".github", "memory"], "only Vyre's own .index and .vyre stay out");
-  assert.deepEqual(out.files.map((f) => f.name), [".env", ".gitignore", "AGENT.md"], "an agent's own dot files show");
+  const folders = [
+    { folderId: "f1", parentId: "root", name: "memory" },
+    { folderId: "f2", parentId: "root", name: ".index" },
+    { folderId: "f3", parentId: "root", name: ".vyre" },
+  ];
+  const files = [
+    { fileId: "a", folderId: "root", name: "AGENT.md" },
+    { fileId: "b", folderId: "root", name: ".env" },
+    { fileId: "c", folderId: "root", name: ".gitignore" },
+  ];
+  const out = folderEntries(
+    [...folders, { folderId: "f4", parentId: "root", name: ".github" }] as never,
+    files as never,
+    "root",
+  );
+  assert.deepEqual(
+    out.folders.map((f) => f.name),
+    [".github", "memory"],
+    "only Vyre's own .index and .vyre stay out",
+  );
+  assert.deepEqual(
+    out.files.map((f) => f.name),
+    [".env", ".gitignore", "AGENT.md"],
+    "an agent's own dot files show",
+  );
 });
 
 test("Files: an empty folder says so", () => {
   const s = createSample();
   const { d } = deps(s);
-  const out = clean(renderToStaticMarkup(<RightPaneDataProvider value={s.data}><FilesTab deps={d} folderId="fld_inbox" window={ALL} /></RightPaneDataProvider>));
+  const out = clean(
+    renderToStaticMarkup(
+      <RightPaneDataProvider value={s.data}>
+        <FilesTab deps={d} folderId="fld_inbox" window={ALL} />
+      </RightPaneDataProvider>,
+    ),
+  );
   assert.ok(has(out, "Nothing in this folder yet.") && has(out, 'data-testid="files-empty"'));
 });
 
 test("Memory: proposed facts wait on top with Accept and Reject; known facts carry when, learned and source; replaced ones stay out", () => {
   const out = html(createSample(), "memory");
-  inOrder(out, ["Proposed · 3", "Consult invoices go out the same day as the call.", "Thursday mornings are never offered for consults.", "Elena's business partner", "What Intake knows in Northwind", "Elena Rivera was referred by Maya Chen.", "The consult fee is $250", "Consults are 1 hour"]);
-  assert.ok(has(out, "Accept or reject") && has(out, "Rivera intake") && has(out, " · 9:31") && has(out, "#intake"), "proposed facts are cards that say where from and when, in the prototype's words");
-  assert.ok(has(out, "Since 23 Oct · learned 24 Oct · from a chat") && has(out, "Since 2 Oct · learned 2 Oct · from you"));
+  inOrder(out, [
+    "Proposed · 3",
+    "Consult invoices go out the same day as the call.",
+    "Thursday mornings are never offered for consults.",
+    "Elena's business partner",
+    "What Intake knows in Northwind",
+    "Elena Rivera was referred by Maya Chen.",
+    "The consult fee is $250",
+    "Consults are 1 hour",
+  ]);
+  assert.ok(
+    has(out, "Accept or reject") && has(out, "Rivera intake") && has(out, " · 9:31") && has(out, "#intake"),
+    "proposed facts are cards that say where from and when, in the prototype's words",
+  );
+  assert.ok(
+    has(out, "Since 23 Oct · learned 24 Oct · from a chat") && has(out, "Since 2 Oct · learned 2 Oct · from you"),
+  );
   assert.ok(!has(out, "Consults are 30 minutes."), "the replaced fact is not in the default list");
   assert.ok(has(out, 'data-testid="memory-filter"') && !has(out, 'data-testid="memory-showing"'));
 });
@@ -170,13 +369,18 @@ test("Memory: proposed facts wait on top with Accept and Reject; known facts car
 test("Memory filters narrow by source and can include replaced facts", () => {
   const s = createSample();
   const q = (state: Record<string, unknown>): Fact[] => {
-    const snap = s.data.screens.query("chats.agent-memory", "facts", { agentId: "agt_intake", layer: "agent", ...state }).getSnapshot();
+    const snap = s.data.screens
+      .query("chats.agent-memory", "facts", { agentId: "agt_intake", layer: "agent", ...state })
+      .getSnapshot();
     assert.equal(snap.status, "ready");
     return (snap as { data: { facts: Fact[] } }).data.facts;
   };
   assert.equal(q({ status: statusFor(CURRENT) }).length, 3);
   assert.equal(q({ status: statusFor({ fromMe: false, replaced: true }) }).length, 4);
-  assert.deepEqual(q({ status: ["current"], fromMe: true }).map((f) => f.factId), ["f2"]);
+  assert.deepEqual(
+    q({ status: ["current"], fromMe: true }).map((f) => f.factId),
+    ["f2"],
+  );
   assert.equal(q({ status: ["proposed"] }).length, 3);
   assert.equal(showingLine(CURRENT), "");
   assert.equal(showingLine({ fromMe: true, replaced: false }), "Showing facts from you");
@@ -188,11 +392,17 @@ test("Memory filters narrow by source and can include replaced facts", () => {
 test("Routines: on first by next run, paused last; the on count, switches, and the three starters", () => {
   const out = html(createSample(), "routines");
   inOrder(out, ["Morning lead sweep", "Watch #intake for new clients", "Chase missing intake forms", "New routine"]);
-  assert.ok(has(out, ">2 on<") && has(out, "weekdays 8:00 · next Mon Oct 27") && has(out, "on new messages") && has(out, "Paused · Every day at 17:00"));
+  assert.ok(
+    has(out, ">2 on<") &&
+      has(out, "weekdays 8:00 · next Mon Oct 27") &&
+      has(out, "on new messages") &&
+      has(out, "Paused · Every day at 17:00"),
+  );
   assert.ok(has(out, 'data-testid="routine-switch-r3"'), "a switch on every routine");
   assert.ok(has(tagOf(out, "routine-switch-r3"), 'aria-checked="true"'), "Morning lead sweep is on");
   assert.ok(has(tagOf(out, "routine-switch-r5"), 'aria-checked="false"'), "Chase missing intake forms is paused");
-  for (const x of ["Every morning at 8, …", "When someone mentions …", "Every Friday, summarise …"]) assert.ok(has(out, x), x);
+  for (const x of ["Every morning at 8, …", "When someone mentions …", "Every Friday, summarise …"])
+    assert.ok(has(out, x), x);
   assert.ok(has(out, "Routines are made by asking Intake. Pick a start and finish the sentence in the chat."));
 });
 
@@ -237,7 +447,10 @@ test("Accept makes a proposed fact known; Undo rejects it again", async () => {
   assert.ok(html(s, "memory").includes("Proposed · 2"));
   await notes[0]!.undo!();
   assert.equal(factsNow(s).find((f) => f.factId === "p1")!.status, "removed");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["memory.fact.accept", "memory.fact.reject"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["memory.fact.accept", "memory.fact.reject"],
+  );
 });
 
 test("Reject drops a proposed fact; Undo accepts it", async () => {
@@ -260,7 +473,9 @@ test("Correct keeps the old fact marked replaced and adds yours; an empty or unc
   assert.equal(await correct(d, f3, "The consult fee is $300."), true);
   const now = factsNow(s);
   assert.equal(now.find((f) => f.factId === "f3")!.status, "closed");
-  assert.ok(now.some((f) => f.text === "The consult fee is $300." && f.status === "current" && f.sourceKind === "manual"));
+  assert.ok(
+    now.some((f) => f.text === "The consult fee is $300." && f.status === "current" && f.sourceKind === "manual"),
+  );
   const out = html(s, "memory");
   assert.ok(has(out, "The consult fee is $300.") && !has(out, "The consult fee is $250"));
   assert.ok(has(notes[0]!.text, "old fact is kept"));
@@ -317,7 +532,10 @@ test("computer actions: wake, take over, give back, sign out", async () => {
   assert.ok(!html(s, "computer").includes('data-testid="computer-give"'));
   await signOut(d, "cmp_intake", "Calendar");
   assert.ok(!html(s, "computer").includes("Maya Chen's calendar, can book"));
-  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out"]);
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out"],
+  );
   assert.ok(notes.every((n) => !n.text.startsWith("Could not")));
 });
 
@@ -327,12 +545,24 @@ test("a wake the server refuses is said in the pane and the computer shows why i
   wakeFailure.set("cmp_intake", null);
   s.failNext("computers.wake");
   assert.equal(await wake(d, "cmp_intake", "Intake"), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: computers.wake failed"]);
+  assert.deepEqual(
+    notes.map((n) => n.text),
+    ["Could not wake it: computers.wake failed"],
+  );
   const failed = html(s, "computer");
-  assert.ok(failed.includes('data-testid="computer-failed"'), "the panel is the failed state, not the Set up its computer button");
-  assert.ok(/Vyre couldn(?:'|&#x27;)t start [A-Za-z ]+(?:'|&#x27;)s computer\./.test(failed), "no curated sentence: Vyre says it could not start it, the server's words are in Details");
+  assert.ok(
+    failed.includes('data-testid="computer-failed"'),
+    "the panel is the failed state, not the Set up its computer button",
+  );
+  assert.ok(
+    /Vyre couldn(?:'|&#x27;)t start [A-Za-z ]+(?:'|&#x27;)s computer\./.test(failed),
+    "no curated sentence: Vyre says it could not start it, the server's words are in Details",
+  );
   assert.ok(!failed.includes("computers.wake failed"), "the raw server message is not the sentence");
-  assert.ok(failed.includes('data-testid="computer-again"') && failed.includes("Try again"), "a wake that might pass on retry offers Try again");
+  assert.ok(
+    failed.includes('data-testid="computer-again"') && failed.includes("Try again"),
+    "a wake that might pass on retry offers Try again",
+  );
   assert.ok(failed.includes('data-testid="computer-copy-details"'), "Details can be copied");
   assert.ok(!failed.includes('data-testid="computer-provision"'));
   assert.equal(await wake(d, "cmp_intake", "Intake"), true);
@@ -345,17 +575,30 @@ test("a wake the server refuses (provider.unavailable) is said in plain words by
   const s = createSample("asleep");
   const { d, notes } = deps(s);
   const why = "The computer did not start: The container runtime did not answer.";
-  const refuse: PaneDeps = { call: async (cap, input) => { if (cap === "computers.wake") throw Object.assign(new Error(why), { code: "provider.unavailable" }); return d.call(cap, input); }, note: d.note };
+  const refuse: PaneDeps = {
+    call: async (cap, input) => {
+      if (cap === "computers.wake") throw Object.assign(new Error(why), { code: "provider.unavailable" });
+      return d.call(cap, input);
+    },
+    note: d.note,
+  };
   wakeFailure.set("cmp_intake", null);
   assert.equal(await wake(refuse, "cmp_intake", "Intake"), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: The computer did not start: The container runtime did not answer"]);
+  assert.deepEqual(
+    notes.map((n) => n.text),
+    ["Could not wake it: The computer did not start: The container runtime did not answer"],
+  );
   const f = wakeFailure.get("cmp_intake")!;
   assert.equal(f.code, "provider.unavailable");
   const admin = computerWords(f, true, "Dex");
   const member = computerWords(f, false, "Dex");
   assert.equal(admin.sentence, "This server can't start agent computers right now. Check Console > Computers.");
   assert.equal(member.sentence, "This server can't start agent computers right now. Ask your admin.");
-  for (const w of [admin, member]) { assert.equal(w.server, true); assert.equal(w.details, "The container runtime did not answer."); assert.ok(!/runtime|container/i.test(w.sentence)); }
+  for (const w of [admin, member]) {
+    assert.equal(w.server, true);
+    assert.equal(w.details, "The container runtime did not answer.");
+    assert.ok(!/runtime|container/i.test(w.sentence));
+  }
   wakeFailure.set("cmp_intake", null);
 });
 
@@ -367,10 +610,14 @@ test("a refusal with no curated sentence says Vyre could not start the computer,
 });
 
 test("a server with no agent computer image says one plain sentence by role, the rest goes to Details, and the cause is the server", () => {
-  const raw = "The computer could not be created: This server can't start agent computers yet.\nDetails: the agent computer image vyre/computer:1 is not on this server and could not be fetched (offline). Load it with: docker pull vyre/computer:1";
+  const raw =
+    "The computer could not be created: This server can't start agent computers yet.\nDetails: the agent computer image vyre/computer:1 is not on this server and could not be fetched (offline). Load it with: docker pull vyre/computer:1";
   const admin = computerWords({ message: raw }, true);
   const member = computerWords({ message: raw }, false);
-  assert.equal(admin.sentence, "This server can't start agent computers yet. Update this server from Console > Computers.");
+  assert.equal(
+    admin.sentence,
+    "This server can't start agent computers yet. Update this server from Console > Computers.",
+  );
   assert.equal(member.sentence, "This server can't start agent computers yet. Ask your admin to update it.");
   for (const w of [admin, member]) {
     assert.equal(w.server, true);
@@ -384,7 +631,10 @@ test("a failed write is one quiet line, not a thrown error", async () => {
   const { d, notes } = deps(s);
   s.failNext("memory.fact.reject");
   assert.equal(await reject(d, factsNow(s).find((f) => f.factId === "p1")!), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not reject that fact: memory.fact.reject failed"]);
+  assert.deepEqual(
+    notes.map((n) => n.text),
+    ["Could not reject that fact: memory.fact.reject failed"],
+  );
   assert.equal(factsNow(s).find((f) => f.factId === "p1")!.status, "proposed", "nothing changed");
 });
 
@@ -419,59 +669,186 @@ test("time reads in the person's offset: ahead, behind", () => {
   assert.equal(agoLabel(SAMPLE_NOW - 5 * 60_000, c), "5 min ago");
   assert.equal(agoLabel(SAMPLE_NOW - 3 * 3_600_000, c), "3 h ago");
   assert.equal(agoLabel(SAMPLE_NOW - 26 * 3_600_000, c), "Yesterday");
-  assert.equal(nextLabel(SAMPLE_NOW + 15 * 3_600_000, { now: SAMPLE_NOW, offsetMin: 300 }), "Tomorrow 06:00", "300 minutes ahead of UTC moves the day line");
+  assert.equal(
+    nextLabel(SAMPLE_NOW + 15 * 3_600_000, { now: SAMPLE_NOW, offsetMin: 300 }),
+    "Tomorrow 06:00",
+    "300 minutes ahead of UTC moves the day line",
+  );
 });
 
 test("the computer's state decides the screen, the label and the one action", () => {
   const base = { computerId: "c", agentId: "a", tabs: 2, tabLimit: 8, host: "server" as const, recording: false };
-  assert.deepEqual([computerView({ ...base, state: "asleep" }).screen, computerView({ ...base, state: "asleep" }).action], ["asleep", "wake"]);
-  assert.deepEqual([computerView({ ...base, state: "working", caption: "Opening a form" }).label, computerView({ ...base, state: "working" }).action], ["Working: Opening a form", "take"]);
-  assert.deepEqual([computerView({ ...base, state: "takeover" }).label, computerView({ ...base, state: "takeover" }).action], ["You're in control", "give"]);
+  assert.deepEqual(
+    [computerView({ ...base, state: "asleep" }).screen, computerView({ ...base, state: "asleep" }).action],
+    ["asleep", "wake"],
+  );
+  assert.deepEqual(
+    [
+      computerView({ ...base, state: "working", caption: "Opening a form" }).label,
+      computerView({ ...base, state: "working" }).action,
+    ],
+    ["Working: Opening a form", "take"],
+  );
+  assert.deepEqual(
+    [computerView({ ...base, state: "takeover" }).label, computerView({ ...base, state: "takeover" }).action],
+    ["You're in control", "give"],
+  );
   assert.equal(computerView({ ...base, state: "provisioning" }).action, null);
   assert.equal(computerView({ ...base, state: "error" }).action, "wake");
 });
 
 test("threads group by what the agent did; chats and threads of other agents stay out; closed ones are gone", () => {
   const mk = (id: string, kind: "chat" | "thread", agent: string, createdAt: number, closedAt?: number) => ({
-    threadId: id, kind, title: id, listed: true, planMode: false, members: [], agents: [{ agentId: agent, mode: "lead" as const }], createdAt, ...(closedAt ? { closedAt } : {}),
+    threadId: id,
+    kind,
+    title: id,
+    listed: true,
+    planMode: false,
+    members: [],
+    agents: [{ agentId: agent, mode: "lead" as const }],
+    createdAt,
+    ...(closedAt ? { closedAt } : {}),
   });
-  const g = groupThreads("a1", [mk("t1", "thread", "a1", 1), mk("t2", "thread", "a2", 2), mk("t3", "thread", "a1", 3), mk("t4", "thread", "a1", 4, 9)], [
-    { threadId: "h1", title: "x", status: "done", agentId: "a1", startedAt: 5 }, { threadId: "h2", title: "y", status: "running", agentId: "a1", startedAt: 4 }, { threadId: "h3", title: "z", status: "running", agentId: "a2", startedAt: 6 },
-  ], [mk("c1", "chat", "a1", 1), mk("c2", "chat", "a1", 2), mk("c3", "chat", "a2", 3)]);
-  assert.deepEqual(g.worked.map((t) => t.threadId), ["t3", "t1"]);
-  assert.deepEqual(g.helpers.map((h) => h.threadId), ["h2", "h1"], "running first");
-  assert.deepEqual(g.chats.map((t) => t.threadId), ["c2", "c1"]);
+  const g = groupThreads(
+    "a1",
+    [
+      mk("t1", "thread", "a1", 1),
+      mk("t2", "thread", "a2", 2),
+      mk("t3", "thread", "a1", 3),
+      mk("t4", "thread", "a1", 4, 9),
+    ],
+    [
+      { threadId: "h1", title: "x", status: "done", agentId: "a1", startedAt: 5 },
+      { threadId: "h2", title: "y", status: "running", agentId: "a1", startedAt: 4 },
+      { threadId: "h3", title: "z", status: "running", agentId: "a2", startedAt: 6 },
+    ],
+    [mk("c1", "chat", "a1", 1), mk("c2", "chat", "a1", 2), mk("c3", "chat", "a2", 3)],
+  );
+  assert.deepEqual(
+    g.worked.map((t) => t.threadId),
+    ["t3", "t1"],
+  );
+  assert.deepEqual(
+    g.helpers.map((h) => h.threadId),
+    ["h2", "h1"],
+    "running first",
+  );
+  assert.deepEqual(
+    g.chats.map((t) => t.threadId),
+    ["c2", "c1"],
+  );
 });
 
 test("the folder walk: in, back, and paths relative to the agent's folder", () => {
   const root = [{ folderId: "r", name: "Intake" }];
   const deep = enter(enter(root, { folderId: "m", name: "memory" }), { folderId: "n", name: "notes" });
   assert.equal(filePath(deep.slice(1), "a.md"), "memory/notes/a.md");
-  assert.deepEqual(backTo(deep, "m").map((c) => c.folderId), ["r", "m"]);
-  assert.deepEqual(backTo(deep, "zzz").map((c) => c.folderId), ["r"]);
+  assert.deepEqual(
+    backTo(deep, "m").map((c) => c.folderId),
+    ["r", "m"],
+  );
+  assert.deepEqual(
+    backTo(deep, "zzz").map((c) => c.folderId),
+    ["r"],
+  );
   assert.equal(formatSize(512), "512 B");
   assert.equal(formatSize(2048), "2 KB");
   assert.equal(formatSize(5 * 1024 * 1024), "5.0 MB");
   const f = folderEntries(
-    [{ folderId: "b", parentId: "r", name: "b", path: "b", fileCount: 0, folderCount: 0, scope: "space", label: 0, git: false, reviewChanges: false }, { folderId: "a", parentId: "r", name: "a", path: "a", fileCount: 0, folderCount: 0, scope: "space", label: 0, git: false, reviewChanges: false }, { folderId: "z", parentId: "other", name: "z", path: "z", fileCount: 0, folderCount: 0, scope: "space", label: 0, git: false, reviewChanges: false }],
-    [], "r",
+    [
+      {
+        folderId: "b",
+        parentId: "r",
+        name: "b",
+        path: "b",
+        fileCount: 0,
+        folderCount: 0,
+        scope: "space",
+        label: 0,
+        git: false,
+        reviewChanges: false,
+      },
+      {
+        folderId: "a",
+        parentId: "r",
+        name: "a",
+        path: "a",
+        fileCount: 0,
+        folderCount: 0,
+        scope: "space",
+        label: 0,
+        git: false,
+        reviewChanges: false,
+      },
+      {
+        folderId: "z",
+        parentId: "other",
+        name: "z",
+        path: "z",
+        fileCount: 0,
+        folderCount: 0,
+        scope: "space",
+        label: 0,
+        git: false,
+        reviewChanges: false,
+      },
+    ],
+    [],
+    "r",
   );
-  assert.deepEqual(f.folders.map((x) => x.name), ["a", "b"]);
+  assert.deepEqual(
+    f.folders.map((x) => x.name),
+    ["a", "b"],
+  );
 });
 
 test("facts split into proposed and known, newest first; replaced ones sort after current", () => {
-  const mk = (id: string, status: Fact["status"], learnedAt: number): Fact => ({ factId: id, layer: "agent", ownerRef: "a", text: id, validFrom: 1, learnedAt, sourceKind: "chat", sourceRef: "c", status });
-  const r = splitFacts([mk("a", "current", 1), mk("b", "proposed", 2), mk("c", "closed", 9), mk("d", "current", 3), mk("e", "removed", 4)]);
-  assert.deepEqual(r.proposed.map((f) => f.factId), ["b"]);
-  assert.deepEqual(r.known.map((f) => f.factId), ["d", "a", "c"]);
+  const mk = (id: string, status: Fact["status"], learnedAt: number): Fact => ({
+    factId: id,
+    layer: "agent",
+    ownerRef: "a",
+    text: id,
+    validFrom: 1,
+    learnedAt,
+    sourceKind: "chat",
+    sourceRef: "c",
+    status,
+  });
+  const r = splitFacts([
+    mk("a", "current", 1),
+    mk("b", "proposed", 2),
+    mk("c", "closed", 9),
+    mk("d", "current", 3),
+    mk("e", "removed", 4),
+  ]);
+  assert.deepEqual(
+    r.proposed.map((f) => f.factId),
+    ["b"],
+  );
+  assert.deepEqual(
+    r.known.map((f) => f.factId),
+    ["d", "a", "c"],
+  );
   const c = { now: SAMPLE_NOW, offsetMin: 0 };
   assert.ok(factNote({ ...mk("x", "closed", SAMPLE_NOW), closedAt: SAMPLE_NOW }, c).startsWith("Replaced 24 Oct"));
 });
 
 test("sorting routines and describing one", () => {
   const c = { now: SAMPLE_NOW, offsetMin: 0 };
-  const mk = (id: string, enabled: boolean, next?: number): Routine => ({ routineId: id, agentId: "a", title: id, cron: "0 8 * * *", prompt: "p", enabled, ownerId: "u", ...(next ? { nextRunAt: next } : {}) });
-  assert.deepEqual(sortRoutines([mk("p", false), mk("b", true, 20), mk("a", true, 10), mk("n", true)]).map((r) => r.routineId), ["a", "b", "n", "p"]);
+  const mk = (id: string, enabled: boolean, next?: number): Routine => ({
+    routineId: id,
+    agentId: "a",
+    title: id,
+    cron: "0 8 * * *",
+    prompt: "p",
+    enabled,
+    ownerId: "u",
+    ...(next ? { nextRunAt: next } : {}),
+  });
+  assert.deepEqual(
+    sortRoutines([mk("p", false), mk("b", true, 20), mk("a", true, 10), mk("n", true)]).map((r) => r.routineId),
+    ["a", "b", "n", "p"],
+  );
   assert.equal(routineNote(mk("z", true), c), "every day 8:00");
   assert.equal(routineNote(mk("z", false), c), "Paused · Every day at 08:00");
 });
@@ -485,13 +862,23 @@ test("variants exist for the screenshots", () => {
 
 test("MAP.md comes from memory.map.get: key rows, its line count against the limit", async () => {
   const s = createSample();
-  const out = (await s.data.call("memory.map.get", { agentId: "agt_intake" })) as { map?: { body: string; lines: number } };
+  const out = (await s.data.call("memory.map.get", { agentId: "agt_intake" })) as {
+    map?: { body: string; lines: number };
+  };
   assert.ok(out.map);
   const map = parseMap(out.map.body, out.map.lines);
-  assert.deepEqual(map.rows.map((r) => r.key), ["elena-rivera", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"]);
+  assert.deepEqual(
+    map.rows.map((r) => r.key),
+    ["elena-rivera", "consult-rules", "maya-calendar", "intake-form-site", "weekly-lead-report"],
+  );
   assert.equal(map.lines, 5);
   assert.equal(MAP_LIMIT, 200);
-  assert.equal(parseMap("# t\n\nplain\n- `a-b`: text here\n* `c` \u2013 more").rows.map((r) => `${r.key}|${r.text}`).join(","), "a-b|text here,c|more");
+  assert.equal(
+    parseMap("# t\n\nplain\n- `a-b`: text here\n* `c` \u2013 more")
+      .rows.map((r) => `${r.key}|${r.text}`)
+      .join(","),
+    "a-b|text here,c|more",
+  );
   assert.equal(parseMap("- `a` b", 42).lines, 42, "the capability's own count wins");
 });
 
@@ -508,8 +895,25 @@ test("routine rows read like the prototype: short schedule, next day, watchers o
   assert.equal(shortSchedule("0 17 * * *"), "every day 17:00");
   assert.equal(shortSchedule("*/5 * * * *"), "every 5 minutes", "plain words, never the raw cron");
   assert.equal(nextDay(Date.UTC(2025, 9, 27, 8), c), "Mon Oct 27");
-  const r = (cron: string, enabled = true): Routine => ({ routineId: "x", agentId: "a", title: "t", cron, prompt: "p", enabled, ownerId: "u" });
-  const w = (enabled = true): Routine => ({ routineId: "w", agentId: "a", title: "t", prompt: "p", enabled, ownerId: "u", kind: "watch", watch: { on: "message", channelId: "intake" } });
+  const r = (cron: string, enabled = true): Routine => ({
+    routineId: "x",
+    agentId: "a",
+    title: "t",
+    cron,
+    prompt: "p",
+    enabled,
+    ownerId: "u",
+  });
+  const w = (enabled = true): Routine => ({
+    routineId: "w",
+    agentId: "a",
+    title: "t",
+    prompt: "p",
+    enabled,
+    ownerId: "u",
+    kind: "watch",
+    watch: { on: "message", channelId: "intake" },
+  });
   assert.ok(isWatcher(w()) && !isWatcher(r("0 8 * * *")));
   assert.equal(routineNote(w(), c), "on new messages");
   assert.equal(routineNote(w(false), c), "Paused · on new messages");
@@ -534,17 +938,49 @@ test("chats and learned times are clock times today, weekdays this week", () => 
 test("a thread it worked in says how many replies and when the last came", () => {
   const c = { now: SAMPLE_NOW, offsetMin: 0 };
   const s = createSample();
-  const th = (s.replica.rows("threads") as unknown as { threadId: string; replyCount?: number; lastMessageAt?: number; createdAt: number }[]).find((x) => x.threadId === "th_a")!;
+  const th = (
+    s.replica.rows("threads") as unknown as {
+      threadId: string;
+      replyCount?: number;
+      lastMessageAt?: number;
+      createdAt: number;
+    }[]
+  ).find((x) => x.threadId === "th_a")!;
   assert.equal(workedNote(th as never, c), "5 replies · last 9:34");
   assert.equal(workedNote({ ...th, replyCount: 1 } as never, c), "1 reply · last 9:34");
-  assert.equal(workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c), "Started 32 min ago");
+  assert.equal(
+    workedNote({ ...th, replyCount: undefined, lastMessageAt: undefined } as never, c),
+    "Started 32 min ago",
+  );
   assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
 });
 
 test("with a terminal in the shell the pane has a sixth tab after Files, and without one it has five", () => {
   const s = createSample();
-  const withTerminal = { ...s.data, terminal: { screens: s.data.screens, call: async () => ({ terminals: [] }), connection: s.data.connection, space: { id: "spc_1", name: "Northwind" }, newKey: () => "k", clock: s.data.clock, nav: { openTerminal() {}, closeTab() {}, openList() {}, openRules() {}, openAgent() {} } } } as never;
-  const out = clean(renderToStaticMarkup(<ChatRightPane data={withTerminal} open={true} onToggle={() => undefined} tab="computer" window={ALL} paneWidth={760} />));
+  const withTerminal = {
+    ...s.data,
+    terminal: {
+      screens: s.data.screens,
+      call: async () => ({ terminals: [] }),
+      connection: s.data.connection,
+      space: { id: "spc_1", name: "Northwind" },
+      newKey: () => "k",
+      clock: s.data.clock,
+      nav: { openTerminal() {}, closeTab() {}, openList() {}, openRules() {}, openAgent() {} },
+    },
+  } as never;
+  const out = clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={withTerminal}
+        open={true}
+        onToggle={() => undefined}
+        tab="computer"
+        window={ALL}
+        paneWidth={760}
+      />,
+    ),
+  );
   inOrder(out, [">Computer<", ">Chats<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
   assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
 });
@@ -577,23 +1013,55 @@ test("giving back from the pane tells the agent in the chat to carry on, once, a
 test("Computer tab of an agent with no old desktop: one plain pane, nothing to set up, whatever the host and the role", () => {
   const s = createSample();
   for (const personal of [false, true]) {
-    const data = { ...s.data, agent: { agentId: "agt_intake", name: "Dex" }, ...(personal ? { space: { ...s.data.space, computers: false } } : {}) };
-    const out = clean(renderToStaticMarkup(<RightPaneDataProvider value={data}><ComputerTab deps={{ call: data.call, note: () => undefined }} /></RightPaneDataProvider>));
-    assert.ok(has(out, 'data-testid="computer-none"') && has(out, "They appear here once this Space can run them") && has(out, "Docker on the computer this Space runs on") && !has(out, "desktop"), "it says what would give this Space a terminal and a browser, and never mentions a desktop");
-    assert.ok(!has(out, "computer-provision") && !has(out, "Set up its computer") && !has(out, "own computer") && !has(out, "Give Dex"), "and offers nothing to make");
+    const data = {
+      ...s.data,
+      agent: { agentId: "agt_intake", name: "Dex" },
+      ...(personal ? { space: { ...s.data.space, computers: false } } : {}),
+    };
+    const out = clean(
+      renderToStaticMarkup(
+        <RightPaneDataProvider value={data}>
+          <ComputerTab deps={{ call: data.call, note: () => undefined }} />
+        </RightPaneDataProvider>,
+      ),
+    );
+    assert.ok(
+      has(out, 'data-testid="computer-none"') &&
+        has(out, "They appear here once this Space can run them") &&
+        has(out, "Docker on the computer this Space runs on") &&
+        !has(out, "desktop"),
+      "it says what would give this Space a terminal and a browser, and never mentions a desktop",
+    );
+    assert.ok(
+      !has(out, "computer-provision") &&
+        !has(out, "Set up its computer") &&
+        !has(out, "own computer") &&
+        !has(out, "Give Dex"),
+      "and offers nothing to make",
+    );
   }
   // without the Console link (a member), the words do not send them there (review F4)
   const member = clean(renderToStaticMarkup(<ComputerNone name="Dex" />));
   assert.ok(!has(member, "Console") && has(member, "which an owner or admin adds"), member);
-  assert.ok(has(clean(renderToStaticMarkup(<ComputerNone name="Dex" onOpenConsole={() => undefined} />)), "added in Console"));
+  assert.ok(
+    has(clean(renderToStaticMarkup(<ComputerNone name="Dex" onOpenConsole={() => undefined} />)), "added in Console"),
+  );
 });
 
 test("a failed write says why in the app's own words", async () => {
   const s = createSample("asleep");
   const { d, notes } = deps(s);
-  const reasoned: PaneDeps = { ...d, call: async () => { throw new Error("This server's container runner is not running. Start it: docker compose up -d sites-runner."); } };
+  const reasoned: PaneDeps = {
+    ...d,
+    call: async () => {
+      throw new Error("This server's container runner is not running. Start it: docker compose up -d sites-runner.");
+    },
+  };
   assert.equal(await wake(reasoned, "cmp_intake", "Dex"), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: This server's container runner is not running. Start it: docker compose up -d sites-runner"]);
+  assert.deepEqual(
+    notes.map((n) => n.text),
+    ["Could not wake it: This server's container runner is not running. Start it: docker compose up -d sites-runner"],
+  );
   assert.equal(reasonOf(new Error("Not allowed.")), "Not allowed");
   assert.equal(reasonOf("not an error"), "");
   wakeFailure.set("cmp_intake", null);

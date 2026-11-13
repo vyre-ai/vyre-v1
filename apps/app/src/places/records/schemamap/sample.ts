@@ -11,30 +11,128 @@ import type { MapEdge, MapNode, TypeDetail, TypeRow } from "./model.ts";
 type F = TypeDetail["fields"][number];
 const f = (key: string, type: string, title: string, o: Partial<F> = {}): F => ({ key, type, title, ...o });
 
-const detail = (key: string, title: string, plural: string, titleField: string, fields: F[], o: Partial<TypeDetail> = {}): TypeDetail => ({
-  key, title, plural, icon: key, label: "internal", system: false, titleField, fields, version: 1, ...o,
+const detail = (
+  key: string,
+  title: string,
+  plural: string,
+  titleField: string,
+  fields: F[],
+  o: Partial<TypeDetail> = {},
+): TypeDetail => ({
+  key,
+  title,
+  plural,
+  icon: key,
+  label: "internal",
+  system: false,
+  titleField,
+  fields,
+  version: 1,
+  ...o,
 });
 
 export const northwindTypes: TypeDetail[] = [
-  detail("clients", "Client", "Clients", "name", [
-    f("name", "text", "Name"), f("email", "email", "Email"), f("phone", "phone", "Phone"), f("stage", "status", "Stage"), f("owner", "person", "Owner"),
-    f("projects", "relation", "Projects"), f("invoices", "relation", "Invoices"), f("meetings", "relation", "Meetings"), f("balance", "rollup", "Balance"), f("since", "datetime", "Client since"),
-  ], { system: true }),
-  detail("projects", "Project", "Projects", "name", [
-    f("name", "text", "Name"), f("status", "status", "Status"), f("lead", "person", "Lead"), f("due", "datetime", "Due"), f("client", "relation", "Client"),
-    f("tasks", "relation", "Tasks"), f("invoices", "relation", "Invoices"), f("budget", "money", "Budget"), f("brief", "longtext", "Brief"),
-  ], { system: true, template: "project", workspace: true }),
-  detail("tasks", "Task", "Tasks", "title", [
-    f("title", "text", "Title"), f("state", "status", "State"), f("assigned", "person", "Assigned"), f("due", "datetime", "Due"), f("project", "relation", "Project"), f("done", "checkbox", "Done"),
-  ], { system: true }),
-  detail("invoices", "Invoice", "Invoices", "number", [
-    f("number", "autonumber", "Number"), f("amount", "money", "Amount"), f("due", "datetime", "Due"), f("status", "choice", "Status"), f("client", "relation", "Client"), f("project", "relation", "Project"), f("pdf", "files", "PDF"),
-  ], { system: true }),
-  detail("meetings", "Meeting", "Meetings", "title", [
-    f("title", "text", "Title"), f("when", "datetime", "When"), f("who", "person", "Who"), f("client", "relation", "Client"), f("notes", "longtext", "Notes"),
-  ], { system: true }),
-  detail("hires", "Hire", "Hires", "name", [f("name", "text", "Name"), f("role", "choice", "Role"), f("start", "datetime", "Start date"), f("offer", "files", "Offer letter")]),
-  detail("messages", "Message", "Messages", "subject", [f("subject", "text", "Subject"), f("from", "person", "From"), f("sent", "datetime", "Sent"), f("client", "relation", "Client")], { system: true }),
+  detail(
+    "clients",
+    "Client",
+    "Clients",
+    "name",
+    [
+      f("name", "text", "Name"),
+      f("email", "email", "Email"),
+      f("phone", "phone", "Phone"),
+      f("stage", "status", "Stage"),
+      f("owner", "person", "Owner"),
+      f("projects", "relation", "Projects"),
+      f("invoices", "relation", "Invoices"),
+      f("meetings", "relation", "Meetings"),
+      f("balance", "rollup", "Balance"),
+      f("since", "datetime", "Client since"),
+    ],
+    { system: true },
+  ),
+  detail(
+    "projects",
+    "Project",
+    "Projects",
+    "name",
+    [
+      f("name", "text", "Name"),
+      f("status", "status", "Status"),
+      f("lead", "person", "Lead"),
+      f("due", "datetime", "Due"),
+      f("client", "relation", "Client"),
+      f("tasks", "relation", "Tasks"),
+      f("invoices", "relation", "Invoices"),
+      f("budget", "money", "Budget"),
+      f("brief", "longtext", "Brief"),
+    ],
+    { system: true, template: "project", workspace: true },
+  ),
+  detail(
+    "tasks",
+    "Task",
+    "Tasks",
+    "title",
+    [
+      f("title", "text", "Title"),
+      f("state", "status", "State"),
+      f("assigned", "person", "Assigned"),
+      f("due", "datetime", "Due"),
+      f("project", "relation", "Project"),
+      f("done", "checkbox", "Done"),
+    ],
+    { system: true },
+  ),
+  detail(
+    "invoices",
+    "Invoice",
+    "Invoices",
+    "number",
+    [
+      f("number", "autonumber", "Number"),
+      f("amount", "money", "Amount"),
+      f("due", "datetime", "Due"),
+      f("status", "choice", "Status"),
+      f("client", "relation", "Client"),
+      f("project", "relation", "Project"),
+      f("pdf", "files", "PDF"),
+    ],
+    { system: true },
+  ),
+  detail(
+    "meetings",
+    "Meeting",
+    "Meetings",
+    "title",
+    [
+      f("title", "text", "Title"),
+      f("when", "datetime", "When"),
+      f("who", "person", "Who"),
+      f("client", "relation", "Client"),
+      f("notes", "longtext", "Notes"),
+    ],
+    { system: true },
+  ),
+  detail("hires", "Hire", "Hires", "name", [
+    f("name", "text", "Name"),
+    f("role", "choice", "Role"),
+    f("start", "datetime", "Start date"),
+    f("offer", "files", "Offer letter"),
+  ]),
+  detail(
+    "messages",
+    "Message",
+    "Messages",
+    "subject",
+    [
+      f("subject", "text", "Subject"),
+      f("from", "person", "From"),
+      f("sent", "datetime", "Sent"),
+      f("client", "relation", "Client"),
+    ],
+    { system: true },
+  ),
 ];
 
 export const northwindEdges: MapEdge[] = [
@@ -62,17 +160,54 @@ export const northwind: SchemaSpace = {
 
 export const harbor: SchemaSpace = {
   types: [
-    detail("clients", "Client", "Clients", "name", [f("name", "text", "Name"), f("email", "email", "Email"), f("projects", "relation", "Projects")], { system: true }),
-    detail("projects", "Project", "Projects", "name", [f("name", "text", "Name"), f("status", "status", "Status"), f("client", "relation", "Client"), f("due", "datetime", "Due")], { system: true, template: "project" }),
-    detail("invoices", "Invoice", "Invoices", "number", [f("number", "autonumber", "Number"), f("amount", "money", "Amount"), f("client", "relation", "Client")], { system: true }),
+    detail(
+      "clients",
+      "Client",
+      "Clients",
+      "name",
+      [f("name", "text", "Name"), f("email", "email", "Email"), f("projects", "relation", "Projects")],
+      { system: true },
+    ),
+    detail(
+      "projects",
+      "Project",
+      "Projects",
+      "name",
+      [
+        f("name", "text", "Name"),
+        f("status", "status", "Status"),
+        f("client", "relation", "Client"),
+        f("due", "datetime", "Due"),
+      ],
+      { system: true, template: "project" },
+    ),
+    detail(
+      "invoices",
+      "Invoice",
+      "Invoices",
+      "number",
+      [f("number", "autonumber", "Number"), f("amount", "money", "Amount"), f("client", "relation", "Client")],
+      { system: true },
+    ),
   ],
-  edges: [{ from: "clients", to: "projects", field: "projects", inverse: "client" }, { from: "clients", to: "invoices", field: "invoices" }],
+  edges: [
+    { from: "clients", to: "projects", field: "projects", inverse: "client" },
+    { from: "clients", to: "invoices", field: "invoices" },
+  ],
   rows: { clients: 19, projects: 7, invoices: 33 },
 };
 
 const listRow = (d: TypeDetail, space: SchemaSpace): TypeRow => ({
-  key: d.key, title: d.title, plural: d.plural, icon: d.icon, label: d.label, system: d.system, rowCount: space.rows[d.key] ?? 0, fieldCount: d.fields.length,
-  ...(space.synced?.[d.key] ? { syncedFrom: space.synced[d.key] as string } : {}), ...(space.group?.[d.key] ? { group: space.group[d.key] as string } : {}),
+  key: d.key,
+  title: d.title,
+  plural: d.plural,
+  icon: d.icon,
+  label: d.label,
+  system: d.system,
+  rowCount: space.rows[d.key] ?? 0,
+  fieldCount: d.fields.length,
+  ...(space.synced?.[d.key] ? { syncedFrom: space.synced[d.key] as string } : {}),
+  ...(space.group?.[d.key] ? { group: space.group[d.key] as string } : {}),
 });
 
 export interface SampleSchema {
@@ -97,14 +232,34 @@ export function createSampleSchema(space0: SchemaSpace = northwind, o: { withSyn
   // the list's sample also has a type synced from GitHub, a Journey and a site table, so every source label shows
   if (o.withSynced) {
     const more: [TypeDetail, number][] = [
-      [detail("issues", "Issue", "Issues", "title", [f("title", "text", "Title"), f("state", "status", "State"), f("author", "person", "Author")]), 126],
-      [detail("onboarding", "Onboarding", "Onboardings", "name", [f("name", "text", "Name"), f("step", "choice", "Step"), f("client", "relation", "Client")]), 9],
+      [
+        detail("issues", "Issue", "Issues", "title", [
+          f("title", "text", "Title"),
+          f("state", "status", "State"),
+          f("author", "person", "Author"),
+        ]),
+        126,
+      ],
+      [
+        detail("onboarding", "Onboarding", "Onboardings", "name", [
+          f("name", "text", "Name"),
+          f("step", "choice", "Step"),
+          f("client", "relation", "Client"),
+        ]),
+        9,
+      ],
       [detail("pages", "Page", "Pages", "title", [f("title", "text", "Title"), f("slug", "text", "Slug")]), 14],
     ];
-    for (const [d, n] of more) { space = { ...space, types: [...space.types, d], rows: { ...space.rows, [d.key]: n } }; }
+    for (const [d, n] of more) {
+      space = { ...space, types: [...space.types, d], rows: { ...space.rows, [d.key]: n } };
+    }
   }
   const sp: SchemaSpace = o.withSynced
-    ? { ...space, synced: { ...space.synced, hires: "hubspot", issues: "github" }, group: { ...space.group, onboarding: "Journeys", pages: "Sites" } }
+    ? {
+        ...space,
+        synced: { ...space.synced, hires: "hubspot", issues: "github" },
+        group: { ...space.group, onboarding: "Journeys", pages: "Sites" },
+      }
     : space;
   for (const d of space.types) types.set(d.key, d);
   let edges = [...space.edges];
@@ -114,7 +269,10 @@ export function createSampleSchema(space0: SchemaSpace = northwind, o: { withSyn
     const nodes: MapNode[] = [];
     for (const d of types.values()) nodes.push({ type: d.key, title: d.plural, rowCount: rows[d.key] ?? 0 });
     replica.put("map", [{ id: "map", nodes, edges } as Row]);
-    replica.put("types", [...types.values()].map((d) => ({ id: d.key, ...listRow(d, sp) }) as Row));
+    replica.put(
+      "types",
+      [...types.values()].map((d) => ({ id: d.key, ...listRow(d, sp) }) as Row),
+    );
   };
   publish();
   replica.resolve("schema.map", () => {
@@ -135,11 +293,24 @@ export function createSampleSchema(space0: SchemaSpace = northwind, o: { withSyn
       if (!d) throw new Error("not_found");
       return { type: d };
     },
-    nav: { openType: (k) => void went.push(`type:${k}`), openConsole: (k) => void went.push(k ? `console:${k}` : "console") },
+    nav: {
+      openType: (k) => void went.push(`type:${k}`),
+      openConsole: (k) => void went.push(k ? `console:${k}` : "console"),
+    },
     copy: (t) => void copied.push(t),
   };
   return {
-    data, replica, calls, went, copied, details: types,
-    addType(d, n, extra = []) { types.set(d.key, d); rows[d.key] = n; edges = [...edges, ...extra]; publish(); },
+    data,
+    replica,
+    calls,
+    went,
+    copied,
+    details: types,
+    addType(d, n, extra = []) {
+      types.set(d.key, d);
+      rows[d.key] = n;
+      edges = [...edges, ...extra];
+      publish();
+    },
   };
 }

@@ -4,12 +4,18 @@
 
 import type { AvatarKind, AvatarProps } from "./props.ts";
 
-interface State { id: string; look: string; name: string }
+interface State {
+  id: string;
+  look: string;
+  name: string;
+}
 let state: State = { id: "", look: "", name: "" };
 const listeners = new Set<() => void>();
 const KEY = "vyre.assistant.look";
 
-function emit(): void { for (const l of [...listeners]) l(); }
+function emit(): void {
+  for (const l of [...listeners]) l();
+}
 
 const quote = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -24,14 +30,19 @@ export function assistantName(name: string, person: string): string {
 }
 
 /** The name to show for any agent: the assistant's by the rule above, everyone else's as it is. For a list read straight from the server. */
-export const agentName = (id: string, name: string): string => (id === state.id && state.name !== "" ? state.name : name);
+export const agentName = (id: string, name: string): string =>
+  id === state.id && state.name !== "" ? state.name : name;
 
 /** The open Space's assistant. Called by the shell as it opens a Space; renaming it ("Irfad's Assistant") changes nothing about its face. */
 export function setAssistantId(id: string, name = ""): void {
   state = state.name === name ? state : { ...state, name };
   if (state.id === id) return;
   let look = "";
-  try { look = globalThis.localStorage?.getItem(`${KEY}:${id}`) ?? ""; } catch { /* no storage: the default mark */ }
+  try {
+    look = globalThis.localStorage?.getItem(`${KEY}:${id}`) ?? "";
+  } catch {
+    /* no storage: the default mark */
+  }
   state = { id, look, name };
   emit();
 }
@@ -41,7 +52,14 @@ export function setAssistantLook(look: string | null): void {
   const next = look ?? "";
   if (state.look === next) return;
   state = { ...state, look: next };
-  try { if (state.id) { if (next) globalThis.localStorage?.setItem(`${KEY}:${state.id}`, next); else globalThis.localStorage?.removeItem(`${KEY}:${state.id}`); } } catch { /* not saved */ }
+  try {
+    if (state.id) {
+      if (next) globalThis.localStorage?.setItem(`${KEY}:${state.id}`, next);
+      else globalThis.localStorage?.removeItem(`${KEY}:${state.id}`);
+    }
+  } catch {
+    /* not saved */
+  }
   emit();
 }
 
@@ -56,7 +74,8 @@ export const takenFaces = (): readonly string[] => taken;
 export function setAgentFaces(agents: readonly { id: string; face?: string | undefined }[]): void {
   taken = agents.map((a) => a.face ?? "").filter((f) => f !== "");
   const next = new Map<string, string>();
-  for (const a of agents) if (a.face?.startsWith(PICKED) === true || a.face?.startsWith("av1:") === true) next.set(a.id, a.face);
+  for (const a of agents)
+    if (a.face?.startsWith(PICKED) === true || a.face?.startsWith("av1:") === true) next.set(a.id, a.face);
   if (next.size === picked.size && [...next].every(([id, f]) => picked.get(id) === f)) return;
   picked = next;
   emit();
@@ -65,9 +84,17 @@ export function setAgentFaces(agents: readonly { id: string; face?: string | und
 /** Test seam for the screenshot app only: draws library faces (and their states) for sample agents that have none stored. Never set by the app. */
 let shotFace: ((id: string) => string) | null = null;
 let shotLook: ((id: string) => Look | "") | null = null;
-export function setShotFaces(face: ((id: string) => string) | null, look: ((id: string) => Look | "") | null = null): void { shotFace = face; shotLook = look; emit(); }
+export function setShotFaces(
+  face: ((id: string) => string) | null,
+  look: ((id: string) => Look | "") | null = null,
+): void {
+  shotFace = face;
+  shotLook = look;
+  emit();
+}
 
-export const pickedFace = (id: string | undefined): string => (id === undefined ? "" : picked.get(id) ?? shotFace?.(id) ?? "");
+export const pickedFace = (id: string | undefined): string =>
+  id === undefined ? "" : (picked.get(id) ?? shotFace?.(id) ?? "");
 
 /**
  * How each agent is doing, so every face of it looks the part in every place at once: focused while it works, asleep while it sleeps, smiling for a minute and a half after it finished. Fed from agents.list by the shell.
@@ -82,9 +109,17 @@ const working = new Set<string>();
 export function setAgentStatuses(rows: readonly { id: string; status: string }[], now: number = Date.now()): void {
   const next = new Map<string, Look>();
   for (const r of rows) {
-    if (r.status === "working") { next.set(r.id, "working"); working.add(r.id); continue; }
+    if (r.status === "working") {
+      next.set(r.id, "working");
+      working.add(r.id);
+      continue;
+    }
     // it was working and now is not: it just finished
-    if (working.delete(r.id)) { doneUntil.set(r.id, now + DONE_MS); const t = setTimeout(emit, DONE_MS + 50) as unknown as { unref?: () => void }; t.unref?.(); }   // a timer that only repaints a glow must not keep a process alive for 90 s
+    if (working.delete(r.id)) {
+      doneUntil.set(r.id, now + DONE_MS);
+      const t = setTimeout(emit, DONE_MS + 50) as unknown as { unref?: () => void };
+      t.unref?.();
+    } // a timer that only repaints a glow must not keep a process alive for 90 s
     if (r.status === "asleep" || r.status === "paused") next.set(r.id, "asleep");
     else if ((doneUntil.get(r.id) ?? 0) > now) next.set(r.id, "done");
   }
@@ -109,20 +144,39 @@ export function setStandIns(next: ReadonlyMap<string, string>): void {
   emit();
 }
 /** The person whose face this id wears, or "" when it wears its own. */
-export const standInOf = (id: string | undefined): string => (id === undefined ? "" : standIns.get(id) ?? "");
+export const standInOf = (id: string | undefined): string => (id === undefined ? "" : (standIns.get(id) ?? ""));
 export const assistantId = (): string => state.id;
 export const assistantLook = (): string => state.look;
-export function subscribeAssistant(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
+export function subscribeAssistant(l: () => void): () => void {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
 /** Test seam: forget the assistant and its look. */
-export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); standIns = new Map(); looks = new Map(); doneUntil.clear(); working.clear(); emit(); }
+export function resetAssistant(): void {
+  state = { id: "", look: "", name: "" };
+  picked = new Map();
+  standIns = new Map();
+  looks = new Map();
+  doneUntil.clear();
+  working.clear();
+  emit();
+}
 
 export const isAssistantId = (id: string | undefined): boolean => id !== undefined && id !== "" && id === state.id;
 
 /** Anything that has a face: a person, an agent (the assistant is one) or another kind of thing. */
-export interface AvatarEntity { id?: string | undefined; name: string; kind?: AvatarKind | "assistant"; photo?: string | undefined }
+export interface AvatarEntity {
+  id?: string | undefined;
+  name: string;
+  kind?: AvatarKind | "assistant";
+  photo?: string | undefined;
+}
 
 /** The props for <Avatar>: the assistant (by id or kind) gets kind "assistant" (the Vyre mark, or its chosen look); an agent is seeded by its id; a person by their id with their photo. */
 export function avatarOf(e: AvatarEntity): Pick<AvatarProps, "name" | "seedId" | "kind" | "photo"> {
-  const kind: AvatarKind = e.kind === "assistant" || (e.kind === "agent" && isAssistantId(e.id)) ? "assistant" : e.kind ?? "person";
+  const kind: AvatarKind =
+    e.kind === "assistant" || (e.kind === "agent" && isAssistantId(e.id)) ? "assistant" : (e.kind ?? "person");
   return { name: e.name, seedId: e.id, kind, ...(e.photo !== undefined ? { photo: e.photo } : {}) };
 }

@@ -6,13 +6,20 @@ import { bad, first, str, text } from "../projections.ts";
 import type { MsCtx } from "../projections.ts";
 import { receiveNotification } from "./subscriptions.ts";
 
-export interface HookIn { headers: Readonly<Record<string, string | undefined>>; body: string; url: string; kind?: string }
+export interface HookIn {
+  headers: Readonly<Record<string, string | undefined>>;
+  body: string;
+  url: string;
+  kind?: string;
+}
 
 const MAX_NOTICES = 100;
-const sha256 = async (s: string): Promise<Uint8Array> => new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
+const sha256 = async (s: string): Promise<Uint8Array> =>
+  new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
 /** Equal client states without a timing signal: both are hashed to the same length and compared in full. */
 export async function sameState(a: string, b: string): Promise<boolean> {
-  const x = await sha256(a), y = await sha256(b);
+  const x = await sha256(a),
+    y = await sha256(b);
   let diff = 0;
   for (let i = 0; i < x.length; i++) diff |= x[i]! ^ y[i]!;
   return diff === 0;
@@ -24,7 +31,11 @@ function refuse(ctx: MsCtx): never {
 
 export async function acceptHook(ctx: MsCtx, h: HookIn): Promise<{ accepted: boolean; validationToken?: string }> {
   let handshake: string | null = null;
-  try { handshake = new URL(h.url).searchParams.get("validationToken"); } catch { /* no query */ }
+  try {
+    handshake = new URL(h.url).searchParams.get("validationToken");
+  } catch {
+    /* no query */
+  }
   if (handshake !== null) {
     // Graph only sends this when it creates a subscription. The answer is the token, as text; a printable token of sane length is all that is echoed.
     if (!/^[\x20-\x7e]{1,2048}$/.test(handshake)) bad(ctx, "That validation token is not valid.");
@@ -34,24 +45,54 @@ export async function acceptHook(ctx: MsCtx, h: HookIn): Promise<{ accepted: boo
   try {
     const v = (JSON.parse(h.body) as { value?: unknown }).value;
     if (Array.isArray(v)) notices = v;
-  } catch { /* refused below */ }
+  } catch {
+    /* refused below */
+  }
   if (notices.length === 0 || notices.length > MAX_NOTICES) bad(ctx, "That is not a Graph notification.");
   // Check every notice before recording any: one that is not ours fails the whole request, so a forged one cannot ride in with real ones.
-  const checked: { notificationId: string; subscriptionId: string; resource: string; changeType: "created" | "updated" | "deleted"; clientStateOk: true; tenantId?: string }[] = [];
+  const checked: {
+    notificationId: string;
+    subscriptionId: string;
+    resource: string;
+    changeType: "created" | "updated" | "deleted";
+    clientStateOk: true;
+    tenantId?: string;
+  }[] = [];
   for (const n of notices) {
     const o = (n !== null && typeof n === "object" ? n : {}) as Record<string, unknown>;
     const subscriptionId = typeof o.subscriptionId === "string" ? o.subscriptionId : "";
     const state = typeof o.clientState === "string" ? o.clientState : "";
-    const row = subscriptionId ? first(ctx.db.all(`SELECT "clientState" FROM microsoft_subscription WHERE id = ?`, subscriptionId)) : null;
+    const row = subscriptionId
+      ? first(ctx.db.all(`SELECT "clientState" FROM microsoft_subscription WHERE id = ?`, subscriptionId))
+      : null;
     if (!row || !state || !(await sameState(state, str(row, "clientState")))) refuse(ctx);
     const resource = typeof o.resource === "string" ? o.resource : "";
-    const changeType = o.changeType === "created" || o.changeType === "updated" || o.changeType === "deleted" ? o.changeType : null;
+    const changeType =
+      o.changeType === "created" || o.changeType === "updated" || o.changeType === "deleted" ? o.changeType : null;
     if (!resource || !changeType) bad(ctx, "That is not a Graph notification.");
-    const resourceData = o.resourceData !== null && typeof o.resourceData === "object" ? (o.resourceData as Record<string, unknown>) : {};
+    const resourceData =
+      o.resourceData !== null && typeof o.resourceData === "object" ? (o.resourceData as Record<string, unknown>) : {};
     // Graph numbers none of its notices; a stable digest of what identifies the change lets a redelivery be taken once.
-    const bytes = await sha256(JSON.stringify([subscriptionId, resource, changeType, text(resourceData.id) ?? "", text(resourceData["@odata.etag"]) ?? ""]));
-    const notificationId = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
-    checked.push({ notificationId, subscriptionId, resource, changeType, clientStateOk: true, ...(typeof o.tenantId === "string" ? { tenantId: o.tenantId } : {}) });
+    const bytes = await sha256(
+      JSON.stringify([
+        subscriptionId,
+        resource,
+        changeType,
+        text(resourceData.id) ?? "",
+        text(resourceData["@odata.etag"]) ?? "",
+      ]),
+    );
+    const notificationId = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 40);
+    checked.push({
+      notificationId,
+      subscriptionId,
+      resource,
+      changeType,
+      clientStateOk: true,
+      ...(typeof o.tenantId === "string" ? { tenantId: o.tenantId } : {}),
+    });
   }
   let any = false;
   for (const n of checked) if ((await receiveNotification(ctx, n)).accepted) any = true;

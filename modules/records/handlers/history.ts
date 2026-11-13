@@ -18,12 +18,24 @@ import type { RecordRow, WriteCtx, WriteHandlers } from "./write.ts";
 export interface HistoryCtx {
   trace: TraceContext;
   principal?: Principal;
-  emit: (name: EventName, subject: string, payload: Record<string, unknown>, opts?: { vis?: "space" | "participants" | "owner" | "private" }) => unknown;
+  emit: (
+    name: EventName,
+    subject: string,
+    payload: Record<string, unknown>,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ) => unknown;
   /** Host decision for an action on the record. Reveal asks it for records.reveal at level view: it is where the label against the clearance is checked. */
-  authorize?: (action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }) => { effect: "allow" | "deny" | "hold"; reason: string };
+  authorize?: (
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ) => { effect: "allow" | "deny" | "hold"; reason: string };
 }
 
-export interface SealedRef { sealed: string; ref: string; present: boolean }
+export interface SealedRef {
+  sealed: string;
+  ref: string;
+  present: boolean;
+}
 
 export interface HistoryDeps {
   tx: Tx;
@@ -46,31 +58,73 @@ export interface ActivityEntry {
   to?: unknown;
 }
 
-export interface HistoryEntry { field: string; value: unknown; hlc: string; actor: string; reason?: string }
-export interface VersionRow { versionId: string; n: number; by: string; at: number; reason?: string; name?: string }
+export interface HistoryEntry {
+  field: string;
+  value: unknown;
+  hlc: string;
+  actor: string;
+  reason?: string;
+}
+export interface VersionRow {
+  versionId: string;
+  n: number;
+  by: string;
+  at: number;
+  reason?: string;
+  name?: string;
+}
 
 export interface HistoryHandlers {
-  "records.history"(ctx: HistoryCtx, input: { type: string; recordId: string; field?: string }): Promise<{ entries: HistoryEntry[] }>;
-  "records.activity"(ctx: HistoryCtx, input: { type: string; recordId: string; limit?: number; before?: number }): Promise<{ entries: ActivityEntry[]; next?: number }>;
-  "records.as_of"(ctx: HistoryCtx, input: { type: string; recordId: string; at: number }): Promise<{ record: RecordRow }>;
+  "records.history"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; field?: string },
+  ): Promise<{ entries: HistoryEntry[] }>;
+  "records.activity"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; limit?: number; before?: number },
+  ): Promise<{ entries: ActivityEntry[]; next?: number }>;
+  "records.as_of"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; at: number },
+  ): Promise<{ record: RecordRow }>;
   "records.versions"(ctx: HistoryCtx, input: { type: string; recordId: string }): Promise<{ versions: VersionRow[] }>;
-  "records.restore_version"(ctx: HistoryCtx, input: { type: string; recordId: string; versionId: string }): Promise<{ record: RecordRow }>;
-  "records.hold"(ctx: HistoryCtx, input: { type: string; recordId: string; reason: string }): Promise<{ held: boolean }>;
+  "records.restore_version"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; versionId: string },
+  ): Promise<{ record: RecordRow }>;
+  "records.hold"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; reason: string },
+  ): Promise<{ held: boolean }>;
   "records.release_hold"(ctx: HistoryCtx, input: { type: string; recordId: string }): Promise<{ released: boolean }>;
-  "records.reveal"(ctx: HistoryCtx, input: { type: string; recordId: string; field: string }): Promise<{ value: unknown }>;
+  "records.reveal"(
+    ctx: HistoryCtx,
+    input: { type: string; recordId: string; field: string },
+  ): Promise<{ value: unknown }>;
 }
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 export function fail(ctx: Pick<HistoryCtx, "trace">, code: ErrorCode, message: string): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   throw new VyreErr(error);
@@ -108,9 +162,19 @@ interface State {
   kind: "created" | "updated" | "removed" | "restored";
 }
 
-interface Payload { data?: Record<string, unknown>; before?: Record<string, unknown>; version?: number; at?: number }
+interface Payload {
+  data?: Record<string, unknown>;
+  before?: Record<string, unknown>;
+  version?: number;
+  at?: number;
+}
 
-const KINDS: Record<string, State["kind"]> = { "record.created": "created", "record.updated": "updated", "record.removed": "removed", "record.restored": "restored" };
+const KINDS: Record<string, State["kind"]> = {
+  "record.created": "created",
+  "record.updated": "updated",
+  "record.removed": "removed",
+  "record.restored": "restored",
+};
 
 /** Fold the record's events in order. Each event yields the state after it. */
 function replay(events: readonly StoredEvent[]): State[] {
@@ -124,9 +188,22 @@ function replay(events: readonly StoredEvent[]): State[] {
     if (kind === "created") {
       cur = { version: p.version ?? 1, data: { ...(p.data ?? {}) }, createdAt: at, updatedAt: at, event: e, kind };
     } else if (cur) {
-      if (kind === "updated") cur = { ...cur, version: p.version ?? cur.version + 1, data: { ...(p.data ?? cur.data) }, updatedAt: at, event: e, kind };
-      else if (kind === "removed") cur = { ...cur, version: p.version ?? cur.version + 1, updatedAt: at, deletedAt: at, event: e, kind };
-      else { const { deletedAt: _gone, ...rest } = cur; void _gone; cur = { ...rest, version: p.version ?? cur.version + 1, updatedAt: at, event: e, kind }; }
+      if (kind === "updated")
+        cur = {
+          ...cur,
+          version: p.version ?? cur.version + 1,
+          data: { ...(p.data ?? cur.data) },
+          updatedAt: at,
+          event: e,
+          kind,
+        };
+      else if (kind === "removed")
+        cur = { ...cur, version: p.version ?? cur.version + 1, updatedAt: at, deletedAt: at, event: e, kind };
+      else {
+        const { deletedAt: _gone, ...rest } = cur;
+        void _gone;
+        cur = { ...rest, version: p.version ?? cur.version + 1, updatedAt: at, event: e, kind };
+      }
     } else continue;
     out.push(cur);
   }
@@ -148,7 +225,8 @@ function sealedFields(def: TypeDef): Set<string> {
 const SYNC_ORIGINS = new Set(["sync", "connector", "import"]);
 const ACTIVITY_LIMIT = 50;
 const same = (a: unknown, b: unknown): boolean => canonical(a ?? null) === canonical(b ?? null);
-const empty = (v: unknown): boolean => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+const empty = (v: unknown): boolean =>
+  v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 
 const masked = (field: string): Record<string, unknown> => ({ sealed: field, masked: true });
 
@@ -157,14 +235,15 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
   const now = deps.now ?? Date.now;
 
   const def = (ctx: Pick<HistoryCtx, "trace">, type: string): TypeDef => {
-    if (!NAME.test(type)) fail(ctx, "validation.bad_input", `record type names are lowercase letters, digits and underscores: ${type}`);
+    if (!NAME.test(type))
+      fail(ctx, "validation.bad_input", `record type names are lowercase letters, digits and underscores: ${type}`);
     const r = tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type);
     if (!r) return fail(ctx, "validation.not_found", `no type ${type}`);
     return JSON.parse(r.def) as TypeDef;
   };
   const states = (type: string, id: string): State[] => {
     const events: StoredEvent[] = [];
-    for (let after = 0;;) {
+    for (let after = 0; ; ) {
       const page = deps.readLog({ entity: type, entity_id: id, type: "record.*", after, limit: 5000 });
       events.push(...page);
       const last = page[page.length - 1];
@@ -174,11 +253,22 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
     return replay(events);
   };
   const meta = (type: string, id: string): { label: number; holds: number } => {
-    const r = tx.get<{ label: number; holds: number }>("SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+    const r = tx.get<{ label: number; holds: number }>(
+      "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+      type,
+      id,
+    );
     return { label: r?.label ?? 0, holds: r?.holds ?? 0 };
   };
   const rowOf = (type: string, id: string, s: State): RecordRow => ({
-    id, type, version: s.version, label: meta(type, id).label, fields: { ...s.data }, createdAt: s.createdAt, updatedAt: s.updatedAt, holds: meta(type, id).holds,
+    id,
+    type,
+    version: s.version,
+    label: meta(type, id).label,
+    fields: { ...s.data },
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    holds: meta(type, id).holds,
     ...(s.deletedAt !== undefined ? { deletedAt: s.deletedAt } : {}),
   });
   const need = (ctx: Pick<HistoryCtx, "trace">, type: string, id: string): State[] => {
@@ -189,153 +279,258 @@ export function createHistoryHandlers(deps: HistoryDeps): HistoryHandlers {
   };
   const guard = async <T>(ctx: HistoryCtx, run: () => Promise<T> | T): Promise<T> => {
     ensureTables(tx);
-    try { return await run(); } catch (e) { return mapError(ctx as unknown as WriteCtx, e); }
+    try {
+      return await run();
+    } catch (e) {
+      return mapError(ctx as unknown as WriteCtx, e);
+    }
   };
 
   return {
-    "records.history": (ctx, input) => guard(ctx, () => {
-      const d = def(ctx, input.type);
-      const seal = sealedFields(d);
-      need(ctx, input.type, input.recordId);
-      const entries: HistoryEntry[] = [];
-      // The records.field_meta projection writes a row for every replaced value ("previous") and for every merge loser ("lww_loser", "conflict"); a rebuild from the log restores them.
-      const losers = tx.all<{ field: string; value: string | null; hlc: string; actor: string; reason: string }>(
-        "SELECT field, value, hlc, actor, reason FROM records_field_history WHERE type = ? AND id = ? ORDER BY rowid", input.type, input.recordId,
-      );
-      for (const l of losers) {
-        let value: unknown = null;
-        if (l.value !== null) { try { value = JSON.parse(l.value); } catch { value = l.value; } }
-        entries.push({ field: l.field, value: seal.has(l.field) ? masked(l.field) : value, hlc: l.hlc, actor: l.actor, reason: l.reason });
-      }
-      const order = (e: HistoryEntry): ReturnType<typeof parseHlc> => parseHlc(e.hlc);
-      const sorted = entries.map((e, i) => ({ e, i })).sort((x, y) => {
-        const a = order(x.e), b = order(y.e);
-        return (a && b ? compareHlc(a, b) : 0) || x.i - y.i;
-      }).map((x) => x.e);
-      return { entries: input.field ? sorted.filter((e) => e.field === input.field) : sorted };
-    }),
+    "records.history": (ctx, input) =>
+      guard(ctx, () => {
+        const d = def(ctx, input.type);
+        const seal = sealedFields(d);
+        need(ctx, input.type, input.recordId);
+        const entries: HistoryEntry[] = [];
+        // The records.field_meta projection writes a row for every replaced value ("previous") and for every merge loser ("lww_loser", "conflict"); a rebuild from the log restores them.
+        const losers = tx.all<{ field: string; value: string | null; hlc: string; actor: string; reason: string }>(
+          "SELECT field, value, hlc, actor, reason FROM records_field_history WHERE type = ? AND id = ? ORDER BY rowid",
+          input.type,
+          input.recordId,
+        );
+        for (const l of losers) {
+          let value: unknown = null;
+          if (l.value !== null) {
+            try {
+              value = JSON.parse(l.value);
+            } catch {
+              value = l.value;
+            }
+          }
+          entries.push({
+            field: l.field,
+            value: seal.has(l.field) ? masked(l.field) : value,
+            hlc: l.hlc,
+            actor: l.actor,
+            reason: l.reason,
+          });
+        }
+        const order = (e: HistoryEntry): ReturnType<typeof parseHlc> => parseHlc(e.hlc);
+        const sorted = entries
+          .map((e, i) => ({ e, i }))
+          .sort((x, y) => {
+            const a = order(x.e),
+              b = order(y.e);
+            return (a && b ? compareHlc(a, b) : 0) || x.i - y.i;
+          })
+          .map((x) => x.e);
+        return { entries: input.field ? sorted.filter((e) => e.field === input.field) : sorted };
+      }),
 
     // What happened, newest first. One log event is one change; an edit of several fields is one entry per field, so each row reads on its own. Sealed values are masked as in history.
-    "records.activity": (ctx, input) => guard(ctx, () => {
-      const d = def(ctx, input.type);
-      const seal = sealedFields(d);
-      const kindOf = new Map(d.fields.map((f) => [f.name, f.kind]));
-      const all = need(ctx, input.type, input.recordId);
-      const out: ActivityEntry[] = [];
-      all.forEach((s, i) => {
-        const e = s.event;
-        const base = { actor: e.actor, at: payloadOf<Payload>(e).at ?? e.at };
-        if (s.kind === "created") { out.push({ id: `${e.id}`, kind: "created", ...base }); return; }
-        if (s.kind === "removed" || s.kind === "restored") { out.push({ id: `${e.id}`, kind: s.kind, ...base }); return; }
-        const prev = all[i - 1]?.data ?? {};
-        const synced = e.origin !== undefined && SYNC_ORIGINS.has(e.origin);
-        for (const field of new Set([...Object.keys(prev), ...Object.keys(s.data)])) {
-          if (same(prev[field], s.data[field])) continue;
-          const k = kindOf.get(field);
-          const from = seal.has(field) ? masked(field) : prev[field] ?? null;
-          const to = seal.has(field) ? masked(field) : s.data[field] ?? null;
-          const kind: ActivityEntry["kind"] = synced ? "synced" : k === "relation" ? (empty(s.data[field]) ? "unlinked" : "linked") : k === "status" ? "stage" : "edited";
-          out.push({ id: `${e.id}:${field}`, kind, ...base, field, from, to });
+    "records.activity": (ctx, input) =>
+      guard(ctx, () => {
+        const d = def(ctx, input.type);
+        const seal = sealedFields(d);
+        const kindOf = new Map(d.fields.map((f) => [f.name, f.kind]));
+        const all = need(ctx, input.type, input.recordId);
+        const out: ActivityEntry[] = [];
+        all.forEach((s, i) => {
+          const e = s.event;
+          const base = { actor: e.actor, at: payloadOf<Payload>(e).at ?? e.at };
+          if (s.kind === "created") {
+            out.push({ id: `${e.id}`, kind: "created", ...base });
+            return;
+          }
+          if (s.kind === "removed" || s.kind === "restored") {
+            out.push({ id: `${e.id}`, kind: s.kind, ...base });
+            return;
+          }
+          const prev = all[i - 1]?.data ?? {};
+          const synced = e.origin !== undefined && SYNC_ORIGINS.has(e.origin);
+          for (const field of new Set([...Object.keys(prev), ...Object.keys(s.data)])) {
+            if (same(prev[field], s.data[field])) continue;
+            const k = kindOf.get(field);
+            const from = seal.has(field) ? masked(field) : (prev[field] ?? null);
+            const to = seal.has(field) ? masked(field) : (s.data[field] ?? null);
+            const kind: ActivityEntry["kind"] = synced
+              ? "synced"
+              : k === "relation"
+                ? empty(s.data[field])
+                  ? "unlinked"
+                  : "linked"
+                : k === "status"
+                  ? "stage"
+                  : "edited";
+            out.push({ id: `${e.id}:${field}`, kind, ...base, field, from, to });
+          }
+        });
+        out.reverse();
+        const cut = input.before === undefined ? out : out.filter((x) => x.at < input.before!);
+        const limit = input.limit ?? ACTIVITY_LIMIT;
+        const page = cut.slice(0, limit);
+        const next = cut.length > limit ? page[page.length - 1]?.at : undefined;
+        return { entries: page, ...(next !== undefined ? { next } : {}) };
+      }),
+
+    "records.as_of": (ctx, input) =>
+      guard(ctx, () => {
+        const all = need(ctx, input.type, input.recordId);
+        let hit: State | undefined;
+        for (const s of all) {
+          if (s.updatedAt <= input.at) hit = s;
+          else break;
         }
-      });
-      out.reverse();
-      const cut = input.before === undefined ? out : out.filter((x) => x.at < input.before!);
-      const limit = input.limit ?? ACTIVITY_LIMIT;
-      const page = cut.slice(0, limit);
-      const next = cut.length > limit ? page[page.length - 1]?.at : undefined;
-      return { entries: page, ...(next !== undefined ? { next } : {}) };
-    }),
+        if (!hit) return fail(ctx, "validation.not_found", `${input.recordId} did not exist at that time`);
+        return { record: rowOf(input.type, input.recordId, hit) };
+      }),
 
-    "records.as_of": (ctx, input) => guard(ctx, () => {
-      const all = need(ctx, input.type, input.recordId);
-      let hit: State | undefined;
-      for (const s of all) { if (s.updatedAt <= input.at) hit = s; else break; }
-      if (!hit) return fail(ctx, "validation.not_found", `${input.recordId} did not exist at that time`);
-      return { record: rowOf(input.type, input.recordId, hit) };
-    }),
+    "records.versions": (ctx, input) =>
+      guard(ctx, () => {
+        const all = need(ctx, input.type, input.recordId);
+        const notes = new Map(
+          tx
+            .all<{
+              version: number;
+              reason: string | null;
+              name: string | null;
+            }>(
+              "SELECT version, reason, name FROM records_version_notes WHERE type = ? AND id = ?",
+              input.type,
+              input.recordId,
+            )
+            .map((n) => [n.version, n]),
+        );
+        const versions = all.map((s) => {
+          const note = notes.get(s.version);
+          return {
+            versionId: versionId(s.version),
+            n: s.version,
+            by: s.event.actor,
+            at: payloadOf<Payload>(s.event).at ?? s.event.at,
+            reason: note?.reason ?? s.kind,
+            ...(note?.name ? { name: note.name } : {}),
+          };
+        });
+        return { versions: versions.reverse() };
+      }),
 
-    "records.versions": (ctx, input) => guard(ctx, () => {
-      const all = need(ctx, input.type, input.recordId);
-      const notes = new Map(tx.all<{ version: number; reason: string | null; name: string | null }>(
-        "SELECT version, reason, name FROM records_version_notes WHERE type = ? AND id = ?", input.type, input.recordId,
-      ).map((n) => [n.version, n]));
-      const versions = all.map((s) => {
-        const note = notes.get(s.version);
-        return {
-          versionId: versionId(s.version), n: s.version, by: s.event.actor, at: payloadOf<Payload>(s.event).at ?? s.event.at,
-          reason: note?.reason ?? s.kind, ...(note?.name ? { name: note.name } : {}),
-        };
-      });
-      return { versions: versions.reverse() };
-    }),
+    "records.restore_version": (ctx, input) =>
+      guard(ctx, async () => {
+        const n = versionNumber(ctx, input.versionId);
+        const all = need(ctx, input.type, input.recordId);
+        const target = all.find((s) => s.version === n);
+        if (!target) return fail(ctx, "validation.not_found", `${input.recordId} has no version ${n}`);
+        const current = all[all.length - 1]!;
+        if (current.deletedAt !== undefined)
+          return fail(ctx, "validation.precondition_failed", "the record is in Trash: restore it first");
+        if (target.deletedAt !== undefined)
+          return fail(ctx, "validation.precondition_failed", `version ${n} is the deletion, not a state to go back to`);
+        const patch: Record<string, unknown> = {};
+        for (const k of new Set([...Object.keys(current.data), ...Object.keys(target.data)])) {
+          const want = target.data[k] ?? null;
+          if (canonical(current.data[k] ?? null) !== canonical(want)) patch[k] = want;
+        }
+        if (!Object.keys(patch).length) return { record: rowOf(input.type, input.recordId, current) };
+        const res = await deps.writes["records.update"](ctx as unknown as WriteCtx, {
+          type: input.type,
+          recordId: input.recordId,
+          patch,
+          baseVersion: current.version,
+        });
+        tx.run(
+          "INSERT INTO records_version_notes (type, id, version, reason) VALUES (?, ?, ?, ?) ON CONFLICT(type, id, version) DO UPDATE SET reason = excluded.reason",
+          input.type,
+          input.recordId,
+          res.record.version,
+          `restored from version ${n}`,
+        );
+        return res;
+      }),
 
-    "records.restore_version": (ctx, input) => guard(ctx, async () => {
-      const n = versionNumber(ctx, input.versionId);
-      const all = need(ctx, input.type, input.recordId);
-      const target = all.find((s) => s.version === n);
-      if (!target) return fail(ctx, "validation.not_found", `${input.recordId} has no version ${n}`);
-      const current = all[all.length - 1]!;
-      if (current.deletedAt !== undefined) return fail(ctx, "validation.precondition_failed", "the record is in Trash: restore it first");
-      if (target.deletedAt !== undefined) return fail(ctx, "validation.precondition_failed", `version ${n} is the deletion, not a state to go back to`);
-      const patch: Record<string, unknown> = {};
-      for (const k of new Set([...Object.keys(current.data), ...Object.keys(target.data)])) {
-        const want = target.data[k] ?? null;
-        if (canonical(current.data[k] ?? null) !== canonical(want)) patch[k] = want;
-      }
-      if (!Object.keys(patch).length) return { record: rowOf(input.type, input.recordId, current) };
-      const res = await deps.writes["records.update"](ctx as unknown as WriteCtx, { type: input.type, recordId: input.recordId, patch, baseVersion: current.version });
-      tx.run(
-        "INSERT INTO records_version_notes (type, id, version, reason) VALUES (?, ?, ?, ?) ON CONFLICT(type, id, version) DO UPDATE SET reason = excluded.reason",
-        input.type, input.recordId, res.record.version, `restored from version ${n}`,
-      );
-      return res;
-    }),
+    "records.hold": (ctx, input) =>
+      guard(ctx, async () => {
+        need(ctx, input.type, input.recordId);
+        if (!input.reason || !input.reason.trim()) return fail(ctx, "validation.bad_input", "a hold needs a reason");
+        tx.run(
+          "INSERT INTO records_holds (type, id, reason, by, at) VALUES (?, ?, ?, ?, ?)",
+          input.type,
+          input.recordId,
+          input.reason,
+          ctx.principal?.id ?? "unknown",
+          now(),
+        );
+        tx.run(
+          "INSERT INTO records_row_meta (type, id, holds) VALUES (?, ?, 1) ON CONFLICT(type, id) DO UPDATE SET holds = holds + 1",
+          input.type,
+          input.recordId,
+        );
+        ctx.emit("record.held", `record/${input.recordId}`, {
+          recordId: input.recordId,
+          type: input.type,
+          reason: input.reason,
+        });
+        return { held: true };
+      }),
 
-    "records.hold": (ctx, input) => guard(ctx, async () => {
-      need(ctx, input.type, input.recordId);
-      if (!input.reason || !input.reason.trim()) return fail(ctx, "validation.bad_input", "a hold needs a reason");
-      tx.run("INSERT INTO records_holds (type, id, reason, by, at) VALUES (?, ?, ?, ?, ?)", input.type, input.recordId, input.reason, ctx.principal?.id ?? "unknown", now());
-      tx.run(
-        "INSERT INTO records_row_meta (type, id, holds) VALUES (?, ?, 1) ON CONFLICT(type, id) DO UPDATE SET holds = holds + 1",
-        input.type, input.recordId,
-      );
-      ctx.emit("record.held", `record/${input.recordId}`, { recordId: input.recordId, type: input.type, reason: input.reason });
-      return { held: true };
-    }),
+    "records.release_hold": (ctx, input) =>
+      guard(ctx, async () => {
+        need(ctx, input.type, input.recordId);
+        const n = tx.run("DELETE FROM records_holds WHERE type = ? AND id = ?", input.type, input.recordId).changes;
+        if (n === 0) return { released: false };
+        tx.run(
+          "UPDATE records_row_meta SET holds = MAX(holds - ?, 0) WHERE type = ? AND id = ?",
+          n,
+          input.type,
+          input.recordId,
+        );
+        ctx.emit("record.hold_released", `record/${input.recordId}`, { recordId: input.recordId, type: input.type });
+        return { released: true };
+      }),
 
-    "records.release_hold": (ctx, input) => guard(ctx, async () => {
-      need(ctx, input.type, input.recordId);
-      const n = tx.run("DELETE FROM records_holds WHERE type = ? AND id = ?", input.type, input.recordId).changes;
-      if (n === 0) return { released: false };
-      tx.run("UPDATE records_row_meta SET holds = MAX(holds - ?, 0) WHERE type = ? AND id = ?", n, input.type, input.recordId);
-      ctx.emit("record.hold_released", `record/${input.recordId}`, { recordId: input.recordId, type: input.type });
-      return { released: true };
-    }),
-
-    "records.reveal": (ctx, input) => guard(ctx, async () => {
-      const d = def(ctx, input.type);
-      const f = d.fields.find((x) => x.name === input.field);
-      if (!f) return fail(ctx, "validation.bad_input", `${input.type} has no field ${input.field}`);
-      if (f.kind !== "sealed") return fail(ctx, "validation.bad_input", `${input.field} is not a sealed field`);
-      // Agents hold handles only (spec 2.9): a reveal is a person's act.
-      if (!ctx.principal || ctx.principal.kind !== "person") return fail(ctx, "permission.role_lacks_permission", "only a person can reveal a sealed value; agents work with the handle");
-      // the row as it is now, from the store: the old versions come from the event log, and sealing a field erases the plaintext in them
-      const current = await deps.store.get(input.type, input.recordId);
-      if (!current) return fail(ctx, "validation.not_found", `no ${input.type} ${input.recordId}`);
-      if (!ctx.authorize) return fail(ctx, "permission.no_grant", "no authorization is wired for reveal");
-      const decision = ctx.authorize({ perm: "records.reveal", level: "view" }, { type: "record", id: input.recordId });
-      if (decision.effect === "deny") return fail(ctx, /clearance|label/i.test(decision.reason) ? "permission.above_clearance" : "permission.no_grant", decision.reason);
-      if (decision.effect === "hold") return fail(ctx, "permission.needs_approval", decision.reason);
-      const ref = current.data[input.field];
-      if (ref === null || ref === undefined) return fail(ctx, "validation.not_found", `${input.field} has no value`);
-      const sealed = ref as SealedRef;
-      if (sealed.present !== true) return fail(ctx, "validation.not_found", `${input.field} has no value`);
-      if (!deps.unseal) return fail(ctx, "internal.unexpected", "the vault is not available");
-      const value = await deps.unseal(sealed, ctx);
-      // Logged before the value leaves; vis participants keeps it out of the Space feed. The value itself is never in the event.
-      ctx.emit("field.revealed", `record/${input.recordId}`, { recordId: input.recordId, type: input.type, field: input.field }, { vis: "participants" });
-      return { value };
-    }),
+    "records.reveal": (ctx, input) =>
+      guard(ctx, async () => {
+        const d = def(ctx, input.type);
+        const f = d.fields.find((x) => x.name === input.field);
+        if (!f) return fail(ctx, "validation.bad_input", `${input.type} has no field ${input.field}`);
+        if (f.kind !== "sealed") return fail(ctx, "validation.bad_input", `${input.field} is not a sealed field`);
+        // Agents hold handles only (spec 2.9): a reveal is a person's act.
+        if (!ctx.principal || ctx.principal.kind !== "person")
+          return fail(
+            ctx,
+            "permission.role_lacks_permission",
+            "only a person can reveal a sealed value; agents work with the handle",
+          );
+        // the row as it is now, from the store: the old versions come from the event log, and sealing a field erases the plaintext in them
+        const current = await deps.store.get(input.type, input.recordId);
+        if (!current) return fail(ctx, "validation.not_found", `no ${input.type} ${input.recordId}`);
+        if (!ctx.authorize) return fail(ctx, "permission.no_grant", "no authorization is wired for reveal");
+        const decision = ctx.authorize(
+          { perm: "records.reveal", level: "view" },
+          { type: "record", id: input.recordId },
+        );
+        if (decision.effect === "deny")
+          return fail(
+            ctx,
+            /clearance|label/i.test(decision.reason) ? "permission.above_clearance" : "permission.no_grant",
+            decision.reason,
+          );
+        if (decision.effect === "hold") return fail(ctx, "permission.needs_approval", decision.reason);
+        const ref = current.data[input.field];
+        if (ref === null || ref === undefined) return fail(ctx, "validation.not_found", `${input.field} has no value`);
+        const sealed = ref as SealedRef;
+        if (sealed.present !== true) return fail(ctx, "validation.not_found", `${input.field} has no value`);
+        if (!deps.unseal) return fail(ctx, "internal.unexpected", "the vault is not available");
+        const value = await deps.unseal(sealed, ctx);
+        // Logged before the value leaves; vis participants keeps it out of the Space feed. The value itself is never in the event.
+        ctx.emit(
+          "field.revealed",
+          `record/${input.recordId}`,
+          { recordId: input.recordId, type: input.type, field: input.field },
+          { vis: "participants" },
+        );
+        return { value };
+      }),
   };
 }
-

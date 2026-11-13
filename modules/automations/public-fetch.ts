@@ -24,9 +24,7 @@ export interface FetchDeps {
   connect?: Connect;
 }
 
-export type FetchResult =
-  | { ok: true; text: string; finalUrl: string }
-  | { ok: false; reason: string };
+export type FetchResult = { ok: true; text: string; finalUrl: string } | { ok: false; reason: string };
 
 const CAP = 1_000_000;
 const TIMEOUT_MS = 10_000;
@@ -62,7 +60,10 @@ function targetOf(raw: string): { ok: true; url: URL; host: string } | { ok: fal
   return { ok: true, url, host };
 }
 
-async function vet(raw: string, lookup: Lookup): Promise<{ ok: true; url: URL; addresses: readonly string[] } | { ok: false; reason: string }> {
+async function vet(
+  raw: string,
+  lookup: Lookup,
+): Promise<{ ok: true; url: URL; addresses: readonly string[] } | { ok: false; reason: string }> {
   const target = targetOf(raw);
   if (!target.ok) return target;
   if (isAddress(target.host)) return { ok: true, url: target.url, addresses: [target.host] };
@@ -89,7 +90,10 @@ export async function vetPublic(raw: string, lookup: Lookup): Promise<{ ok: true
   return v.ok ? { ok: true } : { ok: false, reason: v.reason };
 }
 
-async function readCapped(response: Response, cap = CAP): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+async function readCapped(
+  response: Response,
+  cap = CAP,
+): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > cap) return { ok: false, reason: TOO_LARGE };
   try {
@@ -214,7 +218,10 @@ export function sniffImage(b: Uint8Array): ImageType | null {
   return null;
 }
 
-async function readBytes(response: Response, cap: number): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: string }> {
+async function readBytes(
+  response: Response,
+  cap: number,
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: string }> {
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > cap) return { ok: false, reason: TOO_LARGE };
   try {
@@ -239,7 +246,10 @@ async function readBytes(response: Response, cap: number): Promise<{ ok: true; b
     }
     const bytes = new Uint8Array(total);
     let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     return { ok: true, bytes };
   } catch {
     return { ok: false, reason: NO_LOAD };
@@ -306,15 +316,34 @@ export async function requestPublic(req: PublicRequest, deps: FetchDeps): Promis
   for (let followed = 0; followed <= MAX_REDIRECTS; followed++) {
     const vetted = await vet(current, deps.lookup);
     if (!vetted.ok) return vetted;
-    if (origin !== "" && vetted.url.origin !== origin) headers = Object.fromEntries(Object.entries(headers).filter(([k, v]) => !SENSITIVE.test(k) && !named.has(k.toLowerCase()) && !values.some((x) => v.includes(x))));
+    if (origin !== "" && vetted.url.origin !== origin)
+      headers = Object.fromEntries(
+        Object.entries(headers).filter(
+          ([k, v]) => !SENSITIVE.test(k) && !named.has(k.toLowerCase()) && !values.some((x) => v.includes(x)),
+        ),
+      );
     origin = vetted.url.origin;
     const body = req.body !== undefined && method !== "GET" && method !== "HEAD" ? req.body : undefined;
     let response: Response;
     try {
       if (deps.connect) {
-        response = await deps.connect({ url: vetted.url, addresses: vetted.addresses, signal: deadline, method, headers, ...(body !== undefined ? { body } : {}) });
+        response = await deps.connect({
+          url: vetted.url,
+          addresses: vetted.addresses,
+          signal: deadline,
+          method,
+          headers,
+          ...(body !== undefined ? { body } : {}),
+        });
       } else {
-        response = await deps.fetch(vetted.url.href, { method, headers, ...(body !== undefined ? { body } : {}), redirect: "manual", credentials: "omit", signal: deadline });
+        response = await deps.fetch(vetted.url.href, {
+          method,
+          headers,
+          ...(body !== undefined ? { body } : {}),
+          redirect: "manual",
+          credentials: "omit",
+          signal: deadline,
+        });
       }
     } catch {
       return { ok: false, reason: NO_LOAD };
@@ -329,7 +358,9 @@ export async function requestPublic(req: PublicRequest, deps: FetchDeps): Promis
     const text = method === "HEAD" ? { ok: true as const, text: "" } : await readCapped(response, cap);
     if (!text.ok) return text;
     const out: Record<string, string> = {};
-    response.headers.forEach((value, key) => { out[key.toLowerCase()] = value; });
+    response.headers.forEach((value, key) => {
+      out[key.toLowerCase()] = value;
+    });
     return { ok: true, status: response.status, headers: out, text: text.text, finalUrl: vetted.url.href };
   }
   return { ok: false, reason: TOO_MANY };

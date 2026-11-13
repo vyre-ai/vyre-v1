@@ -12,7 +12,11 @@ const PASSWORD = "fixture password 123";
 
 test("Console error note: a plain sentence, no code or trace in the text, Details shows both with Copy", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
@@ -23,26 +27,47 @@ test("Console error note: a plain sentence, no code or trace in the text, Detail
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: web.origin }).catch(() => undefined);
   const page = await context.newPage();
   const guard = guardCrashes(page);
-  const named = (where: string) => async (e: unknown): Promise<never> => { await guard.check(where); throw e; };
+  const named =
+    (where: string) =>
+    async (e: unknown): Promise<never> => {
+      await guard.check(where);
+      throw e;
+    };
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const shots = process.env["VYRE_ERROR_DETAILS_SHOTS"] ?? "/tmp/lc-shots/error-details"; fs.mkdirSync(shots, { recursive: true });
-  const shoot = async (name: string): Promise<void> => { await guard.check(`before the ${name} shot`); await page.screenshot({ path: path.join(shots, `${name}.png`), animations: "disabled" }); };
+  const shots = process.env["VYRE_ERROR_DETAILS_SHOTS"] ?? "/tmp/lc-shots/error-details";
+  fs.mkdirSync(shots, { recursive: true });
+  const shoot = async (name: string): Promise<void> => {
+    await guard.check(`before the ${name} shot`);
+    await page.screenshot({ path: path.join(shots, `${name}.png`), animations: "disabled" });
+  };
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
-    await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click(); await dismissOnboarding(page);
+    await page.getByTestId("claim-name").fill("Olivia Owner");
+    await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill(PASSWORD);
+    await page.getByTestId("claim-confirm").fill(PASSWORD);
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
+    await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 }).catch(named("after sign-in"));
     await guard.check("after sign-in");
-    const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
-    const made = await context.request.post(`${web.origin}/v1/access/groups/create`, { headers: { authorization: `Bearer ${token}` }, data: { name: "Sales", idempotencyKey: "grp-sales" } });
+    const token = await page.evaluate(
+      () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
+    );
+    const made = await context.request.post(`${web.origin}/v1/access/groups/create`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { name: "Sales", idempotencyKey: "grp-sales" },
+    });
     assert.equal(made.status(), 200, await made.text());
 
     await page.goto(`${web.origin}/console`, { waitUntil: "load" });
     await page.getByTestId("console").waitFor({ timeout: 30_000 }).catch(named("after opening the Console"));
     await guard.check("after opening the Console");
-    const id = resolve("groups"), section = sectionOf(id), tab = tabOf(id);
+    const id = resolve("groups"),
+      section = sectionOf(id),
+      tab = tabOf(id);
     assert.ok(section && tab, "groups has a place in the Console");
     await page.getByTestId(`row-nav-${section.id}`).click({ timeout: 60_000 });
     if (section.tabs.length > 1) await page.getByTestId(`tab-${tab.views[0]!.page}`).click();
@@ -69,7 +94,9 @@ test("Console error note: a plain sentence, no code or trace in the text, Detail
     await page.getByTestId("note-details-text").waitFor().catch(named("after Details"));
     await guard.check("after Details");
     const line = (await page.getByTestId("note-details-text").innerText()).trim();
-    assert.match(line, /Code [a-z_.]+/); assert.match(line, /Code validation\.duplicate/); assert.match(line, /Trace \S+/);
+    assert.match(line, /Code [a-z_.]+/);
+    assert.match(line, /Code validation\.duplicate/);
+    assert.match(line, /Trace \S+/);
     assert.equal((await page.getByTestId("note-details-toggle").innerText()).trim(), "Hide details");
     await shoot("open");
 
@@ -86,7 +113,19 @@ test("Console error note: a plain sentence, no code or trace in the text, Detail
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
-    fs.writeFileSync(path.join(shots, "failure.txt"), `${String(error)}\n${await page.locator("body").innerText().catch(() => "")}`);
+    fs.writeFileSync(
+      path.join(shots, "failure.txt"),
+      `${String(error)}\n${await page
+        .locator("body")
+        .innerText()
+        .catch(() => "")}`,
+    );
     throw error;
-  } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
+  } finally {
+    await context.close();
+    await browser.close();
+    web.close();
+    await space.stop();
+    fs.rmSync(space.dir, { recursive: true, force: true });
+  }
 });

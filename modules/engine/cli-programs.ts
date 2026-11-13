@@ -5,27 +5,49 @@ import path from "node:path";
 import { enginePath } from "./sandbox-default.ts";
 import { engines, ownedProgramDirs } from "./engine-install.ts";
 
-export interface NodeCliEnv { PATH?: string | undefined; HOME?: string | undefined }
+export interface NodeCliEnv {
+  PATH?: string | undefined;
+  HOME?: string | undefined;
+}
 export interface NodeCliProbe {
-  platform?: NodeJS.Platform; env?: NodeCliEnv; exists?: (p: string) => boolean; bwrapPaths?: readonly string[];
+  platform?: NodeJS.Platform;
+  env?: NodeCliEnv;
+  exists?: (p: string) => boolean;
+  bwrapPaths?: readonly string[];
   /** Vyre's engines folder to look in last (null: none). Default: the folder of this process's installer, when it has one. */
   enginesRoot?: string | null;
 }
 
 /** The folders of Vyre's own engines a lookup ends with, for this probe. */
 export function ownedDirs(o: NodeCliProbe = {}): string[] {
-  const root = o.enginesRoot !== undefined ? o.enginesRoot : engines()?.root ?? null;
+  const root = o.enginesRoot !== undefined ? o.enginesRoot : (engines()?.root ?? null);
   return root === null ? [] : ownedProgramDirs(root);
 }
 
 /** Find a program on the PATH an engine is started with. */
 export function findProgram(name: string, o: NodeCliProbe = {}): string | null {
-  const exists = o.exists ?? ((p: string): boolean => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
+  const exists =
+    o.exists ??
+    ((p: string): boolean => {
+      try {
+        fs.accessSync(p, fs.constants.X_OK);
+        return fs.statSync(p).isFile();
+      } catch {
+        return false;
+      }
+    });
   const env = o.env ?? process.env;
   const platform = o.platform ?? process.platform;
   // Windows starts only a program whose name ends in .exe without a shell (a .cmd shim from npm needs one, and is never run that way): Vyre's own copy is claude.exe, codex.exe, grok.exe
   const file = platform === "win32" ? `${name}.exe` : name;
-  for (const dir of enginePath(env, env.HOME ?? "/", platform, o.exists ?? fs.existsSync, undefined, ownedDirs(o)).split(path.delimiter)) {
+  for (const dir of enginePath(
+    env,
+    env.HOME ?? "/",
+    platform,
+    o.exists ?? fs.existsSync,
+    undefined,
+    ownedDirs(o),
+  ).split(path.delimiter)) {
     const p = path.join(dir, file);
     if (dir !== "" && exists(p)) return p;
   }
@@ -37,10 +59,13 @@ export function isOwned(found: string, o: NodeCliProbe = {}): boolean {
   return ownedDirs(o).some((d) => path.dirname(found) === d);
 }
 
-
 /** The program each CLI driver starts. A driver that is not here (an API driver) needs no program. */
 export const CLI_PROGRAM: Readonly<Record<string, string>> = { claude_code: "claude", codex: "codex", grok: "grok" };
 /** What each program is called to a person. */
 export const CLI_NAME: Readonly<Record<string, string>> = { claude: "Claude", codex: "Codex", grok: "Grok" };
 /** The program a connected provider's sign-in runs on (the Vault's provider keys, modules/vault/providers/*.json). An API key runs on Vyre's own API driver and needs no program. */
-export const PROGRAM_OF_PROVIDER: Readonly<Record<string, string>> = { "claude-code": "claude", codex: "codex", grok: "grok" };
+export const PROGRAM_OF_PROVIDER: Readonly<Record<string, string>> = {
+  "claude-code": "claude",
+  codex: "codex",
+  grok: "grok",
+};

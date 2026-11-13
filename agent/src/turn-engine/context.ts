@@ -26,9 +26,56 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "room" | "running" | "person" | "memory" | "skills" | "can" | "task" | "goal" | "parent" | "digest" | "earlier" | "recent" | "results" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
+export type SectionId =
+  | "identity"
+  | "rules"
+  | "where"
+  | "room"
+  | "running"
+  | "person"
+  | "memory"
+  | "skills"
+  | "can"
+  | "task"
+  | "goal"
+  | "parent"
+  | "digest"
+  | "earlier"
+  | "recent"
+  | "results"
+  | "compacted"
+  | "handoff"
+  | "screen"
+  | "focus"
+  | "about"
+  | "now"
+  | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "room", "running", "person", "memory", "skills", "can", "task", "goal", "parent", "digest", "earlier", "recent", "results", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = [
+  "identity",
+  "rules",
+  "where",
+  "room",
+  "running",
+  "person",
+  "memory",
+  "skills",
+  "can",
+  "task",
+  "goal",
+  "parent",
+  "digest",
+  "earlier",
+  "recent",
+  "results",
+  "compacted",
+  "handoff",
+  "screen",
+  "focus",
+  "about",
+  "now",
+  "waiting",
+];
 
 export interface ContextSection {
   id: SectionId;
@@ -40,7 +87,11 @@ export interface ContextSection {
 }
 
 /** One thing on a person's screen: an object by type and id, with the title they read. */
-export interface ScreenObject { type: string; id: string; title?: string }
+export interface ScreenObject {
+  type: string;
+  id: string;
+  title?: string;
+}
 
 /**
  * What a place tells the agent about itself (one shape for every place, Ask Vyre and every workspace chat). Only ids, titles and short summaries: the agent reads the objects themselves
@@ -79,7 +130,13 @@ export interface TurnContext {
 
 const MAX_SECTION = 6_000;
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
-const line = (s: unknown, n = 160): string => cut(String(s ?? "").replace(/\s+/g, " ").trim(), n);
+const line = (s: unknown, n = 160): string =>
+  cut(
+    String(s ?? "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    n,
+  );
 
 /** The name of a principal for a reader: the display name when known, else a plain word for its kind. */
 export function nameOf(names: Readonly<Record<string, string>> | undefined, id: string): string {
@@ -102,7 +159,9 @@ export function screenText(s: ScreenContext | undefined): string {
   if (s.open?.length) out.push(`Open: ${s.open.slice(0, 12).map(obj).join("; ")}.`);
   if (s.selection?.length) out.push(`Selected: ${s.selection.slice(0, 20).map(obj).join("; ")}.`);
   if (s.filters) {
-    const f = Object.entries(s.filters).slice(0, 12).map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : String(v)}`);
+    const f = Object.entries(s.filters)
+      .slice(0, 12)
+      .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(",") : String(v)}`);
     if (f.length) out.push(`Filters: ${f.join(", ")}.`);
   }
   if (s.rows) {
@@ -120,14 +179,28 @@ export function parseScreen(raw: unknown): ScreenContext | undefined {
   if (typeof r["place"] !== "string" || r["place"] === "") return undefined;
   const objs = (v: unknown): ScreenObject[] | undefined => {
     if (!Array.isArray(v)) return undefined;
-    const o = v.flatMap((x): ScreenObject[] => (x && typeof x === "object" && typeof (x as ScreenObject).type === "string" && typeof (x as ScreenObject).id === "string"
-      ? [{ type: (x as ScreenObject).type, id: (x as ScreenObject).id, ...(typeof (x as ScreenObject).title === "string" ? { title: (x as ScreenObject).title as string } : {}) }] : []));
+    const o = v.flatMap((x): ScreenObject[] =>
+      x &&
+      typeof x === "object" &&
+      typeof (x as ScreenObject).type === "string" &&
+      typeof (x as ScreenObject).id === "string"
+        ? [
+            {
+              type: (x as ScreenObject).type,
+              id: (x as ScreenObject).id,
+              ...(typeof (x as ScreenObject).title === "string" ? { title: (x as ScreenObject).title as string } : {}),
+            },
+          ]
+        : [],
+    );
     return o.length > 0 ? o.slice(0, 40) : undefined;
   };
   const out: { -readonly [K in keyof ScreenContext]: ScreenContext[K] } = { place: r["place"] };
   if (typeof r["title"] === "string") out.title = r["title"];
-  const open = objs(r["open"]); if (open) out.open = open;
-  const selection = objs(r["selection"]); if (selection) out.selection = selection;
+  const open = objs(r["open"]);
+  if (open) out.open = open;
+  const selection = objs(r["selection"]);
+  if (selection) out.selection = selection;
   if (r["filters"] && typeof r["filters"] === "object") {
     const f: Record<string, string | string[]> = {};
     for (const [k, v] of Object.entries(r["filters"] as Record<string, unknown>).slice(0, 20)) {
@@ -138,9 +211,16 @@ export function parseScreen(raw: unknown): ScreenContext | undefined {
   }
   const rows = r["rows"] as { shown?: unknown; total?: unknown; sample?: unknown } | undefined;
   if (rows && typeof rows.shown === "number") {
-    out.rows = { shown: rows.shown, ...(typeof rows.total === "number" ? { total: rows.total } : {}), ...(Array.isArray(rows.sample) ? { sample: rows.sample.filter((x): x is string => typeof x === "string").slice(0, 8) } : {}) };
+    out.rows = {
+      shown: rows.shown,
+      ...(typeof rows.total === "number" ? { total: rows.total } : {}),
+      ...(Array.isArray(rows.sample)
+        ? { sample: rows.sample.filter((x): x is string => typeof x === "string").slice(0, 8) }
+        : {}),
+    };
   }
-  if (Array.isArray(r["actions"])) out.actions = (r["actions"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 24);
+  if (Array.isArray(r["actions"]))
+    out.actions = (r["actions"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 24);
   if (typeof r["focus"] === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(r["focus"])) out.focus = r["focus"];
   return out;
 }
@@ -152,10 +232,30 @@ export function ordered(sections: readonly ContextSection[]): ContextSection[] {
 
 /** The title a section is shown under in a prompt. */
 const TITLE: Readonly<Record<SectionId, string>> = {
-  identity: "", rules: "", where: "Where you are", person: "", memory: "", skills: "", can: "What you can do here", task: "Your task", goal: "Your goal", recent: "", room: "The room", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
-  results: "What your tools returned in your recent turns here for this same person (theirs alone: others in this chat do not see it, so do not repeat it to them without care)",
-  compacted: "This chat was compacted (this stands for everything before the messages below; search the transcript for exact words)", handoff: "You are taking over this chat",
-  screen: "On the person's screen", focus: "Focus for this place", about: "About Vyre (the person asked about Vyre itself: answer from this, and check this Space with tools where it says to)", now: "", waiting: "You are waiting on",
+  identity: "",
+  rules: "",
+  where: "Where you are",
+  person: "",
+  memory: "",
+  skills: "",
+  can: "What you can do here",
+  task: "Your task",
+  goal: "Your goal",
+  recent: "",
+  room: "The room",
+  earlier:
+    "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
+  results:
+    "What your tools returned in your recent turns here for this same person (theirs alone: others in this chat do not see it, so do not repeat it to them without care)",
+  compacted:
+    "This chat was compacted (this stands for everything before the messages below; search the transcript for exact words)",
+  handoff: "You are taking over this chat",
+  screen: "On the person's screen",
+  focus: "Focus for this place",
+  about:
+    "About Vyre (the person asked about Vyre itself: answer from this, and check this Space with tools where it says to)",
+  now: "",
+  waiting: "You are waiting on",
 };
 
 const bodyOf = (s: ContextSection): string => (TITLE[s.id] ? `${TITLE[s.id]}:\n${s.text}` : s.text);

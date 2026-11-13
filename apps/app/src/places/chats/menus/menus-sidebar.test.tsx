@@ -8,10 +8,22 @@ import type { Node } from "../../../onboarding/test-dom.ts";
 import { drawn, fireUp, rowIds } from "../sidebar/chats-open.support.tsx";
 import { northwind } from "../sidebar/sample.ts";
 
-const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
+const rightClick = (root: Node, rowId: string): Promise<void> =>
+  fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
 const itemIds = (root: Node): string[] => itemIdsAll(root).filter((x) => x !== "report");
-const itemIdsAll = (root: Node): string[] => { const out: string[] = []; const walk = (n: Node | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"]; if (typeof t === "string" && t.startsWith("menu-item-")) out.push(t.slice(10)); (n.children ?? []).forEach(walk); }; walk(root); return out; };
-const caps = (s: { calls: { cap: string; input: unknown }[] }, cap: string): unknown[] => s.calls.filter((c) => c.cap === cap).map((c) => c.input);
+const itemIdsAll = (root: Node): string[] => {
+  const out: string[] = [];
+  const walk = (n: Node | string): void => {
+    if (typeof n === "string") return;
+    const t = n.props["data-testid"];
+    if (typeof t === "string" && t.startsWith("menu-item-")) out.push(t.slice(10));
+    (n.children ?? []).forEach(walk);
+  };
+  walk(root);
+  return out;
+};
+const caps = (s: { calls: { cap: string; input: unknown }[] }, cap: string): unknown[] =>
+  s.calls.filter((c) => c.cap === cap).map((c) => c.input);
 
 test("an agent row: right-click gives the agent menu (not the chat menu), admin items last, and each item calls its capability", async () => {
   const { s, root } = await drawn(createRoot, { open: null });
@@ -19,13 +31,20 @@ test("an agent row: right-click gives the agent menu (not the chat menu), admin 
   const agentId = face.slice("row-f:".length);
   s.menus.computers.set(agentId, { computerId: "cmp_a", state: "working" });
   await rightClick(root, face);
-  await flush(); await rightClick(root, face);   // the first press reads the facts (mutes, computers); the menu then has them
+  await flush();
+  await rightClick(root, face); // the first press reads the facts (mutes, computers); the menu then has them
   const ids = itemIds(root);
-  assert.ok(ids.some((x) => x.startsWith("Message ")), ids.join("|"));
+  assert.ok(
+    ids.some((x) => x.startsWith("Message ")),
+    ids.join("|"),
+  );
   assert.ok(!ids.includes("Mark as Unread") && !ids.includes("Archive"), "it is not the chat menu");
   const starredNow = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
   // the star item says what the star is now (it said Remove Star for every agent before, lane l-polish L7)
-  assert.ok(ids.includes("Pause") && ids.includes("Mute") && ids.includes(starredNow ? "Remove Star" : "Star"), ids.join("|"));
+  assert.ok(
+    ids.includes("Pause") && ids.includes("Mute") && ids.includes(starredNow ? "Remove Star" : "Star"),
+    ids.join("|"),
+  );
   assert.equal(ids.at(-1), "Delete Agent…", "danger last");
   await press(find(root, "menu-item-Pause"));
   await flush();
@@ -47,16 +66,22 @@ test("an agent's computer: Sleep when it works, Wake when it sleeps, and an agen
   const faces = rowIds(root, "row-f:").filter((i) => i !== "row-f:agt_assistant");
   const [a, b] = faces.map((i) => i.slice("row-f:".length)) as [string, string];
   s.menus.computers.set(a, { computerId: "cmp_a", state: "working" });
-  await rightClick(root, faces[0]!); await flush();
+  await rightClick(root, faces[0]!);
+  await flush();
   await rightClick(root, faces[0]!);
   assert.ok(find(root, "menu-item-Sleep Its Computer"));
-  await press(find(root, "menu-item-Sleep Its Computer")); await flush();
+  await press(find(root, "menu-item-Sleep Its Computer"));
+  await flush();
   assert.deepEqual(caps(s, "computers.sleep"), [{ computerId: "cmp_a" }]);
   await rightClick(root, faces[1]!);
   assert.ok(!find(root, "menu-item-Give It a Computer"), "nothing offers to make a desktop");
   assert.ok(find(root, "menu-item-Open Its Computer"), "an agent with no desktop still opens its terminal and browser");
-  assert.ok(!find(root, "menu-item-Sleep Its Computer") && !find(root, "menu-item-Wake Its Computer"), "and has no desktop to sleep or wake");
-  await press(find(root, "menu-item-Open Its Computer")); await flush();
+  assert.ok(
+    !find(root, "menu-item-Sleep Its Computer") && !find(root, "menu-item-Wake Its Computer"),
+    "and has no desktop to sleep or wake",
+  );
+  await press(find(root, "menu-item-Open Its Computer"));
+  await flush();
   assert.deepEqual(caps(s, "computers.provision"), [], "pressing it never makes a computer");
   assert.deepEqual(s.opened.slice(-1), [`profile:${b}:computer`], "it lands on the agent's Computer tab");
 });
@@ -65,10 +90,12 @@ test("Delete Agent asks first; Cancel changes nothing, Delete agent deletes", as
   const { s, root } = await drawn(createRoot, { open: null });
   const face = rowIds(root, "row-f:").find((i) => i !== "row-f:agt_assistant")!;
   await rightClick(root, face);
-  await press(find(root, "menu-item-Delete Agent…")); await flush();
+  await press(find(root, "menu-item-Delete Agent…"));
+  await flush();
   assert.deepEqual(caps(s, "agents.delete"), [], "nothing yet");
   assert.ok(find(root, "menu-item-Cancel") && find(root, "menu-item-Delete agent"), "it asks");
-  await press(find(root, "menu-item-Delete agent")); await flush();
+  await press(find(root, "menu-item-Delete agent"));
+  await flush();
   assert.deepEqual(caps(s, "agents.delete"), [{ agentId: face.slice("row-f:".length) }]);
 });
 
@@ -80,16 +107,26 @@ test("a chat row: Rename edits it in the row and calls threads.update; Mute and 
   const threadId = row.slice("row-c:".length);
   await rightClick(root, row);
   const ids = itemIds(root);
-  assert.ok(["Open", "Rename", "Star", "Mark as Unread", "Mute", "Archive", "Delete chat"].every((x) => ids.includes(x)), ids.join("|"));
+  assert.ok(
+    ["Open", "Rename", "Star", "Mark as Unread", "Mute", "Archive", "Delete chat"].every((x) => ids.includes(x)),
+    ids.join("|"),
+  );
   assert.equal(ids.at(-1), "Delete chat");
-  await press(find(root, "menu-item-Mute")); await flush();
+  await press(find(root, "menu-item-Mute"));
+  await flush();
   assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "thread", id: threadId } }]);
   await rightClick(root, row);
-  await press(find(root, "menu-item-Rename")); await flush();
+  await press(find(root, "menu-item-Rename"));
+  await flush();
   const field = find(root, `chat-rename-${threadId}`);
   assert.ok(field, "the title becomes a field in the row");
   await typeInto(field, "Records search, round two");
-  await act(async () => { (find(root, `chat-rename-${threadId}`)!.props.onBlur as (e: unknown) => void)({ nativeEvent: {}, target: { value: "Records search, round two" } }); });
+  await act(async () => {
+    (find(root, `chat-rename-${threadId}`)!.props.onBlur as (e: unknown) => void)({
+      nativeEvent: {},
+      target: { value: "Records search, round two" },
+    });
+  });
   await flush();
   assert.deepEqual(caps(s, "threads.update"), [{ threadId, title: "Records search, round two" }]);
   assert.equal(find(root, `chat-rename-${threadId}`), null, "the field closes");
@@ -97,19 +134,31 @@ test("a chat row: Rename edits it in the row and calls threads.update; Mute and 
 });
 
 test("a person row: Message, read state and Mute; the row's ... opens the same menu", async () => {
-  const { s, root } = await drawn(createRoot, { open: null, people: [{ id: "usr_maya", name: "Maya Chen" }, { id: "usr_omar", name: "Omar Haddad" }] });
+  const { s, root } = await drawn(createRoot, {
+    open: null,
+    people: [
+      { id: "usr_maya", name: "Maya Chen" },
+      { id: "usr_omar", name: "Omar Haddad" },
+    ],
+  });
   const pr = rowIds(root, "row-p:");
   assert.ok(pr.length > 0, `people rows: ${rowIds(root, "row-").join(" ")}`);
   const row = pr[0]!;
   const id = row.slice("row-p:".length);
-  const hot = [...(await import("../sidebar/chats-open.support.tsx")).chainTo(root, row) ?? []].reverse().find((n) => typeof n.props.onMouseEnter === "function");
+  const hot = [...((await import("../sidebar/chats-open.support.tsx")).chainTo(root, row) ?? [])]
+    .reverse()
+    .find((n) => typeof n.props.onMouseEnter === "function");
   assert.ok(hot, "the row reacts to the pointer");
-  await act(async () => { (hot.props.onMouseEnter as () => void)(); });
+  await act(async () => {
+    (hot.props.onMouseEnter as () => void)();
+  });
   await flush();
-  await press(find(root, `more-p:${id}`)); await flush();
+  await press(find(root, `more-p:${id}`));
+  await flush();
   const ids = itemIds(root);
   assert.ok(ids.some((x) => x.startsWith("Message ")) && ids.includes("Mute"), ids.join("|"));
-  await press(find(root, "menu-item-Mute")); await flush();
+  await press(find(root, "menu-item-Mute"));
+  await flush();
   assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "person", id } }]);
 });
 
@@ -122,7 +171,8 @@ test("a person row has Call only where the Space has telephony, and Call asks th
   await rightClick(root, "row-p:usr_maya");
   const ids = itemIds(root);
   assert.equal(ids[1], "Call", `Call sits under Message: ${ids.join("|")}`);
-  await press(find(root, "menu-item-Call")); await flush();
+  await press(find(root, "menu-item-Call"));
+  await flush();
   assert.deepEqual(calls, ["usr_maya:Maya Chen"]);
 });
 
@@ -131,32 +181,44 @@ test("an agent: Poke goes to your chat with it, Add to a Chat picks a chat and a
   const face = rowIds(root, "row-f:").find((i) => i === "row-f:agt_intake")!;
   await rightClick(root, face);
   assert.ok(find(root, "menu-item-Poke"), "Intake has a chat with you (Rivera intake), so it can be poked");
-  await press(find(root, "menu-item-Poke")); await flush();
+  await press(find(root, "menu-item-Poke"));
+  await flush();
   assert.deepEqual(caps(s, "threads.poke"), [{ threadId: "c1", agentId: "agt_intake" }]);
   await rightClick(root, face);
-  await press(find(root, "menu-item-Add to a Chat\u2026")); await flush();
+  await press(find(root, "menu-item-Add to a Chat\u2026"));
+  await flush();
   assert.ok(find(root, "menu-item-October invoices"), "the chats to pick from");
-  await press(find(root, "menu-item-October invoices")); await flush();
+  await press(find(root, "menu-item-October invoices"));
+  await flush();
   assert.deepEqual(caps(s, "threads.add_agent"), [{ threadId: "c3", agentId: "agt_intake" }]);
   await rightClick(root, face);
-  await press(find(root, "menu-item-Share\u2026")); await flush();
+  await press(find(root, "menu-item-Share\u2026"));
+  await flush();
   assert.deepEqual(caps(s, "access.shares_of"), [{ resource: { type: "agent", id: "agt_intake" } }]);
   assert.ok(find(root, "share-overlay"), "the Share sheet is drawn");
   await rightClick(root, "row-p:usr_maya");
-  await press(find(root, "menu-item-Add to a Chat\u2026")); await flush();
-  await press(find(root, "menu-item-Rivera intake")); await flush();
+  await press(find(root, "menu-item-Add to a Chat\u2026"));
+  await flush();
+  await press(find(root, "menu-item-Rivera intake"));
+  await flush();
   assert.deepEqual(caps(s, "threads.members.add"), [{ threadId: "c1", personId: "usr_maya" }]);
 });
 
 test("a chat: Notifications mutes for an hour, Add People opens the Add sheet on that chat; a channel: Invite opens it on the channel", async () => {
   const { s, root } = await drawn(createRoot, { open: null });
   await rightClick(root, "row-c:c3");
-  await press(find(root, "menu-item-Notifications\u2026")); await flush();
-  await press(find(root, "menu-item-Mute for 1 hour")); await flush();
+  await press(find(root, "menu-item-Notifications\u2026"));
+  await flush();
+  await press(find(root, "menu-item-Mute for 1 hour"));
+  await flush();
   assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "thread", id: "c3" }, minutes: 60 }]);
   await rightClick(root, "row-c:c3");
-  await press(find(root, "menu-item-Add People\u2026")); await flush();
-  assert.ok(caps(s, "threads.get").some((i) => (i as { threadId: string }).threadId === "c3"), "the Add sheet read that chat");
+  await press(find(root, "menu-item-Add People\u2026"));
+  await flush();
+  assert.ok(
+    caps(s, "threads.get").some((i) => (i as { threadId: string }).threadId === "c3"),
+    "the Add sheet read that chat",
+  );
   assert.ok(!s.rejected.some((r) => /poke/.test(r)));
 });
 
@@ -166,15 +228,30 @@ test("a chat row: Move to Project lists the projects and the one picked calls th
   const threadId = row.slice("row-c:".length);
   await rightClick(root, row);
   assert.ok(itemIds(root).includes("Move to Project…"), itemIds(root).join("|"));
-  await press(find(root, "menu-item-Move to Project…")); await flush();
-  assert.deepEqual(itemIds(root).filter((x) => x === "Rivera matter" || x === "ATP Q4 review"), ["Rivera matter", "ATP Q4 review"], itemIds(root).join("|"));
-  await press(find(root, "menu-item-Rivera matter")); await flush();
+  await press(find(root, "menu-item-Move to Project…"));
+  await flush();
+  assert.deepEqual(
+    itemIds(root).filter((x) => x === "Rivera matter" || x === "ATP Q4 review"),
+    ["Rivera matter", "ATP Q4 review"],
+    itemIds(root).join("|"),
+  );
+  await press(find(root, "menu-item-Rivera matter"));
+  await flush();
   assert.deepEqual(caps(s, "threads.move"), [{ threadId, projectId: "prj_rec_rivera" }]);
   assert.deepEqual(s.rejected, []);
 });
 
 test("a goal row: right-click gives the goal menu for its owner; Pause calls goals.pause with the goal's id", async () => {
-  const goal = { id: "gol_a", title: "Fill Lab 8", status: "active", owner: "usr_irfad", leadAgentId: "agt_assistant", deadline: Date.UTC(2026, 11, 1), progress: { tasksDone: 1, tasks: 4 }, updatedAt: Date.UTC(2026, 10, 3) };
+  const goal = {
+    id: "gol_a",
+    title: "Fill Lab 8",
+    status: "active",
+    owner: "usr_irfad",
+    leadAgentId: "agt_assistant",
+    deadline: Date.UTC(2026, 11, 1),
+    progress: { tasksDone: 1, tasks: 4 },
+    updatedAt: Date.UTC(2026, 10, 3),
+  };
   const { s, root } = await drawn(createRoot, { open: null, goals: [goal] });
   await flush();
   const row = rowIds(root, "row-g:")[0];
@@ -182,7 +259,8 @@ test("a goal row: right-click gives the goal menu for its owner; Pause calls goa
   await rightClick(root, row);
   const ids = itemIds(root);
   assert.ok(ids.includes("Open") && ids.includes("Pause") && ids.includes("Copy Link"), ids.join("|"));
-  await press(find(root, "menu-item-Pause")); await flush();
+  await press(find(root, "menu-item-Pause"));
+  await flush();
   assert.deepEqual(caps(s, "goals.pause"), [{ goalId: "gol_a" }]);
   assert.deepEqual(s.rejected, []);
 });
@@ -192,8 +270,11 @@ test("an agent row's star item follows the star: Remove Star on a starred agent,
   const face = rowIds(root, "row-f:").find((i) => i !== "row-f:agt_assistant")!;
   const agentId = face.slice("row-f:".length);
   const was = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
-  const on = was ? "Remove Star" : "Star", off = was ? "Star" : "Remove Star";
-  await rightClick(root, face); await flush(); await rightClick(root, face);
+  const on = was ? "Remove Star" : "Star",
+    off = was ? "Star" : "Remove Star";
+  await rightClick(root, face);
+  await flush();
+  await rightClick(root, face);
   assert.ok(find(root, `menu-item-${on}`) && !find(root, `menu-item-${off}`), itemIds(root).join("|"));
   await press(find(root, `menu-item-${on}`));
   await flush();
@@ -204,6 +285,9 @@ test("an agent row's star item follows the star: Remove Star on a starred agent,
   await flush();
   assert.deepEqual(caps(s, "stars.toggle").at(-1), { resource: { type: "agent", id: agentId }, on: was });
   // and the Assistant, never starred in this Space, says Star (it said Remove Star before)
-  await rightClick(root, "row-f:agt_assistant"); await flush(); await rightClick(root, "row-f:agt_assistant");
-  if (!northwind.agents.find((a) => a.agentId === "agt_assistant")?.starred) assert.ok(find(root, "menu-item-Star"), itemIds(root).join("|"));
+  await rightClick(root, "row-f:agt_assistant");
+  await flush();
+  await rightClick(root, "row-f:agt_assistant");
+  if (!northwind.agents.find((a) => a.agentId === "agt_assistant")?.starred)
+    assert.ok(find(root, "menu-item-Star"), itemIds(root).join("|"));
 });

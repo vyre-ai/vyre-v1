@@ -4,7 +4,12 @@ import assert from "node:assert/strict";
 import { addScreen, carriesScreen, currentScreen, noteThreadKind, screenFromHash, setScreenContext } from "./screen.ts";
 
 test("the hash says the place, the screen and the open object, and a place with a focus skill names it", () => {
-  assert.deepEqual(screenFromHash("records", "screen=records.record-page&subject=record%3Arec_a1"), { place: "records", title: "records.record-page", open: [{ type: "record", id: "rec_a1" }], focus: "focus-records" });
+  assert.deepEqual(screenFromHash("records", "screen=records.record-page&subject=record%3Arec_a1"), {
+    place: "records",
+    title: "records.record-page",
+    open: [{ type: "record", id: "rec_a1" }],
+    focus: "focus-records",
+  });
   assert.deepEqual(screenFromHash("home", ""), { place: "home" });
 });
 

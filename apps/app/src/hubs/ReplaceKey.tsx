@@ -14,38 +14,105 @@ export function handleOf(value: string): { item: string; field: string } | null 
   return m ? { item: m[1]!, field: m[2]! } : null;
 }
 
-export function ReplaceKeySheet({ call, connectionId, hubId, onClose, onDone }: { call: Call; connectionId: string; hubId: string; onClose(): void; onDone(): void }): ReactElement {
+export function ReplaceKeySheet({
+  call,
+  connectionId,
+  hubId,
+  onClose,
+  onDone,
+}: {
+  call: Call;
+  connectionId: string;
+  hubId: string;
+  onClose(): void;
+  onDone(): void;
+}): ReactElement {
   const hub = hubById(hubId);
   const name = hub?.name ?? "the hub";
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const replace = async (): Promise<void> => {
-    setBusy(true); setProblem("");
+    setBusy(true);
+    setProblem("");
     try {
-      const list = (await call("plugins.connections.list", {})) as { connections: { connectionId: string; headers: Record<string, string> }[] };
+      const list = (await call("plugins.connections.list", {})) as {
+        connections: { connectionId: string; headers: Record<string, string> }[];
+      };
       const c = list.connections.find((x) => x.connectionId === connectionId);
-      const handle = Object.values(c?.headers ?? {}).map(handleOf).find((h) => h !== null) ?? null;
-      if (!handle) { setProblem("This connection does not keep its key in the Vault."); return; }
+      const handle =
+        Object.values(c?.headers ?? {})
+          .map(handleOf)
+          .find((h) => h !== null) ?? null;
+      if (!handle) {
+        setProblem("This connection does not keep its key in the Vault.");
+        return;
+      }
       const items = (await call("vault.items.list", { q: handle.item })) as { items: { id: string; name: string }[] };
       const item = items.items.find((i) => i.name === handle.item);
-      if (!item) { setProblem(`The Vault item ${handle.item} is gone.`); return; }
-      await call("vault.item.update", { itemId: item.id, fieldsSet: [{ key: handle.field, value: key.trim(), secret: true }] });
+      if (!item) {
+        setProblem(`The Vault item ${handle.item} is gone.`);
+        return;
+      }
+      await call("vault.item.update", {
+        itemId: item.id,
+        fieldsSet: [{ key: handle.field, value: key.trim(), secret: true }],
+      });
       setKey("");
       onDone();
     } catch (e) {
       setProblem((e as { message?: string }).message ?? "That did not save.");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
   return (
-    <Dialog title={`Replace the ${name} key`} width={440} testID="replace-key-sheet" onClose={onClose} actions={[
-      ...(hub ? [{ label: `Get a ${name} key`, onPress: () => { void Linking.openURL(hub.keyUrl); }, testID: "replace-getkey" }] : []),
-      { label: "Cancel", onPress: onClose, testID: "replace-cancel" },
-      { label: "Replace key", primary: true, disabled: busy || key.trim() === "", why: "Paste the new key first", onPress: () => { void replace(); }, testID: "replace-submit" },
-    ]}>
+    <Dialog
+      title={`Replace the ${name} key`}
+      width={440}
+      testID="replace-key-sheet"
+      onClose={onClose}
+      actions={[
+        ...(hub
+          ? [
+              {
+                label: `Get a ${name} key`,
+                onPress: () => {
+                  void Linking.openURL(hub.keyUrl);
+                },
+                testID: "replace-getkey",
+              },
+            ]
+          : []),
+        { label: "Cancel", onPress: onClose, testID: "replace-cancel" },
+        {
+          label: "Replace key",
+          primary: true,
+          disabled: busy || key.trim() === "",
+          why: "Paste the new key first",
+          onPress: () => {
+            void replace();
+          },
+          testID: "replace-submit",
+        },
+      ]}
+    >
       <View style={{ gap: 12 }}>
-        <TextField value={key} onChangeText={setKey} placeholder={`New ${name} key`} accessibilityLabel={`New ${name} key`} testID="replace-key" secureTextEntry autoCapitalize="none" autoCorrect={false} />
-        {problem ? <Text accessibilityRole="alert" style={{ fontSize: 13, color: "var(--danger)" }}>{problem}</Text> : null}
+        <TextField
+          value={key}
+          onChangeText={setKey}
+          placeholder={`New ${name} key`}
+          accessibilityLabel={`New ${name} key`}
+          testID="replace-key"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {problem ? (
+          <Text accessibilityRole="alert" style={{ fontSize: 13, color: "var(--danger)" }}>
+            {problem}
+          </Text>
+        ) : null}
       </View>
     </Dialog>
   );

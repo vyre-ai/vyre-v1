@@ -9,7 +9,8 @@ import { fakeHost } from "../modules/computers/fixtures/fake-host.ts";
 
 const PNG = "iVBORw0KGgo=";
 let keys = 0;
-const ok = async (d: Awaited<ReturnType<typeof boot>>, cap: string, input: Record<string, unknown>): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+const ok = async (d: Awaited<ReturnType<typeof boot>>, cap: string, input: Record<string, unknown>): Promise<any> => {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   const r = await call(d, cap, { idempotencyKey: `lc-${cap}-${++keys}`, ...input });
   assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
   return r.data;
@@ -20,23 +21,50 @@ test("computers live: the first step an agent takes for a chat leaves one live c
   try {
     await connect(d);
     const fake = fakeHost();
-    const host = { ...fake.host, async tool() { return { ok: true, frame: PNG }; } } as unknown as ComputerHost;
+    const host = {
+      ...fake.host,
+      async tool() {
+        return { ok: true, frame: PNG };
+      },
+    } as unknown as ComputerHost;
     bindHost(host);
     const agent = await newAgent(d, "Desk");
     const computerId = (await ok(d, "computers.provision", { agentId: agent.id })).computer.computerId as string;
     await ok(d, "computers.wake", { computerId });
     const threadId = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
     await ok(d, "threads.set_mode", { threadId, mode: "auto" });
-    const step = (n: number) => ok(d, "chat.post", { threadId, body: `TOOL screen_click ${JSON.stringify({ computerId, x: 10 + n, y: 10 })}`, mentions: [{ kind: "agent", id: agent.id }] });
-    const cards = async () => ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ blocks?: Array<{ type: string; data: Record<string, unknown> }> }>).flatMap((m) => m.blocks ?? []).filter((b) => b.type === "screenshot" && b.data["live"] === true);
+    const step = (n: number) =>
+      ok(d, "chat.post", {
+        threadId,
+        body: `TOOL screen_click ${JSON.stringify({ computerId, x: 10 + n, y: 10 })}`,
+        mentions: [{ kind: "agent", id: agent.id }],
+      });
+    const cards = async () =>
+      (
+        (await call(d, "chat.messages.list", { threadId })).data.messages as Array<{
+          blocks?: Array<{ type: string; data: Record<string, unknown> }>;
+        }>
+      )
+        .flatMap((m) => m.blocks ?? [])
+        .filter((b) => b.type === "screenshot" && b.data["live"] === true);
     await step(1);
-    const first = await waitFor(async () => { await d.hooks?.pump?.(); const c = await cards(); return c.length > 0 ? c : null; });
+    const first = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const c = await cards();
+      return c.length > 0 ? c : null;
+    });
     assert.equal(first.length, 1);
     assert.equal(first[0]!.data["computerId"], computerId);
-    assert.ok(typeof first[0]!.data["fileId"] === "string" && (first[0]!.data["fileId"] as string).length > 0, "it points at a frame kept in Files");
+    assert.ok(
+      typeof first[0]!.data["fileId"] === "string" && (first[0]!.data["fileId"] as string).length > 0,
+      "it points at a frame kept in Files",
+    );
     await step(2);
     await new Promise<void>((r) => setTimeout(r, 1500));
     await d.hooks?.pump?.();
     assert.equal((await cards()).length, 1, "the second step adds no card");
-  } finally { await d.stop(); bindHost(null); }
+  } finally {
+    await d.stop();
+    bindHost(null);
+  }
 });

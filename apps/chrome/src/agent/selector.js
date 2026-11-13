@@ -61,7 +61,11 @@ export function resolve(sel, candidates, { min = threshold(sel) } = {}) {
   let tied = false;
   for (const c of candidates) {
     const n = score(sel, c);
-    if (n > bestScore) { best = c; bestScore = n; tied = false; } else if (n === bestScore && n >= min) tied = true;
+    if (n > bestScore) {
+      best = c;
+      bestScore = n;
+      tied = false;
+    } else if (n === bestScore && n >= min) tied = true;
   }
   if (bestScore < min) return { control: null, why: "unbound" };
   // Two controls that agree equally well is not a resolution. Say so rather than guess.

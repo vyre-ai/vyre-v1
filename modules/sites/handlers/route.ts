@@ -13,8 +13,35 @@ import { isViewing, noteViewing } from "./viewing.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
-import { fail, flag, hexOf, isNull, many, mustSite, nid, num, one, optBool, optInt, optStr, rec, reqStr, str } from "./deploy.ts";
-import { cleanLimits, cleanSource, deployedLogs, deployNeed, depRow, limitsOf, parseJson, siteHostOf, sourceOf, stopDeployed } from "./release.ts";
+import {
+  fail,
+  flag,
+  hexOf,
+  isNull,
+  many,
+  mustSite,
+  nid,
+  num,
+  one,
+  optBool,
+  optInt,
+  optStr,
+  rec,
+  reqStr,
+  str,
+} from "./deploy.ts";
+import {
+  cleanLimits,
+  cleanSource,
+  deployedLogs,
+  deployNeed,
+  depRow,
+  limitsOf,
+  parseJson,
+  siteHostOf,
+  sourceOf,
+  stopDeployed,
+} from "./release.ts";
 import { dockerRunner } from "./runner.ts";
 import type { Runner, RunnerLink } from "./runner.ts";
 
@@ -36,8 +63,17 @@ const PAGE_MAX = 500;
 const FILES_MAX = 200;
 
 /** Where a site runs: a port on a computer, a folder in Files, or (a site Vyre deployed) a port on its own container. */
-export interface RouteTarget { computerId?: string; port?: number; folderId?: string; container?: string }
-export interface LocalFile { path: string; base64: string; mime: string }
+export interface RouteTarget {
+  computerId?: string;
+  port?: number;
+  folderId?: string;
+  container?: string;
+}
+export interface LocalFile {
+  path: string;
+  base64: string;
+  mime: string;
+}
 
 /** What the host gives this module (host/src/seams/sites-host.ts). Without it nothing is served, and the calls say so. */
 export interface SitesHost {
@@ -52,7 +88,10 @@ export interface SitesHost {
   /** a file or folder on the machine this daemon runs on; null where that machine is a server, whose disk is not the agent's */
   readLocal?(path: string): Promise<LocalFile[] | null>;
   /** Where an artifact's files are kept: the Artifacts folder under Files, written by the server, because publishing must not depend on an agent's own grants in Files. */
-  artifacts?: { folder(siteId: string, title: string): Promise<string>; put(folderId: string, name: string, base64: string, mime: string): Promise<void> };
+  artifacts?: {
+    folder(siteId: string, title: string): Promise<string>;
+    put(folderId: string, name: string, base64: string, mime: string): Promise<void>;
+  };
   /** The sites runner of this server (host/src/sites-runner), which alone holds the Docker socket and builds and runs deployed sites; absent where there is none. Tests may pass a runner. */
   runnerLink?: RunnerLink;
   runner?: Runner;
@@ -80,7 +119,9 @@ export const routesHost = (): SitesHost | null => host;
 /** The runner deployed sites build and run on, or null where this server has no Docker it may use. */
 export const siteRunner = (): Runner | null => runnerOf;
 /** The address of a deployed site's container on its network, for the host to send a visitor's request to. */
-export async function containerAddress(containerId: string): Promise<string | null> { return runnerOf ? runnerOf.address(containerId) : null; }
+export async function containerAddress(containerId: string): Promise<string | null> {
+  return runnerOf ? runnerOf.address(containerId) : null;
+}
 
 /** Where a custom domain's traffic has to land, and what the machine there can say about it. The host builds this from the machine that runs the site. */
 export interface DomainEdge {
@@ -93,14 +134,19 @@ export interface DomainEdge {
   certIssued(target: RouteTarget, domain: string): Promise<boolean>;
 }
 let edge: DomainEdge | null = null;
-export function configureDomainEdge(e: DomainEdge | null): void { edge = e; }
+export function configureDomainEdge(e: DomainEdge | null): void {
+  edge = e;
+}
 export const domainEdge = (): DomainEdge | null => edge;
 
 // ---- shapes
 
 export function urlOf(r: Row): string | undefined {
   // a deployed site is served at an address of its own when there is one: root paths, cookies and sign-in work there as on Railway
-  if (!isNull(r.source)) { const h = siteHostOf(r); if (h) return `https://${h}`; }
+  if (!isNull(r.source)) {
+    const h = siteHostOf(r);
+    if (h) return `https://${h}`;
+  }
   const o = host?.origin();
   if (!o) return undefined;
   if (str(r.access) === "public") return isNull(r.slug) ? undefined : `${o.origin}/p/${str(r.slug)}`;
@@ -109,12 +155,25 @@ export function urlOf(r: Row): string | undefined {
 }
 
 function siteOut(ctx: Ctx, r: Row): Record<string, unknown> {
-  const domain = many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", r.id).filter((d) => str(d.certificate) === "issued")[0];
+  const domain = many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", r.id).filter(
+    (d) => str(d.certificate) === "issued",
+  )[0];
   const url = domain ? `https://${str(domain.domain)}` : urlOf(r);
   return {
-    siteId: str(r.id), name: str(r.name), kind: str(r.kind), owner: str(r.owner), state: flag(r.live) ? "ready" : "stopped",
-    ...(isNull(r.slug) ? {} : { slug: str(r.slug) }), ...(url ? { url } : {}), ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }),
-    ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }), access: str(r.access) as Access, live: flag(r.live), blocked: flag(r.blocked), updatedAt: num(r.updated_at),
+    siteId: str(r.id),
+    name: str(r.name),
+    kind: str(r.kind),
+    owner: str(r.owner),
+    state: flag(r.live) ? "ready" : "stopped",
+    ...(isNull(r.slug) ? {} : { slug: str(r.slug) }),
+    ...(url ? { url } : {}),
+    ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }),
+    ...(isNull(r.port) ? {} : { port: num(r.port) }),
+    ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }),
+    access: str(r.access) as Access,
+    live: flag(r.live),
+    blocked: flag(r.blocked),
+    updatedAt: num(r.updated_at),
     ...deployedOut(ctx, r),
   };
 }
@@ -123,35 +182,70 @@ function siteOut(ctx: Ctx, r: Row): Record<string, unknown> {
 function deployedOut(ctx: Ctx, r: Row): Record<string, unknown> {
   const source = sourceOf(r);
   if (!source) return {};
-  const last = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? ORDER BY at DESC", r.id, "production");
-  const addons = many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", r.id).map((a) => ({ kind: str(a.kind), state: str(a.state), envName: str(a.env_name), ...(isNull(a.detail) ? {} : { detail: str(a.detail) }) }));
+  const last = one(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? ORDER BY at DESC",
+    r.id,
+    "production",
+  );
+  const addons = many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", r.id).map((a) => ({
+    kind: str(a.kind),
+    state: str(a.state),
+    envName: str(a.env_name),
+    ...(isNull(a.detail) ? {} : { detail: str(a.detail) }),
+  }));
   // building shows while a deploy runs, even with an older build still serving
   const lastOut = last ? depRow(last, isNull(r.current_deployment) ? null : str(r.current_deployment)) : null;
-  const state = lastOut && lastOut.state === "building" || lastOut?.state === "queued" ? "building" : flag(r.live) ? "ready" : lastOut?.state === "failed" && isNull(r.container_id) ? "failed" : "stopped";
+  const state =
+    (lastOut && lastOut.state === "building") || lastOut?.state === "queued"
+      ? "building"
+      : flag(r.live)
+        ? "ready"
+        : lastOut?.state === "failed" && isNull(r.container_id)
+          ? "failed"
+          : "stopped";
   return {
-    deployed: true, source, limits: limitsOf(r), addons, autoDeploy: flag(r.auto_deploy), passwordSet: !isNull(r.password_hash), state,
+    deployed: true,
+    source,
+    limits: limitsOf(r),
+    addons,
+    autoDeploy: flag(r.auto_deploy),
+    passwordSet: !isNull(r.password_hash),
+    state,
     ...(lastOut ? { lastDeploy: lastOut } : {}),
   };
 }
 
-export const targetOfRow = (r: Row): RouteTarget => ({ ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }), ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }), ...(isNull(r.container_id) ? {} : { container: str(r.container_id) }) });
+export const targetOfRow = (r: Row): RouteTarget => ({
+  ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }),
+  ...(isNull(r.port) ? {} : { port: num(r.port) }),
+  ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }),
+  ...(isNull(r.container_id) ? {} : { container: str(r.container_id) }),
+});
 
 // ---- input
 
 function cleanName(ctx: Ctx, raw: string): string {
   const n = raw.trim();
-  if (n.length === 0 || n.length > NAME_MAX || /[\u0000-\u001f\u007f]/.test(n)) fail(ctx, "validation.bad_input", "A name is 1 to 80 characters without control characters.", { field: "name" });
+  if (n.length === 0 || n.length > NAME_MAX || /[\u0000-\u001f\u007f]/.test(n))
+    fail(ctx, "validation.bad_input", "A name is 1 to 80 characters without control characters.", { field: "name" });
   return n;
 }
 
 function slugOf(name: string): string {
-  const s = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/g, "");
+  const s = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, "");
   return s === "" ? "site" : s;
 }
 
 function cleanSlug(ctx: Ctx, raw: string): string {
   const s = raw.trim().toLowerCase();
-  if (!SLUG.test(s) || RESERVED_SLUGS.has(s)) fail(ctx, "validation.bad_input", "The address name uses lowercase letters, digits and dashes.", { field: "slug" });
+  if (!SLUG.test(s) || RESERVED_SLUGS.has(s))
+    fail(ctx, "validation.bad_input", "The address name uses lowercase letters, digits and dashes.", { field: "slug" });
   return s;
 }
 
@@ -167,15 +261,25 @@ function freeSlug(ctx: Ctx, wanted: string, own: string | null): string {
 
 function cleanPort(ctx: Ctx, port: number | undefined): number | undefined {
   if (port === undefined) return undefined;
-  if (port < 1 || port > 65535 || RESERVED_PORTS.has(port)) fail(ctx, "validation.bad_input", "That port cannot be served. Use the port your app listens on.", { field: "port" });
+  if (port < 1 || port > 65535 || RESERVED_PORTS.has(port))
+    fail(ctx, "validation.bad_input", "That port cannot be served. Use the port your app listens on.", {
+      field: "port",
+    });
   return port;
 }
 
 function accessOf(ctx: Ctx, raw: string | undefined, fallback: Access, deployed = false): Access {
   if (raw === undefined) return fallback;
-  if (!ACCESS.includes(raw)) fail(ctx, "validation.bad_input", "Access is public, space, private or password.", { field: "access" });
+  if (!ACCESS.includes(raw))
+    fail(ctx, "validation.bad_input", "Access is public, space, private or password.", { field: "access" });
   // a password is asked at a site's own address, which only a site Vyre deploys has: a route to a computer has no page to ask it on, and must never be open while it says it is not
-  if (raw === "password" && !deployed) fail(ctx, "validation.precondition_failed", "A password needs a site Vyre deploys at its own address. Use space or private.", { field: "access" });
+  if (raw === "password" && !deployed)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "A password needs a site Vyre deploys at its own address. Use space or private.",
+      { field: "access" },
+    );
   return raw as Access;
 }
 
@@ -183,17 +287,21 @@ function accessOf(ctx: Ctx, raw: string | undefined, fallback: Access, deployed 
 async function mustComputer(ctx: Ctx, computerId: string | undefined): Promise<void> {
   if (computerId === undefined) return;
   await ctx.call("computers.get", { computerId });
-  if (ctx.authorize({ perm: null, level: "use" }, { type: "computer", id: computerId }).effect !== "allow") fail(ctx, "permission.no_grant", "You cannot use that computer.", { computerId });
+  if (ctx.authorize({ perm: null, level: "use" }, { type: "computer", id: computerId }).effect !== "allow")
+    fail(ctx, "permission.no_grant", "You cannot use that computer.", { computerId });
 }
 
 function mustFolder(ctx: Ctx, folderId: string | undefined): void {
   if (folderId === undefined) return;
-  if (ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folderId }).effect !== "allow") fail(ctx, "permission.no_grant", "You cannot read that folder.", { folderId });
+  if (ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folderId }).effect !== "allow")
+    fail(ctx, "permission.no_grant", "You cannot read that folder.", { folderId });
 }
 
 function needsTarget(ctx: Ctx, r: Row): void {
-  if (!isNull(r.source) && isNull(r.container_id)) fail(ctx, "validation.precondition_failed", "Deploy it first: nothing is running yet.");
-  if (isNull(r.port) && isNull(r.target_folder)) fail(ctx, "validation.precondition_failed", "Say where it runs first: a port on a computer, or a folder in Files.");
+  if (!isNull(r.source) && isNull(r.container_id))
+    fail(ctx, "validation.precondition_failed", "Deploy it first: nothing is running yet.");
+  if (isNull(r.port) && isNull(r.target_folder))
+    fail(ctx, "validation.precondition_failed", "Say where it runs first: a port on a computer, or a folder in Files.");
 }
 
 // ---- create, read, change
@@ -206,20 +314,53 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const source = o.source !== undefined && o.source !== null && kind !== "artifact" ? cleanSource(ctx, o.source) : null;
   const limits = o.limits !== undefined && o.limits !== null ? cleanLimits(ctx, o.limits) : null;
   // a site Vyre deploys is for the Space until someone says otherwise: an internal dashboard is the common case, and public is an outward act
-  const access = accessOf(ctx, optStr(ctx, o, "access"), kind === "artifact" ? "private" : source ? "space" : "public", source !== null);
+  const access = accessOf(
+    ctx,
+    optStr(ctx, o, "access"),
+    kind === "artifact" ? "private" : source ? "space" : "public",
+    source !== null,
+  );
   const computerId = optStr(ctx, o, "computerId");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
   await mustComputer(ctx, computerId);
   mustFolder(ctx, optStr(ctx, o, "folderId"));
   const rawSlug = optStr(ctx, o, "slug");
-  const slug = kind === "artifact" ? null : freeSlug(ctx, rawSlug === undefined ? slugOf(name) : cleanSlug(ctx, rawSlug), null);
+  const slug =
+    kind === "artifact" ? null : freeSlug(ctx, rawSlug === undefined ? slugOf(name) : cleanSlug(ctx, rawSlug), null);
   const id = nid(ctx, "sit");
   const now = ctx.now();
   ctx.db.run(
     "INSERT INTO sites_site (id, name, kind, owner, repo_url, repo_folder_id, template_kit, state, settings, staging_secret, service_principal, created_at, updated_at, deleted_at, slug, computer_id, port, target_folder, access, live, blocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, name, kind, ctx.actingFor ?? ctx.principal.id, optStr(ctx, o, "repoUrl") ?? null, null, optStr(ctx, o, "templateKit") ?? null, "stopped", "{}", null, `svc_site_${hexOf(id)}`, now, now, null, slug, source ? null : computerId ?? null, source ? null : port ?? null, source ? null : optStr(ctx, o, "folderId") ?? null, access, 0, 0,
+    id,
+    name,
+    kind,
+    ctx.actingFor ?? ctx.principal.id,
+    optStr(ctx, o, "repoUrl") ?? null,
+    null,
+    optStr(ctx, o, "templateKit") ?? null,
+    "stopped",
+    "{}",
+    null,
+    `svc_site_${hexOf(id)}`,
+    now,
+    now,
+    null,
+    slug,
+    source ? null : (computerId ?? null),
+    source ? null : (port ?? null),
+    source ? null : (optStr(ctx, o, "folderId") ?? null),
+    access,
+    0,
+    0,
   );
-  if (source) ctx.db.run("UPDATE sites_site SET source = ?, limits = ?, auto_deploy = ? WHERE id = ?", JSON.stringify(source), limits ? JSON.stringify(limits) : null, source.repo ? 1 : 0, id);
+  if (source)
+    ctx.db.run(
+      "UPDATE sites_site SET source = ?, limits = ?, auto_deploy = ? WHERE id = ?",
+      JSON.stringify(source),
+      limits ? JSON.stringify(limits) : null,
+      source.repo ? 1 : 0,
+      id,
+    );
   touchActivity(ctx.db, id, "site.created", now);
   ctx.emit("site.created", `site/${id}`, { siteId: id, name, ...(access === "private" ? { private: true } : {}) });
   return { site: siteOut(ctx, mustSite(ctx, id)) };
@@ -229,15 +370,27 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
 async function artifactExtras(ctx: Ctx, r: Row): Promise<Record<string, unknown>> {
   if (r.kind !== "artifact") return {};
   let kept: Record<string, unknown> = {};
-  try { const v: unknown = JSON.parse(isNull(r.settings) ? "{}" : str(r.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row with no settings */ }
+  try {
+    const v: unknown = JSON.parse(isNull(r.settings) ? "{}" : str(r.settings));
+    if (v !== null && typeof v === "object") kept = v as Record<string, unknown>;
+  } catch {
+    /* an old row with no settings */
+  }
   const out: Record<string, unknown> = {};
   if (typeof kept["thumb"] === "string") out["thumb"] = kept["thumb"];
   if (typeof kept["chatId"] === "string") {
     out["chatId"] = kept["chatId"];
-    try { const t = (await ctx.call("threads.get", { threadId: kept["chatId"] })) as { thread?: { title?: unknown } }; if (typeof t.thread?.title === "string" && t.thread.title !== "") out["chatTitle"] = t.thread.title; } catch { /* the chat is gone or not readable by this person: the card shows no source */ }
+    try {
+      const t = (await ctx.call("threads.get", { threadId: kept["chatId"] })) as { thread?: { title?: unknown } };
+      if (typeof t.thread?.title === "string" && t.thread.title !== "") out["chatTitle"] = t.thread.title;
+    } catch {
+      /* the chat is gone or not readable by this person: the card shows no source */
+    }
   }
   try {
-    const sh = (await ctx.call("access.shares_of", { resource: { type: "site", id: str(r.id) } })) as { shares?: { through?: string; grant?: { subject?: { kind?: string; id?: string } } }[] };
+    const sh = (await ctx.call("access.shares_of", { resource: { type: "site", id: str(r.id) } })) as {
+      shares?: { through?: string; grant?: { subject?: { kind?: string; id?: string } } }[];
+    };
     const people = new Set<string>();
     const audience = new Set<string>();
     for (const x of sh.shares ?? []) {
@@ -249,7 +402,9 @@ async function artifactExtras(ctx: Ctx, r: Row): Promise<Record<string, unknown>
     }
     if (people.size > 0) out["sharedWith"] = [...people];
     if (audience.size > 0) out["sharedAudience"] = [...audience];
-  } catch { /* a person who cannot read the shares sees none */ }
+  } catch {
+    /* a person who cannot read the shares sees none */
+  }
   return out;
 }
 
@@ -271,10 +426,15 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; 
   else if (kind === "site") rows = rows.filter((r) => r.kind !== "artifact");
   if (section === "personal") rows = rows.filter((r) => r.owner === me);
   if (section === "shared") rows = rows.filter((r) => r.owner !== me);
-  rows = rows.filter((r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow");
+  rows = rows.filter(
+    (r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow",
+  );
   rows.sort((a, b) => num(b.updated_at) - num(a.updated_at) || str(a.id).localeCompare(str(b.id)));
   const page = rows.slice(offset, offset + limit);
-  const out: { sites: unknown[]; next?: string; total: number } = { sites: await Promise.all(page.map(async (r) => ({ ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) }))), total: rows.length };
+  const out: { sites: unknown[]; next?: string; total: number } = {
+    sites: await Promise.all(page.map(async (r) => ({ ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) }))),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -289,7 +449,10 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const source = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
   const limits = o.limits !== undefined && o.limits !== null ? JSON.stringify(cleanLimits(ctx, o.limits)) : null;
   const auto = optBool(ctx, o, "autoDeploy");
-  if (access === "password" && isNull(site.password_hash)) fail(ctx, "validation.precondition_failed", "Set the password first, then switch access to password.", { field: "access" });
+  if (access === "password" && isNull(site.password_hash))
+    fail(ctx, "validation.precondition_failed", "Set the password first, then switch access to password.", {
+      field: "access",
+    });
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
   const computerId = optStr(ctx, o, "computerId");
   await mustComputer(ctx, computerId);
@@ -305,7 +468,14 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   if (site.access === "public" && access !== "public") await routeDomains(ctx, site, false);
   ctx.db.run(
     "UPDATE sites_site SET name = ?, access = ?, port = ?, computer_id = ?, target_folder = ?, live = ?, updated_at = ? WHERE id = ?",
-    cleanedName, access, port ?? site.port ?? null, computerId ?? site.computer_id ?? null, folderId ?? site.target_folder ?? null, live ? 1 : 0, ctx.now(), site.id,
+    cleanedName,
+    access,
+    port ?? site.port ?? null,
+    computerId ?? site.computer_id ?? null,
+    folderId ?? site.target_folder ?? null,
+    live ? 1 : 0,
+    ctx.now(),
+    site.id,
   );
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }
@@ -318,7 +488,15 @@ async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean
   await stopDeployed(ctx, site, true);
   ctx.db.run("DELETE FROM sites_domain WHERE site_id = ?", site.id);
   ctx.db.run("DELETE FROM sites_ticket WHERE site_id = ?", site.id);
-  ctx.db.run("UPDATE sites_site SET state = ?, live = ?, slug = ?, deleted_at = ?, updated_at = ? WHERE id = ?", "stopped", 0, null, now, now, site.id);
+  ctx.db.run(
+    "UPDATE sites_site SET state = ?, live = ?, slug = ?, deleted_at = ?, updated_at = ? WHERE id = ?",
+    "stopped",
+    0,
+    null,
+    now,
+    now,
+    site.id,
+  );
   return { deleted: true };
 }
 
@@ -327,13 +505,18 @@ async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean
 function goLive(ctx: Ctx, site: Row): { site: unknown } {
   const id = str(site.id);
   needsTarget(ctx, site);
-  if (flag(site.blocked)) fail(ctx, "validation.precondition_failed", "This site was taken down by an admin of this server.");
+  if (flag(site.blocked))
+    fail(ctx, "validation.precondition_failed", "This site was taken down by an admin of this server.");
   const now = ctx.now();
   ctx.db.run("UPDATE sites_site SET live = ?, state = ?, updated_at = ? WHERE id = ?", 1, "ready", now, id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
   const url = urlOf(fresh);
-  ctx.emit("site.published", `site/${id}`, { siteId: id, ...(url ? { url } : {}), access: str(fresh.access) as Access });
+  ctx.emit("site.published", `site/${id}`, {
+    siteId: id,
+    ...(url ? { url } : {}),
+    access: str(fresh.access) as Access,
+  });
   return { site: siteOut(ctx, fresh) };
 }
 
@@ -345,21 +528,33 @@ async function routeDomains(ctx: Ctx, site: Row, up: boolean): Promise<void> {
     try {
       if (up && target.port !== undefined) await edge.setRoute(target, str(d.domain), target.port);
       else await edge.removeRoute(target, str(d.domain));
-    } catch (e) { ctx.log.warn("sites: a domain route did not change", { domain: str(d.domain), error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e) {
+      ctx.log.warn("sites: a domain route did not change", {
+        domain: str(d.domain),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 }
 
 /** A computer that serves a site stays awake. One the caller cannot configure keeps its idle time, and the skill says so. */
 async function keepAwake(ctx: Ctx, site: Row): Promise<void> {
   if (isNull(site.computer_id)) return;
-  try { await ctx.call("computers.configure", { computerId: str(site.computer_id), idleSleepMinutes: 0 }); } catch (e) {
+  try {
+    await ctx.call("computers.configure", { computerId: str(site.computer_id), idleSleepMinutes: 0 });
+  } catch (e) {
     ctx.log.warn("sites: the computer keeps its idle sleep", { error: e instanceof Error ? e.message : String(e) });
   }
 }
 
 async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
-  if (site.access !== "public") fail(ctx, "validation.precondition_failed", "This site is not public. Change its access to public first, or use sites_publish.");
+  if (site.access !== "public")
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "This site is not public. Change its access to public first, or use sites_publish.",
+    );
   await keepAwake(ctx, site);
   const out = goLive(ctx, site);
   if (!isNull(site.source)) await host?.hostRoute?.(str(site.id), true).catch(() => undefined);
@@ -369,7 +564,8 @@ async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ site: unknown }
 
 async function sitesPublish(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
-  if (site.access === "public") fail(ctx, "validation.precondition_failed", "Going public is held for approval: use sites_promote.");
+  if (site.access === "public")
+    fail(ctx, "validation.precondition_failed", "Going public is held for approval: use sites_promote.");
   await keepAwake(ctx, site);
   const out = goLive(ctx, site);
   if (!isNull(site.source)) await host?.hostRoute?.(str(site.id), true).catch(() => undefined);
@@ -387,30 +583,50 @@ async function sitesStop(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   return { site: siteOut(ctx, mustSite(ctx, id)) };
 }
 
-async function sitesStatus(ctx: Ctx, input: unknown): Promise<{ answering: boolean; detail?: string; url?: string; live: boolean; blocked: boolean }> {
+async function sitesStatus(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ answering: boolean; detail?: string; url?: string; live: boolean; blocked: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   const url = urlOf(site);
   const base = { live: flag(site.live), blocked: flag(site.blocked), ...(url ? { url } : {}) };
   if (!isNull(site.target_folder)) return { ...base, answering: true };
-  if (!isNull(site.source) && isNull(site.container_id)) return { ...base, answering: false, detail: "It is not deployed yet." };
+  if (!isNull(site.source) && isNull(site.container_id))
+    return { ...base, answering: false, detail: "It is not deployed yet." };
   if (isNull(site.port)) return { ...base, answering: false, detail: "It has no port yet." };
   if (!host) return { ...base, answering: false, detail: "This server cannot reach computers yet." };
   const p = await host.probe(targetOfRow(site));
   return { ...base, answering: p.answering, ...(p.detail ? { detail: p.detail } : {}) };
 }
 
-async function sitesHost(ctx: Ctx): Promise<{ origin?: string; relay: boolean; computers: boolean; domains: boolean; domainsNeed?: string }> {
+async function sitesHost(
+  ctx: Ctx,
+): Promise<{ origin?: string; relay: boolean; computers: boolean; domains: boolean; domainsNeed?: string }> {
   const o = host?.origin() ?? null;
   let computers = false;
-  try { computers = ((await ctx.call("computers.hosts", {})) as { available?: boolean }).available === true; } catch { /* no computers module: none */ }
+  try {
+    computers = ((await ctx.call("computers.hosts", {})) as { available?: boolean }).available === true;
+  } catch {
+    /* no computers module: none */
+  }
   // the runner is a separate process: it may be starting, or gone
-  const deploy = runnerOf !== null && await runnerOf.ping();
+  const deploy = runnerOf !== null && (await runnerOf.ping());
   const sitesDomain = host?.sitesDomain?.() ?? null;
   const domains = computers || (deploy && !!o && !o.relay);
-  const need = deploy ? null : runnerOf ? "The sites runner on this server is not answering. An admin restarts the server (docker compose up -d)." : deployNeed();
+  const need = deploy
+    ? null
+    : runnerOf
+      ? "The sites runner on this server is not answering. An admin restarts the server (docker compose up -d)."
+      : deployNeed();
   return {
-    ...(o ? { origin: o.origin } : {}), relay: o?.relay === true, computers, domains, ...(domains ? {} : { domainsNeed: "A custom domain needs a server with a public address." }),
-    deploy, ...(need ? { deployNeed: need } : {}), ...(sitesDomain ? { sitesDomain } : {}),
+    ...(o ? { origin: o.origin } : {}),
+    relay: o?.relay === true,
+    computers,
+    domains,
+    ...(domains ? {} : { domainsNeed: "A custom domain needs a server with a public address." }),
+    deploy,
+    ...(need ? { deployNeed: need } : {}),
+    ...(sitesDomain ? { sitesDomain } : {}),
   };
 }
 
@@ -418,10 +634,13 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const tail = optInt(ctx, o, "tail") ?? 200;
-  if (tail < 1 || tail > 1000) fail(ctx, "validation.bad_input", "Tail is between 1 and 1000 lines.", { field: "tail" });
+  if (tail < 1 || tail > 1000)
+    fail(ctx, "validation.bad_input", "Tail is between 1 and 1000 lines.", { field: "tail" });
   if (!isNull(site.source)) return deployedLogs(ctx, site, o, tail);
   if (!host?.logs || isNull(site.computer_id)) return { lines: [] };
-  try { return { lines: await host.logs(targetOfRow(site), str(site.slug) || hexOf(str(site.id)), tail) }; } catch (e) {
+  try {
+    return { lines: await host.logs(targetOfRow(site), str(site.slug) || hexOf(str(site.id)), tail) };
+  } catch (e) {
     ctx.log.warn("sites: logs unavailable", { error: e instanceof Error ? e.message : String(e) });
     return { lines: [] };
   }
@@ -432,7 +651,10 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 /** The largest thumbnail kept (a data URL, about 120 by 80 pixels). */
 const THUMB_MAX = 60_000;
 
-async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
+async function artifactPublish(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -441,28 +663,69 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const localPath = optStr(ctx, o, "path");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
   const thumb = optStr(ctx, o, "thumb");
-  if (thumb !== undefined && (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb))) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
+  if (
+    thumb !== undefined &&
+    (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb))
+  )
+    fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
   let computerId = optStr(ctx, o, "computerId");
-  if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1) fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
+  if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1)
+    fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
   // a port with no computer named is on the agent's own computer, when it has one
   if (port !== undefined && computerId === undefined && ctx.principal.kind === "agent") {
-    try { computerId = ((await ctx.call("computers.list", {})) as { computers?: { computerId?: string; agentId?: string }[] }).computers?.find((c) => c.agentId === ctx.principal.id)?.computerId; } catch { /* no computers here: the port is on this machine */ }
+    try {
+      computerId = (
+        (await ctx.call("computers.list", {})) as { computers?: { computerId?: string; agentId?: string }[] }
+      ).computers?.find((c) => c.agentId === ctx.principal.id)?.computerId;
+    } catch {
+      /* no computers here: the port is on this machine */
+    }
   }
   await mustComputer(ctx, computerId);
   mustFolder(ctx, folderIn);
   const me = ctx.actingFor ?? ctx.principal.id;
   const wanted = optStr(ctx, o, "artifactId");
-  let row: Row | undefined = wanted !== undefined ? mustSite(ctx, wanted)
-    : many(ctx, "SELECT * FROM sites_site WHERE kind = ? AND owner = ? AND deleted_at IS NULL", "artifact", me).find((r) => r.name === title);
-  if (row && row.kind !== "artifact") fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
-  if (row && row.owner !== me && ctx.authorize({ perm: null, level: "edit" }, { type: "site", id: str(row.id) }).effect !== "allow") fail(ctx, "permission.no_grant", "You can see that artifact but cannot change it.");
+  let row: Row | undefined =
+    wanted !== undefined
+      ? mustSite(ctx, wanted)
+      : many(ctx, "SELECT * FROM sites_site WHERE kind = ? AND owner = ? AND deleted_at IS NULL", "artifact", me).find(
+          (r) => r.name === title,
+        );
+  if (row && row.kind !== "artifact")
+    fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
+  if (
+    row &&
+    row.owner !== me &&
+    ctx.authorize({ perm: null, level: "edit" }, { type: "site", id: str(row.id) }).effect !== "allow"
+  )
+    fail(ctx, "permission.no_grant", "You can see that artifact but cannot change it.");
   const updated = row !== undefined;
   const id = row ? str(row.id) : nid(ctx, "sit");
   const now = ctx.now();
   if (!row) {
     ctx.db.run(
       "INSERT INTO sites_site (id, name, kind, owner, repo_url, repo_folder_id, template_kit, state, settings, staging_secret, service_principal, created_at, updated_at, deleted_at, slug, computer_id, port, target_folder, access, live, blocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      id, title, "artifact", me, null, null, null, "stopped", "{}", null, `svc_site_${hexOf(id)}`, now, now, null, null, null, null, null, "private", 0, 0,
+      id,
+      title,
+      "artifact",
+      me,
+      null,
+      null,
+      null,
+      "stopped",
+      "{}",
+      null,
+      `svc_site_${hexOf(id)}`,
+      now,
+      now,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "private",
+      0,
+      0,
     );
     ctx.emit("site.created", `site/${id}`, { siteId: id, name: title, private: true });
     row = mustSite(ctx, id);
@@ -472,7 +735,8 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
     const store = host?.artifacts;
     if (!store) fail(ctx, "validation.precondition_failed", "This server cannot keep artifacts yet.");
     folderId = isNull(row.target_folder) ? await store.folder(id, title) : str(row.target_folder);
-    const put = (name: string, base64: string, mime: string): Promise<void> => store.put(folderId as string, name, base64, mime);
+    const put = (name: string, base64: string, mime: string): Promise<void> =>
+      store.put(folderId as string, name, base64, mime);
     if (html !== undefined) await put("index.html", Buffer.from(html, "utf8").toString("base64"), "text/html");
     else if (fileId !== undefined) {
       const f = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
@@ -480,20 +744,41 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
       await put("index.html", f.base64, f.mime ?? "text/html");
     } else {
       const got = host?.readLocal ? await host.readLocal(localPath as string) : null;
-      if (got === null) fail(ctx, "validation.precondition_failed", "That path is not on this machine. Pass html, or save it to Files and pass fileId or folderId.", { field: "path" });
-      if (got.length === 0 || got.length > FILES_MAX) fail(ctx, "validation.too_large", "A published folder holds 1 to 200 files.", { field: "path" });
+      if (got === null)
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          "That path is not on this machine. Pass html, or save it to Files and pass fileId or folderId.",
+          { field: "path" },
+        );
+      if (got.length === 0 || got.length > FILES_MAX)
+        fail(ctx, "validation.too_large", "A published folder holds 1 to 200 files.", { field: "path" });
       if (got.length === 1) await put("index.html", (got[0] as LocalFile).base64, (got[0] as LocalFile).mime);
       else for (const f of got) await put(f.path.replaceAll("/", "__"), f.base64, f.mime);
     }
   }
   ctx.db.run(
     "UPDATE sites_site SET port = ?, computer_id = ?, target_folder = ?, live = ?, state = ?, updated_at = ? WHERE id = ?",
-    port ?? null, port === undefined ? null : (computerId ?? null), port === undefined ? folderId : null, 1, "ready", now, id,
+    port ?? null,
+    port === undefined ? null : (computerId ?? null),
+    port === undefined ? folderId : null,
+    1,
+    "ready",
+    now,
+    id,
   );
   // the picture and the chat that made it are kept with the artifact; the first chat stays its source
   let kept: Record<string, unknown> = {};
-  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
-  if (thumb !== undefined) { kept["thumb"] = thumb; kept["thumbAt"] = now; }
+  try {
+    const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings));
+    if (v !== null && typeof v === "object") kept = v as Record<string, unknown>;
+  } catch {
+    /* an old row */
+  }
+  if (thumb !== undefined) {
+    kept["thumb"] = thumb;
+    kept["thumbAt"] = now;
+  }
   if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
   ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
@@ -512,7 +797,13 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
 async function announce(ctx: Ctx, id: string, title: string, openFor?: string): Promise<boolean> {
   if (!ctx.thread) return false;
   try {
-    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title, ...(openFor ? { openFor } : {}) } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    await ctx.call("chat.post", {
+      threadId: ctx.thread,
+      body: "",
+      mentions: [],
+      blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title, ...(openFor ? { openFor } : {}) } }],
+      idempotencyKey: `artifact:${id}:${ctx.now()}`,
+    });
     return true;
   } catch (e) {
     if (!(e instanceof VyreErr)) throw e;
@@ -533,17 +824,27 @@ function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
   return { ok: true };
 }
 
-const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
+const hashHex = async (text: string): Promise<string> =>
+  Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 
 /** Keeps the picture a person's browser took when it opened the artifact: only when there is none, or the artifact changed since the last one. Anyone who can open it may send it. */
 async function artifactThumbSet(ctx: Ctx, input: unknown): Promise<{ set: boolean }> {
   const o = rec(ctx, input);
   const row = mustSite(ctx, reqStr(ctx, o, "artifactId"));
-  if (row.kind !== "artifact") fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
+  if (row.kind !== "artifact")
+    fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
   const thumb = reqStr(ctx, o, "thumb");
-  if (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
+  if (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb))
+    fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
   let kept: Record<string, unknown> = {};
-  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  try {
+    const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings));
+    if (v !== null && typeof v === "object") kept = v as Record<string, unknown>;
+  } catch {
+    /* an old row */
+  }
   const at = typeof kept["thumbAt"] === "number" ? kept["thumbAt"] : 0;
   if (typeof kept["thumb"] === "string" && at >= num(row.updated_at)) return { set: false };
   kept["thumb"] = thumb;
@@ -558,22 +859,49 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
   const site = mustSite(ctx, id);
   if (!flag(site.live)) fail(ctx, "validation.precondition_failed", "It is stopped. Publish it again to open it.");
   // only a person signed in opens one: an agent shows the person the card, and the person's own session opens it
-  if (ctx.principal.kind !== "person") fail(ctx, "permission.no_grant", "Only a person can open an artifact. Give them the link.");
+  if (ctx.principal.kind !== "person")
+    fail(ctx, "permission.no_grant", "Only a person can open an artifact. Give them the link.");
   const now = ctx.now();
   ctx.db.run("DELETE FROM sites_ticket WHERE expires_at < ?", now);
-  const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
   // the address is a one-time code for the artifact host (a minute, one use, traded for a cookie there); there is no address with a token in it
   const ah = host?.artifactHost?.() ?? null;
   if (!ah) fail(ctx, "validation.precondition_failed", "This server has no address for artifacts yet.");
   const expiresAt = now + EXCHANGE_MS;
-  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`x:${token}`), id, ctx.principal.id, expiresAt);
-  return { path: `/x/${token}`, url: `${/^a\.localhost(:\d+)?$/.test(ah as string) ? "http" : "https"}://${ah}/x/${token}`, expiresAt };
+  ctx.db.run(
+    "INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)",
+    await hashHex(`x:${token}`),
+    id,
+    ctx.principal.id,
+    expiresAt,
+  );
+  return {
+    path: `/x/${token}`,
+    url: `${/^a\.localhost(:\d+)?$/.test(ah as string) ? "http" : "https"}://${ah}/x/${token}`,
+    expiresAt,
+  };
 }
 
 // ---- what the gateway asks
 
-export interface ServedRoute { siteId: string; slug: string; access: Access; live: boolean; blocked: boolean; target: RouteTarget }
-const served = (r: Row): ServedRoute => ({ siteId: str(r.id), slug: str(r.slug), access: str(r.access) as Access, live: flag(r.live), blocked: flag(r.blocked), target: targetOfRow(r) });
+export interface ServedRoute {
+  siteId: string;
+  slug: string;
+  access: Access;
+  live: boolean;
+  blocked: boolean;
+  target: RouteTarget;
+}
+const served = (r: Row): ServedRoute => ({
+  siteId: str(r.id),
+  slug: str(r.slug),
+  access: str(r.access) as Access,
+  live: flag(r.live),
+  blocked: flag(r.blocked),
+  target: targetOfRow(r),
+});
 
 /** The route behind /p/<slug>. Host call, not a capability: a visitor has no session. */
 export function routeBySlug(ctx: Pick<Ctx, "db">, slug: string): ServedRoute | null {
@@ -582,26 +910,61 @@ export function routeBySlug(ctx: Pick<Ctx, "db">, slug: string): ServedRoute | n
 }
 
 /** A site Vyre deploys, by the address a visitor asked for: <slug>.<sites domain> or one of its custom domains. Host call: a visitor has no session. */
-export function routeByHost(ctx: Pick<Ctx, "db">, hostName: string, sitesDomain: string | null): (ServedRoute & { owner: string; passwordHash: string | null; name: string }) | null {
+export function routeByHost(
+  ctx: Pick<Ctx, "db">,
+  hostName: string,
+  sitesDomain: string | null,
+): (ServedRoute & { owner: string; passwordHash: string | null; name: string }) | null {
   const h = hostName.toLowerCase().replace(/\.$/, "").replace(/:\d+$/, "");
   let r: Row | undefined;
   if (sitesDomain && h.endsWith(`.${sitesDomain}`)) {
     const slug = h.slice(0, -sitesDomain.length - 1);
-    if (/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) r = (ctx.db.all("SELECT * FROM sites_site WHERE slug = ? AND deleted_at IS NULL AND source IS NOT NULL", slug) as Row[])[0];
+    if (/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug))
+      r = (
+        ctx.db.all(
+          "SELECT * FROM sites_site WHERE slug = ? AND deleted_at IS NULL AND source IS NOT NULL",
+          slug,
+        ) as Row[]
+      )[0];
   }
   if (!r) {
     const d = (ctx.db.all("SELECT site_id FROM sites_domain WHERE domain = ?", h) as Row[])[0];
-    if (d) r = (ctx.db.all("SELECT * FROM sites_site WHERE id = ? AND deleted_at IS NULL AND source IS NOT NULL", d.site_id) as Row[])[0];
+    if (d)
+      r = (
+        ctx.db.all(
+          "SELECT * FROM sites_site WHERE id = ? AND deleted_at IS NULL AND source IS NOT NULL",
+          d.site_id,
+        ) as Row[]
+      )[0];
   }
-  return r ? { ...served(r), owner: str(r.owner), passwordHash: isNull(r.password_hash) ? null : str(r.password_hash), name: str(r.name) } : null;
+  return r
+    ? {
+        ...served(r),
+        owner: str(r.owner),
+        passwordHash: isNull(r.password_hash) ? null : str(r.password_hash),
+        name: str(r.name),
+      }
+    : null;
 }
 
 /** Every address of the sites Vyre deploys, for the host to write into Caddy. */
-export function deployedHosts(ctx: Pick<Ctx, "db">, sitesDomain: string | null, siteId?: string): { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number }[] {
-  const rows = (ctx.db.all("SELECT * FROM sites_site WHERE deleted_at IS NULL AND source IS NOT NULL") as Row[]).filter((r) => siteId === undefined || r.id === siteId);
+export function deployedHosts(
+  ctx: Pick<Ctx, "db">,
+  sitesDomain: string | null,
+  siteId?: string,
+): { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number }[] {
+  const rows = (ctx.db.all("SELECT * FROM sites_site WHERE deleted_at IS NULL AND source IS NOT NULL") as Row[]).filter(
+    (r) => siteId === undefined || r.id === siteId,
+  );
   return rows.map((r) => ({
-    siteId: str(r.id), live: flag(r.live), ...(isNull(r.container_id) ? {} : { container: str(r.container_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }),
-    hosts: [...(sitesDomain && !isNull(r.slug) ? [`${str(r.slug)}.${sitesDomain}`] : []), ...(ctx.db.all("SELECT domain FROM sites_domain WHERE site_id = ?", r.id) as Row[]).map((d) => str(d.domain))],
+    siteId: str(r.id),
+    live: flag(r.live),
+    ...(isNull(r.container_id) ? {} : { container: str(r.container_id) }),
+    ...(isNull(r.port) ? {} : { port: num(r.port) }),
+    hosts: [
+      ...(sitesDomain && !isNull(r.slug) ? [`${str(r.slug)}.${sitesDomain}`] : []),
+      ...(ctx.db.all("SELECT domain FROM sites_domain WHERE site_id = ?", r.id) as Row[]).map((d) => str(d.domain)),
+    ],
   }));
 }
 
@@ -612,7 +975,12 @@ export function routeById(ctx: Pick<Ctx, "db">, siteId: string): ServedRoute | n
 }
 
 /** The route and who is asking, for /a/<id>/k/<token>/. The caller checks access for that person on every request, so a revoked share ends at once. Null for a token that is not good for this artifact now. */
-export async function routeByTicket(ctx: Pick<Ctx, "db">, siteId: string, token: string, now: number): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
+export async function routeByTicket(
+  ctx: Pick<Ctx, "db">,
+  siteId: string,
+  token: string,
+  now: number,
+): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
   if (!/^[0-9a-f]{48}$/.test(token)) return null;
   const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", await hashHex(token)) as Row[])[0];
   if (!t || t.site_id !== siteId || num(t.expires_at) <= now) return null;
@@ -624,20 +992,37 @@ export async function routeByTicket(ctx: Pick<Ctx, "db">, siteId: string, token:
  * Trade an artifact's one-time code for a session: the code is used up (a second use finds nothing), and a session token for the artifact host's cookie is made for the same person. Null for a code that is
  * not good now (used, ended). The artifact it opens is the one the code was made for.
  */
-export async function exchangeArtifactCode(ctx: Pick<Ctx, "db">, code: string, now: number): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> {
+export async function exchangeArtifactCode(
+  ctx: Pick<Ctx, "db">,
+  code: string,
+  now: number,
+): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> {
   if (!/^[0-9a-f]{48}$/.test(code)) return null;
   const hash = await hashHex(`x:${code}`);
   const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", hash) as Row[])[0];
   if (!t) return null;
-  ctx.db.run("DELETE FROM sites_ticket WHERE token_hash = ?", hash);   // single use, whatever happens next
+  ctx.db.run("DELETE FROM sites_ticket WHERE token_hash = ?", hash); // single use, whatever happens next
   if (num(t.expires_at) <= now) return null;
-  const session = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
-  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`s:${session}`), str(t.site_id), str(t.principal), now + ARTIFACT_SESSION_MS);
+  const session = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+  ctx.db.run(
+    "INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)",
+    await hashHex(`s:${session}`),
+    str(t.site_id),
+    str(t.principal),
+    now + ARTIFACT_SESSION_MS,
+  );
   return { siteId: str(t.site_id), token: session, maxAgeSeconds: Math.floor(ARTIFACT_SESSION_MS / 1000) };
 }
 
 /** The route and who is asking, for a request carrying an artifact host session cookie. The caller checks that person's access on every request. Null for a cookie not good for this artifact now. */
-export async function routeByArtifactSession(ctx: Pick<Ctx, "db">, siteId: string, token: string, now: number): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
+export async function routeByArtifactSession(
+  ctx: Pick<Ctx, "db">,
+  siteId: string,
+  token: string,
+  now: number,
+): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
   if (!/^[0-9a-f]{48}$/.test(token)) return null;
   const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", await hashHex(`s:${token}`)) as Row[])[0];
   if (!t || t.site_id !== siteId || num(t.expires_at) <= now) return null;

@@ -29,7 +29,14 @@ import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx
 import { DraftCard, ProviderDraftCard } from "./draft-card.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { doneByState, draftOf, heldTaskOf, probeOf, providerDraftOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import {
+  doneByState,
+  draftOf,
+  heldTaskOf,
+  probeOf,
+  providerDraftOf,
+  stateOf,
+} from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -73,7 +80,27 @@ import type { ConversationData } from "./data.tsx";
 import { Card as UiCard, CardActions, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { hookLineOf, hookLineText, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import {
+  hookLineOf,
+  hookLineText,
+  pokeLine,
+  pokedBy,
+  reportLabel,
+  bodyBlocks,
+  cardLine,
+  collect,
+  errorRow,
+  isCard,
+  isErrorBlock,
+  isSystemLine,
+  isTurnStatus,
+  onBehalfOf,
+  planSteps,
+  questionOptions,
+  statusView,
+  terminalAskOf,
+  workOf,
+} from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
@@ -81,14 +108,28 @@ import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
-import { BODY_LEAD, BODY_PX, FACE, GAP_BETWEEN, GAP_WITHIN, GUTTER, META_PX, NAME_PX, RADIUS, SYSTEM_PX } from "../../../../../../ui/src/tokens/calm.ts";
+import {
+  BODY_LEAD,
+  BODY_PX,
+  FACE,
+  GAP_BETWEEN,
+  GAP_WITHIN,
+  GUTTER,
+  META_PX,
+  NAME_PX,
+  RADIUS,
+  SYSTEM_PX,
+} from "../../../../../../ui/src/tokens/calm.ts";
 import { useGutter } from "./gutter.ts";
 import { BLOCK_GAP } from "../../../../../../ui/src/stream/Reserved.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
   if (!nameOf || !/usr_[0-9a-f]{8,}/.test(body)) return body;
-  return body.replace(/\busr_[0-9a-f]{8,}\b/g, (id) => { const n = nameOf(id); return n && n !== id && !n.startsWith("usr_") ? n : id; });
+  return body.replace(/\busr_[0-9a-f]{8,}\b/g, (id) => {
+    const n = nameOf(id);
+    return n && n !== id && !n.startsWith("usr_") ? n : id;
+  });
 }
 
 export interface MessageActions {
@@ -144,7 +185,11 @@ export interface MessageActions {
   /** The reader's side of an agent's message for its person (lane l-agentdm): who reads, and mute that person's agents for the rest of the day. Absent where the shell cannot. */
   /** What the buttons on an agent's cards from the person's own Chrome do (Send, Edit, Don't send, Watch, Take over); without it they show and do nothing. */
   chrome?: ChromeCardActions;
-  agentMute?: { me: string; mute(personId: string): void; /** the one message the quiet mute line goes under; absent: none */ offerFor?: string | null };
+  agentMute?: {
+    me: string;
+    mute(personId: string): void;
+    /** the one message the quiet mute line goes under; absent: none */ offerFor?: string | null;
+  };
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
@@ -154,7 +199,15 @@ export interface MessageActions {
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
   /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
-  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void; merge(jobIds: readonly string[]): void };
+  crew?: {
+    status: CrewStatusOut | null;
+    selected: string | null;
+    peek(helperThreadId: string): void;
+    stopAll(): void;
+    openPane(): void;
+    retry(helperThreadId: string): void;
+    merge(jobIds: readonly string[]): void;
+  };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
@@ -166,7 +219,12 @@ export interface MessageActions {
   liveCard?: LiveCardConfig;
   /** Run on a one-line shell block in a message. Absent: a code block is just the code. */
   runCode?: RunCodeConfig;
-  terminalCard?: { deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string }; agentId?: string; copy(text: string): void; openTerminal(terminalId: string): void };
+  terminalCard?: {
+    deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string };
+    agentId?: string;
+    copy(text: string): void;
+    openTerminal(terminalId: string): void;
+  };
   /** What the shared native blocks (changeset, plan, question, terminal, deploy) call: capabilities as the person, and tabs beside the chat. */
   host: BlockHost;
 }
@@ -196,7 +254,13 @@ export interface MessageViewProps {
 export function forkOrigin(m: Pick<Message, "blocks">): { threadId: string; messageId: string; title: string } | null {
   const b = m.blocks.find((x) => x.type === "fork_origin");
   const d = b && typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : null;
-  return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string" ? { threadId: d["threadId"], messageId: d["messageId"], title: typeof d["title"] === "string" ? d["title"] : "another chat" } : null;
+  return d && typeof d["threadId"] === "string" && typeof d["messageId"] === "string"
+    ? {
+        threadId: d["threadId"],
+        messageId: d["messageId"],
+        title: typeof d["title"] === "string" ? d["title"] : "another chat",
+      }
+    : null;
 }
 
 /**
@@ -218,38 +282,77 @@ export function sameData(a: unknown, b: unknown, depth: number): boolean {
   const ka = Object.keys(a);
   if (ka.length !== Object.keys(b).length) return false;
   for (const k of ka) {
-    if (!(k in b) || !sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth - 1)) return false;
+    if (!(k in b) || !sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth - 1))
+      return false;
   }
   return true;
 }
 
 /** Draw a row again only when something it shows changed. */
 export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
-  return a.meId === b.meId && a.stream === b.stream && a.sending === b.sending && a.openWork === b.openWork && a.mark === b.mark && a.below === b.below
-    && sameData(a.item, b.item, 6) && sameData(a.actions, b.actions, 5) && sameData(a.replies, b.replies, 3);
+  return (
+    a.meId === b.meId &&
+    a.stream === b.stream &&
+    a.sending === b.sending &&
+    a.openWork === b.openWork &&
+    a.mark === b.mark &&
+    a.below === b.below &&
+    sameData(a.item, b.item, 6) &&
+    sameData(a.actions, b.actions, 5) &&
+    sameData(a.replies, b.replies, 3)
+  );
 }
 
 /** What a status card's buttons do: the card's own capability as the person (the Gate still holds what leaves Vyre); with none, nothing happens here. */
-const cardHost = (actions: MessageActions, time?: string): { run(a: { cap?: string; input?: Record<string, unknown> }): Promise<unknown> | void; time?: string } => ({ run: (a) => (a.cap && actions.files ? actions.files.call(a.cap, a.input ?? {}) : undefined), ...(time ? { time } : {}) });
+const cardHost = (
+  actions: MessageActions,
+  time?: string,
+): { run(a: { cap?: string; input?: Record<string, unknown> }): Promise<unknown> | void; time?: string } => ({
+  run: (a) => (a.cap && actions.files ? actions.files.call(a.cap, a.input ?? {}) : undefined),
+  ...(time ? { time } : {}),
+});
 
 export const MessageView = memo(function MessageView(props: MessageViewProps): ReactElement | null {
   const { item } = props;
   if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
   if (item.kind === "jump") return <JumpRow row={item} />;
   if (item.kind === "away") return <AwayRow row={item} />;
-  if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
+  if (item.kind === "day")
+    return (
+      <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>
+        {item.label}
+      </Text>
+    );
   if (item.kind === "event") {
     // a card block on a quiet or system line is the line: the card says it, so no words beside it
     const card = item.message.blocks.find((x) => isStatusCard(x.type));
-    if (card) return <View testID={`event-${item.key}`} style={st.eventCardRow}><StatusCard id={card.id} type={card.type} data={card.data} host={cardHost(props.actions, item.time)} /></View>;
+    if (card)
+      return (
+        <View testID={`event-${item.key}`} style={st.eventCardRow}>
+          <StatusCard id={card.id} type={card.type} data={card.data} host={cardHost(props.actions, item.time)} />
+        </View>
+      );
     const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
-    if (link && link.lead === "Aside" && link.body) return <KeptAside id={item.message.messageId} question={link.title} body={link.body} time={item.time} />;
+    if (link && link.lead === "Aside" && link.body)
+      return <KeptAside id={item.message.messageId} question={link.title} body={link.body} time={item.time} />;
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
         <View testID={`event-${item.key}`} style={[st.event, link.style === "question" && st.eventCentre]}>
-          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-          {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
+          <View style={st.eventCard}>
+            <LinkCardView
+              id={String(b.id)}
+              data={link}
+              actions={props.actions}
+              size={13}
+              trusted={item.message.kind === "system"}
+            />
+          </View>
+          {link.style === "question" ? null : (
+            <TimeTip item={item}>
+              <Text style={st.eventTime}>{item.time}</Text>
+            </TimeTip>
+          )}
         </View>
       );
     }
@@ -262,21 +365,43 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
           <Glyph name="fork" size={13} color="var(--ink-4)" />
           <Text style={st.eventText}>
             {"Forked from "}
-            <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
+            <Text
+              testID={`fork-origin-${item.key}`}
+              accessibilityRole="link"
+              onPress={() => go(origin.threadId, origin.messageId)}
+              style={st.eventLink}
+            >
+              {origin.title}
+            </Text>
           </Text>
-          <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
+          <TimeTip item={item}>
+            <Text style={st.eventTime}>{item.time}</Text>
+          </TimeTip>
         </View>
       );
     }
     if (hookLine && props.actions.files) {
       // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet
-      return <HookLineRow id={item.key} line={hookLine} words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} stepsBelow={item.stepsBelow === true} st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }} />;
+      return (
+        <HookLineRow
+          id={item.key}
+          line={hookLine}
+          words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)}
+          threadId={props.actions.files.threadId}
+          call={props.actions.files.call}
+          {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})}
+          stepsBelow={item.stepsBelow === true}
+          st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }}
+        />
+      );
     }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
         <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
+        <TimeTip item={item}>
+          <Text style={st.eventTime}>{item.time}</Text>
+        </TimeTip>
       </View>
     );
   }
@@ -288,11 +413,23 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 const firstName = (name: string): string => name.split(" ")[0] || name;
 
 /** A message's time with the hover card (full date, Space time, yours) in a shared place; plain in a private one. */
-function TimeTip({ item, children }: { item: { timeTitle?: string; message: { createdAt: number } }; children: ReactElement }): ReactElement {
+function TimeTip({
+  item,
+  children,
+}: {
+  item: { timeTitle?: string; message: { createdAt: number } };
+  children: ReactElement;
+}): ReactElement {
   return item.timeTitle ? <TimePop at={item.message.createdAt}>{children}</TimePop> : children;
 }
 
-export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
+export function menuFor(
+  m: Message,
+  mine: boolean,
+  a: MessageActions,
+  onEdit: () => void,
+  at: { x: number; y: number } = { x: 0, y: 0 },
+): MenuEntry[] {
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
   const talk = m.kind !== "system" && m.kind !== "quiet";
   const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
@@ -300,31 +437,62 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
   const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
   // an agent's reply cannot be edited by you; it can be asked again
-  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate)
+    turn.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
   if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
   if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && talk) turn.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   const keep: MenuEntry[] = [
     { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
-    { label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) },
+    {
+      label: "Add Reaction",
+      onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)),
+    },
   ];
-  if (a.markUnreadFrom && !m.messageId.startsWith("pending:")) keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
-  if (m.kind !== "quiet" && a.memoryEntries) keep.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  if (a.markUnreadFrom && !m.messageId.startsWith("pending:"))
+    keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
+  if (m.kind !== "quiet" && a.memoryEntries)
+    keep.push(
+      ...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu),
+    );
   const how: MenuEntry[] = [];
   // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
-  if (!mine && a.details && m.author.kind === "agent") how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
+  if (!mine && a.details && m.author.kind === "agent")
+    how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
   const ob = onBehalfOf(m);
-  if (ob && a.agentMute && ob.teammate === a.agentMute.me) how.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
+  if (ob && a.agentMute && ob.teammate === a.agentMute.me)
+    how.push({
+      label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`,
+      onSelect: () => a.agentMute!.mute(ob.person),
+    });
   const last: MenuEntry[] = mine ? [{ label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) }] : [];
   const out: MenuEntry[] = [];
-  for (const group of [write, turn, keep, how, last]) { if (group.length === 0) continue; if (out.length > 0) out.push({ separator: true }); out.push(...group); }
+  for (const group of [write, turn, keep, how, last]) {
+    if (group.length === 0) continue;
+    if (out.length > 0) out.push({ separator: true });
+    out.push(...group);
+  }
   return out;
 }
 
 /** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
 /** Actions by who wrote it and where: an agent's message copies, threads, forks and pins; your own with an agent copies and edits; people talking get reactions and threads. Fork never appears where only people talk. The rest is under More. */
-export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean; byAgent?: boolean }): ReactElement {
+export function HoverBar({
+  m,
+  mine,
+  a,
+  onEdit,
+  visible,
+  byAgent = false,
+}: {
+  m: Message;
+  mine: boolean;
+  a: MessageActions;
+  onEdit: () => void;
+  visible: boolean;
+  byAgent?: boolean;
+}): ReactElement {
   const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
   const memory = useThreadMemory();
   const talk = m.kind !== "system" && m.kind !== "quiet";
@@ -332,25 +500,66 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
     if (a.fork && talk) bar.push({ icon: "fork", label: "Fork From Here", run: () => a.fork!(m.messageId) });
-    if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
+    if (talk)
+      bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
     // an agent's answer, in any chat, can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
-    if (a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make a Task", run: () => a.makeTask!(m.messageId) });
-    if (memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember This", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
+    if (a.makeTask && talk && m.body.trim() !== "")
+      bar.push({ icon: "task", label: "Make a Task", run: () => a.makeTask!(m.messageId) });
+    if (memory && talk && m.body.trim() !== "")
+      bar.push({
+        icon: "remember",
+        label: "Remember This",
+        run: () => {
+          void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash);
+        },
+      });
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
     bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
-    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
+    if (a.askAgent && talk)
+      bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
-    if (a.pickReaction && talk) bar.push({ icon: "smile", label: "Add Reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
+    if (a.pickReaction && talk)
+      bar.push({ icon: "smile", label: "Add Reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
     bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
-    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
+    if (a.askAgent && talk)
+      bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }
   return (
-    <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }, !visible && { width: 0, borderWidth: 0 }]}>
-      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={(x, y) => b.run(x, y)} />) : null}
-      {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")} /> : null}
+    <View
+      testID={`hover-${m.messageId}`}
+      accessibilityRole="toolbar"
+      accessibilityLabel="Message actions"
+      style={[
+        st.hover,
+        mine ? st.hoverMine : st.hoverTheirs,
+        { opacity: visible ? 1 : 0 },
+        !visible && { width: 0, borderWidth: 0 },
+      ]}
+    >
+      {visible
+        ? collect(bar, (b) => (
+            <IconButton
+              key={b.label}
+              icon={b.icon}
+              label={b.label}
+              size={24}
+              testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`}
+              onPress={(x, y) => b.run(x, y)}
+            />
+          ))
+        : null}
+      {visible ? (
+        <IconButton
+          icon="more"
+          label="More"
+          size={24}
+          testID={`act-more-${m.messageId}`}
+          onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")}
+        />
+      ) : null}
     </View>
   );
 }
@@ -363,7 +572,15 @@ const LONG_PRESS_MS = 450;
 function useCannotHover(): boolean {
   const [none, setNone] = useState(false);
   useEffect(() => {
-    const mm = (globalThis as { matchMedia?: (q: string) => { matches: boolean; addEventListener?: (t: "change", f: () => void) => void; removeEventListener?: (t: "change", f: () => void) => void } }).matchMedia;
+    const mm = (
+      globalThis as {
+        matchMedia?: (q: string) => {
+          matches: boolean;
+          addEventListener?: (t: "change", f: () => void) => void;
+          removeEventListener?: (t: "change", f: () => void) => void;
+        };
+      }
+    ).matchMedia;
     if (typeof mm !== "function") return undefined;
     const q = mm("(hover: none)");
     const read = (): void => setNone(q.matches);
@@ -374,7 +591,13 @@ function useCannotHover(): boolean {
   return none;
 }
 
-function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: boolean; touch: boolean; props: Record<string, unknown> } {
+function useHover(onLong?: () => void): {
+  over: boolean;
+  focus: boolean;
+  phone: boolean;
+  touch: boolean;
+  props: Record<string, unknown>;
+} {
   const [over, setOver] = useState(false);
   const [focus, setFocus] = useState(false);
   const width = useWindowDimensions().width;
@@ -382,28 +605,77 @@ function useHover(onLong?: () => void): { over: boolean; focus: boolean; phone: 
   const noHover = useCannotHover();
   const touch = phone || noHover;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stop = (): void => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  const stop = (): void => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
   type Blur = { currentTarget: { contains(n: unknown): boolean }; relatedTarget: unknown };
   // a long press opens the sheet wherever a finger can touch, a device that can hover too (a touch laptop)
-  const press = { onTouchStart: () => { stop(); timer.current = setTimeout(() => { timer.current = null; onLong?.(); }, LONG_PRESS_MS); }, onTouchMove: stop, onTouchEnd: stop, onTouchCancel: stop };
+  const press = {
+    onTouchStart: () => {
+      stop();
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        onLong?.();
+      }, LONG_PRESS_MS);
+    },
+    onTouchMove: stop,
+    onTouchEnd: stop,
+    onTouchCancel: stop,
+  };
   if (touch) {
     return {
-      over: false, focus: false, phone, touch,
+      over: false,
+      focus: false,
+      phone,
+      touch,
       props: webProps(press),
     };
   }
   return {
-    over, focus, phone, touch,
+    over,
+    focus,
+    phone,
+    touch,
     // The row takes focus so the bar can be reached from the keyboard; the bar draws while focus is on the row or inside it.
-    props: webProps({ ...press, tabIndex: 0, onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false), onFocus: () => setFocus(true), onBlur: (e: Blur) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false); } }),
+    props: webProps({
+      ...press,
+      tabIndex: 0,
+      onMouseEnter: () => setOver(true),
+      onMouseLeave: () => setOver(false),
+      onFocus: () => setFocus(true),
+      onBlur: (e: Blur) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false);
+      },
+    }),
   };
 }
 
 /** The message's actions as a bottom sheet (a long press on a phone): the same list as the menu, one row each. */
-function ActionSheet({ open, entries, onClose }: { open: boolean; entries: readonly MenuEntry[]; onClose: () => void }): ReactElement | null {
+function ActionSheet({
+  open,
+  entries,
+  onClose,
+}: {
+  open: boolean;
+  entries: readonly MenuEntry[];
+  onClose: () => void;
+}): ReactElement | null {
   return (
     <Sheet open={open} title="Message" onClose={onClose}>
-      {entries.filter(isItem).map((e) => <Row key={e.label} id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`} title={e.label} onPress={() => { onClose(); e.onSelect?.(); }} />)}
+      {entries.filter(isItem).map((e) => (
+        <Row
+          key={e.label}
+          id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
+          title={e.label}
+          onPress={() => {
+            onClose();
+            e.onSelect?.();
+          }}
+        />
+      ))}
     </Sheet>
   );
 }
@@ -411,69 +683,176 @@ function ActionSheet({ open, entries, onClose }: { open: boolean; entries: reado
 /* ---------- yours ---------- */
 
 /** The line under a message with a thread; a press opens the thread beside the chat. */
-function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageViewProps["replies"]; actions: MessageActions; mine: boolean }): ReactElement | null {
+function Replies({
+  m,
+  replies,
+  actions,
+  mine,
+}: {
+  m: Message;
+  replies: MessageViewProps["replies"];
+  actions: MessageActions;
+  mine: boolean;
+}): ReactElement | null {
   if (!replies) return null;
-  return <ThreadFooter s={replies.s} threadId={replies.s.threadId} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
+  return (
+    <ThreadFooter
+      s={replies.s}
+      threadId={replies.s.threadId}
+      clock={replies.clock}
+      nameOf={actions.nameOf ?? unnamed}
+      mine={mine}
+      testID={`replies-${m.messageId}`}
+      onOpen={() => actions.openThread(m.messageId)}
+    />
+  );
 }
 
-function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+function Mine({
+  item,
+  actions,
+  sending,
+  mark,
+  replies,
+  meId,
+}: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.body);
-  const startEdit = (): void => { setDraft(m.body); setEditing(true); };
+  const startEdit = (): void => {
+    setDraft(m.body);
+    setEditing(true);
+  };
   const save = (): void => {
     const body = draft.trim();
     setEditing(false);
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
-      {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : null}
+    <View
+      testID={`msg-${m.messageId}`}
+      accessibilityLabel={`You, ${item.time}`}
+      {...h.props}
+      {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))}
+      style={[
+        st.me,
+        item.newgroup ? st.gapTop : st.gapIn,
+        mark === "match" && st.found,
+        mark === "active" && st.foundActive,
+        mark === "selected" && st.selected,
+      ]}
+    >
+      {h.touch || sheet ? (
+        <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} />
+      ) : null}
       {h.touch ? null : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <TimeTip item={item}><Text style={[st.when, h.over && st.whenOn]}>{item.time}</Text></TimeTip>
+      <TimeTip item={item}>
+        <Text style={[st.when, h.over && st.whenOn]}>{item.time}</Text>
+      </TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
-            testID={`edit-field-${m.messageId}`} accessibilityLabel="Edit message" multiline autoFocus value={draft} onChangeText={setDraft}
+            testID={`edit-field-${m.messageId}`}
+            accessibilityLabel="Edit message"
+            multiline
+            autoFocus
+            value={draft}
+            onChangeText={setDraft}
             onKeyPress={(e) => {
               const k = (e as unknown as { nativeEvent: { key: string; shiftKey?: boolean } }).nativeEvent;
               if (k.key === "Escape") setEditing(false);
-              else if (k.key === "Enter" && !k.shiftKey) { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); save(); }
+              else if (k.key === "Enter" && !k.shiftKey) {
+                (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+                save();
+              }
             }}
             style={st.editField}
           />
-          <View style={st.editRow}><TextButton label="Cancel" onPress={() => setEditing(false)} testID={`edit-cancel-${m.messageId}`} /><TextButton label="Save" primary onPress={save} testID={`edit-save-${m.messageId}`} /></View>
+          <View style={st.editRow}>
+            <TextButton label="Cancel" onPress={() => setEditing(false)} testID={`edit-cancel-${m.messageId}`} />
+            <TextButton label="Save" primary onPress={save} testID={`edit-save-${m.messageId}`} />
+          </View>
         </View>
       ) : m.body.trim() === "" && m.attachments.length > 0 ? null : (
         <View style={[st.bubble, sending === "sending" && { opacity: 0.7 }]}>
-      {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
+          {actions.files && refsOf(m).length > 0 ? (
+            <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} />
+          ) : (
+            <SubjectText text={m.body} style={st.bubbleText} />
+          )}
         </View>
       )}
       {!editing && m.blocks.some((b) => isWebPage(b.type) || isQuote(b.type)) ? (
-        <View style={st.mineFiles}>{m.blocks.map((b) => (isWebPage(b.type) ? <WebPageCard key={b.id} id={b.id} data={b.data} /> : isQuote(b.type) ? <QuoteCard key={b.id} id={b.id} data={b.data} /> : null))}</View>
+        <View style={st.mineFiles}>
+          {m.blocks.map((b) =>
+            isWebPage(b.type) ? (
+              <WebPageCard key={b.id} id={b.id} data={b.data} />
+            ) : isQuote(b.type) ? (
+              <QuoteCard key={b.id} id={b.id} data={b.data} />
+            ) : null,
+          )}
+        </View>
       ) : null}
-      {!editing && actions.files && refsOf(m).length > 0 ? <View style={st.mineFiles}><MountRefs refs={refsOf(m)} data={actions.files} /></View> : null}
+      {!editing && actions.files && refsOf(m).length > 0 ? (
+        <View style={st.mineFiles}>
+          <MountRefs refs={refsOf(m)} data={actions.files} />
+        </View>
+      ) : null}
       {!editing && actions.files && m.attachments.length > 0 ? (
-        <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
+        <View style={st.mineFiles}>
+          <AttachmentChips
+            ids={m.attachments}
+            data={actions.files}
+            menu={(items, x, y, label) => actions.showMenu(items, x, y, label)}
+          />
+        </View>
       ) : null}
       {m.editedAt !== undefined ? <Text style={st.edited}>edited</Text> : null}
-      {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
-      {sending === "sending" ? <Text testID={`sending-${m.messageId}`} style={st.edited}>Sending</Text> : null}
+      {m.pinned ? (
+        <Text testID={`pinned-${m.messageId}`} style={st.edited}>
+          pinned
+        </Text>
+      ) : null}
+      {sending === "sending" ? (
+        <Text testID={`sending-${m.messageId}`} style={st.edited}>
+          Sending
+        </Text>
+      ) : null}
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
           <Text style={st.failedText}>Not sent.</Text>
-          <TextButton label="Retry" onPress={() => actions.retrySend(m.messageId)} testID={`retry-send-${m.messageId}`} />
-          <TextButton label="Discard" onPress={() => actions.discardSend(m.messageId)} testID={`discard-send-${m.messageId}`} />
+          <TextButton
+            label="Retry"
+            onPress={() => actions.retrySend(m.messageId)}
+            testID={`retry-send-${m.messageId}`}
+          />
+          <TextButton
+            label="Discard"
+            onPress={() => actions.discardSend(m.messageId)}
+            testID={`discard-send-${m.messageId}`}
+          />
         </View>
       ) : null}
       {/* ui-rows-lint: not a list (at most one line saying which thread a copy came from) */}
-      {m.blocks.filter((b) => b.type === "from_thread").map((b) => {
-        const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
-        return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.fromThread}>{FROM_THREAD_LINE}</Text></Pressable>;
-      })}
+      {m.blocks
+        .filter((b) => b.type === "from_thread")
+        .map((b) => {
+          const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
+          return (
+            <Pressable
+              key={b.id}
+              accessibilityRole="link"
+              testID={`from-thread-${m.messageId}`}
+              onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}
+              style={st.fromThreadMine}
+            >
+              <Text style={st.fromThread}>{FROM_THREAD_LINE}</Text>
+            </Pressable>
+          );
+        })}
       <Reactions m={m} a={actions} mine meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
@@ -489,21 +868,70 @@ function Mine({ item, actions, sending, mark, replies, meId }: MessageViewProps 
 let byKeyboard = false;
 {
   const doc = (globalThis as { document?: { addEventListener(t: string, f: () => void, c?: boolean): void } }).document;
-  doc?.addEventListener("keydown", () => { byKeyboard = true; }, true);
-  doc?.addEventListener("pointerdown", () => { byKeyboard = false; }, true);
-  doc?.addEventListener("mousedown", () => { byKeyboard = false; }, true);
+  doc?.addEventListener(
+    "keydown",
+    () => {
+      byKeyboard = true;
+    },
+    true,
+  );
+  doc?.addEventListener(
+    "pointerdown",
+    () => {
+      byKeyboard = false;
+    },
+    true,
+  );
+  doc?.addEventListener(
+    "mousedown",
+    () => {
+      byKeyboard = false;
+    },
+    true,
+  );
 }
-const isApprovalUp = (b: { type: string; data?: unknown }): boolean => b.type === "from_thread" && (b.data as { messageId?: unknown } | null)?.messageId === "";
-function ApprovalLine({ id, who, threadId, open }: { id: string; who: string; threadId: string; open(threadId: string): void }): ReactElement {
+const isApprovalUp = (b: { type: string; data?: unknown }): boolean =>
+  b.type === "from_thread" && (b.data as { messageId?: unknown } | null)?.messageId === "";
+function ApprovalLine({
+  id,
+  who,
+  threadId,
+  open,
+}: {
+  id: string;
+  who: string;
+  threadId: string;
+  open(threadId: string): void;
+}): ReactElement {
   return (
-    <Pressable testID={`approval-line-${id}`} accessibilityRole="button" accessibilityLabel={`${who} needs your OK. Open the thread`} onPress={() => open(threadId)}
-      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && byKeyboard && st.approvalFocus]}>
-      <Text style={st.approvalText}>{`${who} needs your OK in a thread. `}<Text style={st.approvalOpen}>Open the thread</Text></Text>
+    <Pressable
+      testID={`approval-line-${id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${who} needs your OK. Open the thread`}
+      onPress={() => open(threadId)}
+      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [
+        st.approvalLine,
+        hovered === true && st.approvalOver,
+        focused === true && byKeyboard && st.approvalFocus,
+      ]}
+    >
+      <Text style={st.approvalText}>
+        {`${who} needs your OK in a thread. `}
+        <Text style={st.approvalOpen}>Open the thread</Text>
+      </Text>
     </Pressable>
   );
 }
 
-function Theirs({ item, actions, stream, openWork, mark, meId, replies }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({
+  item,
+  actions,
+  stream,
+  openWork,
+  mark,
+  meId,
+  replies,
+}: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -524,107 +952,464 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // a person's id that slips into an agent's words reads as their name
   // the answer that brings helpers together marks each claim with the number of the helper it came from: [1], [2]. Those marks are chips that open that helper.
   const crewRows = actions.crew?.status ? citable(actions.crew.status.members) : [];
-  const words = !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
-  const [cardOpen, setCardOpen] = useState(false);   // a citation card is showing: the hover toolbar steps aside
-  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id), setCardOpen) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const words =
+    !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
+  const [cardOpen, setCardOpen] = useState(false); // a citation card is showing: the hover toolbar steps aside
+  const citeLink = useMemo(
+    () => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id), setCardOpen) : undefined),
+    [actions.crew, crewRows.length],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   const chips = useRefChips(words, actions.files);
-  const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
+  const blocks =
+    stream || crewCard
+      ? null
+      : bodyBlocks(
+          chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`,
+          chips.body,
+        );
   const runCfg = actions.runCode;
-  const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
+  const renderCode = useMemo(
+    () =>
+      runCfg
+        ? (b: { lang: string; text: string; closed: boolean }) => {
+            const c = commandOf(b.lang, b.text, b.closed);
+            return c ? <RunCode command={c} cfg={runCfg} /> : null;
+          }
+        : undefined,
+    [runCfg],
+  );
   const subjects = useSubjectBlocks(blocks);
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
-  const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
+  const withCard = (kids: ReactElement): ReactElement =>
+    !person && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
+      <ReplyHover messageId={m.messageId} details={actions.details}>
+        {kids}
+      </ReplyHover>
+    ) : (
+      kids
+    );
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup ? st.gapTop : st.gapIn, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
-      {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : null}
-      {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={barShows(h.over || h.focus, cardOpen)} />}
-      {item.newgroup && gutter ? <View testID={`gutter-face-${m.messageId}`} style={st.gutterFace}><Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} /></View> : null}
+    <View
+      testID={`msg-${m.messageId}`}
+      accessibilityLabel={`${item.who.name}, ${item.time}`}
+      {...h.props}
+      {...menuTrigger((x, y) =>
+        actions.showMenu(
+          menuFor(m, false, actions, () => undefined, { x, y }),
+          x,
+          y,
+          "Message",
+        ),
+      )}
+      style={[
+        st.msg,
+        item.newgroup ? st.gapTop : st.gapIn,
+        mark === "match" && st.found,
+        mark === "active" && st.foundActive,
+        mark === "selected" && st.selected,
+      ]}
+    >
+      {h.touch || sheet ? (
+        <ActionSheet
+          open={sheet}
+          entries={menuFor(m, false, actions, () => undefined)}
+          onClose={() => setSheet(false)}
+        />
+      ) : null}
+      {h.touch ? null : (
+        <HoverBar
+          byAgent={!person}
+          m={m}
+          mine={false}
+          a={actions}
+          onEdit={() => undefined}
+          visible={barShows(h.over || h.focus, cardOpen)}
+        />
+      )}
+      {item.newgroup && gutter ? (
+        <View testID={`gutter-face-${m.messageId}`} style={st.gutterFace}>
+          <Face
+            name={item.who.name}
+            seedId={item.who.face ?? item.who.id}
+            kind={person || item.who.face !== undefined ? "person" : "agent"}
+            size={FACE}
+          />
+        </View>
+      ) : null}
       {item.newgroup ? (
         <View style={st.by}>
           {withCard(
             <>
-              {gutter ? null : <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={FACE} />}
-              <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
+              {gutter ? null : (
+                <Face
+                  name={item.who.name}
+                  seedId={item.who.face ?? item.who.id}
+                  kind={person || item.who.face !== undefined ? "person" : "agent"}
+                  size={FACE}
+                />
+              )}
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${item.who.name}`}
+                testID={`who-${m.messageId}`}
+                onPress={() => actions.openAgent(item.who.id)}
+              >
                 <Text style={st.who}>{item.who.name}</Text>
               </Pressable>
             </>,
           )}
-          <TimeTip item={item}><Text style={st.time}>{item.time}</Text></TimeTip>
-          {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
+          <TimeTip item={item}>
+            <Text style={st.time}>{item.time}</Text>
+          </TimeTip>
+          {work?.short ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={work.summary}
+              testID={`work-short-${m.messageId}`}
+              onPress={() => setWorkOpen((o) => !o)}
+              style={{ opacity: h.over || workOpen ? 1 : 0 }}
+            >
+              <Text style={st.time}>{work.summary}</Text>
+            </Pressable>
+          ) : null}
         </View>
-      ) : <TimeTip item={item}><Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text></TimeTip>}
-      {pokedBy(m, actions.nameOf ?? unnamed) ? <Text testID={`poked-${m.messageId}`} style={st.via}>{pokedBy(m, actions.nameOf ?? unnamed)}</Text> : null}
-      {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
-      {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
+      ) : (
+        <TimeTip item={item}>
+          <Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text>
+        </TimeTip>
+      )}
+      {pokedBy(m, actions.nameOf ?? unnamed) ? (
+        <Text testID={`poked-${m.messageId}`} style={st.via}>
+          {pokedBy(m, actions.nameOf ?? unnamed)}
+        </Text>
+      ) : null}
+      {item.paidLine ? (
+        <Text testID={`paid-${m.messageId}`} style={st.via}>
+          {item.paidLine}
+        </Text>
+      ) : null}
+      {m.via ? (
+        <Text
+          testID={`via-${m.messageId}`}
+          style={st.via}
+        >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
+      ) : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
-        <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
-      {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
+        <Fold
+          testID={`work-${m.messageId}`}
+          label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary}
+          open={work.live || workOpen}
+          live={work.live}
+          onToggle={() => setWorkOpen((o) => !o)}
+        >
+          {person || stream || m.body === "" ? null : (
+            <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />
+          )}
           {collect(work.steps, (l) => (
             <View key={l.id} testID={`step-${l.id}`} style={st.step}>
               <View style={[st.stepDot, l.state === "live" && st.stepLive, l.state === "error" && st.stepError]} />
               <Text style={st.stepTitle}>{l.title}</Text>
-              {l.sub ? <Text numberOfLines={1} style={st.stepSub}>{l.sub}</Text> : null}
+              {l.sub ? (
+                <Text numberOfLines={1} style={st.stepSub}>
+                  {l.sub}
+                </Text>
+              ) : null}
             </View>
           ))}
         </Fold>
       ) : null}
-      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} scope={m.messageId} {...(actions.reply ? { onChoose: actions.reply } : {})} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
-      {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
-          {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
-      {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
-          {crewStart && actions.openMessage && !(actions.crew?.status?.members.some((x) => x.kind === "teammate" && x.id === String((crewStart.data as { helperThreadId?: unknown } | null)?.helperThreadId)) ?? false) ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
+      {stream ? (
+        <LiveBody
+          store={stream}
+          hideEmpty={actions.activityOf?.(m.messageId) !== undefined}
+          testID={`body-${m.messageId}`}
+          style={st.body}
+        />
+      ) : m.body && !crewCard ? (
+        <View testID={`body-${m.messageId}`} style={st.body}>
+          <MarkdownBlocks
+            blocks={subjects.blocks}
+            scope={m.messageId}
+            {...(actions.reply ? { onChoose: actions.reply } : {})}
+            {...(subjects.renderLink || chips.renderLink || citeLink
+              ? {
+                  renderLink: ((href, kids, key) =>
+                    citeLink?.(href, kids, key) ??
+                    chips.renderLink?.(href, kids, key) ??
+                    subjects.renderLink?.(href, kids, key) ??
+                    null) as NonNullable<typeof chips.renderLink>,
+                }
+              : {})}
+            {...(renderCode ? { renderCode } : {})}
+          />
+        </View>
+      ) : null}
+      {stream && actions.activityOf?.(m.messageId) ? (
+        <ActivityLine
+          store={actions.activityOf(m.messageId)!}
+          stream={stream}
+          {...(actions.faceInThread
+            ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> }
+            : {})}
+        />
+      ) : null}
+      {item.hookSteps && actions.files ? (
+        <HookSteps
+          id={m.messageId}
+          steps={item.hookSteps.next}
+          agentId={item.hookSteps.agentId}
+          threadId={actions.files.threadId}
+          call={actions.files.call}
+        />
+      ) : null}
+      {person || stream || m.body === "" ? null : (
+        <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />
+      )}
+      {crewStart &&
+      actions.openMessage &&
+      !(
+        actions.crew?.status?.members.some(
+          (x) =>
+            x.kind === "teammate" &&
+            x.id === String((crewStart.data as { helperThreadId?: unknown } | null)?.helperThreadId),
+        ) ?? false
+      ) ? (
+        <CrewStartLine
+          block={crewStart}
+          name={
+            actions.nameOf
+              ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? ""))
+              : item.who.name
+          }
+          onOpen={(id) => actions.openMessage?.(id, "")}
+        />
+      ) : null}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
-      {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
+      {actions.files && m.attachments.length > 0 ? (
+        <AttachmentChips
+          ids={m.attachments}
+          data={actions.files}
+          menu={(items, x, y, label) => actions.showMenu(items, x, y, label)}
+        />
+      ) : null}
       {collect(cards, (b) => {
         const goal = goalBlockOf(b);
-        if (goal && actions.files) return <GoalCard key={b.id} block={goal} call={actions.files.call} changes={actions.files.changes} {...(actions.openGoal ? { openGoal: actions.openGoal } : {})} me={meId} />;
-        if (isInstallPlan(b.type) && actions.files) return <InstallCard key={b.id} id={b.id} data={b.data} chat={{ call: actions.files.call, ...(actions.files.nav.openSkills ? { openSkills: actions.files.nav.openSkills } : {}) }} />;
-        if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
-        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
+        if (goal && actions.files)
+          return (
+            <GoalCard
+              key={b.id}
+              block={goal}
+              call={actions.files.call}
+              changes={actions.files.changes}
+              {...(actions.openGoal ? { openGoal: actions.openGoal } : {})}
+              me={meId}
+            />
+          );
+        if (isInstallPlan(b.type) && actions.files)
+          return (
+            <InstallCard
+              key={b.id}
+              id={b.id}
+              data={b.data}
+              chat={{
+                call: actions.files.call,
+                ...(actions.files.nav.openSkills ? { openSkills: actions.files.nav.openSkills } : {}),
+              }}
+            />
+          );
+        if (isCrewResult(b) && actions.files)
+          return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
+        if (isProposal(b))
+          return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
         const held = lc && actions.files ? heldTaskOf(lc) : null;
-        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
+        if (held !== null)
+          return parked.has(held) ? null : (
+            <ApprovalCard
+              key={b.id}
+              taskId={held}
+              agent={item.who.name}
+              agentId={item.who.id}
+              {...(item.who.face ? { face: item.who.face } : {})}
+              data={actions.files!}
+            />
+          );
         const draft = lc && actions.files ? draftOf(lc) : null;
-        if (lc && actions.files && providerDraftOf(lc)) return <ProviderDraftCard key={b.id} card={lc} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
-        if (draft !== null) return <DraftCard key={b.id} draftId={draft} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
-        if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
-        if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
-        if (isRedactRequest(b.type) && actions.files) return <RedactRequestCard key={b.id} block={b.data as never} agent={item.who.name} data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }} />;
-        if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
+        if (lc && actions.files && providerDraftOf(lc))
+          return (
+            <ProviderDraftCard key={b.id} card={lc} agent={item.who.name} agentId={item.who.id} data={actions.files} />
+          );
+        if (draft !== null)
+          return (
+            <DraftCard key={b.id} draftId={draft} agent={item.who.name} agentId={item.who.id} data={actions.files!} />
+          );
+        if (lc)
+          return (
+            <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />
+          );
+        if (isAccessRequest(b.type) && actions.files)
+          return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
+        if (isRedactRequest(b.type) && actions.files)
+          return (
+            <RedactRequestCard
+              key={b.id}
+              block={b.data as never}
+              agent={item.who.name}
+              data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }}
+            />
+          );
+        if (isKeyRequest(b.type) && actions.files)
+          return (
+            <KeyRequestCard
+              key={b.id}
+              requestId={String((b.data as { requestId?: unknown }).requestId ?? "")}
+              agent={item.who.name}
+              agentId={item.who.id}
+              data={actions.files}
+            />
+          );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
-        if (isNoteOffer(b.type) && actions.files) return <NoteOfferCard key={b.id} id={b.id} data={b.data} mine={(b.data as { person?: unknown }).person === meId} chat={actions.files} />;
+        if (isNoteOffer(b.type) && actions.files)
+          return (
+            <NoteOfferCard
+              key={b.id}
+              id={b.id}
+              data={b.data}
+              mine={(b.data as { person?: unknown }).person === meId}
+              chat={actions.files}
+            />
+          );
         if (isWebPage(b.type)) return <WebPageCard key={b.id} id={b.id} data={b.data} />;
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
-        if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
-        if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (isChromeHeld(b.type))
+          return (
+            <HeldSendCard
+              key={b.id}
+              id={b.id}
+              data={b.data}
+              agentId={item.who.id}
+              agentName={item.who.name}
+              actions={actions.chrome}
+            />
+          );
+        if (isChromeStep(b.type))
+          return (
+            <ChromeStepCard
+              key={b.id}
+              id={b.id}
+              data={b.data}
+              agentId={item.who.id}
+              agentName={item.who.name}
+              actions={actions.chrome}
+            />
+          );
         // a helper's raised card is the card itself; it neither repeats "needs your OK in a thread" nor links to the helper's thread (lead, 12 Nov, H3)
         if (isApprovalUp(b) && raisedHelperCard(m)) return null;
-        if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
+        if (isApprovalUp(b))
+          return (
+            <ApprovalLine
+              key={b.id}
+              id={m.messageId}
+              who={item.who.name}
+              threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")}
+              open={(t) => actions.openMessage?.(t, "")}
+            />
+          );
         // a helper's raised approval card links nowhere: the helper's chat is its asker's, and a reader who may not open it is never sent there (lead, 12 Nov, H3)
         if (b.type === "from_thread" && raisedHelperCard(m)) return null;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
-          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.fromThread}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
+          return (
+            <Pressable
+              key={b.id}
+              accessibilityRole="link"
+              testID={`from-thread-${m.messageId}`}
+              onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}
+            >
+              <Text style={st.fromThread}>
+                {typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" &&
+                (b.data as { messageId: string }).messageId !== ""
+                  ? FROM_THREAD_LINE
+                  : "Open the thread"}
+              </Text>
+            </Pressable>
+          );
         }
         if (b.type === "crew_strip") {
-          const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
+          const blocks = (b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? [];
           const live = actions.crew?.status ?? null;
-          const members = withTeammates(blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; }), live);
+          const members = withTeammates(
+            blocks.map((x) => {
+              const own = memberFromBlock(x, m.threadId);
+              return memberOf(live, own.id) ?? own;
+            }),
+            live,
+          );
           const rows = members.length;
-          const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
-            : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
+          const totals =
+            live &&
+            members.every((x) => memberOf(live, x.id) !== undefined) &&
+            live.members.filter((x) => x.kind === "helper").length === rows
+              ? live.totals
+              : {
+                  members: rows,
+                  working: members.filter((x) => x.state === "working").length,
+                  done: members.filter((x) => x.state === "done").length,
+                  needsYou: members.filter((x) => x.state === "needs_you").length,
+                  failed: members.filter((x) => x.state === "failed").length,
+                  stopped: members.filter((x) => x.state === "stopped").length,
+                  tokensIn: 0,
+                  tokensOut: 0,
+                  costMicros: 0,
+                  filesChanged: 0,
+                  added: 0,
+                  deleted: 0,
+                  elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)),
+                };
           const c = actions.crew;
           // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
-          const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
+          const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<
+            CrewMember & { jobId?: string }
+          >;
           const mergeState = mergeStateOf(members);
-          const coderMerge = mergeState !== "none" && c?.merge ? { state: mergeState, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
+          const coderMerge =
+            mergeState !== "none" && c?.merge
+              ? {
+                  state: mergeState,
+                  onReview: () => c.openPane(),
+                  onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))),
+                }
+              : null;
           return (
             <View key={b.id}>
-              <CrewBlock members={members} totals={totals} {...(actions.files ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> } : {})} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              <CrewBlock
+                members={members}
+                totals={totals}
+                {...(actions.files
+                  ? { call: actions.files.call as unknown as (cap: string, input: unknown) => Promise<unknown> }
+                  : {})}
+                {...(coderMerge ? { merge: coderMerge } : {})}
+                selectedId={c?.selected ?? null}
+                onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))}
+                {...(c
+                  ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) }
+                  : {})}
+              />
               {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (
                 <View testID={`crew-answer-${m.messageId}`} style={[st.body, { marginTop: 10 }]}>
-                  <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
+                  <MarkdownBlocks
+                    blocks={bodyBlocks(
+                      `${m.messageId}#answer`,
+                      citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length),
+                    )}
+                    {...(citeLink
+                      ? {
+                          renderLink: ((href: string, kids: ReactNode, key: number) =>
+                            citeLink(href, kids, key) ?? null) as never,
+                        }
+                      : {})}
+                  />
                 </View>
               ) : null}
               {/* a helper that waits for a yes: its approval card is the helper's own message in this chat, raised there when it parked (engine bridge), the same card as anywhere; its row here says what it waits for */}
@@ -634,48 +1419,136 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (b.type === "helper" && !isCrewStart(b)) {
           const tid = helperRowOf(b).threadId;
           const w = actions.crew?.status?.members.find((x) => x.id === tid && x.state === "needs_you");
-          return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} {...(w ? { waiting: (w as { step?: string }).step ?? "Needs your OK" } : {})} />;
+          return (
+            <HelperRow
+              key={b.id}
+              block={b}
+              onOpen={(id) => actions.openMessage?.(id, "")}
+              {...(w ? { waiting: (w as { step?: string }).step ?? "Needs your OK" } : {})}
+            />
+          );
         }
-        if (isStatusCard(b.type)) return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
+        if (isStatusCard(b.type))
+          return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
           const options = questionOptions(d);
-          if (options.length > 0 && d["answer"] === undefined && terminalAskOf(d) === null && mountOffers(options) === null) {
-            return <QuestionCard key={b.id} id={b.id} prompt={typeof d["prompt"] === "string" && d["prompt"] !== "" ? (d["prompt"] as string) : cardLine(b).title} options={options} onAnswer={(o) => actions.answer(b.id, o)} />;
+          if (
+            options.length > 0 &&
+            d["answer"] === undefined &&
+            terminalAskOf(d) === null &&
+            mountOffers(options) === null
+          ) {
+            return (
+              <QuestionCard
+                key={b.id}
+                id={b.id}
+                prompt={
+                  typeof d["prompt"] === "string" && d["prompt"] !== "" ? (d["prompt"] as string) : cardLine(b).title
+                }
+                options={options}
+                onAnswer={(o) => actions.answer(b.id, o)}
+              />
+            );
           }
         }
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
-      {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
-        : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
-        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={helperName(m, item.who.name, actions.crew?.status ?? null)} {...(raisedHelperCard(m) ? { othersLine: `${helperName(m, item.who.name, actions.crew?.status ?? null)} is waiting for the OK of the person who asked.` } : {})} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
-      {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
-        <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+      {collect(errors, (b) => (
+        <ErrorRowView key={b.id} block={b} actions={actions} />
+      ))}
+      {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) =>
+        x.kind === "note" ? (
+          <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>
+            {x.text}
+          </Text>
+        ) : x.kind === "wait" ? (
+          <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}>
+            <Text style={st.edited}>{x.text}</Text>
+            <TextButton
+              link
+              label={x.action.label}
+              testID={`status-${x.action.key}`}
+              onPress={() => actions.errorNext(x.action.key)}
+            />
+          </View>
+        ) : x.kind === "approval" && actions.files ? (
+          <ApprovalCard
+            key={x.id}
+            taskId={x.taskId}
+            agent={helperName(m, item.who.name, actions.crew?.status ?? null)}
+            {...(raisedHelperCard(m)
+              ? {
+                  othersLine: `${helperName(m, item.who.name, actions.crew?.status ?? null)} is waiting for the OK of the person who asked.`,
+                }
+              : {})}
+            agentId={item.who.id}
+            {...(item.who.face ? { face: item.who.face } : {})}
+            data={actions.files}
+          />
+        ) : null,
+      )}
+      {item.who.forPerson &&
+      actions.agentMute &&
+      actions.agentMute.offerFor === m.messageId &&
+      onBehalfOf(m)?.teammate === actions.agentMute.me ? (
+        <Pressable
+          accessibilityRole="button"
+          testID={`agent-mute-${m.messageId}`}
+          onPress={() => actions.agentMute!.mute(item.who.forPerson!)}
+        >
+          <Text
+            style={[st.via, st.muteLine]}
+          >{`Mute agent messages from ${firstName(item.who.forPerson && actions.nameOf ? actions.nameOf(item.who.forPerson) : item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
-      {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
+      {m.pinned ? (
+        <Text testID={`pinned-${m.messageId}`} style={st.edited}>
+          pinned
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 /** A chip toggles your own reaction: add it when you have not reacted with that emoji, take it back when you have. */
-export function pressChip(a: Pick<MessageActions, "react">, messageId: string, emoji: string, by: readonly string[], meId: string): void {
+export function pressChip(
+  a: Pick<MessageActions, "react">,
+  messageId: string,
+  emoji: string,
+  by: readonly string[],
+  meId: string,
+): void {
   a.react(messageId, emoji, by.includes(meId));
 }
 
-function Reactions({ m, a, mine, meId }: { m: Message; a: MessageActions; mine: boolean; meId: string }): ReactElement | null {
+function Reactions({
+  m,
+  a,
+  mine,
+  meId,
+}: {
+  m: Message;
+  a: MessageActions;
+  mine: boolean;
+  meId: string;
+}): ReactElement | null {
   if (m.reactions.length === 0) return null;
   return (
     <View testID={`reactions-${m.messageId}`} style={[st.reactions, mine && { alignSelf: "flex-end" }]}>
       {collect(m.reactions, (r) => (
-        <Pressable key={r.emoji} accessibilityRole="button" accessibilityLabel={`${r.emoji} ${r.by.length}`} onPress={() => pressChip(a, m.messageId, r.emoji, r.by, meId)} style={[st.react, r.by.includes(meId) && st.reactMine]}>
+        <Pressable
+          key={r.emoji}
+          accessibilityRole="button"
+          accessibilityLabel={`${r.emoji} ${r.by.length}`}
+          onPress={() => pressChip(a, m.messageId, r.emoji, r.by, meId)}
+          style={[st.react, r.by.includes(meId) && st.reactMine]}
+        >
           <Text style={st.reactText}>{`${r.emoji} ${r.by.length}`}</Text>
         </Pressable>
       ))}
@@ -686,7 +1559,21 @@ function Reactions({ m, a, mine, meId }: { m: Message; a: MessageActions; mine: 
 /* ---------- native cards ---------- */
 
 /** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
-function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean; time?: string }): ReactElement {
+function LinkCardView({
+  id,
+  data,
+  actions,
+  size,
+  trusted,
+  time,
+}: {
+  id: string;
+  data: LinkCardData;
+  actions: MessageActions;
+  size: number;
+  trusted: boolean;
+  time?: string;
+}): ReactElement {
   const memory = useThreadMemory();
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
   // a button with a capability calls it as the person and reads as done; one that fails says nothing is done (the button stays)
@@ -694,21 +1581,53 @@ function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; 
     const a = data.actions?.find((x) => x.key === key);
     // only a card the app itself wrote (a system line) may name a call; the same card from a model or a tool is words and inert buttons, whatever it carries
     if (!trusted || !a?.cap) return;
-    void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
+    void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(
+      () => setDone((d) => new Set(d).add(key)),
+      () => undefined,
+    );
   };
   const seen = useCardState(data, actions);
   // the Space's link policy (ui/reach): a card for a thing this person cannot open draws as plain words before anyone presses it
-  const link = useLinkState(data.reach === undefined && data.target ? { type: data.target.type, id: data.target.id } : undefined);
+  const link = useLinkState(
+    data.reach === undefined && data.target ? { type: data.target.type, id: data.target.id } : undefined,
+  );
   // the level the Space attached when it served the message decides the first draw; the probe and the policy are only the fallback for a card that came without one
   const hidden = data.reach !== undefined ? data.reach === "none" : seen.hidden || link.state === "plain";
   const [asked, setAsked] = useState(false);
   const askAccess = (): void => {
     const t = data.target;
     if (!t) return;
-    void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
+    void Promise.resolve(
+      actions.host.invoke("access.request", {
+        resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id },
+        level: "view",
+        idempotencyKey: `ask:${t.type}:${t.id}`,
+      }),
+    ).then(
+      () => setAsked(true),
+      () => undefined,
+    );
   };
-  const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={lineGlyph(data)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
+  const open = (t: NonNullable<LinkCardData["target"]>): void => {
+    if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, "");
+    else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows();
+    else actions.openBeside(t.type, t.id);
+  };
+  return (
+    <LinkCard
+      id={id}
+      data={data}
+      nameOf={actions.nameOf ?? ((x) => x)}
+      icon={<Glyph name={lineGlyph(data)} size={size} color="var(--ink-3)" />}
+      onOpen={open}
+      onAction={act}
+      done={new Set([...done, ...doneByState(data, seen.state)])}
+      state={seen.state}
+      hidden={hidden}
+      {...(time ? { time } : {})}
+      {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})}
+    />
+  );
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
@@ -718,22 +1637,67 @@ function useCardState(data: LinkCardData, actions: MessageActions): { state: Car
   const key = probe ? `${probe.cap}:${JSON.stringify(probe.input)}` : "";
   const read = useCallback(async (): Promise<void> => {
     if (!probe) return;
-    try { setSeen({ state: stateOf(data, await actions.host.invoke(probe.cap, probe.input)), hidden: false }); }
-    catch { setSeen({ state: null, hidden: true }); }
-  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per card and target
-  useEffect(() => { void read(); }, [read]);
+    try {
+      setSeen({ state: stateOf(data, await actions.host.invoke(probe.cap, probe.input)), hidden: false });
+    } catch {
+      setSeen({ state: null, hidden: true });
+    }
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps -- one read per card and target
+  useEffect(() => {
+    void read();
+  }, [read]);
   useFollow(actions.files?.changes, read, probe !== null && (seen.state === null ? !seen.hidden : seen.state.live));
   return seen;
 }
 
 /** The glyph a link card's icon word asks for. */
-const LINK_GLYPH: Record<string, GlyphName> = { task: "task", file: "file", fact: "memory", note: "pin", memory: "memory", link: "link", chat: "people", record: "people", run: "term", routine: "spark", computer: "monitor", approval: "alert", thread: "reply" };
+const LINK_GLYPH: Record<string, GlyphName> = {
+  task: "task",
+  file: "file",
+  fact: "memory",
+  note: "pin",
+  memory: "memory",
+  link: "link",
+  chat: "people",
+  record: "people",
+  run: "term",
+  routine: "spark",
+  computer: "monitor",
+  approval: "alert",
+  thread: "reply",
+};
 export const linkGlyph = (icon: string): GlyphName => LINK_GLYPH[icon] ?? "reply";
 /** A system line says what it is by its glyph: Noted a pin, Connected a link, Remembered the memory mark; any other card goes by its icon word. */
-export const lineGlyph = (d: { icon: string; lead: string; style?: string }): GlyphName => (d.style === "noted" || /^Noted/.test(d.lead) ? "pin" : /^Connected/.test(d.lead) ? "link" : /^Remembered/.test(d.lead) ? "memory" : linkGlyph(d.icon));
+export const lineGlyph = (d: { icon: string; lead: string; style?: string }): GlyphName =>
+  d.style === "noted" || /^Noted/.test(d.lead)
+    ? "pin"
+    : /^Connected/.test(d.lead)
+      ? "link"
+      : /^Remembered/.test(d.lead)
+        ? "memory"
+        : linkGlyph(d.icon);
 
-const CARD_ICON: Record<string, GlyphName> = { terminal: "term", plan: "plan", file: "file", changeset: "file", diff: "file", screenshot: "file", record_card: "file", question: "spark" };
-const OPENS = new Set(["terminal", "changeset", "diff", "file", "record_card", "tab_opened", "screenshot", "deploy", "mount"]);
+const CARD_ICON: Record<string, GlyphName> = {
+  terminal: "term",
+  plan: "plan",
+  file: "file",
+  changeset: "file",
+  diff: "file",
+  screenshot: "file",
+  record_card: "file",
+  question: "spark",
+};
+const OPENS = new Set([
+  "terminal",
+  "changeset",
+  "diff",
+  "file",
+  "record_card",
+  "tab_opened",
+  "screenshot",
+  "deploy",
+  "mount",
+]);
 
 function Card({ line, actions }: { line: CardLine; actions: MessageActions }): ReactElement {
   const icon: GlyphName = CARD_ICON[line.type] ?? "spark";
@@ -745,49 +1709,147 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   const terminalAsk = line.type === "question" ? terminalAskOf(line.data) : null;
   const answered = line.type === "question" && line.data.answer !== undefined ? String(line.data.answer) : "";
   const steps = line.type === "plan" ? planSteps(line.data) : [];
-  if (line.type === "screenshot" && line.data.live === true && typeof line.data.computerId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
-    return <LiveCard id={line.id} computerId={line.data.computerId} fileId={line.data.fileId} caption={line.title} cfg={actions.liveCard} />;
+  if (
+    line.type === "screenshot" &&
+    line.data.live === true &&
+    typeof line.data.computerId === "string" &&
+    typeof line.data.fileId === "string" &&
+    actions.liveCard
+  ) {
+    return (
+      <LiveCard
+        id={line.id}
+        computerId={line.data.computerId}
+        fileId={line.data.fileId}
+        caption={line.title}
+        cfg={actions.liveCard}
+      />
+    );
   }
   // the same card for an agent's steps in its Space browser profile: keyed by the agent, with the caption as it comes (it may say why a picture was withheld)
-  if (line.type === "browser_screenshot" && typeof line.data.agentId === "string" && typeof line.data.fileId === "string" && actions.liveCard) {
-    return <LiveCard id={line.id} agentId={line.data.agentId} fileId={line.data.fileId} caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title} cfg={actions.liveCard} />;
+  if (
+    line.type === "browser_screenshot" &&
+    typeof line.data.agentId === "string" &&
+    typeof line.data.fileId === "string" &&
+    actions.liveCard
+  ) {
+    return (
+      <LiveCard
+        id={line.id}
+        agentId={line.data.agentId}
+        fileId={line.data.fileId}
+        caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title}
+        cfg={actions.liveCard}
+      />
+    );
   }
   const head = (
     <>
       <Glyph name={icon} size={15} color={waiting ? "var(--accent)" : "var(--ink-3)"} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={2} style={st.cardTitle}>{line.title}</Text>
-        {line.sub ? <Text numberOfLines={1} style={st.cardSub}>{line.sub}</Text> : null}
+        <Text numberOfLines={2} style={st.cardTitle}>
+          {line.title}
+        </Text>
+        {line.sub ? (
+          <Text numberOfLines={1} style={st.cardSub}>
+            {line.sub}
+          </Text>
+        ) : null}
       </View>
       {opens ? <Glyph name="chev" size={13} color="var(--ink-4)" /> : null}
     </>
   );
   return (
     <View testID={`card-${line.id}`} accessibilityLabel={line.title} style={[st.card, waiting && st.cardWaiting]}>
-      {opens ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${line.title}`} testID={`card-open-${line.id}`} onPress={() => actions.openBeside(line.type, openId)} style={st.cardHead}>{head}</Pressable> : <View style={st.cardHead}>{head}</View>}
+      {opens ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${line.title}`}
+          testID={`card-open-${line.id}`}
+          onPress={() => actions.openBeside(line.type, openId)}
+          style={st.cardHead}
+        >
+          {head}
+        </Pressable>
+      ) : (
+        <View style={st.cardHead}>{head}</View>
+      )}
       {steps.length > 0 ? (
         <View testID={`plan-steps-${line.id}`} style={st.planSteps}>
           {collect(steps, (p) => (
-            <View key={p.id} style={st.planStep}><Glyph name={p.done ? "check" : "chev"} size={12} color={p.done ? "var(--ok)" : "var(--ink-4)"} /><Text style={[st.stepTitle, p.done && { color: "var(--ink-4)" as string }]}>{p.text}</Text></View>
+            <View key={p.id} style={st.planStep}>
+              <Glyph name={p.done ? "check" : "chev"} size={12} color={p.done ? "var(--ok)" : "var(--ink-4)"} />
+              <Text style={[st.stepTitle, p.done && { color: "var(--ink-4)" as string }]}>{p.text}</Text>
+            </View>
           ))}
         </View>
       ) : null}
-      {line.type === "plan" && waiting ? <View style={st.cardRow}><TextButton label="Allow" primary testID={`plan-approve-${line.id}`} onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)} /></View> : null}
-      {line.type === "question" && waiting && terminalAsk && actions.terminalCard ? <TerminalCard id={line.id} why={typeof line.data.prompt === "string" ? line.data.prompt : line.title} command={terminalAsk.command} risk={terminalAsk.risk} {...(terminalAsk.host ? { host: terminalAsk.host } : {})} {...(actions.terminalCard.agentId ? { agentId: actions.terminalCard.agentId } : {})} deps={actions.terminalCard.deps} copy={actions.terminalCard.copy} openTerminal={actions.terminalCard.openTerminal} answer={actions.answer} /> : null}
-      {line.type === "question" && waiting && offers && actions.mountCard ? <MountCard id={line.id} prompt={typeof line.data.prompt === "string" ? line.data.prompt : line.title} offers={offers} agents={actions.mountCard.agents} data={actions.mountCard.data} answer={actions.answer} /> : null}
-      {line.type === "question" && waiting && options.length > 0 && !(offers && actions.mountCard) && !(terminalAsk && actions.terminalCard) ? (
-        <View testID={`options-${line.id}`} accessibilityRole="radiogroup" style={st.cardRow}>
-          {collect(options, (o) => <TextButton key={o.id} label={o.label} testID={`option-${line.id}-${o.id}`} onPress={() => actions.answer(line.id, o.id)} />)}
+      {line.type === "plan" && waiting ? (
+        <View style={st.cardRow}>
+          <TextButton
+            label="Allow"
+            primary
+            testID={`plan-approve-${line.id}`}
+            onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)}
+          />
         </View>
       ) : null}
-      {answered !== "" ? <Text testID={`answered-${line.id}`} style={st.cardSub}>{`Answered: ${answered}`}</Text> : null}
+      {line.type === "question" && waiting && terminalAsk && actions.terminalCard ? (
+        <TerminalCard
+          id={line.id}
+          why={typeof line.data.prompt === "string" ? line.data.prompt : line.title}
+          command={terminalAsk.command}
+          risk={terminalAsk.risk}
+          {...(terminalAsk.host ? { host: terminalAsk.host } : {})}
+          {...(actions.terminalCard.agentId ? { agentId: actions.terminalCard.agentId } : {})}
+          deps={actions.terminalCard.deps}
+          copy={actions.terminalCard.copy}
+          openTerminal={actions.terminalCard.openTerminal}
+          answer={actions.answer}
+        />
+      ) : null}
+      {line.type === "question" && waiting && offers && actions.mountCard ? (
+        <MountCard
+          id={line.id}
+          prompt={typeof line.data.prompt === "string" ? line.data.prompt : line.title}
+          offers={offers}
+          agents={actions.mountCard.agents}
+          data={actions.mountCard.data}
+          answer={actions.answer}
+        />
+      ) : null}
+      {line.type === "question" &&
+      waiting &&
+      options.length > 0 &&
+      !(offers && actions.mountCard) &&
+      !(terminalAsk && actions.terminalCard) ? (
+        <View testID={`options-${line.id}`} accessibilityRole="radiogroup" style={st.cardRow}>
+          {collect(options, (o) => (
+            <TextButton
+              key={o.id}
+              label={o.label}
+              testID={`option-${line.id}-${o.id}`}
+              onPress={() => actions.answer(line.id, o.id)}
+            />
+          ))}
+        </View>
+      ) : null}
+      {answered !== "" ? (
+        <Text testID={`answered-${line.id}`} style={st.cardSub}>{`Answered: ${answered}`}</Text>
+      ) : null}
     </View>
   );
 }
 
 /* ---------- errors: what, why, next ---------- */
 
-export function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
+export function ErrorRowView({
+  block,
+  actions,
+}: {
+  block: Message["blocks"][number];
+  actions: MessageActions;
+}): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<[string, string][] | null>(null);
@@ -795,8 +1857,15 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
   useEffect(() => {
     if (!open || detail !== null || e.turnId === "" || !actions.turnDetail) return undefined;
     let live = true;
-    void actions.turnDetail(e.turnId).then((rows) => { if (live) setDetail(rows); }, () => undefined);
-    return () => { live = false; };
+    void actions.turnDetail(e.turnId).then(
+      (rows) => {
+        if (live) setDetail(rows);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [open, detail, e.turnId, actions]);
   // A reply that could not start for lack of an AI account: once the person has used "Connect your AI" and an account works, a quiet line offers to send it again (one retry of that turn, the message is not posted twice).
   const noAccount = e.code === "no_account" && e.turnId !== "" && actions.accountReady !== undefined;
@@ -806,15 +1875,43 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
   useEffect(() => {
     if (!noAccount || !asked || ready || resent) return;
     let live = true;
-    const check = (): void => { void actions.accountReady!().then((ok) => { if (live && ok) setReady(true); }, () => undefined); };
+    const check = (): void => {
+      void actions.accountReady!().then(
+        (ok) => {
+          if (live && ok) setReady(true);
+        },
+        () => undefined,
+      );
+    };
     check();
     const timer = setInterval(check, 2500);
-    return () => { live = false; clearInterval(timer); };
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
   }, [noAccount, asked, ready, resent, actions]);
   const { element: moreMenu, show: showMore } = useMenu();
   const steps = [
-    ...e.next.map((n) => ({ label: n.label, testID: `err-next-${n.key}`, run: () => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); } })),
-    ...(e.retryable && e.turnId && !retried ? [{ label: "Retry", testID: "err-retry", run: () => { setRetried(true); actions.retryTurn(e.turnId); } }] : []),
+    ...e.next.map((n) => ({
+      label: n.label,
+      testID: `err-next-${n.key}`,
+      run: () => {
+        if (n.key === "connect_ai") setAsked(true);
+        actions.errorNext(n.key, e.turnId);
+      },
+    })),
+    ...(e.retryable && e.turnId && !retried
+      ? [
+          {
+            label: "Retry",
+            testID: "err-retry",
+            run: () => {
+              setRetried(true);
+              actions.retryTurn(e.turnId);
+            },
+          },
+        ]
+      : []),
   ];
   const [fix, ...otherSteps] = steps;
   const more: MenuEntry[] = [
@@ -824,24 +1921,61 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
     { label: "Report", onSelect: () => reportProblem({ label: reportLabel(e.message, e.traceId) }) },
   ];
   return (
-    <View {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))}>
+    <View
+      {...menuTrigger((x, y) =>
+        actions.showMenu(
+          [
+            { label: "Copy error details", onSelect: () => actions.copy(e.traceId) },
+            { label: "What Happened?", onSelect: () => setOpen((o) => !o) },
+          ],
+          x,
+          y,
+          "Error",
+        ),
+      )}
+    >
       <UiCard kind="status" tone="error" testID={`error-${block.id}`} label={e.message}>
         <CardHead title={e.message} tone="warn" lead={<Glyph name="alert" size={15} color="var(--warn)" />} />
         {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
         <CardActions
           {...(fix ? { primary: { label: fix.label, onPress: fix.run, testID: fix.testID } } : {})}
-          note={<Pressable accessibilityRole="button" accessibilityLabel="More" testID="err-more" onPress={(ev) => { const at = anchorOf(ev); showMore(more, at.x, at.y, "context", { label: "Error" }); }}><Text style={st.errMore}>...</Text></Pressable>}
+          note={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="More"
+              testID="err-more"
+              onPress={(ev) => {
+                const at = anchorOf(ev);
+                showMore(more, at.x, at.y, "context", { label: "Error" });
+              }}
+            >
+              <Text style={st.errMore}>...</Text>
+            </Pressable>
+          }
         />
         {moreMenu}
         {noAccount && ready && !resent ? (
           <View testID="err-connected" style={st.errActions}>
             <Text style={st.errCause}>Connected. Send it again?</Text>
-            <TextButton link label="Retry" testID="err-connected-retry" onPress={() => { setResent(true); actions.retryTurn(e.turnId); }} />
+            <TextButton
+              link
+              label="Retry"
+              testID="err-connected-retry"
+              onPress={() => {
+                setResent(true);
+                actions.retryTurn(e.turnId);
+              }}
+            />
           </View>
         ) : null}
         {open ? (
           <View testID="err-steps" style={st.errSteps}>
-            {collect(detail ?? e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
+            {collect(detail ?? e.steps, ([k, v]) => (
+              <View key={k} style={st.kv}>
+                <Text style={st.kvK}>{k}</Text>
+                <Text style={st.kvV}>{v}</Text>
+              </View>
+            ))}
           </View>
         ) : null}
       </UiCard>
@@ -850,7 +1984,17 @@ export function ErrorRowView({ block, actions }: { block: Message["blocks"][numb
 }
 
 export const st = StyleSheet.create({
-  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: RADIUS },
+  approvalLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginLeft: -10,
+    borderRadius: RADIUS,
+  },
   approvalOver: { backgroundColor: "var(--hover)" as string },
   approvalFocus: { borderWidth: 2, borderColor: "var(--accent)" as string, paddingVertical: 3, paddingHorizontal: 8 },
   approvalText: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
@@ -878,16 +2022,46 @@ export const st = StyleSheet.create({
   selected: MARK.selected as object,
   me: { alignItems: "flex-end", position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
-  whenLeft: { position: "absolute", left: -(GUTTER + 4), top: 3, width: 36, textAlign: "right", fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
+  whenLeft: {
+    position: "absolute",
+    left: -(GUTTER + 4),
+    top: 3,
+    width: 36,
+    textAlign: "right",
+    fontSize: 11,
+    color: "var(--ink-4)" as string,
+    opacity: 0,
+  },
   whenIn: { position: "absolute", right: 8, top: 3, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenOn: { opacity: 1 },
   gutterFace: { position: "absolute", left: -GUTTER, top: 0 },
-  bubble: { maxWidth: "85%", backgroundColor: "var(--me)" as string, borderRadius: RADIUS, paddingHorizontal: 14, paddingVertical: 8 },
+  bubble: {
+    maxWidth: "85%",
+    backgroundColor: "var(--me)" as string,
+    borderRadius: RADIUS,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
   mineFiles: { alignSelf: "flex-end", maxWidth: "85%" },
   bubbleText: { color: "var(--ink)" as string, fontSize: BODY_PX, lineHeight: BODY_LEAD },
   edited: { marginTop: 2, fontSize: 11.5, color: "var(--ink-4)" as string },
-  editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: RADIUS, padding: 8, backgroundColor: "var(--win)" as string },
-  editField: { minHeight: 44, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  editBox: {
+    width: "85%",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    borderRadius: RADIUS,
+    padding: 8,
+    backgroundColor: "var(--win)" as string,
+  },
+  editField: {
+    minHeight: 44,
+    fontSize: 15,
+    lineHeight: 22,
+    color: "var(--ink)" as string,
+    outlineStyle: "none",
+    outlineWidth: 0,
+  } as object,
   editRow: { flexDirection: "row", justifyContent: "flex-end", gap: 6 },
   waitRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   failed: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
@@ -906,16 +2080,48 @@ export const st = StyleSheet.create({
   stepError: { backgroundColor: "var(--danger)" as string },
   stepTitle: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
-  hover: { position: "absolute", top: -10, flexDirection: "row", alignItems: "center", gap: 0, paddingHorizontal: 2, height: 28, borderRadius: RADIUS, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, zIndex: 2 },
+  hover: {
+    position: "absolute",
+    top: -10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+    paddingHorizontal: 2,
+    height: 28,
+    borderRadius: RADIUS,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+    zIndex: 2,
+  },
   hoverMine: { right: 0 },
   hoverTheirs: { right: 8 },
   reactions: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-  react: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  react: {
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: RADIUS,
+    justifyContent: "center",
+    backgroundColor: "var(--sunk)" as string,
+  },
   reactMine: { borderWidth: 1, borderColor: "var(--accent)" as string },
   reactText: { fontSize: 12, color: "var(--ink-2)" as string },
-  card: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: RADIUS, backgroundColor: "var(--side)" as string, maxWidth: 520 },
+  card: {
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--side)" as string,
+    maxWidth: 520,
+  },
   cardWaiting: { borderColor: "var(--accent)" as string },
-  cardHead: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  cardHead: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   cardTitle: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   cardSub: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 0 },
   cardRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 10, paddingBottom: 10 },
@@ -935,7 +2141,11 @@ export const st = StyleSheet.create({
  * Whose card it is (lead, 12 Nov, H4): a helper's held call raised into the chat it was started from (a message with a from_thread line) names the helper, so two waiting helpers of one agent read
  * apart: "Rates on the web (Scout)". Any other card names the agent.
  */
-export function helperName(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }, agent: string, crew: { members: ReadonlyArray<{ id: string; title?: string }> } | null): string {
+export function helperName(
+  m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> },
+  agent: string,
+  crew: { members: ReadonlyArray<{ id: string; title?: string }> } | null,
+): string {
   const from = m.blocks.find((b) => b.type === "from_thread");
   const tid = String((from?.data as { threadId?: unknown } | undefined)?.threadId ?? "");
   const title = tid !== "" ? crew?.members.find((x) => x.id === tid)?.title : undefined;
@@ -944,5 +2154,8 @@ export function helperName(m: { blocks: ReadonlyArray<{ type: string; data?: unk
 
 /** A helper's held call raised into the chat it was started from (engine bridge): a waiting turn_status with a from_thread line. */
 export function raisedHelperCard(m: { blocks: ReadonlyArray<{ type: string; data?: unknown }> }): boolean {
-  return m.blocks.some((b) => b.type === "from_thread") && m.blocks.some((b) => b.type === "turn_status" && (b.data as { state?: unknown } | undefined)?.state === "waiting");
+  return (
+    m.blocks.some((b) => b.type === "from_thread") &&
+    m.blocks.some((b) => b.type === "turn_status" && (b.data as { state?: unknown } | undefined)?.state === "waiting")
+  );
 }

@@ -12,28 +12,47 @@ export const DIRECTORY_HOST = "api.apis.guru";
 export const DOC_CAP = 12_000_000;
 
 const TIMEOUT_MS = 20_000;
-const STOP = new Set(["the", "and", "for", "with", "from", "this", "that", "your", "into", "what", "want", "step", "app", "use", "using"]);
+const STOP = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "this",
+  "that",
+  "your",
+  "into",
+  "what",
+  "want",
+  "step",
+  "app",
+  "use",
+  "using",
+]);
 const METHODS = ["get", "head", "options", "post", "put", "patch", "delete", "trace"] as const;
 const READS = new Set(["get", "head", "options"]);
 const SECRET_NAME = /secret|authorization|token|api[-_]?key|password/i;
 
-const UNKNOWN = "That app is not on the official list. Paste the OpenAPI document you already have. A web address is not opened.";
+const UNKNOWN =
+  "That app is not on the official list. Paste the OpenAPI document you already have. A web address is not opened.";
 const REDIRECT = "The official document redirected. A web address is not opened.";
 const TOO_LARGE = "The official document is too large to draft. Paste the OpenAPI document you already have.";
 const NOT_JSON = "The official document was not JSON.";
 const UNREACHABLE = "The official document did not load. Paste the OpenAPI document you already have.";
 export const NO_MATCH = "That official document has no matching path. Paste the OpenAPI document you already have.";
 
-export type Loaded =
-  | { ok: true; document: unknown; docsUrl: string }
-  | { ok: false; reason: string };
+export type Loaded = { ok: true; document: unknown; docsUrl: string } | { ok: false; reason: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function hostOf(raw: string): string | null {
-  try { return new URL(raw).hostname.toLowerCase(); } catch { return null; }
+  try {
+    return new URL(raw).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 function tokensOf(intent: string): string[] {
@@ -57,7 +76,11 @@ function matches(path: string, operation: unknown, tokens: readonly string[]): b
 }
 
 /** Load the allowlisted document for an app name. sources defaults to the official list. */
-export async function loadKnownDocument(app: string, fetchImpl: typeof fetch, sources: Readonly<Record<string, string>> = KNOWN_DOCS): Promise<Loaded> {
+export async function loadKnownDocument(
+  app: string,
+  fetchImpl: typeof fetch,
+  sources: Readonly<Record<string, string>> = KNOWN_DOCS,
+): Promise<Loaded> {
   const key = app.trim().toLowerCase();
   const docsUrl = sources[key];
   if (!docsUrl) return { ok: false, reason: UNKNOWN };
@@ -74,7 +97,11 @@ export async function loadKnownDocument(app: string, fetchImpl: typeof fetch, so
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > DOC_CAP) return { ok: false, reason: TOO_LARGE };
   let text = "";
-  try { text = await response.text(); } catch { return { ok: false, reason: UNREACHABLE }; }
+  try {
+    text = await response.text();
+  } catch {
+    return { ok: false, reason: UNREACHABLE };
+  }
   if (text.length > DOC_CAP) return { ok: false, reason: TOO_LARGE };
   const trimmed = text.trim();
   if (trimmed.startsWith("<")) return { ok: false, reason: NOT_JSON };
@@ -116,7 +143,10 @@ export function narrowDocument(doc: unknown, intent: string): unknown {
   }
   const webhooks: Record<string, unknown> = {};
   const hooks = isRecord(doc.webhooks) ? doc.webhooks : {};
-  const names = Object.keys(hooks).filter((name) => !SECRET_NAME.test(name) && (tokens.length === 0 || tokens.some((token) => name.toLowerCase().includes(token))));
+  const names = Object.keys(hooks).filter(
+    (name) =>
+      !SECRET_NAME.test(name) && (tokens.length === 0 || tokens.some((token) => name.toLowerCase().includes(token))),
+  );
   for (const name of names.slice(0, tokens.length === 0 ? 8 : names.length)) webhooks[name] = hooks[name];
   const components = isRecord(doc.components)
     ? {
@@ -206,7 +236,12 @@ async function loadFromDirectory(app: string, fetchImpl: typeof fetch): Promise<
 }
 
 /** Fetch and narrow. The returned document is what generate() should see. */
-export async function draftKnown(app: string, intent: string, fetchImpl: typeof fetch, sources?: Readonly<Record<string, string>>): Promise<Loaded> {
+export async function draftKnown(
+  app: string,
+  intent: string,
+  fetchImpl: typeof fetch,
+  sources?: Readonly<Record<string, string>>,
+): Promise<Loaded> {
   const loaded = sources ? await loadKnownDocument(app, fetchImpl, sources) : await loadFromDirectory(app, fetchImpl);
   if (!loaded.ok) return loaded;
   const document = narrowDocument(loaded.document, intent);

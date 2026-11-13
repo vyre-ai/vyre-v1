@@ -9,17 +9,41 @@ import { Card, CardActions, CardBody, CardHead } from "../../../../../../ui/src/
 
 export const isNoteOffer = (type: string): boolean => type === "note_offer";
 
-export interface NoteOffer { blockId: string; title: string; body: string; state: "offered" | "saved" | "dismissed"; noteId?: string }
+export interface NoteOffer {
+  blockId: string;
+  title: string;
+  body: string;
+  state: "offered" | "saved" | "dismissed";
+  noteId?: string;
+}
 
 /** The offer's fields from a block's data; null when it is not one. */
 export function noteOfferOf(data: unknown): NoteOffer | null {
   const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   if (typeof d["blockId"] !== "string" || typeof d["title"] !== "string" || typeof d["body"] !== "string") return null;
   const state = d["state"] === "saved" || d["state"] === "dismissed" ? d["state"] : "offered";
-  return { blockId: d["blockId"], title: d["title"], body: d["body"], state, ...(typeof d["noteId"] === "string" ? { noteId: d["noteId"] } : {}) };
+  return {
+    blockId: d["blockId"],
+    title: d["title"],
+    body: d["body"],
+    state,
+    ...(typeof d["noteId"] === "string" ? { noteId: d["noteId"] } : {}),
+  };
 }
 
-export function NoteOfferCard({ id, data, mine, chat, say }: { id: string; data: unknown; /** this reader is who the offer was made to */ mine: boolean; chat: Pick<ConversationData, "call" | "nav" | "threadId">; say?: (text: string) => void }): ReactElement | null {
+export function NoteOfferCard({
+  id,
+  data,
+  mine,
+  chat,
+  say,
+}: {
+  id: string;
+  data: unknown;
+  /** this reader is who the offer was made to */ mine: boolean;
+  chat: Pick<ConversationData, "call" | "nav" | "threadId">;
+  say?: (text: string) => void;
+}): ReactElement | null {
   const offer = noteOfferOf(data);
   const [done, setDone] = useState<{ state: "saved" | "dismissed"; noteId?: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,25 +55,60 @@ export function NoteOfferCard({ id, data, mine, chat, say }: { id: string; data:
     return (
       <View testID={`noteoffer-saved-${id}`} style={s.saved}>
         <Text style={s.quiet}>Saved to Notes</Text>
-        {mine && noteId && chat.nav.openNote ? <><Text style={s.quiet}>·</Text><Pressable accessibilityRole="link" testID={`noteoffer-open-${id}`} onPress={() => chat.nav.openNote?.(noteId)}><Text style={s.link}>Open</Text></Pressable></> : null}
+        {mine && noteId && chat.nav.openNote ? (
+          <>
+            <Text style={s.quiet}>·</Text>
+            <Pressable
+              accessibilityRole="link"
+              testID={`noteoffer-open-${id}`}
+              onPress={() => chat.nav.openNote?.(noteId)}
+            >
+              <Text style={s.link}>Open</Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
     );
   }
   const answer = (decision: "save" | "dismiss"): void => {
     setBusy(true);
-    void Promise.resolve(chat.call("chat.note_offer.answer", { threadId: chat.threadId, blockId: offer.blockId, decision })).then(
-      (o) => { const r = o as { state: "saved" | "dismissed"; noteId?: string }; setDone({ state: r.state, ...(r.noteId ? { noteId: r.noteId } : {}) }); },
-      () => { setBusy(false); say?.(decision === "save" ? "Could not save the note. Try again." : "Could not close it. Try again."); },
+    void Promise.resolve(
+      chat.call("chat.note_offer.answer", { threadId: chat.threadId, blockId: offer.blockId, decision }),
+    ).then(
+      (o) => {
+        const r = o as { state: "saved" | "dismissed"; noteId?: string };
+        setDone({ state: r.state, ...(r.noteId ? { noteId: r.noteId } : {}) });
+      },
+      () => {
+        setBusy(false);
+        say?.(decision === "save" ? "Could not save the note. Try again." : "Could not close it. Try again.");
+      },
     );
   };
   return (
-    <Card kind="decision" size="compact" testID={`noteoffer-${id}`} label="Save as a note?" {...(mine ? { onCancel: () => answer("dismiss") } : {})}>
+    <Card
+      kind="decision"
+      size="compact"
+      testID={`noteoffer-${id}`}
+      label="Save as a note?"
+      {...(mine ? { onCancel: () => answer("dismiss") } : {})}
+    >
       <CardHead title="Save as a note?" meta={mine ? "Private to you" : "Offered to someone else in this chat"} />
       <CardBody testID={`noteoffer-preview-${id}`}>
-        <Text style={s.pt} numberOfLines={2}>{offer.title}</Text>
-        <Text style={s.pb} numberOfLines={5}>{offer.body}</Text>
+        <Text style={s.pt} numberOfLines={2}>
+          {offer.title}
+        </Text>
+        <Text style={s.pb} numberOfLines={5}>
+          {offer.body}
+        </Text>
       </CardBody>
-      {mine ? <CardActions busy={busy} secondary={[{ label: "Not now", onPress: () => answer("dismiss"), testID: `noteoffer-dismiss-${id}` }]} primary={{ label: "Save", onPress: () => answer("save"), testID: `noteoffer-save-${id}` }} /> : null}
+      {mine ? (
+        <CardActions
+          busy={busy}
+          secondary={[{ label: "Not now", onPress: () => answer("dismiss"), testID: `noteoffer-dismiss-${id}` }]}
+          primary={{ label: "Save", onPress: () => answer("save"), testID: `noteoffer-save-${id}` }}
+        />
+      ) : null}
     </Card>
   );
 }

@@ -10,10 +10,15 @@ export function ssoStartUrl(baseUrl: string, provider: string, returnTo: string)
 export type SsoReturn = { code: string; provider: string } | { error: true } | null;
 
 /** Read, and remove from the address bar, what the callback left in the fragment. */
-export function takeSsoReturn(loc: { hash: string; pathname: string; search: string } | undefined, replace: (url: string) => void): SsoReturn {
+export function takeSsoReturn(
+  loc: { hash: string; pathname: string; search: string } | undefined,
+  replace: (url: string) => void,
+): SsoReturn {
   if (!loc) return null;
   const p = new URLSearchParams(loc.hash.replace(/^#/, ""));
-  const code = p.get("sso_code"), provider = p.get("sso_provider"), failed = p.get("sso_error");
+  const code = p.get("sso_code"),
+    provider = p.get("sso_provider"),
+    failed = p.get("sso_error");
   if (!code && !failed) return null;
   replace(`${loc.pathname}${loc.search}`);
   return code && provider ? { code, provider } : { error: true };

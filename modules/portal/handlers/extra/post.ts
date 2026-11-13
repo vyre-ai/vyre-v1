@@ -16,21 +16,32 @@ async function post(ctx: Ctx, input: unknown): Promise<{ messageId: string }> {
   const acct = linkedAccount(ctx, reqStr(ctx, o, "accountId"));
   const recordId = reqStr(ctx, o, "recordId");
   const text = reqStr(ctx, o, "body").trim();
-  if (text.length === 0 || text.length > BODY_MAX || text.includes("\u0000")) fail(ctx, "validation.bad_input", `Write a message of up to ${BODY_MAX} characters.`, { field: "body" });
+  if (text.length === 0 || text.length > BODY_MAX || text.includes("\u0000"))
+    fail(ctx, "validation.bad_input", `Write a message of up to ${BODY_MAX} characters.`, { field: "body" });
   const gate = throttle(ctx, `post|${acct.id}`, POSTS, WINDOW_MS);
 
   const target = (await visibleRecords(ctx, acct)).find((r) => r.id === recordId);
   if (!target) fail(ctx, "permission.not_found", "That record is not available to this account.");
 
   // The channel is read from the record itself, not from the visible copy: a row rule may hide the field.
-  const got = (await ctx.call("records.get", { type: target.type, recordId })) as { record?: { fields?: Record<string, unknown> } };
+  const got = (await ctx.call("records.get", { type: target.type, recordId })) as {
+    record?: { fields?: Record<string, unknown> };
+  };
   const channelId = got.record?.fields?.channel;
-  if (typeof channelId !== "string" || channelId.length === 0) fail(ctx, "validation.precondition_failed", "This record has no conversation yet.");
-  const ch = (await ctx.call("channels.get", { channelId })) as { channel?: { mainThreadId?: unknown; archived?: unknown } };
+  if (typeof channelId !== "string" || channelId.length === 0)
+    fail(ctx, "validation.precondition_failed", "This record has no conversation yet.");
+  const ch = (await ctx.call("channels.get", { channelId })) as {
+    channel?: { mainThreadId?: unknown; archived?: unknown };
+  };
   const threadId = ch.channel?.mainThreadId;
-  if (typeof threadId !== "string" || ch.channel?.archived === true) fail(ctx, "validation.precondition_failed", "This conversation is closed.");
+  if (typeof threadId !== "string" || ch.channel?.archived === true)
+    fail(ctx, "validation.precondition_failed", "This conversation is closed.");
 
-  const sent = (await ctx.call("chat.post", { idempotencyKey: `portal.post:${acct.id}:${recordId}:${ctx.trace.traceId}`, threadId, body: `From ${acct.email} (client portal)\n\n${text}` })) as { message?: { messageId?: unknown } };
+  const sent = (await ctx.call("chat.post", {
+    idempotencyKey: `portal.post:${acct.id}:${recordId}:${ctx.trace.traceId}`,
+    threadId,
+    body: `From ${acct.email} (client portal)\n\n${text}`,
+  })) as { message?: { messageId?: unknown } };
   const messageId = sent.message?.messageId;
   if (typeof messageId !== "string") fail(ctx, "internal.unexpected", "The message could not be posted.");
   gate.bump();
@@ -41,4 +52,3 @@ async function post(ctx: Ctx, input: unknown): Promise<{ messageId: string }> {
 export const postHandlers = {
   "portal.post": (ctx: Ctx, input: unknown) => post(ctx, input),
 };
-

@@ -3,9 +3,16 @@
 const TTL_MS = 5 * 60_000;
 const kept = new Map<string, { placement: string | undefined; at: number }>();
 
-export function forgetPlacement(threadId?: string): void { if (threadId === undefined) kept.clear(); else for (const k of [...kept.keys()]) if (k.startsWith(`${threadId}|`)) kept.delete(k); }
+export function forgetPlacement(threadId?: string): void {
+  if (threadId === undefined) kept.clear();
+  else for (const k of [...kept.keys()]) if (k.startsWith(`${threadId}|`)) kept.delete(k);
+}
 
-export async function placementOf(read: () => Promise<string | undefined>, key: { threadId: string; agentId: string; asker: string }, now: number): Promise<string | undefined> {
+export async function placementOf(
+  read: () => Promise<string | undefined>,
+  key: { threadId: string; agentId: string; asker: string },
+  now: number,
+): Promise<string | undefined> {
   const k = `${key.threadId}|${key.agentId}|${key.asker}`;
   const hit = kept.get(k);
   if (hit && now - hit.at < TTL_MS) return hit.placement;

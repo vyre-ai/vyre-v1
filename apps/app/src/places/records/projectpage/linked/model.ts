@@ -17,24 +17,54 @@ export type Show = "All" | Group;
 export const SHOWS: readonly Show[] = ["All", ...GROUPS];
 
 const GROUP_OF: Readonly<Record<LinkKind, Group>> = {
-  task: "Tasks", record: "Records", calendar_event: "Records", file: "Files", chat: "Chats", mail_thread: "Chats",
-  "github.pr": "Code", "github.commit": "Code", "ci.run": "Code", artifact: "Sites", url: "Sites",
+  task: "Tasks",
+  record: "Records",
+  calendar_event: "Records",
+  file: "Files",
+  chat: "Chats",
+  mail_thread: "Chats",
+  "github.pr": "Code",
+  "github.commit": "Code",
+  "ci.run": "Code",
+  artifact: "Sites",
+  url: "Sites",
 };
 export const groupOf = (l: { kind: LinkKind }): Group => GROUP_OF[l.kind];
 
 /** What each kind is called where a sentence needs it. */
 export const KIND_WORD: Readonly<Record<LinkKind, string>> = {
-  task: "task", record: "record", calendar_event: "event", file: "file", chat: "chat", mail_thread: "email", "github.pr": "pull request", "github.commit": "commit", "ci.run": "check run", artifact: "page", url: "web link",
+  task: "task",
+  record: "record",
+  calendar_event: "event",
+  file: "file",
+  chat: "chat",
+  mail_thread: "email",
+  "github.pr": "pull request",
+  "github.commit": "commit",
+  "ci.run": "check run",
+  artifact: "page",
+  url: "web link",
 };
 
 /** What reach and access.request call the thing a link points at. */
 const ITEM_TYPE: Readonly<Record<LinkKind, string>> = {
-  task: "task", record: "record", calendar_event: "event", file: "file", chat: "thread", mail_thread: "mail", "github.pr": "pr", "github.commit": "commit", "ci.run": "run", artifact: "site", url: "url",
+  task: "task",
+  record: "record",
+  calendar_event: "event",
+  file: "file",
+  chat: "thread",
+  mail_thread: "mail",
+  "github.pr": "pr",
+  "github.commit": "commit",
+  "ci.run": "run",
+  artifact: "site",
+  url: "url",
 };
 export const itemTypeOf = (l: { kind: LinkKind }): string => ITEM_TYPE[l.kind];
 
 /** Things that live outside Vyre: they open at their own address, and the Space's access rule does not govern them. */
-export const isOutside = (l: { kind: LinkKind }): boolean => l.kind === "github.pr" || l.kind === "github.commit" || l.kind === "ci.run" || l.kind === "url";
+export const isOutside = (l: { kind: LinkKind }): boolean =>
+  l.kind === "github.pr" || l.kind === "github.commit" || l.kind === "ci.run" || l.kind === "url";
 
 /** The viewer's level on what a link points at. The Space reads the source as the viewer when it lists links, so a source the viewer cannot open comes back with no name. */
 export const levelOf = (l: Link): "view" | "none" => (isOutside(l) || l.label !== undefined ? "view" : "none");
@@ -42,8 +72,18 @@ export const levelOf = (l: Link): "view" | "none" => (isOutside(l) || l.label !=
 /** The resource access.request names for a link (a record is named type/id in its ref). Null for what lives outside Vyre. */
 export function askResource(l: Link): { type: string; id: string } | null {
   if (isOutside(l)) return null;
-  if (l.kind === "record") { const i = l.ref.indexOf("/"); return { type: "record", id: i < 0 ? l.ref : l.ref.slice(i + 1) }; }
-  const type: Record<string, string> = { task: "task", file: "file", chat: "thread", artifact: "site", calendar_event: "event", mail_thread: "mail_thread" };
+  if (l.kind === "record") {
+    const i = l.ref.indexOf("/");
+    return { type: "record", id: i < 0 ? l.ref : l.ref.slice(i + 1) };
+  }
+  const type: Record<string, string> = {
+    task: "task",
+    file: "file",
+    chat: "thread",
+    artifact: "site",
+    calendar_event: "event",
+    mail_thread: "mail_thread",
+  };
   return { type: type[l.kind] ?? l.kind, id: l.ref };
 }
 
@@ -57,7 +97,17 @@ export function titleOf(l: Link): string {
 export function reachOf(l: Link, viewer: Viewer): Reach {
   if (isOutside(l)) return { to: "open", where: l.url ?? l.ref, target: { place: "chats" } };
   const id = l.kind === "record" && l.ref.includes("/") ? l.ref.slice(l.ref.indexOf("/") + 1) : l.ref;
-  return reach({ kind: "item", type: ITEM_TYPE[l.kind], id, title: titleOf(l), level: levelOf(l), summary: `${hiddenTitle(ITEM_TYPE[l.kind])}.` }, viewer);
+  return reach(
+    {
+      kind: "item",
+      type: ITEM_TYPE[l.kind],
+      id,
+      title: titleOf(l),
+      level: levelOf(l),
+      summary: `${hiddenTitle(ITEM_TYPE[l.kind])}.`,
+    },
+    viewer,
+  );
 }
 
 /** A state as the person reads it: a day the Space wrote as 2025-10-24 is "24 Oct" in their own format (the year only when it is not this one). */
@@ -67,7 +117,12 @@ export function stateWords(state: string | undefined, now: number, locale?: stri
   if (!m) return state;
   const at = Date.UTC(Number(m[2]), Number(m[3]) - 1, Number(m[4]));
   const year = new Date(at).getUTCFullYear() === new Date(now).getUTCFullYear();
-  const day = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", ...(year ? {} : { year: "numeric" }), timeZone: "UTC" }).format(at);
+  const day = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    ...(year ? {} : { year: "numeric" }),
+    timeZone: "UTC",
+  }).format(at);
   return `${m[1]} ${day}`;
 }
 
@@ -91,14 +146,19 @@ export function filterLinks(links: readonly Link[], show: Show): Link[] {
 }
 
 export const countFor = (links: readonly Link[], runs: readonly Run[], show: Show): number =>
-  links.filter((l) => show === "All" || groupOf(l) === show).length + (show === "All" || show === "Code" ? runs.length : 0);
+  links.filter((l) => show === "All" || groupOf(l) === show).length +
+  (show === "All" || show === "Code" ? runs.length : 0);
 
 /** A pasted address as a link: a pull request or commit on GitHub by its name, any other web address as itself. Null for text that is not an address. */
 export function parseAddress(text: string): { kind: LinkKind; ref: string; label?: string; url: string } | null {
   const t = text.trim();
   if (!/^https?:\/\/[^\s]+$/i.test(t)) return null;
   let u: URL;
-  try { u = new URL(t); } catch { return null; }
+  try {
+    u = new URL(t);
+  } catch {
+    return null;
+  }
   if (u.hostname === "github.com") {
     const pr = /^\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/(\d+)/.exec(u.pathname);
     if (pr) return { kind: "github.pr", ref: `${pr[1]}#${pr[2]}`, label: `${pr[1]}#${pr[2]}`, url: t };
@@ -109,13 +169,24 @@ export function parseAddress(text: string): { kind: LinkKind; ref: string; label
 }
 
 /** A search hit as a link, or null for what cannot be linked (people, settings, apps). */
-export function linkOfHit(h: { kind: string; id: string; title: string; recordType?: string | undefined }): { kind: LinkKind; ref: string; label: string } | null {
+export function linkOfHit(h: {
+  kind: string;
+  id: string;
+  title: string;
+  recordType?: string | undefined;
+}): { kind: LinkKind; ref: string; label: string } | null {
   switch (h.kind) {
-    case "record": return { kind: "record", ref: h.recordType ? `${h.recordType}/${h.id}` : h.id, label: h.title };
-    case "file": return { kind: "file", ref: h.id, label: h.title };
-    case "chat": case "channel": return { kind: "chat", ref: h.id, label: h.title };
-    case "task": return { kind: "task", ref: h.id, label: h.title };
-    default: return null;
+    case "record":
+      return { kind: "record", ref: h.recordType ? `${h.recordType}/${h.id}` : h.id, label: h.title };
+    case "file":
+      return { kind: "file", ref: h.id, label: h.title };
+    case "chat":
+    case "channel":
+      return { kind: "chat", ref: h.id, label: h.title };
+    case "task":
+      return { kind: "task", ref: h.id, label: h.title };
+    default:
+      return null;
   }
 }
 
@@ -123,12 +194,29 @@ export function linkOfHit(h: { kind: string; id: string; title: string; recordTy
 
 export type RuleKind = Rule["kind"];
 export const RULE_KINDS: readonly { key: RuleKind; label: string; hint: string; example: string }[] = [
-  { key: "repo", label: "Everything from a repository", hint: "Pull requests and checks of owner/repo", example: "vyre-ai/website" },
-  { key: "record_filter", label: "Records that match", hint: "A record type, a field and the value it holds", example: "invoice · client = Rivera" },
+  {
+    key: "repo",
+    label: "Everything from a repository",
+    hint: "Pull requests and checks of owner/repo",
+    example: "vyre-ai/website",
+  },
+  {
+    key: "record_filter",
+    label: "Records that match",
+    hint: "A record type, a field and the value it holds",
+    example: "invoice · client = Rivera",
+  },
   { key: "email_domain", label: "Email from an address", hint: "Every thread from this domain", example: "client.com" },
 ];
 
-export interface RuleForm { kind: RuleKind; repo: string; recordType: string; field: string; equals: string; domain: string }
+export interface RuleForm {
+  kind: RuleKind;
+  repo: string;
+  recordType: string;
+  field: string;
+  equals: string;
+  domain: string;
+}
 export const EMPTY_RULE: RuleForm = { kind: "repo", repo: "", recordType: "", field: "", equals: "", domain: "" };
 
 /** What a rule says, in words. */
@@ -141,20 +229,41 @@ export function ruleText(r: Pick<Rule, "kind" | "repo" | "recordType" | "field" 
 
 /** Why a rule form cannot be added yet, or "" when it can. */
 export function ruleProblem(f: RuleForm): string {
-  if (f.kind === "repo") return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(f.repo.trim()) ? "" : "Name the repository as owner/repo.";
-  if (f.kind === "email_domain") return /^@?[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(f.domain.trim()) ? "" : "Give a domain such as client.com.";
-  return f.recordType.trim() !== "" && f.field.trim() !== "" && f.equals.trim() !== "" ? "" : "Give the record type, the field and the value.";
+  if (f.kind === "repo")
+    return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(f.repo.trim()) ? "" : "Name the repository as owner/repo.";
+  if (f.kind === "email_domain")
+    return /^@?[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(f.domain.trim()) ? "" : "Give a domain such as client.com.";
+  return f.recordType.trim() !== "" && f.field.trim() !== "" && f.equals.trim() !== ""
+    ? ""
+    : "Give the record type, the field and the value.";
 }
 
 /** The body projects.links.rules.set takes for a form. */
-export function ruleBody(f: RuleForm): { kind: RuleKind; repo?: string; recordType?: string; field?: string; equals?: string; domain?: string } {
+export function ruleBody(f: RuleForm): {
+  kind: RuleKind;
+  repo?: string;
+  recordType?: string;
+  field?: string;
+  equals?: string;
+  domain?: string;
+} {
   if (f.kind === "repo") return { kind: "repo", repo: f.repo.trim() };
   if (f.kind === "email_domain") return { kind: "email_domain", domain: f.domain.trim().replace(/^@/, "") };
   return { kind: "record_filter", recordType: f.recordType.trim(), field: f.field.trim(), equals: f.equals.trim() };
 }
 
 /** The rule as the list sends it back, as the input the set takes (a rule keeps its id). */
-export const ruleInput = (r: Rule): { ruleId: string } & ReturnType<typeof ruleBody> => ({ ruleId: r.ruleId, ...ruleBody({ kind: r.kind, repo: r.repo ?? "", recordType: r.recordType ?? "", field: r.field ?? "", equals: r.equals ?? "", domain: r.domain ?? "" }) });
+export const ruleInput = (r: Rule): { ruleId: string } & ReturnType<typeof ruleBody> => ({
+  ruleId: r.ruleId,
+  ...ruleBody({
+    kind: r.kind,
+    repo: r.repo ?? "",
+    recordType: r.recordType ?? "",
+    field: r.field ?? "",
+    equals: r.equals ?? "",
+    domain: r.domain ?? "",
+  }),
+});
 
 // ---- CI rows (the runs of a GitHub-linked project)
 
@@ -166,9 +275,17 @@ export function runLook(r: Pick<Run, "state" | "conclusion">): RunLook {
   if (r.state === "queued") return "waiting";
   return "stopped";
 }
-export const RUN_WORD: Readonly<Record<RunLook, string>> = { failed: "Failed", passed: "Passed", running: "Running", waiting: "Waiting", stopped: "Stopped" };
+export const RUN_WORD: Readonly<Record<RunLook, string>> = {
+  failed: "Failed",
+  passed: "Passed",
+  running: "Running",
+  waiting: "Waiting",
+  stopped: "Stopped",
+};
 
-export function secs(n: number): string { return n >= 60 ? `${Math.floor(n / 60)} m ${String(Math.round(n % 60)).padStart(2, "0")} s` : `${Math.round(n)} s`; }
+export function secs(n: number): string {
+  return n >= 60 ? `${Math.floor(n / 60)} m ${String(Math.round(n % 60)).padStart(2, "0")} s` : `${Math.round(n)} s`;
+}
 export function agoWords(at: number, now: number): string {
   const m = Math.max(0, Math.round((now - at) / 60_000));
   if (m < 1) return "just now";
@@ -189,4 +306,5 @@ export function runLine(r: Run, now: number): string {
 export const failedRun = (runs: readonly Run[]): Run | null => runs.find((r) => runLook(r) === "failed") ?? null;
 
 /** What the fix card asks the Assistant. */
-export const fixAsk = (projectTitle: string, r: Run): string => `@Assistant the checks failed in ${projectTitle} (${r.repo}, ${r.jobName}${r.note ? `: ${r.note}` : ""}). Can you read the run and fix it?`;
+export const fixAsk = (projectTitle: string, r: Run): string =>
+  `@Assistant the checks failed in ${projectTitle} (${r.repo}, ${r.jobName}${r.note ? `: ${r.note}` : ""}). Can you read the run and fix it?`;

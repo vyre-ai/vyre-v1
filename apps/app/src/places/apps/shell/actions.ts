@@ -4,7 +4,10 @@ import type { AppsData } from "./data.tsx";
 import { heldOf } from "./model.ts";
 import type { AppRow, RowAction } from "./model.ts";
 
-export interface Done { text: string; /** the Gate task waiting on a yes, when the call was held */ taskId?: string }
+export interface Done {
+  text: string;
+  /** the Gate task waiting on a yes, when the call was held */ taskId?: string;
+}
 
 let seq = 0;
 const key = (what: string, id: string, now: number): string => `${what}-${id}-${now}-${++seq}`;
@@ -12,20 +15,39 @@ const key = (what: string, id: string, now: number): string => `${what}-${id}-${
 export async function runAction(d: AppsData, action: RowAction, row: AppRow): Promise<Done> {
   if (d.connection?.get() === "offline") throw new Error("Reconnect before changing or sending from this Space.");
   const now = d.clock().now;
-  const held = (out: unknown, what: string): Done | null => { const h = heldOf(out); return h ? { text: `${what} is waiting for a yes.`, taskId: h.taskId } : null; };
+  const held = (out: unknown, what: string): Done | null => {
+    const h = heldOf(out);
+    return h ? { text: `${what} is waiting for a yes.`, taskId: h.taskId } : null;
+  };
   switch (action) {
-    case "publish": { const out = await d.call("forms.publish", { formId: row.id }); return held(out, "Publishing") ?? { text: `Published ${row.title}.` }; }
-    case "unpublish": await d.call("forms.unpublish", { formId: row.id }); return { text: `${row.title} is no longer public.` };
-    case "install": { const out = (await d.call("templates.install", { templateId: row.id })) as { installed?: unknown[] }; return held(out, "Installing") ?? { text: `Installed ${row.title}. It added ${out.installed?.length ?? 0}.` }; }
-    case "check": { await d.call("mail.domain.check", { domainId: row.id }); return { text: `Checked the records for ${row.title}.` }; }
-    case "open": d.nav.open(row.group, row.id); return { text: "" };
+    case "publish": {
+      const out = await d.call("forms.publish", { formId: row.id });
+      return held(out, "Publishing") ?? { text: `Published ${row.title}.` };
+    }
+    case "unpublish":
+      await d.call("forms.unpublish", { formId: row.id });
+      return { text: `${row.title} is no longer public.` };
+    case "install": {
+      const out = (await d.call("templates.install", { templateId: row.id })) as { installed?: unknown[] };
+      return held(out, "Installing") ?? { text: `Installed ${row.title}. It added ${out.installed?.length ?? 0}.` };
+    }
+    case "check": {
+      await d.call("mail.domain.check", { domainId: row.id });
+      return { text: `Checked the records for ${row.title}.` };
+    }
+    case "open":
+      d.nav.open(row.group, row.id);
+      return { text: "" };
   }
 }
 
 /** Kit builder: a thread with an agent that builds the Kit; it opens beside the Templates. */
 export async function openKitBuilder(d: AppsData, brief?: string): Promise<string> {
   if (d.connection?.get() === "offline") throw new Error("Reconnect before starting a Kit builder chat.");
-  const out = (await d.call("kits.builder_open", { ...(brief ? { brief } : {}), idempotencyKey: key("kit", "builder", d.clock().now) })) as { threadId: string };
+  const out = (await d.call("kits.builder_open", {
+    ...(brief ? { brief } : {}),
+    idempotencyKey: key("kit", "builder", d.clock().now),
+  })) as { threadId: string };
   d.nav.openThread(out.threadId);
   return out.threadId;
 }

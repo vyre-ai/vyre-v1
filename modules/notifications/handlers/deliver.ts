@@ -4,36 +4,80 @@
 import { clean, localClock, readRules, writeRules } from "../projections.ts";
 import type { Db, KindDef, Level, NotifCtx } from "../projections.ts";
 
-export interface Quiet { on: boolean; from: string; to: string; needs: boolean }
-export interface NotifSettings { alertReplies: boolean; routinesAll: boolean; handTo: string | null; quiet: Quiet }
+export interface Quiet {
+  on: boolean;
+  from: string;
+  to: string;
+  needs: boolean;
+}
+export interface NotifSettings {
+  alertReplies: boolean;
+  routinesAll: boolean;
+  handTo: string | null;
+  quiet: Quiet;
+}
 const QUIET_DEFAULT: Quiet = { on: false, from: "22:00", to: "07:00", needs: true };
-const KEYS = new Set(["notifications.alert_replies", "notifications.routines_all", "notifications.hand_needs_you_to", "notifications.quiet_hours"]);
+const KEYS = new Set([
+  "notifications.alert_replies",
+  "notifications.routines_all",
+  "notifications.hand_needs_you_to",
+  "notifications.quiet_hours",
+]);
 const RULE_KEYS = new Set(["notifications.email_backstop", "profile.working_hours", "profile.timezone"]);
 const HHMM = /^[0-2][0-9]:[0-5][0-9]$/;
 
 export function readSettings(db: Db, person: string): NotifSettings {
-  const rows = db.all("SELECT key, value FROM notifications_setting WHERE person = ?", person) as { key: string; value: string }[];
+  const rows = db.all("SELECT key, value FROM notifications_setting WHERE person = ?", person) as {
+    key: string;
+    value: string;
+  }[];
   const v = new Map<string, unknown>();
-  for (const r of rows) { try { v.set(String(r.key), JSON.parse(String(r.value))); } catch { /* an unreadable value is the default */ } }
+  for (const r of rows) {
+    try {
+      v.set(String(r.key), JSON.parse(String(r.value)));
+    } catch {
+      /* an unreadable value is the default */
+    }
+  }
   const q = v.get("notifications.quiet_hours") as Partial<Quiet> | undefined;
-  const quiet: Quiet = q && typeof q === "object"
-    ? { on: q.on === true, from: HHMM.test(String(q.from)) ? String(q.from) : QUIET_DEFAULT.from, to: HHMM.test(String(q.to)) ? String(q.to) : QUIET_DEFAULT.to, needs: q.needs !== false }
-    : QUIET_DEFAULT;
+  const quiet: Quiet =
+    q && typeof q === "object"
+      ? {
+          on: q.on === true,
+          from: HHMM.test(String(q.from)) ? String(q.from) : QUIET_DEFAULT.from,
+          to: HHMM.test(String(q.to)) ? String(q.to) : QUIET_DEFAULT.to,
+          needs: q.needs !== false,
+        }
+      : QUIET_DEFAULT;
   const hand = v.get("notifications.hand_needs_you_to");
-  return { alertReplies: v.get("notifications.alert_replies") === true, routinesAll: v.get("notifications.routines_all") === true, handTo: typeof hand === "string" && hand ? hand : null, quiet };
+  return {
+    alertReplies: v.get("notifications.alert_replies") === true,
+    routinesAll: v.get("notifications.routines_all") === true,
+    handTo: typeof hand === "string" && hand ? hand : null,
+    quiet,
+  };
 }
 
 /** Working hours and the email backstop are read from notifications_rules by every send. Profile holds the one working-hours setting; this keeps the rule in step with it and with the person's time zone. */
 function syncRule(db: Db, person: string, key: string, after: unknown): boolean {
   const rules = readRules(db, person);
-  if (key === "notifications.email_backstop") { writeRules(db, person, { ...rules, emailBackstop: after !== false }); return true; }
+  if (key === "notifications.email_backstop") {
+    writeRules(db, person, { ...rules, emailBackstop: after !== false });
+    return true;
+  }
   if (key === "profile.working_hours") {
     const h = after as { days?: number[]; from?: string; to?: string } | undefined;
     if (!h || !Array.isArray(h.days) || !h.from || !h.to) return false;
-    writeRules(db, person, { ...rules, workingHours: { days: h.days, from: h.from, to: h.to, tz: rules.workingHours?.tz ?? "UTC" } });
+    writeRules(db, person, {
+      ...rules,
+      workingHours: { days: h.days, from: h.from, to: h.to, tz: rules.workingHours?.tz ?? "UTC" },
+    });
     return true;
   }
-  if (key === "profile.timezone" && typeof after === "string" && after && rules.workingHours) { writeRules(db, person, { ...rules, workingHours: { ...rules.workingHours, tz: after } }); return true; }
+  if (key === "profile.timezone" && typeof after === "string" && after && rules.workingHours) {
+    writeRules(db, person, { ...rules, workingHours: { ...rules.workingHours, tz: after } });
+    return true;
+  }
   return false;
 }
 
@@ -44,9 +88,15 @@ export function syncSetting(db: Db, p: Record<string, unknown>): boolean {
   if (!person || p.scope !== "person") return false;
   if (RULE_KEYS.has(key)) return syncRule(db, person, key, p.after);
   if (!KEYS.has(key)) return false;
-  if (p.after === undefined) { db.run("DELETE FROM notifications_setting WHERE person = ? AND key = ?", person, key); return true; }
+  if (p.after === undefined) {
+    db.run("DELETE FROM notifications_setting WHERE person = ? AND key = ?", person, key);
+    return true;
+  }
   db.run(
-    `INSERT INTO notifications_setting (person, key, value) VALUES (?, ?, ?) ON CONFLICT(person, key) DO UPDATE SET value = excluded.value`, person, key, JSON.stringify(p.after),
+    `INSERT INTO notifications_setting (person, key, value) VALUES (?, ?, ?) ON CONFLICT(person, key) DO UPDATE SET value = excluded.value`,
+    person,
+    key,
+    JSON.stringify(p.after),
   );
   return true;
 }
@@ -57,7 +107,8 @@ const mins = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hh
 export function quietUntil(q: Quiet, tz: string, at: number): number | undefined {
   if (!q.on) return undefined;
   const { minutes } = localClock(at, tz);
-  const from = mins(q.from), to = mins(q.to);
+  const from = mins(q.from),
+    to = mins(q.to);
   const inside = from === to ? false : from < to ? minutes >= from && minutes < to : minutes >= from || minutes < to;
   if (!inside) return undefined;
   const wait = (to - minutes + 1440) % 1440 || 1440;
@@ -71,7 +122,14 @@ export function alertLevel(def: KindDef, level: Level, s: NotifSettings, chosen:
 }
 
 /** Quiet hours hold a push or banner (it waits in the digest). Needs you comes through when the person left that on, and calls always do. */
-export function heldByQuiet(def: KindDef, level: Level, s: NotifSettings, tz: string, now: number, needsYou: boolean): number | undefined {
+export function heldByQuiet(
+  def: KindDef,
+  level: Level,
+  s: NotifSettings,
+  tz: string,
+  now: number,
+  needsYou: boolean,
+): number | undefined {
   if (level !== "interrupt" || def.key === "call.incoming") return undefined;
   if (needsYou && s.quiet.needs) return undefined;
   return quietUntil(s.quiet, tz, now);
@@ -80,9 +138,22 @@ export function heldByQuiet(def: KindDef, level: Level, s: NotifSettings, tz: st
 /** One summary per person and quiet window, delivered when the window ends. */
 export async function scheduleQuietSummary(ctx: NotifCtx, person: string, endsAt: number): Promise<void> {
   if (!ctx.schedule) return;
-  const fresh = ctx.db.run("INSERT OR IGNORE INTO notifications_quiet_summary (person, at) VALUES (?, ?)", person, endsAt).changes > 0;
+  const fresh =
+    ctx.db.run("INSERT OR IGNORE INTO notifications_quiet_summary (person, at) VALUES (?, ?)", person, endsAt).changes >
+    0;
   if (!fresh) return;
   try {
-    await ctx.schedule(endsAt, "notifications.send", clean({ to: person, kind: "digest.away", title: "Held while quiet hours were on", collapseKey: `quiet-summary:${person}:${endsAt}` }));
-  } catch (e) { ctx.log?.warn("quiet summary not scheduled", (e as Error).message); }
+    await ctx.schedule(
+      endsAt,
+      "notifications.send",
+      clean({
+        to: person,
+        kind: "digest.away",
+        title: "Held while quiet hours were on",
+        collapseKey: `quiet-summary:${person}:${endsAt}`,
+      }),
+    );
+  } catch (e) {
+    ctx.log?.warn("quiet summary not scheduled", (e as Error).message);
+  }
 }

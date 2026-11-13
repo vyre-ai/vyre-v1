@@ -18,19 +18,38 @@ async function tunnel(proxyPort: number, target: string): Promise<{ status: stri
     s.on("connect", () => s.write(`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n\r\n`));
     const onData = (d: Buffer): void => {
       got += d.toString("latin1");
-      if (got.includes("\r\n\r\n")) { s.off("data", onData); resolve({ status: got.split("\r\n")[0] as string, socket: s }); }
+      if (got.includes("\r\n\r\n")) {
+        s.off("data", onData);
+        resolve({ status: got.split("\r\n")[0] as string, socket: s });
+      }
     };
     s.on("data", onData);
   });
 }
 
-function viaProxy(proxyPort: number, absolute: string, o: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+function viaProxy(
+  proxyPort: number,
+  absolute: string,
+  o: { method?: string; headers?: Record<string, string>; body?: string } = {},
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
-    const r = http.request({ host: "127.0.0.1", port: proxyPort, method: o.method ?? "GET", path: absolute, headers: o.headers, agent: false }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString() }));
-    });
+    const r = http.request(
+      {
+        host: "127.0.0.1",
+        port: proxyPort,
+        method: o.method ?? "GET",
+        path: absolute,
+        headers: o.headers,
+        agent: false,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString() }),
+        );
+      },
+    );
     r.on("error", reject);
     if (o.body !== undefined) r.write(o.body);
     r.end();
@@ -42,31 +61,64 @@ test("plain HTTP is forwarded to the address that was checked, with the proxy's 
   const events: EgressEvent[] = [];
   const connected: Array<[string, number, string]> = [];
   const proxy = createEgressProxy({
-    allow: ["api.anthropic.com"], lookup: PUBLIC, onEvent: (e) => events.push(e),
-    connect: async (h, p, ip) => { connected.push([h, p, ip]); return net.connect(up.port, "127.0.0.1"); },
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    onEvent: (e) => events.push(e),
+    connect: async (h, p, ip) => {
+      connected.push([h, p, ip]);
+      return net.connect(up.port, "127.0.0.1");
+    },
   });
   const { port } = await proxy.listen();
   try {
-    const r = await viaProxy(port, "http://api.anthropic.com/v1/x?y=1", { method: "POST", body: "payload", headers: { Host: "api.anthropic.com", "Proxy-Authorization": "Basic c2VjcmV0", "X-Custom": "kept", Connection: "keep-alive", "Content-Length": "7" } });
+    const r = await viaProxy(port, "http://api.anthropic.com/v1/x?y=1", {
+      method: "POST",
+      body: "payload",
+      headers: {
+        Host: "api.anthropic.com",
+        "Proxy-Authorization": "Basic c2VjcmV0",
+        "X-Custom": "kept",
+        Connection: "keep-alive",
+        "Content-Length": "7",
+      },
+    });
     assert.equal(r.status, 200);
     assert.equal(r.body, "upstream says hello");
     assert.equal(r.headers["x-upstream"], "yes");
-    assert.deepEqual(connected, [["api.anthropic.com", 80, "203.0.113.10"]], "the connection went to the address that passed the check");
+    assert.deepEqual(
+      connected,
+      [["api.anthropic.com", 80, "203.0.113.10"]],
+      "the connection went to the address that passed the check",
+    );
     const seen = up.seen[0]!;
     assert.deepEqual([seen.method, seen.url, seen.body], ["POST", "/v1/x?y=1", "payload"]);
     assert.equal(seen.headers["host"], "api.anthropic.com");
     assert.equal(seen.headers["x-custom"], "kept");
     assert.equal(seen.headers["proxy-authorization"], undefined, "the proxy's own credentials do not travel");
     assert.equal(seen.headers["connection"], "close");
-    assert.deepEqual(events.map((e) => [e.verdict, e.host, e.port, e.reason]), [["allow", "api.anthropic.com", 80, "ok"]]);
-  } finally { await proxy.close(); await up.close(); }
+    assert.deepEqual(
+      events.map((e) => [e.verdict, e.host, e.port, e.reason]),
+      [["allow", "api.anthropic.com", 80, "ok"]],
+    );
+  } finally {
+    await proxy.close();
+    await up.close();
+  }
 });
 
 test("plain HTTP to a host that is not listed, an https URL, and a request that is not for a proxy are refused without a connection", async () => {
   const up = await httpUpstream();
   let connects = 0;
   const events: EgressEvent[] = [];
-  const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, onEvent: (e) => events.push(e), connect: async () => { connects++; return net.connect(up.port, "127.0.0.1"); } });
+  const proxy = createEgressProxy({
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    onEvent: (e) => events.push(e),
+    connect: async () => {
+      connects++;
+      return net.connect(up.port, "127.0.0.1");
+    },
+  });
   const { port } = await proxy.listen();
   try {
     assert.equal((await viaProxy(port, "http://evil.example.com/")).status, 403);
@@ -76,26 +128,56 @@ test("plain HTTP to a host that is not listed, an https URL, and a request that 
     assert.equal((await viaProxy(port, "/just/a/path")).status, 400, "origin form: this is a proxy");
     assert.equal(connects, 0);
     assert.equal(up.seen.length, 0);
-    assert.deepEqual(events.map((e) => e.reason), ["not_listed", "bad_port", "not_listed", "bad_request", "bad_request"]);
-  } finally { await proxy.close(); await up.close(); }
+    assert.deepEqual(
+      events.map((e) => e.reason),
+      ["not_listed", "bad_port", "not_listed", "bad_request", "bad_request"],
+    );
+  } finally {
+    await proxy.close();
+    await up.close();
+  }
 });
 
 test("what the proxy reports is host, port, verdict and reason, and nothing else", async () => {
   const events: EgressEvent[] = [];
-  const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, onEvent: (e) => events.push(e), connect: async () => { throw new Error("no route"); } });
+  const proxy = createEgressProxy({
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    onEvent: (e) => events.push(e),
+    connect: async () => {
+      throw new Error("no route");
+    },
+  });
   const { port } = await proxy.listen();
   try {
-    await rawExchange(port, "CONNECT evil.example.com:443 HTTP/1.1\r\nAuthorization: Bearer sk-secret\r\n\r\n", { until: /\r\n\r\n/ });
+    await rawExchange(port, "CONNECT evil.example.com:443 HTTP/1.1\r\nAuthorization: Bearer sk-secret\r\n\r\n", {
+      until: /\r\n\r\n/,
+    });
     await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ });
-    assert.deepEqual(events.map((e) => Object.keys(e).sort()), [["host", "port", "reason", "verdict"], ["host", "port", "reason", "verdict"]]);
-    assert.deepEqual(events.map((e) => e.reason), ["not_listed", "unreachable"]);
+    assert.deepEqual(
+      events.map((e) => Object.keys(e).sort()),
+      [
+        ["host", "port", "reason", "verdict"],
+        ["host", "port", "reason", "verdict"],
+      ],
+    );
+    assert.deepEqual(
+      events.map((e) => e.reason),
+      ["not_listed", "unreachable"],
+    );
     assert.equal(JSON.stringify(events).includes("sk-secret"), false);
-  } finally { await proxy.close(); }
+  } finally {
+    await proxy.close();
+  }
 });
 
 test("a tunnel carries a megabyte both ways intact", async () => {
   const up = await echoServer();
-  const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, connect: async () => net.connect(up.port, "127.0.0.1") });
+  const proxy = createEgressProxy({
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    connect: async () => net.connect(up.port, "127.0.0.1"),
+  });
   const { port } = await proxy.listen();
   try {
     const { status, socket } = await tunnel(port, "api.anthropic.com:443");
@@ -121,44 +203,89 @@ test("a tunnel carries a megabyte both ways intact", async () => {
     assert.equal(received, total);
     assert.equal(bad, 0, "every byte came back as it went");
     socket.destroy();
-  } finally { await proxy.close(); await up.close(); }
+  } finally {
+    await proxy.close();
+    await up.close();
+  }
 });
 
 test("the allow-list can change under a running proxy: the next connection sees the new list", async () => {
   const up = await echoServer();
   let list: string[] = ["a.example.com"];
-  const proxy = createEgressProxy({ allow: () => list, lookup: PUBLIC, connect: async () => net.connect(up.port, "127.0.0.1") });
+  const proxy = createEgressProxy({
+    allow: () => list,
+    lookup: PUBLIC,
+    connect: async () => net.connect(up.port, "127.0.0.1"),
+  });
   const { port } = await proxy.listen();
   try {
     assert.match((await tunnel(port, "a.example.com:443")).status, /200/);
     list = ["b.example.com"];
-    assert.match(await rawExchange(port, "CONNECT a.example.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 403/);
+    assert.match(
+      await rawExchange(port, "CONNECT a.example.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }),
+      /^HTTP\/1\.1 403/,
+    );
     assert.match((await tunnel(port, "b.example.com:443")).status, /200/);
-  } finally { await proxy.close(); await up.close(); }
+  } finally {
+    await proxy.close();
+    await up.close();
+  }
 });
 
 test("names that do not resolve, or resolve to nothing, are refused as such; a listed host that cannot be reached is a bad gateway", async () => {
   const events: EgressEvent[] = [];
   const mk = (lookup: (h: string) => Promise<readonly string[]>, connect?: () => Promise<net.Socket>) =>
-    createEgressProxy({ allow: ["api.anthropic.com"], lookup, onEvent: (e) => events.push(e), ...(connect ? { connect } : {}) });
+    createEgressProxy({
+      allow: ["api.anthropic.com"],
+      lookup,
+      onEvent: (e) => events.push(e),
+      ...(connect ? { connect } : {}),
+    });
   for (const [lookup, expect] of [
-    [async () => { throw new Error("ENOTFOUND"); }, "no_address"],
+    [
+      async () => {
+        throw new Error("ENOTFOUND");
+      },
+      "no_address",
+    ],
     [async () => [], "no_address"],
   ] as const) {
     const proxy = mk(lookup);
     const { port } = await proxy.listen();
-    try { assert.match(await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 403/); } finally { await proxy.close(); }
+    try {
+      assert.match(
+        await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }),
+        /^HTTP\/1\.1 403/,
+      );
+    } finally {
+      await proxy.close();
+    }
     assert.equal(events.at(-1)?.reason, expect);
   }
-  const proxy = mk(PUBLIC, async () => { throw new Error("ECONNREFUSED"); });
+  const proxy = mk(PUBLIC, async () => {
+    throw new Error("ECONNREFUSED");
+  });
   const { port } = await proxy.listen();
-  try { assert.match(await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 502/); } finally { await proxy.close(); }
+  try {
+    assert.match(
+      await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }),
+      /^HTTP\/1\.1 502/,
+    );
+  } finally {
+    await proxy.close();
+  }
   assert.equal(events.at(-1)?.reason, "unreachable");
 });
 
 test("the connection limit holds and frees when a tunnel closes; an idle tunnel is closed", async () => {
   const up = await echoServer();
-  const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, maxConnections: 2, idleMs: 300, connect: async () => net.connect(up.port, "127.0.0.1") });
+  const proxy = createEgressProxy({
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    maxConnections: 2,
+    idleMs: 300,
+    connect: async () => net.connect(up.port, "127.0.0.1"),
+  });
   const { port } = await proxy.listen();
   try {
     const a = await tunnel(port, "api.anthropic.com:443");
@@ -166,7 +293,10 @@ test("the connection limit holds and frees when a tunnel closes; an idle tunnel 
     const t0 = Date.now();
     const bClosed = new Promise<void>((r) => b.socket.once("close", () => r()));
     assert.equal(proxy.stats().open, 2);
-    assert.match(await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 503/);
+    assert.match(
+      await rawExchange(port, "CONNECT api.anthropic.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }),
+      /^HTTP\/1\.1 503/,
+    );
     a.socket.destroy();
     await new Promise((r) => setTimeout(r, 60));
     assert.equal(proxy.stats().open, 1);
@@ -177,12 +307,19 @@ test("the connection limit holds and frees when a tunnel closes; an idle tunnel 
     const waited = Date.now() - t0;
     assert.ok(waited < 1500, `the idle tunnel was closed after ${waited} ms`);
     c.socket.destroy();
-  } finally { await proxy.close(); await up.close(); }
+  } finally {
+    await proxy.close();
+    await up.close();
+  }
 });
 
 test("close ends every open tunnel and the proxy stops listening", async () => {
   const up = await echoServer();
-  const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, connect: async () => net.connect(up.port, "127.0.0.1") });
+  const proxy = createEgressProxy({
+    allow: ["api.anthropic.com"],
+    lookup: PUBLIC,
+    connect: async () => net.connect(up.port, "127.0.0.1"),
+  });
   const { port } = await proxy.listen();
   const a = await tunnel(port, "api.anthropic.com:443");
   const closed = new Promise<void>((r) => a.socket.once("close", () => r()));
@@ -199,34 +336,89 @@ test("malformed requests are answered with 400 and counted, not crashed on", asy
   const proxy = createEgressProxy({ allow: ["api.anthropic.com"], lookup: PUBLIC, onEvent: (e) => events.push(e) });
   const { port } = await proxy.listen();
   try {
-    for (const raw of ["GARBAGE\r\n\r\n", "CONNECT\r\n\r\n", "CONNECT api.anthropic.com HTTP/1.1\r\n\r\n", "CONNECT api.anthropic.com:99999 HTTP/1.1\r\n\r\n", "CONNECT api.anthropic.com:abc HTTP/1.1\r\n\r\n"]) {
+    for (const raw of [
+      "GARBAGE\r\n\r\n",
+      "CONNECT\r\n\r\n",
+      "CONNECT api.anthropic.com HTTP/1.1\r\n\r\n",
+      "CONNECT api.anthropic.com:99999 HTTP/1.1\r\n\r\n",
+      "CONNECT api.anthropic.com:abc HTTP/1.1\r\n\r\n",
+    ]) {
       const res = await rawExchange(port, raw, { until: /\r\n\r\n/ });
       assert.match(res, /^HTTP\/1\.1 (400|403) /, JSON.stringify(raw));
     }
     assert.equal(events.length, 5);
     assert.ok(events.every((e) => e.verdict === "deny"));
-    assert.match(await rawExchange(port, "CONNECT evil.example.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }), /^HTTP\/1\.1 403/, "and it still answers");
-  } finally { await proxy.close(); }
+    assert.match(
+      await rawExchange(port, "CONNECT evil.example.com:443 HTTP/1.1\r\n\r\n", { until: /\r\n\r\n/ }),
+      /^HTTP\/1\.1 403/,
+      "and it still answers",
+    );
+  } finally {
+    await proxy.close();
+  }
 });
 
 test("a local route is answered by the proxy itself: never looked up, never dialled, never on the allow-list, and only for its own name on port 80", async () => {
   const { default: http } = await import("node:http");
-  const seen: string[] = [], lookups: string[] = [];
+  const seen: string[] = [],
+    lookups: string[] = [];
   const p = createEgressProxy({
-    allow: [], rule: { egress: "list", allow: [] }, lookup: async (h) => { lookups.push(h); return []; },
-    local: () => ({ host: "vyre-git.invalid", handle: (req, res) => { seen.push(`${req.method} ${req.url}`); if (req.url?.startsWith("/git/")) { res.writeHead(200, { "content-type": "text/plain" }); res.end("ours"); return true; } return false; } }),
+    allow: [],
+    rule: { egress: "list", allow: [] },
+    lookup: async (h) => {
+      lookups.push(h);
+      return [];
+    },
+    local: () => ({
+      host: "vyre-git.invalid",
+      handle: (req, res) => {
+        seen.push(`${req.method} ${req.url}`);
+        if (req.url?.startsWith("/git/")) {
+          res.writeHead(200, { "content-type": "text/plain" });
+          res.end("ours");
+          return true;
+        }
+        return false;
+      },
+    }),
   });
   const { port } = await p.listen();
-  const ask = (target: string): Promise<{ status: number; text: string }> => new Promise((done, fail) => {
-    const r = http.request({ host: "127.0.0.1", port, method: "GET", path: target, headers: { host: new URL(target).host } }, (res) => { let t = ""; res.on("data", (c) => (t += c)); res.on("end", () => done({ status: res.statusCode ?? 0, text: t })); });
-    r.on("error", fail); r.end();
-  });
+  const ask = (target: string): Promise<{ status: number; text: string }> =>
+    new Promise((done, fail) => {
+      const r = http.request(
+        { host: "127.0.0.1", port, method: "GET", path: target, headers: { host: new URL(target).host } },
+        (res) => {
+          let t = "";
+          res.on("data", (c) => (t += c));
+          res.on("end", () => done({ status: res.statusCode ?? 0, text: t }));
+        },
+      );
+      r.on("error", fail);
+      r.end();
+    });
   try {
-    assert.deepEqual(await ask("http://vyre-git.invalid/git/github/a/b.git/info/refs?service=git-upload-pack"), { status: 200, text: "ours" });
-    assert.deepEqual(seen, ["GET /git/github/a/b.git/info/refs?service=git-upload-pack"], "the handler saw the path, not the proxy form");
-    assert.equal((await ask("http://vyre-git.invalid/other")).status, 404, "a path the handler does not take is a plain not found");
+    assert.deepEqual(await ask("http://vyre-git.invalid/git/github/a/b.git/info/refs?service=git-upload-pack"), {
+      status: 200,
+      text: "ours",
+    });
+    assert.deepEqual(
+      seen,
+      ["GET /git/github/a/b.git/info/refs?service=git-upload-pack"],
+      "the handler saw the path, not the proxy form",
+    );
+    assert.equal(
+      (await ask("http://vyre-git.invalid/other")).status,
+      404,
+      "a path the handler does not take is a plain not found",
+    );
     assert.equal((await ask("http://vyre-git.invalid:8080/git/x")).status, 403, "another port is the wall's to refuse");
     assert.equal((await ask("http://example.com/git/x")).status, 403, "another name is the wall's to refuse");
-    assert.deepEqual(lookups.filter((h) => h === "vyre-git.invalid"), [], "the name was never looked up");
-  } finally { await p.close(); }
+    assert.deepEqual(
+      lookups.filter((h) => h === "vyre-git.invalid"),
+      [],
+      "the name was never looked up",
+    );
+  } finally {
+    await p.close();
+  }
 });

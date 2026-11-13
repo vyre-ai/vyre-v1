@@ -43,10 +43,13 @@ test("a draft result keeps two actions and drops a copied value and a url", () =
 });
 
 test("proposals map a read to dry_run and an outward call to hold", () => {
-  const proposals = proposalsFrom([
-    { key: "listNotes", effect: "read", method: "GET", path: "/notes/sk-live-do-not-keep" },
-    { key: "create_note", effect: "outward", method: "POST", path: url },
-  ], appFrom({ draft: { key: "notes" } }));
+  const proposals = proposalsFrom(
+    [
+      { key: "listNotes", effect: "read", method: "GET", path: "/notes/sk-live-do-not-keep" },
+      { key: "create_note", effect: "outward", method: "POST", path: url },
+    ],
+    appFrom({ draft: { key: "notes" } }),
+  );
   assert.deepEqual(proposals, [
     {
       action: "listNotes",
@@ -100,8 +103,17 @@ test("an action missing effect is skipped", () => {
 test("a title reads App: Action name, from a camel or snake key", () => {
   const app = appFrom({ draft: { key: "stripe" } });
   assert.equal(app, "Stripe");
-  const titles = proposalsFrom([{ key: "list_customers", effect: "read" }, { key: "createCustomer", effect: "outward" }], app).map((p) => p.title);
+  const titles = proposalsFrom(
+    [
+      { key: "list_customers", effect: "read" },
+      { key: "createCustomer", effect: "outward" },
+    ],
+    app,
+  ).map((p) => p.title);
   assert.deepEqual(titles, ["Stripe: List customers", "Stripe: Create customer"]);
-  assert.equal(proposalsFrom([{ key: "list_customers", effect: "read" }], appFrom({ draft: { key: "api" } }))[0]!.title, "List customers");
+  assert.equal(
+    proposalsFrom([{ key: "list_customers", effect: "read" }], appFrom({ draft: { key: "api" } }))[0]!.title,
+    "List customers",
+  );
   assert.equal(appFrom(null), "");
 });

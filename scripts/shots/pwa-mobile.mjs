@@ -33,17 +33,36 @@ const ctx = await browser.newContext({
   deviceScaleFactor: 3,
   isMobile: true,
   hasTouch: true,
-  userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  userAgent:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
 });
 // No browser engine in this job implements iOS's installed display mode. Mark only that media query as a simulation, and
 // record it in the evidence so a reviewer knows the remaining owner check is a physical iPhone Add to Home Screen pass.
 await ctx.addInitScript(() => {
   const native = window.matchMedia.bind(window);
-  window.matchMedia = (query) => query === "(display-mode: standalone)" ? { matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } } : native(query);
+  window.matchMedia = (query) =>
+    query === "(display-mode: standalone)"
+      ? {
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener() {},
+          removeListener() {},
+          addEventListener() {},
+          removeEventListener() {},
+          dispatchEvent() {
+            return false;
+          },
+        }
+      : native(query);
   Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
 });
 const page = await ctx.newPage();
-const result = { evidence: "Chromium iPhone-width PWA smoke; standalone media query simulated", viewport: { width: 390, height: 844 }, checks: {} };
+const result = {
+  evidence: "Chromium iPhone-width PWA smoke; standalone media query simulated",
+  viewport: { width: 390, height: 844 },
+  checks: {},
+};
 try {
   await page.goto(`${web.origin}/chat`, { waitUntil: "load", timeout: 30_000 });
   result.checks.document = await page.evaluate(async () => {
@@ -55,23 +74,35 @@ try {
     return {
       manifest: manifest?.display === "standalone" && manifest?.start_url === "/chat" && manifest?.scope === "/",
       apple: document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.getAttribute("content") === "yes",
-      viewport: document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("viewport-fit=cover") === true,
+      viewport:
+        document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("viewport-fit=cover") ===
+        true,
       standalone,
-      safeAreaVars: ["--vyre-safe-area-top", "--vyre-safe-area-bottom"].every((name) => root.getPropertyValue(name).trim().length > 0),
+      safeAreaVars: ["--vyre-safe-area-top", "--vyre-safe-area-bottom"].every(
+        (name) => root.getPropertyValue(name).trim().length > 0,
+      ),
       bodyBoxSizing: body.boxSizing === "border-box",
     };
   });
-  if (!Object.values(result.checks.document).every(Boolean)) throw new Error(`PWA document check failed: ${JSON.stringify(result.checks.document)}`);
+  if (!Object.values(result.checks.document).every(Boolean))
+    throw new Error(`PWA document check failed: ${JSON.stringify(result.checks.document)}`);
 
   result.checks.serviceWorker = await page.evaluate(async () => {
     if (!("serviceWorker" in navigator)) return false;
     await navigator.serviceWorker.ready;
-    return navigator.serviceWorker.controller !== null || (await navigator.serviceWorker.getRegistration()) !== undefined;
+    return (
+      navigator.serviceWorker.controller !== null || (await navigator.serviceWorker.getRegistration()) !== undefined
+    );
   });
   if (!result.checks.serviceWorker) throw new Error("service worker did not become ready");
 
   result.checks.sessionStorage = await page.evaluate(() => {
-    const value = JSON.stringify({ spaceId: "pwa-smoke", token: "vst_pwa_smoke", def: { name: "Smoke" }, personId: "person" });
+    const value = JSON.stringify({
+      spaceId: "pwa-smoke",
+      token: "vst_pwa_smoke",
+      def: { name: "Smoke" },
+      personId: "person",
+    });
     localStorage.setItem("vyre.session.v1", value);
     return localStorage.getItem("vyre.session.v1") === value;
   });
@@ -80,11 +111,24 @@ try {
   await ctx.setOffline(true);
   const offline = await page.goto(`${web.origin}/chat?offline=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   // the cached shell must start the app offline, not only answer 200: the scripts come from the worker's cache and the app marks itself usable
-  result.checks.offlineShell = (offline?.status() ?? 0) === 200 && await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30_000 }).then(() => true, () => false);
+  result.checks.offlineShell =
+    (offline?.status() ?? 0) === 200 &&
+    (await page
+      .waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30_000 })
+      .then(
+        () => true,
+        () => false,
+      ));
   await ctx.setOffline(false);
-  const reconnect = await page.goto(`${web.origin}/manifest.json?reconnected=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  const reconnect = await page.goto(`${web.origin}/manifest.json?reconnected=1`, {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000,
+  });
   result.checks.reconnect = (reconnect?.status() ?? 0) === 200;
-  if (!result.checks.offlineShell || !result.checks.reconnect) throw new Error(`offline/reconnect check failed: ${JSON.stringify({ offline: result.checks.offlineShell, reconnect: result.checks.reconnect })}`);
+  if (!result.checks.offlineShell || !result.checks.reconnect)
+    throw new Error(
+      `offline/reconnect check failed: ${JSON.stringify({ offline: result.checks.offlineShell, reconnect: result.checks.reconnect })}`,
+    );
 
   await page.goto(`${web.origin}/chat?standalone=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   await page.screenshot({ path: path.join(out, "iphone-390x844-standalone-simulated.png"), fullPage: false });

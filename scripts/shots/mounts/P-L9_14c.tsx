@@ -25,12 +25,25 @@ export default function Mount(): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
     // every Space starts on the skin the screenshot asks for, so both skins can be compared
-    const theme = createThemeController({ personId: "irfad", spaceId: openId, spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: openId,
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     return { hub: createSampleShell({ openId, theme }), theme };
   }, []);
   return (

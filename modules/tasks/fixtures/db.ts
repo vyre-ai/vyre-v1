@@ -19,13 +19,33 @@ const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", imp
 const clockSql = readFileSync(new URL("../migrations/0003_clock.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string }
-export interface CallLog { cap: string; input: unknown }
-type Authorize = (who: { id: string }, action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => boolean;
-type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Ev {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  opts?: Record<string, unknown> | undefined;
+  id: string;
+}
+export interface CallLog {
+  cap: string;
+  input: unknown;
+}
+type Authorize = (
+  who: { id: string },
+  action: { perm: string | null; level: string },
+  resource: { type: string; id: string | null },
+) => boolean;
+type Callee = (input: any, who: { id: string }) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** The calls that only keep a task's thread (the work baton): they are logged apart in `threadCalls`, so a test about a release or a resume counts only the calls it is about. */
-const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent", "threads.members.remove", "threads.remove_agent"]);
+const THREAD_CAPS: ReadonlySet<string> = new Set([
+  "chat.start",
+  "chat.post",
+  "threads.members.add",
+  "threads.add_agent",
+  "threads.members.remove",
+  "threads.remove_agent",
+]);
 
 export interface HarnessOptions {
   now?: number;
@@ -59,20 +79,30 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string, who: Caller): TasksCtx {
     const allowed = emitsOf(cap);
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), origin: (who as { origin?: string }).origin ?? "user",   // a call as from the app, as the gateway makes it
-      trace: { traceId: TRACE }, ...(who.device ? { device: who.device } : {}),
+      space: "spc_test",
+      principal: { kind: who.kind ?? "person", id: who.id },
+      ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      origin: (who as { origin?: string }).origin ?? "user", // a call as from the app, as the gateway makes it
+      trace: { traceId: TRACE },
+      ...(who.device ? { device: who.device } : {}),
       now: () => clock,
       db: scopedDb("tasks", raw, TRACE),
       emit(name, subject, payload, opts) {
         if (!allowed.has(name)) throw new Error(`${cap} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
         if (bad.length) throw new Error(`${name} payload is invalid: ${bad.join("; ")}`);
-        const ev: Ev = { name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined, id: `evt_${mintUuid(clock).replaceAll("-", "")}` };
+        const ev: Ev = {
+          name,
+          subject,
+          payload: payload as Record<string, unknown>,
+          opts: opts as Record<string, unknown> | undefined,
+          id: `evt_${mintUuid(clock).replaceAll("-", "")}`,
+        };
         events.push(ev);
         return { id: ev.id };
       },
       async call(c, input) {
-        if (c === "spaces.get" && !calleeMap[c]) return { space: { name: "Northwind" } };   // the Space's name gives its task keys their letters, once
+        if (c === "spaces.get" && !calleeMap[c]) return { space: { name: "Northwind" } }; // the Space's name gives its task keys their letters, once
         (THREAD_CAPS.has(c) ? threadCalls : calls).push({ cap: c, input });
         const f = calleeMap[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
@@ -80,10 +110,15 @@ export function harness(o: HarnessOptions = {}) {
       },
       authorize: (action, resource) => ({ effect: authorize(who, action, resource) ? "allow" : "deny" }),
       seal: {
-        seal: (v, scope) => ({ keyId: "k1", nonce: "n1", bytes: Buffer.from(`${scope}\n`).toString("base64") + "." + Buffer.from(v).toString("base64") }),
+        seal: (v, scope) => ({
+          keyId: "k1",
+          nonce: "n1",
+          bytes: Buffer.from(`${scope}\n`).toString("base64") + "." + Buffer.from(v).toString("base64"),
+        }),
         unseal: (s) => {
           const [scope, body] = s.bytes.split(".");
-          if (!scope || !body || Buffer.from(scope, "base64").toString() !== "tasks.approval\n") throw new Error("bad seal");
+          if (!scope || !body || Buffer.from(scope, "base64").toString() !== "tasks.approval\n")
+            throw new Error("bad seal");
           return new Uint8Array(Buffer.from(body, "base64"));
         },
       },
@@ -92,9 +127,13 @@ export function harness(o: HarnessOptions = {}) {
 
   /** Call a capability the way the pipeline does: validate the input, run the handler, validate the output. Events of a failed call are dropped. */
   let keys = 0;
-  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  async function call(cap: string, raw0: unknown, who: Caller): Promise<any> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     // tasks.create requires an idempotency key; the tests do not care which
-    const input = cap === "tasks.create" && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` } : raw0;
+    const input =
+      cap === "tasks.create" && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey
+        ? { ...(raw0 as object), idempotencyKey: `key_${++keys}` }
+        : raw0;
     const bad = validateInput(cap, 1, input);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: TasksCtx, input: unknown) => Promise<unknown>>)[cap];
@@ -108,14 +147,33 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   return {
-    sqlite, db: raw, call, ctxFor,
-    get events(): Ev[] { return events; },
-    allEvents: all, calls, threadCalls,
-    callee(cap: string, f: Callee): void { calleeMap[cap] = f; },
-    setNow(n: number): void { clock = n; },
-    advance(ms: number): void { clock += ms; },
+    sqlite,
+    db: raw,
+    call,
+    ctxFor,
+    get events(): Ev[] {
+      return events;
+    },
+    allEvents: all,
+    calls,
+    threadCalls,
+    callee(cap: string, f: Callee): void {
+      calleeMap[cap] = f;
+    },
+    setNow(n: number): void {
+      clock = n;
+    },
+    advance(ms: number): void {
+      clock += ms;
+    },
     now: (): number => clock,
-    policy(key: string, value: unknown): void { raw.run("INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(value)); },
+    policy(key: string, value: unknown): void {
+      raw.run(
+        "INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)",
+        key,
+        JSON.stringify(value),
+      );
+    },
   };
 }
 export type Harness = ReturnType<typeof harness>;

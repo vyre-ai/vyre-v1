@@ -7,7 +7,9 @@ import { retentionMs, TRASH_KEEP_MS } from "../modules/computers/sbrowser/forget
 import governance from "../manifests/governance.ts";
 
 test("every module's fallback for how long Trash keeps an agent's things is governance's default trash retention", () => {
-  const trash = (governance as unknown as { retention: Array<{ key: string; default: string }> }).retention.find((r) => r.key === "trash");
+  const trash = (governance as unknown as { retention: Array<{ key: string; default: string }> }).retention.find(
+    (r) => r.key === "trash",
+  );
   assert.ok(trash, "governance has a trash retention");
   assert.equal(TRASH_KEEP_MS, retentionMs(trash.default), `the Space browser's fallback is ${trash.default}`);
 });

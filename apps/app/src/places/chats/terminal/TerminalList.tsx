@@ -25,13 +25,32 @@ type StarsOut = CapMap["stars.list"]["out"];
 
 function StarButton({ on, onPress, testID }: { on: boolean; onPress: () => void; testID: string }): ReactElement {
   return (
-    <Pressable role="button" aria-pressed={on} accessibilityLabel={on ? "Remove Star" : "Star"} onPress={onPress} testID={testID} style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}>
+    <Pressable
+      role="button"
+      aria-pressed={on}
+      accessibilityLabel={on ? "Remove Star" : "Star"}
+      onPress={onPress}
+      testID={testID}
+      style={({ hovered }: { hovered?: boolean }) => [st.star, hovered === true && st.starOver]}
+    >
       <MenuIcon icon="star" size={14} color={on ? "var(--warn)" : "var(--ink-3)"} />
     </Pressable>
   );
 }
 
-export function TerminalList({ data, x, y, onClose, window }: { data: TerminalData; x: number; y: number; onClose: () => void; window?: VirtualWindow }): ReactElement {
+export function TerminalList({
+  data,
+  x,
+  y,
+  onClose,
+  window,
+}: {
+  data: TerminalData;
+  x: number;
+  y: number;
+  onClose: () => void;
+  window?: VirtualWindow;
+}): ReactElement {
   const q = useLive<ListOut>(data.screens, LIST_SCREEN, "terminals", {});
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
   const menu = useMenu();
@@ -39,42 +58,102 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
   const hosts = hostsRead ?? [];
   const [line, setLine] = useState<string | null>(null);
   const deps = { call: data.call, newKey: data.newKey };
-  const starred = new Set(stars.status === "ready" ? stars.data.stars.filter((s) => s.resource.type === "terminal").map((s) => s.resource.id) : []);
+  const starred = new Set(
+    stars.status === "ready"
+      ? stars.data.stars.filter((s) => s.resource.type === "terminal").map((s) => s.resource.id)
+      : [],
+  );
   const now = data.clock().now;
 
   const openOnHost = (h: HostChoice): void => {
     const c = openHostCall(h, data.newKey());
     void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
-      (o) => { data.nav.openTerminal(o.terminal.terminalId); onClose(); },
-      (e: unknown) => setLine(h.kind === "server" && isRefusal(e) ? "The Space server needs an Owner or a Developer." : errorWords(e, "Could not open it.")),
+      (o) => {
+        data.nav.openTerminal(o.terminal.terminalId);
+        onClose();
+      },
+      (e: unknown) =>
+        setLine(
+          h.kind === "server" && isRefusal(e)
+            ? "The Space server needs an Owner or a Developer."
+            : errorWords(e, "Could not open it."),
+        ),
     );
   };
   const newMenu = (px: number, py: number): void => {
     // only the hosts the Space really has: this computer in the desktop app, the server in a Team Space, agent computers; a browser with none says where a terminal can open from
     const items: MenuEntry[] = [{ head: "New terminal on" }];
-    if (hosts.length > 0) for (const h of hosts) items.push({ label: h.label, ...(h.online ? { onSelect: () => openOnHost(h) } : { disabled: true, reason: h.why ?? "Offline" }) });
-    else items.push({ label: hostsRead === null ? "Looking for computers" : "No computer here", disabled: true, reason: hostsRead === null ? "One moment" : NO_HOST });
+    if (hosts.length > 0)
+      for (const h of hosts)
+        items.push({
+          label: h.label,
+          ...(h.online ? { onSelect: () => openOnHost(h) } : { disabled: true, reason: h.why ?? "Offline" }),
+        });
+    else
+      items.push({
+        label: hostsRead === null ? "Looking for computers" : "No computer here",
+        disabled: true,
+        reason: hostsRead === null ? "One moment" : NO_HOST,
+      });
     menu.show(items, px, py, "other", { label: "New terminal" });
   };
 
   const entries: Entry[] = [];
   if (q.status === "ready") {
     const rows = ordered(q.data.terminals);
-    if (rows.length === 0) entries.push({ key: "none", type: "empty", text: hostsRead !== null && hostsRead.length === 0 ? "No terminals yet. A terminal opens from the Vyre desktop app, or from a Team Space's server or agent computer." : "No terminals yet. New terminal starts one on a host.", testID: "terminals-empty" });
+    if (rows.length === 0)
+      entries.push({
+        key: "none",
+        type: "empty",
+        text:
+          hostsRead !== null && hostsRead.length === 0
+            ? "No terminals yet. A terminal opens from the Vyre desktop app, or from a Team Space's server or agent computer."
+            : "No terminals yet. New terminal starts one on a host.",
+        testID: "terminals-empty",
+      });
     for (const t of rows) {
       const on = starred.has(t.terminalId);
-      const flip = (): void => { void toggleStar(deps, t.terminalId, !on).then((ok) => { if (!ok) setLine("Could not change the star."); }); };
+      const flip = (): void => {
+        void toggleStar(deps, t.terminalId, !on).then((ok) => {
+          if (!ok) setLine("Could not change the star.");
+        });
+      };
       const items: MenuEntry[] = [
-        { label: "Open", onSelect: () => { data.nav.openTerminal(t.terminalId); onClose(); } },
+        {
+          label: "Open",
+          onSelect: () => {
+            data.nav.openTerminal(t.terminalId);
+            onClose();
+          },
+        },
         { label: on ? "Remove Star" : "Star", onSelect: flip },
         { separator: true },
-        { label: "Close Session", danger: true, onSelect: () => void closeSession(deps, t.terminalId).then((ok) => { if (!ok) setLine("Could not close it."); }) },
+        {
+          label: "Close Session",
+          danger: true,
+          onSelect: () =>
+            void closeSession(deps, t.terminalId).then((ok) => {
+              if (!ok) setLine("Could not close it.");
+            }),
+        },
       ];
       entries.push({
-        key: t.terminalId, type: "row", title: t.name, note: `${sessionLine(t)} · ${ago(now, t.lastActiveAt)}`, testID: `terminal-${t.terminalId}`,
+        key: t.terminalId,
+        type: "row",
+        title: t.name,
+        note: `${sessionLine(t)} · ${ago(now, t.lastActiveAt)}`,
+        testID: `terminal-${t.terminalId}`,
         leading: <LeadIcon name="terminal" color={t.state === "exited" ? "var(--ink-4)" : "var(--ok)"} />,
-        trailing: (over) => (over || on ? <StarButton on={on} onPress={flip} testID={`star-${t.terminalId}`} /> : <Text style={st.host}>{chipLabel(t)}</Text>),
-        onPress: () => { data.nav.openTerminal(t.terminalId); onClose(); },
+        trailing: (over) =>
+          over || on ? (
+            <StarButton on={on} onPress={flip} testID={`star-${t.terminalId}`} />
+          ) : (
+            <Text style={st.host}>{chipLabel(t)}</Text>
+          ),
+        onPress: () => {
+          data.nav.openTerminal(t.terminalId);
+          onClose();
+        },
         menu: items,
       });
     }
@@ -85,17 +164,33 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
   return (
     <Popover x={x} y={y} width={380} label="Terminals" testID="terminal-list" onClose={onClose}>
       <LayerHead
-        title="Terminals" {...(q.status === "ready" ? { sub: `${q.data.terminals.length} in ${data.space.name}` } : {})}
-        lead={<Icon name="terminal" size={16} />} onClose={onClose}
+        title="Terminals"
+        {...(q.status === "ready" ? { sub: `${q.data.terminals.length} in ${data.space.name}` } : {})}
+        lead={<Icon name="terminal" size={16} />}
+        onClose={onClose}
       />
       <View style={st.bar}>
         <Tool icon="plus" label="New terminal" onPress={newMenu} testID="terminal-new" />
         <Text style={st.barText}>New terminal</Text>
         <View style={{ flex: 1 }} />
-        <Tool icon="filter" label="Terminal rules" onPress={() => { data.nav.openRules(); onClose(); }} testID="terminal-rules-open" />
+        <Tool
+          icon="filter"
+          label="Terminal rules"
+          onPress={() => {
+            data.nav.openRules();
+            onClose();
+          }}
+          testID="terminal-rules-open"
+        />
       </View>
-      <View style={st.list}><PaneList entries={entries} testID="terminal-rows" {...(window ? { window } : {})} /></View>
-      {line ? <Text testID="terminal-list-line" accessibilityRole="alert" style={st.line}>{line}</Text> : null}
+      <View style={st.list}>
+        <PaneList entries={entries} testID="terminal-rows" {...(window ? { window } : {})} />
+      </View>
+      {line ? (
+        <Text testID="terminal-list-line" accessibilityRole="alert" style={st.line}>
+          {line}
+        </Text>
+      ) : null}
       {menu.element}
     </Popover>
   );

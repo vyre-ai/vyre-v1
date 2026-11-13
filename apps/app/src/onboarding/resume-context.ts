@@ -4,6 +4,11 @@ import { createContext, useContext } from "react";
 import type { ReactElement } from "react";
 
 /** Unfinished setup for screens that show it in place: done of total, how to reopen it, and the ready-made pill the title bar draws. Null when setup is done or open. */
-export interface Resume { done: number; total: number; open(): void; pill: ReactElement | null }
+export interface Resume {
+  done: number;
+  total: number;
+  open(): void;
+  pill: ReactElement | null;
+}
 export const ResumeContext = createContext<Resume | null>(null);
 export const useResume = (): Resume | null => useContext(ResumeContext);

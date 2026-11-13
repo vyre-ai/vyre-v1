@@ -19,8 +19,17 @@ export const DEFAULT_PROJECT_TAB: ProjectTabKey = "chat";
 export const isProjectTab = (v: unknown): v is ProjectTabKey => PROJECT_TABS.some((t) => t.key === v);
 
 /** The Space the page is in. */
-export interface ProjectSpace { id: string; kind: "team" | "personal"; name: string }
+export interface ProjectSpace {
+  id: string;
+  kind: "team" | "personal";
+  name: string;
+}
 
 /** What a tab body receives. `canEdit`: the person may change this project (Edit or Manage on it); `admin`: the person is an admin of the Space (the Console is theirs). A body shows no control they cannot use. */
-export interface ProjectTabProps { projectId: string; space: ProjectSpace; canEdit: boolean; admin: boolean }
+export interface ProjectTabProps {
+  projectId: string;
+  space: ProjectSpace;
+  canEdit: boolean;
+  admin: boolean;
+}
 export type ProjectTabBody = (props: ProjectTabProps) => ReactElement | null;

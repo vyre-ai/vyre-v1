@@ -35,18 +35,29 @@ export function paceOf(waits: readonly number[]): Pace {
 }
 
 const SCHEMA = readFileSync(new URL("../migrations/0008_mentions.sql", import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 /** The table is the module's 0007 migration; a database that has not run it yet (a fresh test handle) gets the same statements once. */
 function ensureMentionTable(ctx: Pick<ChatCtx, "db">): void {
   if (ready.has(ctx.db)) return;
-  try { ctx.db.all('SELECT message FROM chat_mention WHERE message = ?', "probe"); } catch { for (const stmt of SCHEMA) ctx.db.run(stmt); }
+  try {
+    ctx.db.all("SELECT message FROM chat_mention WHERE message = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) ctx.db.run(stmt);
+  }
   ready.add(ctx.db);
 }
 
 /** Forgets mentions (memory rule 9): those of one message, of every message in a thread, or of one person who was mentioned. */
-export function forgetMentions(ctx: Pick<ChatCtx, "db">, what: { message?: string; thread?: string; person?: string }): void {
+export function forgetMentions(
+  ctx: Pick<ChatCtx, "db">,
+  what: { message?: string; thread?: string; person?: string },
+): void {
   ensureMentionTable(ctx);
   if (what.message !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "message" = ?', what.message);
   if (what.thread !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "thread" = ?', what.thread);
@@ -54,27 +65,47 @@ export function forgetMentions(ctx: Pick<ChatCtx, "db">, what: { message?: strin
 }
 
 /** Keeps who a message mentioned, by id: the composer's chips, people and agents. The reply-time read matches on these (people only), never on a name in the words. */
-export function recordMentions(ctx: Pick<ChatCtx, "db" | "now">, messageId: string, threadId: string, mentions: ReadonlyArray<{ kind: string; id: string }>): void {
+export function recordMentions(
+  ctx: Pick<ChatCtx, "db" | "now">,
+  messageId: string,
+  threadId: string,
+  mentions: ReadonlyArray<{ kind: string; id: string }>,
+): void {
   const people = [...new Set(mentions.filter((m) => m.kind === "person" || m.kind === "agent").map((m) => m.id))];
   if (people.length === 0) return;
   ensureMentionTable(ctx);
-  for (const id of people) ctx.db.run('INSERT OR IGNORE INTO chat_mention ("message", "thread", "person", "at") VALUES (?, ?, ?, ?)', messageId, threadId, id, ctx.now());
+  for (const id of people)
+    ctx.db.run(
+      'INSERT OR IGNORE INTO chat_mention ("message", "thread", "person", "at") VALUES (?, ?, ?, ?)',
+      messageId,
+      threadId,
+      id,
+      ctx.now(),
+    );
 }
 
 /** Did this message @mention this person or agent with a chip (12 Nov: a "mentioned you" is only ever sent for a real mention)? */
 export function mentions(ctx: Pick<ChatCtx, "db">, messageId: string, id: string): boolean {
   ensureMentionTable(ctx);
-  return ctx.db.all('SELECT 1 AS x FROM chat_mention WHERE "message" = ? AND "person" = ? LIMIT 1', messageId, id).length > 0;
+  return (
+    ctx.db.all('SELECT 1 AS x FROM chat_mention WHERE "message" = ? AND "person" = ? LIMIT 1', messageId, id).length > 0
+  );
 }
 
 /** The chips of each message, in the order they were kept: what chat.messages.list answers as `mentions`. */
-export function mentionsOf(ctx: Pick<ChatCtx, "db">, messageIds: readonly string[]): Map<string, Array<{ kind: "person" | "agent"; id: string }>> {
+export function mentionsOf(
+  ctx: Pick<ChatCtx, "db">,
+  messageIds: readonly string[],
+): Map<string, Array<{ kind: "person" | "agent"; id: string }>> {
   const out = new Map<string, Array<{ kind: "person" | "agent"; id: string }>>();
   if (messageIds.length === 0) return out;
   ensureMentionTable(ctx);
   for (let i = 0; i < messageIds.length; i += 200) {
     const part = messageIds.slice(i, i + 200);
-    for (const r of ctx.db.all(`SELECT "message", "person" FROM chat_mention WHERE "message" IN (${part.map(() => "?").join(", ")}) ORDER BY rowid`, ...part) as Row[]) {
+    for (const r of ctx.db.all(
+      `SELECT "message", "person" FROM chat_mention WHERE "message" IN (${part.map(() => "?").join(", ")}) ORDER BY rowid`,
+      ...part,
+    ) as Row[]) {
       const id = String(r["person"]);
       const list = out.get(String(r["message"])) ?? [];
       list.push({ kind: id.startsWith("usr_") ? "person" : "agent", id });
@@ -84,7 +115,10 @@ export function mentionsOf(ctx: Pick<ChatCtx, "db">, messageIds: readonly string
   return out;
 }
 
-export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; threadId?: string }): Promise<{ replies: Pace; samples: number; notifies?: Notifies }> {
+export async function paceOfPerson(
+  ctx: ChatCtx,
+  input: { personId: string; threadId?: string },
+): Promise<{ replies: Pace; samples: number; notifies?: Notifies }> {
   const me = askerOf(ctx);
   const them = input.personId;
   const out: { replies: Pace; samples: number; notifies?: Notifies } = { replies: "unknown", samples: 0 };
@@ -95,7 +129,9 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
        WHERE t."deleted_at" IS NULL AND t."kind" IN ('chat', 'channel', 'thread')
          AND EXISTS (SELECT 1 FROM chat_thread_member a WHERE a."thread" = t."id" AND a."principal" = ? AND a."deleted_at" IS NULL)
          AND EXISTS (SELECT 1 FROM chat_thread_member b WHERE b."thread" = t."id" AND b."principal" = ? AND b."deleted_at" IS NULL)
-       LIMIT ${MAX_THREADS}`, me, them,
+       LIMIT ${MAX_THREADS}`,
+    me,
+    them,
   ) as Row[];
   ensureMentionTable(ctx);
   const since = ctx.now() - WINDOW_MS;
@@ -105,11 +141,17 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
     const people = membersOf(ctx.db, id).filter((p) => p.startsWith("usr_"));
     const direct = people.length === 2;
     const msgs = ctx.db.all(
-      `SELECT "id", "author", "kind", "body", "replyTo", "createdAt" FROM chat_message WHERE "thread" = ? AND "createdAt" >= ? AND "deleted_at" IS NULL AND "kind" = 'text' ORDER BY "threadSeq" LIMIT ${MAX_MESSAGES}`, id, since,
+      `SELECT "id", "author", "kind", "body", "replyTo", "createdAt" FROM chat_message WHERE "thread" = ? AND "createdAt" >= ? AND "deleted_at" IS NULL AND "kind" = 'text' ORDER BY "threadSeq" LIMIT ${MAX_MESSAGES}`,
+      id,
+      since,
     ) as Row[];
-    const named = new Set((ctx.db.all('SELECT "message" FROM chat_mention WHERE "thread" = ? AND "person" = ?', id, them) as Row[]).map((m) => str(m["message"])));
+    const named = new Set(
+      (ctx.db.all('SELECT "message" FROM chat_mention WHERE "thread" = ? AND "person" = ?', id, them) as Row[]).map(
+        (m) => str(m["message"]),
+      ),
+    );
     const mine = new Set(msgs.filter((m) => str(m["author"]) === them).map((m) => str(m["id"])));
-    let waiting: number | null = null;   // the time of the earliest line still waiting on them
+    let waiting: number | null = null; // the time of the earliest line still waiting on them
     for (const m of msgs) {
       const author = str(m["author"]);
       const at = Number(m["createdAt"]);
@@ -130,7 +172,8 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
     const t = rows.find((r) => str(r["id"]) === input.threadId);
     if (t !== undefined) {
       const people = membersOf(ctx.db, input.threadId).filter((p) => p.startsWith("usr_"));
-      out.notifies = followMode(ctx, input.threadId, them) === "left" ? "off" : people.length === 2 ? "all" : "mentions";
+      out.notifies =
+        followMode(ctx, input.threadId, them) === "left" ? "off" : people.length === 2 ? "all" : "mentions";
     }
   }
   return out;

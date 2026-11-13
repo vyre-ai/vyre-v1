@@ -25,13 +25,35 @@ async function handlersOf(id: string): Promise<H> {
   return ns["handlers"] as H;
 }
 const COMPANY = {
-  op: "type.create", type: "acme_company",
-  def: { title: "Company", plural: "Companies", icon: "building", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "industry", type: "text", title: "Industry" }] },
+  op: "type.create",
+  type: "acme_company",
+  def: {
+    title: "Company",
+    plural: "Companies",
+    icon: "building",
+    titleField: "name",
+    fields: [
+      { key: "name", type: "text", title: "Name", required: true },
+      { key: "industry", type: "text", title: "Industry" },
+    ],
+  },
 };
 
 const DATA_MODULES = ["records", "schema", "sources", "connectors"];
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" }, emit: () => ({}), call: () => Promise.reject(new Error("no calls")), actor: "usr_owner", principal: { id: "usr_owner" } };
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
+const ctx = {
+  trace: { traceId: "0123456789abcdef0123456789abcdef", spanId: "0123456789abcdef" },
+  emit: () => ({}),
+  call: () => Promise.reject(new Error("no calls")),
+  actor: "usr_owner",
+  principal: { id: "usr_owner" },
+};
 
 function seededDir(): string {
   const core = bootCore();
@@ -46,7 +68,9 @@ function boot(dir: string): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "store-live", free: 80e9,
+      os: "linux",
+      hostname: "store-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -79,25 +103,48 @@ test("store live: a booted daemon wires the four data modules, and a type and a 
     const notSetUp = (d.seams?.missing ?? []).filter((m) => m.module !== undefined && DATA_MODULES.includes(m.module));
     assert.deepEqual(notSetUp, [], "no data module is reported as not set up");
     for (const name of SPACE_STORE_SETTERS) assert.ok(d.seams?.wired.includes(name), `${name} is wired`);
-    const applied = await (await handlersOf("schema"))["schema.apply"](ctx as never, { ops: [COMPANY] } as never) as { applied?: number };
+    const applied = (await (await handlersOf("schema"))["schema.apply"](ctx as never, { ops: [COMPANY] } as never)) as {
+      applied?: number;
+    };
     assert.ok(applied, "schema.apply answers");
-    const made = await (await handlersOf("records"))["records.create"](ctx as never, { type: "acme_company", fields: { name: "Acme" } } as never) as { record: { id: string } };
+    const made = (await (
+      await handlersOf("records")
+    )["records.create"](ctx as never, { type: "acme_company", fields: { name: "Acme" } } as never)) as {
+      record: { id: string };
+    };
     id = made.record.id;
     assert.ok(id, "the record has an id");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
   assert.ok(fs.existsSync(path.join(dir, "space.db")), "the Space store file is in the data directory");
 
   d = await boot(dir);
   try {
-    const got = await (await handlersOf("records"))["records.get"](ctx as never, { type: "acme_company", recordId: id } as never) as { record: { id: string; fields: Record<string, unknown> } };
+    const got = (await (
+      await handlersOf("records")
+    )["records.get"](ctx as never, { type: "acme_company", recordId: id } as never)) as {
+      record: { id: string; fields: Record<string, unknown> };
+    };
     assert.equal(got.record.id, id);
     assert.equal(got.record.fields["name"], "Acme");
-    const types = await (await handlersOf("schema"))["schema.types.list"](ctx as never, {} as never) as { types: { key: string }[] };
-    assert.ok(types.types.some((t) => t.key === "acme_company"), "the type is still there");
+    const types = (await (await handlersOf("schema"))["schema.types.list"](ctx as never, {} as never)) as {
+      types: { key: string }[];
+    };
+    assert.ok(
+      types.types.some((t) => t.key === "acme_company"),
+      "the type is still there",
+    );
     // sources and connectors run on the same store: their tables are in the one file, and their lists answer from it
-    const src = await (await handlersOf("sources"))["sources.list"](ctx as never, {} as never) as { sources: unknown[] };
+    const src = (await (await handlersOf("sources"))["sources.list"](ctx as never, {} as never)) as {
+      sources: unknown[];
+    };
     assert.ok(Array.isArray(src.sources));
-    const con = await (await handlersOf("connectors"))["connectors.list"](ctx as never, {} as never) as { connectors: unknown[] };
+    const con = (await (await handlersOf("connectors"))["connectors.list"](ctx as never, {} as never)) as {
+      connectors: unknown[];
+    };
     assert.ok(Array.isArray(con.connectors));
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

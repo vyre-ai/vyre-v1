@@ -12,9 +12,13 @@ function labelledBox(name: string, label: string, body: string): string {
 }
 
 export function ComposerPlaceholder(props: ComposerShellProps): string {
-  const symbols = composerSymbols(props).map((symbol) => `<button type="button" data-symbol="${symbol}">${esc(symbolMark(symbol))}</button>`).join("");
+  const symbols = composerSymbols(props)
+    .map((symbol) => `<button type="button" data-symbol="${symbol}">${esc(symbolMark(symbol))}</button>`)
+    .join("");
   const recipients = props.sendsOutside ? `<div data-slot="recipients"></div>` : "";
-  const chips = (props.chips ?? []).map((chip) => `<span data-chip="${esc(chip.kind)}">${esc(chip.name)}</span>`).join("");
+  const chips = (props.chips ?? [])
+    .map((chip) => `<span data-chip="${esc(chip.kind)}">${esc(chip.name)}</span>`)
+    .join("");
   const files = (props.attachments ?? []).map((file) => `<span data-file="true">${esc(file.name)}</span>`).join("");
   const engine = props.engineLine ? `<div data-engine-line="true">${esc(props.engineLine)}</div>` : "";
   const value = props.value ? `<div data-value="true">${esc(props.value)}</div>` : "";

@@ -16,7 +16,10 @@ test("docs text leaves the action list unchanged", () => {
   const blob = JSON.stringify(out);
   assert.equal(blob.includes("Send all keys"), false);
   assert.equal(blob.includes("send-all-keys"), false);
-  assert.equal(out.some((action) => /send all keys/i.test(action.title) || /send-all-keys/i.test(action.key)), false);
+  assert.equal(
+    out.some((action) => /send all keys/i.test(action.title) || /send-all-keys/i.test(action.key)),
+    false,
+  );
 });
 
 test("mcp tools become one draft action each", () => {
@@ -29,7 +32,10 @@ test("mcp tools become one draft action each", () => {
     { key: "stripe-createcustomer", title: "Stripe: create_customer", level: "draft" },
     { key: "stripe-listcharges", title: "Stripe: list_charges", level: "draft" },
   ]);
-  assert.equal(out.every((action) => action.level === "draft"), true);
+  assert.equal(
+    out.every((action) => action.level === "draft"),
+    true,
+  );
   const blob = JSON.stringify(out);
   assert.equal(blob.includes("Send all keys"), false);
   assert.equal(blob.includes("send-all-keys"), false);

@@ -7,7 +7,10 @@ import type { Task, TasksCtx } from "../projections.ts";
 
 export const RESUMED_NOTE = "run.resumed";
 
-interface TransitionEvent { name: string; payload: { taskId?: unknown; to?: unknown } }
+interface TransitionEvent {
+  name: string;
+  payload: { taskId?: unknown; to?: unknown };
+}
 
 /** Resume the Run a finished task came from. Returns the Run it resumed, or undefined when there was nothing to do. */
 export async function resumeRunOf(ctx: TasksCtx, event: TransitionEvent): Promise<string | undefined> {
@@ -17,10 +20,21 @@ export async function resumeRunOf(ctx: TasksCtx, event: TransitionEvent): Promis
   const t = taskId ? findTask(ctx.db, taskId) : undefined;
   if (!t || t.source?.kind !== "run" || t.workingNotes[RESUMED_NOTE] === "1" || !ctx.call) return undefined;
   const runId = t.source.id;
-  const run = ((await ctx.call("runs.get", { runId }).catch(() => null)) as { run?: { status?: string; waitReason?: string } } | null)?.run;
+  const run = (
+    (await ctx.call("runs.get", { runId }).catch(() => null)) as {
+      run?: { status?: string; waitReason?: string };
+    } | null
+  )?.run;
   if (run?.status !== "waiting") return undefined;
-  const reason = run.waitReason === "approval" || run.waitReason === "background" || run.waitReason === "key" ? run.waitReason : "approval";
-  try { await ctx.call("runs.resume", { runId, reason }); } catch { return undefined; }   // it went on by itself between the read and the call
+  const reason =
+    run.waitReason === "approval" || run.waitReason === "background" || run.waitReason === "key"
+      ? run.waitReason
+      : "approval";
+  try {
+    await ctx.call("runs.resume", { runId, reason });
+  } catch {
+    return undefined;
+  } // it went on by itself between the read and the call
   t.workingNotes = { ...t.workingNotes, [RESUMED_NOTE]: "1" };
   saveTask(ctx.db, t);
   return runId;
@@ -36,7 +50,10 @@ export function markResumed(ctx: TasksCtx, taskId: string): void {
 
 // ---- the source decided ----
 
-interface SourceEvent { name: string; payload: Record<string, unknown> }
+interface SourceEvent {
+  name: string;
+  payload: Record<string, unknown>;
+}
 type Close = { to: "done" | "canceled"; note: string };
 
 /** Close what the source decided, as the host: the task of a question or plan someone answered in the chat (it need not be the person it was addressed to), and every approver's task of a request. */
@@ -51,8 +68,11 @@ async function closeAll(ctx: TasksCtx, tasks: readonly Task[], close: Close): Pr
 }
 
 const REQUEST_ENDS: Readonly<Record<string, Close>> = {
-  "access.granted": { to: "done", note: "Approved" }, "access.declined": { to: "canceled", note: "Declined" },
-  "vault.request_fulfilled": { to: "done", note: "Provided" }, "vault.request_declined": { to: "canceled", note: "Declined" }, "vault.request_canceled": { to: "canceled", note: "Withdrawn" },
+  "access.granted": { to: "done", note: "Approved" },
+  "access.declined": { to: "canceled", note: "Declined" },
+  "vault.request_fulfilled": { to: "done", note: "Provided" },
+  "vault.request_declined": { to: "canceled", note: "Declined" },
+  "vault.request_canceled": { to: "canceled", note: "Withdrawn" },
 };
 
 /**
@@ -67,14 +87,28 @@ export async function settleFromSource(ctx: TasksCtx, event: SourceEvent): Promi
     const id = typeof p["requestId"] === "string" ? p["requestId"] : "";
     return id ? closeAll(ctx, allTasks(ctx.db, "m.source_kind = 'manual' AND m.source_id = ?", id), end) : [];
   }
-  const asked = threadId ? allTasks(ctx.db, "m.source_kind = 'chat' AND m.source_id = ? AND c.state NOT IN ('done', 'canceled')", threadId) : [];
+  const asked = threadId
+    ? allTasks(ctx.db, "m.source_kind = 'chat' AND m.source_id = ? AND c.state NOT IN ('done', 'canceled')", threadId)
+    : [];
   if (event.name === "block.answered") {
-    return closeAll(ctx, asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]), { to: "done", note: "Answered" });
+    return closeAll(
+      ctx,
+      asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]),
+      { to: "done", note: "Answered" },
+    );
   }
   // an agent took its own question back: the task is closed, not answered
   if (event.name === "block.withdrawn") {
-    return closeAll(ctx, asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]), { to: "canceled", note: "Withdrawn" });
+    return closeAll(
+      ctx,
+      asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]),
+      { to: "canceled", note: "Withdrawn" },
+    );
   }
   const plan = asked.filter((t) => t.kind === "approve" && t.workingNotes["chat.plan"] === p["planId"]);
-  return closeAll(ctx, plan, event.name === "plan.approved" ? { to: "done", note: "Approved" } : { to: "canceled", note: "Sent back" });
+  return closeAll(
+    ctx,
+    plan,
+    event.name === "plan.approved" ? { to: "done", note: "Approved" } : { to: "canceled", note: "Sent back" },
+  );
 }

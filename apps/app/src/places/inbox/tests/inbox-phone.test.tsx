@@ -15,12 +15,22 @@ const widen = (width: number): void => Dimensions.set({ window: { width, height:
 
 test("on a narrow window one tap on a contact opens it; on a wide one the first tap only selects", async () => {
   installDom();
-  for (const [width, opens] of [[390, ["elena"]], [1280, []]] as const) {
+  for (const [width, opens] of [
+    [390, ["elena"]],
+    [1280, []],
+  ] as const) {
     widen(width);
     const s = createSampleInbox();
     const picked: string[] = [];
     const data = { ...s.data, nav: { ...s.data.nav, openConversation: (id: string) => void picked.push(id) } };
-    const root = await mount(createRoot, <InboxDataProvider value={data}><InboxStateProvider><ContactList /></InboxStateProvider></InboxDataProvider>);
+    const root = await mount(
+      createRoot,
+      <InboxDataProvider value={data}>
+        <InboxStateProvider>
+          <ContactList />
+        </InboxStateProvider>
+      </InboxDataProvider>,
+    );
     await press(find(root, "row-line:elena"));
     assert.deepEqual(picked, opens, `${width} wide`);
   }
@@ -28,9 +38,19 @@ test("on a narrow window one tap on a contact opens it; on a wide one the first 
 
 test("the dialer row shows its keyboard shortcut on a wide window and not on a phone", async () => {
   installDom();
-  for (const [width, shows] of [[390, false], [1280, true]] as const) {
+  for (const [width, shows] of [
+    [390, false],
+    [1280, true],
+  ] as const) {
     widen(width);
-    const root = await mount(createRoot, <InboxDataProvider value={createSampleInbox().data}><InboxStateProvider><InboxSidebar /></InboxStateProvider></InboxDataProvider>);
+    const root = await mount(
+      createRoot,
+      <InboxDataProvider value={createSampleInbox().data}>
+        <InboxStateProvider>
+          <InboxSidebar />
+        </InboxStateProvider>
+      </InboxDataProvider>,
+    );
     assert.equal(textOf(find(root, "inbox-dialer")).includes("⌘⇧K"), shows, `${width} wide`);
   }
 });
@@ -40,10 +60,30 @@ test("a contact header carries the Back when the phone shell hands it one, and n
   widen(390);
   let backs = 0;
   const tab = (): ReturnType<typeof createContactTabSample> => createContactTabSample();
-  const bare = await mount(createRoot, <InboxDataProvider value={tab().data}><InboxStateProvider><ContactTab conversationId="elena" /></InboxStateProvider></InboxDataProvider>);
+  const bare = await mount(
+    createRoot,
+    <InboxDataProvider value={tab().data}>
+      <InboxStateProvider>
+        <ContactTab conversationId="elena" />
+      </InboxStateProvider>
+    </InboxDataProvider>,
+  );
   assert.ok(find(bare, "contact-head"), "the contact header is drawn");
   assert.equal(find(bare, "contact-back"), null, "no Back without the phone shell");
-  const root = await mount(createRoot, <MobileBackContext.Provider value={() => { backs++; }}><InboxDataProvider value={tab().data}><InboxStateProvider><ContactTab conversationId="elena" /></InboxStateProvider></InboxDataProvider></MobileBackContext.Provider>);
+  const root = await mount(
+    createRoot,
+    <MobileBackContext.Provider
+      value={() => {
+        backs++;
+      }}
+    >
+      <InboxDataProvider value={tab().data}>
+        <InboxStateProvider>
+          <ContactTab conversationId="elena" />
+        </InboxStateProvider>
+      </InboxDataProvider>
+    </MobileBackContext.Provider>,
+  );
   await press(find(root, "contact-back"));
   assert.equal(backs, 1);
   widen(1280);

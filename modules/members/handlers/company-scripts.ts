@@ -1,9 +1,23 @@
 // The one paste that does the provider's side. Each prints plain errors, holds nothing of Vyre's, and says what to bring back. Nothing here runs on the server; the admin runs it in their own shell, under their own account.
-export interface Data { mail: boolean; calendar: boolean; files: boolean }
-const GOOGLE_APIS = { base: ["admin.googleapis.com"], mail: ["gmail.googleapis.com"], calendar: ["calendar-json.googleapis.com", "meet.googleapis.com"], files: ["drive.googleapis.com", "docs.googleapis.com", "sheets.googleapis.com"] };
+export interface Data {
+  mail: boolean;
+  calendar: boolean;
+  files: boolean;
+}
+const GOOGLE_APIS = {
+  base: ["admin.googleapis.com"],
+  mail: ["gmail.googleapis.com"],
+  calendar: ["calendar-json.googleapis.com", "meet.googleapis.com"],
+  files: ["drive.googleapis.com", "docs.googleapis.com", "sheets.googleapis.com"],
+};
 
 export function googleScript(d: Data): string {
-  const apis = [...GOOGLE_APIS.base, ...(d.mail ? GOOGLE_APIS.mail : []), ...(d.calendar ? GOOGLE_APIS.calendar : []), ...(d.files ? GOOGLE_APIS.files : [])];
+  const apis = [
+    ...GOOGLE_APIS.base,
+    ...(d.mail ? GOOGLE_APIS.mail : []),
+    ...(d.calendar ? GOOGLE_APIS.calendar : []),
+    ...(d.files ? GOOGLE_APIS.files : []),
+  ];
   return [
     "# Paste into Google Cloud Shell. It makes a project for Vyre, turns on the APIs, and makes a service account with a key.",
     "set -u",
@@ -16,7 +30,7 @@ export function googleScript(d: Data): string {
     'ACCOUNT="vyre-space@$PROJECT.iam.gserviceaccount.com"',
     "sleep 10",
     'if gcloud iam service-accounts keys create vyre-key.json --iam-account="$ACCOUNT" 2>key-error.txt; then',
-    '  cloudshell download vyre-key.json || cat vyre-key.json',
+    "  cloudshell download vyre-key.json || cat vyre-key.json",
     '  echo "Done. Drop vyre-key.json into Vyre, then delete it: rm vyre-key.json"',
     "else",
     '  if grep -q "not allowed" key-error.txt; then',
@@ -48,7 +62,7 @@ export function microsoftScript(d: Data, redirect: string | undefined, permissio
     'FILE=$(az ad app credential reset --id "$APP" --create-cert --display-name Vyre --years 2 --append --query fileWithCertAndPrivateKey -o tsv)',
     'PRINT=$(openssl x509 -in "$FILE" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d :)',
     'SECRET=$(az ad app credential reset --id "$APP" --display-name "Vyre sign-in" --years 2 --append --query password -o tsv)',
-    'TENANT=$(az account show --query tenantId -o tsv)',
+    "TENANT=$(az account show --query tenantId -o tsv)",
     `python3 - "$FILE" "$APP" "$TENANT" "$PRINT" "$SECRET" <<'PY'`,
     "import json, re, sys",
     "pem = open(sys.argv[1]).read()",
@@ -57,6 +71,8 @@ export function microsoftScript(d: Data, redirect: string | undefined, permissio
     "PY",
     'rm -f "$FILE"',
     'echo "Copy the line that starts with { into Vyre. It holds the private key: clear this shell afterwards."',
-    ...(d.mail || d.calendar ? ['echo "Vyre gives you the next paste for Exchange. Mail and calendars are not granted here on purpose."'] : []),
+    ...(d.mail || d.calendar
+      ? ['echo "Vyre gives you the next paste for Exchange. Mail and calendars are not granted here on purpose."']
+      : []),
   ].join("\n");
 }

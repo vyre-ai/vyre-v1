@@ -21,20 +21,34 @@ async function once(page: any, tag: string, label: string) {
         const kid = (n.children ?? []).find((c: any) => c.nodeType === 3);
         const attrs = n.attributes ?? [];
         const aria = attrs[attrs.indexOf("aria-label") + 1];
-        if ((kid && String(kid.nodeValue).trim() === label) || (attrs.includes("aria-label") && aria === label)) return n;
+        if ((kid && String(kid.nodeValue).trim() === label) || (attrs.includes("aria-label") && aria === label))
+          return n;
       }
-      for (const c of [...(n.children ?? []), ...(n.shadowRoots ?? []), ...(n.contentDocument ? [n.contentDocument] : [])]) { const hit = walk(c); if (hit) return hit; }
+      for (const c of [
+        ...(n.children ?? []),
+        ...(n.shadowRoots ?? []),
+        ...(n.contentDocument ? [n.contentDocument] : []),
+      ]) {
+        const hit = walk(c);
+        if (hit) return hit;
+      }
       return null;
     };
     const node = walk(root);
     if (!node) return null;
     // found but not laid out yet (a bar just drawn, a button just shown): no box is the same as not there yet, and the caller waits for one
     let model: { content: number[] };
-    try { ({ model } = await cdp.send("DOM.getBoxModel", { nodeId: node.nodeId })); } catch { return null; }
+    try {
+      ({ model } = await cdp.send("DOM.getBoxModel", { nodeId: node.nodeId }));
+    } catch {
+      return null;
+    }
     const [x1, y1, , , x3, y3] = model.content as [number, number, number, number, number, number];
     if (!(x3 - x1 > 0) || !(y3 - y1 > 0)) return null;
     return { x: (x1 + x3) / 2, y: (y1 + y3) / 2 };
-  } finally { await cdp.detach().catch(() => {}); }
+  } finally {
+    await cdp.detach().catch(() => {});
+  }
 }
 
 /** Press it with a real (trusted) mouse click. */

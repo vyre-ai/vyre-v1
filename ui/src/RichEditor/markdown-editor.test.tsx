@@ -3,13 +3,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FORMAT_COMMANDS, MarkdownEditor, TEXT_STYLES, ViewSwitch, highlightLine, highlightMarkdown, shortcutText, tooltip } from "./index.tsx";
+import {
+  FORMAT_COMMANDS,
+  MarkdownEditor,
+  TEXT_STYLES,
+  ViewSwitch,
+  highlightLine,
+  highlightMarkdown,
+  shortcutText,
+  tooltip,
+} from "./index.tsx";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&").replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+const clean = (s: string): string =>
+  s
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
 
 test("the bar's buttons are the ones the owner asked for, each with its shortcut", () => {
-  assert.deepEqual(FORMAT_COMMANDS.map((c) => c.label), ["Bold", "Italic", "Strikethrough", "Code", "Link", "Bulleted list", "Numbered list", "Checklist", "Quote", "Code block", "Divider"]);
-  assert.deepEqual(TEXT_STYLES.map((s) => s.label), ["Paragraph", "Heading 1", "Heading 2", "Heading 3"]);
+  assert.deepEqual(
+    FORMAT_COMMANDS.map((c) => c.label),
+    [
+      "Bold",
+      "Italic",
+      "Strikethrough",
+      "Code",
+      "Link",
+      "Bulleted list",
+      "Numbered list",
+      "Checklist",
+      "Quote",
+      "Code block",
+      "Divider",
+    ],
+  );
+  assert.deepEqual(
+    TEXT_STYLES.map((s) => s.label),
+    ["Paragraph", "Heading 1", "Heading 2", "Heading 3"],
+  );
   assert.equal(shortcutText("Mod-B", true), "⌘B");
   assert.equal(shortcutText("Mod-Shift-X", true), "⌘⇧X");
   assert.equal(shortcutText("Mod-Alt-C", true), "⌘⌥C");
@@ -20,7 +54,21 @@ test("the bar's buttons are the ones the owner asked for, each with its shortcut
 });
 
 test("raw Markdown gets colour on the syntax, and the coloured text is exactly the text", () => {
-  const md = ["# Title", "", "Some `code`, **strong**, [a link](https://e.com) and [[Page]].", "- item", "- [x] done", "1. one", "> quote", "```ts", "const a = 1;", "```", "Override: loosen this", "---", ""].join("\n");
+  const md = [
+    "# Title",
+    "",
+    "Some `code`, **strong**, [a link](https://e.com) and [[Page]].",
+    "- item",
+    "- [x] done",
+    "1. one",
+    "> quote",
+    "```ts",
+    "const a = 1;",
+    "```",
+    "Override: loosen this",
+    "---",
+    "",
+  ].join("\n");
   const rows = highlightMarkdown(md);
   assert.equal(rows.map((r) => r.map((s) => s.text).join("")).join("\n"), md, "no character lost or added");
   const cls = (i: number): string[] => rows[i]!.map((s) => s.cls);
@@ -64,7 +112,9 @@ test("the [[ and @ menus open on the trigger and its query, and close once the t
 });
 
 test("an editor opened to type in has a stand-in field that takes keys until TipTap has loaded; one not opened to type in has none", () => {
-  const open = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="" autoFocus onChange={() => undefined} />));
+  const open = clean(
+    renderToStaticMarkup(<MarkdownEditor label="Note" value="" autoFocus onChange={() => undefined} />),
+  );
   assert.match(open, /data-testid="markdown-editor-early"/, "keys typed while the editor loads are not lost");
   const read = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="x" mode="read" />));
   assert.doesNotMatch(read, /markdown-editor-early/);
@@ -79,7 +129,11 @@ test("the slash menu opens only at the start of a line, and a pick can insert a 
 });
 
 test("read mode with a live block view keeps the live blocks (the page, not editable); without one it is the chat's renderer", () => {
-  const withView = clean(renderToStaticMarkup(<MarkdownEditor label="Overview" value={":::live {\"type\":\"tasks\"}"} mode="read" liveBlockView={() => null} />));
+  const withView = clean(
+    renderToStaticMarkup(
+      <MarkdownEditor label="Overview" value={':::live {"type":"tasks"}'} mode="read" liveBlockView={() => null} />,
+    ),
+  );
   assert.match(withView, /markdown-editor-host/);
   assert.doesNotMatch(withView, /md-bar/, "no formatting bar in read mode");
   const plain = clean(renderToStaticMarkup(<MarkdownEditor label="Overview" value="Hello" mode="read" />));

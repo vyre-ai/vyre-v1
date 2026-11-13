@@ -20,7 +20,10 @@ export function chartDefaults(ctx: ViewCtx): { group: FieldDef | undefined; meas
   const groups = ctx.def.fields.filter(isGroupField);
   const group = groups.find((f) => f.key === cfg["group"]) ?? groups.find((f) => f.type === "status") ?? groups[0];
   const m = cfg["measure"];
-  const measure: Measure = typeof m === "string" && ctx.def.fields.some((f) => f.key === m && isMeasureField(f)) ? { kind: "sum", field: m } : { kind: "count" };
+  const measure: Measure =
+    typeof m === "string" && ctx.def.fields.some((f) => f.key === m && isMeasureField(f))
+      ? { kind: "sum", field: m }
+      : { kind: "count" };
   return { group, measure };
 }
 
@@ -39,17 +42,58 @@ export function ChartsView({ ctx }: { ctx: ViewCtx }): ReactElement {
 
   const buttons = (
     <>
-      <HeadButton icon="group" label="Group by" detail={group?.title} testID="records-chart-group" onPress={(x, y) => menu.show([
-        { head: "Group by" }, ...each(groups, (f) => ({ label: f.title, checked: f.key === group?.key, onSelect: () => setGroupKey(f.key) })),
-      ], x, y)} />
-      <HeadButton icon="sort" label="Measure" detail={measure.kind === "count" ? "Count" : (def.fields.find((f) => f.key === measure.field)?.title ?? "")} testID="records-chart-measure" onPress={(x, y) => menu.show([
-        { head: "Measure" }, { label: "Count", checked: measure.kind === "count", onSelect: () => setMeasure({ kind: "count" }) },
-        ...each(measures, (f) => ({ label: `Sum of ${f.title.toLowerCase()}`, checked: measure.kind === "sum" && measure.field === f.key, onSelect: () => setMeasure({ kind: "sum", field: f.key }) })),
-      ], x, y)} />
+      <HeadButton
+        icon="group"
+        label="Group by"
+        detail={group?.title}
+        testID="records-chart-group"
+        onPress={(x, y) =>
+          menu.show(
+            [
+              { head: "Group by" },
+              ...each(groups, (f) => ({
+                label: f.title,
+                checked: f.key === group?.key,
+                onSelect: () => setGroupKey(f.key),
+              })),
+            ],
+            x,
+            y,
+          )
+        }
+      />
+      <HeadButton
+        icon="sort"
+        label="Measure"
+        detail={measure.kind === "count" ? "Count" : (def.fields.find((f) => f.key === measure.field)?.title ?? "")}
+        testID="records-chart-measure"
+        onPress={(x, y) =>
+          menu.show(
+            [
+              { head: "Measure" },
+              { label: "Count", checked: measure.kind === "count", onSelect: () => setMeasure({ kind: "count" }) },
+              ...each(measures, (f) => ({
+                label: `Sum of ${f.title.toLowerCase()}`,
+                checked: measure.kind === "sum" && measure.field === f.key,
+                onSelect: () => setMeasure({ kind: "sum", field: f.key }),
+              })),
+            ],
+            x,
+            y,
+          )
+        }
+      />
     </>
   );
   const head = <ViewHead ctx={ctx} st={st} fields={false} extra={buttons} />;
-  if (!group) return <View style={k.main} testID="records-charts">{head}<States kind="empty" title={`${def.plural} have no field to group a chart by.`} icon="records" />{menu.element}</View>;
+  if (!group)
+    return (
+      <View style={k.main} testID="records-charts">
+        {head}
+        <States kind="empty" title={`${def.plural} have no field to group a chart by.`} icon="records" />
+        {menu.element}
+      </View>
+    );
 
   const slices = tally(rows, group, measure, data.nameOf);
   const w = widths(slices);
@@ -58,25 +102,62 @@ export function ChartsView({ ctx }: { ctx: ViewCtx }): ReactElement {
     <View style={k.main} testID="records-charts" accessibilityLabel={`${def.plural} chart`}>
       {head}
       <View style={k.body}>
-        <Text accessibilityRole="header" aria-level={2} style={k.h2} testID="chart-title">{`${measureText(measure, def)} by ${group.title.toLowerCase()}`}</Text>
+        <Text
+          accessibilityRole="header"
+          aria-level={2}
+          style={k.h2}
+          testID="chart-title"
+        >{`${measureText(measure, def)} by ${group.title.toLowerCase()}`}</Text>
         {slices.length === 0 ? (
-          <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
+          <States
+            kind="empty"
+            title={
+              st.v.clauses.length > 0 || st.v.find
+                ? "Nothing matches these filters."
+                : `No ${def.plural.toLowerCase()} yet.`
+            }
+            icon="records"
+          />
         ) : (
           <View style={k.chart} accessibilityRole="list" testID="chart-bars">
             {each(slices, (s, i) => (
-              <View key={s.key || "none"} style={k.row} testID={`slice-${s.key || "none"}`} accessibilityLabel={`${s.label}, ${valueText(s.value, measure, def)}`}>
-                <Text numberOfLines={1} style={k.label}>{s.label}</Text>
+              <View
+                key={s.key || "none"}
+                style={k.row}
+                testID={`slice-${s.key || "none"}`}
+                accessibilityLabel={`${s.label}, ${valueText(s.value, measure, def)}`}
+              >
+                <Text numberOfLines={1} style={k.label}>
+                  {s.label}
+                </Text>
                 <View style={k.track}>
-                  <View style={[k.fill, { width: `${w[i] ?? 0}%`, backgroundColor: s.hue < 0 ? "var(--ink-4)" : `hsl(${s.hue}, 55%, 52%)` }]} testID={`bar-${s.key || "none"}`} />
+                  <View
+                    style={[
+                      k.fill,
+                      {
+                        width: `${w[i] ?? 0}%`,
+                        backgroundColor: s.hue < 0 ? "var(--ink-4)" : `hsl(${s.hue}, 55%, 52%)`,
+                      },
+                    ]}
+                    testID={`bar-${s.key || "none"}`}
+                  />
                 </View>
                 <Text style={k.value}>{valueText(s.value, measure, def)}</Text>
               </View>
             ))}
           </View>
         )}
-        <View style={k.totalRow}><Text style={k.total} testID="chart-total">{`${valueText(sum, measure, def)} in total, from ${rows.length.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text></View>
+        <View style={k.totalRow}>
+          <Text
+            style={k.total}
+            testID="chart-total"
+          >{`${valueText(sum, measure, def)} in total, from ${rows.length.toLocaleString("en-US")} of ${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+        </View>
       </View>
-      <Text style={k.foot} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+      <Text
+        style={k.foot}
+        testID="records-count"
+      >{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
       {menu.element}
     </View>
   );
@@ -94,5 +175,11 @@ const k = StyleSheet.create({
   value: { width: 72, textAlign: "right", fontSize: 13, color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
   totalRow: { paddingTop: 4 },
   total: { fontSize: 12.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  foot: { fontSize: 12, color: "var(--ink-3)" as string, textAlign: "center", paddingVertical: 8, fontVariant: ["tabular-nums"] },
+  foot: {
+    fontSize: 12,
+    color: "var(--ink-3)" as string,
+    textAlign: "center",
+    paddingVertical: 8,
+    fontVariant: ["tabular-nums"],
+  },
 });

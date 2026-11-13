@@ -19,8 +19,13 @@ fs.copyFileSync(core.file, path.join(dir, "events.db"));
 core.close();
 const provider = oauthProvider();
 const d = await startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://configured.fixture.test"], {}, "1.2.3"), platform: fakePlatform(),
-  session: (headers) => ({ space: CORE_SPACE, principal: { kind: "person", id: headers.authorization === "Bearer owner" ? "usr_olivia" : "usr_noah" }, device: "fixture" }),
+  config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "https://configured.fixture.test"], {}, "1.2.3"),
+  platform: fakePlatform(),
+  session: (headers) => ({
+    space: CORE_SPACE,
+    principal: { kind: "person", id: headers.authorization === "Bearer owner" ? "usr_olivia" : "usr_noah" },
+    device: "fixture",
+  }),
   intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   connectorNetwork: provider.network,
 });
@@ -29,14 +34,30 @@ const control = http.createServer((req, res) => {
   req.on("data", (c) => (body += c));
   req.on("end", () => {
     const url = new URL(req.url ?? "/", "http://control");
-    if (req.method === "POST" && url.pathname === "/expect") { const j = JSON.parse(body) as { code: string; challenge: string }; provider.expect(j.code, j.challenge); }
-    else if (req.method === "POST" && url.pathname === "/expire") provider.expired.add(provider.access);
-    const state = { seen: provider.seen, revoked: provider.revoked, refreshes: provider.refreshes, issued: provider.issued, access: provider.access, refresh: provider.refresh };
-    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(state));
+    if (req.method === "POST" && url.pathname === "/expect") {
+      const j = JSON.parse(body) as { code: string; challenge: string };
+      provider.expect(j.code, j.challenge);
+    } else if (req.method === "POST" && url.pathname === "/expire") provider.expired.add(provider.access);
+    const state = {
+      seen: provider.seen,
+      revoked: provider.revoked,
+      refreshes: provider.refreshes,
+      issued: provider.issued,
+      access: provider.access,
+      refresh: provider.refresh,
+    };
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(state));
   });
 });
 await new Promise<void>((r) => control.listen(0, "127.0.0.1", r));
-console.log(JSON.stringify({ url: d.url, control: `http://127.0.0.1:${(control.address() as { port: number }).port}` }));
-const stop = async (): Promise<void> => { control.close(); await d.stop(); process.exit(0); };
+console.log(
+  JSON.stringify({ url: d.url, control: `http://127.0.0.1:${(control.address() as { port: number }).port}` }),
+);
+const stop = async (): Promise<void> => {
+  control.close();
+  await d.stop();
+  process.exit(0);
+};
 process.on("SIGTERM", () => void stop());
 process.on("SIGINT", () => void stop());

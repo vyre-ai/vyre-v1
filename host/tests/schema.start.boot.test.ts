@@ -12,7 +12,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 function seededDir(): string {
@@ -29,7 +35,9 @@ async function boot(dir: string): Promise<Daemon> {
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
-      os: "linux", hostname: "schema-boot", free: 80e9,
+      os: "linux",
+      hostname: "schema-boot",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -41,12 +49,16 @@ async function boot(dir: string): Promise<Daemon> {
   });
 }
 
-async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
-
 
 const LAYOUT = { type: "note_board", sections: [{ key: "main", title: "Note", fields: ["title", "body"] }] };
 
@@ -59,16 +71,32 @@ test("a declared type exists after start, the owner can set its layout, it survi
     assert.equal(got.data.type.key, "note_board");
     const set = await call(d, "schema.layout.set", LAYOUT);
     assert.equal(set.status, 200, `the owner may set the layout of a declared type: ${JSON.stringify(set.data)}`);
-    const refused = await fetch(`${d.url}/v1/schema/layout/set`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(LAYOUT) });
+    const refused = await fetch(`${d.url}/v1/schema/layout/set`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(LAYOUT),
+    });
     assert.equal(refused.status, 401, "no token, no layout");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
   d = await boot(dir);
   try {
-    assert.equal((await call(d, "schema.types.get", { type: "note_board" })).status, 200, "still there after a restart");
+    assert.equal(
+      (await call(d, "schema.types.get", { type: "note_board" })).status,
+      200,
+      "still there after a restart",
+    );
     const lay = await call(d, "schema.layout.get", { type: "note_board" });
     assert.equal(lay.status, 200, JSON.stringify(lay.data));
-    assert.deepEqual(lay.data.sections.map((s: { key: string }) => s.key), ["main"], "the layout survived the restart");
+    assert.deepEqual(
+      lay.data.sections.map((s: { key: string }) => s.key),
+      ["main"],
+      "the layout survived the restart",
+    );
     const set = await call(d, "schema.layout.set", LAYOUT);
     assert.equal(set.status, 200, `and can be set again: ${JSON.stringify(set.data)}`);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

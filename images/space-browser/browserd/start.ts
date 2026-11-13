@@ -8,31 +8,76 @@ import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { join } from "node:path";
 
-export interface Recent { host: string; url: string; title: string; at: number }
-export interface StartData { name: string; face: string; /** The agent's face as an SVG string, drawn once by the host. Without it the page shows the initial. */ faceSvg?: string; recent: Recent[] }
+export interface Recent {
+  host: string;
+  url: string;
+  title: string;
+  at: number;
+}
+export interface StartData {
+  name: string;
+  face: string;
+  /** The agent's face as an SVG string, drawn once by the host. Without it the page shows the initial. */ faceSvg?: string;
+  recent: Recent[];
+}
 
 const SKINS = {
-  light: { win: "#FFFFFF", side: "#F7F7F6", raised: "#FFFFFF", sunk: "#F2F2F0", ink: "#18181A", ink2: "#4E4E52", ink3: "#8A8A8F", line: "#EFEFF1", accent: "#5B5BD6", glow: "rgba(91,91,214,0.10)", shadow: "0 1px 2px rgba(24,24,26,.06), 0 8px 28px rgba(24,24,26,.07)" },
-  graphite: { win: "#161617", side: "#1C1C1E", raised: "#232325", sunk: "#121213", ink: "#EDEDEF", ink2: "#B9B9BE", ink3: "#85858B", line: "#2A2A2D", accent: "#8B8BFF", glow: "rgba(139,139,255,0.14)", shadow: "0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.35)" },
+  light: {
+    win: "#FFFFFF",
+    side: "#F7F7F6",
+    raised: "#FFFFFF",
+    sunk: "#F2F2F0",
+    ink: "#18181A",
+    ink2: "#4E4E52",
+    ink3: "#8A8A8F",
+    line: "#EFEFF1",
+    accent: "#5B5BD6",
+    glow: "rgba(91,91,214,0.10)",
+    shadow: "0 1px 2px rgba(24,24,26,.06), 0 8px 28px rgba(24,24,26,.07)",
+  },
+  graphite: {
+    win: "#161617",
+    side: "#1C1C1E",
+    raised: "#232325",
+    sunk: "#121213",
+    ink: "#EDEDEF",
+    ink2: "#B9B9BE",
+    ink3: "#85858B",
+    line: "#2A2A2D",
+    accent: "#8B8BFF",
+    glow: "rgba(139,139,255,0.14)",
+    shadow: "0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.35)",
+  },
 } as const;
 export type StartSkin = keyof typeof SKINS;
 
-const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+const esc = (s: string): string =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 const initial = (name: string): string => ([...name.trim()][0] ?? "V").toUpperCase();
 
 /** The Vyre V, the mark of the agent computer's wallpaper (images/agent-computer/desktop/wallpaper.svg): one round-ended chevron. */
 const V_PATH = "M0 0 L55 130 L110 0";
 
 /** The face: the drawn SVG as an image (a data address, so nothing is fetched), else the initial. */
-const faceInner = (d: StartData): string => (d.faceSvg && d.faceSvg.startsWith("<svg") ? `<img alt="" src="data:image/svg+xml;base64,${Buffer.from(d.faceSvg).toString("base64")}">` : esc(initial(d.name)));
+const faceInner = (d: StartData): string =>
+  d.faceSvg && d.faceSvg.startsWith("<svg")
+    ? `<img alt="" src="data:image/svg+xml;base64,${Buffer.from(d.faceSvg).toString("base64")}">`
+    : esc(initial(d.name));
 
 /** The page. `skin` forces light or graphite; without it the page follows the browser's light or dark. */
 export function startPageHtml(d: StartData, skin?: StartSkin): string {
-  const vars = (s: (typeof SKINS)[StartSkin]): string => `--win:${s.win};--side:${s.side};--raised:${s.raised};--sunk:${s.sunk};--ink:${s.ink};--ink2:${s.ink2};--ink3:${s.ink3};--line:${s.line};--accent:${s.accent};--glow:${s.glow};--shadow:${s.shadow}`;
+  const vars = (s: (typeof SKINS)[StartSkin]): string =>
+    `--win:${s.win};--side:${s.side};--raised:${s.raised};--sunk:${s.sunk};--ink:${s.ink};--ink2:${s.ink2};--ink3:${s.ink3};--line:${s.line};--accent:${s.accent};--glow:${s.glow};--shadow:${s.shadow}`;
   const theme = skin
     ? `:root{${vars(SKINS[skin])};color-scheme:${skin === "light" ? "light" : "dark"}}`
     : `:root{${vars(SKINS.light)};color-scheme:light dark}@media (prefers-color-scheme:dark){:root{${vars(SKINS.graphite)}}}`;
-  const tiles = d.recent.slice(0, 6).map((r) => `<a class="tile" href="${esc(r.url)}" title="${esc(r.title || r.host)}"><span class="dot">${esc(initial(r.host.replace(/^www\./, "")))}</span><span class="host">${esc(r.host.replace(/^www\./, ""))}</span></a>`).join("");
+  const tiles = d.recent
+    .slice(0, 6)
+    .map(
+      (r) =>
+        `<a class="tile" href="${esc(r.url)}" title="${esc(r.title || r.host)}"><span class="dot">${esc(initial(r.host.replace(/^www\./, "")))}</span><span class="host">${esc(r.host.replace(/^www\./, ""))}</span></a>`,
+    )
+    .join("");
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(d.name)}</title>
 <style>
@@ -83,14 +128,28 @@ var url=/^[a-z][a-z0-9+.-]*:\\/\\//i.test(v)?v:(/^[^\\s]+\\.[a-z]{2,}(\\/[^\\s]*
 /** The sites a profile opened lately, newest first, one per host, kept in the profile's own folder. */
 export function createRecentSites(dir: string, now: () => number = Date.now) {
   const file = join(dir, "recent.json");
-  const read = (): Recent[] => { try { const j = JSON.parse(readFileSync(file, "utf8")) as Recent[]; return Array.isArray(j) ? j.filter((r) => typeof r.host === "string" && typeof r.url === "string") : []; } catch { return []; } };
+  const read = (): Recent[] => {
+    try {
+      const j = JSON.parse(readFileSync(file, "utf8")) as Recent[];
+      return Array.isArray(j) ? j.filter((r) => typeof r.host === "string" && typeof r.url === "string") : [];
+    } catch {
+      return [];
+    }
+  };
   return {
     list: (): Recent[] => (existsSync(file) ? read() : []).slice(0, 6),
     add(url: string, title: string): void {
       let u: URL;
-      try { u = new URL(url); } catch { return; }
+      try {
+        u = new URL(url);
+      } catch {
+        return;
+      }
       if (!/^https?:$/.test(u.protocol) || u.hostname === "127.0.0.1" || u.hostname === "localhost") return;
-      const rows = [{ host: u.hostname, url: `${u.origin}/`, title: title.slice(0, 120), at: now() }, ...read().filter((r) => r.host !== u.hostname)].slice(0, 12);
+      const rows = [
+        { host: u.hostname, url: `${u.origin}/`, title: title.slice(0, 120), at: now() },
+        ...read().filter((r) => r.host !== u.hostname),
+      ].slice(0, 12);
       writeFileSync(file, JSON.stringify(rows));
     },
   };
@@ -118,15 +177,25 @@ export async function startStartServer(d: StartDeps): Promise<StartServer> {
     const url = new URL(req.url ?? "/", "http://start");
     const cookie = /(?:^|;\s*)vyre_start=([a-f0-9]{48})/.exec(String(req.headers["cookie"] ?? ""))?.[1];
     const profile = cookie ? byToken.get(cookie) : undefined;
-    if (url.pathname !== "/start" && url.pathname !== "/start/") { res.writeHead(404, { "content-type": "text/plain" }).end("Not found.\n"); return; }
+    if (url.pathname !== "/start" && url.pathname !== "/start/") {
+      res.writeHead(404, { "content-type": "text/plain" }).end("Not found.\n");
+      return;
+    }
     const skinQ = url.searchParams.get("skin");
     const skin: StartSkin | undefined = skinQ === "light" || skinQ === "graphite" ? skinQ : undefined;
     // a browser that does not carry a profile's cookie sees the page with no name and no sites
     const data = profile ? d.data(profile) : { name: "Vyre", face: "", recent: [] };
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY" });
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-frame-options": "DENY",
+    });
     res.end(startPageHtml(data, skin));
   });
-  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(d.port, "127.0.0.1", () => resolve()); });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(d.port, "127.0.0.1", () => resolve());
+  });
   const port = (server.address() as { port: number }).port;
   return {
     token(profileId) {
@@ -138,6 +207,8 @@ export async function startStartServer(d: StartDeps): Promise<StartServer> {
       return t;
     },
     url: () => `http://127.0.0.1:${port}/start`,
-    close() { server.close(); },
+    close() {
+      server.close();
+    },
   };
 }

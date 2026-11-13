@@ -12,5 +12,6 @@ export type { GitDrivers, Exec, ExecOptions, ExecResult } from "./handlers/ops.t
 
 /** Where the host registers its half at boot (ruling 31): setGitHost gets the working-trees directory and the credential slot the Vault filler writes a GitHub token to. */
 export const hostSeams: SeamSetters = {
-  setGitHost: (d: Pick<GitDrivers, "treesDir" | "takeCredential"> | null) => configureGit(d === null ? null : { exec: processExec(), ...d }),
+  setGitHost: (d: Pick<GitDrivers, "treesDir" | "takeCredential"> | null) =>
+    configureGit(d === null ? null : { exec: processExec(), ...d }),
 };

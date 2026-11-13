@@ -23,7 +23,9 @@ test("the Artifacts page has its title, a search and the Mine menu", () => {
 });
 
 test("an artifact's tab has one header row: back, Share and More, and a loading state until the page says it loaded", () => {
-  const html = renderToStaticMarkup(<ArtifactView rt={rt} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />);
+  const html = renderToStaticMarkup(
+    <ArtifactView rt={rt} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />,
+  );
   for (const w of ["Back to Artifacts", "Share", "More"]) assert.match(html, new RegExp(`aria-label="${w}"`));
   assert.match(html, /artifact-loading/);
   assert.doesNotMatch(html, /Floating|Back to Chats/);
@@ -31,12 +33,25 @@ test("an artifact's tab has one header row: back, Share and More, and a loading 
 
 test("a row's picture, source chat and shared people reach the card, the people by name", async () => {
   const { infoOf } = await import("./ArtifactView.tsx");
-  const row = { siteId: "sit_1", name: "Numbers", kind: "artifact", owner: "me", state: "ready", thumb: "data:image/png;base64,AA", chatId: "thr_1", chatTitle: "Monthly numbers", sharedWith: ["usr_sara"] } as never;
+  const row = {
+    siteId: "sit_1",
+    name: "Numbers",
+    kind: "artifact",
+    owner: "me",
+    state: "ready",
+    thumb: "data:image/png;base64,AA",
+    chatId: "thr_1",
+    chatTitle: "Monthly numbers",
+    sharedWith: ["usr_sara"],
+  } as never;
   const i = infoOf(row, (id) => (id === "usr_sara" ? "Sara" : id));
   assert.equal(i.thumb, "data:image/png;base64,AA");
   assert.deepEqual(i.from, { id: "thr_1", title: "Monthly numbers" });
   assert.deepEqual(i.sharedWith, ["Sara"]);
-  assert.equal(infoOf({ siteId: "s", name: "N", kind: "artifact", owner: "me", state: "ready" } as never).from, undefined);
+  assert.equal(
+    infoOf({ siteId: "s", name: "N", kind: "artifact", owner: "me", state: "ready" } as never).from,
+    undefined,
+  );
 });
 
 test("a permission refusal is told apart from a slow or broken page", async () => {
@@ -52,5 +67,6 @@ test("the desktop app draws the artifact as a native page, a browser as an ifram
   assert.equal(frameFor("https://a.vyre.run/x/1", true), "desktop");
   assert.equal(frameFor("https://a.vyre.run/x/1", false), "iframe");
   assert.equal(coveredBy({ sharing: false, menu: false, sure: false }), false);
-  for (const k of ["sharing", "menu", "sure"] as const) assert.equal(coveredBy({ sharing: false, menu: false, sure: false, [k]: true }), true, k);
+  for (const k of ["sharing", "menu", "sure"] as const)
+    assert.equal(coveredBy({ sharing: false, menu: false, sure: false, [k]: true }), true, k);
 });

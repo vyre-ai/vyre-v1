@@ -5,8 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { health, watch } from "../health.js";
 
-const direct = good => ({ kind: "direct", good });
-const relay = state => ({ kind: "relay", good: state === "open", connection: state ? { state } : null });
+const direct = (good) => ({ kind: "direct", good });
+const relay = (state) => ({ kind: "relay", good: state === "open", connection: state ? { state } : null });
 
 test("health: the direct path current is direct, with the tailnet round trip only when measured", () => {
   const p = { index: 0, paths: [direct(true), relay("open")] };
@@ -18,7 +18,7 @@ test("health: the direct path current is direct, with the tailnet round trip onl
 });
 
 test("health: on the relay path it is relay while the channel is open, and none while connecting or offline", () => {
-  const at = state => health({ index: 1, paths: [direct(false), relay(state)] }, { since: 5 });
+  const at = (state) => health({ index: 1, paths: [direct(false), relay(state)] }, { since: 5 });
   assert.deepEqual(at("open"), { reach: "relay", why: "Connected to your server through Vyre's relay.", since: 5 });
   assert.equal(at("open").tailnet, undefined);
   const connecting = at("connecting");
@@ -45,11 +45,13 @@ test("health: watch keeps since at the start of the current reach", () => {
   assert.equal(w.read().since, 100);
   clock.t = 500;
   assert.equal(w.read().since, 100, "same reach, same since");
-  p.index = 0; p.paths[0] = direct(true);
+  p.index = 0;
+  p.paths[0] = direct(true);
   const back = w.read();
   assert.deepEqual([back.reach, back.since], ["direct", 500]);
   clock.t = 900;
-  p.index = 1; p.paths[1] = relay("offline");
+  p.index = 1;
+  p.paths[1] = relay("offline");
   const down = w.read();
   assert.deepEqual([down.reach, down.since], ["none", 900]);
 });

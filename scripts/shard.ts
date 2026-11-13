@@ -45,56 +45,103 @@ export function expectedSec(file: string, timings: Timings, median: number): num
 }
 
 function medianSec(files: string[], timings: Timings): number {
-  const known = files.map((f) => timings[f]?.ms).filter((m): m is number => typeof m === "number" && m > 0).sort((a, b) => a - b);
+  const known = files
+    .map((f) => timings[f]?.ms)
+    .filter((m): m is number => typeof m === "number" && m > 0)
+    .sort((a, b) => a - b);
   return known.length ? known[Math.floor(known.length / 2)]! / 1000 : FALLBACK_SEC;
 }
 
 /** Greedy longest-first placement of the fast files into ceil(files/40) shards (max 24); the slow files are listed here and grouped into jobs by toMatrix. */
-export function shardFiles(files: string[], timings: Timings, slow: SlowEntry[], opts: { max?: number; target?: number; read?: (file: string) => string } = {}): Shards {
+export function shardFiles(
+  files: string[],
+  timings: Timings,
+  slow: SlowEntry[],
+  opts: { max?: number; target?: number; read?: (file: string) => string } = {},
+): Shards {
   const uniq = [...new Set(files)].sort();
   const slowBy = new Map((withPatternSlow(uniq, slow, opts.read) as SlowEntry[]).map((s) => [s.file, s]));
-  const slowJobs = uniq.filter((f) => slowBy.has(f)).map((file) => ({ file, capSec: slowBy.get(file)!.capSec, perf: slowBy.get(file)!.perf === true, heavy: slowBy.get(file)!.heavy === true, ...(timings[file] && timings[file]!.ms > 0 ? { sec: timings[file]!.ms / 1000 } : {}) }));
+  const slowJobs = uniq
+    .filter((f) => slowBy.has(f))
+    .map((file) => ({
+      file,
+      capSec: slowBy.get(file)!.capSec,
+      perf: slowBy.get(file)!.perf === true,
+      heavy: slowBy.get(file)!.heavy === true,
+      ...(timings[file] && timings[file]!.ms > 0 ? { sec: timings[file]!.ms / 1000 } : {}),
+    }));
   const fastFiles = uniq.filter((f) => !slowBy.has(f));
   const median = medianSec(fastFiles, timings);
-  const rows = fastFiles.map((f) => ({ f, sec: expectedSec(f, timings, median) })).sort((a, b) => b.sec - a.sec || (a.f < b.f ? -1 : 1));
+  const rows = fastFiles
+    .map((f) => ({ f, sec: expectedSec(f, timings, median) }))
+    .sort((a, b) => b.sec - a.sec || (a.f < b.f ? -1 : 1));
   const totalSec = rows.reduce((n, r) => n + r.sec, 0);
-  const count = fastFiles.length === 0 ? 0 : Math.min(opts.max ?? MAX_SHARDS, Math.max(1, Math.ceil(fastFiles.length / FILES_PER_SHARD)));
+  const count =
+    fastFiles.length === 0
+      ? 0
+      : Math.min(opts.max ?? MAX_SHARDS, Math.max(1, Math.ceil(fastFiles.length / FILES_PER_SHARD)));
   const bins = Array.from({ length: count }, () => ({ files: [] as string[], sec: 0 }));
   for (const r of rows) {
     let best = bins[0]!;
     for (const b of bins) if (b.sec < best.sec) best = b;
-    best.files.push(r.f); best.sec += r.sec;
+    best.files.push(r.f);
+    best.sec += r.sec;
   }
   for (const b of bins) b.files.sort();
   return { count, totalSec, makespanSec: bins.reduce((m, b) => Math.max(m, b.sec), 0), fast: bins, slow: slowJobs };
 }
 
 /** The select job's output: plain jobs, not matrix-expanded workflows. */
-export function toMatrix(s: Shards): { include: { name: string; files: string; slow: boolean; runner: "v1" | "v1-perf" }[] } {
+export function toMatrix(s: Shards): {
+  include: { name: string; files: string; slow: boolean; runner: "v1" | "v1-perf" }[];
+} {
   const perf = s.slow.filter((j) => j.perf);
   // A *.heavy.test file (it boots Docker containers or a daemon with its own wait of seconds) gets a job to itself: next to seven other files running in parallel it starved and failed its
   // "did not start in 12 s" wait (images/vyred/smoke.heavy.test.ts on slow-1, #661). It stays on the v1 runners. A heavy file listed in test/slow.json that measured quick (HEAVY_QUICK_SEC) shares a job with other quick ones.
   const isHeavy = (j: { file: string; heavy?: boolean }): boolean => j.heavy === true || /\.heavy\.test\./.test(j.file);
   const heavy = s.slow.filter((j) => !j.perf && isHeavy(j));
-  const quick = heavy.filter((j) => !/\.heavy\.test\./.test(j.file) && j.sec !== undefined && j.sec <= HEAVY_QUICK_SEC).sort((a, b) => b.sec! - a.sec! || (a.file < b.file ? -1 : 1));
+  const quick = heavy
+    .filter((j) => !/\.heavy\.test\./.test(j.file) && j.sec !== undefined && j.sec <= HEAVY_QUICK_SEC)
+    .sort((a, b) => b.sec! - a.sec! || (a.file < b.file ? -1 : 1));
   const alone = heavy.filter((j) => !quick.includes(j));
   const quickGroups: { files: string[]; sec: number }[] = [];
-  for (const j of quick) {   // first fit, longest first
+  for (const j of quick) {
+    // first fit, longest first
     const g = quickGroups.find((x) => x.files.length < HEAVY_FILES_PER_JOB && x.sec + j.sec! <= HEAVY_GROUP_SEC);
-    if (g) { g.files.push(j.file); g.sec += j.sec!; } else quickGroups.push({ files: [j.file], sec: j.sec! });
+    if (g) {
+      g.files.push(j.file);
+      g.sec += j.sec!;
+    } else quickGroups.push({ files: [j.file], sec: j.sec! });
   }
   const heavyJobs = [...alone.map((j) => j.file), ...quickGroups.map((g) => g.files.sort().join(" "))];
-  const plain = [...s.slow.filter((j) => !j.perf && !isHeavy(j))].sort((a, b) => (b.sec ?? b.capSec) - (a.sec ?? a.capSec) || (a.file < b.file ? -1 : 1));
-  const groups = Array.from({ length: Math.ceil(plain.length / SLOW_FILES_PER_JOB) }, () => ({ files: [] as string[], cap: 0 }));
-  for (const j of plain) {   // longest first (measured seconds, else the cap) into the group with the least total
+  const plain = [...s.slow.filter((j) => !j.perf && !isHeavy(j))].sort(
+    (a, b) => (b.sec ?? b.capSec) - (a.sec ?? a.capSec) || (a.file < b.file ? -1 : 1),
+  );
+  const groups = Array.from({ length: Math.ceil(plain.length / SLOW_FILES_PER_JOB) }, () => ({
+    files: [] as string[],
+    cap: 0,
+  }));
+  for (const j of plain) {
+    // longest first (measured seconds, else the cap) into the group with the least total
     let best = groups[0]!;
     for (const g of groups) if (g.cap < best.cap) best = g;
-    best.files.push(j.file); best.cap += j.sec ?? j.capSec;
+    best.files.push(j.file);
+    best.cap += j.sec ?? j.capSec;
   }
   return {
     include: [
-      ...s.fast.map((b, i) => ({ name: `fast-${i + 1}`, files: b.files.join(" "), slow: false, runner: "v1" as const })),
-      ...groups.map((g, i) => ({ name: `slow-${i + 1}`, files: g.files.sort().join(" "), slow: true, runner: "v1" as const })),
+      ...s.fast.map((b, i) => ({
+        name: `fast-${i + 1}`,
+        files: b.files.join(" "),
+        slow: false,
+        runner: "v1" as const,
+      })),
+      ...groups.map((g, i) => ({
+        name: `slow-${i + 1}`,
+        files: g.files.sort().join(" "),
+        slow: true,
+        runner: "v1" as const,
+      })),
       ...heavyJobs.map((files, i) => ({ name: `heavy-${i + 1}`, files, slow: true, runner: "v1" as const })),
       ...perf.map((j, i) => ({ name: `perf-${i + 1}`, files: j.file, slow: true, runner: "v1-perf" as const })),
     ],

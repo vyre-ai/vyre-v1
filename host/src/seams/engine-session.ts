@@ -14,13 +14,44 @@ import type { SigninRefresh } from "./signin-refresh.ts";
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
   | { kind: "unknown" }
-  | { kind: "denied"; reason: "no_access" | "provider_label" | "other" | "team_agent" | "team_shared" | "team_unknown_agent" | "needs_approval" };
+  | {
+      kind: "denied";
+      reason:
+        | "no_access"
+        | "provider_label"
+        | "other"
+        | "team_agent"
+        | "team_shared"
+        | "team_unknown_agent"
+        | "needs_approval";
+    };
 
 export interface EngineSessionHost {
-  source: { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean; place?: string; device?: string }): Promise<VaultLookup> };
-  reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): Promise<void>;
+  source: {
+    lookup(
+      handle: string,
+      who: {
+        agentId: string;
+        asker: string;
+        where: "host" | "device" | "computer";
+        account?: boolean;
+        place?: string;
+        device?: string;
+      },
+    ): Promise<VaultLookup>;
+  };
+  reportMiss(r: {
+    itemId: string;
+    place: "terminal" | "http" | "browser" | "file" | "chat";
+    traceId: string;
+  }): Promise<void>;
   mcp: {
-    mint(i: { principal: string; actingFor: string; threadId: string; traceId: string }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
+    mint(i: {
+      principal: string;
+      actingFor: string;
+      threadId: string;
+      traceId: string;
+    }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
     close(sessionId: string): Promise<void>;
   };
   saveSignin?: SigninRefresh["save"];
@@ -71,10 +102,18 @@ function codeOf(e: unknown): string | null {
 
 /** A vault key that is closed: by its reason, or in the words the vault module uses (use.ts) when it throws a plain error. */
 function vaultLocked(e: unknown): boolean {
-  const x = e as { message?: unknown; details?: { reason?: unknown }; error?: { message?: unknown; details?: { reason?: unknown } } } | null;
+  const x = e as {
+    message?: unknown;
+    details?: { reason?: unknown };
+    error?: { message?: unknown; details?: { reason?: unknown } };
+  } | null;
   const reason = x?.error?.details?.reason ?? x?.details?.reason;
   const message = x?.error?.message ?? x?.message;
-  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked|sign-ins are locked|Vault key is not on this server/i.test(message));
+  return (
+    reason === "vault_locked" ||
+    (typeof message === "string" &&
+      /vault key is locked|sign-ins are locked|Vault key is not on this server/i.test(message))
+  );
 }
 
 /** Plain words for a Vault refusal that is not about access: what is wrong with the item or the field the turn asked for. */
@@ -83,7 +122,9 @@ function whyUnusable(e: unknown, code: string | null): string {
   const m = String(x?.error?.message ?? x?.message ?? "");
   const field = /no field (\w+)/i.exec(m)?.[1];
   if (field) return `That account's Vault item has no ${field} field. Sign in to it again.`;
-  return code === "validation.not_found" ? "The Vault item for that account is gone or not shared with you. Sign in to it again." : "The Vault could not use that account's item. Sign in to it again.";
+  return code === "validation.not_found"
+    ? "The Vault item for that account is gone or not shared with you. Sign in to it again."
+    : "The Vault could not use that account's item. Sign in to it again.";
 }
 
 /** What failed, with no text the Vault or a provider sent (it can carry a secret): the code when there is one, else the kind of error. */
@@ -100,16 +141,34 @@ function coded(code: string, message: string): Error & { code: string } {
 
 export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSessionHost {
   /** An engine trace id is 32 hex; one that is not (a test double) is left out and the pipeline starts its own. */
-  const traceOf = (id: string): Pick<CtxSeed, "trace"> => (TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {});
+  const traceOf = (id: string): Pick<CtxSeed, "trace"> =>
+    TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {};
 
-  type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean; place?: string; device?: string };
+  type Who = {
+    agentId: string;
+    asker: string;
+    where: "host" | "device" | "computer";
+    account?: boolean;
+    place?: string;
+    device?: string;
+  };
   /** Who asks the Vault: the agent acting for the person in a chat; the person, or a Space automation's own service, for an AI step that names no agent. */
   const seedOf = (who: Who) => {
     const agentic = !NOT_AN_AGENT.has(who.agentId);
     const service = !agentic && who.asker.startsWith("svc_");
     return agentic
-      ? { space: d.space, principal: { kind: "agent" as const, id: who.agentId }, actingFor: who.asker, origin: "engine" }
-      : { space: d.space, principal: { kind: service ? "service" as const : "person" as const, id: who.asker }, origin: "engine", ...(service ? { preAuth: true } : {}) };
+      ? {
+          space: d.space,
+          principal: { kind: "agent" as const, id: who.agentId },
+          actingFor: who.asker,
+          origin: "engine",
+        }
+      : {
+          space: d.space,
+          principal: { kind: service ? ("service" as const) : ("person" as const), id: who.asker },
+          origin: "engine",
+          ...(service ? { preAuth: true } : {}),
+        };
   };
 
   /**
@@ -123,79 +182,116 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
       if (typeof itemId !== "string") return null;
       const value = await d.vault.secret(handle, d.space);
       return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const lookupOnce = async (handle: string, who: Who): Promise<VaultLookup> => {
     // the turn's own account: the Space AI key is tried before saying the person's sign-in is gone, since a member cannot use that key by name (it reads as no such item to them) but
     // runs on it through providers.space_key.use (rc.26 tag blocker, 12 Nov)
     let got: VaultLookup;
-    try { got = await useOnce(handle, who); }
-    catch (e) {
-      if (who.account === true && HANDLE.test(handle) && codeOf(e) === "engine.signin_missing") { const space = await spaceKeyOnce(handle, who); if (space) return space; }
+    try {
+      got = await useOnce(handle, who);
+    } catch (e) {
+      if (who.account === true && HANDLE.test(handle) && codeOf(e) === "engine.signin_missing") {
+        const space = await spaceKeyOnce(handle, who);
+        if (space) return space;
+      }
       throw e;
     }
-    if (got.kind !== "value" && who.account === true && HANDLE.test(handle)) return (await spaceKeyOnce(handle, who)) ?? got;
+    if (got.kind !== "value" && who.account === true && HANDLE.test(handle))
+      return (await spaceKeyOnce(handle, who)) ?? got;
     return got;
   };
 
   const useOnce = async (handle: string, who: Who): Promise<VaultLookup> => {
-        // Only a Vault handle is looked up; a sealed record field or a hashtag the model wrote is not one.
-        if (!HANDLE.test(handle)) return { kind: "unknown" };
-        const [item = "", field] = handle.slice(1).split(".");
-        try {
-          // A chat turn is an agent acting for a person. An automation's AI step that names no agent has none in the chat sense: it is the person's own Run, or a Space automation's own service,
-          // so the key is asked for as that principal (the step's marker is "step", as in modules/engine/step-turn.ts). A service reads Shared items only.
-          const agentic = !NOT_AN_AGENT.has(who.agentId);
-          const service = !agentic && who.asker.startsWith("svc_");
-          const r = await d.invoke(
-            "vault.use",
-            { item, ...(field === undefined ? {} : { fields: [field] }), purpose: "engine account" },
-            agentic
-              ? { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" }
-              : { space: d.space, principal: { kind: service ? "service" : "person", id: who.asker }, origin: "engine" },
-          );
-          // a use the person's rules hold for approval is said as itself: nothing here can ask for that approval yet, and it is not "no access"
-          if (r.status === "held") return { kind: "denied", reason: "needs_approval" };
-          if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
-          const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
-          if (typeof itemId !== "string") return { kind: "unknown" };
-          const asker = service ? undefined : who.asker;
-          let value: string;
-          try { value = await d.vault.secret(handle, d.space, asker); }
-          catch (first) {
-            // The key is not on this node (the app was updated or restarted and has not handed it over yet): try to get it back once and read again, before the turn waits or fails
-            const missing = vaultLocked(first) || (asker !== undefined && d.keyHeld !== undefined && !d.keyHeld(asker));
-            if (!missing) throw first;
-            d.log?.("the vault key was not on this node for a read", { handle: item, field: field ?? null, class: first instanceof Error ? first.name : "unknown" });
-            if (asker === undefined || !d.rehand || !(await d.rehand(asker).catch(() => false))) throw Object.assign(first instanceof Error ? first : new Error(String(first)), { details: { reason: "vault_locked" } });
-            value = await d.vault.secret(handle, d.space, asker);
-          }
-          return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
-        } catch (e) {
-          const code = codeOf(e);
-          if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
-          // a name the Vault has nothing under that this person may use (gone, or not theirs: the two read alike) is the "no such item" case below, not "no access"
-          const noSuchItem = code === "permission.not_found" && reasonOf(e) === "no_such_item";
-          if (code !== null && code.startsWith("permission.") && !noSuchItem) return { kind: "denied", reason: "no_access" };
-          // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
-          if (code === "validation.not_found" || code === "validation.bad_input" || noSuchItem) {
-            // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
-            d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
-            // the turn's own account has no usable sign-in in the Vault (the item is gone, or has no such field): the person signs in again. Said once, as itself: never "locked", never tried again for every message.
-            if (who.account === true) throw coded("engine.signin_missing", `${whyUnusable(e, code)} [account ${item}]`);
-            return { kind: "unknown" };
-          }
-          // a value no key this Space has can open (saved under an older key): said as itself, with the account, so the chat can offer the sign-in
-          if (code === "vault.item_unopenable") {
-            const name = /codex/i.test(item) ? "Codex" : /claude/i.test(item) ? "Claude" : /grok/i.test(item) ? "Grok" : "AI";
-            d.log?.("the vault item could not be opened with the current keys", { handle: item, field: field ?? null });
-            throw coded("engine.signin_unopenable", `Your ${name} sign-in can't be opened on this device. Sign in to ${name} again. [account ${item}]`);
-          }
-          // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
-          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.");
-          throw coded("engine.vault_unreadable", `The Vault could not read the sign-in ${item}${field ? ` (${field})` : ""}: ${plainCause(e, code)}`);
-        }
+    // Only a Vault handle is looked up; a sealed record field or a hashtag the model wrote is not one.
+    if (!HANDLE.test(handle)) return { kind: "unknown" };
+    const [item = "", field] = handle.slice(1).split(".");
+    try {
+      // A chat turn is an agent acting for a person. An automation's AI step that names no agent has none in the chat sense: it is the person's own Run, or a Space automation's own service,
+      // so the key is asked for as that principal (the step's marker is "step", as in modules/engine/step-turn.ts). A service reads Shared items only.
+      const agentic = !NOT_AN_AGENT.has(who.agentId);
+      const service = !agentic && who.asker.startsWith("svc_");
+      const r = await d.invoke(
+        "vault.use",
+        { item, ...(field === undefined ? {} : { fields: [field] }), purpose: "engine account" },
+        agentic
+          ? { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" }
+          : { space: d.space, principal: { kind: service ? "service" : "person", id: who.asker }, origin: "engine" },
+      );
+      // a use the person's rules hold for approval is said as itself: nothing here can ask for that approval yet, and it is not "no access"
+      if (r.status === "held") return { kind: "denied", reason: "needs_approval" };
+      if (r.status !== "ok") return { kind: "denied", reason: "no_access" };
+      const itemId = (r.output as { itemId?: unknown } | null)?.itemId;
+      if (typeof itemId !== "string") return { kind: "unknown" };
+      const asker = service ? undefined : who.asker;
+      let value: string;
+      try {
+        value = await d.vault.secret(handle, d.space, asker);
+      } catch (first) {
+        // The key is not on this node (the app was updated or restarted and has not handed it over yet): try to get it back once and read again, before the turn waits or fails
+        const missing = vaultLocked(first) || (asker !== undefined && d.keyHeld !== undefined && !d.keyHeld(asker));
+        if (!missing) throw first;
+        d.log?.("the vault key was not on this node for a read", {
+          handle: item,
+          field: field ?? null,
+          class: first instanceof Error ? first.name : "unknown",
+        });
+        if (asker === undefined || !d.rehand || !(await d.rehand(asker).catch(() => false)))
+          throw Object.assign(first instanceof Error ? first : new Error(String(first)), {
+            details: { reason: "vault_locked" },
+          });
+        value = await d.vault.secret(handle, d.space, asker);
+      }
+      return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
+    } catch (e) {
+      const code = codeOf(e);
+      if (code === "permission.provider_label") return { kind: "denied", reason: "provider_label" };
+      // a name the Vault has nothing under that this person may use (gone, or not theirs: the two read alike) is the "no such item" case below, not "no access"
+      const noSuchItem = code === "permission.not_found" && reasonOf(e) === "no_such_item";
+      if (code !== null && code.startsWith("permission.") && !noSuchItem)
+        return { kind: "denied", reason: "no_access" };
+      // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
+      if (code === "validation.not_found" || code === "validation.bad_input" || noSuchItem) {
+        // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
+        d.log?.("the vault could not give the account its key", {
+          code,
+          handle: item,
+          field: field ?? null,
+          why: whyUnusable(e, code),
+        });
+        // the turn's own account has no usable sign-in in the Vault (the item is gone, or has no such field): the person signs in again. Said once, as itself: never "locked", never tried again for every message.
+        if (who.account === true) throw coded("engine.signin_missing", `${whyUnusable(e, code)} [account ${item}]`);
+        return { kind: "unknown" };
+      }
+      // a value no key this Space has can open (saved under an older key): said as itself, with the account, so the chat can offer the sign-in
+      if (code === "vault.item_unopenable") {
+        const name = /codex/i.test(item)
+          ? "Codex"
+          : /claude/i.test(item)
+            ? "Claude"
+            : /grok/i.test(item)
+              ? "Grok"
+              : "AI";
+        d.log?.("the vault item could not be opened with the current keys", { handle: item, field: field ?? null });
+        throw coded(
+          "engine.signin_unopenable",
+          `Your ${name} sign-in can't be opened on this device. Sign in to ${name} again. [account ${item}]`,
+        );
+      }
+      // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
+      if (vaultLocked(e))
+        throw coded(
+          "engine.vault_locked",
+          "Your Vault key is not on this server, so your sign-in cannot be opened. Your Mine items open while you are signed in: open Vyre on your device and sign in.",
+        );
+      throw coded(
+        "engine.vault_unreadable",
+        `The Vault could not read the sign-in ${item}${field ? ` (${field})` : ""}: ${plainCause(e, code)}`,
+      );
+    }
   };
 
   return {
@@ -205,8 +301,9 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         // A locked key is waited for, not failed on: right after a start the app is still handing the key over, and a person who sees Unlock can do it in place. The turn goes on by itself the moment the key is there.
         const deadline = (d.now ?? Date.now)() + (d.lockedWaitMs ?? 45_000);
         for (;;) {
-          try { return await lookupOnce(handle, who); }
-          catch (e) {
+          try {
+            return await lookupOnce(handle, who);
+          } catch (e) {
             if (codeOf(e) !== "engine.vault_locked" || (d.now ?? Date.now)() >= deadline) throw e;
             await (d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(d.lockedPollMs ?? 2_000);
           }
@@ -215,7 +312,13 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
     },
 
     async reportMiss(r) {
-      await d.invoke("vault.report_scrub_miss", r, { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "engine", ...traceOf(r.traceId) });
+      await d.invoke("vault.report_scrub_miss", r, {
+        space: d.space,
+        principal: { ...SYSTEM },
+        preAuth: true,
+        origin: "engine",
+        ...traceOf(r.traceId),
+      });
     },
 
     mcp: {
@@ -223,13 +326,24 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         const r = await d.invoke(
           "mcp.session.mint",
           { principal: i.principal, actingFor: i.actingFor, threadId: i.threadId, traceId: i.traceId },
-          { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "engine", thread: i.threadId, ...traceOf(i.traceId) },
+          {
+            space: d.space,
+            principal: { ...SYSTEM },
+            preAuth: true,
+            origin: "engine",
+            thread: i.threadId,
+            ...traceOf(i.traceId),
+          },
         );
         if (r.status !== "ok") throw new Error("The loopback session was held instead of minted.");
         return r.output as { sessionId: string; sessionToken: string; url: string; expiresAt: number };
       },
       async close(sessionId) {
-        await d.invoke("mcp.session.close", { sessionId }, { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "engine" });
+        await d.invoke(
+          "mcp.session.close",
+          { sessionId },
+          { space: d.space, principal: { ...SYSTEM }, preAuth: true, origin: "engine" },
+        );
       },
     },
   };

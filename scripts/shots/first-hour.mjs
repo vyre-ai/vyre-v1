@@ -14,7 +14,11 @@ const dist = path.resolve(REPO, (args.find((a) => a.startsWith("--dist=")) ?? ""
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
 if (!args.includes("--skip-export")) {
   fs.rmSync(dist, { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: path.join(REPO, "apps/app"), stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: path.join(REPO, "apps/app"),
+    stdio: "inherit",
+    env: exportEnv(),
+  });
   execSync(`node scripts/shots/registry-hash-in-bundle.mjs ${dist}`, { cwd: REPO, stdio: "inherit" });
 }
 fs.rmSync(out, { recursive: true, force: true });
@@ -22,7 +26,9 @@ fs.mkdirSync(out, { recursive: true });
 // the model vendor stand-in must be in the daemon's environment before it is spawned
 const { vendor } = await import(path.join(REPO, "fixtures/model-vendor.ts"));
 const PRELOAD = path.join(REPO, "fixtures/model-vendor-preload.mjs");
-const { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } = await import(path.join(REPO, "apps/app/tests/real-app-harness.test.ts"));
+const { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } = await import(
+  path.join(REPO, "apps/app/tests/real-app-harness.test.ts")
+);
 const { makeBundle } = await import(path.join(REPO, "client/src/crypto/keys.ts"));
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
@@ -39,22 +45,72 @@ async function walk(kind, steps, provision = null) {
   // a provisioner boots its own daemon (the scripted walk: a daemon in this process whose model calls tools) and answers { space, session? }; the default is a spawned daemon claimed in the browser
   const given = provision ? await provision(dist) : null;
   const space = given ? given.space : await bootFreshSpace(kind === "personal" ? "personal" : undefined, true);
-  if (prior === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = prior;
+  if (prior === undefined) delete process.env.NODE_OPTIONS;
+  else process.env.NODE_OPTIONS = prior;
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light", reducedMotion: "reduce" });
-  if (given?.session) await context.addInitScript((s) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [s.baseUrl]: s } })); } catch { /* blocked */ } }, { ...given.session, baseUrl: web.origin, def: { ...given.session.def, address: web.origin } });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+    colorScheme: "light",
+    reducedMotion: "reduce",
+  });
+  if (given?.session)
+    await context.addInitScript(
+      (s) => {
+        try {
+          localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [s.baseUrl]: s } }));
+        } catch {
+          /* blocked */
+        }
+      },
+      { ...given.session, baseUrl: web.origin, def: { ...given.session.def, address: web.origin } },
+    );
   const page = await context.newPage();
-  const noise = [];   // refused calls and console errors, in order, each stamped with the step that was running
+  const noise = []; // refused calls and console errors, in order, each stamped with the step that was running
   let current = "setup";
   page.on("pageerror", (e) => noise.push({ step: current, what: `page error: ${String(e).slice(0, 300)}` }));
-  page.on("console", (m) => { if (m.type() === "error") noise.push({ step: current, what: `console: ${m.text().slice(0, 300)}` }); });
-  page.on("response", async (r) => { const u = new URL(r.url()); if (r.status() >= 400 && (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/"))) noise.push({ step: current, what: `HTTP ${r.status()} ${u.pathname} ${(await r.text().catch(() => "")).slice(0, 420)} req=${(r.request().postData() ?? "").slice(0, 240)}`, refused: true }); });
-  const S = { kind, space, web, page, context, vendor: v, out, PW, state: { ...(given?.state ?? {}) }, makeBundle, claimOnEdge, dismissOnboarding, daemon: given?.daemon, token0: given?.session?.token };
+  page.on("console", (m) => {
+    if (m.type() === "error") noise.push({ step: current, what: `console: ${m.text().slice(0, 300)}` });
+  });
+  page.on("response", async (r) => {
+    const u = new URL(r.url());
+    if (r.status() >= 400 && (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/")))
+      noise.push({
+        step: current,
+        what: `HTTP ${r.status()} ${u.pathname} ${(await r.text().catch(() => "")).slice(0, 420)} req=${(r.request().postData() ?? "").slice(0, 240)}`,
+        refused: true,
+      });
+  });
+  const S = {
+    kind,
+    space,
+    web,
+    page,
+    context,
+    vendor: v,
+    out,
+    PW,
+    state: { ...(given?.state ?? {}) },
+    makeBundle,
+    claimOnEdge,
+    dismissOnboarding,
+    daemon: given?.daemon,
+    token0: given?.session?.token,
+  };
   let n = 0;
-  S.token = () => S.token0 ? Promise.resolve(S.token0) : page.evaluate(() => { const s = JSON.parse(localStorage.getItem("vyre.session.v1")); return s.sessions[location.origin].token; });
+  S.token = () =>
+    S.token0
+      ? Promise.resolve(S.token0)
+      : page.evaluate(() => {
+          const s = JSON.parse(localStorage.getItem("vyre.session.v1"));
+          return s.sessions[location.origin].token;
+        });
   S.api = async (cap, data = {}, token) => {
-    const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token ?? await S.token()}` }, data: { idempotencyKey: `fh-${++n}`, ...data } });
+    const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+      headers: { authorization: `Bearer ${token ?? (await S.token())}` },
+      data: { idempotencyKey: `fh-${++n}`, ...data },
+    });
     const b = await r.json().catch(() => ({}));
     if (r.status() !== 200) throw new Error(`${cap}: ${r.status()} ${JSON.stringify(b).slice(0, 240)}`);
     return b.data ?? b;
@@ -67,18 +123,30 @@ async function walk(kind, steps, provision = null) {
       current = `${kind}/${st.id}`;
       const before = noise.length;
       let failure = null;
-      try { await st.run(S); } catch (e) { const lines = String(e instanceof Error ? e.message : e).split("\n"); failure = [lines[0], lines.find((l) => /waiting for/.test(l))?.trim()].filter(Boolean).join(" ").slice(0, 1200); }
+      try {
+        await st.run(S);
+      } catch (e) {
+        const lines = String(e instanceof Error ? e.message : e).split("\n");
+        failure = [lines[0], lines.find((l) => /waiting for/.test(l))?.trim()].filter(Boolean).join(" ").slice(0, 1200);
+      }
       await page.waitForTimeout(400);
-      await S.shot(`${String(results.filter((r) => r.kind === kind).length + 1).padStart(2, "0")}-${st.id}`).catch(() => {});
+      await S.shot(`${String(results.filter((r) => r.kind === kind).length + 1).padStart(2, "0")}-${st.id}`).catch(
+        () => {},
+      );
       const mine = noise.slice(before);
       const refused = mine.filter((x) => x.refused).map((x) => x.what);
       const errs = mine.filter((x) => !x.refused).map((x) => x.what);
       results.push({ kind, id: st.id, owner: st.owner, failure, refused, errs });
-      console.log(`${failure || refused.length || errs.length ? "FAIL" : "ok  "} ${current}${failure ? `: ${failure}` : ""}${refused.length ? ` | refused: ${[...new Set(refused)].join(" ; ")}` : ""}${errs.length ? ` | errors: ${[...new Set(errs)].join(" ; ")}` : ""}`);
+      console.log(
+        `${failure || refused.length || errs.length ? "FAIL" : "ok  "} ${current}${failure ? `: ${failure}` : ""}${refused.length ? ` | refused: ${[...new Set(refused)].join(" ; ")}` : ""}${errs.length ? ` | errors: ${[...new Set(errs)].join(" ; ")}` : ""}`,
+      );
       if (failure && st.critical) break;
     }
   } finally {
-    await browser.close(); web.close(); await space.stop(); v.close();
+    await browser.close();
+    web.close();
+    await space.stop();
+    v.close();
     fs.rmSync(space.dir, { recursive: true, force: true });
   }
 }

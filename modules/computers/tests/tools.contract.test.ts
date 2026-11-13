@@ -8,7 +8,9 @@ import { bindHost } from "../projections.ts";
 import { assertEventsConform, contractErrors } from "../fixtures/harness.ts";
 import { tool, world } from "./tools.fixture.ts";
 
-const mine = registry.capabilities.filter((c) => c.module === "computers" && /^computers\.(chrome|screen|files)\./.test(c.name));
+const mine = registry.capabilities.filter(
+  (c) => c.module === "computers" && /^computers\.(chrome|screen|files)\./.test(c.name),
+);
 
 const CASES: Array<[string, Record<string, unknown>]> = [
   ["computers.chrome.snapshot", { format: "tree" }],
@@ -29,7 +31,15 @@ const CASES: Array<[string, Record<string, unknown>]> = [
   ["computers.chrome.stop", { reason: "the person asked" }],
   ["computers.chrome.resume", {}],
   ["computers.chrome.send", { heldId: "held_1" }],
-  ["computers.chrome.batch", { steps: [{ tool: "click", args: { ref: "e2" } }, { tool: "state", args: {} }] }],
+  [
+    "computers.chrome.batch",
+    {
+      steps: [
+        { tool: "click", args: { ref: "e2" } },
+        { tool: "state", args: {} },
+      ],
+    },
+  ],
   ["computers.chrome.plan", { goal: "Open the intake form", steps: ["Open it", "Fill it"] }],
   ["computers.chrome.api", { method: "GET", url: "https://example.com/api/items" }],
   ["computers.chrome.sources", {}],
@@ -60,7 +70,8 @@ test("the 35 tools are 22 Chrome, 8 Screen and 5 Files, each with a handler in t
 test("each example input of a tool is a valid input", () => {
   for (const c of mine) {
     assert.ok(c.examples.length > 0, `${c.name} has an example`);
-    for (const ex of c.examples) assert.deepEqual(contractErrors(c.name, "in", ex.input), [], `${c.name}: example ${ex.name}`);
+    for (const ex of c.examples)
+      assert.deepEqual(contractErrors(c.name, "in", ex.input), [], `${c.name}: example ${ex.name}`);
   }
 });
 
@@ -87,7 +98,11 @@ test("the same tools work for a person who names the computer, and not without i
   for (const [name, input] of CASES) {
     // The batch carries its own steps and reports a missing computer per step instead of refusing the whole call.
     if (name === "computers.chrome.batch") continue;
-    await assert.rejects(() => tool[name]!(w.h.ctx, input), (e: any) => e?.error?.code === "validation.bad_input", `${name} without a computer`);
+    await assert.rejects(
+      () => tool[name]!(w.h.ctx, input),
+      (e: any) => e?.error?.code === "validation.bad_input",
+      `${name} without a computer`,
+    );
   }
   bindHost(null);
 });

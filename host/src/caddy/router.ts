@@ -3,13 +3,30 @@
 // Staging and preview routes carry basic auth whose password is a sealed Vault key: the password is read at call time, hashed to bcrypt by the injected hasher, and only the
 // hash reaches Caddy.
 import { CaddyAdmin, CaddyError } from "./admin.ts";
-import { baseConfig, BASIC_USER, deployedSiteRoute, hostOf, normalizeHost, normalizeUpstream, RouteError, routeId, routesOf, SERVER, siteRoute, withServer } from "./routes.ts";
+import {
+  baseConfig,
+  BASIC_USER,
+  deployedSiteRoute,
+  hostOf,
+  normalizeHost,
+  normalizeUpstream,
+  RouteError,
+  routeId,
+  routesOf,
+  SERVER,
+  siteRoute,
+  withServer,
+} from "./routes.ts";
 import type { BaseOptions, BasicAuth, RouteJson } from "./routes.ts";
 import { connectPeer, judgeCert } from "./tls.ts";
 import type { CertInfo, PeerFn } from "./tls.ts";
 
 export type CertState = "pending" | "issued" | "failed";
-export interface RouteSpec { host: string; upstream: string; auth: { handle: string } | null }
+export interface RouteSpec {
+  host: string;
+  upstream: string;
+  auth: { handle: string } | null;
+}
 
 export interface RouterOptions {
   admin: CaddyAdmin;
@@ -75,7 +92,10 @@ export class CaddyRouter {
 
   /** Hosts Vyre routes, from Caddy's running config. */
   async hosts(): Promise<string[]> {
-    return routesOf(await this.o.admin.config()).map(hostOf).filter((h): h is string => h !== undefined).sort();
+    return routesOf(await this.o.admin.config())
+      .map(hostOf)
+      .filter((h): h is string => h !== undefined)
+      .sort();
   }
 
   /** Does Caddy answer and hold the vyre server? (the host.caddy probe) */
@@ -98,7 +118,8 @@ export class CaddyRouter {
   }
 
   private async authFor(handle: string): Promise<BasicAuth> {
-    if (!this.o.vault || !this.o.hasher) throw new RouteError("Protected routes need the Vault and a password hasher; neither is connected.");
+    if (!this.o.vault || !this.o.hasher)
+      throw new RouteError("Protected routes need the Vault and a password hasher; neither is connected.");
     const password = await this.o.vault.secret(handle, this.o.space);
     if (!password) throw new RouteError("The Vault key for this route's password is empty.");
     return { username: BASIC_USER, hash: await this.o.hasher.hash(password) };
@@ -107,12 +128,18 @@ export class CaddyRouter {
   private async write(route: RouteJson): Promise<void> {
     await this.ensureBase();
     const id = route["@id"];
-    if ((await this.o.admin.byId(id)) !== undefined) { await this.o.admin.replaceById(id, route); return; }
+    if ((await this.o.admin.byId(id)) !== undefined) {
+      await this.o.admin.replaceById(id, route);
+      return;
+    }
     try {
       await this.o.admin.append(`/config/apps/http/servers/${SERVER}/routes`, route);
     } catch (e) {
       // a second writer added the same id between the check and the append: replace instead
-      if (e instanceof CaddyError && e.status >= 400 && e.status < 500 && (await this.o.admin.byId(id)) !== undefined) { await this.o.admin.replaceById(id, route); return; }
+      if (e instanceof CaddyError && e.status >= 400 && e.status < 500 && (await this.o.admin.byId(id)) !== undefined) {
+        await this.o.admin.replaceById(id, route);
+        return;
+      }
       throw e;
     }
   }

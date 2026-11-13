@@ -16,16 +16,37 @@ let seq = 0;
 async function setup(t: Harness): Promise<string> {
   t.contacts.set(CALLER, PAT);
   t.prefs.set(PAT, { smsConsent: "granted" });
-  const made = out(out(await h.numberBuy(t.ctx, { e164: NUM_E164, title: "Main line", assigneeKind: "person", assigneeId: MAYA, idempotencyKey: "k-buy-limits" })).number);
+  const made = out(
+    out(
+      await h.numberBuy(t.ctx, {
+        e164: NUM_E164,
+        title: "Main line",
+        assigneeKind: "person",
+        assigneeId: MAYA,
+        idempotencyKey: "k-buy-limits",
+      }),
+    ).number,
+  );
   // the number's own window and caps stay out of the way so each test sees only the Space limits
   t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5, 6, 7], startHour: 0, endHour: 24, zone: "space" });
   t.settings.set("telephony.sender_caps", { perHour: 1000, perDay: 1000 });
   return String(made.id);
 }
 const send = (t: Harness, numberId: string, o: Json = {}) =>
-  h.sendSms(t.ctx, { numberId, to: CALLER, body: "Your appointment is Friday at 3.", idempotencyKey: `k-lim-${++seq}`, ...o } as Parameters<typeof h.sendSms>[1]);
+  h.sendSms(t.ctx, {
+    numberId,
+    to: CALLER,
+    body: "Your appointment is Friday at 3.",
+    idempotencyKey: `k-lim-${++seq}`,
+    ...o,
+  } as Parameters<typeof h.sendSms>[1]);
 const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string; details: Json }> => {
-  try { await p; } catch (e) { const err = (e as { error: { code: string; message: string; details: Json } }).error; return { code: err.code, message: err.message, details: err.details }; }
+  try {
+    await p;
+  } catch (e) {
+    const err = (e as { error: { code: string; message: string; details: Json } }).error;
+    return { code: err.code, message: err.message, details: err.details };
+  }
   throw new Error("expected a refusal");
 };
 
@@ -55,7 +76,7 @@ test("a person is not made to wait but counts toward the daily limit", async () 
   const t = harness();
   const numberId = await setup(t);
   t.settings.set("send.cap", 1);
-  t.settings.set("send.window", "9-17");   // 01:53 in the recipient's zone: closed
+  t.settings.set("send.window", "9-17"); // 01:53 in the recipient's zone: closed
   t.actAs("person", MAYA);
   await send(t, numberId);
   assert.equal(t.calls("twilio.sms.send").length, 1, "a person's text goes inside a closed window");
@@ -67,7 +88,7 @@ test("outside the window a text is held, says so, and goes when the window opens
   const numberId = await setup(t);
   t.settings.set("send.window", "9-17");
   t.actAs("agent", AGENT);
-  const nine = Date.UTC(2025, 9, 9, 16, 0, 0);   // 09:00 in San Francisco (PDT); NOW is 01:53 there
+  const nine = Date.UTC(2025, 9, 9, 16, 0, 0); // 09:00 in San Francisco (PDT); NOW is 01:53 there
   const held = out(await send(t, numberId, { body: "Hold until nine." }));
   assert.equal(held.status, "queued");
   assert.match(String(held.note), /Held until the sending window opens at 09:00 on 9 Oct/);

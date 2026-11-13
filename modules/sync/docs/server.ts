@@ -11,7 +11,20 @@ import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { fromB64, isEmptyUpdate, toB64 } from "./b64.ts";
 import { BODY, CONTENT, newDoc, toMarkdown } from "./markdown.ts";
 import {
-  appendUpdate, baseSnapshot, buildDoc, docMeta, dropFolded, ensureDocTables, ensureMeta, firstPendingSuggestion, foldCandidates, headSeq, updateCount, updatesAfter, versions, writeSnapshot,
+  appendUpdate,
+  baseSnapshot,
+  buildDoc,
+  docMeta,
+  dropFolded,
+  ensureDocTables,
+  ensureMeta,
+  firstPendingSuggestion,
+  foldCandidates,
+  headSeq,
+  updateCount,
+  updatesAfter,
+  versions,
+  writeSnapshot,
 } from "./store.ts";
 import type { DocEnc, DocOwner, StoredUpdate } from "./store.ts";
 
@@ -22,7 +35,9 @@ export const COMPACT_EVERY_MS = 10 * 60 * 1000;
 export const MAX_UPDATE_BYTES = 4 * 1024 * 1024;
 
 export type DocVerb = "view" | "edit";
-export type DocDecision = { ok: true; enc: DocEnc; owner?: DocOwner | undefined } | { ok: false; reason: "missing" | "denied" };
+export type DocDecision =
+  | { ok: true; enc: DocEnc; owner?: DocOwner | undefined }
+  | { ok: false; reason: "missing" | "denied" };
 
 /** Who may read or edit a document, answered from the owning row's access. The host binds it to authorize(); a test binds it to a table. */
 export interface DocAccess {
@@ -41,18 +56,47 @@ export interface DocDeps {
   compactMs?: number;
 }
 
-export interface OpenInput { doc: string; sv?: string | undefined }
-export interface OpenOut { snapshot?: string; updates: string[]; sv: string; upto: number; md?: string; enc: DocEnc }
-export interface UpdateInput { doc: string; update: string; enc?: number | undefined; suggest?: boolean | undefined }
-export interface CompactInput { doc: string; upto?: number | undefined; snapshot?: string | undefined; md?: string | undefined }
+export interface OpenInput {
+  doc: string;
+  sv?: string | undefined;
+}
+export interface OpenOut {
+  snapshot?: string;
+  updates: string[];
+  sv: string;
+  upto: number;
+  md?: string;
+  enc: DocEnc;
+}
+export interface UpdateInput {
+  doc: string;
+  update: string;
+  enc?: number | undefined;
+  suggest?: boolean | undefined;
+}
+export interface CompactInput {
+  doc: string;
+  upto?: number | undefined;
+  snapshot?: string | undefined;
+  md?: string | undefined;
+}
 
-export interface Attribution { seq: number; actor: string; at: number; suggest: "pending" | "rejected" | "agreed" }
+export interface Attribution {
+  seq: number;
+  actor: string;
+  at: number;
+  suggest: "pending" | "rejected" | "agreed";
+}
 
 export interface DocServer {
   open(who: string, input: OpenInput, traceId: string): OpenOut;
   /** `fresh` is false when the update changed nothing (an empty update): no event is owed then. */
   update(who: string, input: UpdateInput, traceId: string): { seq: number; bytes: number; fresh: boolean };
-  close(who: string, input: { doc: string; name?: string | undefined }, traceId: string): { versioned: boolean; upto: number };
+  close(
+    who: string,
+    input: { doc: string; name?: string | undefined },
+    traceId: string,
+  ): { versioned: boolean; upto: number };
   compact(who: string, input: CompactInput, traceId: string): { upto: number; bytes: number };
   /** Fold every document that is due (500 updates or 10 minutes). Returns how many were folded. */
   sweep(traceId: string): number;
@@ -79,12 +123,33 @@ export function createDocServer(d: DocDeps): DocServer {
   ensureDocTables(d.db);
 
   function gate(who: string, doc: string, verb: DocVerb, traceId: string): { enc: DocEnc; owner: DocOwner | null } {
-    if (typeof doc !== "string" || doc.length === 0) throw docError("validation.bad_input", "Name the document.", traceId, "edit_input", "Check the request and send it again");
+    if (typeof doc !== "string" || doc.length === 0)
+      throw docError(
+        "validation.bad_input",
+        "Name the document.",
+        traceId,
+        "edit_input",
+        "Check the request and send it again",
+      );
     const r = d.access.decide(who, doc, verb);
     if (r.ok) return { enc: r.enc, owner: r.owner ?? null };
-    if (r.reason === "missing") throw docError("validation.not_found", "That document is not here.", traceId, "reload", "Reload the list");
-    if (verb === "edit") throw docError("permission.revoked", "You can no longer edit this document. What you wrote is kept on your device.", traceId, "ask_access", "Ask for edit access");
-    throw docError("permission.no_grant", "You do not have access to this document.", traceId, "ask_access", "Ask for access");
+    if (r.reason === "missing")
+      throw docError("validation.not_found", "That document is not here.", traceId, "reload", "Reload the list");
+    if (verb === "edit")
+      throw docError(
+        "permission.revoked",
+        "You can no longer edit this document. What you wrote is kept on your device.",
+        traceId,
+        "ask_access",
+        "Ask for edit access",
+      );
+    throw docError(
+      "permission.no_grant",
+      "You do not have access to this document.",
+      traceId,
+      "ask_access",
+      "Ask for access",
+    );
   }
 
   const emit = (type: string, doc: string, traceId: string, actor: string, payload: Record<string, unknown>): void => {
@@ -96,7 +161,14 @@ export function createDocServer(d: DocDeps): DocServer {
   }
 
   /** Fold plain updates into the base snapshot. Returns the seq folded to, or null when there was nothing to do. */
-  function fold(doc: string, traceId: string, actor: string, owner: DocOwner | null, limit?: number, name?: string): { upto: number; bytes: number } | null {
+  function fold(
+    doc: string,
+    traceId: string,
+    actor: string,
+    owner: DocOwner | null,
+    limit?: number,
+    name?: string,
+  ): { upto: number; bytes: number } | null {
     const head = headSeq(d.db, doc);
     const pending = firstPendingSuggestion(d.db, doc);
     const cap = pending !== null ? pending - 1 : head;
@@ -124,14 +196,30 @@ export function createDocServer(d: DocDeps): DocServer {
       if (enc === 2) {
         // Ciphertext in the order it was accepted. The server has no state vector for it and sends no Markdown.
         const base = baseSnapshot(d.db, doc);
-        return { ...(base ? { snapshot: toB64(base.bytes) } : {}), updates: updatesAfter(d.db, doc, base?.upto ?? 0).map((u) => toB64(u.bytes)), sv: "", upto: head, enc };
+        return {
+          ...(base ? { snapshot: toB64(base.bytes) } : {}),
+          updates: updatesAfter(d.db, doc, base?.upto ?? 0).map((u) => toB64(u.bytes)),
+          sv: "",
+          upto: head,
+          enc,
+        };
       }
       const y = buildDoc(d.db, doc);
       const sv = toB64(Y.encodeStateVector(y));
       const md = toMarkdown(y);
       if (input.sv !== undefined && input.sv.length > 0) {
         let theirs: Uint8Array;
-        try { theirs = fromB64(input.sv); } catch { throw docError("validation.bad_input", "The state vector is not valid.", traceId, "edit_input", "Open the document again"); }
+        try {
+          theirs = fromB64(input.sv);
+        } catch {
+          throw docError(
+            "validation.bad_input",
+            "The state vector is not valid.",
+            traceId,
+            "edit_input",
+            "Open the document again",
+          );
+        }
         return { updates: [toB64(Y.encodeStateAsUpdate(y, theirs))], sv, upto: head, md, enc };
       }
       return { snapshot: toB64(Y.encodeStateAsUpdate(y)), updates: [], sv, upto: head, md, enc };
@@ -142,19 +230,68 @@ export function createDocServer(d: DocDeps): DocServer {
       const doc = input.doc;
       const meta = ensureMeta(d.db, doc, g.enc, g.owner, d.now());
       const want: DocEnc = input.enc === 2 ? 2 : 0;
-      if (input.enc !== undefined && input.enc !== 0 && input.enc !== 2) throw docError("validation.bad_input", "An update is plain (0) or encrypted (2).", traceId, "edit_input", "Check the request and send it again");
+      if (input.enc !== undefined && input.enc !== 0 && input.enc !== 2)
+        throw docError(
+          "validation.bad_input",
+          "An update is plain (0) or encrypted (2).",
+          traceId,
+          "edit_input",
+          "Check the request and send it again",
+        );
       if (want !== meta.enc) {
-        throw docError("validation.bad_input", meta.enc === 2 ? "This document is private. Send encrypted updates." : "This document is not private. Send plain updates.", traceId, "edit_input", "Open the document again");
+        throw docError(
+          "validation.bad_input",
+          meta.enc === 2
+            ? "This document is private. Send encrypted updates."
+            : "This document is not private. Send plain updates.",
+          traceId,
+          "edit_input",
+          "Open the document again",
+        );
       }
       let bytes: Uint8Array;
-      try { bytes = fromB64(input.update); } catch { throw docError("validation.bad_input", "The update is not valid.", traceId, "edit_input", "Open the document again"); }
-      if (bytes.length === 0 || bytes.length > MAX_UPDATE_BYTES) throw docError("validation.bad_input", "The update is empty or too large.", traceId, "edit_input", "Split the change into smaller edits");
+      try {
+        bytes = fromB64(input.update);
+      } catch {
+        throw docError(
+          "validation.bad_input",
+          "The update is not valid.",
+          traceId,
+          "edit_input",
+          "Open the document again",
+        );
+      }
+      if (bytes.length === 0 || bytes.length > MAX_UPDATE_BYTES)
+        throw docError(
+          "validation.bad_input",
+          "The update is empty or too large.",
+          traceId,
+          "edit_input",
+          "Split the change into smaller edits",
+        );
       if (meta.enc === 0) {
         // A malformed update would poison every later rebuild, so it is read once here and refused.
-        try { Y.decodeUpdate(bytes); } catch { throw docError("validation.bad_input", "The update is not a valid document change.", traceId, "edit_input", "Open the document again"); }
+        try {
+          Y.decodeUpdate(bytes);
+        } catch {
+          throw docError(
+            "validation.bad_input",
+            "The update is not a valid document change.",
+            traceId,
+            "edit_input",
+            "Open the document again",
+          );
+        }
         if (isEmptyUpdate(bytes)) return { seq: headSeq(d.db, doc), bytes: bytes.length, fresh: false };
       }
-      const seq = appendUpdate(d.db, { doc, actor: who, at: d.now(), bytes, enc: meta.enc, suggest: input.suggest === true && meta.enc === 0 });
+      const seq = appendUpdate(d.db, {
+        doc,
+        actor: who,
+        at: d.now(),
+        bytes,
+        enc: meta.enc,
+        suggest: input.suggest === true && meta.enc === 0,
+      });
       emit("doc.updated", doc, traceId, who, { doc, bytes: bytes.length, actor: who, seq });
       if (meta.enc === 0 && updateCount(d.db, doc) >= every) fold(doc, traceId, SYSTEM, meta.owner);
       return { seq, bytes: bytes.length, fresh: true };
@@ -175,7 +312,13 @@ export function createDocServer(d: DocDeps): DocServer {
         fold(doc, traceId, who, owner, head, name);
         d.db.run("UPDATE doc_snapshots SET named = ? WHERE doc = ? AND upto = ?", name, doc, head);
         // A fold already said so; only a version put on an existing fold needs its own event.
-        if (before >= head) emit("doc.compacted", doc, traceId, who, { doc, upto: head, bytes: baseSnapshot(d.db, doc)?.bytes.length ?? 0, named: name });
+        if (before >= head)
+          emit("doc.compacted", doc, traceId, who, {
+            doc,
+            upto: head,
+            bytes: baseSnapshot(d.db, doc)?.bytes.length ?? 0,
+            named: name,
+          });
       } else {
         // A pending suggestion keeps the updates apart, so the version is a copy that never starts a rebuild.
         const y = buildDoc(d.db, doc);
@@ -193,12 +336,43 @@ export function createDocServer(d: DocDeps): DocServer {
       const enc = meta?.enc ?? g.enc;
       const head = headSeq(d.db, doc);
       if (enc === 2) {
-        if (!input.snapshot || input.upto === undefined) throw docError("validation.bad_input", "A private document is folded on its owner's device. Send the snapshot and the seq it holds.", traceId, "edit_input", "Compact from your device");
+        if (!input.snapshot || input.upto === undefined)
+          throw docError(
+            "validation.bad_input",
+            "A private document is folded on its owner's device. Send the snapshot and the seq it holds.",
+            traceId,
+            "edit_input",
+            "Compact from your device",
+          );
         const base = baseSnapshot(d.db, doc);
-        if (input.upto > head || input.upto < (base?.upto ?? 0) || input.upto < 1) throw docError("validation.bad_input", "The snapshot names a seq the document does not have.", traceId, "edit_input", "Open the document again");
+        if (input.upto > head || input.upto < (base?.upto ?? 0) || input.upto < 1)
+          throw docError(
+            "validation.bad_input",
+            "The snapshot names a seq the document does not have.",
+            traceId,
+            "edit_input",
+            "Open the document again",
+          );
         let bytes: Uint8Array;
-        try { bytes = fromB64(input.snapshot); } catch { throw docError("validation.bad_input", "The snapshot is not valid.", traceId, "edit_input", "Compact from your device"); }
-        if (bytes.length === 0 || bytes.length > MAX_UPDATE_BYTES * 4) throw docError("validation.bad_input", "The snapshot is empty or too large.", traceId, "edit_input", "Compact from your device");
+        try {
+          bytes = fromB64(input.snapshot);
+        } catch {
+          throw docError(
+            "validation.bad_input",
+            "The snapshot is not valid.",
+            traceId,
+            "edit_input",
+            "Compact from your device",
+          );
+        }
+        if (bytes.length === 0 || bytes.length > MAX_UPDATE_BYTES * 4)
+          throw docError(
+            "validation.bad_input",
+            "The snapshot is empty or too large.",
+            traceId,
+            "edit_input",
+            "Compact from your device",
+          );
         writeSnapshot(d.db, { doc, upto: input.upto, bytes, md: null, at: d.now(), named: null, base: true });
         dropFolded(d.db, doc, input.upto);
         emit("doc.compacted", doc, traceId, who, { doc, upto: input.upto, bytes: bytes.length });
@@ -224,23 +398,43 @@ export function createDocServer(d: DocDeps): DocServer {
     acceptSuggestion(who, doc, seq, traceId) {
       gate(who, doc, "edit", traceId);
       const row = updatesAfter(d.db, doc, seq - 1, seq)[0];
-      if (!row || row.suggest !== SUGGEST_PENDING) throw docError("validation.not_found", "That suggestion is not waiting any more.", traceId, "reload", "Reload the document");
+      if (!row || row.suggest !== SUGGEST_PENDING)
+        throw docError(
+          "validation.not_found",
+          "That suggestion is not waiting any more.",
+          traceId,
+          "reload",
+          "Reload the document",
+        );
       d.db.run("UPDATE doc_updates SET suggest = 0 WHERE doc = ? AND seq = ?", doc, seq);
     },
 
     rejectSuggestion(who, doc, seq, traceId) {
       gate(who, doc, "edit", traceId);
       const target = updatesAfter(d.db, doc, seq - 1, seq)[0];
-      if (!target || target.suggest !== SUGGEST_PENDING) throw docError("validation.not_found", "That suggestion is not waiting any more.", traceId, "reload", "Reload the document");
+      if (!target || target.suggest !== SUGGEST_PENDING)
+        throw docError(
+          "validation.not_found",
+          "That suggestion is not waiting any more.",
+          traceId,
+          "reload",
+          "Reload the document",
+        );
       // Replay the document with the suggestion's own transaction tracked, then undo exactly that transaction: the inverse is a normal update.
       const mine = { suggestion: seq };
       const y = newDoc();
-      const um = new Y.UndoManager([y.getText(BODY), y.getXmlFragment(CONTENT)], { trackedOrigins: new Set([mine]), captureTimeout: 0 });
+      const um = new Y.UndoManager([y.getText(BODY), y.getXmlFragment(CONTENT)], {
+        trackedOrigins: new Set([mine]),
+        captureTimeout: 0,
+      });
       const base = baseSnapshot(d.db, doc);
       if (base) Y.applyUpdate(y, base.bytes, "base");
-      for (const u of updatesAfter(d.db, doc, base?.upto ?? 0)) if (u.enc === 0) Y.applyUpdate(y, u.bytes, u.seq === seq ? mine : "other");
+      for (const u of updatesAfter(d.db, doc, base?.upto ?? 0))
+        if (u.enc === 0) Y.applyUpdate(y, u.bytes, u.seq === seq ? mine : "other");
       const out: { inverse: Uint8Array | null } = { inverse: null };
-      const on = (u: Uint8Array): void => { out.inverse = u; };
+      const on = (u: Uint8Array): void => {
+        out.inverse = u;
+      };
       y.on("update", on);
       um.undo();
       y.off("update", on);
@@ -255,7 +449,12 @@ export function createDocServer(d: DocDeps): DocServer {
 
     attribution(who, doc, traceId) {
       gate(who, doc, "view", traceId);
-      return updatesAfter(d.db, doc, 0).map((u: StoredUpdate) => ({ seq: u.seq, actor: u.actor, at: u.at, suggest: u.suggest === 1 ? "pending" : u.suggest === 2 ? "rejected" : "agreed" }));
+      return updatesAfter(d.db, doc, 0).map((u: StoredUpdate) => ({
+        seq: u.seq,
+        actor: u.actor,
+        at: u.at,
+        suggest: u.suggest === 1 ? "pending" : u.suggest === 2 ? "rejected" : "agreed",
+      }));
     },
 
     history(who, doc, traceId) {

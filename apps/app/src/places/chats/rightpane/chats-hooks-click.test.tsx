@@ -12,17 +12,49 @@ import { matcherFor } from "../../../../../../lib/hooks.ts";
 import type { Hook, HookRun } from "./hooks-model.ts";
 import type { PaneDeps } from "./actions.ts";
 
-const hook = (over: Partial<Hook> = {}): Hook => ({
-  id: "hok_1", scope: "chat", event: "outward.before", kind: "check", matcher: "", line: "before any email, check the address is in Contacts", paused: false, madeBy: "agt_intake", madeByKind: "agent",
-  threadId: "thr_1", helpers: true, timeoutSec: 20, createdAt: 1, updatedAt: 1, spec: { instruction: "Check the address is in Contacts" }, mine: true, canChange: true, ...over,
-} as Hook);
+const hook = (over: Partial<Hook> = {}): Hook =>
+  ({
+    id: "hok_1",
+    scope: "chat",
+    event: "outward.before",
+    kind: "check",
+    matcher: "",
+    line: "before any email, check the address is in Contacts",
+    paused: false,
+    madeBy: "agt_intake",
+    madeByKind: "agent",
+    threadId: "thr_1",
+    helpers: true,
+    timeoutSec: 20,
+    createdAt: 1,
+    updatedAt: 1,
+    spec: { instruction: "Check the address is in Contacts" },
+    mine: true,
+    canChange: true,
+    ...over,
+  }) as Hook;
 function deps() {
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const notes: Array<{ text: string; undo?: () => Promise<void> | void }> = [];
-  const d: PaneDeps = { call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return {}; }, note: (text, undo) => notes.push({ text, ...(undo ? { undo } : {}) }) };
+  const d: PaneDeps = {
+    call: async (cap, input) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      return {};
+    },
+    note: (text, undo) => notes.push({ text, ...(undo ? { undo } : {}) }),
+  };
   return { d, calls, notes };
 }
-const card = (d: PaneDeps, h: Hook, ran = "Not run in this chat yet") => <HookCard h={h} threadId="thr_1" deps={d} selected={false} nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")} ran={ran} />;
+const card = (d: PaneDeps, h: Hook, ran = "Not run in this chat yet") => (
+  <HookCard
+    h={h}
+    threadId="thr_1"
+    deps={d}
+    selected={false}
+    nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")}
+    ran={ran}
+  />
+);
 
 test("Edit opens the form with the hook's words; Cancel throws a change away", async () => {
   const off = installDom();
@@ -36,8 +68,14 @@ test("Edit opens the form with the hook's words; Cancel throws a change away", a
     await press(find(root, "hook-cancel-hok_1"));
     assert.equal(find(root, "hook-form-hok_1"), null);
     await press(find(root, "hook-edit-hok_1"));
-    assert.equal((find(root, "hook-what-hok_1")!.props as { value: string }).value, "Check the address is in Contacts", "the draft was thrown away");
-  } finally { off(); }
+    assert.equal(
+      (find(root, "hook-what-hok_1")!.props as { value: string }).value,
+      "Check the address is in Contacts",
+      "the draft was thrown away",
+    );
+  } finally {
+    off();
+  }
 });
 
 test("the form has quiet pickers, never pills: When, Only for (on a tool event) and What it does; each opens a menu whose choices change the draft, and Save writes them", async () => {
@@ -52,17 +90,36 @@ test("the form has quiet pickers, never pills: When, Only for (on a tool event) 
     assert.match(textOf(find(root, "hook-event-hok_1-value")), /Before anything leaves Vyre/);
     assert.match(textOf(find(root, "hook-kind-hok_1-value")), /Ask a quick check/);
     // the choices of each menu are the plain words, and picking one changes the draft
-    const when = entriesOf(EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! })), "outward.before", () => undefined);
+    const when = entriesOf(
+      EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! })),
+      "outward.before",
+      () => undefined,
+    );
     assert.equal(when.length, 8);
-    assert.deepEqual(when.filter((e) => e.checked).map((e) => e.label), ["Before anything leaves Vyre"]);
-    const input = setInput(hook(), { event: "tool.before", kind: "command", what: "check-address.sh", only: "email" }, "thr_1")!;
-    assert.deepEqual([input["event"], input["kind"], input["command"], input["matcher"]], ["tool.before", "command", "check-address.sh", matcherFor("email")]);
+    assert.deepEqual(
+      when.filter((e) => e.checked).map((e) => e.label),
+      ["Before anything leaves Vyre"],
+    );
+    const input = setInput(
+      hook(),
+      { event: "tool.before", kind: "command", what: "check-address.sh", only: "email" },
+      "thr_1",
+    )!;
+    assert.deepEqual(
+      [input["event"], input["kind"], input["command"], input["matcher"]],
+      ["tool.before", "command", "check-address.sh", matcherFor("email")],
+    );
     await typeInto(find(root, "hook-what-hok_1"), "check-address.sh");
     await press(find(root, "hook-save-hok_1"));
     await flush();
-    assert.deepEqual([calls[0]!.cap, calls[0]!.input["id"], calls[0]!.input["command"] ?? calls[0]!.input["instruction"]], ["hooks.set", "hok_1", "check-address.sh"]);
+    assert.deepEqual(
+      [calls[0]!.cap, calls[0]!.input["id"], calls[0]!.input["command"] ?? calls[0]!.input["instruction"]],
+      ["hooks.set", "hok_1", "check-address.sh"],
+    );
     assert.equal(find(root, "hook-form-hok_1"), null, "the form closes after Save");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("Save with no words says so and writes nothing", async () => {
@@ -77,7 +134,9 @@ test("Save with no words says so and writes nothing", async () => {
     assert.equal(calls.length, 0);
     assert.equal(notes.at(-1)?.text, "Say what the hook does first.");
     assert.ok(find(root, "hook-form-hok_1"), "the form stays open");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("Pause calls hooks.pause; Remove calls hooks.remove and its Undo makes the hook again", async () => {
@@ -96,36 +155,55 @@ test("Pause calls hooks.pause; Remove calls hooks.remove and its Undo makes the 
     assert.equal(calls[2]!.cap, "hooks.set");
     assert.equal(calls[2]!.input["instruction"], "Check the address is in Contacts");
     assert.equal(calls[2]!.input["scope"], "chat");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("a Space hook a person cannot change has no Edit or Remove, says so, and still has Pause", async () => {
   const off = installDom();
   try {
     const { d } = deps();
-    const root = await mount(createRoot, card(d, hook({ scope: "space", madeBy: "usr_irfad", madeByKind: "admin", canChange: false })));
+    const root = await mount(
+      createRoot,
+      card(d, hook({ scope: "space", madeBy: "usr_irfad", madeByKind: "admin", canChange: false })),
+    );
     assert.equal(find(root, "hook-edit-hok_1"), null);
     assert.equal(find(root, "hook-remove-hok_1"), null);
     assert.match(textOf(find(root, "hook-locked-hok_1")), /Only an admin can remove this/);
-    assert.match(textOf(find(root, "hook-meta-hok_1")), /Made by\s+Irfad Imtiaz \(admin\)/, "a real name, never A person");
+    assert.match(
+      textOf(find(root, "hook-meta-hok_1")),
+      /Made by\s+Irfad Imtiaz \(admin\)/,
+      "a real name, never A person",
+    );
     assert.ok(find(root, "hook-pause-hok_1"));
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("Last ran reads from the newest run: when, and what it did", async () => {
   const ago = (ts: number): string => `${Math.round((600_000 - ts) / 60_000)} min ago`;
-  const run = (o: Partial<HookRun>): HookRun => ({ id: 1, hookId: "hok_1", event: "tool.before", outcome: "blocked", ms: 3, at: 480_000, ...o } as HookRun);
+  const run = (o: Partial<HookRun>): HookRun =>
+    ({ id: 1, hookId: "hok_1", event: "tool.before", outcome: "blocked", ms: 3, at: 480_000, ...o }) as HookRun;
   assert.equal(lastRan("hok_1", [run({ tool: "mail_send" })], ago), "Last ran 2 min ago, stopped sending an email");
   assert.equal(lastRan("hok_1", [], ago), "Not run in this chat yet", "a chat's read covers only this chat");
   assert.equal(lastRan("hok_other", [run({})], ago), "Not run in this chat yet");
   assert.equal(lastRan("hok_1", [], ago, true), "Never ran", "where the read covers every run the viewer may see");
-  assert.equal(titleOf({ line: "before any email, check the address is in Contacts", event: "outward.before" }), "Before any email");
+  assert.equal(
+    titleOf({ line: "before any email, check the address is in Contacts", event: "outward.before" }),
+    "Before any email",
+  );
   assert.equal(titleOf({ line: "", event: "turn.end" }), "When it finishes replying");
   assert.equal(eventWords("turn.end", "Intake"), "When Intake finishes replying");
   assert.equal(ranWhat({ outcome: "ok" }), "allowed", "no trailing word that says nothing");
   assert.equal(ranWhat({ outcome: "ok", tool: "mail_send" }), "allowed sending an email");
   assert.equal(ranWhat({ outcome: "allowed_once", tool: "mail_send" }), "let through once, sending an email");
-  assert.equal(ranWhat({ outcome: "blocked", tool: "files_tree" }), "stopped an action", "a tool with no plain choice is an action, never its name");
+  assert.equal(
+    ranWhat({ outcome: "blocked", tool: "files_tree" }),
+    "stopped an action",
+    "a tool with no plain choice is an action, never its name",
+  );
   assert.equal(ranWhat({ outcome: "timeout" }), "ran out of time");
   const off = installDom();
   try {
@@ -133,14 +211,18 @@ test("Last ran reads from the newest run: when, and what it did", async () => {
     const root = await mount(createRoot, card(d, hook(), "Last ran 2 min ago, stopped sending an email"));
     assert.match(textOf(find(root, "hook-ran-hok_1")), /Last ran 2 min ago, stopped sending an email/);
     assert.match(textOf(find(root, "hook-title-hok_1")), /^Before any email$/);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("an always-allow rule shows in the hook's row in plain words and Remove calls hooks.allow_remove; one who may not change the hook sees no Remove", async () => {
   const off = installDom();
   try {
     const { d, calls, notes } = deps();
-    const h = hook({ allowed: [{ id: "alw_1", what: "sending an email", by: "usr_a", createdAt: 1 }] } as Partial<Hook>);
+    const h = hook({
+      allowed: [{ id: "alw_1", what: "sending an email", by: "usr_a", createdAt: 1 }],
+    } as Partial<Hook>);
     const root = await mount(createRoot, card(d, h));
     assert.match(textOf(find(root, "hook-allowed-alw_1")), /Always allowed for\s+sending an email/);
     // the rule's button ends that one exception and says so; "Remove" is the hook's own and appears once
@@ -155,5 +237,7 @@ test("an always-allow rule shows in the hook's row in plain words and Remove cal
     const other = await mount(createRoot, card(d, { ...h, canChange: false } as Hook));
     assert.ok(find(other, "hook-allowed-alw_1"));
     assert.equal(find(other, "hook-allowed-remove-alw_1"), null);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });

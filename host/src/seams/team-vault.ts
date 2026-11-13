@@ -10,13 +10,26 @@
 // Everything that cannot be told is a refusal: an agent with no row, an empty or unreadable set of askers, an asker not among them.
 import type { VaultLookup } from "./engine-session.ts";
 
-type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean; place?: string; device?: string };
-export interface LookupSource { lookup(handle: string, who: Who): Promise<VaultLookup> }
+type Who = {
+  agentId: string;
+  asker: string;
+  where: "host" | "device" | "computer";
+  account?: boolean;
+  place?: string;
+  device?: string;
+};
+export interface LookupSource {
+  lookup(handle: string, who: Who): Promise<VaultLookup>;
+}
 
 /** Work that runs as no agent in particular and has no computer of its own (the same list as engine-session.ts NOT_AN_AGENT). Only these may pass without an agent row. */
 export const NO_COMPUTER_AGENTS: ReadonlySet<string> = new Set(["step", "room-digest", "memory-upkeep"]);
 
-export interface TeamItem { itemId: string; scope: string; fieldKeys: readonly string[] }
+export interface TeamItem {
+  itemId: string;
+  scope: string;
+  fieldKeys: readonly string[];
+}
 
 export interface TeamVaultDeps {
   /** Is this a Team Space? A Personal Space has one person, who asks every agent. */
@@ -42,51 +55,96 @@ export interface TeamVaultDeps {
 export type TeamReason = "team_agent" | "team_shared" | "team_unknown_agent";
 
 /** Why not, or null to go on: the decision for one item, before the Vault is asked. */
-export function decide(d: TeamVaultDeps, at: string, asker: string, item: TeamItem, field: string | undefined): TeamReason | null {
+export function decide(
+  d: TeamVaultDeps,
+  at: string,
+  asker: string,
+  item: TeamItem,
+  field: string | undefined,
+): TeamReason | null {
   const agent = d.agentOf(at);
   if (agent === null) return "team_unknown_agent";
   const askers = d.askersOf(at);
   // the asker's own: their Assistant, or their private agent that nobody else may ask (counted, never assumed)
-  if (agent.ownerId === asker && (agent.kind === "assistant" || (askers !== null && askers.length === 1 && askers[0] === asker))) return null;
+  if (
+    agent.ownerId === asker &&
+    (agent.kind === "assistant" || (askers !== null && askers.length === 1 && askers[0] === asker))
+  )
+    return null;
   if (item.scope !== "shared") return "team_agent";
   const fields = field !== undefined ? [field] : [...item.fieldKeys];
   // no field named and none known: nothing to hold a hidden-field rule to, so no
   if (fields.length === 0) return "team_shared";
   if (d.sharedWithAgent(at, item.itemId, fields)) return null;
-  if (askers !== null && askers.length > 0 && askers.includes(asker) && askers.every((p) => d.personMayUse(p, item.itemId, fields))) return null;
+  if (
+    askers !== null &&
+    askers.length > 0 &&
+    askers.includes(asker) &&
+    askers.every((p) => d.personMayUse(p, item.itemId, fields))
+  )
+    return null;
   return "team_shared";
 }
 
 /** A computer's own capability calls into the Vault (an agent computer's extension asks which items fit a page, and for a handle): the two the fill channel allows. */
-type InvokeFn = (capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }) => Promise<unknown>;
+type InvokeFn = (
+  capability: string,
+  input: Record<string, unknown>,
+  who: { agentId: string; asker: string },
+) => Promise<unknown>;
 
 export function gateTeamAgents<S extends LookupSource>(source: S, d: TeamVaultDeps): S {
   const inner = (source as { invoke?: InvokeFn }).invoke;
   // the computer's own calls (vault.items.match, vault.use) are held to the same rule as a handle in a command line: a team agent's computer never lists or takes a person's Mine item, and a
   // Shared one only as decide() allows (lead 12 Nov: the old desktop's invoke path went straight to the Vault)
-  const invoke: InvokeFn | undefined = inner && (async (capability, input, who) => {
-    if (!d.team || NO_COMPUTER_AGENTS.has(who.agentId)) return inner(capability, input, who);
-    const judge = (itemId: string, field?: string): TeamReason | null => { const item = d.itemById(itemId); return item === null ? "team_shared" : decide(d, who.agentId, who.asker, item, field); };
-    if (capability === "vault.use") {
-      const ref = typeof input["item"] === "string" ? input["item"] : "";
-      const fields = Array.isArray(input["fields"]) ? (input["fields"] as unknown[]).filter((f): f is string => typeof f === "string") : [];
-      const refuse = (itemId: string | null, why: TeamReason): never => { d.refused({ agentId: who.agentId, asker: who.asker, handle: ref, itemId, reason: why }); throw { error: { code: "permission.no_grant" } }; };
-      const check = (itemId: string): void => { for (const f of fields.length > 0 ? fields : [undefined]) { const why = judge(itemId, f); if (why !== null) refuse(itemId, why); } };
-      // decided before the Vault is asked when the item can be told (an id, or a handle the asker may see), so a refusal is never recorded as a use
-      const known = /^vit_[a-z0-9]+$/.test(ref) ? ref : (d.resolve(ref.startsWith("#") ? ref : `#${ref}`, who.asker)?.itemId ?? null);
-      if (known !== null) check(known);
-      const out = (await inner(capability, input, who)) as { itemId?: string } | null;
-      // a name or alias only the Vault resolves: decided on what it resolved to (the use is in the Vault's audit; nothing goes back)
-      if (out && typeof out.itemId === "string" && out.itemId !== known) check(out.itemId);
-      return out;
-    }
-    if (capability === "vault.items.match") {
-      const out = (await inner(capability, input, who)) as { items?: Array<{ item?: { id?: string; itemId?: string } }> } | null;
-      if (!out || !Array.isArray(out.items)) return out;
-      return { ...out, items: out.items.filter((x) => { const id = x.item?.id ?? x.item?.itemId; return typeof id === "string" && judge(id) === null; }) };
-    }
-    return inner(capability, input, who);
-  });
+  const invoke: InvokeFn | undefined =
+    inner &&
+    (async (capability, input, who) => {
+      if (!d.team || NO_COMPUTER_AGENTS.has(who.agentId)) return inner(capability, input, who);
+      const judge = (itemId: string, field?: string): TeamReason | null => {
+        const item = d.itemById(itemId);
+        return item === null ? "team_shared" : decide(d, who.agentId, who.asker, item, field);
+      };
+      if (capability === "vault.use") {
+        const ref = typeof input["item"] === "string" ? input["item"] : "";
+        const fields = Array.isArray(input["fields"])
+          ? (input["fields"] as unknown[]).filter((f): f is string => typeof f === "string")
+          : [];
+        const refuse = (itemId: string | null, why: TeamReason): never => {
+          d.refused({ agentId: who.agentId, asker: who.asker, handle: ref, itemId, reason: why });
+          throw { error: { code: "permission.no_grant" } };
+        };
+        const check = (itemId: string): void => {
+          for (const f of fields.length > 0 ? fields : [undefined]) {
+            const why = judge(itemId, f);
+            if (why !== null) refuse(itemId, why);
+          }
+        };
+        // decided before the Vault is asked when the item can be told (an id, or a handle the asker may see), so a refusal is never recorded as a use
+        const known = /^vit_[a-z0-9]+$/.test(ref)
+          ? ref
+          : (d.resolve(ref.startsWith("#") ? ref : `#${ref}`, who.asker)?.itemId ?? null);
+        if (known !== null) check(known);
+        const out = (await inner(capability, input, who)) as { itemId?: string } | null;
+        // a name or alias only the Vault resolves: decided on what it resolved to (the use is in the Vault's audit; nothing goes back)
+        if (out && typeof out.itemId === "string" && out.itemId !== known) check(out.itemId);
+        return out;
+      }
+      if (capability === "vault.items.match") {
+        const out = (await inner(capability, input, who)) as {
+          items?: Array<{ item?: { id?: string; itemId?: string } }>;
+        } | null;
+        if (!out || !Array.isArray(out.items)) return out;
+        return {
+          ...out,
+          items: out.items.filter((x) => {
+            const id = x.item?.id ?? x.item?.itemId;
+            return typeof id === "string" && judge(id) === null;
+          }),
+        };
+      }
+      return inner(capability, input, who);
+    });
   return {
     ...source,
     ...(invoke ? { invoke } : {}),
@@ -94,12 +152,16 @@ export function gateTeamAgents<S extends LookupSource>(source: S, d: TeamVaultDe
       // the turn's own account key goes to the engine process on the host, never into an agent's computer
       if (!d.team || who.account === true) return source.lookup(handle, who);
       // a terminal on the asker's own computer is their shell, not a shared one: decided by the computer the session is on, which the agent does not choose
-      if (who.where === "device" && who.device !== undefined && d.deviceOwner(who.device) === who.asker) return source.lookup(handle, who);
+      if (who.where === "device" && who.device !== undefined && d.deviceOwner(who.device) === who.asker)
+        return source.lookup(handle, who);
       // whose computer it is: the caller's own, or its parent's for a helper working in the parent's workspace
       const at = who.place ?? who.agentId;
       if (NO_COMPUTER_AGENTS.has(at)) return source.lookup(handle, who);
       const field = /^#[^.]+\.(.+)$/.exec(handle)?.[1];
-      const refuse = (itemId: string | null, reason: TeamReason): VaultLookup => { d.refused({ agentId: at, asker: who.asker, handle, itemId, reason }); return { kind: "denied", reason }; };
+      const refuse = (itemId: string | null, reason: TeamReason): VaultLookup => {
+        d.refused({ agentId: at, asker: who.asker, handle, itemId, reason });
+        return { kind: "denied", reason };
+      };
       const item = d.resolve(handle, who.asker);
       if (item !== null) {
         const why = decide(d, at, who.asker, item, field);

@@ -29,15 +29,25 @@ const NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 /** A minimal valid .docx whose body is the given WordprocessingML; `extra` adds more parts (styles, headers). */
 export function docx(body: string, extra: Record<string, string> = {}): Buffer {
   const z = new Zip();
-  z.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
-  z.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
-  z.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${NS}"><w:body>${body}</w:body></w:document>`);
+  z.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
+  );
+  z.file(
+    "_rels/.rels",
+    `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
+  );
+  z.file(
+    "word/document.xml",
+    `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${NS}"><w:body>${body}</w:body></w:document>`,
+  );
   for (const [name, xml] of Object.entries(extra)) z.file(name, xml);
   return z.generate({ type: "nodebuffer" });
 }
 
 /** One paragraph; each string is one run, so a test can split a placeholder across runs the way Word does. */
-export const para = (...runs: string[]): string => `<w:p>${runs.map((r) => `<w:r><w:t xml:space="preserve">${r}</w:t></w:r>`).join("")}</w:p>`;
+export const para = (...runs: string[]): string =>
+  `<w:p>${runs.map((r) => `<w:r><w:t xml:space="preserve">${r}</w:t></w:r>`).join("")}</w:p>`;
 
 /** The paragraphs of a .docx as plain text. */
 export function textOf(buf: Uint8Array): string[] {
@@ -50,7 +60,15 @@ export const partNames = (buf: Uint8Array): string[] => Object.keys(new Zip(buf)
 
 // ---- the world ----
 
-export interface Stored { id: string; name: string; folderId: string; bytes: Buffer; mime: string; versions: number; deleted?: boolean }
+export interface Stored {
+  id: string;
+  name: string;
+  folderId: string;
+  bytes: Buffer;
+  mime: string;
+  versions: number;
+  deleted?: boolean;
+}
 
 export interface World {
   ctx: Ctx;
@@ -77,7 +95,8 @@ function memoryDb(): Ctx["db"] & { rows: Row[] } {
     rows,
     all(sql: string, ...args: unknown[]): unknown[] {
       if (sql === "SELECT * FROM documents_template") return rows.map((r) => ({ ...r }));
-      if (sql === "SELECT * FROM documents_template WHERE file_id = ?") return rows.filter((r) => r.file_id === args[0]).map((r) => ({ ...r }));
+      if (sql === "SELECT * FROM documents_template WHERE file_id = ?")
+        return rows.filter((r) => r.file_id === args[0]).map((r) => ({ ...r }));
       throw new Error(`unsupported query: ${sql}`);
     },
     run(sql: string, ...args: unknown[]): { changes: number } {
@@ -101,13 +120,22 @@ export function world(): World {
   const db = memoryDb();
   const files = new Map<string, Stored>();
   const records = new Map<string, Record<string, unknown>>();
-  const recordTypes = new Map<string, string>();   // a record's type when it is not "contact"
+  const recordTypes = new Map<string, string>(); // a record's type when it is not "contact"
   const denied = new Set<string>();
   const events: World["events"] = [];
   const calls: World["calls"] = [];
   let clock = 1_760_000_000_000;
   let n = 0;
-  const row = (f: Stored): Row => ({ fileId: f.id, folderId: f.folderId, name: f.name, mime: f.mime, size: f.bytes.length, version: f.versions, kind: "document", updatedAt: clock });
+  const row = (f: Stored): Row => ({
+    fileId: f.id,
+    folderId: f.folderId,
+    name: f.name,
+    mime: f.mime,
+    size: f.bytes.length,
+    version: f.versions,
+    kind: "document",
+    updatedAt: clock,
+  });
   const need_ = (id: unknown): Stored => {
     const f = typeof id === "string" ? files.get(id) : undefined;
     if (!f || f.deleted || denied.has(f.id)) throw err("validation.not_found", "That file does not exist.");
@@ -127,54 +155,109 @@ export function world(): World {
     emit: <T>(name: string, subject: string, payload: T): EventEnvelope<T> => {
       events.push({ name, subject, payload });
       return {
-        seq: events.length, id: `evt_${events.length}`, type: name, sv: 1, hlc: String(clock), at: clock, traceId: TRACE, actor: "per_dana", depth: 0, label: 0, vis: "space", enc: 0, payload,
+        seq: events.length,
+        id: `evt_${events.length}`,
+        type: name,
+        sv: 1,
+        hlc: String(clock),
+        at: clock,
+        traceId: TRACE,
+        actor: "per_dana",
+        depth: 0,
+        label: 0,
+        vis: "space",
+        enc: 0,
+        payload,
       };
     },
     call: async (cap: string, input: unknown): Promise<unknown> => {
       const i = (input ?? {}) as Record<string, unknown>;
       calls.push({ cap, input: i });
       switch (cap) {
-        case "files.get": return { file: row(need_(i.fileId)) };
+        case "files.get":
+          return { file: row(need_(i.fileId)) };
         case "files.read": {
           const f = need_(i.fileId);
-          return { base64: f.bytes.toString("base64"), mime: f.mime, size: f.bytes.length, version: f.versions, truncated: false };
+          return {
+            base64: f.bytes.toString("base64"),
+            mime: f.mime,
+            size: f.bytes.length,
+            version: f.versions,
+            truncated: false,
+          };
         }
         case "files.create": {
           const name = String(i.name);
           const folderId = String(i.folderId);
-          for (const f of files.values()) if (!f.deleted && f.folderId === folderId && f.name === name) throw err("validation.duplicate", "That name is already in this folder.");
+          for (const f of files.values())
+            if (!f.deleted && f.folderId === folderId && f.name === name)
+              throw err("validation.duplicate", "That name is already in this folder.");
           const content = i.content as { base64?: string };
           const id = `fil_${++n}`;
-          const stored: Stored = { id, name, folderId, bytes: Buffer.from(content.base64 ?? "", "base64"), mime: String(i.mime ?? "application/octet-stream"), versions: 1 };
+          const stored: Stored = {
+            id,
+            name,
+            folderId,
+            bytes: Buffer.from(content.base64 ?? "", "base64"),
+            mime: String(i.mime ?? "application/octet-stream"),
+            versions: 1,
+          };
           files.set(id, stored);
           return { file: row(stored) };
         }
         case "files.versions": {
           const f = need_(i.fileId);
-          return { versions: Array.from({ length: f.versions }, (_, k) => ({ versionId: `ver_f${f.id.replace(/\D/g, "")}n${k + 1}`, n: k + 1 })) };
+          return {
+            versions: Array.from({ length: f.versions }, (_, k) => ({
+              versionId: `ver_f${f.id.replace(/\D/g, "")}n${k + 1}`,
+              n: k + 1,
+            })),
+          };
         }
         // the contracts of the real capabilities: records.get reads a record by type AND id (an id alone is refused), and schema.types.list names the types there are
-        case "schema.types.list": return { types: [...new Set([...records.keys()].map((id) => recordTypes.get(id) ?? "contact"))].map((key) => ({ key })) };
+        case "schema.types.list":
+          return {
+            types: [...new Set([...records.keys()].map((id) => recordTypes.get(id) ?? "contact"))].map((key) => ({
+              key,
+            })),
+          };
         case "records.get": {
-          if (typeof i.type !== "string" || typeof i.recordId !== "string") throw err("validation.bad_input", "Something in what you entered is not right.");
+          if (typeof i.type !== "string" || typeof i.recordId !== "string")
+            throw err("validation.bad_input", "Something in what you entered is not right.");
           const fields = records.get(i.recordId);
-          if (!fields || (recordTypes.get(i.recordId) ?? "contact") !== i.type) throw err("validation.not_found", "That record does not exist.");
+          if (!fields || (recordTypes.get(i.recordId) ?? "contact") !== i.type)
+            throw err("validation.not_found", "That record does not exist.");
           return { record: { id: i.recordId, type: i.type, fields } };
         }
-        default: throw new Error(`unexpected call ${cap}`);
+        default:
+          throw new Error(`unexpected call ${cap}`);
       }
     },
-    authorize: (_action, resource) => (resource.id !== null && denied.has(resource.id)
-      ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
-      : { effect: "allow", reason: "test", decisionId: "dec_test" }),
+    authorize: (_action, resource) =>
+      resource.id !== null && denied.has(resource.id)
+        ? { effect: "deny", reason: "test", decisionId: "dec_deny" }
+        : { effect: "allow", reason: "test", decisionId: "dec_test" },
     vault: { fill: async () => {}, use: (handle: string) => ({ handle }) },
     http: async () => ({ status: 0, text: async () => "" }),
     log: { debug() {}, info() {}, warn() {}, error() {} },
     schedule: async () => "sch_test",
-    seal: { seal: () => { throw new Error("seal is not used"); }, unseal: () => { throw new Error("seal is not used"); } },
+    seal: {
+      seal: () => {
+        throw new Error("seal is not used");
+      },
+      unseal: () => {
+        throw new Error("seal is not used");
+      },
+    },
   };
   return {
-    ctx, events, files, records, recordTypes, denied, calls,
+    ctx,
+    events,
+    files,
+    records,
+    recordTypes,
+    denied,
+    calls,
     add(name: string, bytes: Buffer, folderId = FOLDER, fileId?: string): string {
       const id = fileId ?? `fil_${++n}`;
       files.set(id, { id, name, folderId, bytes, mime: "application/octet-stream", versions: 1 });

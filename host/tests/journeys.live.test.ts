@@ -11,7 +11,13 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 const OWNER = "tok-usr_olivia";
 
 function seededDir(): string {
@@ -23,29 +29,44 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({
-    os: "linux", hostname: "journeys-live", free: 80e9,
-    commands: {
-      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "journeys-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      return t === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "journeys-live" }
+        : null;
     },
-  }),
-  fetch: caddyFetch,
-  session: (h) => {
-    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "journeys-live" } : null;
-  },
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
-  ...extra,
-});
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+    ...extra,
+  });
 
-const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+const call = async (
+  d: Daemon,
+  p: string,
+  body: unknown,
+  token = OWNER,
+): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
   const text = await r.text();
-  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+  return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
 };
 const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
   const r = await call(d, p, body, token);
@@ -62,27 +83,85 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
   }
 }
 
+const stage = (key: string, order: number, extra: Record<string, unknown> = {}) => ({
+  key,
+  title: key,
+  order,
+  exit: { requireTasks: false },
+  tasks: [],
+  automations: [],
+  ...extra,
+});
+const journey = async (
+  d: Daemon,
+  name: string,
+  stages: unknown[],
+): Promise<{ id: string; recordType: string; version: number }> =>
+  (
+    await ok(d, "/v1/journeys/create", {
+      name,
+      subjectType: "company",
+      stages,
+      idempotencyKey: `j-${name}-${Math.random()}`,
+    })
+  )["journey"] as { id: string; recordType: string; version: number };
+const subject = async (d: Daemon, name: string): Promise<string> =>
+  String(
+    (
+      (
+        await ok(d, "/v1/records/create", {
+          type: "company",
+          fields: { name },
+          idempotencyKey: `s-${name}-${Math.random()}`,
+        })
+      )["record"] as { id: string }
+    ).id,
+  );
 
-const stage = (key: string, order: number, extra: Record<string, unknown> = {}) => ({ key, title: key, order, exit: { requireTasks: false }, tasks: [], automations: [], ...extra });
-const journey = async (d: Daemon, name: string, stages: unknown[]): Promise<{ id: string; recordType: string; version: number }> =>
-  (await ok(d, "/v1/journeys/create", { name, subjectType: "company", stages, idempotencyKey: `j-${name}-${Math.random()}` }))["journey"] as { id: string; recordType: string; version: number };
-const subject = async (d: Daemon, name: string): Promise<string> => String(((await ok(d, "/v1/records/create", { type: "company", fields: { name }, idempotencyKey: `s-${name}-${Math.random()}` }))["record"] as { id: string }).id);
-
-const started = async (d: Daemon, journeyId: string, name: string): Promise<string> => String((await ok(d, "/v1/journeys/start", { journeyId, subjectRecordId: await subject(d, name), idempotencyKey: `start-${name}` }))["recordId"]);
-const stageOf = async (d: Daemon, type: string, recordId: string): Promise<unknown> => (((await ok(d, "/v1/records/get", { type, recordId }))["record"]) as { fields: Record<string, unknown> }).fields["stage"];
+const started = async (d: Daemon, journeyId: string, name: string): Promise<string> =>
+  String(
+    (
+      await ok(d, "/v1/journeys/start", {
+        journeyId,
+        subjectRecordId: await subject(d, name),
+        idempotencyKey: `start-${name}`,
+      })
+    )["recordId"],
+  );
+const stageOf = async (d: Daemon, type: string, recordId: string): Promise<unknown> =>
+  ((await ok(d, "/v1/records/get", { type, recordId }))["record"] as { fields: Record<string, unknown> }).fields[
+    "stage"
+  ];
 
 test("a stage added to the design can be entered: the record type learns it", async () => {
   const d = await boot(seededDir());
   try {
     const j = await journey(d, "Onboarding", [stage("start", 0), stage("done", 1, { final: true })]);
-    const out = await ok(d, "/v1/journeys/design", { journeyId: j.id, stages: [stage("start", 0), stage("review", 1), stage("done", 2, { final: true })], idempotencyKey: "design-1" });
+    const out = await ok(d, "/v1/journeys/design", {
+      journeyId: j.id,
+      stages: [stage("start", 0), stage("review", 1), stage("done", 2, { final: true })],
+      idempotencyKey: "design-1",
+    });
     assert.equal((out["journey"] as { version: number }).version, 2);
     const recordId = await started(d, j.id, "Acme");
-    await ok(d, "/v1/journeys/move_stage", { journeyId: j.id, recordId, toStage: "review", reason: "Ready for review", idempotencyKey: "move-1" });
+    await ok(d, "/v1/journeys/move_stage", {
+      journeyId: j.id,
+      recordId,
+      toStage: "review",
+      reason: "Ready for review",
+      idempotencyKey: "move-1",
+    });
     assert.equal(await stageOf(d, j.recordType, recordId), "review");
-    const schema = (await ok(d, "/v1/schema/types/get", { type: j.recordType }))["type"] as { fields: Array<{ key: string; options?: { stages?: Array<{ key: string }> } }> };
-    assert.deepEqual(schema.fields.find((f) => f.key === "stage")?.options?.stages?.map((x) => x.key), ["start", "review", "done"]);
-  } finally { await d.stop(); }
+    const schema = (await ok(d, "/v1/schema/types/get", { type: j.recordType }))["type"] as {
+      fields: Array<{ key: string; options?: { stages?: Array<{ key: string }> } }>;
+    };
+    assert.deepEqual(
+      schema.fields.find((f) => f.key === "stage")?.options?.stages?.map((x) => x.key),
+      ["start", "review", "done"],
+    );
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a Journey can be made again under the name of one that was deleted", async () => {
@@ -93,7 +172,9 @@ test("a Journey can be made again under the name of one that was deleted", async
     await ok(d, "/v1/journeys/delete", { journeyId: j.id, idempotencyKey: "del-1" });
     const again = await journey(d, "Renewals", stages);
     assert.notEqual(again.recordType, j.recordType, "the old record type keeps its records");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("finishing a task that is not one of the stage's own does not move the record: a time limit alert is not the work", async () => {
@@ -101,11 +182,24 @@ test("finishing a task that is not one of the stage's own does not move the reco
   try {
     const j = await journey(d, "Intake", [stage("start", 0), stage("next", 1), stage("done", 2, { final: true })]);
     const recordId = await started(d, j.id, "Beta");
-    const made = (await ok(d, "/v1/tasks/create", { kind: "unblock", title: "This has been in start for over 24 hours", assigned: { kind: "person", id: "usr_olivia" }, recordId, source: { kind: "journey", id: recordId }, idempotencyKey: "alert-1" }))["task"] as { id: string };
-    await ok(d, "/v1/tasks/transition", { taskId: made.id, to: "done", idempotencyKey: "alert-done" }).catch(async () => ok(d, "/v1/tasks/transition", { taskId: made.id, to: "canceled", idempotencyKey: "alert-cancel" }));
+    const made = (
+      await ok(d, "/v1/tasks/create", {
+        kind: "unblock",
+        title: "This has been in start for over 24 hours",
+        assigned: { kind: "person", id: "usr_olivia" },
+        recordId,
+        source: { kind: "journey", id: recordId },
+        idempotencyKey: "alert-1",
+      })
+    )["task"] as { id: string };
+    await ok(d, "/v1/tasks/transition", { taskId: made.id, to: "done", idempotencyKey: "alert-done" }).catch(async () =>
+      ok(d, "/v1/tasks/transition", { taskId: made.id, to: "canceled", idempotencyKey: "alert-cancel" }),
+    );
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal(await stageOf(d, j.recordType, recordId), "start");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a stage taken out of the design stays valid for the records still on the version that has it", async () => {
@@ -114,24 +208,48 @@ test("a stage taken out of the design stays valid for the records still on the v
     const three = [stage("start", 0), stage("old", 1), stage("done", 2, { final: true })];
     const j = await journey(d, "Legacy", three);
     const recordId = await started(d, j.id, "Gamma");
-    await ok(d, "/v1/journeys/design", { journeyId: j.id, stages: [stage("start", 0), stage("new", 1), stage("done", 2, { final: true })], idempotencyKey: "design-2" });
-    await ok(d, "/v1/journeys/move_stage", { journeyId: j.id, recordId, toStage: "old", reason: "Still on the first version", idempotencyKey: "move-old" });
+    await ok(d, "/v1/journeys/design", {
+      journeyId: j.id,
+      stages: [stage("start", 0), stage("new", 1), stage("done", 2, { final: true })],
+      idempotencyKey: "design-2",
+    });
+    await ok(d, "/v1/journeys/move_stage", {
+      journeyId: j.id,
+      recordId,
+      toStage: "old",
+      reason: "Still on the first version",
+      idempotencyKey: "move-old",
+    });
     assert.equal(await stageOf(d, j.recordType, recordId), "old");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("a Start rule starts the Journey when the record is made, and the record has a real owner", async () => {
   const d = await boot(seededDir());
   try {
-    const j = (await ok(d, "/v1/journeys/create", { name: "Welcome", subjectType: "company", stages: [stage("start", 0), stage("done", 1, { final: true })], startRule: { event: "record.created", enabled: true }, idempotencyKey: "j-welcome" }))["journey"] as { id: string; recordType: string };
+    const j = (
+      await ok(d, "/v1/journeys/create", {
+        name: "Welcome",
+        subjectType: "company",
+        stages: [stage("start", 0), stage("done", 1, { final: true })],
+        startRule: { event: "record.created", enabled: true },
+        idempotencyKey: "j-welcome",
+      })
+    )["journey"] as { id: string; recordType: string };
     const subjectId = await subject(d, "Delta");
     const rows = await until("the Journey to start", 15_000, async () => {
-      const got = (await ok(d, "/v1/records/query", { type: j.recordType }))["rows"] as Array<{ id: string; fields: Record<string, unknown> }>;
+      const got = (await ok(d, "/v1/records/query", { type: j.recordType }))["rows"] as Array<{
+        id: string;
+        fields: Record<string, unknown>;
+      }>;
       return got.length > 0 ? got : undefined;
     });
     assert.equal(rows.length, 1);
     assert.match(String(rows[0]!.fields["name"]), new RegExp(subjectId));
     assert.match(String(rows[0]!.fields["owner"]), /^usr_/, "a person the time limit alerts can reach");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
-

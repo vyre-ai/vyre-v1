@@ -5,7 +5,11 @@ import { codeOf, ensure, first, str, strOrNull } from "../projections.ts";
 import type { TelCtx } from "../projections.ts";
 
 async function tolerant(run: () => Promise<unknown>): Promise<void> {
-  try { await run(); } catch (e) { if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e; }
+  try {
+    await run();
+  } catch (e) {
+    if (codeOf(e) !== "validation.not_found" && codeOf(e) !== "permission.not_found") throw e;
+  }
 }
 
 /** The conversation entry of this item, in the inbox module. */
@@ -31,7 +35,10 @@ export async function callErase(ctx: TelCtx, input: { callId: string; idempotenc
   const id = str(row, "id");
   const meta = first(ctx.db.all(`SELECT * FROM telephony_call_meta WHERE "callId" = ?`, id));
   const sid = meta ? strOrNull(meta, "recordingSid") : null;
-  if (sid) await tolerant(() => ctx.call("twilio.recording.delete", { recordingSid: sid, idempotencyKey: `tel-erase:${id}:twilio` }));
+  if (sid)
+    await tolerant(() =>
+      ctx.call("twilio.recording.delete", { recordingSid: sid, idempotencyKey: `tel-erase:${id}:twilio` }),
+    );
   const file = strOrNull(row, "recordingFileId");
   if (file) {
     await tolerant(() => ctx.call("files.delete", { fileId: file }));

@@ -5,9 +5,20 @@
 export type NoticeKind = "locked" | "offline" | "update" | "machine" | "approval" | "reply" | "passing";
 
 /** Most important first. A passing notice is the newest thing to say, so it shows while it lasts. */
-export const PRIORITY: Readonly<Record<NoticeKind, number>> = { locked: 1, offline: 2, update: 3, machine: 4, approval: 5, reply: 6, passing: 0 };
+export const PRIORITY: Readonly<Record<NoticeKind, number>> = {
+  locked: 1,
+  offline: 2,
+  update: 3,
+  machine: 4,
+  approval: 5,
+  reply: 6,
+  passing: 0,
+};
 
-export interface NoticeAction { label: string; run(): void }
+export interface NoticeAction {
+  label: string;
+  run(): void;
+}
 
 export interface Notice {
   id: string;
@@ -52,14 +63,32 @@ export function createNoticeStore(now: () => number = Date.now): NoticeStore {
   let snap: NoticeSnapshot = { live, recent };
   const listeners = new Set<() => void>();
   let seq = 0;
-  const publish = (): void => { live = [...live].sort(order); snap = { live, recent }; for (const l of [...listeners]) l(); };
-  const toRecent = (n: Notice): void => { recent = [{ ...n }, ...recent.filter((r) => r.id !== n.id)].slice(0, RECENT_MAX); };
+  const publish = (): void => {
+    live = [...live].sort(order);
+    snap = { live, recent };
+    for (const l of [...listeners]) l();
+  };
+  const toRecent = (n: Notice): void => {
+    recent = [{ ...n }, ...recent.filter((r) => r.id !== n.id)].slice(0, RECENT_MAX);
+  };
   return {
-    subscribe(l) { listeners.add(l); return () => { listeners.delete(l); }; },
+    subscribe(l) {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
     getSnapshot: () => snap,
     raise(n) {
       const prior = live.find((x) => x.id === n.id);
-      const next: Notice = { id: n.id, kind: n.kind, text: n.text, persist: true, at: prior?.at ?? now(), ...(n.action ? { action: n.action } : {}) };
+      const next: Notice = {
+        id: n.id,
+        kind: n.kind,
+        text: n.text,
+        persist: true,
+        at: prior?.at ?? now(),
+        ...(n.action ? { action: n.action } : {}),
+      };
       live = [...live.filter((x) => x.id !== n.id), next];
       publish();
     },
@@ -72,7 +101,15 @@ export function createNoticeStore(now: () => number = Date.now): NoticeStore {
     },
     pass(text, action) {
       const at = now();
-      const n: Notice = { id: `pass-${++seq}`, kind: "passing", text, persist: false, at, until: at + PASSING_MS, ...(action ? { action } : {}) };
+      const n: Notice = {
+        id: `pass-${++seq}`,
+        kind: "passing",
+        text,
+        persist: false,
+        at,
+        until: at + PASSING_MS,
+        ...(action ? { action } : {}),
+      };
       live = [...live, n];
       publish();
     },
@@ -88,8 +125,20 @@ export function createNoticeStore(now: () => number = Date.now): NoticeStore {
 }
 
 /** What the slot draws: the top notice, how many more there are, and the popover's two lists. */
-export function slotView(s: NoticeSnapshot): { top: Notice | null; more: number; live: readonly Notice[]; recent: readonly Notice[]; hasLocked: boolean } {
-  return { top: s.live[0] ?? null, more: Math.max(0, s.live.length - 1), live: s.live, recent: s.recent, hasLocked: s.live.some((n) => n.kind === "locked") };
+export function slotView(s: NoticeSnapshot): {
+  top: Notice | null;
+  more: number;
+  live: readonly Notice[];
+  recent: readonly Notice[];
+  hasLocked: boolean;
+} {
+  return {
+    top: s.live[0] ?? null,
+    more: Math.max(0, s.live.length - 1),
+    live: s.live,
+    recent: s.recent,
+    hasLocked: s.live.some((n) => n.kind === "locked"),
+  };
 }
 
 /** The one store the shell shares: the lock, the connection, the update line and the toasts all raise here. */

@@ -62,7 +62,9 @@ interface Registry {
   capabilities: RegistryCap[];
 }
 
-const registry = JSON.parse(readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 
 function inputSchema(cap: string): { properties: Record<string, unknown>; required: string[] } {
   const found = registry.capabilities.find((c) => (c.name ?? c.id) === cap);
@@ -122,8 +124,14 @@ for (const type of PART_ONE_TYPES) {
       spec.actions.map((a) => ({ key: a.key, cap: a.cap, input: a.input })),
       (def.actions ?? []).map((a) => ({ key: a.key, cap: a.cap, input: a.input })),
     );
-    assert.deepEqual(spec.opens === undefined ? undefined : { tab: spec.opens.tab, input: spec.opens.input }, def.opens);
-    assert.equal(def.component, `ui:Block${type === "record_card" ? "RecordCard" : type.charAt(0).toUpperCase() + type.slice(1)}`);
+    assert.deepEqual(
+      spec.opens === undefined ? undefined : { tab: spec.opens.tab, input: spec.opens.input },
+      def.opens,
+    );
+    assert.equal(
+      def.component,
+      `ui:Block${type === "record_card" ? "RecordCard" : type.charAt(0).toUpperCase() + type.slice(1)}`,
+    );
   });
 }
 
@@ -144,7 +152,8 @@ test("every id a block action sends is a field of the block's data schema", () =
     assert.ok(def);
     const data = (def as unknown as { data: { properties: Record<string, unknown> } }).data;
     for (const a of BLOCK_SPECS_A[type].actions) {
-      for (const pointer of Object.values(a.input)) assert.ok(pointer.slice(1) in data.properties, `${type}.${a.key} reads ${pointer}`);
+      for (const pointer of Object.values(a.input))
+        assert.ok(pointer.slice(1) in data.properties, `${type}.${a.key} reads ${pointer}`);
       const schema = inputSchema(a.cap);
       for (const key of Object.keys(a.input)) assert.ok(key in schema.properties, `${a.cap} takes ${key}`);
     }
@@ -165,7 +174,12 @@ test("the registry of this part holds its types and each renders its title and b
 });
 
 test("a type of another part renders nothing here", () => {
-  assert.equal(renderToStaticMarkup(<BlockViewA block={{ type: "diff", v: 1, id: "x", data: {}, traceId: "t" }} host={fakeHost().host} />), "");
+  assert.equal(
+    renderToStaticMarkup(
+      <BlockViewA block={{ type: "diff", v: 1, id: "x", data: {}, traceId: "t" }} host={fakeHost().host} />,
+    ),
+    "",
+  );
 });
 
 test("terminal: title, host line, commands, output tail, open and star buttons", () => {
@@ -182,7 +196,10 @@ test("terminal: title, host line, commands, output tail, open and star buttons",
 });
 
 test("terminal: a running one offers Interrupt and not Close", () => {
-  const running: Block = { ...SAMPLE_TERMINAL, data: { ...(SAMPLE_TERMINAL.data as object), state: "running", exitCode: null } };
+  const running: Block = {
+    ...SAMPLE_TERMINAL,
+    data: { ...(SAMPLE_TERMINAL.data as object), state: "running", exitCode: null },
+  };
   const markup = html(running);
   assert.ok(markup.includes("blk-terminal-blk_term1-interrupt"));
   assert.ok(!markup.includes("blk-terminal-blk_term1-close"));
@@ -196,7 +213,8 @@ test("changeset: counts, review button and the three review actions while open",
   assert.ok(markup.includes("Changed 3 files in Projects/Rivera matter"));
   assert.ok(markup.includes("+29"));
   assert.ok(markup.includes("−5"));
-  for (const key of ["review", "approve", "request_changes", "discard"]) assert.ok(markup.includes(`blk-changeset-blk_chg1-${key}`), key);
+  for (const key of ["review", "approve", "request_changes", "discard"])
+    assert.ok(markup.includes(`blk-changeset-blk_chg1-${key}`), key);
 });
 
 test("changeset: a committed one keeps Review but loses the review actions", () => {
@@ -211,7 +229,10 @@ test("changeset: a committed one keeps Review but loses the review actions", () 
 });
 
 test("question: a prompt with a second line shows it as the why, under the question", () => {
-  const withWhy: Block = { ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), prompt: "Which account?\nIt spends from the one you pick." } };
+  const withWhy: Block = {
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), prompt: "Which account?\nIt spends from the one you pick." },
+  };
   const markup = html(withWhy);
   assert.ok(markup.includes("blk-question-blk_q1-why"));
   assert.ok(markup.includes("It spends from the one you pick."));
@@ -231,9 +252,13 @@ test("question: the person who answered is named through the directory, never by
 test("question: single choice shows each option; an answered one shows the answer and no options", () => {
   const markup = html(SAMPLE_QUESTION);
   assert.ok(markup.includes("Which consult length should the form offer?"));
-  for (const label of ["30 minutes", "45 minutes", "60 minutes", "Matches the engagement letter"]) assert.ok(markup.includes(label), label);
+  for (const label of ["30 minutes", "45 minutes", "60 minutes", "Matches the engagement letter"])
+    assert.ok(markup.includes(label), label);
   assert.ok(markup.includes("Or write your own answer"));
-  const answered: Block = { ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy: "Maya" } };
+  const answered: Block = {
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy: "Maya" },
+  };
   const done = html(answered);
   assert.ok(done.includes("Maya answered: 45 minutes"));
   assert.ok(!done.includes("Or write your own answer"));
@@ -241,11 +266,17 @@ test("question: single choice shows each option; an answered one shows the answe
 });
 
 test("question: free mode has a text box and no options; multi mode has an Answer button", () => {
-  const free: Block = { ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), mode: "free", options: [], allowOther: false } };
+  const free: Block = {
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), mode: "free", options: [], allowOther: false },
+  };
   const freeMarkup = html(free);
   assert.ok(freeMarkup.includes("Write your answer"));
   assert.ok(!freeMarkup.includes("blk-question-blk_q1-opt-"));
-  const multi: Block = { ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), mode: "multi", allowOther: false } };
+  const multi: Block = {
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), mode: "multi", allowOther: false },
+  };
   const multiMarkup = html(multi);
   assert.ok(multiMarkup.includes("blk-question-blk_q1-answer"));
   assert.ok(multiMarkup.includes("blk-question-blk_q1-opt-60"));
@@ -287,7 +318,15 @@ test("deploy: a ready preview shows its link, checks and Promote; production off
 test("deploy: a failed build names the failing check and has no link when there is no address", () => {
   const failed: Block = {
     ...SAMPLE_DEPLOY,
-    data: { ...(SAMPLE_DEPLOY.data as object), state: "failed", url: "javascript:alert(1)", checks: [{ name: "Build", ok: false }, { name: "Links", ok: true }] },
+    data: {
+      ...(SAMPLE_DEPLOY.data as object),
+      state: "failed",
+      url: "javascript:alert(1)",
+      checks: [
+        { name: "Build", ok: false },
+        { name: "Links", ok: true },
+      ],
+    },
   };
   const markup = html(failed);
   assert.ok(markup.includes("Deploy preview failed"));
@@ -322,8 +361,10 @@ test("record card: title, type, status, summary and up to four readable fields",
 });
 
 test("a thin payload never throws: every card renders from empty data", () => {
-  for (const type of PART_ONE_TYPES) assert.doesNotThrow(() => html({ type, v: 1, id: "blk_empty", data: {}, traceId: "t" }), type);
-  for (const type of PART_ONE_TYPES) assert.doesNotThrow(() => html({ type, v: 1, id: "blk_null", data: null, traceId: "t" }), `${type} null`);
+  for (const type of PART_ONE_TYPES)
+    assert.doesNotThrow(() => html({ type, v: 1, id: "blk_empty", data: {}, traceId: "t" }), type);
+  for (const type of PART_ONE_TYPES)
+    assert.doesNotThrow(() => html({ type, v: 1, id: "blk_null", data: null, traceId: "t" }), `${type} null`);
 });
 
 /* ---------- every action calls the declared capability ---------- */
@@ -340,7 +381,8 @@ for (const type of PART_ONE_TYPES) {
       assert.ok(call);
       assert.equal(call.kind, "invoke");
       assert.equal(call.name, spec.cap);
-      for (const [key, pointer] of Object.entries(spec.input)) assert.equal(call.input[key], readPointer(block.data, pointer), `${key} from ${pointer}`);
+      for (const [key, pointer] of Object.entries(spec.input))
+        assert.equal(call.input[key], readPointer(block.data, pointer), `${key} from ${pointer}`);
       const schema = inputSchema(spec.cap);
       for (const key of schema.required) assert.ok(key in call.input, `${spec.cap} receives required ${key}`);
       for (const key of Object.keys(call.input)) assert.ok(key in schema.properties, `${spec.cap} declares ${key}`);
@@ -390,7 +432,11 @@ test("a tab is not opened when the block lacks the id it needs", () => {
 test("starring a terminal goes through stars.toggle with the terminal resource", async () => {
   const { host, calls } = fakeHost();
   await starTerminal(host, "trm_a1b2c3", true);
-  assert.deepEqual(calls[0], { kind: "invoke", name: "stars.toggle", input: { resource: { type: "terminal", id: "trm_a1b2c3" }, on: true } });
+  assert.deepEqual(calls[0], {
+    kind: "invoke",
+    name: "stars.toggle",
+    input: { resource: { type: "terminal", id: "trm_a1b2c3" }, on: true },
+  });
   const schema = inputSchema("stars.toggle");
   for (const key of Object.keys(calls[0]?.input ?? {})) assert.ok(key in schema.properties);
 });
@@ -412,8 +458,15 @@ test("question answers: single picks replace, multi picks toggle, free is text o
 
 test("plan edits send only changed or removed steps", () => {
   const steps = planData(SAMPLE_PLAN.data).steps;
-  const edits = planEdits(steps, { stp_a1: "Mount Marketing read-only", stp_a2: steps[1]?.text ?? "", stp_a3: "   " }, new Set(["stp_a4"]));
-  assert.deepEqual(edits, [{ stepId: "stp_a1", text: "Mount Marketing read-only" }, { stepId: "stp_a4", remove: true }]);
+  const edits = planEdits(
+    steps,
+    { stp_a1: "Mount Marketing read-only", stp_a2: steps[1]?.text ?? "", stp_a3: "   " },
+    new Set(["stp_a4"]),
+  );
+  assert.deepEqual(edits, [
+    { stepId: "stp_a1", text: "Mount Marketing read-only" },
+    { stepId: "stp_a4", remove: true },
+  ]);
 });
 
 test("approving a plan with edits sends them to chat.approve_plan; without edits it sends none", async () => {
@@ -422,7 +475,11 @@ test("approving a plan with edits sends them to chat.approve_plan; without edits
   const edits = planEdits(steps, { stp_a1: "Changed" }, new Set());
   await perform(host, "plan", "approve", SAMPLE_PLAN, edits.length > 0 ? { edits } : {});
   await perform(host, "plan", "approve", SAMPLE_PLAN, {});
-  assert.deepEqual(calls[0]?.input, { threadId: "thr_a1b2c3", planId: "pln_a1b2c3", edits: [{ stepId: "stp_a1", text: "Changed" }] });
+  assert.deepEqual(calls[0]?.input, {
+    threadId: "thr_a1b2c3",
+    planId: "pln_a1b2c3",
+    edits: [{ stepId: "stp_a1", text: "Changed" }],
+  });
   assert.deepEqual(calls[1]?.input, { threadId: "thr_a1b2c3", planId: "pln_a1b2c3" });
 });
 

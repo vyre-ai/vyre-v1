@@ -6,7 +6,8 @@ import { addFieldOps, applyInput, createTypeOps, linkFieldOps } from "../apps/ap
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 let n = 0;
-const ok = async (d: Daemon, cap: string, input: Record<string, unknown>): Promise<any> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+const ok = async (d: Daemon, cap: string, input: Record<string, unknown>): Promise<any> => {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   const r = await call(d, cap, { idempotencyKey: `fp-${cap}-${++n}`, ...input });
   assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`);
   return r.data;
@@ -23,15 +24,37 @@ test("fields panel live: Link to a record type makes both ends", async () => {
     const taken = ((await ok(d, "schema.types.list", {})).types as Array<{ key: string }>).map((t) => t.key);
     const made = createTypeOps({ name: "Deals", plural: "", icon: "table", takenKeys: taken });
     await change(d, made.ops);
-    const contact = ((await ok(d, "schema.types.list", {})).types as Array<{ key: string; title: string; plural: string }>).find((t) => t.key === "contact")!;
-    const far = ((await ok(d, "schema.types.get", { type: "contact" })).type.fields as Array<{ key: string }>).map((f) => f.key);
-    const mine = ((await ok(d, "schema.types.get", { type: made.key })).type.fields as Array<{ key: string }>).map((f) => f.key);
-    const link = linkFieldOps({ type: made.key, plural: "Deals", name: "", to: contact, takenKeys: mine, farKeys: far });
+    const contact = (
+      (await ok(d, "schema.types.list", {})).types as Array<{ key: string; title: string; plural: string }>
+    ).find((t) => t.key === "contact")!;
+    const far = ((await ok(d, "schema.types.get", { type: "contact" })).type.fields as Array<{ key: string }>).map(
+      (f) => f.key,
+    );
+    const mine = ((await ok(d, "schema.types.get", { type: made.key })).type.fields as Array<{ key: string }>).map(
+      (f) => f.key,
+    );
+    const link = linkFieldOps({
+      type: made.key,
+      plural: "Deals",
+      name: "",
+      to: contact,
+      takenKeys: mine,
+      farKeys: far,
+    });
     await change(d, link.ops);
-    const nearDef = ((await ok(d, "schema.types.get", { type: made.key })).type.fields as Array<{ key: string; type: string }>).find((f) => f.key === link.key);
+    const nearDef = (
+      (await ok(d, "schema.types.get", { type: made.key })).type.fields as Array<{ key: string; type: string }>
+    ).find((f) => f.key === link.key);
     assert.equal(nearDef?.type, "relation");
-    const farFields = (await ok(d, "schema.types.get", { type: "contact" })).type.fields as Array<{ key: string; type: string }>;
-    assert.ok(farFields.some((f) => f.type === "relation" && f.key === (link.ops[0]!.def as { inverse: string }).inverse), "the Contact type got the other end");
-
-  } finally { await d.stop(); }
+    const farFields = (await ok(d, "schema.types.get", { type: "contact" })).type.fields as Array<{
+      key: string;
+      type: string;
+    }>;
+    assert.ok(
+      farFields.some((f) => f.type === "relation" && f.key === (link.ops[0]!.def as { inverse: string }).inverse),
+      "the Contact type got the other end",
+    );
+  } finally {
+    await d.stop();
+  }
 });

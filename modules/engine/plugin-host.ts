@@ -31,9 +31,18 @@ export function pluginRuntime(): PluginRuntime | null {
   const session = h.session;
   oauthFor = h.mcpFetch ? createMcpOauth({ fetch: h.mcpFetch as FetchPort }) : null;
   runtime = createPluginRuntime({
-    call: h.call, plan: sandboxPlan, dataDir, ...(session ? { source: session.source, reportMiss: session.reportMiss } : {}),
-    ...(h.mcpFetch ? { fetch: h.mcpFetch as FetchPort } : {}), ...(oauthFor ? { oauth: oauthFor } : {}), ...(h.pluginLaunch ? { launch: h.pluginLaunch as NonNullable<Parameters<typeof createPluginRuntime>[0]["launch"]> } : {}),
-    onUse: (spec, who) => { void noteConnectionUse(spec, who.agentId); },
+    call: h.call,
+    plan: sandboxPlan,
+    dataDir,
+    ...(session ? { source: session.source, reportMiss: session.reportMiss } : {}),
+    ...(h.mcpFetch ? { fetch: h.mcpFetch as FetchPort } : {}),
+    ...(oauthFor ? { oauth: oauthFor } : {}),
+    ...(h.pluginLaunch
+      ? { launch: h.pluginLaunch as NonNullable<Parameters<typeof createPluginRuntime>[0]["launch"]> }
+      : {}),
+    onUse: (spec, who) => {
+      void noteConnectionUse(spec, who.agentId);
+    },
   });
   builtFor = h;
   return runtime;

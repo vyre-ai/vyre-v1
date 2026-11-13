@@ -18,8 +18,15 @@ export const INTAKE = "agt_intake";
 export const DANA = "usr_dana";
 export const OMAR = "usr_omar";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Called { cap: string; input: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Called {
+  cap: string;
+  input: Record<string, unknown>;
+}
 export type Responder = (input: Record<string, unknown>) => unknown;
 
 export interface HarnessOptions {
@@ -69,13 +76,17 @@ export function harness(o: HarnessOptions = {}) {
     trace: { traceId: TRACE },
     now: () => clock.t,
     db,
-    emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
+    emit(name, subject, payload) {
+      emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+      return null;
+    },
     async call(cap, input) {
       const body = input as Record<string, unknown>;
       called.push({ cap, input: body });
       const r = respond[cap];
       if (r) return r(body);
-      if (cap === "agents.get") return { agent: { agentId: body["agentId"], folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}` } };
+      if (cap === "agents.get")
+        return { agent: { agentId: body["agentId"], folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}` } };
       if (cap === "tasks.create") return { task: { id: `tsk_cmp${++tasks}` } };
       if (cap === "files.create") return { file: { fileId: `fil_shot${++files}` } };
       throw new Error(`unexpected capability ${cap}`);
@@ -87,20 +98,43 @@ export function harness(o: HarnessOptions = {}) {
     log: { debug() {}, info() {}, warn() {}, error() {} },
   };
   return {
-    ctx, raw, db, fake, emitted, called, clock, respond,
-    advance(ms: number) { clock.t += ms; },
-    setManager(v: boolean) { manager = v; },
-    deny(key: string) { deny.add(key); },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },
+    ctx,
+    raw,
+    db,
+    fake,
+    emitted,
+    called,
+    clock,
+    respond,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    setManager(v: boolean) {
+      manager = v;
+    },
+    deny(key: string) {
+      deny.add(key);
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    calls(cap: string): Called[] {
+      return called.filter((c) => c.cap === cap);
+    },
   };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 /** The same database, clock and machine as another caller (a second person on one Space). */
-export function asPerson(h: Harness, principal: CompCtx["principal"], extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "fake"> = {}): Harness {
+export function asPerson(
+  h: Harness,
+  principal: CompCtx["principal"],
+  extra: Omit<HarnessOptions, "raw" | "principal" | "clock" | "fake"> = {},
+): Harness {
   return harness({ ...extra, raw: h.raw, principal, clock: h.clock, fake: h.fake });
 }
 

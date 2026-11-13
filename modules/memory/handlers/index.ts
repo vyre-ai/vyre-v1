@@ -1,12 +1,44 @@
 // Handler table of the memory module: all the capabilities of manifests/memory.ts. The module's `status` in host/modules.json is flipped by the lane's live packet (ruling 25),
 // after the generated contract tests pass against these handlers.
 import {
-  capture, counts, erase, factAccept, factCorrect, factGet, factReject, factsAsOf, factsList, factsRemove, findBySubject, layersList, mapGet, notesList, pointer, promote,
-  promotionApprove, promotionReject, promotionUndo, proposeFact, readNote, restoreVersion, search, versions,
+  capture,
+  counts,
+  erase,
+  factAccept,
+  factCorrect,
+  factGet,
+  factReject,
+  factsAsOf,
+  factsList,
+  factsRemove,
+  findBySubject,
+  layersList,
+  mapGet,
+  notesList,
+  pointer,
+  promote,
+  promotionApprove,
+  promotionReject,
+  promotionUndo,
+  proposeFact,
+  readNote,
+  restoreVersion,
+  search,
+  versions,
 } from "./facts.ts";
 import { graph, graphEverything, graphExport, indexGraph, layoutGet, layoutSave } from "./graph.ts";
 import { archiveSweep, learned, restore, trailRead, trashSearch, undo } from "./lifecycle.ts";
-import { backlinks, exportMarkdown, pageDelete, pageGet, pageList, pagePut, pageRestoreVersion, pageSetVisibility, pageVersions } from "./pages.ts";
+import {
+  backlinks,
+  exportMarkdown,
+  pageDelete,
+  pageGet,
+  pageList,
+  pagePut,
+  pageRestoreVersion,
+  pageSetVisibility,
+  pageVersions,
+} from "./pages.ts";
 import { noteErase } from "./purge.ts";
 import { meaningRank, meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";

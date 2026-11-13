@@ -28,31 +28,54 @@ function Inner({ search }: { search: string }): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("chats");
     const sample = createMountSample();
     // ?fail=agents: the agents read is refused (a failed read keeps no answer and says why), so the Agents section shows its error and the rest of the sidebar draws.
     if (query.get("fail") === "agents") {
-      const failed = { status: "loading" as const, error: { message: "agents.list refused its input", code: "validation.bad_input", traceId: "0f3c9a51d2e84b17" } };
+      const failed = {
+        status: "loading" as const,
+        error: { message: "agents.list refused its input", code: "validation.bad_input", traceId: "0f3c9a51d2e84b17" },
+      };
       const base = sample.rt.screens;
       const screens = Object.assign(Object.create(base) as typeof base, {
-        query: (id: string, name: string, state?: Record<string, unknown>) => (id === "chats.all-agents" && name === "agents"
-          ? { subscribe: () => () => undefined, getSnapshot: () => failed }
-          : base.query(id, name, state)),
+        query: (id: string, name: string, state?: Record<string, unknown>) =>
+          id === "chats.all-agents" && name === "agents"
+            ? { subscribe: () => () => undefined, getSnapshot: () => failed }
+            : base.query(id, name, state),
       });
       sample.rt = { ...sample.rt, screens };
     }
-    const shown: Shown = query.get("screen") === "needs" ? step(START, { t: "needs", taskId: "n1" }) : step(START, { t: "chat", threadId: "c1" });
+    const shown: Shown =
+      query.get("screen") === "needs"
+        ? step(START, { t: "needs", taskId: "n1" })
+        : step(START, { t: "chat", threadId: "c1" });
     return { hub, theme, sample, shown };
   }, [search]);
-  const renderPlace = (ctx: PlaceContext): ReactNode => (ctx.place === "chats"
-    ? <ChatsMounted key={ctx.spaceId} rt={made.sample.rt} initial={made.shown} window={{ start: 0, end: 500 }} />
-    : samplePlace(ctx));
+  const renderPlace = (ctx: PlaceContext): ReactNode =>
+    ctx.place === "chats" ? (
+      <ChatsMounted key={ctx.spaceId} rt={made.sample.rt} initial={made.shown} window={{ start: 0, end: 500 }} />
+    ) : (
+      samplePlace(ctx)
+    );
   return (
     <View style={{ height }}>
       <Shell hub={made.hub} theme={made.theme} renderPlace={renderPlace} />

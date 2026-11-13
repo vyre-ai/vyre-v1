@@ -18,33 +18,62 @@ import { TASK_STATES } from "../journeys/model.ts";
 import { AutomationsSidebar } from "../sidebar/AutomationsSidebar.tsx";
 
 const page = (s: ConfigSample, el: ReactNode, extras: ConfigExtras = s.extras): string =>
-  renderToStaticMarkup(<AutomationsDataProvider value={s.data}><ConfigExtrasProvider value={extras}>{el}</ConfigExtrasProvider></AutomationsDataProvider>).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <AutomationsDataProvider value={s.data}>
+      <ConfigExtrasProvider value={extras}>{el}</ConfigExtrasProvider>
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
-const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>[^<]*`))?.[0] ?? "";
+const tag = (out: string, id: string): string =>
+  out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>[^<]*`))?.[0] ?? "";
 const nw = (): ConfigSample => createConfigSample(northwind);
-const alertsOf = (s: ConfigSample, id: string): Alerts => s.replica.rows("automations").find((r) => r.id === id)!["alerts"] as Alerts;
-const alertsTab = (s: ConfigSample, id: string): string => page(s, <AutomationConfig automationId={id} initialTab="alerts" />);
+const alertsOf = (s: ConfigSample, id: string): Alerts =>
+  s.replica.rows("automations").find((r) => r.id === id)!["alerts"] as Alerts;
+const alertsTab = (s: ConfigSample, id: string): string =>
+  page(s, <AutomationConfig automationId={id} initialTab="alerts" />);
 
 test("Alerts: the escalation chain ends with its Add a step row and no explaining line under it", () => {
   const out = alertsTab(nw(), "aut_lead");
-  assert.ok(has(out, 'data-testid="alert-chain"') && has(out, "If it keeps failing") && has(out, 'data-testid="step-add"') && has(out, "Add another step"));
+  assert.ok(
+    has(out, 'data-testid="alert-chain"') &&
+      has(out, "If it keeps failing") &&
+      has(out, 'data-testid="step-add"') &&
+      has(out, "Add another step"),
+  );
   assert.ok(!has(out, "Each step tells one more person or role"), "the line under the chain is gone");
 });
 
 test("Alerts: a rule that tells after failures in a row shows the Failures in a row count, and choosing the option on an every-failure rule adds the row", async () => {
   const s = nw();
   const invoice = alertsTab(s, "aut_invoice");
-  assert.ok(has(invoice, "After failures in a row") && has(invoice, "Failures in a row") && has(invoice, 'data-testid="when-n"'), "the 3-in-a-row rule shows its count");
+  assert.ok(
+    has(invoice, "After failures in a row") &&
+      has(invoice, "Failures in a row") &&
+      has(invoice, 'data-testid="when-n"'),
+    "the 3-in-a-row rule shows its count",
+  );
   const lead = alertsTab(s, "aut_lead");
-  assert.ok(has(lead, "On every failure") && !has(lead, 'data-testid="when-n"'), "an every-failure rule has no count row");
-  await s.data.call("automations.alerts.set", { automationId: "aut_lead", alerts: setWhen(alertsOf(s, "aut_lead"), "after_n") });
+  assert.ok(
+    has(lead, "On every failure") && !has(lead, 'data-testid="when-n"'),
+    "an every-failure rule has no count row",
+  );
+  await s.data.call("automations.alerts.set", {
+    automationId: "aut_lead",
+    alerts: setWhen(alertsOf(s, "aut_lead"), "after_n"),
+  });
   const after = alertsTab(s, "aut_lead");
-  assert.ok(has(after, "After failures in a row") && has(after, 'data-testid="when-n"'), "the option is kept and the count row appears");
+  assert.ok(
+    has(after, "After failures in a row") && has(after, 'data-testid="when-n"'),
+    "the option is kept and the count row appears",
+  );
 });
 
 test("task states: Done is the filled check, In review and Blocked are named at the right of the row, and a task still to do has no label", () => {
   const s = nw();
-  const extras: ConfigExtras = { ...s.extras, taskStates: () => ({ t_confirm: "Done", t_review: "In review", t_conflict: "Blocked" }) };
+  const extras: ConfigExtras = {
+    ...s.extras,
+    taskStates: () => ({ t_confirm: "Done", t_review: "In review", t_conflict: "Blocked" }),
+  };
   const out = page(s, <JourneyDesigner journeyId="jrn_onboard" />, extras);
   assert.match(tag(out, "check-t_confirm"), /aria-label="Done"/, "the done task's check says Done");
   assert.match(tag(out, "check-t_id"), /aria-label="Required"/, "a task not done keeps the open check");
@@ -70,7 +99,8 @@ test("On leaving: every stage has the section after On entering with its Add an 
   const plain = page(s, <JourneyDesigner journeyId="jrn_onboard" />);
   assert.equal((plain.match(/>On leaving</g) ?? []).length, 5, "one On leaving per stage");
   assert.equal((plain.match(/>On entering</g) ?? []).length, 5);
-  for (const k of ["consult", "intake", "letter", "kickoff", "onboarded"]) assert.ok(has(plain, `data-testid="add-leave-${k}"`), k);
+  for (const k of ["consult", "intake", "letter", "kickoff", "onboarded"])
+    assert.ok(has(plain, `data-testid="add-leave-${k}"`), k);
   assert.ok(plain.indexOf(">On entering<") < plain.indexOf(">On leaving<"));
   s.extras.setLeaving?.("jrn_onboard", "intake", ["aut_intake3"]);
   const out = page(s, <JourneyDesigner journeyId="jrn_onboard" />);
@@ -85,13 +115,32 @@ test("On leaving: a person without the Design Journeys role reads it with None a
 
 test("the Journey types tree: a Journey types head with its count and a plus, each Journey as a tile, its name and its record count, and the Projects line under it", () => {
   const s = nw();
-  const out = page(s, <AutomationsSidebar selectedJourneyId="jrn_onboard" initialTab="journeys" shared={s.shared} reasons={s.space.reasons} />);
-  assert.ok(has(out, 'data-testid="section-types"') && has(out, "Journey types") && has(out, 'data-testid="head-types"') && has(out, 'data-testid="add-types"'));
+  const out = page(
+    s,
+    <AutomationsSidebar
+      selectedJourneyId="jrn_onboard"
+      initialTab="journeys"
+      shared={s.shared}
+      reasons={s.space.reasons}
+    />,
+  );
+  assert.ok(
+    has(out, 'data-testid="section-types"') &&
+      has(out, "Journey types") &&
+      has(out, 'data-testid="head-types"') &&
+      has(out, 'data-testid="add-types"'),
+  );
   assert.ok(has(out, ">CO<") && has(out, ">MI<"), "a tile with the initials of each Journey");
-  assert.ok(has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, "Client onboarding") && has(out, "Matter intake"));
+  assert.ok(
+    has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, "Client onboarding") && has(out, "Matter intake"),
+  );
   assert.ok(has(out, 'data-testid="journeys-note"') && has(out, "cloned from the Projects template"));
   assert.ok(!has(out, "New lead follow-up"), "the Automations are not on this tab");
-  assert.match(tag(out, "row-journey-jrn_onboard"), /background-color:var\(--sel\)/, "the open Journey takes the quiet selected highlight");
+  assert.match(
+    tag(out, "row-journey-jrn_onboard"),
+    /background-color:var\(--sel\)/,
+    "the open Journey takes the quiet selected highlight",
+  );
 });
 
 test("the Fields tab: the template's fields with their types, then the Journey's own", () => {

@@ -15,7 +15,11 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -24,25 +28,42 @@ const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const PREFIX = process.env.SHOOT || "ARTIFACTS_01";
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith(PREFIX) && (only.length === 0 || only.includes(t.id.replace(PREFIX + "-", ""))));
-for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
-  if (sizeOnly && size !== sizeOnly) continue;
-  if (size === "wide" && t.id.includes("phone")) continue;
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on("pageerror", (e) => errs.push(String(e)));
-  // a busy box drops a navigation now and then: one more try before giving up
-  const url = routeUrl(real.origin, t.route, skin);
-  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-  await page.waitForTimeout(500);
-  let found = true;
-  if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  await page.waitForTimeout(900);
-  const file = path.join(out, `${t.id.replace(PREFIX + "-", "")}-${skin}-${size}.png`);
-  await page.screenshot({ path: file });
-  console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
-  await ctx.close();
-}
-await browser.close(); real.close();
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter(
+  (t) => t.id.startsWith(PREFIX) && (only.length === 0 || only.includes(t.id.replace(PREFIX + "-", ""))),
+);
+for (const t of targets)
+  for (const skin of ["paper", "graphite"])
+    for (const [size, vp] of Object.entries(SIZES)) {
+      if (sizeOnly && size !== sizeOnly) continue;
+      if (size === "wide" && t.id.includes("phone")) continue;
+      const ctx = await browser.newContext({
+        viewport: vp,
+        deviceScaleFactor: 1,
+        colorScheme: skin === "graphite" ? "dark" : "light",
+        reducedMotion: "reduce",
+      });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push(String(e)));
+      // a busy box drops a navigation now and then: one more try before giving up
+      const url = routeUrl(real.origin, t.route, skin);
+      await page
+        .goto(url, { waitUntil: "load", timeout: 60000 })
+        .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+      await page.waitForTimeout(500);
+      let found = true;
+      if (t.waitFor)
+        await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => {
+          found = false;
+        });
+      await page.waitForTimeout(900);
+      const file = path.join(out, `${t.id.replace(PREFIX + "-", "")}-${skin}-${size}.png`);
+      await page.screenshot({ path: file });
+      console.log(
+        `shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`,
+      );
+      await ctx.close();
+    }
+await browser.close();
+real.close();
 process.exit(0);

@@ -8,7 +8,11 @@ import type { ProjectLine } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-export function useProjects(call: Call, changes: Changes | undefined, active = true): { lines: ProjectLine[]; reload(): void } {
+export function useProjects(
+  call: Call,
+  changes: Changes | undefined,
+  active = true,
+): { lines: ProjectLine[]; reload(): void } {
   const [lines, setLines] = useState<ProjectLine[]>([]);
   const fn = useRef(call);
   fn.current = call;
@@ -16,12 +20,23 @@ export function useProjects(call: Call, changes: Changes | undefined, active = t
     void (async () => {
       try {
         const list = (await fn.current("projects.list", {})) as CapMap["projects.list"]["out"];
-        const stars = await Promise.resolve(fn.current("stars.list", {})).catch(() => ({ stars: [] })) as { stars?: Array<{ resource: { type: string; id: string } }> };
-        setLines(projectLines(list.projects, new Set((stars.stars ?? []).filter((s) => s.resource.type === "project").map((s) => s.resource.id))));
-      } catch { /* the group keeps what it had */ }
+        const stars = (await Promise.resolve(fn.current("stars.list", {})).catch(() => ({ stars: [] }))) as {
+          stars?: Array<{ resource: { type: string; id: string } }>;
+        };
+        setLines(
+          projectLines(
+            list.projects,
+            new Set((stars.stars ?? []).filter((s) => s.resource.type === "project").map((s) => s.resource.id)),
+          ),
+        );
+      } catch {
+        /* the group keeps what it had */
+      }
     })();
   }, []);
-  useEffect(() => { if (active) reload(); }, [active, reload]);
+  useEffect(() => {
+    if (active) reload();
+  }, [active, reload]);
   useFollow(changes, reload, active);
   return { lines, reload };
 }

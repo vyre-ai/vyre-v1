@@ -11,7 +11,9 @@ export const consumers = {
   /** The Space's scheduler.* settings, copied here from settings.changed: a module reads only its own tables. */
   "scheduler.settings_sync": {
     on: ["settings.changed"],
-    async run(ctx: SchedCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+    async run(ctx: SchedCtx, event: { payload: Record<string, unknown> }): Promise<string[]> {
+      return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : [];
+    },
   },
 };
 export { tick } from "./handlers/schedule.ts";

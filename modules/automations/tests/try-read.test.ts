@@ -36,8 +36,18 @@ function assertNoSentinel(value: unknown): void {
 }
 
 // names resolve without the outside DNS: every app host to one public address, private.example to a private one
-beforeEach(() => setDocumentNetwork({ lookup: async (h: string) => (h === "private.example" ? ["10.1.2.3"] : ["93.184.216.34"]), fetch: (async () => { throw new Error("not used"); }) as typeof fetch }));
-afterEach(() => { setConnectorReadSender(null); setDocumentNetwork(null); });
+beforeEach(() =>
+  setDocumentNetwork({
+    lookup: async (h: string) => (h === "private.example" ? ["10.1.2.3"] : ["93.184.216.34"]),
+    fetch: (async () => {
+      throw new Error("not used");
+    }) as typeof fetch,
+  }),
+);
+afterEach(() => {
+  setConnectorReadSender(null);
+  setDocumentNetwork(null);
+});
 
 test("GET sends only the plan and a 204 is tested", async () => {
   let seen: unknown;
@@ -94,7 +104,10 @@ test("a host outside domains does not send", async () => {
 
 test("a host that resolves to a private address does not send", async () => {
   let calls = 0;
-  setConnectorReadSender(async () => { calls += 1; return { status: 200 }; });
+  setConnectorReadSender(async () => {
+    calls += 1;
+    return { status: 200 };
+  });
   const out = await tryConnectorRead(ctx, readInput({ domains: ["private.example"] }));
   assert.equal(calls, 0);
   assert.deepEqual(out, { level: "draft", reason: "That address is not a public host." });
@@ -102,8 +115,12 @@ test("a host that resolves to a private address does not send", async () => {
 
 test("each failed read has its own line", async () => {
   const cases: [{ status: number; failed?: "vault" | "network" }, RegExp][] = [
-    [{ status: 401 }, /refused the key \(401\)/], [{ status: 403 }, /refused the key \(403\)/], [{ status: 404 }, /Nothing at that address \(404\)/],
-    [{ status: 429 }, /slow down/], [{ status: 0, failed: "network" }, /did not answer/], [{ status: 0, failed: "vault" }, /did not give this read the key vit_stripe/],
+    [{ status: 401 }, /refused the key \(401\)/],
+    [{ status: 403 }, /refused the key \(403\)/],
+    [{ status: 404 }, /Nothing at that address \(404\)/],
+    [{ status: 429 }, /slow down/],
+    [{ status: 0, failed: "network" }, /did not answer/],
+    [{ status: 0, failed: "vault" }, /did not give this read the key vit_stripe/],
   ];
   for (const [reply, line] of cases) {
     setConnectorReadSender(async () => reply);
@@ -118,7 +135,13 @@ test("a successful read records tested and does not store the key", async () => 
   const args: unknown[][] = [];
   const ctx = {
     now: () => 5,
-    db: { all: () => [], run: (_sql: string, ...rest: unknown[]) => { args.push(rest); return { changes: 1 }; } },
+    db: {
+      all: () => [],
+      run: (_sql: string, ...rest: unknown[]) => {
+        args.push(rest);
+        return { changes: 1 };
+      },
+    },
   } as AutoCtx;
   setConnectorReadSender(async () => ({ status: 200 }));
   const out = await tryConnectorRead(ctx, readInput({ actionKey: "stripe-listcustomers" }));
@@ -148,7 +171,10 @@ test("a valid GET with no sender stays a draft", async () => {
 
 test("an agent cannot mark a write safe: a POST it marks is not sent", async () => {
   let calls = 0;
-  setConnectorReadSender(async () => { calls += 1; return { status: 200 }; });
+  setConnectorReadSender(async () => {
+    calls += 1;
+    return { status: 200 };
+  });
   const agentCtx = { ...ctx, principal: { kind: "agent", id: "agt_x" } } as AutoCtx;
   const out = await tryConnectorRead(agentCtx, readInput({ method: "POST", markedSafe: true }));
   assert.deepEqual(out, { level: "draft", reason: "Only a read can be tried." });
@@ -157,7 +183,10 @@ test("an agent cannot mark a write safe: a POST it marks is not sent", async () 
 
 test("the header and prefix the docs name reach the sender, and a bad header name does not", async () => {
   const plans: unknown[] = [];
-  setConnectorReadSender(async (plan) => { plans.push(plan); return { status: 200 }; });
+  setConnectorReadSender(async (plan) => {
+    plans.push(plan);
+    return { status: 200 };
+  });
   await tryConnectorRead(ctx, readInput({ header: "X-Api-Key", prefix: "" }));
   await tryConnectorRead(ctx, readInput({ header: "Bad Header\r\nX: y" }));
   assert.deepEqual(plans, [{ ...PLAN, header: "X-Api-Key", prefix: "" }, PLAN]);
@@ -165,7 +194,13 @@ test("the header and prefix the docs name reach the sender, and a bad header nam
 
 test("the read is made for the person who asked, so a key in their own folder can be released to them", async () => {
   const askers: unknown[] = [];
-  setConnectorReadSender(async (_plan, asker) => { askers.push(asker); return { status: 200 }; });
-  await tryConnectorRead({ ...ctx, principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana" } as AutoCtx, readInput());
+  setConnectorReadSender(async (_plan, asker) => {
+    askers.push(asker);
+    return { status: 200 };
+  });
+  await tryConnectorRead(
+    { ...ctx, principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana" } as AutoCtx,
+    readInput(),
+  );
   assert.deepEqual(askers, ["usr_dana"]);
 });

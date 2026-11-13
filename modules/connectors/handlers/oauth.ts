@@ -23,7 +23,11 @@ export function newPkce(): { verifier: string; challenge: string } {
   return { verifier, challenge: sha256b64(verifier).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "") };
 }
 
-export interface TokenSet { access: string; refresh?: string; expiresInS?: number }
+export interface TokenSet {
+  access: string;
+  refresh?: string;
+  expiresInS?: number;
+}
 type Row = Record<string, unknown>;
 const secretsOf = (c: ConnectionDb): Record<string, string> => JSON.parse(c.secrets) as Record<string, string>;
 const codeOf = (e: unknown): string => (e as { error?: { code?: string } })?.error?.code ?? "";
@@ -35,17 +39,32 @@ export function createOauth(deps: ConnectorsDeps) {
   const { tx } = deps;
 
   /** The client secret, by its declared slot, read through the Vault like any other secret of the connection. */
-  const clientSecretOf = async (ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb): Promise<string | undefined> => {
+  const clientSecretOf = async (
+    ctx: ConnectorsCtx,
+    def: ConnectorDef,
+    conn: ConnectionDb,
+  ): Promise<string | undefined> => {
     const slot = def.auth.clientSecret;
     const handle = slot ? secretsOf(conn)[slot] : undefined;
     if (!slot || !handle || !deps.resolveSecret) return undefined;
-    try { return await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot }); }
-    catch (e) { return vaultFailure(ctx, e, conn); }
+    try {
+      return await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot });
+    } catch (e) {
+      return vaultFailure(ctx, e, conn);
+    }
   };
 
   /** POST to the token address (a declared domain, https) and read the tokens. Never throws a message with a code, token or secret in it. */
-  async function tokenCall(ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb, form: URLSearchParams, hide: string[]): Promise<TokenSet> {
-    const eg = def.auth.tokenUrl ? checkEgress(def.auth.tokenUrl, def.domains) : { ok: false as const, reason: "no token address is declared" };
+  async function tokenCall(
+    ctx: ConnectorsCtx,
+    def: ConnectorDef,
+    conn: ConnectionDb,
+    form: URLSearchParams,
+    hide: string[],
+  ): Promise<TokenSet> {
+    const eg = def.auth.tokenUrl
+      ? checkEgress(def.auth.tokenUrl, def.domains)
+      : { ok: false as const, reason: "no token address is declared" };
     if (!eg.ok) return refuse(ctx, "permission.no_grant", `Egress refused: ${eg.reason}.`);
     const clientSecret = await clientSecretOf(ctx, def, conn);
     if (def.auth.clientId) form.set("client_id", def.auth.clientId);
@@ -53,22 +72,53 @@ export function createOauth(deps: ConnectorsDeps) {
     const scrub = scrubber([...hide, ...(clientSecret ? [clientSecret] : [])]);
     let res: { status: number; text(): Promise<string> };
     try {
-      res = await ctx.http(eg.url.toString(), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: form.toString() });
+      res = await ctx.http(eg.url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: form.toString(),
+      });
     } catch (e) {
-      return refuse(ctx, "provider.network", scrub.text(`The app could not be reached: ${e instanceof Error ? e.message : String(e)}`));
+      return refuse(
+        ctx,
+        "provider.network",
+        scrub.text(`The app could not be reached: ${e instanceof Error ? e.message : String(e)}`),
+      );
     }
     const text = await res.text();
-    if (res.status >= 500) return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status });
-    if (res.status === 429) return refuse(ctx, "provider.rate_limited", "The app is rate limiting sign-ins. Wait a moment and try again.", { status: res.status });
-    if (res.status >= 400) return refuse(ctx, "provider.auth_failed", "The app did not accept the sign-in.", { status: res.status });
+    if (res.status >= 500)
+      return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status });
+    if (res.status === 429)
+      return refuse(ctx, "provider.rate_limited", "The app is rate limiting sign-ins. Wait a moment and try again.", {
+        status: res.status,
+      });
+    if (res.status >= 400)
+      return refuse(ctx, "provider.auth_failed", "The app did not accept the sign-in.", { status: res.status });
     let body: Row;
-    try { body = JSON.parse(text) as Row; } catch { return refuse(ctx, "provider.bad_response", "The app answered the sign-in in an unexpected way."); }
-    const access = body["access_token"], refresh = body["refresh_token"], type = body["token_type"], expires = body["expires_in"];
-    if (typeof access !== "string" || access === "" || access.length > MAX_TOKEN) return refuse(ctx, "provider.bad_response", "The app did not return an access token.");
-    if (typeof type === "string" && type.toLowerCase() !== "bearer") return refuse(ctx, "provider.bad_response", `The app issued a ${type} token; only bearer tokens are supported.`);
-    if (refresh !== undefined && (typeof refresh !== "string" || refresh.length > MAX_TOKEN)) return refuse(ctx, "provider.bad_response", "The app returned a refresh token in an unexpected form.");
-    if (expires !== undefined && !(typeof expires === "number" && Number.isFinite(expires) && expires > 0 && expires <= MAX_EXPIRES_S)) return refuse(ctx, "provider.bad_response", "The app returned a token lifetime that cannot be used.");
-    return { access, ...(typeof refresh === "string" ? { refresh } : {}), ...(typeof expires === "number" ? { expiresInS: expires } : {}) };
+    try {
+      body = JSON.parse(text) as Row;
+    } catch {
+      return refuse(ctx, "provider.bad_response", "The app answered the sign-in in an unexpected way.");
+    }
+    const access = body["access_token"],
+      refresh = body["refresh_token"],
+      type = body["token_type"],
+      expires = body["expires_in"];
+    if (typeof access !== "string" || access === "" || access.length > MAX_TOKEN)
+      return refuse(ctx, "provider.bad_response", "The app did not return an access token.");
+    if (typeof type === "string" && type.toLowerCase() !== "bearer")
+      return refuse(ctx, "provider.bad_response", `The app issued a ${type} token; only bearer tokens are supported.`);
+    if (refresh !== undefined && (typeof refresh !== "string" || refresh.length > MAX_TOKEN))
+      return refuse(ctx, "provider.bad_response", "The app returned a refresh token in an unexpected form.");
+    if (
+      expires !== undefined &&
+      !(typeof expires === "number" && Number.isFinite(expires) && expires > 0 && expires <= MAX_EXPIRES_S)
+    )
+      return refuse(ctx, "provider.bad_response", "The app returned a token lifetime that cannot be used.");
+    return {
+      access,
+      ...(typeof refresh === "string" ? { refresh } : {}),
+      ...(typeof expires === "number" ? { expiresInS: expires } : {}),
+    };
   }
 
   /** Where a connection's tokens are kept: a Vault folder of the owner's own (Mine, for a person) or of the Space (Shared), called Connections. */
@@ -76,24 +126,48 @@ export function createOauth(deps: ConnectorsDeps) {
     const scope = conn.owner_kind === "person" ? "mine" : "shared";
     try {
       // the Space's connection: its tokens sit in the Space's "Connections" folder, shared with everyone so each member's call can fill them (lib/space-folder.ts)
-      if (scope === "shared") return await ensureSpaceFolder((cap, input) => ctx.call(cap, input), { name: "Connections", idem: `connections-folder:${scope}:${conn.owner_id}` });
+      if (scope === "shared")
+        return await ensureSpaceFolder((cap, input) => ctx.call(cap, input), {
+          name: "Connections",
+          idem: `connections-folder:${scope}:${conn.owner_id}`,
+        });
       const listed = (await ctx.call("vault.folders.list", { scope })) as { folders: { id: string; name: string }[] };
       const have = listed.folders.find((f) => f.name === "Connections");
       if (have) return have.id;
-      return ((await ctx.call("vault.folders.create", { name: "Connections", scope, idempotencyKey: `connections-folder:${scope}:${conn.owner_id}` })) as { folder: { id: string } }).folder.id;
-    } catch (e) { return vaultFailure(ctx, e, conn); }
+      return (
+        (await ctx.call("vault.folders.create", {
+          name: "Connections",
+          scope,
+          idempotencyKey: `connections-folder:${scope}:${conn.owner_id}`,
+        })) as { folder: { id: string } }
+      ).folder.id;
+    } catch (e) {
+      return vaultFailure(ctx, e, conn);
+    }
   }
   function vaultFailure(ctx: ConnectorsCtx, e: unknown, conn: ConnectionDb): never {
-    if (codeOf(e) === "auth.unauthenticated" || /key is locked/i.test((e as { error?: { message?: string } })?.error?.message ?? "")) {
-      return refuse(ctx, "auth.unauthenticated", conn.owner_kind === "person"
-        ? "Your vault is locked until you sign in to Vyre: a personal account's tokens are kept in your own Mine items. Sign in on this Space, in the app or the browser, then connect again."
-        : "The Vault could not keep the sign-in just now. Connect again while you are signed in to Vyre.");
+    if (
+      codeOf(e) === "auth.unauthenticated" ||
+      /key is locked/i.test((e as { error?: { message?: string } })?.error?.message ?? "")
+    ) {
+      return refuse(
+        ctx,
+        "auth.unauthenticated",
+        conn.owner_kind === "person"
+          ? "Your vault is locked until you sign in to Vyre: a personal account's tokens are kept in your own Mine items. Sign in on this Space, in the app or the browser, then connect again."
+          : "The Vault could not keep the sign-in just now. Connect again while you are signed in to Vyre.",
+      );
     }
     throw e;
   }
 
   /** Save tokens: one Vault item per slot, created the first time and updated after, with the item ids and the expiry recorded here. Returns the handle of each slot. */
-  async function saveTokens(ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb, tokens: TokenSet): Promise<Record<string, string>> {
+  async function saveTokens(
+    ctx: ConnectorsCtx,
+    def: ConnectorDef,
+    conn: ConnectionDb,
+    tokens: TokenSet,
+  ): Promise<Record<string, string>> {
     const now = nowOf(deps);
     const slots: [string, string][] = [[def.auth.secret!, tokens.access]];
     const rs = refreshSlot(def);
@@ -102,34 +176,75 @@ export function createOauth(deps: ConnectorsDeps) {
     const handles: Record<string, string> = {};
     let folder: string | undefined;
     for (const [slot, value] of slots) {
-      const have = tx.get<{ item_id: string }>("SELECT item_id FROM cn_oauth_tokens WHERE connection_id = ? AND slot = ?", conn.connection_id, slot);
+      const have = tx.get<{ item_id: string }>(
+        "SELECT item_id FROM cn_oauth_tokens WHERE connection_id = ? AND slot = ?",
+        conn.connection_id,
+        slot,
+      );
       try {
         if (have) {
-          await ctx.call("vault.item.update", { itemId: have.item_id, fieldsSet: [{ key: "token", value, secret: true }] });
+          await ctx.call("vault.item.update", {
+            itemId: have.item_id,
+            fieldsSet: [{ key: "token", value, secret: true }],
+          });
           const kept = secretsOf(conn)[slot];
           if (kept) handles[slot] = kept;
         } else {
           folder ??= await folderFor(ctx, conn);
-          const made = (await ctx.call("vault.item.put", { folderId: folder, name: `${conn.title} ${slot} ${conn.connection_id.slice(-6)}`, kind: "other", fields: [{ key: "token", value, secret: true }], idempotencyKey: `oauth-token:${conn.connection_id}:${slot}:${now}` })) as { item: { id: string; handle: string } };
-          tx.run("INSERT OR REPLACE INTO cn_oauth_tokens (connection_id, slot, item_id, expires_at) VALUES (?, ?, ?, NULL)", conn.connection_id, slot, made.item.id);
+          const made = (await ctx.call("vault.item.put", {
+            folderId: folder,
+            name: `${conn.title} ${slot} ${conn.connection_id.slice(-6)}`,
+            kind: "other",
+            fields: [{ key: "token", value, secret: true }],
+            idempotencyKey: `oauth-token:${conn.connection_id}:${slot}:${now}`,
+          })) as { item: { id: string; handle: string } };
+          tx.run(
+            "INSERT OR REPLACE INTO cn_oauth_tokens (connection_id, slot, item_id, expires_at) VALUES (?, ?, ?, NULL)",
+            conn.connection_id,
+            slot,
+            made.item.id,
+          );
           handles[slot] = made.item.handle;
         }
-      } catch (e) { return vaultFailure(ctx, e, conn); }
+      } catch (e) {
+        return vaultFailure(ctx, e, conn);
+      }
     }
-    tx.run("UPDATE cn_oauth_tokens SET expires_at = ? WHERE connection_id = ? AND slot = ?", expiresAt, conn.connection_id, def.auth.secret!);
+    tx.run(
+      "UPDATE cn_oauth_tokens SET expires_at = ? WHERE connection_id = ? AND slot = ?",
+      expiresAt,
+      conn.connection_id,
+      def.auth.secret!,
+    );
     return handles;
   }
 
   /** Turn an authorization code into tokens and keep them. */
-  async function exchangeCode(ctx: ConnectorsCtx, def: ConnectorDef, conn: ConnectionDb, code: string, verifier: string, redirectUri: string): Promise<Record<string, string>> {
-    const form = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: verifier });
+  async function exchangeCode(
+    ctx: ConnectorsCtx,
+    def: ConnectorDef,
+    conn: ConnectionDb,
+    code: string,
+    verifier: string,
+    redirectUri: string,
+  ): Promise<Record<string, string>> {
+    const form = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: verifier,
+    });
     const tokens = await tokenCall(ctx, def, conn, form, [code, verifier]);
     return saveTokens(ctx, def, conn, tokens);
   }
 
   /** The access token ends soon (or has ended). */
   const dueSoon = (conn: ConnectionDb, def: ConnectorDef): boolean => {
-    const row = tx.get<{ expires_at: number | null }>("SELECT expires_at FROM cn_oauth_tokens WHERE connection_id = ? AND slot = ?", conn.connection_id, def.auth.secret ?? "");
+    const row = tx.get<{ expires_at: number | null }>(
+      "SELECT expires_at FROM cn_oauth_tokens WHERE connection_id = ? AND slot = ?",
+      conn.connection_id,
+      def.auth.secret ?? "",
+    );
     return row?.expires_at != null && row.expires_at - nowOf(deps) <= REFRESH_SKEW_MS;
   };
 
@@ -141,43 +256,86 @@ export function createOauth(deps: ConnectorsDeps) {
     const running = refreshing.get(conn.connection_id);
     if (running) return running;
     const job = (async (): Promise<boolean> => {
-      const rs = refreshSlot(def), handle = rs ? secretsOf(conn)[rs] : undefined;
+      const rs = refreshSlot(def),
+        handle = rs ? secretsOf(conn)[rs] : undefined;
       if (!rs || !handle || !deps.resolveSecret) return false;
-      const token = await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot: rs }).catch(() => undefined);
+      const token = await deps
+        .resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot: rs })
+        .catch(() => undefined);
       if (!token) return false;
       try {
-        const tokens = await tokenCall(ctx, def, conn, new URLSearchParams({ grant_type: "refresh_token", refresh_token: token }), [token]);
+        const tokens = await tokenCall(
+          ctx,
+          def,
+          conn,
+          new URLSearchParams({ grant_type: "refresh_token", refresh_token: token }),
+          [token],
+        );
         const handles = await saveTokens(ctx, def, conn, { ...tokens, refresh: tokens.refresh ?? token });
         const secrets = { ...secretsOf(conn), ...handles };
-        tx.run("UPDATE cn_connections SET secrets = ? WHERE connection_id = ?", JSON.stringify(secrets), conn.connection_id);
+        tx.run(
+          "UPDATE cn_connections SET secrets = ? WHERE connection_id = ?",
+          JSON.stringify(secrets),
+          conn.connection_id,
+        );
         return true;
       } catch (e) {
         ctx.log?.warn("oauth refresh failed", { connectionId: conn.connection_id, code: codeOf(e) });
         return false;
       }
-    })().finally(() => { refreshing.delete(conn.connection_id); });
+    })().finally(() => {
+      refreshing.delete(conn.connection_id);
+    });
     refreshing.set(conn.connection_id, job);
     return job;
   }
 
   /** On delete: ask the app to revoke (best effort, a declared revoke address only), then remove the Vault items. */
   async function revoke(ctx: ConnectorsCtx, def: ConnectorDef | undefined, conn: ConnectionDb): Promise<void> {
-    const items = tx.all<{ slot: string; item_id: string }>("SELECT slot, item_id FROM cn_oauth_tokens WHERE connection_id = ?", conn.connection_id);
+    const items = tx.all<{ slot: string; item_id: string }>(
+      "SELECT slot, item_id FROM cn_oauth_tokens WHERE connection_id = ?",
+      conn.connection_id,
+    );
     if (def?.auth.revokeUrl && deps.resolveSecret) {
       const eg = checkEgress(def.auth.revokeUrl, def.domains);
-      if (eg.ok) for (const it of items) {
-        const handle = secretsOf(conn)[it.slot];
-        const token = handle ? await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot: it.slot }).catch(() => undefined) : undefined;
-        if (!token) continue;
-        const form = new URLSearchParams({ token, token_type_hint: it.slot === def.auth.secret ? "access_token" : "refresh_token" });
-        if (def.auth.clientId) form.set("client_id", def.auth.clientId);
-        const clientSecret = await clientSecretOf(ctx, def, conn).catch(() => undefined);
-        if (clientSecret) form.set("client_secret", clientSecret);
-        try { await ctx.http(eg.url.toString(), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() }); }
-        catch (e) { ctx.log?.warn("oauth revoke did not reach the app", { connectionId: conn.connection_id, error: scrubber([token, ...(clientSecret ? [clientSecret] : [])]).text(e instanceof Error ? e.message : String(e)) }); }
-      }
+      if (eg.ok)
+        for (const it of items) {
+          const handle = secretsOf(conn)[it.slot];
+          const token = handle
+            ? await deps
+                .resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot: it.slot })
+                .catch(() => undefined)
+            : undefined;
+          if (!token) continue;
+          const form = new URLSearchParams({
+            token,
+            token_type_hint: it.slot === def.auth.secret ? "access_token" : "refresh_token",
+          });
+          if (def.auth.clientId) form.set("client_id", def.auth.clientId);
+          const clientSecret = await clientSecretOf(ctx, def, conn).catch(() => undefined);
+          if (clientSecret) form.set("client_secret", clientSecret);
+          try {
+            await ctx.http(eg.url.toString(), {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: form.toString(),
+            });
+          } catch (e) {
+            ctx.log?.warn("oauth revoke did not reach the app", {
+              connectionId: conn.connection_id,
+              error: scrubber([token, ...(clientSecret ? [clientSecret] : [])]).text(
+                e instanceof Error ? e.message : String(e),
+              ),
+            });
+          }
+        }
     }
-    for (const it of items) await ctx.call("vault.item.delete", { itemId: it.item_id }).catch((e: unknown) => ctx.log?.warn("oauth token item was not removed", { connectionId: conn.connection_id, code: codeOf(e) }));
+    for (const it of items)
+      await ctx
+        .call("vault.item.delete", { itemId: it.item_id })
+        .catch((e: unknown) =>
+          ctx.log?.warn("oauth token item was not removed", { connectionId: conn.connection_id, code: codeOf(e) }),
+        );
     tx.run("DELETE FROM cn_oauth_tokens WHERE connection_id = ?", conn.connection_id);
   }
 

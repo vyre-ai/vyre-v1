@@ -11,7 +11,13 @@ export interface NeedsDeps {
 }
 
 async function attempt(d: NeedsDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch (e) { d.note(isDecided(e) ? DECIDED_LINE : `Could not ${what}. Try again.`); return false; }
+  try {
+    await fn();
+    return true;
+  } catch (e) {
+    d.note(isDecided(e) ? DECIDED_LINE : `Could not ${what}. Try again.`);
+    return false;
+  }
 }
 
 /** Answer a question by one of its options. The answer goes to the chat that asked, and the agent carries on. */
@@ -34,10 +40,16 @@ export function act(d: NeedsDeps, t: Task, a: Action, who: string, note?: string
 
 /** Take a request addressed to a group or role: others then see "taken by". */
 export function take(d: NeedsDeps, t: Task): Promise<boolean> {
-  return attempt(d, "take it", async () => { await d.call("tasks.take", { taskId: t.id }); d.note(`You took “${t.title}”`); });
+  return attempt(d, "take it", async () => {
+    await d.call("tasks.take", { taskId: t.id });
+    d.note(`You took “${t.title}”`);
+  });
 }
 
 /** Snooze a request: it leaves the list and returns at its time. */
 export function snooze(d: NeedsDeps, t: Task, choice: SnoozeChoice["key"], c: Clock): Promise<boolean> {
-  return attempt(d, "snooze it", async () => { await d.call("tasks.snooze", { taskId: t.id, until: snoozeUntil(choice, c) }); d.note(`Snoozed “${t.title}”`); });
+  return attempt(d, "snooze it", async () => {
+    await d.call("tasks.snooze", { taskId: t.id, until: snoozeUntil(choice, c) });
+    d.note(`Snoozed “${t.title}”`);
+  });
 }

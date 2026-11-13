@@ -23,20 +23,42 @@ const TOKENS: Record<string, BlobCaller> = {
 async function boot() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-blobs-redact-"));
   const store = createBlobStore({ dir, key: new Uint8Array(32).fill(7) });
-  const scan = await store.forModule("previews").put(PNG, "image/png", { resource: { type: "file", id: "fil_er_scan" } });
+  const scan = await store
+    .forModule("previews")
+    .put(PNG, "image/png", { resource: { type: "file", id: "fil_er_scan" } });
   const clear = await store.forModule("previews").put(PNG, "image/png", { resource: { type: "file", id: "fil_menu" } });
   const asked: string[] = [];
   const route = createBlobRoute({
-    space: SPACE, store,
+    space: SPACE,
+    store,
     session: (h) => TOKENS[String(h["authorization"] ?? "").replace(/^Bearer /, "")] ?? null,
     allow: () => true,
-    agentRead: async (c, r) => { asked.push(`${c.principal.id}:${r.id}`); return r.id !== "fil_er_scan"; },
+    agentRead: async (c, r) => {
+      asked.push(`${c.principal.id}:${r.id}`);
+      return r.id !== "fil_er_scan";
+    },
   });
-  const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end(); } });
+  const server = http.createServer((req, res) => {
+    if (!route.handle(req, res)) {
+      res.writeHead(404);
+      res.end();
+    }
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const get = (id: string, who: string) => fetch(`${base}${blobPath(SPACE, id)}`, { headers: { authorization: `Bearer ${who}` } });
-  return { scan, clear, asked, get, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+  const get = (id: string, who: string) =>
+    fetch(`${base}${blobPath(SPACE, id)}`, { headers: { authorization: `Bearer ${who}` } });
+  return {
+    scan,
+    clear,
+    asked,
+    get,
+    close: () =>
+      new Promise<void>((r) => {
+        server.closeAllConnections();
+        server.close(() => r());
+      }),
+  };
 }
 
 test("an agent and an outside actor are refused the picture of a file the gate refuses; a person is not asked about and gets it", async (t) => {
@@ -48,5 +70,9 @@ test("an agent and an outside actor are refused the picture of a file the gate r
   const person = await w.get(w.scan.id, "irfad");
   assert.equal(person.status, 200);
   assert.deepEqual(new Uint8Array(await person.arrayBuffer()), PNG);
-  assert.deepEqual(w.asked, ["agt_intake:fil_er_scan", "act_robot:fil_er_scan", "agt_intake:fil_menu"], "only agents and actors are asked about");
+  assert.deepEqual(
+    w.asked,
+    ["agt_intake:fil_er_scan", "act_robot:fil_er_scan", "agt_intake:fil_menu"],
+    "only agents and actors are asked about",
+  );
 });

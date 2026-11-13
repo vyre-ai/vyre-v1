@@ -9,35 +9,77 @@ import { MEMBER_PASSWORD, ok, shots } from "./crm-journey-kit.ts";
 import type { Space } from "./crm-journey-kit.ts";
 import type { Know } from "./agent-standin.ts";
 
-export interface KnowOpts { account?: string; tenant?: string; webhook?: boolean; audience?: "space" | "added" | "me" }
+export interface KnowOpts {
+  account?: string;
+  tenant?: string;
+  webhook?: boolean;
+  audience?: "space" | "added" | "me";
+}
 export const ledgerKnow = (handle: string, o: KnowOpts = {}): Know => ({
-  name: "Ledger", domain: "crm-a.test", auth: { vaultHandle: handle, style: "header", header: "X-Api-Token" },
+  name: "Ledger",
+  domain: "crm-a.test",
+  auth: { vaultHandle: handle, style: "header", header: "X-Api-Token" },
   objects: [
     { remote: "organizations", path: "/api/v2/organizations", label: "Organization", recordType: "org" },
-    { remote: "people", path: "/api/v2/people", label: "Person", recordType: "person", write: { path: o.tenant ? `/api/v2/people/{id}?tenant=${o.tenant}` : "/api/v2/people/{id}", evidence: "https://docs.crm-a.test/people#update" } },
+    {
+      remote: "people",
+      path: "/api/v2/people",
+      label: "Person",
+      recordType: "person",
+      write: {
+        path: o.tenant ? `/api/v2/people/{id}?tenant=${o.tenant}` : "/api/v2/people/{id}",
+        evidence: "https://docs.crm-a.test/people#update",
+      },
+    },
   ],
   fieldsEndpoint: { path: "/api/v2/fields/people", forRemote: "people" },
-  ...(o.tenant ? { query: { people: { tenant: o.tenant } } } : { firstPullFilter: { remote: "people", param: "modified_after", value: "2026-01-01T00:00:00Z", words: "People changed since the start of 2026" } }),
+  ...(o.tenant
+    ? { query: { people: { tenant: o.tenant } } }
+    : {
+        firstPullFilter: {
+          remote: "people",
+          param: "modified_after",
+          value: "2026-01-01T00:00:00Z",
+          words: "People changed since the start of 2026",
+        },
+      }),
   ...(o.account ? { account: o.account } : {}),
-  ...(o.webhook ? { webhook: { remote: "people", subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" } } : {}),
+  ...(o.webhook
+    ? { webhook: { remote: "people", subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" } }
+    : {}),
   ...(o.audience ? { audience: o.audience } : {}),
 });
-export const OUT = path.join(process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(process.env["TMPDIR"] ?? "/tmp", "vyre-crm-journeys"), "crm");
+export const OUT = path.join(
+  process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(process.env["TMPDIR"] ?? "/tmp", "vyre-crm-journeys"),
+  "crm",
+);
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Pg = any;
-export const rows = async (s: Space, type: string): Promise<any[]> => (await ok(s, "records.query", { type, limit: 200 })).rows as any[];
+export const rows = async (s: Space, type: string): Promise<any[]> =>
+  (await ok(s, "records.query", { type, limit: 200 })).rows as any[];
 export const nameOf = (r: any): string => String(r.data?.name ?? r.fields?.name ?? "");
-export interface Ctl { member(who: { personId: string; token: string; username: string }): Promise<Pg> }
+export interface Ctl {
+  member(who: { personId: string; token: string; username: string }): Promise<Pg>;
+}
 
 /** What the page shows, for a failure message: the address and the test ids on screen. */
 export async function seen(page: Pg): Promise<string> {
-  const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid")).slice(0, 60).join(","));
+  const ids = await page.evaluate(() =>
+    [...document.querySelectorAll("[data-testid]")]
+      .map((e) => e.getAttribute("data-testid"))
+      .slice(0, 60)
+      .join(","),
+  );
   return `${page.url()} :: ${ids}`;
 }
 
 /** The journey, with a signed-in browser when CI has built the app (null otherwise: the host parts still run). The owner claims the Space first, as a person does. */
-export async function session<T>(s: Space, kind: "personal" | "team", fn: (page: Pg | null, ctl: Ctl) => Promise<T>): Promise<T> {
+export async function session<T>(
+  s: Space,
+  kind: "personal" | "team",
+  fn: (page: Pg | null, ctl: Ctl) => Promise<T>,
+): Promise<T> {
   if (!s.web) return fn(null, { member: async () => null });
   const { chromium } = await import("playwright-core");
   const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath() });
@@ -69,26 +111,42 @@ export async function session<T>(s: Space, kind: "personal" | "team", fn: (page:
         return p;
       },
     });
-  } finally { await browser.close(); }
+  } finally {
+    await browser.close();
+  }
 }
 export const openSync = async (s: Space, page: Pg, type = "person"): Promise<void> => {
   await page.goto(`${s.web!.origin}/records`);
   await page.getByTestId(`row-nav:type:${type}-trailing`).getByTestId("sync-dot").click();
-  await page.getByTestId("sync-page").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
+  await page
+    .getByTestId("sync-page")
+    .waitFor()
+    .catch(async (e: Error) => {
+      throw new Error(`${e.message} :: ${await seen(page)}`);
+    });
 };
 /** The Looks good tap on the question card in the chat, in the browser. */
-export const tapIn = (page: Pg | null, s: Space, pics: ReturnType<typeof shots> | null) => page === null ? undefined : async (threadId: string): Promise<void> => {
-  // the question is a card under the agent's message in the chat the person asked in
-  void threadId;
-  // the rail marks the place it is on as rail-chats-selected: both are the Chats entry
-  await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
-  await page.getByTestId("chats-place").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
-  // Chats opens on its landing now, with the question waiting under Needs you: Answer opens that chat, where the card is
-  await page.getByRole("button", { name: "Answer", exact: true }).first().click();
-  const looksGood = page.getByRole("button", { name: "Looks good" }).first();
-  await looksGood.waitFor({ timeout: 30_000 });
-  if (pics) await pics.take(page, "the-proposal");
-  await looksGood.click();
+export const tapIn = (page: Pg | null, s: Space, pics: ReturnType<typeof shots> | null) =>
+  page === null
+    ? undefined
+    : async (threadId: string): Promise<void> => {
+        // the question is a card under the agent's message in the chat the person asked in
+        void threadId;
+        // the rail marks the place it is on as rail-chats-selected: both are the Chats entry
+        await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
+        await page
+          .getByTestId("chats-place")
+          .waitFor()
+          .catch(async (e: Error) => {
+            throw new Error(`${e.message} :: ${await seen(page)}`);
+          });
+        // Chats opens on its landing now, with the question waiting under Needs you: Answer opens that chat, where the card is
+        await page.getByRole("button", { name: "Answer", exact: true }).first().click();
+        const looksGood = page.getByRole("button", { name: "Looks good" }).first();
+        await looksGood.waitFor({ timeout: 30_000 });
+        if (pics) await pics.take(page, "the-proposal");
+        await looksGood.click();
+      };
+export const afterPass = async (s: Space, type: string): Promise<void> => {
+  await ok(s, "connectors.sync_now", { type, idempotencyKey: `n-${Math.random().toString(36).slice(2)}` });
 };
-export const afterPass = async (s: Space, type: string): Promise<void> => { await ok(s, "connectors.sync_now", { type, idempotencyKey: `n-${Math.random().toString(36).slice(2)}` }); };
-

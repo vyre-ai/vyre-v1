@@ -8,7 +8,15 @@ import type { VaultPort } from "./ports.ts";
 
 export const FILL_PATH = "/computers/fill";
 
-export interface FillUseRecord { computerId: string; agentId: string; asker: string; handle: string; itemId: string; outcome: "filled" | "refused" | "missing"; at: number }
+export interface FillUseRecord {
+  computerId: string;
+  agentId: string;
+  asker: string;
+  handle: string;
+  itemId: string;
+  outcome: "filled" | "refused" | "missing";
+  at: number;
+}
 
 export interface ComputersFillHostDeps {
   space: string;
@@ -32,8 +40,17 @@ export function createComputersFillHost(d: ComputersFillHostDeps) {
   // module allows only those two capabilities). The team-agent gate wraps the whole source, lookups and these calls alike, so neither path reaches the Vault around it.
   const raw = {
     ...made.source,
-    invoke: async (capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }): Promise<unknown> => {
-      const r = await d.invoke(capability, input, { space: d.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "computers" } as never);
+    invoke: async (
+      capability: string,
+      input: Record<string, unknown>,
+      who: { agentId: string; asker: string },
+    ): Promise<unknown> => {
+      const r = await d.invoke(capability, input, {
+        space: d.space,
+        principal: { kind: "agent", id: who.agentId },
+        actingFor: who.asker,
+        origin: "computers",
+      } as never);
       if (r.status !== "ok") throw r;
       return r.output;
     },
@@ -52,11 +69,17 @@ export function createComputersFillHost(d: ComputersFillHostDeps) {
 export function createFillRoute() {
   let handler: ((req: IncomingMessage, res: ServerResponse) => void) | null = null;
   return {
-    mount(h: ((req: IncomingMessage, res: ServerResponse) => void) | null): void { handler = h; },
+    mount(h: ((req: IncomingMessage, res: ServerResponse) => void) | null): void {
+      handler = h;
+    },
     handle(req: IncomingMessage, res: ServerResponse): boolean {
       const path = (req.url ?? "").split("?")[0];
       if (path !== FILL_PATH) return false;
-      if (!handler) { res.writeHead(404, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "not_found" })); return true; }
+      if (!handler) {
+        res.writeHead(404, { "content-type": "application/json" });
+        res.end(JSON.stringify({ code: "not_found" }));
+        return true;
+      }
       handler(req, res);
       return true;
     },

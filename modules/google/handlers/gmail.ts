@@ -2,15 +2,40 @@
 // message through mail.ingest. Cursor polling runs 2 minutes while a mailbox is active, 15 when idle and an hour when dormant; a Pub/Sub
 // watch makes the hour a backstop. A message is never lost: when mail.ingest cannot take it the cursor stays where it was.
 import {
-  api, apiRaw, bad, codeOf, enc, EMAIL, ensure, first, GMAIL, int, list, needHost, normalizeEmail, num, obj, refusal, strOrNull, text,
+  api,
+  apiRaw,
+  bad,
+  codeOf,
+  enc,
+  EMAIL,
+  ensure,
+  first,
+  GMAIL,
+  int,
+  list,
+  needHost,
+  normalizeEmail,
+  num,
+  obj,
+  refusal,
+  strOrNull,
+  text,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { charsetOf, decodePart, REACTION_TYPE, reactionEmoji } from "../../../lib/mail-parse.ts";
 
-export interface Act { connectionId: string; as?: string }
+export interface Act {
+  connectionId: string;
+  as?: string;
+}
 
 const SCOPE = "gmail.modify";
-const call = (ctx: GoogleCtx, a: Act, cap: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
+const call = (
+  ctx: GoogleCtx,
+  a: Act,
+  cap: string,
+  c: Omit<Call, "cap" | "connectionId" | "as" | "scope">,
+): Promise<Record<string, unknown>> =>
   api(ctx, { cap, connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: SCOPE, ...c });
 
 export interface GmailMessage {
@@ -43,7 +68,10 @@ export function mapMessage(m: Record<string, unknown>): GmailMessage {
 
 export async function getProfile(ctx: GoogleCtx, a: Act) {
   const r = await call(ctx, a, "google.gmail.get_profile", { url: `${GMAIL}/profile` });
-  const out: { emailAddress: string; historyId: string; messagesTotal?: number } = { emailAddress: text(r.emailAddress) ?? "", historyId: text(r.historyId) ?? "" };
+  const out: { emailAddress: string; historyId: string; messagesTotal?: number } = {
+    emailAddress: text(r.emailAddress) ?? "",
+    historyId: text(r.historyId) ?? "",
+  };
   const total = int(r.messagesTotal);
   if (total !== undefined) out.messagesTotal = total;
   return out;
@@ -61,9 +89,13 @@ export async function listLabels(ctx: GoogleCtx, a: Act) {
   };
 }
 
-export async function listMessages(ctx: GoogleCtx, a: Act & { q?: string; labelIds?: string[]; maxResults?: number; pageToken?: string }) {
+export async function listMessages(
+  ctx: GoogleCtx,
+  a: Act & { q?: string; labelIds?: string[]; maxResults?: number; pageToken?: string },
+) {
   const r = await call(ctx, a, "google.gmail.list_messages", {
-    url: `${GMAIL}/messages`, bulk: true,
+    url: `${GMAIL}/messages`,
+    bulk: true,
     query: { q: a.q, labelIds: a.labelIds, maxResults: a.maxResults, pageToken: a.pageToken },
   });
   const out: { messages: { id: string; threadId: string }[]; nextPageToken?: string; resultSizeEstimate?: number } = {
@@ -76,31 +108,59 @@ export async function listMessages(ctx: GoogleCtx, a: Act & { q?: string; labelI
 }
 
 export async function getMessage(ctx: GoogleCtx, a: Act & { messageId: string; format?: "metadata" | "full" | "raw" }) {
-  const r = await call(ctx, a, "google.gmail.get_message", { url: `${GMAIL}/messages/${enc(a.messageId)}`, query: { format: a.format ?? "full" } });
+  const r = await call(ctx, a, "google.gmail.get_message", {
+    url: `${GMAIL}/messages/${enc(a.messageId)}`,
+    query: { format: a.format ?? "full" },
+  });
   return { message: mapMessage(r) };
 }
 
 export async function getThread(ctx: GoogleCtx, a: Act & { threadId: string }) {
-  const r = await call(ctx, a, "google.gmail.get_thread", { url: `${GMAIL}/threads/${enc(a.threadId)}`, query: { format: "full" } });
+  const r = await call(ctx, a, "google.gmail.get_thread", {
+    url: `${GMAIL}/threads/${enc(a.threadId)}`,
+    query: { format: "full" },
+  });
   return { threadId: text(r.id) ?? a.threadId, messages: list(r.messages).map((m) => mapMessage(obj(m))) };
 }
 
 export async function listHistory(ctx: GoogleCtx, a: Act & { startHistoryId: string; pageToken?: string }) {
   const got = await apiRaw(ctx, {
-    cap: "google.gmail.list_history", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: SCOPE, bulk: true, url: `${GMAIL}/history`,
-    query: { startHistoryId: a.startHistoryId, pageToken: a.pageToken, maxResults: 500, historyTypes: ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"] },
+    cap: "google.gmail.list_history",
+    connectionId: a.connectionId,
+    ...(a.as ? { as: a.as } : {}),
+    scope: SCOPE,
+    bulk: true,
+    url: `${GMAIL}/history`,
+    query: {
+      startHistoryId: a.startHistoryId,
+      pageToken: a.pageToken,
+      maxResults: 500,
+      historyTypes: ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"],
+    },
   });
   if (got.status === 404) {
     // Gmail keeps history for about a week. Past that the cursor is useless: say so, with the current position to start over from.
     const now = await call(ctx, a, "google.gmail.get_profile", { url: `${GMAIL}/profile` });
-    return { history: [] as HistoryOut[], historyId: text(now.historyId) ?? a.startHistoryId, expired: true as boolean };
+    return {
+      history: [] as HistoryOut[],
+      historyId: text(now.historyId) ?? a.startHistoryId,
+      expired: true as boolean,
+    };
   }
   if (got.status >= 300) throw refusal(ctx, got.status, got.json);
   const out: { history: HistoryOut[]; historyId: string; nextPageToken?: string; expired: boolean } = {
     history: list(got.json.history).map((h) => {
       const o = obj(h);
-      const ids = (k: string): string[] => list(o[k]).map((x) => text(obj(obj(x).message).id)).filter((x): x is string => !!x);
-      return { id: text(o.id) ?? "", added: ids("messagesAdded"), deleted: ids("messagesDeleted"), labelsChanged: [...new Set([...ids("labelsAdded"), ...ids("labelsRemoved")])] };
+      const ids = (k: string): string[] =>
+        list(o[k])
+          .map((x) => text(obj(obj(x).message).id))
+          .filter((x): x is string => !!x);
+      return {
+        id: text(o.id) ?? "",
+        added: ids("messagesAdded"),
+        deleted: ids("messagesDeleted"),
+        labelsChanged: [...new Set([...ids("labelsAdded"), ...ids("labelsRemoved")])],
+      };
     }),
     historyId: text(got.json.historyId) ?? a.startHistoryId,
     expired: false,
@@ -108,10 +168,17 @@ export async function listHistory(ctx: GoogleCtx, a: Act & { startHistoryId: str
   if (text(got.json.nextPageToken)) out.nextPageToken = text(got.json.nextPageToken)!;
   return out;
 }
-interface HistoryOut { id: string; added: string[]; deleted: string[]; labelsChanged: string[] }
+interface HistoryOut {
+  id: string;
+  added: string[];
+  deleted: string[];
+  labelsChanged: string[];
+}
 
 export async function getAttachment(ctx: GoogleCtx, a: Act & { messageId: string; attachmentId: string }) {
-  const r = await call(ctx, a, "google.gmail.get_attachment", { url: `${GMAIL}/messages/${enc(a.messageId)}/attachments/${enc(a.attachmentId)}` });
+  const r = await call(ctx, a, "google.gmail.get_attachment", {
+    url: `${GMAIL}/messages/${enc(a.messageId)}/attachments/${enc(a.attachmentId)}`,
+  });
   const bytes = Buffer.from(text(r.data) ?? "", "base64url");
   const blobId = await needHost(ctx).putBlob(ctx, bytes, "application/octet-stream");
   return { blobId, size: bytes.byteLength };
@@ -121,7 +188,9 @@ export async function getAttachment(ctx: GoogleCtx, a: Act & { messageId: string
 
 export async function modifyLabels(ctx: GoogleCtx, a: Act & { messageId: string; add?: string[]; remove?: string[] }) {
   const r = await call(ctx, a, "google.gmail.modify_labels", {
-    method: "POST", url: `${GMAIL}/messages/${enc(a.messageId)}/modify`, body: { addLabelIds: a.add ?? [], removeLabelIds: a.remove ?? [] },
+    method: "POST",
+    url: `${GMAIL}/messages/${enc(a.messageId)}/modify`,
+    body: { addLabelIds: a.add ?? [], removeLabelIds: a.remove ?? [] },
   });
   return { message: mapMessage(r) };
 }
@@ -132,17 +201,32 @@ export async function deleteDraft(ctx: GoogleCtx, a: Act & { draftId: string }) 
 }
 
 export async function trashMessage(ctx: GoogleCtx, a: Act & { messageId: string }) {
-  await call(ctx, a, "google.gmail.trash_message", { method: "POST", url: `${GMAIL}/messages/${enc(a.messageId)}/trash` });
+  await call(ctx, a, "google.gmail.trash_message", {
+    method: "POST",
+    url: `${GMAIL}/messages/${enc(a.messageId)}/trash`,
+  });
   return { trashed: true };
 }
 
 /** inReplyTo and references make a reply thread for everyone on it; threadId (this mailbox's Gmail thread) puts it in the sender's own thread too. */
-interface Compose { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text?: string; html?: string; threadId?: string; inReplyTo?: string; references?: string }
+interface Compose {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string;
+}
 
 export async function createDraft(ctx: GoogleCtx, a: Act & Compose) {
   const raw = await buildRaw(ctx, a, a.as ?? "me", []);
   const r = await call(ctx, a, "google.gmail.create_draft", {
-    method: "POST", url: `${GMAIL}/drafts`, body: { message: { raw, ...(a.threadId ? { threadId: a.threadId } : {}) } },
+    method: "POST",
+    url: `${GMAIL}/drafts`,
+    body: { message: { raw, ...(a.threadId ? { threadId: a.threadId } : {}) } },
   });
   return { draftId: text(r.id) ?? "" };
 }
@@ -152,20 +236,29 @@ export async function sendMessage(ctx: GoogleCtx, a: Act & Compose & { attachmen
   for (const id of a.attachments ?? []) files.push(await needHost(ctx).fileBytes(ctx, id));
   const raw = await buildRaw(ctx, a, a.as ?? "me", files);
   const r = await call(ctx, a, "google.gmail.send_message", {
-    method: "POST", url: `${GMAIL}/messages/send`, body: { raw, ...(a.threadId ? { threadId: a.threadId } : {}) },
+    method: "POST",
+    url: `${GMAIL}/messages/send`,
+    body: { raw, ...(a.threadId ? { threadId: a.threadId } : {}) },
   });
   return { id: text(r.id) ?? "", threadId: text(r.threadId) ?? "" };
 }
 
 export async function watch(ctx: GoogleCtx, a: Act & { topicName: string; labelIds?: string[] }) {
   const r = await call(ctx, a, "google.gmail.watch", {
-    method: "POST", url: `${GMAIL}/watch`, body: { topicName: a.topicName, ...(a.labelIds ? { labelIds: a.labelIds } : {}) },
+    method: "POST",
+    url: `${GMAIL}/watch`,
+    body: { topicName: a.topicName, ...(a.labelIds ? { labelIds: a.labelIds } : {}) },
   });
   const expiration = int(r.expiration) ?? 0;
   const sub = (await mailboxOf(ctx, a)) ?? "";
   if (sub) {
     ensureMailbox(ctx, sub, a.connectionId);
-    ctx.db.run(`UPDATE google_mailbox SET "watchExpiresAt" = ?, "pubsubTopic" = ? WHERE email = ?`, expiration, a.topicName, sub);
+    ctx.db.run(
+      `UPDATE google_mailbox SET "watchExpiresAt" = ?, "pubsubTopic" = ? WHERE email = ?`,
+      expiration,
+      a.topicName,
+      sub,
+    );
   }
   return { historyId: text(r.historyId) ?? "", expiration };
 }
@@ -184,14 +277,24 @@ export async function stopWatch(ctx: GoogleCtx, a: Act) {
 async function mailboxOf(ctx: GoogleCtx, a: Act): Promise<string | null> {
   if (a.as) return normalizeEmail(a.as);
   const person = ctx.actingFor ?? ctx.principal.id;
-  return strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email");
+  return strOrNull(
+    first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)),
+    "email",
+  );
 }
 
 export function ensureMailbox(ctx: GoogleCtx, email: string, connectionId: string): void {
   if (first(ctx.db.all(`SELECT email FROM google_mailbox WHERE email = ?`, email))) return;
   ctx.db.run(
     `INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    email, connectionId, null, null, null, null, null, null,
+    email,
+    connectionId,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
   );
 }
 
@@ -199,18 +302,29 @@ export function ensureMailbox(ctx: GoogleCtx, email: string, connectionId: strin
 
 const CRLF = "\r\n";
 const header = (s: string): string => s.replace(/[\r\n]+/g, " ").trim();
-const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64").replace(/.{1,76}/g, "$&" + CRLF).trimEnd();
+const b64 = (bytes: Uint8Array): string =>
+  Buffer.from(bytes)
+    .toString("base64")
+    .replace(/.{1,76}/g, "$&" + CRLF)
+    .trimEnd();
 const needsEncoding = (s: string): boolean => /[^\x20-\x7e]/.test(s);
-const subjectHeader = (s: string): string => (needsEncoding(s) ? `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=` : s);
+const subjectHeader = (s: string): string =>
+  needsEncoding(s) ? `=?UTF-8?B?${Buffer.from(s, "utf8").toString("base64")}?=` : s;
 
 function checkAddresses(ctx: GoogleCtx, label: string, list_: string[] | undefined): string[] {
   const out = (list_ ?? []).map((x) => x.trim());
-  for (const x of out) if (!EMAIL.test(x) || /[\s<>,;"]/.test(x)) bad(ctx, `${label} has an address that is not valid.`);
+  for (const x of out)
+    if (!EMAIL.test(x) || /[\s<>,;"]/.test(x)) bad(ctx, `${label} has an address that is not valid.`);
   return out;
 }
 
 /** The message as Gmail's `raw` field wants it: RFC 822, base64url. Plain, alternative or mixed depending on what is there. */
-export async function buildRaw(ctx: GoogleCtx, a: Compose, from: string, files: { name: string; mime: string; bytes: Uint8Array }[]): Promise<string> {
+export async function buildRaw(
+  ctx: GoogleCtx,
+  a: Compose,
+  from: string,
+  files: { name: string; mime: string; bytes: Uint8Array }[],
+): Promise<string> {
   const to = checkAddresses(ctx, "To", a.to);
   if (to.length === 0) bad(ctx, "A message needs at least one recipient.");
   const cc = checkAddresses(ctx, "Cc", a.cc);
@@ -222,7 +336,11 @@ export async function buildRaw(ctx: GoogleCtx, a: Compose, from: string, files: 
   if (cc.length) lines.push(`Cc: ${cc.join(", ")}`);
   if (bcc.length) lines.push(`Bcc: ${bcc.join(", ")}`);
   lines.push(`Subject: ${subjectHeader(header(a.subject))}`, "MIME-Version: 1.0");
-  const ids = (v: string | undefined): string => (v ?? "").split(/\s+/).filter((x) => /^<[^<>\s]+>$/.test(x)).join(" ");
+  const ids = (v: string | undefined): string =>
+    (v ?? "")
+      .split(/\s+/)
+      .filter((x) => /^<[^<>\s]+>$/.test(x))
+      .join(" ");
   if (ids(a.inReplyTo)) lines.push(`In-Reply-To: ${ids(a.inReplyTo).split(" ")[0]}`);
   if (ids(a.references)) lines.push(`References: ${ids(a.references)}`);
 
@@ -230,20 +348,35 @@ export async function buildRaw(ctx: GoogleCtx, a: Compose, from: string, files: 
   const html_ = a.html !== undefined ? part("text/html", a.html) : null;
   const body = text_ && html_ ? multipart("alternative", [text_, html_]) : (text_ ?? html_)!;
   const whole = files.length
-    ? multipart("mixed", [body, ...files.map((f) => ({
-      headers: [`Content-Type: ${header(f.mime || "application/octet-stream")}; name="${header(f.name).replace(/"/g, "")}"`, "Content-Transfer-Encoding: base64", `Content-Disposition: attachment; filename="${header(f.name).replace(/"/g, "")}"`],
-      body: b64(f.bytes),
-    }))])
+    ? multipart("mixed", [
+        body,
+        ...files.map((f) => ({
+          headers: [
+            `Content-Type: ${header(f.mime || "application/octet-stream")}; name="${header(f.name).replace(/"/g, "")}"`,
+            "Content-Transfer-Encoding: base64",
+            `Content-Disposition: attachment; filename="${header(f.name).replace(/"/g, "")}"`,
+          ],
+          body: b64(f.bytes),
+        })),
+      ])
     : body;
   const mime = [...lines, ...whole.headers, "", whole.body].join(CRLF);
   return Buffer.from(mime, "utf8").toString("base64url");
 }
 
-interface Part { headers: string[]; body: string }
-const part = (type: string, content: string): Part => ({ headers: [`Content-Type: ${type}; charset=UTF-8`, "Content-Transfer-Encoding: base64"], body: b64(Buffer.from(content, "utf8")) });
+interface Part {
+  headers: string[];
+  body: string;
+}
+const part = (type: string, content: string): Part => ({
+  headers: [`Content-Type: ${type}; charset=UTF-8`, "Content-Transfer-Encoding: base64"],
+  body: b64(Buffer.from(content, "utf8")),
+});
 function multipart(kind: "alternative" | "mixed", parts: Part[]): Part {
   const boundary = `=_vyre_${Math.abs(hash(parts.map((p) => p.body).join("|"))).toString(36)}`;
-  const body = parts.map((p) => `--${boundary}${CRLF}${p.headers.join(CRLF)}${CRLF}${CRLF}${p.body}`).join(CRLF) + `${CRLF}--${boundary}--`;
+  const body =
+    parts.map((p) => `--${boundary}${CRLF}${p.headers.join(CRLF)}${CRLF}${CRLF}${p.body}`).join(CRLF) +
+    `${CRLF}--${boundary}--`;
   return { headers: [`Content-Type: multipart/${kind}; boundary="${boundary}"`], body };
 }
 function hash(s: string): number {
@@ -274,7 +407,7 @@ export interface Pull {
 }
 
 export function pollInterval(now: number, lastActivityAt: number | null, watching: boolean): number {
-  if (watching) return POLL_DORMANT_MS;   // push is on: polling is only the backstop
+  if (watching) return POLL_DORMANT_MS; // push is on: polling is only the backstop
   if (lastActivityAt === null) return POLL_IDLE_MS;
   const age = now - lastActivityAt;
   if (age < DAY / 24) return POLL_ACTIVE_MS;
@@ -295,35 +428,65 @@ export async function pullMailbox(ctx: GoogleCtx, a: { connectionId: string; mai
   let ids: string[] = [];
 
   if (cursor) {
-    const start = cursor;   // every page of one listing is asked from the same position
+    const start = cursor; // every page of one listing is asked from the same position
     const seen = new Set<string>();
     let token: string | undefined;
     let expired = false;
     for (;;) {
       const page = await listHistory(ctx, { ...act, startHistoryId: start, ...(token ? { pageToken: token } : {}) });
-      if (page.expired) { expired = true; break; }
-      for (const h of page.history) for (const id of h.added) if (!seen.has(id)) { seen.add(id); ids.push(id); }
+      if (page.expired) {
+        expired = true;
+        break;
+      }
+      for (const h of page.history)
+        for (const id of h.added)
+          if (!seen.has(id)) {
+            seen.add(id);
+            ids.push(id);
+          }
       cursor = page.historyId;
       if (!page.nextPageToken) break;
       token = page.nextPageToken;
     }
-    if (expired) { bootstrapped = true; ids = await recent(ctx, act); cursor = profile.historyId; }
+    if (expired) {
+      bootstrapped = true;
+      ids = await recent(ctx, act);
+      cursor = profile.historyId;
+    }
   } else {
     bootstrapped = true;
     ids = await recent(ctx, act);
     cursor = profile.historyId;
   }
 
-  let ingested = 0, deduped = 0, skipped = 0, complete = true;
+  let ingested = 0,
+    deduped = 0,
+    skipped = 0,
+    complete = true;
   for (const id of ids) {
-    const got = await apiRaw(ctx, { cap: "google.gmail.get_message", connectionId: a.connectionId, as: email, scope: SCOPE, bulk: true, url: `${GMAIL}/messages/${enc(id)}`, query: { format: "full" } });
-    if (got.status === 404) { skipped += 1; continue; }   // deleted between the history entry and now
+    const got = await apiRaw(ctx, {
+      cap: "google.gmail.get_message",
+      connectionId: a.connectionId,
+      as: email,
+      scope: SCOPE,
+      bulk: true,
+      url: `${GMAIL}/messages/${enc(id)}`,
+      query: { format: "full" },
+    });
+    if (got.status === 404) {
+      skipped += 1;
+      continue;
+    } // deleted between the history entry and now
     if (got.status >= 300) throw refusal(ctx, got.status, got.json);
     const input = await toIngest(ctx, act, email, mapMessage(got.json));
-    if (!input) { skipped += 1; continue; }
+    if (!input) {
+      skipped += 1;
+      continue;
+    }
     try {
       const out = obj(await ctx.call("mail.ingest", input));
-      if (out.deduped === true) deduped += 1; else ingested += 1;
+      if (out.deduped === true) deduped += 1;
+      else ingested += 1;
     } catch (e) {
       // No mailbox for this member yet, or the module is down: keep the cursor so nothing is lost, and try again next round.
       ctx.log.warn("google pull stopped", { mailbox: email, code: codeOf(e) });
@@ -336,12 +499,26 @@ export async function pullMailbox(ctx: GoogleCtx, a: { connectionId: string; mai
   const before = state.lastActivityAt;
   const lastActivity = ingested > 0 ? now : typeof before === "number" ? before : null;
   if (complete) {
-    ctx.db.run(`UPDATE google_mailbox SET "historyId" = ?, "lastPolledAt" = ?, "lastActivityAt" = ? WHERE email = ?`, cursor, now, lastActivity, email);
+    ctx.db.run(
+      `UPDATE google_mailbox SET "historyId" = ?, "lastPolledAt" = ?, "lastActivityAt" = ? WHERE email = ?`,
+      cursor,
+      now,
+      lastActivity,
+      email,
+    );
   } else {
     ctx.db.run(`UPDATE google_mailbox SET "lastPolledAt" = ? WHERE email = ?`, now, email);
   }
   const watching = num(state, "watchExpiresAt") > now;
-  return { ingested, deduped, skipped, historyId: cursor ?? profile.historyId, bootstrapped, complete, nextPollMs: pollInterval(now, lastActivity, watching) };
+  return {
+    ingested,
+    deduped,
+    skipped,
+    historyId: cursor ?? profile.historyId,
+    bootstrapped,
+    complete,
+    nextPollMs: pollInterval(now, lastActivity, watching),
+  };
 }
 
 /** The newest mail of the last 90 days, oldest first, for a mailbox with no cursor. */
@@ -349,7 +526,12 @@ async function recent(ctx: GoogleCtx, act: Act): Promise<string[]> {
   const out: string[] = [];
   let token: string | undefined;
   for (let page = 0; page < BOOT_PAGES; page++) {
-    const r = await listMessages(ctx, { ...act, q: "newer_than:90d -in:spam -in:trash", maxResults: BOOT_PAGE_SIZE, ...(token ? { pageToken: token } : {}) });
+    const r = await listMessages(ctx, {
+      ...act,
+      q: "newer_than:90d -in:spam -in:trash",
+      maxResults: BOOT_PAGE_SIZE,
+      ...(token ? { pageToken: token } : {}),
+    });
     out.push(...r.messages.map((m) => m.id));
     if (!r.nextPageToken) break;
     token = r.nextPageToken;
@@ -359,17 +541,26 @@ async function recent(ctx: GoogleCtx, act: Act): Promise<string[]> {
 
 // ---- Gmail message to mail.ingest input
 
-interface Party { address: string; name?: string }
+interface Party {
+  address: string;
+  name?: string;
+}
 
 export function parseAddresses(value: string | undefined): Party[] {
   if (!value) return [];
   const parts: string[] = [];
-  let cur = "", quoted = false, angle = 0;
+  let cur = "",
+    quoted = false,
+    angle = 0;
   for (const c of value) {
     if (c === '"') quoted = !quoted;
     else if (!quoted && c === "<") angle += 1;
     else if (!quoted && c === ">") angle = Math.max(0, angle - 1);
-    if (c === "," && !quoted && angle === 0) { parts.push(cur); cur = ""; continue; }
+    if (c === "," && !quoted && angle === 0) {
+      parts.push(cur);
+      cur = "";
+      continue;
+    }
     cur += c;
   }
   if (cur.trim()) parts.push(cur);
@@ -387,7 +578,10 @@ export function parseAddresses(value: string | undefined): Party[] {
 
 /** A part's own header (Content-Type, Content-Transfer-Encoding), lowercased name, first value. */
 function partHeader(p: Record<string, unknown>, name: string): string | undefined {
-  for (const h of list(p.headers)) { const o = obj(h); if (text(o.name)?.toLowerCase() === name) return text(o.value); }
+  for (const h of list(p.headers)) {
+    const o = obj(h);
+    if (text(o.name)?.toLowerCase() === name) return text(o.value);
+  }
   return undefined;
 }
 
@@ -397,8 +591,18 @@ function decode(data: unknown, charset?: string): string | undefined {
   return s === undefined ? undefined : decodePart(s, { base64url: true, charset: charset ?? null });
 }
 
-interface Pending { kind: "text" | "html" | "reaction"; attachmentId: string; charset?: string }
-interface Walked { text?: string; html?: string; reaction?: string; files: { name: string; mime: string; size: number; attachmentId: string }[]; pending: Pending[] }
+interface Pending {
+  kind: "text" | "html" | "reaction";
+  attachmentId: string;
+  charset?: string;
+}
+interface Walked {
+  text?: string;
+  html?: string;
+  reaction?: string;
+  files: { name: string; mime: string; size: number; attachmentId: string }[];
+  pending: Pending[];
+}
 /**
  * The first text/plain and text/html parts, a Gmail reaction part, and the attachments. A large body part has no data, only an attachmentId (Gmail moves
  * bodies over a few MB out of the message), so it is fetched after the walk: dropping it is how a long email arrived with no body.
@@ -409,8 +613,10 @@ function walk(p: Record<string, unknown>, out: Walked): void {
   const name = text(p.filename) ?? "";
   const charset = charsetOf(partHeader(p, "content-type"));
   const later = text(body.attachmentId);
-  const kind = mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
-  if (name && later) out.files.push({ name, mime: mime || "application/octet-stream", size: int(body.size) ?? 0, attachmentId: later });
+  const kind =
+    mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
+  if (name && later)
+    out.files.push({ name, mime: mime || "application/octet-stream", size: int(body.size) ?? 0, attachmentId: later });
   else if (kind && out[kind] === undefined && !out.pending.some((x) => x.kind === kind)) {
     const v = body.data !== undefined ? decode(body.data, charset) : undefined;
     if (v !== undefined) out[kind] = v;
@@ -423,7 +629,9 @@ function walk(p: Record<string, unknown>, out: Walked): void {
 async function fetchPending(ctx: GoogleCtx, act: Act, messageId: string, w: Walked): Promise<void> {
   for (const x of w.pending) {
     try {
-      const r = await call(ctx, act, "google.gmail.get_attachment", { url: `${GMAIL}/messages/${enc(messageId)}/attachments/${enc(x.attachmentId)}` });
+      const r = await call(ctx, act, "google.gmail.get_attachment", {
+        url: `${GMAIL}/messages/${enc(messageId)}/attachments/${enc(x.attachmentId)}`,
+      });
       const v = decode(r.data, x.charset);
       if (v !== undefined) w[x.kind] = v;
     } catch (e) {
@@ -434,7 +642,12 @@ async function fetchPending(ctx: GoogleCtx, act: Act, messageId: string, w: Walk
 }
 
 /** The ingest input for one Gmail message, or null for a draft, spam, trash or a message with no usable sender. */
-export async function toIngest(ctx: GoogleCtx, act: Act, mailbox: string, m: GmailMessage): Promise<Record<string, unknown> | null> {
+export async function toIngest(
+  ctx: GoogleCtx,
+  act: Act,
+  mailbox: string,
+  m: GmailMessage,
+): Promise<Record<string, unknown> | null> {
   if (m.labelIds.some((l) => l === "DRAFT" || l === "SPAM" || l === "TRASH")) return null;
   const payload = m.payload ?? {};
   const headers = new Map<string, string>();
@@ -459,21 +672,29 @@ export async function toIngest(ctx: GoogleCtx, act: Act, mailbox: string, m: Gma
     }
   }
   const out: Record<string, unknown> = {
-    source: "google", envelopeTo: mailbox, providerId: m.id,
+    source: "google",
+    envelopeTo: mailbox,
+    providerId: m.id,
     rfcMessageId: headers.get("message-id") ?? `<gmail-${m.id}@mail.gmail.com>`,
-    threadKey: m.threadId, direction: m.labelIds.includes("SENT") ? "out" : "in",
-    from, to: parseAddresses(headers.get("to")), cc: parseAddresses(headers.get("cc")),
-    subject: headers.get("subject") ?? "", receivedAt: m.internalDate ?? ctx.now(),
+    threadKey: m.threadId,
+    direction: m.labelIds.includes("SENT") ? "out" : "in",
+    from,
+    to: parseAddresses(headers.get("to")),
+    cc: parseAddresses(headers.get("cc")),
+    subject: headers.get("subject") ?? "",
+    receivedAt: m.internalDate ?? ctx.now(),
   };
   if (walked.text !== undefined) out.text = walked.text;
   if (walked.html !== undefined) out.html = walked.html;
   if (attachments.length) out.attachments = attachments;
   const refs: Record<string, string> = {};
-  for (const k of ["in-reply-to", "references"]) { const v = headers.get(k); if (v) refs[k] = v; }
+  for (const k of ["in-reply-to", "references"]) {
+    const v = headers.get(k);
+    if (v) refs[k] = v;
+  }
   // a Gmail emoji reaction: its JSON part names the emoji; the reader shows it on the message it answers, never as a message
   const emoji = walked.reaction ? reactionEmoji(walked.reaction) : null;
   if (emoji) refs["x-vyre-reaction"] = emoji;
   if (Object.keys(refs).length) out.headers = refs;
   return out;
 }
-

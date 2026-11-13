@@ -27,7 +27,11 @@ type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
 
 /** A kind a later part draws: how it is named in the switch and how it is drawn from the context. */
-export interface ExtraKind { kind: string; label: string; render: (ctx: ViewCtx) => ReactElement }
+export interface ExtraKind {
+  kind: string;
+  label: string;
+  render: (ctx: ViewCtx) => ReactElement;
+}
 
 export interface RecordViewsProps {
   /** The shell may force a type (a deep link); otherwise the sidebar's open type shows. */
@@ -43,7 +47,14 @@ export interface RecordViewsProps {
   onStarted?: () => void;
 }
 
-function TypeViews({ type, kind, view, extraKinds, startNew = false, onStarted }: RecordViewsProps & { type: string }): ReactElement {
+function TypeViews({
+  type,
+  kind,
+  view,
+  extraKinds,
+  startNew = false,
+  onStarted,
+}: RecordViewsProps & { type: string }): ReactElement {
   const data = useRecordsData();
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
@@ -51,7 +62,10 @@ function TypeViews({ type, kind, view, extraKinds, startNew = false, onStarted }
   const list = views.status === "ready" ? views.data.views : [];
   const saved = state.viewId ? list.find((x) => x.viewId === state.viewId) : undefined;
   const def = describe.status === "ready" ? describe.data.types.find((t) => t.key === type) : undefined;
-  const kinds: KindDef[] = [...each(KIND_ORDER, (k) => ({ kind: k, label: KIND_LABEL[k] })), ...each(extraKinds ?? [], (k) => ({ kind: k.kind, label: k.label }))];
+  const kinds: KindDef[] = [
+    ...each(KIND_ORDER, (k) => ({ kind: k, label: KIND_LABEL[k] })),
+    ...each(extraKinds ?? [], (k) => ({ kind: k.kind, label: k.label })),
+  ];
   const known = each(kinds, (k) => k.kind);
   const winW = useWindowDimensions().width;
   const phone = isPhoneWidth(winW);
@@ -62,16 +76,47 @@ function TypeViews({ type, kind, view, extraKinds, startNew = false, onStarted }
   const savedKind = saved ? kindOf(saved, known) : null;
   // a Journey type opens on its board; the table stays in the switch
   const journey = isJourneyDef(def);
-  const active = picked && picked.key === key ? picked.kind : startNew ? "table" : savedKind ?? (kind && known.includes(kind) ? kind : journey ? "board" : "table");
+  const active =
+    picked && picked.key === key
+      ? picked.kind
+      : startNew
+        ? "table"
+        : (savedKind ?? (kind && known.includes(kind) ? kind : journey ? "board" : "table"));
   const base: TableViewState = { ...fromSaved(saved), ...view };
-  const ctx: ViewCtx = { type, def, views: list, saved, base, kind: active, kinds, onKind: (k) => setPicked({ key, kind: k }) };
+  const ctx: ViewCtx = {
+    type,
+    def,
+    views: list,
+    saved,
+    base,
+    kind: active,
+    kinds,
+    onKind: (k) => setPicked({ key, kind: k }),
+  };
   // On the phone the table is its list: a face or icon, the title and one line, in the shared Row (no columns to scroll sideways).
-  if (active === "table" && phone) return <ListView key={key} ctx={ctx} startNew={startNew} {...(onStarted ? { onStarted } : {})} />;
-  if (active === "table") return <TableView key={key} type={type} {...(view ? { view } : {})} headerExtra={<KindSwitch ctx={ctx} />} startNew={startNew} {...(onStarted ? { onStarted } : {})} />;
+  if (active === "table" && phone)
+    return <ListView key={key} ctx={ctx} startNew={startNew} {...(onStarted ? { onStarted } : {})} />;
+  if (active === "table")
+    return (
+      <TableView
+        key={key}
+        type={type}
+        {...(view ? { view } : {})}
+        headerExtra={<KindSwitch ctx={ctx} />}
+        startNew={startNew}
+        {...(onStarted ? { onStarted } : {})}
+      />
+    );
   const extra = (extraKinds ?? []).find((k) => k.kind === active);
   if (extra) return <Fragment key={`${key}:${active}`}>{extra.render(ctx)}</Fragment>;
   if (active === "board" && journey) return <JourneyBoard key={key} ctx={ctx} />;
-  return active === "board" ? <BoardView key={key} ctx={ctx} /> : active === "gallery" ? <GalleryView key={key} ctx={ctx} /> : <ListView key={key} ctx={ctx} />;
+  return active === "board" ? (
+    <BoardView key={key} ctx={ctx} />
+  ) : active === "gallery" ? (
+    <GalleryView key={key} ctx={ctx} />
+  ) : (
+    <ListView key={key} ctx={ctx} />
+  );
 }
 
 function Open(props: RecordViewsProps): ReactElement {

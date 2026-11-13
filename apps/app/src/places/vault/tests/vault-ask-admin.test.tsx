@@ -13,19 +13,36 @@ import { withProviders } from "../providers/sample.ts";
 import { AddConnection, pendingFromEntry } from "../connections/AddConnection.tsx";
 import { SAMPLE_CATALOG, sampleConnectionsCall } from "../connections/sample.ts";
 
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
 const ASK = "Ask an admin to add it for the team";
 const SHARED = "Shared with the Space";
 const ASKED = "Asked the admins to add it for the team.";
 
 /** The sample Vault with the providers, as an admin or a member: providers.space_key.get answers mayManage, vault.request answers a waiting request. Every call is recorded. */
-function vault(o: { admin: boolean; personal?: boolean }): { data: VaultData; calls: { cap: string; input: Record<string, unknown> }[] } {
+function vault(o: { admin: boolean; personal?: boolean }): {
+  data: VaultData;
+  calls: { cap: string; input: Record<string, unknown> }[];
+} {
   const s = withProviders(createSampleVault());
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (cap === "providers.space_key.get") return { set: false, models: [], mayManage: o.admin };
-    if (cap === "vault.request") return { request: { id: "vrq_new", name: (input as { name: string }).name, fields: ["api_key"], reason: "", state: "waiting", taskId: "tsk_new", at: 0 } };
+    if (cap === "vault.request")
+      return {
+        request: {
+          id: "vrq_new",
+          name: (input as { name: string }).name,
+          fields: ["api_key"],
+          reason: "",
+          state: "waiting",
+          taskId: "tsk_new",
+          at: 0,
+        },
+      };
     return s.data.call(cap, input);
   };
   return { data: { ...s.data, call, ...(o.personal ? { personal: true } : {}) }, calls };
@@ -36,7 +53,16 @@ test("add an AI key, a member: the Space choice reads Ask an admin, and choosing
   const { data, calls } = vault({ admin: false });
   const restore = installDom();
   try {
-    const root = await mount(createRoot, <VaultDataProvider value={data}><AddProvider initial={{ providerKey: "openai", connection: "api_key" }} onClose={() => undefined} onAdded={() => undefined} /></VaultDataProvider>);
+    const root = await mount(
+      createRoot,
+      <VaultDataProvider value={data}>
+        <AddProvider
+          initial={{ providerKey: "openai", connection: "api_key" }}
+          onClose={() => undefined}
+          onAdded={() => undefined}
+        />
+      </VaultDataProvider>,
+    );
     assert.ok(find(root, "provider-key-input"), "the key form shows");
     await press(find(root, "provider-scope"));
     assert.ok(find(root, `menu-item-${ASK}`), "a member is offered Ask an admin");
@@ -50,28 +76,55 @@ test("add an AI key, a member: the Space choice reads Ask an admin, and choosing
     assert.equal(asks.length, 1, "one Vault request");
     assert.equal(asks[0]!.input["name"], "OpenAI_key");
     assert.deepEqual(asks[0]!.input["fields"], ["api_key"]);
-    assert.ok(String(asks[0]!.input["reason"]).includes("OpenAI") && typeof asks[0]!.input["idempotencyKey"] === "string");
-    assert.ok(!capsOf(calls).includes("providers.add") && !capsOf(calls).some((c) => c.startsWith("access.share")), "no save and no share");
+    assert.ok(
+      String(asks[0]!.input["reason"]).includes("OpenAI") && typeof asks[0]!.input["idempotencyKey"] === "string",
+    );
+    assert.ok(
+      !capsOf(calls).includes("providers.add") && !capsOf(calls).some((c) => c.startsWith("access.share")),
+      "no save and no share",
+    );
     assert.equal(textOf(find(root, "provider-asked")).trim(), ASKED, "says so in one line");
     assert.ok(find(root, "provider-done"), "and closes with Done, as an added key does");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("add an AI key, an admin keeps Shared with the Space; a Personal Space shows neither", async () => {
   const restore = installDom();
   try {
     const admin = vault({ admin: true });
-    const root = await mount(createRoot, <VaultDataProvider value={admin.data}><AddProvider initial={{ providerKey: "openai", connection: "api_key" }} onClose={() => undefined} onAdded={() => undefined} /></VaultDataProvider>);
+    const root = await mount(
+      createRoot,
+      <VaultDataProvider value={admin.data}>
+        <AddProvider
+          initial={{ providerKey: "openai", connection: "api_key" }}
+          onClose={() => undefined}
+          onAdded={() => undefined}
+        />
+      </VaultDataProvider>,
+    );
     await press(find(root, "provider-scope"));
     assert.ok(find(root, `menu-item-${SHARED}`), "an admin shares with the Space");
     assert.equal(find(root, `menu-item-${ASK}`), null);
     const personal = vault({ admin: true, personal: true });
-    const mine = await mount(createRoot, <VaultDataProvider value={personal.data}><AddProvider initial={{ providerKey: "openai", connection: "api_key" }} onClose={() => undefined} onAdded={() => undefined} /></VaultDataProvider>);
+    const mine = await mount(
+      createRoot,
+      <VaultDataProvider value={personal.data}>
+        <AddProvider
+          initial={{ providerKey: "openai", connection: "api_key" }}
+          onClose={() => undefined}
+          onAdded={() => undefined}
+        />
+      </VaultDataProvider>,
+    );
     await press(find(mine, "provider-scope"));
     assert.ok(find(mine, "menu-item-Mine"));
     assert.equal(find(mine, `menu-item-${SHARED}`), null);
     assert.equal(find(mine, `menu-item-${ASK}`), null);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("add a connection, a member: Ask an admin in place of Everyone in the Space sends a Vault request, adds no connection and closes", async () => {
@@ -80,7 +133,9 @@ test("add a connection, a member: Ask an admin in place of Everyone in the Space
   const rest = sampleConnectionsCall(v.data.call);
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    return cap === "vault.request" ? { request: { id: "vrq_new", name: "x", fields: [], reason: "", state: "waiting", taskId: "tsk_new", at: 0 } } : rest(cap, input);
+    return cap === "vault.request"
+      ? { request: { id: "vrq_new", name: "x", fields: [], reason: "", state: "waiting", taskId: "tsk_new", at: 0 } }
+      : rest(cap, input);
   };
   const data = { ...v.data, call, assistantId: "agt_assistant" };
   const said: string[] = [];
@@ -88,8 +143,24 @@ test("add a connection, a member: Ask an admin in place of Everyone in the Space
   const restore = installDom();
   try {
     const pending = [pendingFromEntry(SAMPLE_CATALOG[1]!)];
-    const root = await mount(createRoot, <VaultDataProvider value={data}><AddConnection canAddSpace={false} canAsk initial={{ pending }} onClose={() => { closed++; }} onAdded={(t) => said.push(t)} /></VaultDataProvider>);
-    assert.ok(find(root, "scope-ask") && textOf(find(root, "scope-ask")).includes(ASK), "a member is offered Ask an admin");
+    const root = await mount(
+      createRoot,
+      <VaultDataProvider value={data}>
+        <AddConnection
+          canAddSpace={false}
+          canAsk
+          initial={{ pending }}
+          onClose={() => {
+            closed++;
+          }}
+          onAdded={(t) => said.push(t)}
+        />
+      </VaultDataProvider>,
+    );
+    assert.ok(
+      find(root, "scope-ask") && textOf(find(root, "scope-ask")).includes(ASK),
+      "a member is offered Ask an admin",
+    );
     assert.equal(find(root, "scope-space"), null, "and never Everyone in the Space");
     await press(find(root, "scope-ask"));
     assert.equal(find(root, "ask-NOTION_TOKEN"), null, "no key is typed in to ask for one");
@@ -98,13 +169,21 @@ test("add a connection, a member: Ask an admin in place of Everyone in the Space
     assert.equal(asks.length, 1, "one Vault request");
     assert.deepEqual(asks[0]!.input["fields"], ["NOTION_TOKEN", "NOTION_PAGE_ID"]);
     assert.ok(/^[A-Za-z][A-Za-z0-9_]*$/.test(String(asks[0]!.input["name"])), "the name is a handle the server takes");
-    assert.ok(String(asks[0]!.input["reason"]).includes("npx -y notion-mcp-server@3.3.0"), "the admin sees what to add");
-    assert.ok(!capsOf(calls).some((c) => c.startsWith("plugins.connection.") || c === "vault.item.put"), "no connection and no key saved");
+    assert.ok(
+      String(asks[0]!.input["reason"]).includes("npx -y notion-mcp-server@3.3.0"),
+      "the admin sees what to add",
+    );
+    assert.ok(
+      !capsOf(calls).some((c) => c.startsWith("plugins.connection.") || c === "vault.item.put"),
+      "no connection and no key saved",
+    );
     assert.equal(textOf(find(root, "connection-asked")).includes(ASKED), true, "says so in one line");
     await press(find(root, "connection-asked-done"));
     assert.deepEqual(said, [ASKED]);
     assert.equal(closed, 1, "Done closes the sheet");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("add a connection: an admin keeps Everyone in the Space, and a Personal Space has no Space choice at all", async () => {
@@ -113,9 +192,27 @@ test("add a connection: an admin keeps Everyone in the Space, and a Personal Spa
   try {
     const data = { ...v.data, call: sampleConnectionsCall(v.data.call), assistantId: "agt_assistant" };
     const pending = [pendingFromEntry(SAMPLE_CATALOG[1]!)];
-    const admin = await mount(createRoot, <VaultDataProvider value={data}><AddConnection canAddSpace initial={{ pending }} onClose={() => undefined} onAdded={() => undefined} /></VaultDataProvider>);
+    const admin = await mount(
+      createRoot,
+      <VaultDataProvider value={data}>
+        <AddConnection canAddSpace initial={{ pending }} onClose={() => undefined} onAdded={() => undefined} />
+      </VaultDataProvider>,
+    );
     assert.ok(find(admin, "scope-space") && !find(admin, "scope-ask"));
-    const personal = await mount(createRoot, <VaultDataProvider value={{ ...data, personal: true }}><AddConnection canAddSpace={false} canAsk initial={{ pending }} onClose={() => undefined} onAdded={() => undefined} /></VaultDataProvider>);
+    const personal = await mount(
+      createRoot,
+      <VaultDataProvider value={{ ...data, personal: true }}>
+        <AddConnection
+          canAddSpace={false}
+          canAsk
+          initial={{ pending }}
+          onClose={() => undefined}
+          onAdded={() => undefined}
+        />
+      </VaultDataProvider>,
+    );
     assert.ok(!find(personal, "scope-space") && !find(personal, "scope-ask"), "a Personal Space shows neither");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

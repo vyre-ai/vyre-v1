@@ -10,7 +10,14 @@ import { ensure, factTitle, orNull, readFact, rowsOf, str, tokOf } from "./proje
 import type { MemCtx } from "./projections.ts";
 import { UPKEEP } from "./trail.ts";
 
-export interface SettleOut { people: number; resealed: number; unreadable: number; folded: number; warmed: number; left: number }
+export interface SettleOut {
+  people: number;
+  resealed: number;
+  unreadable: number;
+  folded: number;
+  warmed: number;
+  left: number;
+}
 
 export function settlePersonal(ctx: MemCtx, budget = 2000): SettleOut {
   ensure(ctx.db);
@@ -33,7 +40,11 @@ export function settlePersonal(ctx: MemCtx, budget = 2000): SettleOut {
 function fold(ctx: MemCtx, owner: string, ids: string[]): number {
   if (ids.length === 0) return 0;
   const late = new Set(ids);
-  const rows = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND enc = 2 AND status IN ('current', 'proposed') AND trashed_at IS NULL ORDER BY learned_at, id", owner);
+  const rows = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND enc = 2 AND status IN ('current', 'proposed') AND trashed_at IS NULL ORDER BY learned_at, id",
+    owner,
+  );
   const groups = new Map<string, typeof rows>();
   for (const r of rows) {
     const text = openFactText(ctx, str(r["id"]), owner, str(r["sealed"]));
@@ -47,7 +58,16 @@ function fold(ctx: MemCtx, owner: string, ids: string[]): number {
     const keep = g.find((r) => !late.has(str(r["id"]))) ?? g[0]!;
     for (const r of g) {
       if (r === keep || !late.has(str(r["id"]))) continue;
-      if (trashFact(ctx, readFact(ctx, r), { reason: "duplicate", action: "merge", mergedInto: str(keep["id"]), who: UPKEEP, source: "upkeep:keys" })) n++;
+      if (
+        trashFact(ctx, readFact(ctx, r), {
+          reason: "duplicate",
+          action: "merge",
+          mergedInto: str(keep["id"]),
+          who: UPKEEP,
+          source: "upkeep:keys",
+        })
+      )
+        n++;
     }
   }
   return n;
@@ -59,7 +79,11 @@ function warm(ctx: MemCtx, owner: string): number {
   if (!ix) return 0;
   currentPersonFacts(ctx, owner);
   let n = 0;
-  for (const r of rowsOf(ctx.db, "SELECT id, kind, sealed FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND enc = 2 AND sealed IS NOT NULL", owner)) {
+  for (const r of rowsOf(
+    ctx.db,
+    "SELECT id, kind, sealed FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND enc = 2 AND sealed IS NOT NULL",
+    owner,
+  )) {
     const id = str(r["id"]);
     if (ix.toks.has(id)) continue;
     const text = openFactText(ctx, id, owner, str(r["sealed"]));

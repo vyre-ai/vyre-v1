@@ -14,5 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** connector.toml of this folder, compiled, with its recorded responses read from tests/recorded. */
 export function loadHubspot(): Compiled {
-  return compileConnector(readFileSync(join(ROOT, "connector.toml"), "utf8"), (rel) => readFileSync(join(ROOT, rel), "utf8"));
+  return compileConnector(readFileSync(join(ROOT, "connector.toml"), "utf8"), (rel) =>
+    readFileSync(join(ROOT, rel), "utf8"),
+  );
 }

@@ -5,7 +5,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { main } from "./cli.ts";
-import { EXTENSION_ZIP, SERVER_FILES, imagesLock, packExtension, packFolder, packServer, releasesFrom, sha256File, tarList, zipNames, zipRead } from "./pack.ts";
+import {
+  EXTENSION_ZIP,
+  SERVER_FILES,
+  imagesLock,
+  packExtension,
+  packFolder,
+  packServer,
+  releasesFrom,
+  sha256File,
+  tarList,
+  zipNames,
+  zipRead,
+} from "./pack.ts";
 import { imageHasChrome, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import type { ApiFetch } from "./publish.ts";
@@ -19,17 +31,34 @@ import { VERSION_FILES, bump, channelOfVersion, releaseCounter, tagVersion, vers
 
 const keys = (): { pem: string; pub: string } => {
   const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
-  return { pem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), pub: Buffer.from(publicKey.export({ type: "spki", format: "der" }).subarray(-32)).toString("hex") };
+  return {
+    pem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+    pub: Buffer.from(publicKey.export({ type: "spki", format: "der" }).subarray(-32)).toString("hex"),
+  };
 };
 const rel = (version: string, tarball = "vyre.tgz"): ChannelRelease => ({ version, tarball, sha256: "a".repeat(64) });
 
 test("the release counter orders exactly as semver does: beta below rc below the release, patch above minor", () => {
-  const order = ["0.2.9", "0.3.0-beta.1", "0.3.0-beta.39", "0.3.0-rc.1", "0.3.0-rc.2", "0.3.0", "0.3.1", "1.0.0-rc.1", "1.0.0"].map(releaseCounter);
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  const order = [
+    "0.2.9",
+    "0.3.0-beta.1",
+    "0.3.0-beta.39",
+    "0.3.0-rc.1",
+    "0.3.0-rc.2",
+    "0.3.0",
+    "0.3.1",
+    "1.0.0-rc.1",
+    "1.0.0",
+  ].map(releaseCounter);
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+  );
   assert.equal(releaseCounter("v0.3.0-rc.2"), releaseCounter("0.3.0-rc.2"));
   assert.equal(releaseCounter("0.3.0-rc.2"), 300042);
   assert.equal(releaseCounter("0.3.0"), 300099);
-  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.40", "1000.0.0", ""]) assert.throws(() => releaseCounter(bad), bad);
+  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.40", "1000.0.0", ""])
+    assert.throws(() => releaseCounter(bad), bad);
 });
 
 test("bump moves every version file together, keeps formatting, and refuses a non-version", () => {
@@ -38,7 +67,10 @@ test("bump moves every version file together, keeps formatting, and refuses a no
   fs.writeFileSync(path.join(dir, "b.json"), '{\n  "version": "0.0.1"\n}');
   assert.equal(versionProblems(dir, ["a.json", "b.json"]).length, 1);
   assert.deepEqual(bump(dir, "0.2.0-rc.1", ["a.json", "b.json"]), { from: "0.1.0", to: "0.2.0-rc.1" });
-  assert.equal(fs.readFileSync(path.join(dir, "a.json"), "utf8"), '{\n    "name": "a",\n    "version": "0.2.0-rc.1"\n}\n');
+  assert.equal(
+    fs.readFileSync(path.join(dir, "a.json"), "utf8"),
+    '{\n    "name": "a",\n    "version": "0.2.0-rc.1"\n}\n',
+  );
   assert.equal(fs.readFileSync(path.join(dir, "b.json"), "utf8"), '{\n  "version": "0.2.0-rc.1"\n}');
   assert.deepEqual(versionProblems(dir, ["a.json", "b.json"]), []);
   assert.throws(() => bump(dir, "v2", ["a.json"]));
@@ -49,7 +81,9 @@ test("a bad lineage is refused with every reason; a proper next patch on its hot
   assert.equal(nextPatchTag("v0.2.1-rc.1"), null);
   assert.equal(newestStable(["v0.2.0", "v0.10.0", "v0.9.9", "v1.0.0-rc.1"]), "v0.10.0");
   assert.deepEqual(lineage({ tag: "v0.2.2", prev: "v0.2.1", prevIsAncestor: true, onHotfixBranch: true }), []);
-  assert.deepEqual(lineage({ tag: "v0.2.2", prev: null, prevIsAncestor: false, onHotfixBranch: true }), ["there is no published stable release for this commit to descend from"]);
+  assert.deepEqual(lineage({ tag: "v0.2.2", prev: null, prevIsAncestor: false, onHotfixBranch: true }), [
+    "there is no published stable release for this commit to descend from",
+  ]);
   const bad = lineage({ tag: "v0.2.4", prev: "v0.2.1", prevIsAncestor: false, onHotfixBranch: false });
   assert.equal(bad.length, 3);
   assert.match(bad.join("\n"), /not an ancestor/);
@@ -64,49 +98,101 @@ test("the signature verifies with the public key, in the way the server verifies
   assert.equal(Buffer.from(sig, "base64").length, 64);
   assert.equal(verifyManifest(manifest, sig, k.pub), true);
   // The server's check (modules/updates/handlers/channels.ts verifySignature): WebCrypto, raw key, prefix + manifest text.
-  const key = await globalThis.crypto.subtle.importKey("raw", publicKeyBytes(k.pub), { name: "Ed25519" }, false, ["verify"]);
-  assert.equal(await globalThis.crypto.subtle.verify({ name: "Ed25519" }, key, Buffer.from(sig, "base64"), new TextEncoder().encode(SIGNATURE_PREFIX + manifest)), true);
+  const key = await globalThis.crypto.subtle.importKey("raw", publicKeyBytes(k.pub), { name: "Ed25519" }, false, [
+    "verify",
+  ]);
+  assert.equal(
+    await globalThis.crypto.subtle.verify(
+      { name: "Ed25519" },
+      key,
+      Buffer.from(sig, "base64"),
+      new TextEncoder().encode(SIGNATURE_PREFIX + manifest),
+    ),
+    true,
+  );
   assert.equal(verifyManifest(manifest + " ", sig, k.pub), false, "a changed manifest");
   assert.equal(verifyManifest(manifest, sig, keys().pub), false, "another key");
   assert.equal(verifyManifest(manifest, "AAAA", k.pub), false, "a short signature");
 });
 
 test("a key that is not the pinned release key signs nothing, and a missing key says where the key lives", () => {
-  const real = keys(), other = keys();
+  const real = keys(),
+    other = keys();
   assert.throws(() => signManifest("{}", other.pem, real.pub), /not the pinned release key/);
   assert.throws(() => signManifest("{}", "", real.pub), /VYRE_SIGNING_KEY/);
 });
 
 test("each channel has its own entry; a release may leave channels out, and staggered versions are accepted", () => {
   const k = keys();
-  const entries = buildEntries({ channel: "stable", releases: { server: rel("1.2.0"), extension: rel("0.9.4", "ext.zip") }, privateKeyPem: k.pem, pinnedPublicKey: k.pub });
-  assert.deepEqual(entries.map((e) => e.kind), ["server", "extension"], "app and kits have no entry: they are left where they were");
-  const r = readFeed(entries, { pinnedPublicKey: k.pub, running: { server: releaseCounter("1.1.0"), app: releaseCounter("1.0.0") } });
+  const entries = buildEntries({
+    channel: "stable",
+    releases: { server: rel("1.2.0"), extension: rel("0.9.4", "ext.zip") },
+    privateKeyPem: k.pem,
+    pinnedPublicKey: k.pub,
+  });
+  assert.deepEqual(
+    entries.map((e) => e.kind),
+    ["server", "extension"],
+    "app and kits have no entry: they are left where they were",
+  );
+  const r = readFeed(entries, {
+    pinnedPublicKey: k.pub,
+    running: { server: releaseCounter("1.1.0"), app: releaseCounter("1.0.0") },
+  });
   assert.deepEqual(r.refused, []);
-  assert.deepEqual(r.accepted.map((a) => `${a.kind}@${a.version}`), ["server@1.2.0", "extension@0.9.4"]);
+  assert.deepEqual(
+    r.accepted.map((a) => `${a.kind}@${a.version}`),
+    ["server@1.2.0", "extension@0.9.4"],
+  );
   assert.deepEqual([...CHANNEL_KINDS], ["app", "server", "kits", "extension"]);
 });
 
 test("one bad entry is refused alone; the others in the same feed are still read", () => {
   const k = keys();
-  const good = buildEntries({ channel: "stable", releases: { app: rel("2.0.0"), server: rel("1.2.0"), kits: rel("1.2.1") }, privateKeyPem: k.pem, pinnedPublicKey: k.pub });
-  const tampered: FeedEntry[] = good.map((e) => (e.kind === "server" ? { ...e, manifest: e.manifest.replace("1.2.0", "9.9.9") } : e));
+  const good = buildEntries({
+    channel: "stable",
+    releases: { app: rel("2.0.0"), server: rel("1.2.0"), kits: rel("1.2.1") },
+    privateKeyPem: k.pem,
+    pinnedPublicKey: k.pub,
+  });
+  const tampered: FeedEntry[] = good.map((e) =>
+    e.kind === "server" ? { ...e, manifest: e.manifest.replace("1.2.0", "9.9.9") } : e,
+  );
   const r = readFeed(tampered, { pinnedPublicKey: k.pub });
   assert.deepEqual(r.refused, [{ kind: "server", reason: "bad signature" }]);
-  assert.deepEqual(r.accepted.map((a) => a.kind), ["app", "kits"]);
+  assert.deepEqual(
+    r.accepted.map((a) => a.kind),
+    ["app", "kits"],
+  );
 });
 
 test("an entry older than what runs is refused (no rollback), and an entry whose counter was edited is refused", () => {
   const k = keys();
-  const [old] = buildEntries({ channel: "stable", releases: { server: rel("1.0.0") }, privateKeyPem: k.pem, pinnedPublicKey: k.pub });
+  const [old] = buildEntries({
+    channel: "stable",
+    releases: { server: rel("1.0.0") },
+    privateKeyPem: k.pem,
+    pinnedPublicKey: k.pub,
+  });
   assert.ok(old);
-  assert.deepEqual(readFeed([old], { pinnedPublicKey: k.pub, running: { server: releaseCounter("1.1.0") } }).refused, [{ kind: "server", reason: "older than what is running" }]);
-  assert.deepEqual(readFeed([{ ...old, counter: releaseCounter("9.0.0") }], { pinnedPublicKey: k.pub }).refused, [{ kind: "server", reason: "counter does not match the version" }]);
+  assert.deepEqual(readFeed([old], { pinnedPublicKey: k.pub, running: { server: releaseCounter("1.1.0") } }).refused, [
+    { kind: "server", reason: "older than what is running" },
+  ]);
+  assert.deepEqual(readFeed([{ ...old, counter: releaseCounter("9.0.0") }], { pinnedPublicKey: k.pub }).refused, [
+    { kind: "server", reason: "counter does not match the version" },
+  ]);
 });
 
 test("the server channel entry is the manifest the server reads; artifact names and hashes are checked", () => {
-  const doc = JSON.parse(manifestFor("server", "beta", { ...rel("1.0.0-rc.1"), notes: "n", security: true }, { mac: "1.0.0" })) as Record<string, unknown>;
-  assert.deepEqual(doc, { v: 1, channel: "beta", server: { version: "1.0.0-rc.1", tarball: "vyre.tgz", sha256: "a".repeat(64), notes: "n", security: true }, apps: { mac: "1.0.0" } });
+  const doc = JSON.parse(
+    manifestFor("server", "beta", { ...rel("1.0.0-rc.1"), notes: "n", security: true }, { mac: "1.0.0" }),
+  ) as Record<string, unknown>;
+  assert.deepEqual(doc, {
+    v: 1,
+    channel: "beta",
+    server: { version: "1.0.0-rc.1", tarball: "vyre.tgz", sha256: "a".repeat(64), notes: "n", security: true },
+    apps: { mac: "1.0.0" },
+  });
   assert.throws(() => manifestFor("server", "stable", { ...rel("1.0.0"), tarball: "../x" }));
   assert.throws(() => manifestFor("server", "stable", { ...rel("1.0.0"), sha256: "xyz" }));
 });
@@ -122,13 +208,25 @@ test("the public half derived from the signing key is the one that verifies, and
 
 test("release assets carry the names the installer and the updater read, and the .sig verifies the manifest file byte for byte", () => {
   const k = keys();
-  const entries = buildEntries({ channel: "stable", releases: { server: rel("1.2.0"), kits: rel("3.0.0", "kits.tgz") }, privateKeyPem: k.pem, pinnedPublicKey: k.pub });
+  const entries = buildEntries({
+    channel: "stable",
+    releases: { server: rel("1.2.0"), kits: rel("3.0.0", "kits.tgz") },
+    privateKeyPem: k.pem,
+    pinnedPublicKey: k.pub,
+  });
   const files = entries.flatMap(assetsFor);
-  assert.deepEqual(files.map((f) => f.name), ["stable.json", "stable.json.sig", "stable-kits.json", "stable-kits.json.sig"]);
+  assert.deepEqual(
+    files.map((f) => f.name),
+    ["stable.json", "stable.json.sig", "stable-kits.json", "stable-kits.json.sig"],
+  );
   const manifest = files.find((f) => f.name === "stable.json")?.content ?? "";
   const sig = files.find((f) => f.name === "stable.json.sig")?.content ?? "";
   assert.equal(verifyManifest(manifest, sig, k.pub), true);
-  assert.equal((JSON.parse(manifest) as { server: { tarball: string } }).server.tarball, "vyre.tgz", "relative to the feed base, as the installer expects");
+  assert.equal(
+    (JSON.parse(manifest) as { server: { tarball: string } }).server.tarball,
+    "vyre.tgz",
+    "relative to the feed base, as the installer expects",
+  );
   assert.equal(feedBase("stable"), "https://github.com/vyre-ai/vyre-v1/releases/latest/download/");
   assert.equal(feedBase("beta"), "https://github.com/vyre-ai/vyre-v1/releases/download/channel-beta/");
 });
@@ -136,9 +234,12 @@ test("release assets carry the names the installer and the updater read, and the
 test("the command line: counter, pubkey, sign and assets work end to end in a directory, and a missing key or a bad channel is refused", () => {
   const k = keys();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rel-"));
-  const log = console.log, err = console.error;
+  const log = console.log,
+    err = console.error;
   const out: string[] = [];
-  console.log = (...a: unknown[]) => { out.push(a.join(" ")); };
+  console.log = (...a: unknown[]) => {
+    out.push(a.join(" "));
+  };
   console.error = () => undefined;
   const saved = process.env["VYRE_SIGNING_KEY"];
   try {
@@ -150,7 +251,10 @@ test("the command line: counter, pubkey, sign and assets work end to end in a di
     assert.equal(main(["pubkey"]), 2, "no key outside the release environment");
     process.env["VYRE_SIGNING_KEY"] = k.pem;
     assert.equal(main(["pubkey", path.join(dir, "key.json")]), 0);
-    assert.equal((JSON.parse(fs.readFileSync(path.join(dir, "key.json"), "utf8")) as { publicKey: string }).publicKey, k.pub);
+    assert.equal(
+      (JSON.parse(fs.readFileSync(path.join(dir, "key.json"), "utf8")) as { publicKey: string }).publicKey,
+      k.pub,
+    );
     fs.writeFileSync(path.join(dir, "releases.json"), JSON.stringify({ server: rel("1.2.0") }));
     assert.equal(main(["sign", dir, "nightly-x", k.pub]), 2);
     assert.equal(main(["sign", dir, "stable", k.pub]), 0);
@@ -159,8 +263,10 @@ test("the command line: counter, pubkey, sign and assets work end to end in a di
     assert.equal(verifyManifest(manifest, fs.readFileSync(path.join(dir, "stable.json.sig"), "utf8"), k.pub), true);
     assert.equal(main(["sign", dir, "stable", keys().pub]), 1, "a key that is not the pinned one signs nothing");
   } finally {
-    console.log = log; console.error = err;
-    if (saved === undefined) delete process.env["VYRE_SIGNING_KEY"]; else process.env["VYRE_SIGNING_KEY"] = saved;
+    console.log = log;
+    console.error = err;
+    if (saved === undefined) delete process.env["VYRE_SIGNING_KEY"];
+    else process.env["VYRE_SIGNING_KEY"] = saved;
   }
 });
 
@@ -169,11 +275,15 @@ const DIGEST = `ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}`;
 /** A repository with just the files a server release is made from. */
 function fakeRepo(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "repo-"));
-  const put = (f: string, text: string): void => { fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true }); fs.writeFileSync(path.join(root, f), text); };
+  const put = (f: string, text: string): void => {
+    fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true });
+    fs.writeFileSync(path.join(root, f), text);
+  };
   put("images/vyred/compose.server.yml", "services: {}\n");
   put("images/vyred/Caddyfile", ":80\n");
   put("scripts/install/linux/vyre-server", "#!/bin/sh\n");
-  for (const u of ["vyre-server.service", "vyre-server-update.service", "vyre-server-update.timer"]) put(`scripts/install/linux/units/${u}`, "[Unit]\n");
+  for (const u of ["vyre-server.service", "vyre-server-update.service", "vyre-server-update.timer"])
+    put(`scripts/install/linux/units/${u}`, "[Unit]\n");
   put("apps/chrome/manifest.json", JSON.stringify({ manifest_version: 3, name: "Vyre", version: "1.4.0" }));
   put("apps/chrome/package.json", "{}");
   put("apps/chrome/src/content/fill.js", "console.log('fill');\n".repeat(50));
@@ -199,18 +309,23 @@ test("images.lock pins every image by digest and the server image is required", 
 });
 
 test("the server tarball holds every file the installer insists on, under one folder, with the version and the pinned images", () => {
-  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const root = fakeRepo(),
+    out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   const r = packServer({ root, outDir: out, version: "1.4.0", images: { VYRE_IMAGE: DIGEST } });
   const names = tarList(r.file);
   for (const f of SERVER_FILES) assert.ok(names.includes(`vyre-1.4.0/${f}`), f);
-  assert.ok(names.every((n) => n.startsWith("vyre-1.4.0/")), "one top folder");
+  assert.ok(
+    names.every((n) => n.startsWith("vyre-1.4.0/")),
+    "one top folder",
+  );
   assert.equal(r.sha256, sha256File(r.file));
   assert.deepEqual(fs.readdirSync(out), ["vyre.tgz"], "the staging folder is gone");
   assert.throws(() => packServer({ root, outDir: out, version: "not-a-version", images: { VYRE_IMAGE: DIGEST } }));
 });
 
 test("the Chrome extension zip carries the extension without its tests or package.json, and every file reads back intact", () => {
-  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const root = fakeRepo(),
+    out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   const r = packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, EXTENSION_ZIP) });
   assert.equal(r.version, "1.4.0");
   const zip = fs.readFileSync(r.file);
@@ -221,19 +336,28 @@ test("the Chrome extension zip carries the extension without its tests or packag
 });
 
 test("the Chrome extension zip of a release carries that release's version in its manifest and changes nothing else in the zip", () => {
-  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const root = fakeRepo(),
+    out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   const plain = packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, "plain.zip") });
-  const r = packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, EXTENSION_ZIP), release: "1.0.0-rc.3" });
+  const r = packExtension({
+    dir: path.join(root, "apps/chrome"),
+    outFile: path.join(out, EXTENSION_ZIP),
+    release: "1.0.0-rc.3",
+  });
   assert.equal(r.version, "1.0.0.3");
   const zip = fs.readFileSync(r.file);
-  const manifest = JSON.parse(zipRead(zip, "manifest.json")?.toString() ?? "{}") as { version: string; version_name: string };
+  const manifest = JSON.parse(zipRead(zip, "manifest.json")?.toString() ?? "{}") as {
+    version: string;
+    version_name: string;
+  };
   assert.deepEqual([manifest.version, manifest.version_name], ["1.0.0.3", "1.0.0-rc.3"]);
   assert.deepEqual(zipNames(zip), zipNames(fs.readFileSync(plain.file)));
   assert.equal(zipRead(zip, "src/content/fill.js")?.toString(), "console.log('fill');\n".repeat(50));
 });
 
 test("releases.json lists only the channels whose artifact is there, each with its hash", () => {
-  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const root = fakeRepo(),
+    out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   packServer({ root, outDir: out, version: "1.4.0", images: { VYRE_IMAGE: DIGEST } });
   packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(out, EXTENSION_ZIP) });
   const r = releasesFrom({ version: "1.4.0", dir: out });
@@ -245,14 +369,27 @@ test("releases.json lists only the channels whose artifact is there, each with i
 });
 
 function published(k: { pem: string; pub: string }, version: string) {
-  const root = fakeRepo(), out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
+  const root = fakeRepo(),
+    out = fs.mkdtempSync(path.join(os.tmpdir(), "out-"));
   packServer({ root, outDir: out, version, images: { VYRE_IMAGE: DIGEST } });
-  const entries = buildEntries({ channel: "stable", releases: releasesFrom({ version, dir: out }), privateKeyPem: k.pem, pinnedPublicKey: k.pub });
+  const entries = buildEntries({
+    channel: "stable",
+    releases: releasesFrom({ version, dir: out }),
+    privateKeyPem: k.pem,
+    pinnedPublicKey: k.pub,
+  });
   const files = new Map<string, Buffer>([["vyre.tgz", fs.readFileSync(path.join(out, "vyre.tgz"))]]);
   for (const f of entries.flatMap(assetsFor)) files.set(f.name, Buffer.from(f.content));
   const fetch = async (url: string) => {
     const f = files.get(url.split("/").at(-1) ?? "");
-    return { status: f ? 200 : 404, arrayBuffer: async () => (f ?? Buffer.alloc(0)).buffer.slice((f ?? Buffer.alloc(0)).byteOffset, (f ?? Buffer.alloc(0)).byteOffset + (f ?? Buffer.alloc(0)).byteLength) as ArrayBuffer };
+    return {
+      status: f ? 200 : 404,
+      arrayBuffer: async () =>
+        (f ?? Buffer.alloc(0)).buffer.slice(
+          (f ?? Buffer.alloc(0)).byteOffset,
+          (f ?? Buffer.alloc(0)).byteOffset + (f ?? Buffer.alloc(0)).byteLength,
+        ) as ArrayBuffer,
+    };
   };
   return { files, fetch };
 }
@@ -260,34 +397,74 @@ function published(k: { pem: string; pub: string }, version: string) {
 test("the post-publish smoke passes on a good release and names the step that fails on a bad one", async () => {
   const k = keys();
   const good = published(k, "1.4.0");
-  const ok = await smokeRelease({ base: "https://example.test/dl/", channel: "stable", publicKeyHex: k.pub, version: "1.4.0", fetch: good.fetch });
+  const ok = await smokeRelease({
+    base: "https://example.test/dl/",
+    channel: "stable",
+    publicKeyHex: k.pub,
+    version: "1.4.0",
+    fetch: good.fetch,
+  });
   assert.equal(ok.ok, true, JSON.stringify(ok.steps));
   assert.ok(ok.steps.every((s) => s.ok));
 
-  const wrongKey = await smokeRelease({ base: "https://example.test/dl/", channel: "stable", publicKeyHex: keys().pub, version: "1.4.0", fetch: good.fetch });
+  const wrongKey = await smokeRelease({
+    base: "https://example.test/dl/",
+    channel: "stable",
+    publicKeyHex: keys().pub,
+    version: "1.4.0",
+    fetch: good.fetch,
+  });
   assert.equal(wrongKey.ok, false);
   assert.equal(wrongKey.steps.at(-1)?.step, "signature verifies with the compiled-in key");
 
-  const wrongVersion = await smokeRelease({ base: "https://example.test/dl/", channel: "stable", publicKeyHex: k.pub, version: "1.5.0", fetch: good.fetch });
+  const wrongVersion = await smokeRelease({
+    base: "https://example.test/dl/",
+    channel: "stable",
+    publicKeyHex: k.pub,
+    version: "1.5.0",
+    fetch: good.fetch,
+  });
   assert.equal(wrongVersion.steps.at(-1)?.step, "manifest names this version on this channel");
 
   const tampered = published(k, "1.4.0");
   tampered.files.set("vyre.tgz", Buffer.concat([tampered.files.get("vyre.tgz") ?? Buffer.alloc(0), Buffer.from("x")]));
-  const bad = await smokeRelease({ base: "https://example.test/dl/", channel: "stable", publicKeyHex: k.pub, version: "1.4.0", fetch: tampered.fetch });
+  const bad = await smokeRelease({
+    base: "https://example.test/dl/",
+    channel: "stable",
+    publicKeyHex: k.pub,
+    version: "1.4.0",
+    fetch: tampered.fetch,
+  });
   assert.equal(bad.steps.at(-1)?.step, "tarball matches the signed sha256");
 
   const missing = published(k, "1.4.0");
   missing.files.delete("stable.json.sig");
-  assert.equal((await smokeRelease({ base: "https://example.test/dl/", channel: "stable", publicKeyHex: k.pub, version: "1.4.0", fetch: missing.fetch })).steps.at(-1)?.step, "signature is published");
+  assert.equal(
+    (
+      await smokeRelease({
+        base: "https://example.test/dl/",
+        channel: "stable",
+        publicKeyHex: k.pub,
+        version: "1.4.0",
+        fetch: missing.fetch,
+      })
+    ).steps.at(-1)?.step,
+    "signature is published",
+  );
 });
 
 test("the command line: tag checks the version against package.json, and pack makes the artifacts and releases.json", () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "pack-"));
-  const log = console.log, err = console.error;
+  const log = console.log,
+    err = console.error;
   const lines: string[] = [];
-  console.log = (...a: unknown[]) => { lines.push(a.join(" ")); };
+  console.log = (...a: unknown[]) => {
+    lines.push(a.join(" "));
+  };
   const errors: string[] = [];
-  console.error = (...a: unknown[]) => { errors.push(a.map(String).join(" ")); };
+  console.error = (...a: unknown[]) => {
+    errors.push(a.map(String).join(" "));
+  };
   const saved = process.env["VYRE_IMAGE"];
   // the pack reads every image name from the environment; the test runner sets local build names (scripts/test-run.ts) that are not pinned by digest, so this test packs with only its own
   const others = ["VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
@@ -301,28 +478,55 @@ test("the command line: tag checks the version against package.json, and pack ma
     errors.length = 0;
     // its own repository tree: the real apps/chrome and kits are read and written by other tests running beside this one (a full run failed here, 1 !== 0, while it passed alone)
     assert.equal(main(["pack", out, "0.0.1"], fakeRepo()), 0, `pack said: ${errors.join(" | ")}`);
-    assert.ok(fs.existsSync(path.join(out, "vyre.tgz")) && fs.existsSync(path.join(out, EXTENSION_ZIP)) && fs.existsSync(path.join(out, "vyre-kits.tgz")));
-    const rel = JSON.parse(fs.readFileSync(path.join(out, "releases.json"), "utf8")) as Record<string, { version: string }>;
+    assert.ok(
+      fs.existsSync(path.join(out, "vyre.tgz")) &&
+        fs.existsSync(path.join(out, EXTENSION_ZIP)) &&
+        fs.existsSync(path.join(out, "vyre-kits.tgz")),
+    );
+    const rel = JSON.parse(fs.readFileSync(path.join(out, "releases.json"), "utf8")) as Record<
+      string,
+      { version: string }
+    >;
     assert.deepEqual(Object.keys(rel).sort(), ["extension", "kits", "server"]);
   } finally {
-    console.log = log; console.error = err;
-    if (saved === undefined) delete process.env["VYRE_IMAGE"]; else process.env["VYRE_IMAGE"] = saved;
-    for (const [k, v] of savedOthers) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    console.log = log;
+    console.error = err;
+    if (saved === undefined) delete process.env["VYRE_IMAGE"];
+    else process.env["VYRE_IMAGE"] = saved;
+    for (const [k, v] of savedOthers) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 });
 
 function fakeGithub(existing: string[] = []) {
   const calls: string[] = [];
   const uploads: string[] = [];
-  const tags = new Map<string, { id: number; assets: Array<{ id: number; name: string }> }>(existing.map((t, i) => [t, { id: 100 + i, assets: [{ id: 900, name: "stable.json" }] }]));
+  const tags = new Map<string, { id: number; assets: Array<{ id: number; name: string }> }>(
+    existing.map((t, i) => [t, { id: 100 + i, assets: [{ id: 900, name: "stable.json" }] }]),
+  );
   let next = 500;
   const fetch: ApiFetch = async (url, init) => {
-    calls.push(`${init.method} ${url.replace("https://api.github.com", "").replace("https://uploads.github.com", "UP")}`);
+    calls.push(
+      `${init.method} ${url.replace("https://api.github.com", "").replace("https://uploads.github.com", "UP")}`,
+    );
     assert.match(init.headers["authorization"] ?? "", /^Bearer tok$/);
     const tagged = /\/releases\/tags\/(.+)$/.exec(url)?.[1];
-    if (init.method === "GET" && tagged) { const r = tags.get(decodeURIComponent(tagged)); return { status: r ? 200 : 404, json: async () => r ?? {} }; }
-    if (init.method === "POST" && url.endsWith("/releases")) { const b = JSON.parse(String(init.body)) as { tag_name: string }; const r = { id: ++next, assets: [] }; tags.set(b.tag_name, r); return { status: 201, json: async () => r }; }
-    if (init.method === "POST" && url.includes("/assets?name=")) { uploads.push(decodeURIComponent(url.split("name=")[1] ?? "")); return { status: 201, json: async () => ({}) }; }
+    if (init.method === "GET" && tagged) {
+      const r = tags.get(decodeURIComponent(tagged));
+      return { status: r ? 200 : 404, json: async () => r ?? {} };
+    }
+    if (init.method === "POST" && url.endsWith("/releases")) {
+      const b = JSON.parse(String(init.body)) as { tag_name: string };
+      const r = { id: ++next, assets: [] };
+      tags.set(b.tag_name, r);
+      return { status: 201, json: async () => r };
+    }
+    if (init.method === "POST" && url.includes("/assets?name=")) {
+      uploads.push(decodeURIComponent(url.split("name=")[1] ?? ""));
+      return { status: 201, json: async () => ({}) };
+    }
     return { status: 204, json: async () => ({}) };
   };
   return { fetch, calls, uploads };
@@ -330,13 +534,53 @@ function fakeGithub(existing: string[] = []) {
 
 test("publish attaches every signed file to a new release, and never replaces a release that exists", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
-  for (const f of ["stable.json", "stable.json.sig", "vyre.tgz", "Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "feed.json", "releases.json"]) fs.writeFileSync(path.join(dir, f), f);
+  for (const f of [
+    "stable.json",
+    "stable.json.sig",
+    "vyre.tgz",
+    "Vyre_1.0.0_aarch64.dmg",
+    "Vyre_1.0.0_aarch64.dmg.sha256",
+    "feed.json",
+    "releases.json",
+  ])
+    fs.writeFileSync(path.join(dir, f), f);
   const gh = fakeGithub();
-  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
-  assert.deepEqual(r.attached, ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"], "feed.json and releases.json are build files, not release files");
-  assert.deepEqual(gh.uploads.slice(0, 3).sort(), ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "vyre.tgz"], "the bulk files go first");
-  assert.deepEqual(gh.uploads.slice(3), ["stable.json.sig", "stable.json"], "the manifest goes last, its signature just before it");
-  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: fakeGithub(["v1.0.0"]).fetch }), /already has a release/);
+  const r = await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0",
+    dir,
+    prerelease: false,
+    notes: "n",
+    fetch: gh.fetch,
+  });
+  assert.deepEqual(
+    r.attached,
+    ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"],
+    "feed.json and releases.json are build files, not release files",
+  );
+  assert.deepEqual(
+    gh.uploads.slice(0, 3).sort(),
+    ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "vyre.tgz"],
+    "the bulk files go first",
+  );
+  assert.deepEqual(
+    gh.uploads.slice(3),
+    ["stable.json.sig", "stable.json"],
+    "the manifest goes last, its signature just before it",
+  );
+  await assert.rejects(
+    publishRelease({
+      repo: "o/r",
+      token: "tok",
+      tag: "v1.0.0",
+      dir,
+      prerelease: false,
+      notes: "n",
+      fetch: fakeGithub(["v1.0.0"]).fetch,
+    }),
+    /already has a release/,
+  );
 });
 
 test("the rolling release is created on first use and its same-named assets are replaced", async () => {
@@ -344,7 +588,10 @@ test("the rolling release is created on first use and its same-named assets are 
   fs.writeFileSync(path.join(dir, "beta.json"), "x");
   const first = fakeGithub();
   await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: first.fetch });
-  assert.ok(first.calls.some((c) => c === "POST /repos/o/r/releases"), "created");
+  assert.ok(
+    first.calls.some((c) => c === "POST /repos/o/r/releases"),
+    "created",
+  );
   const again = fakeGithub(["channel-beta"]);
   fs.writeFileSync(path.join(dir, "stable.json"), "x");
   await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: again.fetch });
@@ -361,9 +608,16 @@ test("Vyre for Chrome is staged into the agent-computer build context without it
   assert.ok(fs.existsSync(path.join(root, "images/agent-computer/vyre-chrome/.gitkeep")), "the placeholder stays");
   assert.ok(!fs.existsSync(path.join(root, "images/agent-computer/vyre-chrome/tests")));
 
-  const inImage = new Map<string, string>([["manifest.json", JSON.stringify({ version: "1.4.0" })], ["src/content/fill.js", "x"]]);
+  const inImage = new Map<string, string>([
+    ["manifest.json", JSON.stringify({ version: "1.4.0" })],
+    ["src/content/fill.js", "x"],
+  ]);
   const run = (_cmd: string, args: string[]): string => {
-    if (args.includes("cat")) { const v = inImage.get("manifest.json"); if (v === undefined) throw new Error("no such file"); return v; }
+    if (args.includes("cat")) {
+      const v = inImage.get("manifest.json");
+      if (v === undefined) throw new Error("no such file");
+      return v;
+    }
     return [...inImage.keys()].map((k) => `/opt/vyre-chrome/${k}`).join("\n") + "\n/opt/vyre-chrome/.gitkeep\n";
   };
   assert.doesNotThrow(() => imageHasChrome("img", files, run));
@@ -380,16 +634,30 @@ test("Vyre for Chrome is staged into the agent-computer build context without it
 function statefulGithub(opts: { failAfter?: number; halfWritten?: string } = {}) {
   type A = { id: number; name: string; size: number; state: string; digest: string };
   const rel = { id: 7, assets: [] as A[] };
-  let exists = false, ids = 0, sent = 0, live = 0, peak = 0;
+  let exists = false,
+    ids = 0,
+    sent = 0,
+    live = 0,
+    peak = 0;
   const log: string[] = [];
   const fetch: ApiFetch = async (url, init) => {
-    if (init.method === "GET" && url.includes("/releases/tags/")) return { status: exists ? 200 : 404, json: async () => ({ ...rel, assets: rel.assets.map((a) => ({ ...a })) }) };
-    if (init.method === "POST" && url.endsWith("/releases")) { exists = true; return { status: 201, json: async () => ({ id: rel.id, assets: [] }) }; }
-    if (init.method === "DELETE") { const id = Number(url.split("/").pop()); rel.assets = rel.assets.filter((a) => a.id !== id); log.push(`DELETE ${id}`); return { status: 204, json: async () => ({}) }; }
+    if (init.method === "GET" && url.includes("/releases/tags/"))
+      return { status: exists ? 200 : 404, json: async () => ({ ...rel, assets: rel.assets.map((a) => ({ ...a })) }) };
+    if (init.method === "POST" && url.endsWith("/releases")) {
+      exists = true;
+      return { status: 201, json: async () => ({ id: rel.id, assets: [] }) };
+    }
+    if (init.method === "DELETE") {
+      const id = Number(url.split("/").pop());
+      rel.assets = rel.assets.filter((a) => a.id !== id);
+      log.push(`DELETE ${id}`);
+      return { status: 204, json: async () => ({}) };
+    }
     if (init.method === "POST" && url.includes("/assets?name=")) {
       const name = decodeURIComponent(url.split("name=")[1] ?? "");
       const body = init.body as Uint8Array;
-      live++; peak = Math.max(peak, live);
+      live++;
+      peak = Math.max(peak, live);
       await new Promise((r) => setTimeout(r, 5));
       live--;
       if (opts.failAfter !== undefined && sent >= opts.failAfter) {
@@ -399,31 +667,83 @@ function statefulGithub(opts: { failAfter?: number; halfWritten?: string } = {})
       }
       sent++;
       log.push(`UP ${name}`);
-      rel.assets.push({ id: ++ids, name, size: body.length, state: "uploaded", digest: "sha256:" + crypto.createHash("sha256").update(body).digest("hex") });
+      rel.assets.push({
+        id: ++ids,
+        name,
+        size: body.length,
+        state: "uploaded",
+        digest: "sha256:" + crypto.createHash("sha256").update(body).digest("hex"),
+      });
       return { status: 201, json: async () => ({}) };
     }
     return { status: 404, json: async () => ({}) };
   };
-  return { fetch, rel, log, peak: () => peak, setFail: (n: number | undefined) => { if (n === undefined) delete opts.failAfter; else opts.failAfter = n; sent = 0; } };
+  return {
+    fetch,
+    rel,
+    log,
+    peak: () => peak,
+    setFail: (n: number | undefined) => {
+      if (n === undefined) delete opts.failAfter;
+      else opts.failAfter = n;
+      sent = 0;
+    },
+  };
 }
 
 function releaseDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
-  for (const [f, body] of Object.entries({ "beta.json": "{}", "beta.json.sig": "sig", "vyre.tgz": "x".repeat(900), "Vyre.dmg": "d".repeat(2000), "Vyre.dmg.sha256": "h", "VyreSetup.exe": "e".repeat(1500), "SHA256SUMS": "s" })) fs.writeFileSync(path.join(dir, f), body);
+  for (const [f, body] of Object.entries({
+    "beta.json": "{}",
+    "beta.json.sig": "sig",
+    "vyre.tgz": "x".repeat(900),
+    "Vyre.dmg": "d".repeat(2000),
+    "Vyre.dmg.sha256": "h",
+    "VyreSetup.exe": "e".repeat(1500),
+    SHA256SUMS: "s",
+  }))
+    fs.writeFileSync(path.join(dir, f), body);
   return dir;
 }
 
 test("a publish cut off mid-way is finished by a rerun: finished files are skipped, the half-written one is replaced, the manifest goes last", async () => {
   const dir = releaseDir();
   const gh = statefulGithub({ failAfter: 3 });
-  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch, parallel: 1, pauseMs: 1 }), /could not attach/);
-  assert.ok(gh.rel.assets.some((a) => a.state === "starter"), "the cut upload left a half-written asset");
-  const firstPass = gh.rel.assets.filter((a) => a.state === "uploaded").map((a) => a.name).sort();
+  await assert.rejects(
+    publishRelease({
+      repo: "o/r",
+      token: "tok",
+      tag: "v1.0.0-rc.1",
+      dir,
+      prerelease: true,
+      notes: "n",
+      fetch: gh.fetch,
+      parallel: 1,
+      pauseMs: 1,
+    }),
+    /could not attach/,
+  );
+  assert.ok(
+    gh.rel.assets.some((a) => a.state === "starter"),
+    "the cut upload left a half-written asset",
+  );
+  const firstPass = gh.rel.assets
+    .filter((a) => a.state === "uploaded")
+    .map((a) => a.name)
+    .sort();
   assert.equal(firstPass.length, 3);
   assert.ok(!gh.rel.assets.some((a) => a.name === "beta.json"), "the manifest was not reached");
   gh.setFail(undefined);
   gh.log.length = 0;
-  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch });
+  const r = await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0-rc.1",
+    dir,
+    prerelease: true,
+    notes: "n",
+    fetch: gh.fetch,
+  });
   assert.deepEqual(r.skipped, firstPass, "what was uploaded with the right size and checksum is not sent again");
   const sent = gh.log.filter((l) => l.startsWith("UP ")).map((l) => l.slice(3));
   assert.equal(sent.length, 7 - 3);
@@ -432,7 +752,15 @@ test("a publish cut off mid-way is finished by a rerun: finished files are skipp
   assert.ok(gh.rel.assets.every((a) => a.state === "uploaded"));
   // and a third run has nothing left to send
   gh.log.length = 0;
-  const again = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch });
+  const again = await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0-rc.1",
+    dir,
+    prerelease: true,
+    notes: "n",
+    fetch: gh.fetch,
+  });
   assert.equal(again.skipped.length, 7);
   assert.deepEqual(gh.log, []);
 });
@@ -440,12 +768,31 @@ test("a publish cut off mid-way is finished by a rerun: finished files are skipp
 test("a rerun replaces an asset of the right size but the wrong checksum only when it is half written, and refuses to overwrite a finished one", async () => {
   const dir = releaseDir();
   const gh = statefulGithub();
-  await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
+  await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0",
+    dir,
+    prerelease: false,
+    notes: "n",
+    fetch: gh.fetch,
+  });
   const tgz = gh.rel.assets.find((a) => a.name === "vyre.tgz")!;
   tgz.digest = "sha256:" + "0".repeat(64);
-  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch }), /already has a release with a different vyre\.tgz/);
+  await assert.rejects(
+    publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch }),
+    /already has a release with a different vyre\.tgz/,
+  );
   tgz.state = "starter";
-  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
+  const r = await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0",
+    dir,
+    prerelease: false,
+    notes: "n",
+    fetch: gh.fetch,
+  });
   assert.ok(!r.skipped.includes("vyre.tgz"));
   assert.equal(gh.rel.assets.find((a) => a.name === "vyre.tgz")!.state, "uploaded");
 });
@@ -453,7 +800,16 @@ test("a rerun replaces an asset of the right size but the wrong checksum only wh
 test("bulk uploads run side by side, and a transient upload failure is retried", async () => {
   const dir = releaseDir();
   const gh = statefulGithub();
-  await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch, parallel: 3 });
+  await publishRelease({
+    repo: "o/r",
+    token: "tok",
+    tag: "v1.0.0",
+    dir,
+    prerelease: false,
+    notes: "n",
+    fetch: gh.fetch,
+    parallel: 3,
+  });
   assert.ok(gh.peak() >= 2 && gh.peak() <= 3, `peak uploads at once: ${gh.peak()}`);
   // one dropped connection, then success: the retry removes the starter asset and sends again
   const flaky = statefulGithub({ failAfter: 0 });
@@ -483,29 +839,74 @@ test("the rolling release leaves unchanged files alone and refreshes the channel
 
 test("a release bump covers the desktop app files and the lockfiles, and a mismatch is reported", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bump-desktop-"));
-  const put = (f: string, t: string): void => { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), t); };
+  const put = (f: string, t: string): void => {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), t);
+  };
   const v = "1.0.0-rc.21";
   put("package.json", `{\n  "version": "${v}"\n}\n`);
   put("apps/app/public/whats-new.json", `{\n  "version": "${v}"\n}\n`);
-  put("package-lock.json", JSON.stringify({ name: "x", version: v, packages: { "": { name: "x", version: v }, "apps/desktop": { name: "@vyre/desktop", version: v }, "node_modules/y": { version: "9.9.9" } } }, null, 2) + "\n");
+  put(
+    "package-lock.json",
+    JSON.stringify(
+      {
+        name: "x",
+        version: v,
+        packages: {
+          "": { name: "x", version: v },
+          "apps/desktop": { name: "@vyre/desktop", version: v },
+          "node_modules/y": { version: "9.9.9" },
+        },
+      },
+      null,
+      2,
+    ) + "\n",
+  );
   put("apps/desktop/package.json", `{\n  "version": "${v}"\n}\n`);
-  put("apps/desktop/src-tauri/Cargo.toml", `[package]\nname = "vyre-desktop"\nversion = "${v}"\nrust-version = "1.77"\n\n[build-dependencies]\ntauri-build = { version = "2" }\n`);
+  put(
+    "apps/desktop/src-tauri/Cargo.toml",
+    `[package]\nname = "vyre-desktop"\nversion = "${v}"\nrust-version = "1.77"\n\n[build-dependencies]\ntauri-build = { version = "2" }\n`,
+  );
   put("apps/desktop/src-tauri/tauri.conf.json", `{\n  "version": "${v}"\n}\n`);
-  put("apps/desktop/src-tauri/Cargo.lock", `[[package]]\nname = "other"\nversion = "3.0.0"\n\n[[package]]\nname = "vyre-desktop"\nversion = "${v}"\ndependencies = [\n "a",\n]\n`);
-  for (const f of ["apps/desktop/package.json", "apps/desktop/src-tauri/Cargo.toml", "apps/desktop/src-tauri/tauri.conf.json", "apps/desktop/src-tauri/Cargo.lock", "package-lock.json"]) assert.ok(VERSION_FILES.includes(f), `${f} is a version file`);
+  put(
+    "apps/desktop/src-tauri/Cargo.lock",
+    `[[package]]\nname = "other"\nversion = "3.0.0"\n\n[[package]]\nname = "vyre-desktop"\nversion = "${v}"\ndependencies = [\n "a",\n]\n`,
+  );
+  for (const f of [
+    "apps/desktop/package.json",
+    "apps/desktop/src-tauri/Cargo.toml",
+    "apps/desktop/src-tauri/tauri.conf.json",
+    "apps/desktop/src-tauri/Cargo.lock",
+    "package-lock.json",
+  ])
+    assert.ok(VERSION_FILES.includes(f), `${f} is a version file`);
   assert.deepEqual(versionProblems(dir), []);
   // a desktop file left behind is caught
   put("apps/desktop/src-tauri/tauri.conf.json", `{\n  "version": "1.0.0-rc.20"\n}\n`);
-  put("apps/desktop/src-tauri/Cargo.lock", fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.lock"), "utf8").replace(`vyre-desktop"\nversion = "${v}"`, 'vyre-desktop"\nversion = "1.0.0-rc.20"'));
+  put(
+    "apps/desktop/src-tauri/Cargo.lock",
+    fs
+      .readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.lock"), "utf8")
+      .replace(`vyre-desktop"\nversion = "${v}"`, 'vyre-desktop"\nversion = "1.0.0-rc.20"'),
+  );
   assert.equal(versionProblems(dir).length, 2);
   bump(dir, "1.0.0-rc.22");
   assert.deepEqual(versionProblems(dir), []);
-  assert.match(fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"), /^version = "1\.0\.0-rc\.22"$/m);
-  assert.match(fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"), /tauri-build = \{ version = "2" \}/);
+  assert.match(
+    fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"),
+    /^version = "1\.0\.0-rc\.22"$/m,
+  );
+  assert.match(
+    fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.toml"), "utf8"),
+    /tauri-build = \{ version = "2" \}/,
+  );
   const lock = fs.readFileSync(path.join(dir, "apps/desktop/src-tauri/Cargo.lock"), "utf8");
   assert.match(lock, /name = "vyre-desktop"\nversion = "1\.0\.0-rc\.22"/);
   assert.match(lock, /name = "other"\nversion = "3\.0\.0"/);
   const pl = JSON.parse(fs.readFileSync(path.join(dir, "package-lock.json"), "utf8"));
-  assert.deepEqual([pl.version, pl.packages[""].version, pl.packages["apps/desktop"].version, pl.packages["node_modules/y"].version], ["1.0.0-rc.22", "1.0.0-rc.22", "1.0.0-rc.22", "9.9.9"]);
+  assert.deepEqual(
+    [pl.version, pl.packages[""].version, pl.packages["apps/desktop"].version, pl.packages["node_modules/y"].version],
+    ["1.0.0-rc.22", "1.0.0-rc.22", "1.0.0-rc.22", "9.9.9"],
+  );
   fs.rmSync(dir, { recursive: true });
 });

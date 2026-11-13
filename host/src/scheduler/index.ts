@@ -53,8 +53,12 @@ interface Job {
 /** The first moment after `after` that is `hour:minute` (local time, or UTC). */
 export function nextDaily(after: number, hour: number, minute: number, utc = false): number {
   const d = new Date(after);
-  if (utc) d.setUTCHours(hour, minute, 0, 0); else d.setHours(hour, minute, 0, 0);
-  if (d.getTime() <= after) { if (utc) d.setUTCDate(d.getUTCDate() + 1); else d.setDate(d.getDate() + 1); }
+  if (utc) d.setUTCHours(hour, minute, 0, 0);
+  else d.setHours(hour, minute, 0, 0);
+  if (d.getTime() <= after) {
+    if (utc) d.setUTCDate(d.getUTCDate() + 1);
+    else d.setDate(d.getDate() + 1);
+  }
   return d.getTime();
 }
 
@@ -67,7 +71,9 @@ export class Scheduler {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inflight = new Set<Promise<void>>();
   /** names of the jobs running now (the event-loop lag guard says who was in flight when the loop stalled) */
-  runningNames(): string[] { return [...this.jobs.values()].filter((j) => j.running).map((j) => j.spec.name); }
+  runningNames(): string[] {
+    return [...this.jobs.values()].filter((j) => j.running).map((j) => j.spec.name);
+  }
   lastTickAt: number | null = null;
 
   constructor(o: SchedulerOptions = {}) {
@@ -82,26 +88,55 @@ export class Scheduler {
     const s = spec.schedule;
     if ("everyMs" in s && !(s.everyMs >= 1)) throw new Error(`job ${spec.name}: everyMs must be at least 1`);
     const t = this.now();
-    const nextAt = "everyMs" in s ? (s.immediate ? t : t + s.everyMs) : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
-    this.jobs.set(spec.name, { spec, nextAt, running: false, runs: 0, failures: 0, skipped: 0, lastStartedAt: null, lastMs: null, lastError: null, failing: null });
+    const nextAt =
+      "everyMs" in s ? (s.immediate ? t : t + s.everyMs) : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
+    this.jobs.set(spec.name, {
+      spec,
+      nextAt,
+      running: false,
+      runs: 0,
+      failures: 0,
+      skipped: 0,
+      lastStartedAt: null,
+      lastMs: null,
+      lastError: null,
+      failing: null,
+    });
   }
 
-  remove(name: string): boolean { return this.jobs.delete(name); }
+  remove(name: string): boolean {
+    return this.jobs.delete(name);
+  }
 
   status(): JobStatus[] {
-    return [...this.jobs.values()].map((j) => ({ name: j.spec.name, running: j.running, runs: j.runs, failures: j.failures, skipped: j.skipped, lastStartedAt: j.lastStartedAt, lastMs: j.lastMs, lastError: j.lastError, nextAt: j.nextAt }));
+    return [...this.jobs.values()].map((j) => ({
+      name: j.spec.name,
+      running: j.running,
+      runs: j.runs,
+      failures: j.failures,
+      skipped: j.skipped,
+      lastStartedAt: j.lastStartedAt,
+      lastMs: j.lastMs,
+      lastError: j.lastError,
+      nextAt: j.nextAt,
+    }));
   }
 
   async start(): Promise<void> {
     if (this.timer) return;
     this.lastTickAt = this.now();
-    this.timer = setInterval(() => { void this.tick(); }, this.tickMs);
+    this.timer = setInterval(() => {
+      void this.tick();
+    }, this.tickMs);
     this.timer.unref();
     await this.tick();
   }
 
   async stop(): Promise<void> {
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     await Promise.allSettled([...this.inflight]);
   }
 
@@ -113,7 +148,11 @@ export class Scheduler {
     for (const j of this.jobs.values()) {
       if (t < j.nextAt) continue;
       const s = j.spec.schedule;
-      if (j.running) { j.skipped++; j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false); continue; }
+      if (j.running) {
+        j.skipped++;
+        j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
+        continue;
+      }
       j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
       started.push(this.runJob(j));
     }
@@ -127,7 +166,10 @@ export class Scheduler {
     const timeoutMs = j.spec.timeoutMs ?? 60_000;
     const p = (async () => {
       let timedOut = false;
-      const watchdog = setTimeout(() => { timedOut = true; this.log?.warn("scheduler.job_slow", { job: j.spec.name, timeoutMs }); }, timeoutMs);
+      const watchdog = setTimeout(() => {
+        timedOut = true;
+        this.log?.warn("scheduler.job_slow", { job: j.spec.name, timeoutMs });
+      }, timeoutMs);
       watchdog.unref();
       try {
         await j.spec.run();

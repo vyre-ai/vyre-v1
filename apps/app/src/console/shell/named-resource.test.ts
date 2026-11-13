@@ -4,8 +4,14 @@ import { activityRows, activityTitle, namedResource, repeatedTitle } from "./for
 
 test("admin activity names what an act was on, and leaves out what it has no name for", () => {
   const name = (id: string): string => (id === "rec_1" ? "Acme Legal" : "Someone");
-  assert.equal(activityTitle("Tom Reyes", "schema.apply", namedResource("spc_fresh", name)), "Tom Reyes applied the data model");
-  assert.equal(activityTitle("Tom Reyes", "records.update", namedResource("rec_1", name)), "Tom Reyes updated the record Acme Legal");
+  assert.equal(
+    activityTitle("Tom Reyes", "schema.apply", namedResource("spc_fresh", name)),
+    "Tom Reyes applied the data model",
+  );
+  assert.equal(
+    activityTitle("Tom Reyes", "records.update", namedResource("rec_1", name)),
+    "Tom Reyes updated the record Acme Legal",
+  );
 });
 
 test("the same act by the same person in a row is one line with a count (owner, 13 Nov 2026: Dex posted a chat, four times)", () => {

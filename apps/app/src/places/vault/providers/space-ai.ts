@@ -12,27 +12,49 @@ export interface Uses {
 /** A name for an id (a group or an agent), for the line. */
 export type NameOf = (id: string) => string;
 
-const joinNames = (a: readonly string[]): string => (a.length <= 2 ? a.join(" and ") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`);
+const joinNames = (a: readonly string[]): string =>
+  a.length <= 2 ? a.join(" and ") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
 
 /** The row's plain line: "Used for Team chats for Operations · Automations · up to $500 a month", or that it pays for nothing yet. */
 export function usedForLine(uses: Uses | undefined, capCents: number | null | undefined, nameOf: NameOf): string {
   const u: string[] = [];
-  if (uses?.teamChats) u.push(uses.teamChats.who === "everyone" || uses.teamChats.who.length === 0 ? "Team chats" : `Team chats for ${joinNames(uses.teamChats.who.map(nameOf))}`);
+  if (uses?.teamChats)
+    u.push(
+      uses.teamChats.who === "everyone" || uses.teamChats.who.length === 0
+        ? "Team chats"
+        : `Team chats for ${joinNames(uses.teamChats.who.map(nameOf))}`,
+    );
   if (uses?.automations) u.push("Automations");
   if (uses?.goals) u.push("Goals");
-  if (uses?.agentWork) u.push(uses.agentWork.which === "all" || uses.agentWork.which.length === 0 ? "Agents' own work" : `Agents' own work: ${joinNames(uses.agentWork.which.map(nameOf))}`);
+  if (uses?.agentWork)
+    u.push(
+      uses.agentWork.which === "all" || uses.agentWork.which.length === 0
+        ? "Agents' own work"
+        : `Agents' own work: ${joinNames(uses.agentWork.which.map(nameOf))}`,
+    );
   if (u.length === 0) return "Not used for anything yet";
   return `Used for ${u.join(" · ")}${typeof capCents === "number" ? ` · up to $${Math.round(capCents / 100)} a month` : ""}`;
 }
 
 /** The sheet's form: four ticks, who and which, and the cap as typed (dollars, empty for none). */
-export interface UsesForm { teamChats: boolean; who: string[]; automations: boolean; goals: boolean; agentWork: boolean; which: string[]; cap: string }
+export interface UsesForm {
+  teamChats: boolean;
+  who: string[];
+  automations: boolean;
+  goals: boolean;
+  agentWork: boolean;
+  which: string[];
+  cap: string;
+}
 
 export function formOf(uses: Uses | undefined, capCents: number | null | undefined): UsesForm {
   return {
-    teamChats: Boolean(uses?.teamChats), who: uses?.teamChats && uses.teamChats.who !== "everyone" ? [...uses.teamChats.who] : [],
-    automations: uses?.automations === true, goals: uses?.goals === true,
-    agentWork: Boolean(uses?.agentWork), which: uses?.agentWork && uses.agentWork.which !== "all" ? [...uses.agentWork.which] : [],
+    teamChats: Boolean(uses?.teamChats),
+    who: uses?.teamChats && uses.teamChats.who !== "everyone" ? [...uses.teamChats.who] : [],
+    automations: uses?.automations === true,
+    goals: uses?.goals === true,
+    agentWork: Boolean(uses?.agentWork),
+    which: uses?.agentWork && uses.agentWork.which !== "all" ? [...uses.agentWork.which] : [],
     cap: typeof capCents === "number" ? String(Math.round(capCents / 100)) : "",
   };
 }

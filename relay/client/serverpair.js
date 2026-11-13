@@ -16,8 +16,19 @@
 import { pairTicket } from "./client.js";
 import { adoptServer } from "./finish.js";
 
-const b64u = (/** @type {string} */ s) => { try { const t = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)); return Uint8Array.from(t, c => c.charCodeAt(0)); } catch { return null; } };
-const toB64u = (/** @type {Uint8Array} */ b) => { let s = ""; for (const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const b64u = (/** @type {string} */ s) => {
+  try {
+    const t = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+    return Uint8Array.from(t, (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+};
+const toB64u = (/** @type {Uint8Array} */ b) => {
+  let s = "";
+  for (const x of b) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
 const fail = (/** @type {string} */ code, /** @type {string} */ message) => Object.assign(new Error(message), { code });
 
 /** Reads a server's QR or long code: { seed, relay } or null. A phone's code (`k=phone`) is not a server's. @param {string} s @returns {{ seed: Uint8Array, relay: string } | null} */
@@ -37,20 +48,60 @@ export function parseServerPayload(s) {
  */
 export async function pairServer(o) {
   const scan = parseServerPayload(o.payload);
-  if (!scan) throw fail("bad_code", "That is not a Vyre server code. Scan the code on the server's screen, or paste the long code it printed.");
-  if (!o.owner || typeof o.owner.id !== "string" || !o.owner.id) throw fail("bad_code", "pairServer needs the identity that will own the server");
+  if (!scan)
+    throw fail(
+      "bad_code",
+      "That is not a Vyre server code. Scan the code on the server's screen, or paste the long code it printed.",
+    );
+  if (!o.owner || typeof o.owner.id !== "string" || !o.owner.id)
+    throw fail("bad_code", "pairServer needs the identity that will own the server");
   const relay = o.relay || scan.relay;
   const ticket = toB64u(scan.seed);
   const deviceName = o.name || "a device";
   /** @type {any} */ let paired;
   try {
-    paired = await pairTicket(scan.seed, { relay, name: deviceName, crypto: o.crypto, keyStore: o.keyStore, WebSocket: o.WebSocket, ...(o.fetch ? { fetch: o.fetch } : {}), ...(o.about ? { about: o.about } : {}), ...(o.presenceKey ? { presenceKey: o.presenceKey } : {}), ...(o.passkey ? { passkey: o.passkey } : {}) });
+    paired = await pairTicket(scan.seed, {
+      relay,
+      name: deviceName,
+      crypto: o.crypto,
+      keyStore: o.keyStore,
+      WebSocket: o.WebSocket,
+      ...(o.fetch ? { fetch: o.fetch } : {}),
+      ...(o.about ? { about: o.about } : {}),
+      ...(o.presenceKey ? { presenceKey: o.presenceKey } : {}),
+      ...(o.passkey ? { passkey: o.passkey } : {}),
+    });
   } catch (e) {
     const code = /** @type {any} */ (e).code;
-    throw fail(code === "ticket_gone" || code === "ticket_used" || code === "expired" || code === "not_found" ? "taken" : code === "rate_limited" ? "busy" : "unreachable", /** @type {Error} */ (e).message);
+    throw fail(
+      code === "ticket_gone" || code === "ticket_used" || code === "expired" || code === "not_found"
+        ? "taken"
+        : code === "rate_limited"
+          ? "busy"
+          : "unreachable",
+      /** @type {Error} */ (e).message,
+    );
   }
-  if (!paired.pending) throw fail("unreachable", "The server did not ask who is pairing. Make a new code on the server and try again.");
-  return adoptServer(paired, { relay, ticket, typed: false, owner: o.owner, deviceName, ...(o.proof ? { proof: o.proof } : {}), ...(o.signIdentity ? { signIdentity: o.signIdentity } : {}),
-    ...(o.deviceKind ? { deviceKind: o.deviceKind } : {}), ...(o.keyStorage ? { keyStorage: o.keyStorage } : {}), ...(o.presenceKey && typeof o.presenceKey.signer === "string" ? { keySigner: o.presenceKey.signer } : {}), ...(o.presenceKey && typeof o.presenceKey.rp === "string" ? { keyRp: o.presenceKey.rp } : {}), crypto: o.crypto, keyStore: o.keyStore, WebSocket: o.WebSocket,
-    ...(o.onWords ? { onWords: o.onWords } : {}), ...(o.signal ? { signal: o.signal } : {}), ...(o.pollMs !== undefined ? { pollMs: o.pollMs } : {}), ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}) });
+  if (!paired.pending)
+    throw fail("unreachable", "The server did not ask who is pairing. Make a new code on the server and try again.");
+  return adoptServer(paired, {
+    relay,
+    ticket,
+    typed: false,
+    owner: o.owner,
+    deviceName,
+    ...(o.proof ? { proof: o.proof } : {}),
+    ...(o.signIdentity ? { signIdentity: o.signIdentity } : {}),
+    ...(o.deviceKind ? { deviceKind: o.deviceKind } : {}),
+    ...(o.keyStorage ? { keyStorage: o.keyStorage } : {}),
+    ...(o.presenceKey && typeof o.presenceKey.signer === "string" ? { keySigner: o.presenceKey.signer } : {}),
+    ...(o.presenceKey && typeof o.presenceKey.rp === "string" ? { keyRp: o.presenceKey.rp } : {}),
+    crypto: o.crypto,
+    keyStore: o.keyStore,
+    WebSocket: o.WebSocket,
+    ...(o.onWords ? { onWords: o.onWords } : {}),
+    ...(o.signal ? { signal: o.signal } : {}),
+    ...(o.pollMs !== undefined ? { pollMs: o.pollMs } : {}),
+    ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}),
+  });
 }

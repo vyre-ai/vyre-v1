@@ -8,7 +8,10 @@ export type Action = Task["actions"][number];
 export type Kind = Task["kind"];
 export type Reason = Item["reason"];
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock {
+  now: number;
+  offsetMin: number;
+}
 const DAY = 86_400_000;
 const two = (n: number): string => String(n).padStart(2, "0");
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -58,10 +61,17 @@ export function matchesFilter(t: Task, f: KindFilter): boolean {
 
 /** Counts per filter over the whole list, for the filter menu's right-hand column. */
 export function filterCounts(items: readonly Item[]): Record<KindFilter, number> {
-  const out: Record<KindFilter, number> = { all: items.filter((i) => i.task.state !== "canceled").length, approve: 0, review: 0, answer: 0, unblock: 0 };
+  const out: Record<KindFilter, number> = {
+    all: items.filter((i) => i.task.state !== "canceled").length,
+    approve: 0,
+    review: 0,
+    answer: 0,
+    unblock: 0,
+  };
   for (const i of items) {
     if (i.task.state === "canceled") continue;
-    if (i.task.kind === "approve" || i.task.kind === "review" || i.task.kind === "answer" || i.task.kind === "unblock") out[i.task.kind]++;
+    if (i.task.kind === "approve" || i.task.kind === "review" || i.task.kind === "answer" || i.task.kind === "unblock")
+      out[i.task.kind]++;
   }
   return out;
 }
@@ -104,44 +114,66 @@ export function stepSelection(list: readonly Item[], id: string | null, step: 1 
 export function kindWord(t: Task): string {
   if (t.blocked && t.kind === "unblock") return "Blocked";
   switch (t.kind) {
-    case "approve": return "Approve";
-    case "review": return "Review";
-    case "answer": return "Answer";
-    case "unblock": return "Blocked";
-    case "signature": return "Sign";
-    case "work": return "Task";
+    case "approve":
+      return "Approve";
+    case "review":
+      return "Review";
+    case "answer":
+      return "Answer";
+    case "unblock":
+      return "Blocked";
+    case "signature":
+      return "Sign";
+    case "work":
+      return "Task";
   }
 }
 
 /** The heading above a request's title. */
 export function needsLine(t: Task): string {
   switch (t.kind) {
-    case "approve": return "Needs your approval";
-    case "review": return "Needs your review";
-    case "answer": return "Needs your answer";
-    case "unblock": return "Needs unblocking";
-    case "signature": return "Waiting on a signature";
-    case "work": return "Needs your attention";
+    case "approve":
+      return "Needs your approval";
+    case "review":
+      return "Needs your review";
+    case "answer":
+      return "Needs your answer";
+    case "unblock":
+      return "Needs unblocking";
+    case "signature":
+      return "Waiting on a signature";
+    case "work":
+      return "Needs your attention";
   }
 }
 
 export function stateWord(s: Task["state"]): string {
   switch (s) {
-    case "todo": return "To do";
-    case "doing": return "Doing";
-    case "in_review": return "In review";
-    case "awaiting_approval": return "Awaiting approval";
-    case "done": return "Done";
-    case "canceled": return "Canceled";
+    case "todo":
+      return "To do";
+    case "doing":
+      return "Doing";
+    case "in_review":
+      return "In review";
+    case "awaiting_approval":
+      return "Awaiting approval";
+    case "done":
+      return "Done";
+    case "canceled":
+      return "Canceled";
   }
 }
 
 export function reasonWord(r: Reason, due: number | undefined, c: Clock): string {
   switch (r) {
-    case "blocking": return "Blocking other work";
-    case "overdue": return due !== undefined ? `Overdue since ${dueLabel(due, c)}` : "Overdue";
-    case "due_today": return due !== undefined ? `Due ${dueLabel(due, c)}` : "Due today";
-    case "ready": return "";
+    case "blocking":
+      return "Blocking other work";
+    case "overdue":
+      return due !== undefined ? `Overdue since ${dueLabel(due, c)}` : "Overdue";
+    case "due_today":
+      return due !== undefined ? `Due ${dueLabel(due, c)}` : "Due today";
+    case "ready":
+      return "";
   }
 }
 
@@ -156,7 +188,10 @@ export function rowNote(i: Item, who: string, c: Clock): string {
 /** The time a request arrived, as the prototype shows it: the clock time today ("9:12"), "Yesterday", else the date. */
 export function arrivedLabel(ts: number, c: Clock): string {
   const gap = dayNo(c.now, c) - dayNo(ts, c);
-  if (gap <= 0) { const d = local(ts, c); return `${d.getUTCHours()}:${two(d.getUTCMinutes())}`; }
+  if (gap <= 0) {
+    const d = local(ts, c);
+    return `${d.getUTCHours()}:${two(d.getUTCMinutes())}`;
+  }
   return agoLabel(ts, c);
 }
 
@@ -199,7 +234,11 @@ export function needsNote(a: Action): boolean {
 /** The placeholder in the note field. */
 export function notePrompt(a: Action, who: string): string {
   if (a.key === "answer") return "Your answer…";
-  return isSendBack(a) ? `Tell ${who} what to change…` : a.note === "required" ? "Add a note…" : "Add a note (optional)…";
+  return isSendBack(a)
+    ? `Tell ${who} what to change…`
+    : a.note === "required"
+      ? "Add a note…"
+      : "Add a note (optional)…";
 }
 
 /** The line shown after acting: the source continues at once. */
@@ -213,7 +252,10 @@ export function doneLine(t: Task, a: Action, who: string): string {
 }
 
 /** Who can act now: a role or group request is taken by the first person, and others see who has it. */
-export interface Holder { kind: "free" | "taken" | "handled"; by?: string }
+export interface Holder {
+  kind: "free" | "taken" | "handled";
+  by?: string;
+}
 export function holder(i: Item, me: string): Holder {
   if (i.handledBy !== undefined) return { kind: "handled", by: i.handledBy };
   const t = i.task;
@@ -226,7 +268,10 @@ export function needsTake(t: Task, me: string): boolean {
   return (t.assigned.kind === "group" || t.assigned.kind === "role") && t.takenBy !== me;
 }
 
-export interface SnoozeChoice { key: "later" | "tomorrow" | "week"; label: string }
+export interface SnoozeChoice {
+  key: "later" | "tomorrow" | "week";
+  label: string;
+}
 export const SNOOZES: readonly SnoozeChoice[] = [
   { key: "later", label: "Later today" },
   { key: "tomorrow", label: "Tomorrow morning" },
@@ -236,7 +281,7 @@ export const SNOOZES: readonly SnoozeChoice[] = [
 /** When a snooze returns: later today = 4 hours on, tomorrow = 09:00 the next day, next week = 09:00 seven days on (the person's clock). */
 export function snoozeUntil(key: SnoozeChoice["key"], c: Clock): number {
   if (key === "later") return c.now + 4 * 3_600_000;
-  const startOfDay = (Math.floor((c.now + c.offsetMin * 60_000) / DAY)) * DAY - c.offsetMin * 60_000;
+  const startOfDay = Math.floor((c.now + c.offsetMin * 60_000) / DAY) * DAY - c.offsetMin * 60_000;
   return startOfDay + (key === "tomorrow" ? 1 : 7) * DAY + 9 * 3_600_000;
 }
 
@@ -249,7 +294,8 @@ export type BlockView =
   | { type: "line"; text: string };
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const str = (v: unknown): string => (typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+const str = (v: unknown): string =>
+  typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : "";
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(str) : []);
 
 /** A task's content block as something the detail can draw. Tables, key/values and excerpts get their own look; anything else is one quiet line with its type. */
@@ -259,32 +305,65 @@ export function blockView(b: Task["blocks"][number]): BlockView {
     const more = typeof d.more === "number" ? d.more : undefined;
     // `tags` is one short tag per row ("new rate"), drawn in amber beside the first cell; an empty string means none.
     const tags = Array.isArray(d.tags) ? strs(d.tags) : [];
-    return { type: "table", columns: strs(d.columns), rows: d.rows.map((r) => strs(r)), ...(more !== undefined && more > 0 ? { more } : {}), ...(tags.some((t) => t !== "") ? { tags } : {}) };
+    return {
+      type: "table",
+      columns: strs(d.columns),
+      rows: d.rows.map((r) => strs(r)),
+      ...(more !== undefined && more > 0 ? { more } : {}),
+      ...(tags.some((t) => t !== "") ? { tags } : {}),
+    };
   }
   if ((b.type === "checklist" || b.type === "form") && isRec(d) && Array.isArray(d.items)) {
-    return { type: "pairs", pairs: d.items.map((x): [string, string] => (isRec(x) ? [str(x.label ?? x.name), str(x.value ?? (x.done === true ? "Done" : "To do"))] : [str(x), ""])) };
+    return {
+      type: "pairs",
+      pairs: d.items.map((x): [string, string] =>
+        isRec(x) ? [str(x.label ?? x.name), str(x.value ?? (x.done === true ? "Done" : "To do"))] : [str(x), ""],
+      ),
+    };
   }
   if (b.type === "pairs" && isRec(d) && Array.isArray(d.pairs)) {
-    return { type: "pairs", pairs: d.pairs.map((x): [string, string] => (Array.isArray(x) ? [str(x[0]), str(x[1])] : ["", ""])) };
+    return {
+      type: "pairs",
+      pairs: d.pairs.map((x): [string, string] => (Array.isArray(x) ? [str(x[0]), str(x[1])] : ["", ""])),
+    };
   }
   if ((b.type === "document" || b.type === "excerpt") && isRec(d)) {
     const lines = strs(d.lines);
     const source = str(d.file ?? d.name);
-    return { type: "quote", lines: lines.length > 0 ? lines : [str(d.text)].filter((x) => x !== ""), ...(source ? { source } : {}) };
+    return {
+      type: "quote",
+      lines: lines.length > 0 ? lines : [str(d.text)].filter((x) => x !== ""),
+      ...(source ? { source } : {}),
+    };
   }
   // a held act (the Gate's doc_excerpt, { act, cap, input }): what it will do, to whom, and the words that go, never the block's type name
   if (b.type === "doc_excerpt" && isRec(d) && isRec(d.input)) {
     const i = d.input;
-    const named = (r: unknown): string => (isRec(r) ? (str(r.name) !== "" && str(r.address) !== "" ? `${str(r.name)} <${str(r.address)}>` : str(r.name) || str(r.address) || str(r.handle) || str(r.id)) : str(r));
-    const to = (Array.isArray(i.to) ? i.to.map(named) : [named(i.to ?? i.recipient ?? i.person ?? i.channel)]).filter((x) => x !== "").join(", ");
+    const named = (r: unknown): string =>
+      isRec(r)
+        ? str(r.name) !== "" && str(r.address) !== ""
+          ? `${str(r.name)} <${str(r.address)}>`
+          : str(r.name) || str(r.address) || str(r.handle) || str(r.id)
+        : str(r);
+    const to = (Array.isArray(i.to) ? i.to.map(named) : [named(i.to ?? i.recipient ?? i.person ?? i.channel)])
+      .filter((x) => x !== "")
+      .join(", ");
     const subject = str(i.subject ?? i.title);
-    const body = str(i.text ?? i.body ?? i.message ?? i.content ?? i.html).replace(/<[^>]*>/g, "").trim();
+    const body = str(i.text ?? i.body ?? i.message ?? i.content ?? i.html)
+      .replace(/<[^>]*>/g, "")
+      .trim();
     const pairs: [string, string][] = [];
     if (to) pairs.push(["To", to]);
     if (subject) pairs.push(["Subject", subject]);
-    if (body) return pairs.length > 0 ? { type: "quote", lines: [...pairs.map(([k, v]) => `${k}: ${v}`), "", ...body.split("\n")] } : { type: "quote", lines: body.split("\n") };
+    if (body)
+      return pairs.length > 0
+        ? { type: "quote", lines: [...pairs.map(([k, v]) => `${k}: ${v}`), "", ...body.split("\n")] }
+        : { type: "quote", lines: body.split("\n") };
     if (pairs.length > 0) return { type: "pairs", pairs };
-    const scalars = Object.entries(i).filter(([, v]) => typeof v === "string" || typeof v === "number").slice(0, 5).map(([k, v]): [string, string] => [k.replaceAll("_", " "), str(v).slice(0, 120)]);
+    const scalars = Object.entries(i)
+      .filter(([, v]) => typeof v === "string" || typeof v === "number")
+      .slice(0, 5)
+      .map(([k, v]): [string, string] => [k.replaceAll("_", " "), str(v).slice(0, 120)]);
     return scalars.length > 0 ? { type: "pairs", pairs: scalars } : { type: "line", text: "A held act" };
   }
   const label = isRec(d) ? str(d.title ?? d.name ?? d.caption) : "";
@@ -293,7 +372,8 @@ export function blockView(b: Task["blocks"][number]): BlockView {
 
 /** A request Vyre itself made (a connection that stopped working, any step the system runs): it is from "Vyre", or from the app it is about ("Composio", named in the task's own notes), never from a person. Null for a request an agent or a person made. */
 export function originOf(t: Task): string | null {
-  const system = t.createdBy.startsWith("svc_") || (t.source?.kind === "manual" && t.source.id.startsWith("connection:"));
+  const system =
+    t.createdBy.startsWith("svc_") || (t.source?.kind === "manual" && t.source.id.startsWith("connection:"));
   if (!system) return null;
   return t.workingNotes["origin"] || "Vyre";
 }
@@ -303,11 +383,17 @@ export function fromName(t: Task, nameOf: (id: string) => string): string {
   return originOf(t) ?? nameOf(t.createdBy);
 }
 
-const ROLES: Record<string, string> = { owner: "Owners", admin: "Admins", manager: "Managers", member: "Members", temp: "Guests" };
+const ROLES: Record<string, string> = {
+  owner: "Owners",
+  admin: "Admins",
+  manager: "Managers",
+  member: "Members",
+  temp: "Guests",
+};
 
 /** Who the request is assigned to: a role reads as its people ("Admins"), never as an id. */
 export function assignedName(t: Task, nameOf: (id: string) => string): string {
-  return t.assigned.kind === "role" ? ROLES[t.assigned.id] ?? "Everyone with that role" : nameOf(t.assigned.id);
+  return t.assigned.kind === "role" ? (ROLES[t.assigned.id] ?? "Everyone with that role") : nameOf(t.assigned.id);
 }
 
 /** A key request (vault.request): its id and the fields it wants, from its own card. Null for any other task. */
@@ -316,7 +402,9 @@ export function keyRequestOf(t: Task): { requestId: string; name: string } | nul
   const d = b?.data;
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
-  return typeof r["requestId"] === "string" ? { requestId: r["requestId"], name: typeof r["name"] === "string" ? r["name"] : "" } : null;
+  return typeof r["requestId"] === "string"
+    ? { requestId: r["requestId"], name: typeof r["name"] === "string" ? r["name"] : "" }
+    : null;
 }
 
 /** An access request (access.request): its id and the level asked for, from its own card. Approving it must grant, so the button calls access.requests.approve. Null for any other task. */
@@ -325,7 +413,9 @@ export function accessRequestOf(t: Task): { requestId: string; level?: string } 
   const d = b?.data;
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
-  return typeof r["requestId"] === "string" ? { requestId: r["requestId"], ...(typeof r["level"] === "string" ? { level: r["level"] } : {}) } : null;
+  return typeof r["requestId"] === "string"
+    ? { requestId: r["requestId"], ...(typeof r["level"] === "string" ? { level: r["level"] } : {}) }
+    : null;
 }
 
 /** A question a chat asked (chat.question.ask): its options, and whether words are taken too. Null for any other task, and for a question with no options, which is answered in words. */
@@ -333,7 +423,10 @@ export function questionOf(t: Task): { options: { key: string; label: string }[]
   const d = t.blocks.find((x) => x.type === "question")?.data;
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
-  const options = (Array.isArray(r["options"]) ? r["options"] : []).filter(isRec).map((o) => ({ key: str(o["key"]), label: str(o["label"]) })).filter((o) => o.key !== "");
+  const options = (Array.isArray(r["options"]) ? r["options"] : [])
+    .filter(isRec)
+    .map((o) => ({ key: str(o["key"]), label: str(o["label"]) }))
+    .filter((o) => o.key !== "");
   return options.length > 0 ? { options, words: r["allowOther"] === true } : null;
 }
 
@@ -355,7 +448,10 @@ export function fixOf(t: Task): "replace_key" | null {
 export function footerHint(t: Task | undefined): string {
   const keys = ["\u2191 \u2193 to move"];
   if (!t) return keys.join(" \u00b7 ");
-  const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null && connectionFixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
+  const a =
+    fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null && connectionFixOf(t) === null
+      ? splitActions(t)
+      : { primary: null, sendBack: null, more: [] };
   if (a.primary) keys.push(t.state === "canceled" ? `A ${a.primary.label.toLowerCase()}` : "A approve");
   if (a.sendBack) keys.push("B send back");
   if (!a.primary && !a.sendBack) keys.push("Enter to open");
@@ -364,16 +460,23 @@ export function footerHint(t: Task | undefined): string {
 
 /** Whether "Open its computer" means anything here: only a request an agent made while it ran, never a system or manual one. */
 export function hasComputer(t: Task): boolean {
-  return t.kind === "unblock" && t.createdBy.startsWith("agt_") && (t.source?.kind === "run" || t.source?.kind === "chat");
+  return (
+    t.kind === "unblock" && t.createdBy.startsWith("agt_") && (t.source?.kind === "run" || t.source?.kind === "chat")
+  );
 }
 
 export function sourceWord(s: NonNullable<Task["source"]>): string {
   switch (s.kind) {
-    case "chat": return "a chat";
-    case "run": return "a run";
-    case "gate": return "a gate";
-    case "journey": return "a Journey";
-    case "manual": return "a person";
+    case "chat":
+      return "a chat";
+    case "run":
+      return "a run";
+    case "gate":
+      return "a gate";
+    case "journey":
+      return "a Journey";
+    case "manual":
+      return "a person";
   }
 }
 
@@ -391,7 +494,11 @@ export function splitWithdrawn(items: readonly Item[]): { live: Item[]; withdraw
 
 /* ---------- participants ---------- */
 
-export interface Participant { id: string; kind: string; role: string }
+export interface Participant {
+  id: string;
+  kind: string;
+  role: string;
+}
 
 /** Who is on a request: its requester, the person or agent it is assigned to, the reviewer and approver, and whoever follows it. Each appears once with the roles they hold. */
 export function participants(t: Task, kindOf: (id: string) => string): Participant[] {
@@ -399,7 +506,10 @@ export function participants(t: Task, kindOf: (id: string) => string): Participa
   const roles = new Map<string, { kind: string; roles: string[] }>();
   const add = (id: string, kind: string, role: string): void => {
     const cur = roles.get(id);
-    if (cur) { if (!cur.roles.includes(role)) cur.roles.push(role); return; }
+    if (cur) {
+      if (!cur.roles.includes(role)) cur.roles.push(role);
+      return;
+    }
     order.push(id);
     roles.set(id, { kind, roles: [role] });
   };

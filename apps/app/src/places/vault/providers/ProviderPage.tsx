@@ -21,7 +21,8 @@ import { ServerKeyLine } from "./ServerKeyLine.tsx";
 type HistoryOut = CapMap["vault.item.history"]["out"];
 
 export interface ProviderPageProps {
-  provider: Provider; handle: string;
+  provider: Provider;
+  handle: string;
   /** A line under the list; with `undo` it carries an Undo (a trashed sign-in comes back). */
   onNote(text: string, undo?: () => Promise<void> | void): void;
   /** The page's item left the list (trashed or disconnected): the place closes the detail. */
@@ -32,21 +33,34 @@ export interface ProviderPageProps {
   tokensOf?: (actorId: string) => number | undefined;
 }
 
-export function ProviderPage({ provider, handle, onNote, onGone, askDelete, tokensOf }: ProviderPageProps): ReactElement {
+export function ProviderPage({
+  provider,
+  handle,
+  onNote,
+  onGone,
+  askDelete,
+  tokensOf,
+}: ProviderPageProps): ReactElement {
   const data = useVaultData();
   const menu = useMenu();
   const [ask, setAsk] = useState<"trash" | "disconnect" | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  useEffect(() => { if (askDelete) setAsk("trash"); }, [askDelete]);
+  useEffect(() => {
+    if (askDelete) setAsk("trash");
+  }, [askDelete]);
   const fail = (e: unknown): void => setFailure(e instanceof Error ? e.message : "That did not work. Try again.");
   const trash = async (): Promise<void> => {
     try {
       await data.call("vault.item.delete", { itemId: provider.itemId });
       setAsk(null);
-      onNote(`Moved ${provider.name} to Trash`, async () => { await data.call("vault.item.restore", { itemId: provider.itemId }); });
+      onNote(`Moved ${provider.name} to Trash`, async () => {
+        await data.call("vault.item.restore", { itemId: provider.itemId });
+      });
       onGone?.();
-    } catch (e) { fail(e); }
+    } catch (e) {
+      fail(e);
+    }
   };
   const disconnect = async (): Promise<void> => {
     try {
@@ -54,7 +68,9 @@ export function ProviderPage({ provider, handle, onNote, onGone, askDelete, toke
       setAsk(null);
       onNote(`Disconnected ${provider.name}`);
       onGone?.();
-    } catch (e) { fail(e); }
+    } catch (e) {
+      fail(e);
+    }
   };
   const rename = async (to: string): Promise<void> => {
     const was = provider.name;
@@ -63,8 +79,12 @@ export function ProviderPage({ provider, handle, onNote, onGone, askDelete, toke
     if (next === "" || next === was) return;
     try {
       await data.call("vault.item.update", { itemId: provider.itemId, name: next });
-      onNote(`Renamed ${was} to ${next}`, async () => { await data.call("vault.item.update", { itemId: provider.itemId, name: was }); });
-    } catch (e) { fail(e); }
+      onNote(`Renamed ${was} to ${next}`, async () => {
+        await data.call("vault.item.update", { itemId: provider.itemId, name: was });
+      });
+    } catch (e) {
+      fail(e);
+    }
   };
   const people = usePrincipals();
   const hist = useScreenQuery<HistoryOut>("vault.item", "history", { itemId: provider.itemId });
@@ -73,96 +93,286 @@ export function ProviderPage({ provider, handle, onNote, onGone, askDelete, toke
   useEffect(() => {
     let live = true;
     setModels(null);
-    void (data.call("providers.test", { providerId: provider.id }) as Promise<{ ok?: boolean; models: string[] }>).then((o) => { if (live) setModels(o.models); }).catch(() => { if (live) setModels("failed"); });
-    return () => { live = false; };
+    void (data.call("providers.test", { providerId: provider.id }) as Promise<{ ok?: boolean; models: string[] }>)
+      .then((o) => {
+        if (live) setModels(o.models);
+      })
+      .catch(() => {
+        if (live) setModels("failed");
+      });
+    return () => {
+      live = false;
+    };
   }, [data, provider.id, tries]);
   const entries = hist.status === "ready" ? hist.data.entries : [];
-  const turns = (id: string): number => entries.filter((e) => e.action === "used" && (e.actor.id === id || e.onBehalfOf?.id === id)).length;
+  const turns = (id: string): number =>
+    entries.filter((e) => e.action === "used" && (e.actor.id === id || e.onBehalfOf?.id === id)).length;
   const total = provider.agentsUsing.reduce((n, id) => n + turns(id), 0);
   const signIn = async (): Promise<void> => {
-    try { const o = (await data.call("providers.subscription_start", { providerKey: provider.providerKey, idempotencyKey: `again-${provider.id}-${data.clock().now}` })) as { instruction: string }; onNote(o.instruction); } catch (e) { onNote(e instanceof Error ? e.message : "That did not work."); }
+    try {
+      const o = (await data.call("providers.subscription_start", {
+        providerKey: provider.providerKey,
+        idempotencyKey: `again-${provider.id}-${data.clock().now}`,
+      })) as { instruction: string };
+      onNote(o.instruction);
+    } catch (e) {
+      onNote(e instanceof Error ? e.message : "That did not work.");
+    }
   };
   const more: MenuEntry[] = [
     { label: "Rename…", onSelect: () => setRenaming(provider.name) },
-    { label: "Sign in again", onSelect: () => { void signIn(); } },
+    {
+      label: "Sign in again",
+      onSelect: () => {
+        void signIn();
+      },
+    },
     { separator: true } as MenuEntry,
     { label: "Disconnect…", danger: true, onSelect: () => setAsk("disconnect") },
     { label: "Move to Trash", danger: true, onSelect: () => setAsk("trash") },
   ];
   const tags = Array.isArray(models)
-    // ui-rows-lint: not a list (model names as wrapped tags)
-    ? models.map((m) => <View key={m} style={s.chip}><Mono size={12}>{m}</Mono></View>)
+    ? // ui-rows-lint: not a list (model names as wrapped tags)
+      models.map((m) => (
+        <View key={m} style={s.chip}>
+          <Mono size={12}>{m}</Mono>
+        </View>
+      ))
     : null;
   return (
     <View style={s.page} testID="provider-page" accessibilityLabel={`${provider.name}, AI provider`}>
       {menu.element}
-      <View style={s.bar}><View style={{ flex: 1 }} /><AskButton place="vault" context={{ kind: "vault_item", id: provider.itemId, title: provider.name, access: "manage" }} agents={[{ id: "assistant", name: "Assistant", assistant: true }, ...people.all.filter((x) => x.kind === "agent").map((x) => ({ id: x.id, name: x.name }))]} testID="provider-ask" onAsk={(agent, mode, about) => data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })} /><IconBtn icon="more" label="More" testID="provider-more" onPress={(e) => { const r = rectOf(e); menu.show(more, r.x, r.y); }} /></View>
+      <View style={s.bar}>
+        <View style={{ flex: 1 }} />
+        <AskButton
+          place="vault"
+          context={{ kind: "vault_item", id: provider.itemId, title: provider.name, access: "manage" }}
+          agents={[
+            { id: "assistant", name: "Assistant", assistant: true },
+            ...people.all.filter((x) => x.kind === "agent").map((x) => ({ id: x.id, name: x.name })),
+          ]}
+          testID="provider-ask"
+          onAsk={(agent, mode, about) =>
+            data.nav.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title })
+          }
+        />
+        <IconBtn
+          icon="more"
+          label="More"
+          testID="provider-more"
+          onPress={(e) => {
+            const r = rectOf(e);
+            menu.show(more, r.x, r.y);
+          }}
+        />
+      </View>
       <ScrollView contentContainerStyle={s.body}>
         <View style={s.hero}>
           <LogoTile name={provider.name} size={64} />
           <View style={{ flex: 1, gap: 6 }}>
-            {renaming !== null ? <RenameRow value={renaming} onSave={(v) => { void rename(v); }} onCancel={() => setRenaming(null)} /> : <Text accessibilityRole="header" style={s.title}>{provider.name}</Text>}
-            <View style={s.meta}><View style={s.chip}><Mono size={12}>{handle}</Mono></View><Text style={s.dim}>Sign-in</Text></View>
+            {renaming !== null ? (
+              <RenameRow
+                value={renaming}
+                onSave={(v) => {
+                  void rename(v);
+                }}
+                onCancel={() => setRenaming(null)}
+              />
+            ) : (
+              <Text accessibilityRole="header" style={s.title}>
+                {provider.name}
+              </Text>
+            )}
+            <View style={s.meta}>
+              <View style={s.chip}>
+                <Mono size={12}>{handle}</Mono>
+              </View>
+              <Text style={s.dim}>Sign-in</Text>
+            </View>
           </View>
         </View>
         {ask !== null ? (
           <View style={s.confirm} testID="provider-confirm" accessibilityRole="alert">
-            <Text style={s.confirmText}>{ask === "trash" ? `Move ${provider.name} to Trash? Agents and Automations that use it lose it until you bring it back.` : `Disconnect ${provider.name}? Its sign-in is removed. Agents that use it move to another account, and you can sign in again any time.`}</Text>
-            <Btn label={ask === "trash" ? "Move to Trash" : "Disconnect"} danger onPress={() => { void (ask === "trash" ? trash() : disconnect()); }} testID="provider-confirm-yes" />
+            <Text style={s.confirmText}>
+              {ask === "trash"
+                ? `Move ${provider.name} to Trash? Agents and Automations that use it lose it until you bring it back.`
+                : `Disconnect ${provider.name}? Its sign-in is removed. Agents that use it move to another account, and you can sign in again any time.`}
+            </Text>
+            <Btn
+              label={ask === "trash" ? "Move to Trash" : "Disconnect"}
+              danger
+              onPress={() => {
+                void (ask === "trash" ? trash() : disconnect());
+              }}
+              testID="provider-confirm-yes"
+            />
             <Btn label="Cancel" onPress={() => setAsk(null)} testID="provider-confirm-no" />
           </View>
         ) : null}
-        {failure ? <Text style={s.error} accessibilityRole="alert" testID="provider-error">{failure}</Text> : null}
-        <View style={s.private} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.dim}>Mine</Text><Info help="Only you can use it" /></View>
+        {failure ? (
+          <Text style={s.error} accessibilityRole="alert" testID="provider-error">
+            {failure}
+          </Text>
+        ) : null}
+        <View style={s.private} testID="provider-private">
+          <Glyph name="lock" size={12} color="var(--ink-3)" />
+          <Text style={s.dim}>Mine</Text>
+          <Info help="Only you can use it" />
+        </View>
         {provider.scope === "mine" ? <ServerKeyLine /> : null}
 
         <View style={s.box} testID="provider-signin">
           <View style={s.boxRow}>
-            <View style={{ flex: 1 }}><Text style={s.strong} testID="provider-how">{provider.via.replace(/^Sign in with /, "Signed in with ")}</Text><Text style={s.dim}>{people.name(data.me.id)}</Text></View>
-            {provider.state === "needs_sign_in" && provider.unopenable === true ? <View style={{ flex: 1 }}><Text style={s.dim} testID="provider-unopenable">Can't be opened, sign in again</Text></View> : null}
-            {provider.state === "needs_sign_in"
-              ? <Btn label="Sign in again" onPress={() => void signIn()} testID="provider-signin-again" />
-              : <View style={s.state} testID="provider-state"><View style={[s.dot, { backgroundColor: (provider.state === "ok" ? "var(--ok)" : "var(--danger)") as string }]} /><Text style={s.dim}>{provider.state === "ok" ? "Working" : "Not working"}</Text></View>}
+            <View style={{ flex: 1 }}>
+              <Text style={s.strong} testID="provider-how">
+                {provider.via.replace(/^Sign in with /, "Signed in with ")}
+              </Text>
+              <Text style={s.dim}>{people.name(data.me.id)}</Text>
+            </View>
+            {provider.state === "needs_sign_in" && provider.unopenable === true ? (
+              <View style={{ flex: 1 }}>
+                <Text style={s.dim} testID="provider-unopenable">
+                  Can't be opened, sign in again
+                </Text>
+              </View>
+            ) : null}
+            {provider.state === "needs_sign_in" ? (
+              <Btn label="Sign in again" onPress={() => void signIn()} testID="provider-signin-again" />
+            ) : (
+              <View style={s.state} testID="provider-state">
+                <View
+                  style={[
+                    s.dot,
+                    { backgroundColor: (provider.state === "ok" ? "var(--ok)" : "var(--danger)") as string },
+                  ]}
+                />
+                <Text style={s.dim}>{provider.state === "ok" ? "Working" : "Not working"}</Text>
+              </View>
+            )}
           </View>
           <View style={s.sep} />
-          <View style={s.boxRow}><Text style={[s.strong, { flex: 1 }]}>Models</Text>{Array.isArray(models) && models.length ? <Text style={s.dim}>{models.length}</Text> : null}</View>
-          {models === null ? <Text style={s.dim} testID="provider-models">Loading</Text>
-            : models === "failed" ? <View style={s.boxRow} testID="provider-models"><Text style={[s.dim, { flex: 1 }]}>Could not load the models</Text><Btn label="Try again" onPress={() => setTries((n) => n + 1)} testID="provider-models-retry" /></View>
-            : models.length === 0 ? <Text style={s.dim} testID="provider-models">No models listed</Text>
-            : <View style={s.chips} testID="provider-models">{tags}</View>}
+          <View style={s.boxRow}>
+            <Text style={[s.strong, { flex: 1 }]}>Models</Text>
+            {Array.isArray(models) && models.length ? <Text style={s.dim}>{models.length}</Text> : null}
+          </View>
+          {models === null ? (
+            <Text style={s.dim} testID="provider-models">
+              Loading
+            </Text>
+          ) : models === "failed" ? (
+            <View style={s.boxRow} testID="provider-models">
+              <Text style={[s.dim, { flex: 1 }]}>Could not load the models</Text>
+              <Btn label="Try again" onPress={() => setTries((n) => n + 1)} testID="provider-models-retry" />
+            </View>
+          ) : models.length === 0 ? (
+            <Text style={s.dim} testID="provider-models">
+              No models listed
+            </Text>
+          ) : (
+            <View style={s.chips} testID="provider-models">
+              {tags}
+            </View>
+          )}
         </View>
 
-        <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Used by</Text></View>
-        {provider.agentsUsing.length === 0 ? <Text style={s.dim} testID="provider-nobody">Nothing uses it yet</Text> : null}
+        <View style={s.head}>
+          <Text accessibilityRole="header" style={s.h2}>
+            Used by
+          </Text>
+        </View>
+        {provider.agentsUsing.length === 0 ? (
+          <Text style={s.dim} testID="provider-nobody">
+            Nothing uses it yet
+          </Text>
+        ) : null}
         {provider.agentsUsing.map((id) => (
-          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation you set up" : "Runs its turns on this"} leading={<View style={s.face}><Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={28} /></View>}
-            trailing={<Text style={s.dim} testID={`use-count-${id}`}>{tokensOf?.(id) === undefined ? countWords(turns(id), "turn") : `${countWords(turns(id), "turn")}, ${tokenWords(tokensOf(id)!)}`}</Text>} />
+          <Row
+            key={id}
+            id={`use:${id}`}
+            title={people.name(id)}
+            note={userKind(id) === "automation" ? "Automation you set up" : "Runs its turns on this"}
+            leading={
+              <View style={s.face}>
+                <Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={28} />
+              </View>
+            }
+            trailing={
+              <Text style={s.dim} testID={`use-count-${id}`}>
+                {tokensOf?.(id) === undefined
+                  ? countWords(turns(id), "turn")
+                  : `${countWords(turns(id), "turn")}, ${tokenWords(tokensOf(id)!)}`}
+              </Text>
+            }
+          />
         ))}
-        <Text style={s.dim} testID="provider-total">{`${countWords(total, "turn")} · ${tokenWords(provider.usage.tokens)} this month`}</Text>
+        <Text
+          style={s.dim}
+          testID="provider-total"
+        >{`${countWords(total, "turn")} · ${tokenWords(provider.usage.tokens)} this month`}</Text>
 
-        <View style={s.head}><Text accessibilityRole="header" style={s.h2}>Recent use</Text></View>
-        {entries.length === 0 ? <Text style={s.dim} testID="history-empty">Nothing has used this sign-in yet.</Text> : entries.slice(0, 5).map((e, i) => (
-          <Row key={i} id={`rec:${i}`} title={`${people.name(e.actor.id)} ${e.action === "used" ? "used this sign-in" : e.action}`} leading={<View style={s.face}><Avatar name={people.name(e.actor.id)} seedId={e.actor.id} kind={userKind(e.actor.id)} size={24} /></View>}
-            trailing={<Text style={s.dim}>{agoLabel(e.at, data.clock())}</Text>} />
-        ))}
+        <View style={s.head}>
+          <Text accessibilityRole="header" style={s.h2}>
+            Recent use
+          </Text>
+        </View>
+        {entries.length === 0 ? (
+          <Text style={s.dim} testID="history-empty">
+            Nothing has used this sign-in yet.
+          </Text>
+        ) : (
+          entries.slice(0, 5).map((e, i) => (
+            <Row
+              key={i}
+              id={`rec:${i}`}
+              title={`${people.name(e.actor.id)} ${e.action === "used" ? "used this sign-in" : e.action}`}
+              leading={
+                <View style={s.face}>
+                  <Avatar name={people.name(e.actor.id)} seedId={e.actor.id} kind={userKind(e.actor.id)} size={24} />
+                </View>
+              }
+              trailing={<Text style={s.dim}>{agoLabel(e.at, data.clock())}</Text>}
+            />
+          ))
+        )}
       </ScrollView>
     </View>
   );
 }
 
 function rectOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const box = ev.currentTarget?.getBoundingClientRect?.();
   return box ? { x: box.left, y: box.bottom } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
 
 /** The name as a field in place: Enter or Save keeps it, Escape or Cancel leaves it. */
-function RenameRow({ value, onSave, onCancel }: { value: string; onSave(v: string): void; onCancel(): void }): ReactElement {
+function RenameRow({
+  value,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  onSave(v: string): void;
+  onCancel(): void;
+}): ReactElement {
   const [text, setText] = useState(value);
   return (
     <View style={s.renameRow} testID="provider-rename">
-      <TextInput autoFocus value={text} onChangeText={setText} accessibilityLabel="Name" testID="provider-rename-input" style={s.renameInput} onSubmitEditing={() => onSave(text)}
-        onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Escape") onCancel(); }} />
+      <TextInput
+        autoFocus
+        value={text}
+        onChangeText={setText}
+        accessibilityLabel="Name"
+        testID="provider-rename-input"
+        style={s.renameInput}
+        onSubmitEditing={() => onSave(text)}
+        onKeyPress={(e) => {
+          if ((e.nativeEvent as { key?: string }).key === "Escape") onCancel();
+        }}
+      />
       <Btn label="Save" onPress={() => onSave(text)} testID="provider-rename-save" />
       <Btn label="Cancel" onPress={onCancel} testID="provider-rename-cancel" />
     </View>
@@ -170,11 +380,29 @@ function RenameRow({ value, onSave, onCancel }: { value: string; onSave(v: strin
 }
 
 const s = StyleSheet.create({
-  confirm: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: "var(--sel)" as string },
+  confirm: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "var(--sel)" as string,
+  },
   confirmText: { flex: 1, minWidth: 200, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
   renameRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  renameInput: { flex: 1, minWidth: 160, height: 36, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, fontSize: 18, color: "var(--ink)" as string },
+  renameInput: {
+    flex: 1,
+    minWidth: 160,
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    fontSize: 18,
+    color: "var(--ink)" as string,
+  },
   page: { flex: 1, minHeight: 0 },
   bar: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 16 },
   body: { paddingHorizontal: 24, paddingBottom: 32, gap: 10 },
@@ -184,7 +412,15 @@ const s = StyleSheet.create({
   chip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: "var(--sel)" as string },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
   strong: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
-  box: { marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, padding: 14, gap: 8 },
+  box: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+    padding: 14,
+    gap: 8,
+  },
   private: { flexDirection: "row", alignItems: "center", gap: 6 },
   state: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 7, height: 7, borderRadius: 99 },

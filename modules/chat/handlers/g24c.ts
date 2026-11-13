@@ -9,7 +9,20 @@ import { forgetMentions, mentionsOf } from "./pace.ts";
 import { attachReach } from "./reach-attach.ts";
 import { readFloor } from "./floor.ts";
 import {
-  agentsOf, askerOf, channelBy, encOf, ensure, insertMessage, lastMessage, membersOf, messageBy, messageOf, messageOut, mintId, raise, threadBy,
+  agentsOf,
+  askerOf,
+  channelBy,
+  encOf,
+  ensure,
+  insertMessage,
+  lastMessage,
+  membersOf,
+  messageBy,
+  messageOf,
+  messageOut,
+  mintId,
+  raise,
+  threadBy,
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { archivedIds } from "./archive-state.ts";
@@ -37,10 +50,14 @@ function messageIn(ctx: ChatCtx, t: ThreadRec, messageId: string): MessageRec {
 
 // ---- reads ------------------------------------------------------------------------------------------------------------------------------------------
 
-export async function messagesList(ctx: ChatCtx, input: { threadId: string; before?: number; after?: number; limit?: number }) {
+export async function messagesList(
+  ctx: ChatCtx,
+  input: { threadId: string; before?: number; after?: number; limit?: number },
+) {
   const t = openThread(ctx, input.threadId);
   const limit = input.limit ?? 50;
-  if (!Number.isInteger(limit) || limit < 1 || limit > 200) raise(ctx, "validation.bad_input", "The limit is a whole number from 1 to 200.");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200)
+    raise(ctx, "validation.bad_input", "The limit is a whole number from 1 to 200.");
   const { before, after } = input;
   // after alone reads forward from that number; everything else reads the newest window below `before` (or the newest of all).
   const forward = after !== undefined && before === undefined;
@@ -48,17 +65,39 @@ export async function messagesList(ctx: ChatCtx, input: { threadId: string; befo
   const args: unknown[] = [t.id];
   // a person added without earlier messages (or an agent reading for them) reads from their start
   const floor = readFloor(ctx, t);
-  if (floor > 0) { where.push("createdAt >= ?"); args.push(floor); }
-  if (after !== undefined) { where.push("threadSeq > ?"); args.push(after); }
-  if (before !== undefined) { where.push("threadSeq < ?"); args.push(before); }
-  const rows = ctx.db.all(`SELECT * FROM chat_message WHERE ${where.join(" AND ")} ORDER BY threadSeq ${forward ? "ASC" : "DESC"} LIMIT ?`, ...args, limit + 1) as Row[];
+  if (floor > 0) {
+    where.push("createdAt >= ?");
+    args.push(floor);
+  }
+  if (after !== undefined) {
+    where.push("threadSeq > ?");
+    args.push(after);
+  }
+  if (before !== undefined) {
+    where.push("threadSeq < ?");
+    args.push(before);
+  }
+  const rows = ctx.db.all(
+    `SELECT * FROM chat_message WHERE ${where.join(" AND ")} ORDER BY threadSeq ${forward ? "ASC" : "DESC"} LIMIT ?`,
+    ...args,
+    limit + 1,
+  ) as Row[];
   const hasMore = rows.length > limit;
   const page = rows.slice(0, limit).map(messageOf);
   if (!forward) page.reverse();
   const enc = encOf(ctx.db, t);
   // each message's chips (chat.post kept them), so the app reads who it really mentioned, never names in its words
-  const chips = mentionsOf(ctx, page.map((m) => m.id));
-  return { messages: await attachReach(ctx, page.map((m) => ({ ...messageOut(m, enc), ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}) }))), hasMore };
+  const chips = mentionsOf(
+    ctx,
+    page.map((m) => m.id),
+  );
+  return {
+    messages: await attachReach(
+      ctx,
+      page.map((m) => ({ ...messageOut(m, enc), ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}) })),
+    ),
+    hasMore,
+  };
 }
 
 export async function messageGet(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
@@ -71,9 +110,18 @@ export async function messageGet(ctx: ChatCtx, input: { threadId: string; messag
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   const t = openThread(ctx, input.threadId);
   const floor = readFloor(ctx, t);
-  const rows = ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND pinned = 1 AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq", t.id, floor) as Row[];
+  const rows = ctx.db.all(
+    "SELECT * FROM chat_message WHERE thread = ? AND pinned = 1 AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq",
+    t.id,
+    floor,
+  ) as Row[];
   const enc = encOf(ctx.db, t);
-  return { messages: await attachReach(ctx, rows.map((r) => messageOut(messageOf(r), enc))) };
+  return {
+    messages: await attachReach(
+      ctx,
+      rows.map((r) => messageOut(messageOf(r), enc)),
+    ),
+  };
 }
 
 // ---- edit and delete --------------------------------------------------------------------------------------------------------------------------------
@@ -86,13 +134,22 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   ownMessage(ctx, m, "edit");
-  if (m.kind !== "text" && m.kind !== "agent") raise(ctx, "validation.bad_input", "Only a written message can be edited.");
-  if (input.body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
-  if (input.body.trim() === "" && m.blocks.length === 0 && m.attachments.length === 0) raise(ctx, "validation.bad_input", "A message needs some text, a block or a file.");
+  if (m.kind !== "text" && m.kind !== "agent")
+    raise(ctx, "validation.bad_input", "Only a written message can be edited.");
+  if (input.body.length > MAX_BODY)
+    raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
+  if (input.body.trim() === "" && m.blocks.length === 0 && m.attachments.length === 0)
+    raise(ctx, "validation.bad_input", "A message needs some text, a block or a file.");
   const enc = encOf(ctx.db, t);
   if (input.body === m.body) return { message: messageOut(m, enc) };
   const now = ctx.now();
-  ctx.db.run("UPDATE chat_message SET body = ?, editedAt = ?, version = version + 1, updated_at = ? WHERE id = ?", input.body, now, now, m.id);
+  ctx.db.run(
+    "UPDATE chat_message SET body = ?, editedAt = ?, version = version + 1, updated_at = ? WHERE id = ?",
+    input.body,
+    now,
+    now,
+    m.id,
+  );
   ctx.emit("message.edited", t.id, { messageId: m.id, threadId: t.id });
   return { message: messageOut(messageBy(ctx.db, m.id)!, enc) };
 }
@@ -100,26 +157,48 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
 export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   const t = openThread(ctx, input.threadId);
   // A repeat finds the row already marked and answers the same.
-  const row = (ctx.db.all("SELECT thread, author, deleted_at FROM chat_message WHERE id = ?", input.messageId) as Row[])[0];
+  const row = (
+    ctx.db.all("SELECT thread, author, deleted_at FROM chat_message WHERE id = ?", input.messageId) as Row[]
+  )[0];
   if (!row || String(row["thread"]) !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
-  if (String(row["author"]) !== ctx.principal.id) raise(ctx, "permission.no_grant", "You can only delete a message you wrote.");
+  if (String(row["author"]) !== ctx.principal.id)
+    raise(ctx, "permission.no_grant", "You can only delete a message you wrote.");
   if (row["deleted_at"] !== null && row["deleted_at"] !== undefined) return { deleted: true };
   const now = ctx.now();
-  ctx.db.run("UPDATE chat_message SET deleted_at = ?, pinned = 0, version = version + 1, updated_at = ? WHERE id = ?", now, now, input.messageId);
+  ctx.db.run(
+    "UPDATE chat_message SET deleted_at = ?, pinned = 0, version = version + 1, updated_at = ? WHERE id = ?",
+    now,
+    now,
+    input.messageId,
+  );
   forgetMentions(ctx, { message: input.messageId });
   ctx.emit("message.deleted", t.id, { messageId: input.messageId, threadId: t.id });
   // memory (rule 9): what it derived from this message goes with it. A memory that cannot be reached now is not a reason to keep the message from being deleted; the failure is logged.
-  if (ctx.call) { try { await ctx.call("memory.source_removed", { threadId: t.id, messageId: input.messageId }); } catch (e) { ctx.log.warn("memory was not told a message was deleted", { threadId: t.id, messageId: input.messageId, error: String((e as { message?: unknown })?.message ?? e) }); } }
+  if (ctx.call) {
+    try {
+      await ctx.call("memory.source_removed", { threadId: t.id, messageId: input.messageId });
+    } catch (e) {
+      ctx.log.warn("memory was not told a message was deleted", {
+        threadId: t.id,
+        messageId: input.messageId,
+        error: String((e as { message?: unknown })?.message ?? e),
+      });
+    }
+  }
   return { deleted: true };
 }
 
 // ---- reactions and pins -----------------------------------------------------------------------------------------------------------------------------
 
-export async function react(ctx: ChatCtx, input: { threadId: string; messageId: string; emoji: string; remove?: boolean }) {
+export async function react(
+  ctx: ChatCtx,
+  input: { threadId: string; messageId: string; emoji: string; remove?: boolean },
+) {
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   const emoji = input.emoji.trim();
-  if (emoji === "" || emoji.length > MAX_EMOJI) raise(ctx, "validation.bad_input", `A reaction is an emoji name of 1 to ${MAX_EMOJI} characters.`);
+  if (emoji === "" || emoji.length > MAX_EMOJI)
+    raise(ctx, "validation.bad_input", `A reaction is an emoji name of 1 to ${MAX_EMOJI} characters.`);
   const who = ctx.principal.id;
   const list = m.reactions.map((r) => ({ emoji: r.emoji, by: [...r.by] }));
   const entry = list.find((r) => r.emoji === emoji);
@@ -129,12 +208,19 @@ export async function react(ctx: ChatCtx, input: { threadId: string; messageId: 
     if (remove) {
       entry!.by = entry!.by.filter((p) => p !== who);
     } else {
-      if (!entry && list.length >= MAX_REACTIONS) raise(ctx, "validation.bad_input", `A message can carry at most ${MAX_REACTIONS} different reactions.`);
-      if (entry) entry.by.push(who); else list.push({ emoji, by: [who] });
+      if (!entry && list.length >= MAX_REACTIONS)
+        raise(ctx, "validation.bad_input", `A message can carry at most ${MAX_REACTIONS} different reactions.`);
+      if (entry) entry.by.push(who);
+      else list.push({ emoji, by: [who] });
     }
     const next = list.filter((r) => r.by.length > 0);
     const now = ctx.now();
-    ctx.db.run("UPDATE chat_message SET reactions = ?, version = version + 1, updated_at = ? WHERE id = ?", JSON.stringify(next), now, m.id);
+    ctx.db.run(
+      "UPDATE chat_message SET reactions = ?, version = version + 1, updated_at = ? WHERE id = ?",
+      JSON.stringify(next),
+      now,
+      m.id,
+    );
     ctx.emit("message.reacted", t.id, { messageId: m.id, threadId: t.id, emoji, removed: remove });
     return { reactions: next };
   }
@@ -146,13 +232,22 @@ function setPinned(ctx: ChatCtx, input: { threadId: string; messageId: string },
   const m = messageIn(ctx, t, input.messageId);
   if (m.pinned !== pinned) {
     const now = ctx.now();
-    ctx.db.run("UPDATE chat_message SET pinned = ?, version = version + 1, updated_at = ? WHERE id = ?", pinned ? 1 : 0, now, m.id);
+    ctx.db.run(
+      "UPDATE chat_message SET pinned = ?, version = version + 1, updated_at = ? WHERE id = ?",
+      pinned ? 1 : 0,
+      now,
+      m.id,
+    );
     ctx.emit("message.pinned", t.id, { messageId: m.id, threadId: t.id, pinned });
   }
   return { pinned };
 }
-export async function pin(ctx: ChatCtx, input: { threadId: string; messageId: string }) { return setPinned(ctx, input, true); }
-export async function unpin(ctx: ChatCtx, input: { threadId: string; messageId: string }) { return setPinned(ctx, input, false); }
+export async function pin(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
+  return setPinned(ctx, input, true);
+}
+export async function unpin(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
+  return setPinned(ctx, input, false);
+}
 
 // ---- Recent -----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -169,7 +264,8 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
   const filter = input.filter ?? "all";
   const threads = ctx.db.all(
     `SELECT * FROM chat_thread WHERE deleted_at IS NULL AND listed = 1 AND closedAt IS NULL AND kind IN ('chat', 'ask', 'channel')
-       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC`, asker,
+       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC`,
+    asker,
   ) as Row[];
   const rows: Array<{ lastAt: number; row: Record<string, unknown>; archived: boolean }> = [];
   const mine = archivedIds(ctx, asker);
@@ -185,8 +281,20 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     // a chat nobody has written in is not a chat yet: opening an agent makes the thread, and it should not pile up as "New chat" rows
     if (t.kind === "chat" && t.title === undefined && last === null && agents.length > 0 && people.length < 2) continue;
     const lastAt = last?.createdAt ?? t.createdAt;
-    const title = t.title ?? (t.channelId ? channelBy(ctx.db, t.channelId)?.name : undefined) ?? (t.kind === "ask" ? "Ask" : "New chat");
-    const row: Record<string, unknown> = { threadId: t.id, kind: t.kind, title, agents, unread: 0, working: false, starred: false, lastAt };
+    const title =
+      t.title ??
+      (t.channelId ? channelBy(ctx.db, t.channelId)?.name : undefined) ??
+      (t.kind === "ask" ? "Ask" : "New chat");
+    const row: Record<string, unknown> = {
+      threadId: t.id,
+      kind: t.kind,
+      title,
+      agents,
+      unread: 0,
+      working: false,
+      starred: false,
+      lastAt,
+    };
     // a chat's other people (a channel's members are its own list): a direct message is named and counted by the one person it is with
     if (t.kind === "chat") row["people"] = people.filter((p) => p !== asker);
     // a goal's own chat says so: its door is the Goal row (lane l-polish L2)
@@ -197,9 +305,18 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
   }
   rows.sort((a, b) => b.lastAt - a.lastAt);
   const today = Math.floor(ctx.now() / DAY) * DAY;
-  const out = { starred: [] as Row[], today: [] as Row[], yesterday: [] as Row[], earlier: [] as Row[], archived: [] as Row[] };
+  const out = {
+    starred: [] as Row[],
+    today: [] as Row[],
+    yesterday: [] as Row[],
+    earlier: [] as Row[],
+    archived: [] as Row[],
+  };
   // the chats I archived leave the day groups and wait in one section at the foot; the others in a group chat still see theirs where it was
-  for (const { lastAt, row, archived } of rows.slice(0, RECENT_MAX)) (archived ? out.archived : lastAt >= today ? out.today : lastAt >= today - DAY ? out.yesterday : out.earlier).push(row);
+  for (const { lastAt, row, archived } of rows.slice(0, RECENT_MAX))
+    (archived ? out.archived : lastAt >= today ? out.today : lastAt >= today - DAY ? out.yesterday : out.earlier).push(
+      row,
+    );
   return { ...out, nextUnread: null };
 }
 
@@ -213,25 +330,36 @@ const SUGGEST_MAX = 20;
  */
 export async function composerSuggest(ctx: ChatCtx, input: { symbol: "@" | "#" | "/"; q: string; threadId?: string }) {
   ensure(ctx.db);
-  const q = input.q.trim().replace(/^[@#/]+/, "").toLowerCase();
-  const hit = (...s: Array<string | undefined>): boolean => q === "" || s.some((x) => x !== undefined && x.toLowerCase().includes(q));
+  const q = input.q
+    .trim()
+    .replace(/^[@#/]+/, "")
+    .toLowerCase();
+  const hit = (...s: Array<string | undefined>): boolean =>
+    q === "" || s.some((x) => x !== undefined && x.toLowerCase().includes(q));
   const items: Array<{ group: string; kind: string; id: string; title: string; detail?: string }> = [];
   const asker = askerOf(ctx);
   if (input.symbol === "@") {
     let threadIds: string[];
     if (input.threadId !== undefined) threadIds = [openThread(ctx, input.threadId).id];
-    else threadIds = (ctx.db.all("SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL", asker) as Row[]).map((r) => String(r["thread"])).slice(0, 200);
+    else
+      threadIds = (
+        ctx.db.all("SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL", asker) as Row[]
+      )
+        .map((r) => String(r["thread"]))
+        .slice(0, 200);
     const seen = new Set<string>();
     for (const id of threadIds) {
       for (const p of membersOf(ctx.db, id)) {
         if (p.startsWith("agt_") || seen.has(p) || !hit(p)) continue;
-        seen.add(p); items.push({ group: "People", kind: "person", id: p, title: p });
+        seen.add(p);
+        items.push({ group: "People", kind: "person", id: p, title: p });
       }
     }
     for (const id of threadIds) {
       for (const a of agentsOf(ctx.db, id)) {
         if (seen.has(a.agentId) || !hit(a.agentId)) continue;
-        seen.add(a.agentId); items.push({ group: "Agents", kind: "agent", id: a.agentId, title: a.agentId });
+        seen.add(a.agentId);
+        items.push({ group: "Agents", kind: "agent", id: a.agentId, title: a.agentId });
       }
     }
   } else if (input.symbol === "#") {
@@ -239,9 +367,16 @@ export async function composerSuggest(ctx: ChatCtx, input: { symbol: "@" | "#" |
     for (const r of rows) {
       const main = String(r["mainThread"]);
       const visible = String(r["visibility"]) === "public" || membersOf(ctx.db, main).includes(asker);
-      const name = String(r["name"]), topic = r["topic"] === null || r["topic"] === undefined ? undefined : String(r["topic"]);
+      const name = String(r["name"]),
+        topic = r["topic"] === null || r["topic"] === undefined ? undefined : String(r["topic"]);
       if (!visible || !hit(name)) continue;
-      items.push({ group: "Channels", kind: "channel", id: String(r["id"]), title: name, ...(topic !== undefined ? { detail: topic } : {}) });
+      items.push({
+        group: "Channels",
+        kind: "channel",
+        id: String(r["id"]),
+        title: name,
+        ...(topic !== undefined ? { detail: topic } : {}),
+      });
     }
   }
   return { items: items.slice(0, SUGGEST_MAX) };
@@ -253,19 +388,34 @@ export async function composerSuggest(ctx: ChatCtx, input: { symbol: "@" | "#" |
  * An agent opens a tab beside the chat for the person it acts for. tab.opened is delivered live to that person's devices; the thread keeps a line (a tab_opened block) so the tab can be opened again.
  * No person setting or device list is named by the contract for this, so the tab always opens. A sealed thread gets the tab type as its title: the real title stays out of a row the server cannot read.
  */
-export async function openTab(ctx: ChatCtx, input: { threadId: string; targetType: string; targetId: string; title?: string }) {
+export async function openTab(
+  ctx: ChatCtx,
+  input: { threadId: string; targetType: string; targetId: string; title?: string },
+) {
   const t = openThread(ctx, input.threadId);
   if (ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Only an agent opens a tab for a person.");
   // An agent that is not in this chat has no tab to open in it, and the answer is the same as for a chat that is not there.
-  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === ctx.principal.id)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to open.");
+  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === ctx.principal.id))
+    raise(ctx, "validation.not_found", "That chat does not exist or is not yours to open.");
   const personId = askerOf(ctx);
-  if (!personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "A tab opens for a person, and this agent is not acting for one.");
-  const targetType = input.targetType.trim(), targetId = input.targetId.trim();
+  if (!personId.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "A tab opens for a person, and this agent is not acting for one.");
+  const targetType = input.targetType.trim(),
+    targetId = input.targetId.trim();
   if (targetType === "" || targetId === "") raise(ctx, "validation.bad_input", "Say what to open: a type and an id.");
   const sealed = encOf(ctx.db, t) !== 0;
-  const title = sealed ? targetType : (input.title?.trim() || targetId);
+  const title = sealed ? targetType : input.title?.trim() || targetId;
   const agentId = ctx.principal.id;
-  const blocks = [{ type: "tab_opened", v: 1, id: mintId("blk", ctx.now()), data: { targetType, targetId, title, agentId }, state: "done", traceId: ctx.trace.traceId }];
+  const blocks = [
+    {
+      type: "tab_opened",
+      v: 1,
+      id: mintId("blk", ctx.now()),
+      data: { targetType, targetId, title, agentId },
+      state: "done",
+      traceId: ctx.trace.traceId,
+    },
+  ];
   const m = insertMessage(ctx, t.id, { author: agentId, kind: "agent", body: "", blocks });
   ctx.emit("tab.opened", t.id, { threadId: t.id, personId, targetType, targetId, agentId });
   deliver(ctx, t, m, [], { kind: "agent", id: agentId }, { notify: false });

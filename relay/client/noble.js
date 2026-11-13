@@ -27,16 +27,33 @@ import { toBytes } from "./bytes.js";
  * @returns {import("./noise.js").CryptoProvider & { importKeyPair(raw: Uint8Array): Promise<import("./noise.js").KeyPair> }}
  */
 export function nobleCrypto(n) {
-  for (const k of ["x25519", "sha256", "hmac", "gcm", "randomBytes"]) if (!n || !n[k]) throw new Error(`nobleCrypto needs ${k}`);
+  for (const k of ["x25519", "sha256", "hmac", "gcm", "randomBytes"])
+    if (!n || !n[k]) throw new Error(`nobleCrypto needs ${k}`);
   const secret = () => n.x25519.utils?.randomSecretKey?.() || n.x25519.utils?.randomPrivateKey?.() || n.randomBytes(32);
   return {
-    async generateKeyPair() { const priv = secret(); return { privateKey: priv, publicKey: n.x25519.getPublicKey(priv) }; },
-    async dh(priv, pub) { return n.x25519.getSharedSecret(priv, pub); },
-    async sha256(b) { return n.sha256(b); },
-    async hmacSha256(key, b) { return n.hmac(n.sha256, key, b); },
-    async aesGcmEncrypt(key, nonce, ad, pt) { return n.gcm(key, nonce, ad).encrypt(pt); },
-    async aesGcmDecrypt(key, nonce, ad, ct) { return n.gcm(key, nonce, ad).decrypt(ct); },
-    randomBytes: len => n.randomBytes(len),
-    async importKeyPair(raw) { const priv = toBytes(raw).slice(); return { privateKey: priv, publicKey: n.x25519.getPublicKey(priv) }; },
+    async generateKeyPair() {
+      const priv = secret();
+      return { privateKey: priv, publicKey: n.x25519.getPublicKey(priv) };
+    },
+    async dh(priv, pub) {
+      return n.x25519.getSharedSecret(priv, pub);
+    },
+    async sha256(b) {
+      return n.sha256(b);
+    },
+    async hmacSha256(key, b) {
+      return n.hmac(n.sha256, key, b);
+    },
+    async aesGcmEncrypt(key, nonce, ad, pt) {
+      return n.gcm(key, nonce, ad).encrypt(pt);
+    },
+    async aesGcmDecrypt(key, nonce, ad, ct) {
+      return n.gcm(key, nonce, ad).decrypt(ct);
+    },
+    randomBytes: (len) => n.randomBytes(len),
+    async importKeyPair(raw) {
+      const priv = toBytes(raw).slice();
+      return { privateKey: priv, publicKey: n.x25519.getPublicKey(priv) };
+    },
   };
 }

@@ -51,7 +51,10 @@ const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useRunsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

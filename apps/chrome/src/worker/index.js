@@ -62,7 +62,9 @@ export function createWorker(ext) {
 
   bridge.onPush((m) => {
     if (m && m.type === "spaces") {
-      const tiles = m.spaces.map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: openable(s.webUrl) ?? "" })).filter((/** @type {any} */ s) => s.webUrl);
+      const tiles = m.spaces
+        .map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: openable(s.webUrl) ?? "" }))
+        .filter((/** @type {any} */ s) => s.webUrl);
       void store.set({ spaces: tiles, activeSpace: m.active });
       rules.forget();
     }
@@ -79,7 +81,10 @@ export function createWorker(ext) {
   async function refreshBadge(tab) {
     if (tab.id === undefined) return;
     const kept = await store.get(["activeSpace"]);
-    if (!kept["activeSpace"]) { await ext.action.setBadgeText({ tabId: tab.id, text: "" }); return; }
+    if (!kept["activeSpace"]) {
+      await ext.action.setBadgeText({ tabId: tab.id, text: "" });
+      return;
+    }
     try {
       const r = await fill.loginsFor(tab.url);
       await ext.action.setBadgeText({ tabId: tab.id, text: badgeText(r.rows.length) });
@@ -95,25 +100,50 @@ export function createWorker(ext) {
     const page = pageOf(tab && tab.url);
     const kept = await store.get(["activeSpace", "spaces"]);
     /** @type {any} */
-    const state = { page: page ? { host: page.host, origin: page.origin, secure: page.secure || page.local } : null, spaces: kept["spaces"] ?? [], active: kept["activeSpace"] ?? null, status: "connecting", rows: [], blocked: null, error: null, agents: null };
+    const state = {
+      page: page ? { host: page.host, origin: page.origin, secure: page.secure || page.local } : null,
+      spaces: kept["spaces"] ?? [],
+      active: kept["activeSpace"] ?? null,
+      status: "connecting",
+      rows: [],
+      blocked: null,
+      error: null,
+      agents: null,
+    };
     try {
       const hello = await bridge.op("hello");
-      const spaces = (Array.isArray(hello && hello.spaces) ? hello.spaces : []).map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: openable(s.webUrl) ?? "" }));
+      const spaces = (Array.isArray(hello && hello.spaces) ? hello.spaces : []).map((/** @type {any} */ s) => ({
+        id: String(s.id),
+        name: String(s.name),
+        webUrl: openable(s.webUrl) ?? "",
+      }));
       state.spaces = spaces;
       state.active = hello && typeof hello.active === "string" ? hello.active : null;
       await store.set({ spaces, activeSpace: state.active });
       state.locked = Boolean(hello && hello.locked);
       state.status = "online";
-      if (state.locked) { state.error = { code: "locked", message: wordsFor({ code: "locked" }) }; return state; }
+      if (state.locked) {
+        state.error = { code: "locked", message: wordsFor({ code: "locked" }) };
+        return state;
+      }
       const r = await fill.loginsFor(tab && tab.url);
       state.rows = r.rows;
       state.blocked = r.blocked;
       // A page that asks for a payment card also lists the person's cards (names only).
       if (tab && !r.blocked && state.page && state.page.secure) {
         try {
-          const seen = await ext.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: cardFieldsInPage, args: [] });
-          if (seen.some((/** @type {any} */ f) => f.result)) { state.cardFields = true; state.cards = await fill.cards(); }
-        } catch { /* no cards to offer */ }
+          const seen = await ext.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            func: cardFieldsInPage,
+            args: [],
+          });
+          if (seen.some((/** @type {any} */ f) => f.result)) {
+            state.cardFields = true;
+            state.cards = await fill.cards();
+          }
+        } catch {
+          /* no cards to offer */
+        }
       }
       if (tab) await ext.action.setBadgeText({ tabId: tab.id, text: badgeText(r.rows.length) });
     } catch (e) {
@@ -127,10 +157,18 @@ export function createWorker(ext) {
   async function fromPopup(msg, sender) {
     const tab = await activeTab();
     switch (msg.type) {
-      case "popup.state": return { data: await popupState() };
+      case "popup.state":
+        return { data: await popupState() };
       case "popup.fill": {
         if (!tab) return failure(new BridgeFailure("no_page", ""));
-        const r = await fill.fill({ tabId: tab.id, url: tab.url, itemId: String(msg.itemId), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login", signIn: Boolean(msg.signIn) });
+        const r = await fill.fill({
+          tabId: tab.id,
+          url: tab.url,
+          itemId: String(msg.itemId),
+          usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
+          kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login",
+          signIn: Boolean(msg.signIn),
+        });
         return { data: r };
       }
       case "popup.neverFill": {
@@ -147,12 +185,17 @@ export function createWorker(ext) {
         if (tab) await refreshBadge(tab);
         return { data: { active: String(msg.id) } };
       }
-      case "popup.agents": return { data: await bridge.op("agents.list", { page: tab ? pageOf(tab.url)?.host ?? null : null }) };
+      case "popup.agents":
+        return { data: await bridge.op("agents.list", { page: tab ? (pageOf(tab.url)?.host ?? null) : null }) };
       case "popup.ask": {
         if (!tab || !pageOf(tab.url)) return failure(new BridgeFailure("no_page", ""));
         const q = String(msg.question || "").trim();
         if (!q) return { data: { sent: false } };
-        await bridge.op("ask.page", { agentId: msg.agentId ? String(msg.agentId) : null, question: q, page: { url: String(tab.url), title: String(tab.title || "") } });
+        await bridge.op("ask.page", {
+          agentId: msg.agentId ? String(msg.agentId) : null,
+          question: q,
+          page: { url: String(tab.url), title: String(tab.title || "") },
+        });
         return { data: { sent: true } };
       }
       case "popup.openVault": {
@@ -161,7 +204,9 @@ export function createWorker(ext) {
           return { data: { opened: "app" } };
         } catch (e) {
           const kept = await store.get(["spaces", "activeSpace"]);
-          const space = (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === kept["activeSpace"]) ?? (kept["spaces"] ?? [])[0];
+          const space =
+            (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === kept["activeSpace"]) ??
+            (kept["spaces"] ?? [])[0];
           const web = space ? openable(space.webUrl) : null;
           if (!web) return failure(e);
           await ext.tabs.create({ url: `${web}/vault` });
@@ -170,13 +215,16 @@ export function createWorker(ext) {
       }
       case "popup.openWeb": {
         const kept = await store.get(["spaces", "activeSpace"]);
-        const space = (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === (msg.id ?? kept["activeSpace"])) ?? (kept["spaces"] ?? [])[0];
+        const space =
+          (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === (msg.id ?? kept["activeSpace"])) ??
+          (kept["spaces"] ?? [])[0];
         const web = space ? openable(space.webUrl) : null;
         if (!web) return failure(new BridgeFailure("no_host", ""));
         await ext.tabs.create({ url: web });
         return { data: { opened: "web" } };
       }
-      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+      default:
+        return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
   }
 
@@ -185,45 +233,117 @@ export function createWorker(ext) {
     const tabId = sender.tab.id;
     const origin = sender.origin || sender.url || "";
     // Incognito: Vyre is off. Nothing a page says is read, saved or sent; only a fill the person clicks works (vault badge, below).
-    if (sender.tab.incognito && !INCOGNITO_OK.has(msg.type)) return msg.type === "vyre.selection" ? { data: { off: true } } : failure(new BridgeFailure("incognito", ""));
+    if (sender.tab.incognito && !INCOGNITO_OK.has(msg.type))
+      return msg.type === "vyre.selection" ? { data: { off: true } } : failure(new BridgeFailure("incognito", ""));
     switch (msg.type) {
-      case "vyre.selection": return { data: { off: !(await panel.selected(sender.tab, String(msg.text || ""))) } };
-      case "vyre.clip": return { data: await notes.clip(sender.tab, String(msg.selection || "")) };
+      case "vyre.selection":
+        return { data: { off: !(await panel.selected(sender.tab, String(msg.text || ""))) } };
+      case "vyre.clip":
+        return { data: await notes.clip(sender.tab, String(msg.selection || "")) };
       case "vyre.ask": {
         // The bubble's Ask: the Selected chip gets the text and the panel opens (the click is the gesture; open before anything awaits).
         menus.openPanel(sender.tab, "chat").catch(() => {});
         return { data: { asked: await panel.ask(sender.tab, String(msg.selection || "")) } };
       }
-      case "vyre.rec.hello": return { data: await recorder.hello(tabId) };
-      case "vyre.rec.step": { void recorder.step(tabId, sender.tab, msg); return { data: { ok: true } }; }
+      case "vyre.rec.hello":
+        return { data: await recorder.hello(tabId) };
+      case "vyre.rec.step": {
+        void recorder.step(tabId, sender.tab, msg);
+        return { data: { ok: true } };
+      }
       case "vyre.rec.ctl": {
-        const op = msg.op === "stop" ? "stop" : msg.op === "pause" ? ((await recorder.state()).paused ? "resume" : "pause") : null;
+        const op =
+          msg.op === "stop"
+            ? "stop"
+            : msg.op === "pause"
+              ? (await recorder.state()).paused
+                ? "resume"
+                : "pause"
+              : null;
         return op ? { data: await recorder.control(op) } : failure(new BridgeFailure("not_allowed", ""));
       }
-      case "vyre.pick": return { data: { ok: watches.picked(tabId, msg) } };
-      case "vyre.openNote": return { data: await bridge.op("app.open", { place: "notes", id: String(msg.noteId || "").slice(0, 80) }) };
-      case "vyre.submit": return { data: await save.submitted({ tabId, origin }, { username: String(msg.username || ""), password: String(msg.password || ""), kind: msg.kind === "signup" ? "signup" : "signin" }) };
-      case "vyre.save": return { data: await save.save({ tabId, origin }, { name: String(msg.name || ""), username: String(msg.username || ""), password: String(msg.password || ""), scope: msg.scope === "shared" ? "shared" : "mine", folderId: typeof msg.folderId === "string" ? msg.folderId : undefined, agentIds: Array.isArray(msg.agentIds) ? msg.agentIds.filter((/** @type {unknown} */ x) => typeof x === "string").slice(0, 20) : [], cardId: typeof msg.cardId === "string" ? msg.cardId : undefined, mode: msg.mode === "update" ? "update" : "save" }) };
-      case "vyre.choices": return { data: await save.choices({ tabId, origin }) };
+      case "vyre.pick":
+        return { data: { ok: watches.picked(tabId, msg) } };
+      case "vyre.openNote":
+        return { data: await bridge.op("app.open", { place: "notes", id: String(msg.noteId || "").slice(0, 80) }) };
+      case "vyre.submit":
+        return {
+          data: await save.submitted(
+            { tabId, origin },
+            {
+              username: String(msg.username || ""),
+              password: String(msg.password || ""),
+              kind: msg.kind === "signup" ? "signup" : "signin",
+            },
+          ),
+        };
+      case "vyre.save":
+        return {
+          data: await save.save(
+            { tabId, origin },
+            {
+              name: String(msg.name || ""),
+              username: String(msg.username || ""),
+              password: String(msg.password || ""),
+              scope: msg.scope === "shared" ? "shared" : "mine",
+              folderId: typeof msg.folderId === "string" ? msg.folderId : undefined,
+              agentIds: Array.isArray(msg.agentIds)
+                ? msg.agentIds.filter((/** @type {unknown} */ x) => typeof x === "string").slice(0, 20)
+                : [],
+              cardId: typeof msg.cardId === "string" ? msg.cardId : undefined,
+              mode: msg.mode === "update" ? "update" : "save",
+            },
+          ),
+        };
+      case "vyre.choices":
+        return { data: await save.choices({ tabId, origin }) };
       case "vyre.accounts": {
         if (msg.kind === "card") return { data: { blocked: null, rows: await fill.cards() } };
         const r = await fill.accountsFor(sender.tab.url);
-        return { data: { blocked: r.blocked, rows: r.rows.map((/** @type {any} */ x) => ({ id: x.id, name: x.name, kind: x.kind, username: x.username || undefined, usernameField: x.usernameField || undefined })) } };
+        return {
+          data: {
+            blocked: r.blocked,
+            rows: r.rows.map((/** @type {any} */ x) => ({
+              id: x.id,
+              name: x.name,
+              kind: x.kind,
+              username: x.username || undefined,
+              usernameField: x.usernameField || undefined,
+            })),
+          },
+        };
       }
       case "vyre.fill": {
         const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";
-        return { data: await fill.fill({ tabId, url: String(sender.tab.url || ""), itemId: String(msg.itemId || ""), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind, signIn: false }) };
+        return {
+          data: await fill.fill({
+            tabId,
+            url: String(sender.tab.url || ""),
+            itemId: String(msg.itemId || ""),
+            usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
+            kind,
+            signIn: false,
+          }),
+        };
       }
-      case "vyre.artifact.hosts": return { data: { hosts: await artifacts.hosts() } };
-      case "vyre.artifact": return { data: await artifacts.open({ href: String(msg.href || "").slice(0, 2000) }) };
-      case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
-      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+      case "vyre.artifact.hosts":
+        return { data: { hosts: await artifacts.hosts() } };
+      case "vyre.artifact":
+        return { data: await artifacts.open({ href: String(msg.href || "").slice(0, 2000) }) };
+      case "vyre.dismiss":
+        return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
+      default:
+        return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
   }
 
   /** The tab a panel works for: the active tab of its window. @param {any} msg */
   async function panelTab(msg) {
-    const [tab] = await ext.tabs.query(typeof msg.windowId === "number" ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true });
+    const [tab] = await ext.tabs.query(
+      typeof msg.windowId === "number"
+        ? { active: true, windowId: msg.windowId }
+        : { active: true, lastFocusedWindow: true },
+    );
     if (!tab || tab.id === undefined) throw new BridgeFailure("no_page", "");
     return tab;
   }
@@ -231,15 +351,31 @@ export function createWorker(ext) {
   /** The side panel's recording and watching messages. @param {any} msg */
   async function fromPanelExtra(msg) {
     switch (msg.type) {
-      case "panel.rec.state": return { data: await recorder.state() };
-      case "panel.rec.start": return { data: await recorder.start(await panelTab(msg), { name: typeof msg.name === "string" ? msg.name : "" }) };
-      case "panel.rec.control": return { data: await recorder.control(msg.op === "stop" ? "stop" : msg.op === "resume" ? "resume" : "pause") };
-      case "panel.watch.dir": return { data: await bridge.op("people.list", {}) };
-      case "panel.watch.goals": return { data: await bridge.op("goals.pick", {}) };
-      case "panel.watch.list": return { data: await watches.list() };
-      case "panel.watch.save": return { data: await watches.save(await panelTab(msg), msg.watch || {}) };
-      case "panel.watch.change": return { data: await watches.change(String(msg.watchId || ""), msg.op === "remove" ? "remove" : msg.op === "resume" ? "resume" : "pause") };
-      case "panel.watch.check": return { data: await watches.checkNow(String(msg.watchId || "")) };
+      case "panel.rec.state":
+        return { data: await recorder.state() };
+      case "panel.rec.start":
+        return {
+          data: await recorder.start(await panelTab(msg), { name: typeof msg.name === "string" ? msg.name : "" }),
+        };
+      case "panel.rec.control":
+        return { data: await recorder.control(msg.op === "stop" ? "stop" : msg.op === "resume" ? "resume" : "pause") };
+      case "panel.watch.dir":
+        return { data: await bridge.op("people.list", {}) };
+      case "panel.watch.goals":
+        return { data: await bridge.op("goals.pick", {}) };
+      case "panel.watch.list":
+        return { data: await watches.list() };
+      case "panel.watch.save":
+        return { data: await watches.save(await panelTab(msg), msg.watch || {}) };
+      case "panel.watch.change":
+        return {
+          data: await watches.change(
+            String(msg.watchId || ""),
+            msg.op === "remove" ? "remove" : msg.op === "resume" ? "resume" : "pause",
+          ),
+        };
+      case "panel.watch.check":
+        return { data: await watches.checkNow(String(msg.watchId || "")) };
       case "panel.watch.pick": {
         const tab = await panelTab(msg);
         await watches.guard(tab);
@@ -247,7 +383,8 @@ export function createWorker(ext) {
         void watches.pick(tab).then((region) => panel.tell({ type: "picked", region }, tab.windowId));
         return { data: { picking: true } };
       }
-      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+      default:
+        return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
   }
 
@@ -255,17 +392,39 @@ export function createWorker(ext) {
   async function fromReview(msg) {
     const id = String(msg.id || "").slice(0, 80);
     switch (msg.type) {
-      case "rec.get": return { data: await recorder.get(id) };
-      case "rec.edit": return { data: await recorder.edit(id, msg.edit || {}) };
-      case "rec.discard": return { data: await recorder.discard(id) };
-      case "rec.agents": return { data: await bridge.op("agents.list", {}) };
-      case "rec.save": return { data: await recorder.save(id, { agents: Array.isArray(msg.agents) ? msg.agents : [] }) };
-      case "rec.add": return { data: await recorder.addToAgents(id) };
-      case "rec.share": return { data: await recorder.share(id, { space: Boolean(msg.space), stop: Boolean(msg.stop), to: Array.isArray(msg.to) ? msg.to : [] }) };
-      case "rec.people": return { data: await bridge.op("people.list", {}) };
-      case "rec.try": return { data: await recorder.tryIt(id, String(msg.agentId || "")) };
-      case "rec.open": return { data: await bridge.op("app.open", { place: msg.place === "chats" ? "chats" : "skill", id: String(msg.skillId || "").slice(0, 80) }) };
-      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+      case "rec.get":
+        return { data: await recorder.get(id) };
+      case "rec.edit":
+        return { data: await recorder.edit(id, msg.edit || {}) };
+      case "rec.discard":
+        return { data: await recorder.discard(id) };
+      case "rec.agents":
+        return { data: await bridge.op("agents.list", {}) };
+      case "rec.save":
+        return { data: await recorder.save(id, { agents: Array.isArray(msg.agents) ? msg.agents : [] }) };
+      case "rec.add":
+        return { data: await recorder.addToAgents(id) };
+      case "rec.share":
+        return {
+          data: await recorder.share(id, {
+            space: Boolean(msg.space),
+            stop: Boolean(msg.stop),
+            to: Array.isArray(msg.to) ? msg.to : [],
+          }),
+        };
+      case "rec.people":
+        return { data: await bridge.op("people.list", {}) };
+      case "rec.try":
+        return { data: await recorder.tryIt(id, String(msg.agentId || "")) };
+      case "rec.open":
+        return {
+          data: await bridge.op("app.open", {
+            place: msg.place === "chats" ? "chats" : "skill",
+            id: String(msg.skillId || "").slice(0, 80),
+          }),
+        };
+      default:
+        return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
   }
 
@@ -274,21 +433,33 @@ export function createWorker(ext) {
    * Returns a promise for the reply. @param {any} msg @param {any} sender
    */
   async function onMessage(msg, sender) {
-    if (!msg || typeof msg.type !== "string" || sender.id !== ext.runtime.id) return failure(new BridgeFailure("not_allowed", ""));
+    if (!msg || typeof msg.type !== "string" || sender.id !== ext.runtime.id)
+      return failure(new BridgeFailure("not_allowed", ""));
     try {
-      if (msg.type.startsWith("popup.")) return sender.tab ? failure(new BridgeFailure("not_allowed", "")) : await fromPopup(msg, sender);
+      if (msg.type.startsWith("popup."))
+        return sender.tab ? failure(new BridgeFailure("not_allowed", "")) : await fromPopup(msg, sender);
       // The side panel is an extension page: its sender has our own address (a content script's sender has the page's). Opened as its own window it also has a tab.
-      const ownPage = typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`);
+      const ownPage =
+        typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`);
       if (msg.type === "panel.clip" && ownPage) {
-        const [tab] = await ext.tabs.query(typeof msg.windowId === "number" ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true });
+        const [tab] = await ext.tabs.query(
+          typeof msg.windowId === "number"
+            ? { active: true, windowId: msg.windowId }
+            : { active: true, lastFocusedWindow: true },
+        );
         if (!tab) return failure(new BridgeFailure("no_page", ""));
         return { data: await notes.clip(tab, "") };
       }
-      const reviewPage = typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/review/`);
-      if (msg.type.startsWith("rec.")) return reviewPage ? await fromReview(msg) : failure(new BridgeFailure("not_allowed", ""));
-      if (ownPage && (msg.type.startsWith("panel.rec.") || msg.type.startsWith("panel.watch."))) return await fromPanelExtra(msg);
-      if (msg.type.startsWith("panel.")) return ownPage ? await panel.handle(msg) : failure(new BridgeFailure("not_allowed", ""));
-      if (msg.type.startsWith("vyre.")) return sender.tab ? await fromPage(msg, sender) : failure(new BridgeFailure("not_allowed", ""));
+      const reviewPage =
+        typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/review/`);
+      if (msg.type.startsWith("rec."))
+        return reviewPage ? await fromReview(msg) : failure(new BridgeFailure("not_allowed", ""));
+      if (ownPage && (msg.type.startsWith("panel.rec.") || msg.type.startsWith("panel.watch.")))
+        return await fromPanelExtra(msg);
+      if (msg.type.startsWith("panel."))
+        return ownPage ? await panel.handle(msg) : failure(new BridgeFailure("not_allowed", ""));
+      if (msg.type.startsWith("vyre."))
+        return sender.tab ? await fromPage(msg, sender) : failure(new BridgeFailure("not_allowed", ""));
       return failure(new BridgeFailure("not_allowed", ""));
     } catch (e) {
       return failure(e);
@@ -296,7 +467,22 @@ export function createWorker(ext) {
   }
 
   return {
-    bridge, store, rules, fill, save, privacy, context, panel, notes, artifacts, menus, recorder, watches, popupState, refreshBadge, onMessage,
+    bridge,
+    store,
+    rules,
+    fill,
+    save,
+    privacy,
+    context,
+    panel,
+    notes,
+    artifacts,
+    menus,
+    recorder,
+    watches,
+    popupState,
+    refreshBadge,
+    onMessage,
     /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);
@@ -305,7 +491,11 @@ export function createWorker(ext) {
       if (info.status === "complete" && tab) await refreshBadge(tab);
     },
     /** @param {number} tabId */
-    onTabRemoved(tabId) { save.tabClosed(tabId); panel.tabClosed(tabId); void recorder.tabClosed(tabId); },
+    onTabRemoved(tabId) {
+      save.tabClosed(tabId);
+      panel.tabClosed(tabId);
+      void recorder.tabClosed(tabId);
+    },
     /** @param {{ tabId: number }} info */
     async onTabActivated(info) {
       const tab = await ext.tabs.get(info.tabId);
@@ -320,28 +510,49 @@ function start() {
   const ext = /** @type {any} */ (globalThis).chrome;
   if (!ext || !ext.runtime || !ext.runtime.id) return;
   const w = createWorker(ext);
-  ext.runtime.onMessage.addListener((/** @type {any} */ msg, /** @type {any} */ sender, /** @type {(r: any) => void} */ reply) => {
-    w.onMessage(msg, sender).then(reply, () => reply({ error: { code: "error", message: "Something went wrong. Try again." } }));
-    return true;
+  ext.runtime.onMessage.addListener(
+    (/** @type {any} */ msg, /** @type {any} */ sender, /** @type {(r: any) => void} */ reply) => {
+      w.onMessage(msg, sender).then(reply, () =>
+        reply({ error: { code: "error", message: "Something went wrong. Try again." } }),
+      );
+      return true;
+    },
+  );
+  ext.tabs.onUpdated.addListener((/** @type {number} */ id, /** @type {any} */ info, /** @type {any} */ tab) => {
+    void w.onTabUpdated(id, info, tab);
   });
-  ext.tabs.onUpdated.addListener((/** @type {number} */ id, /** @type {any} */ info, /** @type {any} */ tab) => { void w.onTabUpdated(id, info, tab); });
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => w.onTabRemoved(id));
-  ext.tabs.onActivated.addListener((/** @type {any} */ info) => { void w.onTabActivated(info); });
-  ext.tabs.onCreated.addListener((/** @type {any} */ tab) => { void w.recorder.tabCreated(tab); });
+  ext.tabs.onActivated.addListener((/** @type {any} */ info) => {
+    void w.onTabActivated(info);
+  });
+  ext.tabs.onCreated.addListener((/** @type {any} */ tab) => {
+    void w.recorder.tabCreated(tab);
+  });
   // Watches that run in this Chrome are looked at once a minute.
   if (ext.alarms) {
     w.watches.schedule();
-    ext.alarms.onAlarm.addListener((/** @type {any} */ a) => { if (a && a.name === "vyre.watch") void w.watches.look(); });
+    ext.alarms.onAlarm.addListener((/** @type {any} */ a) => {
+      if (a && a.name === "vyre.watch") void w.watches.look();
+    });
   }
   // The side panel opens from the toolbar icon and Cmd+Shift+L (the action's command), one per window.
-  if (ext.sidePanel && ext.sidePanel.setPanelBehavior) void ext.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  if (ext.sidePanel && ext.sidePanel.setPanelBehavior)
+    void ext.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   ext.runtime.onConnect.addListener((/** @type {any} */ port) => {
-    if (port.name !== PANEL_PORT || !port.sender || port.sender.id !== ext.runtime.id || !String(port.sender.url || "").startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`)) return;
+    if (
+      port.name !== PANEL_PORT ||
+      !port.sender ||
+      port.sender.id !== ext.runtime.id ||
+      !String(port.sender.url || "").startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`)
+    )
+      return;
     w.panel.connect(port);
   });
   if (ext.contextMenus) {
     ext.runtime.onInstalled.addListener(() => w.menus.install());
-    ext.contextMenus.onClicked.addListener((/** @type {any} */ info, /** @type {any} */ tab) => { void w.menus.clicked(info, tab); });
+    ext.contextMenus.onClicked.addListener((/** @type {any} */ info, /** @type {any} */ tab) => {
+      void w.menus.clicked(info, tab);
+    });
   }
 }
 

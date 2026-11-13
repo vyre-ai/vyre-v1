@@ -24,9 +24,11 @@ function useDismiss(onClose: () => void): void {
     const doc = (globalThis as { document?: DocLike }).document;
     if (!doc) return undefined;
     const before = doc.activeElement ?? null;
-    return () => { before?.focus?.(); };
+    return () => {
+      before?.focus?.();
+    };
   }, []);
-  useEscapeLayer(true, () => close.current());   // one Escape closes the topmost layer only
+  useEscapeLayer(true, () => close.current()); // one Escape closes the topmost layer only
 }
 
 export interface PopoverProps {
@@ -47,8 +49,16 @@ export function Popover({ x, y, width = 340, label, testID, onClose, children }:
   const maxH = win.height > 0 ? Math.max(160, win.height - y - 16) : 420;
   return (
     <Overlay>
-      <Pressable accessibilityLabel="Close" accessibilityRole="button" testID={`${testID}-veil`} onPress={onClose} style={st.veil} />
-      <View testID={testID} role="dialog" aria-label={label} style={[st.pop, { left, top: y, width, maxHeight: maxH }]}>{children}</View>
+      <Pressable
+        accessibilityLabel="Close"
+        accessibilityRole="button"
+        testID={`${testID}-veil`}
+        onPress={onClose}
+        style={st.veil}
+      />
+      <View testID={testID} role="dialog" aria-label={label} style={[st.pop, { left, top: y, width, maxHeight: maxH }]}>
+        {children}
+      </View>
     </Overlay>
   );
 }
@@ -67,20 +77,38 @@ export function Sheet({ label, testID, width = 460, onClose, children }: SheetPr
     <Overlay>
       <View testID={`${testID}-veil`} style={st.sheetVeil}>
         <Pressable accessibilityLabel="Close" accessibilityRole="button" onPress={onClose} style={st.fill} />
-        <View testID={testID} role="dialog" aria-modal aria-label={label} style={[st.sheet, { width }]}>{children}</View>
+        <View testID={testID} role="dialog" aria-modal aria-label={label} style={[st.sheet, { width }]}>
+          {children}
+        </View>
       </View>
     </Overlay>
   );
 }
 
 /** The head of a sheet or popover: a title, a quiet line under it, and a close button. */
-export function LayerHead({ title, sub, onClose, lead }: { title: string; sub?: string; onClose: () => void; lead?: ReactNode }): ReactElement {
+export function LayerHead({
+  title,
+  sub,
+  onClose,
+  lead,
+}: {
+  title: string;
+  sub?: string;
+  onClose: () => void;
+  lead?: ReactNode;
+}): ReactElement {
   return (
     <View style={st.head}>
       {lead ? <View style={st.lead}>{lead}</View> : null}
       <View style={st.headText}>
-        <Text accessibilityRole="header" numberOfLines={1} style={st.title}>{title}</Text>
-        {sub ? <Text numberOfLines={2} style={st.sub}>{sub}</Text> : null}
+        <Text accessibilityRole="header" numberOfLines={1} style={st.title}>
+          {title}
+        </Text>
+        {sub ? (
+          <Text numberOfLines={2} style={st.sub}>
+            {sub}
+          </Text>
+        ) : null}
       </View>
       <Tool icon="x" label="Close" onPress={onClose} testID="layer-close" />
     </View>
@@ -89,11 +117,41 @@ export function LayerHead({ title, sub, onClose, lead }: { title: string; sub?: 
 
 const st = StyleSheet.create({
   veil: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "transparent" },
-  pop: { position: FIXED, borderRadius: 12, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, overflow: "hidden", zIndex: 2 },
-  sheetVeil: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.32)" as string },
+  pop: {
+    position: FIXED,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)" as string,
+    overflow: "hidden",
+    zIndex: 2,
+  },
+  sheetVeil: {
+    position: FIXED,
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.32)" as string,
+  },
   fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
-  sheet: { maxWidth: "92%", maxHeight: "90%", borderRadius: 14, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string, overflow: "hidden" },
-  head: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
+  sheet: {
+    maxWidth: "92%",
+    maxHeight: "90%",
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)" as string,
+    overflow: "hidden",
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
   lead: { flexShrink: 0 },
   headText: { flex: 1, minWidth: 0, gap: 2 },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },

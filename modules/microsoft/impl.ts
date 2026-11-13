@@ -39,7 +39,10 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.map_member": (ctx, i) => h.consentMapMember(ctx, i),
   "ms.consent.disable": (ctx) => h.consentDisable(ctx),
   "ms.health": (ctx) => h.health(ctx),
-  "ms.receive_notification": async (ctx, i) => { internalOnly(ctx, "ms.receive_notification"); return h.receiveNotification(ctx, i); },
+  "ms.receive_notification": async (ctx, i) => {
+    internalOnly(ctx, "ms.receive_notification");
+    return h.receiveNotification(ctx, i);
+  },
   "ms.subscriptions.renew": (ctx) => h.renew(ctx),
   "ms.mail.list_folders": (ctx, i) => h.mailFolders(ctx, i),
   "ms.mail.list_messages": (ctx, i) => h.mailMessages(ctx, i),
@@ -92,7 +95,11 @@ const joinConsumers = {
   "microsoft.match_on_join": {
     on: ["member.joined"],
     async run(ctx: Ctx, _event: unknown): Promise<string[]> {
-      try { await h.syncMembers(ctx as never, {}); } catch { /* not connected yet: the admin matches later */ }
+      try {
+        await h.syncMembers(ctx as never, {});
+      } catch {
+        /* not connected yet: the admin matches later */
+      }
       return [];
     },
   },
@@ -103,8 +110,10 @@ const personLeft = {
   "ms.person_left": {
     on: ["member.removed"],
     run: async (ctx: Ctx, event: { payload: { personId?: unknown } }): Promise<number> => {
-      await h.personLeft(ctx as never, event as never);   // their delegated mail, calendar and files stop being read
-      return (typeof event.payload.personId === "string" ? h.dropAccountsOf(ctx as never, event.payload.personId) : Promise.resolve(0));
+      await h.personLeft(ctx as never, event as never); // their delegated mail, calendar and files stop being read
+      return typeof event.payload.personId === "string"
+        ? h.dropAccountsOf(ctx as never, event.payload.personId)
+        : Promise.resolve(0);
     },
   },
 };
@@ -124,17 +133,23 @@ export const periodic = {
 
 export const hostCalls = {
   /** A finished Sign in with Microsoft proved this account in this tenant is this person's (host/src/seams/people.ts): match them to it. */
-  "microsoft.match_proven": async (ctx: Ctx, i: { person: string; email: string; tenant?: string }): Promise<unknown> => {
+  "microsoft.match_proven": async (
+    ctx: Ctx,
+    i: { person: string; email: string; tenant?: string },
+  ): Promise<unknown> => {
     hostOnly(ctx, "microsoft.match_proven");
     return h.matchProven(ctx as never, i);
   },
   /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
-  "microsoft.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+  "microsoft.reassign_owned": async (
+    ctx: Ctx,
+    i: { person: string; kind: string; action: string },
+  ): Promise<number> => {
     hostOnly(ctx, "microsoft.reassign_owned");
     return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
   },
   "microsoft.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
-    hostOnly(ctx, "microsoft.accept_webhook");   // a host call: the webhook route is the only way in
+    hostOnly(ctx, "microsoft.accept_webhook"); // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);
   },
 };

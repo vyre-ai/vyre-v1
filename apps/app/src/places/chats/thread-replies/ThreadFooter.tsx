@@ -29,20 +29,41 @@ export function useThreadTurns(threadId: string): readonly LiveTurn[] {
 }
 
 /** The same, from the conversation data itself: for a part drawn outside the conversation's own provider (the thread beside the chat). */
-export function useTurnsOf(data: Pick<ConversationData, "live" | "call" | "connection">, threadId: string, seed = true): readonly LiveTurn[] {
+export function useTurnsOf(
+  data: Pick<ConversationData, "live" | "call" | "connection">,
+  threadId: string,
+  seed = true,
+): readonly LiveTurn[] {
   const { live } = data;
-  const online = useSyncExternalStore(data.connection.subscribe, () => data.connection.get() === "online", () => data.connection.get() === "online");
+  const online = useSyncExternalStore(
+    data.connection.subscribe,
+    () => data.connection.get() === "online",
+    () => data.connection.get() === "online",
+  );
   useEffect(() => {
     if (!live || !online || !seed) return undefined;
     let gone = false;
     const fetchNow = (): void => {
       try {
-        void Promise.resolve(data.call("engine.live_turns", { threadId })).then((r) => { if (!gone) live.seed(threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []); }, () => undefined);
-      } catch { /* no live read here: the footer then waits for the live pieces */ }
+        void Promise.resolve(data.call("engine.live_turns", { threadId })).then(
+          (r) => {
+            if (!gone)
+              live.seed(threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []);
+          },
+          () => undefined,
+        );
+      } catch {
+        /* no live read here: the footer then waits for the live pieces */
+      }
     };
     fetchNow();
-    const off = live.onGap((th) => { if (th === threadId) fetchNow(); });
-    return () => { gone = true; off(); };
+    const off = live.onGap((th) => {
+      if (th === threadId) fetchNow();
+    });
+    return () => {
+      gone = true;
+      off();
+    };
   }, [data, live, online, threadId, seed]);
   const read = (): readonly LiveTurn[] => (live ? live.turnsOf(threadId) : NO_TURNS);
   return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
@@ -57,18 +78,37 @@ function useWaiting(threadId: string, lastByAgent: boolean): Waiting | undefined
   const taskId = lastByAgent && q.status === "ready" ? parkedTask(q.data.messages as never) : null;
   const [w, setW] = useState<Waiting | undefined>(undefined);
   useEffect(() => {
-    if (taskId === null) { setW(undefined); return undefined; }
+    if (taskId === null) {
+      setW(undefined);
+      return undefined;
+    }
     let gone = false;
-    const say = (title: string, who: string): void => { if (!gone) setW({ line: title, who }); };
-    say("", "");   // parked now; the line follows once the approval is read
+    const say = (title: string, who: string): void => {
+      if (!gone) setW({ line: title, who });
+    };
+    say("", ""); // parked now; the line follows once the approval is read
     try {
-      void Promise.resolve(data.call("tasks.get", { taskId })).then((r) => {
-        const t = (r as { task?: { title?: string; assigned?: { kind?: string; id?: string } } }).task;
-        const to = t?.assigned?.kind === "person" && t.assigned.id !== data.me.id ? t.assigned.id : undefined;
-        say(String(t?.title ?? "").replace(/^.*? (asks|wants to): ?/, "").replace(/^.*? wants to /, "").replace(/^Approve: /, "").replace(/^(message|text) (\S+) \S+$/, "$1 $2"), to ? `${data.nameOf(to).split(" ")[0]}'s` : "");
-      }, () => undefined);
-    } catch { /* the approval cannot be read here: the footer still says it waits */ }
-    return () => { gone = true; };
+      void Promise.resolve(data.call("tasks.get", { taskId })).then(
+        (r) => {
+          const t = (r as { task?: { title?: string; assigned?: { kind?: string; id?: string } } }).task;
+          const to = t?.assigned?.kind === "person" && t.assigned.id !== data.me.id ? t.assigned.id : undefined;
+          say(
+            String(t?.title ?? "")
+              .replace(/^.*? (asks|wants to): ?/, "")
+              .replace(/^.*? wants to /, "")
+              .replace(/^Approve: /, "")
+              .replace(/^(message|text) (\S+) \S+$/, "$1 $2"),
+            to ? `${data.nameOf(to).split(" ")[0]}'s` : "",
+          );
+        },
+        () => undefined,
+      );
+    } catch {
+      /* the approval cannot be read here: the footer still says it waits */
+    }
+    return () => {
+      gone = true;
+    };
   }, [taskId, data]);
   return w;
 }
@@ -78,20 +118,52 @@ function useThreadCrew(threadId: string, agentLast: boolean): { working: number;
   const data = useConversationData();
   const [n, setN] = useState<{ working: number; needsYou: number } | null>(null);
   useEffect(() => {
-    if (!agentLast) { setN(null); return undefined; }
+    if (!agentLast) {
+      setN(null);
+      return undefined;
+    }
     let gone = false;
     const read = (): void => {
-      try { void Promise.resolve(data.call("engine.crew.status", { threadId })).then((r) => { const t = (r as { totals?: { working: number; needsYou: number } }).totals; if (!gone) setN(t && t.working + t.needsYou > 0 ? { working: t.working, needsYou: t.needsYou } : null); }, () => undefined); } catch { /* no crew read here: the footer says what it always said */ }
+      try {
+        void Promise.resolve(data.call("engine.crew.status", { threadId })).then(
+          (r) => {
+            const t = (r as { totals?: { working: number; needsYou: number } }).totals;
+            if (!gone) setN(t && t.working + t.needsYou > 0 ? { working: t.working, needsYou: t.needsYou } : null);
+          },
+          () => undefined,
+        );
+      } catch {
+        /* no crew read here: the footer says what it always said */
+      }
     };
     read();
     const t = setInterval(read, 2500);
     (t as { unref?: () => void }).unref?.();
-    return () => { gone = true; clearInterval(t); };
+    return () => {
+      gone = true;
+      clearInterval(t);
+    };
   }, [data, threadId, agentLast]);
   return n;
 }
 
-export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, threadId }: { s: ReplySummary | undefined; clock: Clock; nameOf(id: string): string; onOpen(): void; mine?: boolean; testID: string; threadId: string }): ReactElement | null {
+export function ThreadFooter({
+  s,
+  clock,
+  nameOf,
+  onOpen,
+  mine = false,
+  testID,
+  threadId,
+}: {
+  s: ReplySummary | undefined;
+  clock: Clock;
+  nameOf(id: string): string;
+  onOpen(): void;
+  mine?: boolean;
+  testID: string;
+  threadId: string;
+}): ReactElement | null {
   const turns = useThreadTurns(threadId);
   const writing = turns.some((t) => t.state === "writing");
   const [now, setNow] = useState(() => Date.now());
@@ -99,7 +171,7 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     if (!writing) return undefined;
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
-    (t as { unref?: () => void }).unref?.();   // a timer must never keep a process alive
+    (t as { unref?: () => void }).unref?.(); // a timer must never keep a process alive
     return () => clearInterval(t);
   }, [writing]);
   const waiting = useWaiting(threadId, s?.lastBy?.kind === "agent" && !writing);
@@ -109,9 +181,20 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     const total = crew.working + crew.needsYou;
     const text = `${total} ${total === 1 ? "helper" : "helpers"}`;
     return (
-      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${text}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
-        <View style={st.face}><Face name={nameOf(s.lastBy?.id ?? "")} seedId={s.lastBy?.id} kind="agent" size={18} /></View>
-        <Text testID={`${testID}-crew`} numberOfLines={1} style={st.doneText}><Text style={crew.needsYou > 0 ? st.warn : st.head}>{crew.needsYou > 0 ? "Needs you" : "Working"}</Text>{` \u00b7 ${text}`}</Text>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={`Open the thread: ${text}`}
+        onPress={onOpen}
+        style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}
+      >
+        <View style={st.face}>
+          <Face name={nameOf(s.lastBy?.id ?? "")} seedId={s.lastBy?.id} kind="agent" size={18} />
+        </View>
+        <Text testID={`${testID}-crew`} numberOfLines={1} style={st.doneText}>
+          <Text style={crew.needsYou > 0 ? st.warn : st.head}>{crew.needsYou > 0 ? "Needs you" : "Working"}</Text>
+          {` \u00b7 ${text}`}
+        </Text>
         <Text testID={`${testID}-count`} numberOfLines={1} style={st.muted}>{`\u00b7 ${f?.count ?? ""}`}</Text>
       </Pressable>
     );
@@ -119,37 +202,99 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
   if (!showsFooter(f, s) || f === null) return null;
   if (f.waiting) {
     return (
-      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
-        <View style={st.face}><Face name={nameOf(s?.lastBy?.id ?? "")} seedId={s?.lastBy?.id} kind="agent" size={18} /></View>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={`Open the thread: ${f.label}`}
+        onPress={onOpen}
+        style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}
+      >
+        <View style={st.face}>
+          <Face name={nameOf(s?.lastBy?.id ?? "")} seedId={s?.lastBy?.id} kind="agent" size={18} />
+        </View>
         {/* two lines, so on a phone the act stays readable ("Waiting for your OK · message Aliza Rizvi" was cut to "messag...") */}
-        <Text testID={`${testID}-waiting`} numberOfLines={2} style={st.doneText}><Text style={st.warn}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
-        {f.count !== "0 replies" ? <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
+        <Text testID={`${testID}-waiting`} numberOfLines={2} style={st.doneText}>
+          <Text style={st.warn}>{f.head}</Text>
+          {f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}
+        </Text>
+        {f.count !== "0 replies" ? (
+          <Text
+            testID={`${testID}-count`}
+            numberOfLines={1}
+            style={[st.muted, f.bold && st.bold]}
+          >{`\u00b7 ${f.count}`}</Text>
+        ) : null}
       </Pressable>
     );
   }
   if (f.done && s) {
     return (
-      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: Done, ${f.done.line}, ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
-        <View style={st.face}><Face name={nameOf(f.done.agentId)} seedId={f.done.agentId} kind="agent" size={18} /></View>
-        <Text testID={`${testID}-done`} numberOfLines={1} style={st.doneText}><Text style={st.head}>Done</Text>{` \u00b7 ${f.done.line}`}</Text>
-        <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={`Open the thread: Done, ${f.done.line}, ${f.label}`}
+        onPress={onOpen}
+        style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}
+      >
+        <View style={st.face}>
+          <Face name={nameOf(f.done.agentId)} seedId={f.done.agentId} kind="agent" size={18} />
+        </View>
+        <Text testID={`${testID}-done`} numberOfLines={1} style={st.doneText}>
+          <Text style={st.head}>Done</Text>
+          {` \u00b7 ${f.done.line}`}
+        </Text>
+        <Text
+          testID={`${testID}-count`}
+          numberOfLines={1}
+          style={[st.muted, f.bold && st.bold]}
+        >{`\u00b7 ${f.count}`}</Text>
       </Pressable>
     );
   }
   // nobody writing and no outcome to say: the quiet reply line as it always was
-  if (!f.writing && s) return <ReplyLine s={s} clock={clock} nameOf={nameOf} onOpen={onOpen} mine={mine} testID={testID} />;
+  if (!f.writing && s)
+    return <ReplyLine s={s} clock={clock} nameOf={nameOf} onOpen={onOpen} mine={mine} testID={testID} />;
   const who = f.agentId ?? "";
   return (
-    <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
-      <View style={st.face}><Face name={nameOf(who)} seedId={who} kind="agent" size={18} /></View>
-      <Text testID={`${testID}-head`} numberOfLines={1} style={st.working}>{f.head}</Text>
-      {f.count !== "0 replies" ? <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={`Open the thread: ${f.label}`}
+      onPress={onOpen}
+      style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}
+    >
+      <View style={st.face}>
+        <Face name={nameOf(who)} seedId={who} kind="agent" size={18} />
+      </View>
+      <Text testID={`${testID}-head`} numberOfLines={1} style={st.working}>
+        {f.head}
+      </Text>
+      {f.count !== "0 replies" ? (
+        <Text
+          testID={`${testID}-count`}
+          numberOfLines={1}
+          style={[st.muted, f.bold && st.bold]}
+        >{`\u00b7 ${f.count}`}</Text>
+      ) : null}
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  line: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", maxWidth: "100%", minWidth: 0, flexShrink: 1, marginTop: 6, paddingVertical: 4, paddingHorizontal: 6, marginLeft: -6, borderRadius: 8 },
+  line: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    minWidth: 0,
+    flexShrink: 1,
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    marginLeft: -6,
+    borderRadius: 8,
+  },
   // under your own ask: the bubble's column, right edge to right edge (the bubble is at most 85% wide)
   mine: { alignSelf: "flex-end", maxWidth: "85%", marginLeft: 0, marginRight: -6 },
   over: { backgroundColor: "var(--hover)" as string },

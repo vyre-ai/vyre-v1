@@ -16,16 +16,32 @@ function Knows({ audience }: { audience: "private" | "shared" }): ReactNode {
   const s = useMemo(() => createChatMemorySample({ audience }), [audience]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    void s.warm([
-      ["memory.profile.get", { threadId: "c1" }], ["memory.knows", { threadId: "c1", agentId: ASSISTANT }], ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
-      ["memory.map.get", { agentId: ASSISTANT }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
-    ]).then(() => setReady(true));
+    void s
+      .warm([
+        ["memory.profile.get", { threadId: "c1" }],
+        ["memory.knows", { threadId: "c1", agentId: ASSISTANT }],
+        ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
+        ["memory.map.get", { agentId: ASSISTANT }],
+        ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }],
+        ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }],
+      ])
+      .then(() => setReady(true));
   }, [s]);
   if (!ready) return <View style={{ flex: 1 }} />;
   return (
     <View style={{ flex: 1, flexDirection: "row" }}>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>{audience === "private" ? "Your chat with Assistant" : "A channel with Maya and Omar"}</Text></View>
-      <ChatRightPane data={s.pane} open onToggle={() => undefined} initialTab="memory" window={{ start: 0, end: 500 }} />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: "var(--ink-4)" as string, fontSize: 13 }}>
+          {audience === "private" ? "Your chat with Assistant" : "A channel with Maya and Omar"}
+        </Text>
+      </View>
+      <ChatRightPane
+        data={s.pane}
+        open
+        onToggle={() => undefined}
+        initialTab="memory"
+        window={{ start: 0, end: 500 }}
+      />
     </View>
   );
 }
@@ -40,7 +56,9 @@ export default function Mount(): ReactNode {
   if (q.get("part") === "knows") return <Knows audience={q.get("audience") === "shared" ? "shared" : "private"} />;
   return (
     <SettingsDataProvider value={sample.data}>
-      <View style={{ height }}><SettingsPlace initialPage="memory" /></View>
+      <View style={{ height }}>
+        <SettingsPlace initialPage="memory" />
+      </View>
     </SettingsDataProvider>
   );
 }

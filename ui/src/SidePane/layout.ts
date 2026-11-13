@@ -37,7 +37,13 @@ export function bandOf(windowWidth: number): Band {
 }
 
 /** One docked left panel: the shell's own sidebar, or a list a place puts beside it (Vault's list). */
-export interface SidebarSpec { id: string; def: number; min: number; max: number; saved?: number | null }
+export interface SidebarSpec {
+  id: string;
+  def: number;
+  min: number;
+  max: number;
+  saved?: number | null;
+}
 
 export interface LayoutInput {
   windowWidth: number;
@@ -58,14 +64,21 @@ export interface LayoutInput {
 export type SidebarMode = "none" | "docked" | "hidden" | "overlay" | "screen";
 export type PaneMode = "none" | "docked" | "overlay" | "screen";
 
-export interface PanelLimits { min: number; max: number }
+export interface PanelLimits {
+  min: number;
+  max: number;
+}
 
 export interface Layout {
   band: Band;
   gutter: number;
   rail: { shown: boolean; width: number };
   /** `width` is the whole left group (every panel and the gutters between them); `min` and `max` are the first panel's. */
-  sidebar: { mode: SidebarMode; width: number; panels: readonly { id: string; width: number; min: number; max: number }[] } & PanelLimits;
+  sidebar: {
+    mode: SidebarMode;
+    width: number;
+    panels: readonly { id: string; width: number; min: number; max: number }[];
+  } & PanelLimits;
   pane: { mode: PaneMode; width: number; defaultWidth: number } & PanelLimits;
   main: { width: number; reading: number };
   /** The sidebar is open by choice but folded away because a pane is open (the 1024 to 1279 band). */
@@ -81,7 +94,19 @@ export function paneDefault(roomRightOfSidebar: number): number {
 
 export function layoutPanels(input: LayoutInput): Layout {
   const { sidebarOpen, paneOpen } = input;
-  const specs: readonly SidebarSpec[] = input.sidebars ?? (input.hasSidebar ? [{ id: "place-sidebar", def: SIDEBAR.def, min: SIDEBAR.min, max: SIDEBAR.max, saved: input.saved?.sidebar ?? null }] : []);
+  const specs: readonly SidebarSpec[] =
+    input.sidebars ??
+    (input.hasSidebar
+      ? [
+          {
+            id: "place-sidebar",
+            def: SIDEBAR.def,
+            min: SIDEBAR.min,
+            max: SIDEBAR.max,
+            saved: input.saved?.sidebar ?? null,
+          },
+        ]
+      : []);
   const hasSidebar = specs.length > 0;
   const band = bandOf(input.windowWidth);
   const W = input.windowWidth > 0 ? input.windowWidth : 1440;
@@ -94,8 +119,16 @@ export function layoutPanels(input: LayoutInput): Layout {
 
   if (phone) {
     return {
-      band, gutter: G, rail,
-      sidebar: { mode: hasSidebar ? "screen" : "none", width: W, min: W, max: W, panels: specs.map((sp) => ({ id: sp.id, width: W, min: W, max: W })) },
+      band,
+      gutter: G,
+      rail,
+      sidebar: {
+        mode: hasSidebar ? "screen" : "none",
+        width: W,
+        min: W,
+        max: W,
+        panels: specs.map((sp) => ({ id: sp.id, width: W, min: W, max: W })),
+      },
       pane: { mode: paneOpen ? "screen" : "none", width: W, defaultWidth: W, min: W, max: W },
       main: { width: W, reading: Math.min(W, READING_MAX) },
       folded: false,
@@ -117,7 +150,12 @@ export function layoutPanels(input: LayoutInput): Layout {
     widths[i] = Math.max((specs[i] as SidebarSpec).min, (widths[i] as number) - over);
   }
   const sbWidth = widths.reduce((a, b) => a + b, 0) + groupGaps;
-  const panels = specs.map((sp, i) => ({ id: sp.id, width: widths[i] as number, min: sp.min, max: Math.max(sp.min, Math.min(sp.max, groupCap - (sbWidth - (widths[i] as number)))) }));
+  const panels = specs.map((sp, i) => ({
+    id: sp.id,
+    width: widths[i] as number,
+    min: sp.min,
+    max: Math.max(sp.min, Math.min(sp.max, groupCap - (sbWidth - (widths[i] as number)))),
+  }));
   const first = panels[0] ?? { min: SIDEBAR.min, max: SIDEBAR.max };
   const sidebar = { mode: sbMode, width: sbWidth, min: first.min, max: first.max, panels };
 
@@ -144,8 +182,16 @@ export function layoutPanels(input: LayoutInput): Layout {
   }
   const mainWidth = C - (sbDocked ? sbWidth + G : 0) - (paneMode === "docked" ? paneWidth + G : 0);
   return {
-    band, gutter: G, rail, sidebar,
-    pane: { mode: paneMode, width: paneWidth, defaultWidth: paneMode === "docked" ? Math.min(paneDefaultWidth, paneMax) : paneDefault(C), ...paneLimits },
+    band,
+    gutter: G,
+    rail,
+    sidebar,
+    pane: {
+      mode: paneMode,
+      width: paneWidth,
+      defaultWidth: paneMode === "docked" ? Math.min(paneDefaultWidth, paneMax) : paneDefault(C),
+      ...paneLimits,
+    },
     main: { width: mainWidth, reading: Math.min(mainWidth, READING_MAX) },
     folded,
   };

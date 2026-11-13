@@ -10,28 +10,51 @@ import { manualClock } from "../src/turn-engine/harness.ts";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-interface Fake extends PoolDriver { opens: number; provider: ScriptedProvider; fail: number }
+interface Fake extends PoolDriver {
+  opens: number;
+  provider: ScriptedProvider;
+  fail: number;
+}
 
 /** A driver whose sessions are scripted sessions: `provider.sessions` shows which were opened, cancelled and closed. */
 function driver(id: string, kind: "api" | "cli" = "api", o: { openMs?: number; fail?: number } = {}): Fake {
   const provider = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] });
   const d: Fake = {
-    id, kind, opens: 0, provider, fail: o.fail ?? 0,
+    id,
+    kind,
+    opens: 0,
+    provider,
+    fail: o.fail ?? 0,
     async open(spec: SessionSpec): Promise<EngineSession> {
       d.opens++;
       if (o.openMs) await sleep(o.openMs);
-      if (d.fail > 0) { d.fail--; throw new Error("the provider is down"); }
+      if (d.fail > 0) {
+        d.fail--;
+        throw new Error("the provider is down");
+      }
       return provider.openSession(spec);
     },
   };
   return d;
 }
 
-const key = (over: Partial<PoolKey> = {}): PoolKey => ({ driver: "anthropic", accountRef: "#Team_Anthropic_Key", model: "claude-sonnet-5-5", sandboxId: null, mcpProfile: "default", ...over });
+const key = (over: Partial<PoolKey> = {}): PoolKey => ({
+  driver: "anthropic",
+  accountRef: "#Team_Anthropic_Key",
+  model: "claude-sonnet-5-5",
+  sandboxId: null,
+  mcpProfile: "default",
+  ...over,
+});
 const spec = (over: Partial<PoolKey> = {}, o: { thread?: string; person?: string } = {}): PoolSpec => {
   const thread = o.thread ?? "thr_a";
   const person = o.person ?? "usr_dana";
-  return { key: key(over), threadId: thread, person, session: { threadId: thread, agent: { id: "agt_intake", mode: "lead" }, asker: person } };
+  return {
+    key: key(over),
+    threadId: thread,
+    person,
+    session: { threadId: thread, agent: { id: "agt_intake", mode: "lead" }, asker: person },
+  };
 };
 
 test("the same engine is a hit, and the session handed out is the same warm one", async () => {
@@ -54,7 +77,13 @@ test("a different account, model, sandbox, MCP profile or person is a different 
   const d = driver("anthropic");
   const pool = createPool({ placement: "device", drivers: [d], maxPerDriver: 10 });
   await pool.release(await pool.acquire(spec()));
-  for (const s of [spec({ accountRef: "#Other" }), spec({ model: "claude-opus-4" }), spec({ sandboxId: "vyre-sbx-dana" }), spec({ mcpProfile: "plan" }), spec({}, { person: "usr_sam" })]) {
+  for (const s of [
+    spec({ accountRef: "#Other" }),
+    spec({ model: "claude-opus-4" }),
+    spec({ sandboxId: "vyre-sbx-dana" }),
+    spec({ mcpProfile: "plan" }),
+    spec({}, { person: "usr_sam" }),
+  ]) {
     const l = await pool.acquire(s);
     assert.equal(l.warm, false, keyString(s.key));
     await pool.release(l);
@@ -151,7 +180,9 @@ test("a device keeps four sessions per driver; the fifth takes the place of the 
 test("on the host the cap is two per driver for each person, and 24 in all", async () => {
   const d = driver("anthropic");
   const pool = createPool({ placement: "host", drivers: [d] });
-  const grab = async (person: string, model: string): Promise<void> => { await pool.release(await pool.acquire(spec({ model }, { person }))); };
+  const grab = async (person: string, model: string): Promise<void> => {
+    await pool.release(await pool.acquire(spec({ model }, { person })));
+  };
   await grab("usr_dana", "m1");
   await grab("usr_dana", "m2");
   await grab("usr_sam", "m1");
@@ -212,7 +243,8 @@ test("status lists every driver, with warm, busy, hits, misses and evictions", a
       { driver: "anthropic", warm: 0, busy: 0, max: 4, hits: 0, misses: 0, evictions: 0 },
       { driver: "codex", warm: 0, busy: 0, max: 4, hits: 0, misses: 0, evictions: 0 },
     ],
-    totalWarm: 0, totalBusy: 0,
+    totalWarm: 0,
+    totalBusy: 0,
   });
   await assert.rejects(pool.acquire(spec({ driver: "nobody" })), /no driver nobody/);
 });
@@ -233,25 +265,51 @@ test("closing the pool closes every session and refuses new work", async () => {
 test("behind the turn engine a second turn runs on the warm session, and a cancelled one is not given back warm", async () => {
   const d = driver("anthropic");
   const pool = createPool({ placement: "device", drivers: [d] });
-  const resolve = (s: SessionSpec): PoolSpec => ({ key: key({ model: s.agent.model ?? "m" }), threadId: s.threadId, person: s.asker, session: s });
+  const resolve = (s: SessionSpec): PoolSpec => ({
+    key: key({ model: s.agent.model ?? "m" }),
+    threadId: s.threadId,
+    person: s.asker,
+    session: s,
+  });
   const engine = createTurnEngine({ holder: "device:d1", openSession: poolOpenSession(pool, resolve) });
-  engine.openThread({ id: "T", kind: "chat", starter: "usr_dana", agents: [{ id: "agt_intake", mode: "lead", model: "claude-sonnet-5-5" }] });
+  engine.openThread({
+    id: "T",
+    kind: "chat",
+    starter: "usr_dana",
+    agents: [{ id: "agt_intake", mode: "lead", model: "claude-sonnet-5-5" }],
+  });
   engine.receive({ threadId: "T", author: { kind: "person", id: "usr_dana" }, body: "one" });
   await engine.idle("T");
   engine.receive({ threadId: "T", author: { kind: "person", id: "usr_dana" }, body: "two" });
   await engine.idle("T");
   assert.equal(d.provider.sessions.length, 1, "both turns ran on one session");
-  assert.deepEqual(engine.turns("T").map((t) => t.state), ["completed", "completed"]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["completed", "completed"],
+  );
   assert.equal(d.provider.sessions[0]?.closed, false, "the engine's close gave it back to the pool, still open");
   assert.equal(pool.status().sessions[0]?.hits, 1);
 
   // A turn that is cancelled leaves its stream half read: that session is closed, and the next turn starts a fresh one.
   const slow = driver("anthropic");
-  const hold = scriptedProvider({ script: [{ type: "text", text: "a" }, { type: "done" }], beforeEvent: async () => { await sleep(500); } });
-  slow.open = async (s) => { slow.opens++; return hold.openSession(s); };
+  const hold = scriptedProvider({
+    script: [{ type: "text", text: "a" }, { type: "done" }],
+    beforeEvent: async () => {
+      await sleep(500);
+    },
+  });
+  slow.open = async (s) => {
+    slow.opens++;
+    return hold.openSession(s);
+  };
   const p2 = createPool({ placement: "device", drivers: [slow] });
   const e2 = createTurnEngine({ holder: "device:d1", openSession: poolOpenSession(p2, resolve) });
-  e2.openThread({ id: "T2", kind: "chat", starter: "usr_dana", agents: [{ id: "agt_intake", mode: "lead", model: "claude-sonnet-5-5" }] });
+  e2.openThread({
+    id: "T2",
+    kind: "chat",
+    starter: "usr_dana",
+    agents: [{ id: "agt_intake", mode: "lead", model: "claude-sonnet-5-5" }],
+  });
   e2.receive({ threadId: "T2", author: { kind: "person", id: "usr_dana" }, body: "go" });
   await sleep(30);
   await e2.stop("T2");
@@ -268,7 +326,13 @@ test("a warm hint never throws and never waits", async () => {
   const t0 = performance.now();
   warmHint(pool, resolve, s);
   assert.ok(performance.now() - t0 < 10);
-  warmHint(pool, () => { throw new Error("no such agent"); }, s);
+  warmHint(
+    pool,
+    () => {
+      throw new Error("no such agent");
+    },
+    s,
+  );
   warmHint(pool, (x) => ({ ...resolve(x), key: key({ driver: "unknown" }) }), s);
   await pool.settled();
   assert.equal(d.opens, 1);
@@ -281,8 +345,13 @@ test("stop idle sessions: all of them, or only one person's; a busy one is left 
   const dana = await pool.acquire(spec({}, { person: "usr_dana", thread: "thr_1" }));
   const ravi = await pool.acquire(spec({}, { person: "usr_ravi", thread: "thr_2" }));
   const busy = await pool.acquire(spec({}, { person: "usr_dana", thread: "thr_3" }));
-  await pool.release(dana); await pool.release(ravi);
-  assert.deepEqual([pool.idleCount(), pool.idleCount("usr_dana"), pool.idleCount("usr_ravi")], [2, 1, 1], "the busy one is not idle");
+  await pool.release(dana);
+  await pool.release(ravi);
+  assert.deepEqual(
+    [pool.idleCount(), pool.idleCount("usr_dana"), pool.idleCount("usr_ravi")],
+    [2, 1, 1],
+    "the busy one is not idle",
+  );
   assert.equal(await pool.closeIdle("usr_dana"), 1, "only Dana's idle session");
   assert.deepEqual([pool.idleCount("usr_dana"), pool.idleCount("usr_ravi")], [0, 1], "Ravi's is still warm");
   assert.equal(await pool.closeIdle(), 1);

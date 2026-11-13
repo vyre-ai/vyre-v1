@@ -27,11 +27,23 @@ const ACTIONS: readonly ObjectAction[] = [
 ];
 
 test("every object has Overview, Access and Activity; specific tabs follow, and a specific tab with a base id replaces it in place", () => {
-  assert.deepEqual(OBJECT_PAGE_BASE_TABS.map((t) => t.id), ["overview", "access", "activity"]);
-  const tabs = withBaseTabs([{ id: "devices", label: "Devices", count: 1 }, { id: "access", label: "Access", count: 12 }]);
-  assert.deepEqual(tabs.map((t) => t.id), ["overview", "access", "activity", "devices"]);
+  assert.deepEqual(
+    OBJECT_PAGE_BASE_TABS.map((t) => t.id),
+    ["overview", "access", "activity"],
+  );
+  const tabs = withBaseTabs([
+    { id: "devices", label: "Devices", count: 1 },
+    { id: "access", label: "Access", count: 12 },
+  ]);
+  assert.deepEqual(
+    tabs.map((t) => t.id),
+    ["overview", "access", "activity", "devices"],
+  );
   assert.equal(tabs.find((t) => t.id === "access")?.count, 12);
-  assert.deepEqual(withBaseTabs([]).map((t) => t.id), ["overview", "access", "activity"]);
+  assert.deepEqual(
+    withBaseTabs([]).map((t) => t.id),
+    ["overview", "access", "activity"],
+  );
 });
 
 test("arrows move between tabs without wrapping; Home and End jump", () => {
@@ -54,15 +66,28 @@ test("a tab with a count reads 'Access 12'", () => {
 test("actions split into one outlined button, quiet buttons and destructive ones kept off the page face", () => {
   const split = splitActions(ACTIONS);
   assert.equal(split.primary?.id, "change-roles");
-  assert.deepEqual(split.secondary.map((a) => a.id), ["view-as"]);
-  assert.deepEqual(split.destructive.map((a) => a.id), ["remove"]);
+  assert.deepEqual(
+    split.secondary.map((a) => a.id),
+    ["view-as"],
+  );
+  assert.deepEqual(
+    split.destructive.map((a) => a.id),
+    ["remove"],
+  );
   assert.equal(splitActions([]).primary, null);
-  assert.equal(splitActions([{ id: "d", label: "Delete", destructive: true }]).primary, null, "only destructive actions: no outlined button");
+  assert.equal(
+    splitActions([{ id: "d", label: "Delete", destructive: true }]).primary,
+    null,
+    "only destructive actions: no outlined button",
+  );
 });
 
 test("a destructive action states its impact before it runs, and says what it did after", () => {
   const remove = ACTIONS[2] as ObjectAction;
-  assert.equal(confirmLine(remove, "Omar", "Removing Omar reassigns 3 things and ends 1 session."), "Removing Omar reassigns 3 things and ends 1 session.");
+  assert.equal(
+    confirmLine(remove, "Omar", "Removing Omar reassigns 3 things and ends 1 session."),
+    "Removing Omar reassigns 3 things and ends 1 session.",
+  );
   assert.equal(confirmLine(remove, "Omar", undefined), "Remove Omar?");
   assert.equal(confirmLine(remove, "Omar", "   "), "Remove Omar?");
   assert.equal(doneLine(remove, "Omar"), "Remove: Omar.");
@@ -74,7 +99,10 @@ test("status tones and the kind and owner line", () => {
   assert.equal(statusTone("Invited"), "warn");
   assert.equal(statusTone("Disabled"), "off");
   assert.equal(subtitle("Person", "Northwind"), "Person · Northwind");
-  assert.equal(subtitle("Person", "Northwind", "omar@northwind.example"), "Person · omar@northwind.example · Northwind");
+  assert.equal(
+    subtitle("Person", "Northwind", "omar@northwind.example"),
+    "Person · omar@northwind.example · Northwind",
+  );
   assert.equal(subtitle("Role", ""), "Role");
 });
 
@@ -102,7 +130,14 @@ test("on a phone every action sits in the More menu", () => {
 });
 
 test("the side sheet shows when open, with its title and a close control", () => {
-  const html = renderToStaticMarkup(<ObjectPage {...frozenObjectPageProps} sheetOpen sheetTitle="Access check" sheet={<span>Why Omar can see Rivera</span>} />);
+  const html = renderToStaticMarkup(
+    <ObjectPage
+      {...frozenObjectPageProps}
+      sheetOpen
+      sheetTitle="Access check"
+      sheet={<span>Why Omar can see Rivera</span>}
+    />,
+  );
   assert.match(html, /data-testid="object-sheet"/);
   assert.match(html, /data-testid="object-sheet-close"/);
   assert.ok(text(html).includes("Access check"));
@@ -117,20 +152,31 @@ test("the breadcrumb names the list the object belongs to", () => {
 });
 
 test("the body of the active tab is the children", () => {
-  const html = renderToStaticMarkup(<ObjectPage {...frozenObjectPageProps}><p>Roles: Member</p></ObjectPage>);
+  const html = renderToStaticMarkup(
+    <ObjectPage {...frozenObjectPageProps}>
+      <p>Roles: Member</p>
+    </ObjectPage>,
+  );
   assert.ok(text(html).includes("Roles: Member"));
   assert.match(html, /data-testid="object-body"/);
 });
 
 test("object actions report success only after async work resolves and preserve a truthful failure", async () => {
   let release!: () => void;
-  const pending = new Promise<void>((resolve) => { release = resolve; });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   let settled = false;
-  const work = settleObjectAction(() => pending).then((result) => { settled = result.ok; return result; });
+  const work = settleObjectAction(() => pending).then((result) => {
+    settled = result.ok;
+    return result;
+  });
   await Promise.resolve();
   assert.equal(settled, false, "a pending mutation is not reported done");
   release();
   assert.deepEqual(await work, { ok: true });
-  const failed = await settleObjectAction(async () => { throw new Error("permission held"); });
+  const failed = await settleObjectAction(async () => {
+    throw new Error("permission held");
+  });
   assert.deepEqual(failed, { ok: false, error: "permission held" });
 });

@@ -17,7 +17,7 @@ export interface SpaceAdminDeps {
   system(cap: string, input: unknown): Promise<unknown>;
   headSeq(): number;
   changeAddress?(mode: "relay" | "own_domain", host: string | null): Promise<void>;
-  address?(): {mode: "relay" | "own_domain"; host?: string} | undefined;
+  address?(): { mode: "relay" | "own_domain"; host?: string } | undefined;
 }
 
 export function createSpaceAdmin(d: SpaceAdminDeps) {
@@ -26,28 +26,53 @@ export function createSpaceAdmin(d: SpaceAdminDeps) {
     owner: async () => d.owner(),
     async fingerprint() {
       try {
-        const r = d.db.all("SELECT fingerprint FROM identity_space WHERE id = ?", d.space)[0] as { fingerprint?: string } | undefined;
+        const r = d.db.all("SELECT fingerprint FROM identity_space WHERE id = ?", d.space)[0] as
+          | { fingerprint?: string }
+          | undefined;
         if (r?.fingerprint) return r.fingerprint;
-      } catch { /* identity has no Space row yet */ }
+      } catch {
+        /* identity has no Space row yet */
+      }
       return "0000 0000 0000 0000";
     },
-    isMember: async (personId: string) => {const p=d.access().principal(personId);return p?.kind === "person" && p.status === "active";},
+    isMember: async (personId: string) => {
+      const p = d.access().principal(personId);
+      return p?.kind === "person" && p.status === "active";
+    },
     async transferOwner(from: string, to: string) {
-      if(from!==d.owner()||from===to||(d.access().principal(to)?.status!=='active'||d.access().principal(to)?.kind!=='person'))throw fail('validation.precondition_failed',none,{message:'Ownership changed or the selected person is no longer active. Refresh and try again.'});
+      if (
+        from !== d.owner() ||
+        from === to ||
+        d.access().principal(to)?.status !== "active" ||
+        d.access().principal(to)?.kind !== "person"
+      )
+        throw fail("validation.precondition_failed", none, {
+          message: "Ownership changed or the selected person is no longer active. Refresh and try again.",
+        });
       // The caller emits one ownership event; its projection changes owner and both role assignments together.
       return { epoch: d.headSeq() };
     },
     address: async () => d.address?.(),
     /** The owner's own zone (their profile), the Space's first time zone until an admin sets one. */
     async ownerTimezone(): Promise<string | undefined> {
-      try { return ((await d.system("settings.public_of", { personId: d.owner() })) as { timezone?: string } | null)?.timezone; } catch { return undefined; }
+      try {
+        return ((await d.system("settings.public_of", { personId: d.owner() })) as { timezone?: string } | null)
+          ?.timezone;
+      } catch {
+        return undefined;
+      }
     },
     async applyAddress(mode: "relay" | "own_domain", host: string | null) {
-      if (!d.changeAddress) throw fail("internal.unavailable", none, { message: "The server has no network driver configured. No address changed." });
+      if (!d.changeAddress)
+        throw fail("internal.unavailable", none, {
+          message: "The server has no network driver configured. No address changed.",
+        });
       await d.changeAddress(mode, host);
     },
     async deleteSpace(): Promise<void> {
-      throw fail("internal.unavailable", none, { message: "A Space is deleted on its server with the command line, not from the app." });
+      throw fail("internal.unavailable", none, {
+        message: "A Space is deleted on its server with the command line, not from the app.",
+      });
     },
   };
 }

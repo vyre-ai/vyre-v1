@@ -31,7 +31,9 @@ test("a task a person deleted, and restoring one's own, teach nothing", async ()
 
 test("a memory that fails does not hold the restore up", async () => {
   const h = harness();
-  h.callee("memory.corrections.record", () => { throw new Error("memory is down"); });
+  h.callee("memory.corrections.record", () => {
+    throw new Error("memory is down");
+  });
   const made = (await h.call("tasks.create", newTask({ assigned: alice }), as(bot))).task;
   await h.call("tasks.delete", { taskId: made.id }, as(bot));
   const back = await h.call("tasks.restore", { taskId: made.id }, as(alice));

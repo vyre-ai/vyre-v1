@@ -15,41 +15,215 @@ export const title = "Share an agent (Dex)";
 // What rc.20 listed, top to bottom (the owner's screenshot)
 const ROWS: ShareRow[] = [
   { subjectKind: "person", subjectId: "usr_irfad", name: "Irfad", level: "manage", via: "folder", fromFolderId: null },
-  { subjectKind: "agent", subjectId: "agt_aliza", name: "Aliza Rizvi (Agent)", level: "edit", via: "folder", fromFolderId: null, privateAgent: true },
-  { subjectKind: "agent", subjectId: "agt_andrey", name: "Andrey Lyutykh (Agent)", level: "edit", via: "folder", fromFolderId: null, privateAgent: true },
-  { subjectKind: "agent", subjectId: "agt_rubab", name: "Rubab Asif (Agent)", level: "edit", via: "folder", fromFolderId: null, privateAgent: true },
-  { subjectKind: "agent", subjectId: "agt_assistant", name: "Assistant", level: "edit", via: "folder", fromFolderId: null, privateAgent: true },
+  {
+    subjectKind: "agent",
+    subjectId: "agt_aliza",
+    name: "Aliza Rizvi (Agent)",
+    level: "edit",
+    via: "folder",
+    fromFolderId: null,
+    privateAgent: true,
+  },
+  {
+    subjectKind: "agent",
+    subjectId: "agt_andrey",
+    name: "Andrey Lyutykh (Agent)",
+    level: "edit",
+    via: "folder",
+    fromFolderId: null,
+    privateAgent: true,
+  },
+  {
+    subjectKind: "agent",
+    subjectId: "agt_rubab",
+    name: "Rubab Asif (Agent)",
+    level: "edit",
+    via: "folder",
+    fromFolderId: null,
+    privateAgent: true,
+  },
+  {
+    subjectKind: "agent",
+    subjectId: "agt_assistant",
+    name: "Assistant",
+    level: "edit",
+    via: "folder",
+    fromFolderId: null,
+    privateAgent: true,
+  },
   { subjectKind: "agent", subjectId: "agt_dex", name: "Dex", level: "edit", via: "folder", fromFolderId: null },
-  { subjectKind: "agent", subjectId: "agt_simba", name: "Simba (Claude Code)", level: "edit", via: "folder", fromFolderId: null, privateAgent: true },
+  {
+    subjectKind: "agent",
+    subjectId: "agt_simba",
+    name: "Simba (Claude Code)",
+    level: "edit",
+    via: "folder",
+    fromFolderId: null,
+    privateAgent: true,
+  },
   { subjectKind: "group", subjectId: "grp_everyone", name: "Everyone", level: "use", via: "grant", fromFolderId: null },
 ];
 const DIRECTORY = {
-  people: [{ id: "usr_aliza", name: "Aliza Rizvi", kind: "person" as const }, { id: "usr_andrey", name: "Andrey Lyutykh", kind: "person" as const }],
-  groups: [], agents: [{ id: "agt_scout", name: "Scout", kind: "agent" as const }],
+  people: [
+    { id: "usr_aliza", name: "Aliza Rizvi", kind: "person" as const },
+    { id: "usr_andrey", name: "Andrey Lyutykh", kind: "person" as const },
+  ],
+  groups: [],
+  agents: [{ id: "agt_scout", name: "Scout", kind: "agent" as const }],
 };
 
-
-const P = (id: string, name: string, level: ShareRow["level"], via: ShareRow["via"] = "grant"): ShareRow => ({ subjectKind: "person", subjectId: id, name, level, via, fromFolderId: via === "folder" ? "fld_clients" : null });
-const PEOPLE = [{ id: "usr_sara", name: "Sara Malik", kind: "person" as const }, { id: "usr_omar", name: "Omar Reyes", kind: "person" as const }];
-const BASE = { onCopyLink: () => undefined, notifyPeople: true, meId: "usr_irfad", mode: "share" as const, density: "regular" as const, ownerName: "Irfad", ownerId: "usr_irfad", spaceName: "Northwind", onClose: () => undefined, allowExternal: false, directory: { ...DIRECTORY, people: PEOPLE } };
-const EVERYONE: ShareRow = { subjectKind: "group", subjectId: "grp_everyone", name: "Everyone", level: "view", via: "grant", fromFolderId: null };
+const P = (id: string, name: string, level: ShareRow["level"], via: ShareRow["via"] = "grant"): ShareRow => ({
+  subjectKind: "person",
+  subjectId: id,
+  name,
+  level,
+  via,
+  fromFolderId: via === "folder" ? "fld_clients" : null,
+});
+const PEOPLE = [
+  { id: "usr_sara", name: "Sara Malik", kind: "person" as const },
+  { id: "usr_omar", name: "Omar Reyes", kind: "person" as const },
+];
+const BASE = {
+  onCopyLink: () => undefined,
+  notifyPeople: true,
+  meId: "usr_irfad",
+  mode: "share" as const,
+  density: "regular" as const,
+  ownerName: "Irfad",
+  ownerId: "usr_irfad",
+  spaceName: "Northwind",
+  onClose: () => undefined,
+  allowExternal: false,
+  directory: { ...DIRECTORY, people: PEOPLE },
+};
+const EVERYONE: ShareRow = {
+  subjectKind: "group",
+  subjectId: "grp_everyone",
+  name: "Everyone",
+  level: "view",
+  via: "grant",
+  fromFolderId: null,
+};
 
 const PARTS: Record<string, ShareSheetProps> = {
-  dex: { ...BASE, itemType: "agent", resourceType: "agent", resourceId: "agt_dex", itemName: "Dex", target: "item", levels: ["use", "edit", "manage"], shares: ROWS, agentsOn: true, onAgents: () => undefined, onCopyLink: () => undefined, notifyPeople: true, meId: "usr_irfad" },
-  note: { ...BASE, itemType: "note", resourceType: "file", resourceId: "not_1", itemName: "Lab 8 run of show", target: "item", levels: ["view", "edit"], shares: [P("usr_omar", "Omar Reyes", "view"), { ...EVERYONE, level: "view" }] },
-  vault: { ...BASE, itemType: "vault", resourceType: "vault_item", resourceId: "vit_ghl", itemName: "GoHighLevel", target: "item", levels: ["use", "view", "manage"], shares: [P("usr_omar", "Omar Reyes", "view"), { subjectKind: "agent", subjectId: "agt_intake", name: "Intake", level: "use", via: "grant", fromFolderId: null }] },
-  vaultfolder: { ...BASE, itemType: "vault", itemLabel: "folder", resourceType: "vault_folder", resourceId: "vfd_mkt", itemName: "Marketing", target: "folder", levels: ["use", "view", "manage"], shares: [P("usr_sara", "Sara Malik", "manage")] },
-  rtype: { ...BASE, itemType: "rtype", resourceType: "record_type", resourceId: "deal", itemName: "Deals", target: "item", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit"), P("usr_sara", "Sara Malik", "view")] },
-  record: { ...BASE, itemType: "record", resourceType: "record", resourceId: "rec_acme", itemName: "Acme renewal", target: "item", folderName: "Deals", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit", "folder"), P("usr_sara", "Sara Malik", "view")] },
-  folder: { ...BASE, itemType: "file", itemLabel: "folder", resourceType: "folder", resourceId: "fld_clients", itemName: "Clients", target: "folder", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit"), { ...EVERYONE, via: "grant" }] },
-  artifact: { ...BASE, itemType: "artifact", resourceType: "site", resourceId: "sit_pitch", itemName: "Pitch", target: "item", subtitle: "Artifact. The people you add can open it in Vyre.", levels: ["view", "edit", "manage"], shares: [P("usr_sara", "Sara Malik", "view")] },
-  automation: { ...BASE, itemType: "automation", resourceType: "automation", resourceId: "aut_weekly", itemName: "Weekly report", target: "item", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit")] },
+  dex: {
+    ...BASE,
+    itemType: "agent",
+    resourceType: "agent",
+    resourceId: "agt_dex",
+    itemName: "Dex",
+    target: "item",
+    levels: ["use", "edit", "manage"],
+    shares: ROWS,
+    agentsOn: true,
+    onAgents: () => undefined,
+    onCopyLink: () => undefined,
+    notifyPeople: true,
+    meId: "usr_irfad",
+  },
+  note: {
+    ...BASE,
+    itemType: "note",
+    resourceType: "file",
+    resourceId: "not_1",
+    itemName: "Lab 8 run of show",
+    target: "item",
+    levels: ["view", "edit"],
+    shares: [P("usr_omar", "Omar Reyes", "view"), { ...EVERYONE, level: "view" }],
+  },
+  vault: {
+    ...BASE,
+    itemType: "vault",
+    resourceType: "vault_item",
+    resourceId: "vit_ghl",
+    itemName: "GoHighLevel",
+    target: "item",
+    levels: ["use", "view", "manage"],
+    shares: [
+      P("usr_omar", "Omar Reyes", "view"),
+      { subjectKind: "agent", subjectId: "agt_intake", name: "Intake", level: "use", via: "grant", fromFolderId: null },
+    ],
+  },
+  vaultfolder: {
+    ...BASE,
+    itemType: "vault",
+    itemLabel: "folder",
+    resourceType: "vault_folder",
+    resourceId: "vfd_mkt",
+    itemName: "Marketing",
+    target: "folder",
+    levels: ["use", "view", "manage"],
+    shares: [P("usr_sara", "Sara Malik", "manage")],
+  },
+  rtype: {
+    ...BASE,
+    itemType: "rtype",
+    resourceType: "record_type",
+    resourceId: "deal",
+    itemName: "Deals",
+    target: "item",
+    levels: ["view", "edit", "manage"],
+    shares: [P("usr_omar", "Omar Reyes", "edit"), P("usr_sara", "Sara Malik", "view")],
+  },
+  record: {
+    ...BASE,
+    itemType: "record",
+    resourceType: "record",
+    resourceId: "rec_acme",
+    itemName: "Acme renewal",
+    target: "item",
+    folderName: "Deals",
+    levels: ["view", "edit", "manage"],
+    shares: [P("usr_omar", "Omar Reyes", "edit", "folder"), P("usr_sara", "Sara Malik", "view")],
+  },
+  folder: {
+    ...BASE,
+    itemType: "file",
+    itemLabel: "folder",
+    resourceType: "folder",
+    resourceId: "fld_clients",
+    itemName: "Clients",
+    target: "folder",
+    levels: ["view", "edit", "manage"],
+    shares: [P("usr_omar", "Omar Reyes", "edit"), { ...EVERYONE, via: "grant" }],
+  },
+  artifact: {
+    ...BASE,
+    itemType: "artifact",
+    resourceType: "site",
+    resourceId: "sit_pitch",
+    itemName: "Pitch",
+    target: "item",
+    subtitle: "Artifact. The people you add can open it in Vyre.",
+    levels: ["view", "edit", "manage"],
+    shares: [P("usr_sara", "Sara Malik", "view")],
+  },
+  automation: {
+    ...BASE,
+    itemType: "automation",
+    resourceType: "automation",
+    resourceId: "aut_weekly",
+    itemName: "Weekly report",
+    target: "item",
+    levels: ["view", "edit", "manage"],
+    shares: [P("usr_omar", "Omar Reyes", "edit")],
+  },
 };
 
 // The real click path: Chats > Dex's page > Who can use it > Share. access.shares_of answers what the server holds for Dex (the rows rc.20 listed, the server now leaves out the self and private agents).
-const g = (kind: string, id: string, level: string, resource = "agt_dex") => ({ id: `gnt_${id}`, subject: { kind, id }, resource: { type: "agent", id: resource }, level, conditions: {}, by: "usr_irfad", createdAt: 0 });
+const g = (kind: string, id: string, level: string, resource = "agt_dex") => ({
+  id: `gnt_${id}`,
+  subject: { kind, id },
+  resource: { type: "agent", id: resource },
+  level,
+  conditions: {},
+  by: "usr_irfad",
+  createdAt: 0,
+});
 const DEX_SHARES = {
-  mine: "manage", agentsCanCall: true,
+  mine: "manage",
+  agentsCanCall: true,
   shares: [
     { grant: g("person", "usr_irfad", "manage"), through: "owner" },
     { grant: g("person", "usr_irfad", "manage", "fld_agents"), through: "folder" },
@@ -60,20 +234,50 @@ const DEX_SHARES = {
 
 function DexPath(): ReactNode {
   const sample = useMemo(() => createConfigSample(northwind), []);
-  const call = useMemo(() => async (cap: string, input: unknown): Promise<unknown> => {
-    if (cap === "access.shares_of") return DEX_SHARES;
-    if (cap === "agents.get") return { agent: { agentId: "agt_dex", name: "Dex", role: "Takes the second look", face: "pick-dex", model: "claude-sonnet-5-5", folderId: "fld_dex" } };
-    if (cap === "files.list") return { files: [], folders: [] };
-    if (cap === "vault.items.list") return { items: [] };
-    if (cap === "engine.models.list") return { models: [{ model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true }] };
-    if (cap === "providers.list") return { providers: [] };
-    if (cap === "providers.space_key.get") return { mayManage: true };
-    void input;
-    return {};
-  }, []);
+  const call = useMemo(
+    () =>
+      async (cap: string, input: unknown): Promise<unknown> => {
+        if (cap === "access.shares_of") return DEX_SHARES;
+        if (cap === "agents.get")
+          return {
+            agent: {
+              agentId: "agt_dex",
+              name: "Dex",
+              role: "Takes the second look",
+              face: "pick-dex",
+              model: "claude-sonnet-5-5",
+              folderId: "fld_dex",
+            },
+          };
+        if (cap === "files.list") return { files: [], folders: [] };
+        if (cap === "vault.items.list") return { items: [] };
+        if (cap === "engine.models.list")
+          return { models: [{ model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true }] };
+        if (cap === "providers.list") return { providers: [] };
+        if (cap === "providers.space_key.get") return { mayManage: true };
+        void input;
+        return {};
+      },
+    [],
+  );
   return (
     <View style={{ height: 900, backgroundColor: "var(--win)" as string }}>
-      <AgentForm agentId="agt_dex" call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} openVault={() => undefined} sharing={{ directory: sample.extras.directory, meName: "Irfad", meId: "usr_irfad", spaceName: "Northwind", nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)) }} />
+      <AgentForm
+        agentId="agt_dex"
+        call={call}
+        newKey={() => "k"}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        say={() => undefined}
+        openVault={() => undefined}
+        sharing={{
+          directory: sample.extras.directory,
+          meName: "Irfad",
+          meId: "usr_irfad",
+          spaceName: "Northwind",
+          nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)),
+        }}
+      />
     </View>
   );
 }
@@ -82,19 +286,46 @@ const noopX = (): void => undefined;
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
-  useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "dex"), []);
+  useEffect(
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "dex",
+      ),
+    [],
+  );
   if (part === null) return <View />;
   if (part === "people-chat" || part === "people-project") {
     const rows = [
-      { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" as const, role: part === "people-chat" ? "Admin" : "Lead" },
+      {
+        id: "usr_irfad",
+        name: "Irfad Imtiaz",
+        kind: "person" as const,
+        role: part === "people-chat" ? "Admin" : "Lead",
+      },
       { id: "usr_sara", name: "Sara Malik", kind: "person" as const, role: "Member" },
-      { id: "usr_omar", name: "Omar Reyes", kind: "person" as const, role: part === "people-chat" ? "Member" : "Reviewer" },
+      {
+        id: "usr_omar",
+        name: "Omar Reyes",
+        kind: "person" as const,
+        role: part === "people-chat" ? "Member" : "Reviewer",
+      },
       { id: "agt_ember", name: "Ember", kind: "agent" as const, role: "Can use" },
       { id: "agt_docs", name: "Docs", kind: "agent" as const, role: "Can edit" },
     ];
     return (
       <View style={{ flex: 1 }}>
-        <PeoplePopover where={part === "people-chat" ? "chat" : "project"} rows={rows} meId="usr_irfad" perms={{ message: true, changeRole: true, remove: true }} anchor={{ x: 700, y: 70 }} onOpen={noopX} onAction={noopX} onFooter={noopX} onClose={noopX} />
+        <PeoplePopover
+          where={part === "people-chat" ? "chat" : "project"}
+          rows={rows}
+          meId="usr_irfad"
+          perms={{ message: true, changeRole: true, remove: true }}
+          anchor={{ x: 700, y: 70 }}
+          onOpen={noopX}
+          onAction={noopX}
+          onFooter={noopX}
+          onClose={noopX}
+        />
       </View>
     );
   }

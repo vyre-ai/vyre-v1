@@ -51,21 +51,47 @@ esac
 `;
 
 const host = createDockerComputerHost({
-  api, http, image: DEFAULT_IMAGE, cmd: ["sleep", "infinity"], prefix: PREFIX, ctl: CTL, filesRoot: () => filesRoot, startTimeoutMs: 40_000, user: { uid: 10001, gid: 10001 },
+  api,
+  http,
+  image: DEFAULT_IMAGE,
+  cmd: ["sleep", "infinity"],
+  prefix: PREFIX,
+  ctl: CTL,
+  filesRoot: () => filesRoot,
+  startTimeoutMs: 40_000,
+  user: { uid: 10001, gid: 10001 },
 });
 
 const nameOf = (computerId: string): string => `${PREFIX}${computerId.replace(/^cmt_/, "")}`;
 async function inspect(name: string): Promise<{ status: number; json: any }> {
   const r = await http({ method: "GET", path: `/containers/${name}/json` });
   let json: any = null;
-  try { json = JSON.parse(new TextDecoder().decode(r.body)); } catch { json = null; }
+  try {
+    json = JSON.parse(new TextDecoder().decode(r.body));
+  } catch {
+    json = null;
+  }
   return { status: r.status, json };
 }
-const run = (name: string, cmd: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> => api.exec(name, { cmd, env: [] });
+const run = (name: string, cmd: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> =>
+  api.exec(name, { cmd, env: [] });
 
 /** Put the stand-in control program into a running container, as the image will have it. */
 async function installCtl(name: string): Promise<void> {
-  await api.putArchive(name, FILES_GUEST, tarFiles([{ path: ".agentd-ctl", data: new TextEncoder().encode(CTL_SCRIPT), mode: 0o755, uid: 10001, gid: 10001, mtime: Math.floor(Date.now() / 1000) }]));
+  await api.putArchive(
+    name,
+    FILES_GUEST,
+    tarFiles([
+      {
+        path: ".agentd-ctl",
+        data: new TextEncoder().encode(CTL_SCRIPT),
+        mode: 0o755,
+        uid: 10001,
+        gid: 10001,
+        mtime: Math.floor(Date.now() / 1000),
+      },
+    ]),
+  );
 }
 
 /** Wake a computer whose container does not have its control program yet: the host waits for agentd, and the program is put in as soon as the container runs. */
@@ -87,89 +113,122 @@ before(async () => {
 after(async () => {
   bindHost(null);
   if (!ON) return;
-  const list = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ name: [PREFIX] }) } });
+  const list = await http({
+    method: "GET",
+    path: "/containers/json",
+    query: { all: "true", filters: JSON.stringify({ name: [PREFIX] }) },
+  });
   const containers = JSON.parse(new TextDecoder().decode(list.body)) as Array<{ Id: string }>;
   // What the container wrote belongs to its user (uid 10001); remove it from inside before the container goes.
-  for (const c of containers) await api.exec(c.Id, { cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/.agentd-ctl`], env: [] }).catch(() => undefined);
+  for (const c of containers)
+    await api
+      .exec(c.Id, { cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/.agentd-ctl`], env: [] })
+      .catch(() => undefined);
   for (const c of containers) await api.containerRemove(c.Id);
   const vols = await http({ method: "GET", path: "/volumes", query: { filters: JSON.stringify({ name: [PREFIX] }) } });
-  for (const v of (JSON.parse(new TextDecoder().decode(vols.body)) as { Volumes?: Array<{ Name: string }> }).Volumes ?? []) await http({ method: "DELETE", path: `/volumes/${v.Name}`, query: { force: "true" } });
-  try { fs.rmSync(filesRoot, { recursive: true, force: true }); } catch { /* a leftover temp folder is not a failure */ }
+  for (const v of (JSON.parse(new TextDecoder().decode(vols.body)) as { Volumes?: Array<{ Name: string }> }).Volumes ??
+    [])
+    await http({ method: "DELETE", path: `/volumes/${v.Name}`, query: { force: "true" } });
+  try {
+    fs.rmSync(filesRoot, { recursive: true, force: true });
+  } catch {
+    /* a leftover temp folder is not a failure */
+  }
 });
 
-test("@heavy computers: provision, wake, take over, record, give back, sleep, wake and remove on a real Docker host", { skip, timeout: 300_000 }, async () => {
-  const h = harness();
-  bindHost(host);
+test(
+  "@heavy computers: provision, wake, take over, record, give back, sleep, wake and remove on a real Docker host",
+  { skip, timeout: 300_000 },
+  async () => {
+    const h = harness();
+    bindHost(host);
 
-  // provision: a container exists, stopped, inside its profile
-  const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "heavy" });
-  const id = made.computer.computerId;
-  const name = nameOf(id);
-  assert.equal(made.computer.state, "asleep");
-  const created = await inspect(name);
-  assert.equal(created.status, 200);
-  assert.equal(created.json.State.Running, false, "asleep means no running container");
-  const hc = created.json.HostConfig;
-  assert.equal(hc.Privileged, false);
-  assert.deepEqual(hc.CapDrop, ["ALL"]);
-  assert.ok((hc.SecurityOpt as string[]).includes("no-new-privileges:true"));
-  assert.equal(hc.NetworkMode, "bridge");
-  assert.ok(hc.Memory > 0 && hc.PidsLimit > 0);
-  assert.ok(!(hc.Binds as string[]).some((b) => b.includes("docker.sock")));
-  assert.equal(hc.IpcMode, "private");
-  assert.ok(!hc.PidMode, "no host pid namespace");
-  assert.equal((hc.Devices ?? []).length, 0);
+    // provision: a container exists, stopped, inside its profile
+    const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "heavy" });
+    const id = made.computer.computerId;
+    const name = nameOf(id);
+    assert.equal(made.computer.state, "asleep");
+    const created = await inspect(name);
+    assert.equal(created.status, 200);
+    assert.equal(created.json.State.Running, false, "asleep means no running container");
+    const hc = created.json.HostConfig;
+    assert.equal(hc.Privileged, false);
+    assert.deepEqual(hc.CapDrop, ["ALL"]);
+    assert.ok((hc.SecurityOpt as string[]).includes("no-new-privileges:true"));
+    assert.equal(hc.NetworkMode, "bridge");
+    assert.ok(hc.Memory > 0 && hc.PidsLimit > 0);
+    assert.ok(!(hc.Binds as string[]).some((b) => b.includes("docker.sock")));
+    assert.equal(hc.IpcMode, "private");
+    assert.ok(!hc.PidMode, "no host pid namespace");
+    assert.equal((hc.Devices ?? []).length, 0);
 
-  // wake: the container runs and agentd answers
-  const woke = await wakeWithCtl(h, id);
-  assert.equal(woke.computer.state, "working");
-  assert.equal((await inspect(name)).json.State.Running, true);
-  assert.equal((await run(name, [CTL, "status", "{}"])).stdout.includes('"tabs":1'), true);
-  assert.equal(woke.computer.tabs, 1);
+    // wake: the container runs and agentd answers
+    const woke = await wakeWithCtl(h, id);
+    assert.equal(woke.computer.state, "working");
+    assert.equal((await inspect(name)).json.State.Running, true);
+    assert.equal((await run(name, [CTL, "status", "{}"])).stdout.includes('"tabs":1'), true);
+    assert.equal(woke.computer.tabs, 1);
 
-  // the screen and the live view
-  const shot = await screenshot(h.ctx, { computerId: id });
-  assert.deepEqual([shot.width, shot.height], [800, 600]);
-  const live = await stream(h.ctx, { computerId: id });
-  assert.equal(live.transport, "mjpeg");
+    // the screen and the live view
+    const shot = await screenshot(h.ctx, { computerId: id });
+    assert.deepEqual([shot.width, shot.height], [800, 600]);
+    const live = await stream(h.ctx, { computerId: id });
+    assert.equal(live.transport, "mjpeg");
 
-  // take over: agentd was told who, and the state says so
-  const taken = await takeOver(h.ctx, { computerId: id });
-  assert.equal(taken.computer.state, "takeover");
-  assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/takeover`])).stdout), { personId: "usr_dana" }, "agentd was told whose hands are on the desktop");
+    // take over: agentd was told who, and the state says so
+    const taken = await takeOver(h.ctx, { computerId: id });
+    assert.equal(taken.computer.state, "takeover");
+    assert.deepEqual(
+      JSON.parse((await run(name, ["cat", `${STATE}/takeover`])).stdout),
+      { personId: "usr_dana" },
+      "agentd was told whose hands are on the desktop",
+    );
 
-  // record: files appear on the host's disk, masked
-  const rec = await recordStart(h.ctx, { computerId: id });
-  assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/recording`])).stdout), { recordingId: rec.recordingId });
-  const done = await recordStop(h.ctx, { computerId: id });
-  assert.equal(done.recording.durationMs, 1500);
-  // The files belong to the container's user (mode 0640, uid 10001), so they are read from inside, where the agent sees them.
-  const inside = `${FILES_GUEST}/${done.recording.folderPath}`;
-  const events = (await run(name, ["cat", `${inside}/events.jsonl`])).stdout;
-  assert.match(events, /"key":"\[masked\]"/, "a key typed into a password field is not on disk");
-  assert.ok(!/"key":"x"/.test(events));
-  assert.equal(JSON.parse((await run(name, ["cat", `${inside}/network.har`])).stdout).log.version, "1.2");
-  assert.ok((await run(name, ["ls", `${FILES_GUEST}/${done.recording.folderPath}`])).stdout.includes("events.jsonl"), "the files are where the agent sees them, in its own folder");
+    // record: files appear on the host's disk, masked
+    const rec = await recordStart(h.ctx, { computerId: id });
+    assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/recording`])).stdout), {
+      recordingId: rec.recordingId,
+    });
+    const done = await recordStop(h.ctx, { computerId: id });
+    assert.equal(done.recording.durationMs, 1500);
+    // The files belong to the container's user (mode 0640, uid 10001), so they are read from inside, where the agent sees them.
+    const inside = `${FILES_GUEST}/${done.recording.folderPath}`;
+    const events = (await run(name, ["cat", `${inside}/events.jsonl`])).stdout;
+    assert.match(events, /"key":"\[masked\]"/, "a key typed into a password field is not on disk");
+    assert.ok(!/"key":"x"/.test(events));
+    assert.equal(JSON.parse((await run(name, ["cat", `${inside}/network.har`])).stdout).log.version, "1.2");
+    assert.ok(
+      (await run(name, ["ls", `${FILES_GUEST}/${done.recording.folderPath}`])).stdout.includes("events.jsonl"),
+      "the files are where the agent sees them, in its own folder",
+    );
 
-  // give back
-  const back = await giveBack(h.ctx, { computerId: id });
-  assert.equal(back.computer.state, "working");
-  assert.notEqual((await run(name, ["test", "-e", `${STATE}/takeover`])).exitCode, 0, "the takeover is over inside the container");
+    // give back
+    const back = await giveBack(h.ctx, { computerId: id });
+    assert.equal(back.computer.state, "working");
+    assert.notEqual(
+      (await run(name, ["test", "-e", `${STATE}/takeover`])).exitCode,
+      0,
+      "the takeover is over inside the container",
+    );
 
-  // sleep: the container stops, the sessions it had are kept
-  const slept = await sleep(h.ctx, { computerId: id });
-  assert.equal(slept.computer.state, "asleep");
-  assert.equal((await inspect(name)).json.State.Running, false);
-  assert.deepEqual((await sessionsList(h.ctx, { computerId: id })).sessions.map((s) => s.site), ["app.example.com"]);
+    // sleep: the container stops, the sessions it had are kept
+    const slept = await sleep(h.ctx, { computerId: id });
+    assert.equal(slept.computer.state, "asleep");
+    assert.equal((await inspect(name)).json.State.Running, false);
+    assert.deepEqual(
+      (await sessionsList(h.ctx, { computerId: id })).sessions.map((s) => s.site),
+      ["app.example.com"],
+    );
 
-  // wake again: the same container comes back
-  const again = await wakeWithCtl(h, id);
-  assert.equal(again.computer.state, "working");
-  assert.equal((await inspect(name)).json.State.Running, true);
+    // wake again: the same container comes back
+    const again = await wakeWithCtl(h, id);
+    assert.equal(again.computer.state, "working");
+    assert.equal((await inspect(name)).json.State.Running, true);
 
-  // remove: the container and its volume are gone
-  assert.deepEqual(await remove(h.ctx, { computerId: id }), { removed: true });
-  assert.equal((await inspect(name)).status, 404);
-  const vol = await http({ method: "GET", path: `/volumes/${name}-profile` });
-  assert.equal(vol.status, 404);
-});
+    // remove: the container and its volume are gone
+    assert.deepEqual(await remove(h.ctx, { computerId: id }), { removed: true });
+    assert.equal((await inspect(name)).status, 404);
+    const vol = await http({ method: "GET", path: `/volumes/${name}-profile` });
+    assert.equal(vol.status, 404);
+  },
+);

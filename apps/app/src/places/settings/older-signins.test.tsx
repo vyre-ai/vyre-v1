@@ -6,13 +6,35 @@ import { olderLine } from "./pages-a.tsx";
 import { connectedAccounts, entryOf, stripAgents } from "../chats/conversation/brain.tsx";
 
 const ROWS = [
-  { ref: "#Claude_Code_3", driver: "claude_code", kind: "subscription", title: "Claude Code", name: "Claude Code", status: "ok", aliases: ["#Claude_Code", "#Claude_Code_2", "#Claude_Code_4"] },
-  { ref: "#Codex", driver: "codex", kind: "subscription", title: "Codex", name: "Codex, dana@example.com", status: "ok", aliases: ["#Codex_2"] },
+  {
+    ref: "#Claude_Code_3",
+    driver: "claude_code",
+    kind: "subscription",
+    title: "Claude Code",
+    name: "Claude Code",
+    status: "ok",
+    aliases: ["#Claude_Code", "#Claude_Code_2", "#Claude_Code_4"],
+  },
+  {
+    ref: "#Codex",
+    driver: "codex",
+    kind: "subscription",
+    title: "Codex",
+    name: "Codex, dana@example.com",
+    status: "ok",
+    aliases: ["#Codex_2"],
+  },
 ];
 
 test("the composer offers one entry per account, by its name, and a pin to a folded or older handle shows that entry", () => {
   const accounts = connectedAccounts(ROWS);
-  assert.deepEqual(accounts.map((a) => [a.ref, a.name]), [["#Claude_Code_3", "Claude Code"], ["#Codex", "Codex, dana@example.com"]]);
+  assert.deepEqual(
+    accounts.map((a) => [a.ref, a.name]),
+    [
+      ["#Claude_Code_3", "Claude Code"],
+      ["#Codex", "Codex, dana@example.com"],
+    ],
+  );
   assert.equal(entryOf(accounts, "#Claude_Code_4")?.ref, "#Claude_Code_3");
   assert.equal(entryOf(accounts, "#Codex_2")?.ref, "#Codex");
   assert.equal(entryOf(accounts, "#Codex")?.ref, "#Codex");
@@ -21,8 +43,20 @@ test("the composer offers one entry per account, by its name, and a pin to a fol
 });
 
 test("the strip names the account a chat is pinned to, through a folded handle, and only when two of one provider are connected", () => {
-  const accounts = connectedAccounts([...ROWS, { ref: "#Claude_Work", driver: "claude_code", kind: "subscription", title: "Claude Code", name: "Claude Code, Work Org", status: "ok" }]);
-  const thread = { agents: [{ agentId: "agt_1", accountRef: "#Claude_Code_4", provider: "claude_code" }] } as unknown as Parameters<typeof stripAgents>[0];
+  const accounts = connectedAccounts([
+    ...ROWS,
+    {
+      ref: "#Claude_Work",
+      driver: "claude_code",
+      kind: "subscription",
+      title: "Claude Code",
+      name: "Claude Code, Work Org",
+      status: "ok",
+    },
+  ]);
+  const thread = {
+    agents: [{ agentId: "agt_1", accountRef: "#Claude_Code_4", provider: "claude_code" }],
+  } as unknown as Parameters<typeof stripAgents>[0];
   const [agent] = stripAgents(thread, () => "Agent", accounts, new Map());
   assert.equal((agent as { accountName?: string }).accountName, "Claude Code");
 });

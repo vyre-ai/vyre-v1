@@ -32,7 +32,9 @@ const nodeRequire = createRequire(import.meta.url);
 const htmlOf = (node: ReactNode): string => renderToStaticMarkup(node).replaceAll("<!-- -->", "");
 /** The atomic class react-native-web emits for this style, plus the rule that class inserts. */
 function atomicCss(style: Record<string, number>): { className: string; css: string } {
-  const preprocess = nodeRequire("react-native-web/dist/cjs/exports/StyleSheet/preprocess.js") as { preprocess(style: unknown): unknown };
+  const preprocess = nodeRequire("react-native-web/dist/cjs/exports/StyleSheet/preprocess.js") as {
+    preprocess(style: unknown): unknown;
+  };
   const compiler = nodeRequire("react-native-web/dist/cjs/exports/StyleSheet/compiler/index.js") as {
     atomic(style: unknown): [{ [key: string]: string }, [string[], number][]];
   };
@@ -47,7 +49,13 @@ const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*dat
 /** react-native-web prints a hex token as rgba. Either form counts. */
 const cssColor = (hex: string): RegExp => {
   const raw = hex.replace("#", "");
-  const full = raw.length === 3 ? raw.split("").map((ch) => ch + ch).join("") : raw;
+  const full =
+    raw.length === 3
+      ? raw
+          .split("")
+          .map((ch) => ch + ch)
+          .join("")
+      : raw;
   const r = Number.parseInt(full.slice(0, 2), 16);
   const g = Number.parseInt(full.slice(2, 4), 16);
   const b = Number.parseInt(full.slice(4, 6), 16);
@@ -70,7 +78,15 @@ const samples = {
   lookup: asFixture(4, "transform", { id: "rec_1" }),
 };
 const focusCard: CardNode = {
-  id: "focus-step", type: "step", x: 0, y: 0, w: 260, h: 52, title: "Find the person", sub: "type contact", issues: [],
+  id: "focus-step",
+  type: "step",
+  x: 0,
+  y: 0,
+  w: 260,
+  h: 52,
+  title: "Find the person",
+  sub: "type contact",
+  issues: [],
 };
 const quietCard: CardNode = { ...focusCard, id: "quiet-step", title: "Quiet step" };
 const handlers: CardHandlers = {
@@ -80,9 +96,26 @@ const handlers: CardHandlers = {
   onAdd: () => undefined,
   onKey: () => undefined,
 };
-const run = { id: "run_row", kind: "automation", owner: "usr_a", startedBy: "usr_a", status: "succeeded", costMicros: 0, startedAt: 1_700_000_000_000, traceId: "tr_row" } as Run;
+const run = {
+  id: "run_row",
+  kind: "automation",
+  owner: "usr_a",
+  startedBy: "usr_a",
+  status: "succeeded",
+  costMicros: 0,
+  startedAt: 1_700_000_000_000,
+  traceId: "tr_row",
+} as Run;
 const row: RunLine = { kind: "row", id: "found", text: "Found the person", icon: "search", tone: "ok", offset: 2 };
-const lineActions = { retryStep: () => undefined, skipStep: () => undefined, editStep: () => undefined, stopRun: () => undefined, copyTrace: () => undefined, replayMenu: () => undefined, decide: () => undefined };
+const lineActions = {
+  retryStep: () => undefined,
+  skipStep: () => undefined,
+  editStep: () => undefined,
+  stopRun: () => undefined,
+  copyTrace: () => undefined,
+  replayMenu: () => undefined,
+  decide: () => undefined,
+};
 const groups = [
   { disposition: "safe" as const, definitionVersion: 12, runIds: ["run_safe"], reason: "The steps still match" },
   { disposition: "ambiguous" as const, definitionVersion: 12, runIds: ["run_amb"], reason: "Two steps could match" },
@@ -128,7 +161,10 @@ test("Basic and Advanced write one typed value, and the other section 17 models 
       { disposition: "other", definitionVersion: 1, runIds: ["nope"] },
     ],
   });
-  assert.deepEqual(parsed.map((group) => group.disposition), ["safe", "ambiguous", "inactive"]);
+  assert.deepEqual(
+    parsed.map((group) => group.disposition),
+    ["safe", "ambiguous", "inactive"],
+  );
   assert.equal(cohortGroupLabel(13, parsed[0]!), "Safe group, version 12, pinned");
   assert.equal(cohortGroupLabel(13, parsed[1]!), "Ambiguous group, version 12, pinned");
   assert.equal(cohortGroupLabel(13, parsed[2]!), "Finished group, version 13, current definition");
@@ -170,18 +206,85 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       const frame = frameFor(layout);
       const out = htmlOf(
         <AutomationsDataProvider value={sample.data}>
-          <View testID={`frame-${theme.theme}-${layout}`} dataSet={{ theme: theme.theme, layout, skin: theme.skin }} style={{ width: frame.width, backgroundColor: tokens["--win"] }}>
+          <View
+            testID={`frame-${theme.theme}-${layout}`}
+            dataSet={{ theme: theme.theme, layout, skin: theme.skin }}
+            style={{ width: frame.width, backgroundColor: tokens["--win"] }}
+          >
             <Text testID="skin-ink" style={{ color: tokens["--ink"] }}>{`${theme.skin} ${layout}`}</Text>
-            <Inspector def={def} node={mapNode} trigger={null} triggerIndex={null} issues={[]} keys={[]} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} testID="inspector-basic" layout={layout} samples={samples} version={9} />
-            <Inspector def={def} node={mapNode} trigger={null} triggerIndex={null} issues={[]} keys={[]} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} testID="inspector-advanced" layout={layout} initialAdvanced samples={samples} version={9} />
-            <Inspector def={def} node={mapNode} trigger={null} triggerIndex={null} issues={[]} keys={[]} onChange={() => undefined} onClose={() => undefined} onDelete={() => undefined} testID="inspector-data" layout={layout} section="data" samples={samples} version={9} />
+            <Inspector
+              def={def}
+              node={mapNode}
+              trigger={null}
+              triggerIndex={null}
+              issues={[]}
+              keys={[]}
+              onChange={() => undefined}
+              onClose={() => undefined}
+              onDelete={() => undefined}
+              testID="inspector-basic"
+              layout={layout}
+              samples={samples}
+              version={9}
+            />
+            <Inspector
+              def={def}
+              node={mapNode}
+              trigger={null}
+              triggerIndex={null}
+              issues={[]}
+              keys={[]}
+              onChange={() => undefined}
+              onClose={() => undefined}
+              onDelete={() => undefined}
+              testID="inspector-advanced"
+              layout={layout}
+              initialAdvanced
+              samples={samples}
+              version={9}
+            />
+            <Inspector
+              def={def}
+              node={mapNode}
+              trigger={null}
+              triggerIndex={null}
+              issues={[]}
+              keys={[]}
+              onChange={() => undefined}
+              onClose={() => undefined}
+              onDelete={() => undefined}
+              testID="inspector-data"
+              layout={layout}
+              section="data"
+              samples={samples}
+              version={9}
+            />
             <MappingFix nodeIds={new Set(["map"])} value={phone} />
-            <StepTest stepKey="records.find" nodeId="map" input={stepInput} version={9} readyOutput={{ id: "rec_1" }} onUseOutput={() => undefined} />
+            <StepTest
+              stepKey="records.find"
+              nodeId="map"
+              input={stepInput}
+              version={9}
+              readyOutput={{ id: "rec_1" }}
+              onUseOutput={() => undefined}
+            />
             <AutomationCanvas automationId="aut_lead" />
-            <RunLineage parentRun="run_parent" steps={[{ attempt: 2 }]} children={[{ runId: "run_child", attempt: 2 }]} testID="lineage-filled" />
+            <RunLineage
+              parentRun="run_parent"
+              steps={[{ attempt: 2 }]}
+              children={[{ runId: "run_child", attempt: 2 }]}
+              testID="lineage-filled"
+            />
             <RunLineage testID="lineage-empty" />
             <CohortGroups currentVersion={13} groups={groups} />
-            <StepCard card={focusCard} selected={false} hovered={false} focused handlers={handlers} onHover={() => undefined} />
+            <StepCard
+              card={focusCard}
+              selected={false}
+              hovered={false}
+              focused
+              handlers={handlers}
+              onHover={() => undefined}
+            />
             <StepCard card={quietCard} selected={false} hovered={false} handlers={handlers} onHover={() => undefined} />
             <RunLines run={run} lines={[row]} name={() => "Ada"} me="me" actions={lineActions} canRetry={false} />
           </View>

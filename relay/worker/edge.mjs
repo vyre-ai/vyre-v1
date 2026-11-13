@@ -15,9 +15,16 @@ export const FENCE_SECRET = "FENCE_HOSTS";
 export function client(f, token) {
   /** @param {string} method @param {string} path @param {unknown} [body] */
   return async (method, path, body) => {
-    const r = await f(`${API}${path}`, { method, headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const r = await f(`${API}${path}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
     const j = /** @type {any} */ (await r.json());
-    if (!j.success) throw new Error(`${method} ${path}: ${(j.errors || []).map((/** @type {any} */ e) => e.message).join("; ") || r.status}`);
+    if (!j.success)
+      throw new Error(
+        `${method} ${path}: ${(j.errors || []).map((/** @type {any} */ e) => e.message).join("; ") || r.status}`,
+      );
     return j.result;
   };
 }
@@ -51,30 +58,55 @@ export async function run(call, mode) {
   const zone = zones[0] && zones[0].id;
   const account = zones[0] && zones[0].account && zones[0].account.id;
   if (!zone) throw new Error(`no zone ${ZONE} for this token`);
-  const dns = (await call("GET", `/zones/${zone}/dns_records?name=${encodeURIComponent(WILDCARD)}&per_page=50`));
+  const dns = await call("GET", `/zones/${zone}/dns_records?name=${encodeURIComponent(WILDCARD)}&per_page=50`);
   const wild = dns.find((/** @type {any} */ r) => r.name === WILDCARD && r.type === "AAAA");
   const other = dns.filter((/** @type {any} */ r) => r.name === WILDCARD && r.type !== "AAAA");
   if (other.length) throw new Error(`${WILDCARD} already has a ${other[0].type} record: nothing was changed`);
-  if (wild && (wild.content !== "100::" || wild.proxied !== true)) throw new Error(`${WILDCARD} AAAA exists but is not the proxied 100:: record: nothing was changed`);
+  if (wild && (wild.content !== "100::" || wild.proxied !== true))
+    throw new Error(`${WILDCARD} AAAA exists but is not the proxied 100:: record: nothing was changed`);
   const routes = await call("GET", `/zones/${zone}/workers/routes`);
   const route = routes.find((/** @type {any} */ r) => r.pattern === ROUTE);
-  if (route && route.script !== SCRIPT) throw new Error(`${ROUTE} already goes to ${route.script}: nothing was changed`);
+  if (route && route.script !== SCRIPT)
+    throw new Error(`${ROUTE} already goes to ${route.script}: nothing was changed`);
   const out = { dns: wild ? "present" : "absent", route: route ? "present" : "absent" };
   if (mode === "apply") {
-    if (!route) { await call("POST", `/zones/${zone}/workers/routes`, { pattern: ROUTE, script: SCRIPT }); out.route = "created"; }
+    if (!route) {
+      await call("POST", `/zones/${zone}/workers/routes`, { pattern: ROUTE, script: SCRIPT });
+      out.route = "created";
+    }
     // the route first: until the record exists nothing resolves to it, and once it does the Worker is already there to hand other hosts to their origins
-    if (!wild) { await call("POST", `/zones/${zone}/dns_records`, { type: "AAAA", name: WILDCARD, content: "100::", proxied: true, ttl: 1, comment: "phone access wildcard (relay/worker/edge.mjs)" }); out.dns = "created"; }
+    if (!wild) {
+      await call("POST", `/zones/${zone}/dns_records`, {
+        type: "AAAA",
+        name: WILDCARD,
+        content: "100::",
+        proxied: true,
+        ttl: 1,
+        comment: "phone access wildcard (relay/worker/edge.mjs)",
+      });
+      out.dns = "created";
+    }
   }
   if (mode === "apply") {
     if (!account) throw new Error("the zone did not name its account");
     // after the route and the record: from here a name could resolve, and from here the Worker knows which hosts are not names
     const labels = await fencedLabels(call, zone);
-    await call("PUT", `/accounts/${account}/workers/scripts/${SCRIPT}/secrets`, { name: FENCE_SECRET, text: labels.join(","), type: "secret_text" });
+    await call("PUT", `/accounts/${account}/workers/scripts/${SCRIPT}/secrets`, {
+      name: FENCE_SECRET,
+      text: labels.join(","),
+      type: "secret_text",
+    });
     out.fenced = labels.length;
   }
   if (mode === "remove") {
-    if (wild) { await call("DELETE", `/zones/${zone}/dns_records/${wild.id}`); out.dns = "removed"; }
-    if (route) { await call("DELETE", `/zones/${zone}/workers/routes/${route.id}`); out.route = "removed"; }
+    if (wild) {
+      await call("DELETE", `/zones/${zone}/dns_records/${wild.id}`);
+      out.dns = "removed";
+    }
+    if (route) {
+      await call("DELETE", `/zones/${zone}/workers/routes/${route.id}`);
+      out.route = "removed";
+    }
   }
   return /** @type {any} */ (out);
 }
@@ -93,7 +125,9 @@ export async function snapshot(f, hosts = HOSTS) {
     try {
       const r = await f(`https://${h}.${ZONE}/`, { redirect: "manual", signal: AbortSignal.timeout(15_000) });
       out[h] = `${r.status} ${r.headers.get("content-type") || ""} ${r.headers.get("location") || ""}`.trim();
-    } catch (e) { out[h] = `error ${/** @type {Error} */ (e).message}`; }
+    } catch (e) {
+      out[h] = `error ${/** @type {Error} */ (e).message}`;
+    }
   }
   return out;
 }
@@ -101,9 +135,18 @@ export async function snapshot(f, hosts = HOSTS) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const flag = process.argv[2] || "--status";
   const mode = flag === "--apply" ? "apply" : flag === "--remove" ? "remove" : flag === "--status" ? "status" : null;
-  if (flag === "--snapshot") { console.log(JSON.stringify(await snapshot(fetch), null, 2)); process.exit(0); }
-  if (!mode) { console.error("usage: edge.mjs --status | --apply | --remove | --snapshot"); process.exit(2); }
+  if (flag === "--snapshot") {
+    console.log(JSON.stringify(await snapshot(fetch), null, 2));
+    process.exit(0);
+  }
+  if (!mode) {
+    console.error("usage: edge.mjs --status | --apply | --remove | --snapshot");
+    process.exit(2);
+  }
   const token = process.env["CLOUDFLARE_API_TOKEN"] || "";
-  if (!token) { console.error("CLOUDFLARE_API_TOKEN is not set"); process.exit(2); }
+  if (!token) {
+    console.error("CLOUDFLARE_API_TOKEN is not set");
+    process.exit(2);
+  }
   console.log(JSON.stringify(await run(client(fetch, token), mode)));
 }

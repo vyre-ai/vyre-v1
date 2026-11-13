@@ -22,7 +22,9 @@ test("PERF: the small seed is ready in under 150 ms from the cache", async () =>
   }
   times.sort((x, y) => x - y);
   const median = times[3]!;
-  console.log(`small seed on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 150 ms)`);
+  console.log(
+    `small seed on a cache hit: median ${median.toFixed(1)} ms, min ${times[0]!.toFixed(1)} ms, max ${times[6]!.toFixed(1)} ms (budget 150 ms)`,
+  );
   assert.ok(median < 150, `median ${median.toFixed(1)} ms is over the 150 ms budget`);
   assert.ok(times[6]! < 150 * 3, "even the slowest boot stays near the budget");
 });

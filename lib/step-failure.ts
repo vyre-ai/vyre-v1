@@ -30,7 +30,12 @@ export function clampRetry(max: number): number {
   return Math.max(1, Math.min(10, Math.floor(max)));
 }
 
-export function normalizePolicy(policy: FailurePolicy): { engine: EngineOnError; skip: boolean; substitute?: unknown; codes?: readonly string[] } {
+export function normalizePolicy(policy: FailurePolicy): {
+  engine: EngineOnError;
+  skip: boolean;
+  substitute?: unknown;
+  codes?: readonly string[];
+} {
   switch (policy.action) {
     case "retry":
       return { engine: { mode: "retry", max: clampRetry(policy.max) }, skip: false };
@@ -41,7 +46,11 @@ export function normalizePolicy(policy: FailurePolicy): { engine: EngineOnError;
     case "stop":
       return { engine: { mode: "fail" }, skip: false };
     case "route":
-      return { engine: { mode: "route", route: policy.to }, skip: false, ...(policy.codes ? { codes: policy.codes } : {}) };
+      return {
+        engine: { mode: "route", route: policy.to },
+        skip: false,
+        ...(policy.codes ? { codes: policy.codes } : {}),
+      };
   }
 }
 
@@ -83,7 +92,9 @@ export function failureResult(onError: StepOnError | undefined, error: unknown):
       const route = onError.route;
       if (typeof route !== "string" || route.length === 0) return "throw";
       const listed = Array.isArray(onError.codes) && onError.codes.length > 0 ? onError.codes : undefined;
-      const normalized = normalizePolicy(listed ? { action: "route", to: route, codes: listed } : { action: "route", to: route });
+      const normalized = normalizePolicy(
+        listed ? { action: "route", to: route, codes: listed } : { action: "route", to: route },
+      );
       const next = normalized.engine.route;
       if (!next) return "throw";
       if (normalized.codes && normalized.codes.length > 0) {

@@ -11,12 +11,26 @@ export const DAY = 86_400_000;
 export const VIEW_LIMIT = 1000;
 
 export const startOfDay = (ms: number): number => Math.floor(ms / DAY) * DAY;
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export const dayKey = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-export const monthTitle = (ms: number): string => `${MONTHS[new Date(ms).getUTCMonth()]} ${new Date(ms).getUTCFullYear()}`;
+export const monthTitle = (ms: number): string =>
+  `${MONTHS[new Date(ms).getUTCMonth()]} ${new Date(ms).getUTCFullYear()}`;
 export const shortDay = (ms: number): string => `${MON[new Date(ms).getUTCMonth()]} ${new Date(ms).getUTCDate()}`;
 
 /** A stored date as milliseconds: a number, or an ISO string. Anything else is no date. */
@@ -33,7 +47,12 @@ export const isDateField = (f: FieldDef): boolean => f.type === "date" || f.type
 export const dateFields = (def: TypeDef): FieldDef[] => def.fields.filter(isDateField);
 
 /** The field a view reads: a pick from its menu, then the saved view's `config[key]`, then the first date field. */
-export function dateFieldOf(def: TypeDef, key: string, saved?: { config?: Record<string, unknown> }, picked?: string | null): FieldDef | undefined {
+export function dateFieldOf(
+  def: TypeDef,
+  key: string,
+  saved?: { config?: Record<string, unknown> },
+  picked?: string | null,
+): FieldDef | undefined {
   const all = dateFields(def);
   const cfg = saved?.config?.[key];
   for (const k of [picked, typeof cfg === "string" ? cfg : null]) {
@@ -45,7 +64,12 @@ export function dateFieldOf(def: TypeDef, key: string, saved?: { config?: Record
 
 // ---------------------------------------------------------------- calendar
 
-export interface Cell { ms: number; day: number; inMonth: boolean; key: string }
+export interface Cell {
+  ms: number;
+  day: number;
+  inMonth: boolean;
+  key: string;
+}
 
 /** The six weeks that show a month, from the Sunday on or before the 1st. */
 export function monthGrid(cursor: number): Cell[] {
@@ -55,7 +79,12 @@ export function monthGrid(cursor: number): Cell[] {
   const out: Cell[] = [];
   for (let i = 0; i < 42; i++) {
     const ms = start + i * DAY;
-    out.push({ ms, day: new Date(ms).getUTCDate(), inMonth: new Date(ms).getUTCMonth() === d.getUTCMonth(), key: dayKey(ms) });
+    out.push({
+      ms,
+      day: new Date(ms).getUTCDate(),
+      inMonth: new Date(ms).getUTCMonth() === d.getUTCMonth(),
+      key: dayKey(ms),
+    });
   }
   return out;
 }
@@ -73,7 +102,8 @@ export function bucketByDay(rows: readonly RecordRow[], f: FieldDef): Map<string
     if (ms === null) continue;
     const k = dayKey(ms);
     const list = out.get(k);
-    if (list) list.push(r); else out.set(k, [r]);
+    if (list) list.push(r);
+    else out.set(k, [r]);
   }
   for (const list of out.values()) list.sort((a, b) => (msOf(a.fields[f.key]) ?? 0) - (msOf(b.fields[f.key]) ?? 0));
   return out;
@@ -105,19 +135,32 @@ export const ROW_H = BAR_H + ROW_GAP;
 export const HEAD_H = 44;
 export const LABEL_W = 220;
 
-export interface Range { start: FieldDef; end: FieldDef | null }
+export interface Range {
+  start: FieldDef;
+  end: FieldDef | null;
+}
 
 /** The two fields a timeline spans: a pick, the saved `config.start` and `config.end`, then the first date field and the next one (a record with only one date is a one day bar). */
-export function rangeOf(def: TypeDef, saved?: { config?: Record<string, unknown> }, picked?: string | null): Range | undefined {
+export function rangeOf(
+  def: TypeDef,
+  saved?: { config?: Record<string, unknown> },
+  picked?: string | null,
+): Range | undefined {
   const all = dateFields(def);
   const start = dateFieldOf(def, "start", saved, picked);
   if (!start) return undefined;
   const cfg = saved?.config?.["end"];
-  const end = (typeof cfg === "string" ? all.find((f) => f.key === cfg) : undefined) ?? all.find((f) => f !== start) ?? null;
+  const end =
+    (typeof cfg === "string" ? all.find((f) => f.key === cfg) : undefined) ?? all.find((f) => f !== start) ?? null;
   return { start, end };
 }
 
-export interface Bar { id: string; row: RecordRow; start: number; end: number }
+export interface Bar {
+  id: string;
+  row: RecordRow;
+  start: number;
+  end: number;
+}
 
 /** A bar per record that has a start. The end is the end field, never before the start; with no end it is the start day. Sorted by start, then title. */
 export function barsOf(rows: readonly RecordRow[], range: Range, titleField: string): Bar[] {
@@ -129,13 +172,20 @@ export function barsOf(rows: readonly RecordRow[], range: Range, titleField: str
     const start = startOfDay(s);
     out.push({ id: row.id, row, start, end: Math.max(start, e === null ? start : startOfDay(e)) });
   }
-  return out.sort((a, b) => a.start - b.start || String(a.row.fields[titleField] ?? "").localeCompare(String(b.row.fields[titleField] ?? "")));
+  return out.sort(
+    (a, b) =>
+      a.start - b.start || String(a.row.fields[titleField] ?? "").localeCompare(String(b.row.fields[titleField] ?? "")),
+  );
 }
 
 /** The days a timeline spans: every bar, today, and a week of room either side. */
 export function spanOf(bars: readonly Bar[], today: number): { from: number; days: number } {
-  let lo = startOfDay(today), hi = startOfDay(today);
-  for (const b of bars) { lo = Math.min(lo, b.start); hi = Math.max(hi, b.end); }
+  let lo = startOfDay(today),
+    hi = startOfDay(today);
+  for (const b of bars) {
+    lo = Math.min(lo, b.start);
+    hi = Math.max(hi, b.end);
+  }
   const from = lo - 7 * DAY;
   return { from, days: Math.round((hi + 7 * DAY - from) / DAY) + 1 };
 }
@@ -186,7 +236,11 @@ export function cascadeLine(c: Cascade): string {
 }
 
 /** Bars are grouped by a lane field into bands; a record with no value sits in the last band. */
-export interface Band { key: string; title: string; bars: Bar[] }
+export interface Band {
+  key: string;
+  title: string;
+  bars: Bar[];
+}
 export function bandsOf(bars: readonly Bar[], lane: FieldDef | undefined): Band[] {
   if (!lane) return [{ key: "", title: "", bars: [...bars] }];
   const opts = optionsOf(lane);
@@ -202,13 +256,19 @@ export function bandsOf(bars: readonly Bar[], lane: FieldDef | undefined): Band[
 
 // ---------------------------------------------------------------- map
 
-export interface Point { id: string; lat: number; lng: number; row: RecordRow }
+export interface Point {
+  id: string;
+  lat: number;
+  lng: number;
+  row: RecordRow;
+}
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** The place a record has: number fields called lat and lng (or latitude and longitude), or an address field holding them. */
 export function pointOf(def: TypeDef, row: RecordRow): Point | null {
-  let lat: number | null = null, lng: number | null = null;
+  let lat: number | null = null,
+    lng: number | null = null;
   for (const f of def.fields) {
     const k = f.key.toLowerCase();
     const v = row.fields[f.key];
@@ -220,39 +280,65 @@ export function pointOf(def: TypeDef, row: RecordRow): Point | null {
       lng ??= num(a["lng"]);
     }
   }
-  return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { id: row.id, lat, lng, row } : null;
+  return lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+    ? { id: row.id, lat, lng, row }
+    : null;
 }
 
-export interface Bounds { minLat: number; maxLat: number; minLng: number; maxLng: number }
+export interface Bounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
 
 /** The box that holds every point with a margin, never thinner than a tenth of a degree so one point still has a view. */
 export function boundsOf(points: readonly Point[]): Bounds {
   if (points.length === 0) return { minLat: -60, maxLat: 75, minLng: -180, maxLng: 180 };
-  let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-  for (const p of points) { minLat = Math.min(minLat, p.lat); maxLat = Math.max(maxLat, p.lat); minLng = Math.min(minLng, p.lng); maxLng = Math.max(maxLng, p.lng); }
-  const padLat = Math.max(0.05, (maxLat - minLat) * 0.12), padLng = Math.max(0.05, (maxLng - minLng) * 0.12);
+  let minLat = 90,
+    maxLat = -90,
+    minLng = 180,
+    maxLng = -180;
+  for (const p of points) {
+    minLat = Math.min(minLat, p.lat);
+    maxLat = Math.max(maxLat, p.lat);
+    minLng = Math.min(minLng, p.lng);
+    maxLng = Math.max(maxLng, p.lng);
+  }
+  const padLat = Math.max(0.05, (maxLat - minLat) * 0.12),
+    padLng = Math.max(0.05, (maxLng - minLng) * 0.12);
   return { minLat: minLat - padLat, maxLat: maxLat + padLat, minLng: minLng - padLng, maxLng: maxLng + padLng };
 }
 
 /** A point in a box of w by h pixels, north up, the box's scale the same both ways so distances are not stretched. */
 export function plot(p: { lat: number; lng: number }, b: Bounds, w: number, h: number): { x: number; y: number } {
-  const spanX = b.maxLng - b.minLng, spanY = b.maxLat - b.minLat;
+  const spanX = b.maxLng - b.minLng,
+    spanY = b.maxLat - b.minLat;
   const k = Math.min(w / spanX, h / spanY);
-  const offX = (w - spanX * k) / 2, offY = (h - spanY * k) / 2;
+  const offX = (w - spanX * k) / 2,
+    offY = (h - spanY * k) / 2;
   return { x: Math.round(offX + (p.lng - b.minLng) * k), y: Math.round(offY + (b.maxLat - p.lat) * k) };
 }
 
 // ---------------------------------------------------------------- charts
 
 export type Measure = { kind: "count" } | { kind: "sum"; field: string };
-export interface Slice { key: string; label: string; value: number; hue: number }
+export interface Slice {
+  key: string;
+  label: string;
+  value: number;
+  hue: number;
+}
 
-export const isMeasureField = (f: FieldDef): boolean => f.type === "number" || f.type === "money" || f.type === "duration" || f.type === "rating";
-export const isGroupField = (f: FieldDef): boolean => f.type === "choice" || f.type === "status" || f.type === "person" || f.type === "checkbox" || isDateField(f);
+export const isMeasureField = (f: FieldDef): boolean =>
+  f.type === "number" || f.type === "money" || f.type === "duration" || f.type === "rating";
+export const isGroupField = (f: FieldDef): boolean =>
+  f.type === "choice" || f.type === "status" || f.type === "person" || f.type === "checkbox" || isDateField(f);
 
 function amountOf(v: unknown): number {
   if (typeof v === "number") return v;
-  if (v && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number") return (v as { amount: number }).amount;
+  if (v && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number")
+    return (v as { amount: number }).amount;
   return 0;
 }
 
@@ -260,27 +346,55 @@ function amountOf(v: unknown): number {
  * The slices of a chart: records counted (or a field summed) under each value of the group field. Choice and status follow their options' order, dates group by month in time order,
  * people by name. A record with no value is counted under "None".
  */
-export function tally(rows: readonly RecordRow[], group: FieldDef, measure: Measure, names: (id: string) => string): Slice[] {
+export function tally(
+  rows: readonly RecordRow[],
+  group: FieldDef,
+  measure: Measure,
+  names: (id: string) => string,
+): Slice[] {
   const by = new Map<string, number>();
   const label = new Map<string, string>();
   const value = (r: RecordRow): number => (measure.kind === "count" ? 1 : amountOf(r.fields[measure.field]));
   for (const r of rows) {
     const raw = r.fields[group.key];
-    let key = "", text = "None";
+    let key = "",
+      text = "None";
     if (isDateField(group)) {
       const ms = msOf(raw);
-      if (ms !== null) { const d = new Date(ms); key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`; text = `${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; }
+      if (ms !== null) {
+        const d = new Date(ms);
+        key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        text = `${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+      }
     } else if (raw !== undefined && raw !== null && raw !== "") {
       key = String(raw);
-      text = group.type === "person" ? names(key) : group.type === "checkbox" ? (raw === true ? "Yes" : "No") : optionsOf(group).find((o) => o.key === key)?.title ?? key;
+      text =
+        group.type === "person"
+          ? names(key)
+          : group.type === "checkbox"
+            ? raw === true
+              ? "Yes"
+              : "No"
+            : (optionsOf(group).find((o) => o.key === key)?.title ?? key);
     }
     by.set(key, (by.get(key) ?? 0) + value(r));
     label.set(key, text);
   }
-  const order = isDateField(group) ? [...by.keys()].filter((k) => k !== "").sort() : optionsOf(group).map((o) => o.key).filter((k) => by.has(k));
-  const rest = [...by.keys()].filter((k) => k !== "" && !order.includes(k)).sort((a, b) => (label.get(a) ?? "").localeCompare(label.get(b) ?? ""));
+  const order = isDateField(group)
+    ? [...by.keys()].filter((k) => k !== "").sort()
+    : optionsOf(group)
+        .map((o) => o.key)
+        .filter((k) => by.has(k));
+  const rest = [...by.keys()]
+    .filter((k) => k !== "" && !order.includes(k))
+    .sort((a, b) => (label.get(a) ?? "").localeCompare(label.get(b) ?? ""));
   const keys = [...order, ...rest, ...(by.has("") ? [""] : [])];
-  return keys.map((k) => ({ key: k, label: label.get(k) ?? "None", value: by.get(k) ?? 0, hue: k === "" ? -1 : hueOfKey(group, k) }));
+  return keys.map((k) => ({
+    key: k,
+    label: label.get(k) ?? "None",
+    value: by.get(k) ?? 0,
+    hue: k === "" ? -1 : hueOfKey(group, k),
+  }));
 }
 
 function hueOfKey(group: FieldDef, key: string): number {
@@ -299,11 +413,15 @@ export function total(slices: readonly Slice[]): number {
 }
 
 export function measureText(measure: Measure, def: TypeDef): string {
-  return measure.kind === "count" ? `Number of ${def.plural.toLowerCase()}` : `Sum of ${(def.fields.find((f) => f.key === measure.field)?.title ?? measure.field).toLowerCase()}`;
+  return measure.kind === "count"
+    ? `Number of ${def.plural.toLowerCase()}`
+    : `Sum of ${(def.fields.find((f) => f.key === measure.field)?.title ?? measure.field).toLowerCase()}`;
 }
 
 export function valueText(n: number, measure: Measure, def: TypeDef): string {
   const f = measure.kind === "sum" ? def.fields.find((x) => x.key === measure.field) : undefined;
-  const plain = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const plain = Math.round(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return f?.type === "money" ? `$${plain}` : plain;
 }

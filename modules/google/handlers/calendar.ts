@@ -7,14 +7,23 @@ import type { GoogleCtx } from "../projections.ts";
  * Connect (or, with connected false, remove) the member's calendar and remember which Calendar calendar it is. Connecting takes an admin (calendar.connect_provider needs
  * connectors.manage), so it happens when delegation is set up and when a member is included again, never on a mailbox pass.
  */
-export async function connectCalendar(ctx: GoogleCtx, a: { connectionId: string; userId: string; email: string; connected?: boolean }): Promise<string | undefined> {
+export async function connectCalendar(
+  ctx: GoogleCtx,
+  a: { connectionId: string; userId: string; email: string; connected?: boolean },
+): Promise<string | undefined> {
   try {
     const out = (await ctx.call("calendar.connect_provider", {
-      provider: "google", ownerId: a.userId, account: a.email, connectionId: a.connectionId, remoteId: "primary", ...(a.connected === false ? { connected: false } : {}),
+      provider: "google",
+      ownerId: a.userId,
+      account: a.email,
+      connectionId: a.connectionId,
+      remoteId: "primary",
+      ...(a.connected === false ? { connected: false } : {}),
     })) as { calendarId?: unknown };
     const calendarId = typeof out.calendarId === "string" ? out.calendarId : undefined;
     ctx.db.run(`DELETE FROM google_calendar WHERE email = ?`, a.email);
-    if (a.connected !== false && calendarId) ctx.db.run(`INSERT INTO google_calendar (email, "calendarId") VALUES (?, ?)`, a.email, calendarId);
+    if (a.connected !== false && calendarId)
+      ctx.db.run(`INSERT INTO google_calendar (email, "calendarId") VALUES (?, ?)`, a.email, calendarId);
     return calendarId;
   } catch (e) {
     ctx.log.warn("google calendar connect failed", { mailbox: a.email, code: codeOf(e) });

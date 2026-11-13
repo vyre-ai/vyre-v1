@@ -5,58 +5,168 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 export type Level = "interrupt" | "badge" | "digest";
-export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
+export type Place =
+  | "home"
+  | "chats"
+  | "inbox"
+  | "records"
+  | "files"
+  | "apps"
+  | "automations"
+  | "vault"
+  | "settings"
+  | "console";
 export type KindKey =
-  | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
-  | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
-  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
+  | "approval.requested"
+  | "answer.requested"
+  | "unblock.requested"
+  | "approval.backstop"
+  | "dm"
+  | "mention"
+  | "call.incoming"
+  | "agent.blocked"
+  | "incident.owned"
+  | "task.assigned"
+  | "reply.followed"
+  | "agent.task_finished"
+  | "digest.away"
+  | "mention.thread"
+  | "run.failed"
+  | "conflict.needs_you"
+  | "access.requested"
+  | "access.decided"
+  | "sync.attention"
+  | "health.degraded"
+  | "problem.report"
+  | "member.joined"
+  | "member.join_requested"
+  | "limit.hit"
+  | "vault.rotation_due"
+  | "reply.thread"
+  | "task.turn"
+  | "task.returned"
+  | "task.finished"
+  | "task.due"
+  | "machine.alert"
+  | "item.shared"
+  | "space.deletion_scheduled"
+  | "space.deletion_cancelled"
+  | "ci.paused"
+  | "hook.asked";
 export type Action = { label: string; cap: string };
 export interface KindDef {
-  key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
+  key: KindKey;
+  level: Level;
+  place: Place;
+  title: string;
+  pushTitle?: string;
+  actions: Action[];
+  agentRateKey?: string;
+  backstopEmailAfterHours?: number;
+  respectHours: boolean;
 }
-const kind = (key: KindKey, level: Level, place: Place, title: string, o: Partial<Omit<KindDef, "key" | "level" | "place" | "title">> = {}): KindDef =>
-  ({ key, level, place, title, actions: [], respectHours: true, ...o });
+const kind = (
+  key: KindKey,
+  level: Level,
+  place: Place,
+  title: string,
+  o: Partial<Omit<KindDef, "key" | "level" | "place" | "title">> = {},
+): KindDef => ({ key, level, place, title, actions: [], respectHours: true, ...o });
 const a = (label: string, cap: string): Action => ({ label, cap });
-const needsYou = (agent = true): Partial<KindDef> => ({ pushTitle: "{{space}} needs you", ...(agent ? { agentRateKey: "agent_interrupt" } : {}) });
+const needsYou = (agent = true): Partial<KindDef> => ({
+  pushTitle: "{{space}} needs you",
+  ...(agent ? { agentRateKey: "agent_interrupt" } : {}),
+});
 
 export const KINDS: readonly KindDef[] = [
-  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Allow", "tasks.act"), a("Deny", "tasks.act")], backstopEmailAfterHours: 4 }),
-  kind("answer.requested", "interrupt", "chats", "Needs your answer: {{title}}", { ...needsYou(), actions: [a("Answer", "tasks.act")], backstopEmailAfterHours: 4 }),
-  kind("unblock.requested", "interrupt", "chats", "Needs you: {{title}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
-  kind("approval.backstop", "interrupt", "chats", "Still waiting on you: {{title}}", { pushTitle: "{{space}} needs you", actions: [a("Open", "tasks.act")], respectHours: false }),
+  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", {
+    ...needsYou(),
+    actions: [a("Allow", "tasks.act"), a("Deny", "tasks.act")],
+    backstopEmailAfterHours: 4,
+  }),
+  kind("answer.requested", "interrupt", "chats", "Needs your answer: {{title}}", {
+    ...needsYou(),
+    actions: [a("Answer", "tasks.act")],
+    backstopEmailAfterHours: 4,
+  }),
+  kind("unblock.requested", "interrupt", "chats", "Needs you: {{title}}", {
+    ...needsYou(),
+    actions: [a("Open", "tasks.act")],
+    backstopEmailAfterHours: 4,
+  }),
+  kind("approval.backstop", "interrupt", "chats", "Still waiting on you: {{title}}", {
+    pushTitle: "{{space}} needs you",
+    actions: [a("Open", "tasks.act")],
+    respectHours: false,
+  }),
   kind("dm", "interrupt", "chats", "Message from {{from}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
-  kind("mention", "interrupt", "chats", "{{from}} mentioned you in {{where}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
-  kind("call.incoming", "interrupt", "inbox", "Incoming call from {{from}}", { pushTitle: "{{space}} is calling", respectHours: false }),
-  kind("agent.blocked", "interrupt", "chats", "{{agent}} is blocked: {{reason}}", { ...needsYou(), actions: [a("Unblock", "tasks.act")] }),
-  kind("incident.owned", "interrupt", "console", "Incident you own: {{title}}", { pushTitle: "{{space}} needs you", respectHours: false }),
-  kind("task.assigned", "badge", "chats", "{{from}} {{what}}: {{title}}", { actions: [a("Start", "tasks.transition")] }),
-  kind("task.turn", "interrupt", "chats", "{{from}} handed in \"{{title}}\" for your {{step}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
-  kind("task.returned", "interrupt", "chats", "{{from}} sent \"{{title}}\" back: {{note}}", { ...needsYou(), actions: [a("Open", "tasks.act")] }),
-  kind("task.finished", "badge", "chats", "{{from}} finished \"{{title}}\"", { agentRateKey: "agent_interrupt" }),
+  kind("mention", "interrupt", "chats", "{{from}} mentioned you in {{where}}", {
+    ...needsYou(),
+    actions: [a("Reply", "chat.post")],
+  }),
+  kind("call.incoming", "interrupt", "inbox", "Incoming call from {{from}}", {
+    pushTitle: "{{space}} is calling",
+    respectHours: false,
+  }),
+  kind("agent.blocked", "interrupt", "chats", "{{agent}} is blocked: {{reason}}", {
+    ...needsYou(),
+    actions: [a("Unblock", "tasks.act")],
+  }),
+  kind("incident.owned", "interrupt", "console", "Incident you own: {{title}}", {
+    pushTitle: "{{space}} needs you",
+    respectHours: false,
+  }),
+  kind("task.assigned", "badge", "chats", "{{from}} {{what}}: {{title}}", {
+    actions: [a("Start", "tasks.transition")],
+  }),
+  kind("task.turn", "interrupt", "chats", '{{from}} handed in "{{title}}" for your {{step}}', {
+    ...needsYou(),
+    actions: [a("Open", "tasks.act")],
+    backstopEmailAfterHours: 4,
+  }),
+  kind("task.returned", "interrupt", "chats", '{{from}} sent "{{title}}" back: {{note}}', {
+    ...needsYou(),
+    actions: [a("Open", "tasks.act")],
+  }),
+  kind("task.finished", "badge", "chats", '{{from}} finished "{{title}}"', { agentRateKey: "agent_interrupt" }),
   kind("task.due", "badge", "chats", "{{when}}: {{title}}", { actions: [a("Open", "tasks.act")] }),
   kind("reply.followed", "badge", "inbox", "New reply on {{where}}"),
   kind("agent.task_finished", "badge", "chats", "{{agent}} finished: {{title}}", { agentRateKey: "agent_interrupt" }),
   kind("digest.away", "digest", "home", "While you were away"),
   kind("mention.thread", "badge", "chats", "Mentioned in a thread: {{where}}", { actions: [a("Reply", "chat.post")] }),
   kind("run.failed", "badge", "automations", "{{name}} failed: {{message}}", { actions: [a("Retry", "runs.retry")] }),
-  kind("conflict.needs_you", "badge", "records", "Two edits conflict on {{title}}", { actions: [a("Resolve", "tasks.act")] }),
-  kind("access.requested", "badge", "console", "{{from}} asks for {{level}} access to {{title}}", { actions: [a("Review", "tasks.act")] }),
+  kind("conflict.needs_you", "badge", "records", "Two edits conflict on {{title}}", {
+    actions: [a("Resolve", "tasks.act")],
+  }),
+  kind("access.requested", "badge", "console", "{{from}} asks for {{level}} access to {{title}}", {
+    actions: [a("Review", "tasks.act")],
+  }),
   kind("access.decided", "badge", "home", "Your access request for {{title}} was {{decision}}"),
   kind("item.shared", "badge", "inbox", "{{from}} shared {{title}} with you"),
   kind("sync.attention", "badge", "settings", "Sync needs attention on {{device}}"),
   kind("health.degraded", "badge", "console", "{{service}} is {{state}}"),
   kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "machines.list")] }),
-  kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", { actions: [a("Cancel deletion", "spaces.delete_cancel")] }),
+  kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", {
+    actions: [a("Cancel deletion", "spaces.delete_cancel")],
+  }),
   kind("space.deletion_cancelled", "badge", "inbox", "{{title}}"),
   kind("ci.paused", "badge", "console", "{{title}}", { actions: [a("Open", "ci.cost.month")] }),
   kind("hook.asked", "badge", "inbox", "{{title}}", { actions: [a("Open", "hooks.list")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
-  kind("member.join_requested", "badge", "console", "{{name}} asked to join {{space}}", { actions: [a("Review", "members.join_requests.list")] }),
-  kind("limit.hit", "badge", "chats", "{{title}} hit its limit", { actions: [a("Raise once", "tasks.act"), a("Stop", "tasks.act")] }),
-  kind("vault.rotation_due", "badge", "vault", "Time to rotate {{title}}", { actions: [a("Mark rotated", "vault.item.mark_rotated")] }),
-  kind("reply.thread", "interrupt", "chats", "{{from}} replied in {{where}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
+  kind("member.join_requested", "badge", "console", "{{name}} asked to join {{space}}", {
+    actions: [a("Review", "members.join_requests.list")],
+  }),
+  kind("limit.hit", "badge", "chats", "{{title}} hit its limit", {
+    actions: [a("Raise once", "tasks.act"), a("Stop", "tasks.act")],
+  }),
+  kind("vault.rotation_due", "badge", "vault", "Time to rotate {{title}}", {
+    actions: [a("Mark rotated", "vault.item.mark_rotated")],
+  }),
+  kind("reply.thread", "interrupt", "chats", "{{from}} replied in {{where}}", {
+    ...needsYou(),
+    actions: [a("Reply", "chat.post")],
+  }),
 ];
 export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.key === k);
 
@@ -67,7 +177,18 @@ export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.ke
  * an edit conflict, a thread mention), never an agent's to make up. Take a kind off when something files it, and its switch comes back.
  */
 export const NOT_SENT_KINDS: ReadonlySet<string> = new Set(["conflict.needs_you", "mention.thread", "problem.report"]);
-export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "answer.requested", "unblock.requested", "approval.backstop", "task.turn", "task.returned", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
+export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set([
+  "approval.requested",
+  "answer.requested",
+  "unblock.requested",
+  "approval.backstop",
+  "task.turn",
+  "task.returned",
+  "agent.blocked",
+  "limit.hit",
+  "conflict.needs_you",
+  "access.requested",
+]);
 export const DIRECT_KINDS: ReadonlySet<string> = new Set(["dm", "mention"]);
 /** A mute silences a sender; these two carry a clock the person cannot choose to miss. */
 export const UNMUTABLE_KINDS: ReadonlySet<string> = new Set(["approval.backstop", "incident.owned"]);
@@ -78,11 +199,31 @@ export const DEFAULT_PUSH_IDLE_MINUTES = 5;
 export const COLLAPSE_WINDOW_MS = 24 * HOUR;
 export const DEFAULT_HOURS: Hours = { days: [1, 2, 3, 4, 5], from: "09:00", to: "18:00", tz: "UTC" };
 
-export interface Hours { days: number[]; from: string; to: string; tz: string }
-export interface Delegate { kind: "person" | "role" | "none"; id?: string }
-export interface Target { kind: "person" | "agent" | "channel" | "record" | "thread"; id: string }
-export interface Rules { workingHours?: Hours; emailBackstop: boolean; mutedAgents: string[]; mutedChannels: string[]; mutedRecords: string[] }
-export interface ResourceRef { type: string; id: string }
+export interface Hours {
+  days: number[];
+  from: string;
+  to: string;
+  tz: string;
+}
+export interface Delegate {
+  kind: "person" | "role" | "none";
+  id?: string;
+}
+export interface Target {
+  kind: "person" | "agent" | "channel" | "record" | "thread";
+  id: string;
+}
+export interface Rules {
+  workingHours?: Hours;
+  emailBackstop: boolean;
+  mutedAgents: string[];
+  mutedChannels: string[];
+  mutedRecords: string[];
+}
+export interface ResourceRef {
+  type: string;
+  id: string;
+}
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -103,15 +244,28 @@ export interface NotifCtx {
   origin?: string;
   now(): number;
   db: Db;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: string; idempotencyKey?: string }): { id: string };
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: string; idempotencyKey?: string },
+  ): { id: string };
   call?(cap: string, input: unknown): Promise<unknown>;
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
-  seal?: { seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string }; unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array };
+  seal?: {
+    seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string };
+    unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
+  };
   log?: { warn(...a: unknown[]): void };
 }
 
 type Code = Parameters<typeof fail>[0];
-export function raise(ctx: { trace: { traceId: string } }, code: Code, message?: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: { trace: { traceId: string } },
+  code: Code,
+  message?: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 export function clean<T extends Record<string, unknown>>(o: T): T {
@@ -122,15 +276,26 @@ export function clean<T extends Record<string, unknown>>(o: T): T {
 /** The person a call is for: an agent acting for someone is that someone; anything else is the caller. */
 export const meOf = (ctx: NotifCtx): string => ctx.actingFor ?? ctx.principal.id;
 export const isService = (ctx: NotifCtx): boolean => isTrustedService(ctx.principal);
-const parse = <T>(s: unknown, fallback: T): T => { try { return JSON.parse(String(s)) as T; } catch { return fallback; } };
+const parse = <T>(s: unknown, fallback: T): T => {
+  try {
+    return JSON.parse(String(s)) as T;
+  } catch {
+    return fallback;
+  }
+};
 
 // ---- text ----
 
 /** {{name}} filled from the data; an unknown name becomes empty and the line is tidied ("Message from " is never shown with a hole). */
 export function render(tpl: string, vars: Record<string, unknown>): string {
-  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])))
-    .replace(/^Approval needed: (?=\S.* wants to )/, "");   // an agent's request already says who wants what: no label in front of it
-  return s.replace(/\s+/g, " ").replace(/\s+([:,.])/g, "$1").replace(/[:,]\s*$/, "").trim();
+  const s = tpl
+    .replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])))
+    .replace(/^Approval needed: (?=\S.* wants to )/, ""); // an agent's request already says who wants what: no label in front of it
+  return s
+    .replace(/\s+/g, " ")
+    .replace(/\s+([:,.])/g, "$1")
+    .replace(/[:,]\s*$/, "")
+    .trim();
 }
 
 // ---- working hours ----
@@ -138,8 +303,23 @@ export function render(tpl: string, vars: Record<string, unknown>): string {
 /** Day of week (0 is Sunday) and minutes since midnight at `at` in the zone; an unknown zone reads as UTC. */
 export function localClock(at: number, tz: string): { day: number; minutes: number } {
   let parts: Intl.DateTimeFormatPart[];
-  try { parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)); }
-  catch { parts = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)); }
+  try {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(at));
+  } catch {
+    parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date(at));
+  }
   const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
   return { day: day < 0 ? 0 : day, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
@@ -149,7 +329,8 @@ const mins = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hh
 export function withinHours(h: Hours | undefined, at: number): boolean {
   if (!h) return true;
   const { day, minutes } = localClock(at, h.tz);
-  const from = mins(h.from), to = mins(h.to);
+  const from = mins(h.from),
+    to = mins(h.to);
   if (from <= to) return h.days.includes(day) && minutes >= from && minutes < to;
   if (minutes >= from) return h.days.includes(day);
   return h.days.includes((day + 6) % 7) && minutes < to;
@@ -158,23 +339,39 @@ export function withinHours(h: Hours | undefined, at: number): boolean {
 // ---- rules ----
 
 export function readRules(db: Db, person: string): Rules {
-  const r = db.all("SELECT * FROM notifications_rules WHERE person = ?", person)[0] as Record<string, unknown> | undefined;
-  if (!r) return { workingHours: DEFAULT_HOURS, emailBackstop: true, mutedAgents: [], mutedChannels: [], mutedRecords: [] };
+  const r = db.all("SELECT * FROM notifications_rules WHERE person = ?", person)[0] as
+    | Record<string, unknown>
+    | undefined;
+  if (!r)
+    return { workingHours: DEFAULT_HOURS, emailBackstop: true, mutedAgents: [], mutedChannels: [], mutedRecords: [] };
   const mode = String(r.hours_mode);
   return clean({
-    workingHours: mode === "off" ? undefined : mode === "custom" ? parse<Hours>(r.working_hours, DEFAULT_HOURS) : DEFAULT_HOURS,
+    workingHours:
+      mode === "off" ? undefined : mode === "custom" ? parse<Hours>(r.working_hours, DEFAULT_HOURS) : DEFAULT_HOURS,
     emailBackstop: Number(r.email_backstop) === 1,
-    mutedAgents: parse<string[]>(r.muted_agents, []), mutedChannels: parse<string[]>(r.muted_channels, []), mutedRecords: parse<string[]>(r.muted_records, []),
+    mutedAgents: parse<string[]>(r.muted_agents, []),
+    mutedChannels: parse<string[]>(r.muted_channels, []),
+    mutedRecords: parse<string[]>(r.muted_records, []),
   }) as Rules;
 }
 export function writeRules(db: Db, person: string, r: Rules): void {
-  const mode = r.workingHours === undefined ? "off" : JSON.stringify(r.workingHours) === JSON.stringify(DEFAULT_HOURS) ? "default" : "custom";
+  const mode =
+    r.workingHours === undefined
+      ? "off"
+      : JSON.stringify(r.workingHours) === JSON.stringify(DEFAULT_HOURS)
+        ? "default"
+        : "custom";
   db.run(
     `INSERT INTO notifications_rules (person, hours_mode, working_hours, email_backstop, muted_agents, muted_channels, muted_records) VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(person) DO UPDATE SET hours_mode = excluded.hours_mode, working_hours = excluded.working_hours, email_backstop = excluded.email_backstop,
        muted_agents = excluded.muted_agents, muted_channels = excluded.muted_channels, muted_records = excluded.muted_records`,
-    person, mode, r.workingHours ? JSON.stringify(r.workingHours) : null, r.emailBackstop ? 1 : 0,
-    JSON.stringify(r.mutedAgents), JSON.stringify(r.mutedChannels), JSON.stringify(r.mutedRecords),
+    person,
+    mode,
+    r.workingHours ? JSON.stringify(r.workingHours) : null,
+    r.emailBackstop ? 1 : 0,
+    JSON.stringify(r.mutedAgents),
+    JSON.stringify(r.mutedChannels),
+    JSON.stringify(r.mutedRecords),
   );
 }
 
@@ -182,13 +379,23 @@ export function writeRules(db: Db, person: string, r: Rules): void {
 
 export function activeMutes(db: Db, person: string, now: number): { target: Target; until: number }[] {
   db.run("DELETE FROM notifications_mutes WHERE person = ? AND until <= ?", person, now);
-  return (db.all("SELECT target_kind, target_id, until FROM notifications_mutes WHERE person = ? ORDER BY until, target_kind, target_id", person) as { target_kind: Target["kind"]; target_id: string; until: number }[])
-    .map((m) => ({ target: { kind: m.target_kind, id: m.target_id }, until: Number(m.until) }));
+  return (
+    db.all(
+      "SELECT target_kind, target_id, until FROM notifications_mutes WHERE person = ? ORDER BY until, target_kind, target_id",
+      person,
+    ) as { target_kind: Target["kind"]; target_id: string; until: number }[]
+  ).map((m) => ({ target: { kind: m.target_kind, id: m.target_id }, until: Number(m.until) }));
 }
 /** The senders a notification comes from, as mute targets: the person who wrote, the agent, the channel, the thread, the record. */
-export function sourcesOf(data: Record<string, unknown> | undefined, subject: ResourceRef | undefined, principal: { kind: string; id: string }): Target[] {
+export function sourcesOf(
+  data: Record<string, unknown> | undefined,
+  subject: ResourceRef | undefined,
+  principal: { kind: string; id: string },
+): Target[] {
   const out: Target[] = [];
-  const add = (kind: Target["kind"], v: unknown): void => { if (typeof v === "string" && v) out.push({ kind, id: v }); };
+  const add = (kind: Target["kind"], v: unknown): void => {
+    if (typeof v === "string" && v) out.push({ kind, id: v });
+  };
   add("person", data?.fromId ?? (typeof data?.from === "string" && /^usr_/.test(data.from) ? data.from : undefined));
   add("agent", data?.agentId ?? (principal.kind === "agent" ? principal.id : undefined));
   add("channel", data?.channelId);
@@ -211,36 +418,81 @@ export function isMuted(db: Db, rules: Rules, person: string, sources: Target[],
 
 // ---- away and delegate ----
 
-export interface Away { until: number; delegate: Delegate; since: number }
+export interface Away {
+  until: number;
+  delegate: Delegate;
+  since: number;
+}
 export function readAway(db: Db, person: string, now: number): Away | undefined {
-  const r = db.all("SELECT until, delegate, since FROM notifications_away WHERE person = ?", person)[0] as { until: number; delegate: string; since: number } | undefined;
+  const r = db.all("SELECT until, delegate, since FROM notifications_away WHERE person = ?", person)[0] as
+    | { until: number; delegate: string; since: number }
+    | undefined;
   if (!r || Number(r.until) <= now) return undefined;
   return { until: Number(r.until), delegate: parse<Delegate>(r.delegate, { kind: "none" }), since: Number(r.since) };
 }
 export function readChain(db: Db, person: string): Delegate[] {
-  const r = db.all("SELECT chain FROM notifications_delegates WHERE person = ?", person)[0] as { chain: string } | undefined;
+  const r = db.all("SELECT chain FROM notifications_delegates WHERE person = ?", person)[0] as
+    | { chain: string }
+    | undefined;
   return r ? parse<Delegate[]>(r.chain, []) : [];
 }
 
 // ---- rows ----
 
 export interface Row {
-  id: string; person: string; kind: KindKey; level: Level; place: Place; title: string; body?: string; subject?: ResourceRef; count: number; at: number; seenAt?: number;
-  actions: Action[]; collapseKey?: string; runId?: string; traceId?: string;
+  id: string;
+  person: string;
+  kind: KindKey;
+  level: Level;
+  place: Place;
+  title: string;
+  body?: string;
+  subject?: ResourceRef;
+  count: number;
+  at: number;
+  seenAt?: number;
+  actions: Action[];
+  collapseKey?: string;
+  runId?: string;
+  traceId?: string;
 }
 export function rowOf(r: Record<string, unknown>): Row {
   return clean({
-    id: String(r.id), person: String(r.person), kind: String(r.kind) as KindKey, level: String(r.level) as Level, place: String(r.place) as Place, title: String(r.title ?? ""),
+    id: String(r.id),
+    person: String(r.person),
+    kind: String(r.kind) as KindKey,
+    level: String(r.level) as Level,
+    place: String(r.place) as Place,
+    title: String(r.title ?? ""),
     body: r.body == null ? undefined : String(r.body),
     subject: r.subject_type ? { type: String(r.subject_type), id: String(r.subject_id) } : undefined,
-    count: Math.max(1, Number(r.count ?? 1)), at: Number(r.at), seenAt: r.seen_at == null ? undefined : Number(r.seen_at),
-    actions: parse<Action[]>(r.actions, []), collapseKey: r.collapse_key == null ? undefined : String(r.collapse_key),
-    runId: r.run_id == null ? undefined : String(r.run_id), traceId: r.trace_id == null ? undefined : String(r.trace_id),
+    count: Math.max(1, Number(r.count ?? 1)),
+    at: Number(r.at),
+    seenAt: r.seen_at == null ? undefined : Number(r.seen_at),
+    actions: parse<Action[]>(r.actions, []),
+    collapseKey: r.collapse_key == null ? undefined : String(r.collapse_key),
+    runId: r.run_id == null ? undefined : String(r.run_id),
+    traceId: r.trace_id == null ? undefined : String(r.trace_id),
   }) as Row;
 }
 export const outRow = (r: Row, spaceId: string): Record<string, unknown> =>
-  clean({ id: r.id, kind: r.kind, level: r.level, place: r.place, title: r.title, body: r.body, subject: r.subject, count: r.count, at: r.at, seenAt: r.seenAt, actions: r.actions, spaceId });
+  clean({
+    id: r.id,
+    kind: r.kind,
+    level: r.level,
+    place: r.place,
+    title: r.title,
+    body: r.body,
+    subject: r.subject,
+    count: r.count,
+    at: r.at,
+    seenAt: r.seenAt,
+    actions: r.actions,
+    spaceId,
+  });
 export const findRow = (db: Db, id: string): Row | undefined => {
-  const r = db.all("SELECT * FROM notifications_items WHERE id = ? AND deleted_at IS NULL", id)[0] as Record<string, unknown> | undefined;
+  const r = db.all("SELECT * FROM notifications_items WHERE id = ? AND deleted_at IS NULL", id)[0] as
+    | Record<string, unknown>
+    | undefined;
   return r ? rowOf(r) : undefined;
 };

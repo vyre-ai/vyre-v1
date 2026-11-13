@@ -11,9 +11,27 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const L6 = ["automations", "events", "gate", "goals", "home", "journeys", "notifications", "runs", "scheduler-api", "steps-core", "tasks"];   // goals: l-goals
+const L6 = [
+  "automations",
+  "events",
+  "gate",
+  "goals",
+  "home",
+  "journeys",
+  "notifications",
+  "runs",
+  "scheduler-api",
+  "steps-core",
+  "tasks",
+]; // goals: l-goals
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -25,8 +43,13 @@ function seededDir(): string {
 }
 
 test("l6 live: every L6 module is live in host/modules.json", () => {
-  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
-  const mine = file.modules.filter((m) => m.owner === "L6").map((m) => m.id).sort();
+  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as {
+    modules: { id: string; owner: string; status: string }[];
+  };
+  const mine = file.modules
+    .filter((m) => m.owner === "L6")
+    .map((m) => m.id)
+    .sort();
   assert.deepEqual(mine, [...L6].sort());
   for (const m of file.modules.filter((x) => x.owner === "L6")) assert.equal(m.status, "live", `${m.id} is live`);
 });
@@ -36,7 +59,9 @@ test("l6 live: a booted daemon has a driver for every L6 module, its health list
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "l6-live", free: 80e9,
+      os: "linux",
+      hostname: "l6-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -49,11 +74,20 @@ test("l6 live: a booted daemon has a driver for every L6 module, its health list
   try {
     const notSetUp = (d.seams?.missing ?? []).filter((m) => m.module !== undefined && L6.includes(m.module));
     assert.deepEqual(notSetUp, [], "no L6 module is reported as not set up");
-    const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? { detail: "" }) as { detail: string };
-    for (const id of L6) assert.ok(!new RegExp(`\\b${id}\\b \\(`).test(row.detail), `health does not list ${id} as not set up`);
+    const row = (d.db!.all("SELECT detail FROM health_probe WHERE name = ?", "module_drivers")[0] ?? {
+      detail: "",
+    }) as { detail: string };
+    for (const id of L6)
+      assert.ok(!new RegExp(`\\b${id}\\b \\(`).test(row.detail), `health does not list ${id} as not set up`);
     const consumers = d.hooks!.consumers.map((c) => c.name);
-    for (const name of ["notifications.fanout", "runs.alerts"]) assert.ok(consumers.includes(name), `${name} is registered`);
+    for (const name of ["notifications.fanout", "runs.alerts"])
+      assert.ok(consumers.includes(name), `${name} is registered`);
     // events.webhooks_out is a kernel async projection (mode "async"), not a host hook consumer; the daemon does not run kernel projections yet, so it is not asserted here.
-    assert.ok(d.hooks!.periodic.some((p) => p.name === "runs.escalations"), "runs.escalations is scheduled");
-  } finally { await d.stop(); }
+    assert.ok(
+      d.hooks!.periodic.some((p) => p.name === "runs.escalations"),
+      "runs.escalations is scheduled",
+    );
+  } finally {
+    await d.stop();
+  }
 });

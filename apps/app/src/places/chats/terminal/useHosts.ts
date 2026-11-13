@@ -9,8 +9,16 @@ export function useHostsRead(data: TerminalData): readonly HostChoice[] | null {
   const [hosts, setHosts] = useState<readonly HostChoice[] | null>(null);
   useEffect(() => {
     let live = true;
-    void loadHosts(data.call, { team: data.team === true, now: data.clock().now, nameOf: data.nameOf ?? ((id) => id) }).then((h) => { if (live) setHosts(h); });
-    return () => { live = false; };
+    void loadHosts(data.call, {
+      team: data.team === true,
+      now: data.clock().now,
+      nameOf: data.nameOf ?? ((id) => id),
+    }).then((h) => {
+      if (live) setHosts(h);
+    });
+    return () => {
+      live = false;
+    };
   }, [data]);
   return hosts;
 }

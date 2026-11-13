@@ -8,39 +8,65 @@ import { fileURLToPath } from "node:url";
 
 // The regen bot against a throwaway repository: a bare "origin", a clone the bot runs in, fake generator tools, and a fake npm and gh on PATH.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sh = (cwd: string, cmd: string, env: Record<string, string> = {}) => spawnSync("bash", ["-c", cmd], { cwd, encoding: "utf8", env: { ...process.env, ...env } });
+const sh = (cwd: string, cmd: string, env: Record<string, string> = {}) =>
+  spawnSync("bash", ["-c", cmd], { cwd, encoding: "utf8", env: { ...process.env, ...env } });
 
 /** origin.git with main and build/x, one working clone for the bot and a second clone that plays the worker. */
 function rig() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "regen-bot-"));
-  const origin = path.join(dir, "origin.git"), bot = path.join(dir, "bot"), worker = path.join(dir, "worker"), bin = path.join(dir, "bin");
+  const origin = path.join(dir, "origin.git"),
+    bot = path.join(dir, "bot"),
+    worker = path.join(dir, "worker"),
+    bin = path.join(dir, "bin");
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, "npm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "gh $@" >> "${dir}/gh.log"\nexit 0\n`, { mode: 0o755 });
   sh(dir, `git init -q --bare origin.git && git clone -q origin.git seed 2>/dev/null`);
   const seed = path.join(dir, "seed");
   sh(seed, "git config user.name t && git config user.email t@t && git checkout -q -b main");
-  fs.mkdirSync(path.join(seed, "manifests")); fs.mkdirSync(path.join(seed, "tools/gen/src"), { recursive: true }); fs.mkdirSync(path.join(seed, "scripts")); fs.mkdirSync(path.join(seed, "generated")); fs.mkdirSync(path.join(seed, "docs/frozen/snapshots"), { recursive: true });
+  fs.mkdirSync(path.join(seed, "manifests"));
+  fs.mkdirSync(path.join(seed, "tools/gen/src"), { recursive: true });
+  fs.mkdirSync(path.join(seed, "scripts"));
+  fs.mkdirSync(path.join(seed, "generated"));
+  fs.mkdirSync(path.join(seed, "docs/frozen/snapshots"), { recursive: true });
   fs.writeFileSync(path.join(seed, "manifests/m.txt"), "one\n");
   // the fake generator: generated/m.txt is the manifest in upper case; a RACE_DIR makes it push a worker commit the first time it runs
-  fs.writeFileSync(path.join(seed, "tools/gen/src/cli.ts"), `import fs from "node:fs";
+  fs.writeFileSync(
+    path.join(seed, "tools/gen/src/cli.ts"),
+    `import fs from "node:fs";
 const args = process.argv.slice(2);
 if (args.includes("--snapshots")) process.exit(0);
 const race = process.env.RACE_DIR, flag = (race ?? "") + "/.raced";
 if (race && !fs.existsSync(flag)) { fs.writeFileSync(flag, "1"); const { execSync } = await import("node:child_process"); execSync("echo more >> tests.txt && git add tests.txt && git commit -q -m 'worker race' && git push -q origin HEAD:refs/heads/build/x", { cwd: race }); }
 fs.writeFileSync("generated/m.txt", fs.readFileSync("manifests/m.txt", "utf8").toUpperCase());
-`);
+`,
+  );
   fs.writeFileSync(path.join(seed, "tools/gen/check.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  fs.writeFileSync(path.join(seed, "scripts/ci-select.ts"), `console.log(JSON.stringify({ all: false, files: [] }));\n`);
+  fs.writeFileSync(
+    path.join(seed, "scripts/ci-select.ts"),
+    `console.log(JSON.stringify({ all: false, files: [] }));\n`,
+  );
   fs.copyFileSync(path.join(root, "scripts/regen-bot.sh"), path.join(seed, "scripts/regen-bot.sh"));
   fs.writeFileSync(path.join(seed, "generated/m.txt"), "ONE\n");
   // the bot adds these by pathspec, which git refuses when nothing is tracked there (the real repository tracks all three)
   fs.writeFileSync(path.join(seed, "package-lock.json"), "{}\n");
   fs.writeFileSync(path.join(seed, "docs/frozen/snapshots/.gitkeep"), "");
-  sh(seed, "git add -A && git commit -q -m base && git push -q origin main && git checkout -q -b build/x && git push -q origin build/x");
+  sh(
+    seed,
+    "git add -A && git commit -q -m base && git push -q origin main && git checkout -q -b build/x && git push -q origin build/x",
+  );
   sh(dir, "git clone -q origin.git bot && git clone -q origin.git worker");
-  for (const c of [bot, worker]) sh(c, "git config user.name t && git config user.email t@t && git checkout -q build/x");
-  const run = (extra: Record<string, string> = {}) => sh(bot, "bash scripts/regen-bot.sh", { BRANCH: "build/x", GH_TOKEN: "x", REPO: "o/r", PATH: `${bin}:${process.env.PATH}`, RETRY_SLEEP: "0", ...extra });
+  for (const c of [bot, worker])
+    sh(c, "git config user.name t && git config user.email t@t && git checkout -q build/x");
+  const run = (extra: Record<string, string> = {}) =>
+    sh(bot, "bash scripts/regen-bot.sh", {
+      BRANCH: "build/x",
+      GH_TOKEN: "x",
+      REPO: "o/r",
+      PATH: `${bin}:${process.env.PATH}`,
+      RETRY_SLEEP: "0",
+      ...extra,
+    });
   const head = (c: string) => sh(c, "git rev-parse HEAD").stdout.trim();
   return { dir, origin, bot, worker, run, head, sh };
 }
@@ -48,7 +74,10 @@ fs.writeFileSync("generated/m.txt", fs.readFileSync("manifests/m.txt", "utf8").t
 test("regen bot: a test-only push on top of a stale generated/ is regenerated, whatever paths changed", () => {
   const r = rig();
   // the worker changed the manifest earlier and now pushes only a test file; generated/ is stale
-  sh(r.worker, "echo two > manifests/m.txt && echo t > tests.txt && git add -A && git commit -q -m 'manifest and test' && git push -q origin build/x");
+  sh(
+    r.worker,
+    "echo two > manifests/m.txt && echo t > tests.txt && git add -A && git commit -q -m 'manifest and test' && git push -q origin build/x",
+  );
   sh(r.bot, "git pull -q origin build/x");
   sh(r.worker, "echo t2 >> tests.txt && git add -A && git commit -q -m 'test only' && git push -q origin build/x");
   sh(r.bot, "git pull -q origin build/x");

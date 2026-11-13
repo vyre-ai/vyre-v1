@@ -5,7 +5,16 @@ import { VirtualList } from "../../../ui/src/VirtualList/index.tsx";
 
 export const title = "Row list";
 
-const NAMES = ["Weekly sync", "Launch checklist", "Inbox review", "Handbook", "Q4 plan", "Intake script", "Brand kit", "Retainer template"];
+const NAMES = [
+  "Weekly sync",
+  "Launch checklist",
+  "Inbox review",
+  "Handbook",
+  "Q4 plan",
+  "Intake script",
+  "Brand kit",
+  "Retainer template",
+];
 const rows = Array.from({ length: 10000 }, (_, i) => ({ id: `r${i}`, title: `${NAMES[i % NAMES.length]} ${i + 1}` }));
 
 export default function Mount() {

@@ -10,7 +10,8 @@ export const PORTAL = `<!doctype html><meta charset="utf-8"><title>Acme Portal</
 export const NEW = `<!doctype html><meta charset="utf-8"><title>New contact</title>${STYLE}<header>New contact</header><main><label for="n">Name</label><input id="n"><label for="m">Email</label><input id="m" type="email">
 <button type="button" id="save" onclick="document.getElementById('done').textContent='Saved '+document.getElementById('n').value+' <'+document.getElementById('m').value+'>'">Save</button><p id="done"></p></main>`;
 export const lab = { going: "3,412 going" };
-export const LAB = () => `<!doctype html><meta charset="utf-8"><title>AI Lab 8 · Luma</title>${STYLE}<header>Luma</header><main><h1>AI Lab 8</h1><h3>Guest count</h3><div id="going">${lab.going}</div><p>Thu 6 Nov, 6:00 PM ET</p></main>`;
+export const LAB = () =>
+  `<!doctype html><meta charset="utf-8"><title>AI Lab 8 · Luma</title>${STYLE}<header>Luma</header><main><h1>AI Lab 8</h1><h3>Guest count</h3><div id="going">${lab.going}</div><p>Thu 6 Nov, 6:00 PM ET</p></main>`;
 
 export async function openPanelFor(r: any, pageUrlPrefix: string, w = 400) {
   const winId = await r.worker.evaluate(async (prefix: string) => {
@@ -19,18 +20,36 @@ export async function openPanelFor(r: any, pageUrlPrefix: string, w = 400) {
     return (tabs.find((x: any) => String(x.url).startsWith(prefix)) ?? tabs[0]).windowId;
   }, pageUrlPrefix);
   const waiting = r.context.waitForEvent("page", { predicate: (p: any) => p.url().includes("/src/panel/panel.html") });
-  await r.worker.evaluate(async (id: number) => { await (globalThis as any).chrome.windows.create({ url: `src/panel/panel.html?window=${id}`, type: "popup", width: 400, height: 760, focused: false }); }, winId);
+  await r.worker.evaluate(async (id: number) => {
+    await (globalThis as any).chrome.windows.create({
+      url: `src/panel/panel.html?window=${id}`,
+      type: "popup",
+      width: 400,
+      height: 760,
+      focused: false,
+    });
+  }, winId);
   const panel = await waiting;
-  if (process.env["VYRE_E2E_DEBUG"]) { panel.on("console", (m: any) => console.log("panel:", m.text())); panel.on("pageerror", (e: any) => console.log("panel error:", String(e))); r.worker.on("console", (m: any) => console.log("worker:", m.text())); }
+  if (process.env["VYRE_E2E_DEBUG"]) {
+    panel.on("console", (m: any) => console.log("panel:", m.text()));
+    panel.on("pageerror", (e: any) => console.log("panel error:", String(e)));
+    r.worker.on("console", (m: any) => console.log("worker:", m.text()));
+  }
   await panel.setViewportSize({ width: w, height: 760 });
   return panel;
 }
 
 /** One piece of UI as the proof shows it: a narrow window and a wide one, paper and graphite. */
 export async function shootAll(r: any, page: any, name: string, back = { width: 400, height: 760 }) {
-  for (const [scheme, tone] of [["light", "paper"], ["dark", "graphite"]] as const) {
+  for (const [scheme, tone] of [
+    ["light", "paper"],
+    ["dark", "graphite"],
+  ] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    for (const [w, h] of [[390, 760], [1440, 900]] as const) {
+    for (const [w, h] of [
+      [390, 760],
+      [1440, 900],
+    ] as const) {
       await page.setViewportSize({ width: w, height: h });
       await r.shot(page, `${name}-${w}-${tone}`);
     }
@@ -39,5 +58,11 @@ export async function shootAll(r: any, page: any, name: string, back = { width: 
   await page.setViewportSize(back);
 }
 
-export const AGENTS = () => ({ agents: [{ id: "agt_assist", name: "Assistant", assistant: true }, { id: "agt_ops", name: "Ops", role: "Operations", computer: true }, { id: "agt_scout", name: "Scout", role: "Sales follow-up", computer: false }], suggested: { id: "agt_assist", name: "Assistant" } });
-
+export const AGENTS = () => ({
+  agents: [
+    { id: "agt_assist", name: "Assistant", assistant: true },
+    { id: "agt_ops", name: "Ops", role: "Operations", computer: true },
+    { id: "agt_scout", name: "Scout", role: "Sales follow-up", computer: false },
+  ],
+  suggested: { id: "agt_assist", name: "Assistant" },
+});

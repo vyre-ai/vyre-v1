@@ -15,7 +15,13 @@ import { wireSeams } from "../src/seams/index.ts";
 import type { SeamDeps, SeamSetters } from "../src/seams/index.ts";
 
 const OWNER = "tok-usr_olivia";
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -25,16 +31,34 @@ function seededDir(): string {
   core.close();
   return dir;
 }
-const boot = (dir: string): Promise<Daemon> => startDaemon({
-  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-  platform: fakePlatform({ os: "linux", hostname: "two", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
-  fetch: caddyFetch,
-  session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "two" } : null),
-  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-} as never);
+const boot = (dir: string): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "two",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) =>
+      /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER
+        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "two" }
+        : null,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+  } as never);
 let n = 0;
-async function post(d: Daemon, cap: string, body: Record<string, unknown>): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` }, body: JSON.stringify({ idempotencyKey: `two-${++n}`, ...body }) });
+async function post(d: Daemon, cap: string, body: Record<string, unknown>): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify({ idempotencyKey: `two-${++n}`, ...body }),
+  });
   const json = (await r.json()) as { data?: unknown };
   return { status: r.status, data: json.data ?? json };
 }
@@ -43,17 +67,55 @@ test("a daemon that is already serving keeps its record store when a second daem
   const first = await boot(seededDir());
   try {
     assert.equal((await post(first, "schema.types.list", {})).status, 200, "the first daemon has served work");
-    assert.equal((await post(first, "records.create", { type: "contact", fields: { name: "Before", email: "before@x.test" } })).status, 200);
+    assert.equal(
+      (await post(first, "records.create", { type: "contact", fields: { name: "Before", email: "before@x.test" } }))
+        .status,
+      200,
+    );
     const second = await boot(seededDir());
     await second.stop();
-    const typed = await post(first, "schema.apply", { ops: [{ op: "type.create", type: "rt_client", def: { title: "Client", plural: "Clients", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+    const typed = await post(first, "schema.apply", {
+      ops: [
+        {
+          op: "type.create",
+          type: "rt_client",
+          def: {
+            title: "Client",
+            plural: "Clients",
+            icon: "user",
+            titleField: "name",
+            fields: [{ key: "name", type: "text", title: "Name", required: true }],
+          },
+        },
+      ],
+    });
     assert.equal(typed.status, 200, JSON.stringify(typed.data));
     const rec = await post(first, "records.create", { type: "rt_client", fields: { name: "Pat Client" } });
-    assert.equal(rec.status, 200, `a type made by schema.apply is found by records.create: ${JSON.stringify(rec.data)}`);
-  } finally { await first.stop(); }
+    assert.equal(
+      rec.status,
+      200,
+      `a type made by schema.apply is found by records.create: ${JSON.stringify(rec.data)}`,
+    );
+  } finally {
+    await first.stop();
+  }
 });
 
-const TYPE = (name: string) => ({ ops: [{ op: "type.create", type: name, def: { title: name, plural: name + "s", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+const TYPE = (name: string) => ({
+  ops: [
+    {
+      op: "type.create",
+      type: name,
+      def: {
+        title: name,
+        plural: name + "s",
+        icon: "user",
+        titleField: "name",
+        fields: [{ key: "name", type: "text", title: "Name", required: true }],
+      },
+    },
+  ],
+});
 const fixed = ["schema.types.list", "sources.list", "connectors.list"] as const;
 
 test("two daemons running at once each answer from their own Space store (records, schema, sources, connectors), and the first still works after the second stops", async () => {
@@ -63,22 +125,46 @@ test("two daemons running at once each answer from their own Space store (record
     // a type made on A is A's alone: B has not got it, and each daemon's records.create goes to its own store
     assert.equal((await post(a, "schema.apply", TYPE("rt_only_a"))).status, 200);
     assert.equal((await post(a, "records.create", { type: "rt_only_a", fields: { name: "On A" } })).status, 200);
-    assert.notEqual((await post(b, "records.create", { type: "rt_only_a", fields: { name: "On B" } })).status, 200, "B does not know A's type");
+    assert.notEqual(
+      (await post(b, "records.create", { type: "rt_only_a", fields: { name: "On B" } })).status,
+      200,
+      "B does not know A's type",
+    );
     assert.equal((await post(b, "schema.apply", TYPE("rt_only_b"))).status, 200);
     assert.equal((await post(b, "records.create", { type: "rt_only_b", fields: { name: "On B" } })).status, 200);
     const typesA = (await post(a, "schema.types.list", {})).data.types.map((t: { key: string }) => t.key);
     assert.ok(typesA.includes("rt_only_a") && !typesA.includes("rt_only_b"), "A's schema lists A's type only");
     await b.stop();
-    for (const cap of fixed) assert.equal((await post(a, cap, {})).status, 200, `${cap} on the first daemon after the second stopped`);
+    for (const cap of fixed)
+      assert.equal((await post(a, cap, {})).status, 200, `${cap} on the first daemon after the second stopped`);
     assert.equal((await post(a, "records.create", { type: "rt_only_a", fields: { name: "Again" } })).status, 200);
-    assert.equal((await post(a, "records.create", { type: "contact", fields: { name: "C", email: "c@x.test" } })).status, 200);
-  } finally { await a.stop(); await b.stop().catch(() => undefined); }
+    assert.equal(
+      (await post(a, "records.create", { type: "contact", fields: { name: "C", email: "c@x.test" } })).status,
+      200,
+    );
+  } finally {
+    await a.stop();
+    await b.stop().catch(() => undefined);
+  }
 });
 
 test("seams: when the later daemon stops, the earlier one that is still running gets its own driver back; the last one out clears it", () => {
   let held: unknown = "unset";
-  const setters = { setEngineHost: (h: unknown) => { held = h; } } as unknown as SeamSetters;
-  const deps = (tag: string): SeamDeps => ({ vault: {}, files: {}, blobs: {}, members: { emails: () => Promise.resolve([]) }, space: "spc_t", tag, drivers: { setEngineHost: () => ({ tag }) } } as unknown as SeamDeps);
+  const setters = {
+    setEngineHost: (h: unknown) => {
+      held = h;
+    },
+  } as unknown as SeamSetters;
+  const deps = (tag: string): SeamDeps =>
+    ({
+      vault: {},
+      files: {},
+      blobs: {},
+      members: { emails: () => Promise.resolve([]) },
+      space: "spc_t",
+      tag,
+      drivers: { setEngineHost: () => ({ tag }) },
+    }) as unknown as SeamDeps;
   const a = wireSeams(setters, deps("A"));
   const b = wireSeams(setters, deps("B"));
   assert.deepEqual(held, { tag: "B" });
@@ -99,7 +185,24 @@ test("seams: when the later daemon stops, the earlier one that is still running 
 test("seams: a daemon that stops without holding the seam any more has its driver's retire called", () => {
   const retired: string[] = [];
   const setters = { setEngineHost: () => undefined } as unknown as SeamSetters;
-  const deps = (tag: string): SeamDeps => ({ vault: {}, files: {}, blobs: {}, members: { emails: () => Promise.resolve([]) }, space: "spc_t", tag, drivers: { setEngineHost: () => ({ tag, retire: () => { retired.push(tag); return Promise.resolve(); } }) } } as unknown as SeamDeps);
+  const deps = (tag: string): SeamDeps =>
+    ({
+      vault: {},
+      files: {},
+      blobs: {},
+      members: { emails: () => Promise.resolve([]) },
+      space: "spc_t",
+      tag,
+      drivers: {
+        setEngineHost: () => ({
+          tag,
+          retire: () => {
+            retired.push(tag);
+            return Promise.resolve();
+          },
+        }),
+      },
+    }) as unknown as SeamDeps;
   const a = wireSeams(setters, deps("A"));
   const b = wireSeams(setters, deps("B"));
   a.unwire();

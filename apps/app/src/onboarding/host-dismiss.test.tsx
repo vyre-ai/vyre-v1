@@ -22,8 +22,14 @@ function fake(seen: boolean) {
 const open = async (seen: boolean) => {
   const restore = installDom();
   const f = fake(seen);
-  const root = await mount(createRoot, <OnboardingHost call={f.call} space={{ kind: "team", name: "Fresh Co" }}><Text testID="shell-body">shell</Text></OnboardingHost>);
-  await flush(); await flush();
+  const root = await mount(
+    createRoot,
+    <OnboardingHost call={f.call} space={{ kind: "team", name: "Fresh Co" }}>
+      <Text testID="shell-body">shell</Text>
+    </OnboardingHost>,
+  );
+  await flush();
+  await flush();
   return { ...f, root, restore };
 };
 
@@ -39,7 +45,9 @@ test("onboarding opens over the shell on a first claim, and Finish later removes
     assert.equal(find(t.root, "onboarding-rail"), null, "no rail left over the shell");
     assert.ok(find(t.root, "shell-body"));
     assert.ok(t.calls.filter((c) => c === "spaces.onboarding.seen").length > seenBefore, "closing marks it seen");
-  } finally { t.restore(); }
+  } finally {
+    t.restore();
+  }
 });
 
 test("a Space the person has already seen does not open onboarding over the shell", async () => {
@@ -47,27 +55,43 @@ test("a Space the person has already seen does not open onboarding over the shel
   try {
     assert.equal(find(t.root, "onboarding"), null);
     assert.ok(find(t.root, "shell-body"));
-  } finally { t.restore(); }
+  } finally {
+    t.restore();
+  }
 });
 
 test("the first-run screen is saved as seen before it shows, so a reload right after closing it cannot open it again", async () => {
   const restore = installDom();
   let release: () => void = () => undefined;
-  const saved = new Promise<void>((resolve) => { release = resolve; });
+  const saved = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   const call = (async (cap: string) => {
     if (cap === "spaces.switcher") return { role: "Owner" };
     if (cap === "spaces.onboarding.flow") return { seen: false, steps: [] };
     if (cap === "spaces.onboarding.get") return { dismissed: false, steps: [] };
     if (cap === "engine.accounts.list") return { accounts: [] };
-    if (cap === "spaces.onboarding.seen") { await saved; return { ok: true }; }
+    if (cap === "spaces.onboarding.seen") {
+      await saved;
+      return { ok: true };
+    }
     return { ok: true };
   }) as unknown as CapCall;
-  const root = await mount(createRoot, <OnboardingHost call={call} space={{ kind: "team", name: "Fresh Co" }}><Text testID="shell-body">shell</Text></OnboardingHost>);
+  const root = await mount(
+    createRoot,
+    <OnboardingHost call={call} space={{ kind: "team", name: "Fresh Co" }}>
+      <Text testID="shell-body">shell</Text>
+    </OnboardingHost>,
+  );
   try {
-    await flush(); await flush();
+    await flush();
+    await flush();
     assert.equal(find(root, "onboarding"), null, "not shown while the Space has not saved that it was seen");
     release();
-    await flush(); await flush();
+    await flush();
+    await flush();
     assert.ok(find(root, "onboarding"), "shown once saved");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

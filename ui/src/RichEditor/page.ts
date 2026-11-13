@@ -9,7 +9,10 @@ import { connectBridge, decodeBridge } from "./bridge.ts";
 interface PageWindow {
   ReactNativeWebView?: { postMessage(raw: string): void };
   addEventListener(type: "message", handler: (e: { data: unknown }) => void): void;
-  document: { addEventListener(type: "message", handler: (e: { data: unknown }) => void): void; getElementById(id: string): unknown };
+  document: {
+    addEventListener(type: "message", handler: (e: { data: unknown }) => void): void;
+    getElementById(id: string): unknown;
+  };
 }
 
 export interface PageOptions {
@@ -48,5 +51,10 @@ export async function startEditorPage(win: PageWindow, options: PageOptions = {}
   };
   win.addEventListener("message", onModeMessage);
   win.document.addEventListener("message", onModeMessage);
-  return () => { end.destroy(); editor.destroy(); awareness.destroy(); doc.destroy(); };
+  return () => {
+    end.destroy();
+    editor.destroy();
+    awareness.destroy();
+    doc.destroy();
+  };
 }

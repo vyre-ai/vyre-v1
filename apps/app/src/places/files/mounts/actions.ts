@@ -5,7 +5,10 @@ import type { Accounts, BrowseItem, Draft, MountRow } from "./model.ts";
 
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-export interface Listing { items: BrowseItem[]; next?: string }
+export interface Listing {
+  items: BrowseItem[];
+  next?: string;
+}
 
 /** The things at the current level, with the provider kind of each. A Microsoft root merges SharePoint and OneDrive. */
 export async function browse(call: Call, d: Draft, accounts: Accounts, cursor?: string): Promise<Listing> {
@@ -15,7 +18,15 @@ export async function browse(call: Call, d: Draft, accounts: Accounts, cursor?: 
   let nextCursor: string | undefined;
   for (const input of inputs) {
     const out = (await call("mounts.browse", input)) as CapMap["mounts.browse"]["out"];
-    for (const it of out.items) items.push({ ref: it.ref, name: it.name, isFolder: it.isFolder, kind: input.kind, ...(it.path !== undefined ? { path: it.path } : {}), ...(it.shared !== undefined ? { shared: it.shared } : {}) });
+    for (const it of out.items)
+      items.push({
+        ref: it.ref,
+        name: it.name,
+        isFolder: it.isFolder,
+        kind: input.kind,
+        ...(it.path !== undefined ? { path: it.path } : {}),
+        ...(it.shared !== undefined ? { shared: it.shared } : {}),
+      });
     if (out.next !== undefined) nextCursor = out.next;
   }
   return { items, ...(nextCursor !== undefined ? { next: nextCursor } : {}) };
@@ -23,20 +34,46 @@ export async function browse(call: Call, d: Draft, accounts: Accounts, cursor?: 
 
 /** The mounts the person can already see, to mark them "Mounted". A failed read means none are marked. */
 export async function mountedRows(call: Call): Promise<MountRow[]> {
-  try { return ((await call("mounts.list", {})) as CapMap["mounts.list"]["out"]).mounts; } catch { return []; }
+  try {
+    return ((await call("mounts.list", {})) as CapMap["mounts.list"]["out"]).mounts;
+  } catch {
+    return [];
+  }
 }
 
-export type MountResult = { ok: true; mountId: string; folderId: string; runId: string; name: string; warning?: string } | { ok: false; error: string };
+export type MountResult =
+  | { ok: true; mountId: string; folderId: string; runId: string; name: string; warning?: string }
+  | { ok: false; error: string };
 
 /** Mount, then share with the people chosen. The mount is the point: a share that fails after it leaves the mount in place and comes back as a warning. */
-export async function submitMount(call: Call, d: Draft, accounts: Accounts, everyoneGroupId?: string): Promise<MountResult> {
+export async function submitMount(
+  call: Call,
+  d: Draft,
+  accounts: Accounts,
+  everyoneGroupId?: string,
+): Promise<MountResult> {
   const input = addInput(d, accounts);
   if (input === null || d.source === null) return { ok: false, error: "Pick a folder first." };
   let out: CapMap["mounts.add"]["out"];
-  try { out = (await call("mounts.add", input)) as CapMap["mounts.add"]["out"]; } catch (e) { return { ok: false, error: mountError(e, sourceOf(d.source).name) }; }
+  try {
+    out = (await call("mounts.add", input)) as CapMap["mounts.add"]["out"];
+  } catch (e) {
+    return { ok: false, error: mountError(e, sourceOf(d.source).name) };
+  }
   const name = input.name ?? "";
   for (const share of shareInputs(d.who, out.folderId, everyoneGroupId)) {
-    try { await call("access.share", share); } catch { return { ok: true, mountId: out.mountId, folderId: out.folderId, runId: out.runId, name, warning: `Mounted ${name}, but sharing it did not work. Open Share on the folder to try again.` }; }
+    try {
+      await call("access.share", share);
+    } catch {
+      return {
+        ok: true,
+        mountId: out.mountId,
+        folderId: out.folderId,
+        runId: out.runId,
+        name,
+        warning: `Mounted ${name}, but sharing it did not work. Open Share on the folder to try again.`,
+      };
+    }
   }
   return { ok: true, mountId: out.mountId, folderId: out.folderId, runId: out.runId, name };
 }
@@ -52,4 +89,3 @@ export async function removeMount(call: Call, mountId: string, keepCopy: boolean
     return { ok: false, error: "Could not unmount that. Try again." };
   }
 }
-

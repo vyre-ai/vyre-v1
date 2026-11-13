@@ -14,7 +14,12 @@ import type { InboxNav } from "../sidebar/data.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 
 function Mark({ tile }: { tile: ConnectTile }): ReactElement {
-  if (tile.kind === "imap") return <View style={s.mail}><Glyph name="mail" size={16} color="var(--ink-2)" /></View>;
+  if (tile.kind === "imap")
+    return (
+      <View style={s.mail}>
+        <Glyph name="mail" size={16} color="var(--ink-2)" />
+      </View>
+    );
   return <AppIcon brand={tile.brand} size={32} name={tile.label} />;
 }
 
@@ -33,19 +38,36 @@ export function ConnectChannel({ onPick, connect, inline = false, only }: Connec
   const openConnect = useOpenConnect();
   // each tile opens its own connect sheet right here; where there is no door (a test, a screenshot) the old navigation stays
   const pick = (tile: ConnectTile): void => {
-    const need: ConnectNeed | null = tile.kind === "gmail" ? { kind: "mailbox", provider: "google" } : tile.kind === "outlook" ? { kind: "mailbox", provider: "microsoft" } : tile.kind === "imap" ? { kind: "mailbox", provider: "imap" } : tile.kind === "twilio" ? { kind: "number" } : null;
-    if (openConnect && need) void openConnect(need); else (connect ?? data?.nav.connect)?.(tile.kind);
+    const need: ConnectNeed | null =
+      tile.kind === "gmail"
+        ? { kind: "mailbox", provider: "google" }
+        : tile.kind === "outlook"
+          ? { kind: "mailbox", provider: "microsoft" }
+          : tile.kind === "imap"
+            ? { kind: "mailbox", provider: "imap" }
+            : tile.kind === "twilio"
+              ? { kind: "number" }
+              : null;
+    if (openConnect && need) void openConnect(need);
+    else (connect ?? data?.nav.connect)?.(tile.kind);
     onPick?.(tile);
   };
   return (
     <View style={inline ? s.inline : s.wrap} testID="inbox-connect-channel" accessibilityLabel="Connect a channel">
       {inline ? null : <StateTile name="inbox" />}
-      {inline ? null : <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>}
+      {inline ? null : (
+        <Text accessibilityRole="header" aria-level={2} style={s.title}>
+          Connect a channel
+        </Text>
+      )}
       <View style={[s.grid, inline && s.gridInline]}>
         {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}
         {CONNECT_TILES.filter((tile) => only === undefined || only.includes(tile.kind)).map((tile) => (
           <Pressable
-            key={tile.kind} accessibilityRole="button" accessibilityLabel={`${tile.label}, ${tile.hint}`} testID={`connect-${tile.kind}`}
+            key={tile.kind}
+            accessibilityRole="button"
+            accessibilityLabel={`${tile.label}, ${tile.hint}`}
+            testID={`connect-${tile.kind}`}
             onPress={() => pick(tile)}
             style={({ hovered }: { hovered?: boolean }) => [s.tile, hovered === true && s.tileOver]}
           >
@@ -67,9 +89,30 @@ const s = StyleSheet.create({
   gridInline: { justifyContent: "flex-start", maxWidth: "100%" },
   title: { fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10, maxWidth: 520 },
-  tile: { flexDirection: "row", alignItems: "center", gap: 10, width: 240, minHeight: 56, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  tile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: 240,
+    minHeight: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   tileOver: { backgroundColor: "var(--hover)" as string, borderColor: "var(--accent-line)" as string },
-  mail: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
+  mail: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   words: { flex: 1, minWidth: 0 },
   label: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   hint: { fontSize: 12, color: "var(--ink-3)" as string },

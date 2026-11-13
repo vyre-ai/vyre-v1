@@ -6,37 +6,80 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { FakeUpdatesDb, NOW, SPACE, TRACE } from "./db.ts";
 import { SIGNATURE_PREFIX } from "../handlers/channels.ts";
-import type { Channel, Installer, ReleaseFeed, ReleaseInfo, SignedManifest, UpdateCtx, UpdateDrivers } from "../handlers/channels.ts";
+import type {
+  Channel,
+  Installer,
+  ReleaseFeed,
+  ReleaseInfo,
+  SignedManifest,
+  UpdateCtx,
+  UpdateDrivers,
+} from "../handlers/channels.ts";
 
 export { NOW, SPACE, TRACE };
 
 const enc = new TextEncoder();
 const b64 = (b: Uint8Array): string => Buffer.from(b).toString("base64");
-const own = (d: Uint8Array) => { const o = new Uint8Array(new ArrayBuffer(d.byteLength)); o.set(d); return o; };
+const own = (d: Uint8Array) => {
+  const o = new Uint8Array(new ArrayBuffer(d.byteLength));
+  o.set(d);
+  return o;
+};
 
-export interface KeyPair { publicKey: Uint8Array; sign(manifest: string): Promise<string> }
+export interface KeyPair {
+  publicKey: Uint8Array;
+  sign(manifest: string): Promise<string>;
+}
 
 /** A fresh Ed25519 key pair; sign() makes the detached base64 signature over the prefix and the manifest text, as the release workflow does. */
 export async function keyPair(): Promise<KeyPair> {
-  const pair = await globalThis.crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as unknown as { publicKey: never; privateKey: never };
+  const pair = (await globalThis.crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+    "sign",
+    "verify",
+  ])) as unknown as { publicKey: never; privateKey: never };
   const publicKey = new Uint8Array(await globalThis.crypto.subtle.exportKey("raw", pair.publicKey));
   return {
     publicKey,
     async sign(manifest) {
-      return b64(new Uint8Array(await globalThis.crypto.subtle.sign({ name: "Ed25519" }, pair.privateKey, own(enc.encode(SIGNATURE_PREFIX + manifest)))));
+      return b64(
+        new Uint8Array(
+          await globalThis.crypto.subtle.sign(
+            { name: "Ed25519" },
+            pair.privateKey,
+            own(enc.encode(SIGNATURE_PREFIX + manifest)),
+          ),
+        ),
+      );
     },
   };
 }
 
 export const SHA = "a".repeat(64);
 
-export interface ManifestOptions { channel?: Channel; version: string; notes?: string; security?: boolean; apps?: Record<string, string>; v?: number; sha256?: string }
+export interface ManifestOptions {
+  channel?: Channel;
+  version: string;
+  notes?: string;
+  security?: boolean;
+  apps?: Record<string, string>;
+  v?: number;
+  sha256?: string;
+}
 
 export function manifestText(o: ManifestOptions): string {
   return JSON.stringify({
-    v: o.v ?? 1, channel: o.channel ?? "stable",
-    server: { version: o.version, tarball: `https://releases.example/vyre-${o.version}.tgz`, sha256: o.sha256 ?? SHA, ...(o.notes ? { notes: o.notes } : {}), ...(o.security ? { security: true } : {}) },
-    apps: o.apps ?? {}, kits: { default: "1.0.0" }, connectors: { default: "1.0.0" },
+    v: o.v ?? 1,
+    channel: o.channel ?? "stable",
+    server: {
+      version: o.version,
+      tarball: `https://releases.example/vyre-${o.version}.tgz`,
+      sha256: o.sha256 ?? SHA,
+      ...(o.notes ? { notes: o.notes } : {}),
+      ...(o.security ? { security: true } : {}),
+    },
+    apps: o.apps ?? {},
+    kits: { default: "1.0.0" },
+    connectors: { default: "1.0.0" },
   });
 }
 
@@ -85,7 +128,9 @@ export async function world(o: { version?: string } = {}): Promise<World> {
   const key = await keyPair();
   const events: World["events"] = [];
   const feed: FakeFeed = {
-    answers: new Map(), asked: [], down: false,
+    answers: new Map(),
+    asked: [],
+    down: false,
     async fetch(channel) {
       feed.asked.push(channel);
       if (feed.down) throw new Error("the feed is unreachable");
@@ -95,16 +140,28 @@ export async function world(o: { version?: string } = {}): Promise<World> {
     },
   };
   const installer: FakeInstaller = {
-    version: o.version ?? "1.2.0", kept: ["1.1.0", "1.0.0"], log: [], installFails: null, health: [], switchFails: false,
-    async current() { return installer.version; },
-    async previous() { return installer.kept.slice(); },
+    version: o.version ?? "1.2.0",
+    kept: ["1.1.0", "1.0.0"],
+    log: [],
+    installFails: null,
+    health: [],
+    switchFails: false,
+    async current() {
+      return installer.version;
+    },
+    async previous() {
+      return installer.kept.slice();
+    },
     async install(r: ReleaseInfo) {
       installer.log.push(`install ${r.version}`);
       if (installer.installFails) throw new Error(installer.installFails);
       installer.kept = [installer.version, ...installer.kept];
       installer.version = r.version;
     },
-    async healthy() { const h = installer.health.shift(); return h === undefined ? true : h; },
+    async healthy() {
+      const h = installer.health.shift();
+      return h === undefined ? true : h;
+    },
     async switchTo(v) {
       installer.log.push(`switch ${v}`);
       if (installer.switchFails) throw new Error("the switch failed");
@@ -120,7 +177,10 @@ export async function world(o: { version?: string } = {}): Promise<World> {
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     now: () => clock,
     db: scopedDb("updates", raw, TRACE),
-    emit: ((name: string, subject: string, payload: unknown) => { events.push({ name, subject, payload }); return {} as never; }) as unknown as Ctx["emit"],
+    emit: ((name: string, subject: string, payload: unknown) => {
+      events.push({ name, subject, payload });
+      return {} as never;
+    }) as unknown as Ctx["emit"],
     call: (async (cap: string, _input: unknown) => {
       backups.calls.push(`${cap}@${installer.log.length}`);
       if (cap === "backup.run") {
@@ -128,19 +188,32 @@ export async function world(o: { version?: string } = {}): Promise<World> {
         const r = backups.runs.shift();
         return r ?? { backupId: "bkp_none" };
       }
-      if (cap === "backup.list") return { backups: backups.listed.map((backupId) => ({ backupId })), total: backups.listed.length };
+      if (cap === "backup.list")
+        return { backups: backups.listed.map((backupId) => ({ backupId })), total: backups.listed.length };
       throw fail("internal.not_implemented", TRACE, { details: { cap } });
     }) as unknown as Ctx["call"],
     // each capability call is its own run, as in the pipeline: the id changes every time a handler asks for it
-    get run() { runs += 1; return `run_testrun${runs}`; },
+    get run() {
+      runs += 1;
+      return `run_testrun${runs}`;
+    },
   } as unknown as UpdateCtx;
   const drivers: UpdateDrivers = { feed, releaseKey: key.publicKey, installer };
   return {
-    raw, ctx, key, feed, installer, backups, drivers, events,
+    raw,
+    ctx,
+    key,
+    feed,
+    installer,
+    backups,
+    drivers,
+    events,
     async publish(m) {
       const text = manifestText(m);
       feed.answers.set(m.channel ?? "stable", { manifest: text, signature: await key.sign(text) });
     },
-    setNow(n) { clock = n; },
+    setNow(n) {
+      clock = n;
+    },
   };
 }

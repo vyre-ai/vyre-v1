@@ -9,7 +9,11 @@ import { Calendar, ME, TEAM, createCalendarSample } from "../../../apps/app/src/
 import { northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
 import { SAMPLE_NOW } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
 import type { SampleSpace } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
-import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
+import {
+  InboxDataProvider,
+  InboxSidebar,
+  InboxStateProvider,
+} from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import type { InboxData } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import type { Row } from "../../../client/src/index.ts";
 
@@ -22,35 +26,59 @@ const SPACE: SampleSpace = {
   ...northwind,
   mailboxes: northwind.mailboxes.map((m) => (m.id === "mbx_work" ? { ...m, ownerId: "usr_irfad" } : m)),
   calendars: [
-    ...northwind.calendars.map((c) => (c.id === "cal_work" ? { ...c, title: "Google Calendar", lastSyncAt: SAMPLE_NOW - 2 * 60_000 } : c.id === "cal_ms" ? { ...c, title: "Consults", state: "error" as const, lastSyncAt: SAMPLE_NOW - 3 * 3_600_000 } : { ...c, lastSyncAt: SAMPLE_NOW - 10 * 60_000 })),
-    { id: "cal_mia", title: "mia@northwind.example", color: "#16a085", provider: "google", ownerId: "usr_mia", personal: false, state: "syncing" },
+    ...northwind.calendars.map((c) =>
+      c.id === "cal_work"
+        ? { ...c, title: "Google Calendar", lastSyncAt: SAMPLE_NOW - 2 * 60_000 }
+        : c.id === "cal_ms"
+          ? { ...c, title: "Consults", state: "error" as const, lastSyncAt: SAMPLE_NOW - 3 * 3_600_000 }
+          : { ...c, lastSyncAt: SAMPLE_NOW - 10 * 60_000 },
+    ),
+    {
+      id: "cal_mia",
+      title: "mia@northwind.example",
+      color: "#16a085",
+      provider: "google",
+      ownerId: "usr_mia",
+      personal: false,
+      state: "syncing",
+    },
   ],
 };
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  const q = useMemo(
+    () => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""),
+    [],
+  );
   const sample = useMemo(() => createCalendarSample(SPACE), []);
-  const data = useMemo<InboxData>(() => ({
-    ...sample.data,
-    nav: { ...sample.data.nav, openExternal: () => undefined, openCalendarSettings: () => undefined },
-    call(cap, input) {
-      if (cap === "calendar.sync_now") return new Promise(() => undefined);
-      if (cap === "calendar.update_calendar") {
-        const i = input as { calendarId: string; color: string };
-        const c = SPACE.calendars.find((x) => x.id === i.calendarId);
-        if (c) sample.replica.put("calendars", [{ ...c, color: i.color } as unknown as Row]);
-        return Promise.resolve({});
-      }
-      return sample.data.call(cap, input);
-    },
-  }), [sample]);
+  const data = useMemo<InboxData>(
+    () => ({
+      ...sample.data,
+      nav: { ...sample.data.nav, openExternal: () => undefined, openCalendarSettings: () => undefined },
+      call(cap, input) {
+        if (cap === "calendar.sync_now") return new Promise(() => undefined);
+        if (cap === "calendar.update_calendar") {
+          const i = input as { calendarId: string; color: string };
+          const c = SPACE.calendars.find((x) => x.id === i.calendarId);
+          if (c) sample.replica.put("calendars", [{ ...c, color: i.color } as unknown as Row]);
+          return Promise.resolve({});
+        }
+        return sample.data.call(cap, input);
+      },
+    }),
+    [sample],
+  );
   const hidden = (q.get("hidden") ?? "").split(",").filter(Boolean);
   return (
     <InboxDataProvider value={data}>
       <InboxStateProvider initial={{ main: "calendar", hiddenCalendars: hidden }}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          <View style={{ width: SIDEBAR_W }}><InboxSidebar /></View>
-          <View style={{ flex: 1, minWidth: 0 }}><Calendar me={ME} team={TEAM} /></View>
+          <View style={{ width: SIDEBAR_W }}>
+            <InboxSidebar />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Calendar me={ME} team={TEAM} />
+          </View>
         </View>
       </InboxStateProvider>
     </InboxDataProvider>

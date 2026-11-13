@@ -29,13 +29,18 @@ export const SEE_LABELS = [
 ] as const;
 
 /** Does this account keep nothing of what it is sent: a local model always does, any other only when an admin said so. */
-export const accountKeeps = (a: Pick<Account, "driver" | "keepsNothing">): boolean => a.driver === "local" || a.keepsNothing === true;
+export const accountKeeps = (a: Pick<Account, "driver" | "keepsNothing">): boolean =>
+  a.driver === "local" || a.keepsNothing === true;
 
 /** Whether Restricted data may go to this provider: one of its accounts keeps nothing, or it is the local driver. */
-export const mayTakeRestricted = (accounts: readonly Pick<Account, "driver" | "keepsNothing">[], driver: string): boolean => driver === "local" || accounts.some((a) => a.driver === driver && accountKeeps(a));
+export const mayTakeRestricted = (
+  accounts: readonly Pick<Account, "driver" | "keepsNothing">[],
+  driver: string,
+): boolean => driver === "local" || accounts.some((a) => a.driver === driver && accountKeeps(a));
 
 /** Whether the provider may see data with this label: a label with no entry is open to every provider. */
-export const mayRead = (labelProviders: Policy["labelProviders"], label: string, driver: string): boolean => labelProviders[label] === undefined || labelProviders[label]!.includes(driver);
+export const mayRead = (labelProviders: Policy["labelProviders"], label: string, driver: string): boolean =>
+  labelProviders[label] === undefined || labelProviders[label]!.includes(driver);
 
 /** The one sentence for a provider. */
 export function seeSays(labelProviders: Policy["labelProviders"], driver: string): string {
@@ -48,11 +53,18 @@ export function seeSays(labelProviders: Policy["labelProviders"], driver: string
 }
 
 /** The label map after one tick. A label every provider may read goes back to having no entry. */
-export function withTick(labelProviders: Policy["labelProviders"], universe: readonly string[], label: string, driver: string, allow: boolean): Policy["labelProviders"] {
+export function withTick(
+  labelProviders: Policy["labelProviders"],
+  universe: readonly string[],
+  label: string,
+  driver: string,
+  allow: boolean,
+): Policy["labelProviders"] {
   const now = labelProviders[label] ?? [...universe];
   const next = allow ? [...new Set([...now, driver])] : now.filter((d) => d !== driver);
   const out = { ...labelProviders };
-  if (universe.every((d) => next.includes(d))) delete out[label]; else out[label] = next;
+  if (universe.every((d) => next.includes(d))) delete out[label];
+  else out[label] = next;
   return out;
 }
 
@@ -60,18 +72,75 @@ export function AiSeePage(): ReactElement {
   const policy = useRead<Policy>("engine.policy.get");
   const providers = useRead<CapMap["engine.providers.list"]["out"]>("engine.providers.list");
   const accounts = useRead<CapMap["engine.accounts.list"]["out"]>("engine.accounts.list");
-  const refresh = (): void => { policy.refresh(); providers.refresh(); accounts.refresh(); };
-  if (!policy.data || !providers.data || !accounts.data) return <ReadState error={policy.error ?? providers.error ?? accounts.error} retry={refresh} />;
-  return <AiSee policy={policy.data} providers={providers.data.providers} accounts={accounts.data.accounts} refresh={refresh} />;
+  const refresh = (): void => {
+    policy.refresh();
+    providers.refresh();
+    accounts.refresh();
+  };
+  if (!policy.data || !providers.data || !accounts.data)
+    return <ReadState error={policy.error ?? providers.error ?? accounts.error} retry={refresh} />;
+  return (
+    <AiSee
+      policy={policy.data}
+      providers={providers.data.providers}
+      accounts={accounts.data.accounts}
+      refresh={refresh}
+    />
+  );
 }
 
-function Box({ checked, disabled, label, testID, onChange }: { checked: boolean; disabled: boolean; label: string; testID: string; onChange(next: boolean): void }): ReactElement {
-  return <Pressable testID={testID} accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked, disabled }} disabled={disabled} onPress={() => onChange(!checked)} style={{ width: 32, minHeight: 32, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.5 : 1 }}>
-    <View style={{ width: 15, height: 15, borderWidth: 1, borderColor: (checked ? "var(--accent)" : "var(--line-2)") as string, backgroundColor: (checked ? "var(--accent)" : "transparent") as string, borderRadius: 3, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 11, color: "#fff" }}>{checked ? "✓" : ""}</Text></View>
-  </Pressable>;
+function Box({
+  checked,
+  disabled,
+  label,
+  testID,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  label: string;
+  testID: string;
+  onChange(next: boolean): void;
+}): ReactElement {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked, disabled }}
+      disabled={disabled}
+      onPress={() => onChange(!checked)}
+      style={{ width: 32, minHeight: 32, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
+    >
+      <View
+        style={{
+          width: 15,
+          height: 15,
+          borderWidth: 1,
+          borderColor: (checked ? "var(--accent)" : "var(--line-2)") as string,
+          backgroundColor: (checked ? "var(--accent)" : "transparent") as string,
+          borderRadius: 3,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={{ fontSize: 11, color: "#fff" }}>{checked ? "✓" : ""}</Text>
+      </View>
+    </Pressable>
+  );
 }
 
-function AiSee({ policy, providers, accounts, refresh }: { policy: Policy; providers: readonly Provider[]; accounts: readonly Account[]; refresh(): void }): ReactElement {
+function AiSee({
+  policy,
+  providers,
+  accounts,
+  refresh,
+}: {
+  policy: Policy;
+  providers: readonly Provider[];
+  accounts: readonly Account[];
+  refresh(): void;
+}): ReactElement {
   const data = useConsoleData();
   const action = useAction(refresh);
   const [open, setOpen] = useState<string | null>(null);
@@ -80,12 +149,22 @@ function AiSee({ policy, providers, accounts, refresh }: { policy: Policy; provi
   const universe = providers.map((p) => p.driver);
   const sheet = providers.find((p) => p.driver === open);
   // the accounts an admin can mark: ones shared with the Space, and local models (always on, locked)
-  const sheetAccounts = sheet ? accounts.filter((a) => a.driver === sheet.driver && (!a.mine || a.driver === "local")) : [];
+  const sheetAccounts = sheet
+    ? accounts.filter((a) => a.driver === sheet.driver && (!a.mine || a.driver === "local"))
+    : [];
   const tick = async (driver: string, label: string, allow: boolean): Promise<void> => {
     const next = withTick(labelProviders, universe, label, driver, allow);
     const out = await action.run("engine.policy.set", { labelProviders: next }, async () => {
-      const readback = await data.call("engine.policy.get", {}) as Policy;
-      if (!policyMatches(readback, { allowedAccounts: readback.allowedAccounts, allowedProviders: readback.allowedProviders, allowedModels: readback.allowedModels, labelProviders: next })) throw new Error("The change did not save. Try again.");
+      const readback = (await data.call("engine.policy.get", {})) as Policy;
+      if (
+        !policyMatches(readback, {
+          allowedAccounts: readback.allowedAccounts,
+          allowedProviders: readback.allowedProviders,
+          allowedModels: readback.allowedModels,
+          labelProviders: next,
+        })
+      )
+        throw new Error("The change did not save. Try again.");
       return "Saved";
     });
     if (out) setLocal(next);
@@ -97,30 +176,115 @@ function AiSee({ policy, providers, accounts, refresh }: { policy: Policy; provi
     if (last && mayRead(labelProviders, "restricted", a.driver)) await tick(a.driver, "restricted", false);
     await action.run("providers.set_keeps_nothing", { providerId: a.providerId, keepsNothing: next }, "Saved");
   };
-  return <View testID="console-ai-see">
-    <Group>
-      {providers.map((p) => <Row key={p.driver} id={`see-${p.driver}`} title={p.title} note={seeSays(labelProviders, p.driver)} leading={<Lead><View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sel)" as string }}><Text style={{ fontSize: 13, fontWeight: "600", color: "var(--ink)" as string }}>{(p.title.trim()[0] ?? "?").toUpperCase()}</Text></View></Lead>} trailing={<Glyph name="chevR" size={12} color="var(--ink-3)" />} onPress={() => setOpen(p.driver)} />)}
-    </Group>
-    <Text style={{ fontSize: 12, color: "var(--ink-3)" as string, marginTop: 10, marginLeft: 2 }}>Restricted data only goes to accounts that keep nothing.</Text>
-    {action.note ? <Note>{action.note}</Note> : null}
-    {sheet ? <Dialog title={`What ${sheet.title} may see`} width={460} testID="see-sheet" onClose={() => setOpen(null)} actions={[{ label: "Done", primary: true, onPress: () => setOpen(null), testID: "see-done" }]}>
+  return (
+    <View testID="console-ai-see">
       <Group>
-        {SEE_LABELS.map((l) => {
-          const blocked = l.id === "restricted" && !mayTakeRestricted(accounts, sheet.driver);
-          const checked = mayRead(labelProviders, l.id, sheet.driver);
-          return <Row key={l.id} id={`see-${sheet.driver}-${l.id}`} title={l.name} note={blocked ? "Only accounts that keep nothing" : l.where} trailing={<Box checked={checked} disabled={action.busy || (blocked && !checked)} label={`${l.name} for ${sheet.title}`} testID={`see-tick-${sheet.driver}-${l.id}`} onChange={(next) => void tick(sheet.driver, l.id, next)} />} />;
-        })}
+        {providers.map((p) => (
+          <Row
+            key={p.driver}
+            id={`see-${p.driver}`}
+            title={p.title}
+            note={seeSays(labelProviders, p.driver)}
+            leading={
+              <Lead>
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "var(--sel)" as string,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: "var(--ink)" as string }}>
+                    {(p.title.trim()[0] ?? "?").toUpperCase()}
+                  </Text>
+                </View>
+              </Lead>
+            }
+            trailing={<Glyph name="chevR" size={12} color="var(--ink-3)" />}
+            onPress={() => setOpen(p.driver)}
+          />
+        ))}
       </Group>
-      {sheetAccounts.length > 0 ? <>
-        <Text style={{ fontSize: 12, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 14, marginBottom: 6 }}>Accounts</Text>
-        <Group>
-          {sheetAccounts.map((a) => {
-            const local = a.driver === "local";
-            return <Row key={a.ref} id={`see-account-${a.ref}`} title={a.name ?? a.title} note={KEEPS_LABEL} trailing={<Switch on={accountKeeps(a)} label={`${KEEPS_LABEL}: ${a.name ?? a.title}`} testID={`see-keeps-${a.providerId ?? a.ref}`} disabled={action.busy || local || !a.providerId} onChange={(next) => void keep(a, next)} />} />;
-          })}
-        </Group>
-      </> : null}
-      <Text style={{ fontSize: 12, color: "var(--ink-3)" as string, marginTop: 12 }}>Restricted data only goes to accounts that keep nothing.</Text>
-    </Dialog> : null}
-  </View>;
+      <Text style={{ fontSize: 12, color: "var(--ink-3)" as string, marginTop: 10, marginLeft: 2 }}>
+        Restricted data only goes to accounts that keep nothing.
+      </Text>
+      {action.note ? <Note>{action.note}</Note> : null}
+      {sheet ? (
+        <Dialog
+          title={`What ${sheet.title} may see`}
+          width={460}
+          testID="see-sheet"
+          onClose={() => setOpen(null)}
+          actions={[{ label: "Done", primary: true, onPress: () => setOpen(null), testID: "see-done" }]}
+        >
+          <Group>
+            {SEE_LABELS.map((l) => {
+              const blocked = l.id === "restricted" && !mayTakeRestricted(accounts, sheet.driver);
+              const checked = mayRead(labelProviders, l.id, sheet.driver);
+              return (
+                <Row
+                  key={l.id}
+                  id={`see-${sheet.driver}-${l.id}`}
+                  title={l.name}
+                  note={blocked ? "Only accounts that keep nothing" : l.where}
+                  trailing={
+                    <Box
+                      checked={checked}
+                      disabled={action.busy || (blocked && !checked)}
+                      label={`${l.name} for ${sheet.title}`}
+                      testID={`see-tick-${sheet.driver}-${l.id}`}
+                      onChange={(next) => void tick(sheet.driver, l.id, next)}
+                    />
+                  }
+                />
+              );
+            })}
+          </Group>
+          {sheetAccounts.length > 0 ? (
+            <>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: "var(--ink-2)" as string,
+                  marginTop: 14,
+                  marginBottom: 6,
+                }}
+              >
+                Accounts
+              </Text>
+              <Group>
+                {sheetAccounts.map((a) => {
+                  const local = a.driver === "local";
+                  return (
+                    <Row
+                      key={a.ref}
+                      id={`see-account-${a.ref}`}
+                      title={a.name ?? a.title}
+                      note={KEEPS_LABEL}
+                      trailing={
+                        <Switch
+                          on={accountKeeps(a)}
+                          label={`${KEEPS_LABEL}: ${a.name ?? a.title}`}
+                          testID={`see-keeps-${a.providerId ?? a.ref}`}
+                          disabled={action.busy || local || !a.providerId}
+                          onChange={(next) => void keep(a, next)}
+                        />
+                      }
+                    />
+                  );
+                })}
+              </Group>
+            </>
+          ) : null}
+          <Text style={{ fontSize: 12, color: "var(--ink-3)" as string, marginTop: 12 }}>
+            Restricted data only goes to accounts that keep nothing.
+          </Text>
+        </Dialog>
+      ) : null}
+    </View>
+  );
 }

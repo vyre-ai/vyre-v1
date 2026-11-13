@@ -6,11 +6,41 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { createForwarder, discardRecording, giveBack, keepRecording, sendRecording, startRecording, stopRecording, takeOver, wake } from "./actions.ts";
+import {
+  createForwarder,
+  discardRecording,
+  giveBack,
+  keepRecording,
+  sendRecording,
+  startRecording,
+  stopRecording,
+  takeOver,
+  wake,
+} from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
-import { PopupDataProvider, useCapture, useOnline, useOptionalPopupData, usePopupData, useScreenQuery } from "./data.tsx";
+import {
+  PopupDataProvider,
+  useCapture,
+  useOnline,
+  useOptionalPopupData,
+  usePopupData,
+  useScreenQuery,
+} from "./data.tsx";
 import type { ComputerPopupData } from "./data.tsx";
-import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
+import {
+  DEFAULT_INTENTS,
+  MASKED_NOTE,
+  hostLabel,
+  NO_CAPTURE,
+  captureLine,
+  captureParts,
+  mmss,
+  options,
+  orderedIntents,
+  popupView,
+  railItems,
+  toggleIntent,
+} from "./model.ts";
 import type { Capture, Intent, Recording } from "./model.ts";
 import { LiveScreen } from "./LiveScreen.tsx";
 import { ReachLink } from "../../../shell/reach/ReachLink.tsx";
@@ -36,19 +66,39 @@ export interface PopupInitial {
   sheet?: { recording: Recording; capture: Capture; secs: number };
 }
 
-export function ComputerPopup({ data, initial }: { data?: ComputerPopupData; initial?: PopupInitial }): ReactElement | null {
+export function ComputerPopup({
+  data,
+  initial,
+}: {
+  data?: ComputerPopupData;
+  initial?: PopupInitial;
+}): ReactElement | null {
   const ctx = useOptionalPopupData();
   const value = data ?? ctx;
   if (!value) return <ComputerPopupLoading />;
-  return <PopupDataProvider value={value}><PopupView {...(initial ? { initial } : {})} /></PopupDataProvider>;
+  return (
+    <PopupDataProvider value={value}>
+      <PopupView {...(initial ? { initial } : {})} />
+    </PopupDataProvider>
+  );
 }
 
 /** The veil and an empty window of the right size before data, so nothing moves when the data arrives. */
 export function ComputerPopupLoading(): ReactElement {
-  return <View testID="popup-loading" accessibilityLabel="Loading" style={st.veil}><View style={st.stage}><View style={st.win} /></View></View>;
+  return (
+    <View testID="popup-loading" accessibilityLabel="Loading" style={st.veil}>
+      <View style={st.stage}>
+        <View style={st.win} />
+      </View>
+    </View>
+  );
 }
 
-interface Sheet { recording: Recording; capture: Capture; secs: number }
+interface Sheet {
+  recording: Recording;
+  capture: Capture;
+  secs: number;
+}
 
 function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const data = usePopupData();
@@ -64,26 +114,52 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const [, setTick] = useState(0);
   const q = useScreenQuery<ComputerOut>(POPUP_SCREEN, "computer", { computerId: data.computerId });
   const deps: PopupDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
-  const forwarder = useMemo(() => createForwarder(deps, data.computerId, data.display), [deps, data.computerId, data.display]);
+  const forwarder = useMemo(
+    () => createForwarder(deps, data.computerId, data.display),
+    [deps, data.computerId, data.display],
+  );
   const state = q.status === "ready" ? q.data.computer.state : null;
   const reachable = state === "working" || state === "takeover";
   const nodeId = q.status === "ready" ? q.data.computer.nodeId : undefined;
   // A computer that lives on a computer that joined the Space looks the same; a small label says where it runs.
   const [hostName, setHostName] = useState<string | null>(null);
   useEffect(() => {
-    if (!nodeId) { setHostName(null); return; }
+    if (!nodeId) {
+      setHostName(null);
+      return;
+    }
     let live = true;
-    void data.call("network.servers", {}).then((r) => { if (live) setHostName(hostLabel((r as { servers?: Array<{ serverId: string; name: string }> }).servers, nodeId)); }, () => undefined);
-    return () => { live = false; };
+    void data.call("network.servers", {}).then(
+      (r) => {
+        if (live)
+          setHostName(hostLabel((r as { servers?: Array<{ serverId: string; name: string }> }).servers, nodeId));
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [nodeId, data.call]);
   // where it runs is a link only when the person can go somewhere from it: an admin to the machine in the Console, its owner to This device, anyone else to a peek (reach)
   const [machine, setMachine] = useState<Item | null>(null);
   const reachData = data.reach;
   useEffect(() => {
-    if (!nodeId || !reachData) { setMachine(null); return; }
+    if (!nodeId || !reachData) {
+      setMachine(null);
+      return;
+    }
     let live = true;
-    void loadMachines(data.call).then((out) => { if (live) setMachine(machineItem(out, nodeId, reachData.nameOf, data.agent.name)); }, () => { if (live) setMachine(null); });
-    return () => { live = false; };
+    void loadMachines(data.call).then(
+      (out) => {
+        if (live) setMachine(machineItem(out, nodeId, reachData.nameOf, data.agent.name));
+      },
+      () => {
+        if (live) setMachine(null);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [nodeId, reachData, data.call, data.agent.name]);
 
   const recSecs = rec ? Math.max(0, Math.floor((data.clock().now - rec.startedAt) / 1000)) : null;
@@ -95,20 +171,40 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   }, [rec]);
 
   const close = useCallback((): void => {
-    if (rec) { setLine("Recording is still on. Stop it first, or it will be lost."); return; }
+    if (rec) {
+      setLine("Recording is still on. Stop it first, or it will be lost.");
+      return;
+    }
     if (sheet) keepRecording(deps, sheet.recording.folderPath);
     data.nav.close();
   }, [rec, sheet, deps, data.nav]);
 
   useEffect(() => {
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+        };
+      }
+    ).document;
     if (!doc) return;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") { e.preventDefault(); close(); return; }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+        return;
+      }
       const tag = ((e.target as { tagName?: string } | null)?.tagName ?? "").toUpperCase();
       if (state !== "takeover" || sheet || tag === "INPUT" || tag === "TEXTAREA") return;
       e.preventDefault();
-      void forwarder.key({ key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey });
+      void forwarder.key({
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      });
       setTimeout(() => void forwarder.flush(), 120);
     };
     doc.addEventListener("keydown", onKey);
@@ -123,7 +219,8 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   const rail = railItems(c, recSecs, chat);
 
   const press = (key: string): void => {
-    if (key === "take") void (c.state === "takeover" ? giveBack(deps, c.computerId, name) : takeOver(deps, c.computerId, name));
+    if (key === "take")
+      void (c.state === "takeover" ? giveBack(deps, c.computerId, name) : takeOver(deps, c.computerId, name));
     if (key === "chat") setChat((x) => !x);
     if (key === "close") close();
     if (key === "record") {
@@ -131,53 +228,160 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
         const startedAt = rec.startedAt;
         const secs = Math.max(1, Math.floor((data.clock().now - startedAt) / 1000));
         const cap = data.capture.get();
-        void stopRecording(deps, c.computerId).then((r) => { if (r) { setRec(null); setSheet({ recording: r, capture: cap, secs }); setPicked([...DEFAULT_INTENTS]); setConfirmDiscard(false); } });
+        void stopRecording(deps, c.computerId).then((r) => {
+          if (r) {
+            setRec(null);
+            setSheet({ recording: r, capture: cap, secs });
+            setPicked([...DEFAULT_INTENTS]);
+            setConfirmDiscard(false);
+          }
+        });
       } else {
-        void startRecording(deps, c.computerId).then((id) => { if (id) setRec({ recordingId: id, startedAt: data.clock().now }); });
+        void startRecording(deps, c.computerId).then((id) => {
+          if (id) setRec({ recordingId: id, startedAt: data.clock().now });
+        });
       }
     }
   };
-  const icons: Record<string, IconName> = { take: "hand", record: rec ? "recstop" : "recdot", chat: "bubble", close: "x" };
+  const icons: Record<string, IconName> = {
+    take: "hand",
+    record: rec ? "recstop" : "recdot",
+    chat: "bubble",
+    close: "x",
+  };
   const railNodes: ReactElement[] = [];
-  for (const r of rail) railNodes.push(<RailButton key={r.key} label={r.label} tip={r.tip} icon={icons[r.key] ?? "x"} on={r.on} disabled={r.disabled} danger={r.key === "record"} {...(r.timer ? { timer: r.timer } : {})} onPress={() => press(r.key)} testID={`rail-${r.key}`} />);
+  for (const r of rail)
+    railNodes.push(
+      <RailButton
+        key={r.key}
+        label={r.label}
+        tip={r.tip}
+        icon={icons[r.key] ?? "x"}
+        on={r.on}
+        disabled={r.disabled}
+        danger={r.key === "record"}
+        {...(r.timer ? { timer: r.timer } : {})}
+        onPress={() => press(r.key)}
+        testID={`rail-${r.key}`}
+      />,
+    );
 
   const parts = captureParts(rec ? capture : NO_CAPTURE);
   const partNodes: ReactElement[] = [];
-  for (const p of parts) partNodes.push(<Text key={p} style={st.capText}>{p}</Text>);
+  for (const p of parts)
+    partNodes.push(
+      <Text key={p} style={st.capText}>
+        {p}
+      </Text>,
+    );
 
   return (
     <View testID="computer-popup" role="dialog" aria-label={`${name}'s computer`} aria-modal style={st.veil}>
       <View style={st.stage}>
         {chat ? (
           <View testID="popup-chat" accessibilityLabel="Chat" style={st.chat}>
-            {data.renderChat ? data.renderChat(data.agent) : <Text style={st.chatHint}>{`Talk to ${name} while you watch.`}</Text>}
+            {data.renderChat ? (
+              data.renderChat(data.agent)
+            ) : (
+              <Text style={st.chatHint}>{`Talk to ${name} while you watch.`}</Text>
+            )}
           </View>
         ) : null}
         <View testID="popup-window" style={[st.win, view.screen === "mine" && st.winMine, rec !== null && st.winRec]}>
-          <View style={st.pillWrap} pointerEvents={machine !== null ? "box-none" : "none"}><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View>{hostName ? (machine !== null && reachData ? <ReachLink r={reachOf(machine, reachData.viewer)} label={hostName} testID="popup-host" textStyle={st.hostText} deps={{ viewer: reachData.viewer, call: data.call, open: (t) => reachData.open(t) }} /> : <Text testID="popup-host" style={st.hostText}>{hostName}</Text>) : null}</View>
+          <View style={st.pillWrap} pointerEvents={machine !== null ? "box-none" : "none"}>
+            <View testID="popup-pill" style={st.pill}>
+              <View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} />
+              <Text style={st.pillText}>{view.pill}</Text>
+            </View>
+            {hostName ? (
+              machine !== null && reachData ? (
+                <ReachLink
+                  r={reachOf(machine, reachData.viewer)}
+                  label={hostName}
+                  testID="popup-host"
+                  textStyle={st.hostText}
+                  deps={{ viewer: reachData.viewer, call: data.call, open: (t) => reachData.open(t) }}
+                />
+              ) : (
+                <Text testID="popup-host" style={st.hostText}>
+                  {hostName}
+                </Text>
+              )
+            ) : null}
+          </View>
           <LiveScreen
-            computerId={c.computerId} state={c.state} call={data.call} note={deps.note} spaceUrl={data.spaceUrl} display={data.display} now={() => data.clock().now} control={c.state === "takeover"}
-            onIdlePress={() => { if (c.state === "asleep") void wake(deps, c.computerId, name); }} testID="popup-screen" streamTestID="popup-stream"
-            label={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`} style={st.screen} disabled={!online && c.state === "takeover"}
+            computerId={c.computerId}
+            state={c.state}
+            call={data.call}
+            note={deps.note}
+            spaceUrl={data.spaceUrl}
+            display={data.display}
+            now={() => data.clock().now}
+            control={c.state === "takeover"}
+            onIdlePress={() => {
+              if (c.state === "asleep") void wake(deps, c.computerId, name);
+            }}
+            testID="popup-screen"
+            streamTestID="popup-stream"
+            label={c.state === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`}
+            style={st.screen}
+            disabled={!online && c.state === "takeover"}
           >
             <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
-            {c.state === "asleep" ? <View style={st.wakeWrap}><View testID="popup-wake" style={st.wake}><Icon name="moon" size={14} /><Text style={st.wakeText}>Wake</Text></View></View> : null}
+            {c.state === "asleep" ? (
+              <View style={st.wakeWrap}>
+                <View testID="popup-wake" style={st.wake}>
+                  <Icon name="moon" size={14} />
+                  <Text style={st.wakeText}>Wake</Text>
+                </View>
+              </View>
+            ) : null}
           </LiveScreen>
-          {rec ? <View testID="popup-capture" style={st.capture}>{partNodes}</View> : null}
-          {line ? <View testID="popup-line" style={st.line}><Text numberOfLines={2} style={st.lineText}>{line}</Text></View> : null}
+          {rec ? (
+            <View testID="popup-capture" style={st.capture}>
+              {partNodes}
+            </View>
+          ) : null}
+          {line ? (
+            <View testID="popup-line" style={st.line}>
+              <Text numberOfLines={2} style={st.lineText}>
+                {line}
+              </Text>
+            </View>
+          ) : null}
           {sheet ? (
             <RecordSheet
-              sheet={sheet} name={name} picked={picked} confirm={confirmDiscard}
+              sheet={sheet}
+              name={name}
+              picked={picked}
+              confirm={confirmDiscard}
               onToggle={(k) => setPicked((p) => toggleIntent(p, k))}
-              onSend={() => void sendRecording(deps, sheet.recording.recordingId, orderedIntents(picked, name), name).then((id) => { if (id) setSheet(null); })}
-              onSave={() => { keepRecording(deps, sheet.recording.folderPath); setSheet(null); }}
-              onAskDiscard={() => setConfirmDiscard(true)} onCancelDiscard={() => setConfirmDiscard(false)}
-              onDiscard={() => void discardRecording(deps, sheet.recording.recordingId).then((ok) => { if (ok) { setSheet(null); setConfirmDiscard(false); } })}
+              onSend={() =>
+                void sendRecording(deps, sheet.recording.recordingId, orderedIntents(picked, name), name).then((id) => {
+                  if (id) setSheet(null);
+                })
+              }
+              onSave={() => {
+                keepRecording(deps, sheet.recording.folderPath);
+                setSheet(null);
+              }}
+              onAskDiscard={() => setConfirmDiscard(true)}
+              onCancelDiscard={() => setConfirmDiscard(false)}
+              onDiscard={() =>
+                void discardRecording(deps, sheet.recording.recordingId).then((ok) => {
+                  if (ok) {
+                    setSheet(null);
+                    setConfirmDiscard(false);
+                  }
+                })
+              }
             />
           ) : null}
         </View>
       </View>
-      <View testID="popup-rail" style={st.rail}>{railNodes}</View>
+      <View testID="popup-rail" style={st.rail}>
+        {railNodes}
+      </View>
     </View>
   );
 }
@@ -196,14 +400,38 @@ interface SheetProps {
 }
 
 /** One sheet asks what the agent should do with the recording: any of four, then Send, Save Only or Discard. */
-function RecordSheet({ sheet, name, picked, confirm, onToggle, onSend, onSave, onAskDiscard, onCancelDiscard, onDiscard }: SheetProps): ReactElement {
+function RecordSheet({
+  sheet,
+  name,
+  picked,
+  confirm,
+  onToggle,
+  onSend,
+  onSave,
+  onAskDiscard,
+  onCancelDiscard,
+  onDiscard,
+}: SheetProps): ReactElement {
   const opts: ReactElement[] = [];
   for (const o of options(name)) {
     const on = picked.includes(o.key);
     opts.push(
-      <Pressable key={o.key} role="checkbox" aria-checked={on} aria-label={o.title} onPress={() => onToggle(o.key)} testID={`opt-${o.key}`} style={[st.opt, on && st.optOn]}>
-        <View style={[st.check, on && st.checkOn]}>{on ? <Icon name="check" size={11} color="var(--accent-ink)" width={1.8} /> : null}</View>
-        <View style={{ flex: 1, minWidth: 0 }}><Text style={st.optTitle}>{o.title}</Text><Text style={st.optBlurb}>{o.blurb}</Text></View>
+      <Pressable
+        key={o.key}
+        role="checkbox"
+        aria-checked={on}
+        aria-label={o.title}
+        onPress={() => onToggle(o.key)}
+        testID={`opt-${o.key}`}
+        style={[st.opt, on && st.optOn]}
+      >
+        <View style={[st.check, on && st.checkOn]}>
+          {on ? <Icon name="check" size={11} color="var(--accent-ink)" width={1.8} /> : null}
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={st.optTitle}>{o.title}</Text>
+          <Text style={st.optBlurb}>{o.blurb}</Text>
+        </View>
       </Pressable>,
     );
   }
@@ -211,15 +439,27 @@ function RecordSheet({ sheet, name, picked, confirm, onToggle, onSend, onSave, o
     <View style={st.sheetWrap}>
       <View testID="record-sheet" role="dialog" aria-label="Send the recording" style={st.sheet}>
         <View style={st.sheetHead}>
-          <View style={st.thumb}><Icon name="play" size={16} color="#fff" fill="#fff" /><Text testID="sheet-dur" style={st.dur}>{mmss(sheet.secs)}</Text></View>
+          <View style={st.thumb}>
+            <Icon name="play" size={16} color="#fff" fill="#fff" />
+            <Text testID="sheet-dur" style={st.dur}>
+              {mmss(sheet.secs)}
+            </Text>
+          </View>
           <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
             <Text accessibilityRole="header" style={st.sheetTitle}>{`Recording · ${mmss(sheet.secs)}`}</Text>
-            <Text testID="sheet-stats" style={st.stats}>{captureLine(sheet.capture)}</Text>
-            <View style={st.priv}><Icon name="shield" size={13} color="var(--ok)" /><Text style={st.privText}>{MASKED_NOTE}</Text></View>
+            <Text testID="sheet-stats" style={st.stats}>
+              {captureLine(sheet.capture)}
+            </Text>
+            <View style={st.priv}>
+              <Icon name="shield" size={13} color="var(--ok)" />
+              <Text style={st.privText}>{MASKED_NOTE}</Text>
+            </View>
           </View>
         </View>
         <Text style={st.q}>{`What should ${name} do with it?`}</Text>
-        <View testID="sheet-options" style={st.opts}>{opts}</View>
+        <View testID="sheet-options" style={st.opts}>
+          {opts}
+        </View>
         {confirm ? (
           <View testID="sheet-confirm" style={st.sheetFoot}>
             <Text style={st.confirmText}>Delete this recording?</Text>
@@ -232,7 +472,13 @@ function RecordSheet({ sheet, name, picked, confirm, onToggle, onSend, onSave, o
             <SheetButton label="Discard" onPress={onAskDiscard} testID="sheet-discard" />
             <View style={{ flex: 1 }} />
             <SheetButton label="Save Only" onPress={onSave} testID="sheet-save" />
-            <SheetButton label={`Send to ${name}`} primary disabled={picked.length === 0} onPress={onSend} testID="sheet-send" />
+            <SheetButton
+              label={`Send to ${name}`}
+              primary
+              disabled={picked.length === 0}
+              onPress={onSend}
+              testID="sheet-send"
+            />
           </View>
         )}
       </View>
@@ -241,33 +487,130 @@ function RecordSheet({ sheet, name, picked, confirm, onToggle, onSend, onSave, o
 }
 
 const st = StyleSheet.create({
-  veil: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, zIndex: 75, backgroundColor: "rgba(4,4,6,0.9)" as string },
+  veil: {
+    position: FIXED,
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 75,
+    backgroundColor: "rgba(4,4,6,0.9)" as string,
+  },
   stage: { position: FIXED, left: 14, top: 14, right: 72, bottom: 14, flexDirection: "row", gap: 12 },
-  chat: { width: CHAT_W, maxWidth: "45%", borderRadius: 14, overflow: "hidden", backgroundColor: "var(--win)" as string, padding: 14, justifyContent: "center" },
+  chat: {
+    width: CHAT_W,
+    maxWidth: "45%",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "var(--win)" as string,
+    padding: 14,
+    justifyContent: "center",
+  },
   chatHint: { textAlign: "center", fontSize: 13, color: "var(--ink-3)" as string },
-  win: { flex: 1, minWidth: 0, borderRadius: 14, overflow: "hidden", backgroundColor: "#0f1012" as string, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" as string },
+  win: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#0f1012" as string,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)" as string,
+  },
   winMine: { borderWidth: 2, borderColor: "var(--accent)" as string },
   winRec: { borderWidth: 2, borderColor: "#d0453b" as string },
   pillWrap: { position: "absolute", left: 0, right: 0, top: 14, alignItems: "center", zIndex: 3 },
-  pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: "rgba(0,0,0,0.6)" as string },
+  pill: {
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.6)" as string,
+  },
   pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#4cc38a" as string },
   pillMine: { backgroundColor: "var(--accent)" as string },
   pillRec: { backgroundColor: "#ff5a4d" as string },
   hostText: { marginTop: 4, fontSize: 11, color: "#fff", opacity: 0.8 },
   pillText: { fontSize: 12, fontWeight: "500", color: "#fff" },
   screen: { flex: 1 },
-  wakeWrap: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
-  wake: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.14)" as string },
+  wakeWrap: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wake: {
+    height: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.14)" as string,
+  },
   wakeText: { fontSize: 13, fontWeight: "500", color: "#fff" },
-  capture: { position: "absolute", left: 0, right: 0, bottom: 14, flexDirection: "row", justifyContent: "center", gap: 14 },
-  capText: { fontSize: 12, color: "#fff", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)" as string, overflow: "hidden" },
-  line: { position: "absolute", left: 14, bottom: 14, maxWidth: "60%", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.7)" as string },
+  capture: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 14,
+  },
+  capText: {
+    fontSize: 12,
+    color: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.6)" as string,
+    overflow: "hidden",
+  },
+  line: {
+    position: "absolute",
+    left: 14,
+    bottom: 14,
+    maxWidth: "60%",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.7)" as string,
+  },
   lineText: { fontSize: 12.5, color: "#fff" },
   rail: { position: FIXED, right: 14, top: "50%", marginTop: -90, gap: 10, alignItems: "center", zIndex: 76 },
-  sheetWrap: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)" as string, zIndex: 5 },
-  sheet: { width: 420, maxWidth: "92%", borderRadius: 14, backgroundColor: "var(--raised)" as string, padding: 14, gap: 12 },
+  sheetWrap: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)" as string,
+    zIndex: 5,
+  },
+  sheet: {
+    width: 420,
+    maxWidth: "92%",
+    borderRadius: 14,
+    backgroundColor: "var(--raised)" as string,
+    padding: 14,
+    gap: 12,
+  },
   sheetHead: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  thumb: { width: 84, height: 56, borderRadius: 8, backgroundColor: "#1a1c22" as string, alignItems: "center", justifyContent: "center" },
+  thumb: {
+    width: 84,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#1a1c22" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   dur: { position: "absolute", right: 5, bottom: 4, fontSize: 10.5, color: "#fff", fontVariant: ["tabular-nums"] },
   sheetTitle: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   stats: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
@@ -275,9 +618,25 @@ const st = StyleSheet.create({
   privText: { fontSize: 12, color: "var(--ink-3)" as string },
   q: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   opts: { gap: 4 },
-  opt: { flexDirection: "row", gap: 10, alignItems: "flex-start", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  opt: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
   optOn: { backgroundColor: "var(--sel)" as string },
-  check: { width: 16, height: 16, marginTop: 2, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  check: {
+    width: 16,
+    height: 16,
+    marginTop: 2,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "var(--line-2)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   checkOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   optTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   optBlurb: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },

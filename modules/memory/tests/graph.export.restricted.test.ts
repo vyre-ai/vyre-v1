@@ -13,7 +13,20 @@ const FILES: Record<string, { folder: string; name: string; text: string }> = {
 function setup(extra: Record<string, (i: Record<string, unknown>) => unknown> = {}) {
   return harness({
     respond: {
-      "files.get": (i) => { const f = FILES[String(i["fileId"])]!; return { file: { fileId: i["fileId"], folderId: f.folder, name: f.name, ownerId: "usr_dana", createdAt: NOW - DAY, updatedAt: NOW, kind: "markdown" } }; },
+      "files.get": (i) => {
+        const f = FILES[String(i["fileId"])]!;
+        return {
+          file: {
+            fileId: i["fileId"],
+            folderId: f.folder,
+            name: f.name,
+            ownerId: "usr_dana",
+            createdAt: NOW - DAY,
+            updatedAt: NOW,
+            kind: "markdown",
+          },
+        };
+      },
       "files.folder.get": () => ({ folder: { path: "Knowledge/Memory" } }),
       "files.read": (i) => ({ text: FILES[String(i["fileId"])]!.text }),
       "files.tree": () => ({ roots: [{ key: "space", kind: "folder", title: "Space", folderId: "fld_root" }] }),
@@ -24,7 +37,12 @@ function setup(extra: Record<string, (i: Record<string, unknown>) => unknown> = 
 
 test("memory.graph_export: a node the caller cannot view is absent from the file", async () => {
   let written = "";
-  const h = setup({ "files.create": (i) => { written = String((i["content"] as { text: string }).text); return { file: { fileId: "fil_export" } }; } });
+  const h = setup({
+    "files.create": (i) => {
+      written = String((i["content"] as { text: string }).text);
+      return { file: { fileId: "fil_export" } };
+    },
+  });
   await indexGraph(h.ctx, { entity: "file", id: "fil_open", seq: 1 });
   await indexGraph(h.ctx, { entity: "file", id: "fil_secret", seq: 2 });
   h.deny("file:fil_secret");
@@ -35,7 +53,12 @@ test("memory.graph_export: a node the caller cannot view is absent from the file
 
 test("memory.graph_export: a context with no authorize writes no file", async () => {
   let created = 0;
-  const h = setup({ "files.create": () => { created++; return { file: { fileId: "fil_export" } }; } });
+  const h = setup({
+    "files.create": () => {
+      created++;
+      return { file: { fileId: "fil_export" } };
+    },
+  });
   await indexGraph(h.ctx, { entity: "file", id: "fil_secret", seq: 1 });
   (h.ctx as { authorize?: unknown }).authorize = undefined;
   await assert.rejects(graphExport(h.ctx, { scope: "space" }));

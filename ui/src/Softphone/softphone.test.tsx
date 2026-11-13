@@ -23,7 +23,14 @@ import {
   transferInput,
   transferMenu,
 } from "./index.tsx";
-import type { PhoneCallEvent, PhoneCallLike, PhoneDeviceLike, PhoneEvent, PhoneState, SoftphoneProps } from "./index.tsx";
+import type {
+  PhoneCallEvent,
+  PhoneCallLike,
+  PhoneDeviceLike,
+  PhoneEvent,
+  PhoneState,
+  SoftphoneProps,
+} from "./index.tsx";
 
 /* ---------- a fake Twilio Voice device ---------- */
 
@@ -32,14 +39,30 @@ class FakeCall implements PhoneCallLike {
   calls: string[] = [];
   digits: string[] = [];
   private handlers = new Map<PhoneCallEvent, ((arg?: unknown) => void)[]>();
-  constructor(params: { From?: string; To?: string; CallSid?: string }) { this.parameters = params; }
-  accept(): void { this.calls.push("accept"); }
-  reject(): void { this.calls.push("reject"); }
-  disconnect(): void { this.calls.push("disconnect"); }
-  mute(shouldMute: boolean): void { this.calls.push(`mute:${shouldMute}`); }
-  sendDigits(d: string): void { this.digits.push(d); }
-  on(event: PhoneCallEvent, handler: (arg?: unknown) => void): void { this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]); }
-  emit(event: PhoneCallEvent, arg?: unknown): void { for (const h of this.handlers.get(event) ?? []) h(arg); }
+  constructor(params: { From?: string; To?: string; CallSid?: string }) {
+    this.parameters = params;
+  }
+  accept(): void {
+    this.calls.push("accept");
+  }
+  reject(): void {
+    this.calls.push("reject");
+  }
+  disconnect(): void {
+    this.calls.push("disconnect");
+  }
+  mute(shouldMute: boolean): void {
+    this.calls.push(`mute:${shouldMute}`);
+  }
+  sendDigits(d: string): void {
+    this.digits.push(d);
+  }
+  on(event: PhoneCallEvent, handler: (arg?: unknown) => void): void {
+    this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
+  }
+  emit(event: PhoneCallEvent, arg?: unknown): void {
+    for (const h of this.handlers.get(event) ?? []) h(arg);
+  }
 }
 
 class FakeDevice implements PhoneDeviceLike {
@@ -54,8 +77,12 @@ class FakeDevice implements PhoneDeviceLike {
     this.last = new FakeCall({ To: options.params["To"] ?? "" });
     return Promise.resolve(this.last);
   }
-  on(_event: "incoming", handler: (call: PhoneCallLike) => void): void { this.incoming.push(handler); }
-  destroy(): void { this.destroyed = true; }
+  on(_event: "incoming", handler: (call: PhoneCallLike) => void): void {
+    this.incoming.push(handler);
+  }
+  destroy(): void {
+    this.destroyed = true;
+  }
   ring(from: string): FakeCall {
     const call = new FakeCall({ From: from, CallSid: "CA1" });
     this.last = call;
@@ -144,7 +171,11 @@ test("a remote hang up, a failure and a transfer each end the call with their re
   const moved = phoneReduce(live, { type: "transferred", to: "Maya Chen" });
   assert.equal(moved.ended?.reason, "transferred");
   assert.equal(moved.transferredTo, "Maya Chen");
-  assert.equal(phoneReduce(IDLE_STATE, { type: "error", message: "No microphone" }).error, "No microphone", "an error while idle is kept and the phone stays idle");
+  assert.equal(
+    phoneReduce(IDLE_STATE, { type: "error", message: "No microphone" }).error,
+    "No microphone",
+    "an error while idle is kept and the phone stays idle",
+  );
 });
 
 /* ---------- the controller against the fake device ---------- */
@@ -152,7 +183,12 @@ test("a remote hang up, a failure and a transfer each end the call with their re
 test("dial connects through the Voice SDK with the parameters telephony.dial returned, and the accept event makes it live", async () => {
   const device = new FakeDevice();
   const seen: string[] = [];
-  const phone = createPhoneController(device, { dial: (to) => { seen.push(to); return Promise.resolve({ To: to, CallId: "cal_1" }); } });
+  const phone = createPhoneController(device, {
+    dial: (to) => {
+      seen.push(to);
+      return Promise.resolve({ To: to, CallId: "cal_1" });
+    },
+  });
   await phone.dial("+14155550161");
   assert.deepEqual(seen, ["+14155550161"]);
   assert.deepEqual(device.connected, [{ params: { To: "+14155550161", CallId: "cal_1" } }]);
@@ -200,7 +236,14 @@ test("mute goes to the SDK call, hold and transfer go to the server hooks, digit
   const device = new FakeDevice();
   const holds: boolean[] = [];
   const moves: string[] = [];
-  const phone = createPhoneController(device, { hold: (h) => { holds.push(h); }, transfer: (n) => { moves.push(n); } });
+  const phone = createPhoneController(device, {
+    hold: (h) => {
+      holds.push(h);
+    },
+    transfer: (n) => {
+      moves.push(n);
+    },
+  });
   const call = device.ring("+1415");
   phone.answer();
   phone.mute();
@@ -226,7 +269,9 @@ test("mute goes to the SDK call, hold and transfer go to the server hooks, digit
 test("record asks the server for consent and shows Waiting for consent until it is logged", async () => {
   const device = new FakeDevice();
   let logged = false;
-  const phone = createPhoneController(device, { record: (start) => (start ? { consentLogged: logged } : { consentLogged: false }) });
+  const phone = createPhoneController(device, {
+    record: (start) => (start ? { consentLogged: logged } : { consentLogged: false }),
+  });
   device.ring("+1415");
   phone.answer();
   await phone.record();
@@ -292,16 +337,39 @@ test("hanging up while the call is still connecting drops the SDK call when it a
 
 test("stateToProps gives the view the mode and the caller", () => {
   const live = apply([{ type: "dial", to: "+14155550161" }, { type: "connected" }, { type: "mute" }]);
-  assert.deepEqual(stateToProps(live), { open: true, mode: "live", muted: true, held: false, recording: false, consent: false, caller: { number: "+14155550161" } });
-  assert.deepEqual(stateToProps(IDLE_STATE), { open: false, mode: "idle", muted: false, held: false, recording: false, consent: false });
+  assert.deepEqual(stateToProps(live), {
+    open: true,
+    mode: "live",
+    muted: true,
+    held: false,
+    recording: false,
+    consent: false,
+    caller: { number: "+14155550161" },
+  });
+  assert.deepEqual(stateToProps(IDLE_STATE), {
+    open: false,
+    mode: "idle",
+    muted: false,
+    held: false,
+    recording: false,
+    consent: false,
+  });
 });
 
 /* ---------- contract inputs and helpers ---------- */
 
 test("record and transfer map to the telephony inputs", () => {
-  assert.deepEqual(recordInput("cal_1", true, true, "usr_me"), { callId: "cal_1", action: "start", consent: { announced: true, confirmedBy: "usr_me" } });
+  assert.deepEqual(recordInput("cal_1", true, true, "usr_me"), {
+    callId: "cal_1",
+    action: "start",
+    consent: { announced: true, confirmedBy: "usr_me" },
+  });
   assert.deepEqual(recordInput("cal_1", false, true), { callId: "cal_1", action: "stop" });
-  assert.deepEqual(transferInput("cal_1", { kind: "agent", id: "agt_intake" }), { callId: "cal_1", to: { kind: "agent", id: "agt_intake" }, mode: "warm" });
+  assert.deepEqual(transferInput("cal_1", { kind: "agent", id: "agt_intake" }), {
+    callId: "cal_1",
+    to: { kind: "agent", id: "agt_intake" },
+    mode: "warm",
+  });
 });
 
 test("dial helpers: what counts as dialable, E.164, and the clock", () => {
@@ -319,7 +387,14 @@ test("dial helpers: what counts as dialable, E.164, and the clock", () => {
 
 test("the transfer menu lists teammates then agents, none with an icon", () => {
   const picked: string[] = [];
-  const menu = transferMenu([{ name: "Maya Chen", kind: "teammate" }, { name: "Intake", kind: "agent" }, { name: "Omar Haddad", kind: "teammate" }], (n) => picked.push(n));
+  const menu = transferMenu(
+    [
+      { name: "Maya Chen", kind: "teammate" },
+      { name: "Intake", kind: "agent" },
+      { name: "Omar Haddad", kind: "teammate" },
+    ],
+    (n) => picked.push(n),
+  );
   const heads = menu.filter((e) => "head" in e).map((e) => ("head" in e ? e.head : ""));
   assert.deepEqual(heads, ["Teammates", "Agents"]);
   const items = menu.filter((e) => "label" in e);
@@ -331,7 +406,10 @@ test("the transfer menu lists teammates then agents, none with an icon", () => {
 
 /* ---------- screens ---------- */
 
-const NUMBERS = [{ id: "n1", label: "Office", num: "+1 415 555 0132" }, { id: "n2", label: "Intake line", num: "+1 415 555 0177" }];
+const NUMBERS = [
+  { id: "n1", label: "Office", num: "+1 415 555 0132" },
+  { id: "n2", label: "Intake line", num: "+1 415 555 0177" },
+];
 const base: SoftphoneProps = { open: false, mode: "idle", numbers: NUMBERS };
 const caller = { name: "Elena Rivera", number: "+1 415 555 0161", company: "Rivera Holdings", recordId: "rec_elena" };
 
@@ -342,14 +420,27 @@ test("idle shows the pill with the number; the dialer shows 12 keys, the from nu
   const dialer = renderToStaticMarkup(<Softphone {...base} open mode="dialer" />);
   assert.match(dialer, /role="dialog"/);
   assert.match(dialer, /aria-label="Call from Office"/);
-  for (const k of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "star", "0", "hash"]) assert.match(dialer, new RegExp(`data-testid="softphone-key-${k}"`));
+  for (const k of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "star", "0", "hash"])
+    assert.match(dialer, new RegExp(`data-testid="softphone-key-${k}"`));
   assert.match(dialer, /data-testid="softphone-call"/);
   assert.match(dialer, /ABC/);
   assert.match(dialer, /aria-disabled="true"/, "Call is off until the number is dialable");
 });
 
 test("the dialer lists up to three suggestions", () => {
-  const html = renderToStaticMarkup(<Softphone {...base} open mode="dialer" suggestions={[{ name: "Elena Rivera", number: "+14155550161" }, { name: "Omar Haddad", number: "+14155550162" }, { name: "Lena Ortiz", number: "+14155550163" }, { name: "Maya Chen", number: "+14155550164" }]} />);
+  const html = renderToStaticMarkup(
+    <Softphone
+      {...base}
+      open
+      mode="dialer"
+      suggestions={[
+        { name: "Elena Rivera", number: "+14155550161" },
+        { name: "Omar Haddad", number: "+14155550162" },
+        { name: "Lena Ortiz", number: "+14155550163" },
+        { name: "Maya Chen", number: "+14155550164" },
+      ]}
+    />,
+  );
   assert.match(html, /softphone-suggest-\+14155550161/);
   assert.match(html, /softphone-suggest-\+14155550163/);
   assert.doesNotMatch(html, /softphone-suggest-\+14155550164/);
@@ -364,7 +455,9 @@ test("an incoming call shows the caller, the number it came in on, Accept and De
   assert.doesNotMatch(html, /Incoming to Intake line/);
   assert.match(html, /data-testid="softphone-answer"/);
   assert.match(html, /data-testid="softphone-decline"/);
-  const unknown = renderToStaticMarkup(<Softphone {...base} open mode="incoming" caller={{ number: "+1 999 555 0100" }} />);
+  const unknown = renderToStaticMarkup(
+    <Softphone {...base} open mode="incoming" caller={{ number: "+1 999 555 0100" }} />,
+  );
   assert.match(unknown, /Unknown caller/);
 });
 
@@ -375,7 +468,19 @@ test("with nobody who can take the call there is no Transfer button (it would op
 });
 
 test("a live call shows the clock, mute, hold, keypad, transfer, record and hang up; the pressed ones say so", () => {
-  const html = renderToStaticMarkup(<Softphone {...base} open mode="live" caller={caller} secs={75} muted recording consent transferTargets={[{ name: "Maya Chen", kind: "teammate" }]} />);
+  const html = renderToStaticMarkup(
+    <Softphone
+      {...base}
+      open
+      mode="live"
+      caller={caller}
+      secs={75}
+      muted
+      recording
+      consent
+      transferTargets={[{ name: "Maya Chen", kind: "teammate" }]}
+    />,
+  );
   assert.match(html, /data-testid="softphone-bar"/);
   assert.match(html, /01:15 · Recording/);
   assert.match(html, /aria-label="Unmute"/);
@@ -406,7 +511,16 @@ test("recording without consent says Waiting for consent in the bar and in the p
 });
 
 test("the Call pane has notes, last interactions, open tasks and a link to the record; no record says so", () => {
-  const html = renderToStaticMarkup(<CallPane caller={caller} notes="Asked about the engagement letter" card={{ last: [{ kind: "mail", text: "Engagement letter sent", when: "Mon" }], tasks: [{ title: "Send intake form", due: "Today" }] }} />);
+  const html = renderToStaticMarkup(
+    <CallPane
+      caller={caller}
+      notes="Asked about the engagement letter"
+      card={{
+        last: [{ kind: "mail", text: "Engagement letter sent", when: "Mon" }],
+        tasks: [{ title: "Send intake form", due: "Today" }],
+      }}
+    />,
+  );
   assert.match(html, /Asked about the engagement letter/);
   assert.match(html, /Last interactions/);
   assert.match(html, /Engagement letter sent/);
@@ -418,7 +532,20 @@ test("the Call pane has notes, last interactions, open tasks and a link to the r
 });
 
 test("after the call: duration, the summary and transcript, Log a task and the record link", () => {
-  const html = renderToStaticMarkup(<Softphone {...base} open mode="ended" caller={caller} endedSecs={134} summary="Elena will sign Friday." transcript={[{ who: "Elena", text: "I will sign Friday." }, { who: "You", text: "Great." }]} />);
+  const html = renderToStaticMarkup(
+    <Softphone
+      {...base}
+      open
+      mode="ended"
+      caller={caller}
+      endedSecs={134}
+      summary="Elena will sign Friday."
+      transcript={[
+        { who: "Elena", text: "I will sign Friday." },
+        { who: "You", text: "Great." },
+      ]}
+    />,
+  );
   assert.match(html, /Call ended · 02:14/);
   assert.match(html, /Saved to Elena Rivera/);
   assert.match(html, /Elena will sign Friday\./);
@@ -431,7 +558,9 @@ test("after the call: duration, the summary and transcript, Log a task and the r
 
 test("every mode in the frozen list renders without throwing", () => {
   for (const mode of ["idle", "dialer", "incoming", "live", "held", "ended"] as const) {
-    const html = renderToStaticMarkup(<Softphone {...base} open={mode !== "idle"} mode={mode} caller={caller} placement="inline" />);
+    const html = renderToStaticMarkup(
+      <Softphone {...base} open={mode !== "idle"} mode={mode} caller={caller} placement="inline" />,
+    );
     assert.match(html, /data-testid="softphone"/);
   }
   assert.equal(renderToStaticMarkup(<Softphone open={false} mode="idle" numbers={[]} />), "");

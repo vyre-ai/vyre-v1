@@ -20,7 +20,12 @@ export function subjectTarget(f: FieldDef | undefined): string | null {
 function Subject({ field, row }: { field: FieldDef; row: RecordRow }): ReactElement | null {
   const data = usePageData();
   const target = subjectTarget(field) ?? "";
-  const id = typeof row.fields[field.key] === "string" ? (row.fields[field.key] as string) : Array.isArray(row.fields[field.key]) ? String((row.fields[field.key] as unknown[])[0] ?? "") : "";
+  const id =
+    typeof row.fields[field.key] === "string"
+      ? (row.fields[field.key] as string)
+      : Array.isArray(row.fields[field.key])
+        ? String((row.fields[field.key] as unknown[])[0] ?? "")
+        : "";
   const rq = useLive("records.get", { type: target, recordId: id });
   const dq = useLive("schema.describe", { type: target });
   if (!id || !target) return null;
@@ -30,14 +35,29 @@ function Subject({ field, row }: { field: FieldDef; row: RecordRow }): ReactElem
   return (
     <View style={c.subjectRow} testID="journey-subject">
       <Text style={c.subjectLabel}>{def ? `${def.title}` : "Subject"}</Text>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Open ${title}`} testID="journey-subject-link" onPress={() => data.nav.openRecord(target, id)}>
-        <Text style={c.link} numberOfLines={1}>{title}</Text>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Open ${title}`}
+        testID="journey-subject-link"
+        onPress={() => data.nav.openRecord(target, id)}
+      >
+        <Text style={c.link} numberOfLines={1}>
+          {title}
+        </Text>
       </Pressable>
     </View>
   );
 }
 
-export function JourneyStepper({ type, row, def }: { type: string; row: RecordRow; def: TypeDef }): ReactElement | null {
+export function JourneyStepper({
+  type,
+  row,
+  def,
+}: {
+  type: string;
+  row: RecordRow;
+  def: TypeDef;
+}): ReactElement | null {
   const data = usePageData();
   const [journey, setJourney] = useState<{ id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +65,16 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
   const [gate, setGate] = useState<{ stage: string; missing: readonly MissingField[] } | null>(null);
   useEffect(() => {
     let live = true;
-    journeyOfType(data.call, type).then((j) => { if (live) setJourney(j); }).catch(() => { if (live) setJourney(null); });
-    return () => { live = false; };
+    journeyOfType(data.call, type)
+      .then((j) => {
+        if (live) setJourney(j);
+      })
+      .catch(() => {
+        if (live) setJourney(null);
+      });
+    return () => {
+      live = false;
+    };
   }, [data, type]);
   const field = stageFieldOf(def);
   if (!field) return null;
@@ -58,34 +86,71 @@ export function JourneyStepper({ type, row, def }: { type: string; row: RecordRo
   const subject = def.fields.find((f) => f.key === "subject" && f.type === "relation");
   const go = (stage: string): void => {
     if ((!journey && !plain) || busy || stage === now) return;
-    setBusy(true); setError(null);
-    (plain ? movePlain(data.call, type, row, field.key, stage) : moveInJourney(data.call, journey!.id, row, stage)).catch((e: unknown) => { if (e instanceof GateError) setGate({ stage: e.toStage || stage, missing: e.missing }); else setError(e instanceof Error ? e.message : "Could not move it. Try again."); }).finally(() => setBusy(false));
+    setBusy(true);
+    setError(null);
+    (plain ? movePlain(data.call, type, row, field.key, stage) : moveInJourney(data.call, journey!.id, row, stage))
+      .catch((e: unknown) => {
+        if (e instanceof GateError) setGate({ stage: e.toStage || stage, missing: e.missing });
+        else setError(e instanceof Error ? e.message : "Could not move it. Try again.");
+      })
+      .finally(() => setBusy(false));
   };
   const steps: ReactElement[] = [];
   for (let i = 0; i < stages.length; i++) {
     const g = stages[i]!;
-    const here = i === at, past = at >= 0 && i < at;
+    const here = i === at,
+      past = at >= 0 && i < at;
     steps.push(
       <Pressable
-        key={g.key} accessibilityRole="button" accessibilityLabel={`${g.title}${here ? ", current stage" : ""}`} accessibilityState={{ selected: here, disabled: !journey && !plain }} testID={`step-${g.key}`}
-        onPress={() => go(g.key)} style={({ hovered }: { hovered?: boolean }) => [c.step, here && c.stepOn, hovered === true && !here && c.stepOver]}
+        key={g.key}
+        accessibilityRole="button"
+        accessibilityLabel={`${g.title}${here ? ", current stage" : ""}`}
+        accessibilityState={{ selected: here, disabled: !journey && !plain }}
+        testID={`step-${g.key}`}
+        onPress={() => go(g.key)}
+        style={({ hovered }: { hovered?: boolean }) => [
+          c.step,
+          here && c.stepOn,
+          hovered === true && !here && c.stepOver,
+        ]}
       >
-        <View style={[c.dot, { backgroundColor: here || past ? (`hsl(${hueOf(g.key)}, 55%, 52%)` as string) : "var(--line-2)" }]} />
-        <Text numberOfLines={1} style={[c.stepText, here && c.stepTextOn, !here && !past && c.stepTextOff]}>{g.title}</Text>
+        <View
+          style={[
+            c.dot,
+            { backgroundColor: here || past ? (`hsl(${hueOf(g.key)}, 55%, 52%)` as string) : "var(--line-2)" },
+          ]}
+        />
+        <Text numberOfLines={1} style={[c.stepText, here && c.stepTextOn, !here && !past && c.stepTextOff]}>
+          {g.title}
+        </Text>
       </Pressable>,
     );
   }
   return (
     <View style={c.wrap} testID="journey-stepper" accessibilityLabel={`${def.title} stages`}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.steps}>{steps}</ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={c.steps}>
+        {steps}
+      </ScrollView>
       {subject ? <Subject field={subject} row={row} /> : null}
       {gate && (journey || plain) ? (
         <GateSheet
-          call={data.call} {...(plain ? { plainField: field.key } : { journeyId: journey!.id })} type={type} def={def} row={row} toStage={gate.stage} missing={gate.missing}
-          stageTitle={stages.find((g) => g.key === gate.stage)?.title ?? gate.stage} onDone={() => setGate(null)} onClose={() => setGate(null)}
+          call={data.call}
+          {...(plain ? { plainField: field.key } : { journeyId: journey!.id })}
+          type={type}
+          def={def}
+          row={row}
+          toStage={gate.stage}
+          missing={gate.missing}
+          stageTitle={stages.find((g) => g.key === gate.stage)?.title ?? gate.stage}
+          onDone={() => setGate(null)}
+          onClose={() => setGate(null)}
         />
       ) : null}
-      {error ? <Text style={c.err} accessibilityRole="alert" testID="journey-stepper-error">{error}</Text> : null}
+      {error ? (
+        <Text style={c.err} accessibilityRole="alert" testID="journey-stepper-error">
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }

@@ -18,22 +18,38 @@ const BOOT = Math.random().toString(36).slice(2, 10);
 let starts = 0;
 /** The Space a profile's folder says it belongs to, or undefined. */
 function spaceOnDisk(dir: string): string | undefined {
-  try { const s = readFileSync(join(dir, SPACE_FILE), "utf8").trim(); return /^[A-Za-z0-9_-]{3,80}$/.test(s) ? s : undefined; } catch { return undefined; }
+  try {
+    const s = readFileSync(join(dir, SPACE_FILE), "utf8").trim();
+    return /^[A-Za-z0-9_-]{3,80}$/.test(s) ? s : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A profile id is an agent id (agt_...) or another short name made of letters, digits, `_` and `-`. It becomes a folder name, so nothing else is allowed in it. */
 export const PROFILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,79}$/;
 export const checkProfileId = (id: unknown): string => {
-  if (typeof id !== "string" || !PROFILE_ID.test(id)) throw badInput("Name the profile with its id: letters, digits, _ and -, at least 3 characters.");
+  if (typeof id !== "string" || !PROFILE_ID.test(id))
+    throw badInput("Name the profile with its id: letters, digits, _ and -, at least 3 characters.");
   return id;
 };
 
 /** A download in a profile's downloads folder that Chrome has finished (not a `.crdownload` or a hidden file). */
-export interface DownloadRow { name: string; size: number; at: number }
+export interface DownloadRow {
+  name: string;
+  size: number;
+  at: number;
+}
 export const MAX_DOWNLOAD = 20 * 1024 * 1024;
 /** The steps that can set off a download: when the browser said a download began during the step, the step waits for it to finish (up to SETTLE_MS), so the step that downloaded is the one that reports it.
  * A step that set off no download waits for nothing: no timer runs on every click. */
-const ACTING: ReadonlySet<string> = new Set(["chrome_click", "chrome_act", "chrome_open", "chrome_send", "chrome_type"]);
+const ACTING: ReadonlySet<string> = new Set([
+  "chrome_click",
+  "chrome_act",
+  "chrome_open",
+  "chrome_send",
+  "chrome_type",
+]);
 const SETTLE_MS = 15_000;
 const SAFE_NAME = /^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,254}$/;
 
@@ -43,9 +59,19 @@ export function writeDownloadPrefs(chromeDir: string, downloadsDir: string): voi
   mkdirSync(dir, { recursive: true });
   const file = join(dir, "Preferences");
   let prefs: Record<string, unknown> = {};
-  try { prefs = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>; } catch { /* a new profile */ }
-  const dl = (typeof prefs["download"] === "object" && prefs["download"] !== null ? prefs["download"] : {}) as Record<string, unknown>;
-  const sf = (typeof prefs["savefile"] === "object" && prefs["savefile"] !== null ? prefs["savefile"] : {}) as Record<string, unknown>;
+  try {
+    prefs = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  } catch {
+    /* a new profile */
+  }
+  const dl = (typeof prefs["download"] === "object" && prefs["download"] !== null ? prefs["download"] : {}) as Record<
+    string,
+    unknown
+  >;
+  const sf = (typeof prefs["savefile"] === "object" && prefs["savefile"] !== null ? prefs["savefile"] : {}) as Record<
+    string,
+    unknown
+  >;
   prefs["download"] = { ...dl, default_directory: downloadsDir, prompt_for_download: false, directory_upgrade: true };
   prefs["savefile"] = { ...sf, default_directory: downloadsDir };
   writeFileSync(file, JSON.stringify(prefs));
@@ -56,16 +82,41 @@ export function writeDownloadPrefs(chromeDir: string, downloadsDir: string): voi
 // that can be read counts the computer's own memory.
 const BROWSER_MB = 256;
 const BASE_MB = 512;
-export function memoryLimitMb(read: (f: string) => string = (f) => readFileSync(f, "utf8"), total: () => number = () => Math.round(totalmem() / 1048576)): number {
+export function memoryLimitMb(
+  read: (f: string) => string = (f) => readFileSync(f, "utf8"),
+  total: () => number = () => Math.round(totalmem() / 1048576),
+): number {
   for (const f of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
-    try { const v = read(f).trim(); if (/^\d+$/.test(v)) { const mb = Math.round(Number(v) / 1048576); if (mb > 0 && mb < 4_194_304) return Math.min(mb, total()); } } catch { /* not this cgroup version */ }
+    try {
+      const v = read(f).trim();
+      if (/^\d+$/.test(v)) {
+        const mb = Math.round(Number(v) / 1048576);
+        if (mb > 0 && mb < 4_194_304) return Math.min(mb, total());
+      }
+    } catch {
+      /* not this cgroup version */
+    }
   }
   return total();
 }
 /** The cores this container may use (cgroup v2 cpu.max quota over period, or v1 cfs), else the computer's. */
-export function cpuLimit(read: (f: string) => string = (f) => readFileSync(f, "utf8"), total: () => number = () => cpus().length): number {
-  try { const [q, per] = read("/sys/fs/cgroup/cpu.max").trim().split(/\s+/); if (q && q !== "max" && Number(per) > 0) return Math.max(1, Math.round(Number(q) / Number(per))); } catch { /* v1 or none */ }
-  try { const q = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").trim()); const per = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us").trim()); if (q > 0 && per > 0) return Math.max(1, Math.round(q / per)); } catch { /* none */ }
+export function cpuLimit(
+  read: (f: string) => string = (f) => readFileSync(f, "utf8"),
+  total: () => number = () => cpus().length,
+): number {
+  try {
+    const [q, per] = read("/sys/fs/cgroup/cpu.max").trim().split(/\s+/);
+    if (q && q !== "max" && Number(per) > 0) return Math.max(1, Math.round(Number(q) / Number(per)));
+  } catch {
+    /* v1 or none */
+  }
+  try {
+    const q = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").trim());
+    const per = Number(read("/sys/fs/cgroup/cpu/cpu.cfs_period_us").trim());
+    if (q > 0 && per > 0) return Math.max(1, Math.round(q / per));
+  } catch {
+    /* none */
+  }
   return Math.max(1, total());
 }
 /** The container's process and thread cap (cgroup pids.max), or null when there is none. A headless Chromium counts about PIDS_PER_BROWSER tasks (its processes and their threads). */
@@ -73,7 +124,13 @@ export const PIDS_PER_BROWSER = 120;
 const BASE_PIDS = 100;
 export function pidsLimit(read: (f: string) => string = (f) => readFileSync(f, "utf8")): number | null {
   for (const f of ["/sys/fs/cgroup/pids.max", "/sys/fs/cgroup/pids/pids.max"]) {
-    try { const v = read(f).trim(); if (/^\d+$/.test(v)) return Number(v); if (v === "max") return null; } catch { /* not this cgroup version */ }
+    try {
+      const v = read(f).trim();
+      if (/^\d+$/.test(v)) return Number(v);
+      if (v === "max") return null;
+    } catch {
+      /* not this cgroup version */
+    }
   }
   return null;
 }
@@ -84,14 +141,34 @@ export function slotsFor(limitMb: number, bound: number | undefined, pidsMax: nu
   const fit = Math.max(1, Math.min(byMemory, byTasks));
   return bound !== undefined && bound > 0 ? Math.min(fit, bound) : fit;
 }
-export type LaunchFn = (profileDir: string, extensionDir: string | null, log: (m: string) => void, o: ChromeOptions) => Chrome;
+export type LaunchFn = (
+  profileDir: string,
+  extensionDir: string | null,
+  log: (m: string) => void,
+  o: ChromeOptions,
+) => Chrome;
 // headless=new reserves 87 px of the window for the browser's own bar, so the page gets 1280x800 from a window of 1280x887: every tab, new ones too, has the same viewport, which the live view's pointer maths relies on
 export const VIEWPORT = { width: 1280, height: 800 };
 const BAR_PX = 87;
 // what a headless agent browser does not need at start and in the background (component downloads, safe-browsing lists, crash upload, metrics): with many browsers on a few cores these made every start slow
 // (scale test, 12 Nov). Downloads, sign-ins, the extension and the pages themselves are untouched.
-const QUIET_FLAGS = ["--disable-background-networking", "--disable-component-update", "--disable-domain-reliability", "--disable-breakpad", "--disable-client-side-phishing-detection", "--metrics-recording-only", "--no-pings"];
-const realLaunch: LaunchFn = (dir, ext, log, o) => launchChrome(null, dir, ext, log, { headless: true, size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX }, ...o, flags: [...QUIET_FLAGS, ...(o.flags ?? [])], pipe: true });
+const QUIET_FLAGS = [
+  "--disable-background-networking",
+  "--disable-component-update",
+  "--disable-domain-reliability",
+  "--disable-breakpad",
+  "--disable-client-side-phishing-detection",
+  "--metrics-recording-only",
+  "--no-pings",
+];
+const realLaunch: LaunchFn = (dir, ext, log, o) =>
+  launchChrome(null, dir, ext, log, {
+    headless: true,
+    size: { width: VIEWPORT.width, height: VIEWPORT.height + BAR_PX },
+    ...o,
+    flags: [...QUIET_FLAGS, ...(o.flags ?? [])],
+    pipe: true,
+  });
 
 export interface ProfileManagerOptions {
   /** The data volume: profiles live in `<root>/profiles/<id>/chrome`. */
@@ -125,7 +202,11 @@ export interface Profile {
   readonly id: string;
   readonly dir: string;
   readonly vault: Vault;
-  readonly state: ChromeState & { takeover: { personId: string; since: number } | null; busy: number; caption: string | undefined };
+  readonly state: ChromeState & {
+    takeover: { personId: string; since: number } | null;
+    busy: number;
+    caption: string | undefined;
+  };
   chrome: Chrome | null;
   lastActiveAt: number;
   /** People watching its live view (view.ts counts them). */
@@ -150,7 +231,21 @@ export interface Profile {
   seenBy: Map<string, string>;
 }
 
-export interface ProfileRow { profileId: string; spaceId?: string; personSeenAt?: number; running: boolean; tabs: number; busy: boolean; takeover: boolean; viewers: number; lastActiveAt: number; held: number; paused: boolean; takeoverBy?: string; bridge?: { connected: number; hello: boolean; optin: boolean } }
+export interface ProfileRow {
+  profileId: string;
+  spaceId?: string;
+  personSeenAt?: number;
+  running: boolean;
+  tabs: number;
+  busy: boolean;
+  takeover: boolean;
+  viewers: number;
+  lastActiveAt: number;
+  held: number;
+  paused: boolean;
+  takeoverBy?: string;
+  bridge?: { connected: number; hello: boolean; optin: boolean };
+}
 
 export interface ProfileManager {
   /** The profile's record (made on first mention; no browser starts). */
@@ -158,7 +253,16 @@ export interface ProfileManager {
   /** Start the profile's browser if it is not running, making room first. */
   ensure(id: string): Promise<Profile>;
   /** One browser tool for one profile. `by: "person"` is the person at the controls, through the live view. `channel`: the Vault as the person whose call it is (main.ts), for the handles this call types. */
-  tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel; refsFrom?: string; seenFrom?: string }): Promise<Record<string, unknown>>;
+  tool(a: {
+    profileId: string;
+    tool: string;
+    args: Record<string, unknown>;
+    timeoutMs: number;
+    by?: string;
+    channel?: CallChannel;
+    refsFrom?: string;
+    seenFrom?: string;
+  }): Promise<Record<string, unknown>>;
   /** The Space a profile belongs to, as the Space said: kept in the profile's folder too, so a purge of one Space finds its own profiles on disk, and only those. */
   setSpace(id: string, spaceId: string): void;
   /** Remove every profile of this Space (browsers closed first, cleanly), from what is on disk: removed, profiles of other Spaces, and profiles that name no Space (made before Spaces were written down). */
@@ -221,9 +325,23 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     if (!p) {
       const dir = join(o.root, "profiles", id);
       p = {
-        id, dir, vault: createVault(),
+        id,
+        dir,
+        vault: createVault(),
         state: { stopped: false, tabLimit: o.tabLimit ?? 10, takeover: null, busy: 0, caption: undefined },
-        chrome: null, lastActiveAt: now(), viewers: 0, agentId: undefined, agentName: undefined, spaceId: spaceOnDisk(dir), startId: "", starting: null, importingUntil: 0, dl: { active: new Set(), begunAt: 0, doneAt: 0 }, personActiveAt: 0, personSeenAt: 0, seenBy: new Map(),
+        chrome: null,
+        lastActiveAt: now(),
+        viewers: 0,
+        agentId: undefined,
+        agentName: undefined,
+        spaceId: spaceOnDisk(dir),
+        startId: "",
+        starting: null,
+        importingUntil: 0,
+        dl: { active: new Set(), begunAt: 0, doneAt: 0 },
+        personActiveAt: 0,
+        personSeenAt: 0,
+        seenBy: new Map(),
       };
       profiles.set(id, p);
     }
@@ -231,7 +349,10 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   }
 
   const downloadsOf = (p: Profile): string => join(p.dir, "downloads");
-  const safeName = (name: string): string => { if (!SAFE_NAME.test(name) || name.endsWith(".crdownload")) throw badInput("That is not a download's name."); return name; };
+  const safeName = (name: string): string => {
+    if (!SAFE_NAME.test(name) || name.endsWith(".crdownload")) throw badInput("That is not a download's name.");
+    return name;
+  };
 
   const running = (): Profile[] => [...profiles.values()].filter((p) => p.chrome !== null);
   // profiles whose browser is being started: they hold a place before their Chromium exists, so two that start at once cannot both take the last one
@@ -243,7 +364,14 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     if (!c) return;
     p.chrome = null;
     p.dl.active.clear();
-    try { p.chrome = c; await o.onClosing?.(p); } catch { /* the list taken last stays */ } finally { p.chrome = null; }
+    try {
+      p.chrome = c;
+      await o.onClosing?.(p);
+    } catch {
+      /* the list taken last stays */
+    } finally {
+      p.chrome = null;
+    }
     // closed the way a person closes it, so a login that was just made is in the folder when the browser starts again
     await c.shutdown().catch(() => c.stop());
   }
@@ -259,21 +387,41 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   // browserd never closes a browser to make room (fourth look, 12 Nov): it cannot see a send held for a person's approval in another layer, a call on its way, or a turn in progress, and it serves every
   // Space on the container. When it is full it says so (reason browser_full) and the Space's module, which knows all of that, chooses which of its own browsers to close, or waits.
   async function roomFor(except: string): Promise<void> {
-    const taken = (): number => running().length + [...reserved].filter((id) => id !== except && profiles.get(id)?.chrome === null).length;
-    if (taken() < maxRunning) { reserved.add(except); return; }
-    throw new AgentError("unavailable", "Every browser on this server is in use. Yours opens as soon as one is free.", "browser_full");
+    const taken = (): number =>
+      running().length + [...reserved].filter((id) => id !== except && profiles.get(id)?.chrome === null).length;
+    if (taken() < maxRunning) {
+      reserved.add(except);
+      return;
+    }
+    throw new AgentError(
+      "unavailable",
+      "Every browser on this server is in use. Yours opens as soon as one is free.",
+      "browser_full",
+    );
   }
 
   async function ensure(id: string): Promise<Profile> {
     const p = get(id);
     p.lastActiveAt = now();
     if (p.chrome?.alive()) return p;
-    if (p.importingUntil > now()) throw unavailable("This agent's browser is taking in its sign-ins from its old computer. Try again in a minute.");
-    if (p.starting) { await p.starting; return p; }
+    if (p.importingUntil > now())
+      throw unavailable("This agent's browser is taking in its sign-ins from its old computer. Try again in a minute.");
+    if (p.starting) {
+      await p.starting;
+      return p;
+    }
     p.starting = (async () => {
-      try { await startIn(p); } finally { reserved.delete(p.id); }
+      try {
+        await startIn(p);
+      } finally {
+        reserved.delete(p.id);
+      }
     })();
-    try { await p.starting; } finally { p.starting = null; }
+    try {
+      await p.starting;
+    } finally {
+      p.starting = null;
+    }
     return p;
   }
 
@@ -284,7 +432,12 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   async function startTurn<T>(f: () => Promise<T>): Promise<T> {
     if (starting >= maxStarting) await new Promise<void>((r) => startQueue.push(r));
     starting += 1;
-    try { return await f(); } finally { starting -= 1; startQueue.shift()?.(); }
+    try {
+      return await f();
+    } finally {
+      starting -= 1;
+      startQueue.shift()?.();
+    }
   }
 
   async function startIn(p: Profile): Promise<void> {
@@ -301,7 +454,12 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       const opts = { ...(o.extra?.(p.id) ?? {}), pipe: true };
       const c = launch(join(p.dir, "chrome"), o.extensionDir, o.log, opts);
       p.chrome = c;
-      try { await c.ready(); } catch (e) { await release(p); throw e; }
+      try {
+        await c.ready();
+      } catch (e) {
+        await release(p);
+        throw e;
+      }
       starts += 1;
       p.startId = `${BOOT}.${starts}`;
       // and the browser itself is told, so a download from a tab opened later goes the same way
@@ -309,28 +467,69 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
         const b = await c.browser();
         try {
           // and says what it downloads, so a step can wait for the file it set off (the pipe's browser connection lives as long as the browser)
-          b.on("Browser.downloadWillBegin", (e) => { p.dl.active.add(String(e["guid"])); p.dl.begunAt = Date.now(); });
-          b.on("Browser.downloadProgress", (e) => { if (e["state"] === "completed" || e["state"] === "canceled") { p.dl.active.delete(String(e["guid"])); p.dl.doneAt = Date.now(); } });
-          await b.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloadsOf(p), eventsEnabled: true }).catch(() => undefined);
-        } finally { b.close(); }
-      } catch { /* the preferences already say it; a fake browser in a test has no DevTools */ }
-      await o.onStarted?.(p.id, c).catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
+          b.on("Browser.downloadWillBegin", (e) => {
+            p.dl.active.add(String(e["guid"]));
+            p.dl.begunAt = Date.now();
+          });
+          b.on("Browser.downloadProgress", (e) => {
+            if (e["state"] === "completed" || e["state"] === "canceled") {
+              p.dl.active.delete(String(e["guid"]));
+              p.dl.doneAt = Date.now();
+            }
+          });
+          await b
+            .send("Browser.setDownloadBehavior", {
+              behavior: "allow",
+              downloadPath: downloadsOf(p),
+              eventsEnabled: true,
+            })
+            .catch(() => undefined);
+        } finally {
+          b.close();
+        }
+      } catch {
+        /* the preferences already say it; a fake browser in a test has no DevTools */
+      }
+      await o
+        .onStarted?.(p.id, c)
+        .catch((e: unknown) => o.log(`start page: ${e instanceof Error ? e.message : "failed"}`));
     }
   }
 
-  async function tool(a: { profileId: string; tool: string; args: Record<string, unknown>; timeoutMs: number; by?: string; channel?: CallChannel; refsFrom?: string; seenFrom?: string }): Promise<Record<string, unknown>> {
+  async function tool(a: {
+    profileId: string;
+    tool: string;
+    args: Record<string, unknown>;
+    timeoutMs: number;
+    by?: string;
+    channel?: CallChannel;
+    refsFrom?: string;
+    seenFrom?: string;
+  }): Promise<Record<string, unknown>> {
     const p = get(a.profileId);
     const name = a.tool;
     if (!name.startsWith("chrome_")) throw badInput(`${name} is not a tool of the Space browser.`);
     const byPerson = a.by === "person" && p.state.takeover !== null;
     // A person at the controls: the agent's tools wait, except the two that only look.
-    if (p.state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop") throw new AgentError("paused", "A person has the controls. The tools wait until they give them back.", "profile_held");
+    if (p.state.takeover && !byPerson && name !== "chrome_status" && name !== "chrome_stop")
+      throw new AgentError(
+        "paused",
+        "A person has the controls. The tools wait until they give them back.",
+        "profile_held",
+      );
     const ms = Math.min(Math.max(a.timeoutMs, 1000), 130_000);
     // A look that needs no browser does not start one.
     if (name === "chrome_status" && !p.chrome?.alive()) return { connected: false, paused: p.state.stopped, held: [] };
     if ((name === "chrome_stop" || name === "chrome_resume" || name === "chrome_plan") && !p.chrome?.alive()) {
-      if (name === "chrome_stop") { p.state.stopped = true; return { stopped: true }; }
-      if (name === "chrome_resume") { const was = p.state.stopped; p.state.stopped = false; return { resumed: was }; }
+      if (name === "chrome_stop") {
+        p.state.stopped = true;
+        return { stopped: true };
+      }
+      if (name === "chrome_resume") {
+        const was = p.state.stopped;
+        p.state.stopped = false;
+        return { resumed: was };
+      }
       return { ok: true };
     }
     // An act on a page the agent has not seen (sixth look): the module sends the start of the browser its last answer came from (empty: it has none, after its own restart). When the browser has started
@@ -338,7 +537,11 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     // whatever field the reloaded page focuses). Refused before anything else: before the Vault is asked for a value, before a browser starts.
     if (typeof a.seenFrom === "string") {
       const current = p.chrome?.alive() ? p.startId : null;
-      if (current === null || a.seenFrom !== current) { const e = new AgentError("bad_input", REOPENED_LINE, "browser_reopened"); e.start = current; throw e; }
+      if (current === null || a.seenFrom !== current) {
+        const e = new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
+        e.start = current;
+        throw e;
+      }
     }
     const typing = name === "chrome_type" || name === "chrome_fill" || name === "chrome_act";
     // Handles are asked of the Vault before the browser starts: a refusal must not cost a Chromium.
@@ -351,18 +554,27 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       const prof = await ensure(p.id);
       const c = prof.chrome as Chrome;
       // and checked again once the browser is there: had it been closed and started again meanwhile, its page was reloaded, and nothing is typed into it
-      if (typeof a.seenFrom === "string" && a.seenFrom !== prof.startId) { const e = new AgentError("bad_input", REOPENED_LINE, "browser_reopened"); e.start = prof.startId; throw e; }
+      if (typeof a.seenFrom === "string" && a.seenFrom !== prof.startId) {
+        const e = new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
+        e.start = prof.startId;
+        throw e;
+      }
       // an act on refs from a snapshot taken under an earlier start of this browser (closed to make room, or stopped when idle, and its pages reloaded since): those refs may name nothing, or another
       // element. Refused, every time, until a new snapshot is taken (the module sends the start its last snapshot was taken under)
-      if (typeof a.refsFrom === "string" && a.refsFrom !== "" && a.refsFrom !== prof.startId) throw new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
+      if (typeof a.refsFrom === "string" && a.refsFrom !== "" && a.refsFrom !== prof.startId)
+        throw new AgentError("bad_input", REOPENED_LINE, "browser_reopened");
       const began = Date.now();
       const raw = await within(ms, name, () => c.tool(name, filled.args, prof.state));
       if (ACTING.has(name)) await settleDownloads(prof, began);
       const out = filled.used.length > 0 ? { ...scrubUsed(raw, filled.used), used: filled.used } : raw;
       p.state.caption = name.replace(/_/g, " ");
-      if ((name === "chrome_open" || name === "chrome_state") && typeof out["url"] === "string") o.onPage?.(p.id, out["url"], typeof out["title"] === "string" ? out["title"] : "");
+      if ((name === "chrome_open" || name === "chrome_state") && typeof out["url"] === "string")
+        o.onPage?.(p.id, out["url"], typeof out["title"] === "string" ? out["title"] : "");
       return out;
-    } finally { p.state.busy -= 1; p.lastActiveAt = now(); }
+    } finally {
+      p.state.busy -= 1;
+      p.lastActiveAt = now();
+    }
   }
 
   /** Only when the browser said a download began during the step (Browser.downloadWillBegin over the pipe): wait for it to finish, within a bound. */
@@ -373,7 +585,9 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
   }
 
   return {
-    get, ensure, tool,
+    get,
+    ensure,
+    tool,
     takeover(id, personId) {
       if (!personId) throw badInput("Say which person takes over.");
       const p = get(id);
@@ -390,32 +604,67 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     personSaw(id, personId) {
       const p = get(id);
       p.personSeenAt = now();
-      if (personId && p.chrome?.alive() && p.startId) { p.seenBy.set(personId, p.startId); if (p.seenBy.size > 50) p.seenBy.delete(p.seenBy.keys().next().value as string); }
+      if (personId && p.chrome?.alive() && p.startId) {
+        p.seenBy.set(personId, p.startId);
+        if (p.seenBy.size > 50) p.seenBy.delete(p.seenBy.keys().next().value as string);
+      }
     },
-    giveBack(id, before) { const p = get(id); if (p.state.takeover && before !== undefined && p.state.takeover.since >= before) return; const had = p.state.takeover !== null; p.state.takeover = null; p.lastActiveAt = now(); if (had) p.personSeenAt = now(); },
+    giveBack(id, before) {
+      const p = get(id);
+      if (p.state.takeover && before !== undefined && p.state.takeover.since >= before) return;
+      const had = p.state.takeover !== null;
+      p.state.takeover = null;
+      p.lastActiveAt = now();
+      if (had) p.personSeenAt = now();
+    },
     setHold(id, personId) {
       const p = get(id);
       if (p.state.takeover?.personId !== personId) p.state.takeover = { personId, since: now() };
     },
-    async stop(id) { const p = profiles.get(checkProfileId(id)); if (p) { p.state.takeover = null; await release(p); } },
+    async stop(id) {
+      const p = profiles.get(checkProfileId(id));
+      if (p) {
+        p.state.takeover = null;
+        await release(p);
+      }
+    },
     async resetChrome(id) {
       const p = get(id);
-      if (p.state.takeover) throw new AgentError("unavailable", "A person has the controls of this agent's browser: its sign-ins move from the old computer when they give it back.", "profile_held");
+      if (p.state.takeover)
+        throw new AgentError(
+          "unavailable",
+          "A person has the controls of this agent's browser: its sign-ins move from the old computer when they give it back.",
+          "profile_held",
+        );
       const waitMs = o.resetWaitMs ?? 30_000;
       const t0 = Date.now();
-      while ((p.state.busy > 0 || p.starting !== null) && Date.now() - t0 < waitMs) await new Promise((r) => setTimeout(r, 100));
-      if (p.state.busy > 0 || p.starting !== null) throw new AgentError("unavailable", "This agent's browser is busy: its sign-ins move from the old computer at a quiet moment.", "profile_busy");
+      while ((p.state.busy > 0 || p.starting !== null) && Date.now() - t0 < waitMs)
+        await new Promise((r) => setTimeout(r, 100));
+      if (p.state.busy > 0 || p.starting !== null)
+        throw new AgentError(
+          "unavailable",
+          "This agent's browser is busy: its sign-ins move from the old computer at a quiet moment.",
+          "profile_busy",
+        );
       p.importingUntil = now() + 5 * 60_000;
       await release(p);
       rmSync(join(p.dir, "chrome"), { recursive: true, force: true });
       mkdirSync(p.dir, { recursive: true });
     },
-    importDone(id) { get(id).importingUntil = 0; },
+    importDone(id) {
+      get(id).importingUntil = 0;
+    },
     setSpace(id, spaceId) {
       const p = get(id);
-      if (!/^[A-Za-z0-9_-]{3,80}$/.test(spaceId) || (p.spaceId === spaceId && existsSync(join(p.dir, SPACE_FILE)))) return;
+      if (!/^[A-Za-z0-9_-]{3,80}$/.test(spaceId) || (p.spaceId === spaceId && existsSync(join(p.dir, SPACE_FILE))))
+        return;
       p.spaceId = spaceId;
-      try { mkdirSync(p.dir, { recursive: true }); writeFileSync(join(p.dir, SPACE_FILE), spaceId); } catch { /* kept in memory; written at the next call */ }
+      try {
+        mkdirSync(p.dir, { recursive: true });
+        writeFileSync(join(p.dir, SPACE_FILE), spaceId);
+      } catch {
+        /* kept in memory; written at the next call */
+      }
     },
     markSpace(spaceId, ids) {
       if (!PROFILE_ID.test(spaceId)) return 0;
@@ -424,23 +673,45 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
         if (!PROFILE_ID.test(id)) continue;
         const dir = join(o.root, "profiles", id);
         if (!existsSync(dir) || spaceOnDisk(dir) !== undefined) continue;
-        try { writeFileSync(join(dir, SPACE_FILE), spaceId); marked += 1; const p = profiles.get(id); if (p && !p.spaceId) p.spaceId = spaceId; } catch { /* next start */ }
+        try {
+          writeFileSync(join(dir, SPACE_FILE), spaceId);
+          marked += 1;
+          const p = profiles.get(id);
+          if (p && !p.spaceId) p.spaceId = spaceId;
+        } catch {
+          /* next start */
+        }
       }
       return marked;
     },
     async purgeSpace(spaceId) {
-      let removed = 0, others = 0, unmarked = 0;
+      let removed = 0,
+        others = 0,
+        unmarked = 0;
       const root = join(o.root, "profiles");
       const ids = existsSync(root) ? readdirSync(root) : [];
       for (const id of ids) {
         if (!PROFILE_ID.test(id)) continue;
         const sp = profiles.get(id)?.spaceId ?? spaceOnDisk(join(root, id));
-        if (sp === spaceId) { await this.forget(id); removed += 1; } else if (sp) others += 1; else unmarked += 1;
+        if (sp === spaceId) {
+          await this.forget(id);
+          removed += 1;
+        } else if (sp) others += 1;
+        else unmarked += 1;
       }
       return { removed, others, unmarked };
     },
     async closeOther(spaceId, quietMs) {
-      const pick = running().filter((p) => p.spaceId !== undefined && p.spaceId !== spaceId && quiet(p) && (p.chrome?.heldIds().length ?? 0) === 0 && now() - p.lastActiveAt >= quietMs && now() - p.personSeenAt >= Math.max(quietMs, 60_000))
+      const pick = running()
+        .filter(
+          (p) =>
+            p.spaceId !== undefined &&
+            p.spaceId !== spaceId &&
+            quiet(p) &&
+            (p.chrome?.heldIds().length ?? 0) === 0 &&
+            now() - p.lastActiveAt >= quietMs &&
+            now() - p.personSeenAt >= Math.max(quietMs, 60_000),
+        )
         .sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
       if (!pick) return null;
       o.log(`profile ${pick.id} of another Space closed to make room`);
@@ -449,8 +720,11 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
     },
     async forget(id) {
       const p = profiles.get(checkProfileId(id));
-      if (p) { await release(p); profiles.delete(p.id); rmSync(p.dir, { recursive: true, force: true }); }
-      else rmSync(join(o.root, "profiles", checkProfileId(id)), { recursive: true, force: true });
+      if (p) {
+        await release(p);
+        profiles.delete(p.id);
+        rmSync(p.dir, { recursive: true, force: true });
+      } else rmSync(join(o.root, "profiles", checkProfileId(id)), { recursive: true, force: true });
     },
     async sweep() {
       const stopped: string[] = [];
@@ -470,17 +744,51 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       for (const p of profiles.values()) {
         const alive = p.chrome?.alive() === true;
         const tabs = alive && p.chrome ? (await p.chrome.tabs()).length : 0;
-        rows.push({ profileId: p.id, ...(p.spaceId ? { spaceId: p.spaceId } : {}), running: alive, tabs, busy: p.state.busy > 0, takeover: p.state.takeover !== null, viewers: p.viewers, lastActiveAt: p.lastActiveAt, held: p.chrome?.heldIds().length ?? 0, paused: p.state.stopped, ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}), ...(p.personSeenAt ? { personSeenAt: p.personSeenAt } : {}), ...(o.paired ? { bridge: o.paired(p.id) } : {}) });
+        rows.push({
+          profileId: p.id,
+          ...(p.spaceId ? { spaceId: p.spaceId } : {}),
+          running: alive,
+          tabs,
+          busy: p.state.busy > 0,
+          takeover: p.state.takeover !== null,
+          viewers: p.viewers,
+          lastActiveAt: p.lastActiveAt,
+          held: p.chrome?.heldIds().length ?? 0,
+          paused: p.state.stopped,
+          ...(p.state.takeover ? { takeoverBy: p.state.takeover.personId } : {}),
+          ...(p.personSeenAt ? { personSeenAt: p.personSeenAt } : {}),
+          ...(o.paired ? { bridge: o.paired(p.id) } : {}),
+        });
       }
       return rows;
     },
-    async stopAll() { await Promise.all([...profiles.values()].map((p) => release(p))); },
+    async stopAll() {
+      await Promise.all([...profiles.values()].map((p) => release(p)));
+    },
     used(id) {
       const dir = join(o.root, "profiles", checkProfileId(id));
       return existsSync(join(dir, "chrome", "Default")) || existsSync(join(dir, "sessions.json"));
     },
-    cachedSessions(id) { try { const j = JSON.parse(readFileSync(join(get(id).dir, "sessions.json"), "utf8")) as Array<{ site: string; since: number; lastSeen: number }>; return Array.isArray(j) ? j : []; } catch { return []; } },
-    saveSessions(id, rows) { try { mkdirSync(get(id).dir, { recursive: true }); writeFileSync(join(get(id).dir, "sessions.json"), JSON.stringify(rows)); } catch { /* not kept */ } },
+    cachedSessions(id) {
+      try {
+        const j = JSON.parse(readFileSync(join(get(id).dir, "sessions.json"), "utf8")) as Array<{
+          site: string;
+          since: number;
+          lastSeen: number;
+        }>;
+        return Array.isArray(j) ? j : [];
+      } catch {
+        return [];
+      }
+    },
+    saveSessions(id, rows) {
+      try {
+        mkdirSync(get(id).dir, { recursive: true });
+        writeFileSync(join(get(id).dir, "sessions.json"), JSON.stringify(rows));
+      } catch {
+        /* not kept */
+      }
+    },
     downloads(id) {
       const p = get(id);
       const dir = downloadsOf(p);
@@ -491,17 +799,21 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
         const st = statSync(join(dir, name));
         // a file Chrome wrote a moment ago may still be growing: it is taken once it has been quiet for a second, or at once when the browser said its downloads finished after it was written
         const finished = p.dl.active.size === 0 && p.dl.doneAt > 0 && p.dl.doneAt >= st.mtimeMs - 100;
-        if (st.isFile() && (finished || now() - st.mtimeMs > 1000)) rows.push({ name, size: st.size, at: Math.round(st.mtimeMs) });
+        if (st.isFile() && (finished || now() - st.mtimeMs > 1000))
+          rows.push({ name, size: st.size, at: Math.round(st.mtimeMs) });
       }
       return rows.sort((a, b) => a.at - b.at);
     },
     downloadRead(id, name) {
       const f = join(downloadsOf(get(id)), safeName(name));
       if (!existsSync(f)) throw notFound(`There is no download ${name}.`);
-      if (statSync(f).size > MAX_DOWNLOAD) throw badInput("That download is over 20 MB: too large to move into Files here.");
+      if (statSync(f).size > MAX_DOWNLOAD)
+        throw badInput("That download is over 20 MB: too large to move into Files here.");
       return readFileSync(f);
     },
-    downloadAck(id, name) { rmSync(join(downloadsOf(get(id)), safeName(name)), { force: true }); },
+    downloadAck(id, name) {
+      rmSync(join(downloadsOf(get(id)), safeName(name)), { force: true });
+    },
     downloadKeep(id, name) {
       const p = get(id);
       const from = join(downloadsOf(p), safeName(name));
@@ -510,7 +822,9 @@ export function createProfileManager(o: ProfileManagerOptions): ProfileManager {
       mkdirSync(kept, { recursive: true });
       renameSync(from, join(kept, name));
     },
-    touch(id) { const p = profiles.get(id); if (p) p.lastActiveAt = now(); },
+    touch(id) {
+      const p = profiles.get(id);
+      if (p) p.lastActiveAt = now();
+    },
   };
 }
-

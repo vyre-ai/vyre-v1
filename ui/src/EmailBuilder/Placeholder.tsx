@@ -14,14 +14,18 @@ function labelledBox(name: string, label: string, body: string): string {
 
 export function EmailBuilderPlaceholder(props: EmailBuilderProps): string {
   const label = emailLabel(props);
-  const diffs = (props.diffs ?? []).map((diff) => {
-    const accepted = diff.accepted === true ? "true" : "false";
-    return `<div data-diff="${esc(diff.id)}" data-accepted="${accepted}">${esc(diff.summary)}</div>`;
-  }).join("");
-  const blocks = (props.blocks ?? []).map((block) => {
-    const field = block.field ? ` data-field="${esc(block.field)}"` : "";
-    return `<div data-email-block="${esc(block.id)}" data-kind="${esc(block.kind)}"${field}></div>`;
-  }).join("");
+  const diffs = (props.diffs ?? [])
+    .map((diff) => {
+      const accepted = diff.accepted === true ? "true" : "false";
+      return `<div data-diff="${esc(diff.id)}" data-accepted="${accepted}">${esc(diff.summary)}</div>`;
+    })
+    .join("");
+  const blocks = (props.blocks ?? [])
+    .map((block) => {
+      const field = block.field ? ` data-field="${esc(block.field)}"` : "";
+      return `<div data-email-block="${esc(block.id)}" data-kind="${esc(block.kind)}"${field}></div>`;
+    })
+    .join("");
   const preview = props.preview ? ` data-preview="${esc(props.preview)}"` : "";
   const record = props.previewRecordId ? ` data-preview-record="${esc(props.previewRecordId)}"` : "";
   const agent = props.askAgent ? ` data-ask-agent="${esc(props.askAgent)}"` : "";

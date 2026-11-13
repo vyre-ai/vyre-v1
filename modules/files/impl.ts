@@ -22,29 +22,70 @@ export const hostSeams: SeamSetters = { setFilesHost: configureFilesHost };
  * reads these tables. `owned_by` answers { <kind>: { count, sample, ids } }; `reassign_owned` applies one wizard action to one kind and answers how many things it touched.
  */
 type OwnedRow = Record<string, unknown>;
-const ownedRows = (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, sql: string, ...a: unknown[]): OwnedRow[] => { try { return ctx.db.all(sql, ...a) as OwnedRow[]; } catch { return []; } };
-const ownedKept = (r: OwnedRow[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+const ownedRows = (
+  ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } },
+  sql: string,
+  ...a: unknown[]
+): OwnedRow[] => {
+  try {
+    return ctx.db.all(sql, ...a) as OwnedRow[];
+  } catch {
+    return [];
+  }
+};
+const ownedKept = (r: OwnedRow[], type: string, title: string) => ({
+  count: r.length,
+  sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })),
+  ids: r.slice(0, 500).map((x) => String(x["id"])),
+});
 export const hostCalls = {
   /** The read gate's files half (Redaction for AI): the host asks before and after every call an agent is behind (host/src/seams/agent-read.ts). Never throws a refusal: it answers one, so the request it
    * makes ("Redact before I can read") is committed with its event. */
   "files.agent_gate": (ctx: unknown, i: unknown) => agentGate(ctx as never, i),
   /** The bytes for an upload slot from files.upload_url (the blob route's PUT): sealed into the blob store like any upload. */
-  "files.put_upload": (ctx: unknown, i: { blobId: string; token: string; base64: string }) => putUploadedBytes(ctx as never, i.blobId, i.token, Buffer.from(i.base64, "base64")),
+  "files.put_upload": (ctx: unknown, i: { blobId: string; token: string; base64: string }) =>
+    putUploadedBytes(ctx as never, i.blobId, i.token, Buffer.from(i.base64, "base64")),
   "files.owned_by": (ctx: HostCallCtx, i: { person: string }) => ({
-    files: ownedKept([
-      ...ownedRows(ctx, `SELECT "id", "name" FROM files_file WHERE "owner" = ? AND "deleted_at" IS NULL`, i.person),
-      ...ownedRows(ctx, `SELECT "id", "name" FROM files_folder WHERE "owner" = ? AND "deleted_at" IS NULL AND "system_key" IS NULL AND "root_key" IS NULL`, i.person),
-    ], "file", "name"),
+    files: ownedKept(
+      [
+        ...ownedRows(ctx, `SELECT "id", "name" FROM files_file WHERE "owner" = ? AND "deleted_at" IS NULL`, i.person),
+        ...ownedRows(
+          ctx,
+          `SELECT "id", "name" FROM files_folder WHERE "owner" = ? AND "deleted_at" IS NULL AND "system_key" IS NULL AND "root_key" IS NULL`,
+          i.person,
+        ),
+      ],
+      "file",
+      "name",
+    ),
   }),
-  "files.reassign_owned": (ctx: HostCallCtx, i: { person: string; kind: string; action: string; to?: string }): number => {
-    if (i.kind !== "files" || i.action !== "reassign" || !i.to) return 0;   // retain: they stay with the person's name on them
+  "files.reassign_owned": (
+    ctx: HostCallCtx,
+    i: { person: string; kind: string; action: string; to?: string },
+  ): number => {
+    if (i.kind !== "files" || i.action !== "reassign" || !i.to) return 0; // retain: they stay with the person's name on them
     const now = ctx.now();
     try {
-      const a = ctx.db.run(`UPDATE files_file SET "owner" = ?, "updated_at" = ? WHERE "owner" = ? AND "deleted_at" IS NULL`, i.to, now, i.person).changes;
-      const b = ctx.db.run(`UPDATE files_folder SET "owner" = ?, "updated_at" = ? WHERE "owner" = ? AND "deleted_at" IS NULL AND "system_key" IS NULL AND "root_key" IS NULL`, i.to, now, i.person).changes;
+      const a = ctx.db.run(
+        `UPDATE files_file SET "owner" = ?, "updated_at" = ? WHERE "owner" = ? AND "deleted_at" IS NULL`,
+        i.to,
+        now,
+        i.person,
+      ).changes;
+      const b = ctx.db.run(
+        `UPDATE files_folder SET "owner" = ?, "updated_at" = ? WHERE "owner" = ? AND "deleted_at" IS NULL AND "system_key" IS NULL AND "root_key" IS NULL`,
+        i.to,
+        now,
+        i.person,
+      ).changes;
       return a + b;
-    } catch { return 0; }
+    } catch {
+      return 0;
+    }
   },
 };
 /** The part of the module ctx these calls use. */
-interface HostCallCtx { now(): number; db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): { changes: number } } }
+interface HostCallCtx {
+  now(): number;
+  db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): { changes: number } };
+}

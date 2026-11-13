@@ -6,7 +6,9 @@ import { ErrorState, States, ICON_PATHS, isStateIcon } from "./index.tsx";
 import { STATE_ICONS } from "./props.ts";
 
 test("empty shows its line and one primary action", () => {
-  const html = renderToStaticMarkup(<States kind="empty" title="No files yet" action={{ label: "Upload", onPress: () => {} }} />);
+  const html = renderToStaticMarkup(
+    <States kind="empty" title="No files yet" action={{ label: "Upload", onPress: () => {} }} />,
+  );
   assert.match(html, /No files yet/);
   assert.equal(html.match(/data-testid="state-action"/g)?.length, 1);
   assert.match(html, /data-icon="search"/);
@@ -19,12 +21,22 @@ test("offline defaults to the offline icon and may omit the action", () => {
 });
 
 test("error shows the title, one line and Details; the trace and help actions open behind Details", () => {
-  const props = { kind: "error" as const, message: "Could not load records", cause: "The server did not answer", next: "Check the connection", code: "E_NET", traceId: "tr_123" };
+  const props = {
+    kind: "error" as const,
+    message: "Could not load records",
+    cause: "The server did not answer",
+    next: "Check the connection",
+    code: "E_NET",
+    traceId: "tr_123",
+  };
   const closed = renderToStaticMarkup(<States {...props} />);
-  for (const text of ["Could not load records", "The server did not answer", "Details"]) assert.ok(closed.includes(text), text);
-  for (const text of ["tr_123", "Copy trace id", "Report a problem"]) assert.ok(!closed.includes(text), `${text} hidden`);
+  for (const text of ["Could not load records", "The server did not answer", "Details"])
+    assert.ok(closed.includes(text), text);
+  for (const text of ["tr_123", "Copy trace id", "Report a problem"])
+    assert.ok(!closed.includes(text), `${text} hidden`);
   const open = renderToStaticMarkup(<ErrorState props={props} startOpen />);
-  for (const text of ["Check the connection", "E_NET", "tr_123", "Copy trace id", "Report a problem"]) assert.ok(open.includes(text), text);
+  for (const text of ["Check the connection", "E_NET", "tr_123", "Copy trace id", "Report a problem"])
+    assert.ok(open.includes(text), text);
   assert.doesNotMatch(open, /state-retry/, "no Retry when the error is not retryable");
 });
 

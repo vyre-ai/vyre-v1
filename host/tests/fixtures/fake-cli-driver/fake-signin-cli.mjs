@@ -19,23 +19,42 @@ const argv = process.argv.slice(2);
 const cli = argv[0];
 const out = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 const home = process.env.HOME ?? "";
-const file = cli === "codex" ? path.join(process.env.CODEX_HOME ?? path.join(home, ".codex"), "auth.json") : path.join(home, ".grok", "auth.json");
+const file =
+  cli === "codex"
+    ? path.join(process.env.CODEX_HOME ?? path.join(home, ".codex"), "auth.json")
+    : path.join(home, ".grok", "auth.json");
 
 function describe() {
   let raw;
-  try { raw = fs.readFileSync(file, "utf8"); } catch { return { found: false }; }
+  try {
+    raw = fs.readFileSync(file, "utf8");
+  } catch {
+    return { found: false };
+  }
   const mode = (fs.statSync(file).mode & 0o777).toString(8);
   let token = "";
-  try { const j = JSON.parse(raw); token = j.tokens?.access_token ?? j.token ?? ""; } catch { /* not json */ }
-  const env = ["VYRE_CRED_FILES", "CODEX_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY"].filter((k) => process.env[k] !== undefined);
+  try {
+    const j = JSON.parse(raw);
+    token = j.tokens?.access_token ?? j.token ?? "";
+  } catch {
+    /* not json */
+  }
+  const env = ["VYRE_CRED_FILES", "CODEX_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY"].filter(
+    (k) => process.env[k] !== undefined,
+  );
   return { found: true, mode, token, digest: `${token.length}:${token.slice(-4)}`, env };
 }
 
 function refresh(tag) {
   const j = JSON.parse(fs.readFileSync(file, "utf8"));
-  const token = `${cli === "codex" ? j.tokens?.access_token ?? "" : j.token ?? ""}-${tag}`;
-  if (cli === "codex") { j.tokens = { ...j.tokens, access_token: token, refresh_token: `rt-${token}` }; j.last_refresh = new Date().toISOString(); }
-  else { j.token = token; j.expires_at = Math.floor(Date.now() / 1000) + 3600; }
+  const token = `${cli === "codex" ? (j.tokens?.access_token ?? "") : (j.token ?? "")}-${tag}`;
+  if (cli === "codex") {
+    j.tokens = { ...j.tokens, access_token: token, refresh_token: `rt-${token}` };
+    j.last_refresh = new Date().toISOString();
+  } else {
+    j.token = token;
+    j.expires_at = Math.floor(Date.now() / 1000) + 3600;
+  }
   const tmp = `${file}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(j), { mode: 0o600 });
   fs.renameSync(tmp, file);
@@ -50,25 +69,49 @@ function answer(prompt) {
   if (m) {
     const token = refresh(m[2]);
     if (m[1] === "crash") process.exit(3);
-    if (m[1] === "hang") { setInterval(() => undefined, 60_000); return null; }
+    if (m[1] === "hang") {
+      setInterval(() => undefined, 60_000);
+      return null;
+    }
     return `${cli} refreshed to ${token.length}:${token.slice(-4)}`;
   }
   // the command line this process was started with, as JSON: a test reads which flags the driver built (a model flag, or none)
-  if (cmd === "authargv") { const flag = cli === "claude" ? "--model" : "-m"; const at = argv.indexOf(flag); return `model-flag ${at < 0 ? "none" : JSON.stringify(argv[at + 1] ?? "")} models-given ${argv.filter((a) => a === flag || a === "--model").length}`; }
-  if (cmd === "authlogout") { fs.rmSync(file, { force: true }); return `${cli} signed out`; }
+  if (cmd === "authargv") {
+    const flag = cli === "claude" ? "--model" : "-m";
+    const at = argv.indexOf(flag);
+    return `model-flag ${at < 0 ? "none" : JSON.stringify(argv[at + 1] ?? "")} models-given ${argv.filter((a) => a === flag || a === "--model").length}`;
+  }
+  if (cmd === "authlogout") {
+    fs.rmSync(file, { force: true });
+    return `${cli} signed out`;
+  }
   const d = describe();
-  if (cmd === "authcheck") return d.found ? `${cli} signed in as ${d.digest} mode ${d.mode} env ${d.env.join(",") || "none"}` : `${cli} has no sign-in files`;
-  if (prompt.trim().startsWith("leak")) { process.stderr.write(`token ${d.token}\n`); return `the token is ${d.token}`; }
+  if (cmd === "authcheck")
+    return d.found
+      ? `${cli} signed in as ${d.digest} mode ${d.mode} env ${d.env.join(",") || "none"}`
+      : `${cli} has no sign-in files`;
+  if (prompt.trim().startsWith("leak")) {
+    process.stderr.write(`token ${d.token}\n`);
+    return `the token is ${d.token}`;
+  }
   return prompt;
 }
 
 let prompt = "";
 process.stdin.setEncoding("utf8");
-process.stdin.on("data", (c) => { prompt += c; });
+process.stdin.on("data", (c) => {
+  prompt += c;
+});
 process.stdin.on("end", () => {
   // a grok turn is a Claude-style stream: the prompt may be a JSON user message
   let text = prompt;
-  try { const m = JSON.parse(prompt.split("\n").find((l) => l.trim() !== "") ?? ""); const c = m?.message?.content; text = Array.isArray(c) ? c.map((p) => p.text ?? "").join("") : typeof c === "string" ? c : prompt; } catch { /* plain text */ }
+  try {
+    const m = JSON.parse(prompt.split("\n").find((l) => l.trim() !== "") ?? "");
+    const c = m?.message?.content;
+    text = Array.isArray(c) ? c.map((p) => p.text ?? "").join("") : typeof c === "string" ? c : prompt;
+  } catch {
+    /* plain text */
+  }
   const reply = answer(text);
   if (reply === null) return;
   if (cli === "codex") {
@@ -77,7 +120,17 @@ process.stdin.on("end", () => {
     out({ type: "turn.completed", usage: { input_tokens: 5, output_tokens: 3 } });
   } else {
     out({ type: "system", subtype: "init", session_id: "fake-grok", mcp_servers: [] });
-    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: reply } } });
-    out({ type: "result", subtype: "success", is_error: false, result: reply, session_id: "fake-grok", usage: { input_tokens: 5, output_tokens: 3 } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: reply } },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: reply,
+      session_id: "fake-grok",
+      usage: { input_tokens: 5, output_tokens: 3 },
+    });
   }
 });

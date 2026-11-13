@@ -6,7 +6,10 @@ export type Level = (typeof LEVELS)[number];
 export const levelRank = (l: Level): number => LEVELS.indexOf(l);
 
 /** `{ type: 'project', id: 'prj_...' }`. A resource is walked up `parent_id` by the access projection; the store takes that walk as a function. */
-export interface ResourceRef { type: string; id: string }
+export interface ResourceRef {
+  type: string;
+  id: string;
+}
 
 export type Subject = { kind: "principal"; id: string } | { kind: "role"; id: string } | { kind: "group"; id: string };
 

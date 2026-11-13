@@ -2,7 +2,12 @@
 // without drawing anything. The pages that draw them are GoogleWorkspace.tsx and Microsoft365.tsx.
 
 export type ServiceState = "healthy" | "degraded";
-export interface ServiceRow { key: string; title: string; state: ServiceState; hint: string }
+export interface ServiceRow {
+  key: string;
+  title: string;
+  state: ServiceState;
+  hint: string;
+}
 
 export const GOOGLE_HANDLE = "#Google_DWD";
 export const MICROSOFT_HANDLE = "#Microsoft_App";
@@ -21,7 +26,14 @@ export const MICROSOFT_LINKS = {
 } as const;
 
 /** The Google APIs to switch on in the project the service account lives in. */
-export const GOOGLE_APIS = ["Gmail API", "Google Calendar API", "Google Drive API", "Google Docs API", "Google Sheets API", "Google Meet REST API"] as const;
+export const GOOGLE_APIS = [
+  "Gmail API",
+  "Google Calendar API",
+  "Google Drive API",
+  "Google Docs API",
+  "Google Sheets API",
+  "Google Meet REST API",
+] as const;
 
 /** What each Google scope lets Vyre do, by the short name Google Admin shows after the last slash. */
 export const GOOGLE_SCOPE_USE: Readonly<Record<string, string>> = {
@@ -44,7 +56,12 @@ export const MICROSOFT_PERMISSION_USE: Readonly<Record<string, string>> = {
   "OnlineMeetingTranscript.Read.All": "Read Teams meeting transcripts",
 };
 
-interface ServiceDef { key: string; title: string; needs: readonly string[]; what: string }
+interface ServiceDef {
+  key: string;
+  title: string;
+  needs: readonly string[];
+  what: string;
+}
 
 const GOOGLE_SERVICES: readonly ServiceDef[] = [
   { key: "mail", title: "Mail", needs: ["gmail.modify"], what: "Gmail" },
@@ -58,7 +75,12 @@ const MICROSOFT_SERVICES: readonly ServiceDef[] = [
   { key: "mail", title: "Mail", needs: ["Mail.ReadWrite", "Mail.Send"], what: "Outlook mail" },
   { key: "calendar", title: "Calendar", needs: ["Calendars.ReadWrite"], what: "Outlook calendar" },
   { key: "drive", title: "OneDrive and SharePoint", needs: ["Files.ReadWrite.All"], what: "OneDrive and SharePoint" },
-  { key: "teams", title: "Teams", needs: ["OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"], what: "Teams recordings and transcripts" },
+  {
+    key: "teams",
+    title: "Teams",
+    needs: ["OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"],
+    what: "Teams recordings and transcripts",
+  },
   { key: "people", title: "People", needs: ["User.Read.All"], what: "Your tenant's people" },
 ];
 
@@ -80,68 +102,153 @@ export function serviceRows(provider: "google" | "microsoft", i: ServiceInput): 
   const defs = provider === "google" ? GOOGLE_SERVICES : MICROSOFT_SERVICES;
   const where = provider === "google" ? "Google Admin console" : "Azure app registration";
   return defs.map((d): ServiceRow => {
-    if (!i.configured) return { key: d.key, title: d.title, state: "healthy", hint: "Not set up yet. Follow the setup steps." };
+    if (!i.configured)
+      return { key: d.key, title: d.title, state: "healthy", hint: "Not set up yet. Follow the setup steps." };
     if (i.checked) {
       const missing = d.needs.filter((n) => i.checked!.missing.map(shortScope).includes(n));
-      if (missing.length > 0) return { key: d.key, title: d.title, state: "degraded", hint: `Add ${missing.join(" and ")} in the ${where}, then check again.` };
-      if (!i.checked.ok && i.checked.missing.length === 0) return { key: d.key, title: d.title, state: "degraded", hint: i.checked.detail ?? `${d.what} did not answer the check. Check again in a minute.` };
+      if (missing.length > 0)
+        return {
+          key: d.key,
+          title: d.title,
+          state: "degraded",
+          hint: `Add ${missing.join(" and ")} in the ${where}, then check again.`,
+        };
+      if (!i.checked.ok && i.checked.missing.length === 0)
+        return {
+          key: d.key,
+          title: d.title,
+          state: "degraded",
+          hint: i.checked.detail ?? `${d.what} did not answer the check. Check again in a minute.`,
+        };
       return { key: d.key, title: d.title, state: "healthy", hint: `${d.what} is working.` };
     }
-    if (i.lastOk === false) return { key: d.key, title: d.title, state: "degraded", hint: "The last check failed. Press Check connection to see what is missing." };
-    if (i.lastOk === true) return { key: d.key, title: d.title, state: "healthy", hint: `${d.what} was working at the last check.` };
+    if (i.lastOk === false)
+      return {
+        key: d.key,
+        title: d.title,
+        state: "degraded",
+        hint: "The last check failed. Press Check connection to see what is missing.",
+      };
+    if (i.lastOk === true)
+      return { key: d.key, title: d.title, state: "healthy", hint: `${d.what} was working at the last check.` };
     return { key: d.key, title: d.title, state: "healthy", hint: "Not checked yet. Press Check connection." };
   });
 }
 
-export interface Summary { tone: "ok" | "warn"; title: string; line: string }
+export interface Summary {
+  tone: "ok" | "warn";
+  title: string;
+  line: string;
+}
 
 /** The line at the top of a page. Not set up reads healthy with a hint. */
-export function summaryOf(provider: "google" | "microsoft", rows: readonly ServiceRow[], configured: boolean, members: number): Summary {
+export function summaryOf(
+  provider: "google" | "microsoft",
+  rows: readonly ServiceRow[],
+  configured: boolean,
+  members: number,
+): Summary {
   const name = provider === "google" ? "Google Workspace" : "Microsoft 365";
-  if (!configured) return { tone: "ok", title: `${name} is not connected`, line: "Nothing is wrong. Follow the steps below when you are ready to connect your firm's suite." };
+  if (!configured)
+    return {
+      tone: "ok",
+      title: `${name} is not connected`,
+      line: "Nothing is wrong. Follow the steps below when you are ready to connect your firm's suite.",
+    };
   const bad = rows.filter((r) => r.state === "degraded");
-  if (bad.length > 0) return { tone: "warn", title: `${name} needs attention`, line: `${bad.map((r) => r.title).join(", ")} ${bad.length === 1 ? "needs" : "need"} a change. ${bad[0]!.hint}` };
-  return { tone: "ok", title: `${name} is connected`, line: `${members} ${members === 1 ? "member is" : "members are"} included.` };
+  if (bad.length > 0)
+    return {
+      tone: "warn",
+      title: `${name} needs attention`,
+      line: `${bad.map((r) => r.title).join(", ")} ${bad.length === 1 ? "needs" : "need"} a change. ${bad[0]!.hint}`,
+    };
+  return {
+    tone: "ok",
+    title: `${name} is connected`,
+    line: `${members} ${members === 1 ? "member is" : "members are"} included.`,
+  };
 }
 
 // ---- what a person pastes
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; problem: string };
 
-export interface GoogleKey { clientId: string; clientEmail: string; projectId: string }
+export interface GoogleKey {
+  clientId: string;
+  clientEmail: string;
+  projectId: string;
+}
 
 /** Reads a service-account key as Google downloads it. Only the non-secret identity comes out; the private key stays in the text and goes to the Vault as it is. */
 export function parseGoogleKey(text: string): Parsed<GoogleKey> {
-  const wrong = "That is not a Google service-account key. In Google Cloud open the service account, choose Keys, Add key, Create new key, JSON, and paste the whole file.";
+  const wrong =
+    "That is not a Google service-account key. In Google Cloud open the service account, choose Keys, Add key, Create new key, JSON, and paste the whole file.";
   let o: Record<string, unknown>;
-  try { o = JSON.parse(text.trim()) as Record<string, unknown>; } catch { return { ok: false, problem: "The key is not valid JSON. Paste the whole file, from the first { to the last }." }; }
+  try {
+    o = JSON.parse(text.trim()) as Record<string, unknown>;
+  } catch {
+    return { ok: false, problem: "The key is not valid JSON. Paste the whole file, from the first { to the last }." };
+  }
   if (o === null || typeof o !== "object" || o["type"] !== "service_account") return { ok: false, problem: wrong };
-  const clientId = o["client_id"], clientEmail = o["client_email"], privateKey = o["private_key"], projectId = o["project_id"];
+  const clientId = o["client_id"],
+    clientEmail = o["client_email"],
+    privateKey = o["private_key"],
+    projectId = o["project_id"];
   if (typeof clientId !== "string" || !/^\d{10,30}$/.test(clientId)) return { ok: false, problem: wrong };
   if (typeof clientEmail !== "string" || !clientEmail.includes("@")) return { ok: false, problem: wrong };
   if (typeof privateKey !== "string" || !privateKey.includes("BEGIN PRIVATE KEY")) return { ok: false, problem: wrong };
   return { ok: true, value: { clientId, clientEmail, projectId: typeof projectId === "string" ? projectId : "" } };
 }
 
-export interface MicrosoftApp { tenantId: string; clientId: string; clientSecret: string }
+export interface MicrosoftApp {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+}
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TENANT = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
 
 /** Checks the three values from the app registration and returns the text the Vault item holds. */
 export function microsoftSecret(app: MicrosoftApp): Parsed<string> {
-  const tenantId = app.tenantId.trim(), clientId = app.clientId.trim(), clientSecret = app.clientSecret.trim();
-  if (!TENANT.test(tenantId)) return { ok: false, problem: "The tenant ID is a code like 11111111-2222-3333-4444-555555555555, or your domain such as yourfirm.com." };
-  if (!GUID.test(clientId)) return { ok: false, problem: "The application (client) ID is a code like 11111111-2222-3333-4444-555555555555. Copy it from the app's Overview page." };
-  if (clientSecret.length < 8 || /\s/.test(clientSecret)) return { ok: false, problem: "Paste the client secret's Value, not its ID. It has no spaces and is at least 8 characters." };
+  const tenantId = app.tenantId.trim(),
+    clientId = app.clientId.trim(),
+    clientSecret = app.clientSecret.trim();
+  if (!TENANT.test(tenantId))
+    return {
+      ok: false,
+      problem:
+        "The tenant ID is a code like 11111111-2222-3333-4444-555555555555, or your domain such as yourfirm.com.",
+    };
+  if (!GUID.test(clientId))
+    return {
+      ok: false,
+      problem:
+        "The application (client) ID is a code like 11111111-2222-3333-4444-555555555555. Copy it from the app's Overview page.",
+    };
+  if (clientSecret.length < 8 || /\s/.test(clientSecret))
+    return {
+      ok: false,
+      problem: "Paste the client secret's Value, not its ID. It has no spaces and is at least 8 characters.",
+    };
   return { ok: true, value: JSON.stringify({ tenantId, clientId, clientSecret }) };
 }
 
 export const looksLikeEmail = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
-export const domainOf = (email: string): string => email.slice(email.indexOf("@") + 1).trim().toLowerCase();
+export const domainOf = (email: string): string =>
+  email
+    .slice(email.indexOf("@") + 1)
+    .trim()
+    .toLowerCase();
 
 // ---- members
 
-export interface MemberRow { email: string; userId?: string | undefined; mapped: boolean; excluded: boolean; mailboxState?: string | undefined }
+export interface MemberRow {
+  email: string;
+  userId?: string | undefined;
+  mapped: boolean;
+  excluded: boolean;
+  mailboxState?: string | undefined;
+}
 
 export function memberNote(m: MemberRow): string {
   if (m.excluded) return "Excluded. Vyre never reads this person's mail or calendar.";
@@ -154,8 +261,10 @@ export function memberNote(m: MemberRow): string {
 
 /** The sentence that tells a person what is theirs to do when the firm has not connected a service. */
 export function personLine(configured: boolean, excluded: boolean, name: string): string {
-  if (!configured) return `${name} is not connected for your firm yet. Ask your admin to open Console, Integrations, ${name}.`;
-  if (excluded) return `Connected through your firm, but your account is excluded, so ${name} never reads your mail or calendar.`;
+  if (!configured)
+    return `${name} is not connected for your firm yet. Ask your admin to open Console, Integrations, ${name}.`;
+  if (excluded)
+    return `Connected through your firm, but your account is excluded, so ${name} never reads your mail or calendar.`;
   return "Connected through your firm";
 }
 

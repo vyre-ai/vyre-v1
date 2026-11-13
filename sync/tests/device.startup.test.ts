@@ -18,8 +18,14 @@ test("startup: open a 200k-row replica through key unwrap, unlock and first read
   const mc = createFakeMc(dir);
   const vault = createReplicaKeyVault(memoryKeyBox());
   const base = {
-    target: "web" as const, spaceId: "spc_big", deviceId: "dev_1", vault, personKey: new Uint8Array(32).fill(5),
-    openers: { sqlite3mc: { mod: mc.mod, vfs: "opfs-sahpool" } }, registryHash: "hash-startup", personId: "prs_me",
+    target: "web" as const,
+    spaceId: "spc_big",
+    deviceId: "dev_1",
+    vault,
+    personKey: new Uint8Array(32).fill(5),
+    openers: { sqlite3mc: { mod: mc.mod, vfs: "opfs-sahpool" } },
+    registryHash: "hash-startup",
+    personId: "prs_me",
   };
 
   const seed = await openDeviceReplica(base);
@@ -48,7 +54,9 @@ test("startup: open a 200k-row replica through key unwrap, unlock and first read
   }
   const open = median(opens);
   const read = median(reads);
-  console.log(`# perf startup replica rows=${ROWS} seed_ms=${seedMs.toFixed(0)} open_median_ms=${open.toFixed(1)} open_max_ms=${Math.max(...opens).toFixed(1)} first_read_median_ms=${read.toFixed(2)} budget_ms=${OPEN_BUDGET_MS} (engine double over node:sqlite)`);
+  console.log(
+    `# perf startup replica rows=${ROWS} seed_ms=${seedMs.toFixed(0)} open_median_ms=${open.toFixed(1)} open_max_ms=${Math.max(...opens).toFixed(1)} first_read_median_ms=${read.toFixed(2)} budget_ms=${OPEN_BUDGET_MS} (engine double over node:sqlite)`,
+  );
   assert.ok(open < OPEN_BUDGET_MS, `replica open ${open.toFixed(1)} ms is over ${OPEN_BUDGET_MS} ms`);
   assert.ok(read < 50, `first read ${read.toFixed(2)} ms is over 50 ms`);
   assert.ok(await vault.has(slotOf("spc_big", "dev_1")));

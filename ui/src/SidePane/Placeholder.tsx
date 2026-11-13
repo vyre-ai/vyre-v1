@@ -15,10 +15,12 @@ function labelledBox(name: string, label: string, body: string): string {
 function headerHtml(props: PaneProps): string {
   const toggleLabel = paneToggleLabel(props.toggle.open);
   const toggle = `<button type="button" data-pane-toggle="far-left" aria-pressed="${props.toggle.open ? "true" : "false"}" aria-label="${esc(toggleLabel)}">${esc(toggleLabel)}</button>`;
-  const tabs = (props.tabs ?? []).map((tab) => {
-    const on = tab.key === props.activeTab;
-    return `<div role="tab" data-tab="${esc(tab.key)}" aria-selected="${on ? "true" : "false"}">${esc(tab.title)}</div>`;
-  }).join("");
+  const tabs = (props.tabs ?? [])
+    .map((tab) => {
+      const on = tab.key === props.activeTab;
+      return `<div role="tab" data-tab="${esc(tab.key)}" aria-selected="${on ? "true" : "false"}">${esc(tab.title)}</div>`;
+    })
+    .join("");
   const inner = props.toggle.open ? "hidden" : "shown";
   return `<header data-pane-header data-toggle-count="1" data-inner-toggle="${inner}">${toggle}<div data-tabs="true">${tabs}</div></header>`;
 }

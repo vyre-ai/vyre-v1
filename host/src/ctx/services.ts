@@ -20,7 +20,11 @@ export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["se
     ...(o.base?.(seed, cap) ?? {}),
     seal: o.seal,
     schedule: o.queue.forCtx(seed),
-    ...(o.blobs ? { blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId) } : {}),
+    ...(o.blobs
+      ? {
+          blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId),
+        }
+      : {}),
     ...(o.vault ? { vault: o.vault(seed, cap) } : {}),
   });
 }
@@ -30,8 +34,11 @@ export function invokeRunner(invoke: Invoke): (call: ScheduledCall) => Promise<v
   return async (call) => {
     // A call the Gate holds is parked as an approval task, which is its outcome; retrying would park a second one.
     await invoke(call.cap, call.input, {
-      space: call.space, principal: call.principal, actingFor: call.actingFor,
-      ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}), origin: "schedule",
+      space: call.space,
+      principal: call.principal,
+      actingFor: call.actingFor,
+      ...(call.traceId ? { trace: { traceId: call.traceId, spanId: "0".repeat(16) } } : {}),
+      origin: "schedule",
     });
   };
 }

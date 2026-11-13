@@ -15,8 +15,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createDraft, deleteDraft, getAttachment, getMessage, getProfile, getThread, listHistory, listLabels, listMessages, modifyLabels, parseAddresses, pollInterval, pullMailbox, sendMessage,
-  stopWatch, trashMessage, watch,
+  createDraft,
+  deleteDraft,
+  getAttachment,
+  getMessage,
+  getProfile,
+  getThread,
+  listHistory,
+  listLabels,
+  listMessages,
+  modifyLabels,
+  parseAddresses,
+  pollInterval,
+  pullMailbox,
+  sendMessage,
+  stopWatch,
+  trashMessage,
+  watch,
 } from "../handlers/gmail.ts";
 import { act, codeOf, CONN, contractErrors, fixture, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -34,15 +49,24 @@ function ready(): Harness {
 function mailbox(h: Harness, historyId: string | null): void {
   h.ctx.db.run(
     `INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    MAYA, CONN, historyId, null, null, null, null, null,
+    MAYA,
+    CONN,
+    historyId,
+    null,
+    null,
+    null,
+    null,
+    null,
   );
 }
 
 function messages(h: Harness, names: Record<string, string>): void {
-  for (const [id, file] of Object.entries(names)) h.on("GET", `${BASE}/messages/${id}?`, { body: fixture(`gmail/${file}`) });
+  for (const [id, file] of Object.entries(names))
+    h.on("GET", `${BASE}/messages/${id}?`, { body: fixture(`gmail/${file}`) });
 }
 
-const raw = (body: unknown): string => Buffer.from(String((body as { raw?: string }).raw), "base64url").toString("utf8");
+const raw = (body: unknown): string =>
+  Buffer.from(String((body as { raw?: string }).raw), "base64url").toString("utf8");
 const q = (url: string, key: string): string | null => new URL(url).searchParams.get(key);
 
 // ---- the pull
@@ -56,26 +80,41 @@ test("history pages: new mail lands once, in order, with its parts; drafts and t
   h.on("GET", `${BASE}/messages/m1/attachments/att1`, { body: fixture("gmail/attachment.json") });
 
   const pull = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
-  assert.deepEqual([pull.ingested, pull.deduped, pull.skipped, pull.complete, pull.bootstrapped], [3, 0, 1, true, false]);
+  assert.deepEqual(
+    [pull.ingested, pull.deduped, pull.skipped, pull.complete, pull.bootstrapped],
+    [3, 0, 1, true, false],
+  );
   assert.equal(pull.historyId, "1003");
-  assert.deepEqual(h.ingests.map((i) => i.providerId), ["m1", "m2", "m3"]);   // m1 appears on both pages and lands once
+  assert.deepEqual(
+    h.ingests.map((i) => i.providerId),
+    ["m1", "m2", "m3"],
+  ); // m1 appears on both pages and lands once
 
   const [m1, m2, m3] = h.ingests;
   assert.deepEqual(m1, {
-    source: "google", envelopeTo: MAYA, providerId: "m1", rfcMessageId: "<abc123@acme.test>", threadKey: "t1", direction: "in",
+    source: "google",
+    envelopeTo: MAYA,
+    providerId: "m1",
+    rfcMessageId: "<abc123@acme.test>",
+    threadKey: "t1",
+    direction: "in",
     from: { address: "pat@acme.test", name: "Pat Lee" },
-    to: [{ address: MAYA, name: "Vyre, Maya" }, { address: "sam@vyre.test" }], cc: [{ address: "kim@acme.test" }],
-    subject: "Can we talk?", receivedAt: 1_760_000_000_000, text: "Hello Maya, ", html: "<p>Hello Maya,</p>",
-    attachments: [{ name: "terms.pdf", mime: "application/pdf", size: 5, blobId: "blb_5b" }],   // huge.zip is over the size cap and stays in Gmail
+    to: [{ address: MAYA, name: "Vyre, Maya" }, { address: "sam@vyre.test" }],
+    cc: [{ address: "kim@acme.test" }],
+    subject: "Can we talk?",
+    receivedAt: 1_760_000_000_000,
+    text: "Hello Maya, ",
+    html: "<p>Hello Maya,</p>",
+    attachments: [{ name: "terms.pdf", mime: "application/pdf", size: 5, blobId: "blb_5b" }], // huge.zip is over the size cap and stays in Gmail
     headers: { "in-reply-to": "<prev@vyre.test>", references: "<first@vyre.test> <prev@vyre.test>" },
   });
-  assert.equal(m2!.rfcMessageId, "<gmail-m2@mail.gmail.com>");   // no Message-ID header: a stable one is made
+  assert.equal(m2!.rfcMessageId, "<gmail-m2@mail.gmail.com>"); // no Message-ID header: a stable one is made
   assert.equal(m3!.direction, "out");
   assert.equal(h.hits(/\/history\?/).length, 2);
   assert.equal(q(h.hits(/\/history\?/)[0]!.url, "startHistoryId"), "1000");
   assert.equal(q(h.hits(/\/history\?/)[0]!.url, "pageToken"), null);
   assert.equal(q(h.hits(/\/history\?/)[1]!.url, "pageToken"), "p2");
-  assert.equal(q(h.hits(/\/history\?/)[1]!.url, "startHistoryId"), "1000");   // the second page is asked from the same position
+  assert.equal(q(h.hits(/\/history\?/)[1]!.url, "startHistoryId"), "1000"); // the second page is asked from the same position
 
   const state = h.rows(`SELECT * FROM google_mailbox WHERE email = ?`, MAYA)[0]!;
   assert.deepEqual([state.historyId, state.lastPolledAt, state.lastActivityAt], ["1003", NOW, NOW]);
@@ -104,7 +143,10 @@ test("a mailbox with no cursor starts from the last 90 days, oldest first, and t
   h.on("GET", `${BASE}/messages/m1/attachments/att1`, { body: fixture("gmail/attachment.json") });
   const pull = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([pull.bootstrapped, pull.ingested, pull.historyId], [true, 2, "1000"]);
-  assert.deepEqual(h.ingests.map((i) => i.providerId), ["m1", "m2"]);   // the listing is newest first; mail lands oldest first
+  assert.deepEqual(
+    h.ingests.map((i) => i.providerId),
+    ["m1", "m2"],
+  ); // the listing is newest first; mail lands oldest first
   assert.equal(q(h.hits(/\/messages\?/)[0]!.url, "q"), "newer_than:90d -in:spam -in:trash");
   assert.equal(h.hits(/\/history\?/).length, 0);
 });
@@ -142,12 +184,22 @@ test("when mail.ingest cannot take a message the cursor stays, so nothing is los
 test("a message already known counts as deduped; a sender-less message and a vanished one are skipped", async () => {
   const h = ready();
   mailbox(h, "1000");
-  h.on("GET", /\/history\?/, { body: { history: [{ id: "1", messagesAdded: [{ message: { id: "m2" } }, { message: { id: "ns" } }, { message: { id: "vanished" } }] }], historyId: "1001" } });
+  h.on("GET", /\/history\?/, {
+    body: {
+      history: [
+        {
+          id: "1",
+          messagesAdded: [{ message: { id: "m2" } }, { message: { id: "ns" } }, { message: { id: "vanished" } }],
+        },
+      ],
+      historyId: "1001",
+    },
+  });
   messages(h, { m2: "message-m2.json", ns: "message-nosender.json" });
   h.ingestState.deduped.add("m2");
   const pull = await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual([pull.ingested, pull.deduped, pull.skipped, pull.complete], [0, 1, 2, true]);
-  assert.equal(h.rows(`SELECT "lastActivityAt" FROM google_mailbox`)[0]?.lastActivityAt, null);   // nothing new: the mailbox is not active
+  assert.equal(h.rows(`SELECT "lastActivityAt" FROM google_mailbox`)[0]?.lastActivityAt, null); // nothing new: the mailbox is not active
 });
 
 test("polling slows as a mailbox quiets: 2 minutes active, 15 idle, an hour dormant or watched", () => {
@@ -160,9 +212,10 @@ test("polling slows as a mailbox quiets: 2 minutes active, 15 idle, an hour dorm
 });
 
 test("address lists split on commas outside quotes and brackets, and drop what is not an address", () => {
-  assert.deepEqual(parseAddresses('"Lee, Pat" <PAT@acme.test>, kim@acme.test, <sam@acme.test>, nobody, Pat <not valid>'), [
-    { address: "pat@acme.test", name: "Lee, Pat" }, { address: "kim@acme.test" }, { address: "sam@acme.test" },
-  ]);
+  assert.deepEqual(
+    parseAddresses('"Lee, Pat" <PAT@acme.test>, kim@acme.test, <sam@acme.test>, nobody, Pat <not valid>'),
+    [{ address: "pat@acme.test", name: "Lee, Pat" }, { address: "kim@acme.test" }, { address: "sam@acme.test" }],
+  );
   assert.deepEqual(parseAddresses(undefined), []);
 });
 
@@ -170,26 +223,53 @@ test("address lists split on commas outside quotes and brackets, and drop what i
 
 test("profile, labels and message listings are mapped to the contract", async () => {
   const h = ready();
-  h.on("GET", `${BASE}/labels`, { body: { labels: [{ id: "INBOX", name: "INBOX", type: "system" }, { id: "Label_1", name: "Clients" }] } });
-  h.on("GET", /\/messages\?/, (r) => (q(r.url, "pageToken") ? { body: { resultSizeEstimate: 0 } } : { body: { messages: [{ id: "m1", threadId: "t1" }], nextPageToken: "n2", resultSizeEstimate: 9 } }));
+  h.on("GET", `${BASE}/labels`, {
+    body: {
+      labels: [
+        { id: "INBOX", name: "INBOX", type: "system" },
+        { id: "Label_1", name: "Clients" },
+      ],
+    },
+  });
+  h.on("GET", /\/messages\?/, (r) =>
+    q(r.url, "pageToken")
+      ? { body: { resultSizeEstimate: 0 } }
+      : { body: { messages: [{ id: "m1", threadId: "t1" }], nextPageToken: "n2", resultSizeEstimate: 9 } },
+  );
   const profile = await getProfile(h.ctx, { ...act });
   assert.deepEqual(profile, { emailAddress: MAYA, historyId: "1000", messagesTotal: 5 });
   const labels = await listLabels(h.ctx, act);
-  assert.deepEqual(labels.labels, [{ id: "INBOX", name: "INBOX", type: "system" }, { id: "Label_1", name: "Clients" }]);
+  assert.deepEqual(labels.labels, [
+    { id: "INBOX", name: "INBOX", type: "system" },
+    { id: "Label_1", name: "Clients" },
+  ]);
   const page = await listMessages(h.ctx, { ...act, q: "from:pat", labelIds: ["INBOX", "UNREAD"], maxResults: 5 });
   assert.deepEqual(page, { messages: [{ id: "m1", threadId: "t1" }], nextPageToken: "n2", resultSizeEstimate: 9 });
   const url = new URL(h.hits(/\/messages\?/)[0]!.url);
-  assert.deepEqual([url.searchParams.get("q"), url.searchParams.getAll("labelIds"), url.searchParams.get("maxResults")], ["from:pat", ["INBOX", "UNREAD"], "5"]);
+  assert.deepEqual(
+    [url.searchParams.get("q"), url.searchParams.getAll("labelIds"), url.searchParams.get("maxResults")],
+    ["from:pat", ["INBOX", "UNREAD"], "5"],
+  );
   assert.deepEqual((await listMessages(h.ctx, { ...act, pageToken: "n2" })).messages, []);
-  for (const [cap, out] of [["google.gmail.get_profile", profile], ["google.gmail.list_labels", labels], ["google.gmail.list_messages", page]] as const) assert.deepEqual(contractErrors(cap, "out", out), [], cap);
+  for (const [cap, out] of [
+    ["google.gmail.get_profile", profile],
+    ["google.gmail.list_labels", labels],
+    ["google.gmail.list_messages", page],
+  ] as const)
+    assert.deepEqual(contractErrors(cap, "out", out), [], cap);
 });
 
 test("one message and one thread come back with ids, labels and the structured payload", async () => {
   const h = ready();
   messages(h, { m1: "message-m1.json" });
-  h.on("GET", `${BASE}/threads/t1`, { body: { id: "t1", messages: [fixture("gmail/message-m1.json"), fixture("gmail/message-m3.json")] } });
+  h.on("GET", `${BASE}/threads/t1`, {
+    body: { id: "t1", messages: [fixture("gmail/message-m1.json"), fixture("gmail/message-m3.json")] },
+  });
   const one = await getMessage(h.ctx, { ...act, messageId: "m1" });
-  assert.deepEqual([one.message.id, one.message.threadId, one.message.labelIds, one.message.internalDate, one.message.snippet], ["m1", "t1", ["INBOX", "UNREAD"], 1_760_000_000_000, "Can we talk?"]);
+  assert.deepEqual(
+    [one.message.id, one.message.threadId, one.message.labelIds, one.message.internalDate, one.message.snippet],
+    ["m1", "t1", ["INBOX", "UNREAD"], 1_760_000_000_000, "Can we talk?"],
+  );
   assert.equal(q(h.hits(`${BASE}/messages/m1`)[0]!.url, "format"), "full");
   const thread = await getThread(h.ctx, { ...act, threadId: "t1" });
   assert.deepEqual([thread.threadId, thread.messages.map((m) => m.id)], ["t1", ["m1", "m3"]]);
@@ -215,16 +295,34 @@ test("a draft and a send are RFC 822 with the recipients checked and the headers
   const h = ready();
   h.on("POST", `${BASE}/drafts`, { body: { id: "dr1", message: { id: "m9" } } });
   h.on("POST", `${BASE}/messages/send`, { body: { id: "m10", threadId: "t10", labelIds: ["SENT"] } });
-  const d = await createDraft(h.ctx, { ...act, to: ["pat@acme.test"], cc: ["kim@acme.test"], subject: "Hello\r\nBcc: evil@x.test", text: "Hi Pat", threadId: "t1" });
+  const d = await createDraft(h.ctx, {
+    ...act,
+    to: ["pat@acme.test"],
+    cc: ["kim@acme.test"],
+    subject: "Hello\r\nBcc: evil@x.test",
+    text: "Hi Pat",
+    threadId: "t1",
+  });
   assert.deepEqual(d, { draftId: "dr1" });
   const draftReq = h.hits(`${BASE}/drafts`)[0]!.body as { message: { raw: string; threadId: string } };
   assert.equal(draftReq.message.threadId, "t1");
   const draft = raw(draftReq.message);
-  assert.match(draft, /^To: pat@acme\.test\r\nCc: kim@acme\.test\r\nSubject: Hello Bcc: evil@x\.test\r\nMIME-Version: 1\.0\r\nContent-Type: text\/plain; charset=UTF-8\r\n/);
-  assert.ok(!/^Bcc:/m.test(draft));   // the injected line stayed inside the subject
+  assert.match(
+    draft,
+    /^To: pat@acme\.test\r\nCc: kim@acme\.test\r\nSubject: Hello Bcc: evil@x\.test\r\nMIME-Version: 1\.0\r\nContent-Type: text\/plain; charset=UTF-8\r\n/,
+  );
+  assert.ok(!/^Bcc:/m.test(draft)); // the injected line stayed inside the subject
   assert.match(draft, new RegExp(`\\r\\n\\r\\n${Buffer.from("Hi Pat").toString("base64")}$`));
 
-  const sent = await sendMessage(h.ctx, { ...act, to: ["pat@acme.test"], bcc: ["boss@vyre.test"], subject: "Café menu", text: "plain", html: "<b>rich</b>", attachments: ["fil_menu"] });
+  const sent = await sendMessage(h.ctx, {
+    ...act,
+    to: ["pat@acme.test"],
+    bcc: ["boss@vyre.test"],
+    subject: "Café menu",
+    text: "plain",
+    html: "<b>rich</b>",
+    attachments: ["fil_menu"],
+  });
   assert.deepEqual(sent, { id: "m10", threadId: "t10" });
   const mime = raw(h.hits(`${BASE}/messages/send`)[0]!.body);
   assert.match(mime, /^To: pat@acme\.test\r\nBcc: boss@vyre\.test\r\nSubject: =\?UTF-8\?B\?/);
@@ -238,10 +336,19 @@ test("a draft and a send are RFC 822 with the recipients checked and the headers
 
 test("a send needs a valid recipient and a body", async () => {
   const h = ready();
-  for (const bad of [{ to: [] }, { to: ["not an address"] }, { to: ["a@b.test"], cc: ["x y@b.test"] }, { to: ["a@b.test"], text: undefined }]) {
+  for (const bad of [
+    { to: [] },
+    { to: ["not an address"] },
+    { to: ["a@b.test"], cc: ["x y@b.test"] },
+    { to: ["a@b.test"], text: undefined },
+  ]) {
     await assert.rejects(
-      () => sendMessage(h.ctx, { ...act, subject: "s", text: "t", ...(bad as object) } as Parameters<typeof sendMessage>[1]),
-      (e) => codeOf(e) === "validation.bad_input", JSON.stringify(bad),
+      () =>
+        sendMessage(h.ctx, { ...act, subject: "s", text: "t", ...(bad as object) } as Parameters<
+          typeof sendMessage
+        >[1]),
+      (e) => codeOf(e) === "validation.bad_input",
+      JSON.stringify(bad),
     );
   }
   assert.equal(h.hits(`${BASE}/messages/send`).length, 0);
@@ -253,10 +360,14 @@ test("watch records the topic and the expiry for the member; stop clears them", 
   h.on("POST", `${BASE}/stop`, { status: 204 });
   const w = await watch(h.ctx, { ...act, topicName: "projects/p/topics/gmail", labelIds: ["INBOX"] });
   assert.deepEqual(w, { historyId: "1000", expiration: 1_760_604_800_000 });
-  assert.deepEqual(h.rows(`SELECT "pubsubTopic", "watchExpiresAt" FROM google_mailbox`), [{ pubsubTopic: "projects/p/topics/gmail", watchExpiresAt: 1_760_604_800_000 }]);
+  assert.deepEqual(h.rows(`SELECT "pubsubTopic", "watchExpiresAt" FROM google_mailbox`), [
+    { pubsubTopic: "projects/p/topics/gmail", watchExpiresAt: 1_760_604_800_000 },
+  ]);
   assert.deepEqual(h.hits(`${BASE}/watch`)[0]!.body, { topicName: "projects/p/topics/gmail", labelIds: ["INBOX"] });
   assert.deepEqual(await stopWatch(h.ctx, act), { stopped: true });
-  assert.deepEqual(h.rows(`SELECT "pubsubTopic", "watchExpiresAt" FROM google_mailbox`), [{ pubsubTopic: null, watchExpiresAt: null }]);
+  assert.deepEqual(h.rows(`SELECT "pubsubTopic", "watchExpiresAt" FROM google_mailbox`), [
+    { pubsubTopic: null, watchExpiresAt: null },
+  ]);
 });
 
 // ---- tokens and errors
@@ -268,7 +379,7 @@ test("a call carries a delegated token for the member and the narrowest scope; t
   assert.deepEqual(h.minted, [{ sub: MAYA, scopes: ["https://www.googleapis.com/auth/gmail.modify"] }]);
   assert.match(h.requests[0]!.headers.authorization ?? "", /^Bearer tok-maya@vyre\.test-1$/);
   assert.equal(h.requests[1]!.headers.authorization, h.requests[0]!.headers.authorization);
-  h.advance(3_600_000 - 30_000);   // inside the last minute
+  h.advance(3_600_000 - 30_000); // inside the last minute
   await getProfile(h.ctx, act);
   assert.equal(h.minted.length, 2);
 });
@@ -276,33 +387,58 @@ test("a call carries a delegated token for the member and the narrowest scope; t
 test("a 401 mints a new token once; a second 401 is an answer", async () => {
   const h = ready();
   let n = 0;
-  h.on("GET", `${BASE}/labels`, () => (++n === 1 ? { status: 401, body: { error: { code: 401 } } } : { body: { labels: [] } }));
+  h.on("GET", `${BASE}/labels`, () =>
+    ++n === 1 ? { status: 401, body: { error: { code: 401 } } } : { body: { labels: [] } },
+  );
   assert.deepEqual(await listLabels(h.ctx, act), { labels: [] });
   assert.equal(h.minted.length, 2);
   h.on("GET", `${BASE}/threads/t1`, { status: 401, body: { error: { code: 401 } } });
-  await assert.rejects(() => getThread(h.ctx, { ...act, threadId: "t1" }), (e) => codeOf(e) === "provider.auth_failed");
+  await assert.rejects(
+    () => getThread(h.ctx, { ...act, threadId: "t1" }),
+    (e) => codeOf(e) === "provider.auth_failed",
+  );
   assert.equal(h.minted.length, 3);
 });
 
 test("Google's refusals map to the error catalogue without passing Google's text on", async () => {
   const h = ready();
   const cases: [number, string | undefined, string][] = [
-    [403, "rateLimitExceeded", "provider.rate_limited"], [403, "insufficientPermissions", "provider.auth_failed"], [403, "forbidden", "permission.no_grant"],
-    [404, "notFound", "validation.not_found"], [400, "invalid", "validation.bad_input"], [410, undefined, "validation.precondition_failed"], [429, undefined, "provider.rate_limited"],
-    [503, undefined, "provider.unavailable"], [418, undefined, "provider.bad_response"],
+    [403, "rateLimitExceeded", "provider.rate_limited"],
+    [403, "insufficientPermissions", "provider.auth_failed"],
+    [403, "forbidden", "permission.no_grant"],
+    [404, "notFound", "validation.not_found"],
+    [400, "invalid", "validation.bad_input"],
+    [410, undefined, "validation.precondition_failed"],
+    [429, undefined, "provider.rate_limited"],
+    [503, undefined, "provider.unavailable"],
+    [418, undefined, "provider.bad_response"],
   ];
   for (const [status, reason, code] of cases) {
-    h.on("GET", `${BASE}/labels`, { status, body: { error: { code: status, message: "private text from the request", ...(reason ? { errors: [{ reason }] } : {}) } } });
-    await assert.rejects(() => listLabels(h.ctx, act), (e) => {
-      assert.equal(codeOf(e), code, `${status} ${reason}`);
-      assert.ok(!JSON.stringify(e).includes("private text"));
-      return true;
+    h.on("GET", `${BASE}/labels`, {
+      status,
+      body: {
+        error: { code: status, message: "private text from the request", ...(reason ? { errors: [{ reason }] } : {}) },
+      },
     });
+    await assert.rejects(
+      () => listLabels(h.ctx, act),
+      (e) => {
+        assert.equal(codeOf(e), code, `${status} ${reason}`);
+        assert.ok(!JSON.stringify(e).includes("private text"));
+        return true;
+      },
+    );
   }
   h.on("GET", `${BASE}/labels`, { throws: true });
-  await assert.rejects(() => listLabels(h.ctx, act), (e) => codeOf(e) === "provider.network");
+  await assert.rejects(
+    () => listLabels(h.ctx, act),
+    (e) => codeOf(e) === "provider.network",
+  );
   h.on("GET", `${BASE}/labels`, { body: "<html>not json</html>" });
-  await assert.rejects(() => listLabels(h.ctx, act), (e) => codeOf(e) === "provider.bad_response");
+  await assert.rejects(
+    () => listLabels(h.ctx, act),
+    (e) => codeOf(e) === "provider.bad_response",
+  );
 });
 
 test("a draft its person decided not to send is deleted in Gmail, and nothing is sent", async () => {

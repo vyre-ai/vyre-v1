@@ -20,7 +20,8 @@ interface RootLike {
   style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
 }
 type Doc = { querySelector(s: string): { click?: () => void } | null };
-const click = (id: string): void => (globalThis as { document?: Doc }).document?.querySelector(`[data-testid="${id}"]`)?.click?.();
+const click = (id: string): void =>
+  (globalThis as { document?: Doc }).document?.querySelector(`[data-testid="${id}"]`)?.click?.();
 
 function Inner(): ReactNode {
   const height = useWindowDimensions().height;
@@ -30,21 +31,57 @@ function Inner(): ReactNode {
     const skin = query.get("skin") ?? "paper";
     const root = g.document?.documentElement;
     const themeRoot: ThemeRoot = {
-      setAttribute: (n, v) => { root?.setAttribute(n, v); },
-      setProperty: (n, v) => { root?.style.setProperty(n, v); },
-      removeProperty: (n) => { root?.style.removeProperty(n); },
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
     };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
-    return { hub: createSampleShell({ openId: "nw", theme }), theme, phone: createUnmatchedSample(), chats: createMountSample(), state: query.get("state") ?? "live" };
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
+    return {
+      hub: createSampleShell({ openId: "nw", theme }),
+      theme,
+      phone: createUnmatchedSample(),
+      chats: createMountSample(),
+      state: query.get("state") ?? "live",
+    };
   }, []);
   useEffect(() => {
-    const timers = [setTimeout(() => { made.phone.device.ring(PHONE_OF["elena"]!); }, 2000)];
+    const timers = [
+      setTimeout(() => {
+        made.phone.device.ring(PHONE_OF["elena"]!);
+      }, 2000),
+    ];
     if (made.state === "live") timers.push(setTimeout(() => click("softphone-answer"), 2600));
-    return () => { for (const t of timers) clearTimeout(t); };
+    return () => {
+      for (const t of timers) clearTimeout(t);
+    };
   }, [made]);
   return (
     <View style={{ height }}>
-      <Shell hub={made.hub} theme={made.theme} renderPlace={(ctx: PlaceContext): ReactNode => (ctx.place === "chats" ? <ChatsMounted key={ctx.spaceId} rt={made.chats.rt} window={{ start: 0, end: 500 }} /> : samplePlace(ctx))} phone={{ device: made.phone.device, data: made.phone.data }} />
+      <Shell
+        hub={made.hub}
+        theme={made.theme}
+        renderPlace={(ctx: PlaceContext): ReactNode =>
+          ctx.place === "chats" ? (
+            <ChatsMounted key={ctx.spaceId} rt={made.chats.rt} window={{ start: 0, end: 500 }} />
+          ) : (
+            samplePlace(ctx)
+          )
+        }
+        phone={{ device: made.phone.device, data: made.phone.data }}
+      />
     </View>
   );
 }

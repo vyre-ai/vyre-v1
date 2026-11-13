@@ -11,7 +11,10 @@ type Call = (cap: string, input?: unknown) => Promise<unknown>;
 export type SpaceAiRead = { key: SpaceKeyState | "error" | null; admin: string | null };
 
 /** The Space AI key and who can add one, read once per person. `initial` skips the read (tests and screenshots); `off` reads nothing. */
-export function useSpaceAi(call: Call, o: { me?: string; fallbackAdmin?: string; initial?: SpaceAiRead; off?: boolean } = {}): SpaceAiWords {
+export function useSpaceAi(
+  call: Call,
+  o: { me?: string; fallbackAdmin?: string; initial?: SpaceAiRead; off?: boolean } = {},
+): SpaceAiWords {
   const [read, setRead] = useState<SpaceAiRead>(o.initial ?? { key: null, admin: null });
   // the caller may hand a new function each render: the read follows the latest one but runs once per person, not once per render
   const latest = useRef(call);
@@ -20,8 +23,15 @@ export function useSpaceAi(call: Call, o: { me?: string; fallbackAdmin?: string;
   useEffect(() => {
     if (given || o.off) return undefined;
     let alive = true;
-    void readSpaceAi((cap, input) => latest.current(cap, input), { ...(o.me ? { me: o.me } : {}), ...(o.fallbackAdmin ? { fallbackAdmin: o.fallbackAdmin } : {}) }).then((r) => { if (alive) setRead(r); });
-    return () => { alive = false; };
+    void readSpaceAi((cap, input) => latest.current(cap, input), {
+      ...(o.me ? { me: o.me } : {}),
+      ...(o.fallbackAdmin ? { fallbackAdmin: o.fallbackAdmin } : {}),
+    }).then((r) => {
+      if (alive) setRead(r);
+    });
+    return () => {
+      alive = false;
+    };
   }, [o.me, o.fallbackAdmin, given, o.off]);
   return spaceAiWords(read.key, read.admin);
 }
@@ -31,8 +41,24 @@ export function statusNote(w: SpaceAiWords): string {
   return [w.line, w.models ? `Models: ${w.models}` : ""].filter(Boolean).join(" ");
 }
 
-export function SpaceAiStatus({ call, me, fallbackAdmin, initial, testID = "space-ai-status" }: { call: Call; me?: string; fallbackAdmin?: string; initial?: SpaceAiRead; testID?: string }): ReactElement {
-  const words = useSpaceAi(call, { ...(me ? { me } : {}), ...(fallbackAdmin ? { fallbackAdmin } : {}), ...(initial ? { initial } : {}) });
+export function SpaceAiStatus({
+  call,
+  me,
+  fallbackAdmin,
+  initial,
+  testID = "space-ai-status",
+}: {
+  call: Call;
+  me?: string;
+  fallbackAdmin?: string;
+  initial?: SpaceAiRead;
+  testID?: string;
+}): ReactElement {
+  const words = useSpaceAi(call, {
+    ...(me ? { me } : {}),
+    ...(fallbackAdmin ? { fallbackAdmin } : {}),
+    ...(initial ? { initial } : {}),
+  });
   const note = statusNote(words);
   return (
     <View testID={testID} style={s.box}>
@@ -42,5 +68,11 @@ export function SpaceAiStatus({ call, me, fallbackAdmin, initial, testID = "spac
 }
 
 const s = StyleSheet.create({
-  box: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, padding: 4, backgroundColor: "var(--win)" as string },
+  box: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    padding: 4,
+    backgroundColor: "var(--win)" as string,
+  },
 });

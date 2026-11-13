@@ -10,5 +10,10 @@ import { InstalledForSpace } from "./InstalledForSpace.tsx";
 export function SkillsPage(): ReactElement {
   const { call, name } = useConsoleData();
   const [tick, setTick] = useState(0);
-  return <View><InstalledForSpace call={call} nameOf={name} onAddSkill={() => setTick((n) => n + 1)} /><SkillsView call={call} mode="console" addTick={tick} /></View>;
+  return (
+    <View>
+      <InstalledForSpace call={call} nameOf={name} onAddSkill={() => setTick((n) => n + 1)} />
+      <SkillsView call={call} mode="console" addTick={tick} />
+    </View>
+  );
 }

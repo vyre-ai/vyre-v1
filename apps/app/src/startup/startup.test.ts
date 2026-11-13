@@ -13,16 +13,24 @@ function harness(lastPlace: string | null) {
   const replica: ReplicaPort = {
     prepare<Row>(sql: string) {
       log.push(`prepare ${sql}`);
-      return { all: () => { log.push(`sql ${sql}`); return [{ id: "r1", title: "Weekly sync" }] as unknown as Row[]; } };
+      return {
+        all: () => {
+          log.push(`sql ${sql}`);
+          return [{ id: "r1", title: "Weekly sync" }] as unknown as Row[];
+        },
+      };
     },
   };
   const queued: (() => void)[] = [];
   const deps = {
-    ui, replica,
+    ui,
+    replica,
     render: (v: { place: string; rows: unknown[] }) => log.push(`render ${v.place} ${v.rows.length}`),
     connect: () => log.push("connect"),
     mark: (n: string) => log.push(`mark ${n}`),
-    schedule: (fn: () => void) => { queued.push(fn); },
+    schedule: (fn: () => void) => {
+      queued.push(fn);
+    },
   };
   return { log, deps, queued };
 }
@@ -45,9 +53,18 @@ test("no network on the critical path: fetch, WebSocket and XMLHttpRequest are n
   const g = globalThis as Record<string, unknown>;
   const saved = { fetch: g.fetch, WebSocket: g.WebSocket, XMLHttpRequest: g.XMLHttpRequest };
   const hits: string[] = [];
-  g.fetch = () => { hits.push("fetch"); throw new Error("network"); };
-  g.WebSocket = function () { hits.push("ws"); throw new Error("network"); };
-  g.XMLHttpRequest = function () { hits.push("xhr"); throw new Error("network"); };
+  g.fetch = () => {
+    hits.push("fetch");
+    throw new Error("network");
+  };
+  g.WebSocket = function () {
+    hits.push("ws");
+    throw new Error("network");
+  };
+  g.XMLHttpRequest = function () {
+    hits.push("xhr");
+    throw new Error("network");
+  };
   try {
     const h = harness(null);
     startup(h.deps);
@@ -73,13 +90,22 @@ test("every place has a loader, and an unregistered place gets a dynamic import"
 });
 
 test("startupMs measures app.start to app.usable", () => {
-  assert.equal(startupMs([{ name: "app.start", startTime: 10 }, { name: "app.usable", startTime: 410 }]), 400);
+  assert.equal(
+    startupMs([
+      { name: "app.start", startTime: 10 },
+      { name: "app.usable", startTime: 410 },
+    ]),
+    400,
+  );
   assert.equal(startupMs([{ name: "app.start", startTime: 10 }]), null);
 });
 
 test("the web UI state store reads synchronously, survives corrupt storage, and writes through", () => {
   const data = new Map<string, string>();
-  const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+  const storage = {
+    getItem: (k: string) => data.get(k) ?? null,
+    setItem: (k: string, v: string) => void data.set(k, v),
+  };
   const store = webUiStateStore(storage);
   assert.equal(store.read().lastPlace, null);
   store.write({ lastPlace: "mail" });

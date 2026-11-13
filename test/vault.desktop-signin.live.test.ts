@@ -17,27 +17,63 @@ const SPACE_URL = "https://team.firm.test";
 test("desktop path: sign in, unlock at launch writes the wrap; after a server restart the relaunched app locks, one unlock brings the person's own Claude back", async () => {
   const stub = await vendor();
   const dir = seededDir();
-  const start = (): Promise<Daemon> => boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+  const start = (): Promise<Daemon> =>
+    boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
   let d = await start();
   const realFetch = globalThis.fetch;
   const through = (): void => {
-    globalThis.fetch = ((url: unknown, init?: RequestInit) => realFetch(String(url).replace(SPACE_URL, d.url), { ...init, headers: { ...(init?.headers as Record<string, string>), "x-forwarded-proto": "https", "x-forwarded-for": "203.0.113.7" } })) as typeof fetch;
+    globalThis.fetch = ((url: unknown, init?: RequestInit) =>
+      realFetch(String(url).replace(SPACE_URL, d.url), {
+        ...init,
+        headers: {
+          ...(init?.headers as Record<string, string>),
+          "x-forwarded-proto": "https",
+          "x-forwarded-for": "203.0.113.7",
+        },
+      })) as typeof fetch;
   };
-  const gate = (token: string) => remoteGateState({
-    kept: keyIsKept, rehand: () => rehandKey(SPACE_URL, token),
-    serverHolds: async () => { const k = await serverKeyState(SPACE_URL, token); return k === null ? null : k.held; },
-    passwordKey: () => passwordKeyState(SPACE_URL, token),
-  });
+  const gate = (token: string) =>
+    remoteGateState({
+      kept: keyIsKept,
+      rehand: () => rehandKey(SPACE_URL, token),
+      serverHolds: async () => {
+        const k = await serverKeyState(SPACE_URL, token);
+        return k === null ? null : k.held;
+      },
+      passwordKey: () => passwordKeyState(SPACE_URL, token),
+    });
   try {
     through();
-    assert.equal((await realFetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }) })).status, 204);
-    const ep = await ok(d, d.token, "providers.custom_add", { name: "Stub Go", baseUrl: stub.base, apiKey: SPACE_KEY, scope: "mine" });
+    assert.equal(
+      (
+        await realFetch(`${d.url}/local/vault/key/unlock`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+          body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }),
+        })
+      ).status,
+      204,
+    );
+    const ep = await ok(d, d.token, "providers.custom_add", {
+      name: "Stub Go",
+      baseUrl: stub.base,
+      apiKey: SPACE_KEY,
+      scope: "mine",
+    });
     await ok(d, d.token, "providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
-    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent.agentId as string;
-    const member = await join(d, "irfad");   // the account exists with a real key bundle; this device signs in fresh, as the desktop app does
+    const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent
+      .agentId as string;
+    const member = await join(d, "irfad"); // the account exists with a real key bundle; this device signs in fresh, as the desktop app does
 
     // the desktop app: a password sign-in on a new device answers the key bundle with the session
-    const signed = (await api(d, null, "identity.sign_in", { username: "irfad", password: PASSWORD, deviceName: "Irfad's Mac", deviceClass: "desktop" })).data as { session: { token: string }; keys?: unknown };
+    const signed = (
+      await api(d, null, "identity.sign_in", {
+        username: "irfad",
+        password: PASSWORD,
+        deviceName: "Irfad's Mac",
+        deviceClass: "desktop",
+      })
+    ).data as { session: { token: string }; keys?: unknown };
     assert.ok(signed.keys, "the sign-in answers the key bundle, so the app can open it");
     const token = signed.session.token;
     // launch: the server holds no key yet, nobody else does, the account has a password: the lock shows; the password unlocks it through the Space door
@@ -45,7 +81,11 @@ test("desktop path: sign in, unlock at launch writes the wrap; after a server re
     await unlockWithPassword(SPACE_URL, token, PASSWORD);
     assert.equal(keyIsKept(), true);
     const after = await serverKeyState(SPACE_URL, token);
-    assert.deepEqual([after?.held, after?.remembered], [true, true], "held now, and the server wrote its wrap of the key");
+    assert.deepEqual(
+      [after?.held, after?.remembered],
+      [true, true],
+      "held now, and the server wrote its wrap of the key",
+    );
     assert.match(hostLog(d), /vault\.wrap_made/);
     const ref = await connectClaude(d, token, "Irfad_Claude", { spaceUse: false });
     const mine = `ran for ${member.personId} on subscription ${ref}`;
@@ -57,7 +97,11 @@ test("desktop path: sign in, unlock at launch writes the wrap; after a server re
     through();
     forgetKey();
     const lost = await serverKeyState(SPACE_URL, token);
-    assert.deepEqual([lost?.held, lost?.remembered], [false, true], "the key went with the restart; the wrap is still there");
+    assert.deepEqual(
+      [lost?.held, lost?.remembered],
+      [false, true],
+      "the key went with the restart; the wrap is still there",
+    );
     assert.equal(await gate(token), "locked", "the relaunched app shows the unlock");
     // not unlocked yet: her own sign-in stays closed, and the chat is answered by the Space key with its one line, never silently
     const fallback = await ask(d, agentId, { token }, "locked");

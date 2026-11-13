@@ -8,22 +8,62 @@ import { alice, as, bob, bot, parkInput } from "../fixtures/seed.ts";
 import { findHold, rawSecretIn } from "../projections.ts";
 import { MAX_OPEN_ASKS } from "../handlers/hold.ts";
 
-const SSO = { provider: { key: "google", title: "Google", issuer: "https://accounts.google.com", clientId: "123.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret", enabled: true } };
+const SSO = {
+  provider: {
+    key: "google",
+    title: "Google",
+    issuer: "https://accounts.google.com",
+    clientId: "123.apps.googleusercontent.com",
+    clientSecretHandle: "#Google_Client_Secret",
+    enabled: true,
+  },
+};
 type Parked = { holdId: string; taskId: string };
 
 /** What the Gate hook hands gate.park for an ask: the person as principal, the agent in `ask`. */
 const askInput = (over: Record<string, unknown> = {}): Record<string, unknown> =>
-  parkInput({ capName: "members.sso.set", input: SSO, act: "signin_change", principal: alice, actingFor: undefined, ask: { by: bot, what: "Add or change an OIDC provider" }, ...over });
+  parkInput({
+    capName: "members.sso.set",
+    input: SSO,
+    act: "signin_change",
+    principal: alice,
+    actingFor: undefined,
+    ask: { by: bot, what: "Add or change an OIDC provider" },
+    ...over,
+  });
 
 async function parkAsk(h: Harness, over: Record<string, unknown> = {}): Promise<Parked> {
   h.callee("access.principals.get", () => ({ principal: { name: "Simba (Claude Code)" } }));
   return h.call("gate.park", askInput(over), as(bot));
 }
-const claims = (h: Harness, p: Parked, over: Record<string, unknown> = {}) => ({ task: p.taskId, hold: p.holdId, decision: "dec_1", hash: "ph_1", by: alice.id, forPerson: null, device: "dev_1", exp: h.now() + 600_000, ...over });
-const release = (h: Harness, p: Parked, over: Record<string, unknown> = {}, who: { id: string; kind: "person" | "agent"; device?: string; actingFor?: string } = { id: alice.id, kind: "person", device: "dev_1" }) =>
+const claims = (h: Harness, p: Parked, over: Record<string, unknown> = {}) => ({
+  task: p.taskId,
+  hold: p.holdId,
+  decision: "dec_1",
+  hash: "ph_1",
+  by: alice.id,
+  forPerson: null,
+  device: "dev_1",
+  exp: h.now() + 600_000,
+  ...over,
+});
+const release = (
+  h: Harness,
+  p: Parked,
+  over: Record<string, unknown> = {},
+  who: { id: string; kind: "person" | "agent"; device?: string; actingFor?: string } = {
+    id: alice.id,
+    kind: "person",
+    device: "dev_1",
+  },
+) =>
   h.call("gate.release", { holdId: p.holdId, taskId: p.taskId, approvalToken: h.sealToken(claims(h, p, over)) }, who);
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code, JSON.stringify(e)); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code, JSON.stringify(e));
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
 
 test("an ask parks as the person's own call: assigned to them only, named for the agent, every input on the card, dropped (never passed on) when nobody answers", async () => {
@@ -33,7 +73,11 @@ test("an ask parks as the person's own call: assigned to them only, named for th
   assert.deepEqual(hold.principal, alice, "it runs as the person");
   assert.deepEqual(hold.askedBy, bot, "and names the agent that asked");
   assert.equal(hold.actingFor, undefined);
-  assert.deepEqual(hold.approver, { kind: "person", id: alice.id }, "the person, whatever the act's rule says (signin_change names admins)");
+  assert.deepEqual(
+    hold.approver,
+    { kind: "person", id: alice.id },
+    "the person, whatever the act's rule says (signin_change names admins)",
+  );
   assert.equal(hold.rule.onTimeout, "drop");
   assert.equal(hold.summary, "Simba (Claude Code) asks you to: Add or change an OIDC provider");
   const task = h.callsTo("tasks.create")[0]!.input;
@@ -41,10 +85,23 @@ test("an ask parks as the person's own call: assigned to them only, named for th
   assert.equal(task.title, "Simba (Claude Code) asks: Add or change an OIDC provider");
   const [about, inputs] = task.blocks;
   assert.equal(about.type, "pairs");
-  assert.deepEqual([about.data.act, about.data.cap, about.data.input, about.data.ask], ["signin_change", "members.sso.set", SSO, { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" }], "the chat card reads the hold like any other, and the ask's own line");
-  assert.deepEqual(about.data.pairs, [["What happens", "Add or change an OIDC provider"], ["Asked by", "Simba (Claude Code)"], ["Runs as", "You, once, exactly as shown"], ["Tool", "members.sso.set"]]);
+  assert.deepEqual(
+    [about.data.act, about.data.cap, about.data.input, about.data.ask],
+    ["signin_change", "members.sso.set", SSO, { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" }],
+    "the chat card reads the hold like any other, and the ask's own line",
+  );
+  assert.deepEqual(about.data.pairs, [
+    ["What happens", "Add or change an OIDC provider"],
+    ["Asked by", "Simba (Claude Code)"],
+    ["Runs as", "You, once, exactly as shown"],
+    ["Tool", "members.sso.set"],
+  ]);
   assert.equal(inputs.type, "table");
-  assert.deepEqual(inputs.data.rows, Object.entries(SSO.provider).map(([k, v]) => [`provider ${k}`, String(v)]), "the exact input, one value per row, the secret as its handle");
+  assert.deepEqual(
+    inputs.data.rows,
+    Object.entries(SSO.provider).map(([k, v]) => [`provider ${k}`, String(v)]),
+    "the exact input, one value per row, the secret as its handle",
+  );
   const requested = h.events.find((e) => e.name === "gate.requested")!;
   assert.deepEqual(requested.payload["askedBy"], bot);
   assert.deepEqual(requested.payload["principal"], alice);
@@ -65,8 +122,15 @@ test("only the person it runs as releases it, by their own press: not an admin, 
   const h = harness();
   h.callee("members.sso.set", (input: unknown) => ({ provider: (input as typeof SSO).provider }));
   const p = await parkAsk(h);
-  await refused(release(h, p, { by: bob.id }, { id: bob.id, kind: "person", device: "dev_1" }), "validation.precondition_failed", "not_the_person");
-  await refused(release(h, p, { forPerson: alice.id, by: bot.id }, { id: bot.id, kind: "agent", actingFor: alice.id }), "validation.precondition_failed");
+  await refused(
+    release(h, p, { by: bob.id }, { id: bob.id, kind: "person", device: "dev_1" }),
+    "validation.precondition_failed",
+    "not_the_person",
+  );
+  await refused(
+    release(h, p, { forPerson: alice.id, by: bot.id }, { id: bot.id, kind: "agent", actingFor: alice.id }),
+    "validation.precondition_failed",
+  );
   assert.equal(h.callsTo("members.sso.set").length, 0, "nothing ran on a refused approval");
   const r = await release(h, p);
   const ran = h.callsTo("members.sso.set");
@@ -78,7 +142,14 @@ test("only the person it runs as releases it, by their own press: not an admin, 
   assert.equal(hold.state, "approved");
   assert.equal(hold.decidedBy, alice.id);
   assert.deepEqual(hold.result, SSO, "the answer waits for the agent that asked, though it has no chat");
-  assert.deepEqual(h.events.find((e) => e.name === "gate.approved")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, capName: "members.sso.set", askedBy: bot, by: alice.id });
+  assert.deepEqual(h.events.find((e) => e.name === "gate.approved")!.payload, {
+    holdId: p.holdId,
+    act: "signin_change",
+    taskId: p.taskId,
+    capName: "members.sso.set",
+    askedBy: bot,
+    by: alice.id,
+  });
   await refused(release(h, p), "validation.precondition_failed", "not_held");
   assert.equal(h.callsTo("members.sso.set").length, 1, "single use");
 });
@@ -86,9 +157,22 @@ test("only the person it runs as releases it, by their own press: not an admin, 
 test("declined, the agent's ask is closed and the event names it", async () => {
   const h = harness();
   const p = await parkAsk(h);
-  await h.call("gate.deny", { holdId: p.holdId, taskId: p.taskId, mode: "send_back", note: "Not yet" }, { id: alice.id, kind: "person" });
+  await h.call(
+    "gate.deny",
+    { holdId: p.holdId, taskId: p.taskId, mode: "send_back", note: "Not yet" },
+    { id: alice.id, kind: "person" },
+  );
   assert.equal(findHold(h.db, p.holdId)!.state, "denied");
-  assert.deepEqual(h.events.find((e) => e.name === "gate.denied")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, capName: "members.sso.set", askedBy: bot, by: alice.id, mode: "send_back", note: "Not yet" });
+  assert.deepEqual(h.events.find((e) => e.name === "gate.denied")!.payload, {
+    holdId: p.holdId,
+    act: "signin_change",
+    taskId: p.taskId,
+    capName: "members.sso.set",
+    askedBy: bot,
+    by: alice.id,
+    mode: "send_back",
+    note: "Not yet",
+  });
 });
 
 test("an ask names a person: an agent principal with ask is refused", async () => {
@@ -98,24 +182,41 @@ test("an ask names a person: an agent principal with ask is refused", async () =
 
 test("flood guard: the same ask again is the same hold and no new card; past five open asks for one person the agent is told to wait, and a decided one makes room", async () => {
   const h = harness();
-  h.callee("access.principals.get", (input: { principal: { id: string } }) => ({ principal: { name: input.principal.id === alice.id ? "Alice Park" : "Simba (Claude Code)" } }));
+  h.callee("access.principals.get", (input: { principal: { id: string } }) => ({
+    principal: { name: input.principal.id === alice.id ? "Alice Park" : "Simba (Claude Code)" },
+  }));
   const first = await h.call("gate.park", askInput({ decisionId: "dec_a" }), as(bot));
   const again = await h.call("gate.park", askInput({ decisionId: "dec_b" }), as(bot));
   assert.deepEqual(again, first, "the same capability and input: the same pending hold");
   assert.equal(h.callsTo("tasks.create").length, 1, "no second card");
-  const other = (n: number) => askInput({ decisionId: `dec_${n}`, input: { provider: { ...SSO.provider, clientId: `client-${n}` } } });
+  const other = (n: number) =>
+    askInput({ decisionId: `dec_${n}`, input: { provider: { ...SSO.provider, clientId: `client-${n}` } } });
   for (let n = 2; n <= MAX_OPEN_ASKS; n++) await h.call("gate.park", other(n), as(bot));
   assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS);
   await assert.rejects(h.call("gate.park", other(99), as(bot)), (e) => {
     assert.equal(codeOf(e), "validation.precondition_failed");
     assert.equal(reasonOf(e), "asks_waiting");
-    assert.equal((e as { error: { message: string } }).error.message, "You have 5 requests waiting for Alice Park. Wait for an answer.");
+    assert.equal(
+      (e as { error: { message: string } }).error.message,
+      "You have 5 requests waiting for Alice Park. Wait for an answer.",
+    );
     return true;
   });
   assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS, "no card past the limit");
   // another agent has its own five; a decided ask makes room for this one
-  await h.call("gate.park", askInput({ decisionId: "dec_other_agent", ask: { by: { kind: "agent", id: "agt_other" }, what: "Add or change an OIDC provider" } }), as(bot));
-  await h.call("gate.deny", { holdId: first.holdId, taskId: first.taskId, mode: "drop" }, { id: alice.id, kind: "person" });
+  await h.call(
+    "gate.park",
+    askInput({
+      decisionId: "dec_other_agent",
+      ask: { by: { kind: "agent", id: "agt_other" }, what: "Add or change an OIDC provider" },
+    }),
+    as(bot),
+  );
+  await h.call(
+    "gate.deny",
+    { holdId: first.holdId, taskId: first.taskId, mode: "drop" },
+    { id: alice.id, kind: "person" },
+  );
   await h.call("gate.park", other(99), as(bot));
   assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS + 2);
 });

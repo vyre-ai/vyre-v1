@@ -3,7 +3,9 @@
 //   sync_changes  every change of an erased entity id, and every change made by an event the log erased (by seq), gets fields = {}.
 //   sync_rows     the current row of an erased entity id gets fields = {}. Other rows that an erased event only touched keep their own values: they are live rows, not erased ones.
 // The host calls this from the events port it binds for governance (host/src/daemon/daemon.ts), right after the log is compacted and again after a restore replays the seqs.
-export interface BlankDb { run(sql: string, ...args: unknown[]): unknown }
+export interface BlankDb {
+  run(sql: string, ...args: unknown[]): unknown;
+}
 
 const CHUNK = 400;
 const marks = (n: number): string => Array.from({ length: n }, () => "?").join(",");

@@ -16,7 +16,11 @@ export default function Mount(): ReactNode {
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
-      <AgentPage data={sample.data} initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB} window={{ start: 0, end: 500 }} />
+      <AgentPage
+        data={sample.data}
+        initialTab={isTabKey(tabParam) ? tabParam : DEFAULT_TAB}
+        window={{ start: 0, end: 500 }}
+      />
     </View>
   );
 }

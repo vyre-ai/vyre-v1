@@ -42,7 +42,17 @@ export interface SidebarProps {
 
 const EMPTY: readonly string[] = [];
 
-export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null, initialTab = "automations", shared, reasons, initialOpen = EMPTY, hosted = false, query, onChoose }: SidebarProps): ReactElement {
+export function AutomationsSidebar({
+  selectedId = null,
+  selectedJourneyId = null,
+  initialTab = "automations",
+  shared,
+  reasons,
+  initialOpen = EMPTY,
+  hosted = false,
+  query,
+  onChoose,
+}: SidebarProps): ReactElement {
   const data = useAutomationsData();
   const [tab, setTab] = useState<SidebarTab>(initialTab);
   const [ownQ, setQ] = useState("");
@@ -61,27 +71,69 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const autos: readonly AutoRow[] = list.status === "ready" ? list.data.automations : [];
   const groups: readonly GroupRow[] = groupsQ.status === "ready" ? groupsQ.data.groups : [];
   const journeys: readonly JourneyRow[] = journeysQ.status === "ready" ? journeysQ.data.journeys : [];
-  const sections = useMemo(() => sectionsOf(autos, groups, { me: data.me.id, q, ...(shared ? { shared } : {}), ...(reasons ? { reasons } : {}), ...(data.canSpace === false ? { canSpace: false } : {}) }), [autos, groups, data.me.id, q, shared, reasons, data.canSpace]);
-  const order = useMemo(() => visibleOrder(sections, q ? allGroupKeys(sections) : open, collapsed), [sections, open, collapsed, q]);
+  const sections = useMemo(
+    () =>
+      sectionsOf(autos, groups, {
+        me: data.me.id,
+        q,
+        ...(shared ? { shared } : {}),
+        ...(reasons ? { reasons } : {}),
+        ...(data.canSpace === false ? { canSpace: false } : {}),
+      }),
+    [autos, groups, data.me.id, q, shared, reasons, data.canSpace],
+  );
+  const order = useMemo(
+    () => visibleOrder(sections, q ? allGroupKeys(sections) : open, collapsed),
+    [sections, open, collapsed, q],
+  );
   const failed = failedTotal(autos);
 
-  useEffect(() => { if (!note) return undefined; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
+  useEffect(() => {
+    if (!note) return undefined;
+    const t = setTimeout(() => setNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [note]);
 
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
   const api = useMemo(() => createMenuApiB(data), [data]);
   const create = async (groupId?: string, space = false): Promise<void> => {
     try {
-      const out = (await data.call("automations.create", { name: "New automation", ...(groupId ? { groupId } : {}) })) as { automation?: { id: string } };
+      const out = (await data.call("automations.create", {
+        name: "New automation",
+        ...(groupId ? { groupId } : {}),
+      })) as { automation?: { id: string } };
       // made from the Space section: it is a Space Automation from the start (a blank one holds no keys; it still gets no access until a person turns it on)
-      if (out?.automation?.id && space) await data.call("automations.promote", { automationId: out.automation.id, confirm: true });
-      if (out?.automation?.id) { data.nav.openAutomation(out.automation.id); onChoose?.(); }
-    } catch (e) { fail(e); }
+      if (out?.automation?.id && space)
+        await data.call("automations.promote", { automationId: out.automation.id, confirm: true });
+      if (out?.automation?.id) {
+        data.nav.openAutomation(out.automation.id);
+        onChoose?.();
+      }
+    } catch (e) {
+      fail(e);
+    }
   };
   const createGroup = async (): Promise<void> => {
-    try { await data.call("automations.groups.create", { name: "New group" }); } catch (e) { fail(e); }
+    try {
+      await data.call("automations.groups.create", { name: "New group" });
+    } catch (e) {
+      fail(e);
+    }
   };
-  const toggleGroup = (key: string): void => setOpen((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
-  const toggleSection = (key: SectionKey): void => setCollapsed((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const toggleGroup = (key: string): void =>
+    setOpen((cur) => {
+      const n = new Set(cur);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const toggleSection = (key: SectionKey): void =>
+    setCollapsed((cur) => {
+      const n = new Set(cur);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
 
   const rowMenu = (a: AutoRow, x: number, y: number): void => {
     // the row's own menu (chats/menus/kinds-b.ts): a Space automation is changed only by owners, admins and people given Edit on it; a member's menu offers Open, the runs and a Personal copy
@@ -89,62 +141,150 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     const group = groups.find((g) => g.id === a.groupId);
     const others = groups.filter((g) => g.id !== a.groupId).map((g) => ({ id: g.id, name: g.name }));
     const once = (run: () => Promise<void>): void => void run().catch(fail);
-    const confirmTrash = (): void => show([{ head: "Move this Automation to Trash?" }, { label: "Move to Trash", danger: true, onSelect: () => once(() => api.automationTrash(a.id)) }, { label: "Cancel" }], x, y, "other");
-    show(automationMenu(
-      { name: a.name, enabled: a.status === "on", space: a.kind === "space", canEdit, canRun: canEdit && a.status !== "draft", canDelete: canEdit, failedRuns: a.failedRuns, group: group?.name ?? null, groups: others },
-      {
-        open: () => { data.nav.openAutomation(a.id); onChoose?.(); },
-        run: () => once(() => api.automationRun(a.id)),
-        setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
-        test: () => once(() => api.automationTest(a.id)),
-        makePersonalCopy: () => once(() => api.automationPersonalCopy(a.id)),
-        move: (groupId) => once(() => api.automationMove(a.id, groupId)),
-        runs: () => (a.failedRuns > 0 ? data.nav.openFailedRuns() : (data.nav.openAutomation(a.id), onChoose?.())),
-        copyLink: () => copyToClipboard(vyreLink("automation", a.id)),
-        remove: confirmTrash,
-      },
-    ), x, y, "context", { label: a.name });
+    const confirmTrash = (): void =>
+      show(
+        [
+          { head: "Move this Automation to Trash?" },
+          { label: "Move to Trash", danger: true, onSelect: () => once(() => api.automationTrash(a.id)) },
+          { label: "Cancel" },
+        ],
+        x,
+        y,
+        "other",
+      );
+    show(
+      automationMenu(
+        {
+          name: a.name,
+          enabled: a.status === "on",
+          space: a.kind === "space",
+          canEdit,
+          canRun: canEdit && a.status !== "draft",
+          canDelete: canEdit,
+          failedRuns: a.failedRuns,
+          group: group?.name ?? null,
+          groups: others,
+        },
+        {
+          open: () => {
+            data.nav.openAutomation(a.id);
+            onChoose?.();
+          },
+          run: () => once(() => api.automationRun(a.id)),
+          setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
+          test: () => once(() => api.automationTest(a.id)),
+          makePersonalCopy: () => once(() => api.automationPersonalCopy(a.id)),
+          move: (groupId) => once(() => api.automationMove(a.id, groupId)),
+          runs: () => (a.failedRuns > 0 ? data.nav.openFailedRuns() : (data.nav.openAutomation(a.id), onChoose?.())),
+          copyLink: () => copyToClipboard(vyreLink("automation", a.id)),
+          remove: confirmTrash,
+        },
+      ),
+      x,
+      y,
+      "context",
+      { label: a.name },
+    );
   };
   const groupMenu = (g: GroupBlock, x: number, y: number): void => {
-    show([
-      { label: "New automation in this group", onSelect: () => void create(g.id) },
-      { label: "Rename", onSelect: () => setRenaming({ id: g.id, name: g.name }) },
-      { separator: true },
-      { label: "Delete group", danger: true, onSelect: () => show([{ head: "Delete this Group? Its Automations stay." }, { label: "Delete group", danger: true, onSelect: () => void data.call("automations.groups.delete", { groupId: g.id }).catch(fail) }, { label: "Cancel" }], x, y, "other") },
-    ], x, y, "context", { label: g.name });
+    show(
+      [
+        { label: "New automation in this group", onSelect: () => void create(g.id) },
+        { label: "Rename", onSelect: () => setRenaming({ id: g.id, name: g.name }) },
+        { separator: true },
+        {
+          label: "Delete group",
+          danger: true,
+          onSelect: () =>
+            show(
+              [
+                { head: "Delete this Group? Its Automations stay." },
+                {
+                  label: "Delete group",
+                  danger: true,
+                  onSelect: () => void data.call("automations.groups.delete", { groupId: g.id }).catch(fail),
+                },
+                { label: "Cancel" },
+              ],
+              x,
+              y,
+              "other",
+            ),
+        },
+      ],
+      x,
+      y,
+      "context",
+      { label: g.name },
+    );
   };
   const plusMenu = (x: number, y: number, space = false): void => {
-    show([
-      { label: "New blank automation", onSelect: () => void create(undefined, space) },
-      ...(data.nav.openTemplates ? [{ label: "New from a template", onSelect: () => { data.nav.openTemplates?.(); onChoose?.(); } } as MenuEntry] : []),
-      { separator: true },
-      { label: "New group", onSelect: () => void createGroup() },
-    ], x, y, "other");
+    show(
+      [
+        { label: "New blank automation", onSelect: () => void create(undefined, space) },
+        ...(data.nav.openTemplates
+          ? [
+              {
+                label: "New from a template",
+                onSelect: () => {
+                  data.nav.openTemplates?.();
+                  onChoose?.();
+                },
+              } as MenuEntry,
+            ]
+          : []),
+        { separator: true },
+        { label: "New group", onSelect: () => void createGroup() },
+      ],
+      x,
+      y,
+      "other",
+    );
   };
   const commitRename = async (): Promise<void> => {
     const r = renaming;
     setRenaming(null);
     if (!r || !r.name.trim()) return;
-    try { await data.call("automations.groups.rename", { groupId: r.id, name: r.name.trim() }); } catch (e) { fail(e); }
+    try {
+      await data.call("automations.groups.rename", { groupId: r.id, name: r.name.trim() });
+    } catch (e) {
+      fail(e);
+    }
   };
 
   const onKey = (e: KeyEventLike): void => {
     const k = e.key ?? "";
-    if (k === "/" && focusId !== "search") { e.preventDefault?.(); search.current?.focus?.(); return; }
+    if (k === "/" && focusId !== "search") {
+      e.preventDefault?.();
+      search.current?.focus?.();
+      return;
+    }
     if (k === "ArrowDown" || k === "ArrowUp") {
       e.preventDefault?.();
       const to = nextId(order, focusId, k === "ArrowDown" ? 1 : -1);
-      if (to) { setFocusId(to); focusRow(to); }
+      if (to) {
+        setFocusId(to);
+        focusRow(to);
+      }
       return;
     }
     if (k === "ArrowRight" || k === "ArrowLeft") {
-      if (focusId?.startsWith("group:")) { e.preventDefault?.(); const key = focusId.slice(6); const isOpen = open.has(key); if ((k === "ArrowRight") !== isOpen) toggleGroup(key); }
+      if (focusId?.startsWith("group:")) {
+        e.preventDefault?.();
+        const key = focusId.slice(6);
+        const isOpen = open.has(key);
+        if ((k === "ArrowRight") !== isOpen) toggleGroup(key);
+      }
       return;
     }
     if (k === "Enter" && focusId) {
       e.preventDefault?.();
       if (focusId.startsWith("group:")) toggleGroup(focusId.slice(6));
-      else { const id = focusId.slice(focusId.indexOf(":") + 1); data.nav.openAutomation(id); onChoose?.(); }
+      else {
+        const id = focusId.slice(focusId.indexOf(":") + 1);
+        data.nav.openAutomation(id);
+        onChoose?.();
+      }
     }
   };
 
@@ -164,13 +304,43 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
           <View key={`group-${key}`} {...menuTrigger((x, y) => groupMenu(g, x, y))}>
             {renaming?.id === g.id ? (
               <View style={sb.rename}>
-                <TextInput accessibilityLabel="Group name" testID={`rename-${g.id}`} autoFocus value={renaming.name} onChangeText={(t) => setRenaming({ id: g.id, name: t })} onBlur={() => void commitRename()} onSubmitEditing={() => void commitRename()} style={sb.renameInput} />
+                <TextInput
+                  accessibilityLabel="Group name"
+                  testID={`rename-${g.id}`}
+                  autoFocus
+                  value={renaming.name}
+                  onChangeText={(t) => setRenaming({ id: g.id, name: t })}
+                  onBlur={() => void commitRename()}
+                  onSubmitEditing={() => void commitRename()}
+                  style={sb.renameInput}
+                />
               </View>
             ) : (
               <Row
-                id={`group-${key}`} title={g.name} selected={focusId === `group:${key}`} onPress={() => { setFocusId(`group:${key}`); toggleGroup(key); }}
-                leading={<View style={sb.chev}><Glyph name={isOpen ? "chevD" : "chevR"} size={11} color="var(--ink-3)" /><Glyph name="folder" size={15} color="var(--ink-3)" /></View>}
-                trailing={<View style={sb.tr}>{g.failed > 0 ? <View style={sb.fail}><Dot tone="danger" size={6} /><Text style={sb.failN}>{g.failed}</Text></View> : null}<Text style={sb.n}>{String(g.rows.length)}</Text></View>}
+                id={`group-${key}`}
+                title={g.name}
+                selected={focusId === `group:${key}`}
+                onPress={() => {
+                  setFocusId(`group:${key}`);
+                  toggleGroup(key);
+                }}
+                leading={
+                  <View style={sb.chev}>
+                    <Glyph name={isOpen ? "chevD" : "chevR"} size={11} color="var(--ink-3)" />
+                    <Glyph name="folder" size={15} color="var(--ink-3)" />
+                  </View>
+                }
+                trailing={
+                  <View style={sb.tr}>
+                    {g.failed > 0 ? (
+                      <View style={sb.fail}>
+                        <Dot tone="danger" size={6} />
+                        <Text style={sb.failN}>{g.failed}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={sb.n}>{String(g.rows.length)}</Text>
+                  </View>
+                }
               />
             )}
           </View>,
@@ -181,13 +351,30 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     return (
       <View key={`section-${s.key}`} testID={`section-${s.key}`} accessibilityLabel={s.title} style={sb.section}>
         <View style={sb.sHead}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${s.title}, ${isCollapsed ? "closed" : "open"}`} accessibilityState={{ expanded: !isCollapsed }} testID={`head-${s.key}`} onPress={() => toggleSection(s.key)} style={[sb.sHeadBtn, pointer]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${s.title}, ${isCollapsed ? "closed" : "open"}`}
+            accessibilityState={{ expanded: !isCollapsed }}
+            testID={`head-${s.key}`}
+            onPress={() => toggleSection(s.key)}
+            style={[sb.sHeadBtn, pointer]}
+          >
             <Glyph name={isCollapsed ? "chevR" : "chevD"} size={11} color="var(--ink-3)" />
-            <Text accessibilityRole="header" style={sb.sTitle}>{s.title}</Text>
+            <Text accessibilityRole="header" style={sb.sTitle}>
+              {s.title}
+            </Text>
             <Text style={sb.sCount}>{String(s.count)}</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
-          {s.canAdd ? <IconButton icon="plus" label={`Add to ${s.title}`} size={22} testID={`add-${s.key}`} onPress={() => plusMenu(-1, -1, s.key === "space")} /> : null}
+          {s.canAdd ? (
+            <IconButton
+              icon="plus"
+              label={`Add to ${s.title}`}
+              size={22}
+              testID={`add-${s.key}`}
+              onPress={() => plusMenu(-1, -1, s.key === "space")}
+            />
+          ) : null}
         </View>
         {parts}
       </View>
@@ -195,14 +382,32 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   }
   function autoRow(section: SectionKey, a: AutoRow, depth: 0 | 1): ReactElement {
     const rid = `${section}:${a.id}`;
-    const tone = a.failedRuns > 0 ? "danger" : a.status === "paused" || section === "needs" && a.status !== "on" ? "warn" : a.status === "on" ? "ok" : "muted";
+    const tone =
+      a.failedRuns > 0
+        ? "danger"
+        : a.status === "paused" || (section === "needs" && a.status !== "on")
+          ? "warn"
+          : a.status === "on"
+            ? "ok"
+            : "muted";
     const waiting = a.lastRun?.status === "waiting";
     return (
       <View key={`auto-${rid}`} {...menuTrigger((x, y) => rowMenu(a, x, y))} {...webOnly({ dataSet: { row: rid } })}>
         <Row
-          id={`auto-${rid}`} title={a.name} note={noteOf(a, reasons)} selected={selectedId === a.id || focusId === rid}
-          onPress={() => { setFocusId(rid); data.nav.openAutomation(a.id); onChoose?.(); }}
-          leading={<View style={[sb.lead, depth === 1 && { marginLeft: 20 }]}><Dot tone={tone} /></View>}
+          id={`auto-${rid}`}
+          title={a.name}
+          note={noteOf(a, reasons)}
+          selected={selectedId === a.id || focusId === rid}
+          onPress={() => {
+            setFocusId(rid);
+            data.nav.openAutomation(a.id);
+            onChoose?.();
+          }}
+          leading={
+            <View style={[sb.lead, depth === 1 && { marginLeft: 20 }]}>
+              <Dot tone={tone} />
+            </View>
+          }
           trailing={<Glyph name={waiting ? "clock" : "bolt"} size={13} color="var(--ink-3)" />}
         />
       </View>
@@ -215,39 +420,93 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     journeyRows.push(
       <View key={j.id} {...webOnly({ title: journeyNote(j) })}>
         <Row
-          id={`journey-${j.id}`} title={j.name} note={journeyNote(j)} tall selected={selectedJourneyId === j.id}
-          leading={<View aria-hidden style={sb.jtile}><Text style={sb.jtileText}>{initials(j.name)}</Text></View>}
+          id={`journey-${j.id}`}
+          title={j.name}
+          note={journeyNote(j)}
+          tall
+          selected={selectedJourneyId === j.id}
+          leading={
+            <View aria-hidden style={sb.jtile}>
+              <Text style={sb.jtileText}>{initials(j.name)}</Text>
+            </View>
+          }
           trailing={<Badge n={j.inFlight} testID={`journey-count-${j.id}`} />}
-          onPress={() => { data.nav.openJourney(j.id); onChoose?.(); }}
+          onPress={() => {
+            data.nav.openJourney(j.id);
+            onChoose?.();
+          }}
         />
       </View>,
     );
   }
 
-  const tabs = [{ key: "automations", label: "Automations", note: String(autos.length) }, { key: "journeys", label: "Journeys", note: String(journeys.length) }];
+  const tabs = [
+    { key: "automations", label: "Automations", note: String(autos.length) },
+    { key: "journeys", label: "Journeys", note: String(journeys.length) },
+  ];
   return (
-    <View testID="automations-sidebar" accessibilityLabel="Automations" style={hosted ? sb.hosted : sb.frame} {...webOnly({ onKeyDown: onKey })}>
+    <View
+      testID="automations-sidebar"
+      accessibilityLabel="Automations"
+      style={hosted ? sb.hosted : sb.frame}
+      {...webOnly({ onKeyDown: onKey })}
+    >
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as SidebarTab)} label="Automations and Journeys" />
-      {hosted ? null : <View style={sb.searchWrap}>
-        <View style={sb.search}>
-          <Glyph name="search" size={14} color="var(--ink-3)" />
-          <TextInput
-            ref={(r) => { search.current = r as unknown as { focus?: () => void } | null; }}
-            accessibilityLabel={tab === "automations" ? "Search Automations" : "Search Journeys"} testID="search" value={q} onChangeText={setQ}
-            onFocus={() => setFocusId("search")} onBlur={() => setFocusId((c) => (c === "search" ? null : c))}
-            placeholder="Search" placeholderTextColor="var(--ink-3)"
-            onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setQ(""); e.stopPropagation?.(); } if (e.key === "ArrowDown") { e.preventDefault?.(); e.stopPropagation?.(); const to = order[0]; if (to) { setFocusId(to); focusRow(to); } } }) as never}
-            style={sb.searchInput}
-          />
-          {q ? <IconButton icon="x" label="Clear the search" size={20} onPress={() => setQ("")} /> : <Text style={sb.slash}>/</Text>}
+      {hosted ? null : (
+        <View style={sb.searchWrap}>
+          <View style={sb.search}>
+            <Glyph name="search" size={14} color="var(--ink-3)" />
+            <TextInput
+              ref={(r) => {
+                search.current = r as unknown as { focus?: () => void } | null;
+              }}
+              accessibilityLabel={tab === "automations" ? "Search Automations" : "Search Journeys"}
+              testID="search"
+              value={q}
+              onChangeText={setQ}
+              onFocus={() => setFocusId("search")}
+              onBlur={() => setFocusId((c) => (c === "search" ? null : c))}
+              placeholder="Search"
+              placeholderTextColor="var(--ink-3)"
+              onKeyPress={
+                ((e: KeyEventLike) => {
+                  if (e.key === "Escape") {
+                    setQ("");
+                    e.stopPropagation?.();
+                  }
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault?.();
+                    e.stopPropagation?.();
+                    const to = order[0];
+                    if (to) {
+                      setFocusId(to);
+                      focusRow(to);
+                    }
+                  }
+                }) as never
+              }
+              style={sb.searchInput}
+            />
+            {q ? (
+              <IconButton icon="x" label="Clear the search" size={20} onPress={() => setQ("")} />
+            ) : (
+              <Text style={sb.slash}>/</Text>
+            )}
+          </View>
         </View>
-      </View>}
+      )}
       <ScrollView style={sb.scroll} contentContainerStyle={sb.scrollIn} keyboardShouldPersistTaps="handled">
         {tab === "automations" ? (
           <>
             <Row
-              id="failed-runs" title="Failed runs" onPress={() => data.nav.openFailedRuns()}
-              leading={<View style={sb.lead}><Glyph name="warn" size={15} color="var(--danger)" /></View>}
+              id="failed-runs"
+              title="Failed runs"
+              onPress={() => data.nav.openFailedRuns()}
+              leading={
+                <View style={sb.lead}>
+                  <Glyph name="warn" size={15} color="var(--danger)" />
+                </View>
+              }
               trailing={failed > 0 ? <Badge n={failed} tone="danger" testID="failed-count" /> : undefined}
             />
             {body}
@@ -257,38 +516,89 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
           <>
             <View testID="section-types" accessibilityLabel="Journey types" style={sb.section}>
               <View style={sb.sHead}>
-                <Pressable accessibilityRole="button" accessibilityLabel={`Journey types, ${typesClosed ? "closed" : "open"}`} accessibilityState={{ expanded: !typesClosed }} testID="head-types" onPress={() => setTypesClosed((c) => !c)} style={[sb.sHeadBtn, pointer]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Journey types, ${typesClosed ? "closed" : "open"}`}
+                  accessibilityState={{ expanded: !typesClosed }}
+                  testID="head-types"
+                  onPress={() => setTypesClosed((c) => !c)}
+                  style={[sb.sHeadBtn, pointer]}
+                >
                   <Glyph name={typesClosed ? "chevR" : "chevD"} size={11} color="var(--ink-3)" />
-                  <Text accessibilityRole="header" style={sb.sTitle}>Journey types</Text>
+                  <Text accessibilityRole="header" style={sb.sTitle}>
+                    Journey types
+                  </Text>
                   <Text style={sb.sCount}>{String(journeys.length)}</Text>
                 </Pressable>
                 <View style={{ flex: 1 }} />
-                {data.nav.newJourney ? <IconButton icon="plus" label="New Journey type" size={22} testID="add-types" onPress={() => data.nav.newJourney?.()} /> : null}
+                {data.nav.newJourney ? (
+                  <IconButton
+                    icon="plus"
+                    label="New Journey type"
+                    size={22}
+                    testID="add-types"
+                    onPress={() => data.nav.newJourney?.()}
+                  />
+                ) : null}
               </View>
               {typesClosed ? null : journeyRows}
-              {journeys.length === 0 && journeysQ.status === "ready" ? <Text style={sb.empty}>No Journeys yet</Text> : null}
+              {journeys.length === 0 && journeysQ.status === "ready" ? (
+                <Text style={sb.empty}>No Journeys yet</Text>
+              ) : null}
             </View>
-            {journeys.length > 0 ? <Text testID="journeys-note" style={sb.sidenote}>Each Journey is a record type cloned from the Projects template. Its records live in Records, each with its own channel and folder.</Text> : null}
+            {journeys.length > 0 ? (
+              <Text testID="journeys-note" style={sb.sidenote}>
+                Each Journey is a record type cloned from the Projects template. Its records live in Records, each with
+                its own channel and folder.
+              </Text>
+            ) : null}
           </>
         )}
       </ScrollView>
-      {note ? <Text style={sb.note} accessibilityLiveRegion="polite" testID="sidebar-note">{note}</Text> : null}
+      {note ? (
+        <Text style={sb.note} accessibilityLiveRegion="polite" testID="sidebar-note">
+          {note}
+        </Text>
+      ) : null}
       {element}
     </View>
   );
 }
 
 const focusRow = (id: string): void => {
-  const doc = (globalThis as { document?: { querySelector(s: string): { querySelector(s: string): { focus?: () => void } | null } | null } }).document;
+  const doc = (
+    globalThis as {
+      document?: { querySelector(s: string): { querySelector(s: string): { focus?: () => void } | null } | null };
+    }
+  ).document;
   setTimeout(() => doc?.querySelector(`[data-row="${id}"]`)?.querySelector("[role=button]")?.focus?.(), 0);
 };
 
 const sb = StyleSheet.create({
-  frame: { width: 268, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  frame: {
+    width: 268,
+    backgroundColor: "var(--side)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+  },
   hosted: { flex: 1, minHeight: 0, backgroundColor: "transparent" as string },
   searchWrap: { paddingHorizontal: 10, paddingTop: 12, paddingBottom: 6 },
-  search: { height: 34, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, borderRadius: 9, backgroundColor: "var(--hover)" as string },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--ink)" as string, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
+  search: {
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    backgroundColor: "var(--hover)" as string,
+  },
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13.5,
+    color: "var(--ink)" as string,
+    ...({ outlineStyle: "none", outlineWidth: 0 } as object),
+  },
   slash: { fontSize: 12, color: "var(--ink-4)" as string },
   scroll: { flex: 1 },
   scrollIn: { paddingHorizontal: 8, paddingBottom: 24 },
@@ -304,10 +614,32 @@ const sb = StyleSheet.create({
   failN: { fontSize: 12, color: "var(--danger)" as string },
   n: { fontSize: 12, color: "var(--ink-3)" as string, minWidth: 10, textAlign: "right" },
   rename: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
-  renameInput: { height: 24, borderRadius: 6, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 6, fontSize: 13, color: "var(--ink)" as string },
-  jtile: { width: 20, height: 20, borderRadius: 6, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginRight: 6 },
+  renameInput: {
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "var(--accent)" as string,
+    paddingHorizontal: 6,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+  },
+  jtile: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    backgroundColor: "var(--accent-wash)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+  },
   jtileText: { fontSize: 8.5, fontWeight: "700", color: "var(--accent)" as string },
   sidenote: { marginTop: 14, marginHorizontal: 10, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   empty: { fontSize: 12.5, color: "var(--ink-3)" as string, padding: 12 },
-  note: { fontSize: 12, color: "var(--ink-2)" as string, padding: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  note: {
+    fontSize: 12,
+    color: "var(--ink-2)" as string,
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
 });

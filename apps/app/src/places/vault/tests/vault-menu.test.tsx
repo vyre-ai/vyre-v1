@@ -9,11 +9,26 @@ import { createSampleVault } from "../layout/sample.ts";
 import { fireUp } from "../../chats/sidebar/chats-open.support.tsx";
 import type { Node } from "../../../onboarding/test-dom.ts";
 
-Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+Dimensions.set({
+  window: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+  screen: { width: 1280, height: 800, scale: 1, fontScale: 1 },
+});
 installDom();
-const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
-const menuLabels = (root: Node): string[] => { const out: string[] = []; const walk = (n: Node | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"] ?? n.props["testID"]; if (typeof t === "string" && t.startsWith("menu-item-")) out.push(t.slice("menu-item-".length)); (n.children ?? []).forEach(walk as never); }; walk(root as never); return out.filter((x) => x !== "report"); };
-const caps = (calls: { cap: string; input: unknown }[], cap: string): unknown[] => calls.filter((c) => c.cap === cap).map((c) => c.input);
+const rightClick = (root: Node, rowId: string): Promise<void> =>
+  fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
+const menuLabels = (root: Node): string[] => {
+  const out: string[] = [];
+  const walk = (n: Node | string): void => {
+    if (typeof n === "string") return;
+    const t = n.props["data-testid"] ?? n.props["testID"];
+    if (typeof t === "string" && t.startsWith("menu-item-")) out.push(t.slice("menu-item-".length));
+    (n.children ?? []).forEach(walk as never);
+  };
+  walk(root as never);
+  return out.filter((x) => x !== "report");
+};
+const caps = (calls: { cap: string; input: unknown }[], cap: string): unknown[] =>
+  calls.filter((c) => c.cap === cap).map((c) => c.input);
 
 test("a manager's item row: the full menu, Mark as Rotated and Move to a folder call their capabilities, Move to Trash is last", async () => {
   const v = createSampleVault();
@@ -21,7 +36,11 @@ test("a manager's item row: the full menu, Mark as Rotated and Move to a folder 
   await flush();
   await rightClick(root as never, "row-vit_ghl");
   const labels = menuLabels(root as never);
-  assert.deepEqual(labels.slice(0, 5), ["Edit…", "Reveal Values…", "Copy Handle", "Copy Name", "Share…"], labels.join("|"));
+  assert.deepEqual(
+    labels.slice(0, 5),
+    ["Edit…", "Reveal Values…", "Copy Handle", "Copy Name", "Share…"],
+    labels.join("|"),
+  );
   assert.equal(labels.at(-1), "Move to Trash…", "danger last");
   assert.ok(labels.includes("Mark as Rotated") && labels.includes("Usage…"));
   await press(find(root as never, "menu-item-Mark as Rotated") as never);

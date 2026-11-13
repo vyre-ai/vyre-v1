@@ -9,7 +9,11 @@ import type { OpenForm } from "../fixtures/seed.ts";
 import { configureForms } from "../projections.ts";
 
 const RECORD = "rec_c1";
-const SCHEMA = [{ key: "email", title: "Email", type: "email" }, { key: "name", title: "Name", type: "text" }, { key: "phone", title: "Phone", type: "text" }];
+const SCHEMA = [
+  { key: "email", title: "Email", type: "email" },
+  { key: "name", title: "Name", type: "text" },
+  { key: "phone", title: "Phone", type: "text" },
+];
 
 async function linkFor(w: World, f: OpenForm, singleUse: boolean): Promise<string> {
   const out = await run<{ url: string }>(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD, singleUse });
@@ -26,16 +30,33 @@ for (const singleUse of [true, false]) {
     configureForms({
       schemaFields: async () => {
         // the submit has resolved the link and is reading the record type: the link is revoked now, before it writes
-        if (!revoked) { revoked = true; await run(w.ctx, "forms.link_revoke", { formId: f.formId, token }); }
+        if (!revoked) {
+          revoked = true;
+          await run(w.ctx, "forms.link_revoke", { formId: f.formId, token });
+        }
         return SCHEMA;
       },
     });
     try {
-      assert.equal(await code(run(f.public, "forms.submit", { slug: f.slug, token, answers: { name: "Dana Reyes", phone: "555 0101" } })), "auth.invalid_code");
+      assert.equal(
+        await code(
+          run(f.public, "forms.submit", { slug: f.slug, token, answers: { name: "Dana Reyes", phone: "555 0101" } }),
+        ),
+        "auth.invalid_code",
+      );
       assert.equal(revoked, true, "the revoke landed inside the submit");
       assert.equal(w.db.rows("forms_submission").length, 0, "no submission was stored");
-      assert.equal(w.calls.filter((c) => c.cap === "records.update" || c.cap === "records.create").length, 0, "the record was not written");
-      assert.equal(await code(run(f.public, "forms.save_partial", { slug: f.slug, token, answers: { name: "x" } })), "auth.invalid_code");
-    } finally { configureForms(null); }
+      assert.equal(
+        w.calls.filter((c) => c.cap === "records.update" || c.cap === "records.create").length,
+        0,
+        "the record was not written",
+      );
+      assert.equal(
+        await code(run(f.public, "forms.save_partial", { slug: f.slug, token, answers: { name: "x" } })),
+        "auth.invalid_code",
+      );
+    } finally {
+      configureForms(null);
+    }
   });
 }

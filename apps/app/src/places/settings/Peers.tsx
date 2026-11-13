@@ -7,15 +7,52 @@ import { Text, View } from "react-native";
 import { useSettingsData } from "./data.tsx";
 import { Section, SettingsRow, SmallButton, Tip } from "./ui.tsx";
 
-export interface PeerRow { peerId: string; name: string; platform: string; kind: "computer" | "server"; self: boolean; online: boolean; lastSeenAt?: number; addedAt: number }
-export interface PeerRequestRow { requestId: string; name: string; platform: string; code: string; requestedAt: number; expiresAt: number }
-export interface PeerConflictRow { conflictId: string; table: string; rowKey: string; kind: "renamed" | "kept_aside"; detail: string; at: number }
+export interface PeerRow {
+  peerId: string;
+  name: string;
+  platform: string;
+  kind: "computer" | "server";
+  self: boolean;
+  online: boolean;
+  lastSeenAt?: number;
+  addedAt: number;
+}
+export interface PeerRequestRow {
+  requestId: string;
+  name: string;
+  platform: string;
+  code: string;
+  requestedAt: number;
+  expiresAt: number;
+}
+export interface PeerConflictRow {
+  conflictId: string;
+  table: string;
+  rowKey: string;
+  kind: "renamed" | "kept_aside";
+  detail: string;
+  at: number;
+}
 
 const POLL_MS = 4000;
-export const ADD_HELP = "To add a computer, open Vyre on it and sign in with your Vyre account. It asks here, with a code to check.";
+export const ADD_HELP =
+  "To add a computer, open Vyre on it and sign in with your Vyre account. It asks here, with a code to check.";
 
 function Dot({ on, why }: { on: boolean; why?: string }): ReactElement {
-  return <Tip help={why}><View accessibilityLabel={on ? "Online" : "Offline"} testID={on ? "dot-on" : "dot-off"} style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: (on ? "var(--ok, #2f9e5b)" : "var(--ink-4)") as string }} /></Tip>;
+  return (
+    <Tip help={why}>
+      <View
+        accessibilityLabel={on ? "Online" : "Offline"}
+        testID={on ? "dot-on" : "dot-off"}
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: 5,
+          backgroundColor: (on ? "var(--ok, #2f9e5b)" : "var(--ink-4)") as string,
+        }}
+      />
+    </Tip>
+  );
 }
 
 export function whenLabel(at: number | undefined, now: number): string {
@@ -56,17 +93,46 @@ export interface PeersBodyProps {
   onRemove(peerId: string): void;
 }
 
-export function PeersBody({ peers, requests, conflicts = [], runner = null, now, busy, removing, error, onAllow, onDecline, onAskRemove, onRemove }: PeersBodyProps): ReactElement {
+export function PeersBody({
+  peers,
+  requests,
+  conflicts = [],
+  runner = null,
+  now,
+  busy,
+  removing,
+  error,
+  onAllow,
+  onDecline,
+  onAskRemove,
+  onRemove,
+}: PeersBodyProps): ReactElement {
   const rows: ReactElement[] = [];
   for (const r of requests) {
     rows.push(
       <SettingsRow
-        key={`req-${r.requestId}`} id={`peer.request.${r.requestId}`} first={rows.length === 0} label={`${r.name} wants to use this Personal Space`} sub={`Check that it shows ${r.code}`}
+        key={`req-${r.requestId}`}
+        id={`peer.request.${r.requestId}`}
+        first={rows.length === 0}
+        label={`${r.name} wants to use this Personal Space`}
+        sub={`Check that it shows ${r.code}`}
         lead={<Dot on={false} why="Waiting for you" />}
-        control={<>
-          <SmallButton label="Deny" testID={`peer-decline-${r.requestId}`} disabled={busy} onPress={() => onDecline(r.requestId)} />
-          <SmallButton label="Allow" testID={`peer-allow-${r.requestId}`} disabled={busy} onPress={() => onAllow(r.requestId)} />
-        </>}
+        control={
+          <>
+            <SmallButton
+              label="Deny"
+              testID={`peer-decline-${r.requestId}`}
+              disabled={busy}
+              onPress={() => onDecline(r.requestId)}
+            />
+            <SmallButton
+              label="Allow"
+              testID={`peer-allow-${r.requestId}`}
+              disabled={busy}
+              onPress={() => onAllow(r.requestId)}
+            />
+          </>
+        }
       />,
     );
   }
@@ -74,27 +140,63 @@ export function PeersBody({ peers, requests, conflicts = [], runner = null, now,
     const sure = removing === p.peerId;
     rows.push(
       <SettingsRow
-        key={p.peerId} id={`peer.${p.peerId}`} first={rows.length === 0} label={p.name} sub={peerLine(p, now, peers.length > 1 && runner === p.peerId)} lead={<Dot on={p.online} {...(p.online ? {} : { why: "Asleep or offline" })} />}
-        {...(p.self ? {} : {
-          control: sure ? (
-            <>
-              <SmallButton label="Cancel" onPress={() => onAskRemove(null)} />
-              <SmallButton label="Remove" danger testID={`peer-remove-yes-${p.peerId}`} disabled={busy} onPress={() => onRemove(p.peerId)} />
-            </>
-          ) : <SmallButton label="Remove" testID={`peer-remove-${p.peerId}`} onPress={() => onAskRemove(p.peerId)} />,
-        })}
+        key={p.peerId}
+        id={`peer.${p.peerId}`}
+        first={rows.length === 0}
+        label={p.name}
+        sub={peerLine(p, now, peers.length > 1 && runner === p.peerId)}
+        lead={<Dot on={p.online} {...(p.online ? {} : { why: "Asleep or offline" })} />}
+        {...(p.self
+          ? {}
+          : {
+              control: sure ? (
+                <>
+                  <SmallButton label="Cancel" onPress={() => onAskRemove(null)} />
+                  <SmallButton
+                    label="Remove"
+                    danger
+                    testID={`peer-remove-yes-${p.peerId}`}
+                    disabled={busy}
+                    onPress={() => onRemove(p.peerId)}
+                  />
+                </>
+              ) : (
+                <SmallButton label="Remove" testID={`peer-remove-${p.peerId}`} onPress={() => onAskRemove(p.peerId)} />
+              ),
+            })}
       />,
     );
   }
   const settled: ReactElement[] = [];
-  for (const c of conflicts) settled.push(<SettingsRow key={c.conflictId} id={`peer.conflict.${c.conflictId}`} first={settled.length === 0} label={c.detail} sub={`${c.kind === "kept_aside" ? "Kept aside" : "Renamed"} · ${whenLabel(c.at, now)}`} />);
+  for (const c of conflicts)
+    settled.push(
+      <SettingsRow
+        key={c.conflictId}
+        id={`peer.conflict.${c.conflictId}`}
+        first={settled.length === 0}
+        label={c.detail}
+        sub={`${c.kind === "kept_aside" ? "Kept aside" : "Renamed"} · ${whenLabel(c.at, now)}`}
+      />,
+    );
   return (
     <>
       <Section title="Your computers" help={ADD_HELP} testID="peers-list">
         {rows}
-        {error ? <Text testID="peers-error" style={{ color: "var(--danger)" as string, fontSize: 13, marginTop: 6 }}>{error}</Text> : null}
+        {error ? (
+          <Text testID="peers-error" style={{ color: "var(--danger)" as string, fontSize: 13, marginTop: 6 }}>
+            {error}
+          </Text>
+        ) : null}
       </Section>
-      {settled.length ? <Section title="Sync conflicts" help="Things your computers changed at the same time while apart. Nothing is dropped: the later change keeps the name and the other is renamed or kept aside." testID="peer-conflicts">{settled}</Section> : null}
+      {settled.length ? (
+        <Section
+          title="Sync conflicts"
+          help="Things your computers changed at the same time while apart. Nothing is dropped: the later change keeps the name and the other is renamed or kept aside."
+          testID="peer-conflicts"
+        >
+          {settled}
+        </Section>
+      ) : null}
     </>
   );
 }
@@ -111,31 +213,78 @@ export function PeersSection(): ReactElement | null {
   const [conflicts, setConflicts] = useState<PeerConflictRow[]>([]);
   const [runner, setRunner] = useState<string | null>(null);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
   const load = useCallback(async (): Promise<void> => {
     try {
       const [p, r, c, run] = await Promise.all([
         data.call("network.peers", {}) as Promise<{ computers: PeerRow[] }>,
         data.call("network.peer_requests", {}) as Promise<{ requests: PeerRequestRow[] }>,
-        (data.call("network.peer_conflicts", {}) as Promise<{ conflicts: PeerConflictRow[] }>).catch(() => ({ conflicts: [] })),
-        (data.call("network.peer_runner", {}) as Promise<{ peerId?: string }>).catch(() => ({} as { peerId?: string })),
+        (data.call("network.peer_conflicts", {}) as Promise<{ conflicts: PeerConflictRow[] }>).catch(() => ({
+          conflicts: [],
+        })),
+        (data.call("network.peer_runner", {}) as Promise<{ peerId?: string }>).catch(() => ({}) as { peerId?: string }),
       ]);
-      if (alive.current) { setPeers(p.computers); setRequests(r.requests); setConflicts(c.conflicts); setRunner(run.peerId ?? null); setNow(Date.now()); }
-    } catch { /* the list stays as it was */ }
+      if (alive.current) {
+        setPeers(p.computers);
+        setRequests(r.requests);
+        setConflicts(c.conflicts);
+        setRunner(run.peerId ?? null);
+        setNow(Date.now());
+      }
+    } catch {
+      /* the list stays as it was */
+    }
   }, [data]);
-  useEffect(() => { void load(); const t = setInterval(() => void load(), POLL_MS); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    void load();
+    const t = setInterval(() => void load(), POLL_MS);
+    return () => clearInterval(t);
+  }, [load]);
   const guarded = async (run: () => Promise<void>, fail: string): Promise<void> => {
-    setBusy(true); setError("");
-    try { await run(); await load(); } catch { if (alive.current) setError(fail); } finally { if (alive.current) setBusy(false); }
+    setBusy(true);
+    setError("");
+    try {
+      await run();
+      await load();
+    } catch {
+      if (alive.current) setError(fail);
+    } finally {
+      if (alive.current) setBusy(false);
+    }
   };
   if (!peers.length && !requests.length) return null;
   return (
     <PeersBody
-      peers={peers} requests={requests} conflicts={conflicts} runner={runner} now={now} busy={busy} removing={removing} error={error}
-      onAllow={(id) => void guarded(async () => { await data.call("network.peer_allow", { requestId: id }); }, "Couldn't allow it. Try again.")}
-      onDecline={(id) => void guarded(async () => { await data.call("network.peer_decline", { requestId: id }); }, "Couldn't decline it.")}
+      peers={peers}
+      requests={requests}
+      conflicts={conflicts}
+      runner={runner}
+      now={now}
+      busy={busy}
+      removing={removing}
+      error={error}
+      onAllow={(id) =>
+        void guarded(async () => {
+          await data.call("network.peer_allow", { requestId: id });
+        }, "Couldn't allow it. Try again.")
+      }
+      onDecline={(id) =>
+        void guarded(async () => {
+          await data.call("network.peer_decline", { requestId: id });
+        }, "Couldn't decline it.")
+      }
       onAskRemove={setRemoving}
-      onRemove={(id) => void guarded(async () => { await data.call("network.peer_remove", { peerId: id }); setRemoving(null); }, "Couldn't remove it.")}
+      onRemove={(id) =>
+        void guarded(async () => {
+          await data.call("network.peer_remove", { peerId: id });
+          setRemoving(null);
+        }, "Couldn't remove it.")
+      }
     />
   );
 }

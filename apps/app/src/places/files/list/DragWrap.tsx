@@ -34,12 +34,37 @@ export function useDragDelegation(box: MutableRefObject<View | null>, registry: 
     if (Platform.OS !== "web") return undefined;
     const el = box.current as unknown as HTMLElement | null;
     if (!el || typeof el.addEventListener !== "function") return undefined;
-    const at = (e: Event): DragHandlers | undefined => { const k = keyOf(e); return k === null ? undefined : registry.current.get(k); };
-    const start = (e: DragEvent): void => { const h = at(e); if (!h) return; e.dataTransfer?.setData("text/plain", h.payload()); if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove"; };
-    const click = (e: MouseEvent): void => { at(e)?.onMods({ meta: e.metaKey || e.ctrlKey, shift: e.shiftKey }); };
-    const over = (e: DragEvent): void => { const h = at(e); if (h?.folder) { e.preventDefault(); h.onOver(); } };
-    const leave = (e: DragEvent): void => { const h = at(e); if (h?.folder) h.onLeave(); };
-    const drop = (e: DragEvent): void => { const h = at(e); if (h?.folder) { e.preventDefault(); h.onDrop(e.dataTransfer?.getData("text/plain") ?? ""); } };
+    const at = (e: Event): DragHandlers | undefined => {
+      const k = keyOf(e);
+      return k === null ? undefined : registry.current.get(k);
+    };
+    const start = (e: DragEvent): void => {
+      const h = at(e);
+      if (!h) return;
+      e.dataTransfer?.setData("text/plain", h.payload());
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove";
+    };
+    const click = (e: MouseEvent): void => {
+      at(e)?.onMods({ meta: e.metaKey || e.ctrlKey, shift: e.shiftKey });
+    };
+    const over = (e: DragEvent): void => {
+      const h = at(e);
+      if (h?.folder) {
+        e.preventDefault();
+        h.onOver();
+      }
+    };
+    const leave = (e: DragEvent): void => {
+      const h = at(e);
+      if (h?.folder) h.onLeave();
+    };
+    const drop = (e: DragEvent): void => {
+      const h = at(e);
+      if (h?.folder) {
+        e.preventDefault();
+        h.onDrop(e.dataTransfer?.getData("text/plain") ?? "");
+      }
+    };
     el.addEventListener("dragstart", start);
     el.addEventListener("click", click, true);
     el.addEventListener("dragover", over);
@@ -56,7 +81,19 @@ export function useDragDelegation(box: MutableRefObject<View | null>, registry: 
 }
 
 /** A tile (or a native line): registers its handlers and, on the web, becomes a drag source by two attributes set once. */
-export function DragWrap({ fkey, registry, handlers, props, children }: { fkey: string; registry: MutableRefObject<DragRegistry>; handlers: DragHandlers; props: Record<string, unknown>; children: ReactNode }): ReactElement {
+export function DragWrap({
+  fkey,
+  registry,
+  handlers,
+  props,
+  children,
+}: {
+  fkey: string;
+  registry: MutableRefObject<DragRegistry>;
+  handlers: DragHandlers;
+  props: Record<string, unknown>;
+  children: ReactNode;
+}): ReactElement {
   const ref = useRef<View | null>(null);
   registry.current.set(fkey, handlers);
   useEffect(() => {
@@ -66,5 +103,9 @@ export function DragWrap({ fkey, registry, handlers, props, children }: { fkey: 
     el.draggable = true;
     el.setAttribute("data-fkey", fkey);
   }, [fkey]);
-  return <View ref={ref} {...props}>{children}</View>;
+  return (
+    <View ref={ref} {...props}>
+      {children}
+    </View>
+  );
 }

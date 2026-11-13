@@ -10,8 +10,12 @@ import type { Hour, Person } from "./support/member-hour.ts";
 let h: Hour;
 let a: Person;
 
-before(async () => { h = await bootHour("photo"); });
-after(async () => { await h?.stop(); });
+before(async () => {
+  h = await bootHour("photo");
+});
+after(async () => {
+  await h?.stop();
+});
 
 test("an invited member picks a profile photo in her first minute and it is kept in her own Personal folder", async () => {
   a = h.person("Aina", "aina", "aina@firm.test", "aina horse battery staple 9");
@@ -23,5 +27,8 @@ test("an invited member picks a profile photo in her first minute and it is kept
   const tree = (await a.call("files.tree", {})) as { roots: Array<{ key: string; folderId?: string }> };
   const home = tree.roots.find((r) => r.key === "personal")?.folderId;
   const listed = (await a.call("files.list", { folder: home })) as { files: Array<{ fileId: string }> };
-  assert.ok(listed.files.some((f) => f.fileId === fileId), "it sits in her Personal folder");
+  assert.ok(
+    listed.files.some((f) => f.fileId === fileId),
+    "it sits in her Personal folder",
+  );
 });

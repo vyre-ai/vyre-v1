@@ -19,16 +19,28 @@ export function followMenu(m: FollowMode, set: (mode: "follow" | "mute" | "leave
   return [
     { label: "Follow", checked: m === "follow", onSelect: () => set("follow") },
     { label: "Mute", checked: m === "mute", onSelect: () => set("mute") },
-    ...(m === "none" ? [] : [{ separator: true } as MenuEntry, { label: "Leave Thread", onSelect: () => set("leave") }]),
+    ...(m === "none"
+      ? []
+      : [{ separator: true } as MenuEntry, { label: "Leave Thread", onSelect: () => set("leave") }]),
   ];
 }
 
 /** What a follow change says on the line under the chat. */
 export function followSaid(mode: "follow" | "mute" | "leave"): string {
-  return mode === "follow" ? "Following this thread. Its replies reach you." : mode === "mute" ? "Muted. Its replies will not notify you or count as new." : "You left the thread.";
+  return mode === "follow"
+    ? "Following this thread. Its replies reach you."
+    : mode === "mute"
+      ? "Muted. Its replies will not notify you or count as new."
+      : "You left the thread.";
 }
 
 /** Escape closes the thread beside the chat, unless something on top took the key first (a menu, a sheet, the composer's own list). */
-export function closesSide(e: { key: string; defaultPrevented?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }): boolean {
+export function closesSide(e: {
+  key: string;
+  defaultPrevented?: boolean;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+}): boolean {
   return e.key === "Escape" && e.defaultPrevented !== true && !e.metaKey && !e.ctrlKey && !e.altKey;
 }
