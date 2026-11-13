@@ -5,6 +5,11 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, collapseKey, matchRows, phoneView, readCollapsed, writeCollapsed } from "./index.ts";
 import type { SidebarStorage } from "./index.ts";
+import { createRoot } from "test-renderer";
+import { act } from "react";
+import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
+import { Text } from "react-native";
+import { useSidebarSlot } from "./index.ts";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "chats", epoch: 1 };
 
@@ -65,4 +70,25 @@ test("the slot's header has a spot for the place's own buttons between the title
   const html = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}><SidebarSlot /></SidebarSlotProvider>);
   const at = (id: string): number => html.indexOf(`data-testid="${id}"`);
   assert.ok(at("sidebar-actions") > html.indexOf(">Chats<") && at("sidebar-actions") < at("sidebar-collapse"));
+});
+
+// K9 guard (13 Nov 2026): where only one panel fits, a link to an item shows the item. It used to leave the list on screen (goal and chat links at 760 wide opened nothing).
+function View_(): ReturnType<typeof Text> { const slot = useSidebarSlot(); return <Text testID="view">{slot.view}</Text>; }
+
+test("a link that opens an item takes a one-panel layout from the list to the item, and Back returns to the list", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    const draw = (hash: string): void => void r.render(<SidebarSlotProvider {...props} compact hash={hash} initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}><View_ /></SidebarSlotProvider>);
+    const root = r.container as unknown as Parameters<typeof find>[0];
+    await act(async () => { draw(""); }); await flush();
+    assert.equal(find(root, "view")?.children?.join(""), "list", "no item open: the list");
+    await act(async () => { draw("subject=goal:gol_1"); }); await flush();
+    assert.equal(find(root, "view")?.children?.join(""), "body", "a link to a goal shows the goal");
+    await act(async () => { draw("subject=goal:gol_1"); }); await flush();
+    assert.equal(find(root, "view")?.children?.join(""), "body");
+    // a computer-width layout never changes view
+    await act(async () => { r.render(<SidebarSlotProvider {...props} compact={false} hash="subject=thread:t1" initialEntry={{ title: "Chats", searchPlaceholder: "Search" }}><View_ /></SidebarSlotProvider>); }); await flush();
+    assert.equal(find(root, "view")?.children?.join(""), "body");
+  } finally { restore(); }
 });

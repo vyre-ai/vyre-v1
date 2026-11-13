@@ -8,6 +8,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { LoadFailed, isRefused } from "../../../../../../ui/src/States/Loads.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { askedCall, goalMenuEntries } from "./goal-menu.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
@@ -98,7 +99,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
     return [...seen.values()];
   }, [directory, g, nameOf]);
   if (!data || !g) {
-    return <View testID="goal-page-loading" style={st.root}>{state.status === "error" ? <States kind="error" message="This goal is not available" cause={state.message} /> : <View style={st.loading} />}</View>;
+    return <View testID="goal-page-loading" style={st.root}>{state.status === "error" ? (isRefused(state) ? <LoadFailed what="this goal" failure={state} testID="goal-refused" /> : <States kind="error" message="This goal is not available" cause={state.message} />) : <View style={st.loading} />}</View>;
   }
   const now = clock().now;
   const showPane = (t: PaneTab): void => { setTab(t); setPaneOpen(true); };

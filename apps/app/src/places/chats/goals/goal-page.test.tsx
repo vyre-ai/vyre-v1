@@ -177,3 +177,17 @@ test("a running goal's step renames where it stands", async () => {
   await fire(find(p, "goal-task-name-tsk_ads"), "onBlur", { nativeEvent: { target: { value: "x" } }, target: { value: "x" }, currentTarget: null });
   assert.deepEqual(calls.find((c) => c.cap === "tasks.update")?.input, { taskId: "tsk_ads", title: "Retarget the Lab 8 form, week two" });
 });
+
+test("a goal the person cannot open says so in plain words and offers no Retry (K9, 13 Nov)", async () => {
+  installDom();
+  const refuse = async (): Promise<unknown> => { throw Object.assign(new Error("That goal does not exist."), { code: "validation.not_found" }); };
+  const root = await mount(createRoot as never, (
+    <GoalPage goalId="gol_x" call={refuse} changes={undefined} me="usr_irfad" nameOf={(id) => id} clock={() => ({ now: NOW, offsetMin: 300 })}
+      conversationFor={() => ({}) as ConversationData} openTask={() => undefined} openAgent={() => undefined} />
+  ));
+  await flush(); await flush();
+  const text = textOf(find(root!, "goal-refused"));
+  assert.match(text, /You can't open this goal/);
+  assert.doesNotMatch(text, /does not exist/);
+  assert.equal(find(root!, "state-retry"), null, "a refusal never offers Retry");
+});

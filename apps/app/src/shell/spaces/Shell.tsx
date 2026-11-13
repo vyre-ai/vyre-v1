@@ -368,7 +368,7 @@ export function Shell(props: ShellProps): ReactElement {
           />}
           <SidebarSlotProvider
             deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
-            epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
+            epoch={state.epoch} hash={state.hash} compact={compact} storage={props.sidebar?.storage ?? null}
           >
             {compact
               ? <View style={styles.main}><Stage>{stage}</Stage></View>

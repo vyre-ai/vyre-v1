@@ -5,13 +5,15 @@ import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { States } from "./index.tsx";
 
-export { RETRY_LOADS_EVENT, failureOf, onRetryLoads, retryLoads } from "./retry.ts";
+export { REFUSED_CAUSE, RETRY_LOADS_EVENT, failureOf, isRefused, onRetryLoads, retryLoads } from "./retry.ts";
 export type { LoadFailure } from "./retry.ts";
-import { retryLoads } from "./retry.ts";
+import { REFUSED_CAUSE, isRefused, retryLoads } from "./retry.ts";
 import type { LoadFailure } from "./retry.ts";
 
 /** The error a place draws where its content would be: "Couldn't load <what>", the reason, Retry, and the trace id behind Details. */
 export function LoadFailed({ what, failure, onRetry = retryLoads, testID = "load-failed" }: { what: string; failure: LoadFailure; onRetry?: () => void; testID?: string }): ReactElement {
+  // a refusal is not a failure to wait out: say so plainly and offer no Retry, which could never work
+  if (isRefused(failure)) return <View testID={testID} style={st.fill}><States kind="error" message={`You can't open ${what}`} cause={REFUSED_CAUSE} {...(failure.traceId ? { traceId: failure.traceId } : {})} /></View>;
   return (
     <View testID={testID} style={st.fill}>
       <States kind="error" message={`Couldn't load ${what}`} cause={failure.message} {...(failure.code ? { code: failure.code } : {})} {...(failure.traceId ? { traceId: failure.traceId } : {})} retryable onRetry={onRetry} />

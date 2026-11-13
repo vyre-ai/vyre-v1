@@ -62,6 +62,8 @@ import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { TabKey } from "../rightpane/model.ts";
+import { ChatDetails } from "../rightpane/ChatDetails.tsx";
+import { paneSubject } from "../rightpane/subject.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -213,6 +215,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
   const [rightOn, setRightOn] = useState<string | null>(null);
+  // the tab the pane picked by itself (not one the person pressed), and the chat whose first choice is made
+  const autoTab = useRef<string | null>(null);
+  const selectedFor = useRef<string | null>(null);
   // a hook line in the chat opens the pane on Hooks, at that hook
   const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
   const [hookSel, setHookSel] = useState<string | null>(null);
@@ -350,7 +355,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       // a task link in the chat opens beside it, where it was pressed
       const openBeside = (kind: string, id: string): void => { if (kind === "task") openSideTask(id); else wired.nav.openBeside(kind, id); };
-      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); go.openPane(); } } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); selectedFor.current = threadId; go.openPane(); } } };
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );
@@ -381,6 +386,25 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }, [rt, nameOf, setLine]);
   const paneFull = useMemo(() => (paneCtx === null ? null : { ...paneCtx, nav: { ...paneCtx.nav, poke, share: (id: string) => setShareAgent(id) } }), [paneCtx, poke]);
   const rightTabNow = rightTabs.find((x) => x.key === rightOn);
+  // The pane opens on the thing the chat is (K9): the other person in a one-to-one chat, the channel in a channel, the group in a group chat; an agent's chat keeps the agent. Once per chat and per opening, and
+  // never over a choice the person made (a face they pressed, a hook line that asked for Hooks).
+  const subject = thread.status === "ready" && threadId !== null && thread.data.thread.threadId === threadId ? paneSubject(thread.data.thread, rt.me.id, rt.assistant.id) : null;
+  const subjectKey = subject === null ? null : subject.kind === "person" ? `profile:${subject.id}` : subject.kind === "agent" ? null : `chat:${threadId}`;
+  useEffect(() => {
+    if (!shown.pane) { selectedFor.current = null; if (autoTab.current !== null) { const k = autoTab.current; autoTab.current = null; setRightOn((on) => (on === k ? null : on)); setRightTabs((t) => t.filter((x) => x.key !== k)); } return; }
+    if (subject === null || threadId === null || selectedFor.current === threadId) return;
+    selectedFor.current = threadId;
+    const old = autoTab.current;
+    if (rightOn !== null && rightOn !== old) return;   // the person chose something else to look at: leave it
+    if (old !== null && old !== subjectKey) setRightTabs((t) => t.filter((x) => x.key !== old));   // the last chat's person or details goes; the new one takes its place
+    if (subject.kind === "person") { profile(subject.id, true); autoTab.current = `profile:${subject.id}`; }
+    else if (subject.kind === "agent") { setRightOn(null); autoTab.current = null; }
+    else {
+      const key = `chat:${threadId}`;
+      setRightTabs((t) => withTab(t, { key, id: threadId, title: "Details", kind: "chat" }));
+      setRightOn(key); autoTab.current = key;
+    }
+  }, [shown.pane, subject?.kind, subjectKey, threadId]);   // eslint-disable-line react-hooks/exhaustive-deps
   const agentTabId = rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
   const agentTabData = useMemo(() => (paneFull === null || agentTabId === null ? null : { ...paneFull, agent: { agentId: agentTabId, name: nameOf(agentTabId), ...(computerOf(agentTabId) ? { computerId: computerOf(agentTabId) as string } : {}) } }), [paneFull, agentTabId, nameOf, computers]);
 
@@ -425,8 +449,10 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   /* ---------- the right ---------- */
   const rightTab = rightTabs.find((t) => t.key === rightOn);
-  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, ...(t.kind === "details" ? {} : { lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }) }));
-  const rightBody = rightTab?.kind === "details" ? (
+  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, ...(t.kind === "details" || t.kind === "chat" ? {} : { lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }) }));
+  const rightBody = rightTab?.kind === "chat" ? (
+    <ChatDetails key={rightTab.key} threadId={rightTab.id} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} nameOf={nameOf} meId={rt.me.id} openProfile={profile} />
+  ) : rightTab?.kind === "details" ? (
     <ReplyDetailsPane
       key={`details:${rightTab.id}`} messageId={rightTab.id}
       details={{ read: (mid) => readReplyDetails(rt.call as Call, rightTab.threadId ?? "", mid), open: (mid) => replyDetails(rightTab.threadId ?? "", mid), meId: rt.me.id, nameOf }}
@@ -467,11 +493,11 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab, onTab: (t: TabKey) => setPaneTab(t) } : {})} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab } : {})} onTab={(t: TabKey) => { setPaneTab(t); setRightOn(null); }} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody, ...(autoTab.current !== null && rightSpecs.some((x) => x.key === autoTab.current) ? { first: autoTab.current } : {}) }} /></View>;
   } else if (rightOn !== null && narrow) {
     // a profile on a phone is a full-screen page with a back arrow and the name, over the bottom nav (PhoneProfile)
     const t = rightTab;
-    right = <PhoneProfile title={t === undefined ? "Profile" : t.kind === "details" ? t.title : t.kind === "assistant" ? "Assistant" : nameOf(t.id)} onBack={() => closeRight(rightOn)}>{rightBody}</PhoneProfile>;
+    right = <PhoneProfile title={t === undefined ? "Profile" : t.kind === "details" || t.kind === "chat" ? t.title : t.kind === "assistant" ? "Assistant" : nameOf(t.id)} onBack={() => closeRight(rightOn)}>{rightBody}</PhoneProfile>;
   } else if (rightOn !== null) {
     right = (
       <View style={st.pane}>

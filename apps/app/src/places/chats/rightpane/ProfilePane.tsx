@@ -15,7 +15,8 @@ import type { PersonProfileProps } from "./PersonProfile.tsx";
 type AgentOut = CapMap["agents.get"]["out"]["agent"];
 type SummaryOut = CapMap["agents.summary"]["out"];
 
-export interface ProfileTab { key: string; id: string; title: string; kind: "agent" | "assistant" | "person" | "details";
+export interface ProfileTab { key: string; id: string; title: string; kind: "agent" | "assistant" | "person" | "details" | "chat";
+  /** A channel's or group chat's details (kind "chat", id is the thread). */
   /** A reply's Details tab (kind "details"): id is the message, and these say where it is and whose face leads the tab. */
   threadId?: string; agentId?: string }
 

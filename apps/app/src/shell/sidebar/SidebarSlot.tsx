@@ -51,6 +51,8 @@ export interface SidebarSlotProviderProps {
   place: string;
   /** The place epoch: a switch resets the phone to the list. */
   epoch: number;
+  /** The item the place has open (its address). A link that opens an item while the phone shows the list takes the phone to the body, as pressing a row does. */
+  hash?: string;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -70,6 +72,8 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const [outlet, setOutlet] = useState<unknown>(null);
   const [actionsOutlet, setActionsOutlet] = useState<unknown>(null);
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
+  // a link to a goal, a chat or any item (an address, a notification, Cmd-K) shows that item at once, also where only one panel fits (K9, 13 Nov 2026)
+  useEffect(() => { if (p.compact && p.hash !== undefined && p.hash !== "") setBodyOpen(true); }, [p.compact, p.hash]);
   const setCollapsed = useCallback((v: boolean) => {
     setCollapsedState(v);
     try { (p.storage ?? deviceStorage())?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }

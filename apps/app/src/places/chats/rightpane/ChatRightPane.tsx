@@ -64,7 +64,8 @@ export interface ChatRightPaneProps {
   /** Opens one routine on the Routines tab (tests and screenshots). */
   openRoutine?: string;
   /** What was opened from the chat, after the pane's own: closable right tabs. The shown one replaces the pane's body. */
-  extra?: { tabs: readonly { key: string; title: string; lead?: ReactNode }[]; active: string | null; onSelect(key: string | null): void; onClose(key: string): void; body: ReactNode };
+  /** `first` names the one of these tabs that comes before the pane's own: the thing the chat is (the other person, the channel), ahead of the agent. */
+  extra?: { first?: string; tabs: readonly { key: string; title: string; lead?: ReactNode }[]; active: string | null; onSelect(key: string | null): void; onClose(key: string): void; body: ReactNode };
 }
 
 /** "Show what the agent knew here" on a message pins the store's Knows focus and asks for the tab: switch to it (also when the pane opens because of the request). */
@@ -193,7 +194,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, onTab,
   if (embedded === true) return inner;
   return (
     <SidePane
-      paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab, ...(extra?.tabs ?? [])]} activeTab={extra?.active ?? "open"} onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)} onCloseTab={(key) => { if (key === "open") onToggle(); else extra?.onClose(key); }}
+      paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={orderedTabs(openTab, extra)} activeTab={extra?.active ?? "open"} onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)} onCloseTab={(key) => { if (key === "open") onToggle(); else extra?.onClose(key); }}
       {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
     >
       {extra?.active ? <View testID="right-tab-body" style={st.root}>{extra.body}</View> : null}
@@ -202,6 +203,13 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, onTab,
   );
 }
 
+
+/** The pane's own tab, and what was opened beside it; the one named `first` leads, so a one-to-one chat reads Person, Agent and a channel reads Details, Agent. */
+export function orderedTabs<T extends { key: string }>(open: T, extra: { first?: string; tabs: readonly T[] } | undefined): T[] {
+  const rest = extra?.tabs ?? [];
+  const lead = extra?.first === undefined ? undefined : rest.find((t) => t.key === extra.first);
+  return lead === undefined ? [open, ...rest] : [lead, open, ...rest.filter((t) => t !== lead)];
+}
 
 /** The agent's header: its face with presence, one role line, Message and what the shell can do (Poke, Share), and one "..." menu. Sleep now is in the menu; the Computer tab has no button for it. */
 function AgentHeader({ deps, role, status, menu }: { deps: PaneDeps; role: string | undefined; status: string | undefined; menu: ReturnType<typeof useMenu> }): ReactElement {

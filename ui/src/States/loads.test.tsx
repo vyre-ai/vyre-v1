@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { LoadFailed, RETRY_LOADS_EVENT, failureOf } from "./Loads.tsx";
+import { LoadFailed, RETRY_LOADS_EVENT, failureOf, isRefused } from "./Loads.tsx";
 import { Quiet } from "./Quiet.tsx";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -49,5 +49,34 @@ test("the quiet mark says it is taking too long, with Retry, when nothing arrive
     assert.equal(find(root, "quiet-stalled"), null, "the line goes while it asks again");
     await wait(80); await flush();
     assert.match(textOf(find(root, "quiet-stalled")), /taking longer/, "and comes back if nothing arrives again");
+  } finally { restore(); }
+});
+
+// K9 guard (13 Nov 2026): Retry appears only where trying again can work. A read the server refused (not yours, not found) says so in plain words and never offers Retry.
+const REFUSED = ["permission.no_grant", "permission.denied", "permission.not_found", "validation.not_found"];
+const WAITABLE = ["internal.error", "provider.unavailable", "timeout", "validation.bad_input", ""];
+
+test("a refused read never renders Retry and says in plain words that the person cannot open it", async () => {
+  const restore = installDom();
+  try {
+    for (const code of REFUSED) {
+      assert.equal(isRefused({ message: "x", code }), true, code);
+      const root = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "That chat does not exist or is not yours.", code }} />);
+      const text = textOf(find(root, "load-failed"));
+      assert.equal(find(root, "state-retry"), null, `${code}: no Retry on a refusal`);
+      assert.match(text, /You can't open this chat/, code);
+      assert.doesNotMatch(text, /Couldn't load|does not exist/, code);
+    }
+  } finally { restore(); }
+});
+
+test("a read that can work on a second try keeps its Retry", async () => {
+  const restore = installDom();
+  try {
+    for (const code of WAITABLE) {
+      assert.equal(isRefused({ message: "x", code }), false, code);
+      const root = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "It broke.", ...(code ? { code } : {}) }} />);
+      assert.ok(find(root, "state-retry"), `${code || "no code"}: Retry stays`);
+    }
   } finally { restore(); }
 });

@@ -7,6 +7,14 @@ export const RETRY_LOADS_EVENT = "vyre:retry-loads";
 /** Why a read failed, as the client's QueryState carries it. */
 export interface LoadFailure { message: string; code?: string | undefined; traceId?: string | undefined }
 
+/** A read the server refused: the person may not open it, or it is gone. Trying again cannot change that, so there is no Retry. (The server answers both with one code on purpose: it must not say whether a private thing exists.) */
+export function isRefused(f: LoadFailure | undefined): boolean {
+  const c = f?.code ?? "";
+  return c.startsWith("permission.") || c === "validation.not_found";
+}
+/** What a refused read says beside "You can't open ...": true whether it was removed or never shared. */
+export const REFUSED_CAUSE = "It may have been removed, or it is not shared with you.";
+
 /** The first failure among these reads, or undefined while they are only waiting (or done). */
 export function failureOf(...states: ReadonlyArray<{ status: string; error?: LoadFailure | undefined } | null | undefined>): LoadFailure | undefined {
   for (const s of states) if (s && s.status === "loading" && s.error !== undefined) return s.error;

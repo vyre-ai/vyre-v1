@@ -1,0 +1,8 @@
+- A chat's side pane opens on what the chat is: the other person in a one-to-one chat, the channel (its name, topic and who is in it) in a channel, the group in a group chat. An agent's own chat still opens on the agent.
+- On a narrow window where only one panel fits, a link to a goal or a chat now shows it. Before, the list stayed on screen and the link seemed to do nothing.
+- A goal, chat, agent or channel you cannot open now says "You can't open this" with a plain reason and no Retry button, because trying again cannot help.
+- Menu entries are never cut with dots: a long entry wraps to a second line and the row grows. "Agents reply in threads" and its note read in full.
+- A row that is cut with dots gives its whole text when you hover it or focus it, and the slash command list says what each command does in words that fit.
+- The Console's "for admins and owners" page has its Back button under the words, not at the bottom edge of the window.
+- Plainer words: a stopped agent task says "The agent doing it stopped 30 minutes ago without passing the task on", a Needs you row from Vyre no longer reads as if Vyre blocked it, the Console AI page says "Your team has no AI account" once, Computers says "1 computer that takes work" and "It is busy: its processor is nearly full", a project's Chat tab no longer says one chat and none, a record's first history row says "Created", and the About you lines in Knows line up with the rest of the pane.
+- For builders: a new check (scripts/lint/system-words.test.ts) counts system words (turn, wake-up, principal, capability) in the strings people read. Today's count is the baseline and may only fall.
