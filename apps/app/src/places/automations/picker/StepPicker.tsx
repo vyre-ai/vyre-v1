@@ -100,7 +100,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
     const m = main.getBoundingClientRect();
     const at = placeBeside(
       { left: m.left, right: m.right, top: r.top, bottom: r.bottom },
-      { width: SUB_W, height: 360 },
+      { width: SUB_W, height: 48 + (sub?.items.length ?? 0) * 44 },
       { width: win.width, height: win.height },
     );
     setSubAt({ left: at.left, top: at.top });

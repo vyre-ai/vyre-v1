@@ -132,7 +132,7 @@ test("the row that owns the open actions is lit and in view, and the actions tou
   });
   doc.document.querySelector = (q: string) =>
     q.includes("row-pk-app:google")
-      ? rect({ top: 300, left: 20, right: 400, bottom: 340, height: 40, width: 380 })
+      ? rect({ top: 580, left: 20, right: 400, bottom: 620, height: 40, width: 380 })
       : q.includes("pk-main")
         ? rect({ top: 120, left: 20, right: 400, bottom: 680, height: 560, width: 380 })
         : null;
@@ -147,7 +147,7 @@ test("the row that owns the open actions is lit and in view, and the actions tou
     const style = ([] as Record<string, unknown>[]).concat(find(root, "pk-sub")!.props["style"] as never).flat(3);
     const pick = (k: string) =>
       parseFloat(String(style.map((x) => (x as Record<string, unknown>)[k]).find((v) => v !== undefined)));
-    assert.ok(Math.abs(pick("top") - 300) <= 4, `submenu top ${pick("top")} is within 4 px of its row`);
+    assert.ok(Math.abs(pick("top") - 580) <= 4, `submenu top ${pick("top")} is within 4 px of its row`);
     assert.equal(pick("left"), 400, "and touches the picker's right edge");
   } finally {
     doc.document.querySelector = had;
