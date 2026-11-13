@@ -136,8 +136,11 @@ export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx, n: number): 
     }
   }
   if (t.keyed === true && (typeof out["idempotencyKey"] !== "string" || out["idempotencyKey"] === "")) {
-    out["idempotencyKey"] =
-      `ag:${ctx.turnId ?? ctx.trace?.traceId ?? "t"}:${t.name}:${shortHash(canonical({ ...out, idempotencyKey: undefined }))}:${n}`;
+    // one call is one key: the call's own id when the engine has one (a retry of that call carries the same id, so it makes the same thing once; two calls the model makes on purpose have two ids). Only a call with
+    // no id falls back to turn, tool, input and the count of that same call in the turn.
+    out["idempotencyKey"] = ctx.callId
+      ? `ag:${ctx.turnId ?? ""}:${ctx.callId}`
+      : `ag:${ctx.turnId ?? ctx.trace?.traceId ?? "t"}:${t.name}:${shortHash(canonical({ ...out, idempotencyKey: undefined }))}:${n}`;
     filled.push("idempotencyKey");
   }
   return { input: out, filled, renamed };

@@ -132,3 +132,21 @@ test("a chat tool called with no chat is for this chat; a tool that ends a chat 
   assert.equal(arch.kind, "error", "the chat is not archived on a missing input");
   assert.match(JSON.stringify(arch.kind === "error" ? arch.result.content : ""), /threadId is missing/);
 });
+
+test("the key is the call's own id: the same call delivered twice has one key, two identical calls made on purpose have two", async () => {
+  const { s, sent } = session();
+  const at = (callId: string) => c({ callId });
+  await s.call(at("toolu_1"), "artifact_publish", { title: "A", html: PAGE });
+  await s.call(at("toolu_1"), "artifact_publish", { title: "A", html: PAGE }); // a transport retry of the same call
+  await s.call(at("toolu_2"), "artifact_publish", { title: "A", html: PAGE }); // the model asked again on purpose
+  const keys = sent.map((x) => (x.input as { idempotencyKey: string }).idempotencyKey);
+  assert.equal(keys[0], keys[1]);
+  assert.notEqual(keys[0], keys[2]);
+  assert.equal(keys[0], "ag:trn_1:toolu_1");
+});
+
+test("a key the model supplies itself is kept even when the call has an id", async () => {
+  const { s, sent } = session();
+  await s.call(c({ callId: "toolu_9" }), "artifact_publish", { title: "A", html: PAGE, idempotencyKey: "mine-2" });
+  assert.equal((sent[0]?.input as { idempotencyKey?: string }).idempotencyKey, "mine-2");
+});

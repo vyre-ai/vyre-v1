@@ -95,6 +95,8 @@ export interface ToolCtx {
   /** AI provider of the running engine, for label vs provider. */
   provider?: string;
   turnId?: string;
+  /** What identifies this one call of a tool: the model's tool-call id (API engines), or the session and request id of the call (CLI engines over MCP). A transport retry of the call carries the same one. */
+  callId?: string;
   runId?: string;
   trace?: { traceId: string; spanId: string; parent?: string };
   /** What the people in the chat said since this agent last spoke: a value they typed themselves passes the probe guard. */
