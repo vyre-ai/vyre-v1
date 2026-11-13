@@ -1,0 +1,1 @@
+- Nothing a person sees changes: a new check stops new one-off copies of shared pieces (switches, buttons, section headings, empty states, data reads) from being added.
