@@ -150,3 +150,9 @@ Signed: lead, 12 Nov 2026
 `access.principals.list@1` now declares level `member` (it was `view` on the Space). A guest holds no View on the Space, so the call was refused them and every name in their channel read "Someone". The input and output are unchanged. The handler (modules/access/handlers/roles.ts principalsList) answers a caller who lacks View on the Space (a guest) with themselves and the people and agents of the channels they were added to (what channels.list shows them), and nobody else; every other caller gets the list as before. This opens no new data: those names already come back in the channel's own reads.
 
 Signed: pending, the lead (13 Nov 2026)
+
+## 13 Nov 2026: a guest's grant on a thread or a channel is capped by one table (lane f-guest)
+
+No capability contract changes and no snapshot moves. What changes is what a grant means for a guest (a person whose only role is Guest, never an agent): on a thread or a channel, kernel/src/authorize/guest-caps.ts lists what each level may do, and authorize refuses every other capability whatever the grant says, however the guest came by it (the channel invite, a thread shared with them, an agent's chat, a type-wide grant). A view guest reads, follows and marks read, and leaves the channel; a reply guest also posts, reacts, opens a reply thread under a message and edits or deletes their own messages (the handlers still refuse anyone else's). Engine settings, stopping turns, helpers, handoffs, crew, placement, terminal, modes, pins, renames, adding people, inviting and archiving are refused. A capability that is not in the table is refused: kernel/tests/authorize.guest-caps.test.ts fails when a thread or channel capability is added and not classified. Guests invited on earlier releases are held to the table at once, with no migration, because the table is read when a call is checked. A grant held by anyone who is not a guest behaves as before.
+
+Signed: pending, the lead (13 Nov 2026)

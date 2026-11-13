@@ -9,7 +9,7 @@ import { boot, seededDir, waitFor } from "./memory-live-kit.ts";
 import { api, ok, standIn } from "./member-key-kit.ts";
 import { joinGuest } from "./guest-channel-kit.ts";
 
-type Ids = { a: { mainThreadId: string; channelId: string; reply: string; msg: string }; b: { mainThreadId: string; channelId: string; reply: string } };
+type Ids = { old: { token: string; personId: string }; a: { mainThreadId: string; channelId: string; reply: string; msg: string }; b: { mainThreadId: string; channelId: string; reply: string } };
 
 async function make(dir: string): Promise<Ids> {
   const d = await boot(dir, standIn);
@@ -24,7 +24,11 @@ async function make(dir: string): Promise<Ids> {
       return { ...c, reply, msg };
     };
     const a = await one("partners"), b = await one("internal");
-    return { a, b: { mainThreadId: b.mainThreadId, channelId: b.channelId, reply: b.reply } };
+    // a guest invited on the old code: a bare grant on the channel, as every guest of rc.26 holds
+    const inv = await o("threads.invite_guest", { threadId: a.mainThreadId, email: "rc26@example.com", level: "reply" });
+    const g = await joinGuest(d, inv.link as string, "rcguest");
+    await waitFor(async () => ((await api(d, g.token, "channels.get", { channelId: a.channelId })).status === 200 ? true : null), 20_000);
+    return { old: { token: g.token, personId: g.personId }, a, b: { mainThreadId: b.mainThreadId, channelId: b.channelId, reply: b.reply } };
   } finally { await d.stop(); }
 }
 
@@ -44,6 +48,14 @@ async function use(dir: string, ids: Ids): Promise<void> {
     assert.equal((await call("threads.get", { threadId: ids.a.mainThreadId })).status, 200);
     assert.equal((await call("chat.post", { threadId: ids.a.reply, body: "from the guest" })).status, 200, "and a reply guest posts in it");
     for (const id of [ids.b.mainThreadId, ids.b.reply]) assert.equal((await call("threads.get", { threadId: id })).status, 403, "B is still closed after A was moved");
+    // the guest invited on the old code, with no new invite: the table and nothing more
+    const oldCall = (cap: string, input: Record<string, unknown>) => api(d, ids.old.token, cap, { idempotencyKey: `o-${Math.random()}`, ...input });
+    assert.equal((await oldCall("threads.get", { threadId: ids.a.mainThreadId })).status, 200, "the old guest opens the old channel");
+    assert.equal((await oldCall("chat.post", { threadId: ids.a.reply, body: "from the old guest" })).status, 200, "and replies in an old reply thread");
+    for (const [cap, input] of [["engine.stop_all", { threadId: ids.a.mainThreadId }], ["chat.helper.start", { threadId: ids.a.mainThreadId, title: "t", instruction: "i" }], ["chat.handoff", { threadId: ids.a.mainThreadId, toAgentId: "agt_x", note: "go" }], ["threads.set_mode", { threadId: ids.a.mainThreadId, mode: "auto" }], ["terminal.request", { threadId: ids.a.mainThreadId, command: "ls", why: "look" }]] as const) {
+      const r = await oldCall(cap, input);
+      assert.equal(r.status, 403, `the old guest is held to the table: ${cap} -> ${r.status} ${JSON.stringify(r.data).slice(0, 160)}`);
+    }
     // a restart changes nothing
     await d.stop();
     d = await boot(dir, standIn);

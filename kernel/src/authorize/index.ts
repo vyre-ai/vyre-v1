@@ -7,6 +7,7 @@ import { mintId } from "../../../lib/ids.ts";
 import { evalExpr } from "./expr.ts";
 import type { AccessSnapshot, GrantRec, SubjectInfo } from "./snapshot.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
+import { GUEST_TYPES, guestMay } from "./guest-caps.ts";
 import { LEVEL_BY_RANK, rankOf } from "./types.ts";
 import type { Decision, Expr, Obligation, ReasonCode, Req, ResourceRow, Scope, Step } from "./types.ts";
 
@@ -105,6 +106,8 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
     if (!carried) return "role_lacks_permission";
   }
   const clearance = s.clearance;
+  // a guest holds on a thread or a channel only what guest-caps.ts lets their level do, whichever grant they got it by (a flag read, nothing more, for everyone else)
+  if (s.guest && matched > 0 && GUEST_TYPES.has(res.type) && !guestMay(req.cap, max >= rankOf("use"))) return "role_lacks_permission";
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";
   if (steps) steps.push({ ok: true, text: matched ? `grant ${scratch[0]!.row.id} (${scratch[0]!.row.level})` : "owner of the resource (Manage)" });

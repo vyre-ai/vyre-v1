@@ -17,6 +17,8 @@ export interface SubjectInfo {
   /** `actor:<id>`, `group:<id>` and `role:<id>` keys a grant's subject can match */
   readonly keys: ReadonlySet<string>;
   readonly roleNames: string;
+  /** A person whose only role is Guest: what they hold on a thread or a channel is capped by guest-caps.ts. Agents hold the Guest role as their low role and are never this. */
+  readonly guest: boolean;
 }
 
 /** A grant with its hot-path fields pre-read. */
@@ -155,7 +157,8 @@ export class AccessSnapshot {
       for (const x of r.perms) perms.add(x);
     }
     this.applyExceptions(id, groups, roleIds, perms);
-    const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role" };
+    const guest = p.kind === "person" && roleIds.size > 0 && [...roleIds].every((rid) => rid === "rol_guest");
+    const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role", guest };
     this.infoCache.set(id, info);
     return info;
   }

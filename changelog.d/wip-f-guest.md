@@ -3,3 +3,4 @@
 - A guest's sidebar no longer offers People and Agents (a chat with either is refused them), and their start page says to pick a channel instead of offering a chat that cannot start.
 - Channels made before this release open for guests too: the first time one is used, its chat is moved under its channel.
 - A guest of a channel reads and replies in the threads under its messages too, at the level they were invited at; a thread an agent or a person started from the channel (a helper, a handoff, an Ask pane, an aside) stays closed to them.
+- A guest of a channel reads, reacts, replies and opens reply threads, and nothing else: stopping the agents, starting helpers or handing work on, changing modes, pinning, renaming and adding people are refused them, including for guests invited before this release.
