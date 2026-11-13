@@ -199,6 +199,7 @@ test("flow 4, @agent in a chat between people: the agent joins when mentioned, t
         folderId: folder.folder.id,
         name: "Olivia_Claude",
         kind: "ai_subscription",
+        // secret-scan: fake
         fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }],
       }),
       200,

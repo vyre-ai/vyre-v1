@@ -300,6 +300,7 @@ test("secret scan: keys are found by line and kind, values never come back, vaul
     "Plain text.",
     `aws key ${aws()}`,
     `token ${ghp()}`,
+    // secret-scan: fake
     "-----BEGIN RSA PRIVATE KEY-----",
     "api_key = #Team_Key",
     "api_key: vault:stripe",

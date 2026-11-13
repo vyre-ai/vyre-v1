@@ -26,8 +26,11 @@ const caddyFetch: FetchFn = () =>
   });
 const TOKENS = ["sk-ant-oat01-ONCEfirstTOKEN0123456789abcdef", "sk-ant-oat01-ONCEsecondTOKEN0123456789abcdef"]; // secret-scan: fake
 const OLDER = [
+  // secret-scan: fake
   "sk-ant-oat01-ONCEcopyA0123456789abcdef",
+  // secret-scan: fake
   "sk-ant-oat01-ONCEcopyB0123456789abcdef",
+  // secret-scan: fake
   "sk-ant-oat01-ONCEcopyC0123456789abcdef",
 ]; // secret-scan: fake
 const KEY = Buffer.alloc(32, 9).toString("base64"); // the person's Vault key, which the app hands over after every start

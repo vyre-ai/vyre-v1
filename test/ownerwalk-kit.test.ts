@@ -313,6 +313,7 @@ export async function connectAi(w: Walk): Promise<void> {
     folderId: folder,
     name: "Olivia_Claude",
     kind: "ai_subscription",
+    // secret-scan: fake
     fields: [{ key: "setup_token", value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ", secret: true }],
     idempotencyKey: "ow-i1",
   });

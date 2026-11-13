@@ -49,6 +49,7 @@ test("a card with no rows or a key in a row is refused", async () => {
     connectorCard(ctx, {
       threadId: "thr_1",
       title: "t",
+      // secret-scan: fake
       items: [{ text: "Authorization: Bearer sk_live_abcdefghijklmnop123456", done: true }],
     }),
   ); // secret-scan: fake

@@ -21,6 +21,7 @@ const SA = JSON.stringify({
   type: "service_account",
   client_id: "1234567890",
   client_email: "vyre@proj.iam.gserviceaccount.com",
+  // secret-scan: fake
   private_key: "-----BEGIN PRIVATE KEY-----\nSECRETKEYMATERIAL\n-----END PRIVATE KEY-----\n",
 }); // secret-scan: fake
 const MSAPP = JSON.stringify({ clientId: "app-1", clientSecret: "s3cr3t-value", tenantId: "contoso.onmicrosoft.com" });

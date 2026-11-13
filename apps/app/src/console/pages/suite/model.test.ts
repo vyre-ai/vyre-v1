@@ -18,6 +18,7 @@ const key = (o: Record<string, unknown> = {}) =>
     project_id: "firm-prod",
     client_id: "104857384729183746501",
     client_email: "vyre@firm-prod.iam.gserviceaccount.com",
+    // secret-scan: fake
     private_key: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
     ...o,
   });

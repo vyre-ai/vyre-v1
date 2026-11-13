@@ -103,6 +103,7 @@ test("the Add sheet: three ways in, the registry results with how each signs in,
   assert.ok(has(browse, "official MCP Registry"));
   const paste = draw({
     way: "paste",
+    // secret-scan: fake
     text: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 npx -y @modelcontextprotocol/server-github",
   }); // secret-scan: fake
   assert.ok(has(paste, 'data-testid="row-draft-github"') && has(paste, "1 key goes to the Vault"));

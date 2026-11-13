@@ -149,6 +149,7 @@ export const northwind: SampleSpace = {
       rotateEvery: 180,
       rotatedAgoDays: 203,
       fields: [
+        // secret-scan: fake
         ["STRIPE_SECRET_KEY", "sk_live_51NwFakeFakeFakeFakeFake00aa", true],
         ["STRIPE_PUBLISHABLE_KEY", "pk_live_51NwFakeFakeFakeFake11bb", false],
       ],
@@ -160,6 +161,7 @@ export const northwind: SampleSpace = {
       folder: "fld_mine",
       scope: "mine",
       usedAgo: m(42),
+      // secret-scan: fake
       fields: [["CLAUDE_SETUP_TOKEN", "sk-ant-oat01-fake-fake-fake-fake-fake", true]],
     }, // secret-scan: fake
     {
@@ -196,6 +198,7 @@ export const northwind: SampleSpace = {
       fields: [
         ["CLIENT_EMAIL", "bot@northwind-prod.iam.example", false],
         ["PROJECT_ID", "northwind-prod", false],
+        // secret-scan: fake
         ["PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----fake", true],
       ],
     }, // secret-scan: fake

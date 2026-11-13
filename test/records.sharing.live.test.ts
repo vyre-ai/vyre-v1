@@ -100,6 +100,7 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     const account = await A("providers.add", {
       providerKey: "anthropic",
       connection: "api_key",
+      // secret-scan: fake
       apiKey: "sk-ant-api03-TESTsecretVALUE0123456789abcdefXYZ",
       scope: "shared",
       folderId: sharedFolder.data.folder.id,

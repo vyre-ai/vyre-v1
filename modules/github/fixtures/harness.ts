@@ -45,6 +45,7 @@ export const RECORDED = {
     client_id: "Iv1.clientid",
     client_secret: "client_secret_not_real",
     webhook_secret: "hook_secret_from_github",
+    // secret-scan: fake
     pem: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAnotarealkey\n-----END RSA PRIVATE KEY-----\n",
     permissions: { contents: "write", issues: "write", metadata: "read", pull_requests: "write", checks: "read" }, // secret-scan: fake
     events: ["push", "pull_request", "issues", "check_run", "workflow_run"],

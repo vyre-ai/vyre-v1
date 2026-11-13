@@ -122,6 +122,7 @@ async function mineFolder(h: Harness): Promise<string> {
 
 test("signing in twice to the same account is one row: the same provider, handle and name, holding the newest credential", async () => {
   const h = harness();
+  // secret-scan: fake
   const OLD = "sk-ant-oat01-first-sign-in-0123456789",
     NEW = "sk-ant-oat01-second-sign-in-0123456789"; // secret-scan: fake
   const who = { id: "claude:acct:a-1/org:o-1", label: "maya@example.com" };
@@ -154,6 +155,7 @@ test("signing in twice to the same account is one row: the same provider, handle
 
 test("two accounts of one provider are two rows named by their account, and neither overwrites the other", async () => {
   const h = harness();
+  // secret-scan: fake
   const A = "sk-ant-oat01-personal-account-0123456789",
     B = "sk-ant-oat01-work-account-0123456789"; // secret-scan: fake
   u.configureVault({

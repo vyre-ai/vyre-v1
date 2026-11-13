@@ -426,6 +426,7 @@ test("keys never sit in a command line: a handle or a key in the arguments is re
   const hn = world();
   for (const args of [
     ["-y", "server", "--api-key", "#Key.value"],
+    // secret-scan: fake
     ["-y", "server", "--token=ghp_abcdefghijklmnopqrstuvwxyz0123456789"],
     ["-y", "server", "sk-live-abcdefghijklmnop1234567890"],
   ]) {
@@ -457,6 +458,7 @@ test("keys never sit in a command line: a handle or a key in the arguments is re
   );
   // a pasted line with the key in front: the key leaves the command for the Vault
   const pasted = parseAddress(
+    // secret-scan: fake
     "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 npx -y @modelcontextprotocol/server-github",
   )!; // secret-scan: fake
   assert.equal(pasted.length, 1);

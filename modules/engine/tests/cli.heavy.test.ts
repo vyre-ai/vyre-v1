@@ -82,6 +82,7 @@ test(
               ? {
                   kind: "value",
                   itemId: "vit_claude",
+                  // secret-scan: fake
                   value: "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ",
                   spaceOnly: false,
                   injectIntoDeployments: false,

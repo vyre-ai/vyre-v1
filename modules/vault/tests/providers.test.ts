@@ -642,6 +642,7 @@ test("the person's client saved the sign-in in Mine while the flow was still ope
 
 test("signing in again to an account the person already has refreshes that item and keeps its provider: no 'Claude Code 2' beside it", async () => {
   const h = harness();
+  // secret-scan: fake
   const OLD = "sk-ant-oat01-first-TOKEN-0123456789",
     NEW = "sk-ant-oat01-second-TOKEN-0123456789"; // secret-scan: fake
   const { port } = fakeSignin([

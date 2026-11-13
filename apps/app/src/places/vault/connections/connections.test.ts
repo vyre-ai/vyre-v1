@@ -289,6 +289,7 @@ test("adding from the registry: the key goes into my own Vault folder and the co
 test("a pasted command: the key in front of it goes into a Shared folder for a Space connection, the command keeps no key", async () => {
   const fx = space({ folders: [{ id: "vfd_mine", scope: "mine" }], tools: { github: { ok: true, tools: [1] } } });
   const d = parseAddress(
+    // secret-scan: fake
     "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 npx -y @modelcontextprotocol/server-github",
   )![0]!; // secret-scan: fake
   await addFromPlan(
