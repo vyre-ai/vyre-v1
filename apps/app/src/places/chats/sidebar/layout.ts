@@ -57,8 +57,8 @@ export interface Item {
   title: string;
   /** The second line of a Needs you or Now row: what is waiting, or what it is doing. */
   sub?: string;
-  /** Ids of the faces on the row: the one actor, or the first of a group. */
-  faces: readonly string[];
+  /** The faces on the row: the one actor, the lead of a goal, the asker of a task, or the first of a group. */
+  faces: readonly { id: string; name: string }[];
   unread: number;
   mentions: number;
   muted: boolean;
@@ -80,6 +80,10 @@ export interface Item {
   presence?: "online" | "away";
   /** A private channel draws a lock. */
   private?: boolean;
+  /** Other people are in this chat: its menu offers Leave, not Delete (delete is only for a chat of me and agents). */
+  withPeople?: boolean;
+  /** The Assistant row of Team: it has no Pause, Edit instructions or Delete. */
+  assistant?: boolean;
 }
 
 // ---------------------------------------------------------------- the one mark of a row, and the sum of marks of a group
@@ -527,13 +531,18 @@ export function itemsFrom(s: ItemSource): Item[] {
       kind: direct ? "dm" : "chat",
       shape,
       title: r.title,
-      faces: r.members ? r.members.map((m) => m.id) : r.whoId ? [r.whoId] : [],
+      faces: r.members
+        ? r.members.map((m) => ({ id: m.id, name: m.name }))
+        : r.whoId
+          ? [{ id: r.whoId, name: r.who }]
+          : [],
       unread: r.unread + (r.repliesUnread ?? 0),
       mentions: s.mentions?.get(key) ?? 0,
       muted: r.muted === true || muted("thread", r.threadId),
       draft: s.drafts?.has(key) === true,
       working: r.working,
       archived: r.archived === true,
+      withPeople: r.withPeople === true,
       ask: s.asks?.has(r.threadId) === true,
       lastAt: r.lastAt,
       ...(direct && r.whoId && s.presence?.get(r.whoId) ? { presence: s.presence.get(r.whoId)! } : {}),
@@ -584,7 +593,7 @@ export function itemsFrom(s: ItemSource): Item[] {
       kind: "goal",
       shape: "goal",
       title: g.title,
-      faces: [g.leadAgentId],
+      faces: [{ id: g.leadAgentId, name: s.agentName?.(g.leadAgentId) ?? "Agent" }],
       working: g.status === "active",
       ended: ENDED.has(g.status),
       progress: { done: p.tasksDone, total: p.tasks },
@@ -600,7 +609,7 @@ export function itemsFrom(s: ItemSource): Item[] {
       shape: "task",
       title: n.task.title,
       ...(s.agentName && n.task.createdBy ? { sub: s.agentName(n.task.createdBy) } : {}),
-      faces: n.task.createdBy ? [n.task.createdBy] : [],
+      faces: n.task.createdBy ? [{ id: n.task.createdBy, name: s.agentName?.(n.task.createdBy) ?? "Agent" }] : [],
       verb: needsVerb(n),
     });
   }
@@ -612,7 +621,7 @@ export function itemsFrom(s: ItemSource): Item[] {
       kind: "person",
       shape: "person",
       title: p.name,
-      faces: [p.id],
+      faces: [{ id: p.id, name: p.name }],
       muted: muted("person", p.id),
       ...(s.presence?.get(p.id) ? { presence: s.presence.get(p.id)! } : {}),
     });
@@ -625,8 +634,9 @@ export function itemsFrom(s: ItemSource): Item[] {
       kind: "agent",
       shape: isAssistant ? "assistant" : "agent",
       title: a.name,
-      faces: [a.agentId],
+      faces: [{ id: a.agentId, name: a.name }],
       muted: muted("agent", a.agentId),
+      assistant: isAssistant,
       working: s.workingAgents?.has(a.agentId) === true,
     });
   }
