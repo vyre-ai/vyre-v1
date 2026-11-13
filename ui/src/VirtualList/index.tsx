@@ -124,7 +124,11 @@ function WindowedList<T>({
   // a list that comes back (the person left it for a file and returned) is where they left it
   useEffect(() => {
     const y = scrollMemory?.get() ?? 0;
-    if (y > 0) scroller.current?.scrollTo({ y, animated: false });
+    if (y > 0)
+      (scroller.current as unknown as { scrollTo(o: { y: number; animated: boolean }): void } | null)?.scrollTo({
+        y,
+        animated: false,
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
