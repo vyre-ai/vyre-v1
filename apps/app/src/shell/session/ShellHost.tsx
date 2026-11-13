@@ -356,7 +356,11 @@ export function ShellHost({
             retitle: (title) => hub.retitle(hub.session().tabs.state().active, title),
             fill: (place, hash, title, from) => hub.fill(place, hash, title, from),
             activeTab: () => hub.session().tabs.state().active,
-            origins: () => [stored.baseUrl],
+            // the Space's own address, and the page's address when it differs (a Space reached by two names): itemLink writes the page's address on the web
+            origins: () => {
+              const here = (globalThis as { location?: { origin?: string } }).location?.origin;
+              return here && /^https?:/.test(here) ? [stored.baseUrl, here] : [stored.baseUrl];
+            },
             signOut: () => signOutRef.current(),
           }))
         : null,
