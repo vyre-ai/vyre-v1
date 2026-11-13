@@ -1,0 +1,21 @@
+{
+  "module": "state",
+  "capabilities": {
+    "state.arrive@1": "49e12374b4c7a9920550e702d15b1613195545ce1ce7fc4cac0557ad7bb3ff34",
+    "state.counts@1": "9d83a24a7d96e9aa6e4d4d696cf573b7bf0754bebdc71dbc653ebafa28414400",
+    "state.forget@1": "f2b23bd52812d5fce154d23d8bc2aa130fa1b1673bc4430f8e02336a6b026880",
+    "state.gain@1": "61ab424b50425acee9b38bf6b50ac835f947cab0e0524a325e4254265c76ca98",
+    "state.get@1": "fc2321d9bd34d9f4186a37e62b294027a1cd31fe9a341a087baa57c14f4fb2a8",
+    "state.list@1": "f028e295761522dcbefca7607651ce029a6a0a056e2624e066cdde44cfbe6435",
+    "state.lose@1": "446cb8261f1abb227c9f47cd26b3365cc62d0c97e4c8c4db1b9789dd0931fae0",
+    "state.merge@1": "04b386ff68901e50fec528d3eec689850cfe41bbb97e33129da28510e9cb7c02",
+    "state.read@1": "1949e095c87f24b3e928ec60d8bc9908a663045c160eea7dcc1588af814f9d99",
+    "state.read_scope@1": "d6652db277a6a2774d378da6700f0c2d7206643783a4c2aa8321bdfb79c6bc97",
+    "state.retract@1": "8ea07c279153eb1aab38f6dd86f181d90d044d1c373bd5f54965090511e2b2af",
+    "state.set@1": "652876e360a451ffd054887f73df7dd9664661eacbeedfe663708d796fc10f2c",
+    "state.verify@1": "61d41118000edff7fb90176ef540129bd7c7fc23b7ab961fae6e98183236828d"
+  },
+  "events": {
+    "state.changed": "6a7d377ba2475bffd364acf2b2c1c3be71387d32cce0faf263a1a2dd960e8faf"
+  }
+}

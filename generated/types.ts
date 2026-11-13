@@ -36760,6 +36760,181 @@ export type StarsToggleOut = {
   starred: boolean;
   following: boolean;
 };
+export type StateArriveIn = {
+  thing: {
+    type: string;
+    id: string;
+  };
+  pos: number;
+  by: string | null;
+  at: number;
+  mentions?: Array<string>;
+};
+export type StateArriveOut = {
+  applied: boolean;
+  people: number;
+};
+export type StateCountsIn = {
+  scopes?: Array<string>;
+};
+export type StateCountsOut = {
+  counts: Array<{
+      scope: string;
+      things: number;
+      entries: number;
+    }>;
+};
+export type StateForgetIn = {
+  thing: {
+    type: string;
+    id: string;
+  };
+};
+export type StateForgetOut = {
+  ok: boolean;
+};
+export type StateGainIn = {
+  person: string;
+  scope: string;
+};
+export type StateGainOut = {
+  rows: number;
+};
+export type StateGetIn = {
+  things: Array<{
+      type: string;
+      id: string;
+    }>;
+};
+export type StateGetOut = {
+  states: Array<{
+      thing: {
+        type: string;
+        id: string;
+      };
+      readUpto: number;
+      unread: number;
+      done: number | null;
+      starred: number | null;
+      follow: ("following" | "left") | null;
+      alert: boolean;
+      muted: number | null;
+    }>;
+};
+export type StateListIn = {
+  flag: "starred" | "following" | "done" | "unread" | "muted";
+  type?: string;
+  scope?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type StateListOut = {
+  rows: Array<{
+      thing: {
+        type: string;
+        id: string;
+      };
+      title: string;
+      at: number;
+      unread: number;
+    }>;
+  next?: string;
+};
+export type StateLoseIn = {
+  person: string;
+  scope: string;
+};
+export type StateLoseOut = {
+  rows: number;
+};
+export type StateMergeIn = {
+  from: {
+    type: string;
+    id: string;
+  };
+  to: {
+    type: string;
+    id: string;
+  };
+};
+export type StateMergeOut = {
+  ok: boolean;
+};
+export type StateReadIn = {
+  thing: {
+    type: string;
+    id: string;
+  };
+  upto?: number;
+  unread?: true;
+  fromPos?: number;
+};
+export type StateReadOut = {
+  unread: number;
+};
+export type StateReadScopeIn = {
+  scope: string;
+  before?: number;
+};
+export type StateReadScopeOut = {
+  marked: number;
+};
+export type StateRetractIn = {
+  thing: {
+    type: string;
+    id: string;
+  };
+};
+export type StateRetractOut = {
+  ok: boolean;
+};
+export type StateSetIn = {
+  thing: {
+    type: string;
+    id: string;
+  };
+  done?: boolean;
+  star?: boolean;
+  follow?: ("following" | "left") | null;
+  alert?: boolean;
+  mute?: {
+    until: number;
+  } | null;
+};
+export type StateSetOut = {
+  state: {
+    thing: {
+      type: string;
+      id: string;
+    };
+    readUpto: number;
+    unread: number;
+    done: number | null;
+    starred: number | null;
+    follow: ("following" | "left") | null;
+    alert: boolean;
+    muted: number | null;
+  };
+};
+export type StateVerifyIn = {
+  person?: string;
+  scope?: string;
+  repair?: boolean;
+  deep?: boolean;
+};
+export type StateVerifyOut = {
+  problems: Array<{
+      kind: "head" | "unread" | "count";
+      detail: string;
+      person?: string;
+      thing?: {
+        type: string;
+        id: string;
+      };
+      scope?: string;
+    }>;
+  repaired: number;
+};
 export type StepsSupportIn = Record<string, unknown>;
 export type StepsSupportOut = {
   code: {
@@ -46871,6 +47046,19 @@ export interface CapMap {
   "spaces.update": { in: SpacesUpdateIn; out: SpacesUpdateOut };
   "stars.list": { in: StarsListIn; out: StarsListOut };
   "stars.toggle": { in: StarsToggleIn; out: StarsToggleOut };
+  "state.arrive": { in: StateArriveIn; out: StateArriveOut };
+  "state.counts": { in: StateCountsIn; out: StateCountsOut };
+  "state.forget": { in: StateForgetIn; out: StateForgetOut };
+  "state.gain": { in: StateGainIn; out: StateGainOut };
+  "state.get": { in: StateGetIn; out: StateGetOut };
+  "state.list": { in: StateListIn; out: StateListOut };
+  "state.lose": { in: StateLoseIn; out: StateLoseOut };
+  "state.merge": { in: StateMergeIn; out: StateMergeOut };
+  "state.read": { in: StateReadIn; out: StateReadOut };
+  "state.read_scope": { in: StateReadScopeIn; out: StateReadScopeOut };
+  "state.retract": { in: StateRetractIn; out: StateRetractOut };
+  "state.set": { in: StateSetIn; out: StateSetOut };
+  "state.verify": { in: StateVerifyIn; out: StateVerifyOut };
   "steps.support": { in: StepsSupportIn; out: StepsSupportOut };
   "steps.test": { in: StepsTestIn; out: StepsTestOut };
   "stripe.checkout.create_session": { in: StripeCheckoutCreateSessionIn; out: StripeCheckoutCreateSessionOut };
@@ -50672,6 +50860,16 @@ export type StarRemovedPayload = {
     id: string;
   };
 };
+export type StateChangedPayload = {
+  person: string;
+  thing: {
+    type: string;
+    id: string;
+  };
+  changed: Array<"read" | "done" | "star" | "follow" | "mute">;
+  now: number;
+  by: string;
+};
 export type StripeEventReceivedPayload = {
   eventId: string;
   type: string;
@@ -52073,6 +52271,7 @@ export interface EventMap {
   "spend.resumed": SpendResumedPayload;
   "star.added": StarAddedPayload;
   "star.removed": StarRemovedPayload;
+  "state.changed": StateChangedPayload;
   "stripe.event_received": StripeEventReceivedPayload;
   "subscription.canceled": SubscriptionCanceledPayload;
   "subscription.created": SubscriptionCreatedPayload;

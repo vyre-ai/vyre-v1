@@ -144,3 +144,12 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: the state module, per-person state on a thing (lane b-state, contract P2 step 0)
+
+- What changed: a new manifest `manifests/state.ts` and snapshot `docs/frozen/snapshots/state.json`. Thirteen capabilities, all new at `@1`: six public (`state.get`, `state.list`, `state.counts`, `state.read`, `state.read_scope`, `state.set`) and seven the host makes itself (`state.arrive`, `state.retract`, `state.merge`, `state.gain`, `state.lose`, `state.forget`, `state.verify`; the handler refuses everyone but `svc_host`). One event, `state.changed` (`vis: owner`; payload person, thing, changed, now and `by`, so an agent's change names the agent). One person setting, `state.agents_may_triage`, default off. The six public capabilities have agent tools `state_get`, `state_list`, `state_counts`, `state_read`, `state_read_scope`, `state_set` in the `meta` toolset, all `deferred` so the default listed toolset stays at 65.
+- What did not change: no existing capability, event or entity is touched, and nothing calls the new ones yet. The 18 capabilities and 10 events the contract lists as going are removed in later steps, each with its own dated note. The synced entities `state_person` and `state_count` are declared at the replica step (7), not here.
+- Why: P2 (docs: `team/v1/CONTRACTS-2026-11-13/P2-person-state.md`). Read, done, star, follow and mute become one row per person and thing, so one person's read can never clear another's.
+- One difference from the contract text: a thing is `{ type, id }` with an open `type`, not a `resourceRef`, because the things that carry state (an Inbox conversation, a notice) are not access resources; each kind of thing says who can see it. A refused agent write answers `permission.no_grant` (the contract's "permission.denied" is not an error code).
+
+Signed: (awaiting the lead)

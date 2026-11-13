@@ -8701,6 +8701,42 @@
       "toolset": "meta"
     },
     {
+      "deferred": true,
+      "name": "state_counts",
+      "summary": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_get",
+      "summary": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_list",
+      "summary": "My things by what I did with them: starred, following, done, unread or muted",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read",
+      "summary": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read_scope",
+      "summary": "Mark everything in one badge read, or only what arrived before a time",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_set",
+      "summary": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, or mute it. Give at least one",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "steps_test",
       "summary": "Run one step in test mode with sample data: reads run for real, writes and sends are stubbed",

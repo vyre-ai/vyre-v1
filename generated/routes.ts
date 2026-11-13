@@ -34728,6 +34728,240 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/state/arrive",
+    "cap": "state.arrive",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/counts",
+    "cap": "state.counts",
+    "v": 1,
+    "module": "state",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/forget",
+    "cap": "state.forget",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/gain",
+    "cap": "state.gain",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/get",
+    "cap": "state.get",
+    "v": 1,
+    "module": "state",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/list",
+    "cap": "state.list",
+    "v": 1,
+    "module": "state",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/lose",
+    "cap": "state.lose",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/merge",
+    "cap": "state.merge",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/read",
+    "cap": "state.read",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/read_scope",
+    "cap": "state.read_scope",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/retract",
+    "cap": "state.retract",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/set",
+    "cap": "state.set",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/state/verify",
+    "cap": "state.verify",
+    "v": 1,
+    "module": "state",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/steps/support",
     "cap": "steps.support",
     "v": 1,
@@ -38456,7 +38690,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/a2p/create_campaign",
@@ -38690,10 +38927,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/recording/delete",
