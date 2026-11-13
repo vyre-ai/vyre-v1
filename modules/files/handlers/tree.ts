@@ -1439,12 +1439,20 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
     const source = opened?.source as Record<string, unknown> | undefined;
     const here = failure === undefined && opened?.mounted === true && source?.cached === true;
     // an agent's fetch waiting for approval has no content yet either
-    if (!here && opened?.changesetId === undefined)
+    if (!here && opened?.changesetId === undefined) {
+      // the provider's own reason travels on when it is one a person can act on (sign-in, rate limit, the file is gone); anything else is the generic "not here just now"
+      const code = failure instanceof VyreErr ? failure.error.code : "";
+      if (
+        failure instanceof VyreErr &&
+        /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(code)
+      )
+        throw failure;
       fail(
         ctx,
         "provider.unavailable",
         "Vyre could not get this file from where it lives just now. Try again, or open it there.",
       );
+    }
   }
   return file;
 }

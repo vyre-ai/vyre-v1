@@ -189,7 +189,8 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
       if (typeof u?.url === "string") out.previewUrl = u.url;
     }
   }
-  if (kind === "spreadsheet") {
+  // a workbook over the size gate is never opened on the server for a screenful: the app says it is too large to preview
+  if (kind === "spreadsheet" && num(file.size) <= GRID_MAX_BYTES) {
     const s = await tryCall<{ sheets?: unknown[] }>(ctx, "sheets.info", { fileId });
     if (Array.isArray(s?.sheets)) out.sheets = s.sheets;
     // the grid is drawn from text: a CSV or TSV is its own text, a workbook's first sheet is written as CSV. Without it the viewer drew "0 rows, 0 columns" for every spreadsheet.

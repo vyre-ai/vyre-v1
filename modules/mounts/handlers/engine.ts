@@ -128,7 +128,7 @@ function skipReason(e: unknown): string {
     case "validation.too_large":
       return "It is too large to bring in.";
     case "validation.not_found":
-      return "It was moved or deleted while Vyre was reading the folder. The next pass looks again.";
+      return "It was moved or deleted while Vyre was reading the folder. Vyre asks about it again on each sync.";
     case "permission.needs_approval":
       return "Adding it to this folder needs someone's approval.";
     default:
@@ -139,9 +139,13 @@ function skipReason(e: unknown): string {
 }
 
 const MAX_SKIPPED = 200;
+/** Skipped items asked about again in each pass. */
+const RETRY_PER_PASS = 25;
 
 interface Skipped {
   remoteId: string;
+  /** where it sat, so asking about it again can place it */
+  parentId?: string;
   name: string;
   reason: string;
 }
@@ -186,7 +190,12 @@ function optStr(o: Row, key: string): string | undefined {
 }
 
 /** The name an item has in Files: what the last pass gave it, else the provider's own. */
-export const shownOf = (r: Row): string => (typeof r["shown_name"] === "string" && r["shown_name"] !== "" ? r["shown_name"] : typeof r["name"] === "string" ? r["name"] : "");
+export const shownOf = (r: Row): string =>
+  typeof r["shown_name"] === "string" && r["shown_name"] !== ""
+    ? r["shown_name"]
+    : typeof r["name"] === "string"
+      ? r["name"]
+      : "";
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const flag = (v: unknown): boolean => v === 1 || v === true;
@@ -659,7 +668,12 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
           code: codeOf(e) ?? "",
           rule: messageOf(e),
         });
-        skipped.push({ remoteId: item.id, name: item.name, reason: skipReason(e) });
+        skipped.push({
+          remoteId: item.id,
+          ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+          name: item.name,
+          reason: skipReason(e),
+        });
         skippedIds.add(item.id);
       }
       progress = true;
@@ -671,7 +685,12 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     more = false;
     for (const item of queue) {
       if (item.parentId === undefined || !skippedIds.has(item.parentId) || skippedIds.has(item.id)) continue;
-      skipped.push({ remoteId: item.id, name: item.name, reason: "Its folder could not be shown." });
+      skipped.push({
+        remoteId: item.id,
+        ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+        name: item.name,
+        reason: "Its folder could not be shown.",
+      });
       skippedIds.add(item.id);
       more = true;
     }
@@ -1010,9 +1029,43 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         const applied = await applyBatch(ctx, m, provider, batch, rows);
         pulled = applied.pulled;
         conflicts = applied.conflicts;
-        // the list of skipped items: a full listing starts it again, a feed of changes only drops the items it saw, and adds what it could not bring in
-        const before = batch.full ? [] : skippedOf(row).filter((x) => !applied.touched.has(x.remoteId));
-        skippedNow = [...before, ...applied.skipped].slice(0, MAX_SKIPPED);
+        // the list of skipped items: a full listing starts it again; a feed of changes only names what changed, so the items skipped before are asked about again here (a few each pass): a name
+        // that was fixed or a permission that came back brings the item in by itself, and one that is gone leaves the list
+        let again: Applied | undefined;
+        const handled = new Set<string>();
+        if (!batch.full && provider.stat) {
+          const old = skippedOf(row)
+            .filter((x) => !applied.touched.has(x.remoteId))
+            .slice(0, RETRY_PER_PASS);
+          const items: RemoteItem[] = [];
+          for (const x of old) {
+            try {
+              const it = await provider.stat(ctx, m, x.remoteId);
+              if (it)
+                items.push(
+                  it.parentId === undefined && x.parentId !== undefined ? { ...it, parentId: x.parentId } : it,
+                );
+              else handled.add(x.remoteId);
+            } catch (err) {
+              if (codeOf(err) === "validation.not_found") handled.add(x.remoteId);
+              else if (isMountLevel(err)) throw err;
+            }
+          }
+          if (items.length > 0) {
+            again = await applyBatch(ctx, m, provider, { items, removed: [], full: false }, rows);
+            pulled += again.pulled;
+            conflicts += again.conflicts;
+            for (const it of items) if (rows.some((r) => r["remote_id"] === it.id)) handled.add(it.id);
+          }
+        }
+        const before = batch.full
+          ? []
+          : skippedOf(row).filter((x) => !applied.touched.has(x.remoteId) && !handled.has(x.remoteId));
+        const fresh = [...applied.skipped, ...(again?.skipped ?? [])];
+        skippedNow = [...before.filter((x) => !fresh.some((y) => y.remoteId === x.remoteId)), ...fresh].slice(
+          0,
+          MAX_SKIPPED,
+        );
         skippedKnown = true;
         if (batch.cursor !== undefined) patchMount(ctx, row, { cursor: batch.cursor });
         const sent = await pushAll(ctx, m, provider, rows);

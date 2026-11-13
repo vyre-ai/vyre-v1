@@ -330,7 +330,8 @@ export async function pushMoves(
       // Files may not hold ("Q3/Q4 plan.pdf" is shown as "Q3-Q4 plan.pdf"). A row from before shown_name also accepts any name a pass would have given it.
       const unchanged = !isNull(row["shown_name"])
         ? here.name === str(row["shown_name"])
-        : here.name === str(row["name"]) || freeNames(displayName(str(row["name"])), provider.label).includes(here.name);
+        : here.name === str(row["name"]) ||
+          freeNames(displayName(str(row["name"])), provider.label).includes(here.name);
       if (unchanged && target["item_key"] === row["parent_key"]) continue;
       const parentRemote = isNull(target["remote_id"]) ? undefined : str(target["remote_id"]);
       if (parentRemote === undefined) continue; // the new parent is not at the provider yet; the next pass
@@ -339,7 +340,13 @@ export async function pushMoves(
         if (!provider.createFolder || !provider.remove) continue;
         const made = await provider.createFolder(ctx, m, { name: here.name, parentRemote });
         for (const d of subtreeOf(rows, row).slice(1)) patch(d, { remote_id: null, remote_version: null, dirty: 1 });
-        patch(row, { name: here.name, shown_name: here.name, parent_key: target["item_key"], remote_id: made.remoteId, dirty: 0 });
+        patch(row, {
+          name: here.name,
+          shown_name: here.name,
+          parent_key: target["item_key"],
+          remote_id: made.remoteId,
+          dirty: 0,
+        });
         res.moved += 1;
         await provider.remove(ctx, m, oldRemote, true);
       } else {

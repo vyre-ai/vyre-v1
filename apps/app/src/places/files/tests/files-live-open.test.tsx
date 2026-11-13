@@ -139,3 +139,44 @@ test("a spreadsheet too large to draw says so with Open in; one a little over th
     restore();
   }
 });
+
+test("what the viewer says about a failed fetch follows the cause: sign-in, rate limit, removed file, or just not now", async () => {
+  const { fetchFailureWords } = await import("../viewer/model.ts");
+  assert.deepEqual(fetchFailureWords("validation.not_found", "Google Drive"), {
+    words: "This file was removed in Google Drive.",
+    retry: false,
+  });
+  assert.match(fetchFailureWords("provider.auth_failed", "Google Drive").words, /Reconnect it in Settings, under Connections/);
+  assert.match(fetchFailureWords("provider.rate_limited", "Google Drive").words, /slow down\. Try again in a minute/);
+  assert.deepEqual(fetchFailureWords("provider.unavailable", "Google Drive"), {
+    words: "Could not get this from Google Drive just now",
+    retry: true,
+  });
+});
+
+test("a workbook with several sheets says it shows the first, with where to see the rest", async () => {
+  const restore = installDom();
+  try {
+    const base = createSampleViewer();
+    const data: FilesViewerData = {
+      ...base.data,
+      call: async (cap, input) => {
+        if (cap === "files.viewer_data") {
+          const s = (await base.data.call(cap, { fileId: "f_fees" })) as { file: Record<string, unknown> };
+          return { ...s, text: CSV, sheets: [{ name: "A" }, { name: "B" }, { name: "C" }] };
+        }
+        return base.data.call(cap, cap.startsWith("files.") ? { ...(input as object), fileId: "f_fees" } : input);
+      },
+    };
+    const root = await mount(
+      createRoot,
+      <FilesViewerDataProvider value={data}>
+        <FileViewer fileId="f_fees" />
+      </FilesViewerDataProvider>,
+    );
+    await flush();
+    assert.match(textOf(find(root, "file-viewer-sheets")), /Showing the first of 3 sheets\./);
+  } finally {
+    restore();
+  }
+});

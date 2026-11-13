@@ -17,7 +17,7 @@ import { createRequire } from "node:module";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
-import { MAX_UPLOAD, treeHandlers } from "./tree.ts";
+import { MAX_UPLOAD, openAtProvider, treeHandlers } from "./tree.ts";
 
 type Row = Record<string, unknown>;
 export type Cell = string | number | boolean;
@@ -393,6 +393,13 @@ function liveFile(ctx: Ctx, fileId: string): Row {
   return row;
 }
 
+/** The file, with its content fetched first when it is a live placeholder (a Drive file not opened yet): an unfetched placeholder is never read as an empty table, and never written back over the real file. */
+async function liveFileOpened(ctx: Ctx, fileId: string): Promise<Row> {
+  liveFile(ctx, fileId);
+  await openAtProvider(ctx, fileId, false);
+  return liveFile(ctx, fileId);
+}
+
 function plainBytes(ctx: Ctx, blobId: string): Uint8Array {
   const row = one(ctx, "SELECT * FROM files_blob WHERE id = ?", blobId);
   if (!row) return fail(ctx, "validation.not_found", "That blob is not in the store.", { blobId });
@@ -539,7 +546,7 @@ async function edit<T>(
 ): Promise<T & { versionId?: string }> {
   return queued(`${ctx.space}:${fileId}`, async () => {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const file = liveFile(ctx, fileId);
+      const file = await liveFileOpened(ctx, fileId);
       const format = formatOf(ctx, file);
       if (format === "google")
         return fail(ctx, "internal.unexpected", "Google sheets are edited through the provider.");
@@ -736,7 +743,7 @@ function infoOf(book: Book): SheetInfo[] {
 }
 
 async function tableFile(ctx: Ctx, fileId: string): Promise<{ file: Row; format: Format; book?: Book }> {
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   const format = formatOf(ctx, file);
   if (format === "google") return { file, format };
   return { file, format, book: await openBook(ctx, file, format) };
@@ -1056,7 +1063,7 @@ async function sheetsAppendRows(
   if (!Array.isArray(rows) || rows.length === 0)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "rows" });
   const objs = (rows as unknown[]).map((r) => recordOf(ctx, r, "rows"));
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   if (formatOf(ctx, file) === "google")
     return (await googleHandle(ctx, "sheets.append_rows", o, file)) as { appended: number; rowIds: string[] };
   const label = optStr(ctx, o, "label");
@@ -1083,7 +1090,7 @@ async function sheetsUpdateRow(ctx: Ctx, input: unknown): Promise<{ rowId: strin
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const values = recordOf(ctx, o.values, "values");
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   if (formatOf(ctx, file) === "google")
     return (await googleHandle(ctx, "sheets.update_row", o, file)) as { rowId: string };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids, file: f }) => {
@@ -1107,7 +1114,7 @@ async function sheetsUpsertRow(
   const match = checkColumns(ctx, o.match, "match");
   for (const m of match)
     if (!(m in values)) fail(ctx, "validation.bad_input", `values has no ${m} to match on.`, { field: "match" });
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   if (formatOf(ctx, file) === "google")
     return (await googleHandle(ctx, "sheets.upsert_row", o, file)) as { rowId: string; created: boolean };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids, file: f }) => {
@@ -1140,7 +1147,7 @@ async function sheetsDeleteRow(ctx: Ctx, input: unknown): Promise<{ deleted: boo
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   reqStr(ctx, o, "rowId");
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   if (formatOf(ctx, file) === "google")
     return (await googleHandle(ctx, "sheets.delete_row", o, file)) as { deleted: boolean };
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids }) => {
@@ -1157,7 +1164,7 @@ async function sheetsAddSheet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }
   const fileId = reqStr(ctx, o, "fileId");
   const title = reqStr(ctx, o, "sheet").trim();
   const columns = Array.isArray(o.columns) && o.columns.length > 0 ? checkColumns(ctx, o.columns, "columns") : [];
-  const file = liveFile(ctx, fileId);
+  const file = await liveFileOpened(ctx, fileId);
   const format = formatOf(ctx, file);
   if (format === "google") return (await googleHandle(ctx, "sheets.add_sheet", o, file)) as { ok: boolean };
   if (format === "csv")

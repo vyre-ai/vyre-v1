@@ -219,7 +219,8 @@ for (const actor of ["usr_owner", "agt_helper"]) {
       ["d2x", "Budget.pdf"],
     ]);
     // the Drive name is the Drive's: what is written back carries the real name, never the display name
-    for (const u of w.google.uploads) assert.ok([...realNames.values()].includes(u.name), `written back as ${u.name.slice(0, 12)}`);
+    for (const u of w.google.uploads)
+      assert.ok([...realNames.values()].includes(u.name), `written back as ${u.name.slice(0, 12)}`);
     assert.deepEqual(
       w.items(mountId).map((i) => [i["remote_id"], i["name"]]),
       before,
@@ -243,5 +244,39 @@ test("a rename typed in Vyre on a file whose display name differs changes the Dr
     payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })),
   });
   await call(w, "mounts.sync_now", { mountId });
-  assert.ok(w.google.uploads.some((u) => u.name === "Plan 2026.pdf"), "the typed name goes to Drive");
+  assert.ok(
+    w.google.uploads.some((u) => u.name === "Plan 2026.pdf"),
+    "the typed name goes to Drive",
+  );
+});
+
+test("a skipped item is asked about again on every pass: once what refused it is fixed, the next sync brings it in and the count drops", async () => {
+  const w = harness();
+  w.google.startToken = "tok3"; // the first pass stores a cursor, so the next is a pass over the feed of changes
+  let refuse = true;
+  const real = w.files.call.bind(w.files);
+  w.files.call = (cap: string, i: Row): unknown => {
+    if (refuse && cap === "files.create" && i["name"] === "intro.pdf")
+      throw vyreErr("validation.bad_input", "Refused.");
+    return real(cap, i);
+  };
+  const added = await call(w, "mounts.add", { into: "fld_into", source: DRIVE, name: "Drive" });
+  const mountId = String(added["mountId"]);
+  const view = async (): Promise<Row> => (await call(w, "mounts.get", { mountId }))["mount"] as Row;
+  assert.equal((await view())["skippedCount"], 1);
+  assert.ok(!w.files.paths().includes("Drive/intro.pdf"));
+  // another pass while it is still refused: still listed once, mount still healthy
+  await call(w, "mounts.sync_now", { mountId });
+  assert.equal((await view())["skippedCount"], 1);
+  assert.equal((await view())["state"], "idle");
+  refuse = false;
+  const feedBefore = w.google.calls.filter((c) => c.cap === "google.drive.list_changes").length;
+  await call(w, "mounts.sync_now", { mountId });
+  assert.ok(
+    w.google.calls.filter((c) => c.cap === "google.drive.list_changes").length > feedBefore,
+    "this was a pass over the feed of changes, not a full listing",
+  );
+  const v = await view();
+  assert.equal(v["skippedCount"], undefined, "the count dropped");
+  assert.ok(w.files.paths().includes("Drive/intro.pdf"), "the item is in");
 });

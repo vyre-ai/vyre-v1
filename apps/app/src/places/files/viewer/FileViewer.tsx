@@ -31,6 +31,8 @@ import {
   textToBlocks,
   viewerKindOf,
   GRID_MAX_BYTES,
+  FETCH_FAILURE_CODES,
+  fetchFailureWords,
   GRID_PREVIEW_BYTES,
 } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
@@ -56,7 +58,7 @@ type Graph = CapMap["memory.graph"]["out"];
 type Load =
   | { status: "loading"; /** the provider, when the file is a live placeholder being fetched from it */ from?: string }
   | { status: "gone" }
-  | { status: "failed"; /** the provider the content could not be got from */ from: string }
+  | { status: "failed"; /** the provider the content could not be got from, and the cause the server named */ from: string; code: string }
   | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
@@ -115,7 +117,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           (e as { code?: string; error?: { code?: string } } | null)?.code ??
           (e as { error?: { code?: string } } | null)?.error?.code;
         if (live)
-          setLoad(from !== "" && code === "provider.unavailable" ? { status: "failed", from } : { status: "gone" });
+          setLoad(from !== "" && FETCH_FAILURE_CODES.test(code ?? "") ? { status: "failed", from, code: code ?? "" } : { status: "gone" });
       }
     })();
     return () => {
@@ -199,7 +201,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         ) : null}
       </View>
     );
-  if (load.status === "failed")
+  if (load.status === "failed") {
+    const fw = fetchFailureWords(load.code, load.from);
     return (
       <View
         testID="file-viewer-failed"
@@ -209,9 +212,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         <View style={s.failedBox}>
           <States
             kind="empty"
-            title={`Could not get this from ${load.from} just now`}
+            title={fw.words}
             icon="offline"
-            action={{ label: "Try again", onPress: () => setAttempt((n) => n + 1) }}
+            {...(fw.retry ? { action: { label: "Try again", onPress: () => setAttempt((n) => n + 1) } } : {})}
           />
         </View>
         {link && d.openUrl ? (
@@ -226,6 +229,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         ) : null}
       </View>
     );
+  }
   if (load.status === "gone" || !ready)
     return (
       <View
@@ -270,6 +274,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const saveStrokes = (next: readonly Stroke[]): void => {
     void saveMarkup(d, fileId, next).catch(say);
   };
+  const sheetCount = Array.isArray(ready.data.sheets) ? ready.data.sheets.length : 0;
+  const firstOfMany = file.kind === "spreadsheet" && sheetCount > 1;
   const cutShort = file.kind === "spreadsheet" && file.size > GRID_PREVIEW_BYTES && file.size <= GRID_MAX_BYTES;
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
@@ -516,6 +522,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         }
       />
       {accessMenu.element}
+      {firstOfMany && !note ? (
+        <Text style={[s.note, cutShort ? s.noteHigh : null]} testID="file-viewer-sheets">
+          {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
+        </Text>
+      ) : null}
       {cutShort && !note ? (
         <Text style={s.note} testID="file-viewer-cutshort">
           Showing the first rows of a large file.
@@ -557,6 +568,7 @@ const s = StyleSheet.create({
   failedBox: { height: 190, width: "100%" },
   failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -6 },
   failedOpenText: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "600" },
+  noteHigh: { bottom: 48 },
   note: {
     position: "absolute",
     left: 16,

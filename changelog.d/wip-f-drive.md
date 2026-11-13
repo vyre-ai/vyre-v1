@@ -5,3 +5,7 @@
 - A picture, PDF or Word file from Google Drive that has not been fetched yet is fetched before it is shown. If Drive cannot be reached you see Try again, never an empty checkerboard or blank page.
 - A large spreadsheet shows its first rows and says so; one over 10 MB says it is too large to preview and offers Open in Google Drive.
 - An open file now has a Back arrow and a path at the top, the same path as the folder list. Back returns to the list you came from (Recent, Starred, Shared with me, a folder) with your selection and scroll place kept, and Esc does the same unless a field, a menu or a markup tool is using it. The tab is named for the file.
+- Editing a Google Drive file whose name Vyre shows differently (a name with a slash, or one of two files with the same name) now only replaces its content in Drive. It never renames the file or deletes the original.
+- Spreadsheet tools, for people and agents, no longer read a Drive spreadsheet that has not been fetched as an empty table, and can no longer write over the real file with an empty one.
+- A Drive item that could not be shown is asked about again on every sync, so fixing its name or permission brings it in by itself.
+- When Drive content cannot be fetched you now see why: an expired sign-in (reconnect it), a rate limit (try again in a minute) or a file removed in Drive. A workbook with several sheets says it shows the first.

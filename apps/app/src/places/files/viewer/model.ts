@@ -329,3 +329,19 @@ export function versionRows(
 export const GRID_PREVIEW_BYTES = 200_000;
 /** Over this a spreadsheet file is not previewed at all: the quiet "too large to preview" line with Open in, never a hang. Matches the server's GRID_MAX_BYTES. */
 export const GRID_MAX_BYTES = 10 * 1024 * 1024;
+
+/** What the viewer says when a live file's content could not be fetched, by the cause the server named, and whether Try again is the right action. */
+export function fetchFailureWords(code: string, provider: string): { words: string; retry: boolean } {
+  if (code === "validation.not_found") return { words: `This file was removed in ${provider}.`, retry: false };
+  if (/^(provider\.auth_failed|auth\.)/.test(code))
+    return {
+      words: `${provider} no longer accepts the sign-in. Reconnect it in Settings, under Connections.`,
+      retry: true,
+    };
+  if (/^(provider\.(rate_limited|overloaded)|rate_limit\.)/.test(code))
+    return { words: `${provider} asked Vyre to slow down. Try again in a minute.`, retry: true };
+  return { words: `Could not get this from ${provider} just now`, retry: true };
+}
+
+/** The causes the server names for a live file whose content is not here: each gets the failed state, not the "not available" screen. */
+export const FETCH_FAILURE_CODES = /^(provider\.(unavailable|network|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;

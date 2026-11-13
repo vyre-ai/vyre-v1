@@ -781,3 +781,53 @@ test("content fetched from a provider as a generic blob is stored under the file
   await call(ctx, "files.write", { fileId: csv, content: { blobId } });
   assert.equal((ctx.db.all("SELECT * FROM files_blob WHERE id = ?", blobId) as Obj[])[0]!.mime, "text/csv");
 });
+
+// ---- every door to a live file's content goes through the one fetch-or-fail path ----
+
+test("sheets.* on a live Drive CSV that is not fetched: each read fails (never 0 rows) and each write fails (the empty placeholder is never written back over the real file)", async () => {
+  const down = new VyreErr({ code: "provider.unavailable", message: "Drive is down.", retryable: true, traceId: "t", next: [] });
+  const { ctx, placeholder } = await drive(async () => {
+    throw down;
+  });
+  const id = await placeholder("fees.csv", "text/csv");
+  const before = (await call(ctx, "files.get", { fileId: id })).file;
+  const doors: [string, Obj][] = [
+    ["sheets.info", { fileId: id }],
+    ["sheets.read_rows", { fileId: id }],
+    ["sheets.append_rows", { fileId: id, rows: [{ a: "1" }] }],
+    ["sheets.update_row", { fileId: id, rowId: "r1", values: { a: "1" } }],
+    ["sheets.upsert_row", { fileId: id, values: { a: "1" }, match: ["a"] }],
+    ["sheets.delete_row", { fileId: id, rowId: "r1" }],
+  ];
+  for (const [cap, input] of doors) assert.equal(await code(call(ctx, cap, input)), "provider.unavailable", cap);
+  const after = (await call(ctx, "files.get", { fileId: id })).file;
+  assert.deepEqual([after.size, after.version], [before.size, before.version], "nothing was written to the placeholder");
+});
+
+test("sheets.read_rows on a live CSV that is not fetched yet fetches it first, then reads its rows", async () => {
+  const { ctx, placeholder } = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched from Google Drive" });
+    return { mounted: true, fetched: true, source: { cached: true } };
+  });
+  const id = await placeholder("fees.csv", "text/csv");
+  const r = await call(ctx, "sheets.read_rows", { fileId: id });
+  assert.equal(r.total, 2);
+});
+
+test("a live file that cannot be fetched says why: an expired sign-in, a rate limit, a file removed at the provider each reach the caller as themselves; anything else is the generic not-here-just-now", async () => {
+  for (const c of ["provider.auth_failed", "provider.rate_limited", "validation.not_found", "timeout.provider"]) {
+    const e = new VyreErr({ code: c as never, message: "x", retryable: false, traceId: "t", next: [] });
+    const d = await drive(async () => {
+      throw e;
+    });
+    const id = await d.placeholder("fees.csv", "text/csv");
+    assert.equal(await code(call(d.ctx, "files.viewer_data", { fileId: id })), c);
+    assert.equal(await code(call(d.ctx, "files.read", { fileId: id, as: "text" })), c);
+  }
+  const odd = new VyreErr({ code: "validation.bad_input", message: "x", retryable: false, traceId: "t", next: [] });
+  const d = await drive(async () => {
+    throw odd;
+  });
+  const id = await d.placeholder("fees.csv", "text/csv");
+  assert.equal(await code(call(d.ctx, "files.viewer_data", { fileId: id })), "provider.unavailable");
+});
