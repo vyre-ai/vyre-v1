@@ -79,15 +79,7 @@ test("a guest's mention starts no turn and says so once; a member's mention in t
       "no agent turn started for the guest: no answer, no status, in the channel or under their message",
     );
     const lines = after.filter((m) => m.blocks?.some((b) => b.data?.text === LINE));
-    assert.equal(
-      lines.length,
-      1,
-      `one quiet line, once, though the guest mentioned twice ${hostLog(w.d)
-        .split(",")
-        .filter((l) => /members|guest|postAs|40 /.test(l))
-        .slice(0, 6)
-        .join("|")}`,
-    );
+    assert.equal(lines.length, 1, "one quiet line, once, though the guest mentioned twice");
     assert.ok(
       after.some((m) => (m.body ?? "").includes("@Dex what is going on? 2")),
       "both mentions stay in the channel",
