@@ -108,15 +108,15 @@ if ("row" in o668) d_s_027fb3219c(o668["row"], p + "/row", e);
 
 function d_s_8b8037ac4a(v: unknown, p: string, e: string[]): void {
 {
-const x722 = v;
-const g722 = typeOf(x722);
-const b722: string[] = []; lf(x722, p, b722, L0); if (b722.length) e.push(...b722);
-if (g722 === "object") {
-if (g722 === 'object') { const o722 = x722 as Record<string, unknown>;
-if (!("person" in o722)) e.push(p + "/person" + ': required');
-if (!("channel" in o722)) e.push(p + "/channel" + ': required');
-if ("person" in o722) lf(o722["person"], p + "/person", e, L16);
-if ("channel" in o722) lf(o722["channel"], p + "/channel", e, L316);
+const x721 = v;
+const g721 = typeOf(x721);
+const b721: string[] = []; lf(x721, p, b721, L0); if (b721.length) e.push(...b721);
+if (g721 === "object") {
+if (g721 === 'object') { const o721 = x721 as Record<string, unknown>;
+if (!("person" in o721)) e.push(p + "/person" + ': required');
+if (!("channel" in o721)) e.push(p + "/channel" + ': required');
+if ("person" in o721) lf(o721["person"], p + "/person", e, L16);
+if ("channel" in o721) lf(o721["channel"], p + "/channel", e, L316);
 }
 }
 }
@@ -124,17 +124,17 @@ if ("channel" in o722) lf(o722["channel"], p + "/channel", e, L316);
 
 function d_s_cb565fe529(v: unknown, p: string, e: string[]): void {
 {
-const x993 = v;
-const g993 = typeOf(x993);
-const b993: string[] = []; lf(x993, p, b993, L0); if (b993.length) e.push(...b993);
-if (g993 === "object") {
-if (g993 === 'object') { const o993 = x993 as Record<string, unknown>;
-if (!("verified" in o993)) e.push(p + "/verified" + ': required');
-if (!("canVerify" in o993)) e.push(p + "/canVerify" + ': required');
-if (!("pending" in o993)) e.push(p + "/pending" + ': required');
-if ("verified" in o993) lf(o993["verified"], p + "/verified", e, L3);
-if ("canVerify" in o993) lf(o993["canVerify"], p + "/canVerify", e, L3);
-if ("pending" in o993) lf(o993["pending"], p + "/pending", e, L3);
+const x992 = v;
+const g992 = typeOf(x992);
+const b992: string[] = []; lf(x992, p, b992, L0); if (b992.length) e.push(...b992);
+if (g992 === "object") {
+if (g992 === 'object') { const o992 = x992 as Record<string, unknown>;
+if (!("verified" in o992)) e.push(p + "/verified" + ': required');
+if (!("canVerify" in o992)) e.push(p + "/canVerify" + ': required');
+if (!("pending" in o992)) e.push(p + "/pending" + ': required');
+if ("verified" in o992) lf(o992["verified"], p + "/verified", e, L3);
+if ("canVerify" in o992) lf(o992["canVerify"], p + "/canVerify", e, L3);
+if ("pending" in o992) lf(o992["pending"], p + "/pending", e, L3);
 }
 }
 }

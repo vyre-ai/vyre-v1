@@ -46,6 +46,7 @@ import {
   saveSchedule,
   scheduleOut,
   splitFireId,
+  wakeOf,
   validTimeZone,
 } from "../projections.ts";
 import type { IfMissed, MissedRow, SchedCtx, Schedule, When } from "../projections.ts";
@@ -125,6 +126,9 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
     const row = have ? findSchedule(ctx.db, have) : undefined;
     if (row) return clean({ scheduleId: row.id, nextAt: row.nextAt });
   }
+  // one wake of a kind per owner: a routine has one clock. A second one for the same routine is refused, whoever asks, so a door cannot be talked into making two.
+  if (kind !== "call" && wakeOf(ctx.db, kind, input.owner))
+    raise(ctx, "validation.precondition_failed", "That routine already has its schedule.", { reason: "wake_exists" });
   const when = checkWhen(ctx, input.when);
   if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor)
     raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
@@ -505,10 +509,21 @@ export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
     let states: Map<string, string> | undefined;
     if (ids.length > 0) {
       try {
-        const got = (await ctx.call("runs.states", { runIds: ids })) as {
-          states?: { runId: string; status: string }[];
-        } | null;
-        states = new Map((got?.states ?? []).map((x) => [x.runId, x.status]));
+        const got = (await ctx.call("runs.states", { runIds: ids })) as { states?: unknown } | null;
+        // only an answer of the right shape counts; anything else (null, {}, a list that is not one) closes nothing
+        if (Array.isArray(got?.states))
+          states = new Map(
+            (got.states as unknown[]).flatMap((x) => {
+              const e = x as { runId?: unknown; status?: unknown } | null;
+              return typeof e?.runId === "string" && typeof e.status === "string"
+                ? [[e.runId, e.status] as [string, string]]
+                : [];
+            }),
+          );
+        else
+          ctx.log?.warn("runs.states answered with something that is not a list of states: no fire was closed", {
+            ids: ids.length,
+          });
       } catch {
         states = undefined; // the runs module is down: leave every fire with a Run for the next pass
       }
@@ -517,7 +532,13 @@ export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
       let status: string | undefined;
       if (f.runId !== undefined) {
         if (states === undefined) continue;
-        status = states.get(f.runId) ?? "gone"; // a Run the host cannot find is gone: the host sees every Run
+        status = states.get(f.runId); // the runs module says "gone" for a Run that is not there; an id it did not answer closes nothing
+        if (status === undefined) {
+          ctx.log?.warn("runs.states left out a Run it was asked about: its fire stays open", {
+            scheduleId: f.scheduleId,
+          });
+          continue;
+        }
       } else if (now > f.graceUntil) status = "gone";
       else continue;
       const end =

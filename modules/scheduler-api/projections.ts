@@ -231,6 +231,18 @@ export function findSchedule(db: Db, id: string): Schedule | undefined {
   const r = (db.all("SELECT * FROM scheduler_api_schedules WHERE id = ? AND canceled_at IS NULL", id) as Raw[])[0];
   return r ? rowToSchedule(r) : undefined;
 }
+/** The one live wake of a kind that belongs to an owner (a routine id), if there is one. */
+export function wakeOf(db: Db, kind: string, owner: Owner): Schedule | undefined {
+  const r = (
+    db.all(
+      "SELECT * FROM scheduler_api_schedules WHERE kind = ? AND owner_kind = ? AND owner_id = ? AND canceled_at IS NULL LIMIT 1",
+      kind,
+      owner.kind,
+      owner.id,
+    ) as Raw[]
+  )[0];
+  return r ? rowToSchedule(r) : undefined;
+}
 export function allSchedules(db: Db): Schedule[] {
   return (
     db.all("SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL ORDER BY created_at ASC, id ASC") as Raw[]

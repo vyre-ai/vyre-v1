@@ -482,11 +482,8 @@ test("the sweep closes a fire stuck in running by its Run's real state, and neve
     now: Date.UTC(2026, 0, 5, 9, 1),
     calls: {
       "runs.states": (i) => {
-        // what the real runs module answers: the Runs it has; a Run that is not there is left out
-        const out = [];
-        for (const id of i.runIds as string[])
-          if (runs[id] !== null && runs[id] !== undefined) out.push({ runId: id, status: runs[id] });
-        return { states: out };
+        // what the real runs module answers: every id asked, "gone" for a Run that is not there
+        return { states: (i.runIds as string[]).map((id) => ({ runId: id, status: runs[id] ?? "gone" })) };
       },
     },
   });
@@ -1064,4 +1061,130 @@ test("each of the three doors may change a wake; any other nested call may not",
       "permission.no_grant",
       door,
     );
+});
+
+// ---- the fifth look ----
+
+async function openWithRun(h: ReturnType<typeof harness>, runs: string[]) {
+  const out: { scheduleId: string; key: string; id: string; run: string }[] = [];
+  const key = String(Date.UTC(2026, 0, 5, 9, 5));
+  for (const [i, run] of runs.entries()) {
+    const made = await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: `rtn_${i}` } }), host);
+    out.push({ scheduleId: made.scheduleId, key, id: fireIdOf(made.scheduleId, key), run });
+  }
+  h.setNow(Date.UTC(2026, 0, 5, 9, 5, 30));
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  for (const f of out) {
+    const c = await claim(h, f, "host_a");
+    await h.call("scheduler.report", { fireId: f.id, attempt: c.attempt, state: "running", runId: f.run }, host);
+  }
+  return out;
+}
+
+test("the sweep closes only on an explicit status: a null, an empty or a wrong answer, or an id left out, closes nothing", async () => {
+  const run = (n: number) => `run_${String(n).repeat(32)}`;
+  let answer: unknown = null;
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1), calls: { "runs.states": () => answer } });
+  const fires = await openWithRun(h, [run(1), run(2)]);
+  const sweep = () => h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  const open = () => fires.map((f) => state(h, f)["state"]);
+  for (const bad of [
+    null,
+    undefined,
+    {},
+    { states: null },
+    { states: {} },
+    { states: "gone" },
+    { states: [] },
+    { states: [{ runId: run(1) }] },
+    { states: [{ runId: run(1), status: 5 }] },
+  ]) {
+    answer = bad;
+    assert.equal((await sweep()).closed, 0, JSON.stringify(bad));
+    assert.deepEqual(open(), ["running", "running"], JSON.stringify(bad));
+  }
+  answer = { states: [{ runId: run(1), status: "gone" }] }; // the second id was left out: it stays open
+  assert.equal((await sweep()).closed, 1);
+  assert.deepEqual(open(), ["failed", "running"]);
+});
+
+test("closeFire compares the Run and the grace it read: a different Run id or a different grace closes nothing", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const [f] = await openWithRun(h, [`run_${"1".repeat(32)}`]);
+  const row = h.db.all("SELECT lease_until FROM scheduler_api_fires WHERE schedule_id = ?", f!.scheduleId)[0] as {
+    lease_until: number;
+  };
+  const seen = { scheduleId: f!.scheduleId, dueKey: f!.key, runId: f!.run, graceUntil: row.lease_until };
+  assert.equal(
+    closeFire(h.db, { ...seen, runId: `run_${"2".repeat(32)}` }, "failed", "x", h.now()),
+    false,
+    "another Run",
+  );
+  assert.equal(
+    closeFire(
+      h.db,
+      { scheduleId: seen.scheduleId, dueKey: seen.dueKey, graceUntil: row.lease_until },
+      "failed",
+      "x",
+      h.now(),
+    ),
+    false,
+    "no Run read, but it has one",
+  );
+  assert.equal(
+    closeFire(h.db, { ...seen, graceUntil: row.lease_until + 1 }, "failed", "x", h.now()),
+    false,
+    "another grace",
+  );
+  assert.equal(state(h, f!)["state"], "running");
+  assert.equal(closeFire(h.db, seen, "failed", "x", h.now()), true);
+});
+
+test("only the host sweeps: any other caller never even asks the runs module", async () => {
+  let asked = 0;
+  const h = harness({
+    now: Date.UTC(2026, 0, 5, 9, 1),
+    calls: {
+      "runs.states": (i) => {
+        asked += 1;
+        return { states: (i.runIds as string[]).map((runId) => ({ runId, status: "gone" })) };
+      },
+    },
+  });
+  const [f] = await openWithRun(h, [`run_${"3".repeat(32)}`]);
+  for (const who of [alice, bob, tenant]) {
+    assert.deepEqual(
+      await h.consumer(who, async (ctx) => (await import("../impl.ts")).sweepFires(ctx)),
+      { closed: 0 },
+      who.id.slice(0, 7),
+    );
+  }
+  assert.equal(asked, 0);
+  assert.equal(state(h, f!)["state"], "running");
+});
+
+test("a routine has one wake: a second for the same routine is refused, whoever asks; the same key gives the first back; a cancelled one can be made again", async () => {
+  const h = harness();
+  const own = { owner: { kind: "agent_routine", id: "rtn_one" } };
+  const first = await h.call("scheduler.schedule", wake({ ...own, idempotencyKey: "k1" }), host);
+  for (const who of [host, alice]) {
+    const door = who === alice ? "agents.routine.save" : undefined;
+    assert.equal(
+      await h
+        .call("scheduler.schedule", wake({ ...own, idempotencyKey: "k2" }), who, undefined, door)
+        .catch((e) => codeOf(e)),
+      "validation.precondition_failed",
+      who.id.slice(0, 7),
+    );
+  }
+  assert.equal(
+    (await h.call("scheduler.schedule", wake({ ...own, idempotencyKey: "k1" }), host)).scheduleId,
+    first.scheduleId,
+  );
+  assert.ok(
+    (await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: "rtn_two" } }), host)).scheduleId,
+    "another routine is another wake",
+  );
+  await h.call("scheduler.cancel", { scheduleId: first.scheduleId }, host);
+  assert.ok((await h.call("scheduler.schedule", wake({ ...own, idempotencyKey: "k3" }), host)).scheduleId);
 });

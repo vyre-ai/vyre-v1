@@ -36,31 +36,31 @@ if ("kind" in o507) lf(o507["kind"], p + "/kind", e, L1);
 
 function d_s_f06b085bb9(v: unknown, p: string, e: string[]): void {
 {
-const x1187 = v;
-const g1187 = typeOf(x1187);
-const b1187: string[] = []; lf(x1187, p, b1187, L0); if (b1187.length) e.push(...b1187);
-if (g1187 === "object") {
-if (g1187 === 'object') { const o1187 = x1187 as Record<string, unknown>;
-if (!("templateId" in o1187)) e.push(p + "/templateId" + ': required');
-if (!("title" in o1187)) e.push(p + "/title" + ': required');
-if (!("kind" in o1187)) e.push(p + "/kind" + ': required');
-if (!("summary" in o1187)) e.push(p + "/summary" + ': required');
-if (!("version" in o1187)) e.push(p + "/version" + ': required');
-if (!("adds" in o1187)) e.push(p + "/adds" + ': required');
-if ("templateId" in o1187) lf(o1187["templateId"], p + "/templateId", e, L263);
-if ("title" in o1187) lf(o1187["title"], p + "/title", e, L1);
-if ("kind" in o1187) lf(o1187["kind"], p + "/kind", e, L472);
-if ("summary" in o1187) lf(o1187["summary"], p + "/summary", e, L1);
-if ("version" in o1187) lf(o1187["version"], p + "/version", e, L1);
-if ("adds" in o1187) {
+const x1186 = v;
+const g1186 = typeOf(x1186);
+const b1186: string[] = []; lf(x1186, p, b1186, L0); if (b1186.length) e.push(...b1186);
+if (g1186 === "object") {
+if (g1186 === 'object') { const o1186 = x1186 as Record<string, unknown>;
+if (!("templateId" in o1186)) e.push(p + "/templateId" + ': required');
+if (!("title" in o1186)) e.push(p + "/title" + ': required');
+if (!("kind" in o1186)) e.push(p + "/kind" + ': required');
+if (!("summary" in o1186)) e.push(p + "/summary" + ': required');
+if (!("version" in o1186)) e.push(p + "/version" + ': required');
+if (!("adds" in o1186)) e.push(p + "/adds" + ': required');
+if ("templateId" in o1186) lf(o1186["templateId"], p + "/templateId", e, L263);
+if ("title" in o1186) lf(o1186["title"], p + "/title", e, L1);
+if ("kind" in o1186) lf(o1186["kind"], p + "/kind", e, L472);
+if ("summary" in o1186) lf(o1186["summary"], p + "/summary", e, L1);
+if ("version" in o1186) lf(o1186["version"], p + "/version", e, L1);
+if ("adds" in o1186) {
 {
-const x1188 = o1187["adds"];
-const g1188 = typeOf(x1188);
-const b1188: string[] = []; lf(x1188, p + "/adds", b1188, L4); if (b1188.length) e.push(...b1188);
-if (g1188 === "array") {
-if (g1188 === 'array') { const a1188 = x1188 as unknown[];
-for (let i1188 = 0; i1188 < a1188.length; i1188++) {
-lf(a1188[i1188], p + "/adds" + '/' + i1188, e, L1);
+const x1187 = o1186["adds"];
+const g1187 = typeOf(x1187);
+const b1187: string[] = []; lf(x1187, p + "/adds", b1187, L4); if (b1187.length) e.push(...b1187);
+if (g1187 === "array") {
+if (g1187 === 'array') { const a1187 = x1187 as unknown[];
+for (let i1187 = 0; i1187 < a1187.length; i1187++) {
+lf(a1187[i1187], p + "/adds" + '/' + i1187, e, L1);
 }
 }
 }

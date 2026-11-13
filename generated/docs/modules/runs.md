@@ -22,7 +22,7 @@ Requires: nothing.
 - [runs.resume](../capabilities/runs.resume.md): Continue a waiting Run
 - [runs.retry](../capabilities/runs.retry.md): Retry a failed or stopped Run from the start or from a step
 - [runs.start](../capabilities/runs.start.md): Create a Run record (engine, Gate and other modules call this for any long-lived work)
-- [runs.states](../capabilities/runs.states.md): System: the status of many Runs at once (up to 200); a Run that is not there is left out of the answer. For the host's sweeps, so a pass over open fires costs one call, not one per fire
+- [runs.states](../capabilities/runs.states.md): System: the status of many Runs at once (up to 200); every id asked gets an answer: its status, or "gone" for a Run that is not there. For the host's sweeps, so a pass over open fires costs one call, not one per fire
 - [runs.status](../capabilities/runs.status.md): Cheap health probe of the Run engine: queue depth, oldest queued Run, stuck Runs
 - [runs.step_io](../capabilities/runs.step_io.md): What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden
 - [runs.steps](../capabilities/runs.steps.md): The durable step log of a Run

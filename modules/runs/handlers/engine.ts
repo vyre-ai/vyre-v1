@@ -508,7 +508,7 @@ export async function get(ctx: RunsCtx, input: In): Promise<unknown> {
     })(),
   };
 }
-/** The status of up to 200 Runs in one call, for the host's sweeps. A Run that is not there is left out. The host sees every Run, so nothing is hidden by who asks. */
+/** The status of up to 200 Runs in one call, for the host's sweeps. EVERY id asked gets an answer: its status, or "gone" for a Run that is not there (the host sees every Run, so nothing is hidden by who asks). */
 export async function states(ctx: RunsCtx, input: In): Promise<unknown> {
   if (!isTrustedService(ctx.principal)) raise(ctx, "permission.no_grant", "Only the server reads many Runs at once.");
   const ids = input.runIds as string[];
@@ -517,7 +517,7 @@ export async function states(ctx: RunsCtx, input: In): Promise<unknown> {
   const out: { runId: string; status: string }[] = [];
   for (const id of ids) {
     const r = findRun(ctx.db, id);
-    if (r) out.push({ runId: id, status: r.status });
+    out.push({ runId: id, status: r ? r.status : "gone" });
   }
   return { states: out };
 }
