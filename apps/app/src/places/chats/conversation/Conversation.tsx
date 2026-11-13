@@ -2,6 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { draftOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
@@ -148,7 +149,8 @@ import {
   faceDoor,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
+import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
@@ -430,9 +432,16 @@ function ConversationView(): ReactElement {
   /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
   const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
-  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
+  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({
+    value: data.fill?.take() ?? draftOf(data.threadId),
+    n: 0,
+  }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
+  useEffect(() => {
+    setDraft(data.threadId, typed);
+  }, [data.threadId, typed]);
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
@@ -679,7 +688,14 @@ function ConversationView(): ReactElement {
       ? NO_IDS
       : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id),
   );
-  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
+  // a chat this person started a moment ago is not readable yet: that is not a refusal, so the loading mark stays and the read is asked again
+  const notYet = failed !== undefined && refusalIsPending(failed, data.threadId);
+  useEffect(() => {
+    if (!notYet) return undefined;
+    const t = setInterval(retryLoads, 1500);
+    return () => clearInterval(t);
+  }, [notYet]);
+  if (failed && !notYet) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;

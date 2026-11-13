@@ -21,10 +21,10 @@ const settingsWith = (rows: QueryState<unknown>): SettingsData => {
     } as SettingsData["screens"],
   };
 };
-const html = (data: SettingsData): string =>
+const html = (data: SettingsData, props: { initialQuery?: string } = {}): string =>
   renderToStaticMarkup(
     <SettingsDataProvider value={data}>
-      <SettingsPlace width={1280} />
+      <SettingsPlace width={1280} {...props} />
     </SettingsDataProvider>,
   ).replaceAll("<!-- -->", "");
 
@@ -45,4 +45,10 @@ test("while the read is only waiting there is no error and no word Loading", () 
   assert.doesNotMatch(out, /load-failed/);
   assert.doesNotMatch(out, />Loading</);
   assert.match(out, /data-testid="quiet"/);
+});
+
+test("a search over settings that could not load says so, not that nothing matches", () => {
+  const out = html(settingsWith({ status: "loading", error: { message: "The server did not answer." } }), { initialQuery: "time" });
+  assert.match(out, /data-testid="load-failed"/);
+  assert.doesNotMatch(out, /search-none|Nothing matches/);
 });

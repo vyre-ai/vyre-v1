@@ -176,7 +176,7 @@ export function PaneToggleButton({
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       style={[styles.toggle, over ? HOVER : null]}
-      {...webProps({ title: label, dataSet: { paneToggle: "far-left" } })}
+      {...webProps({ dataSet: { tt: label, paneToggle: "far-left" } })}
     >
       <MenuIcon icon="pane" color={over ? "var(--ink)" : "var(--ink-3)"} size={16} />
     </Pressable>

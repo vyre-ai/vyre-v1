@@ -492,6 +492,9 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    chats: {
+      presence: call("chats.presence", 1),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month", 1),
@@ -938,6 +941,7 @@ export function createClient(transport: Transport) {
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
+        asked_by: call("engine.turn.asked_by", 1),
         enqueue: call("engine.turn.enqueue", 1),
         fallback: call("engine.turn.fallback", 1),
         finish: call("engine.turn.finish", 1),
@@ -2098,6 +2102,7 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
+      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {
@@ -2905,6 +2910,7 @@ export function createClient(transport: Transport) {
         remove: call("threads.members.remove", 1),
       },
       move: call("threads.move", 1),
+      open_state: call("threads.open_state", 1),
       outside_agent: {
         add: call("threads.outside_agent.add", 1),
         remove: call("threads.outside_agent.remove", 1),

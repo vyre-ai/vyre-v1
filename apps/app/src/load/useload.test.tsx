@@ -237,3 +237,55 @@ test("without a ScreensProvider the hook says what is missing", async () => {
     restore();
   }
 });
+
+test("hooks that cannot answer a capability say so, instead of waiting for ever", async () => {
+  const restore = installDom();
+  try {
+    const seen: Load<number>[] = [];
+    const Probe = probe(() => useLoad<number>({ cap: "inbox.counts" }), seen);
+    await mount(
+      createRoot,
+      <ScreensProvider
+        screens={hooksOf(() => {
+          throw new Error("not a screen");
+        })}
+      >
+        <Probe />
+      </ScreensProvider>,
+    );
+    const l = last(seen);
+    assert.equal(l.state, "failed");
+    assert.equal(
+      l.state === "failed" ? l.failure.code : "",
+      "load.cannot_read",
+      "marked as one that retrying cannot fix",
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("an answer whose last re-read failed stays ready, with the failure beside it, and the next good answer clears it", async () => {
+  const restore = installDom();
+  try {
+    const f = fakeQuery<number>({ status: "ready", data: 1 });
+    let stale: { message: string } | null = null;
+    const listeners = new Set<() => void>();
+    (f.q as unknown as { stale: unknown }).stale = {
+      subscribe: (l: () => void) => (listeners.add(l), () => listeners.delete(l)),
+      getSnapshot: () => stale,
+    };
+    const seen: Load<number>[] = [];
+    const Probe = probe(() => useLoad<number>({ screen: ["a", "b"] }), seen);
+    await mount(createRoot, <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}><Probe /></ScreensProvider>);
+    assert.deepEqual(last(seen), { state: "ready", data: 1 });
+    stale = { message: "down" };
+    await act(async () => listeners.forEach((l) => l()));
+    assert.deepEqual(last(seen), { state: "ready", data: 1, stale: { message: "down" } });
+    stale = null;
+    await act(async () => listeners.forEach((l) => l()));
+    assert.deepEqual(last(seen), { state: "ready", data: 1 });
+  } finally {
+    restore();
+  }
+});

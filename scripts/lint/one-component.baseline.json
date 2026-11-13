@@ -3,16 +3,13 @@
     "load-more": 2
   },
   "apps/app/src/console/objects/pickers.tsx": {
-    "load-more": 8
+    "load-more": 4
   },
   "apps/app/src/console/pages/ai-controls.tsx": {
     "declared": 1
   },
-  "apps/app/src/console/pages/comms/common.tsx": {
-    "load-more": 1
-  },
   "apps/app/src/console/pages/comms/RecipientPicker.tsx": {
-    "load-more": 2
+    "load-more": 1
   },
   "apps/app/src/console/pages/Connections.tsx": {
     "load-more": 2
@@ -26,17 +23,11 @@
   "apps/app/src/console/pages/GateRules.tsx": {
     "load-more": 1
   },
-  "apps/app/src/console/pages/Grants.tsx": {
-    "load-more": 1
-  },
   "apps/app/src/console/pages/Groups.tsx": {
-    "load-more": 3
-  },
-  "apps/app/src/console/pages/Reviews.tsx": {
     "load-more": 1
   },
   "apps/app/src/console/pages/Roles.tsx": {
-    "load-more": 3
+    "load-more": 1
   },
   "apps/app/src/console/pages/shared.tsx": {
     "declared": 4,
@@ -46,18 +37,21 @@
     "load-more": 1
   },
   "apps/app/src/console/pages/TemplateFiles.tsx": {
-    "load-more": 2
+    "load-more": 1
   },
   "apps/app/src/console/shell/data.tsx": {
     "read-hook": 1
   },
   "apps/app/src/console/shell/ui.tsx": {
-    "declared": 2
+    "declared": 3
   },
   "apps/app/src/machines/MachinesView.tsx": {
     "declared": 1
   },
   "apps/app/src/mobile/sheets/Sheet.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/apps/shell/AppsPlace.tsx": {
     "declared": 1
   },
   "apps/app/src/places/apps/shell/data.tsx": {
@@ -77,7 +71,7 @@
     "declared": 1
   },
   "apps/app/src/places/automations/operations/parts.tsx": {
-    "declared": 1
+    "declared": 2
   },
   "apps/app/src/places/automations/runs/data.tsx": {
     "read-hook": 1
@@ -90,6 +84,9 @@
   },
   "apps/app/src/places/chats/computer/data.tsx": {
     "read-hook": 1
+  },
+  "apps/app/src/places/chats/computer/LiveScreen.tsx": {
+    "declared": 1
   },
   "apps/app/src/places/chats/conversation/Conversation.tsx": {
     "crew-poll": 1
@@ -120,9 +117,6 @@
   },
   "apps/app/src/places/chats/mounts/Layers.tsx": {
     "declared": 1
-  },
-  "apps/app/src/places/chats/mounts/RepliesPage.tsx": {
-    "load-more": 1
   },
   "apps/app/src/places/chats/needsyou/data.tsx": {
     "read-hook": 1
@@ -181,6 +175,9 @@
   "apps/app/src/places/inbox/sidebar/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/records/projectpage/overview/OverviewPage.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/records/projectpage/overview/Properties.tsx": {
     "declared": 1
   },
@@ -211,6 +208,9 @@
   "apps/app/src/places/vault/layout/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/vault/layout/index.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/vault/layout/Sheet.tsx": {
     "declared": 1
   },
@@ -219,5 +219,8 @@
   },
   "ui/src/HistoryTab/index.tsx": {
     "declared": 1
+  },
+  "ui/src/TaskPage/StatusDot.tsx": {
+    "declared": 2
   }
 }

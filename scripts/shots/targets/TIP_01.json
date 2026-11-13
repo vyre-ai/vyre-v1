@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "TIP_01-dialog", "route": "/m/TIP_01?v=dialog", "proto": "tip,{skin}", "waitFor": "[data-testid='tip-target']", "note": "A tip over a control inside a Dialog" }
+  ]
+}

@@ -492,6 +492,9 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    chats: {
+      presence: call("chats.presence"),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month"),
@@ -938,6 +941,7 @@ export function stubs(ctx: CallCtx) {
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
+        asked_by: call("engine.turn.asked_by"),
         enqueue: call("engine.turn.enqueue"),
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),
@@ -2098,6 +2102,7 @@ export function stubs(ctx: CallCtx) {
         set: call("notifications.rules.set"),
       },
       send: call("notifications.send"),
+      unseen_by_thread: call("notifications.unseen_by_thread"),
     },
     plugins: {
       agent_template: {
@@ -2905,6 +2910,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("threads.members.remove"),
       },
       move: call("threads.move"),
+      open_state: call("threads.open_state"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),

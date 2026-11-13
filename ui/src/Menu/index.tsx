@@ -520,8 +520,11 @@ function MenuRow({
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({
-        ...(report ? { dataSet: { report: "true" } } : {}),
-        ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}),
+        // react-native-web drops a title prop on a Pressable, so the reason a disabled item gives goes to the one tooltip as data-tt
+        dataSet: {
+          ...(report ? { report: "true" } : {}),
+          ...(entry.disabled === true && entry.reason !== undefined ? { tt: entry.reason } : {}),
+        },
       })}
     >
       {entry.leading !== undefined ? (
@@ -530,7 +533,7 @@ function MenuRow({
       {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? (
         <MenuIcon icon={entry.icon} color={ink} />
       ) : null}
-      <Text numberOfLines={1} style={[styles.label, { color: ink }]}>
+      <Text numberOfLines={2} style={[styles.label, { color: ink }]}>
         {entry.label}
       </Text>
       {entry.mark !== undefined ? (
@@ -560,7 +563,11 @@ function MenuRow({
         </Text>
       ) : null}
       {entry.hint !== undefined ? (
-        <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>
+        <Text
+          numberOfLines={2}
+          style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]}
+          testID={`menu-hint-${entry.label}`}
+        >
           {entry.hint}
         </Text>
       ) : null}
@@ -864,7 +871,8 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: "row",
     alignItems: "center",
-    height: 28,
+    minHeight: 28,
+    paddingVertical: 2,
     paddingHorizontal: 9,
     borderRadius: RADIUS,
     gap: 9,
@@ -882,7 +890,14 @@ const styles = StyleSheet.create({
     color: "var(--ink-3)" as string,
     fontVariant: ["tabular-nums"],
   },
-  hint: { marginLeft: "auto", paddingLeft: 16, fontSize: 11.5, color: "var(--ink-4)" as string },
+  hint: {
+    flexShrink: 4,
+    marginLeft: "auto",
+    paddingLeft: 16,
+    textAlign: "right",
+    fontSize: 11.5,
+    color: "var(--ink-4)" as string,
+  },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },

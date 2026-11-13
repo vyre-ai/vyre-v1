@@ -96,3 +96,9 @@ test("a labelled switch draws its words beside the track and the whole row press
     restore();
   }
 });
+
+test("on the web the switch carries its label for the one tooltip (the one tooltip shows it)", async () => {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const html = renderToStaticMarkup(<Switch on label="Push after committing" onChange={() => undefined} />);
+  assert.match(html, /data-tt="Push after committing"/);
+});

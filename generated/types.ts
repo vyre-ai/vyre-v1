@@ -8282,6 +8282,18 @@ export type ChatUnpinIn = {
 export type ChatUnpinOut = {
   pinned: boolean;
 };
+export type ChatsPresenceIn = Record<string, unknown>;
+export type ChatsPresenceOut = {
+  people: Array<{
+      personId: string;
+      state: "online" | "away";
+    }>;
+  working: Array<{
+      agentId: string;
+      threadId?: string;
+      since: number;
+    }>;
+};
 export type CiCostMonthIn = {
   month?: string;
 };
@@ -8955,6 +8967,9 @@ export type ComputersChromeScreenshotOut = {
   fileId: string;
   width: number;
   height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
@@ -12677,6 +12692,16 @@ export type EngineTurnAppendIn = {
 export type EngineTurnAppendOut = {
   idx: number;
 };
+export type EngineTurnAskedByIn = Record<string, unknown>;
+export type EngineTurnAskedByOut = {
+  kind: "message" | "interrupt" | "wake" | "handoff" | "none";
+  routine: boolean;
+  askedBy?: {
+    person: string;
+    messageIds: Array<string>;
+    at: number;
+  };
+};
 export type EngineTurnEnqueueIn = {
   threadId: string;
   agentId: string;
@@ -16328,6 +16353,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
 };
@@ -17150,6 +17176,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
   readings: Array<{
@@ -29539,6 +29566,16 @@ export type NotificationsSendIn = {
 export type NotificationsSendOut = {
   outcome: "interrupt" | "badge" | "digest" | "dropped_muted" | "capped";
   notificationId?: string;
+};
+export type NotificationsUnseenByThreadIn = {
+  threadIds?: Array<string>;
+};
+export type NotificationsUnseenByThreadOut = {
+  counts: Array<{
+      threadId: string;
+      mentions: number;
+    }>;
+  capped: boolean;
 };
 export type PluginsAgentTemplateUseIn = {
   pluginId: string;
@@ -42886,6 +42923,13 @@ export type ThreadsMoveOut = {
     preview?: string;
   };
 };
+export type ThreadsOpenStateIn = {
+  threadId: string;
+};
+export type ThreadsOpenStateOut = {
+  exists: boolean;
+  closed: boolean;
+};
 export type ThreadsOutsideAgentAddIn = {
   threadId: string;
   agentId: string;
@@ -45324,6 +45368,7 @@ export interface CapMap {
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
+  "chats.presence": { in: ChatsPresenceIn; out: ChatsPresenceOut };
   "ci.cost.month": { in: CiCostMonthIn; out: CiCostMonthOut };
   "ci.job.intake": { in: CiJobIntakeIn; out: CiJobIntakeOut };
   "ci.project.get": { in: CiProjectGetIn; out: CiProjectGetOut };
@@ -45634,6 +45679,7 @@ export interface CapMap {
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.time_convert": { in: EngineTimeConvertIn; out: EngineTimeConvertOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
+  "engine.turn.asked_by": { in: EngineTurnAskedByIn; out: EngineTurnAskedByOut };
   "engine.turn.enqueue": { in: EngineTurnEnqueueIn; out: EngineTurnEnqueueOut };
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };
@@ -46483,6 +46529,7 @@ export interface CapMap {
   "notifications.rules.get": { in: NotificationsRulesGetIn; out: NotificationsRulesGetOut };
   "notifications.rules.set": { in: NotificationsRulesSetIn; out: NotificationsRulesSetOut };
   "notifications.send": { in: NotificationsSendIn; out: NotificationsSendOut };
+  "notifications.unseen_by_thread": { in: NotificationsUnseenByThreadIn; out: NotificationsUnseenByThreadOut };
   "plugins.agent_template.use": { in: PluginsAgentTemplateUseIn; out: PluginsAgentTemplateUseOut };
   "plugins.agent_templates.list": { in: PluginsAgentTemplatesListIn; out: PluginsAgentTemplatesListOut };
   "plugins.allow.list": { in: PluginsAllowListIn; out: PluginsAllowListOut };
@@ -47064,6 +47111,7 @@ export interface CapMap {
   "threads.members.add": { in: ThreadsMembersAddIn; out: ThreadsMembersAddOut };
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
   "threads.move": { in: ThreadsMoveIn; out: ThreadsMoveOut };
+  "threads.open_state": { in: ThreadsOpenStateIn; out: ThreadsOpenStateOut };
   "threads.outside_agent.add": { in: ThreadsOutsideAgentAddIn; out: ThreadsOutsideAgentAddOut };
   "threads.outside_agent.remove": { in: ThreadsOutsideAgentRemoveIn; out: ThreadsOutsideAgentRemoveOut };
   "threads.poke": { in: ThreadsPokeIn; out: ThreadsPokeOut };

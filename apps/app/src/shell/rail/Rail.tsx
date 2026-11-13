@@ -14,8 +14,12 @@ import { PHONE_BAR, phoneMore } from "./kits.ts";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
-/** The rail is one full-height panel, 56 wide (the layout model's number). */
+/** The rail is one full-height panel, 68 wide (the layout model's number): the longest word, Automations, fits under its icon at 10 px. */
 export const RAIL_WIDTH = MODEL_RAIL_WIDTH;
+/** The word under a place's icon, in px (design 2.7). */
+export const RAIL_WORD_PX = 10;
+/** The dot is the accent: coral (--beacon) stays "something is working" (design 2.7). */
+export const RAIL_DOT_COLOR = "var(--accent)";
 /** How long a fresh place's tip stays before it leaves by itself. */
 export const FRESH_TIP_MS = 6000;
 
@@ -203,7 +207,7 @@ function Isle({
         testID="rail-isle-places"
         aria-hidden={!open}
         pointerEvents={open ? "auto" : "none"}
-        style={[styles.islePlaces, ISLE_REVEAL, { maxHeight: open ? entries.length * 44 : 0, opacity: open ? 1 : 0 }]}
+        style={[styles.islePlaces, ISLE_REVEAL, { maxHeight: open ? entries.length * 50 : 0, opacity: open ? 1 : 0 }]}
       >
         {render(entries)}
       </View>
@@ -215,7 +219,7 @@ function Isle({
           aria-expanded={open}
           testID="rail-isle-more"
           onPress={() => setOpen((o) => !o)}
-          style={[styles.button, cur && !open ? styles.on : null]}
+          style={[styles.button, styles.labelled, cur && !open ? styles.on : null]}
           {...sq("tile")}
         >
           <ShellIcon
@@ -224,6 +228,7 @@ function Isle({
             weight={1.15}
             color={cur && !open ? "var(--accent)" : "var(--ink-3)"}
           />
+          <Text style={[styles.word, cur && !open ? styles.wordOn : null]}>{open ? "Fold" : "More"}</Text>
           {waiting && !open ? <View testID="rail-isle-dot" style={styles.dot} /> : null}
         </Pressable>
       </Tooltip>
@@ -326,7 +331,12 @@ function RailButton({
         }}
         onHoverOut={() => setOver(false)}
         onFocus={() => onPrefetch?.()}
-        style={[styles.button, flat ? styles.flat : null, over && !on ? styles.over : null, on ? styles.on : null]}
+        style={[
+          styles.button,
+          flat ? styles.flat : styles.labelled,
+          over && !on ? styles.over : null,
+          on ? styles.on : null,
+        ]}
         {...sq("tile")}
         {...(on ? { "aria-current": "page" as const } : {})}
         {...trigger}
@@ -337,12 +347,15 @@ function RailButton({
           weight={1.15}
           color={on ? "var(--accent)" : over ? "var(--ink)" : "var(--ink-3)"}
         />
+        {flat ? null : <Text style={[styles.word, on ? styles.wordOn : null]}>{entry.title}</Text>}
         {entry.count > 0 ? (
-          <View testID={`rail-count-${entry.place}`} style={styles.count}>
+          <View testID={`rail-count-${entry.place}`} style={[styles.count, flat ? null : styles.countLab]}>
             <Text style={styles.countText}>{entry.count > 99 ? "99+" : entry.count}</Text>
           </View>
         ) : null}
-        {entry.dot ? <View testID={`rail-dot-${entry.place}`} style={styles.dot} /> : null}
+        {entry.dot ? (
+          <View testID={`rail-dot-${entry.place}`} style={[styles.dot, flat ? null : styles.dotLab]} />
+        ) : null}
       </Pressable>
     </Tooltip>
   );
@@ -385,6 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: "var(--accent-wash)" as string,
     ...({ boxShadow: "0 0 0 2px var(--side)" } as object),
   },
+  countLab: { top: 3, right: 9 },
   countText: {
     fontSize: 9.5,
     lineHeight: 14,
@@ -418,6 +432,10 @@ const styles = StyleSheet.create({
   spacer: { flexGrow: 1 },
   button: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   flat: { width: 44, height: 44 },
+  // desktop: the icon with its one word under it (design 2.7: an unlabelled icon is a guess)
+  labelled: { width: 56, height: 46, gap: 3 },
+  word: { fontSize: RAIL_WORD_PX, lineHeight: 12, color: "var(--ink-3)" as string },
+  wordOn: { color: "var(--accent)" as string },
   over: { backgroundColor: "var(--hover)" as string },
   on: { backgroundColor: "var(--accent-wash)" as string },
   fresh: { position: "relative" },
@@ -433,6 +451,7 @@ const styles = StyleSheet.create({
     backgroundColor: "var(--ink)" as string,
   },
   tipText: { fontSize: 12, lineHeight: 16, color: "var(--win)" as string, ...({ whiteSpace: "nowrap" } as object) },
+  dotLab: { top: 7, right: 15 },
   dot: {
     position: "absolute",
     top: 6,
@@ -440,7 +459,7 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "var(--beacon)" as string,
+    backgroundColor: RAIL_DOT_COLOR as string,
     ...({ boxShadow: "0 0 0 2px var(--side)" } as object),
   },
 });

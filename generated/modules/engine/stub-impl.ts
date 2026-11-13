@@ -81,6 +81,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.switch": async () => ({"engine":"example","handoffTurns":1,"model":"example","quietLine":"Switched to Codex, picked up from the summary and the last 20 turns"} as unknown) as never,
   "engine.time_convert": async () => ({"given":"example","inYourZone":"example","instant":"example","note":"example","personZone":"example","zones":[{"text":"example","zone":"example"}]} as unknown) as never,
   "engine.turn.append": async () => ({"idx":1} as unknown) as never,
+  "engine.turn.asked_by": async () => ({"askedBy":{"at":1760000000000,"messageIds":["msg_a1b2c3"],"person":"usr_a1b2c3"},"kind":"message","routine":true} as unknown) as never,
   "engine.turn.enqueue": async () => ({"qseq":1} as unknown) as never,
   "engine.turn.fallback": async () => ({"ok":true} as unknown) as never,
   "engine.turn.finish": async () => ({"turn":{"accountRef":"#Team_Anthropic_Key","agentId":"agt_a1b2c3","asker":"example","costMicros":1,"endedAt":1760000000000,"engine":"example","error":{"code":"example","message":"example","next":[{"kind":"example","label":"example"}],"traceId":"0123456789abcdef0123456789abcdef"},"model":"example","nodeId":"example","ranOn":[{"kind":"computer","name":"Dana's MacBook","note":"Moved from Dana's MacBook because it was busy, 4 of 4 turns running"}],"runId":"run_a1b2c3","startedAt":1760000000000,"state":"queued","threadId":"thr_a1b2c3","tokensIn":1,"tokensOut":1,"traceId":"0123456789abcdef0123456789abcdef","turnId":"trn_a1b2c3"}} as unknown) as never,

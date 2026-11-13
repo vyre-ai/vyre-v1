@@ -45,6 +45,8 @@ export function Switch({ on, onChange, label, disabled = false, labelled = false
     disabled,
     onPress: () => onChange(!on),
     ...keys,
+    // the words of the switch on hover and keyboard focus, through the one tooltip (react-native-web drops a `title` prop on a Pressable, so it goes as data-tt)
+    ...(web && !labelled ? ({ dataSet: { tt: label } } as object) : {}),
   };
   if (!labelled)
     return (

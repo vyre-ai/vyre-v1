@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { Loadable } from "./Loadable.tsx";
+import { CANNOT_READ, Loadable } from "./Loadable.tsx";
+import { RETRY_LOADS_EVENT } from "./Loads.tsx";
 import type { Load } from "./Loadable.tsx";
 
 const failure = { message: "The server did not answer.", code: "internal.error", traceId: "tr_9" };
@@ -147,6 +148,57 @@ test("a refused read is drawn by LoadFailed, not by an error of Loadable's own",
       "drawn by LoadFailed, with its test id, not by a second error of Loadable's own",
     );
   } finally {
+    restore();
+  }
+});
+
+test("a failure that trying again cannot fix shows the words and no Retry", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <Loadable
+        load={{
+          state: "failed",
+          failure: { message: "This Space cannot read that here.", code: CANNOT_READ },
+          retry: () => undefined,
+        }}
+        what="the counts"
+      >
+        {body}
+      </Loadable>,
+    );
+    assert.match(textOf(find(root, "load-failed")), /Couldn't load the counts/);
+    assert.match(textOf(find(root, "load-failed")), /cannot read that here/);
+    assert.equal(find(root, "state-retry"), null, "nothing to retry");
+  } finally {
+    restore();
+  }
+});
+
+test("stale keeps the content and adds one quiet line whose Retry asks the session to read again", async () => {
+  const restore = installDom();
+  const g = globalThis as { dispatchEvent?: unknown; CustomEvent?: unknown };
+  const sent: string[] = [];
+  g.dispatchEvent = (e: { type: string }) => (sent.push(e.type), true);
+  g.CustomEvent = class {
+    type: string;
+    constructor(t: string) {
+      this.type = t;
+    }
+  };
+  try {
+    const load: Load<{ rows: string[] }> = { state: "ready", data: { rows: ["a"] }, stale: failure };
+    const root = await mount(createRoot, <Loadable load={load} what="the rows">{body}</Loadable>);
+    assert.match(textOf(root), /rows:a/);
+    assert.match(textOf(find(root, "load-stale")), /Couldn't refresh/);
+    await press(find(root, "load-stale-retry"));
+    assert.deepEqual(sent, [RETRY_LOADS_EVENT]);
+    const fresh = await mount(createRoot, <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">{body}</Loadable>);
+    assert.equal(find(fresh, "load-stale"), null);
+  } finally {
+    delete g.dispatchEvent;
+    delete g.CustomEvent;
     restore();
   }
 });
