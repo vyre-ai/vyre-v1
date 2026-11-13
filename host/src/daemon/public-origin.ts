@@ -1,3 +1,5 @@
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
+
 // The one answer to "what address do people outside reach this Space at?". Every public link (a form, a booking page, a signed link, an unsubscribe) starts from it.
 // An address the Space was given wins. Otherwise a phone name it holds at the relay is the address: a relay Space has no cfg.address, because claiming <name>.vyre.run only writes network_phone.
 // "Reached through the relay" is a fact about the Space (it holds that phone name at the relay), never a guess from how an address ends: a Space whose address is mla.vyre.run with its DNS pointing straight at its
@@ -60,3 +62,7 @@ export function artifactHostOf(address: string | null | undefined, claimed: stri
     return null;
   return `a.${host}`;
 }
+
+/** What a Space's artifact host answers at /.well-known/vyre-artifact-host: the check that a name reaches this Space and no other server (the daemon's self-check and `vyre-server doctor` both read it). */
+export const artifactMarkerOf = (spaceId: string): string =>
+  `vyre-artifact-host ${sha256Hex(`${spaceId}:vyre-artifact-host`).slice(0, 32)}`;

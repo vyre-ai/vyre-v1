@@ -335,7 +335,7 @@ import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
-import { artifactHostOf as deriveArtifactHost, publicOriginOf } from "./public-origin.ts";
+import { artifactHostOf as deriveArtifactHost, artifactMarkerOf, publicOriginOf } from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -928,7 +928,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let artifactHostRun: Promise<void> | null = null;
   const ARTIFACT_HOST_OK_MS = 10 * 60_000;
   const ARTIFACT_HOST_RETRY_MS = 10_000;
-  const artifactMarker = (): string => sha256Hex(`${space ?? "-"}:vyre-artifact-host`).slice(0, 32);
+  const artifactMarker = (): string => artifactMarkerOf(space ?? "-").slice("vyre-artifact-host ".length);
   const checkArtifactHost = (atStart = false): Promise<void> => {
     if (artifactHostRun) return artifactHostRun;
     const run = (async (): Promise<void> => {

@@ -12,6 +12,7 @@ import type { FetchFn, ProbeResult } from "../platform/probes.ts";
 import { alive, pathsFor, readInfo } from "./config.ts";
 import { NEXT, OK } from "./doctor-next.ts";
 import { openDb } from "./sqlite.ts";
+import { artifactHostOf, artifactMarkerOf } from "./public-origin.ts";
 
 export interface Finding {
   key: string;
@@ -36,6 +37,8 @@ export interface DoctorOptions {
   diskEncrypted?: () => Promise<ProbeResult>;
   /** what the person chose about disk encryption at install */
   diskChoice?: { kind: string; since?: string };
+  /** Ask the Space's artifact address whether it reaches this Space (a request over the internet, so the container health check leaves it off). */
+  artifactAddress?: boolean;
   /** Docker's data root as the host sees it: agent browser sign-ins live in Docker volumes there */
   dockerRoot?: { dir: string; state: string };
 }
@@ -295,6 +298,42 @@ async function ingressFinding(host: string, f: FetchFn | null, adminUrl: string)
   }
 }
 
+/** The Space's own artifact address (a.<address>) must resolve to this server and answer with this Space's marker, or artifact pages cannot open. Says which DNS record to add when it does not. */
+async function artifactAddressFinding(domain: string, spaceId: string, f: FetchFn | null): Promise<Finding | null> {
+  const host = artifactHostOf(domain, null);
+  if (!host) return null;
+  const key = "host.artifact_host";
+  const record = `${host} (an A record to this server's public address, the same as ${domain})`;
+  const next = `Add the DNS record ${record}, then run vyre-server doctor again. The server's own check passes within a minute of it and artifact pages open.`;
+  if (!f) return { key, state: "degraded", detail: `Could not check ${host}: no HTTP client.`, next };
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    timer.unref();
+    const r = await f(`https://${host}/.well-known/vyre-artifact-host`, { signal: ctl.signal }).finally(() =>
+      clearTimeout(timer),
+    );
+    const body = (await r.text()).trim();
+    if (r.ok && body === artifactMarkerOf(spaceId))
+      return { key, state: "healthy", detail: `${host} reaches this Space.`, next: OK };
+    return {
+      key,
+      state: "degraded",
+      detail: r.ok
+        ? `${host} answers, but not as this Space, so artifact pages cannot open.`
+        : `${host} answered ${r.status}, not this Space, so artifact pages cannot open.`,
+      next,
+    };
+  } catch {
+    return {
+      key,
+      state: "degraded",
+      detail: `${host} does not answer (no DNS record or no certificate yet), so artifact pages cannot open.`,
+      next,
+    };
+  }
+}
+
 export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   const platform = o.platform ?? nodePlatform();
   const now = o.now ?? Date.now;
@@ -328,6 +367,22 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     );
     const domain = ownDomain(paths.modules);
     if (domain) findings.push(await ingressFinding(domain, f, o.caddyAdmin ?? "http://127.0.0.1:2019"));
+    if (domain && o.artifactAddress) {
+      let spaceId: string | undefined;
+      try {
+        const db = openDb(paths.events, { readOnly: true });
+        try {
+          spaceId = (db.all("SELECT value FROM log_meta WHERE key = 'space'")[0] as { value?: string } | undefined)
+            ?.value;
+        } finally {
+          db.close();
+        }
+      } catch {
+        /* no readable log: verifyChain says so */
+      }
+      const art = spaceId ? await artifactAddressFinding(domain, spaceId, f) : null;
+      if (art) findings.push(art);
+    }
   }
   findings.push(logsFinding(paths.logs, now()));
   return { ok: findings.every((x) => x.state === "healthy"), dataDir: o.dataDir, findings };
