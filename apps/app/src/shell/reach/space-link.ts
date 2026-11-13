@@ -10,6 +10,9 @@ const ID = /^[A-Za-z0-9_.-]{1,128}$/;
 /** What a kind and id name: the open link's own mapping, else the subject router's (any type a place shows). */
 function ofKind(kind: string, id: string, at?: string): OpenTarget | null {
   if (!KIND.test(kind) || !ID.test(id)) return null;
+  // a knowledge page has a screen of its own (the one the Knowledge list opens when a row is pressed); a computer is a row on the Console's Computers page (the page opens, the row is not picked)
+  if (kind === "knowledge") return { screen: "files.knowledge", args: { v: "page", pageId: id } };
+  if (kind === "machine") return { screen: "console.machines" };
   // a chat with a message named (vyre://thread/<id>?m=<message>) is a message link
   const t = targetOfOpen({
     kind: at && (kind === "thread" || kind === "chat") ? "message" : kind,

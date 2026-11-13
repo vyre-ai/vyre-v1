@@ -74,6 +74,16 @@ const OPENS: [via: string, link: string, expect: unknown][] = [
   ["automation sidebar", "vyre://automation/aut_1", subj("automation", "aut_1")],
   ["note", "vyre://note/not_1", { screen: "chats.notes", args: { noteId: "not_1" } }],
   ["a calendar event result", "vyre://event/evt_1", subj("event", "evt_1")],
+  [
+    "knowledge page Copy link (KnowPage.tsx)",
+    "vyre://knowledge/pg_1",
+    { screen: "files.knowledge", args: { v: "page", pageId: "pg_1" } },
+  ],
+  [
+    "Console Computers, Copy address on a computer (opens the Computers page)",
+    "vyre://machine/srv_1",
+    { screen: "console.machines" },
+  ],
   ["settings result", "vyre://settings/mail", { screen: "settings.page", args: { page: "mail" } }],
   ["the main tab's Copy link on a chat tab", "vyre://chats/subject=thread:thr_1", subj("thread", "thr_1")],
   [
@@ -90,8 +100,6 @@ const OPENS: [via: string, link: string, expect: unknown][] = [
 
 /** Shapes a copy action writes that no page opens, each with why. A new one is a decision, not a silent null. */
 const UNOPENABLE: [via: string, link: string, why: string][] = [
-  ["knowledge page Copy link", "vyre://knowledge/pg_1", "a knowledge page has no subject route"],
-  ["machines list Copy address", "vyre://machine/srv_1", "a machine has no subject route"],
   [
     "the main tab's Copy link on a place with no item",
     "vyre://chats/screen=tasks.my-work",
@@ -146,7 +154,7 @@ const KNOWN_FILES = new Set([
   "apps/app/src/places/chats/mounts/ArtifactView.tsx",
   "apps/app/src/places/chats/mounts/ArtifactsPage.tsx",
 ]);
-const NO_PAGE = new Set(["knowledge", "machine", "settings", "join", "claim", "update", "update-progress", "open"]);
+const NO_PAGE = new Set(["settings", "join", "claim", "update", "update-progress", "open"]);
 
 test("every writer of a link is a file this table knows, and every kind a writer writes opens", () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");

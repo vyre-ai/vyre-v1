@@ -18,3 +18,4 @@
 - Retry after a failed start in a new tab sends exactly the same message and settings as the first try.
 - A link pasted into a new tab also works in the forms the app itself copies: a chat or file address, an artifact address, a "#subject=..." address, and the old desktop addresses that began with tauri://localhost. It opens in that same tab.
 - A pasted link now opens its thing whichever way the app wrote it: from a menu or search ("vyre://chat/...", "vyre://record/..."), from a tab ("vyre://chats/..."), a Settings page link, or an old desktop address.
+- A copied link to a knowledge page now opens that page when pasted into a new tab, and a copied link to a computer opens the Console Computers page.
