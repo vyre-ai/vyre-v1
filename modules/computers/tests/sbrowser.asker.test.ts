@@ -44,6 +44,8 @@ test("who has a place of their own: everyone but the agent's owner, a person's A
   );
   assert.equal(hasOwnPlace(dex, AG, undefined), false, "a turn for nobody");
   assert.equal(hasOwnPlace(dex, AG, AG), false, "the agent itself");
+  assert.equal(hasOwnPlace(dex, AG, "svc_host"), false, "the server and a service are never a person");
+  assert.equal(hasOwnPlace(dex, AG, "act_outside"), false, "nor an outside actor");
   assert.equal(hasOwnPlace({ ownerId: MAYA, kind: "assistant" }, AG, ANA), false);
   assert.equal(hasOwnPlace({ ownerId: MAYA, kind: "agent", runtime: "outside" }, AG, ANA), false);
   assert.equal(hasOwnPlace({ kind: "agent" }, AG, ANA), false, "owner unknown: nothing changes");
